@@ -1,6 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
+import Link from "next/link";
+import { routePaths } from "@/app-layer/routes/paths";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { PatientDurationHmWheels } from "@/shared/ui/patient/PatientDurationHmWheels";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -351,8 +353,14 @@ export function ReminderScheduleForm({
       )}
 
       {deliveryNote ? (
-        <div className={cn(reminderScheduleSettingPanelClass, "gap-2")}>
+        <div className={cn(reminderScheduleSettingPanelClass, "gap-3")}>
           <p className="text-sm text-muted-foreground">{deliveryNote}</p>
+          <Link
+            href={routePaths.notifications}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full sm:w-auto")}
+          >
+            Настроить каналы доставки
+          </Link>
         </div>
       ) : null}
 

@@ -96,9 +96,9 @@ function segmentBetween(
 }
 
 /**
- * Линия по всем instant-отметкам; обрезка по «Сейчас»; пунктир только:
- * - от левого края до первой отметки, если в прошлое воскресенье не было отметок;
- * - от последней вчерашней точки до отсечки «Сейчас», если сегодня ещё нет оценки.
+ * Линия по instant-отметкам; всегда обрезается по вертикали «Сейчас» (nowX).
+ * Пунктир только: lead без вс; хвост до nowX, если сегодня нет оценки.
+ * Если сегодня была оценка — сплошной хвост от последней сегодняшней точки до nowX.
  */
 export function buildPatientHomeWellbeingWeekStripChart(
   input: BuildHomeWellbeingStripChartInput,
@@ -162,30 +162,42 @@ export function buildPatientHomeWellbeingWeekStripChart(
     );
   }
 
-  if (!hasMarkToday) {
-    const yesterdayIso = DateTime.fromISO(todayIso, { zone: timeZone }).minus({ days: 1 }).toISODate();
-    let tailFrom: StripPoint | null = null;
-    const sortedMarks = [...marks].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+  const sortedMarks = [...marks].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+
+  const lastMarkPointForDay = (dayIso: string): StripPoint | null => {
     for (let i = sortedMarks.length - 1; i >= 0; i -= 1) {
       const m = sortedMarks[i]!;
       const localD = DateTime.fromISO(m.recordedAt, { zone: "utc" }).setZone(timeZone).toISODate();
-      if (localD === yesterdayIso) {
-        tailFrom = {
+      if (localD === dayIso) {
+        return {
           x: weekStripTimeToX(new Date(m.recordedAt).getTime(), weekStartMs, weekEndMs),
           y: yForWellbeingStripScore(m.score),
           score: m.score,
         };
-        break;
       }
     }
-    if (!tailFrom) {
-      tailFrom = clippedMarks[clippedMarks.length - 1]!;
-    }
-    if (tailFrom.x < nowX - 1e-6) {
-      segments.push(
-        segmentBetween("tail-now", tailFrom, { x: nowX, y: tailFrom.y, score: tailFrom.score }, "dashed"),
-      );
-    }
+    return null;
+  };
+
+  const appendTailToNow = (tailFrom: StripPoint, kind: "solid" | "dashed") => {
+    if (tailFrom.x >= nowX - 1e-6) return;
+    segments.push(
+      segmentBetween(
+        "tail-now",
+        tailFrom,
+        { x: nowX, y: tailFrom.y, score: tailFrom.score },
+        kind,
+      ),
+    );
+  };
+
+  if (!hasMarkToday) {
+    const yesterdayIso = DateTime.fromISO(todayIso, { zone: timeZone }).minus({ days: 1 }).toISODate();
+    const tailFrom = lastMarkPointForDay(yesterdayIso ?? "") ?? clippedMarks[clippedMarks.length - 1]!;
+    appendTailToNow(tailFrom, "dashed");
+  } else {
+    const tailFrom = lastMarkPointForDay(todayIso) ?? clippedMarks[clippedMarks.length - 1]!;
+    appendTailToNow(tailFrom, "solid");
   }
 
   return { segments, nowX };

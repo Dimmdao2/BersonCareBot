@@ -294,8 +294,6 @@ export function ReminderRulesClient({
   warmupsSectionTitle = "Разминки",
   rehabRuleForBlock = null,
   warmupRuleForBlock = null,
-  rehabBlockStats = null,
-  warmupBlockStats = null,
   calendarDateKey = "",
   patientCalendarDayIana = "Europe/Moscow",
 }: {
@@ -307,8 +305,6 @@ export function ReminderRulesClient({
   warmupsSectionTitle?: string;
   rehabRuleForBlock?: ReminderRule | null;
   warmupRuleForBlock?: ReminderRule | null;
-  rehabBlockStats?: { done: number; skipped: number; snoozed: number } | null;
-  warmupBlockStats?: { done: number; skipped: number; snoozed: number } | null;
   calendarDateKey?: string;
   patientCalendarDayIana?: string;
 }) {
@@ -533,22 +529,6 @@ export function ReminderRulesClient({
           {rehabRuleForBlock ? (
             <div className="space-y-2">
               <p className="text-xs text-[var(--patient-text-primary)]">{formatScheduleSummary(rehabRuleForBlock)}</p>
-              {rehabBlockStats ? (
-                <div className={cn(patientMutedTextClass, "flex flex-wrap gap-2 text-xs")}>
-                  <span>
-                    <span className="font-medium text-[var(--patient-text-primary)]">{rehabBlockStats.done}</span> выполнено
-                  </span>
-                  <span>
-                    <span className="font-medium text-[var(--patient-text-primary)]">{rehabBlockStats.skipped}</span> пропущено
-                  </span>
-                  <span>
-                    <span className="font-medium text-[var(--patient-text-primary)]">{rehabBlockStats.snoozed}</span> отложено
-                  </span>
-                  <Badge variant="outline" className="font-normal">
-                    за 30 дней
-                  </Badge>
-                </div>
-              ) : null}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm text-[var(--patient-text-primary)]">Включено</span>
                 <Switch
@@ -608,22 +588,6 @@ export function ReminderRulesClient({
           {warmupRuleForBlock ? (
             <div className="space-y-2">
               <p className="text-xs text-[var(--patient-text-primary)]">{formatScheduleSummary(warmupRuleForBlock)}</p>
-              {warmupBlockStats ? (
-                <div className={cn(patientMutedTextClass, "flex flex-wrap gap-2 text-xs")}>
-                  <span>
-                    <span className="font-medium text-[var(--patient-text-primary)]">{warmupBlockStats.done}</span> выполнено
-                  </span>
-                  <span>
-                    <span className="font-medium text-[var(--patient-text-primary)]">{warmupBlockStats.skipped}</span> пропущено
-                  </span>
-                  <span>
-                    <span className="font-medium text-[var(--patient-text-primary)]">{warmupBlockStats.snoozed}</span> отложено
-                  </span>
-                  <Badge variant="outline" className="font-normal">
-                    за 30 дней
-                  </Badge>
-                </div>
-              ) : null}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm text-[var(--patient-text-primary)]">Включено</span>
                 <Switch

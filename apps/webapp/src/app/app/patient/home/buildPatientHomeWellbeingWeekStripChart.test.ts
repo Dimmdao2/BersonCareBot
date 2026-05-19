@@ -16,27 +16,26 @@ describe("buildPatientHomeWellbeingWeekStripChart", () => {
   });
 
   it("connects all marks in time order with solid segments (no dashed gap days)", () => {
-    const wednesday = DateTime.fromObject({ year: 2026, month: 5, day: 20, hour: 12 }, { zone: tz });
-    vi.setSystemTime(wednesday.toMillis());
+    const thursday = DateTime.fromObject({ year: 2026, month: 5, day: 21, hour: 12 }, { zone: tz });
+    vi.setSystemTime(thursday.toMillis());
     const { segments } = buildPatientHomeWellbeingWeekStripChart({
       marks: [
         { recordedAt: DateTime.fromISO("2026-05-18T09:00:00", { zone: tz }).toUTC().toISO()!, score: 3 },
         { recordedAt: DateTime.fromISO("2026-05-20T10:00:00", { zone: tz }).toUTC().toISO()!, score: 5 },
       ],
       timeZone: tz,
-      todayIso: "2026-05-20",
+      todayIso: "2026-05-21",
       weekMondayIso: "2026-05-18",
-      nowMs: wednesday.toMillis(),
+      nowMs: thursday.toMillis(),
       previousSundayHadMarks: false,
       previousSundayLastScore: null,
       lastScoreBeforeWeek: null,
     });
     const dashed = segments.filter((s) => s.kind === "dashed");
     const solid = segments.filter((s) => s.kind === "solid");
-    expect(dashed).toHaveLength(1);
-    expect(dashed[0]!.key).toBe("lead");
-    expect(solid).toHaveLength(1);
-    expect(solid[0]!.key).toBe("solid-0");
+    expect(dashed.some((s) => s.key === "lead")).toBe(true);
+    expect(solid.some((s) => s.key === "solid-0")).toBe(true);
+    expect(solid.every((s) => s.key !== "tail-now" || s.kind === "solid")).toBe(true);
   });
 
   it("clips line at nowX and draws dashed tail when today has no marks", () => {
@@ -60,6 +59,28 @@ describe("buildPatientHomeWellbeingWeekStripChart", () => {
     expect(tail).toBeDefined();
     expect(tail!.kind).toBe("dashed");
     expect(tail!.x1).toBeCloseTo(nowX, 0);
+  });
+
+  it("extends solid tail to nowX when there is a mark today", () => {
+    const friday = DateTime.fromObject({ year: 2026, month: 5, day: 22, hour: 10 }, { zone: tz });
+    vi.setSystemTime(friday.toMillis());
+    const { segments, nowX } = buildPatientHomeWellbeingWeekStripChart({
+      marks: [
+        { recordedAt: DateTime.fromISO("2026-05-22T08:00:00", { zone: tz }).toUTC().toISO()!, score: 3 },
+      ],
+      timeZone: tz,
+      todayIso: "2026-05-22",
+      weekMondayIso: "2026-05-18",
+      nowMs: friday.toMillis(),
+      previousSundayHadMarks: false,
+      previousSundayLastScore: null,
+      lastScoreBeforeWeek: null,
+    });
+    const tail = segments.find((s) => s.key === "tail-now");
+    expect(tail).toBeDefined();
+    expect(tail!.kind).toBe("solid");
+    expect(tail!.x1).toBeCloseTo(nowX, 0);
+    expect(tail!.x1).toBeLessThan(HOME_WELLBEING_STRIP_CHART_WIDTH);
   });
 
   it("uses solid bridge from Sunday when previousSundayHadMarks", () => {

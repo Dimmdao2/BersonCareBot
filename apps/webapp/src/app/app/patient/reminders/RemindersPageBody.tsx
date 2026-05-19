@@ -190,16 +190,6 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
         warmupsSectionTitle={warmupsSectionTitle}
         rehabRuleForBlock={rehabRuleForBlock}
         warmupRuleForBlock={warmupRuleForBlock}
-        rehabBlockStats={
-          rehabRuleForBlock
-            ? journalStats[rehabRuleForBlock.id] ?? { done: 0, skipped: 0, snoozed: 0 }
-            : null
-        }
-        warmupBlockStats={
-          warmupRuleForBlock
-            ? journalStats[warmupRuleForBlock.id] ?? { done: 0, skipped: 0, snoozed: 0 }
-            : null
-        }
         calendarDateKey={calendarDateKey}
         patientCalendarDayIana={patientCalendarDayIana}
       />
