@@ -26,7 +26,7 @@
 - **`AuthFlowV2`:** компактные шаги без дублирующих заголовков «Вход» и без лишних вводных. В браузере: **`oauth_first`** или сразу **`email_password`**; **`phone`** / `choose_channel` / `code` — для Mini App или редких чужеземных кейсов после `check-phone`; `new_user_foreign` / `foreign_no_otp_channel` при необходимости.
 - **Patient-оформление:** контент шага в **`patientCardClass` + `patientInnerPageStackClass`** (`max-w-sm`, центрирование для OAuth / email форм и Mini App-потока). Кнопки OAuth и формы — **`shared/ui/auth/loginChrome.ts`**. **`InternationalPhoneInput`** и submit в **`OtpCodeForm`** — основная CTA по ширине карточки на шагах **`phone`/`code`**.
 - **`ChannelPicker`:** без вводной строки над кнопкой — сразу основной канал и при необходимости «Другие способы».
-- **Профиль (`PatientProfileHero`):** смена номера через `PatientBindPhoneClient` как на **`bind-phone`**; при отсутствии Telegram/MAX — блок **`PatientBrowserMessengerBindPanel`** (`variant="notifications"`) только для связи и уведомлений.
+- **Профиль:** смена номера в hero через `PatientBindPhoneClient` как на **`bind-phone`**; привязка Telegram/MAX — секция «Мессенджеры» с **`ConnectMessengersBlock`** (`grid-cols-2`). На **`bind-phone`** без мессенджеров — **`PatientBrowserMessengerBindPanel`**.
 
 - **`OTP_PUBLIC_OTHER_CHANNELS_ORDER`** (**max** → **email** → **telegram**) и отсутствие **sms** для публичного веба относятся к входу через **Mini App / phone** или к редким веткам после `check-phone`, не к основному браузерному `/app`.
 

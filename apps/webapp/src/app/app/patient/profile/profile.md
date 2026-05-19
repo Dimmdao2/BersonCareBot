@@ -4,13 +4,12 @@
 
 ## Структура
 
-1. **Hero** — ФИО (`InlineEditField`), телефон (привязка / изменение через Telegram или Max).
-2. **Email** — `EmailAccountPanel` (привязка и подтверждение по OTP).
-3. **Мессенджеры** — `ConnectMessengersBlock` (Telegram / MAX).
-4. **Подписки на уведомления** — одна строка-ссылка на `/app/patient/notifications`.
-5. **Календарный пояс (UTC / IANA)** — `PatientCalendarTimezoneSection` (всегда видимая секция под уведомлениями).
-6. **Удаление данных дневника** — согласие → OTP на привязанный номер.
-7. **Выход** — форма POST `/api/auth/logout` (не показывается в контексте бота).
+1. **Hero** — ФИО (`InlineEditField`), телефон (привязка / изменение через Telegram или Max), email (`EmailAccountPanel`).
+2. **Мессенджеры** — всегда `ConnectMessengersBlock` (Telegram / MAX, сетка 2 колонки).
+3. **Подписки на уведомления** — одна строка-ссылка на `/app/patient/notifications`.
+4. **Календарный пояс (UTC / IANA)** — `PatientCalendarTimezoneSection` (всегда видимая секция под уведомлениями).
+5. **Удаление данных дневника** — согласие → OTP на привязанный номер.
+6. **Выход** — форма POST `/api/auth/logout` (не показывается в контексте бота).
 
 Server action `updateDisplayName` обновляет `platform_users.display_name` через `userProjection`.
 

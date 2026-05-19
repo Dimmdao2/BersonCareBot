@@ -46,12 +46,18 @@ export function PatientPlanTodayRemindersCard({
       onOpenChange={setScheduleOpen}
       className="flex min-w-0 w-full flex-col gap-0"
     >
-      <div className="flex min-w-0 w-full flex-row items-start gap-2">
+      <div
+        className={cn(
+          "flex min-w-0 w-full",
+          trailingAccessory ? "flex-row items-start gap-2" : "",
+        )}
+      >
         <CollapsibleTrigger
           type="button"
           className={cn(
             scheduleCardChrome,
-            "flex min-h-0 min-w-0 flex-1 items-center justify-between gap-2 px-3 py-2 text-left outline-none",
+            "flex min-h-0 min-w-0 items-center justify-between gap-2 px-3 py-2 text-left outline-none",
+            trailingAccessory ? "flex-1" : "w-full",
             "ring-offset-background focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2",
             scheduleOpen && "rounded-b-none border-b-transparent shadow-none",
           )}

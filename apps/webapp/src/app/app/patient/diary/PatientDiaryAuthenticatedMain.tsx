@@ -6,8 +6,10 @@ import {
   patientSectionSurfaceClass,
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
+import { PatientPlanTodayRemindersCard } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
 import { DiaryTabsClient } from "./DiaryTabsClient";
 import { PatientWarmupWeekImpactBanner } from "@/modules/diaries/components/PatientWarmupWeekImpactBanner";
+import { buildDiaryPlanReminderStrip } from "@/modules/patient-diary/buildDiaryPlanReminderStrip";
 import { PatientWellbeingWeekChart } from "@/modules/diaries/components/PatientWellbeingWeekChart";
 import { loadPatientDiaryWeekWellbeing } from "@/modules/diaries/loadPatientDiaryWeekWellbeing";
 import { loadPatientDiaryWeekActivity } from "@/modules/patient-diary/loadPatientDiaryWeekActivity";
@@ -22,14 +24,17 @@ const EMPTY_STATS =
 export async function PatientDiaryAuthenticatedMain({
   userId,
   week,
+  canViewAuthOnlyContent,
 }: {
   userId: string;
   /** Сырой query `week` (YYYY-MM-DD); парсинг и clamp — в {@link loadPatientDiaryWeekWellbeing}. */
   week?: string;
+  canViewAuthOnlyContent: boolean;
 }) {
   const deps = buildAppDeps();
 
-  const wellbeing = await loadPatientDiaryWeekWellbeing(
+  const [wellbeing, planReminderStrip] = await Promise.all([
+    loadPatientDiaryWeekWellbeing(
     {
       diaries: deps.diaries,
       patientDiarySnapshots: deps.patientDiarySnapshots,
@@ -38,7 +43,9 @@ export async function PatientDiaryAuthenticatedMain({
       getAppDisplayTimeZone,
     },
     { userId, week },
-  );
+    ),
+    buildDiaryPlanReminderStrip(deps, userId, canViewAuthOnlyContent),
+  ]);
 
   const activity = await loadPatientDiaryWeekActivity(
     {
@@ -83,6 +90,7 @@ export async function PatientDiaryAuthenticatedMain({
 
   const diaryMain = (
     <>
+      <PatientPlanTodayRemindersCard {...planReminderStrip} />
       <PatientDiaryWeekNavStrip nav={wellbeing.weekNav} />
       {wellbeingMvpSingle}
       <PatientDiaryWarmupWeekBars weekDayLabels={weekDayLabels} days={activity.warmupDays} />

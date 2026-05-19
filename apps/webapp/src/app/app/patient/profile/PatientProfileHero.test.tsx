@@ -15,10 +15,6 @@ vi.mock("@/app/app/patient/bind-phone/PatientBindPhoneClient", () => ({
   ),
 }));
 
-vi.mock("@/app/app/patient/bind-phone/PatientBrowserMessengerBindPanel", () => ({
-  PatientBrowserMessengerBindPanel: () => <div data-testid="profile-messenger-bind-panel">bind</div>,
-}));
-
 describe("PatientProfileHero", () => {
   it("shows messenger bind flow when editing phone (no SMS / BindPhoneBlock)", async () => {
     const user = userEvent.setup();
@@ -41,21 +37,5 @@ describe("PatientProfileHero", () => {
     expect(screen.getByTestId("patient-bind-phone-client")).toBeInTheDocument();
     expect(screen.getByTestId("patient-bind-phone-client").textContent).toContain("SMS в профиле не используется");
     expect(screen.queryByText(/кодом из SMS/i)).not.toBeInTheDocument();
-  });
-
-  it("shows browser messenger bind in hero when Telegram and MAX are not linked", () => {
-    render(
-      <PatientProfileHero
-        displayName="Test"
-        phone="+79991234567"
-        telegramId=""
-        maxId=""
-        supportContactHref="https://support.example"
-        fallbackDisplayName="."
-        initialEmail={null}
-        emailVerified={false}
-      />,
-    );
-    expect(screen.getByTestId("profile-messenger-bind-panel")).toBeInTheDocument();
   });
 });

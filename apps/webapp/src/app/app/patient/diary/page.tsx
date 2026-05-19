@@ -13,6 +13,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { AppShell } from "@/shared/ui/AppShell";
 import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
+import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { PatientDiaryAuthenticatedMain } from "./PatientDiaryAuthenticatedMain";
 
 type PageProps = {
@@ -39,11 +40,16 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
   const sp = searchParams != null ? await searchParams : {};
   const weekRaw = sp.week;
   const week = Array.isArray(weekRaw) ? weekRaw[0] : weekRaw;
+  const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(s);
 
   return (
     <AppShell title="Дневник" user={s.user} backHref="/app/patient" backLabel="Меню" variant="patient">
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
-        <PatientDiaryAuthenticatedMain userId={s.user.userId} week={week} />
+        <PatientDiaryAuthenticatedMain
+          userId={s.user.userId}
+          week={week}
+          canViewAuthOnlyContent={canViewAuthOnlyContent}
+        />
       </Suspense>
     </AppShell>
   );

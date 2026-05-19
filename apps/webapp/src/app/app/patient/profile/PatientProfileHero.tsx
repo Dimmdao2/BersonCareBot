@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { startTransition, Suspense, useEffect, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PatientBindPhoneClient } from "@/app/app/patient/bind-phone/PatientBindPhoneClient";
-import { PatientBrowserMessengerBindPanel } from "@/app/app/patient/bind-phone/PatientBrowserMessengerBindPanel";
 import { InlineEditField } from "@/shared/ui/InlineEditField";
 import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
 import {
@@ -127,10 +126,6 @@ export function PatientProfileHero({
             </div>
           ) : null}
         </div>
-
-        {!telegramId.trim() && !maxId.trim() ?
-          <PatientBrowserMessengerBindPanel variant="notifications" supportContactHref={supportContactHref} />
-        : null}
 
         <EmailAccountPanel
           initialEmail={initialEmail}
