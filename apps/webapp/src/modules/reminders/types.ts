@@ -21,7 +21,7 @@ export type ReminderIntent = "warmup" | "exercises" | "stretch" | "generic";
 export type ReminderRule = {
   /** integrator_rule_id (string, managed by integrator / webapp create) */
   id: string;
-  integratorUserId: string;
+  integratorUserId: string | null;
   category: ReminderCategory;
   enabled: boolean;
   intervalMinutes: number | null;

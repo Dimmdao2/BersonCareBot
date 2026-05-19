@@ -38,7 +38,7 @@
 
 4. **Timezone-bug в интеграционных сообщениях/напоминаниях**
 - В `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` используется `toLocaleString("ru-RU")` без `timeZone`.
-- Форматирование идет в timezone хоста, а не в бизнес-таймзоне слота/клиники.
+- Форматирование идет в timezone хоста, а не в бизнес-таймзоне слота/специалиста.
 - Последствие: пациент/врач могут получать неверное локальное время в `booking.created`, `booking.cancelled`, 24h/2h reminders.
 
 ### Medium

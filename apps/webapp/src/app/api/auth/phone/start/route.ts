@@ -74,7 +74,7 @@ export async function POST(request: Request) {
         {
           ok: false,
           error: "sms_disabled_by_policy",
-          message: "Отправка SMS отключена в настройках клиники.",
+          message: "Отправка SMS отключена в настройках приложения.",
         },
         { status: 403 },
       );

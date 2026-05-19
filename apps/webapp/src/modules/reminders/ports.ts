@@ -8,7 +8,7 @@ import type { SlotsV1ScheduleData } from "./scheduleSlots";
 
 export type ReminderRuleCreateInput = {
   platformUserId: string;
-  integratorUserId: string;
+  integratorUserId: string | null;
   linkedObjectType: ReminderLinkedObjectType;
   linkedObjectId: string | null;
   customTitle: string | null;

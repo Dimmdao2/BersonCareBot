@@ -31,7 +31,7 @@ export const routePaths = {
   bookingNewService: "/app/patient/booking/new/service",
   bookingNewSlot: "/app/patient/booking/new/slot",
   bookingNewConfirm: "/app/patient/booking/new/confirm",
-  /** Адрес кабинета (iframe сайта клиники). */
+  /** Адрес кабинета (iframe сайта специалиста). */
   patientAddress: "/app/patient/address",
   profile: "/app/patient/profile",
   notifications: "/app/patient/notifications",

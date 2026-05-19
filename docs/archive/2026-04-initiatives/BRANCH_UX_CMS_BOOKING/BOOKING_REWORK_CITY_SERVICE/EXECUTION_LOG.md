@@ -1052,7 +1052,7 @@
 ### TZ.T03 — Integrator `scheduleNormalizer`: настенное время Rubitime vs `Date.UTC`
 
 - **Симптом:** расхождение времени слотов с Rubitime (в т.ч. после явного MSK в UI): ответ `api2/get-schedule` интерпретировался неверно.
-- **Причина:** в **`buildIsoSlot`** время `HH:MM` из Rubitime собиралось через **`Date.UTC`**, т.е. настенные часы клиники ошибочно трактовались как UTC; в ответ отдавались строки без `Z`, и `new Date(...)` в разных средах давал разный instant.
+- **Причина:** в **`buildIsoSlot`** время `HH:MM` из Rubitime собиралось через **`Date.UTC`**, т.е. настенные часы специалиста ошибочно трактовались как UTC; в ответ отдавались строки без `Z`, и `new Date(...)` в разных средах давал разный instant.
 - **Правка:** трактовка настенного времени как **MSK `+03:00`**, согласовано с webapp **`bookingM2mApi`** (`DEFAULT_SLOT_TZ`); **`startAt` / `endAt`** — полноценный **ISO UTC (`…Z`)** через `toISOString()`.
 - **Файлы:** `apps/integrator/src/integrations/rubitime/scheduleNormalizer.ts`, `scheduleNormalizer.test.ts` (ожидания обновлены под UTC-instant).
 

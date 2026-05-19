@@ -718,7 +718,7 @@ export function ReminderRulesClient({
 
       {showEmptyHint ? (
         <p className={cn(patientMutedTextClass, "py-4 text-center")}>
-          Пока нет напоминаний. Добавьте своё или дождитесь настроек клиники.
+          Пока нет напоминаний.
         </p>
       ) : null}
 
@@ -726,7 +726,7 @@ export function ReminderRulesClient({
         <>
           <h2 className="mb-2 mt-4 text-sm font-semibold text-[var(--patient-text-primary)]">Системные уведомления</h2>
           <p className={cn(patientMutedTextClass, "mb-3 text-xs")}>
-            Напоминания по типам сообщений клиники. Расписание можно настроить под себя.
+            Напоминания по типам событий. Расписание можно настроить под себя.
           </p>
           {legacyRules.map((r) => (
             <LegacyCategoryRuleCard key={r.id} rule={r} />

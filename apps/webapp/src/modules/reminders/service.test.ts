@@ -7,6 +7,7 @@ import {
   validateReminderDispatchPayload,
 } from "./service";
 import { DEFAULT_REHAB_DAILY_SLOTS } from "./scheduleSlots";
+import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import type { ReminderRule } from "./types";
 
 const makeRule = (overrides: Partial<ReminderRule> = {}): ReminderRule => ({
@@ -34,6 +35,28 @@ const makeRule = (overrides: Partial<ReminderRule> = {}): ReminderRule => ({
   notificationTopicCode: "exercise_reminders",
   updatedAt: new Date().toISOString(),
   ...overrides,
+});
+
+const makeWebPushSubscriptionsPort = (active: boolean): WebPushSubscriptionsPort => ({
+  saveSubscription: vi.fn(async () => {}),
+  removeSubscriptionByEndpoint: vi.fn(async () => {}),
+  removeSubscriptionsForUser: vi.fn(async () => {}),
+  hasAnyForUserId: vi.fn(async () => active),
+  listActiveByUserId: vi.fn(async () =>
+    active
+      ? [
+          {
+            endpoint: "https://push.example/subscription",
+            expirationTime: null,
+            keys: {
+              p256dh: "p256dh",
+              auth: "auth",
+            },
+          },
+        ]
+      : [],
+  ),
+  deleteByEndpointIfExists: vi.fn(async () => false),
 });
 
 describe("reminders service", () => {
@@ -290,6 +313,53 @@ describe("reminders service", () => {
       expect(res.ok).toBe(false);
     });
 
+    it("creates object reminder without integrator user when active Web Push subscription exists", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      vi.spyOn(port, "resolveIntegratorUserId").mockResolvedValue(null);
+      const notify = vi.fn().mockResolvedValue(undefined);
+      const svc = createRemindersService(port, {
+        notifyIntegrator: notify,
+        webPushSubscriptions: makeWebPushSubscriptionsPort(true),
+      });
+
+      const res = await svc.createObjectReminder("user-1", {
+        linkedObjectType: "lfk_complex",
+        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        schedule: {
+          intervalMinutes: 60,
+          windowStartMinute: 480,
+          windowEndMinute: 1200,
+          daysMask: "1111111",
+        },
+      });
+
+      expect(res.ok).toBe(true);
+      if (res.ok) expect(res.data.integratorUserId).toBeNull();
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it("returns not_found for object reminder without integrator user and without Web Push subscription", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      vi.spyOn(port, "resolveIntegratorUserId").mockResolvedValue(null);
+      const svc = createRemindersService(port, {
+        webPushSubscriptions: makeWebPushSubscriptionsPort(false),
+      });
+
+      const res = await svc.createObjectReminder("user-1", {
+        linkedObjectType: "lfk_complex",
+        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        schedule: {
+          intervalMinutes: 60,
+          windowStartMinute: 480,
+          windowEndMinute: 1200,
+          daysMask: "1111111",
+        },
+      });
+
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toBe("not_found");
+    });
+
     it("fills DEFAULT_REHAB_DAILY_SLOTS when rehab_program uses slots_v1 without scheduleData", async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);
@@ -370,6 +440,52 @@ describe("reminders service", () => {
         },
       });
       expect(res.ok).toBe(false);
+    });
+
+    it("creates custom reminder without integrator user when active Web Push subscription exists", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      vi.spyOn(port, "resolveIntegratorUserId").mockResolvedValue(null);
+      const notify = vi.fn().mockResolvedValue(undefined);
+      const svc = createRemindersService(port, {
+        notifyIntegrator: notify,
+        webPushSubscriptions: makeWebPushSubscriptionsPort(true),
+      });
+
+      const res = await svc.createCustomReminder("user-1", {
+        customTitle: "Пить воду",
+        customText: "Стакан утром",
+        schedule: {
+          intervalMinutes: 120,
+          windowStartMinute: 0,
+          windowEndMinute: 720,
+          daysMask: "1111100",
+        },
+      });
+
+      expect(res.ok).toBe(true);
+      if (res.ok) expect(res.data.integratorUserId).toBeNull();
+      expect(notify).not.toHaveBeenCalled();
+    });
+
+    it("returns not_found for custom reminder without integrator user and without Web Push subscription", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      vi.spyOn(port, "resolveIntegratorUserId").mockResolvedValue(null);
+      const svc = createRemindersService(port, {
+        webPushSubscriptions: makeWebPushSubscriptionsPort(false),
+      });
+
+      const res = await svc.createCustomReminder("user-1", {
+        customTitle: "Пить воду",
+        schedule: {
+          intervalMinutes: 120,
+          windowStartMinute: 0,
+          windowEndMinute: 720,
+          daysMask: "1111100",
+        },
+      });
+
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toBe("not_found");
     });
   });
 

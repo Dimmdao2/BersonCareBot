@@ -298,6 +298,7 @@ const reminderJournalPort = !inMemoryRepos ? createPgReminderJournalPort() : und
 const remindersService = createRemindersService(reminderRulesPort, {
   notifyIntegrator: notifyIntegratorRuleUpdated,
   journal: reminderJournalPort,
+  webPushSubscriptions: webPushSubscriptionsPort,
 });
 const appointmentProjectionPort = !inMemoryRepos
   ? createPgAppointmentProjectionPort()

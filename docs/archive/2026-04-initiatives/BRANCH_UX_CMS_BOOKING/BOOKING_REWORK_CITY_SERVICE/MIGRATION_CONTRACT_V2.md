@@ -10,7 +10,7 @@
 
 ### 1.1. `booking_cities`
 
-Города присутствия клиники.
+Города присутствия специалиста.
 
 ```sql
 CREATE TABLE booking_cities (

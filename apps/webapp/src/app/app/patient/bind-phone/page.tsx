@@ -57,7 +57,7 @@ export default async function BindPhonePage({ searchParams }: Props) {
 
   const hint =
     reason === "oauth_phone_required"
-      ? "Номер полезен для записи на приём и связи клиники. Для входа в кабинет он не обязателен."
+      ? "Номер необходим для записи на приём. Для входа в кабинет он не обязателен."
       : undefined;
 
   return (

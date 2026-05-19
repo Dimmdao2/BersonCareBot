@@ -81,7 +81,7 @@ export function MarketingHomeLanding({ installSlot }: MarketingHomeLandingProps)
               />
             </div>
             <div className="min-w-0 flex-1 text-sm leading-relaxed text-[#374151]">
-              <p>Практикующий реабилитолог Дмитрий Берсон. Подробнее — на сайте клиники.</p>
+              <p>Практикующий реабилитолог Дмитрий Берсон. Подробнее — на сайте специалиста.</p>
               <p className="mt-4">
                 <a
                   href="https://dmitryberson.ru"

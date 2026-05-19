@@ -1,5 +1,6 @@
 import type { ReminderDoneDayStats, ReminderJournalPort } from "./reminderJournalPort";
 import type { ReminderRulesPort } from "./ports";
+import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import type {
   ReminderCategory,
   ReminderLinkedObjectType,
@@ -79,6 +80,7 @@ type ServiceResult<T> =
 export type RemindersServiceDeps = {
   notifyIntegrator?: (rule: ReminderRule) => Promise<void>;
   journal?: ReminderJournalPort;
+  webPushSubscriptions?: WebPushSubscriptionsPort;
 };
 
 function validateSchedule(s: ReminderUpdateSchedule): string | null {
@@ -126,6 +128,15 @@ async function reloadRule(port: ReminderRulesPort, platformUserId: string, ruleI
 }
 
 export function createRemindersService(port: ReminderRulesPort, deps?: RemindersServiceDeps) {
+  async function hasNotificationChannel(platformUserId: string): Promise<boolean> {
+    // If Web Push port is unavailable, Web Push cannot satisfy the notification-channel gate.
+    if (!deps?.webPushSubscriptions) {
+      return false;
+    }
+    const subscriptions = await deps.webPushSubscriptions.listActiveByUserId(platformUserId);
+    return subscriptions.length > 0;
+  }
+
   /** true = синхронизация ок или не настроена; false = relay пытались, но ошибка. */
   async function tryNotifyIntegrator(rule: ReminderRule): Promise<boolean> {
     if (!deps?.notifyIntegrator) return true;
@@ -313,7 +324,9 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       if (qErr) return { ok: false, error: qErr };
 
       const integratorUserId = await port.resolveIntegratorUserId(platformUserId);
-      if (!integratorUserId) return { ok: false, error: "not_found" };
+      const hasWebPush = await hasNotificationChannel(platformUserId);
+      // Allow creation if has bot linking OR has web push subscription
+      if (!integratorUserId && !hasWebPush) return { ok: false, error: "not_found" };
 
       if (scheduleType === "slots_v1") {
         let sdInput: SlotsV1ScheduleData | null | undefined = params.scheduleData ?? null;
@@ -343,7 +356,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           quietHoursStartMinute: params.quietHoursStartMinute ?? null,
           quietHoursEndMinute: params.quietHoursEndMinute ?? null,
         });
-        const syncOk = await tryNotifyIntegrator(rule);
+        const syncOk = integratorUserId ? await tryNotifyIntegrator(rule) : true;
         return {
           ok: true,
           data: rule,
@@ -368,7 +381,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         quietHoursStartMinute: params.quietHoursStartMinute ?? null,
         quietHoursEndMinute: params.quietHoursEndMinute ?? null,
       });
-      const syncOk = await tryNotifyIntegrator(rule);
+      const syncOk = integratorUserId ? await tryNotifyIntegrator(rule) : true;
       return {
         ok: true,
         data: rule,
@@ -397,7 +410,9 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       if (qErr) return { ok: false, error: qErr };
 
       const integratorUserId = await port.resolveIntegratorUserId(platformUserId);
-      if (!integratorUserId) return { ok: false, error: "not_found" };
+      const hasWebPush = await hasNotificationChannel(platformUserId);
+      // Allow creation if has bot linking OR has web push subscription
+      if (!integratorUserId && !hasWebPush) return { ok: false, error: "not_found" };
 
       if (scheduleType === "slots_v1") {
         if (!params.scheduleData) return { ok: false, error: "validation_error: scheduleData" };
@@ -423,7 +438,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           quietHoursStartMinute: params.quietHoursStartMinute ?? null,
           quietHoursEndMinute: params.quietHoursEndMinute ?? null,
         });
-        const syncOk = await tryNotifyIntegrator(rule);
+        const syncOk = integratorUserId ? await tryNotifyIntegrator(rule) : true;
         return {
           ok: true,
           data: rule,
@@ -448,7 +463,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         quietHoursStartMinute: params.quietHoursStartMinute ?? null,
         quietHoursEndMinute: params.quietHoursEndMinute ?? null,
       });
-      const syncOk = await tryNotifyIntegrator(rule);
+      const syncOk = integratorUserId ? await tryNotifyIntegrator(rule) : true;
       return {
         ok: true,
         data: rule,

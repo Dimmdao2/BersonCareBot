@@ -22,7 +22,7 @@ type Props = {
  * Браузер: нет привязки TG/MAX — deep link через POST /api/auth/channel-link/start.
  */
 const NOTIFICATIONS_DEFAULT_HINT =
-  "Бот нужен для уведомлений и связи с клиникой. Вход на сайте остаётся через email или социальные аккаунты.";
+  "Можно приявзать бота для входа в приложение и получения уведомлений";
 
 export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, variant = "bind_phone" }: Props) {
   const router = useRouter();
@@ -123,6 +123,7 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button
           type="button"
+          size="sm"
           variant="outline"
           className="flex-1"
           disabled={loading !== null}
@@ -140,6 +141,7 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, var
         </Button>
         <Button
           type="button"
+          size="sm"
           variant="outline"
           className="flex-1"
           disabled={loading !== null}

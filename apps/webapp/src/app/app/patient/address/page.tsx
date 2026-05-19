@@ -1,5 +1,5 @@
 /**
- * Адрес кабинета: iframe сайта клиники (EXEC I.9).
+ * Адрес кабинета: iframe сайта специалиста (EXEC I.9).
  */
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";

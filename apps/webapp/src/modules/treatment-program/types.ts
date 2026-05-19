@@ -325,7 +325,7 @@ export type UpdateTreatmentProgramInstanceStageGroupInput = {
 
 export type TreatmentProgramInstanceStatus = "active" | "completed";
 
-/** Происхождение экземпляра программы (клиника / промо / курс). */
+/** Происхождение экземпляра программы (специалист / промо / курс). */
 export type TreatmentProgramAssignmentSource = "doctor" | "promo" | "course";
 
 export type TreatmentProgramInstanceStageStatus =

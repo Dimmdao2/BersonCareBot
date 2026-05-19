@@ -192,7 +192,7 @@
 - **Stage D D1–D4 (implementation / verify):**
   - **D1**: hero-секция активной программы уже присутствовала с полями `title`, `currentStageTitle`, `planUpdatedLabel`, CTA → detail. В рамках D1-polish: поверхность hero переведена с нейтрального `patientCardClass` на семантический `patientSurfaceProgramClass` (alias `patientSurfaceInfoClass`) для визуальной согласованности с hero detail-страницы (Stage C); индикатор `planUpdatedLabel` оформлен по-бейджевому: красная точка `● (text-destructive, aria-hidden)` + текст в отдельном `<span>` — аналогично detail-hero C1.
   - **D2**: архив завершённых программ под `<details>` с заголовком «Завершённые программы» — присутствовал, без изменений ✅.
-  - **D3**: empty state «Здесь появится программа после назначения врачом» + ссылка «Написать в чат клиники» → `messagesHref` — присутствовал, без изменений ✅.
+  - **D3**: empty state «Здесь появится программа после назначения врачом» + ссылка «Написать в чат специалиста» → `messagesHref` — присутствовал, без изменений ✅.
   - **D4**: отсутствие `%`-прогресса в hero и в списке подтверждено: в `PatientTreatmentProgramsListClient.tsx` нет метрик процентов ✅.
 - **Stage D D5 (тесты):**
   - `PatientTreatmentProgramsListClient.test.tsx` и `page.nudgeResilience.test.tsx` (список) — зелёные без изменений (тест `planUpdatedLabel` ищет текст через дочерний `<span>`, не по всему textContent `<p>`). 14/14 ✅.

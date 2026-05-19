@@ -165,7 +165,7 @@ describe("PatientTreatmentProgramsListClient", () => {
       <PatientTreatmentProgramsListClient hero={null} archived={[]} messagesHref="/app/patient/messages" />,
     );
     expect(screen.getByText(/Здесь появится программа после назначения врачом/i)).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /Написать в чат клиники/i });
+    const link = screen.getByRole("link", { name: /Написать в чат со спеуиалистом/i });
     expect(link).toHaveAttribute("href", "/app/patient/messages");
   });
 

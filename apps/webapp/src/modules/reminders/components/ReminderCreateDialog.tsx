@@ -359,7 +359,9 @@ export function ReminderCreateDialog({
         };
         if (!res.ok || !data.ok) {
           if (data.error === "not_found") {
-            setError("Свяжите аккаунт с ботом, чтобы создавать напоминания.");
+            setError(
+              "Свяжите аккаунт с ботом или подпишитесь на Push-уведомления, чтобы создавать напоминания.",
+            );
           } else {
             setError("Не удалось создать напоминание.");
           }

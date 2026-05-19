@@ -173,7 +173,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
     <>
       <RemindersHashScroll />
       <p className={cn(patientMutedTextClass, "mb-4")}>
-        Программа реабилитации, разминки, свои напоминания и системные уведомления клиники. Изменения синхронизируются с ботом.
+        Программа реабилитации, разминки, свои напоминания и системные уведомления.
       </p>
 
       <PatientRemindersMuteBar muteUntilLabel={muteUntilLabel} />

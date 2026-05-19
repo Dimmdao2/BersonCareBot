@@ -103,7 +103,7 @@
 | Название | URL | Содержание | Задача |
 |----------|-----|------------|--------|
 | Мои покупки | `/app/patient/purchases` | Empty state до биллинга | Покупки (заглушка) |
-| Адрес кабинета | `/app/patient/address` | iframe сайта клиники | Как добраться |
+| Адрес кабинета | `/app/patient/address` | iframe сайта специалиста | Как добраться |
 | Установить приложение | `/app/patient/install` | Инструкции PWA **в сессии пациента** | Установка; публичный лендинг и кнопка установки — **`/`** ([`docs/PWA_INITIATIVE/`](../PWA_INITIATIVE/README.md)) |
 | Онлайн-запрос: нутрициология | `/app/patient/intake/nutrition` | Client-форма без `AppShell` | Online intake |
 | Онлайн-запрос: ЛФК | `/app/patient/intake/lfk` | Client-форма без `AppShell` | Online intake |

@@ -25,6 +25,8 @@ import {
   patientSurfaceInfoClass,
   patientInnerPageStackClass,
 } from "@/shared/ui/patientVisual";
+import { PatientPlanPersonalProgramCtaCard } from "@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard";
+
 
 /** Текущий этап для hero списка: та же семантика, что на detail (`pipeline` без этапа 0). */
 export function patientProgramsListCurrentStageTitle(detail: TreatmentProgramInstanceDetail): string | null {
@@ -90,33 +92,13 @@ export function PatientTreatmentProgramsListClient(props: {
           </div>
         </section>
       ) : (
-        <section
-          className={cn(patientSurfaceInfoClass, "flex flex-col gap-3")}
-          aria-labelledby="patient-tp-list-empty-heading"
-        >
-          <h2 id="patient-tp-list-empty-heading" className={cn(patientHeroTitleBaseClass, patientInnerHeroListEmptyTitleClass)}>
-            Нет активной программы
-          </h2>
-          <p className="text-sm text-[var(--patient-surface-info-text)]">
-            {virtualPromo ?
-              <>
-                Доступна программа:{" "}
-                <Link href={virtualPromo.href} prefetch={false} className={cn(patientInlineLinkClass, "font-medium")}>
-                  {virtualPromo.title}
-                </Link>
-                .
-              </>
-            : <>
-                Здесь появится программа после назначения врачом.
-              </>
-            }
-          </p>
-          <p>
-            <Link href={messagesHref} prefetch={false} className={cn(patientInlineLinkClass, "text-sm font-medium")}>
-              Написать в чат клиники
-            </Link>
-          </p>
-        </section>
+          <>
+          <h2 id="patient-tp-list-empty-heading" className={cn(patientInnerHeroListEmptyTitleClass)}>
+            Нет индивидуальных назначений
+          </h2><div className="mt-4">
+              <PatientPlanPersonalProgramCtaCard />
+            </div>
+            </>
       )}
 
       {archived.length > 0 ? (

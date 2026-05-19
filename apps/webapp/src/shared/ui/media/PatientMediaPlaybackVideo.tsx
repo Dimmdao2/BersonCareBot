@@ -632,7 +632,7 @@ export function PatientMediaPlaybackVideo({
             {bootRetryBusy ? "Загрузка…" : "Повторить"}
           </Button>
           <p className={cn(patientMutedTextClass, "text-xs")}>
-            Если воспроизведение отключено в клинике или вы не вошли в аккаунт, видео будет недоступно.
+            Если вы не вошли в аккаунт, видео будет недоступно.
           </p>
         </div>
       </div>
