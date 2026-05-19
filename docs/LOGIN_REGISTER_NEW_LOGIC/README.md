@@ -5,6 +5,7 @@
 - **Мастер-постановка (канон требований):** [`MAIN PLAN.md`](MAIN%20PLAN.md)
 - **Дорожная карта (индекс этапов):** [`ROADMAP.md`](ROADMAP.md)
 - **Журнал исполнения:** [`LOG.md`](LOG.md)
+- **Отчёт аудита (фаза 0):** [`AUDIT_REPORT.md`](AUDIT_REPORT.md)
 - **Карта кода для аудита (фаза 0):** [`CODE_AUDIT_MAP.md`](CODE_AUDIT_MAP.md)
 
 ## Этапы

@@ -23,7 +23,7 @@ PHASE_04 + PHASE_07 ──► PHASE_08 mass email (optional)      ▼
 
 | Этап | Файл | Статус | Зависит от |
 |------|------|--------|------------|
-| 0 | [PHASE_00_AUDIT_AND_AGREEMENT.md](PHASE_00_AUDIT_AND_AGREEMENT.md) | pending | — |
+| 0 | [PHASE_00_AUDIT_AND_AGREEMENT.md](PHASE_00_AUDIT_AND_AGREEMENT.md) | done (audit); gate open | — |
 | 1 | [PHASE_01_RUBITIME_PLATFORM_USER.md](PHASE_01_RUBITIME_PLATFORM_USER.md) | pending | 0 |
 | 2 | [PHASE_02_CONTACT_EMAIL_POLICY.md](PHASE_02_CONTACT_EMAIL_POLICY.md) | pending | 0 |
 | 3 | [PHASE_03_EMAIL_SETUP_TOKENS.md](PHASE_03_EMAIL_SETUP_TOKENS.md) | pending | 2 |

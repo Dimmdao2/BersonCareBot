@@ -42,7 +42,7 @@
 
 ## Выход аудита (заполнить в LOG)
 
-- [ ] Где Rubitime **не** привязывает `platform_user_id`
-- [ ] Текущий find/create by phone/email (псевдокод или ссылка на функции)
-- [ ] Список файлов на изменение по фазам 1–5
-- [ ] Нужна ли миграция `user_email_setup_tokens` (ожидается да — фаза 3)
+- [x] Где Rubitime **не** привязывает `platform_user_id` — см. [`AUDIT_REPORT.md`](AUDIT_REPORT.md) §2
+- [x] Текущий find/create by phone/email — `ensureAppointmentClientTx` (phone → integrator_id); email только `applyRubitimeEmailAutobind` by phone
+- [x] Список файлов на изменение по фазам 1–5 — AUDIT §9
+- [x] Миграция `user_email_setup_tokens` — **нужна** (фаза 3)
