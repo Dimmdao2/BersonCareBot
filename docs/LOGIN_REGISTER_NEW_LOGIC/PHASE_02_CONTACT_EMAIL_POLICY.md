@@ -1,6 +1,6 @@
 # Фаза 2 — Contact email (Rubitime / врач)
 
-**Статус:** `pending`  
+**Статус:** `completed`  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §2  
 **Зависит от:** [PHASE_00](PHASE_00_AUDIT_AND_AGREEMENT.md)  
 **Следующий:** [PHASE_03](PHASE_03_EMAIL_SETUP_TOKENS.md)
@@ -24,17 +24,17 @@ Email из Rubitime или от врача — **contact / unverified**, без 
 
 ## Definition of Done
 
-- [ ] Смена email врачом → `email_verified_at` null при новом адресе (уже в `patchAdminClientProfile` — проверить и зафиксировать в LOG)
-- [ ] Rubitime email сохраняется как unverified contact
-- [ ] Нет автосоздания `user_password_credentials` при admin/Rubitime email
-- [ ] Вызов сервиса выпуска setup token из doctor patch + Rubitime autobind (после фазы 3 — end-to-end; до — интерфейс + TODO в LOG)
-- [ ] Unit/integration: doctor email change does not verify; does not create password row
-- [ ] [`LOG.md`](LOG.md)
+- [x] Смена email врачом → `email_verified_at` null при новом адресе (уже в `patchAdminClientProfile` — проверить и зафиксировать в LOG)
+- [x] Rubitime email сохраняется как unverified contact
+- [x] Нет автосоздания `user_password_credentials` при admin/Rubitime email
+- [x] Вызов сервиса выпуска setup token из doctor patch + Rubitime autobind (после фазы 3 — end-to-end; до — интерфейс + TODO в LOG)
+- [x] Unit/integration: doctor email change does not verify; does not create password row
+- [x] [`LOG.md`](LOG.md)
 
 ## Локальные проверки
 
-- [ ] `rg email_verified_at` в `pgUserProjection.patchAdminClientProfile`
-- [ ] `pnpm --filter @bersoncare/webapp test` — admin profile / projection tests
+- [x] `rg email_verified_at` в `pgUserProjection.patchAdminClientProfile`
+- [x] `pnpm --filter @bersoncare/webapp test` — admin profile / projection tests
 
 ## Якоря
 

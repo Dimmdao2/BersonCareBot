@@ -122,6 +122,8 @@ import {
   createPgUserPasswordCredentialsPort,
   inMemoryUserPasswordCredentialsPort,
 } from "@/infra/repos/pgUserPasswordCredentials";
+import { createEmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
+import { createNoopEmailSetupAccessPort } from "@/modules/auth/emailSetupAccess/noopPort";
 import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
 import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
 import { pgLoginTokensPort } from "@/infra/repos/pgLoginTokens";
@@ -285,6 +287,7 @@ const doctorMotivationQuotesEditorPort = !inMemoryRepos
   ? createPgDoctorMotivationQuotesEditorPort()
   : inMemoryDoctorMotivationQuotesEditorPort;
 const userProjectionPort = !inMemoryRepos ? pgUserProjectionPort : inMemoryUserProjectionPort;
+const emailSetupAccessService = createEmailSetupAccessService(createNoopEmailSetupAccessPort());
 const supportCommunicationPort = !inMemoryRepos
   ? createPgSupportCommunicationPort()
   : inMemorySupportCommunicationPort;
@@ -853,6 +856,7 @@ function _buildAppDeps() {
     userByPhone: userByPhonePort,
     userPins: userPinsPort,
     userPasswordCredentials: userPasswordCredentialsPort,
+    emailSetupAccess: emailSetupAccessService,
     oauthBindings: oauthBindingsPort,
     loginTokens: loginTokensPort,
     systemSettings: systemSettingsService,

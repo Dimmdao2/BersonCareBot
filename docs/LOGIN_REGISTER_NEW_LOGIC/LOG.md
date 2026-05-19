@@ -65,6 +65,23 @@
 
 - Backfill / PHASE_07, email setup (фазы 3–5).
 
+## 2026-05-19 — PHASE_02 Contact email policy
+
+**Сделано:**
+
+- Подтверждена политика contact email: `patchAdminClientProfile` и `applyRubitimeEmailAutobind` / `ensureAppointmentClientTx` сбрасывают `email_verified_at` при новом адресе; пароль не создаётся.
+- Модуль `modules/auth/emailSetupAccess` (port + noop stub до PHASE_03); хуки: `PATCH /api/admin/users/.../profile` (смена email), integrator `user.email.autobind` (`outcome: applied`).
+- Forgot: комментарий — reset только при `email_verified_at` + `user_password_credentials` (`findVerifiedUserIdWithPassword`).
+- Тесты: `pgUserProjection.patchAdminClientProfile.test.ts`, расширены admin profile route и `events.test` (autobind + setup enqueue).
+
+**Проверки:**
+
+- `pnpm --filter @bersoncare/webapp exec vitest run` — `emailSetupAccess/service.test.ts`, `pgUserProjection.patchAdminClientProfile.test.ts`, `profile/route.test.ts`, `events.test.ts` (autobind).
+
+**Не делали:**
+
+- Таблица `user_email_setup_tokens`, реальная отправка письма (PHASE_03).
+
 ---
 
 ## Шаблон записи при закрытии этапа

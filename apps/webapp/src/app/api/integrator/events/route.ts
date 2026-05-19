@@ -154,6 +154,7 @@ export async function POST(request: Request) {
     patientBooking: deps.patientBooking,
     branches: deps.branches,
     subscriptionMailingProjection: deps.subscriptionMailingProjection,
+    emailSetupAccess: deps.emailSetupAccess,
   });
   const status = result.accepted ? 202 : result.retryable === false ? 422 : 503;
   const body: Record<string, unknown> = result.accepted

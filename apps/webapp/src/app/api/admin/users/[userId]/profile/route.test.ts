@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const poolQueryMock = vi.fn();
 const patchMock = vi.fn();
+const getProfileEmailFieldsMock = vi.fn();
+const requestContactEmailSetupMock = vi.fn();
 const writeAuditLogMock = vi.fn();
 
 const { getSessionMock, resolveCanonicalMock } = vi.hoisted(() => ({
@@ -22,6 +24,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     userProjection: {
       patchAdminClientProfile: patchMock,
+      getProfileEmailFields: getProfileEmailFieldsMock,
+    },
+    emailSetupAccess: {
+      requestContactEmailSetup: requestContactEmailSetupMock,
     },
   }),
 }));
@@ -48,12 +54,16 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
     getSessionMock.mockReset();
     poolQueryMock.mockReset();
     patchMock.mockReset();
+    getProfileEmailFieldsMock.mockReset();
+    requestContactEmailSetupMock.mockReset();
     writeAuditLogMock.mockReset();
     resolveCanonicalMock.mockReset();
     getSessionMock.mockResolvedValue(adminModeOk);
     resolveCanonicalMock.mockResolvedValue(uid);
     poolQueryMock.mockResolvedValue({ rows: [] });
     patchMock.mockResolvedValue({ ok: true as const });
+    getProfileEmailFieldsMock.mockResolvedValue({ email: null, emailVerifiedAt: null });
+    requestContactEmailSetupMock.mockResolvedValue({ ok: true, status: "stub_pending_phase3" });
   });
 
   it("returns 400 for empty body", async () => {
@@ -83,6 +93,45 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
     );
     expect(res.status).toBe(409);
     expect(patchMock).not.toHaveBeenCalled();
+  });
+
+  it("enqueues contact email setup when doctor changes email", async () => {
+    getProfileEmailFieldsMock.mockResolvedValueOnce({
+      email: "old@example.com",
+      emailVerifiedAt: "2020-01-01T00:00:00.000Z",
+    });
+    const res = await PATCH(
+      new Request(`http://localhost/api/admin/users/${uid}/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "new@example.com" }),
+      }),
+      { params: Promise.resolve({ userId: uid }) },
+    );
+    expect(res.status).toBe(200);
+    expect(requestContactEmailSetupMock).toHaveBeenCalledWith({
+      userId: uid,
+      emailNormalized: "new@example.com",
+      source: "doctor_profile",
+      createdByUserId: "a1",
+    });
+  });
+
+  it("does not enqueue setup when email is unchanged", async () => {
+    getProfileEmailFieldsMock.mockResolvedValueOnce({
+      email: "same@example.com",
+      emailVerifiedAt: null,
+    });
+    const res = await PATCH(
+      new Request(`http://localhost/api/admin/users/${uid}/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "same@example.com" }),
+      }),
+      { params: Promise.resolve({ userId: uid }) },
+    );
+    expect(res.status).toBe(200);
+    expect(requestContactEmailSetupMock).not.toHaveBeenCalled();
   });
 
   it("patches profile and writes audit", async () => {

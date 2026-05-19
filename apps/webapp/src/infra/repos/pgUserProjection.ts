@@ -71,9 +71,10 @@ export type UserProjectionPort = {
   applyRubitimeEmailAutobind: (params: {
     phoneNormalized: string;
     email: string;
-  }) => Promise<{
-    outcome: "applied" | "skipped_no_user" | "skipped_invalid_email" | "skipped_verified" | "skipped_conflict";
-  }>;
+  }) => Promise<
+    | { outcome: "applied"; platformUserId: string }
+    | { outcome: "skipped_no_user" | "skipped_invalid_email" | "skipped_verified" | "skipped_conflict" }
+  >;
 };
 
 type PuRow = {
@@ -573,7 +574,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
        WHERE id = $2`,
       [emailNorm, u.id],
     );
-    return { outcome: "applied" as const };
+    return { outcome: "applied" as const, platformUserId: u.id };
   },
 
   async getProfileEmailFields(platformUserId) {
@@ -701,6 +702,6 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   upsertNotificationTopics: async () => {},
   updateRole: async () => {},
   getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
-  applyRubitimeEmailAutobind: async () => ({ outcome: "skipped_no_user" }),
+  applyRubitimeEmailAutobind: async () => ({ outcome: "skipped_no_user" as const }),
   patchAdminClientProfile: async () => ({ ok: true as const }),
 };

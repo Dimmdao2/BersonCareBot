@@ -19,6 +19,10 @@ function forgotPasswordNeutralResponse(challengeRetryAfter?: number) {
  * Запрос сброса пароля: код на почту (тот же контур `email_challenges`, что и верификация регистрации).
  * Ответ **одинаковый** при отсутствии учётки, ошибке отправки и rate limit — без `challengeId` и без перечисления email.
  * Подтверждение: {@link consumeLatestEmailChallengeCodeForUser} или `POST …/reset` с `challengeId`.
+ *
+ * Contact-only email (врач/Rubitime, `email_verified_at` NULL, нет `user_password_credentials`) **не** получает
+ * reset: {@link findVerifiedUserIdWithPassword} требует и verified email, и строку пароля. До PHASE_05 — setup access
+ * через `emailSetupAccess` / register lookup, не forgot.
  */
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;

@@ -14,6 +14,8 @@ import { revalidatePath } from "next/cache";
 import { routePaths } from "@/app-layer/routes/paths";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+import { normalizeEmail } from "@/modules/auth/emailAuth";
+import type { EmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
 
 const REMINDER_RULE_UPSERTED = "reminder.rule.upserted";
 const REMINDER_OCCURRENCE_FINALIZED = "reminder.occurrence.finalized";
@@ -147,12 +149,15 @@ export type IntegratorEventsDeps = {
     applyRubitimeEmailAutobind?: (params: {
       phoneNormalized: string;
       email: string;
-    }) => Promise<{
-      outcome: "applied" | "skipped_no_user" | "skipped_invalid_email" | "skipped_verified" | "skipped_conflict";
-    }>;
+    }) => Promise<
+      | { outcome: "applied"; platformUserId: string }
+      | { outcome: "skipped_no_user" | "skipped_invalid_email" | "skipped_verified" | "skipped_conflict" }
+    >;
     /** Follow `merged_into_id` so diary writes attach to canonical `platform_users.id` after merge. */
     resolveCanonicalPlatformUserId?: (platformUserId: string) => Promise<string>;
   };
+  /** PHASE_02+: enqueue setup link after contact email (Rubitime / doctor). */
+  emailSetupAccess?: Pick<EmailSetupAccessService, "requestContactEmailSetup">;
   branches?: BranchesProjectionPort;
   preferences?: {
     upsertNotificationTopics: (params: {
@@ -1041,6 +1046,15 @@ export async function handleIntegratorEvent(
     const result = await deps.users.applyRubitimeEmailAutobind({ phoneNormalized, email });
     if (result.outcome === "skipped_conflict") {
       reportEmailAutobindConflict({ phoneNormalized, email });
+    }
+    if (result.outcome === "applied" && deps.emailSetupAccess) {
+      void deps.emailSetupAccess
+        .requestContactEmailSetup({
+          userId: result.platformUserId,
+          emailNormalized: normalizeEmail(email),
+          source: "rubitime",
+        })
+        .catch(() => undefined);
     }
     return { accepted: true };
   }

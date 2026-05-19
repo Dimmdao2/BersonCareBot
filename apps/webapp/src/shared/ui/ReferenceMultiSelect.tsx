@@ -18,10 +18,12 @@ export type ReferenceMultiSelectProps = {
   name?: string;
   id?: string;
   placeholder?: string;
+  /** Filter dropdown options by typing in the input (title and code). */
+  searchable?: boolean;
 };
 
 /**
- * Multi-select from a reference category: chips + dropdown (non-searchable list, `showAllOnFocus`-style).
+ * Multi-select from a reference category: chips + dropdown; optional search in the input.
  */
 export function ReferenceMultiSelect({
   categoryCode,
@@ -32,9 +34,11 @@ export function ReferenceMultiSelect({
   name,
   id,
   placeholder = "Добавить регион…",
+  searchable = true,
 }: ReferenceMultiSelectProps) {
   const [items, setItems] = useState<ReferenceItemDto[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "done">("loading");
+  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [listScrollOverflowBottom, setListScrollOverflowBottom] = useState(false);
   /** First pointer click after programmatic open from focus would otherwise toggle closed (same event sequence). */
@@ -69,6 +73,15 @@ export function ReferenceMultiSelect({
 
   const availableToPick = useMemo(() => items.filter((i) => !selectedSet.has(i.id)), [items, selectedSet]);
 
+  const filteredAvailableToPick = useMemo(() => {
+    if (!searchable) return availableToPick;
+    const q = query.trim().toLowerCase();
+    if (!q) return availableToPick;
+    return availableToPick.filter(
+      (i) => i.title.toLowerCase().includes(q) || i.code.toLowerCase().includes(q),
+    );
+  }, [availableToPick, query, searchable]);
+
   const updateListScrollOverflow = useCallback(() => {
     const el = listboxRef.current;
     if (!el) return;
@@ -92,7 +105,7 @@ export function ReferenceMultiSelect({
     ro.observe(el);
     queueMicrotask(updateListScrollOverflow);
     return () => ro.disconnect();
-  }, [open, availableToPick, updateListScrollOverflow]);
+  }, [open, filteredAvailableToPick, updateListScrollOverflow]);
 
   const remove = useCallback(
     (rid: string) => {
@@ -105,6 +118,7 @@ export function ReferenceMultiSelect({
     (rid: string) => {
       if (selectedSet.has(rid)) return;
       onChange([...value, rid]);
+      setQuery("");
       setOpen(false);
     },
     [onChange, selectedSet, value],
@@ -153,13 +167,22 @@ export function ReferenceMultiSelect({
           type="text"
           role="combobox"
           aria-expanded={open}
-          aria-controls={open && availableToPick.length > 0 ? listboxId : undefined}
+          aria-controls={open && filteredAvailableToPick.length > 0 ? listboxId : undefined}
           disabled={disabled || loadState !== "done"}
           placeholder={loadState !== "done" ? "Загрузка…" : placeholder}
-          value=""
-          readOnly
+          value={open && searchable ? query : ""}
+          readOnly={!searchable}
+          onChange={(e) => {
+            if (!searchable) return;
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
           onClick={() => {
             if (loadState !== "done" || disabled) return;
+            if (searchable) {
+              setOpen(true);
+              return;
+            }
             if (ignoreNextToggleClickRef.current) {
               ignoreNextToggleClickRef.current = false;
               return;
@@ -168,19 +191,23 @@ export function ReferenceMultiSelect({
           }}
           onFocus={() => {
             if (loadState !== "done" || disabled) return;
-            ignoreNextToggleClickRef.current = true;
+            if (!searchable) ignoreNextToggleClickRef.current = true;
             setOpen(true);
+            if (searchable) setQuery("");
           }}
           onBlur={() => {
-            setTimeout(() => setOpen(false), 150);
+            setTimeout(() => {
+              setOpen(false);
+              setQuery("");
+            }, 150);
           }}
-          className="w-full cursor-pointer caret-transparent"
+          className={cn("w-full", !searchable && "cursor-pointer caret-transparent")}
           autoComplete="off"
         />
         <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-muted-foreground">
           <ChevronDown className="size-4" />
         </span>
-        {open && availableToPick.length > 0 ? (
+        {open && filteredAvailableToPick.length > 0 ? (
           <div className="absolute left-0 right-0 top-full z-50 mt-1 w-full min-w-0">
             <div className="relative max-h-48 overflow-hidden rounded-md border border-border bg-background shadow-md">
               <ul
@@ -190,7 +217,7 @@ export function ReferenceMultiSelect({
                 className="max-h-48 w-full overflow-auto"
                 role="listbox"
               >
-                {availableToPick.map((i) => (
+                {filteredAvailableToPick.map((i) => (
                   <li key={i.id}>
                     <Button
                       type="button"

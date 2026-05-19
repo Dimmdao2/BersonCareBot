@@ -1882,7 +1882,10 @@ describe("handleIntegratorEvent: Stage 11 subscription/mailing projection ingest
   });
 
   it("accepts user.email.autobind and calls applyRubitimeEmailAutobind", async () => {
-    const applyRubitimeEmailAutobind = vi.fn().mockResolvedValue({ outcome: "applied" });
+    const applyRubitimeEmailAutobind = vi
+      .fn()
+      .mockResolvedValue({ outcome: "applied", platformUserId: "pu-rubitime-1" });
+    const requestContactEmailSetup = vi.fn().mockResolvedValue({ ok: true, status: "stub_pending_phase3" });
     const result = await handleIntegratorEvent(
       {
         eventType: "user.email.autobind",
@@ -1890,6 +1893,7 @@ describe("handleIntegratorEvent: Stage 11 subscription/mailing projection ingest
       },
       {
         ...mockDeps,
+        emailSetupAccess: { requestContactEmailSetup },
         users: {
           upsertFromProjection: vi.fn(),
           findByIntegratorId: vi.fn(),
@@ -1903,6 +1907,11 @@ describe("handleIntegratorEvent: Stage 11 subscription/mailing projection ingest
     expect(applyRubitimeEmailAutobind).toHaveBeenCalledWith({
       phoneNormalized: "+79991112233",
       email: "a@b.co",
+    });
+    expect(requestContactEmailSetup).toHaveBeenCalledWith({
+      userId: "pu-rubitime-1",
+      emailNormalized: "a@b.co",
+      source: "rubitime",
     });
   });
 });

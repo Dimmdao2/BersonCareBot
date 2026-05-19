@@ -109,6 +109,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   }
 
   const deps = buildAppDeps();
+  const emailBefore =
+    patch.email !== undefined && patch.email !== null && patch.email.trim() !== ""
+      ? await deps.userProjection.getProfileEmailFields(canonicalId)
+      : null;
+
   const result = await deps.userProjection.patchAdminClientProfile({
     platformUserId: canonicalId,
     patch,
@@ -119,6 +124,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
       return NextResponse.json({ ok: false, error: "empty_patch" }, { status: 400 });
     }
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  if (
+    result.ok &&
+    patch.email !== undefined &&
+    patch.email !== null &&
+    patch.email.trim() !== ""
+  ) {
+    const normNew = patch.email.trim().toLowerCase();
+    const normBefore = emailBefore?.email?.trim().toLowerCase() ?? null;
+    if (normNew !== normBefore) {
+      void deps.emailSetupAccess
+        .requestContactEmailSetup({
+          userId: canonicalId,
+          emailNormalized: normNew,
+          source: "doctor_profile",
+          createdByUserId: adminGate.session.user.userId,
+        })
+        .catch(() => undefined);
+    }
   }
 
   const fieldsChanged = Object.keys(patch);
