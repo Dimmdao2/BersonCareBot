@@ -12,6 +12,7 @@ import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSect
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { RemindersHashScroll } from "./RemindersHashScroll";
 import { RemindersPageAdditionalSection } from "./RemindersPageAdditionalSection";
+import { filterPersonalRulesForSchedulePage } from "./filterPersonalRulesForSchedulePage";
 import type { AppSession } from "@/shared/types/session";
 import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from "@/modules/reminders/rehabProgramLinkedObject";
 
@@ -102,6 +103,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
     warmRes && (!warmRes.section.requiresAuth || canViewAuth),
   );
   const warmupsSectionTitle = warmRes?.section.title?.trim() || "Разминки";
+  const warmupsSectionSlug = (warmRes?.canonicalSlug ?? DEFAULT_WARMUPS_SECTION_SLUG).trim();
 
   const activeCandidates = programList
     .filter((p) => p.status === "active")
@@ -155,10 +157,12 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
     ? await deps.reminderJournal.statsPerRuleForUser(userId, 30)
     : {};
 
-  const personalRules = rules.filter((r) => r.linkedObjectType != null);
+  const personalRules = filterPersonalRulesForSchedulePage(rules, {
+    rehabProgramForBlock,
+    warmupsSectionAvailable,
+    warmupsSectionSlug,
+  });
   personalRules.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-
-  const legacyRules = rules.filter((r) => r.linkedObjectType == null);
 
   const personalRows: PersonalReminderRowVM[] = [];
   for (const r of personalRules) {
@@ -178,7 +182,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
 
       <ReminderRulesClient
         personalRows={personalRows}
-        legacyRules={legacyRules}
+        legacyRules={[]}
         unseenCount={projectionStats.unseen}
         activeProgram={rehabProgramForBlock}
         warmupsSectionAvailable={warmupsSectionAvailable}
