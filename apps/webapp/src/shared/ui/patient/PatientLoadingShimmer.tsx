@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import {
+  PATIENT_SHELL_CONTAINER_CLASS,
+  PATIENT_SHELL_DESKTOP_MAX_CLASS,
+  PATIENT_SHELL_MOBILE_MAX_CLASS,
+  patientShellMaxWidthDataAttribute,
+} from "@/shared/lib/pwaLayoutClasses";
 
 /** Классы из `globals.css` (#app-shell-patient); не дублировать keyframes в route-файлах. */
 export const patientShimmerSheenClass = "patient-shimmer-sheen patient-shimmer-sheen-motion";
@@ -103,9 +109,12 @@ export function PatientRouteLoadingShell({
   return (
     <div
       id="app-shell-patient"
+      {...patientShellMaxWidthDataAttribute()}
       className={cn(
-        "mx-auto flex min-h-[100dvh] w-full flex-col bg-white pt-[max(0px,env(safe-area-inset-top,0px))]",
-        "w-full max-w-full min-w-0 safe-padding-patient gap-3 md:max-w-[min(1180px,calc(100vw-2rem))]",
+        PATIENT_SHELL_CONTAINER_CLASS,
+        "gap-3 safe-padding-patient",
+        PATIENT_SHELL_MOBILE_MAX_CLASS,
+        PATIENT_SHELL_DESKTOP_MAX_CLASS,
       )}
       aria-busy="true"
       aria-label={navLabel}
@@ -126,7 +135,7 @@ export function PatientRouteLoadingShell({
 
       <main
         id="app-shell-content"
-        className="flex min-h-0 flex-1 flex-col gap-[var(--patient-gap)] pt-1"
+        className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--patient-gap)] pt-1"
         aria-hidden
       >
         <PatientLoadingPatternBody pattern={pattern} />

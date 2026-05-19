@@ -141,7 +141,7 @@ function ProgramTileHintButton(props: { ariaLabel: string; icon: ReactNode; chil
         side="top"
         align="start"
         sideOffset={6}
-        className="max-h-[min(50vh,22rem)] w-[min(calc(100vw-2rem),20rem)] overflow-y-auto p-3 text-xs leading-relaxed text-foreground"
+        className="max-h-[min(50vh,22rem)] w-[min(100%,20rem)] max-w-full overflow-y-auto p-3 text-xs leading-relaxed text-foreground"
       >
         {children}
       </PopoverContent>

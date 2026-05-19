@@ -3,7 +3,7 @@
 **Статус:** `pending`  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §1  
 **Зависит от:** [PHASE_00](PHASE_00_AUDIT_AND_AGREEMENT.md)  
-**Следующий:** [PHASE_07](PHASE_07_BACKFILL_APPOINTMENTS.md), [PHASE_06](PHASE_06_MERGE_IDENTITY.md)
+**Следующий:** [PHASE_02](PHASE_02_CONTACT_EMAIL_POLICY.md) (параллельно допустимо), затем цепочка 03→05
 
 ## Цель
 
@@ -28,7 +28,7 @@
 
 - Email setup tokens (фаза 3–4)
 - Изменение AuthFlow (фаза 5)
-- Backfill prod (фаза 7)
+- Backfill / исторические appointment_records ([`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md))
 
 ## Definition of Done
 

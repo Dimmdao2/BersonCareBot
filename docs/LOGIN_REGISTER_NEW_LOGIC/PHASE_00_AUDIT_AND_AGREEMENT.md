@@ -1,6 +1,6 @@
 # Фаза 0 — аудит и согласование
 
-**Статус:** `done` (аудит кода); gate на реализацию — **открыт** до продуктового согласования  
+**Статус:** `done` (аудит + scope согласован 2026-05-19)  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §8, §12  
 **Следующий этап:** [PHASE_01](PHASE_01_RUBITIME_PLATFORM_USER.md), [PHASE_02](PHASE_02_CONTACT_EMAIL_POLICY.md) (после gate)
 
@@ -25,14 +25,14 @@
 ## Definition of Done
 
 - [x] Заполнены выходы аудита в `CODE_AUDIT_MAP.md` / [`LOG.md`](LOG.md) / [`AUDIT_REPORT.md`](AUDIT_REPORT.md)
-- [ ] Согласован порядок: MVP (фазы 2–5) vs параллельная фаза 1 — **предложение в AUDIT §10**
+- [x] Scope согласован — [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md): MVP **01 + 02→03→04→05**; 06–08 **deferred** (задачи по старой базе сохранены)
 - [x] Подтверждена таблица `user_email_setup_tokens` (поля из MAIN PLAN §9)
 - [x] Список новых endpoint (черновик):
   - `POST /api/auth/email-setup/validate` (или GET по token)
   - `POST /api/auth/email-setup/complete`
   - `POST /api/auth/email-setup/resend`
   - `POST /api/auth/email-password/lookup` (опционально — состояние email)
-- [ ] Обновлён [`ROADMAP.md`](ROADMAP.md) при изменении scope — после ответов на вопросы согласования
+- [x] Обновлён [`ROADMAP.md`](ROADMAP.md)
 
 ## Локальные проверки
 
@@ -41,4 +41,4 @@
 
 ## Gate
 
-**Не начинать фазу 1+**, пока владелец продукта не подтвердил MVP и отсутствие массовых писем в фазе 7 без отдельного OK.
+**Закрыт (2026-05-19).** Можно начинать PHASE_01 и PHASE_02. Backfill/mass mail не делать.

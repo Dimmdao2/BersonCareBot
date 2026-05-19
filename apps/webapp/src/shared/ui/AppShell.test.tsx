@@ -21,7 +21,7 @@ vi.mock("@/shared/hooks/useReminderUnread", () => ({
 }));
 
 describe("AppShell patient width variants", () => {
-  it("uses full-width mobile shell with safe padding and caps width from md+", () => {
+  it("uses mobile shell cap 430px with safe padding and caps width from md+", () => {
     const { container } = render(
       <AppShell title="Сегодня" user={null} variant="patient">
         <div>Content</div>
@@ -31,8 +31,11 @@ describe("AppShell patient width variants", () => {
     const shell = container.querySelector("#app-shell-patient");
     expect(shell).toHaveClass("w-full");
     expect(shell).toHaveClass("max-w-full");
+    expect(shell).toHaveClass("overflow-x-clip");
     expect(shell).toHaveClass("safe-padding-patient");
-    expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100vw-2rem))]");
+    expect(shell).toHaveClass("max-md:max-w-[430px]");
+    expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100%-2rem))]");
+    expect(shell).toHaveAttribute("data-patient-shell-max-px", "430");
   });
 
   it("treats patient-wide as alias for patient (legacy back-compat)", () => {
@@ -46,7 +49,8 @@ describe("AppShell patient width variants", () => {
     expect(shell).toHaveClass("w-full");
     expect(shell).toHaveClass("max-w-full");
     expect(shell).toHaveClass("safe-padding-patient");
-    expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100vw-2rem))]");
+    expect(shell).toHaveClass("max-md:max-w-[430px]");
+    expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100%-2rem))]");
   });
 
   it("uses white patient canvas background", () => {

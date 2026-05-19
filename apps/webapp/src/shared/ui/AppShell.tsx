@@ -17,6 +17,12 @@ import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
 import { patientSectionTitleClass } from "@/shared/ui/patientVisual";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import {
+  PATIENT_SHELL_CONTAINER_CLASS,
+  PATIENT_SHELL_DESKTOP_MAX_CLASS,
+  PATIENT_SHELL_MOBILE_MAX_CLASS,
+  patientShellMaxWidthDataAttribute,
+} from "@/shared/lib/pwaLayoutClasses";
 
 type AppShellProps = {
   title: string;
@@ -30,7 +36,7 @@ type AppShellProps = {
   /**
    * Вариант оболочки.
    * - `patient` — patient shell: ниже `md` — полная ширина viewport с боковыми отступами (`safe-padding-patient`);
-   *   с `md+` — `max-w-[min(1180px,calc(100vw-2rem))]`, сверху {@link PatientTopNav} (primary nav).
+   *   с `md+` — `max-w-[min(1180px,calc(100%-2rem))]`, сверху {@link PatientTopNav} (primary nav).
    *   `patient-wide` — тот же layout (legacy alias).
    * - `doctor` — кабинет специалиста (широкий workspace).
    */
@@ -94,13 +100,16 @@ export function AppShell({
     return (
       <div
         id="app-shell-patient"
+        {...patientShellMaxWidthDataAttribute()}
         className={cn(
-          "mx-auto flex min-h-[100dvh] w-full flex-col bg-white pt-[max(0px,env(safe-area-inset-top,0px))]",
+          PATIENT_SHELL_CONTAINER_CLASS,
           patientEmbedMain
             ? "max-w-[480px] gap-0 pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
-            : patientHideBottomNav
-              ? "w-full max-w-full min-w-0 gap-3 safe-padding-patient md:max-w-[min(1180px,calc(100vw-2rem))]"
-              : "w-full max-w-full min-w-0 safe-padding-patient gap-3 md:max-w-[min(1180px,calc(100vw-2rem))]",
+            : cn(
+                "gap-3 safe-padding-patient",
+                PATIENT_SHELL_MOBILE_MAX_CLASS,
+                PATIENT_SHELL_DESKTOP_MAX_CLASS,
+              ),
         )}
       >
         {showPatientShellNav ?
@@ -159,7 +168,7 @@ export function AppShell({
         <main
           id="app-shell-content"
           className={cn(
-            "flex min-h-0 flex-1 flex-col",
+            "flex min-h-0 min-w-0 flex-1 flex-col",
             patientEmbedMain ? "gap-0 pt-0" : "gap-[var(--patient-gap)] pt-1",
           )}
         >

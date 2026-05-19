@@ -66,6 +66,11 @@ import {
 } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 import {
+  PATIENT_SHELL_CONTAINER_CLASS,
+  PATIENT_SHELL_MOBILE_MAX_CLASS,
+  patientShellMaxWidthDataAttribute,
+} from "@/shared/lib/pwaLayoutClasses";
+import {
   normalizeChecklistCountMap,
   normalizeChecklistLastMap,
 } from "@/app/app/patient/treatment/normalizeTreatmentProgramChecklistMaps";
@@ -595,7 +600,15 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     );
 
   return (
-    <div id="app-shell-patient" className="flex min-h-[100dvh] flex-col bg-[var(--patient-card-bg,#fff)]">
+    <div
+      id="app-shell-patient"
+      {...patientShellMaxWidthDataAttribute()}
+      className={cn(
+        PATIENT_SHELL_CONTAINER_CLASS,
+        PATIENT_SHELL_MOBILE_MAX_CLASS,
+        "bg-[var(--patient-card-bg,#fff)]",
+      )}
+    >
       {error ? (
         <p className="px-4 pt-2 text-sm text-destructive" role="alert">
           {error}

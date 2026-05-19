@@ -367,21 +367,59 @@
     color: inherit;
     text-decoration: none;
   }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply text-base text-foreground;
-    background: #ffffff;
-  }
   /**
-   * Фон на `html`, не только на `body`: при overscroll / rubber-band мобильные браузеры
-   * иначе могут показать `theme-color` или дефолтный канвас под контентом.
+   * PWA / iOS: не даём горизонтальному overflow на корне (100vw + scrollbar даёт «обрезание»).
+   * `clip` предпочтительнее `hidden` для не ломающего sticky; fallback — `hidden`.
    */
   html {
     @apply font-sans;
+    width: 100%;
+    max-width: 100%;
     min-height: 100%;
+    overflow-x: clip;
     background-color: #ffffff;
+  }
+
+  @supports not (overflow: clip) {
+    html {
+      overflow-x: hidden;
+    }
+  }
+
+  body {
+    @apply text-base text-foreground;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+    background: #ffffff;
+  }
+
+  @supports not (overflow: clip) {
+    body {
+      overflow-x: hidden;
+    }
+  }
+
+  #app-root {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  @supports not (overflow: clip) {
+    #app-root {
+      overflow-x: hidden;
+    }
   }
 
   /**
@@ -568,6 +606,31 @@
     bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
     right: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px));
     z-index: 50;
+  }
+
+  /**
+   * Порталы (Dialog/Sheet) на узкой ширине: не шире patient column (430px), без 100vw.
+   * Desktop/tablet (`md+`) — без ограничения 430px.
+   */
+  @media (max-width: 767px) {
+    [data-slot="dialog-content"] {
+      max-width: min(calc(100% - 2rem), 430px);
+    }
+
+    [data-slot="sheet-content"][data-side="bottom"] {
+      left: 0;
+      right: 0;
+      margin-left: auto;
+      margin-right: auto;
+      width: 100%;
+      max-width: min(100%, 430px);
+    }
+
+    [data-slot="sheet-content"][data-side="left"],
+    [data-slot="sheet-content"][data-side="right"] {
+      width: 100%;
+      max-width: min(75%, 17rem);
+    }
   }
 }
 

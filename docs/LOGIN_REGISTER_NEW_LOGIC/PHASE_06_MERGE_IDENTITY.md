@@ -1,6 +1,6 @@
 # Фаза 6 — Merge и identity (страховка)
 
-**Статус:** `pending`  
+**Статус:** `deferred` (scope 2026-05-19 — не ломать существующий ручной merge)  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §7  
 **Зависит от:** [PHASE_01](PHASE_01_RUBITIME_PLATFORM_USER.md), [PHASE_05](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md)
 

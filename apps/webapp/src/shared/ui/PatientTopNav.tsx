@@ -26,6 +26,10 @@ import { cn } from "@/lib/utils";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 import { usePatientShellScrollCompact } from "@/shared/hooks/usePatientShellScrollCompact";
+import {
+  PATIENT_DESKTOP_INNER_MAX_CLASS,
+  PATIENT_TOP_NAV_FIXED_MOBILE_CLASS,
+} from "@/shared/lib/pwaLayoutClasses";
 
 const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
   today: Home,
@@ -181,12 +185,11 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         ref={navRootRef}
         id="patient-top-nav"
         className={cn(
-          "z-50 w-full transition-shadow",
+          "z-50 w-full min-w-0 max-w-full transition-shadow",
           NAV_COMPACT_EASE,
-          /* mobile: к краю окна */
-          "max-md:fixed max-md:left-0 max-md:right-0 max-md:top-[env(safe-area-inset-top,0px)]",
+          PATIENT_TOP_NAV_FIXED_MOBILE_CLASS,
           /* desktop: липкая полоска в колонке shell */
-          "md:sticky md:top-[env(safe-area-inset-top,0px)]",
+          "md:sticky md:top-[env(safe-area-inset-top,0px)] md:left-auto md:right-auto md:max-w-none md:translate-x-0",
           "border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md md:bg-white",
           compact ? "shadow-md md:shadow-sm" : "shadow-[var(--patient-shadow-nav)] md:shadow-sm",
         )}
@@ -202,7 +205,8 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         <div
           data-testid="patient-desktop-top-nav"
           className={cn(
-            "mx-auto hidden w-full max-w-[min(1180px,calc(100vw-2rem))] items-center gap-4 px-4 md:flex",
+            "hidden items-center gap-4 px-4 md:flex",
+            PATIENT_DESKTOP_INNER_MAX_CLASS,
             "transition-[padding-block] [transition-property:padding-block]",
             NAV_COMPACT_EASE,
             compact ? "py-3" : "py-2.5",

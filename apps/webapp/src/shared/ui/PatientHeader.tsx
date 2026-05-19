@@ -25,6 +25,7 @@ import {
   type HeaderIconId,
 } from "@/app-layer/routes/navigation";
 import { cn } from "@/lib/utils";
+import { PATIENT_OVERLAY_PANEL_WIDTH_CLASS } from "@/shared/lib/pwaLayoutClasses";
 import { usePlatform } from "@/shared/hooks/usePlatform";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
@@ -206,7 +207,7 @@ export function PatientHeader({
   );
 
   const titleBrand = (
-    <div className="flex min-w-0 max-w-[min(100vw-6rem,280px)] flex-col items-center gap-0.5 px-1">
+    <div className="flex min-w-0 max-w-[min(100%,280px)] flex-col items-center gap-0.5 px-1">
       {titleBadgeEl}
       <p
         className="m-0 w-full truncate text-center text-base font-medium tracking-tight text-foreground"
@@ -249,7 +250,7 @@ export function PatientHeader({
 
       {nav.hasSheetMenu ? (
         <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-          <SheetContent side="right" className="flex w-[min(100vw,17rem)] flex-col px-4 sm:max-w-[17rem]">
+          <SheetContent side="right" className={cn("flex flex-col px-4", PATIENT_OVERLAY_PANEL_WIDTH_CLASS)}>
             <SheetHeader className="px-0 text-left">
               <SheetTitle>Меню</SheetTitle>
             </SheetHeader>

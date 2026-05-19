@@ -9,8 +9,8 @@ import type { PlatformMode } from "@/shared/lib/platform";
 export type HeaderIconId = "profile" | "messages" | "reminders" | "menu";
 
 /**
- * Ранее — max-width мобильной колонки пациента (px). Сейчас ниже `md` колонка на всю ширину
- * с отступами (`safe-padding-patient`); константа оставлена для совместимости/доков.
+ * Max-width мобильной колонки patient shell (px): `max-md:max-w-[430px]` в {@link AppShell}.
+ * Константа — для data-атрибутов, порталов и доков.
  */
 export const PATIENT_MOBILE_SHELL_MAX_PX = 430 as const;
 

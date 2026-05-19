@@ -34,7 +34,19 @@
 - Изменения продуктового кода.
 - Prod SQL / dry-run backfill.
 
-**Gate:** старт PHASE_01+ — после ответов на вопросы согласования (см. ответ агента в чате / обновление ROADMAP).
+**Gate:** закрыт.
+
+## 2026-05-19 — Scope волны 1 (согласовано)
+
+**Решения** ([`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md)):
+
+- Только **live-flow**: новые Rubitime events, актуальный email врача/Rubitime, register/forgot/setup по запросу.
+- **Отложено (не в волне 1):** backfill, mass setup старой базе — PHASE_07/08 **deferred**; PHASE_06 **deferred**. Планы фаз не удаляются.
+- Rubitime live: phone→email find/create, `platform_user_id`, имя не трогать на existing, trusted phone, unverified email.
+- Register: contact-only → setup-required, не duplicate_email.
+- Forgot: reset только verified+password; contact-only → setup.
+
+**Обновлено:** `ROADMAP.md`, `README.md`, `MAIN PLAN.md` (шапка), PHASE_00/01/05–08.
 
 ---
 

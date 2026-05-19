@@ -140,7 +140,7 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent
           side="right"
-          className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-[min(100vw,22rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-sm"
+          className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full max-w-[22rem] flex-col gap-0 overflow-hidden p-0 sm:max-w-sm"
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-[env(safe-area-inset-bottom,0px)] pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
             <SheetHeader className="shrink-0 border-0 px-0 py-2 text-left">

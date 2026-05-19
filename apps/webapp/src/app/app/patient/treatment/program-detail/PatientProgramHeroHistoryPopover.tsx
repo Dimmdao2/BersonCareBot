@@ -41,7 +41,7 @@ export function PatientProgramHeroHistoryPopover(props: {
           side="bottom"
           align="end"
           sideOffset={6}
-          className="w-[min(calc(100vw-1.5rem),18.5rem)] max-h-[min(70vh,24rem)] overflow-y-auto p-3 text-[11px] leading-snug text-foreground"
+          className="w-[min(100%,18.5rem)] max-w-full max-h-[min(70vh,24rem)] overflow-y-auto p-3 text-[11px] leading-snug text-foreground"
         >
           <p className="m-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Важные даты</p>
           <ul className="mt-2 max-w-full list-none space-y-1.5 p-0 [word-break:break-word]">

@@ -1,6 +1,6 @@
 # Фаза 7 — Backfill appointment_records (prod)
 
-**Статус:** `pending`  
+**Статус:** `deferred` — не в волне 1; задачи сохранены ([`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md), 2026-05-19)  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §10  
 **Зависит от:** [PHASE_01](PHASE_01_RUBITIME_PLATFORM_USER.md)
 

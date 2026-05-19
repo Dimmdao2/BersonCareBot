@@ -1,4 +1,6 @@
-**Инициатива (инфраструктура):** [`README.md`](README.md) · [`ROADMAP.md`](ROADMAP.md) · [`LOG.md`](LOG.md) · этапы [`PHASE_00`](PHASE_00_AUDIT_AND_AGREEMENT.md)…[`PHASE_08`](PHASE_08_MASS_SETUP_EMAIL.md).
+**Инициатива (инфраструктура):** [`README.md`](README.md) · [`ROADMAP.md`](ROADMAP.md) · [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) · [`LOG.md`](LOG.md) · этапы [`PHASE_00`](PHASE_00_AUDIT_AND_AGREEMENT.md)…[`PHASE_05`](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md).
+
+**Scope волны 1 (2026-05-19):** только **live-flow** (новые Rubitime events, актуальные email от врача, register/forgot). Backfill, mass setup, merge-hardening — **отложены** ([`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md), [`PHASE_07`](PHASE_07_BACKFILL_APPOINTMENTS.md), [`PHASE_08`](PHASE_08_MASS_SETUP_EMAIL.md)); §10 и фазы 7–8 остаются в плане на следующую волну.
 
 ---
 

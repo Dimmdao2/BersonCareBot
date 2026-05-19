@@ -16,6 +16,8 @@ import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { BUILD_ID_META_NAME } from "@/shared/lib/reloadConstants";
 import { PlatformProvider } from "@/shared/ui/PlatformProvider";
 import { BuildVersionWatcher } from "@/shared/ui/BuildVersionWatcher";
+import { HorizontalOverflowProbe } from "@/shared/ui/dev/HorizontalOverflowProbe";
+import { PWA_APP_ROOT_CLASS } from "@/shared/lib/pwaLayoutClasses";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 const robotoHeading = Roboto({
@@ -61,18 +63,21 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <meta name={BUILD_ID_META_NAME} content={buildId} />
       </head>
       <body>
-        <TooltipProvider>
-          <ClientToaster />
-          {/* Telegram Mini App SDK: lazyOnload — первый usable UI не ждёт telegram.org (вне Mini App скрипт догружается после загрузки страницы). */}
-          <Script
-            src="https://telegram.org/js/telegram-web-app.js"
-            strategy="lazyOnload"
-          />
-          <PlatformProvider serverHint={platformEntry}>
-            <BuildVersionWatcher />
-            {children}
-          </PlatformProvider>
-        </TooltipProvider>
+        <div id="app-root" className={PWA_APP_ROOT_CLASS}>
+          <TooltipProvider>
+            <ClientToaster />
+            {/* Telegram Mini App SDK: lazyOnload — первый usable UI не ждёт telegram.org (вне Mini App скрипт догружается после загрузки страницы). */}
+            <Script
+              src="https://telegram.org/js/telegram-web-app.js"
+              strategy="lazyOnload"
+            />
+            <PlatformProvider serverHint={platformEntry}>
+              <BuildVersionWatcher />
+              <HorizontalOverflowProbe />
+              {children}
+            </PlatformProvider>
+          </TooltipProvider>
+        </div>
       </body>
     </html>
   );

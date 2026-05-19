@@ -22,8 +22,9 @@
 ### В scope
 
 - `POST /api/auth/email-password/register` — код `existing_account_needs_email_setup` + отправка setup (не голый 409)
+- Явный запрос пользователя «отправить ссылку» на register/setup-required — выпуск setup-link
 - `AuthFlowV2` — копирайт и ветки UI по кодам
-- `forgot` — внутри: только verified+credentials шлют reset; contact-only → issue setup (ответ наружу generic 200 сохранить)
+- `forgot` — reset только verified+credentials; contact-only → setup access (не тупик без письма); внешний ответ может оставаться generic 200
 - Опционально: `POST /api/auth/email-password/lookup` для «ввёл email на входе» без перебора
 - Тесты MAIN PLAN §11 (Auth)
 
