@@ -82,7 +82,12 @@ describe("PatientTreatmentProgramsPage / list loader", () => {
     const ui = await PatientTreatmentProgramsPage();
     render(ui);
     expect(screen.getByTestId("shell-title")).toHaveTextContent("Программы лечения");
-    expect(screen.getByRole("heading", { name: "Нет активной программы" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Нет индивидуальных назначений" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Хочу персональную программу!" }),
+    ).toBeInTheDocument();
     expect(redirectMock).not.toHaveBeenCalled();
     expect(notFoundMock).not.toHaveBeenCalled();
   });

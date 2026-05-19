@@ -160,13 +160,21 @@ describe("patientProgramsListCurrentStageTitle", () => {
 });
 
 describe("PatientTreatmentProgramsListClient", () => {
-  it("renders empty state with messages link when no active program", () => {
+  it("renders empty state with personal program CTA when no active program", () => {
     render(
       <PatientTreatmentProgramsListClient hero={null} archived={[]} messagesHref="/app/patient/messages" />,
     );
-    expect(screen.getByText(/Здесь появится программа после назначения врачом/i)).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /Написать в чат со спеуиалистом/i });
-    expect(link).toHaveAttribute("href", "/app/patient/messages");
+
+    expect(
+      screen.getByRole("heading", { name: "Нет индивидуальных назначений" }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("heading", { name: "Хочу персональную программу!" }),
+    ).toBeInTheDocument();
+
+    const link = screen.getByRole("link", { name: /Консультация/i });
+    expect(link).toHaveAttribute("href", "/app/patient/intake/lfk");
   });
 
   it("renders hero with current stage, plan nudge, and CTA", () => {
