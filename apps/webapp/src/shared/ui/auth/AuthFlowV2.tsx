@@ -1,12 +1,11 @@
 "use client";
 
 /**
- * Публичный поток входа (web): Яндекс, Google, Telegram, Max; **email+пароль** и телефон — отдельные шаги (на шаге телефона без дубля OAuth/email).
- * Apple показывается только если включён Apple и при этом выключены Яндекс и Google (резерв для таких деплоев).
- * OTP в вебе — Telegram / Max / подтверждённый email (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
+ * Публичный поток входа (browser): Яндекс, Google, Apple и email (вход / регистрация / код).
+ * Apple — только если нет Яндекса/Google. Телефон и OTP только в Telegram/MAX Mini App (отдельный шаг phone).
  */
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -23,14 +22,18 @@ import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { ChannelPicker } from "@/shared/ui/auth/ChannelPicker";
 import { OtpCodeForm, type OtpAlternativeEntry, type OtpResendOutcome } from "@/shared/ui/auth/OtpCodeForm";
 import { InternationalPhoneInput } from "@/shared/ui/auth/InternationalPhoneInput";
-import { TelegramLoginButton } from "@/shared/ui/auth/TelegramLoginButton";
-import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_OUTLINE_BUTTON_CLASS,
   AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
 } from "@/shared/ui/auth/loginChrome";
+import {
+  clearAuthFlowPending,
+  readAuthFlowPending,
+  savePasswordResetPending,
+  saveRegisterVerifyPending,
+} from "@/shared/ui/auth/authFlowPendingStorage";
 import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
 import {
   patientHeroBookingSectionClass,
@@ -38,6 +41,7 @@ import {
   patientInlineLinkClass,
   patientMutedTextClass,
 } from "@/shared/ui/patientVisual";
+import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
@@ -77,7 +81,6 @@ function getWebChatId(): string {
 export type AuthFlowStep =
   | "entry_loading"
   | "oauth_first"
-  | "landing"
   | "phone"
   | "email_password"
   | "new_user_foreign"
@@ -145,43 +148,13 @@ function buildAlternatives(
   return result;
 }
 
-function MaxLoginCta({
-  maxAltLoading,
-  maxOpenUrl,
-  variant,
-  onActivate,
-}: {
-  maxAltLoading: boolean;
-  maxOpenUrl: string | null;
-  variant: "primary" | "outline";
-  onActivate?: () => void;
-}) {
-  const cls = AUTH_LOGIN_PRIMARY_BUTTON_CLASS;
-  if (maxAltLoading) {
-    return (
-      <Button
-        type="button"
-        variant="outline"
-        className={cn(cls, "animate-pulse")}
-        disabled
-        aria-busy="true"
-      >
-        {variant === "primary" ? "Войти через Max…" : "Max…"}
-      </Button>
-    );
-  }
-  if (!maxOpenUrl) return null;
-  return (
-    <a
-      href={maxOpenUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={cls}
-      onClick={() => onActivate?.()}
-    >
-      {variant === "primary" ? "Войти через Max" : "Max"}
-    </a>
-  );
+function withContactSupportReturn(supportHref: string | undefined, fromParam: string): string | undefined {
+  const raw = supportHref?.trim();
+  if (!raw) return raw;
+  if (!raw.includes("contact-support")) return raw;
+  return raw.includes("?")
+    ? `${raw}&from=${encodeURIComponent(fromParam)}`
+    : `${raw}?from=${encodeURIComponent(fromParam)}`;
 }
 
 type OauthProviderFlags = { yandex: boolean; google: boolean; apple: boolean };
@@ -203,11 +176,6 @@ type AuthFlowV2Props = {
   onInteractiveLoginEngaged?: () => void;
 };
 
-type MaxBotOpenUrlState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "ready"; url: string | null };
-
 export function AuthFlowV2({
   nextParam,
   supportContactHref,
@@ -220,9 +188,7 @@ export function AuthFlowV2({
     onInteractiveLoginEngaged?.();
   };
   const [step, setStep] = useState<AuthFlowStep>("entry_loading");
-  const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
-  /** После ответа /api/auth/telegram-login/config (или сразу в Mini App). До этого показываем слот кнопки Telegram. */
-  const [telegramLoginConfigLoaded, setTelegramLoginConfigLoaded] = useState(false);
+  const pendingHydratedRef = useRef(false);
   const [oauthProviders, setOauthProviders] = useState<OauthProviderFlags>({
     yandex: false,
     google: false,
@@ -237,17 +203,19 @@ export function AuthFlowV2({
   const [smsStartCooldownSec, setSmsStartCooldownSec] = useState(0);
   const [otpChannel, setOtpChannel] = useState<OtpChannel>("telegram");
   const [otpEntrySource, setOtpEntrySource] = useState<"registration" | "channel" | "auto" | null>(null);
-  const [maxBotOpenUrl, setMaxBotOpenUrl] = useState<MaxBotOpenUrlState>({ status: "idle" });
   const [emailLoginEmail, setEmailLoginEmail] = useState("");
   const [emailLoginPassword, setEmailLoginPassword] = useState("");
   const [emailRegPassword, setEmailRegPassword] = useState("");
   const [emailAuthMode, setEmailAuthMode] = useState<"login" | "register" | "verify">("login");
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
-  const [emailPasswordReturn, setEmailPasswordReturn] = useState<"oauth_first" | "landing" | "phone">("oauth_first");
-  /** Раскрывающийся блок «Другие варианты» на первом экране (oauth_first / landing). */
-  const [authEntryAlternativesExpanded, setAuthEntryAlternativesExpanded] = useState(false);
+  const [emailPasswordReturn, setEmailPasswordReturn] =
+    useState<"oauth_first" | "phone" | "email_password">("oauth_first");
   const [emailRegDisplayName, setEmailRegDisplayName] = useState("");
+  const [pwRecoveryPhase, setPwRecoveryPhase] = useState<"none" | "forgot_email" | "reset_code">("none");
+  const [pwResetEmail, setPwResetEmail] = useState("");
+  const [pwResetCode, setPwResetCode] = useState("");
+  const [pwNewPassword, setPwNewPassword] = useState("");
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -257,24 +225,15 @@ export function AuthFlowV2({
 
   useEffect(() => {
     if (isMessengerMiniAppHost()) {
-      setTelegramBotUsername(null);
-      setTelegramLoginConfigLoaded(true);
       setOauthProviders({ yandex: false, google: false, apple: false });
-      setMaxBotOpenUrl({ status: "ready", url: null });
       setStep("phone");
       return;
     }
 
     const oauth = prefetchedAuthConfig?.oauthProviders ?? { yandex: false, google: false, apple: false };
-    const tg = (prefetchedAuthConfig?.telegramBotUsername ?? "").trim();
-    const maxU = (prefetchedAuthConfig?.maxBotOpenUrl ?? "").trim();
     setOauthProviders(oauth);
-    setTelegramBotUsername(tg.length > 0 ? tg : null);
-    setTelegramLoginConfigLoaded(true);
-    setMaxBotOpenUrl({ status: "ready", url: maxU.length > 0 ? maxU : null });
-
     const oauthOn = oauth.yandex || oauth.google || oauth.apple;
-    setStep(oauthOn ? "oauth_first" : tg.length > 0 ? "landing" : "phone");
+    setStep(oauthOn ? "oauth_first" : "email_password");
   }, [prefetchedAuthConfig]);
 
   useEffect(() => {
@@ -282,10 +241,31 @@ export function AuthFlowV2({
   }, [step, onStepChange]);
 
   useEffect(() => {
-    if (step !== "oauth_first" && step !== "landing") {
-      setAuthEntryAlternativesExpanded(false);
+    if (pendingHydratedRef.current) return;
+    if (typeof window === "undefined") return;
+    if (isMessengerMiniAppHost()) return;
+    if (step !== "oauth_first" && step !== "email_password") return;
+    pendingHydratedRef.current = true;
+    const p = readAuthFlowPending();
+    if (!p) return;
+    if (p.mode === "register_verify") {
+      engageInteractive();
+      setStep("email_password");
+      setEmailPasswordReturn((prefetchedAuthConfig?.oauthProviders?.yandex || prefetchedAuthConfig?.oauthProviders?.google || prefetchedAuthConfig?.oauthProviders?.apple) ? "oauth_first" : "email_password");
+      setEmailLoginEmail(p.email);
+      setEmailRegDisplayName(p.displayName);
+      setEmailRegChallengeId(p.challengeId);
+      setEmailAuthMode("verify");
+      setEmailRegRetrySec(p.retryAfterSeconds);
+    } else if (p.mode === "password_reset") {
+      engageInteractive();
+      setStep("email_password");
+      setEmailPasswordReturn((prefetchedAuthConfig?.oauthProviders?.yandex || prefetchedAuthConfig?.oauthProviders?.google || prefetchedAuthConfig?.oauthProviders?.apple) ? "oauth_first" : "email_password");
+      setEmailAuthMode("login");
+      setPwRecoveryPhase("reset_code");
+      setPwResetEmail(p.email);
     }
-  }, [step]);
+  }, [step, prefetchedAuthConfig]);
 
   const startOauth = async (provider: "yandex" | "google" | "apple") => {
     engageInteractive();
@@ -325,16 +305,6 @@ export function AuthFlowV2({
     oauthProviders.apple && !oauthProviders.yandex && !oauthProviders.google;
   const hasWebOauthAlternatives = showOauthRow || showAppleFallback;
 
-  const maxAltLoading = maxBotOpenUrl.status === "loading" || maxBotOpenUrl.status === "idle";
-  const maxOpenUrl = maxBotOpenUrl.status === "ready" ? maxBotOpenUrl.url : null;
-
-  const telegramWidgetReady =
-    telegramLoginConfigLoaded &&
-    telegramBotUsername !== null &&
-    telegramBotUsername.length > 0;
-  /** Пока конфиг грузится — считаем, что Telegram-вход может появиться; после ответа — только если бот задан. */
-  const showTelegramAuthSlot = !telegramLoginConfigLoaded || telegramWidgetReady;
-
   const resetEmailAuthFields = () => {
     setEmailAuthMode("login");
     setEmailRegChallengeId(null);
@@ -343,16 +313,19 @@ export function AuthFlowV2({
     setEmailRegDisplayName("");
     setEmailLoginEmail("");
     setEmailLoginPassword("");
+    setPwRecoveryPhase("none");
+    setPwResetEmail("");
+    setPwResetCode("");
+    setPwNewPassword("");
   };
 
   const goBackToEntry = () => {
     setSmsStartCooldownSec(0);
     resetEmailAuthFields();
-    setAuthEntryAlternativesExpanded(false);
-    if (hasWebOauthAlternatives && !isMessengerMiniAppHost()) {
-      setStep("oauth_first");
-    } else if (telegramBotUsername) {
-      setStep("landing");
+    pendingHydratedRef.current = false;
+    clearAuthFlowPending();
+    if (!isMessengerMiniAppHost()) {
+      setStep(hasWebOauthAlternatives ? "oauth_first" : "email_password");
     } else {
       setStep("phone");
     }
@@ -360,11 +333,26 @@ export function AuthFlowV2({
     setMethods(null);
   };
 
-  const openEmailPasswordLogin = (returnTo: "oauth_first" | "landing" | "phone") => {
+  const resetToOtherMethods = () => {
+    pendingHydratedRef.current = false;
+    clearAuthFlowPending();
+    setSmsStartCooldownSec(0);
+    resetEmailAuthFields();
+    if (!isMessengerMiniAppHost()) {
+      setStep(hasWebOauthAlternatives ? "oauth_first" : "email_password");
+      setPhone(null);
+      setMethods(null);
+    } else {
+      setStep("phone");
+      setPhone(null);
+      setMethods(null);
+    }
+  };
+
+  const openEmailPasswordLogin = (returnTo: "oauth_first" | "phone" | "email_password") => {
     engageInteractive();
     setEmailPasswordReturn(returnTo);
     resetEmailAuthFields();
-    setAuthEntryAlternativesExpanded(false);
     setStep("email_password");
   };
 
@@ -391,6 +379,42 @@ export function AuthFlowV2({
       };
       if (data.ok && data.redirectTo) {
         redirectOk(data.redirectTo, data.role);
+        return;
+      }
+      if (res.status === 409 || data.error === "email_not_verified") {
+        const dn = email.split("@")[0] || "Пациент";
+        const resReg = await fetch("/api/auth/email-password/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password: emailLoginPassword, displayName: dn }),
+        });
+        const regData = (await resReg.json().catch(() => ({}))) as {
+          ok?: boolean;
+          challengeId?: string;
+          retryAfterSeconds?: number;
+          message?: string;
+          error?: string;
+        };
+        if (regData.ok && regData.challengeId) {
+          saveRegisterVerifyPending({
+            email,
+            challengeId: regData.challengeId,
+            retryAfterSeconds: regData.retryAfterSeconds ?? 60,
+            displayName: dn,
+          });
+          setEmailRegDisplayName("");
+          setEmailRegPassword(emailLoginPassword);
+          setEmailRegChallengeId(regData.challengeId);
+          setEmailRegRetrySec(regData.retryAfterSeconds ?? 60);
+          setEmailAuthMode("verify");
+          toast.success("Подтвердите email — отправили код.");
+          return;
+        }
+        if (resReg.status === 409 || regData.error === "duplicate_email") {
+          toast.error("Подтвердите email или проверьте пароль.");
+          return;
+        }
+        toast.error(regData.message ?? "Не удалось отправить код");
         return;
       }
       if (res.status === 401 || data.error === "invalid_credentials") {
@@ -444,6 +468,12 @@ export function AuthFlowV2({
         return;
       }
       if (data.ok && data.challengeId) {
+        saveRegisterVerifyPending({
+          email,
+          challengeId: data.challengeId,
+          retryAfterSeconds: data.retryAfterSeconds ?? 60,
+          displayName,
+        });
         setEmailRegChallengeId(data.challengeId);
         setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
         setEmailAuthMode("verify");
@@ -460,8 +490,83 @@ export function AuthFlowV2({
   };
 
   const redirectOk = (redirectTo: string, role?: "client" | "doctor" | "admin") => {
+    clearAuthFlowPending();
     const target = getPostAuthRedirectTarget(role ?? "client", nextParam, redirectTo);
     router.replace(target);
+  };
+
+  const submitPasswordForgotRequest = async (e: FormEvent) => {
+    e.preventDefault();
+    engageInteractive();
+    const email = (pwRecoveryPhase === "forgot_email" ? pwResetEmail : emailLoginEmail).trim();
+    if (!email) {
+      toast.error("Введите email");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/email-password/forgot", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; retryAfterSeconds?: number };
+      if (!data.ok) {
+        toast.error("Не удалось выполнить запрос");
+        return;
+      }
+      const sec = Math.max(1, Math.ceil(Number(data.retryAfterSeconds) || 60));
+      savePasswordResetPending({ email, retryAfterSeconds: sec });
+      setPwResetEmail(email);
+      setPwRecoveryPhase("reset_code");
+      toast.success(
+        "Если такой email есть в системе, на почту отправлен код. Проверьте папку «Спам».",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitPasswordResetFinalize = async (e: FormEvent) => {
+    e.preventDefault();
+    engageInteractive();
+    const email = pwResetEmail.trim();
+    if (!email || !pwResetCode.trim() || pwNewPassword.length < 8) {
+      toast.error("Введите код и новый пароль (не менее 8 символов)");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/email-password/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, code: pwResetCode.trim(), newPassword: pwNewPassword }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        retryAfterSeconds?: number;
+      };
+      if (data.ok) {
+        clearAuthFlowPending();
+        setPwRecoveryPhase("none");
+        setPwResetCode("");
+        setPwNewPassword("");
+        toast.success("Пароль обновлён. Войдите.");
+        setEmailLoginEmail(email);
+        setEmailLoginPassword("");
+        setEmailAuthMode("login");
+        return;
+      }
+      if (res.status === 429 || data.error === "too_many_attempts") {
+        toast.error(data.message ?? "Слишком частые попытки");
+        return;
+      }
+      toast.error(data.message ?? "Неверный или просроченный код");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const startPhoneOtp = async (
@@ -563,68 +668,150 @@ export function AuthFlowV2({
   }
 
   if (step === "email_password") {
+    const showEmailChromeBack =
+      pwRecoveryPhase !== "none" ||
+      emailAuthMode === "verify" ||
+      emailPasswordReturn === "oauth_first" ||
+      emailPasswordReturn === "phone";
+
+    const topBackLabel =
+      pwRecoveryPhase !== "none"
+        ? "Назад"
+        : emailAuthMode === "verify"
+          ? "Войти другим способом"
+          : emailPasswordReturn === "oauth_first"
+            ? "К выбору входа"
+            : "Назад";
+
     return (
       <div id="auth-flow-v2-email-password" className={cn(authFlowShellClass, "w-full text-left")}>
-        <Button
-          type="button"
-          variant="link"
-          className={authLinkButtonClass}
-          disabled={loading}
-          onClick={() => {
-            if (emailAuthMode === "verify") {
-              setEmailRegChallengeId(null);
-              setEmailAuthMode("register");
-              return;
-            }
-            resetEmailAuthFields();
-            setStep(emailPasswordReturn);
-          }}
-        >
-          Назад
-        </Button>
-
-        {emailAuthMode !== "verify" ? (
-          <div
-            role="tablist"
-            aria-label="Режим входа по email"
-            className="mt-3 grid grid-cols-2 gap-1.5"
+        {showEmailChromeBack ? (
+          <Button
+            type="button"
+            variant="link"
+            className={authLinkButtonClass}
+            disabled={loading}
+            onClick={() => {
+              if (pwRecoveryPhase !== "none") {
+                setPwRecoveryPhase("none");
+                setPwResetCode("");
+                setPwNewPassword("");
+                setPwResetEmail("");
+                return;
+              }
+              if (emailAuthMode === "verify") {
+                resetToOtherMethods();
+                return;
+              }
+              resetEmailAuthFields();
+              setStep(emailPasswordReturn);
+            }}
           >
-            <button
-              id="auth-email-tab-login"
-              type="button"
-              role="tab"
-              aria-selected={emailAuthMode === "login"}
-              disabled={loading}
-              className={cn(
-                "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                emailAuthMode === "login"
-                  ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary-soft)]/40 text-[#1a3366]"
-                  : "border-[var(--patient-border)] bg-white text-[var(--patient-text-muted)] hover:bg-[var(--patient-color-primary-soft)]/25",
-              )}
-              onClick={() => setEmailAuthMode("login")}
-            >
-              Вход
-            </button>
-            <button
-              id="auth-email-tab-register"
-              type="button"
-              role="tab"
-              aria-selected={emailAuthMode === "register"}
-              disabled={loading}
-              className={cn(
-                "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                emailAuthMode === "register"
-                  ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary-soft)]/40 text-[#1a3366]"
-                  : "border-[var(--patient-border)] bg-white text-[var(--patient-text-muted)] hover:bg-[var(--patient-color-primary-soft)]/25",
-              )}
-              onClick={() => setEmailAuthMode("register")}
-            >
-              Регистрация
-            </button>
-          </div>
+            {topBackLabel}
+          </Button>
         ) : null}
 
-        {emailAuthMode === "login" ? (
+        {pwRecoveryPhase === "forgot_email" ? (
+          <form className="mt-3 flex w-full flex-col gap-3" onSubmit={(e) => void submitPasswordForgotRequest(e)}>
+            <p className={patientMutedTextClass}>Укажите email учётной записи. Ответ будет одинаковым независимо от наличия почты.</p>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="auth-pw-forgot-email" className={authFormFieldLabelClass}>
+                Email
+              </label>
+              <Input
+                id="auth-pw-forgot-email"
+                type="email"
+                autoComplete="email"
+                value={pwResetEmail}
+                onChange={(e) => setPwResetEmail(e.target.value)}
+                disabled={loading}
+                className={authEmailInputClass}
+              />
+            </div>
+            <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
+              Отправить код
+            </Button>
+          </form>
+        ) : pwRecoveryPhase === "reset_code" ? (
+          <form className="mt-3 flex w-full flex-col gap-3" onSubmit={(e) => void submitPasswordResetFinalize(e)}>
+            <p className={patientMutedTextClass}>Код отправлен на {pwResetEmail.trim()}</p>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="auth-pw-reset-code" className={authFormFieldLabelClass}>
+                Код из письма
+              </label>
+              <Input
+                id="auth-pw-reset-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={pwResetCode}
+                onChange={(e) => setPwResetCode(e.target.value.replace(/\D/g, ""))}
+                disabled={loading}
+                className={authEmailInputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="auth-pw-reset-new" className={authFormFieldLabelClass}>
+                Новый пароль
+              </label>
+              <Input
+                id="auth-pw-reset-new"
+                type="password"
+                autoComplete="new-password"
+                value={pwNewPassword}
+                onChange={(e) => setPwNewPassword(e.target.value)}
+                disabled={loading}
+                className={authEmailInputClass}
+              />
+            </div>
+            <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
+              Сохранить пароль
+            </Button>
+          </form>
+        ) : (
+          <>
+            {emailAuthMode !== "verify" ? (
+              <div
+                role="tablist"
+                aria-label="Режим входа по email"
+                className="mt-3 grid grid-cols-2 gap-1.5"
+              >
+                <button
+                  id="auth-email-tab-login"
+                  type="button"
+                  role="tab"
+                  aria-selected={emailAuthMode === "login"}
+                  disabled={loading}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                    emailAuthMode === "login"
+                      ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary-soft)]/40 text-[#1a3366]"
+                      : "border-[var(--patient-border)] bg-white text-[var(--patient-text-muted)] hover:bg-[var(--patient-color-primary-soft)]/25",
+                  )}
+                  onClick={() => setEmailAuthMode("login")}
+                >
+                  Вход
+                </button>
+                <button
+                  id="auth-email-tab-register"
+                  type="button"
+                  role="tab"
+                  aria-selected={emailAuthMode === "register"}
+                  disabled={loading}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                    emailAuthMode === "register"
+                      ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary-soft)]/40 text-[#1a3366]"
+                      : "border-[var(--patient-border)] bg-white text-[var(--patient-text-muted)] hover:bg-[var(--patient-color-primary-soft)]/25",
+                  )}
+                  onClick={() => setEmailAuthMode("register")}
+                >
+                  Регистрация
+                </button>
+              </div>
+            ) : null}
+
+            {emailAuthMode === "login" ? (
           <form
             role="tabpanel"
             aria-labelledby="auth-email-tab-login"
@@ -665,6 +852,17 @@ export function AuthFlowV2({
             <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
               Войти
             </Button>
+            <button
+              type="button"
+              className={cn(authLinkButtonClass, "self-start")}
+              disabled={loading}
+              onClick={() => {
+                setPwResetEmail(emailLoginEmail);
+                setPwRecoveryPhase("forgot_email");
+              }}
+            >
+              Забыли пароль?
+            </button>
           </form>
         ) : null}
 
@@ -734,7 +932,7 @@ export function AuthFlowV2({
             <OtpCodeForm
               challengeId={emailRegChallengeId}
               retryAfterSeconds={emailRegRetrySec}
-              supportContactHref={supportContactHref}
+              supportContactHref={withContactSupportReturn(supportContactHref, "verify")}
               submitLabel="Продолжить"
               description="Введите код из письма."
               onConfirm={async (code) => {
@@ -791,6 +989,12 @@ export function AuthFlowV2({
                 if (data.ok && data.challengeId) {
                   setEmailRegChallengeId(data.challengeId);
                   setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+                  saveRegisterVerifyPending({
+                    email,
+                    challengeId: data.challengeId,
+                    retryAfterSeconds: data.retryAfterSeconds ?? 60,
+                    displayName: emailRegDisplayName.trim() || email.split("@")[0] || "Пациент",
+                  });
                   return { kind: "ok" as const };
                 }
                 if (res.status === 429 || data.error === "rate_limited") {
@@ -800,13 +1004,43 @@ export function AuthFlowV2({
                 }
                 return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
               }}
-              onBack={() => {
-                setEmailRegChallengeId(null);
-                setEmailAuthMode("register");
-              }}
+              hideBack
             />
+            <div className="mt-3 flex flex-col gap-2">
+              <p className={cn(patientMutedTextClass, "break-all text-sm")}>
+                Код отправлен на {emailLoginEmail.trim()}
+              </p>
+              <button
+                type="button"
+                className={authLinkButtonClass}
+                disabled={loading}
+                onClick={() => {
+                  clearAuthFlowPending();
+                  setEmailRegChallengeId(null);
+                  setEmailAuthMode("register");
+                }}
+              >
+                Изменить email
+              </button>
+              <div className="flex flex-col gap-1 pt-2">
+                <label htmlFor="auth-verify-resend-pwd" className={authFormFieldLabelClass}>
+                  Пароль (для повторной отправки кода)
+                </label>
+                <Input
+                  id="auth-verify-resend-pwd"
+                  type="password"
+                  autoComplete="new-password"
+                  value={emailRegPassword}
+                  onChange={(e) => setEmailRegPassword(e.target.value)}
+                  disabled={loading}
+                  className={authEmailInputClass}
+                />
+              </div>
+            </div>
           </div>
         ) : null}
+          </>
+        )}
       </div>
     );
   }
@@ -858,163 +1092,13 @@ export function AuthFlowV2({
         >
           Войти по email
         </Button>
-        <button
-          type="button"
-          className={authLinkButtonClass}
-          disabled={loading}
-          aria-expanded={authEntryAlternativesExpanded}
-          onClick={() => setAuthEntryAlternativesExpanded((v) => !v)}
-        >
-          Другие варианты
-        </button>
-        {authEntryAlternativesExpanded ? (
-          <div
-            id="auth-flow-v2-oauth-first-alternatives"
-            className="mt-1 flex w-full max-w-sm flex-col items-center gap-3 border-t border-[var(--patient-border)] pt-3"
-          >
-            {showTelegramAuthSlot ? (
-              <div className="flex w-full flex-col items-center gap-4">
-                {telegramWidgetReady && telegramBotUsername ? (
-                  <TelegramLoginButton
-                    botUsername={telegramBotUsername}
-                    nextParam={nextParam}
-                    disabled={loading}
-                    onAuthEngaged={engageInteractive}
-                  />
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn(AUTH_LOGIN_PRIMARY_BUTTON_CLASS, "animate-pulse")}
-                    disabled
-                    aria-busy="true"
-                  >
-                    Войти через Telegram…
-                  </Button>
-                )}
-              </div>
-            ) : null}
-            <MaxLoginCta
-              maxAltLoading={maxAltLoading}
-              maxOpenUrl={maxOpenUrl}
-              variant="primary"
-              onActivate={engageInteractive}
-            />
-            <button
-              type="button"
-              className={authLinkButtonClass}
-              disabled={loading}
-              onClick={() => {
-                engageInteractive();
-                setAuthEntryAlternativesExpanded(false);
-                setStep("phone");
-              }}
-            >
-              Войти по номеру телефона
-            </button>
-          </div>
-        ) : null}
-    </div>
-    );
-  }
-
-  if (step === "landing" && telegramBotUsername) {
-    return (
-      <div id="auth-flow-v2-landing" className={cn(authFlowShellClass, "items-center text-center")}>
-        {showOauthRow || showAppleFallback ? (
-          <div className="flex w-full flex-col items-center gap-3">
-            {oauthProviders.yandex ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-                disabled={loading}
-                onClick={() => void startOauth("yandex")}
-              >
-                Войти через Яндекс
-              </Button>
-            ) : null}
-            {oauthProviders.google ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-                disabled={loading}
-                onClick={() => void startOauth("google")}
-              >
-                Войти через Google
-              </Button>
-            ) : null}
-            {showAppleFallback ? (
-              <Button
-                type="button"
-                variant="outline"
-                className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-                disabled={loading}
-                onClick={() => void startOauth("apple")}
-              >
-                Войти через Apple
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-          disabled={loading}
-          onClick={() => openEmailPasswordLogin("landing")}
-        >
-          Войти по email
-        </Button>
-        <button
-          type="button"
-          className={authLinkButtonClass}
-          disabled={loading}
-          aria-expanded={authEntryAlternativesExpanded}
-          onClick={() => setAuthEntryAlternativesExpanded((v) => !v)}
-        >
-          Другие варианты
-        </button>
-        {authEntryAlternativesExpanded ? (
-          <div
-            id="auth-flow-v2-landing-alternatives"
-            className="mt-1 flex w-full max-w-sm flex-col items-center gap-3 border-t border-[var(--patient-border)] pt-3"
-          >
-            <TelegramLoginButton
-              botUsername={telegramBotUsername}
-              nextParam={nextParam}
-              disabled={loading}
-              onAuthEngaged={engageInteractive}
-            />
-            <MaxLoginCta
-              maxAltLoading={maxAltLoading}
-              maxOpenUrl={maxOpenUrl}
-              variant="primary"
-              onActivate={engageInteractive}
-            />
-            <button
-              type="button"
-              className={authLinkButtonClass}
-              disabled={loading}
-              onClick={() => {
-                engageInteractive();
-                setAuthEntryAlternativesExpanded(false);
-                setStep("phone");
-              }}
-            >
-              Войти по номеру телефона
-            </button>
-          </div>
-        ) : null}
       </div>
     );
   }
 
   if (step === "phone") {
     const showPhoneSmsNotice = !isMessengerMiniAppHost();
-    const showPhoneBack =
-      !isMessengerMiniAppHost() && (hasWebOauthAlternatives || Boolean(telegramBotUsername?.length));
+    const showPhoneBack = !isMessengerMiniAppHost();
 
     return (
       <div id="auth-flow-v2-phone" className={cn(authFlowShellClass, "items-center text-center")}>
@@ -1044,87 +1128,45 @@ export function AuthFlowV2({
     return (
       <div id="auth-flow-v2-new-user-foreign" className={cn(authFlowShellClass, "text-left")}>
         <p className={authStepMutedParagraphClass}>
-          В браузере код подтверждения отправляется только в Telegram или Max, привязанные к номеру. SMS для входа с сайта
-          отключён.
-          {hasWebOauthAlternatives
-            ? showOauthRow
-              ? " Войдите через Яндекс или Google, укажите другой номер или откройте бота в Max (кнопки ниже)."
-              : " Войдите через Apple, укажите другой номер или откройте бота в Max (кнопки ниже)."
-            : showTelegramAuthSlot
-              ? " Воспользуйтесь входом через Telegram ниже."
-              : maxOpenUrl
-                ? " Откройте бота в Max — кнопка ниже."
-                : ""}
+          В Mini App код приходит только в привязанный чат Telegram или Max. SMS отключён. Привязать бота можно в
+          профиле после входа на сайте по email или OAuth.
         </p>
         {hasWebOauthAlternatives ? (
           <div className="flex w-full flex-col items-center gap-2">
-              {oauthProviders.yandex ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                  disabled={loading}
-                  onClick={() => void startOauth("yandex")}
-                >
-                  Яндекс
-                </Button>
-              ) : null}
-              {oauthProviders.google ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                  disabled={loading}
-                  onClick={() => void startOauth("google")}
-                >
-                  Google
-                </Button>
-              ) : null}
-              {showAppleFallback ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                  disabled={loading}
-                  onClick={() => void startOauth("apple")}
-                >
-                  Apple
-                </Button>
-              ) : null}
-              <MaxLoginCta
-                maxAltLoading={maxAltLoading}
-                maxOpenUrl={maxOpenUrl}
+            {oauthProviders.yandex ? (
+              <Button
+                type="button"
                 variant="outline"
-                onActivate={engageInteractive}
-              />
+                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
+                disabled={loading}
+                onClick={() => void startOauth("yandex")}
+              >
+                Яндекс
+              </Button>
+            ) : null}
+            {oauthProviders.google ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
+                disabled={loading}
+                onClick={() => void startOauth("google")}
+              >
+                Google
+              </Button>
+            ) : null}
+            {showAppleFallback ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
+                disabled={loading}
+                onClick={() => void startOauth("apple")}
+              >
+                Apple
+              </Button>
+            ) : null}
           </div>
-        ) : null}
-        {!hasWebOauthAlternatives && maxOpenUrl ? (
-          <a
-            href={maxOpenUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-            onClick={() => engageInteractive()}
-          >
-            Войти через Max
-          </a>
-        ) : null}
-        {showTelegramAuthSlot ? (
-          <Button
-            type="button"
-            variant="outline"
-            className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-            disabled={loading || !telegramWidgetReady}
-            onClick={() => {
-              if (telegramWidgetReady) {
-                engageInteractive();
-                setStep("landing");
-              }
-            }}
-          >
-            {telegramLoginConfigLoaded ? "Войти через Telegram" : "Войти через Telegram…"}
-          </Button>
         ) : null}
         <Button
           type="button"
@@ -1144,88 +1186,45 @@ export function AuthFlowV2({
     return (
       <div id="auth-flow-v2-foreign-no-otp" className={cn(authFlowShellClass, "text-left")}>
         <p className={authStepMutedParagraphClass}>
-          Для этого номера в браузере нет способа получить код: нужны Telegram или Max, привязанные к аккаунту. SMS для
-          входа с сайта отключён.
-          {hasWebOauthAlternatives
-            ? showOauthRow
-              ? " Воспользуйтесь входом без номера (Яндекс, Google, Max) — кнопки ниже."
-              : " Воспользуйтесь входом без номера (Apple, Max) — кнопки ниже."
-            : showTelegramAuthSlot
-              ? " Войдите через Telegram."
-              : maxOpenUrl
-                ? " Откройте бота в Max — кнопка ниже."
-                : ""}
-          {supportContactHref ? " При необходимости обратитесь в поддержку." : ""}
+          Для этого номера нет привязанного способа доставить код в Mini App. Откройте сайт и войдите по email или
+          OAuth — затем привяжите бота в профиле.
         </p>
         {hasWebOauthAlternatives ? (
           <div className="flex w-full flex-col items-center gap-2">
-              {oauthProviders.yandex ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                  disabled={loading}
-                  onClick={() => void startOauth("yandex")}
-                >
-                  Яндекс
-                </Button>
-              ) : null}
-              {oauthProviders.google ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                  disabled={loading}
-                  onClick={() => void startOauth("google")}
-                >
-                  Google
-                </Button>
-              ) : null}
-              {showAppleFallback ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                  disabled={loading}
-                  onClick={() => void startOauth("apple")}
-                >
-                  Apple
-                </Button>
-              ) : null}
-              <MaxLoginCta
-                maxAltLoading={maxAltLoading}
-                maxOpenUrl={maxOpenUrl}
+            {oauthProviders.yandex ? (
+              <Button
+                type="button"
                 variant="outline"
-                onActivate={engageInteractive}
-              />
+                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
+                disabled={loading}
+                onClick={() => void startOauth("yandex")}
+              >
+                Яндекс
+              </Button>
+            ) : null}
+            {oauthProviders.google ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
+                disabled={loading}
+                onClick={() => void startOauth("google")}
+              >
+                Google
+              </Button>
+            ) : null}
+            {showAppleFallback ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
+                disabled={loading}
+                onClick={() => void startOauth("apple")}
+              >
+                Apple
+              </Button>
+            ) : null}
           </div>
-        ) : null}
-        {!hasWebOauthAlternatives && maxOpenUrl ? (
-          <a
-            href={maxOpenUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-            onClick={() => engageInteractive()}
-          >
-            Войти через Max
-          </a>
-        ) : null}
-        {showTelegramAuthSlot ? (
-          <Button
-            type="button"
-            variant="outline"
-            className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-            disabled={loading || !telegramWidgetReady}
-            onClick={() => {
-              if (telegramWidgetReady) {
-                engageInteractive();
-                setStep("landing");
-              }
-            }}
-          >
-            {telegramLoginConfigLoaded ? "Войти через Telegram" : "Войти через Telegram…"}
-          </Button>
         ) : null}
         {supportContactHref ? (
           <SupportContactLink

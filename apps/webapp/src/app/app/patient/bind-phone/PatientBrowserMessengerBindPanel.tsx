@@ -14,12 +14,17 @@ const POLL_MS = 4000;
 type Props = {
   hint?: string;
   supportContactHref?: string;
+  /** По умолчанию — копирай под подтверждение номера на bind-phone. В профиле — только уведомления/связь. */
+  variant?: "bind_phone" | "notifications";
 };
 
 /**
  * Браузер: нет привязки TG/MAX — deep link через POST /api/auth/channel-link/start.
  */
-export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: Props) {
+const NOTIFICATIONS_DEFAULT_HINT =
+  "Бот нужен для уведомлений и связи с клиникой. Вход на сайте остаётся через email или социальные аккаунты.";
+
+export function PatientBrowserMessengerBindPanel({ hint, supportContactHref, variant = "bind_phone" }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState<"telegram" | "max" | null>(null);
   const [telegramUrl, setTelegramUrl] = useState<string | null>(null);
@@ -103,12 +108,18 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
 
   return (
     <div id="patient-browser-messenger-bind-panel" className="flex flex-col gap-4">
-      <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Привязка телефона</p>
-      <p className={patientMutedTextClass}>
-        {hint ??
-          "Для стабильной работы приложения и синхронизации на всех платформах необходимо привязать номер телефона. Он не будет использоваться для SMS-рассылок."}
-      </p>
-      <p className="text-sm text-[var(--patient-text-primary)]">Выберите мессенджер, в котором удобнее подтвердить номер:</p>
+      {variant === "notifications" ? (
+        <p className={patientMutedTextClass}>{hint ?? NOTIFICATIONS_DEFAULT_HINT}</p>
+      ) : (
+        <>
+          <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Привязка телефона</p>
+          <p className={patientMutedTextClass}>
+            {hint ??
+              "Для стабильной работы приложения и синхронизации на всех платформах необходимо привязать номер телефона. Он не будет использоваться для SMS-рассылок."}
+          </p>
+          <p className="text-sm text-[var(--patient-text-primary)]">Выберите мессенджер, в котором удобнее подтвердить номер:</p>
+        </>
+      )}
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button
           type="button"

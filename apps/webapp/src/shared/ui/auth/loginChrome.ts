@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Ширина главных CTA совпадает с Telegram Login Widget (`data-size="large"`) — ~242px; высота и скругление — как у patient-кнопок.
+ * Историческая ширина главных CTA (~242px) для выравнивания ряда входа; высота и скругление — как у patient-кнопок.
  */
 export const LOGIN_CTA_WIDTH_CLASS = "w-[242px]";
 export const LOGIN_CTA_HEIGHT_CLASS = "h-10";
@@ -22,7 +22,7 @@ export const AUTH_LOGIN_BUTTON_FACE_CLASS = cn(
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
 );
 
-/** OAuth / выбор email / Max / заглушка Telegram — фиксированная ширина под виджет (~242px). */
+/** OAuth / email / формы — фиксированная ширина ~242px в рядах OAuth-first при необходимости. */
 export const AUTH_LOGIN_PRIMARY_BUTTON_CLASS = cn(
   LOGIN_CTA_HEIGHT_CLASS,
   LOGIN_CTA_WIDTH_CLASS,

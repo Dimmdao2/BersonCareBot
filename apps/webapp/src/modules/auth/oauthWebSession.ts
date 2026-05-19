@@ -3,7 +3,6 @@ import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { resolveRoleAsync } from "@/modules/auth/envRole";
 import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
-import { routePaths } from "@/app-layer/routes/paths";
 
 export function oauthWebLoginErrorRedirect(reason: string): string {
   return `/app?oauth=error&reason=${encodeURIComponent(reason)}`;
@@ -46,21 +45,5 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   }
 
   const finalRedirect = getRedirectPathForRole(role);
-
-  if (!sessionUser.phone) {
-    let verifiedEmail: string | null = null;
-    try {
-      verifiedEmail = await pgUserByPhonePort.getVerifiedEmailForUser(opts.userId);
-    } catch {
-      verifiedEmail = null;
-    }
-    if (!verifiedEmail?.trim()) {
-      const bindPhoneUrl = new URL(routePaths.bindPhone, appBase);
-      bindPhoneUrl.searchParams.set("next", finalRedirect);
-      bindPhoneUrl.searchParams.set("reason", "oauth_phone_required");
-      return { ok: true, redirectUrl: bindPhoneUrl.toString() };
-    }
-  }
-
   return { ok: true, redirectUrl: new URL(finalRedirect, appBase).toString() };
 }

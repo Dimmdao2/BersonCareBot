@@ -7,6 +7,21 @@ import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from "@/modules/platform-access/trustedPhonePolicy";
+import type { Pool } from "pg";
+
+async function applyVerifiedEmailFromYandex(pool: Pool, userId: string, emailRaw: string | null): Promise<void> {
+  const email = emailRaw?.trim();
+  if (!email) return;
+  await pool.query(
+    `UPDATE platform_users SET
+       email = $2::text,
+       email_normalized = lower(btrim($2::text)),
+       email_verified_at = COALESCE(email_verified_at, now()),
+       updated_at = now()
+     WHERE id = $1::uuid AND merged_into_id IS NULL`,
+    [userId, email],
+  );
+}
 
 export type YandexOAuthResolveFailure =
   | "no_identity"      // Яндекс не вернул ни телефон, ни email
@@ -39,8 +54,11 @@ export async function resolveUserIdForYandexOAuth(
     if (!env.DATABASE_URL?.trim()) {
       return { ok: true, userId: byOAuth.userId };
     }
-    const canonical = await resolveCanonicalUserId(getPool(), byOAuth.userId);
-    return { ok: true, userId: canonical ?? byOAuth.userId };
+    const poolEarly = getPool();
+    const canonicalEarly = await resolveCanonicalUserId(poolEarly, byOAuth.userId);
+    const uidEarly = canonicalEarly ?? byOAuth.userId;
+    await applyVerifiedEmailFromYandex(poolEarly, uidEarly, emailRaw);
+    return { ok: true, userId: uidEarly };
   }
 
   if (!env.DATABASE_URL?.trim()) {
@@ -123,12 +141,16 @@ export async function resolveUserIdForYandexOAuth(
       const ownerId = existing.rows[0]?.user_id;
       if (ownerId) {
         const canonical = await resolveCanonicalUserId(pool, ownerId);
-        return { ok: true, userId: canonical ?? ownerId };
+        const uid = canonical ?? ownerId;
+        await applyVerifiedEmailFromYandex(pool, uid, emailRaw);
+        return { ok: true, userId: uid };
       }
     }
 
-    const canonical = await resolveCanonicalUserId(pool, userId);
-    return { ok: true, userId: canonical ?? userId };
+    const canonical = await resolveCanonicalUserId(pool, userId!);
+    const uid = canonical ?? userId!;
+    await applyVerifiedEmailFromYandex(pool, uid, emailRaw);
+    return { ok: true, userId: uid };
   } catch {
     return { ok: false, reason: "db_error" };
   }

@@ -2,7 +2,17 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
+import type { PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
 import { AuthBootstrap } from "./AuthBootstrap";
+
+function browserPrefetchOauthDisabled(): PrefetchedPublicAuthConfig {
+  return {
+    oauthProviders: { yandex: false, google: false, apple: false },
+    telegramBotUsername: null,
+    maxBotOpenUrl: null,
+    fetchedAt: Date.now(),
+  };
+}
 
 const mockReplace = vi.fn();
 const mockRefresh = vi.fn();
@@ -57,13 +67,15 @@ describe("AuthBootstrap", () => {
       WebApp: { platform: "web", initData: "" },
     };
 
-    render(<AuthBootstrap entryClassification="browser_interactive" />);
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);
     });
 
-    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
     expect(mockRefresh).not.toHaveBeenCalled();
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
   });
@@ -74,13 +86,15 @@ describe("AuthBootstrap", () => {
     window.history.pushState({}, "", "/");
     delete (window as unknown as { Telegram?: unknown }).Telegram;
 
-    render(<AuthBootstrap entryClassification="browser_interactive" />);
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);
     });
 
-    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
     expect(mockRefresh).not.toHaveBeenCalled();
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
   });
@@ -90,13 +104,15 @@ describe("AuthBootstrap", () => {
     window.history.pushState({}, "", "/");
     document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
 
-    render(<AuthBootstrap entryClassification="browser_interactive" />);
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);
     });
 
-    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
   });
 
   it("в обычном браузере с загруженным MAX bridge не зависает в miniapp-ожидании", async () => {
@@ -108,13 +124,15 @@ describe("AuthBootstrap", () => {
       initData: "",
     };
 
-    render(<AuthBootstrap entryClassification="browser_interactive" />);
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1200);
     });
 
-    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
   });
 
   it("в обычном браузере с ?t=dev:admin&switch=1 без Telegram.WebApp обменивает токен после TOKEN_FALLBACK_MS", async () => {

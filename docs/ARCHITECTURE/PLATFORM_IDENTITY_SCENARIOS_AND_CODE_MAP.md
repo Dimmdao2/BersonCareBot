@@ -79,13 +79,13 @@
 
 ## 5. OAuth (веб)
 
-| Шаг                                      | Где                                                                                         |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Callback Yandex                          | `apps/webapp/src/app/api/auth/oauth/callback/yandex/route.ts` (legacy: `callback/route.ts`) |
-| Редирект на bind-phone если нет телефона | тот же файл после `setSessionFromUser`                                                      |
-| Резолв пользователя OAuth                | `apps/webapp/src/modules/auth/oauthYandexResolve.ts` и порты в callback                     |
+| Шаг                                                                         | Где                                                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Callback Yandex / Google / Apple                                            | см. **`auth.md`** (таблица OAuth-маршрутов)                                                 |
+| Редирект после **`setSessionFromUser`**                                       | только по роли/политике (`oauthWebSession` / callback handler), **не** только из-за «нет телефона» |
+| Резолв пользователя OAuth                                                   | `apps/webapp/src/modules/auth/oauthWebLoginResolve.ts`, **`oauthYandexResolve.ts`** и порты |
 
-**Сценарий:** провайдер не отдал телефон → сессия с каноном, tier **onboarding** → обязательный bind-phone (или эквивалент) до **patient**.
+**Сценарий:** пользователь может войти через OAuth без привязанного телефона; tier **`patient`** обеспечивается web-идентичностью (OAuth / пароль / подтверждённый email) на чтении в **`resolvePlatformAccessContext`**. Доверенный телефон остаётся отдельным требованием для записи и части операций (**`requirePatientBookingTrustedPhoneAccess`**).
 
 ---
 

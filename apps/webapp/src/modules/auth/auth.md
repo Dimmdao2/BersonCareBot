@@ -11,26 +11,31 @@
 
 ## Публичный вход в вебе (приоритет)
 
-1. **OAuth (Яндекс / Google / Apple)** — если хотя бы один провайдер настроен (`/api/auth/oauth/providers`), стартовый экран `AuthFlowV2` — **OAuth-first** (`oauth_first`), затем «Войти по номеру телефона». На главном экране **Apple не показывается**, если включены Яндекс или Google (основной набор — Яндекс, Google, Telegram, Max). Кнопка **«Войти через Apple»** доступна только в режиме **только Apple** (оба флага Яндекс и Google выключены в провайдерах).
-2. **Telegram Login Widget** — когда OAuth выключены и задан `telegram_login_bot_username`: экран `landing` с виджетом и переходом на телефон.
-3. **Международный номер телефона** — `InternationalPhoneInput` + `check-phone` → OTP в **Telegram**, **Max** или на **подтверждённый email** в профиле (по флагам `methods`). **SMS для `channel: web` отключён:** `POST /api/auth/phone/start` отвечает `sms_disabled_web`, если `deliveryChannel` — `sms` или не указан (раньше подразумевался SMS).
+1. **OAuth (Яндекс / Google / Apple)** — при настроенных провайдерах (`buildPrefetchedPublicAuthConfig`) стартовый шаг браузера — **`oauth_first`**, вторичное действие — **«Войти по email»**. **Apple не показывается** рядом с Яндексом или Google — только когда оба они выключены.
 
-**PIN** в публичном потоке входа **не показывается** (Stage 5); при необходимости re-auth для чувствительных действий — отдельные API (`pin/verify` и т.д.).
+2. **Email + пароль** — когда OAuth всё выключено, браузер сразу открывает шаг **`email_password`**: вход, регистрация, код из письма, **восстановление пароля**. Состояние «ожидается код»/`reset` сохраняется в **`sessionStorage`** (`authFlowPendingStorage.ts`), чтобы пережить обновление и возврат с **`/app/contact-support?from=`**.
+
+3. **Телефон и OTP из публичного браузера** — только в Telegram/MAX Mini App (**шаг `phone`**): `InternationalPhoneInput` → `check-phone` → код в канал (**SMS для `channel: web` недоступен**). Из публичного `/app` **нет** перехода на «ввод телефона», **нет** Telegram Login Widget и **нет** входа через бота `/app` поверх сайта — привязка бота к аккаунту для уведомлений выполняется **после входа** (профиль, при необходимости **`bind-phone`**, **`POST /api/auth/channel-link/start`**).
+
+**PIN** на плоскости входа **не показывается**; re-auth для чувствительных действий — отдельные API (`pin/verify` и т.д.).
 
 ### Публичный UI (`/app`, `AppEntryRsc` → `AppEntryLoginContent` → `AuthBootstrap` → `AuthFlowV2`)
 
 - **Оболочка:** `AppShell` с `variant="patient"` (как у кабинета пациента). RSC `AppEntryRsc` (`/app`, `/app/tg`, `/app/max`): при отсутствии сессии — `AppEntryLoginContent` + `AuthBootstrap`.
 - **`AppEntryLoginContent`:** при `ALLOW_DEV_AUTH_BYPASS` — блок dev-входа; иначе только `Suspense` + `AuthBootstrap`. **Отдельной плашки** «войдите или зарегистрируйтесь» нет.
-- **`AuthFlowV2`:** компактные шаги без дублирующих заголовков «Вход» и без длинного подзаголовка над списком провайдеров (текст на кнопках самодостаточен). Ветки `oauth_first` / `landing` / `phone` / **`email_password`** / `choose_channel` / `code`, а также `new_user_foreign` / `foreign_no_otp_channel` при необходимости.
-- **Patient-оформление:** контент шага в **`patientCardClass` + `patientInnerPageStackClass`** (`max-w-sm`, центрирование для OAuth/Telephone). Кнопки OAuth — **`shared/ui/auth/loginChrome.ts`** (primary/secondary в палитре patient, **`rounded-md`**, ширина **242px** где нужно выравнивание с Telegram Login Widget). **`InternationalPhoneInput`** и submit в **`OtpCodeForm`** — **`patientPrimaryActionClass`** на полную ширину карточки для основной CTA.
+- **`AuthFlowV2`:** компактные шаги без дублирующих заголовков «Вход» и без лишних вводных. В браузере: **`oauth_first`** или сразу **`email_password`**; **`phone`** / `choose_channel` / `code` — для Mini App или редких чужеземных кейсов после `check-phone`; `new_user_foreign` / `foreign_no_otp_channel` при необходимости.
+- **Patient-оформление:** контент шага в **`patientCardClass` + `patientInnerPageStackClass`** (`max-w-sm`, центрирование для OAuth / email форм и Mini App-потока). Кнопки OAuth и формы — **`shared/ui/auth/loginChrome.ts`**. **`InternationalPhoneInput`** и submit в **`OtpCodeForm`** — основная CTA по ширине карточки на шагах **`phone`/`code`**.
 - **`ChannelPicker`:** без вводной строки над кнопкой — сразу основной канал и при необходимости «Другие способы».
-- **Профиль (`PatientProfileHero`):** смена номера — тот же сценарий, что на `/app/patient/bind-phone` (`PatientBindPhoneClient`, без SMS и без удалённых `BindPhoneBlock` / `PhoneAuthForm`).
-- **Порядок шагов OAuth:** при включённых OAuth первый шаг — **`oauth_first`** (Яндекс, Google, при необходимости только-Apple, Telegram Login, ссылка на бота **Max** из `GET /api/auth/login/alternatives-config`, ссылка «Войти по номеру телефона»); иначе **Telegram `landing`** или сразу телефон. Публичный конфиг `alternatives-config` может отдавать `vkWebLoginUrl` — кнопка VK в UI подключается отдельно, когда будет нужна. **`OTP_PUBLIC_OTHER_CHANNELS_ORDER`** — **max** → **email** → **telegram**; **SMS** на публичном вебе не предлагается (см. раздел **Email** ниже).
+- **Профиль (`PatientProfileHero`):** смена номера через `PatientBindPhoneClient` как на **`bind-phone`**; при отсутствии Telegram/MAX — блок **`PatientBrowserMessengerBindPanel`** (`variant="notifications"`) только для связи и уведомлений.
+
+- **`OTP_PUBLIC_OTHER_CHANNELS_ORDER`** (**max** → **email** → **telegram**) и отсутствие **sms** для публичного веба относятся к входу через **Mini App / phone** или к редким веткам после `check-phone`, не к основному браузерному `/app`.
+
+- **Поддержка до входа:** **`/app/contact-support`** принимает **`?from=verify|login|reset`** и читает **`authFlowPendingStorage`**, чтобы подписать кнопку «назад» и ссылку внизу формы («Вернуться к коду» и т.д.).
 
 ### Email + пароль (пациент)
 
 - **`POST /api/auth/email-password/register`** — создание канона с паролем в `user_password_credentials`, отправка кода на почту (`startEmailChallenge`).
-- **`POST /api/auth/email-password/login`** — вход после `email_verified_at`.
+- **`POST /api/auth/email-password/login`** — при верном пароле и **`email_verified_at`** возвращает сессию и `redirectTo`. Если пароль верный, но email ещё не подтверждён — **409** `email_not_verified` (UI запускает повторную регистрацию/код).
 - **`POST /api/auth/email-password/forgot`** — сброс: код на почту для пользователя с подтверждённым email и паролем; ответ **всегда** **`{ ok: true, retryAfterSeconds }`** (без `challengeId`, uniform при отсутствии учётки / rate limit / сбое отправки).
 - **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode` (если передан `challengeId`) или `consumeLatestEmailChallengeCodeForUser`, обновление хэша пароля; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.
 
@@ -82,18 +87,21 @@
 
 ### Сессия после входа
 
-Общая логика `oauthWebSession.completeOAuthWebLoginRedirectUrls` (и аналог для Яндекса): `setSessionFromUser`, редирект по роли; **без телефона** — если нет **подтверждённого email** (`email_verified_at`), редирект на привязку номера (`/app/patient/bind-phone`, `reason=oauth_phone_required`); при verified email пользователь может продолжить без немедленной привязки телефона (отдельный gate для записи на приём). На странице привязки в браузере — **channel-link** (`POST /api/auth/channel-link/start`, deep link `link_*` в боте) и при уже привязанном чате — `POST /api/patient/messenger/request-contact`; SMS зависит от `sms_fallback_enabled`.
+`oauthWebSession.completeOAuthWebLoginRedirectUrls` (и Яндекс-обработчик): **`setSessionFromUser`**, редирект по роли через `getRedirectPathForRole`; **нет** принудительного редиректа на **`bind-phone`** только из-за отсутствия телефона (**ветка `oauth_phone_required`** снята). Провайдер с **`emailVerified`** обновляет **`email_verified_at`** у канона. Запись на приём по-прежнему опирается на доверенный телефон (**`requirePatientBookingTrustedPhoneAccess`** и смежные правила).
 
-### Пациент: `need_activation` и навигация
+### Пациент: `need_activation`, tier и layout
 
-При `patientClientBusinessGate === 'need_activation'` (нет доступа tier **patient**: ни доверенного телефона по §5, ни подтверждённого email) пациентский layout редиректит на bind-phone для **всех** путей под `/app/patient`, кроме минимального whitelist **`patientPathsAllowedDuringPhoneActivation`** в `patientRouteApiPolicy.ts`: `/app/patient/bind-phone`, `/app/patient/help`, `/app/patient/support` (и подпути). На редирект пишется `logger` с `scope: patient_layout`, `event: patient_redirect_bind_phone`, `reason: need_activation`. Политика **`patientPathRequiresBoundPhone`** (гость / onboarding без БД) от этого отдельна и не заменяется.
+Tier **`patient`** (доступ к основному пациентскому функционалу при наличии БД) задаёт **`resolvePlatformAccessContext`/`computeClientTier`**: достаточно **доверенного телефона**, **или** **`email_verified_at`**, **или** наличие **password** (**`user_password_credentials`**), **или** web-OAuth-привязки (Яндекс/Google/Apple).
+
+**`patientClientBusinessGate`** по-прежнему может вернуть **`need_activation`** для редких legacy-учёток без указанной web/webmail-активирующей связки; пациентский **`layout.tsx` не выполняет** массовый редирект на **`bind-phone`** из этого основания. Навигация и onboarding-маршруты — **`patientRouteApiPolicy`**; без БД — отдельно **`patientPathRequiresBoundPhone`**. Логируемый **`patient_redirect_bind_phone`** из layout при типичном OAuth больше не ожидается.
 
 **Mini App + OAuth:** канонический телефон для бизнес-поверхностей пациента — номер, подтверждённый через бота (`request-contact` / channel-link), а не только OAuth userinfo. Решение о `need_activation` и редирект на `/app/patient/bind-phone` принимает **post-login слой** (gate + layout), не `AuthBootstrap`. Клиентская диагностика: событие `post_auth_binding_required` (`scope: auth_flow`) при показе `PatientSharePhoneViaBotPanel` в WebView; в payload при необходимости — `hasDeferredMessengerInitCandidate` (есть ли отложенный initData-кандидат для binding/recovery).
 
 ### Auth bootstrap / публичные конфиги (observability)
 
-- Prefetch `GET /api/auth/oauth/providers`, `GET /api/auth/telegram-login/config`, `GET /api/auth/login/alternatives-config` выполняется на сервере (`buildPrefetchedPublicAuthConfig`) и передаётся в `AuthBootstrap`/`AuthFlowV2` как `initialPublicAuthConfig`/`prefetchedAuthConfig` — без дублирующих client fetch.
-- Для **`GET /api/auth/login/alternatives-config`** на сервере пишется **`logAuthRouteTiming`** (как для остальных публичных auth-route из жёсткого плана), без логирования секретов.
+- Серверный снимок `buildPrefetchedPublicAuthConfig` (фактически те же условия, что у **`/api/auth/oauth/providers`**, и публичные поля альтернатив — имена ботов / Max URL для Mini App-подсказок) пробрасывается в **`AuthBootstrap`/`AuthFlowV2`** как **`prefetchedAuthConfig`** / **`initialPublicAuthConfig`** без дублирующих клиентских GET на `/app`.
+
+- Отдельные публичные auth-route могут дополнительно логировать **`logAuthRouteTiming`** (см. реализации маршрутов); секреты в лог не попадают.
 
 ### Channel link (старт ссылки из сессии)
 
@@ -129,8 +137,9 @@
 - Подтверждённый email в учётке используется backend’ом для **OTP на почту** и для потока **email+password** там, где эти API вызываются.
 - **Публичный веб-вход на `/app`:** OTP на **email** доступен, если в `check-phone` пришёл `methods.email` (подтверждённый email в учётке); **`isOtpChannelAvailablePublic`** для **`email`** совпадает с полным набором (для **`sms`** всегда **`false`**). Порядок альтернатив — **`OTP_PUBLIC_OTHER_CHANNELS_ORDER`** (**max** → **email** → **telegram**). **`pickOtpChannelWithPreferencePublic`** учитывает предпочтение **`telegram` / `max` / `email`**, но **никогда** не выберет **`sms`** для публичного веба.
 - **Предпочтение канала для кода входа** (`user_channel_preferences.is_preferred_for_auth`): задать можно только **`telegram`**, **`max`**, **`email`**, **`sms`** — см. **`assertChannelAllowedForPreferredAuth`** / **`isChannelAllowedForPreferredAuth`** в `modules/channel-preferences/preferredAuthChannelPolicy.ts`. **`web_push`** и **`vk`** для этого флага **недопустимы** (запись — ошибка **`PreferredAuthChannelNotAllowedError`**); устаревшие строки в БД при **чтении** маскируются, чтобы не расходились карточки каналов и OTP-выбор.
-- **Экран входа по email+паролю на `/app`:** кнопка «Войти по email» → выбор **Вход** / **Регистрация** → вход `POST /api/auth/email-password/login` или регистрация `POST /api/auth/email-password/register` → ввод кода → **`POST /api/auth/email-password/register/confirm`** (сессия после успеха). Повторная отправка кода — снова `POST .../register` с тем же email и паролем (ветка неподтверждённой учётки).
-- **Сброс пароля (`forgot` / `reset`)** в UI `/app` не реализован — только API.
+- **Экран входа по email+паролю на `/app`:** кнопка «Войти по email» (из **`oauth_first`**) или сразу форма (**без OAuth**): **Вход** / **Регистрация** → при необходимости **`POST …/login`**, регистрация **`POST …/register`**, код → **`POST …/register/confirm`**. Повтор кода через повтор **`register`** с тем же email и паролем.
+
+- **Восстановление пароля:** в том же **`email_password`**-шаге — **`POST /api/auth/email-password/forgot`** (ответ всегда **ok**) и **`POST /api/auth/email-password/reset`**; состояние сброса может храниться в **`authFlowPendingStorage`** до входа после смены пароля.
 
 ## Телефон и OTP
 

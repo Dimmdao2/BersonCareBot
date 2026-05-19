@@ -183,7 +183,7 @@ describe("GET /api/auth/oauth/callback/yandex — post-CSRF flow", () => {
     expect(loc).not.toContain("bind-phone");
   });
 
-  it("valid flow: user without phone — sets session and redirects to bind-phone", async () => {
+  it("valid flow: user without phone — sets session and redirects to patient cabinet", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok456" });
     fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-2", email: "nophone@ya.ru", phone: null, name: "Мария" });
     findUserMock.mockResolvedValue({ userId: "nophone-user-uuid" });
@@ -200,9 +200,8 @@ describe("GET /api/auth/oauth/callback/yandex — post-CSRF flow", () => {
 
     expect(setSessionMock).toHaveBeenCalled();
     const loc = res.headers.get("location") ?? "";
-    expect(loc).toContain("bind-phone");
-    expect(loc).toContain("reason=oauth_phone_required");
-    expect(loc).toContain("next=");
+    expect(loc).toContain("/app/patient");
+    expect(loc).not.toContain("bind-phone");
   });
 
   it("redirects oauth=error when session creation throws", async () => {

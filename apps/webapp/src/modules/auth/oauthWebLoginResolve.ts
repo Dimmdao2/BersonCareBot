@@ -7,8 +7,27 @@ import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from "@/modules/platform-access/trustedPhonePolicy";
+import type { Pool } from "pg";
 
 export type WebOAuthProvider = "google" | "apple";
+
+async function applyVerifiedEmailFromWebOAuth(
+  pool: Pool,
+  userId: string,
+  emailRaw: string | null,
+  emailTrusted: boolean,
+): Promise<void> {
+  if (!emailTrusted || !emailRaw?.trim()) return;
+  await pool.query(
+    `UPDATE platform_users
+     SET email = $2::text,
+         email_normalized = lower(btrim($2::text)),
+         email_verified_at = COALESCE(email_verified_at, now()),
+         updated_at = now()
+     WHERE id = $1::uuid AND merged_into_id IS NULL`,
+    [userId, emailRaw.trim()],
+  );
+}
 
 export type WebOAuthResolveFailure = "no_identity" | "email_ambiguous" | "db_error";
 
@@ -43,8 +62,11 @@ export async function resolveUserIdForWebOAuthLogin(
     if (!env.DATABASE_URL?.trim()) {
       return { ok: true, userId: byOAuth.userId };
     }
-    const canonical = await resolveCanonicalUserId(getPool(), byOAuth.userId);
-    return { ok: true, userId: canonical ?? byOAuth.userId };
+    const poolEarly = getPool();
+    const canonicalEarly = await resolveCanonicalUserId(poolEarly, byOAuth.userId);
+    const uidEarly = canonicalEarly ?? byOAuth.userId;
+    await applyVerifiedEmailFromWebOAuth(poolEarly, uidEarly, emailRaw, emailTrusted);
+    return { ok: true, userId: uidEarly };
   }
 
   if (!env.DATABASE_URL?.trim()) {
@@ -124,12 +146,16 @@ export async function resolveUserIdForWebOAuthLogin(
       const ownerId = existing.rows[0]?.user_id;
       if (ownerId) {
         const canonical = await resolveCanonicalUserId(pool, ownerId);
-        return { ok: true, userId: canonical ?? ownerId };
+        const uid = canonical ?? ownerId;
+        await applyVerifiedEmailFromWebOAuth(pool, uid, emailRaw, emailTrusted);
+        return { ok: true, userId: uid };
       }
     }
 
     const canonical = await resolveCanonicalUserId(pool, userId);
-    return { ok: true, userId: canonical ?? userId };
+    const uid = canonical ?? userId;
+    await applyVerifiedEmailFromWebOAuth(pool, uid, emailRaw, emailTrusted);
+    return { ok: true, userId: uid };
   } catch {
     return { ok: false, reason: "db_error" };
   }

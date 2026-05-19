@@ -21,12 +21,46 @@ export type UserPasswordCredentialsPort = {
     plainPassword: string;
   }): Promise<{ ok: true; userId: string } | { ok: false }>;
   tryVerifyLogin(emailNormalized: string, plainPassword: string): Promise<{ userId: string } | null>;
+  /**
+   * Проверка пароля без требования `email_verified_at` — для UX «дозавершите подтверждение email»
+   * и нейтрального отличия от «неверный пароль».
+   */
+  verifyEmailPasswordForLogin(
+    emailNormalized: string,
+    plainPassword: string,
+  ): Promise<{ userId: string; emailVerified: boolean } | null>;
   /** Пользователь с подтверждённым email и строкой пароля (для сброса). */
   findVerifiedUserIdWithPassword(emailNormalized: string): Promise<string | null>;
   updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
 };
 
 export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPort {
+  async function verifyEmailPasswordForLoginImpl(
+    emailNormalized: string,
+    plainPassword: string,
+  ): Promise<{ userId: string; emailVerified: boolean } | null> {
+    const pool = getPool();
+    const r = await pool.query<{ user_id: string; password_hash: string; email_verified: boolean }>(
+      `SELECT upc.user_id::text AS user_id, upc.password_hash,
+              (pu.email_verified_at IS NOT NULL) AS email_verified
+       FROM user_password_credentials upc
+       INNER JOIN platform_users pu ON pu.id = upc.user_id
+       WHERE pu.merged_into_id IS NULL
+         AND pu.email_normalized = $1
+       LIMIT 1`,
+      [emailNormalized],
+    );
+    const row = r.rows[0];
+    if (!row) return null;
+    try {
+      const ok = await argon2.verify(row.password_hash, plainPassword);
+      if (!ok) return null;
+      return { userId: row.user_id, emailVerified: row.email_verified };
+    } catch {
+      return null;
+    }
+  }
+
   return {
     async registerPendingVerification(params) {
       const pool = getPool();
@@ -103,25 +137,12 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     },
 
     async tryVerifyLogin(emailNormalized, plainPassword) {
-      const pool = getPool();
-      const r = await pool.query<{ user_id: string; password_hash: string }>(
-        `SELECT upc.user_id::text AS user_id, upc.password_hash
-         FROM user_password_credentials upc
-         INNER JOIN platform_users pu ON pu.id = upc.user_id
-         WHERE pu.merged_into_id IS NULL
-           AND pu.email_normalized = $1
-           AND pu.email_verified_at IS NOT NULL`,
-        [emailNormalized],
-      );
-      const row = r.rows[0];
-      if (!row) return null;
-      try {
-        const ok = await argon2.verify(row.password_hash, plainPassword);
-        return ok ? { userId: row.user_id } : null;
-      } catch {
-        return null;
-      }
+      const r = await verifyEmailPasswordForLoginImpl(emailNormalized, plainPassword);
+      if (!r?.emailVerified) return null;
+      return { userId: r.userId };
     },
+
+    verifyEmailPasswordForLogin: verifyEmailPasswordForLoginImpl,
 
     async findVerifiedUserIdWithPassword(emailNormalized) {
       const pool = getPool();
@@ -163,6 +184,9 @@ export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = 
     return { ok: false };
   },
   async tryVerifyLogin() {
+    return null;
+  },
+  async verifyEmailPasswordForLogin() {
     return null;
   },
   async findVerifiedUserIdWithPassword() {

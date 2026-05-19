@@ -21,12 +21,15 @@ export async function POST(request: Request) {
   const emailNorm = normalizeEmail(parsed.data.email);
   const deps = buildAppDeps();
 
-  const verified = await deps.userPasswordCredentials.tryVerifyLogin(emailNorm, parsed.data.password);
-  if (!verified) {
+  const pwd = await deps.userPasswordCredentials.verifyEmailPasswordForLogin(emailNorm, parsed.data.password);
+  if (!pwd) {
     return NextResponse.json({ ok: false, error: "invalid_credentials" }, { status: 401 });
   }
+  if (!pwd.emailVerified) {
+    return NextResponse.json({ ok: false, error: "email_not_verified" }, { status: 409 });
+  }
 
-  let sessionUser = await deps.userByPhone.findByUserId(verified.userId);
+  let sessionUser = await deps.userByPhone.findByUserId(pwd.userId);
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: "invalid_credentials" }, { status: 401 });
   }

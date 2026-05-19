@@ -44,7 +44,21 @@ function oauthProvidersAppleOnly() {
   return jsonRes({ ok: true, yandex: false, google: false, apple: true });
 }
 
-describe("AuthFlowV2", () => {
+const PRE_MINI_APP = {
+  oauthProviders: { yandex: false, google: false, apple: false },
+  telegramBotUsername: "test_bot",
+  maxBotOpenUrl: null as string | null,
+  fetchedAt: Date.now(),
+} as const;
+
+const PRE_WEB_OAUTH = {
+  oauthProviders: { yandex: true, google: false, apple: false },
+  telegramBotUsername: "test_bot",
+  maxBotOpenUrl: null as string | null,
+  fetchedAt: Date.now(),
+} as const;
+
+describe("AuthFlowV2 — mini-app (phone)", () => {
   beforeEach(() => {
     replace.mockClear();
     toastError.mockClear();
@@ -74,17 +88,7 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(
-      <AuthFlowV2
-        nextParam={null}
-        prefetchedAuthConfig={{
-          oauthProviders: { yandex: false, google: false, apple: false },
-          telegramBotUsername: "test_bot",
-          maxBotOpenUrl: null,
-          fetchedAt: Date.now(),
-        }}
-      />,
-    );
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_MINI_APP }} />);
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
@@ -114,17 +118,7 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(
-      <AuthFlowV2
-        nextParam={null}
-        prefetchedAuthConfig={{
-          oauthProviders: { yandex: false, google: false, apple: false },
-          telegramBotUsername: "test_bot",
-          maxBotOpenUrl: null,
-          fetchedAt: Date.now(),
-        }}
-      />,
-    );
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_MINI_APP }} />);
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
@@ -184,150 +178,6 @@ describe("AuthFlowV2", () => {
     );
   });
 
-  it("shows Telegram landing when not mini app and bot username is configured", async () => {
-    isMiniAppHost.mockReturnValue(false);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/api/auth/telegram-login/config")) {
-          return jsonRes({ ok: true, botUsername: "test_bot" });
-        }
-        if (url.includes("/api/auth/oauth/providers")) {
-          return oauthProvidersDisabled();
-        }
-        return jsonRes({});
-      }),
-    );
-
-    render(
-      <AuthFlowV2
-        nextParam={null}
-        prefetchedAuthConfig={{
-          oauthProviders: { yandex: false, google: false, apple: false },
-          telegramBotUsername: "test_bot",
-          maxBotOpenUrl: null,
-          fetchedAt: Date.now(),
-        }}
-      />,
-    );
-    await waitFor(() => expect(document.getElementById("auth-flow-v2-landing")).toBeTruthy());
-    expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Другие варианты" })).toBeInTheDocument();
-  });
-
-  it("does not show OAuth buttons when providers endpoint reports all disabled", async () => {
-    isMiniAppHost.mockReturnValue(false);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/api/auth/telegram-login/config")) {
-          return jsonRes({ ok: true, botUsername: "test_bot" });
-        }
-        if (url.includes("/api/auth/oauth/providers")) {
-          return oauthProvidersDisabled();
-        }
-        return jsonRes({});
-      }),
-    );
-
-    render(
-      <AuthFlowV2
-        nextParam={null}
-        prefetchedAuthConfig={{
-          oauthProviders: { yandex: false, google: false, apple: false },
-          telegramBotUsername: "test_bot",
-          maxBotOpenUrl: null,
-          fetchedAt: Date.now(),
-        }}
-      />,
-    );
-    await waitFor(() => expect(document.getElementById("auth-flow-v2-landing")).toBeTruthy());
-    expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
-  });
-
-  it("oauth-first shows Max link from alternatives-config (no «Другие способы» screen)", async () => {
-    const user = userEvent.setup();
-    isMiniAppHost.mockReturnValue(false);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/api/auth/telegram-login/config")) {
-          return jsonRes({ ok: true, botUsername: "test_bot" });
-        }
-        if (url.includes("/api/auth/oauth/providers")) {
-          return jsonRes({ ok: true, yandex: true, google: false, apple: false });
-        }
-        if (url.includes("/api/auth/login/alternatives-config")) {
-          return jsonRes({
-            ok: true,
-            telegramBotUsername: "test_bot",
-            maxBotOpenUrl: "https://max.ru/test_bot_nick",
-            vkWebLoginUrl: "https://id.vk.com/auth",
-          });
-        }
-        return jsonRes({});
-      }),
-    );
-
-    render(
-      <AuthFlowV2
-        nextParam={null}
-        prefetchedAuthConfig={{
-          oauthProviders: { yandex: true, google: false, apple: false },
-          telegramBotUsername: "test_bot",
-          maxBotOpenUrl: "https://max.ru/test_bot_nick",
-          fetchedAt: Date.now(),
-        }}
-      />,
-    );
-    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
-    expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Другие варианты" }));
-    const maxLink = await screen.findByRole("link", { name: "Войти через Max" });
-    expect(maxLink).toHaveAttribute("href", "https://max.ru/test_bot_nick");
-    expect(screen.queryByRole("link", { name: "Войти с VK ID" })).not.toBeInTheDocument();
-  });
-
-  it("does not show Apple when Yandex or Google is enabled alongside Apple", async () => {
-    isMiniAppHost.mockReturnValue(false);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/api/auth/telegram-login/config")) {
-          return jsonRes({ ok: true, botUsername: "test_bot" });
-        }
-        if (url.includes("/api/auth/oauth/providers")) {
-          return jsonRes({ ok: true, yandex: true, google: false, apple: true });
-        }
-        if (url.includes("/api/auth/login/alternatives-config")) {
-          return jsonRes({ ok: true, telegramBotUsername: "test_bot" });
-        }
-        return jsonRes({});
-      }),
-    );
-
-    render(
-      <AuthFlowV2
-        nextParam={null}
-        prefetchedAuthConfig={{
-          oauthProviders: { yandex: true, google: false, apple: true },
-          telegramBotUsername: "test_bot",
-          maxBotOpenUrl: null,
-          fetchedAt: Date.now(),
-        }}
-      />,
-    );
-    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Войти через Яндекс" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Войти через Apple" })).not.toBeInTheDocument();
-  });
-
   it("auto-starts email OTP for existing user when only email channel is available", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -351,41 +201,60 @@ describe("AuthFlowV2", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
-      <AuthFlowV2
-        nextParam={null}
-        prefetchedAuthConfig={{
-          oauthProviders: { yandex: false, google: false, apple: false },
-          telegramBotUsername: "test_bot",
-          maxBotOpenUrl: null,
-          fetchedAt: Date.now(),
-        }}
-      />,
-    );
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_MINI_APP }} />);
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
     await screen.findByLabelText("Код подтверждения");
     expect(fetchMock).toHaveBeenCalled();
   });
+});
 
-  it("email flow shows login vs registration choice after opening email", async () => {
-    const user = userEvent.setup();
+describe("AuthFlowV2 — browser", () => {
+  beforeEach(() => {
+    replace.mockClear();
+    toastError.mockClear();
     isMiniAppHost.mockReturnValue(false);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/api/auth/telegram-login/config")) {
-          return jsonRes({ ok: true, botUsername: "test_bot" });
-        }
-        if (url.includes("/api/auth/oauth/providers")) {
-          return jsonRes({ ok: true, yandex: true, google: false, apple: false });
-        }
-        if (url.includes("/api/auth/login/alternatives-config")) {
-          return jsonRes({ ok: true, telegramBotUsername: "test_bot", maxBotOpenUrl: null });
-        }
-        return jsonRes({});
+    sessionStorage.clear();
+    if (!globalThis.crypto?.randomUUID) {
+      vi.stubGlobal("crypto", { randomUUID: () => "test-web-chat-id" });
+    }
+  });
+
+  it("shows email/password directly when OAuth is disabled in prefetch", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
+    expect(screen.getByRole("tab", { name: "Вход" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Номер телефона")).not.toBeInTheDocument();
+  });
+
+  it("restores pending register verify UI from sessionStorage", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+
+    sessionStorage.setItem(
+      "bc_auth_flow_pending_v1",
+      JSON.stringify({
+        v: 1,
+        mode: "register_verify",
+        email: "user@example.com",
+        challengeId: "chal-restore",
+        retryAfterSeconds: 60,
+        savedAt: Date.now(),
+        displayName: "User",
       }),
     );
 
@@ -393,111 +262,70 @@ describe("AuthFlowV2", () => {
       <AuthFlowV2
         nextParam={null}
         prefetchedAuthConfig={{
-          oauthProviders: { yandex: true, google: false, apple: false },
-          telegramBotUsername: "test_bot",
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
           maxBotOpenUrl: null,
           fetchedAt: Date.now(),
         }}
       />,
     );
+
+    await waitFor(() => expect(screen.getByText(/Код отправлен на user@example\.com/i)).toBeInTheDocument());
+    expect(screen.getByLabelText("Код подтверждения")).toBeInTheDocument();
+  });
+
+  it("email flow shows login vs registration choice after opening email from oauth-first", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_WEB_OAUTH }} />);
+
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
     await user.click(screen.getByRole("button", { name: "Войти по email" }));
     expect(await screen.findByRole("tab", { name: "Вход" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Регистрация" })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByRole("textbox", { name: "Email" })).toBeInTheDocument();
-  });
-
-  it("phone step shows SMS notice without duplicate OAuth, email, or Telegram web-login link", async () => {
-    const user = userEvent.setup();
-    isMiniAppHost.mockReturnValue(false);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/api/auth/telegram-login/config")) {
-          return jsonRes({ ok: true, botUsername: "test_bot" });
-        }
-        if (url.includes("/api/auth/oauth/providers")) {
-          return jsonRes({ ok: true, yandex: true, google: false, apple: false });
-        }
-        if (url.includes("/api/auth/login/alternatives-config")) {
-          return jsonRes({ ok: true, telegramBotUsername: "test_bot", maxBotOpenUrl: null });
-        }
-        return jsonRes({});
-      }),
-    );
-
-    render(
-      <AuthFlowV2
-        nextParam={null}
-        prefetchedAuthConfig={{
-          oauthProviders: { yandex: true, google: false, apple: false },
-          telegramBotUsername: "test_bot",
-          maxBotOpenUrl: null,
-          fetchedAt: Date.now(),
-        }}
-      />,
-    );
-    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
-    await user.click(screen.getByRole("button", { name: "Другие варианты" }));
-    await user.click(screen.getByRole("button", { name: "Войти по номеру телефона" }));
-    await waitFor(() => expect(document.getElementById("auth-flow-v2-phone")).toBeTruthy());
-    expect(screen.getByText(/Подтверждение телефона по SMS временно недоступно/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Войти по email" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Яндекс" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Войти через Telegram/ })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Войти без номера" }));
-    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Забыли пароль?" })).toBeInTheDocument();
   });
 
   it("oauth-first shows email login button alongside OAuth", async () => {
-    isMiniAppHost.mockReturnValue(false);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/api/auth/telegram-login/config")) {
-          return jsonRes({ ok: true, botUsername: "test_bot" });
-        }
-        if (url.includes("/api/auth/oauth/providers")) {
-          return jsonRes({ ok: true, yandex: true, google: false, apple: false });
-        }
-        if (url.includes("/api/auth/login/alternatives-config")) {
-          return jsonRes({ ok: true, telegramBotUsername: "test_bot", maxBotOpenUrl: null });
-        }
-        return jsonRes({});
-      }),
-    );
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_WEB_OAUTH }} />);
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Войти по email" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Войти через Яндекс" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Другие варианты" })).not.toBeInTheDocument();
+  });
+
+  it("does not show Apple when Yandex or Google is enabled alongside Apple", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
 
     render(
       <AuthFlowV2
         nextParam={null}
         prefetchedAuthConfig={{
-          oauthProviders: { yandex: true, google: false, apple: false },
-          telegramBotUsername: "test_bot",
+          oauthProviders: { yandex: true, google: false, apple: true },
+          telegramBotUsername: null,
           maxBotOpenUrl: null,
           fetchedAt: Date.now(),
         }}
       />,
     );
+
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Войти по email" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Войти через Яндекс" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Войти через Apple" })).not.toBeInTheDocument();
   });
 
   it("shows Apple when only Apple OAuth is configured (Yandex and Google off)", async () => {
-    isMiniAppHost.mockReturnValue(false);
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/api/auth/telegram-login/config")) {
-          return jsonRes({ ok: true, botUsername: "test_bot" });
-        }
         if (url.includes("/api/auth/oauth/providers")) {
           return oauthProvidersAppleOnly();
-        }
-        if (url.includes("/api/auth/login/alternatives-config")) {
-          return jsonRes({ ok: true, maxBotOpenUrl: null, telegramBotUsername: "test_bot" });
         }
         return jsonRes({});
       }),
@@ -508,15 +336,38 @@ describe("AuthFlowV2", () => {
         nextParam={null}
         prefetchedAuthConfig={{
           oauthProviders: { yandex: false, google: false, apple: true },
-          telegramBotUsername: "test_bot",
+          telegramBotUsername: null,
           maxBotOpenUrl: null,
           fetchedAt: Date.now(),
         }}
       />,
     );
+
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
     expect(screen.getByRole("button", { name: "Войти через Apple" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
+  });
+
+  it("opens forgot-password subflow from login form", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Забыли пароль?" }));
+    expect(screen.getByRole("button", { name: "Отправить код" })).toBeInTheDocument();
+    expect(screen.getByText(/одинаковым независимо/i)).toBeInTheDocument();
   });
 });

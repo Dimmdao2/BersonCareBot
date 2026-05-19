@@ -32,6 +32,7 @@ export default async function PatientProfilePage() {
   );
   const telegramId = session.user.bindings.telegramId ?? "";
   const maxId = session.user.bindings.maxId ?? "";
+  const heroMessengerBindShows = !telegramId.trim() && !maxId.trim();
 
   const fallbackDisplayName =
     (emailFields.email && emailFields.email.trim()) ||
@@ -52,10 +53,14 @@ export default async function PatientProfilePage() {
           emailVerified={emailVerified}
         />
 
-        <section className={patientSectionSurfaceClass}>
-          <h2 className={patientSectionTitleClass}>Мессенджеры</h2>
-          <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
-        </section>
+        {heroMessengerBindShows ?
+          null
+        : (
+          <section className={patientSectionSurfaceClass}>
+            <h2 className={patientSectionTitleClass}>Мессенджеры</h2>
+            <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
+          </section>
+        )}
 
         <section className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Уведомления</h2>

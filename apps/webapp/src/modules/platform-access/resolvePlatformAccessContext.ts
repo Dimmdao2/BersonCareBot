@@ -11,6 +11,8 @@ type CanonRow = {
   phone_normalized: string | null;
   patient_phone_trust_at: Date | null;
   email_verified_at: Date | null;
+  has_password_credentials: boolean;
+  has_web_oauth_binding: boolean;
 };
 
 /** DoD §8 / MASTER_PLAN §3.8: tier + trust signals (no raw phone). Skips noisy happy path (patient + trusted + resolved_canon). */
@@ -45,8 +47,10 @@ function computeClientTier(row: CanonRow): {
   const hasPhoneInDb = Boolean(row.phone_normalized?.trim());
   const phoneTrustedForPatient = isTrustedPatientPhoneActivation(row);
   const emailVerifiedCabinet = row.email_verified_at != null;
+  const webIdentityCabinet =
+    emailVerifiedCabinet || row.has_password_credentials || row.has_web_oauth_binding;
   const tier: ClientAccessTier =
-    phoneTrustedForPatient || emailVerifiedCabinet ? "patient" : "onboarding";
+    phoneTrustedForPatient || webIdentityCabinet ? "patient" : "onboarding";
   return { tier, hasPhoneInDb, phoneTrustedForPatient };
 }
 
@@ -100,8 +104,19 @@ export async function resolvePlatformAccessContext(
 
   const canonicalUserId = (await resolveCanonicalUserId(db, sessionUserId)) ?? sessionUserId;
   const r = await db.query<CanonRow>(
-    `SELECT role, phone_normalized, patient_phone_trust_at, email_verified_at
-     FROM platform_users WHERE id = $1::uuid`,
+    `SELECT pu.role,
+            pu.phone_normalized,
+            pu.patient_phone_trust_at,
+            pu.email_verified_at,
+            EXISTS (SELECT 1 FROM user_password_credentials upc WHERE upc.user_id = pu.id)
+              AS has_password_credentials,
+            EXISTS (
+              SELECT 1 FROM user_oauth_bindings uob
+              WHERE uob.user_id = pu.id
+                AND uob.provider IN ('google', 'yandex', 'apple')
+            ) AS has_web_oauth_binding
+     FROM platform_users pu
+     WHERE pu.id = $1::uuid`,
     [canonicalUserId],
   );
   const row = r.rows[0];

@@ -1,12 +1,7 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import {
-  patientPathRequiresBoundPhone,
-  patientPathsAllowedDuringPhoneActivation,
-  patientClientBusinessGate,
-  resolvePatientLayoutPathname,
-} from "@/modules/platform-access";
+import { patientPathRequiresBoundPhone, patientClientBusinessGate, resolvePatientLayoutPathname } from "@/modules/platform-access";
 import { logger } from "@/infra/logging/logger";
 import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
@@ -49,15 +44,6 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   if (env.DATABASE_URL?.trim()) {
     if (gate === "stale_session") {
       redirect(`${routePaths.root}?next=${encodeURIComponent(returnTo)}`);
-    }
-    if (gate === "need_activation" && !patientPathsAllowedDuringPhoneActivation(pathname)) {
-      logger.info({
-        scope: "patient_layout",
-        event: "patient_redirect_bind_phone",
-        pathname: pathname.trim() || "(empty)",
-        reason: "need_activation",
-      });
-      redirect(`${routePaths.bindPhone}?next=${encodeURIComponent(returnTo)}`);
     }
   } else if (!session.user.phone?.trim() && patientPathRequiresBoundPhone(pathname)) {
     redirect(`${routePaths.bindPhone}?next=${encodeURIComponent(returnTo)}`);

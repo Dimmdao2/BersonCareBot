@@ -9,7 +9,6 @@ import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
 import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
 import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
 import { trySetInitialCalendarTimezoneIfEmpty } from "@/infra/repos/pgPatientCalendarTimezone";
-import { routePaths } from "@/app-layer/routes/paths";
 import {
   getAppBaseUrl,
   getYandexOauthClientId,
@@ -129,13 +128,5 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   }
 
   const finalRedirect = getRedirectPathForRole(role);
-
-  if (!sessionUser.phone) {
-    const bindPhoneUrl = new URL(routePaths.bindPhone, appBase);
-    bindPhoneUrl.searchParams.set("next", finalRedirect);
-    bindPhoneUrl.searchParams.set("reason", "oauth_phone_required");
-    return NextResponse.redirect(bindPhoneUrl);
-  }
-
   return NextResponse.redirect(new URL(finalRedirect, appBase));
 }

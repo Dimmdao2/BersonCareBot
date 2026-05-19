@@ -53,7 +53,9 @@ type OtpCodeFormProps = {
   supportContactHref?: string;
   onConfirm: (code: string) => Promise<OtpConfirmResult>;
   onResend: () => Promise<OtpResendOutcome>;
-  onBack: () => void;
+  onBack?: () => void;
+  /** Скрыть кнопку «Назад» под кодом — если навигация уже в шапке родителя. */
+  hideBack?: boolean;
 };
 
 export function OtpCodeForm({
@@ -68,6 +70,7 @@ export function OtpCodeForm({
   onConfirm,
   onResend,
   onBack,
+  hideBack = false,
 }: OtpCodeFormProps) {
   function resolveSupportHref(raw: string): string {
     const t = raw.trim();
@@ -216,16 +219,18 @@ export function OtpCodeForm({
       >
         {loading ? "Проверка…" : submitLabel}
       </Button>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          className={AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS}
-          onClick={onBack}
-          disabled={loading}
-        >
-          Назад
-        </Button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        {!hideBack ? (
+          <Button
+            type="button"
+            variant="outline"
+            className={AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS}
+            onClick={onBack}
+            disabled={loading}
+          >
+            Назад
+          </Button>
+        ) : null}
         {canResend && !hardBlocked ? (
           <Button
             type="button"
