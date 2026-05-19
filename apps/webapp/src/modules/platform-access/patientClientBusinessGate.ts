@@ -2,6 +2,7 @@ import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
 import type { AppSession } from "@/shared/types/session";
 import { resolvePlatformAccessContext } from "./resolvePlatformAccessContext";
+import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 
 export type PatientBusinessGate = "allow" | "need_activation" | "stale_session";
 
@@ -20,7 +21,17 @@ export async function patientClientBusinessGate(session: AppSession): Promise<Pa
         sessionRoleHint: session.user.role,
       });
       if (ctx.resolution === "session_user_missing") return "stale_session";
-      if (ctx.tier !== "patient") return "need_activation";
+      if (ctx.tier !== "patient") {
+        // Determine whether current entry is a messenger/miniapp entry using platform cookie
+        // (set by middleware or auth exchange). If entry is `bot` then keep phone-gate;
+        // otherwise allow web/PWA/email/OAuth sessions to proceed even without phone.
+        try {
+          const entry = await getPlatformEntry();
+          return entry === "bot" ? "need_activation" : "allow";
+        } catch {
+          return "need_activation";
+        }
+      }
       return "allow";
     } catch {
       return "need_activation";

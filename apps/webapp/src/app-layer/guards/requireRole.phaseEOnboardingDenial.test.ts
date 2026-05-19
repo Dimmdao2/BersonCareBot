@@ -40,6 +40,10 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 import { getCurrentSession } from "@/modules/auth/service";
+const getPlatformEntryMock = vi.hoisted(() => vi.fn());
+vi.mock("@/shared/lib/platformCookie.server", () => ({
+  getPlatformEntry: (...args: unknown[]) => getPlatformEntryMock(...(args as [])),
+}));
 import { requirePatientAccessWithPhone, requirePatientApiBusinessAccess } from "./requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 
@@ -74,9 +78,20 @@ beforeEach(() => {
 });
 
 describe("Phase E: onboarding denied outside activation whitelist", () => {
-  it("patient-business API returns 403 patient_activation_required when tier is onboarding", async () => {
+  it("patient-business API allows onboarding for regular web session (no messenger binding)", async () => {
     vi.mocked(getCurrentSession).mockResolvedValueOnce(clientSession());
     resolveMock.mockResolvedValueOnce(onboardingCtx);
+    vi.mocked(getPlatformEntryMock).mockResolvedValueOnce("standalone");
+
+    const gate = await requirePatientApiBusinessAccess({ returnPath: "/app/patient/reminders" });
+    expect(gate.ok).toBe(true);
+  });
+
+  it("patient-business API returns 403 patient_activation_required when tier is onboarding and platform entry is bot", async () => {
+    const sess = clientSession({ bindings: { telegramId: "321" }, phone: undefined });
+    vi.mocked(getCurrentSession).mockResolvedValueOnce(sess);
+    resolveMock.mockResolvedValueOnce(onboardingCtx);
+    vi.mocked(getPlatformEntryMock).mockResolvedValueOnce("bot");
 
     const gate = await requirePatientApiBusinessAccess({ returnPath: "/app/patient/reminders" });
     expect(gate.ok).toBe(false);
@@ -88,9 +103,19 @@ describe("Phase E: onboarding denied outside activation whitelist", () => {
     expect(data.redirectTo).toContain(encodeURIComponent("/app/patient/reminders"));
   });
 
-  it("server action gate (requirePatientAccessWithPhone) redirects to bind-phone when tier is onboarding", async () => {
+  it("server action gate (requirePatientAccessWithPhone) does not redirect for web session without messenger binding", async () => {
     vi.mocked(getCurrentSession).mockResolvedValueOnce(clientSession());
     resolveMock.mockResolvedValueOnce(onboardingCtx);
+    vi.mocked(getPlatformEntryMock).mockResolvedValueOnce("standalone");
+
+    await expect(requirePatientAccessWithPhone(routePaths.patientReminders)).resolves.not.toThrow();
+  });
+
+  it("server action gate (requirePatientAccessWithPhone) redirects to bind-phone when tier is onboarding and platform entry is bot", async () => {
+    const sess = clientSession({ bindings: { maxId: "x" }, phone: undefined });
+    vi.mocked(getCurrentSession).mockResolvedValueOnce(sess);
+    resolveMock.mockResolvedValueOnce(onboardingCtx);
+    vi.mocked(getPlatformEntryMock).mockResolvedValueOnce("bot");
 
     await expect(requirePatientAccessWithPhone(routePaths.patientReminders)).rejects.toThrow("redirect");
     expect(redirectMock).toHaveBeenCalledWith(
