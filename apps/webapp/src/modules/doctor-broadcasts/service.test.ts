@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createDoctorBroadcastsService } from "./service";
 import type {
   BroadcastAudienceFilter,
@@ -207,6 +207,36 @@ describe("doctor-broadcasts service", () => {
     const list = await service.listAudit(10);
     expect(list.length).toBeGreaterThan(0);
     expect(list[0].messageTitle).toBe("Важно");
+  });
+
+  it("execute with push channel calls fan-out after queue commit", async () => {
+    const fanOut = vi.fn().mockResolvedValue({ attempted: 1, delivered: 1, errors: 0, skipped: 0 });
+    const pushEligible = new Set(["u1"]);
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: async (filter, channels) => ({
+        ...(await makeResolve([client("u1", { bindings: {} })])(filter, channels)),
+        webPushEligibleUserIds: pushEligible,
+      }),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      fanOutBroadcastWebPush: fanOut,
+      patientWebPushNotifyDeps: {} as never,
+    });
+
+    await svc.execute({
+      category: "marketing",
+      audienceFilter: "all",
+      message: { title: "Новость", body: "Текст длиннее десяти символов" },
+      actorId: "doctor-1",
+      channels: ["push"],
+    });
+
+    expect(committed.length).toBeGreaterThan(0);
+    expect(fanOut).toHaveBeenCalledOnce();
+    expect(fanOut.mock.calls[0][0]).toMatchObject({
+      broadcastTitle: "Новость",
+      webPushEligibleUserIds: pushEligible,
+    });
   });
 
   it("throws when delivery job cap exceeded", async () => {

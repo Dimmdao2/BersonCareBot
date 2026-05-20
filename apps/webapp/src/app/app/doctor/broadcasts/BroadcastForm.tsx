@@ -61,7 +61,8 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
   }
 
   const isPreviewValid =
-    Boolean(category && audience && title.trim() && body.trim().length >= 10) && (channelBot || channelSms);
+    Boolean(category && audience && title.trim() && body.trim().length >= 10) &&
+    (channelBot || channelSms || channelPush);
 
   function handlePreview() {
     const command = buildCommand();
@@ -111,6 +112,7 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
     setAudience("");
     setChannelBot(true);
     setChannelSms(true);
+    setChannelPush(true);
     setAttachMenuAfterSend(false);
     setTitle("");
     setBody("");

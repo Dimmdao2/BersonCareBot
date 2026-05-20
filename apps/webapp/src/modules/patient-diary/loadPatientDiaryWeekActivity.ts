@@ -164,10 +164,14 @@ async function resolvePastDayActivityModels(
     ]);
     if (planNeedsSynth && synPlan?.items.some((it) => it.done)) {
       plan = synPlan;
-    } else if (planNeedsSynth && synPlan && plan.items.length === 0) {
+    } else if (planNeedsSynth && synPlan && plan != null && plan.items.length === 0) {
       plan = synPlan;
     }
-    if (warmupNeedsSynth && (synWarmup.doneCount > 0 || synWarmup.allDone)) {
+    if (
+      warmupNeedsSynth &&
+      synWarmup != null &&
+      (synWarmup.doneCount > 0 || synWarmup.allDone)
+    ) {
       warmup = synWarmup;
     }
   }
