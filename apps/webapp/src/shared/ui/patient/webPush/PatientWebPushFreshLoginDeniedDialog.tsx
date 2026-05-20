@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
+import { reportWebPushSubscribeFailure } from "@/shared/lib/webPush/webPushSubscribeFeedback";
 import {
   patientButtonSecondaryClass,
   patientModalPortalPrimaryCtaClass,
@@ -26,8 +27,12 @@ export function PatientWebPushFreshLoginDeniedDialog() {
   const onOpenSettings = useCallback(async () => {
     setBusy(true);
     try {
-      await subscribePatientWebPush();
-      await state.refresh();
+      const result = await subscribePatientWebPush();
+      if (result.ok) {
+        await state.refresh();
+      } else {
+        reportWebPushSubscribeFailure(result);
+      }
     } finally {
       setBusy(false);
     }

@@ -1,9 +1,7 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { env, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
 import { resolveRoleAsync, isWhitelistedAsync } from "./envRole";
 import type { IdentityResolutionPort, MessengerIdentityResolutionHints } from "./identityResolutionPort";
 import { normalizePhone } from "./phoneNormalize";
@@ -23,13 +21,20 @@ import {
   verifyTelegramLoginWidgetSignature,
   type TelegramLoginWidgetPayload,
 } from "./telegramLoginVerify";
+import { SESSION_COOKIE_NAME } from "./sessionCookieNames";
+import {
+  buildRenewedSessionCookieOptions,
+  buildSessionCookieOptions,
+  clearFreshLoginMarkerCookie,
+  decodeSessionCookie,
+  encodeSessionCookie,
+  renewSessionIfActive,
+  sessionTtlSecondsForRole,
+  shouldRenewSession,
+  writeFreshLoginMarkerCookie,
+} from "./sessionCookie";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
-
-const SESSION_COOKIE_NAME = "bersoncare_webapp_session";
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 90; // 90 дней (пациент / client)
-/** Доктор: 90 суток в браузере, как и пациент (слетающая сессия мешает работе). */
-const SESSION_TTL_DOCTOR_SECONDS = 60 * 60 * 24 * 90;
 
 type IntegratorTokenPayload = {
   sub: string;
@@ -53,19 +58,9 @@ export type ExchangeResult = {
   setMessengerPlatformCookie?: boolean;
 };
 
-function sign(value: string, secret: string): string {
-  return createHmac("sha256", secret).update(value).digest("base64url");
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
-
 function buildSession(user: SessionUser): AppSession {
   const now = Math.floor(Date.now() / 1000);
-  const ttl = user.role === "doctor" ? SESSION_TTL_DOCTOR_SECONDS : SESSION_TTL_SECONDS;
+  const ttl = sessionTtlSecondsForRole(user.role);
   const base: AppSession = {
     user,
     issuedAt: now,
@@ -78,29 +73,12 @@ function ensureAdminMode(session: AppSession): AppSession {
   return session.user.role === "admin" ? { ...session, adminMode: true } : session;
 }
 
-function cookieMaxAgeSeconds(session: AppSession): number {
-  return Math.max(0, session.expiresAt - Math.floor(Date.now() / 1000));
-}
-
-function encodeSession(session: AppSession): string {
-  const payload = encodeBase64Url(JSON.stringify(session));
-  const signature = sign(payload, env.SESSION_COOKIE_SECRET);
-  return `${payload}.${signature}`;
-}
-
-function decodeSession(raw: string): AppSession | null {
-  const [payload, signature] = raw.split(".");
-  if (!payload || !signature) return null;
-  if (!safeEqual(signature, sign(payload, env.SESSION_COOKIE_SECRET))) return null;
-
-  let parsed: AppSession;
-  try {
-    parsed = JSON.parse(decodeBase64Url(payload)) as AppSession;
-  } catch {
-    return null;
-  }
-  const now = Math.floor(Date.now() / 1000);
-  return parsed.expiresAt > now ? parsed : null;
+function persistNewAuthSession(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+  session: AppSession,
+): void {
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSessionCookie(session), buildSessionCookieOptions(session));
+  writeFreshLoginMarkerCookie(cookieStore);
 }
 
 /**
@@ -492,13 +470,7 @@ export async function exchangeIntegratorToken(
     ? { ...buildSession(user), authSource: "dev_bypass" }
     : buildSession(user);
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: cookieMaxAgeSeconds(session),
-  });
+  persistNewAuthSession(cookieStore, session);
 
   const setMessengerPlatformCookie =
     !devParsed &&
@@ -567,13 +539,7 @@ export async function exchangeTelegramInitData(
 
   const session = buildSession(user);
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: cookieMaxAgeSeconds(session),
-  });
+  persistNewAuthSession(cookieStore, session);
 
   let redirectTo = getRedirectPathForRole(user.role);
   if (user.role === "client" && parsed.startParam) {
@@ -674,13 +640,7 @@ export async function exchangeMaxInitData(
 
   const session = buildSession(user);
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: cookieMaxAgeSeconds(session),
-  });
+  persistNewAuthSession(cookieStore, session);
 
   let redirectTo = getRedirectPathForRole(user.role);
   if (user.role === "client" && parsed.startParam) {
@@ -767,13 +727,7 @@ export async function exchangeTelegramLoginWidget(
 
   const session = buildSession(user);
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: cookieMaxAgeSeconds(session),
-  });
+  persistNewAuthSession(cookieStore, session);
 
   return {
     session,
@@ -792,7 +746,7 @@ export async function exchangeTelegramLoginWidget(
 export async function getCurrentSession(): Promise<AppSession | null> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const decoded = raw ? decodeSession(raw) : null;
+  const decoded = raw ? decodeSessionCookie(raw) : null;
   if (!decoded?.user) {
     if (raw && process.env.NODE_ENV !== "production") {
       console.info("[auth] session_cookie_invalid_or_expired");
@@ -866,24 +820,23 @@ export async function clearSession(): Promise<void> {
     path: "/",
     maxAge: 0,
   });
+  clearFreshLoginMarkerCookie(cookieStore);
 }
 
 /** Переключает adminMode в текущей сессии (только для role === 'admin'). */
 export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: boolean }> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const session = raw ? decodeSession(raw) : null;
+  const session = raw ? decodeSessionCookie(raw) : null;
   if (!session || session.user.role !== "admin") return { ok: false };
 
   const nextSession: AppSession = ensureAdminMode({ ...session, adminMode: true });
 
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(nextSession), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: cookieMaxAgeSeconds(nextSession),
-  });
+  cookieStore.set(
+    SESSION_COOKIE_NAME,
+    encodeSessionCookie(nextSession),
+    buildSessionCookieOptions(nextSession),
+  );
 
   return { ok: true, adminMode: true };
 }
@@ -899,13 +852,7 @@ export async function setSessionFromUser(
   const session = buildSession(user);
   const full: AppSession = opts?.postLoginHints ? { ...session, postLoginHints: opts.postLoginHints } : session;
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(full), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: cookieMaxAgeSeconds(full),
-  });
+  persistNewAuthSession(cookieStore, full);
 }
 
 /** TTL повторного подтверждения PIN перед удалением дневников (секунды). */
@@ -919,50 +866,31 @@ export function isDiaryPurgePinReauthValid(session: AppSession | null): boolean 
 export async function setDiaryPurgePinReauth(): Promise<void> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const session = raw ? decodeSession(raw) : null;
+  const session = raw ? decodeSessionCookie(raw) : null;
   if (!session) return;
   const until = Math.floor(Date.now() / 1000) + DIARY_PURGE_PIN_REAUTH_TTL_SEC;
   const next: AppSession = {
     ...session,
     reauth: { ...session.reauth, diaryPurgePinVerifiedUntil: until },
   };
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(next), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: cookieMaxAgeSeconds(next),
-  });
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSessionCookie(next), buildSessionCookieOptions(next));
 }
 
 export async function clearDiaryPurgeReauth(): Promise<void> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const session = raw ? decodeSession(raw) : null;
+  const session = raw ? decodeSessionCookie(raw) : null;
   if (!session) return;
   const next: AppSession = { ...session, reauth: undefined };
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(next), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: cookieMaxAgeSeconds(next),
-  });
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSessionCookie(next), buildSessionCookieOptions(next));
 }
 
 export { SESSION_SLIDING_TTL_SECONDS } from "@/modules/auth/sessionCookie";
 
 /**
- * Продлевает sliding TTL сессии в cookie (только route handlers / middleware).
+ * Продлевает sliding TTL сессии в cookie (только route handlers / proxy).
  */
 export async function renewSessionCookieFromRequest(): Promise<boolean> {
-  const {
-    decodeSessionCookie,
-    encodeSessionCookie,
-    buildRenewedSessionCookieOptions,
-    renewSessionIfActive,
-    shouldRenewSession,
-  } = await import("@/modules/auth/sessionCookie");
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!raw) return false;

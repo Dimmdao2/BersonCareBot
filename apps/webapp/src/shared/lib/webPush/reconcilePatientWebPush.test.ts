@@ -51,4 +51,15 @@ describe("reconcileStalePatientWebPushSubscriptions", () => {
     expect(ok).toBe(false);
     expect(unsubscribeAll).not.toHaveBeenCalled();
   });
+
+  it("clears server subs when global web push pref is off", async () => {
+    const ok = await reconcileStalePatientWebPushSubscriptions({
+      permission: "granted",
+      hasLocalSubscription: true,
+      hasServerSubscription: true,
+      globalWebPushEnabled: false,
+    });
+    expect(ok).toBe(true);
+    expect(unsubscribeAll).toHaveBeenCalledOnce();
+  });
 });

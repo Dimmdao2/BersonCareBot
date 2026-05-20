@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 type IntakeItem = {
   id: string;
+  patientUserId: string;
   type: "lfk" | "nutrition";
   status: string;
   summary: string | null;
@@ -24,6 +26,7 @@ type IntakeListResponse = {
 
 type IntakeDetail = {
   id: string;
+  patientUserId: string;
   type: "lfk" | "nutrition";
   status: string;
   patientName: string;
@@ -60,6 +63,14 @@ const TYPE_LABELS: Record<string, string> = {
   lfk: "ЛФК",
   nutrition: "Нутрициология",
 };
+
+function doctorClientProfileHref(patientUserId: string): string {
+  return `/app/doctor/clients/${encodeURIComponent(patientUserId)}`;
+}
+
+function doctorClientChatHref(patientUserId: string): string {
+  return `${doctorClientProfileHref(patientUserId)}?chat=1`;
+}
 
 function IntakeDetailBody({ detail }: { detail: IntakeDetail }) {
   return (
@@ -113,6 +124,34 @@ function IntakeDetailBody({ detail }: { detail: IntakeDetail }) {
   );
 }
 
+function IntakeCardActions({
+  patientUserId,
+  status,
+  updating,
+  onClose,
+}: {
+  patientUserId: string;
+  status: string;
+  updating: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex gap-2 flex-wrap">
+      <Button size="sm" variant="outline" asChild>
+        <Link href={doctorClientProfileHref(patientUserId)}>Карточка клиента</Link>
+      </Button>
+      <Button size="sm" asChild>
+        <Link href={doctorClientChatHref(patientUserId)}>Чат</Link>
+      </Button>
+      {status !== "closed" ? (
+        <Button size="sm" variant="outline" disabled={updating} onClick={onClose}>
+          Закрыть
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 export type DoctorOnlineIntakeClientProps = {
   /** Открыть карточку по id (deep-link `/app/doctor/online-intake/[requestId]`). */
   initialOpenRequestId?: string | null;
@@ -121,7 +160,7 @@ export type DoctorOnlineIntakeClientProps = {
 export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: DoctorOnlineIntakeClientProps) {
   const [items, setItems] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "new" | "in_review">("new");
+  const [filter, setFilter] = useState<"open" | "all">("open");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detail, setDetail] = useState<IntakeDetail | null>(null);
@@ -164,7 +203,7 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
   async function loadItems() {
     setLoading(true);
     try {
-      const params = filter !== "all" ? `?status=${filter}` : "";
+      const params = filter === "open" ? "?open=1" : "";
       const res = await fetch(`/api/doctor/online-intake${params}`);
       if (!res.ok) return;
       const data = (await res.json()) as IntakeListResponse;
@@ -223,13 +262,13 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
     };
   }, [initialOpenRequestId]);
 
-  async function changeStatus(id: string, status: string) {
+  async function closeRequest(id: string) {
     setUpdatingId(id);
     try {
       const res = await fetch(`/api/doctor/online-intake/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status: "closed" }),
       });
       if (res.ok) {
         await loadItems();
@@ -276,50 +315,24 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
           </div>
           {detailLoading && <p className="text-xs text-muted-foreground">Обновление…</p>}
           {!detailLoading && <IntakeDetailBody detail={detail} />}
-          <div className="flex gap-2 flex-wrap">
-            {detail.status === "new" && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={updatingId === detail.id}
-                onClick={() => changeStatus(detail.id, "in_review")}
-              >
-                На рассмотрение
-              </Button>
-            )}
-            {(detail.status === "new" || detail.status === "in_review") && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={updatingId === detail.id}
-                onClick={() => changeStatus(detail.id, "contacted")}
-              >
-                Связались
-              </Button>
-            )}
-            {detail.status !== "closed" && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={updatingId === detail.id}
-                onClick={() => changeStatus(detail.id, "closed")}
-              >
-                Закрыть
-              </Button>
-            )}
-          </div>
+          <IntakeCardActions
+            patientUserId={detail.patientUserId}
+            status={detail.status}
+            updating={updatingId === detail.id}
+            onClose={() => void closeRequest(detail.id)}
+          />
         </div>
       )}
 
       <div className="flex gap-2">
-        {(["new", "in_review", "all"] as const).map((f) => (
+        {(["open", "all"] as const).map((f) => (
           <Button
             key={f}
             size="sm"
             variant={filter === f ? "default" : "outline"}
             onClick={() => setFilter(f)}
           >
-            {f === "new" ? "Новые" : f === "in_review" ? "На рассмотрении" : "Все"}
+            {f === "open" ? "Открытые" : "Все"}
           </Button>
         ))}
       </div>
@@ -327,7 +340,9 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
       {loading && <p className="text-sm text-muted-foreground">Загрузка...</p>}
 
       {!loading && items.length === 0 && !showOrphanDetail && (
-        <p className="text-sm text-muted-foreground">Заявок нет</p>
+        <p className="text-sm text-muted-foreground">
+          {filter === "open" ? "Открытых заявок нет" : "Заявок нет"}
+        </p>
       )}
 
       <div className="flex flex-col gap-3">
@@ -369,38 +384,12 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
               )}
             </div>
 
-            <div className="flex gap-2 flex-wrap">
-              {item.status === "new" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={updatingId === item.id}
-                  onClick={() => changeStatus(item.id, "in_review")}
-                >
-                  На рассмотрение
-                </Button>
-              )}
-              {(item.status === "new" || item.status === "in_review") && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={updatingId === item.id}
-                  onClick={() => changeStatus(item.id, "contacted")}
-                >
-                  Связались
-                </Button>
-              )}
-              {item.status !== "closed" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={updatingId === item.id}
-                  onClick={() => changeStatus(item.id, "closed")}
-                >
-                  Закрыть
-                </Button>
-              )}
-            </div>
+            <IntakeCardActions
+              patientUserId={item.patientUserId}
+              status={item.status}
+              updating={updatingId === item.id}
+              onClose={() => void closeRequest(item.id)}
+            />
           </div>
         ))}
       </div>

@@ -10,7 +10,7 @@ import { ClientProfileCard } from "../ClientProfileCard";
 
 type Props = { params: Promise<{ userId: string }> };
 
-type SearchParams = Promise<{ scope?: string }>;
+type SearchParams = Promise<{ scope?: string; chat?: string }>;
 
 export default async function DoctorClientProfilePage({
   params,
@@ -18,7 +18,8 @@ export default async function DoctorClientProfilePage({
 }: Props & { searchParams: SearchParams }) {
   const session = await requireDoctorAccess();
   const { userId } = await params;
-  const { scope: scopeParam } = await searchParams;
+  const { scope: scopeParam, chat: chatParam } = await searchParams;
+  const autoOpenChat = chatParam === "1";
   const listBasePath =
     scopeParam === "all"
       ? "/app/doctor/clients?scope=all"
@@ -73,6 +74,7 @@ export default async function DoctorClientProfilePage({
           Boolean(env.DATABASE_URL) ? treatmentProgramInstances : undefined
         }
         lfkExerciseLinesByComplexId={lfkExerciseLinesByComplexId}
+        autoOpenChat={autoOpenChat}
       />
     </AppShell>
   );

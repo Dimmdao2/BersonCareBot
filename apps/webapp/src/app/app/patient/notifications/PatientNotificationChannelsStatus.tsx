@@ -10,6 +10,7 @@ import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContex
 import type { WebPushUiStatus } from "@/shared/lib/webPush/pushOnboardingEligibility";
 import { restorePatientWebPushSubscription, subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
 import { unsubscribePatientWebPush } from "@/shared/lib/webPush/unsubscribePatientWebPush";
+import { reportWebPushSubscribeFailure } from "@/shared/lib/webPush/webPushSubscribeFeedback";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 const PUSH_STATUS: Record<WebPushUiStatus, string> = {
@@ -55,6 +56,8 @@ function PushChannelRow() {
       if (result.ok) {
         await state.refresh();
         router.refresh();
+      } else {
+        reportWebPushSubscribeFailure(result);
       }
     } finally {
       setBusy(false);

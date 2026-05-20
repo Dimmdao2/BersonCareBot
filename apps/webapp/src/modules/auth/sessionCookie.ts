@@ -1,9 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { NextRequest, NextResponse } from "next/server";
 import { env, isProduction } from "@/config/env";
 import type { AppSession, SessionUser } from "@/shared/types/session";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
+import { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/modules/auth/sessionCookieNames";
 
-export const SESSION_COOKIE_NAME = "bersoncare_webapp_session";
+export { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/modules/auth/sessionCookieNames";
+const FRESH_LOGIN_COOKIE_MAX_AGE_SEC = 120;
 export const SESSION_SLIDING_TTL_SECONDS = 60 * 60 * 24 * 90;
 export const SESSION_SLIDING_TTL_DOCTOR_SECONDS = 60 * 60 * 24 * 90;
 
@@ -67,6 +70,10 @@ export function renewSessionIfActive(session: AppSession): AppSession {
 }
 
 export function buildRenewedSessionCookieOptions(session: AppSession) {
+  return buildSessionCookieOptions(session);
+}
+
+export function buildSessionCookieOptions(session: AppSession) {
   return {
     httpOnly: true as const,
     sameSite: "lax" as const,
@@ -74,4 +81,53 @@ export function buildRenewedSessionCookieOptions(session: AppSession) {
     path: "/",
     maxAge: cookieMaxAgeSeconds(session),
   };
+}
+
+export function buildFreshLoginMarkerCookieOptions() {
+  return {
+    httpOnly: false as const,
+    sameSite: "lax" as const,
+    secure: isProduction,
+    path: "/",
+    maxAge: FRESH_LOGIN_COOKIE_MAX_AGE_SEC,
+  };
+}
+
+type CookieWriter = {
+  set: (
+    name: string,
+    value: string,
+    options: ReturnType<typeof buildSessionCookieOptions>,
+  ) => void;
+};
+
+export function writeFreshLoginMarkerCookie(cookieStore: CookieWriter): void {
+  cookieStore.set(FRESH_LOGIN_COOKIE_NAME, "1", buildFreshLoginMarkerCookieOptions());
+}
+
+export function clearFreshLoginMarkerCookie(cookieStore: CookieWriter): void {
+  cookieStore.set(FRESH_LOGIN_COOKIE_NAME, "", {
+    ...buildFreshLoginMarkerCookieOptions(),
+    maxAge: 0,
+  });
+}
+
+/** Продлевает sliding TTL сессии на ответе proxy / middleware. */
+export function applySessionRenewalToResponse(
+  request: NextRequest,
+  response: NextResponse,
+): NextResponse {
+  const raw = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (!raw) return response;
+
+  const session = decodeSessionCookie(raw);
+  if (!session || !shouldRenewSession(session)) return response;
+
+  const renewed = renewSessionIfActive(session);
+  response.cookies.set(
+    SESSION_COOKIE_NAME,
+    encodeSessionCookie(renewed),
+    buildRenewedSessionCookieOptions(renewed),
+  );
+  return response;
 }

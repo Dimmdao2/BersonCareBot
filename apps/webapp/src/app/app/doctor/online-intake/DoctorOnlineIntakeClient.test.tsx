@@ -4,17 +4,21 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { DoctorOnlineIntakeClient } from "./DoctorOnlineIntakeClient";
 
+const PATIENT_ID = "00000000-0000-0000-0000-0000000000aa";
+const REQUEST_ID = "00000000-0000-0000-0000-0000000000cc";
+
 describe("DoctorOnlineIntakeClient", () => {
   const origFetch = globalThis.fetch;
 
   beforeEach(() => {
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("/api/doctor/online-intake/") && !url.endsWith("/api/doctor/online-intake")) {
+      if (url.includes(`/api/doctor/online-intake/${REQUEST_ID}`) && !url.includes("/status")) {
         return Promise.resolve({
           ok: true,
           json: async () => ({
-            id: "00000000-0000-0000-0000-0000000000cc",
+            id: REQUEST_ID,
+            patientUserId: PATIENT_ID,
             type: "lfk",
             status: "new",
             patientName: "Деталь Имя",
@@ -31,7 +35,8 @@ describe("DoctorOnlineIntakeClient", () => {
         json: async () => ({
           items: [
             {
-              id: "00000000-0000-0000-0000-0000000000cc",
+              id: REQUEST_ID,
+              patientUserId: PATIENT_ID,
               type: "lfk",
               status: "new",
               summary: "Кратко о симптомах",
@@ -61,14 +66,31 @@ describe("DoctorOnlineIntakeClient", () => {
     expect(screen.getByText("+79007770088")).toBeInTheDocument();
   });
 
+  it("links to client profile and chat", async () => {
+    render(<DoctorOnlineIntakeClient />);
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Карточка клиента" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("link", { name: "Карточка клиента" })).toHaveAttribute(
+      "href",
+      `/app/doctor/clients/${PATIENT_ID}`,
+    );
+    expect(screen.getByRole("link", { name: "Чат" })).toHaveAttribute(
+      "href",
+      `/app/doctor/clients/${PATIENT_ID}?chat=1`,
+    );
+  });
+
   it("loads detail for deep-linked requestId when not in filtered list", async () => {
+    const deepId = "00000000-0000-0000-0000-0000000000dd";
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("/00000000-0000-0000-0000-0000000000dd")) {
+      if (url.includes(`/${deepId}`) && !url.includes("/status")) {
         return Promise.resolve({
           ok: true,
           json: async () => ({
-            id: "00000000-0000-0000-0000-0000000000dd",
+            id: deepId,
+            patientUserId: PATIENT_ID,
             type: "lfk",
             status: "closed",
             patientName: "Deep Имя",
@@ -91,9 +113,7 @@ describe("DoctorOnlineIntakeClient", () => {
       } as Response);
     }) as typeof fetch;
 
-    render(
-      <DoctorOnlineIntakeClient initialOpenRequestId="00000000-0000-0000-0000-0000000000dd" />,
-    );
+    render(<DoctorOnlineIntakeClient initialOpenRequestId={deepId} />);
     await waitFor(() => {
       expect(screen.getByText("Заявка по ссылке")).toBeInTheDocument();
     });

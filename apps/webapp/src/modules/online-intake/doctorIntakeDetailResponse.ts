@@ -16,6 +16,7 @@ export type DoctorLfkAttachmentFile = {
 
 export type DoctorOnlineIntakeDetailJson = {
   id: string;
+  patientUserId: string;
   type: "lfk" | "nutrition";
   status: string;
   patientName: string;
@@ -60,6 +61,7 @@ export async function buildDoctorOnlineIntakeDetailResponse(
 ): Promise<DoctorOnlineIntakeDetailJson> {
   const base = {
     id: full.id,
+    patientUserId: full.userId,
     type: full.type,
     status: full.status,
     patientName: full.patientName,

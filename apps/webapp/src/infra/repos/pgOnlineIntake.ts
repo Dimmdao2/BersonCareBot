@@ -346,7 +346,9 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         conditions.push(`r.type = $${idx++}`);
         params.push(query.type);
       }
-      if (query.status) {
+      if (query.open) {
+        conditions.push(`r.status <> 'closed'`);
+      } else if (query.status) {
         conditions.push(`r.status = $${idx++}`);
         params.push(query.status);
       }

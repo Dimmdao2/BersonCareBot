@@ -57,6 +57,6 @@ describe("GET /api/doctor/online-intake", () => {
     };
     expect(body.items[0].patientName).toBe("Тест Пациент");
     expect(body.items[0].patientPhone).toBe("+79001230099");
-    expect(body.items[0]).not.toHaveProperty("userId");
+    expect(body.items[0].patientUserId).toBe("00000000-0000-0000-0000-0000000000bb");
   });
 });

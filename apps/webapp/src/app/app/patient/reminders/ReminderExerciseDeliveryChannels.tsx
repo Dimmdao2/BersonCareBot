@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { restorePatientWebPushSubscription, subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
+import { reportWebPushSubscribeFailure } from "@/shared/lib/webPush/webPushSubscribeFeedback";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
@@ -34,6 +35,8 @@ export function ReminderExerciseDeliveryChannels({ deliveryChannelLabels }: Prop
       if (result.ok) {
         await pushState.refresh();
         router.refresh();
+      } else {
+        reportWebPushSubscribeFailure(result);
       }
     } finally {
       setBusy(false);

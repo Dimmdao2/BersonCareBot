@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-const ONLINE_INTAKE_NEW_LIST_URL = "/api/doctor/online-intake?status=new&limit=1";
+const ONLINE_INTAKE_OPEN_LIST_URL = "/api/doctor/online-intake?open=1&limit=1";
 
 /**
- * Число онлайн-заявок со статусом `new` для бейджа меню врача.
+ * Число незакрытых онлайн-заявок для бейджа меню врача.
  * Использует тот же list API, что и экран заявок; `limit=1` минимизирует полезную нагрузку, счётчик берётся из `total`.
  */
 export function useDoctorOnlineIntakeNewCount() {
@@ -15,7 +15,7 @@ export function useDoctorOnlineIntakeNewCount() {
     const run = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       try {
-        const res = await fetch(ONLINE_INTAKE_NEW_LIST_URL);
+        const res = await fetch(ONLINE_INTAKE_OPEN_LIST_URL);
         if (!res.ok) return;
         const j = (await res.json()) as { total?: unknown };
         if (!cancelled && typeof j.total === "number" && Number.isFinite(j.total) && j.total >= 0) {

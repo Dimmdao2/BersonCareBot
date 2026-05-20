@@ -206,7 +206,11 @@ export function createInMemoryOnlineIntake(deps?: {
       let items = [...requests.values()];
       if (query.userId) items = items.filter((r) => r.userId === query.userId);
       if (query.type) items = items.filter((r) => r.type === query.type);
-      if (query.status) items = items.filter((r) => r.status === query.status);
+      if (query.open) {
+        items = items.filter((r) => r.status !== "closed");
+      } else if (query.status) {
+        items = items.filter((r) => r.status === query.status);
+      }
       items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       const total = items.length;
       const offset = query.offset ?? 0;

@@ -5,10 +5,11 @@ import { canAccessDoctor } from "@/modules/roles/service";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import type { IntakeRequestWithPatientIdentity } from "@/modules/online-intake/types";
 
-/** HTTP list body matches `API_CONTRACT_ONLINE_INTAKE_V1` (no `userId` on items). */
+/** HTTP list body: `patientUserId` for links to client profile / chat. */
 function toDoctorListItem(r: IntakeRequestWithPatientIdentity) {
   return {
     id: r.id,
+    patientUserId: r.userId,
     type: r.type,
     status: r.status,
     summary: r.summary,
@@ -22,6 +23,7 @@ function toDoctorListItem(r: IntakeRequestWithPatientIdentity) {
 const querySchema = z.object({
   type: z.enum(["lfk", "nutrition"]).optional(),
   status: z.enum(["new", "in_review", "contacted", "closed"]).optional(),
+  open: z.enum(["1"]).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
 });
@@ -41,11 +43,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "INVALID_QUERY" }, { status: 400 });
   }
 
-  const { page, limit, type, status } = parsed.data;
+  const { page, limit, type, status, open } = parsed.data;
   const offset = (page - 1) * limit;
+  const openOnly = open === "1";
 
   const service = getOnlineIntakeService();
-  const result = await service.listForDoctor({ type, status, limit, offset });
+  const result = await service.listForDoctor({
+    type,
+    open: openOnly,
+    status: openOnly ? undefined : status,
+    limit,
+    offset,
+  });
 
   return NextResponse.json({
     items: result.items.map(toDoctorListItem),

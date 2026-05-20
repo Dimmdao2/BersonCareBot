@@ -1,11 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { applySessionRenewalToResponse } from "@/modules/auth/sessionCookie";
 import { handlePlatformContextRequest } from "@/middleware/platformContext";
 
 export function proxy(request: NextRequest) {
   const ctxResponse = handlePlatformContextRequest(request);
   if (ctxResponse.headers.has("location")) {
-    return ctxResponse;
+    return applySessionRenewalToResponse(request, ctxResponse);
   }
 
   const pathname = request.nextUrl.pathname;
@@ -14,11 +15,12 @@ export function proxy(request: NextRequest) {
     requestHeaders.set("x-bc-pathname", pathname);
     requestHeaders.set("x-bc-search", request.nextUrl.search);
   }
-  return NextResponse.next({
+  const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
+  return applySessionRenewalToResponse(request, response);
 }
 
 export const config = {
-  matcher: ["/app", "/app/:path*"],
+  matcher: ["/app", "/app/:path*", "/api/me", "/api/patient/:path*"],
 };

@@ -123,6 +123,7 @@ describe("buildDoctorOnlineIntakeDetailResponse", () => {
     const json = await buildDoctorOnlineIntakeDetailResponse(full);
     expect(json.patientName).toBe("Иван");
     expect(json.patientPhone).toBe("+7900");
+    expect(json.patientUserId).toBe("u1");
     expect(json.description).toBe("Full text");
     expect(json.attachmentUrls).toEqual(["https://example.com/doc"]);
     expect(json.attachmentFiles).toHaveLength(1);

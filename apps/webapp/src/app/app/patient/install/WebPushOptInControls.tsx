@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { probePushSupported } from "@/shared/lib/webPush/pushCapability";
 import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
 import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
+import { webPushSubscribeFailureMessage } from "@/shared/lib/webPush/webPushSubscribeFeedback";
 
 export function WebPushOptInControls() {
   const [busy, setBusy] = useState(false);
@@ -26,15 +27,7 @@ export function WebPushOptInControls() {
         toast.success("Готово");
         return;
       }
-      if (result.reason === "permission_denied") {
-        toast.error("Разрешение не выдано");
-        return;
-      }
-      if (result.reason === "vapid_unavailable") {
-        toast.error("Push недоступен");
-        return;
-      }
-      toast.error("Не удалось включить уведомления");
+      toast.error(webPushSubscribeFailureMessage(result.reason));
     } catch {
       toast.error("Ошибка");
     } finally {

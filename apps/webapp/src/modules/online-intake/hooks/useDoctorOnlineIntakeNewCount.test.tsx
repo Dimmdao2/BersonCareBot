@@ -36,7 +36,7 @@ describe("useDoctorOnlineIntakeNewCount", () => {
     await waitFor(() => {
       expect(result.current).toBe(7);
     });
-    expect(mockFetch).toHaveBeenCalledWith("/api/doctor/online-intake?status=new&limit=1");
+    expect(mockFetch).toHaveBeenCalledWith("/api/doctor/online-intake?open=1&limit=1");
   });
 
   it("does not fetch when tab starts hidden", async () => {

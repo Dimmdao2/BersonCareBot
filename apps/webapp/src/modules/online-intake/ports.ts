@@ -14,6 +14,8 @@ export type ListIntakeQuery = {
   userId?: string;
   type?: IntakeType;
   status?: IntakeStatus;
+  /** When true, only non-`closed` requests (ignores `status` if both set at API layer). */
+  open?: boolean;
   limit?: number;
   offset?: number;
 };

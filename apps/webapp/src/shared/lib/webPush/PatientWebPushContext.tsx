@@ -112,6 +112,7 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
         permission: perm,
         hasLocalSubscription: hasLocal,
         hasServerSubscription: serverSub,
+        globalWebPushEnabled: globalEnabled,
       });
       if (reconciled) {
         serverSub = false;

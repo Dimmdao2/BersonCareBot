@@ -22,14 +22,12 @@ type Props = {
 export function PatientNotificationsTopicsSection({
   initialTopics,
   hasMessengerOrEmail,
-  hasWebPushSubscription: initialHasSubscription,
-  globalWebPushEnabled: initialGlobalWebPushEnabled,
+  hasWebPushSubscription: _initialHasSubscription,
+  globalWebPushEnabled: _initialGlobalWebPushEnabled,
 }: Props) {
   const push = useWebPushClientState();
 
-  const pushEffective = push.mounted ?
-    push.uiStatus === "enabled"
-  : initialHasSubscription && initialGlobalWebPushEnabled;
+  const pushEffective = push.mounted && push.uiStatus === "enabled";
 
   const topicsForMatrix = useMemo(
     () => applyWebPushColumnAvailability(initialTopics, pushEffective),

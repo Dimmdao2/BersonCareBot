@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,8 @@ type ClientProfileCardProps = {
   treatmentProgramInstancesInitial?: TreatmentProgramInstanceSummary[];
   /** B7: строки упражнений по комплексам (read с сервера). */
   lfkExerciseLinesByComplexId?: Record<string, LfkComplexExerciseLine[]>;
+  /** Открыть диалог чата сразу после перехода (например `?chat=1` с онлайн-заявки). */
+  autoOpenChat?: boolean;
 };
 
 function SectionGroupTitle({ children, first = false }: { children: ReactNode; first?: boolean }) {
@@ -85,6 +87,7 @@ function ClientProfileCardInner({
   pendingProgramTestEvaluations = [],
   treatmentProgramInstancesInitial,
   lfkExerciseLinesByComplexId = {},
+  autoOpenChat = false,
 }: ClientProfileCardProps) {
   const scopeQs = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : "";
   const [contactsEditing, setContactsEditing] = useState(false);
@@ -183,6 +186,14 @@ function ClientProfileCardInner({
       setChatLoading(false);
     }
   };
+
+  const autoOpenChatStarted = useRef(false);
+  useEffect(() => {
+    if (!autoOpenChat || autoOpenChatStarted.current) return;
+    autoOpenChatStarted.current = true;
+    void openPatientChat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot from URL
+  }, [autoOpenChat]);
 
   return (
     <div id={`doctor-client-profile-page-${userId}`} className="flex flex-col gap-3">

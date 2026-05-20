@@ -9,8 +9,13 @@ export async function reconcileStalePatientWebPushSubscriptions(input: {
   permission: PushPermissionState;
   hasLocalSubscription: boolean;
   hasServerSubscription: boolean;
+  globalWebPushEnabled?: boolean;
 }): Promise<boolean> {
   if (!input.hasServerSubscription) return false;
+
+  if (input.globalWebPushEnabled === false) {
+    return unsubscribeAllPatientWebPush();
+  }
 
   if (input.permission === "denied") {
     return unsubscribeAllPatientWebPush();
