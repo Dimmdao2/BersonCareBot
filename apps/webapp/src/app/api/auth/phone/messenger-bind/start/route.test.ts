@@ -18,9 +18,13 @@ vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: (...args: unknown[]) => getCurrentSessionMock(...args),
 }));
 
-vi.mock("@/modules/auth/phoneMessengerBindStartRateLimit", () => ({
-  isPhoneMessengerBindStartRateLimited: (...args: unknown[]) => rateLimitMock(...args),
-}));
+vi.mock("@/modules/auth/phoneMessengerBindStartRateLimit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/auth/phoneMessengerBindStartRateLimit")>();
+  return {
+    ...actual,
+    isPhoneMessengerBindStartRateLimited: (...args: unknown[]) => rateLimitMock(...args),
+  };
+});
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({

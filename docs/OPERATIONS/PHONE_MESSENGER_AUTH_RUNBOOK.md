@@ -57,7 +57,7 @@
 
 ## Deploy checklist
 
-1. Применить миграции webapp на хосте.
+1. Применить миграции webapp на хосте (`pnpm migrate` из корня репозитория на production — подхватывает `api.prod` + `webapp.prod`). Убедиться, что в логе Drizzle применилась **`0078_phone_messenger_bind_secrets`** (не путать с legacy `078_reference_items_deleted_at.sql`). Проверка: `SELECT to_regclass('public.phone_messenger_bind_secrets');` → не `NULL`.
 2. Задать `telegram_login_bot_username` / `max_login_bot_nickname` в admin Settings.
 3. Деплой webapp + integrator (scripts/templates).
 4. Smoke: новый номер в браузере `/app` → TG → контакт → код → вход; профиль `profile_bind`; `/bind-phone?next=` в браузере.

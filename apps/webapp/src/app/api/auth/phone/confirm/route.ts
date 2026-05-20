@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  formatOtpRetryAfterMessage,
+  OTP_TOO_MANY_ATTEMPTS_MESSAGE,
+} from "@/modules/auth/otpConstants";
 
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
@@ -29,13 +33,14 @@ export async function POST(request: Request) {
   const result = await deps.auth.confirmPhoneAuth(challengeId, code);
 
   if (!result.ok) {
-    const status = result.code === "too_many_attempts" ? 429 : 400;
+    const status =
+      result.code === "too_many_attempts" || result.code === "rate_limited" ? 429 : 400;
     return NextResponse.json(
       {
         ok: false,
         error: result.code,
         retryAfterSeconds: result.retryAfterSeconds,
-        message: errorMessage(result.code),
+        message: errorMessage(result.code, result.retryAfterSeconds),
       },
       {
         status,
@@ -62,14 +67,20 @@ export async function POST(request: Request) {
   });
 }
 
-function errorMessage(code: string): string {
+function errorMessage(code: string, retryAfterSeconds?: number): string {
   switch (code) {
     case "invalid_code":
       return "Неверный код";
     case "expired_code":
       return "Код истёк. Запросите новый.";
     case "too_many_attempts":
-      return "Превышено количество попыток.";
+      return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
+    case "rate_limited":
+      return retryAfterSeconds != null
+        ? formatOtpRetryAfterMessage(retryAfterSeconds)
+        : "Слишком много запросов. Попробуйте позже.";
+    case "server_error":
+      return "Не удалось завершить вход. Повторите ввод того же кода.";
     default:
       return "Ошибка подтверждения.";
   }

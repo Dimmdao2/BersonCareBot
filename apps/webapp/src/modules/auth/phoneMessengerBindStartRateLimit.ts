@@ -8,6 +8,9 @@ const WINDOW_MS = 60 * 60 * 1000;
 const MAX_STARTS_PER_WINDOW = 30;
 const SCOPE = "auth.phone_messenger_bind_start";
 
+/** Подсказка клиенту при 429 (скользящее окно 1 ч). */
+export const PHONE_MESSENGER_BIND_START_RATE_LIMIT_SEC = 3600;
+
 const buckets = new Map<string, number[]>();
 let dbUnavailable = false;
 

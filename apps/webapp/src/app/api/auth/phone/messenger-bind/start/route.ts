@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { isPhoneMessengerBindStartRateLimited } from "@/modules/auth/phoneMessengerBindStartRateLimit";
+import { formatOtpRetryAfterMessage } from "@/modules/auth/otpConstants";
+import {
+  isPhoneMessengerBindStartRateLimited,
+  PHONE_MESSENGER_BIND_START_RATE_LIMIT_SEC,
+} from "@/modules/auth/phoneMessengerBindStartRateLimit";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 import { getMaxLoginBotNickname } from "@/modules/system-settings/maxLoginBotNickname";
@@ -48,8 +52,16 @@ export async function POST(request: Request) {
       : phone;
   if (await isPhoneMessengerBindStartRateLimited(rateKey)) {
     return NextResponse.json(
-      { ok: false, error: "rate_limited", message: "Слишком много запросов. Попробуйте позже." },
-      { status: 429 },
+      {
+        ok: false,
+        error: "rate_limited",
+        retryAfterSeconds: PHONE_MESSENGER_BIND_START_RATE_LIMIT_SEC,
+        message: formatOtpRetryAfterMessage(PHONE_MESSENGER_BIND_START_RATE_LIMIT_SEC),
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(PHONE_MESSENGER_BIND_START_RATE_LIMIT_SEC) },
+      },
     );
   }
 

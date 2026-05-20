@@ -6,6 +6,10 @@ import type { ChannelContext } from "@/modules/auth/channelContext";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import type { PhoneOtpDelivery } from "@/modules/auth/smsPort";
 import { isRuMobile, isValidPhoneE164 } from "@/modules/auth/phoneValidation";
+import {
+  formatOtpRetryAfterMessage,
+  OTP_TOO_MANY_ATTEMPTS_MESSAGE,
+} from "@/modules/auth/otpConstants";
 import { getSmsFallbackEnabled } from "@/modules/system-settings/configAdapter";
 
 const bodySchema = z.object({
@@ -158,7 +162,7 @@ export async function POST(request: Request) {
         ok: false,
         error: result.code,
         retryAfterSeconds: result.retryAfterSeconds,
-        message: errorMessage(result.code),
+        message: errorMessage(result.code, result.retryAfterSeconds),
       },
       {
         status,
@@ -177,7 +181,7 @@ export async function POST(request: Request) {
   });
 }
 
-function errorMessage(code: string): string {
+function errorMessage(code: string, retryAfterSeconds?: number): string {
   switch (code) {
     case "sms_disabled_web":
       return "SMS для входа с сайта отключён. Используйте код в Telegram или Max.";
@@ -188,9 +192,11 @@ function errorMessage(code: string): string {
     case "delivery_failed":
       return "Не удалось отправить код. Попробуйте позже.";
     case "rate_limited":
-      return "Слишком много запросов. Попробуйте позже.";
+      return retryAfterSeconds != null
+        ? formatOtpRetryAfterMessage(retryAfterSeconds)
+        : "Слишком много запросов. Попробуйте позже.";
     case "too_many_attempts":
-      return "Превышено количество попыток.";
+      return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
     default:
       return "Ошибка отправки кода.";
   }

@@ -741,22 +741,17 @@ function _buildAppDeps() {
         } catch {
           return { ok: false as const, code: "server_error" };
         }
-        await consumePhoneOtpChallenge(challengeId, phoneAuthDeps);
         const envRole = resolveRoleFromEnv({
           phone: result.user.phone,
           telegramId: result.user.bindings?.telegramId,
           maxId: result.user.bindings?.maxId,
         });
-        if (result.user.role === envRole) {
-          return {
-            ok: true as const,
-            user: result.user,
-            redirectTo: getRedirectPathForRole(envRole),
-            deliveryChannel: result.deliveryChannel,
-          };
+        if (result.user.role !== envRole) {
+          await userProjectionPort.updateRole(result.user.userId, envRole);
         }
-        await userProjectionPort.updateRole(result.user.userId, envRole);
-        const user = { ...result.user, role: envRole };
+        await consumePhoneOtpChallenge(challengeId, phoneAuthDeps);
+        const user =
+          result.user.role === envRole ? result.user : { ...result.user, role: envRole };
         return {
           ok: true as const,
           user,

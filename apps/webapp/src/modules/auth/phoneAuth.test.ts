@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { startPhoneAuth, confirmPhoneAuth, normalizePhone } from "./phoneAuth";
+import {
+  startPhoneAuth,
+  confirmPhoneAuth,
+  consumePhoneOtpChallenge,
+  normalizePhone,
+} from "./phoneAuth";
+import { OTP_MAX_VERIFY_ATTEMPTS } from "./otpConstants";
 import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
 import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
 import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
@@ -72,12 +78,12 @@ describe("confirmPhoneAuth", () => {
     if (!confirm.ok) expect(confirm.code).toBe("invalid_code");
   });
 
-  it("returns too_many_attempts after 3 wrong codes", async () => {
+  it("returns too_many_attempts after max wrong codes", async () => {
     const start = await startPhoneAuth("+79990000099", webContext, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
     const cid = start.challengeId;
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < OTP_MAX_VERIFY_ATTEMPTS - 1; i++) {
       const r = await confirmPhoneAuth(cid, "000000", deps);
       expect(r.ok).toBe(false);
       if (r.ok) return;
@@ -89,6 +95,23 @@ describe("confirmPhoneAuth", () => {
       expect(last.code).toBe("too_many_attempts");
       expect(last.retryAfterSeconds).toBeDefined();
     }
+  });
+
+  it("keeps challenge after wrong code until success consume", async () => {
+    const start = await startPhoneAuth("+79990000123", webContext, deps);
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    const wrong = await confirmPhoneAuth(start.challengeId, "000000", deps);
+    expect(wrong.ok).toBe(false);
+    const still = await inMemoryPhoneChallengeStore.get(start.challengeId);
+    expect(still?.code).toBeDefined();
+    const challenge = still!;
+    const ok = await confirmPhoneAuth(start.challengeId, challenge.code!, deps);
+    expect(ok.ok).toBe(true);
+    const beforeConsume = await inMemoryPhoneChallengeStore.get(start.challengeId);
+    expect(beforeConsume).not.toBeNull();
+    await consumePhoneOtpChallenge(start.challengeId, deps);
+    expect(await inMemoryPhoneChallengeStore.get(start.challengeId)).toBeNull();
   });
 
   it("returns expired_code for unknown challengeId", async () => {

@@ -176,6 +176,7 @@ export function OtpCodeForm({
         const sec = Math.max(1, Math.ceil(result.retryAfterSeconds));
         setCanResend(false);
         setResendCountdown(sec);
+        if (result.message) setError(result.message);
       } else {
         setError(result.message);
       }
