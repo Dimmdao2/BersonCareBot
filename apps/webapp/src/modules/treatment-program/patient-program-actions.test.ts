@@ -11,6 +11,7 @@ import {
   createInMemoryTreatmentProgramItemSnapshotPort,
 } from "@/app-layer/testing/treatmentProgramInstanceInMemory";
 import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
+import { createInMemoryPatientDiarySnapshotsPort } from "@/infra/repos/inMemoryPatientDiarySnapshots";
 import { createTreatmentProgramService } from "./service";
 import { createTreatmentProgramInstanceService } from "./instance-service";
 import type { TreatmentProgramItemRefValidationPort, TreatmentProgramItemSnapshotPort } from "./ports";
@@ -157,6 +158,7 @@ describe("patient-program-actions", () => {
     const actions = createTreatmentProgramPatientActionService({
       instances: instPort,
       actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
       now: () => new Date("2026-05-03T12:00:00.000Z"),
       getAppDefaultTimezoneIana: async () => "UTC",
       getPatientCalendarTimezoneIana: async () => null,
@@ -236,6 +238,7 @@ describe("patient-program-actions", () => {
     const actions = createTreatmentProgramPatientActionService({
       instances: instPort,
       actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
       now: () => new Date("2026-05-03T12:00:00.000Z"),
       getAppDefaultTimezoneIana: async () => "UTC",
       getPatientCalendarTimezoneIana: async () => null,
@@ -339,6 +342,7 @@ describe("patient-program-actions", () => {
     const actions = createTreatmentProgramPatientActionService({
       instances: instPort,
       actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
       now: () => new Date("2026-05-03T21:30:00.000Z"),
       getAppDefaultTimezoneIana: async () => "UTC",
       getPatientCalendarTimezoneIana: async () => "Europe/Helsinki",
@@ -385,6 +389,7 @@ describe("patient-program-actions", () => {
     const actions = createTreatmentProgramPatientActionService({
       instances: instPort,
       actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
       now: () => new Date("2026-05-03T21:30:00.000Z"),
       getAppDefaultTimezoneIana: async () => "UTC",
       getPatientCalendarTimezoneIana: async () => null,
@@ -440,6 +445,7 @@ describe("patient-program-actions", () => {
     const actions = createTreatmentProgramPatientActionService({
       instances: instPort,
       actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
       now: () => new Date("2026-05-05T15:00:00.000Z"),
       getAppDefaultTimezoneIana: async () => "UTC",
       getPatientCalendarTimezoneIana: async () => null,
@@ -467,7 +473,28 @@ describe("patient-program-actions", () => {
       note: null,
     });
 
-    const stats = await actions.getPatientPlanPassageStats(patient, inst.id);
+    const diarySnapshots = createInMemoryPatientDiarySnapshotsPort();
+    await diarySnapshots.insertIfMissing({
+      platformUserId: patient,
+      localDate: "2026-05-05",
+      iana: "UTC",
+      warmupSlotLimit: 3,
+      warmupDoneCount: 0,
+      warmupAllDone: false,
+      planInstanceId: inst.id,
+      planItemIds: [itemDone.id],
+      planDoneMask: [true],
+    });
+    const actionsWithSnap = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      patientDiarySnapshots: diarySnapshots,
+      now: () => new Date("2026-05-05T15:00:00.000Z"),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
+    });
+
+    const stats = await actionsWithSnap.getPatientPlanPassageStats(patient, inst.id);
     expect(stats.daysWithActivity).toBe(1);
     expect(stats.neverCompletedChecklistItemCount).toBe(1);
     expect(stats.calendarDaysInWindow).toBeGreaterThanOrEqual(1);
@@ -489,6 +516,7 @@ describe("patient-program-actions", () => {
     const actions = createTreatmentProgramPatientActionService({
       instances: instPort,
       actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
       now: () => new Date("2026-05-05T15:00:00.000Z"),
       getAppDefaultTimezoneIana: async () => "UTC",
       getPatientCalendarTimezoneIana: async () => null,

@@ -45,6 +45,11 @@ export function createTreatmentProgramInstanceService(deps: {
   testAttempts?: TreatmentProgramTestAttemptsPort;
   /** UUID шаблона промо из `system_settings` (admin). */
   getDefaultPromoTemplateId?: () => Promise<string | null>;
+  /** Перед `completed` при promo refresh — снимки дневника на закрываемом инстансе. */
+  snapshotDiaryDaysBeforePromoRefresh?: (input: {
+    patientUserId: string;
+    closingInstanceId: string;
+  }) => Promise<void>;
 }) {
   const { instances, templates, snapshots, itemRefs, testAttempts } = deps;
   const events = deps.events;
@@ -314,6 +319,13 @@ export function createTreatmentProgramInstanceService(deps: {
       for (const row of activePromo) {
         const prev = await instances.getInstanceById(row.id);
         if (!prev) continue;
+
+        if (deps.snapshotDiaryDaysBeforePromoRefresh) {
+          await deps.snapshotDiaryDaysBeforePromoRefresh({
+            patientUserId: row.patientUserId,
+            closingInstanceId: row.id,
+          });
+        }
 
         await instances.updateInstanceMeta(row.id, { status: "completed" });
         await appendEvent({

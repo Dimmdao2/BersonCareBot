@@ -420,6 +420,16 @@ export type ProgramActionLogPort = {
     windowEndUtcExclusiveIso: string;
     displayIana: string;
   }): Promise<Array<{ localDate: string; itemId: string }>>;
+  /**
+   * Пары (локальная дата, id элемента, id экземпляра) с `done` в окне — по всем программам пациента.
+   * Для снимков дневника и синтеза прошлых дней без привязки к текущему active.
+   */
+  listDoneItemsByLocalDateInWindowForPatient(params: {
+    patientUserId: string;
+    windowStartUtcIso: string;
+    windowEndUtcExclusiveIso: string;
+    displayIana: string;
+  }): Promise<Array<{ localDate: string; itemId: string; instanceId: string }>>;
   /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
   listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;
 };

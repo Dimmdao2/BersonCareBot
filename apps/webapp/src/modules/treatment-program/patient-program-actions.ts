@@ -13,7 +13,16 @@ import {
   isStageZero,
 } from "./stage-semantics";
 import { listLfkSnapshotExerciseLines } from "./programActionActivityKey";
-import { resolvePatientPlanPassageWindowUtc, type PatientPlanPassageStats } from "./patient-plan-passage-stats";
+import {
+  aggregatePassageStatsFromSnapshots,
+  hasPriorDiaryActivityBeforeInstance,
+} from "@/modules/patient-diary/aggregatePassageStatsFromSnapshots";
+import type { PatientDiarySnapshotsPort } from "@/modules/patient-diary/ports";
+import {
+  calendarDayIndexSinceInstanceCreated,
+  resolvePatientPlanPassageWindowUtc,
+  type PatientPlanPassageStats,
+} from "./patient-plan-passage-stats";
 
 export type { PatientPlanPassageStats } from "./patient-plan-passage-stats";
 
@@ -107,6 +116,7 @@ export type ChecklistTodaySnapshot = {
 export function createTreatmentProgramPatientActionService(deps: {
   instances: TreatmentProgramInstancePort;
   actionLog: ProgramActionLogPort;
+  patientDiarySnapshots: PatientDiarySnapshotsPort;
   now?: () => Date;
   getAppDefaultTimezoneIana: () => Promise<string>;
   getPatientCalendarTimezoneIana?: (platformUserId: string) => Promise<string | null>;
@@ -219,32 +229,79 @@ export function createTreatmentProgramPatientActionService(deps: {
       const appDefault = await deps.getAppDefaultTimezoneIana();
       const personal = await getPersonalTz(patientUserId);
       const iana = resolveCalendarDayIanaForPatient(personal, appDefault);
-      const zoneProbe = DateTime.now().setZone(iana);
+      const zoneProbe = DateTime.fromJSDate(nowFn()).setZone(iana);
       if (!zoneProbe.isValid) throw new Error("Некорректная временная зона");
 
       const endAnchorIso = detail.status === "completed" ? detail.updatedAt : nowFn().toISOString();
-      const { windowStartUtcIso, windowEndUtcExclusiveIso, calendarDaysInWindow } =
-        resolvePatientPlanPassageWindowUtc({
-          createdAtIso: detail.createdAt,
-          endAnchorIso,
-          displayIana: iana,
-        });
+      const instanceWindow = resolvePatientPlanPassageWindowUtc({
+        createdAtIso: detail.createdAt,
+        endAnchorIso,
+        displayIana: iana,
+      });
 
-      const [daysWithActivity, totalByItem] = await Promise.all([
-        deps.actionLog.countDistinctLocalCalendarDaysWithDoneInWindow({
-          instanceId,
+      const earliestSnapYmd = await deps.patientDiarySnapshots.minLocalDateForUser(patientUserId);
+      let windowStartLocalYmd = DateTime.fromISO(instanceWindow.windowStartUtcIso, { zone: "utc" })
+        .setZone(iana)
+        .toISODate()!;
+      if (earliestSnapYmd && earliestSnapYmd < windowStartLocalYmd) {
+        windowStartLocalYmd = earliestSnapYmd;
+      }
+
+      const windowEndYmd =
+        DateTime.fromISO(endAnchorIso, { zone: "utc" }).setZone(iana).startOf("day").toISODate() ??
+        windowStartLocalYmd;
+
+      const windowStartUtcIso = DateTime.fromISO(`${windowStartLocalYmd}T00:00:00`, { zone: iana })
+        .toUTC()
+        .toISO()!;
+      const { calendarDaysInWindow } = resolvePatientPlanPassageWindowUtc({
+        createdAtIso: windowStartUtcIso,
+        endAnchorIso,
+        displayIana: iana,
+      });
+
+      const snapshots = await deps.patientDiarySnapshots.listForUserDateRange(
+        patientUserId,
+        windowStartLocalYmd,
+        windowEndYmd,
+      );
+
+      const logDateKeys = await deps.actionLog.listDistinctLocalDoneDateKeysInWindowForPatient({
+        patientUserId,
+        windowStartUtcIso: instanceWindow.windowStartUtcIso,
+        windowEndUtcExclusiveIso: instanceWindow.windowEndUtcExclusiveIso,
+        displayIana: iana,
+      });
+      const snapDates = new Set(snapshots.map((s) => s.localDate));
+      const logSupplement = new Set<string>();
+      for (const d of logDateKeys) {
+        if (!snapDates.has(d)) logSupplement.add(d);
+      }
+
+      const aggregated = aggregatePassageStatsFromSnapshots({
+        snapshots,
+        calendarDaysInWindow,
+        windowStartLocalYmd,
+        windowEndLocalYmdInclusive: windowEndYmd,
+        logActivityLocalDates: logSupplement,
+      });
+
+      const totalByItem = await deps.actionLog.countCompletionEventsByItemForInstance({
+        instanceId,
+        patientUserId,
+      });
+      const otherInstances = (await deps.instances.listInstancesForPatient(patientUserId)).filter(
+        (i) => i.id !== instanceId,
+      );
+      for (const inst of otherInstances) {
+        const part = await deps.actionLog.countCompletionEventsByItemForInstance({
+          instanceId: inst.id,
           patientUserId,
-          windowStartUtcIso,
-          windowEndUtcExclusiveIso,
-          displayIana: iana,
-        }),
-        deps.actionLog.countCompletionEventsByItemForInstance({ instanceId, patientUserId }),
-      ]);
-
-      const totalCompletions = Object.values(totalByItem).reduce((sum, n) => sum + n, 0);
-      const avgCompletionsPerDay = Math.round((totalCompletions / calendarDaysInWindow) * 10) / 10;
-
-      const missedDays = Math.max(0, calendarDaysInWindow - daysWithActivity);
+        });
+        for (const [itemId, n] of Object.entries(part)) {
+          totalByItem[itemId] = (totalByItem[itemId] ?? 0) + n;
+        }
+      }
 
       const checklistRows = buildPatientProgramChecklistRows(detail);
       let neverCompletedChecklistItemCount = 0;
@@ -252,12 +309,17 @@ export function createTreatmentProgramPatientActionService(deps: {
         if ((totalByItem[row.item.id] ?? 0) === 0) neverCompletedChecklistItemCount++;
       }
 
+      const dayIndex = calendarDayIndexSinceInstanceCreated(detail.createdAt, nowFn().getTime(), iana);
+      const priorDiary = hasPriorDiaryActivityBeforeInstance(snapshots, detail.createdAt, iana);
+      const showCollectingCopy = dayIndex <= 2 && !priorDiary;
+
       return {
         calendarDaysInWindow,
-        daysWithActivity,
-        missedDays,
-        avgCompletionsPerDay,
+        daysWithActivity: aggregated.daysWithActivity,
+        missedDays: aggregated.missedDays,
+        avgCompletionsPerDay: aggregated.avgCompletionsPerDay,
         neverCompletedChecklistItemCount,
+        showCollectingCopy,
       };
     },
 

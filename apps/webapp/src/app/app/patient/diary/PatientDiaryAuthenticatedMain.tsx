@@ -45,7 +45,11 @@ export async function PatientDiaryAuthenticatedMain({
       reminders: deps.reminders,
       patientPractice: deps.patientPractice,
       programActionLog: deps.programActionLog,
-      treatmentProgramInstance: deps.treatmentProgramInstance,
+      treatmentProgramInstance: {
+        listInstancesForPatient: (userId) => deps.treatmentProgramInstance.listForPatient(userId),
+        getInstanceForPatient: (userId, instanceId) =>
+          deps.treatmentProgramInstance.getInstanceForPatient(userId, instanceId),
+      },
       diarySnapshots: deps.patientDiarySnapshots,
     },
     {

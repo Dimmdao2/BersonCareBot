@@ -25,7 +25,7 @@
 | `PatientPlanTabPanels.tsx` | Панели вкладок: `lazy` + `Suspense` для «Программа»/«Рекомендации», блок «Прогресс». |
 | `PatientProgramStagesTimeline.tsx` | Timeline этапов на вкладке «Прогресс». |
 | `PatientProgramControlCard.tsx` | Карточка «Следующий контроль». |
-| `PatientProgramPassageStatisticsSection.tsx` | Статистика прохождения (прогресс). |
+| `PatientProgramPassageStatisticsSection.tsx` | Статистика прохождения: primary — `patient_diary_day_snapshots` (`GET .../passage-stats`, поле `showCollectingCopy`); окно может начинаться раньше `createdAt` текущего инстанса при более ранних снимках. |
 | `PatientProgramBlockHeading.tsx` | Заголовок секции с иконкой. |
 | `PatientStageHeaderFields.tsx` | Поля шапки этапа (экспорт для страницы этапа и др.). |
 | `PatientInstanceStageBody.tsx` / `PatientInstanceStageItemCard.tsx` | Тело этапа и карточка пункта (списки, действия). Встроенный **`clinical_test`**: после `refresh` (форма, «Снять Новое», `mark-viewed` по видимости) повторно подтягивается snapshot через `reloadClinicalTestSnap`. |

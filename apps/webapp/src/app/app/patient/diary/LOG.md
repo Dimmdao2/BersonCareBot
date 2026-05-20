@@ -6,6 +6,25 @@
 - Иконка раздела в `PatientTopNav`: `ChartLine` вместо `BookOpen`.
 - Системные id (`diary`, `routePaths.diary`, API/модули) без изменений.
 
+## 2026-05-20 — Снимки дневника независимо от active-назначения
+
+- Захват прошлых дней: patient-wide `program_action_log`, `plan_instance_id` по фактам дня (`captureDiaryDaySnapshot.ts`).
+- Показ прошлой недели: снимок или синтез без записи; не `null`, если есть активность.
+- `promo_refresh`: `snapshotPromoDaysBeforeRefresh` до `completed` старого promo.
+- Статистика программы (`passage-stats`): primary — `patient_diary_day_snapshots`; fallback journal для дней без снимка; `showCollectingCopy` с учётом более ранней активности в снимках.
+
+### Ops: испорченные снимки (до фикса)
+
+Удалить строки за период (пример, подставить `platform_user_id` и даты):
+
+```sql
+DELETE FROM patient_diary_day_snapshots
+WHERE platform_user_id = '<uuid>'
+  AND local_date BETWEEN '2026-05-01' AND '2026-05-19';
+```
+
+Затем пациент открывает дневник — новые снимки пишутся по исправленным правилам (`insertIfMissing`).
+
 ## Scope
 
 - Карточка «Расписание» (`PatientPlanTodayRemindersCard`, без «Поддержки») в `patientShellAboveTitleSlot` — над заголовком «Статистика», по умолчанию свёрнута; кнопка «Настроить» (компактная).

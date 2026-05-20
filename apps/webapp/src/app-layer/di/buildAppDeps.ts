@@ -183,6 +183,7 @@ import { createRecommendationsService } from "@/modules/recommendations/service"
 import { createCommentsService } from "@/modules/comments/service";
 import { createTreatmentProgramService } from "@/modules/treatment-program/service";
 import { createTreatmentProgramInstanceService } from "@/modules/treatment-program/instance-service";
+import { snapshotPromoDaysBeforeRefresh } from "@/app-layer/treatment-program/snapshotPromoDaysBeforeRefresh";
 import { createTreatmentProgramProgressService } from "@/modules/treatment-program/progress-service";
 import { createTreatmentProgramPatientActionService } from "@/modules/treatment-program/patient-program-actions";
 import { createCoursesService } from "@/modules/courses/service";
@@ -423,36 +424,17 @@ const patientCalendarTimezoneTryInitial = inMemoryRepos
 const treatmentProgramPatientActions = createTreatmentProgramPatientActionService({
   instances: treatmentProgramInstancePort,
   actionLog: programActionLogPort,
+  patientDiarySnapshots: patientDiarySnapshotsPort,
   getAppDefaultTimezoneIana: getAppDisplayTimeZone,
   getPatientCalendarTimezoneIana: patientCalendarTimezoneGet,
 });
 const treatmentProgramItemSnapshotPort = !inMemoryRepos
   ? createPgTreatmentProgramItemSnapshotPort()
   : createInMemoryTreatmentProgramItemSnapshotPort();
-const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
-  instances: treatmentProgramInstancePort,
-  templates: treatmentProgramService,
-  snapshots: treatmentProgramItemSnapshotPort,
-  itemRefs: treatmentProgramItemRefValidationPort,
-  events: treatmentProgramEventsPort,
-  testAttempts: treatmentProgramTestAttemptsPort,
-  getDefaultPromoTemplateId: () => systemSettingsService.getPatientDefaultPromoTreatmentProgramTemplateId(),
-});
 const coursesPort = !inMemoryRepos ? createPgCoursesPort() : createInMemoryCoursesPort();
-const coursesService = createCoursesService({
-  courses: coursesPort,
-  introPages: contentPagesPort,
-  assignTemplateToPatient: (input) => treatmentProgramInstanceService.assignTemplateToPatient(input),
-});
 const patientHomeBlocksPort = !inMemoryRepos
   ? createPgPatientHomeBlocksPort()
   : createInMemoryPatientHomeBlocksPort();
-const patientHomeBlocksService = createPatientHomeBlocksService({
-  port: patientHomeBlocksPort,
-  contentPages: contentPagesPort,
-  contentSections: contentSectionsPort,
-  courses: coursesService,
-});
 const patientHomeLegacyContentPort = !inMemoryRepos
   ? createPgPatientHomeLegacyContentPort()
   : createInMemoryPatientHomeLegacyContentPort();
@@ -477,6 +459,43 @@ const warmupFeelingCompletionPort = !inMemoryRepos
 const patientPracticeService = createPatientPracticeService({
   completions: patientPracticeCompletionsPort,
   contentPages: contentPagesPort,
+});
+const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
+  instances: treatmentProgramInstancePort,
+  templates: treatmentProgramService,
+  snapshots: treatmentProgramItemSnapshotPort,
+  itemRefs: treatmentProgramItemRefValidationPort,
+  events: treatmentProgramEventsPort,
+  testAttempts: treatmentProgramTestAttemptsPort,
+  getDefaultPromoTemplateId: () => systemSettingsService.getPatientDefaultPromoTreatmentProgramTemplateId(),
+  snapshotDiaryDaysBeforePromoRefresh: (input) =>
+    snapshotPromoDaysBeforeRefresh(
+      {
+        reminders: remindersService,
+        patientPractice: patientPracticeService,
+        programActionLog: programActionLogPort,
+        treatmentProgramInstance: {
+          listInstancesForPatient: (userId) => treatmentProgramInstancePort.listInstancesForPatient(userId),
+          getInstanceForPatient: (userId, instanceId) =>
+            treatmentProgramInstancePort.getInstanceForPatient(userId, instanceId),
+        },
+        diarySnapshots: patientDiarySnapshotsPort,
+        getAppDefaultTimezoneIana: getAppDisplayTimeZone,
+        getPatientCalendarTimezoneIana: patientCalendarTimezoneGet,
+      },
+      input,
+    ),
+});
+const coursesService = createCoursesService({
+  courses: coursesPort,
+  introPages: contentPagesPort,
+  assignTemplateToPatient: (input) => treatmentProgramInstanceService.assignTemplateToPatient(input),
+});
+const patientHomeBlocksService = createPatientHomeBlocksService({
+  port: patientHomeBlocksPort,
+  contentPages: contentPagesPort,
+  contentSections: contentSectionsPort,
+  courses: coursesService,
 });
 const treatmentProgramProgressService = createTreatmentProgramProgressService({
   instances: treatmentProgramInstancePort,

@@ -44,6 +44,7 @@ beforeEach(() => {
             missedDays: 8,
             avgCompletionsPerDay: 1.2,
             neverCompletedChecklistItemCount: 3,
+            showCollectingCopy: false,
           },
         }),
         { status: 200 },

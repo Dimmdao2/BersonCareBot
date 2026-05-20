@@ -283,6 +283,40 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       return rows.map((r) => ({ localDate: r.localDate, itemId: r.itemId }));
     },
 
+    async listDoneItemsByLocalDateInWindowForPatient(params) {
+      const iana = params.displayIana;
+      if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
+        throw new Error("invalid_timezone");
+      }
+      const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          localDate: sql<string>`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)::text`,
+          itemId: logTable.instanceStageItemId,
+          instanceId: logTable.instanceId,
+        })
+        .from(logTable)
+        .where(
+          and(
+            eq(logTable.patientUserId, params.patientUserId),
+            eq(logTable.actionType, "done"),
+            gte(logTable.createdAt, params.windowStartUtcIso),
+            lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
+          ),
+        )
+        .groupBy(
+          sql`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)`,
+          logTable.instanceStageItemId,
+          logTable.instanceId,
+        );
+      return rows.map((r) => ({
+        localDate: r.localDate,
+        itemId: r.itemId,
+        instanceId: r.instanceId,
+      }));
+    },
+
     async listForInstance(params) {
       const db = getDrizzle();
       const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);

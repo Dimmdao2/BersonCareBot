@@ -45,12 +45,15 @@ export function PatientProgramPassageStatisticsSection(props: {
     return () => window.clearInterval(id);
   }, []);
 
+  const [showCollectingCopyFromApi, setShowCollectingCopyFromApi] = useState<boolean | null>(null);
+
   const dayIndex = calendarDayIndexSinceInstanceCreated(
     detailCreatedAtIso,
     nowMs,
     patientCalendarDayIana,
   );
-  const showCollectingCopy = dayIndex <= 2;
+  const showCollectingCopyFallback = dayIndex <= 2;
+  const showCollectingCopy = showCollectingCopyFromApi ?? showCollectingCopyFallback;
 
   const [stats, setStats] = useState<PatientPlanPassageStats | null>(null);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -73,10 +76,12 @@ export function PatientProgramPassageStatisticsSection(props: {
       if (cancelled) return;
       if (!res.ok || !data.ok || !data.stats) {
         setStats(null);
+        setShowCollectingCopyFromApi(null);
         setStatsError(data.error ?? "Не удалось загрузить статистику");
         return;
       }
       setStats(data.stats);
+      setShowCollectingCopyFromApi(data.stats.showCollectingCopy);
     })();
     return () => {
       cancelled = true;

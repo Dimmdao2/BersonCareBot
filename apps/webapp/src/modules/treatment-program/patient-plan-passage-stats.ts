@@ -12,6 +12,8 @@ export type PatientPlanPassageStats = {
   avgCompletionsPerDay: number;
   /** Пункты пациентского чеклиста сейчас (как {@link buildPatientProgramChecklistRows}), ни разу не завершённые по журналу. */
   neverCompletedChecklistItemCount: number;
+  /** false — не показывать заглушку «Статистика пока собирается» (есть более ранняя активность в дневнике). */
+  showCollectingCopy: boolean;
 };
 
 /**
