@@ -6,6 +6,7 @@ import { reportPwaLaunchSnapshot } from "@/shared/lib/webPush/patientWebPushApi"
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
 import { restorePatientWebPushSubscription } from "@/shared/lib/webPush/subscribePatientWebPush";
+import { PatientWebPushFreshLoginDeniedDialog } from "@/shared/ui/patient/webPush/PatientWebPushFreshLoginDeniedDialog";
 import { PatientWebPushOnboardingCard } from "@/shared/ui/patient/webPush/PatientWebPushOnboardingCard";
 
 const SW_MESSAGE_TYPE = "WEB_PUSH_SUBSCRIPTION_CHANGE";
@@ -42,5 +43,10 @@ export function PatientWebPushBootstrap() {
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
   }, [refresh]);
 
-  return <PatientWebPushOnboardingCard />;
+  return (
+    <>
+      <PatientWebPushOnboardingCard />
+      <PatientWebPushFreshLoginDeniedDialog />
+    </>
+  );
 }

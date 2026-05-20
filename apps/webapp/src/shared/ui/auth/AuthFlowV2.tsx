@@ -19,6 +19,7 @@ import {
   pickOtpChannelWithPreferencePublic,
 } from "@/modules/auth/otpChannelUi";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
+import { markFreshLoginAfterAuth } from "@/shared/lib/webPush/freshLoginStorage";
 import { ChannelPicker } from "@/shared/ui/auth/ChannelPicker";
 import { OtpCodeForm, type OtpAlternativeEntry, type OtpResendOutcome } from "@/shared/ui/auth/OtpCodeForm";
 import { InternationalPhoneInput } from "@/shared/ui/auth/InternationalPhoneInput";
@@ -553,6 +554,7 @@ export function AuthFlowV2({
 
   const redirectOk = (redirectTo: string, role?: "client" | "doctor" | "admin") => {
     clearAuthFlowPending();
+    markFreshLoginAfterAuth();
     const target = getPostAuthRedirectTarget(role ?? "client", nextParam, redirectTo);
     router.replace(target);
   };

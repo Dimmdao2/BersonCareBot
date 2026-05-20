@@ -1,8 +1,11 @@
+import { unsubscribeAllPatientWebPush } from "@/shared/lib/webPush/patientWebPushApi";
 import { getExistingPushSubscription } from "@/shared/lib/webPush/pushCapability";
 
 export async function unsubscribePatientWebPush(): Promise<boolean> {
   const sub = await getExistingPushSubscription();
-  if (!sub) return true;
+  if (!sub) {
+    return unsubscribeAllPatientWebPush();
+  }
 
   const endpoint = sub.endpoint;
   const res = await fetch("/api/patient/web-push/unsubscribe", {

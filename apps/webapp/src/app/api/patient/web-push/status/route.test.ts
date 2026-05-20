@@ -31,6 +31,9 @@ describe("GET /api/patient/web-push/status", () => {
       webPushSubscriptions: {
         hasAnyForUserId: vi.fn().mockResolvedValue(false),
       },
+      channelPreferencesPort: {
+        getPreferences: vi.fn().mockResolvedValue([]),
+      },
     });
     mockGetWebPushVapidKeyPair.mockResolvedValue(null);
   });
@@ -45,6 +48,7 @@ describe("GET /api/patient/web-push/status", () => {
       vapidConfigured: false,
       publicKey: null,
       hasSubscription: false,
+      globalWebPushEnabled: true,
     });
   });
 
@@ -55,6 +59,11 @@ describe("GET /api/patient/web-push/status", () => {
     mockBuildAppDeps.mockReturnValue({
       systemSettings: {},
       webPushSubscriptions: { hasAnyForUserId: hasAny },
+      channelPreferencesPort: {
+        getPreferences: vi.fn().mockResolvedValue([
+          { channelCode: "web_push", isEnabledForNotifications: true },
+        ]),
+      },
     });
     const res = await GET();
     expect(res.status).toBe(200);

@@ -10,8 +10,12 @@ export async function GET() {
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
+  const uid = gate.session.user.userId;
   const vapid = await getWebPushVapidKeyPair(deps.systemSettings);
-  const hasSubscription = await deps.webPushSubscriptions.hasAnyForUserId(gate.session.user.userId);
+  const hasSubscription = await deps.webPushSubscriptions.hasAnyForUserId(uid);
+  const channelPrefs = await deps.channelPreferencesPort.getPreferences(uid);
+  const globalWebPushEnabled =
+    channelPrefs.find((p) => p.channelCode === "web_push")?.isEnabledForNotifications !== false;
 
   if (!vapid) {
     return NextResponse.json({
@@ -19,6 +23,7 @@ export async function GET() {
       vapidConfigured: false,
       publicKey: null,
       hasSubscription,
+      globalWebPushEnabled,
     });
   }
 
@@ -27,5 +32,6 @@ export async function GET() {
     vapidConfigured: true,
     publicKey: vapid.publicKey,
     hasSubscription,
+    globalWebPushEnabled,
   });
 }

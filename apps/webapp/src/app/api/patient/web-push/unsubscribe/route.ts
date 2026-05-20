@@ -5,9 +5,10 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 
-const bodySchema = z.object({
-  endpoint: z.string().min(10),
-});
+const bodySchema = z.union([
+  z.object({ endpoint: z.string().min(10) }),
+  z.object({ all: z.literal(true) }),
+]);
 
 /** POST /api/patient/web-push/unsubscribe */
 export async function POST(request: Request) {
@@ -28,7 +29,12 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   const uid = gate.session.user.userId;
-  await deps.webPushSubscriptions.removeSubscriptionByEndpoint(uid, parsed.data.endpoint);
+
+  if ("all" in parsed.data) {
+    await deps.webPushSubscriptions.removeSubscriptionsForUser(uid);
+  } else {
+    await deps.webPushSubscriptions.removeSubscriptionByEndpoint(uid, parsed.data.endpoint);
+  }
 
   const remaining = await deps.webPushSubscriptions.hasAnyForUserId(uid);
   if (!remaining) {

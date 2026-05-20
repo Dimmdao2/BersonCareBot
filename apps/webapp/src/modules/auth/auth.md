@@ -4,7 +4,8 @@
 
 ## Сессия
 
-- Cookie с подписью HMAC; TTL задаётся в `service.ts` (разные TTL для client/doctor при необходимости).
+- Cookie с подписью HMAC; sliding TTL **90 суток** от последней активности (`sessionCookie.ts`, `renewSessionCookieFromRequest`, `middleware.ts` на `/app/*`, `/api/patient/*`, `/api/me`).
+- Продление cookie: не чаще чем раз в 24 ч **или** когда до `expiresAt` осталось меньше половины TTL. RSC/`getCurrentSession` сам cookie не пишет — только route handlers и middleware.
 - **getCurrentSession** — чтение и валидация сессии из cookie.
 - **clearSession** — выход.
 - **setSessionFromUser** — установка сессии после успешного входа (SMS/OTP, Telegram, exchange token, OAuth и т.д.).

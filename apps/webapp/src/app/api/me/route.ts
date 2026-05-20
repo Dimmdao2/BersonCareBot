@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { getPool } from "@/app-layer/db/client";
+import { renewSessionCookieFromRequest } from "@/modules/auth/service";
 import type { PlatformAccessContext } from "@/modules/platform-access";
 import { resolvePlatformAccessContext } from "@/modules/platform-access";
 
@@ -17,6 +18,8 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
+
+  await renewSessionCookieFromRequest();
 
   const pinRow = await deps.userPins.getByUserId(session.user.userId);
 

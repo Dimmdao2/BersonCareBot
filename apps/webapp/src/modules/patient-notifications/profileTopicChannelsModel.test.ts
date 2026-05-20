@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyWebPushColumnAvailability,
   buildProfileNotificationTopicModels,
   ensureWebPushInNotificationTopics,
 } from "./profileTopicChannelsModel";
@@ -53,6 +54,22 @@ describe("buildProfileNotificationTopicModels", () => {
       { ...availabilityBase, hasWebPushSubscription: false },
     );
     expect(topics[0]?.topicMasterEnabled).toBe(true);
+  });
+});
+
+describe("applyWebPushColumnAvailability", () => {
+  it("shows disabled push column when push is not effective", () => {
+    const topics = buildProfileNotificationTopicModels(
+      [{ id: "exercise_reminders", title: "Занятия" }],
+      [{ topicCode: "exercise_reminders", channelCode: "web_push", isEnabled: true }],
+      [],
+      { ...availabilityBase, globalWebPushEnabled: false },
+    );
+    const patched = applyWebPushColumnAvailability(topics, false);
+    const push = patched[0]?.channels.find((c) => c.code === "web_push");
+    expect(push).toBeDefined();
+    expect(push?.isEnabled).toBe(false);
+    expect(push?.isEditable).toBe(false);
   });
 });
 

@@ -15,7 +15,9 @@ export function resolveWebPushUiStatus(input: {
   pushNeedsPwaInstall: boolean;
   standalone: boolean;
   permission: PushPermissionState;
+  hasLocalSubscription: boolean;
   hasServerSubscription: boolean;
+  globalWebPushEnabled: boolean;
   vapidConfigured: boolean;
 }): WebPushUiStatus {
   if (!input.standalone && input.pushNeedsPwaInstall) return "needs_pwa";
@@ -23,7 +25,9 @@ export function resolveWebPushUiStatus(input: {
   if (!input.standalone) return "needs_pwa";
   if (input.permission === "denied") return "denied_system";
   if (input.permission === "granted") {
-    return input.hasServerSubscription ? "enabled" : "granted_no_subscription";
+    const fullyActive =
+      input.hasLocalSubscription && input.hasServerSubscription && input.globalWebPushEnabled;
+    return fullyActive ? "enabled" : "granted_no_subscription";
   }
   if (input.permission === "default") {
     if (!input.vapidConfigured) return "unsupported";

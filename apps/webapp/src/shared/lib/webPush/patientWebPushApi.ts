@@ -5,12 +5,30 @@ export type PatientWebPushStatusResponse = {
   vapidConfigured?: boolean;
   publicKey?: string | null;
   hasSubscription?: boolean;
+  globalWebPushEnabled?: boolean;
 };
+
+/** Удалить все push-подписки пользователя на сервере (нет локальной PushSubscription). */
+export async function unsubscribeAllPatientWebPush(): Promise<boolean> {
+  const res = await fetch("/api/patient/web-push/unsubscribe", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ all: true }),
+  });
+  return res.ok;
+}
 
 export async function fetchPatientWebPushStatus(): Promise<PatientWebPushStatusResponse> {
   const res = await fetch("/api/patient/web-push/status", { credentials: "include" });
   if (!res.ok) {
-    return { ok: false, vapidConfigured: false, publicKey: null, hasSubscription: false };
+    return {
+      ok: false,
+      vapidConfigured: false,
+      publicKey: null,
+      hasSubscription: false,
+      globalWebPushEnabled: false,
+    };
   }
   return (await res.json()) as PatientWebPushStatusResponse;
 }

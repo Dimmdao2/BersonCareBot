@@ -17,6 +17,8 @@ export type ProfileNotificationChannelModel = {
   code: PatientTopicChannelCode;
   label: string;
   isEnabled: boolean;
+  /** false — свитч недоступен (push выключен на устройстве/в приложении). */
+  isEditable?: boolean;
 };
 
 export type ProfileNotificationTopicModel = {
@@ -73,6 +75,7 @@ export function buildProfileNotificationTopicModels(
         code,
         label: CHANNEL_LABEL[code],
         isEnabled: resolveTopicChannelEnabled(prefRows, t.id, code),
+        isEditable: true,
       });
     }
     return {
@@ -80,6 +83,44 @@ export function buildProfileNotificationTopicModels(
       displayTitle: patientNotificationTopicDisplayTitle(t.id, t.title),
       topicMasterEnabled: resolveTopicMasterEnabled(topicMasterRows, t.id),
       channels,
+    };
+  });
+}
+
+/**
+ * Показывает колонку Push для всех тем allowlist: при неактивном push — выключено и disabled.
+ */
+export function applyWebPushColumnAvailability(
+  topics: ProfileNotificationTopicModel[],
+  pushEffective: boolean,
+): ProfileNotificationTopicModel[] {
+  return topics.map((t) => {
+    if (!allowedChannelsForTopic(t.topicId).includes("web_push")) return t;
+    const existing = t.channels.find((c) => c.code === "web_push");
+    if (pushEffective) {
+      if (existing) return t;
+      return {
+        ...t,
+        channels: [
+          ...t.channels,
+          { code: "web_push", label: CHANNEL_LABEL.web_push, isEnabled: true, isEditable: true },
+        ],
+      };
+    }
+    if (existing) {
+      return {
+        ...t,
+        channels: t.channels.map((c) =>
+          c.code === "web_push" ? { ...c, isEnabled: false, isEditable: false } : c,
+        ),
+      };
+    }
+    return {
+      ...t,
+      channels: [
+        ...t.channels,
+        { code: "web_push", label: CHANNEL_LABEL.web_push, isEnabled: false, isEditable: false },
+      ],
     };
   });
 }

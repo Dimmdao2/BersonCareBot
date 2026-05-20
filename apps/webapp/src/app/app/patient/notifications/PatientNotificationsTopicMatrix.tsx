@@ -11,7 +11,17 @@ import {
 
 const CHANNEL_ORDER = ["web_push", "telegram", "max", "email"] as const;
 
-export function PatientNotificationsTopicMatrix({ initialTopics }: { initialTopics: ProfileNotificationTopicModel[] }) {
+const TOPIC_TITLE_CELL_CLASS =
+  "max-w-[9rem] whitespace-normal break-words text-sm leading-snug text-[var(--patient-text-primary)] sm:max-w-[10rem]";
+const CHANNEL_HEADER_CLASS =
+  "max-w-[3.25rem] px-2 py-2 text-center text-xs font-normal leading-tight whitespace-normal text-muted-foreground";
+
+type Props = {
+  initialTopics: ProfileNotificationTopicModel[];
+  pushEffective: boolean;
+};
+
+export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }: Props) {
   const [topics, setTopics] = useState(initialTopics);
   const [pending, startTransition] = useTransition();
 
@@ -74,9 +84,11 @@ export function PatientNotificationsTopicMatrix({ initialTopics }: { initialTopi
       <table className="w-full min-w-[320px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-[var(--patient-border)]/60">
-            <th className="py-2 pr-3 text-left font-medium text-[var(--patient-text-primary)]">Тип</th>
+            <th className={`py-2 pr-3 text-left font-medium text-[var(--patient-text-primary)] ${TOPIC_TITLE_CELL_CLASS}`}>
+              Тип
+            </th>
             {channelLabels.map((ch) => (
-              <th key={ch.code} className="px-2 py-2 text-center font-normal text-muted-foreground">
+              <th key={ch.code} className={CHANNEL_HEADER_CLASS}>
                 {ch.label}
               </th>
             ))}
@@ -87,15 +99,15 @@ export function PatientNotificationsTopicMatrix({ initialTopics }: { initialTopi
             const channelsDisabled = !t.topicMasterEnabled;
             return (
               <tr key={t.topicId} className="border-b border-[var(--patient-border)]/40">
-                <td className="py-3 pr-3 align-middle">
-                  <div className="flex items-center gap-2">
+                <td className="max-w-[9rem] py-3 pr-3 align-top sm:max-w-[10rem]">
+                  <div className="flex items-start gap-2">
                     <Switch
                       checked={t.topicMasterEnabled}
                       disabled={pending}
                       onCheckedChange={(v) => onMasterToggle(t.topicId, v)}
                       aria-label={`${t.displayTitle}: тема`}
                     />
-                    <span className="text-[var(--patient-text-primary)]">{t.displayTitle}</span>
+                    <span className={TOPIC_TITLE_CELL_CLASS}>{t.displayTitle}</span>
                   </div>
                 </td>
                 {channelLabels.map((ch) => {
@@ -107,11 +119,15 @@ export function PatientNotificationsTopicMatrix({ initialTopics }: { initialTopi
                       </td>
                     );
                   }
+                  const channelLocked =
+                    channelsDisabled ||
+                    cell.isEditable === false ||
+                    (ch.code === "web_push" && !pushEffective);
                   return (
                     <td key={ch.code} className="px-2 py-3 text-center align-middle">
                       <Switch
-                        checked={cell.isEnabled}
-                        disabled={pending || channelsDisabled}
+                        checked={channelLocked && ch.code === "web_push" ? false : cell.isEnabled}
+                        disabled={pending || channelLocked}
                         onCheckedChange={(v) => onChannelToggle(t.topicId, ch.code, v)}
                         aria-label={`${t.displayTitle}: ${ch.label}`}
                       />

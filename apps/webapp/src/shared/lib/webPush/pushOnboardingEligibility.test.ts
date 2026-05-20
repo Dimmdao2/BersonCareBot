@@ -4,6 +4,17 @@ import {
   shouldShowPushOnboardingPrompt,
 } from "@/shared/lib/webPush/pushOnboardingEligibility";
 
+const grantedBase = {
+  pushSupported: true,
+  pushNeedsPwaInstall: false,
+  standalone: true,
+  permission: "granted" as const,
+  hasLocalSubscription: true,
+  hasServerSubscription: true,
+  globalWebPushEnabled: true,
+  vapidConfigured: true,
+};
+
 describe("resolveWebPushUiStatus", () => {
   it("marks browser tab on phone as needs_pwa before push probe", () => {
     expect(
@@ -12,7 +23,9 @@ describe("resolveWebPushUiStatus", () => {
         pushNeedsPwaInstall: true,
         standalone: false,
         permission: "default",
+        hasLocalSubscription: false,
         hasServerSubscription: false,
+        globalWebPushEnabled: false,
         vapidConfigured: true,
       }),
     ).toBe("needs_pwa");
@@ -25,47 +38,44 @@ describe("resolveWebPushUiStatus", () => {
         pushNeedsPwaInstall: false,
         standalone: false,
         permission: "default",
+        hasLocalSubscription: false,
         hasServerSubscription: false,
+        globalWebPushEnabled: false,
         vapidConfigured: true,
       }),
     ).toBe("needs_pwa");
   });
 
-  it("marks granted without server subscription as restore candidate", () => {
+  it("marks granted without full chain as restore candidate", () => {
     expect(
       resolveWebPushUiStatus({
-        pushSupported: true,
-        pushNeedsPwaInstall: false,
-        standalone: true,
-        permission: "granted",
+        ...grantedBase,
         hasServerSubscription: false,
-        vapidConfigured: true,
       }),
     ).toBe("granted_no_subscription");
   });
 
-  it("marks enabled when server subscription exists", () => {
+  it("marks enabled when local, server and global pref are active", () => {
+    expect(resolveWebPushUiStatus(grantedBase)).toBe("enabled");
+  });
+
+  it("marks granted with server only as restore candidate", () => {
     expect(
       resolveWebPushUiStatus({
-        pushSupported: true,
-        pushNeedsPwaInstall: false,
-        standalone: true,
-        permission: "granted",
-        hasServerSubscription: true,
-        vapidConfigured: true,
+        ...grantedBase,
+        hasLocalSubscription: false,
       }),
-    ).toBe("enabled");
+    ).toBe("granted_no_subscription");
   });
 
   it("marks denied in standalone PWA", () => {
     expect(
       resolveWebPushUiStatus({
-        pushSupported: true,
-        pushNeedsPwaInstall: false,
-        standalone: true,
+        ...grantedBase,
         permission: "denied",
+        hasLocalSubscription: false,
         hasServerSubscription: false,
-        vapidConfigured: true,
+        globalWebPushEnabled: false,
       }),
     ).toBe("denied_system");
   });

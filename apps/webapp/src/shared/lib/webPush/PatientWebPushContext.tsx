@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -15,6 +16,7 @@ import {
   getPushPermissionState,
   probePushSupported,
 } from "@/shared/lib/webPush/pushCapability";
+import { consumeFreshLoginFlag } from "@/shared/lib/webPush/freshLoginStorage";
 import {
   PUSH_PROMPT_DISMISS_COOLDOWN_DAYS,
   readPushPromptDismissedAt,
@@ -25,6 +27,7 @@ import {
   shouldShowPushOnboardingPrompt,
   type WebPushUiStatus,
 } from "@/shared/lib/webPush/pushOnboardingEligibility";
+import { reconcileStalePatientWebPushSubscriptions } from "@/shared/lib/webPush/reconcilePatientWebPush";
 import { isPushLikelyAfterPwaInstall } from "@/shared/lib/webPush/pushPlatform";
 import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
 import { registerPatientServiceWorker } from "@/shared/lib/webPush/registerPatientServiceWorker";
@@ -38,9 +41,12 @@ export type WebPushClientSnapshot = {
   permission: ReturnType<typeof getPushPermissionState>;
   hasLocalSubscription: boolean;
   hasServerSubscription: boolean;
+  globalWebPushEnabled: boolean;
   vapidConfigured: boolean;
   uiStatus: WebPushUiStatus;
   showOnboardingPrompt: boolean;
+  showFreshLoginDeniedPrompt: boolean;
+  dismissFreshLoginDeniedPrompt: () => void;
   refresh: () => Promise<void>;
   dismissOnboardingPrompt: () => void;
 };
@@ -53,14 +59,19 @@ const idleSnapshot: WebPushClientSnapshot = {
   permission: "unsupported",
   hasLocalSubscription: false,
   hasServerSubscription: false,
+  globalWebPushEnabled: false,
   vapidConfigured: false,
   uiStatus: "unsupported",
   showOnboardingPrompt: false,
+  showFreshLoginDeniedPrompt: false,
+  dismissFreshLoginDeniedPrompt: () => {},
   refresh: async () => {},
   dismissOnboardingPrompt: () => {},
 };
 
 const WebPushContext = createContext<WebPushClientSnapshot>(idleSnapshot);
+
+const REFRESH_DEBOUNCE_MS = 300;
 
 export function PatientWebPushProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -69,41 +80,93 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
   const [permission, setPermission] = useState(getPushPermissionState);
   const [hasLocalSubscription, setHasLocalSubscription] = useState(false);
   const [hasServerSubscription, setHasServerSubscription] = useState(false);
+  const [globalWebPushEnabled, setGlobalWebPushEnabled] = useState(false);
   const [vapidConfigured, setVapidConfigured] = useState(false);
   const [promptDismissedAt, setPromptDismissedAt] = useState<string | null>(null);
+  const [showFreshLoginDeniedPrompt, setShowFreshLoginDeniedPrompt] = useState(false);
+  const refreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pushNeedsPwaInstall = isPushLikelyAfterPwaInstall();
 
   const refresh = useCallback(async () => {
     setStandalone(isStandalonePwa());
-    setPermission(getPushPermissionState());
+    const perm = getPushPermissionState();
+    setPermission(perm);
     setPromptDismissedAt(readPushPromptDismissedAt());
 
     const probed = await probePushSupported();
     setPushSupported(probed);
 
     const localSub = await getExistingPushSubscription();
-    setHasLocalSubscription(Boolean(localSub));
+    const hasLocal = Boolean(localSub);
+    setHasLocalSubscription(hasLocal);
 
     const status = await fetchPatientWebPushStatus();
     setVapidConfigured(Boolean(status.vapidConfigured));
     let serverSub = Boolean(status.hasSubscription);
+    const globalEnabled = status.globalWebPushEnabled !== false;
+    setGlobalWebPushEnabled(globalEnabled);
 
-    if (!serverSub && localSub && getPushPermissionState() === "granted") {
+    if (serverSub) {
+      const reconciled = await reconcileStalePatientWebPushSubscriptions({
+        permission: perm,
+        hasLocalSubscription: hasLocal,
+        hasServerSubscription: serverSub,
+      });
+      if (reconciled) {
+        serverSub = false;
+        setGlobalWebPushEnabled(false);
+      }
+    }
+
+    if (!serverSub && localSub && perm === "granted") {
       const synced = await syncLocalPushSubscriptionToServer();
-      if (synced) serverSub = true;
+      if (synced) {
+        serverSub = true;
+        setGlobalWebPushEnabled(true);
+      }
     }
     setHasServerSubscription(serverSub);
   }, []);
+
+  const scheduleRefresh = useCallback(() => {
+    if (refreshDebounceRef.current) window.clearTimeout(refreshDebounceRef.current);
+    refreshDebounceRef.current = window.setTimeout(() => {
+      refreshDebounceRef.current = null;
+      void refresh();
+    }, REFRESH_DEBOUNCE_MS);
+  }, [refresh]);
 
   useEffect(() => {
     const t = window.setTimeout(() => {
       setMounted(true);
       void registerPatientServiceWorker();
-      void refresh();
+      void refresh().then(() => {
+        if (!isStandalonePwa()) return;
+        const freshLogin = consumeFreshLoginFlag();
+        if (!freshLogin) return;
+        const perm = getPushPermissionState();
+        if (perm === "denied") {
+          setShowFreshLoginDeniedPrompt(true);
+        }
+      });
     }, 0);
     return () => window.clearTimeout(t);
   }, [refresh]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") scheduleRefresh();
+    };
+    const onFocus = () => scheduleRefresh();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
+      if (refreshDebounceRef.current) window.clearTimeout(refreshDebounceRef.current);
+    };
+  }, [scheduleRefresh]);
 
   const uiStatus = useMemo(
     () =>
@@ -112,10 +175,21 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
         pushNeedsPwaInstall,
         standalone,
         permission,
+        hasLocalSubscription,
         hasServerSubscription,
+        globalWebPushEnabled,
         vapidConfigured,
       }),
-    [pushSupported, pushNeedsPwaInstall, standalone, permission, hasServerSubscription, vapidConfigured],
+    [
+      pushSupported,
+      pushNeedsPwaInstall,
+      standalone,
+      permission,
+      hasLocalSubscription,
+      hasServerSubscription,
+      globalWebPushEnabled,
+      vapidConfigured,
+    ],
   );
 
   const showOnboardingPrompt =
@@ -138,6 +212,10 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
     setPromptDismissedAt(iso);
   }, []);
 
+  const dismissFreshLoginDeniedPrompt = useCallback(() => {
+    setShowFreshLoginDeniedPrompt(false);
+  }, []);
+
   const value = useMemo<WebPushClientSnapshot>(
     () => ({
       mounted,
@@ -147,9 +225,12 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
       permission,
       hasLocalSubscription,
       hasServerSubscription,
+      globalWebPushEnabled,
       vapidConfigured,
       uiStatus,
       showOnboardingPrompt,
+      showFreshLoginDeniedPrompt,
+      dismissFreshLoginDeniedPrompt,
       refresh,
       dismissOnboardingPrompt,
     }),
@@ -161,9 +242,12 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
       permission,
       hasLocalSubscription,
       hasServerSubscription,
+      globalWebPushEnabled,
       vapidConfigured,
       uiStatus,
       showOnboardingPrompt,
+      showFreshLoginDeniedPrompt,
+      dismissFreshLoginDeniedPrompt,
       refresh,
       dismissOnboardingPrompt,
     ],

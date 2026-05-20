@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -74,6 +74,11 @@ function PushChannelRow() {
     }
   }, [state, router]);
 
+  useEffect(() => {
+    if (!state.mounted) return;
+    void state.refresh();
+  }, [state.mounted, state.refresh]);
+
   if (!state.mounted) return null;
 
   let action: ReactNode = null;
@@ -87,6 +92,12 @@ function PushChannelRow() {
     action = (
       <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void runUnsubscribe()}>
         Отключить
+      </Button>
+    );
+  } else if (state.uiStatus === "denied_system") {
+    action = (
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void runSubscribe()}>
+        Открыть настройки
       </Button>
     );
   } else if (state.uiStatus === "needs_pwa") {

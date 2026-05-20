@@ -949,3 +949,30 @@ export async function clearDiaryPurgeReauth(): Promise<void> {
     maxAge: cookieMaxAgeSeconds(next),
   });
 }
+
+export { SESSION_SLIDING_TTL_SECONDS } from "@/modules/auth/sessionCookie";
+
+/**
+ * Продлевает sliding TTL сессии в cookie (только route handlers / middleware).
+ */
+export async function renewSessionCookieFromRequest(): Promise<boolean> {
+  const {
+    decodeSessionCookie,
+    encodeSessionCookie,
+    buildRenewedSessionCookieOptions,
+    renewSessionIfActive,
+    shouldRenewSession,
+  } = await import("@/modules/auth/sessionCookie");
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!raw) return false;
+  const session = decodeSessionCookie(raw);
+  if (!session || !shouldRenewSession(session)) return false;
+  const renewed = renewSessionIfActive(session);
+  cookieStore.set(
+    SESSION_COOKIE_NAME,
+    encodeSessionCookie(renewed),
+    buildRenewedSessionCookieOptions(renewed),
+  );
+  return true;
+}

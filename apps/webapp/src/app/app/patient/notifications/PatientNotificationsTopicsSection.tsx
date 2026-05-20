@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import {
-  ensureWebPushInNotificationTopics,
+  applyWebPushColumnAvailability,
   type ProfileNotificationTopicModel,
 } from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
@@ -23,15 +23,17 @@ export function PatientNotificationsTopicsSection({
   initialTopics,
   hasMessengerOrEmail,
   hasWebPushSubscription: initialHasSubscription,
-  globalWebPushEnabled,
+  globalWebPushEnabled: initialGlobalWebPushEnabled,
 }: Props) {
   const push = useWebPushClientState();
-  const hasSubscription = push.mounted ? push.hasServerSubscription : initialHasSubscription;
-  const pushActive = hasSubscription && globalWebPushEnabled;
+
+  const pushEffective = push.mounted ?
+    push.uiStatus === "enabled"
+  : initialHasSubscription && initialGlobalWebPushEnabled;
 
   const topicsForMatrix = useMemo(
-    () => ensureWebPushInNotificationTopics(initialTopics, hasSubscription, globalWebPushEnabled),
-    [initialTopics, hasSubscription, globalWebPushEnabled],
+    () => applyWebPushColumnAvailability(initialTopics, pushEffective),
+    [initialTopics, pushEffective],
   );
 
   const canEnablePushOnPage =
@@ -39,12 +41,12 @@ export function PatientNotificationsTopicsSection({
     push.uiStatus === "granted_no_subscription" ||
     push.uiStatus === "needs_pwa";
 
-  const showPushSetupCta = !hasMessengerOrEmail && !pushActive && canEnablePushOnPage;
+  const showPushSetupCta = !hasMessengerOrEmail && !pushEffective && canEnablePushOnPage;
   const showMatrix =
-    hasMessengerOrEmail || pushActive || topicsForMatrix.some((t) => t.channels.length > 0);
+    hasMessengerOrEmail || pushEffective || topicsForMatrix.some((t) => t.channels.length > 0);
 
   if (showMatrix) {
-    return <PatientNotificationsTopicMatrix initialTopics={topicsForMatrix} />;
+    return <PatientNotificationsTopicMatrix initialTopics={topicsForMatrix} pushEffective={pushEffective} />;
   }
 
   if (showPushSetupCta) {

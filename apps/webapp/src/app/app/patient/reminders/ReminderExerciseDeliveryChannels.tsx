@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { routePaths } from "@/app-layer/routes/paths";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -48,7 +48,14 @@ export function ReminderExerciseDeliveryChannels({ deliveryChannelLabels }: Prop
     pushState.uiStatus !== "needs_pwa";
 
   const showEnablePushButton =
-    pushState.uiStatus === "pending_permission" || pushState.uiStatus === "granted_no_subscription";
+    pushState.uiStatus === "pending_permission" ||
+    pushState.uiStatus === "granted_no_subscription" ||
+    pushState.uiStatus === "denied_system";
+
+  useEffect(() => {
+    if (!pushState.mounted) return;
+    void pushState.refresh();
+  }, [pushState.mounted, pushState.refresh]);
 
   return (
     <div className="space-y-2">
@@ -80,7 +87,7 @@ export function ReminderExerciseDeliveryChannels({ deliveryChannelLabels }: Prop
               disabled={busy}
               onClick={() => void runEnablePush()}
             >
-              Включить Push
+              {pushState.uiStatus === "denied_system" ? "Открыть настройки" : "Включить Push"}
             </Button>
           : null}
         </div>
