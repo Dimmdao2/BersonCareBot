@@ -69,6 +69,7 @@ import {
 } from "@/modules/treatment-program/stage-semantics";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import { routePaths } from "@/app-layer/routes/paths";
+import { HOME_WELLBEING_STRIP_DAY_COUNT } from "./buildPatientHomeWellbeingWeekStripChart";
 import { resolveFirstPendingProgramTabItemId } from "./resolveFirstPendingProgramTabItemId";
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 import {
@@ -314,7 +315,11 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         todayCfg.allDailyWarmupsCooldownMinutesRemaining,
       );
     }
-    const weekSparkline = await deps.patientMood.getWeekSparkline(session.user.userId, moodWeekTz);
+    const weekSparkline = await deps.patientMood.getRecentDaysSparkline(
+      session.user.userId,
+      moodWeekTz,
+      HOME_WELLBEING_STRIP_DAY_COUNT,
+    );
     const scheduleInstant = reminderScheduleEvaluationInstant(patientHomeReminderEvaluatedAt, mutedUntilIso);
     homeReminder = pickNextHomeReminder(rules, scheduleInstant, appTz);
     const picked = pickActivePlanInstance(instances);

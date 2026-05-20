@@ -26,7 +26,7 @@ const getDailyWarmupHeroCooldownMeta = vi.fn();
 const listRecent = vi.fn();
 const listByUserInUtcRange = vi.fn();
 const getCheckinState = vi.fn();
-const getWeekSparkline = vi.fn();
+const getRecentDaysSparkline = vi.fn();
 const refresh = vi.fn();
 const systemSettingsGetSetting = vi.hoisted(() => vi.fn().mockImplementation(async () => null));
 const getReminderMutedUntil = vi.hoisted(() => vi.fn().mockResolvedValue(null));
@@ -66,7 +66,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listRecent,
       listByUserInUtcRange,
     },
-    patientMood: { getCheckinState, getWeekSparkline },
+    patientMood: { getCheckinState, getRecentDaysSparkline },
   }),
 }));
 
@@ -312,7 +312,7 @@ describe("PatientHomeToday", () => {
       mood: { moodDate: "2026-04-28", score: 4 },
       lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
     });
-    getWeekSparkline.mockResolvedValue({
+    getRecentDaysSparkline.mockResolvedValue({
       days: [],
       marks: [],
       previousSundayHadMarks: false,
@@ -394,7 +394,7 @@ describe("PatientHomeToday", () => {
     expect(listForPatient).toHaveBeenCalledWith(fixtureSession.user.userId);
     expect(getProgress).toHaveBeenCalled();
     expect(getCheckinState).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
-    expect(getWeekSparkline).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
+    expect(getRecentDaysSparkline).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 3);
     expect(getDailyWarmupHeroCooldownMeta).toHaveBeenCalledWith(
       fixtureSession.user.userId,
       "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
@@ -639,7 +639,7 @@ describe("PatientHomeToday", () => {
     });
     render(tree);
 
-    expect(getWeekSparkline).toHaveBeenCalledWith(fixtureSession.user.userId, "Asia/Yekaterinburg");
+    expect(getRecentDaysSparkline).toHaveBeenCalledWith(fixtureSession.user.userId, "Asia/Yekaterinburg", 3);
   });
 
   it("patient tier: renders useful post link when block has a content_page item", async () => {
