@@ -9,14 +9,33 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
 }));
 
-vi.mock("@/app/app/patient/bind-phone/PatientBindPhoneClient", () => ({
-  PatientBindPhoneClient: ({ hint }: { hint?: string }) => (
-    <div data-testid="patient-bind-phone-client">{hint ?? ""}</div>
+vi.mock("@/shared/ui/auth/PhoneMessengerAuthFlow", () => ({
+  PhoneMessengerAuthFlow: ({ title }: { title?: string }) => (
+    <div data-testid="phone-messenger-auth-flow">{title ?? ""}</div>
   ),
 }));
 
 describe("PatientProfileHero", () => {
-  it("shows messenger bind flow when editing phone (no SMS / BindPhoneBlock)", async () => {
+  it("shows inline phone messenger flow when no phone (no bind-phone redirect link)", () => {
+    render(
+      <PatientProfileHero
+        displayName="Test"
+        phone={null}
+        telegramId=""
+        maxId=""
+        supportContactHref="https://support.example"
+        fallbackDisplayName="."
+        initialEmail={null}
+        emailVerified={false}
+      />,
+    );
+
+    expect(screen.getByTestId("phone-messenger-auth-flow")).toBeInTheDocument();
+    expect(screen.getByText("Привязать номер")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Привязать номер" })).not.toBeInTheDocument();
+  });
+
+  it("shows messenger bind flow when editing phone", async () => {
     const user = userEvent.setup();
     render(
       <PatientProfileHero
@@ -34,8 +53,7 @@ describe("PatientProfileHero", () => {
     const editButtons = screen.getAllByRole("button", { name: "Изменить" });
     await user.click(editButtons[1]!);
 
-    expect(screen.getByTestId("patient-bind-phone-client")).toBeInTheDocument();
-    expect(screen.getByTestId("patient-bind-phone-client").textContent).toContain("SMS в профиле не используется");
-    expect(screen.queryByText(/кодом из SMS/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId("phone-messenger-auth-flow")).toBeInTheDocument();
+    expect(screen.getByText("Изменить номер")).toBeInTheDocument();
   });
 });

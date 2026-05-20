@@ -57,6 +57,77 @@
 		]
 	},
 	{
+		"id": "max.start.phoneauth",
+		"source": "max",
+		"event": "message.received",
+		"priority": 56,
+		"match": {
+			"input": {
+				"action": "start.phoneauth"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "await_phoneauth:{{input.authSecret}}"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
+					"templateKey": "max:phoneAuthWelcome",
+					"delivery": {
+						"channels": [
+							"max"
+						],
+						"maxAttempts": 1
+					},
+					"inlineKeyboard": [
+						[
+							{
+								"textTemplateKey": "max:requestContact.button",
+								"requestPhone": true
+							}
+						]
+					]
+				}
+			}
+		]
+	},
+	{
+		"id": "max.contact.phoneauth",
+		"source": "max",
+		"event": "message.received",
+		"priority": 54,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				}
+			},
+			"input": {
+				"phonePresent": true
+			}
+		},
+		"steps": [
+			{
+				"action": "webapp.phoneMessengerBind.complete",
+				"mode": "sync",
+				"params": {
+					"channelCode": "max",
+					"externalId": "{{meta.userId}}"
+				}
+			}
+		]
+	},
+	{
 		"id": "max.start.onboarding",
 		"source": "max",
 		"event": "message.received",
@@ -71,6 +142,7 @@
 					"start.noticeme",
 					"start.setrubitimerecord",
 					"start.setphone",
+					"start.phoneauth",
 					"start.set"
 				]
 			},
@@ -127,6 +199,7 @@
 					"start.noticeme",
 					"start.setrubitimerecord",
 					"start.setphone",
+					"start.phoneauth",
 					"start.set"
 				]
 			},
@@ -1707,6 +1780,7 @@
 					"start.noticeme",
 					"start.setrubitimerecord",
 					"start.setphone",
+					"start.phoneauth",
 					"start.set"
 				],
 				"excludeTexts": [
@@ -2041,6 +2115,7 @@
 					"start.noticeme",
 					"start.setrubitimerecord",
 					"start.setphone",
+					"start.phoneauth",
 					"start.set"
 				],
 				"excludeTexts": [
@@ -2095,6 +2170,7 @@
 					"start.noticeme",
 					"start.setrubitimerecord",
 					"start.setphone",
+					"start.phoneauth",
 					"start.set"
 				],
 				"excludeTexts": [

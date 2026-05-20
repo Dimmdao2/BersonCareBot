@@ -20,6 +20,10 @@ import {
   confirmPhoneAuth as confirmPhoneAuthFlow,
   type StartPhoneAuthOptions,
 } from "@/modules/auth/phoneAuth";
+import {
+  completePhoneMessengerBindFromIntegrator,
+  markPhoneMessengerBindConsumedByChallenge,
+} from "@/modules/auth/phoneMessengerBind";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import { createIntegratorSmsAdapter } from "@/infra/integrations/sms/integratorSmsAdapter";
 import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
@@ -704,6 +708,7 @@ function _buildAppDeps() {
       confirmPhoneAuth: async (challengeId: string, code: string) => {
         const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
         if (!result.ok) return result;
+        await markPhoneMessengerBindConsumedByChallenge(challengeId);
         const envRole = resolveRoleFromEnv({
           phone: result.user.phone,
           telegramId: result.user.bindings?.telegramId,
@@ -906,6 +911,10 @@ function _buildAppDeps() {
     contentPages: contentPagesPort,
     contentSections: contentSectionsPort,
     userByPhone: userByPhonePort,
+    phoneMessengerBind: {
+      completeFromIntegrator: (params: Parameters<typeof completePhoneMessengerBindFromIntegrator>[0]) =>
+        completePhoneMessengerBindFromIntegrator(params, phoneAuthDeps),
+    },
     userPins: userPinsPort,
     userPasswordCredentials: userPasswordCredentialsPort,
     emailPasswordLookup: emailPasswordLookupPort,

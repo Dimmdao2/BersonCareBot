@@ -43,6 +43,7 @@ import {
   patientMutedTextClass,
 } from "@/shared/ui/patientVisual";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
+import { PhoneMessengerAuthFlow } from "@/shared/ui/auth/PhoneMessengerAuthFlow";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
@@ -82,6 +83,7 @@ function getWebChatId(): string {
 export type AuthFlowStep =
   | "entry_loading"
   | "oauth_first"
+  | "phone_login"
   | "phone"
   | "email_password"
   | "new_user_foreign"
@@ -1222,6 +1224,27 @@ export function AuthFlowV2({
         >
           Войти по email
         </Button>
+        <button
+          type="button"
+          className={authLinkButtonClass}
+          disabled={loading}
+          onClick={() => setStep("phone_login")}
+        >
+          Войти по номеру телефона
+        </button>
+      </div>
+    );
+  }
+
+  if (step === "phone_login") {
+    return (
+      <div id="auth-flow-v2-phone-login" className={authFlowShellClass}>
+        <PhoneMessengerAuthFlow
+          purpose="login"
+          onBack={() => setStep("oauth_first")}
+          supportContactHref={supportContactHref}
+          nextParam={nextParam}
+        />
       </div>
     );
   }

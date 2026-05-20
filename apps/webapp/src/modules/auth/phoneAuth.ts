@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { SessionUser } from "@/shared/types/session";
 import type { ChannelContext } from "./channelContext";
 import type { PhoneChallengeStore } from "./phoneChallengeStore";
@@ -7,6 +7,8 @@ import type { UserByPhonePort } from "./userByPhonePort";
 import { getRedirectPathForRole } from "./redirectPolicy";
 import { normalizePhone } from "./phoneNormalize";
 import { isValidPhoneE164 } from "./phoneValidation";
+import { assertPhoneCanStartChallenge } from "./phoneOtpLimits";
+import { generateSmsCode } from "./smsCode";
 
 export { normalizePhone } from "./phoneNormalize";
 
@@ -39,6 +41,52 @@ export type ConfirmPhoneAuthResult =
 export type StartPhoneAuthOptions = {
   delivery?: PhoneOtpDelivery;
 };
+
+function generateChallengeId(): string {
+  return randomBytes(16).toString("base64url");
+}
+
+/** Создаёт OTP-челлендж без отправки (код возвращается вызывающему для кастомного сообщения бота). */
+export async function createPhoneOtpChallenge(
+  phone: string,
+  context: ChannelContext,
+  deps: PhoneAuthDeps,
+): Promise<
+  | { ok: true; challengeId: string; code: string; retryAfterSeconds?: number }
+  | { ok: false; code: string; retryAfterSeconds?: number }
+> {
+  const normalized = normalizePhone(phone);
+  if (!isValidPhoneE164(normalized)) {
+    return { ok: false, code: "invalid_phone" };
+  }
+
+  const gate = await assertPhoneCanStartChallenge(normalized);
+  if (gate.ok !== true) {
+    return {
+      ok: false,
+      code: gate.code,
+      retryAfterSeconds: gate.retryAfterSeconds,
+    };
+  }
+
+  await deps.challengeStore.deleteByPhone?.(normalized);
+
+  const challengeId = generateChallengeId();
+  const code = generateSmsCode();
+  const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
+
+  await deps.challengeStore.set(challengeId, {
+    phone: normalized,
+    expiresAt,
+    code,
+    verifyAttempts: 0,
+    deliveryChannel:
+      context.channel === "telegram" || context.channel === "max" ? context.channel : "telegram",
+    channelContext: context,
+  });
+
+  return { ok: true, challengeId, code, retryAfterSeconds: 60 };
+}
 
 export async function startPhoneAuth(
   phone: string,

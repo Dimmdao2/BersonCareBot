@@ -16,7 +16,7 @@
 
 2. **Email + пароль** — когда OAuth всё выключено, браузер сразу открывает шаг **`email_password`**: вход, регистрация, код из письма, **восстановление пароля**. Состояние «ожидается код»/`reset` сохраняется в **`sessionStorage`** (`authFlowPendingStorage.ts`), чтобы пережить обновление и возврат с **`/app/contact-support?from=`**.
 
-3. **Телефон и OTP из публичного браузера** — только в Telegram/MAX Mini App (**шаг `phone`**): `InternationalPhoneInput` → `check-phone` → код в канал (**SMS для `channel: web` недоступен**). Из публичного `/app` **нет** перехода на «ввод телефона», **нет** Telegram Login Widget и **нет** входа через бота `/app` поверх сайта — привязка бота к аккаунту для уведомлений выполняется **после входа** (профиль, при необходимости **`bind-phone`**, **`POST /api/auth/channel-link/start`**).
+3. **Телефон в публичном браузере / PWA** — с **`oauth_first`**: ссылка **«Войти по номеру телефона»** → `PhoneMessengerAuthFlow` (`purpose: login`): `check-phone` → при привязанном TG/Max — `phone/start` + `phone/confirm`; иначе **`POST /api/auth/phone/messenger-bind/start`** → deep link `auth_*` в боте → контакт → **`POST /api/integrator/phone-messenger-bind/complete`** → poll **`messenger-bind/status`** → `phone/confirm`. **Email в этом потоке не участвует.** SMS для `channel: web` недоступен. В Telegram/MAX Mini App по-прежнему шаг **`phone`** в `AuthFlowV2`. Привязка/смена номера в профиле — тот же `PhoneMessengerAuthFlow` (`purpose: profile_bind`) inline в `PatientProfileHero`; **`bind-phone`** не редиректит только из‑за `tier === patient` без **`phoneTrustedForPatient`**.
 
 **PIN** на плоскости входа **не показывается**; re-auth для чувствительных действий — отдельные API (`pin/verify` и т.д.).
 

@@ -8,6 +8,7 @@ import { normalizeTelegramContactPhone } from '../telegram/mapIn.js';
 export type MessengerStartParseResult = {
   action: string;
   linkSecret?: string;
+  authSecret?: string;
   recordId?: string;
   phone?: string;
 };
@@ -43,6 +44,7 @@ export function canonicalizeMessengerStartText(raw: string): string {
   if (!trimmed) return trimmed;
   if (/^\/start/i.test(trimmed)) return trimmed;
   if (/^link_[A-Za-z0-9_-]+$/.test(trimmed)) return `/start ${trimmed}`;
+  if (/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) return `/start ${trimmed}`;
   if (/^noticeme$/i.test(trimmed)) return '/start noticeme';
   if (/^setrubitimerecord_/i.test(trimmed)) return `/start ${trimmed}`;
   if (/^setphone_/i.test(trimmed)) return `/start ${trimmed}`;
@@ -61,6 +63,7 @@ export function parseMessengerStartCommand(
 ): MessengerStartParseResult {
   let action = dictionaryAction;
   let linkSecret: string | undefined;
+  let authSecret: string | undefined;
   let recordId: string | undefined;
   let phone: string | undefined;
 
@@ -72,6 +75,12 @@ export function parseMessengerStartCommand(
   if (linkStart?.[1]) {
     action = 'start.link';
     linkSecret = linkStart[1];
+  }
+
+  const authStart = trimmedText.match(/^\/start(?:@[^\s]+)?\s+(auth_[A-Za-z0-9_-]+)$/i);
+  if (authStart?.[1]) {
+    action = 'start.phoneauth';
+    authSecret = authStart[1];
   }
 
   const setrubitimerecordPrefix = /^\/start\s+setrubitimerecord_/i;
@@ -101,6 +110,7 @@ export function parseMessengerStartCommand(
   return {
     action,
     ...(linkSecret !== undefined ? { linkSecret } : {}),
+    ...(authSecret !== undefined ? { authSecret } : {}),
     ...(recordId !== undefined ? { recordId } : {}),
     ...(phone !== undefined ? { phone } : {}),
   };

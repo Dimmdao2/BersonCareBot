@@ -32,7 +32,7 @@ export default async function BindPhonePage({ searchParams }: Props) {
         sessionUserId: session.user.userId,
         sessionRoleHint: session.user.role,
       });
-      skipBindSurface = ctx.tier === "patient";
+      skipBindSurface = ctx.phoneTrustedForPatient;
     } catch {
       skipBindSurface = patientSessionSnapshotHasPhone(session);
     }

@@ -1,0 +1,423 @@
+import { createHash, randomBytes } from "node:crypto";
+import type { Pool, PoolClient } from "pg";
+import { env } from "@/config/env";
+import { integratorWebhookSecret } from "@/config/env";
+import { getPool } from "@/infra/db/client";
+import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
+import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
+import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
+import { channelToBindingKey, type ChannelContext } from "./channelContext";
+import { createPhoneOtpChallenge, type PhoneAuthDeps } from "./phoneAuth";
+import { normalizePhone } from "./phoneNormalize";
+import { isValidPhoneE164 } from "./phoneValidation";
+import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+
+const SECRET_TTL_MIN = 15;
+
+export type PhoneMessengerBindPurpose = "login" | "profile_bind";
+export type PhoneMessengerBindChannel = "telegram" | "max";
+
+export type PhoneMessengerBindStatus =
+  | "pending_contact"
+  | "otp_ready"
+  | "failed"
+  | "consumed"
+  | "expired";
+
+function hashToken(token: string): string {
+  return createHash("sha256")
+    .update(`${token}:${integratorWebhookSecret() || "dev-phone-messenger-bind"}`)
+    .digest("hex");
+}
+
+function buildDeepLink(params: {
+  channelCode: PhoneMessengerBindChannel;
+  startPayload: string;
+  botUsername: string;
+  maxBotNickname?: string;
+}): { url: string; manualCommand?: string } {
+  if (params.channelCode === "telegram") {
+    return {
+      url: `https://t.me/${params.botUsername}?start=${encodeURIComponent(params.startPayload)}`,
+    };
+  }
+  const nick = normalizeMaxBotNicknameInput(params.maxBotNickname ?? "");
+  if (nick && params.startPayload.length <= 128) {
+    try {
+      const u = new URL(`https://max.ru/${encodeURIComponent(nick)}`);
+      u.searchParams.set("start", params.startPayload);
+      return { url: u.toString(), manualCommand: `/start ${params.startPayload}` };
+    } catch {
+      /* fall through */
+    }
+  }
+  return { url: "https://max.ru/", manualCommand: `/start ${params.startPayload}` };
+}
+
+type SecretRow = {
+  id: string;
+  phone_normalized: string;
+  channel_code: string;
+  purpose: string;
+  user_id: string | null;
+  status: string;
+  challenge_id: string | null;
+  failure_code: string | null;
+  expires_at: string;
+  consumed_at: string | null;
+};
+
+async function loadSecretByHash(pool: Pool, tokenHash: string): Promise<SecretRow | null> {
+  const r = await pool.query<SecretRow>(
+    `SELECT id, phone_normalized, channel_code, purpose, user_id, status, challenge_id, failure_code, expires_at, consumed_at
+     FROM phone_messenger_bind_secrets WHERE token_hash = $1`,
+    [tokenHash],
+  );
+  return r.rows[0] ?? null;
+}
+
+async function applyMessengerContactPreOtp(
+  client: PoolClient,
+  params: {
+    phoneNormalized: string;
+    channelCode: PhoneMessengerBindChannel;
+    externalId: string;
+    purpose: PhoneMessengerBindPurpose;
+    sessionUserId?: string | null;
+  },
+): Promise<{ ok: true; accountCreated: boolean } | { ok: false; code: string }> {
+  const channelCode = params.channelCode;
+  const key = channelToBindingKey(channelCode);
+  if (!key) return { ok: false, code: "unsupported_channel" };
+
+  const existingByPhone = await client.query<{ id: string }>(
+    `SELECT id FROM platform_users WHERE phone_normalized = $1 AND merged_into_id IS NULL FOR UPDATE`,
+    [params.phoneNormalized],
+  );
+
+  if (params.purpose === "profile_bind") {
+    const sessionId = params.sessionUserId?.trim();
+    if (!sessionId) return { ok: false, code: "session_required" };
+    const canonicalSession = (await resolveCanonicalUserId(client, sessionId)) ?? sessionId;
+    if (existingByPhone.rows.length > 0 && existingByPhone.rows[0]!.id !== canonicalSession) {
+      return { ok: false, code: "phone_owned_by_other_user" };
+    }
+    await client.query(
+      `UPDATE platform_users SET phone_normalized = $1, updated_at = now() WHERE id = $2::uuid`,
+      [params.phoneNormalized, canonicalSession],
+    );
+    await applyPlatformUserPhoneHistoryTransition(client, {
+      platformUserId: canonicalSession,
+      newPhoneNormalized: params.phoneNormalized,
+      source: "messenger",
+    });
+    const ins = await client.query(
+      `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id
+       RETURNING user_id`,
+      [canonicalSession, channelCode, params.externalId],
+    );
+    if (ins.rows[0]?.user_id && ins.rows[0].user_id !== canonicalSession) {
+      return { ok: false, code: "channel_owned_by_other_user" };
+    }
+    await upsertBroadcastDefaultsAfterChannelBind(client, canonicalSession, channelCode);
+    return { ok: true, accountCreated: false };
+  }
+
+  let userId: string;
+  let accountCreated = false;
+  if (existingByPhone.rows.length > 0) {
+    userId = existingByPhone.rows[0]!.id;
+  } else {
+    const insert = await client.query<{ id: string }>(
+      `INSERT INTO platform_users (phone_normalized, display_name, role)
+       VALUES ($1, $2, 'client') RETURNING id`,
+      [params.phoneNormalized, params.phoneNormalized],
+    );
+    userId = insert.rows[0]!.id;
+    accountCreated = true;
+    await applyPlatformUserPhoneHistoryTransition(client, {
+      platformUserId: userId,
+      newPhoneNormalized: params.phoneNormalized,
+      source: "messenger",
+    });
+  }
+
+  const bindingOwner = await client.query<{ user_id: string }>(
+    `SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE`,
+    [channelCode, params.externalId],
+  );
+  if (bindingOwner.rows.length > 0 && bindingOwner.rows[0]!.user_id !== userId) {
+    const ownerCanonical = (await resolveCanonicalUserId(client, bindingOwner.rows[0]!.user_id)) ?? bindingOwner.rows[0]!.user_id;
+    const userCanonical = (await resolveCanonicalUserId(client, userId)) ?? userId;
+    if (ownerCanonical !== userCanonical) {
+      return { ok: false, code: "channel_owned_by_other_user" };
+    }
+  }
+
+  await client.query(
+    `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
+    [userId, channelCode, params.externalId],
+  );
+  await upsertBroadcastDefaultsAfterChannelBind(client, userId, channelCode);
+  return { ok: true, accountCreated };
+}
+
+export type StartPhoneMessengerBindResult =
+  | {
+      ok: true;
+      setupToken: string;
+      url: string;
+      expiresAtIso: string;
+      manualCommand?: string;
+    }
+  | { ok: false; code: string };
+
+export async function startPhoneMessengerBind(params: {
+  phone: string;
+  channelCode: PhoneMessengerBindChannel;
+  purpose: PhoneMessengerBindPurpose;
+  botUsername: string;
+  maxBotNickname?: string;
+  sessionUserId?: string | null;
+}): Promise<StartPhoneMessengerBindResult> {
+  const phoneNormalized = normalizePhone(params.phone);
+  if (!isValidPhoneE164(phoneNormalized)) {
+    return { ok: false, code: "invalid_phone" };
+  }
+
+  const plain = randomBytes(24).toString("base64url");
+  const startPayload = `auth_${plain}`;
+  const setupToken = startPayload;
+  const expiresAt = new Date(Date.now() + SECRET_TTL_MIN * 60 * 1000);
+  const link = buildDeepLink({
+    channelCode: params.channelCode,
+    startPayload,
+    botUsername: params.botUsername.replace(/^@/, ""),
+    maxBotNickname: params.maxBotNickname,
+  });
+
+  if (!env.DATABASE_URL?.trim()) {
+    return {
+      ok: true,
+      setupToken,
+      url: link.url,
+      expiresAtIso: expiresAt.toISOString(),
+      ...(link.manualCommand ? { manualCommand: link.manualCommand } : {}),
+    };
+  }
+
+  const pool = getPool();
+  const userId =
+    params.purpose === "profile_bind" && params.sessionUserId?.trim() ? params.sessionUserId.trim() : null;
+
+  await pool.query(
+    `DELETE FROM phone_messenger_bind_secrets
+     WHERE phone_normalized = $1 AND channel_code = $2 AND purpose = $3 AND status = 'pending_contact'`,
+    [phoneNormalized, params.channelCode, params.purpose],
+  );
+
+  await pool.query(
+    `INSERT INTO phone_messenger_bind_secrets
+       (token_hash, phone_normalized, channel_code, purpose, user_id, status, expires_at)
+     VALUES ($1, $2, $3, $4, $5, 'pending_contact', $6)`,
+    [hashToken(startPayload), phoneNormalized, params.channelCode, params.purpose, userId, expiresAt.toISOString()],
+  );
+
+  return {
+    ok: true,
+    setupToken,
+    url: link.url,
+    expiresAtIso: expiresAt.toISOString(),
+    ...(link.manualCommand ? { manualCommand: link.manualCommand } : {}),
+  };
+}
+
+export type CompletePhoneMessengerBindResult =
+  | { ok: true; otpCode: string; accountCreated: boolean; challengeId: string }
+  | { ok: false; code: string };
+
+export async function completePhoneMessengerBindFromIntegrator(
+  params: {
+    setupToken: string;
+    channelCode: PhoneMessengerBindChannel;
+    externalId: string;
+    contactPhoneNormalized: string;
+  },
+  phoneAuthDeps: PhoneAuthDeps,
+): Promise<CompletePhoneMessengerBindResult> {
+  const trimmed = params.setupToken.trim();
+  if (!/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
+    return { ok: false, code: "invalid_token" };
+  }
+
+  if (!env.DATABASE_URL?.trim()) {
+    return { ok: false, code: "database_unavailable" };
+  }
+
+  const contactPhone = normalizeRuPhoneE164(params.contactPhoneNormalized);
+  if (!contactPhone || !isValidPhoneE164(contactPhone)) {
+    return { ok: false, code: "invalid_contact_phone" };
+  }
+
+  const pool = getPool();
+  const row = await loadSecretByHash(pool, hashToken(trimmed));
+  if (!row) {
+    return { ok: false, code: "unknown_or_expired" };
+  }
+
+  if (row.status === "otp_ready" && row.challenge_id) {
+    return { ok: false, code: "already_completed" };
+  }
+
+  if (row.consumed_at || row.status === "consumed") {
+    return { ok: false, code: "used_token" };
+  }
+
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    await pool.query(
+      `UPDATE phone_messenger_bind_secrets SET status = 'expired' WHERE id = $1`,
+      [row.id],
+    );
+    return { ok: false, code: "expired" };
+  }
+
+  if (row.channel_code !== params.channelCode) {
+    return { ok: false, code: "channel_mismatch" };
+  }
+
+  if (contactPhone !== row.phone_normalized) {
+    await pool.query(
+      `UPDATE phone_messenger_bind_secrets SET status = 'failed', failure_code = 'phone_mismatch' WHERE id = $1`,
+      [row.id],
+    );
+    return { ok: false, code: "phone_mismatch" };
+  }
+
+  const context: ChannelContext = {
+    channel: params.channelCode,
+    chatId: params.externalId.trim(),
+  };
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const pre = await applyMessengerContactPreOtp(client, {
+      phoneNormalized: contactPhone,
+      channelCode: params.channelCode,
+      externalId: params.externalId.trim(),
+      purpose: row.purpose as PhoneMessengerBindPurpose,
+      sessionUserId: row.user_id,
+    });
+    if (!pre.ok) {
+      await client.query(
+        `UPDATE phone_messenger_bind_secrets SET status = 'failed', failure_code = $2 WHERE id = $1`,
+        [row.id, pre.code],
+      );
+      await client.query("COMMIT");
+      return { ok: false, code: pre.code };
+    }
+
+    const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps);
+    if (!challenge.ok) {
+      await client.query(
+        `UPDATE phone_messenger_bind_secrets SET status = 'failed', failure_code = $2 WHERE id = $1`,
+        [row.id, challenge.code],
+      );
+      await client.query("COMMIT");
+      return { ok: false, code: challenge.code };
+    }
+
+    await client.query(
+      `UPDATE phone_messenger_bind_secrets
+       SET status = 'otp_ready', challenge_id = $2, failure_code = NULL
+       WHERE id = $1`,
+      [row.id, challenge.challengeId],
+    );
+    await client.query("COMMIT");
+
+    return {
+      ok: true,
+      otpCode: challenge.code,
+      accountCreated: pre.accountCreated,
+      challengeId: challenge.challengeId,
+    };
+  } catch {
+    await client.query("ROLLBACK").catch(() => undefined);
+    return { ok: false, code: "server_error" };
+  } finally {
+    client.release();
+  }
+}
+
+export type PhoneMessengerBindStatusResult =
+  | {
+      ok: true;
+      status: "pending_contact" | "otp_ready";
+      challengeId?: string;
+      retryAfterSeconds?: number;
+    }
+  | { ok: true; status: "expired" | "failed" | "consumed"; error?: string }
+  | { ok: false; code: string };
+
+export async function getPhoneMessengerBindStatus(setupToken: string): Promise<PhoneMessengerBindStatusResult> {
+  const trimmed = setupToken.trim();
+  if (!/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
+    return { ok: false, code: "invalid_token" };
+  }
+
+  if (!env.DATABASE_URL?.trim()) {
+    return { ok: false, code: "database_unavailable" };
+  }
+
+  const pool = getPool();
+  const row = await loadSecretByHash(pool, hashToken(trimmed));
+  if (!row) {
+    return { ok: false, code: "not_found" };
+  }
+
+  if (new Date(row.expires_at).getTime() < Date.now() && row.status !== "otp_ready") {
+    return { ok: true, status: "expired" };
+  }
+
+  if (row.status === "failed") {
+    return { ok: true, status: "failed", error: row.failure_code ?? "failed" };
+  }
+
+  if (row.status === "consumed") {
+    return { ok: true, status: "consumed" };
+  }
+
+  if (row.status === "otp_ready" && row.challenge_id) {
+    return {
+      ok: true,
+      status: "otp_ready",
+      challengeId: row.challenge_id,
+      retryAfterSeconds: 60,
+    };
+  }
+
+  return { ok: true, status: "pending_contact" };
+}
+
+/** Помечает secret consumed после успешного phone/confirm (по challengeId). */
+export async function markPhoneMessengerBindConsumedByChallenge(challengeId: string): Promise<void> {
+  if (!env.DATABASE_URL?.trim()) return;
+  const pool = getPool();
+  await pool.query(
+    `UPDATE phone_messenger_bind_secrets SET status = 'consumed', consumed_at = now()
+     WHERE challenge_id = $1 AND status = 'otp_ready'`,
+    [challengeId],
+  );
+}
+
+export async function findPhoneMessengerBindChallengeOwner(phone: string): Promise<string | null> {
+  if (!env.DATABASE_URL?.trim()) return null;
+  const normalized = normalizePhone(phone);
+  const pool = getPool();
+  return findCanonicalUserIdByPhone(pool, normalized);
+}

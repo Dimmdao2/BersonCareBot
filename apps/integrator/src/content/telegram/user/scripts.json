@@ -22,6 +22,71 @@
 		]
 	},
 	{
+		"id": "telegram.start.phoneauth",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 56,
+		"match": {
+			"input": {
+				"action": "start.phoneauth"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "await_phoneauth:{{input.authSecret}}"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:phoneAuthWelcome",
+					"keyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:requestContact.button",
+								"requestPhone": true
+							}
+						]
+					],
+					"resizeKeyboard": true,
+					"oneTimeKeyboard": true
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.contact.phoneauth",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 54,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				}
+			},
+			"input": {
+				"phonePresent": true
+			}
+		},
+		"steps": [
+			{
+				"action": "webapp.phoneMessengerBind.complete",
+				"mode": "sync",
+				"params": {
+					"channelCode": "telegram",
+					"externalId": "{{meta.userId}}"
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.start.setphone",
 		"source": "telegram",
 		"event": "message.received",
@@ -293,6 +358,7 @@
 					"start.noticeme",
 					"start.setrubitimerecord",
 					"start.setphone",
+					"start.phoneauth",
 					"start.set"
 				]
 			},
@@ -343,6 +409,7 @@
 					"start.noticeme",
 					"start.setrubitimerecord",
 					"start.setphone",
+					"start.phoneauth",
 					"start.set"
 				]
 			},

@@ -400,6 +400,19 @@ export type WebappEventsPort = {
     channelCode: string;
     externalId: string;
   }): Promise<{ ok: boolean; error?: string; needsPhone?: boolean; phoneNormalized?: string }>;
+  completePhoneMessengerBind?(params: {
+    setupToken: string;
+    channelCode: string;
+    externalId: string;
+    phoneNormalized: string;
+  }): Promise<{
+    ok: boolean;
+    error?: string;
+    otpCode?: string;
+    accountCreated?: boolean;
+    challengeId?: string;
+    status?: string;
+  }>;
   /**
    * Fan-out напоминания в Web Push + email на webapp (POST /api/integrator/patient-reminders/notify-channels).
    * Тело — уже сериализованный JSON (подпись `timestamp.body`, см. verifyIntegratorSignature в webapp).

@@ -299,6 +299,18 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.queryByRole("button", { name: "Другие варианты" })).not.toBeInTheDocument();
   });
 
+  it("oauth-first opens phone login flow via link", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_WEB_OAUTH }} />);
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Войти по номеру телефона" }));
+    expect(await screen.findByRole("heading", { name: "Вход по номеру" })).toBeInTheDocument();
+    expect(document.getElementById("auth-flow-v2-phone-login")).toBeTruthy();
+  });
+
   it("does not show Apple when Yandex or Google is enabled alongside Apple", async () => {
     vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
 

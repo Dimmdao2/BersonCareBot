@@ -638,6 +638,33 @@ export const supportConversationMessages = pgTable("support_conversation_message
 	unique("support_conversation_messages_integrator_message_id_key").on(table.integratorMessageId),
 ]);
 
+export const phoneMessengerBindSecrets = pgTable("phone_messenger_bind_secrets", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	tokenHash: text("token_hash").notNull(),
+	phoneNormalized: text("phone_normalized").notNull(),
+	channelCode: text("channel_code").notNull(),
+	purpose: text().notNull(),
+	userId: uuid("user_id"),
+	status: text().default('pending_contact').notNull(),
+	challengeId: text("challenge_id"),
+	failureCode: text("failure_code"),
+	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }).notNull(),
+	consumedAt: timestamp("consumed_at", { withTimezone: true, mode: 'string' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("idx_phone_messenger_bind_secrets_expires").using("btree", table.expiresAt.asc().nullsLast().op("timestamptz_ops")),
+	index("idx_phone_messenger_bind_secrets_phone_status").using("btree", table.phoneNormalized.asc().nullsLast().op("text_ops"), table.status.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [platformUsers.id],
+			name: "phone_messenger_bind_secrets_user_id_fkey"
+		}).onDelete("cascade"),
+	unique("phone_messenger_bind_secrets_token_hash_key").on(table.tokenHash),
+	check("phone_messenger_bind_secrets_channel_code_check", sql`channel_code = ANY (ARRAY['telegram'::text, 'max'::text])`),
+	check("phone_messenger_bind_secrets_purpose_check", sql`purpose = ANY (ARRAY['login'::text, 'profile_bind'::text])`),
+	check("phone_messenger_bind_secrets_status_check", sql`status = ANY (ARRAY['pending_contact'::text, 'otp_ready'::text, 'failed'::text, 'consumed'::text, 'expired'::text])`),
+]);
+
 export const loginTokens = pgTable("login_tokens", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	tokenHash: text("token_hash").notNull(),

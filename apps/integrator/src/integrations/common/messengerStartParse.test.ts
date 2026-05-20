@@ -69,4 +69,10 @@ describe('messengerStartParse', () => {
     const p = parseMessengerStartCommand('/start setanything', '');
     expect(p.action).toBe('start.set');
   });
+
+  it('parseMessengerStartCommand extracts auth secret for phone login', () => {
+    const p = parseMessengerStartCommand('/start auth_abc123XYZ', '');
+    expect(p.action).toBe('start.phoneauth');
+    expect(p.authSecret).toBe('auth_abc123XYZ');
+  });
 });

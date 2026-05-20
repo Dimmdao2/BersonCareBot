@@ -121,6 +121,39 @@ function channelLinkCompleteFailureTemplateKey(source: string, errRaw: string | 
   return `${source}:channelLink.completeFailed.generic`;
 }
 
+function phoneMessengerBindCompleteFailureTemplateKey(source: string, errRaw: string | undefined): string {
+  const e = (errRaw ?? '').trim().toLowerCase();
+  if (e === 'phone_mismatch') {
+    return `${source}:phoneAuthMismatch`;
+  }
+  const conflictLike = new Set([
+    'conflict',
+    'phone_owned_by_other_user',
+    'channel_owned_by_other_user',
+    'channel_owned_by_real_user',
+  ]);
+  if (conflictLike.has(e)) {
+    return `${source}:channelLink.completeFailed.conflict`;
+  }
+  if (
+    e === 'invalid_token' ||
+    e === 'unknown_or_expired' ||
+    e === 'used_token' ||
+    e.includes('expired')
+  ) {
+    return `${source}:channelLink.completeFailed.expired`;
+  }
+  return `${source}:phoneAuthFailed`;
+}
+
+function parsePhoneAuthSetupToken(ctx: DomainContext): string | null {
+  const state = typeof ctx.base.conversationState === 'string' ? ctx.base.conversationState.trim() : '';
+  const prefix = 'await_phoneauth:';
+  if (!state.startsWith(prefix)) return null;
+  const token = state.slice(prefix.length).trim();
+  return /^auth_[A-Za-z0-9_-]+$/.test(token) ? token : null;
+}
+
 function resolveChannelLinkFailureChatId(ctx: DomainContext, externalId: string): string | number | null {
   const fromCtx = readIncomingChatId(ctx);
   if (fromCtx !== null && String(fromCtx).trim() !== '') {
@@ -217,6 +250,141 @@ export async function executeAction(
         return { actionId: action.id, status: 'success', values: { webappEmit: { ok: false, status: result.status, error: result.error } } };
       }
       return { actionId: action.id, status: 'success', values: { webappEmit: { ok: true, status: result.status } } };
+    }
+
+    case 'webapp.phoneMessengerBind.complete': {
+      const port = deps.webappEventsPort;
+      const setupToken =
+        asString(action.params.setupToken) ?? parsePhoneAuthSetupToken(ctx);
+      const channelCode = asString(action.params.channelCode) ?? ctx.event.meta.source;
+      const externalId = asString(action.params.externalId) ?? ctx.event.meta.userId;
+      const phoneNormalized = asString(action.params.phoneNormalized) ?? readIncomingPhone(ctx);
+      if (!setupToken || !externalId || !phoneNormalized) {
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'webapp.phoneMessengerBind.complete: setupToken, externalId and phone required',
+        };
+      }
+      if (!port?.completePhoneMessengerBind) {
+        return {
+          actionId: action.id,
+          status: 'success',
+          values: { phoneMessengerBind: { ok: false, reason: 'phone_messenger_bind_port_missing' } },
+        };
+      }
+      const messengerChannel = channelCode === 'max' ? 'max' : 'telegram';
+      const result = await port.completePhoneMessengerBind({
+        setupToken,
+        channelCode: messengerChannel,
+        externalId,
+        phoneNormalized,
+      });
+      const source = ctx.event.meta.source;
+      const tplPort = fullDeps.templatePort;
+      const chatId = resolveChannelLinkFailureChatId(ctx, externalId);
+
+      if (!result.ok) {
+        const errMsg = result.error ?? 'phone messenger bind failed';
+        logger.warn(
+          {
+            event: 'phone_messenger_bind_complete_failed',
+            error: errMsg,
+            externalId,
+            channelCode: messengerChannel,
+          },
+          '[webapp.phoneMessengerBind.complete] failed',
+        );
+        const failureIntents: OutgoingIntent[] = [];
+        if (tplPort && (source === 'telegram' || source === 'max') && chatId !== null) {
+          const templateKey = phoneMessengerBindCompleteFailureTemplateKey(source, errMsg);
+          const text = await renderText({ templateKey, ctx, templatePort: tplPort });
+          if (text.trim().length > 0) {
+            const channels = source === 'max' ? ['max'] : ['telegram'];
+            failureIntents.push({
+              type: 'message.send',
+              meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-failed` }, ctx),
+              payload: {
+                recipient: { chatId },
+                message: { text },
+                delivery: { channels, maxAttempts: 1 },
+              },
+            });
+          }
+        }
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: errMsg,
+          values: { phoneMessengerBind: { ok: false, error: result.error } },
+          ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
+        };
+      }
+
+      const syncWrites: DbWriteMutation[] = [];
+      if (fullDeps.writePort) {
+        syncWrites.push({
+          type: 'user.phone.link',
+          params: {
+            resource: messengerChannel,
+            channelUserId: externalId,
+            phoneNormalized,
+            ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+          },
+        });
+        syncWrites.push({
+          type: 'user.state.set',
+          params: {
+            resource: messengerChannel,
+            channelUserId: externalId,
+            state: 'idle',
+          },
+        });
+      }
+
+      const successIntents: OutgoingIntent[] = [];
+      const otpCode = typeof result.otpCode === 'string' ? result.otpCode.trim() : '';
+      if (tplPort && (source === 'telegram' || source === 'max') && chatId !== null && otpCode.length > 0) {
+        const text = await renderText({
+          templateKey: `${source}:phoneAuthAccountCreated`,
+          ctx,
+          templatePort: tplPort,
+          vars: { code: otpCode },
+        });
+        if (text.trim().length > 0) {
+          const channels = source === 'max' ? ['max'] : ['telegram'];
+          successIntents.push({
+            type: 'message.send',
+            meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-success` }, ctx),
+            payload: {
+              recipient: { chatId },
+              message: { text },
+              delivery: { channels, maxAttempts: 1 },
+            },
+          });
+        }
+      }
+
+      if (syncWrites.length > 0 && fullDeps.writePort) {
+        for (const write of syncWrites) {
+          await fullDeps.writePort.writeDb(write);
+        }
+      }
+
+      return {
+        actionId: action.id,
+        status: 'success',
+        values: {
+          phoneMessengerBind: {
+            ok: true,
+            accountCreated: result.accountCreated === true,
+            challengeId: result.challengeId,
+            status: result.status,
+          },
+        },
+        ...(syncWrites.length > 0 ? { writes: syncWrites } : {}),
+        ...(successIntents.length > 0 ? { intents: successIntents } : {}),
+      };
     }
 
     case 'webapp.channelLink.complete': {

@@ -370,5 +370,74 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         return { ok: false, error: message };
       }
     },
+
+    async completePhoneMessengerBind(params: {
+      setupToken: string;
+      channelCode: string;
+      externalId: string;
+      phoneNormalized: string;
+    }): Promise<{
+      ok: boolean;
+      error?: string;
+      otpCode?: string;
+      accountCreated?: boolean;
+      challengeId?: string;
+      status?: string;
+    }> {
+      const baseUrl = await deps.getAppBaseUrl();
+      if (!baseUrl || !secret) {
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+      }
+      const body = JSON.stringify({
+        setupToken: params.setupToken,
+        channelCode: params.channelCode,
+        externalId: params.externalId,
+        phoneNormalized: params.phoneNormalized,
+      });
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = sign(timestamp, body, secret);
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/phone-messenger-bind/complete`;
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bersoncare-Timestamp': timestamp,
+            'X-Bersoncare-Signature': signature,
+          },
+          body,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          mergeReason?: string;
+          otpCode?: string;
+          accountCreated?: boolean;
+          challengeId?: string;
+          status?: string;
+        };
+        if (!res.ok) {
+          const err =
+            typeof data.error === 'string' && data.error.trim().length > 0 ? data.error.trim() : res.statusText;
+          return {
+            ok: false,
+            error: typeof data.mergeReason === 'string' ? data.mergeReason : err,
+          };
+        }
+        if (data.ok !== true) {
+          return { ok: false, error: data.error ?? 'phone messenger bind rejected' };
+        }
+        return {
+          ok: true,
+          ...(typeof data.otpCode === 'string' ? { otpCode: data.otpCode } : {}),
+          ...(data.accountCreated === true ? { accountCreated: true } : {}),
+          ...(typeof data.challengeId === 'string' ? { challengeId: data.challengeId } : {}),
+          ...(typeof data.status === 'string' ? { status: data.status } : {}),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
   };
 }
