@@ -12,6 +12,11 @@ import type {
 import { normalizeBroadcastChannels, type BroadcastChannel } from "./broadcastChannels";
 import { buildBroadcastMessageText, buildDoctorBroadcastDeliveryJobs } from "./deliveryJobs";
 import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "./deliveryQueueKind";
+import {
+  fanOutBroadcastWebPush,
+  type FanOutBroadcastWebPushResult,
+} from "./fanOutBroadcastWebPush";
+import type { PatientWebPushNotifyDeps } from "@/modules/patient-notifications/patientWebPushNotify";
 
 export type DoctorBroadcastsServiceDeps = {
   resolveBroadcastAudience(
@@ -20,6 +25,11 @@ export type DoctorBroadcastsServiceDeps = {
   ): Promise<BroadcastAudienceResolveResult>;
   broadcastAuditPort: BroadcastAuditPort;
   doctorBroadcastDeliveryCommitPort: DoctorBroadcastDeliveryCommitPort;
+  fanOutBroadcastWebPush?: (
+    input: Parameters<typeof fanOutBroadcastWebPush>[0],
+    deps: PatientWebPushNotifyDeps,
+  ) => Promise<FanOutBroadcastWebPushResult>;
+  patientWebPushNotifyDeps?: PatientWebPushNotifyDeps;
 };
 
 const CATEGORIES: BroadcastCategory[] = [
@@ -61,10 +71,8 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async execute(command: BroadcastCommand): Promise<{ auditEntry: BroadcastAuditEntry }> {
       const channels = resolvedChannels(command);
-      const { audienceSize, eligibleClients, notificationPrefsByUserId } = await deps.resolveBroadcastAudience(
-        command.audienceFilter,
-        channels,
-      );
+      const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels);
+      const { audienceSize, eligibleClients, notificationPrefsByUserId, webPushEligibleUserIds } = resolved;
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
       const auditId = randomUUID();
       const jobs = buildDoctorBroadcastDeliveryJobs({
@@ -95,6 +103,23 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         audit: auditBase,
         jobs,
       });
+
+      if (
+        channels.includes("push") &&
+        deps.fanOutBroadcastWebPush &&
+        deps.patientWebPushNotifyDeps
+      ) {
+        await deps.fanOutBroadcastWebPush(
+          {
+            auditId,
+            broadcastTitle: command.message.title,
+            eligibleClients,
+            webPushEligibleUserIds,
+          },
+          deps.patientWebPushNotifyDeps,
+        );
+      }
+
       return { auditEntry: entry };
     },
 

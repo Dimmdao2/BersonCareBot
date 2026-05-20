@@ -15,6 +15,8 @@ export function filterPersonalRulesForSchedulePage(rules: ReminderRule[], ctx: C
     const lot = r.linkedObjectType;
     if (lot === "lfk_complex") return false;
 
+    if (lot === "custom") return false;
+
     if (ctx.rehabProgramForBlock) {
       if (lot === "rehab_program" || lot === "treatment_program_item") return false;
     }

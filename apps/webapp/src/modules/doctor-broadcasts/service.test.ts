@@ -53,6 +53,7 @@ describe("doctor-broadcasts service", () => {
         notificationPrefsByUserId: prefsMap,
         deliveryPolicyKind: policy.kind,
         deliveryPolicyDescriptionRu: policy.descriptionRu,
+        webPushEligibleUserIds: new Set<string>(),
       };
     };
   }
@@ -125,7 +126,7 @@ describe("doctor-broadcasts service", () => {
     expect(result.audienceSize).toBe(2);
     expect(result.category).toBe("reminder");
     expect(result.audienceFilter).toBe("with_telegram");
-    expect(result.channels).toEqual(["bot_message", "sms"]);
+    expect(result.channels).toEqual(["bot_message", "push", "sms"]);
     expect(result.deliveryPolicyKind).toBe("telegram_isolate_bot_respect_prefs_sms");
     expect(result.deliveryPolicyDescriptionRu.length).toBeGreaterThan(10);
     expect(auditEntries.length).toBe(0);

@@ -32,7 +32,12 @@ describe("filterPersonalRulesForSchedulePage", () => {
       rule({ id: "3", linkedObjectType: "custom", customTitle: "Вода" }),
     ];
     const out = filterPersonalRulesForSchedulePage(rules, ctx);
-    expect(out.map((r) => r.id)).toEqual(["3"]);
+    expect(out.map((r) => r.id)).toEqual([]);
+  });
+
+  it("excludes legacy custom linkedObjectType", () => {
+    const rules = [rule({ id: "3", linkedObjectType: "custom", customTitle: "Вода" })];
+    expect(filterPersonalRulesForSchedulePage(rules, ctx)).toHaveLength(0);
   });
 
   it("drops warmups content_section", () => {

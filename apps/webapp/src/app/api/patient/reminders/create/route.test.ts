@@ -14,14 +14,12 @@ vi.mock("next/cache", () => ({
 }));
 
 const mockCreateObject = vi.hoisted(() => vi.fn());
-const mockCreateCustom = vi.hoisted(() => vi.fn());
 const mockListForPatient = vi.hoisted(() => vi.fn());
 const mockEnsurePromo = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     reminders: {
       createObjectReminder: mockCreateObject,
-      createCustomReminder: mockCreateCustom,
     },
     treatmentProgramInstance: {
       listForPatient: mockListForPatient,
@@ -102,7 +100,6 @@ describe("POST /api/patient/reminders/create", () => {
     vi.clearAllMocks();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
     mockCreateObject.mockResolvedValue({ ok: true, data: sampleObjectRule() });
-    mockCreateCustom.mockResolvedValue({ ok: true, data: sampleCustomRule() });
     mockListForPatient.mockResolvedValue([]);
     mockEnsurePromo.mockResolvedValue({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
   });
@@ -139,11 +136,11 @@ describe("POST /api/patient/reminders/create", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 for custom without title", async () => {
+  it("returns 400 for legacy custom linkedObjectType", async () => {
     const res = await POST(
       req({
         linkedObjectType: "custom",
-        customTitle: "   ",
+        customTitle: "Пить воду",
         schedule,
       }),
     );
@@ -172,19 +169,6 @@ describe("POST /api/patient/reminders/create", () => {
       quietHoursStartMinute: null,
       quietHoursEndMinute: null,
     });
-  });
-
-  it("returns 201 for custom reminder", async () => {
-    const res = await POST(
-      req({
-        linkedObjectType: "custom",
-        customTitle: "Пить воду",
-        customText: "Стакан",
-        schedule,
-      }),
-    );
-    expect(res.status).toBe(201);
-    expect(mockCreateCustom).toHaveBeenCalled();
   });
 
   it("returns 201 for slots_v1 schedule", async () => {

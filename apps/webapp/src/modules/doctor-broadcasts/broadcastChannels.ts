@@ -2,13 +2,9 @@
 
 export type BroadcastChannel = "bot_message" | "sms" | "push" | "home_banner" | "notification_bell";
 
-export const BROADCAST_ACTIVE_CHANNELS: readonly BroadcastChannel[] = ["bot_message", "sms"];
+export const BROADCAST_ACTIVE_CHANNELS: readonly BroadcastChannel[] = ["bot_message", "sms", "push"];
 
-export const BROADCAST_PLANNED_CHANNELS: readonly BroadcastChannel[] = [
-  "push",
-  "home_banner",
-  "notification_bell",
-];
+export const BROADCAST_PLANNED_CHANNELS: readonly BroadcastChannel[] = ["home_banner", "notification_bell"];
 
 const ACTIVE_SET = new Set<string>(BROADCAST_ACTIVE_CHANNELS);
 

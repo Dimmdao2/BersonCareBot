@@ -474,6 +474,41 @@ Canonical linking rules:
 
 ---
 
+## Flow: Webapp M2M — patient Web Push (запись, рассылки)
+
+**Endpoint:** `POST /api/integrator/patient-notifications/web-push`
+
+**Headers:** `x-bersoncare-timestamp`, `x-bersoncare-signature`, `x-bersoncare-idempotency-key` (как у других signed M2M).
+
+**Body (JSON):** один из идентификаторов пользователя — `integratorUserId` (digits) или `phoneNormalized`; для internal fan-out из webapp допустим `platformUserId` (UUID, не используется integrator HTTP-клиентом).
+
+| Поле | Описание |
+|------|----------|
+| `intentType` | `appointment_lifecycle` \| `appointment_reminder` \| `news` |
+| `topicCode` | id темы из `notifications_topics` (например `appointment_reminders`, `news`) |
+| `variant` | для lifecycle: `created` \| `cancelled` \| `rescheduled` |
+| `slotStartIso` | ISO слота (lifecycle / reminder) |
+| `broadcastTitle` | для `news` — заголовок рассылки (тело push = «Новости» + preview) |
+| `openUrl` | same-origin путь (`/app/...`) |
+| `stableKey` | idempotency tag push (≤240 символов) |
+| `nowIso` | опционально для расчёта «осталось N часов/дней» |
+
+**Ответ 200:** `{ ok: true, webPushDelivered?, webPushErrors?, skipped? }`.
+
+**Rubitime booking:** integrator worker вызывает этот endpoint после TG/MAX для slot-напоминаний (`intentType: appointment_reminder`).
+
+**Doctor broadcasts:** webapp fan-out при канале `push` в UI рассылок (`intentType: news`, `topicCode: news`) — in-process, без HTTP.
+
+---
+
+## Flow: Webapp M2M — reminder notify-channels (push copy)
+
+**Endpoint:** `POST /api/integrator/patient-reminders/notify-channels`
+
+Помимо `title` / `bodyText` (для email и legacy) в body передаются поля для **Web Push copy**: `linkedObjectType`, `linkedObjectId`, `reminderIntent`, `occurrenceCategory`, `customTitle`. Модуль `pushNotificationCopy` строит заголовок/тело (разминка, тренировка, custom, skip legacy категорий). Idempotency: `prn:<occurrenceId>:channels`.
+
+---
+
 ## Future Extensions
 
 The contract is intentionally narrow so the services can evolve independently.

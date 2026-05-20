@@ -60,6 +60,8 @@ import {
   deriveBroadcastDeliveryPolicy,
   filterEligibleBroadcastClients,
 } from "@/modules/doctor-broadcasts/broadcastEligible";
+import { resolveBroadcastWebPushEligibleUserIds } from "@/modules/doctor-broadcasts/resolveBroadcastWebPushEligibleUserIds";
+import { fanOutBroadcastWebPush } from "@/modules/doctor-broadcasts/fanOutBroadcastWebPush";
 import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
 import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit";
 import { createPgBroadcastAuditPort } from "@/infra/repos/pgBroadcastAudit";
@@ -812,7 +814,22 @@ function _buildAppDeps() {
           testAccounts,
         );
         const prefsMap = await channelPreferencesPort.getBroadcastNotificationFlagsBatch(effective.map((c) => c.userId));
-        const eligibleClients = filterEligibleBroadcastClients(effective, channels, filter, prefsMap);
+        const webPushEligibleUserIds = channels.includes("push")
+          ? await resolveBroadcastWebPushEligibleUserIds(effective, {
+              webPushSubscriptions: webPushSubscriptionsPort,
+              channelPreferences: channelPreferencesPort,
+              topicChannelPrefs: topicChannelPrefsPort,
+              systemSettings: systemSettingsService,
+              readReminderNotifyGate: readReminderWebappNotifyGate,
+            })
+          : new Set<string>();
+        const eligibleClients = filterEligibleBroadcastClients(
+          effective,
+          channels,
+          filter,
+          prefsMap,
+          webPushEligibleUserIds,
+        );
         const recipientsPreview = buildRecipientsPreviewFromClients(eligibleClients);
         const policy = deriveBroadcastDeliveryPolicy(filter, channels);
         const base = {
@@ -824,6 +841,7 @@ function _buildAppDeps() {
           notificationPrefsByUserId: prefsMap,
           deliveryPolicyKind: policy.kind,
           deliveryPolicyDescriptionRu: policy.descriptionRu,
+          webPushEligibleUserIds,
         };
         if (!devMode) {
           return base;
@@ -835,6 +853,21 @@ function _buildAppDeps() {
       },
       broadcastAuditPort,
       doctorBroadcastDeliveryCommitPort,
+      fanOutBroadcastWebPush,
+      patientWebPushNotifyDeps: {
+        findPlatformUserByIntegratorId: async (integratorUserId) => {
+          const row = await userProjectionPort.findByIntegratorId(integratorUserId);
+          return row ? { platformUserId: row.platformUserId } : null;
+        },
+        findPlatformUserByPhone: async (phoneNormalized) =>
+          userProjectionPort.findByPhoneNormalized(phoneNormalized),
+        channelPreferences: channelPreferencesPort,
+        topicChannelPrefs: topicChannelPrefsPort,
+        webPushSubscriptions: webPushSubscriptionsPort,
+        systemSettings: systemSettingsService,
+        readReminderNotifyGate: readReminderWebappNotifyGate,
+        recordDeliveryAttempt: (input) => notificationDelivery.recordNotificationDeliveryAttempt(input),
+      },
     }),
     doctorMotivationQuotesEditor: doctorMotivationQuotesEditorPort,
     purchases: {

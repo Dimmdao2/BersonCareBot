@@ -3,6 +3,7 @@ import {
   filterEligibleBroadcastClients,
   deriveBroadcastDeliveryPolicy,
   broadcastNotificationPrefsDefaults,
+  broadcastIncludeWebPushJob,
 } from "./broadcastEligible";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 
@@ -48,6 +49,15 @@ describe("filterEligibleBroadcastClients", () => {
         m,
       ),
     ).toHaveLength(1);
+  });
+});
+
+describe("broadcastIncludeWebPushJob", () => {
+  it("includes user when push channel selected and user is eligible", () => {
+    const ids = new Set(["u1"]);
+    expect(broadcastIncludeWebPushJob(["push"], ids, "u1")).toBe(true);
+    expect(broadcastIncludeWebPushJob(["bot_message"], ids, "u1")).toBe(false);
+    expect(broadcastIncludeWebPushJob(["push"], ids, "u2")).toBe(false);
   });
 });
 

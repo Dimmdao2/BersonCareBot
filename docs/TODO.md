@@ -80,6 +80,10 @@
 - **TODO (хвосты phone_bind / channel-link, 2026-05):** полный **`pnpm run ci`** на финальном коммите ветки перед merge, если ещё не прогоняли корневой CI ([`.cursor/rules/pre-push-ci.mdc`](../.cursor/rules/pre-push-ci.mdc)).
 - **TODO:** unit или devDb-тест в **`packages/platform-merge`** на self-heal `applyMessengerPhonePublicBind` (ветка realign `integrator_user_id`, конфликт по unique → `integrator_id_mismatch`); сейчас пакет — typecheck, поведение интегратора — моки `executeAction.test.ts`.
 
+## Web Push / PWA
+
+- **Web Push при переносе записи (`booking.updated` / `rescheduled`):** copy для push уже в `apps/webapp/src/modules/web-push/pushNotificationCopy.ts` (`variant: rescheduled`); нужно lifecycle-событие в Rubitime/integrator и вызов `sendBookingWebPush` из `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` (сейчас только `booking.created` / `booking.cancelled`). См. также `apps/webapp/INTEGRATOR_CONTRACT.md` §«patient Web Push».
+
 ## Security / Auth
 
 - **Видео / медиа по UUID (post-prod):** верхний раздел этого файла («Медиа / видео — авторизация и права на поток») и `docs/ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md`.

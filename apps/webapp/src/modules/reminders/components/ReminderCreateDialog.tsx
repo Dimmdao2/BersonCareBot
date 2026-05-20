@@ -9,10 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
 import type { ReminderDayFilter, SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
@@ -37,7 +34,7 @@ import {
   parseQuietEndMinute,
 } from "@/modules/reminders/reminderTimeInputs";
 import { ReminderScheduleForm } from "@/modules/reminders/components/ReminderScheduleForm";
-import { customReminderFieldsInvalid, scheduleInvalidFromError } from "@/modules/reminders/reminderFormAria";
+import { scheduleInvalidFromError } from "@/modules/reminders/reminderFormAria";
 import { cn } from "@/lib/utils";
 import { patientPortalModalSurfaceClass } from "@/shared/ui/patientVisual";
 
@@ -125,13 +122,10 @@ export function ReminderCreateDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
-  const [customTitle, setCustomTitle] = useState("");
-  const [customText, setCustomText] = useState("");
 
   const errorAnchorRef = useRef<HTMLParagraphElement | null>(null);
 
   const isEdit = Boolean(existingRule);
-  const isCustom = linkedObjectType === "custom";
 
   useEffect(() => {
     if (!open) return;
@@ -144,8 +138,6 @@ export function ReminderCreateDialog({
       setStartTime(minutesToTimeInput(existingRule.windowStartMinute));
       setEndTime(minutesToTimeInput(existingRule.windowEndMinute));
       setDaysMask(/^[01]{7}$/.test(existingRule.daysMask) ? existingRule.daysMask : DEFAULT_REMINDER_FORM_DAYS_MASK);
-      setCustomTitle(existingRule.customTitle?.trim() ?? "");
-      setCustomText(existingRule.customText?.trim() ?? "");
       if (isSlots && existingRule.scheduleData?.timesLocal?.length) {
         setSlotTimeRows(dedupeSortTimes([...existingRule.scheduleData.timesLocal]));
         const df = existingRule.scheduleData.dayFilter ?? "weekdays";
@@ -177,8 +169,6 @@ export function ReminderCreateDialog({
       setIntervalMinutes(DEFAULT_REMINDER_FORM_INTERVAL_MINUTES);
       setStartTime(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE));
       setEndTime(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE));
-      setCustomTitle("");
-      setCustomText("");
       if (linkedObjectType === "rehab_program") {
         setDaysMask(DEFAULT_REHAB_DAILY_SLOTS.daysMask ?? "1111111");
         setSlotTimeRows([...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]);
@@ -215,7 +205,6 @@ export function ReminderCreateDialog({
   }, [scheduleMode, slotTimeRows, slotsDayFilter, startTime, endTime, intervalMinutes, daysMask, quietStart, quietEnd]);
 
   const scheduleFieldInvalid = useMemo(() => scheduleInvalidFromError(error), [error]);
-  const customFieldInvalid = useMemo(() => customReminderFieldsInvalid(error), [error]);
 
   const scrollToError = () => {
     requestAnimationFrame(() => errorAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
@@ -255,20 +244,6 @@ export function ReminderCreateDialog({
       }
       quietHoursStartMinute = qs;
       quietHoursEndMinute = qe;
-    }
-
-    if (isCustom) {
-      const t = customTitle.trim();
-      if (t.length < 1 || t.length > 140) {
-        setError("Заголовок: от 1 до 140 символов.");
-        scrollToError();
-        return;
-      }
-      if (customText.length > 2000) {
-        setError("Текст не длиннее 2000 символов.");
-        scrollToError();
-        return;
-      }
     }
 
     let schedule: Record<string, unknown>;
@@ -338,10 +313,6 @@ export function ReminderCreateDialog({
           schedule,
           enabled: existingRule.enabled,
         };
-        if (isCustom) {
-          body.customTitle = customTitle.trim();
-          body.customText = customText.trim() ? customText.trim() : null;
-        }
         const res = await fetch(`/api/patient/reminders/${encodeURIComponent(existingRule.id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -355,21 +326,12 @@ export function ReminderCreateDialog({
         }
         if (data.syncWarning) setSyncWarning(data.syncWarning);
       } else {
-        const body: Record<string, unknown> =
-          linkedObjectType === "custom"
-            ? {
-                linkedObjectType: "custom",
-                customTitle: customTitle.trim(),
-                customText: customText.trim() ? customText.trim() : null,
-                enabled: true,
-                schedule,
-              }
-            : {
-                linkedObjectType,
-                linkedObjectId,
-                enabled: true,
-                schedule,
-              };
+        const body: Record<string, unknown> = {
+          linkedObjectType,
+          linkedObjectId,
+          enabled: true,
+          schedule,
+        };
         const res = await fetch("/api/patient/reminders/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -418,7 +380,7 @@ export function ReminderCreateDialog({
       setQuietStart={setQuietStart}
       quietEnd={quietEnd}
       setQuietEnd={setQuietEnd}
-      previewBadgeLabel={isCustom ? customTitle.trim() || "Заголовок" : contextTitle}
+      previewBadgeLabel={contextTitle}
       previewText={previewText}
       error={error}
       syncWarning={syncWarning}
@@ -426,44 +388,13 @@ export function ReminderCreateDialog({
     />
   );
 
-  const customFields = isCustom ? (
-    <div className="space-y-3">
-      <div className="space-y-1.5">
-        <Label htmlFor={`${formId}-ctitle`}>Заголовок</Label>
-        <Input
-          id={`${formId}-ctitle`}
-          value={customTitle}
-          onChange={(e) => setCustomTitle(e.target.value)}
-          maxLength={140}
-          disabled={submitting}
-          placeholder="Например: Выпить воду"
-          aria-invalid={customFieldInvalid.title || undefined}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${formId}-ctext`}>Текст (необязательно)</Label>
-        <Textarea
-          id={`${formId}-ctext`}
-          value={customText}
-          onChange={(e) => setCustomText(e.target.value)}
-          maxLength={2000}
-          disabled={submitting}
-          rows={3}
-          placeholder="Короткое напоминание"
-          aria-invalid={customFieldInvalid.text || undefined}
-        />
-      </div>
-    </div>
-  ) : null;
-
   const body = (
     <div ref={errorAnchorRef} className="flex flex-col gap-4">
-      {customFields}
       {scheduleBlock}
     </div>
   );
 
-  const title = isEdit ? "Изменить напоминание" : isCustom ? "Своё напоминание" : "Напоминание";
+  const title = isEdit ? "Изменить напоминание" : "Напоминание";
 
   const footer = (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">

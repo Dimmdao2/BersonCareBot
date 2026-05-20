@@ -44,6 +44,12 @@
 - **SW:** `pushsubscriptionchange` → `postMessage` клиенту → `restorePatientWebPushSubscription`; синк локальной подписки на backend при загрузке.
 - **API:** `POST /api/patient/pwa/launch` (лог); `subscribe` — опциональный `platform` в `user_agent`.
 
+## 2026-05-20 — Doctor broadcast Web Push + push copy
+
+- **Рассылки врача:** активный чекбокс **Push** (по умолчанию вкл.) на `/app/doctor/broadcasts`; fan-out через `fanOutBroadcastWebPush` при `execute` (`intentType: news`, тема `news`, copy «Новости» + заголовок рассылки). Учитываются prefs темы `news` и наличие PWA-подписки.
+- **M2M:** `POST /api/integrator/patient-notifications/web-push` — запись на приём (Rubitime worker); контракт в `apps/webapp/INTEGRATOR_CONTRACT.md`.
+- **Copy module:** `apps/webapp/src/modules/web-push/pushNotificationCopy.ts` — единые тексты для напоминаний, сообщений врача, записи, news.
+
 ## 2026-05-18 — Web Push + email: контур напоминаний (MVP)
 
 - **Канал `web_push`:** prefs, матрица тем, таблица подписок, `GET/POST` patient API, отправка из webapp по VAPID из `system_settings`.

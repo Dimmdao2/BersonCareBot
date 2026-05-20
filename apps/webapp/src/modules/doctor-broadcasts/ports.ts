@@ -153,6 +153,8 @@ export type BroadcastAudienceResolveResult = {
   notificationPrefsByUserId: ReadonlyMap<string, BroadcastNotificationPrefsFlags>;
   deliveryPolicyKind: BroadcastDeliveryPolicyKind;
   deliveryPolicyDescriptionRu: string;
+  /** Пользователи с активной PWA-подпиской и включённым web_push для темы news. */
+  webPushEligibleUserIds: ReadonlySet<string>;
 };
 
 export type { BroadcastChannel } from "./broadcastChannels";

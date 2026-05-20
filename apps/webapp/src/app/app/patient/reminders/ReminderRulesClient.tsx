@@ -307,7 +307,6 @@ export function ReminderRulesClient({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [customOpen, setCustomOpen] = useState(false);
   const [editRow, setEditRow] = useState<PersonalReminderRowVM | null>(null);
   const [rehabDialogOpen, setRehabDialogOpen] = useState(false);
   const [warmupDialogOpen, setWarmupDialogOpen] = useState(false);
@@ -318,7 +317,9 @@ export function ReminderRulesClient({
   const hiddenIds = new Set<string>();
   if (rehabRuleForBlock) hiddenIds.add(rehabRuleForBlock.id);
   if (warmupRuleForBlock) hiddenIds.add(warmupRuleForBlock.id);
-  const personalRowsMain = personalRows.filter((row) => !hiddenIds.has(row.rule.id));
+  const personalRowsMain = personalRows.filter(
+    (row) => !hiddenIds.has(row.rule.id) && row.rule.linkedObjectType !== "custom",
+  );
 
   const rehabSummary =
     activeProgram ?
@@ -408,24 +409,6 @@ export function ReminderRulesClient({
     const r = editRow.rule;
     const lt = r.linkedObjectType;
     const json = reminderRuleToPatientJson(r);
-    if (lt === "custom") {
-      return (
-        <ReminderCreateDialog
-          open={Boolean(editRow)}
-          onOpenChange={(o) => {
-            if (!o) setEditRow(null);
-          }}
-          linkedObjectType="custom"
-          linkedObjectId=""
-          contextTitle={editRow.label}
-          existingRule={json}
-          onSaved={() => {
-            setEditRow(null);
-            refresh();
-          }}
-        />
-      );
-    }
     if (lt === "lfk_complex" && r.linkedObjectId) {
       return (
         <ReminderCreateDialog
@@ -636,9 +619,6 @@ export function ReminderRulesClient({
         <>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className={patientSectionTitleNormalClass}>Мои напоминания</h2>
-            <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => setCustomOpen(true)}>
-              Создать
-            </Button>
           </div>
           {personalRowsMain.map((row) => (
             <PersonalReminderCard
@@ -650,19 +630,6 @@ export function ReminderRulesClient({
           ))}
         </>
       ) : null}
-
-      <ReminderCreateDialog
-        open={customOpen}
-        onOpenChange={setCustomOpen}
-        linkedObjectType="custom"
-        linkedObjectId=""
-        contextTitle="Своё напоминание"
-        existingRule={null}
-        onSaved={() => {
-          setCustomOpen(false);
-          refresh();
-        }}
-      />
 
       {showEmptyHint ? (
         <p className={cn(patientMutedTextClass, "py-4 text-center")}>

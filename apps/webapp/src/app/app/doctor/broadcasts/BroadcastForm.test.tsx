@@ -55,7 +55,7 @@ describe("BroadcastForm", () => {
         audienceSize: 30,
         category: "reminder",
         audienceFilter: "with_telegram",
-        channels: ["bot_message", "sms"],
+        channels: ["bot_message", "sms", "push"],
       }),
     );
 
@@ -68,7 +68,7 @@ describe("BroadcastForm", () => {
         category: "reminder",
         audienceFilter: "with_telegram",
         message: { title: "Заголовок теста", body: "Достаточно длинный текст" },
-        channels: ["bot_message", "sms"],
+        channels: ["bot_message", "sms", "push"],
         attachMenuAfterSend: false,
       });
     });
@@ -96,7 +96,7 @@ describe("BroadcastForm", () => {
         audienceSize: 5,
         category: "reminder",
         audienceFilter: "with_telegram",
-        channels: ["bot_message", "sms"],
+        channels: ["bot_message", "sms", "push"],
       }),
     );
     await waitFor(() => {
@@ -119,7 +119,7 @@ describe("BroadcastForm", () => {
         audienceSize: 99,
         category: "reminder",
         audienceFilter: "with_telegram",
-        channels: ["bot_message", "sms"],
+        channels: ["bot_message", "sms", "push"],
       }),
     );
 
@@ -139,7 +139,7 @@ describe("BroadcastForm", () => {
         audienceSize: 2,
         category: "reminder",
         audienceFilter: "with_telegram",
-        channels: ["bot_message", "sms"],
+        channels: ["bot_message", "sms", "push"],
       }),
     );
     executeBroadcastAction.mockResolvedValue({
@@ -150,7 +150,7 @@ describe("BroadcastForm", () => {
         audienceFilter: "with_telegram",
         messageTitle: "Заголовок теста",
         messageBody: "",
-        channels: ["bot_message", "sms"],
+        channels: ["bot_message", "sms", "push"],
         executedAt: new Date().toISOString(),
         previewOnly: false,
         audienceSize: 2,

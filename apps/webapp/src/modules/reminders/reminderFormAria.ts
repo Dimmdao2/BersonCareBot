@@ -34,11 +34,3 @@ export function scheduleInvalidFromError(error: string | null): ReminderSchedule
     slotTimes: slots,
   };
 }
-
-export function customReminderFieldsInvalid(error: string | null): { title: boolean; text: boolean } {
-  if (!error?.trim()) return { title: false, text: false };
-  return {
-    title: /Заголовок/i.test(error),
-    text: /Текст не длиннее|2000 символов/i.test(error),
-  };
-}

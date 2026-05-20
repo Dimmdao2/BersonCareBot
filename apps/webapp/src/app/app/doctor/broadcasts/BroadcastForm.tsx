@@ -37,6 +37,7 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
   const [audience, setAudience] = useState<BroadcastAudienceFilter | "">("");
   const [channelBot, setChannelBot] = useState(true);
   const [channelSms, setChannelSms] = useState(true);
+  const [channelPush, setChannelPush] = useState(true);
   const [attachMenuAfterSend, setAttachMenuAfterSend] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -45,10 +46,11 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
 
   function buildCommand(): Omit<BroadcastCommand, "actorId"> | null {
     if (!category || !audience || !title.trim() || body.trim().length < 10) return null;
-    if (!channelBot && !channelSms) return null;
+    if (!channelBot && !channelSms && !channelPush) return null;
     const channels: BroadcastChannel[] = [];
     if (channelBot) channels.push("bot_message");
     if (channelSms) channels.push("sms");
+    if (channelPush) channels.push("push");
     return {
       category,
       audienceFilter: audience,
@@ -218,6 +220,16 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
             onChange={(e) => setChannelSms(e.target.checked)}
           />
           {CHANNEL_LABELS.sms}
+        </label>
+        <label htmlFor="broadcast-channel-push" className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            id="broadcast-channel-push"
+            type="checkbox"
+            checked={channelPush}
+            disabled={isFormLocked}
+            onChange={(e) => setChannelPush(e.target.checked)}
+          />
+          {CHANNEL_LABELS.push}
         </label>
         {BROADCAST_PLANNED_CHANNELS.map((code) => (
           <label

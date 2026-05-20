@@ -15,7 +15,6 @@ const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
   "content_page",
   "rehab_program",
   "treatment_program_item",
-  "custom",
 ]);
 
 function parseQuietFromSchedule(schedule: Record<string, unknown>):
@@ -111,44 +110,6 @@ export async function POST(req: Request) {
 
   const deps = buildAppDeps();
   const userId = session.user.userId;
-
-  if (linkedObjectType === "custom") {
-    const customTitle = body.customTitle;
-    const customText = body.customText;
-    if (typeof customTitle !== "string" || customTitle.trim().length === 0 || customTitle.length > 140) {
-      return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
-    }
-    if (customText != null && typeof customText !== "string") {
-      return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
-    }
-    if (typeof customText === "string" && customText.length > 2000) {
-      return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
-    }
-    const res = await deps.reminders.createCustomReminder(userId, {
-      customTitle,
-      customText: customText === null || customText === undefined ? null : customText,
-      schedule: sched,
-      enabled,
-      scheduleType,
-      scheduleData: scheduleType === "slots_v1" ? scheduleData : null,
-      quietHoursStartMinute: quietParsed.quietHoursStartMinute ?? null,
-      quietHoursEndMinute: quietParsed.quietHoursEndMinute ?? null,
-    });
-    if (!res.ok) {
-      const status = res.error === "not_found" ? 404 : 400;
-      return NextResponse.json({ ok: false, error: res.error }, { status });
-    }
-    revalidatePath(routePaths.patientReminders);
-    revalidatePath(routePaths.patient);
-    return NextResponse.json(
-      {
-        ok: true,
-        reminder: reminderRuleToPatientJson(res.data),
-        ...(res.syncWarning ? { syncWarning: res.syncWarning } : {}),
-      },
-      { status: 201 },
-    );
-  }
 
   const linkedObjectIdRaw = body.linkedObjectId;
   if (typeof linkedObjectIdRaw !== "string" || linkedObjectIdRaw.trim().length === 0 || linkedObjectIdRaw.length > 200) {

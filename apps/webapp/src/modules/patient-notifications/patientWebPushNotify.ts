@@ -21,18 +21,23 @@ import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 
-export const integratorPatientWebPushNotifyBodySchema = z.object({
-  integratorUserId: z.string().regex(/^\d+$/).optional(),
-  phoneNormalized: z.string().min(8).max(32).optional(),
-  topicCode: z.string().min(1).max(120).default(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT),
-  intentType: z.enum(["appointment_lifecycle", "appointment_reminder", "news"]),
-  variant: z.enum(["created", "cancelled", "rescheduled"]).optional(),
-  slotStartIso: z.string().min(1).max(64).optional(),
-  openUrl: z.string().min(1).max(4000),
-  stableKey: z.string().min(1).max(240),
-  broadcastTitle: z.string().max(500).optional(),
-  nowIso: z.string().max(64).optional(),
-});
+export const integratorPatientWebPushNotifyBodySchema = z
+  .object({
+    integratorUserId: z.string().regex(/^\d+$/).optional(),
+    phoneNormalized: z.string().min(8).max(32).optional(),
+    platformUserId: z.string().uuid().optional(),
+    topicCode: z.string().min(1).max(120).default(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT),
+    intentType: z.enum(["appointment_lifecycle", "appointment_reminder", "news"]),
+    variant: z.enum(["created", "cancelled", "rescheduled"]).optional(),
+    slotStartIso: z.string().min(1).max(64).optional(),
+    openUrl: z.string().min(1).max(4000),
+    stableKey: z.string().min(1).max(240),
+    broadcastTitle: z.string().max(500).optional(),
+    nowIso: z.string().max(64).optional(),
+  })
+  .refine((body) => Boolean(body.platformUserId || body.integratorUserId || body.phoneNormalized), {
+    message: "missing_user_ref",
+  });
 
 export type IntegratorPatientWebPushNotifyBody = z.infer<typeof integratorPatientWebPushNotifyBodySchema>;
 
@@ -73,7 +78,9 @@ export async function runPatientWebPushNotify(
   deps: PatientWebPushNotifyDeps,
 ): Promise<Record<string, unknown>> {
   const platform =
-    body.integratorUserId ?
+    body.platformUserId ?
+      { platformUserId: body.platformUserId }
+    : body.integratorUserId ?
       await deps.findPlatformUserByIntegratorId(body.integratorUserId)
     : body.phoneNormalized ?
       await deps.findPlatformUserByPhone(body.phoneNormalized)
