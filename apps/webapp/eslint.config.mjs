@@ -77,6 +77,8 @@ export default [
       "src/modules/lessons/service.ts",
       "src/modules/menu/service.ts",
       "src/modules/messaging/doctorSupportMessagingService.ts",
+      "src/modules/messaging/integratorSupportBridge.ts",
+      "src/modules/messaging/integratorSupportBridge.test.ts",
       "src/modules/messaging/patientMessagingService.ts",
       "src/modules/messaging/serializeSupportMessage.ts",
       "src/modules/platform-access/patientClientBusinessGate.ts",

@@ -1177,6 +1177,7 @@ describe('executeAction', () => {
         first_name: 'Alice',
         last_name: 'Example',
       })
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         id: 'conv-1',
         source: 'telegram',
