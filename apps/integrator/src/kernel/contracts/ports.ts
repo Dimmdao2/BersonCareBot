@@ -434,6 +434,19 @@ export type WebappEventsPort = {
     selectedChannels?: string[];
     skippedChannels?: Array<{ channel: string; reason: string }>;
   }>;
+  /** Web Push для записи на приём / рассылок (POST /api/integrator/patient-notifications/web-push). */
+  notifyPatientWebPush?(input: {
+    body: string;
+    idempotencyKey: string;
+  }): Promise<{
+    ok: boolean;
+    status: number;
+    error?: string;
+    webPushDelivered?: number;
+    webPushErrors?: number;
+    webPushDeactivated?: number;
+    skipped?: string;
+  }>;
   /** Единый webapp-thread: сообщение пациента из бота (POST /api/integrator/support/sync-user-message). */
   syncSupportUserMessage?(input: {
     body: string;

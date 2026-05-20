@@ -312,6 +312,55 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
       }
     },
 
+    async notifyPatientWebPush(input: {
+      body: string;
+      idempotencyKey: string;
+    }): Promise<{ ok: boolean; status: number; error?: string; skipped?: string; webPushDelivered?: number }> {
+      const baseUrl = await deps.getAppBaseUrl();
+      if (!baseUrl || !secret) {
+        return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
+      }
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/patient-notifications/web-push`;
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = sign(timestamp, input.body, secret);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Bersoncare-Timestamp': timestamp,
+        'X-Bersoncare-Signature': signature,
+        'X-Bersoncare-Idempotency-Key': input.idempotencyKey,
+      };
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: input.body,
+        });
+        const text = await res.text().catch(() => '');
+        let parsed: Record<string, unknown> = {};
+        if (text) {
+          try {
+            parsed = JSON.parse(text) as Record<string, unknown>;
+          } catch {
+            /* non-JSON */
+          }
+        }
+        const ok = res.status === 200 && parsed.ok === true;
+        return {
+          ok,
+          status: res.status,
+          ...(ok
+            ? {
+                webPushDelivered: typeof parsed.webPushDelivered === 'number' ? parsed.webPushDelivered : undefined,
+                skipped: typeof parsed.skipped === 'string' ? parsed.skipped : undefined,
+              }
+            : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, status: 0, error: message };
+      }
+    },
+
     async completeChannelLink(params: {
       linkToken: string;
       channelCode: string;

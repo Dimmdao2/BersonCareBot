@@ -478,6 +478,18 @@ export const pgUserProjectionPort: UserProjectionPort = {
     return { platformUserId: row.id, phoneNormalized: row.phone_normalized };
   },
 
+  async findByPhoneNormalized(phoneNormalized) {
+    const pool = getPool();
+    const result = await pool.query<{ id: string }>(
+      `SELECT id FROM platform_users
+       WHERE phone_normalized = $1 AND merged_into_id IS NULL
+       LIMIT 1`,
+      [phoneNormalized],
+    );
+    const row = result.rows[0];
+    return row ? { platformUserId: row.id } : null;
+  },
+
   async updatePhone(platformUserId, phoneNormalized) {
     const pool = getPool();
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpdatePhone);
@@ -728,6 +740,7 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   upsertFromProjection: async () => ({ platformUserId: "" }),
   ensureClientFromAppointmentProjection: async () => ({ platformUserId: "" }),
   findByIntegratorId: async () => null,
+  findByPhoneNormalized: async () => null,
   updatePhone: async () => {},
   updateDisplayName: async () => {},
   updateProfileByPhone: async () => {},

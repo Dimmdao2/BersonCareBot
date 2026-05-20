@@ -58,10 +58,8 @@ export async function POST(request: Request) {
         const row = await deps.userProjection.findByIntegratorId(integratorUserId);
         return row ? { platformUserId: row.platformUserId } : null;
       },
-      findPlatformUserByPhone: async (phoneNormalized) => {
-        const row = await deps.userProjection.findByPhoneNormalized(phoneNormalized);
-        return row ? { platformUserId: row.platformUserId } : null;
-      },
+      findPlatformUserByPhone: async (phoneNormalized) =>
+        deps.userProjection.findByPhoneNormalized(phoneNormalized),
       channelPreferences: deps.channelPreferencesPort,
       topicChannelPrefs: deps.topicChannelPrefs,
       webPushSubscriptions: deps.webPushSubscriptions,

@@ -341,7 +341,7 @@ export async function runPatientReminderIntegratorNotify(
       reminderIntent: body.reminderIntent,
       occurrenceCategory: body.occurrenceCategory,
       openUrl: body.openUrl,
-      customTitle: body.customTitle ?? body.title,
+      customTitle: body.customTitle,
       customText: body.bodyText ?? "",
       warmupContext,
     });

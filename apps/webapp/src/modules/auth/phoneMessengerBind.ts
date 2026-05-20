@@ -1,9 +1,16 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Pool, PoolClient } from "pg";
+import type { PoolClient } from "pg";
 import { env } from "@/config/env";
 import { integratorWebhookSecret } from "@/config/env";
-import { getPool } from "@/infra/db/client";
+import { createPgPhoneMessengerBindPort } from "@/infra/repos/pgPhoneMessengerBind";
 import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
+import type {
+  PhoneMessengerBindChannel,
+  PhoneMessengerBindPurpose,
+  PhoneMessengerBindPort,
+  PhoneMessengerBindSecretRow,
+  PhoneMessengerBindStatus,
+} from "./phoneMessengerBind.ports";
 import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
@@ -21,15 +28,11 @@ function phoneSuffixForLog(phoneNormalized: string): string {
   return digits.length >= 4 ? digits.slice(-4) : "****";
 }
 
-export type PhoneMessengerBindPurpose = "login" | "profile_bind";
-export type PhoneMessengerBindChannel = "telegram" | "max";
-
-export type PhoneMessengerBindStatus =
-  | "pending_contact"
-  | "otp_ready"
-  | "failed"
-  | "consumed"
-  | "expired";
+export type {
+  PhoneMessengerBindPurpose,
+  PhoneMessengerBindChannel,
+  PhoneMessengerBindStatus,
+} from "./phoneMessengerBind.ports";
 
 function hashToken(token: string): string {
   return createHash("sha256")
@@ -61,26 +64,10 @@ function buildDeepLink(params: {
   return { url: "https://max.ru/", manualCommand: `/start ${params.startPayload}` };
 }
 
-type SecretRow = {
-  id: string;
-  phone_normalized: string;
-  channel_code: string;
-  purpose: string;
-  user_id: string | null;
-  status: string;
-  challenge_id: string | null;
-  failure_code: string | null;
-  expires_at: string;
-  consumed_at: string | null;
-};
-
-async function loadSecretByHash(pool: Pool, tokenHash: string): Promise<SecretRow | null> {
-  const r = await pool.query<SecretRow>(
-    `SELECT id, phone_normalized, channel_code, purpose, user_id, status, challenge_id, failure_code, expires_at, consumed_at
-     FROM phone_messenger_bind_secrets WHERE token_hash = $1`,
-    [tokenHash],
-  );
-  return r.rows[0] ?? null;
+function resolveBindPort(port?: PhoneMessengerBindPort): PhoneMessengerBindPort | null {
+  if (port) return port;
+  if (!env.DATABASE_URL?.trim()) return null;
+  return createPgPhoneMessengerBindPort();
 }
 
 async function applyMessengerContactPreOtp(
@@ -183,14 +170,17 @@ export type StartPhoneMessengerBindResult =
     }
   | { ok: false; code: string };
 
-export async function startPhoneMessengerBind(params: {
-  phone: string;
-  channelCode: PhoneMessengerBindChannel;
-  purpose: PhoneMessengerBindPurpose;
-  botUsername: string;
-  maxBotNickname?: string;
-  sessionUserId?: string | null;
-}): Promise<StartPhoneMessengerBindResult> {
+export async function startPhoneMessengerBind(
+  params: {
+    phone: string;
+    channelCode: PhoneMessengerBindChannel;
+    purpose: PhoneMessengerBindPurpose;
+    botUsername: string;
+    maxBotNickname?: string;
+    sessionUserId?: string | null;
+  },
+  bindPort?: PhoneMessengerBindPort,
+): Promise<StartPhoneMessengerBindResult> {
   const phoneNormalized = normalizePhone(params.phone);
   if (!isValidPhoneE164(phoneNormalized)) {
     return { ok: false, code: "invalid_phone" };
@@ -217,22 +207,23 @@ export async function startPhoneMessengerBind(params: {
     };
   }
 
-  const pool = getPool();
+  const port = resolveBindPort(bindPort);
+  if (!port) {
+    return { ok: false, code: "database_unavailable" };
+  }
+
   const userId =
     params.purpose === "profile_bind" && params.sessionUserId?.trim() ? params.sessionUserId.trim() : null;
 
-  await pool.query(
-    `DELETE FROM phone_messenger_bind_secrets
-     WHERE phone_normalized = $1 AND channel_code = $2 AND purpose = $3 AND status = 'pending_contact'`,
-    [phoneNormalized, params.channelCode, params.purpose],
-  );
-
-  await pool.query(
-    `INSERT INTO phone_messenger_bind_secrets
-       (token_hash, phone_normalized, channel_code, purpose, user_id, status, expires_at)
-     VALUES ($1, $2, $3, $4, $5, 'pending_contact', $6)`,
-    [hashToken(startPayload), phoneNormalized, params.channelCode, params.purpose, userId, expiresAt.toISOString()],
-  );
+  await port.deletePending(phoneNormalized, params.channelCode, params.purpose);
+  await port.insertSecret({
+    tokenHash: hashToken(startPayload),
+    phoneNormalized,
+    channelCode: params.channelCode,
+    purpose: params.purpose,
+    userId,
+    expiresAtIso: expiresAt.toISOString(),
+  });
 
   logger.info({
     event: "phone_messenger_bind_start",
@@ -263,6 +254,7 @@ export async function completePhoneMessengerBindFromIntegrator(
     contactPhoneNormalized: string;
   },
   phoneAuthDeps: PhoneAuthDeps,
+  bindPort?: PhoneMessengerBindPort,
 ): Promise<CompletePhoneMessengerBindResult> {
   const trimmed = params.setupToken.trim();
   if (!/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
@@ -278,8 +270,12 @@ export async function completePhoneMessengerBindFromIntegrator(
     return { ok: false, code: "invalid_contact_phone" };
   }
 
-  const pool = getPool();
-  const row = await loadSecretByHash(pool, hashToken(trimmed));
+  const port = resolveBindPort(bindPort);
+  if (!port) {
+    return { ok: false, code: "database_unavailable" };
+  }
+
+  const row = await port.findByTokenHash(hashToken(trimmed));
   if (!row) {
     return { ok: false, code: "unknown_or_expired" };
   }
@@ -289,10 +285,7 @@ export async function completePhoneMessengerBindFromIntegrator(
   }
 
   if (new Date(row.expires_at).getTime() < Date.now()) {
-    await pool.query(
-      `UPDATE phone_messenger_bind_secrets SET status = 'expired' WHERE id = $1`,
-      [row.id],
-    );
+    await port.updateExpired(row.id);
     return { ok: false, code: "expired" };
   }
 

@@ -124,7 +124,7 @@ export async function runPatientWebPushNotify(
 
   const timeZone = await getAppDisplayTimeZone();
   const copy = buildCopy(body, timeZone);
-  if (!copy?.title.trim() && !copy?.body.trim()) {
+  if (!copy || (!copy.title.trim() && !copy.body.trim())) {
     return { ok: true, skipped: "push_copy_empty" };
   }
 

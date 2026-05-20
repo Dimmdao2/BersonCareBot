@@ -106,6 +106,17 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 - Отдельные публичные auth-route могут дополнительно логировать **`logAuthRouteTiming`** (см. реализации маршрутов); секреты в лог не попадают.
 
+### Phone messenger bind (вход / привязка по `auth_*`)
+
+Поток для **публичного браузера/PWA** и **inline-привязки в профиле**, когда у номера ещё нет привязки TG/Max для OTP: вместо SMS — deep link в бота, контакт, код в чате, затем `phone/confirm`.
+
+- **`POST /api/auth/phone/messenger-bind/start`** — тело `{ phone, channelCode: "telegram"|"max", purpose: "login"|"profile_bind" }`. **`profile_bind`** требует сессию пациента. Ответ: `{ ok, setupToken, url, expiresAtIso, manualCommand? }` (`setupToken` = `auth_*`). **Rate limit:** scope `auth.phone_messenger_bind_start` (ключ — userId для `profile_bind`, иначе IP/anon), до **30**/час в `auth_rate_limit_events`.
+- **`POST /api/auth/phone/messenger-bind/status`** — `{ setupToken }` → `pending_contact` \| `otp_ready` (+ `challengeId`, `retryAfterSeconds`) \| `failed` \| `expired` \| `consumed`.
+- **`POST /api/integrator/phone-messenger-bind/complete`** (M2M, подпись как channel-link) — контакт из бота; при успехе создаётся OTP-challenge, secret → `otp_ready`. **Replay:** если secret уже `otp_ready` — **200** с тем же `otpCode` и `challengeId` (`replay: true`); если `consumed` — **200** `{ status: "already_used" }` без кода.
+- После **`POST /api/auth/phone/confirm`** — `markPhoneMessengerBindConsumedByChallenge(challengeId)` → secret `consumed`.
+
+Клиент: `PhoneMessengerAuthFlow` (`purpose: login` в `AuthFlowV2`, `profile_bind` в `PatientProfileHero` и **`/app/patient/bind-phone` в браузере**). Mini App на bind-phone — по-прежнему `PatientBindPhoneClient` (request-contact). Открытие deep link — `finishChannelLinkNavigation` (как channel-link). Логи: `phone_messenger_bind_start`, `phone_messenger_bind_complete_ok|fail` (без `otpCode`). Runbook: `docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md`.
+
 ### Channel link (старт ссылки из сессии)
 
 - **`POST /api/auth/channel-link/start`** (авторизованный пациент): deep link Telegram (`t.me/…`) и при настроенном нике Max — `https://max.ru/<nick>?start=link_…`, иначе URL-заглушка и команда `/start link_…`. **Rate limit:** scope `auth.channel_link_start`, ключ — `userId` сессии (до **30** запросов за скользящий час в `auth_rate_limit_events`; без БД — in-memory fallback), аналогично `auth.messenger_start`. Ответ **429** `rate_limited` при превышении.
@@ -167,7 +178,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ## API-маршруты (часто используемые)
 
-`/api/auth/exchange`, `/api/auth/telegram-init`, **`/api/auth/max-init`**, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/channel-link/start`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/yandex`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET). Пациентский контур: `POST /api/patient/support` (см. выше).
+`/api/auth/exchange`, `/api/auth/telegram-init`, **`/api/auth/max-init`**, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, **`/api/auth/phone/messenger-bind/start`**, **`/api/auth/phone/messenger-bind/status`**, **`/api/integrator/phone-messenger-bind/complete`**, `/api/auth/channel-link/start`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/yandex`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET). Пациентский контур: `POST /api/patient/support` (см. выше).
 
 ## Integrator → webapp: идемпотентность `POST /api/integrator/events`
 

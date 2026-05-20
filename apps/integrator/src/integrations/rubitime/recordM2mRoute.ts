@@ -223,6 +223,7 @@ async function scheduleBookingReminders(input: {
   phoneNormalized: string | null;
   patientName: string | null;
   timeZone: string;
+  webappEventsPort?: WebappEventsPort;
 }): Promise<void> {
   const deliveryTargets = createDeliveryTargetsPort({
     getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
@@ -275,6 +276,11 @@ async function scheduleBookingReminders(input: {
       targets,
       retry: { maxAttempts: 2, backoffSeconds: [60] },
       booking: { bookingId: input.bookingId, reminderCode: reminder.code },
+      webappPushNotify: {
+        phoneNormalized: input.phoneNormalized,
+        slotStartIso: input.slotStartIso,
+        stableKey: `booking-reminder:${input.bookingId}:${reminder.code}`,
+      },
     };
     await enqueueMessageRetryJob(db, {
       phoneNormalized: input.phoneNormalized,
@@ -287,9 +293,46 @@ async function scheduleBookingReminders(input: {
   }
 }
 
+async function sendBookingWebPush(input: {
+  webappEventsPort?: WebappEventsPort;
+  phoneNormalized: string | null;
+  intentType: 'appointment_lifecycle' | 'appointment_reminder';
+  slotStartIso: string;
+  stableKey: string;
+  variant?: 'created' | 'cancelled' | 'rescheduled';
+  nowIso?: string;
+}): Promise<void> {
+  if (!input.webappEventsPort?.notifyPatientWebPush || !input.phoneNormalized) return;
+  const dbPort = createDbPort();
+  const base = (await getAppBaseUrl(dbPort)).replace(/\/$/, '');
+  const openUrl = `${base}/app/patient/booking/new`;
+  const body = JSON.stringify({
+    phoneNormalized: input.phoneNormalized,
+    topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
+    intentType: input.intentType,
+    ...(input.variant ? { variant: input.variant } : {}),
+    slotStartIso: input.slotStartIso,
+    openUrl,
+    stableKey: input.stableKey,
+    ...(input.nowIso ? { nowIso: input.nowIso } : {}),
+  });
+  try {
+    await input.webappEventsPort.notifyPatientWebPush({
+      body,
+      idempotencyKey: `pwp:${input.stableKey}`.slice(0, 240),
+    });
+  } catch (err) {
+    logger.warn(
+      { err, stableKey: input.stableKey },
+      'booking web push notify failed',
+    );
+  }
+}
+
 async function handleBookingLifecycleEvent(
   body: BookingLifecycleEventValidated,
   dispatchPort: DispatchPort,
+  webappEventsPort?: WebappEventsPort,
 ): Promise<void> {
   const { payload, eventType } = body;
   const bookingId = payload.bookingId;
@@ -310,6 +353,14 @@ async function handleBookingLifecycleEvent(
       eventId: `booking-created:${bookingId}`,
     });
     await sendDoctorMessage(dispatchPort, doctorCreatedText(payload, timeZone), `booking-created:${bookingId}`);
+    await sendBookingWebPush({
+      webappEventsPort,
+      phoneNormalized: contactPhone,
+      intentType: 'appointment_lifecycle',
+      variant: 'created',
+      slotStartIso: payload.slotStart,
+      stableKey: `booking-created:${bookingId}`,
+    });
     await cancelPendingBookingReminders(bookingId);
     await scheduleBookingReminders({
       bookingId,
@@ -317,6 +368,7 @@ async function handleBookingLifecycleEvent(
       phoneNormalized: contactPhone,
       patientName,
       timeZone,
+      webappEventsPort,
     });
     rememberBookingEventKey(dedupKey);
     return;
@@ -332,6 +384,14 @@ async function handleBookingLifecycleEvent(
       eventId: `booking-cancelled:${bookingId}`,
     });
     await sendDoctorMessage(dispatchPort, doctorCancelledText(payload, timeZone), `booking-cancelled:${bookingId}`);
+    await sendBookingWebPush({
+      webappEventsPort,
+      phoneNormalized: contactPhone,
+      intentType: 'appointment_lifecycle',
+      variant: 'cancelled',
+      slotStartIso: payload.slotStart,
+      stableKey: `booking-cancelled:${bookingId}`,
+    });
     rememberBookingEventKey(dedupKey);
     return;
   }
@@ -611,7 +671,7 @@ export async function registerRubitimeRecordM2mRoutes(
       return reply.code(400).send({ ok: false, error: 'invalid_booking_event' });
     }
     try {
-      await handleBookingLifecycleEvent(parsed.data, dispatchPort);
+      await handleBookingLifecycleEvent(parsed.data, dispatchPort, deps.webappEventsPort);
       return reply.code(200).send({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

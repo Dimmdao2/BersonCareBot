@@ -2,6 +2,11 @@ import type { DeliveryAttemptResult, DeliveryJob, DeliverySendResult, OutgoingIn
 
 export type JobExecutorDeps = {
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
+  dispatchWebappPush?: (input: {
+    phoneNormalized: string;
+    slotStartIso: string;
+    stableKey: string;
+  }) => Promise<void>;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
