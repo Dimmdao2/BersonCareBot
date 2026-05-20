@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
 import { mergePatientTimezoneSelectLabels } from "@/shared/timezone/patientTimezoneSelectLabels";
 import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { useMobileViewport } from "@/app/app/patient/cabinet/useMobileViewport";
 import { PATIENT_CALENDAR_TZ_BOOTSTRAP_EVENT } from "../PatientCalendarTimezoneBootstrap";
 
 const patientTzSelectStyles: StylesConfig<ITimezone, false> = {
@@ -64,6 +65,7 @@ const patientTzSelectStyles: StylesConfig<ITimezone, false> = {
 
 export function PatientCalendarTimezoneSection() {
   const router = useRouter();
+  const isMobileViewport = useMobileViewport();
   /** `null` в UI — в БД ещё нет своего IANA (плейсхолдер по умолчанию приложения). */
   const [iana, setIana] = useState<string | null>(null);
   const [appDefaultTimezonePlaceholder, setAppDefaultTimezonePlaceholder] = useState("");
@@ -163,7 +165,7 @@ export function PatientCalendarTimezoneSection() {
           labelStyle="original"
           displayValue="UTC"
           isDisabled={!loaded || saving}
-          isSearchable
+          isSearchable={!isMobileViewport}
           placeholder={loaded && iana === null ? appDefaultTimezonePlaceholder || undefined : undefined}
           styles={patientTzSelectStyles as never}
           menuPortalTarget={typeof document !== "undefined" ? document.body : null}
