@@ -49,4 +49,25 @@ describe("createInMemoryReminderRulesPort", () => {
     const rules = await port.listByPlatformUser("u1");
     expect(rules[0]?.linkedObjectId).toBe("my-old");
   });
+
+  it("retargetRehabProgramInstanceLinkedId updates rehab_program linked_object_id", async () => {
+    const platformUserId = "00000000-0000-4000-8000-000000000001";
+    const rehabRule: ReminderRule = {
+      ...sampleRule(),
+      id: "r3",
+      linkedObjectType: "rehab_program",
+      linkedObjectId: "11111111-1111-4111-8111-111111111111",
+    };
+    const port = createInMemoryReminderRulesPort([rehabRule], {
+      platformUserIdByRuleId: { r3: platformUserId },
+    });
+    const n = await port.retargetRehabProgramInstanceLinkedId(
+      platformUserId,
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    );
+    expect(n).toBe(1);
+    const rules = await port.listByPlatformUser(platformUserId);
+    expect(rules[0]?.linkedObjectId).toBe("22222222-2222-4222-8222-222222222222");
+  });
 });

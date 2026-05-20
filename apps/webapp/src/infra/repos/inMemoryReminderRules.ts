@@ -204,5 +204,22 @@ export function createInMemoryReminderRulesPort(
         store.set(id, { ...rule, linkedObjectId: newSlug, updatedAt: new Date().toISOString() });
       }
     },
+
+    async retargetRehabProgramInstanceLinkedId(platformUserId: string, oldInstanceId: string, newInstanceId: string) {
+      const oldT = oldInstanceId.trim();
+      const newT = newInstanceId.trim();
+      if (!oldT || !newT || oldT === newT) return 0;
+      let n = 0;
+      for (const [id, rule] of store) {
+        const rulePlatformUserId = platformUserIdByRuleId.get(id) ?? rule.integratorUserId;
+        if (rulePlatformUserId !== platformUserId) continue;
+        if (rule.linkedObjectType !== "rehab_program") continue;
+        const rid = rule.linkedObjectId?.trim();
+        if (!rid || rid !== oldT) continue;
+        store.set(id, { ...rule, linkedObjectId: newT, updatedAt: new Date().toISOString() });
+        n += 1;
+      }
+      return n;
+    },
   };
 }

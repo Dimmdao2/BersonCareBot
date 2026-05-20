@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -21,9 +22,12 @@ export function DefaultPromoProgramClient(props: {
   stats: { activePromo: number; completedPromo: number };
 }) {
   const { initialTemplateId, templates, stats } = props;
+  const router = useRouter();
   const initialSelect = initialTemplateId.trim() ? initialTemplateId.trim() : PROMO_TEMPLATE_NONE;
   const [selected, setSelected] = useState(initialSelect);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const hasSavedPromoTemplate = initialTemplateId.trim().length > 0;
 
   const onSave = async () => {
     setSaving(true);
@@ -39,8 +43,30 @@ export function DefaultPromoProgramClient(props: {
         return;
       }
       toast.success("Сохранено");
+      router.refresh();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/doctor/treatment-program-promo/refresh", { method: "POST" });
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        refreshedCount?: number;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        toast.error(data?.error ?? "Не удалось обновить");
+        return;
+      }
+      const count = data.refreshedCount ?? 0;
+      toast.success(count > 0 ? `Обновлено: ${count} программ` : "Активных промо-программ нет");
+      router.refresh();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -50,21 +76,31 @@ export function DefaultPromoProgramClient(props: {
   return (
     <div className="flex max-w-xl flex-col gap-6">
       <div className="flex max-w-xl flex-col gap-4">
-        <Select value={selected} onValueChange={(v) => setSelected(v ?? PROMO_TEMPLATE_NONE)}>
-          <SelectTrigger displayLabel={displayLabel} className="w-full max-w-xl">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={PROMO_TEMPLATE_NONE} label="Не задано">
-              Не задано
-            </SelectItem>
-            {templates.map((t) => (
-              <SelectItem key={t.id} value={t.id} label={t.title}>
-                {t.title}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+          <Select value={selected} onValueChange={(v) => setSelected(v ?? PROMO_TEMPLATE_NONE)}>
+            <SelectTrigger displayLabel={displayLabel} className="w-full sm:flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={PROMO_TEMPLATE_NONE} label="Не задано">
+                Не задано
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              {templates.map((t) => (
+                <SelectItem key={t.id} value={t.id} label={t.title}>
+                  {t.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={refreshing || !hasSavedPromoTemplate}
+            onClick={() => void onRefresh()}
+          >
+            {refreshing ? "…" : "Обновить"}
+          </Button>
+        </div>
         <Button type="button" disabled={saving} onClick={() => void onSave()}>
           Сохранить
         </Button>

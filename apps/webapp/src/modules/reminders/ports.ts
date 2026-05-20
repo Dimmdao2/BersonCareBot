@@ -65,4 +65,10 @@ export type ReminderRulesPort = {
   getReminderMutedUntil(platformUserId: string): Promise<string | null>;
   /** После успешного переименования страницы: обновить slug в `linked_object_id` для `content_page`. */
   retargetContentPageLinkedSlug(contentPageId: string, oldSlug: string, newSlug: string): Promise<void>;
+  /** После пересоздания promo-инстанса: обновить `linked_object_id` у `rehab_program`. */
+  retargetRehabProgramInstanceLinkedId(
+    platformUserId: string,
+    oldInstanceId: string,
+    newInstanceId: string,
+  ): Promise<number>;
 };

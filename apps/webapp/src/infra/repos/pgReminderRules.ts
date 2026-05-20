@@ -425,5 +425,19 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
         [newSlug, contentPageId, oldSlug],
       );
     },
+
+    async retargetRehabProgramInstanceLinkedId(platformUserId, oldInstanceId, newInstanceId) {
+      const pool = getPool();
+      const r = await pool.query(
+        `UPDATE reminder_rules
+         SET linked_object_id = $3, updated_at = now()
+         WHERE platform_user_id = $1::uuid
+           AND linked_object_type = 'rehab_program'
+           AND btrim(linked_object_id) = $2
+         RETURNING 1 AS n`,
+        [platformUserId, oldInstanceId.trim(), newInstanceId.trim()],
+      );
+      return r.rowCount ?? 0;
+    },
   };
 }

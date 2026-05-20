@@ -540,6 +540,76 @@ describe("treatment-program instance service", () => {
         "Промо-программа не настроена",
       );
     });
+
+    it("refreshActivePromoProgramsFromDefaultTemplate completes active promo and creates new instance", async () => {
+      const tplPortLocal = createInMemoryTreatmentProgramPort();
+      const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const tpl = await tplLocal.createTemplate({ title: "Промо v1", status: "published" }, null);
+      await tplLocal.createStage(tpl.id, { title: "Этап 1" });
+      const { instSvc, instancePort, eventsPort } = makePromoSvc(async () => tpl.id);
+
+      const first = await instSvc.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: patient,
+        assignedBy: null,
+        assignmentSource: "promo",
+      });
+
+      const result = await instSvc.refreshActivePromoProgramsFromDefaultTemplate({ actorUserId: doctorId });
+      expect(result.refreshedCount).toBe(1);
+      expect(result.pairs[0]).toMatchObject({
+        patientUserId: patient,
+        oldInstanceId: first.id,
+      });
+
+      const oldRow = await instancePort.getInstanceById(first.id);
+      expect(oldRow?.status).toBe("completed");
+
+      const evs = await eventsPort.listEventsForInstance(first.id);
+      expect(
+        evs.some(
+          (e) =>
+            e.eventType === "status_changed" &&
+            (e.payload as { supersededBy?: string }).supersededBy === "promo_refresh",
+        ),
+      ).toBe(true);
+
+      const active = (await instancePort.listInstancesForPatient(patient)).filter((r) => r.status === "active");
+      expect(active).toHaveLength(1);
+      expect(active[0]?.assignmentSource).toBe("promo");
+      expect(active[0]?.id).not.toBe(first.id);
+    });
+
+    it("listForPatientClinicalView excludes promo instances", async () => {
+      const { tplSvc: tps, instSvc: isvc } = makePromoSvc();
+      const tplPromo = await tps.createTemplate({ title: "Промо", status: "published" }, null);
+      await tps.createStage(tplPromo.id, { title: "Этап 1" });
+      const tplDoc = await tps.createTemplate({ title: "Клиника", status: "published" }, null);
+      await tps.createStage(tplDoc.id, { title: "Этап 1" });
+
+      const promoOnlyPatient = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+      const doctorPatient = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+      await isvc.assignTemplateToPatient({
+        templateId: tplPromo.id,
+        patientUserId: promoOnlyPatient,
+        assignedBy: null,
+        assignmentSource: "promo",
+      });
+      await isvc.assignTemplateToPatient({
+        templateId: tplDoc.id,
+        patientUserId: doctorPatient,
+        assignedBy: doctorId,
+        assignmentSource: "doctor",
+      });
+
+      const promoClinical = await isvc.listForPatientClinicalView(promoOnlyPatient);
+      expect(promoClinical).toHaveLength(0);
+
+      const doctorClinical = await isvc.listForPatientClinicalView(doctorPatient);
+      expect(doctorClinical).toHaveLength(1);
+      expect(doctorClinical[0]?.assignmentSource).toBe("doctor");
+    });
   });
 
   describe("doctorExpandTestSetIntoStage", () => {

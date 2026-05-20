@@ -1188,6 +1188,53 @@ describe("treatment-program progress-service", () => {
     expect(logRows.some((r) => r.payload?.source === "test_submitted")).toBe(true);
   });
 
+  it("listPendingTestEvaluationsForPatient excludes active promo instances", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      assignmentSource: "promo",
+      title: "Промо",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "clinical_test",
+              itemRefId: testId,
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "clinical_test",
+                title: "T",
+                tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await progress.patientSubmitTestResult({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      testId,
+      rawValue: { score: 6 },
+    });
+    const pending = await progress.listPendingTestEvaluationsForPatient(patient);
+    expect(pending.some((x) => x.instanceId === inst.id)).toBe(false);
+  });
+
   it("§8: stage_skipped записывается в treatment_program_events", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
