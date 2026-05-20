@@ -22,7 +22,6 @@ import {
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { patientHomeChipFallbackImageSrc, patientHomeChipImageSrc } from "./patientHomeChipImageSrc";
 import { streakFlameOpacity } from "./patientHomeStreakFlameOpacity";
 import { cn } from "@/lib/utils";
 
@@ -179,8 +178,7 @@ export function PatientHomeProgressBlock({
                 aria-hidden
               >
                 <PatientHomeSafeImage
-                  src={patientHomeChipImageSrc(blockIconImageUrl)}
-                  fallbackSrc={patientHomeChipFallbackImageSrc(blockIconImageUrl)}
+                  src={blockIconImageUrl}
                   alt=""
                   className="size-7 shrink-0 rounded-full object-cover"
                   loading="lazy"

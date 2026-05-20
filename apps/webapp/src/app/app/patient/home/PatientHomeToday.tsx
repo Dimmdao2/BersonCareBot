@@ -61,6 +61,7 @@ import { hrefForPatientHomeDrilldown, stripApiMediaForAnonymousGuest } from "./p
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { DateTime } from "luxon";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
+import { resolvePatientHomeBlockLeadingIconUrl } from "@/modules/patient-home/patientHomeStaticIcons";
 import type { ChecklistTodaySnapshot } from "@/modules/treatment-program/patient-program-actions";
 import { computePracticeStreak } from "@/modules/patient-practice/streakLogic";
 import {
@@ -427,8 +428,12 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   const unreadChatCount =
     session && personalTierOk ? await deps.messaging.patient.unreadCount(session.user.userId) : 0;
 
-  const blockLeadingIconFor = (code: PatientHomeBlockCode) =>
-    stripApiMediaForAnonymousGuest(homeBlocks.find((b) => b.code === code)?.iconImageUrl ?? null, anonymousGuest);
+  const blockLeadingIconFor = (code: PatientHomeBlockCode) => {
+    const cmsIcon = homeBlocks.find((b) => b.code === code)?.iconImageUrl ?? null;
+    const resolved = resolvePatientHomeBlockLeadingIconUrl(code, cmsIcon);
+    if (resolved?.startsWith("/patient/")) return resolved;
+    return stripApiMediaForAnonymousGuest(resolved, anonymousGuest);
+  };
 
   const renderBlock = (code: PatientHomeBlockCode): ReactNode => {
     switch (code) {

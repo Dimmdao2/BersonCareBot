@@ -44,7 +44,7 @@ describe("PatientHomeProgressBlock", () => {
       />,
     );
     const img = container.querySelector("img");
-    expect(img).toHaveAttribute("src", "/api/media/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/preview/sm");
+    expect(img).toHaveAttribute("src", "/api/media/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
   });
 
   it("shows micro goal breakdown labels and extended aria-label when progressGoalBreakdown is set", () => {
