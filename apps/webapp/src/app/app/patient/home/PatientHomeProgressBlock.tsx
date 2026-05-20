@@ -48,14 +48,14 @@ export function PatientHomeProgressBlock({
     progress && showGoal ? Math.min(progress.todayDone, practiceTarget) : progress?.todayDone ?? 0;
   const pct = showGoal ? Math.min(100, Math.round((displayDone / practiceTarget) * 100)) : 0;
 
+  const showWarmupBreakdown = (progressGoalBreakdown?.warmupPlanned ?? 0) > 0;
+  const showLfkBreakdown = (progressGoalBreakdown?.lfkPlanned ?? 0) > 0;
   const showBreakdown =
-    progressGoalBreakdown != null &&
-    showGoal &&
-    (progressGoalBreakdown.warmupPlanned > 0 || progressGoalBreakdown.lfkPlanned > 0);
+    progressGoalBreakdown != null && showGoal && (showWarmupBreakdown || showLfkBreakdown);
 
   const progressAriaLabel =
     showBreakdown ?
-      `Выполнено сегодня: ${progress?.todayDone ?? 0} из ${practiceTarget}. Разминок: ${progressGoalBreakdown!.warmupDone} из ${progressGoalBreakdown!.warmupPlanned}. В плане: ${progressGoalBreakdown!.lfkDone} из ${progressGoalBreakdown!.lfkPlanned}.`
+      `Выполнено сегодня: ${progress?.todayDone ?? 0} из ${practiceTarget}.${showWarmupBreakdown ? ` Разминок: ${progressGoalBreakdown!.warmupDone} из ${progressGoalBreakdown!.warmupPlanned}.` : ""}${showLfkBreakdown ? ` В плане: ${progressGoalBreakdown!.lfkDone} из ${progressGoalBreakdown!.lfkPlanned}.` : ""}`
     : showGoal ?
       `Выполнено сегодня: ${progress?.todayDone ?? 0} из ${practiceTarget}`
     : `Выполнено сегодня: ${progress?.todayDone ?? 0}`;
@@ -124,12 +124,16 @@ export function PatientHomeProgressBlock({
                       className="min-w-0 text-[10px] leading-tight text-[var(--patient-text-muted)] md:text-xs"
                       aria-hidden
                     >
-                      <div>
-                        разминок: {progressGoalBreakdown!.warmupDone} из {progressGoalBreakdown!.warmupPlanned}
-                      </div>
-                      <div>
-                        в плане: {progressGoalBreakdown!.lfkDone} из {progressGoalBreakdown!.lfkPlanned}
-                      </div>
+                      {showWarmupBreakdown ?
+                        <div>
+                          разминок: {progressGoalBreakdown!.warmupDone} из {progressGoalBreakdown!.warmupPlanned}
+                        </div>
+                      : null}
+                      {showLfkBreakdown ?
+                        <div>
+                          в плане: {progressGoalBreakdown!.lfkDone} из {progressGoalBreakdown!.lfkPlanned}
+                        </div>
+                      : null}
                     </div>
                   : null}
                 </div>

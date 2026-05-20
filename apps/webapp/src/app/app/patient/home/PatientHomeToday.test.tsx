@@ -588,7 +588,7 @@ describe("PatientHomeToday", () => {
   });
 
   it("patient tier: progress target uses planned reminders when schedule configured without warmups section rule", async () => {
-    listRulesByUser.mockResolvedValueOnce([
+    listRulesByUser.mockResolvedValue([
       {
         id: "rehab-only",
         integratorUserId: "i1",
@@ -624,11 +624,10 @@ describe("PatientHomeToday", () => {
     });
     render(tree);
 
-    const progressArticle = document.getElementById("patient-home-progress-block");
-    expect(progressArticle).not.toBeNull();
-    const progressLabel = within(progressArticle as HTMLElement).getByLabelText(/^Выполнено сегодня:/);
-    expect(progressLabel.getAttribute("aria-label")).toMatch(/^Выполнено сегодня: 0 из 1$/);
     expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 1);
+    expect(
+      screen.getByLabelText(/^Выполнено сегодня: 0 из 1\. В плане: 0 из 1\.$/),
+    ).toBeInTheDocument();
   });
 
   it("patient tier: week sparkline uses saved calendar IANA when set", async () => {
