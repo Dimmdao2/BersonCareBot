@@ -91,9 +91,9 @@ function tryOpenMaxDeepLinkViaBridge(url: string): boolean {
 }
 
 /** Новая вкладка / внешний браузер (не навигация текущего WebView). */
-function openInNewBrowserTab(url: string): void {
+function openInNewBrowserTab(url: string): boolean {
   const opened = window.open(url, "_blank", "noopener,noreferrer");
-  if (opened) return;
+  if (opened) return true;
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.rel = "noopener noreferrer";
@@ -102,6 +102,7 @@ function openInNewBrowserTab(url: string): void {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
+  return false;
 }
 
 /**
@@ -116,7 +117,16 @@ function openChannelLinkInBrowserOrPwa(
   if (standalonePwa && channel === "max") {
     if (tryOpenMaxDeepLinkViaBridge(toOpen)) return;
     if (!isMaxChannelDeepLinkUrl(toOpen)) return;
-    openInNewBrowserTab(toOpen);
+    const opened = openInNewBrowserTab(toOpen);
+    if (opened) return;
+    // In installed PWA, popup opening after async fetch may be blocked.
+    // Fallback to same-tab navigation so click still has observable effect.
+    try {
+      window.location.assign(toOpen);
+      return;
+    } catch {
+      /* fall through */
+    }
     return;
   }
 

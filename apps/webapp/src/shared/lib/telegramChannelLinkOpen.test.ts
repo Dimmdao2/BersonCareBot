@@ -311,6 +311,29 @@ describe("finishChannelLinkNavigation", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it("falls back to location.assign for max.ru in standalone PWA when popup is blocked", () => {
+    const open = vi.fn(() => null);
+    const assign = vi.fn();
+    standalonePwaSpy.mockReturnValue(true);
+    vi.stubGlobal("open", open);
+    Object.defineProperty(window, "location", {
+      value: { assign },
+      writable: true,
+      configurable: true,
+    });
+    const url = "https://max.ru/MyBot?start=link_abc";
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url,
+      channel: "max",
+      userAgent: iphoneUa,
+    });
+
+    expect(open).toHaveBeenCalledWith(url, "_blank", "noopener,noreferrer");
+    expect(assign).toHaveBeenCalledWith(url);
+  });
+
   it("does not navigate to max.ru stub without start in standalone PWA", () => {
     const open = vi.fn();
     const assign = vi.fn();
