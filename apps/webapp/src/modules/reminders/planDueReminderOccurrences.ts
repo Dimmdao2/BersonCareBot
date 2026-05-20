@@ -1,6 +1,7 @@
 /**
  * Schedule planning for reminder rules (parity with integrator `planDueReminderOccurrences`).
- * Used by Web Push-only tick; integrator scheduler uses its own copy in `apps/integrator`.
+ * Plans only **upcoming** slots for the current local calendar day (strictly after `now`).
+ * Past intervals are not backfilled — dispatch claims rows when `planned_at <= now`.
  */
 
 export type ReminderPlanRule = {
@@ -219,7 +220,7 @@ function planSlotsV1DueOccurrences(rule: ReminderPlanRule, nowIso: string): Remi
       minute: minuteOfDay % 60,
       timeZone: rule.timezone,
     });
-    if (slotUtc.getTime() > now.getTime()) continue;
+    if (slotUtc.getTime() <= now.getTime()) continue;
     results.push({
       occurrenceKey: `${rule.id}:${localDateKey(zonedNow)}:slot:${minuteOfDay}`,
       plannedAt: slotUtc.toISOString(),
@@ -255,7 +256,7 @@ export function planDueReminderOccurrences(rule: ReminderPlanRule, nowIso: strin
       minute: minute % 60,
       timeZone: rule.timezone,
     });
-    if (slotUtc.getTime() > now.getTime()) continue;
+    if (slotUtc.getTime() <= now.getTime()) continue;
     results.push({
       occurrenceKey: `${rule.id}:${localDateKey(zonedNow)}:${minute}`,
       plannedAt: slotUtc.toISOString(),

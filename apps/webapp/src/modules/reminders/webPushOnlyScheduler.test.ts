@@ -80,6 +80,7 @@ describe("runWebPushOnlyReminderTick", () => {
       claimDueOccurrences: vi.fn(async () => [dueOcc]),
       markOccurrenceSent: vi.fn(async () => {}),
       markOccurrenceFailed: vi.fn(async () => {}),
+      expireOrphanedPendingOccurrences: vi.fn(async () => 0),
       resolveLinkedCatalogTitle: vi.fn(async () => "Разминки"),
     };
 
@@ -122,6 +123,7 @@ describe("runWebPushOnlyReminderTick", () => {
       claimDueOccurrences: vi.fn(async () => [dueOcc]),
       markOccurrenceSent: vi.fn(async () => {}),
       markOccurrenceFailed: vi.fn(async () => {}),
+      expireOrphanedPendingOccurrences: vi.fn(async () => 0),
       resolveLinkedCatalogTitle: vi.fn(async () => null),
     };
 
@@ -154,6 +156,7 @@ describe("runWebPushOnlyReminderTick", () => {
       claimDueOccurrences: vi.fn(async () => [dueOcc]),
       markOccurrenceSent: vi.fn(async () => {}),
       markOccurrenceFailed: vi.fn(async () => {}),
+      expireOrphanedPendingOccurrences: vi.fn(async () => 0),
       resolveLinkedCatalogTitle: vi.fn(async () => null),
     };
 
@@ -184,6 +187,7 @@ describe("runWebPushOnlyReminderTick", () => {
       claimDueOccurrences: vi.fn(async () => []),
       markOccurrenceSent: vi.fn(async () => {}),
       markOccurrenceFailed: vi.fn(async () => {}),
+      expireOrphanedPendingOccurrences: vi.fn(async () => 0),
       resolveLinkedCatalogTitle: vi.fn(async () => null),
     };
 
@@ -208,6 +212,7 @@ describe("runWebPushOnlyReminderTick", () => {
       claimDueOccurrences: vi.fn(async () => []),
       markOccurrenceSent: vi.fn(async () => {}),
       markOccurrenceFailed: vi.fn(async () => {}),
+      expireOrphanedPendingOccurrences: vi.fn(async () => 0),
       resolveLinkedCatalogTitle: vi.fn(async () => null),
     };
 
@@ -239,6 +244,7 @@ describe("runWebPushOnlyReminderTick", () => {
       claimDueOccurrences: vi.fn(async () => [dueOcc]),
       markOccurrenceSent: vi.fn(async () => {}),
       markOccurrenceFailed: vi.fn(async () => {}),
+      expireOrphanedPendingOccurrences: vi.fn(async () => 0),
       resolveLinkedCatalogTitle: vi.fn(async () => null),
     };
 
@@ -265,6 +271,7 @@ describe("runWebPushOnlyReminderTick", () => {
       claimDueOccurrences: vi.fn(async () => []),
       markOccurrenceSent: vi.fn(async () => {}),
       markOccurrenceFailed: vi.fn(async () => {}),
+      expireOrphanedPendingOccurrences: vi.fn(async () => 0),
       resolveLinkedCatalogTitle: vi.fn(async () => null),
     };
 
@@ -293,6 +300,7 @@ describe("runWebPushOnlyReminderTick", () => {
       claimDueOccurrences: vi.fn(async () => [dueOcc]),
       markOccurrenceSent: vi.fn(async () => {}),
       markOccurrenceFailed: vi.fn(async () => {}),
+      expireOrphanedPendingOccurrences: vi.fn(async () => 0),
       resolveLinkedCatalogTitle: vi.fn(async () => null),
     };
     runPlatformUserReminderWebPushNotify.mockResolvedValue({ ok: true, delivered: 1 });

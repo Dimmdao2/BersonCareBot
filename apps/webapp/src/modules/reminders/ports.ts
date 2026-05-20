@@ -71,4 +71,6 @@ export type ReminderRulesPort = {
     oldInstanceId: string,
     newInstanceId: string,
   ): Promise<number>;
+  /** Web Push-only: drop planned/queued occurrences after schedule change. */
+  cancelWebPushPendingOccurrences(ruleIntegratorId: string): Promise<void>;
 };

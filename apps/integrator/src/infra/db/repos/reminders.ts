@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
 import type {
   DbPort,
   DueReminderOccurrence,
@@ -352,6 +352,37 @@ export async function upsertReminderRule(db: DbPort, input: ReminderRuleRecord):
     })
     .returning({ updated_at: userReminderRules.updatedAt });
   return rows[0]?.updated_at ?? new Date().toISOString();
+}
+
+export async function cancelPendingReminderOccurrencesForRule(db: DbPort, ruleId: string): Promise<void> {
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .delete(userReminderOccurrences)
+    .where(
+      and(
+        eq(userReminderOccurrences.ruleId, ruleId),
+        inArray(userReminderOccurrences.status, ['planned', 'queued']),
+      ),
+    );
+}
+
+/** Pending rows left from legacy same-day backfill; grace matches webapp web-push tick. */
+export async function expireOrphanedPendingReminderOccurrences(db: DbPort, nowIso: string): Promise<void> {
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .update(userReminderOccurrences)
+    .set({
+      status: 'failed',
+      failedAt: sql`now()`,
+      errorCode: 'orphaned_past_slot',
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        inArray(userReminderOccurrences.status, ['planned', 'queued']),
+        sql`${userReminderOccurrences.plannedAt} < ${nowIso}::timestamptz - interval '3 minutes'`,
+      ),
+    );
 }
 
 export async function upsertReminderOccurrencePlanned(

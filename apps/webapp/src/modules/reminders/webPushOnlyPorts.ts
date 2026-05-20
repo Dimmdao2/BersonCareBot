@@ -46,4 +46,5 @@ export type WebPushOnlyRemindersPort = {
     linkedObjectType: string,
     linkedObjectId: string,
   ): Promise<string | null>;
+  expireOrphanedPendingOccurrences(nowIso: string): Promise<number>;
 };

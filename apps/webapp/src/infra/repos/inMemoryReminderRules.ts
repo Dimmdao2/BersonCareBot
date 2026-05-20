@@ -221,5 +221,7 @@ export function createInMemoryReminderRulesPort(
       }
       return n;
     },
+
+    async cancelWebPushPendingOccurrences(_ruleIntegratorId) {},
   };
 }

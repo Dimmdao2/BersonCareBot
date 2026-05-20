@@ -122,6 +122,8 @@ export async function runWebPushOnlyReminderTick(
   const nowIso = options?.nowIso ?? new Date().toISOString();
   const dispatchLimit = Math.max(1, Math.min(options?.dispatchLimit ?? 50, 100));
 
+  await deps.reminders.expireOrphanedPendingOccurrences(nowIso);
+
   let plannedUpserts = 0;
   const rules = await deps.reminders.listEnabledWebPushOnlyRules(nowIso);
   const rulesFound = rules.length;

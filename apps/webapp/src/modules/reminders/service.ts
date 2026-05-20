@@ -213,7 +213,10 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         data.windowEndMinute !== undefined ||
         data.daysMask !== undefined;
 
+      let scheduleChanged = false;
+
       if (data.schedule) {
+        scheduleChanged = true;
         const qErr = validateQuietHoursPair(
           data.schedule.quietHoursStartMinute,
           data.schedule.quietHoursEndMinute,
@@ -256,6 +259,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           });
         }
       } else if (hasPartialScheduleChange) {
+        scheduleChanged = true;
         if (target.scheduleType === "slots_v1") {
           const daysMask = data.daysMask ?? target.daysMask;
           if (!/^[01]{7}$/.test(daysMask)) return { ok: false, error: "validation_error: daysMask" };
@@ -292,6 +296,10 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
             quietHoursEndMinute: target.quietHoursEndMinute ?? null,
           });
         }
+      }
+
+      if (scheduleChanged) {
+        await port.cancelWebPushPendingOccurrences(ruleId);
       }
 
       const refreshed = await reloadRule(port, platformUserId, ruleId);

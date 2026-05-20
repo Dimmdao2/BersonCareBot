@@ -37,6 +37,7 @@ import {
   markReminderOccurrenceSent,
   markReminderOccurrenceSkippedLocal,
   rescheduleReminderOccurrencePlanned,
+  cancelPendingReminderOccurrencesForRule,
   upsertReminderOccurrencePlanned,
   upsertReminderRule,
 } from './repos/reminders.js';
@@ -904,6 +905,7 @@ export function createDbWritePort(input: {
           const pendingRule: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
+            await cancelPendingReminderOccurrencesForRule(txDb, id);
             const updatedAt = await upsertReminderRule(txDb, {
               id,
               userId: canonicalUserId,

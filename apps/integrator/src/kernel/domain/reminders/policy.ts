@@ -303,7 +303,7 @@ function planSlotsV1DueOccurrences(rule: ReminderRuleRecord, nowIso: string): Re
       minute: minuteOfDay % 60,
       timeZone: rule.timezone,
     });
-    if (slotUtc.getTime() > now.getTime()) continue;
+    if (slotUtc.getTime() <= now.getTime()) continue;
     results.push({
       occurrenceKey: `${rule.id}:${localDateKey(zonedNow)}:slot:${minuteOfDay}`,
       plannedAt: slotUtc.toISOString(),
@@ -342,7 +342,7 @@ export function planDueReminderOccurrences(
       minute: minute % 60,
       timeZone: rule.timezone,
     });
-    if (slotUtc.getTime() > now.getTime()) continue;
+    if (slotUtc.getTime() <= now.getTime()) continue;
     results.push({
       occurrenceKey: `${rule.id}:${localDateKey(zonedNow)}:${minute}`,
       plannedAt: slotUtc.toISOString(),

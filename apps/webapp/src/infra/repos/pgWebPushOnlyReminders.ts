@@ -90,6 +90,31 @@ const RULE_SELECT = `
   rr.reminder_intent
 `;
 
+/** Drop pending rows after schedule change so old catch-up slots never dispatch. */
+export async function cancelWebPushOnlyPendingOccurrencesForRule(integratorRuleId: string): Promise<number> {
+  const pool = getPool();
+  const r = await pool.query(
+    `DELETE FROM webapp_reminder_occurrences
+     WHERE integrator_rule_id = $1
+       AND status IN ('planned', 'queued')`,
+    [integratorRuleId],
+  );
+  return r.rowCount ?? 0;
+}
+
+/** Legacy catch-up rows: pending slot older than grace window (cron runs every minute). */
+export async function expireOrphanedWebPushOnlyPendingOccurrences(nowIso: string): Promise<number> {
+  const pool = getPool();
+  const r = await pool.query(
+    `UPDATE webapp_reminder_occurrences
+     SET status = 'failed', failed_at = now(), error_code = 'orphaned_past_slot', updated_at = now()
+     WHERE status IN ('planned', 'queued')
+       AND planned_at < $1::timestamptz - interval '3 minutes'`,
+    [nowIso],
+  );
+  return r.rowCount ?? 0;
+}
+
 export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
   return {
     async listEnabledWebPushOnlyRules(nowIso) {
@@ -213,6 +238,10 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
          WHERE id = $1::uuid`,
         [occurrenceId, errorCode.slice(0, 120)],
       );
+    },
+
+    async expireOrphanedPendingOccurrences(nowIso) {
+      return expireOrphanedWebPushOnlyPendingOccurrences(nowIso);
     },
 
     async resolveLinkedCatalogTitle(linkedObjectType, linkedObjectId) {
