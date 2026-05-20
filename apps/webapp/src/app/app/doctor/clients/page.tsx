@@ -57,7 +57,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
           deps.treatmentProgram.listTemplates({ includeArchived: false, status: "published" }),
           deps.treatmentProgramProgress.listPendingTestEvaluationsForPatient(selected),
           Boolean(env.DATABASE_URL)
-            ? deps.treatmentProgramInstance.listForPatient(selected)
+            ? deps.treatmentProgramInstance.listForPatientClinicalView(selected)
             : Promise.resolve([]),
         ]).then(
           ([profile, messageHistory, publishedTreatmentTemplates, pendingProgramTests, treatmentProgramInstances]) =>

@@ -1,5 +1,7 @@
 /** Парсинг `system_settings.patient_home_mood_icons` для главной пациента. */
 
+import { PATIENT_HOME_MOOD_STATIC_ICON_URL } from "./patientHomeStaticIcons";
+
 export type PatientHomeMoodIconOption = {
   score: 1 | 2 | 3 | 4 | 5;
   label: string;
@@ -22,7 +24,8 @@ function unwrapValueJson(valueJson: unknown): unknown {
 }
 
 /**
- * Возвращает 5 кнопок настроения (1-5) с label; без картинки из настроек UI показывает стандартные Lucide-иконки.
+ * Возвращает 5 кнопок настроения (1-5) с label.
+ * Картинка: override из admin settings, иначе bundled PNG из `public/patient/home/icons/mood/`.
  */
 export function parsePatientHomeMoodIcons(valueJson: unknown): readonly PatientHomeMoodIconOption[] {
   const raw = unwrapValueJson(valueJson);
@@ -48,7 +51,8 @@ export function parsePatientHomeMoodIcons(valueJson: unknown): readonly PatientH
   for (const s of [1, 2, 3, 4, 5] as const) {
     const d = fromDb.get(s);
     const def = DEFAULT_BY_SCORE[s];
-    const imageUrl = d?.imageUrl && d.imageUrl.length > 0 ? d.imageUrl : null;
+    const imageUrl =
+      d?.imageUrl && d.imageUrl.length > 0 ? d.imageUrl : PATIENT_HOME_MOOD_STATIC_ICON_URL[s];
     out.push({
       score: s,
       label: d?.label && d.label.length > 0 ? d.label : def.label,

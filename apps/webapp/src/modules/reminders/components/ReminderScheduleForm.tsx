@@ -1,6 +1,4 @@
 import type { Dispatch, SetStateAction } from "react";
-import Link from "next/link";
-import { routePaths } from "@/app-layer/routes/paths";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PatientDurationHmWheels } from "@/shared/ui/patient/PatientDurationHmWheels";
@@ -58,7 +56,6 @@ export type ReminderScheduleFormProps = {
   setQuietStart: (s: string) => void;
   quietEnd: string;
   setQuietEnd: (s: string) => void;
-  deliveryNote?: string;
   previewBadgeLabel: string;
   previewText: string;
   error: string | null;
@@ -89,7 +86,6 @@ export function ReminderScheduleForm({
   setQuietStart: _setQuietStart,
   quietEnd: _quietEnd,
   setQuietEnd: _setQuietEnd,
-  deliveryNote,
   previewBadgeLabel,
   previewText,
   error,
@@ -139,22 +135,22 @@ export function ReminderScheduleForm({
             onClick={() => setScheduleMode("slots_v1")}
             disabled={submitting}
           >
-            Фиксированное время
+            Точное время
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
           {scheduleMode === "slots_v1"
             ? "Напоминать несколько раз в день в выбранное время."
-            : "Напоминать каждые N минут в выбранном окне времени."}
+            : "Напоминать каждые N минут в выбранном периоде времени."}
         </p>
       </div>
 
       {scheduleMode === "interval_window" ? (
         <div className={reminderScheduleSettingPanelClass}>
-          <h3 className={patientSectionTitleNormalClass}>Окно и интервал</h3>
+          <h3 className={patientSectionTitleNormalClass}>Период и интервал</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-start`}>Начало окна</Label>
+              <Label htmlFor={`${formId}-start`}>Начало периода</Label>
               <Input
                 id={`${formId}-start`}
                 type="time"
@@ -165,7 +161,7 @@ export function ReminderScheduleForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-end`}>Конец окна</Label>
+              <Label htmlFor={`${formId}-end`}>Конец периода</Label>
               <Input
                 id={`${formId}-end`}
                 type="time"
@@ -212,6 +208,19 @@ export function ReminderScheduleForm({
               onClick={() => setSlotTimeRows([DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00"])}
             >
               Утро
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={submitting}
+              onClick={() =>
+                setSlotTimeRows([
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[DEFAULT_REHAB_DAILY_SLOTS.timesLocal.length - 1] ?? "19:00",
+                ])
+              }
+            >
+              Вечер
             </Button>
             <Button
               type="button"
@@ -351,18 +360,6 @@ export function ReminderScheduleForm({
           </p>
         </div>
       )}
-
-      {deliveryNote ? (
-        <div className={cn(reminderScheduleSettingPanelClass, "gap-3")}>
-          <p className="text-sm text-muted-foreground">{deliveryNote}</p>
-          <Link
-            href={routePaths.notifications}
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full sm:w-auto")}
-          >
-            Настроить каналы доставки
-          </Link>
-        </div>
-      ) : null}
 
       <div className={reminderScheduleSettingPanelClass}>
         <div className="flex flex-wrap items-center gap-2">

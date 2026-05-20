@@ -295,6 +295,12 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
     },
 
+    async listInstancesForPatientClinicalView(patientUserId: string) {
+      return [...instances.values()]
+        .filter((i) => i.patientUserId === patientUserId && i.assignmentSource !== "promo")
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+    },
+
     async countInstancesWhere(filter: {
       assignmentSource: TreatmentProgramAssignmentSource;
       status?: TreatmentProgramInstanceStatus;
@@ -306,6 +312,19 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         n += 1;
       }
       return n;
+    },
+
+    async listInstancesWhere(filter: {
+      assignmentSource: TreatmentProgramAssignmentSource;
+      status?: TreatmentProgramInstanceStatus;
+    }) {
+      return [...instances.values()]
+        .filter((i) => {
+          if (i.assignmentSource !== filter.assignmentSource) return false;
+          if (filter.status !== undefined && i.status !== filter.status) return false;
+          return true;
+        })
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1) || (a.id < b.id ? 1 : -1));
     },
 
     async updateStageItemLocalComment(instanceId: string, stageItemId: string, localComment: string | null) {
@@ -1100,6 +1119,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         if (!st) continue;
         const inst = instances.get(st.instanceId);
         if (!inst || inst.patientUserId !== patientUserId || inst.status !== "active") continue;
+        if (inst.assignmentSource === "promo") continue;
         out.push({
           attemptId: att.id,
           attemptSubmittedAt: att.submittedAt!,

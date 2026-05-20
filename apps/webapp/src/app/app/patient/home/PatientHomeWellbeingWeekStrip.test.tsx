@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DateTime } from "luxon";
 import { render } from "@testing-library/react";
 import { PatientHomeWellbeingWeekStrip } from "./PatientHomeWellbeingWeekStrip";
+import { HOME_WELLBEING_STRIP_DAY_COUNT } from "./buildPatientHomeWellbeingWeekStripChart";
 
 describe("PatientHomeWellbeingWeekStrip", () => {
   beforeEach(() => {
@@ -13,7 +14,7 @@ describe("PatientHomeWellbeingWeekStrip", () => {
     vi.useRealTimers();
   });
 
-  it("draws a horizontal dashed path to the first score (Monday-only), not a vertical tick", () => {
+  it("draws a horizontal dashed path to the first score, not a vertical tick", () => {
     const monday = DateTime.fromObject({ year: 2026, month: 5, day: 18, hour: 12 }, { zone: "Europe/Moscow" });
     vi.setSystemTime(monday.toMillis());
     const { container } = render(
@@ -34,7 +35,7 @@ describe("PatientHomeWellbeingWeekStrip", () => {
     expect(container.querySelectorAll("line").length).toBe(1);
   });
 
-  it("uses a solid gradient bridge from previous Sunday to Monday when both exist", () => {
+  it("uses a solid gradient bridge from anchor day when both exist", () => {
     const monday = DateTime.fromObject({ year: 2026, month: 5, day: 18, hour: 12 }, { zone: "Europe/Moscow" });
     vi.setSystemTime(monday.toMillis());
     const { container } = render(
@@ -46,12 +47,21 @@ describe("PatientHomeWellbeingWeekStrip", () => {
           },
         ]}
         timeZone="Europe/Moscow"
-        previousSundayHadMarks
-        previousSundayLastScore={4}
-        lastScoreBeforeWeek={4}
+        anchorDayBeforeWindowHadMarks
+        anchorDayBeforeWindowLastScore={4}
+        lastScoreBeforeWindow={4}
       />,
     );
     expect(container.querySelector('path[stroke-dasharray="4 3"]')).toBeNull();
     expect(container.querySelector("linearGradient")).not.toBeNull();
+  });
+
+  it("renders day labels for the rolling window only", () => {
+    const wednesday = DateTime.fromObject({ year: 2026, month: 5, day: 20, hour: 12 }, { zone: "Europe/Moscow" });
+    vi.setSystemTime(wednesday.toMillis());
+    const { container } = render(
+      <PatientHomeWellbeingWeekStrip marks={[]} timeZone="Europe/Moscow" />,
+    );
+    expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(HOME_WELLBEING_STRIP_DAY_COUNT);
   });
 });

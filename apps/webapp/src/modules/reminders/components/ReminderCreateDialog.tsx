@@ -67,9 +67,6 @@ export type ReminderCreateDialogProps = {
   onSaved: () => void;
 };
 
-const DELIVERY_NOTE =
-  "Уведомления приходят в доступный канал бота (Telegram или MAX), если он подключён.";
-
 type ReminderApiResponse = {
   ok?: boolean;
   error?: string;
@@ -285,7 +282,7 @@ export function ReminderCreateDialog({
         return;
       }
       if (ws >= we) {
-        setError("Начало окна должно быть раньше конца.");
+        setError("Начало периода должно быть раньше конца.");
         scrollToError();
         return;
       }
@@ -421,7 +418,6 @@ export function ReminderCreateDialog({
       setQuietStart={setQuietStart}
       quietEnd={quietEnd}
       setQuietEnd={setQuietEnd}
-      deliveryNote={DELIVERY_NOTE}
       previewBadgeLabel={isCustom ? customTitle.trim() || "Заголовок" : contextTitle}
       previewText={previewText}
       error={error}

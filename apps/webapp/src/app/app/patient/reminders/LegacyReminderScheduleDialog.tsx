@@ -63,9 +63,6 @@ function getMobileViewportSnapshot(): boolean {
 
 const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
 
-const DELIVERY_NOTE =
-  "Уведомления приходят в доступный канал бота (Telegram или MAX), если он подключён.";
-
 function dedupeSortTimes(times: string[]): string[] {
   const set = new Set(times.map((t) => t.trim()).filter(Boolean));
   return [...set].sort((a, b) => a.localeCompare(b, "en"));
@@ -210,7 +207,7 @@ export function LegacyReminderScheduleDialog({
         return;
       }
       if (ws >= we) {
-        setError("Начало окна должно быть раньше конца.");
+        setError("Начало периода должно быть раньше конца.");
         scrollToError();
         return;
       }
@@ -304,7 +301,6 @@ export function LegacyReminderScheduleDialog({
         setQuietStart={setQuietStart}
         quietEnd={quietEnd}
         setQuietEnd={setQuietEnd}
-        deliveryNote={DELIVERY_NOTE}
         previewBadgeLabel={categoryLabel}
         previewText={previewText}
         error={error}

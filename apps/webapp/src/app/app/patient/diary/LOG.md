@@ -1,8 +1,14 @@
 # Patient diary — execution log
 
+## 2026-05-20 — UI: «Дневник» → «Статистика»
+
+- Patient nav, заголовок страницы, legacy sheet menu, guest placeholder, ссылки «К статистике» в журналах.
+- Иконка раздела в `PatientTopNav`: `ChartLine` вместо `BookOpen`.
+- Системные id (`diary`, `routePaths.diary`, API/модули) без изменений.
+
 ## Scope
 
-- Карточка «Расписание» (`PatientPlanTodayRemindersCard`, без «Поддержки») в `patientShellAboveTitleSlot` — над заголовком «Дневник», по умолчанию развёрнута.
+- Карточка «Расписание» (`PatientPlanTodayRemindersCard`, без «Поддержки») в `patientShellAboveTitleSlot` — над заголовком «Статистика», по умолчанию развёрнута.
 - Блоки «Разминки за неделю» и «План за неделю» под графиком самочувствия.
 - Снимки `patient_diary_day_snapshots` с ленивым закрытием прошлых дней недели при открытии дневника.
 - Вынесен `pickActivePlanInstance` для согласования с главной «Сегодня».

@@ -48,19 +48,18 @@ export default async function PatientTreatmentProgramsPage() {
     .filter((p) => p.status === "completed")
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
 
-  let virtualPromo: { title: string; href: string } | null = null;
   const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
   if (promoTplId) {
     try {
       const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
       if (tpl.status === "published") {
-        virtualPromo = {
-          title: tpl.title?.trim() || "Программа реабилитации",
-          href: routePaths.patientTreatmentPromoDefault,
-        };
+        const ensured = await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
+          patientUserId: session.user.userId,
+        });
+        redirect(routePaths.patientTreatmentProgram(ensured.id));
       }
     } catch {
-      virtualPromo = null;
+      /* нет промо-инстанса — показываем список с CTA персональной программы */
     }
   }
 
@@ -77,7 +76,6 @@ export default async function PatientTreatmentProgramsPage() {
         hero={null}
         archived={archived}
         messagesHref={routePaths.patientMessages}
-        virtualPromo={virtualPromo}
       />
     </AppShell>
   );

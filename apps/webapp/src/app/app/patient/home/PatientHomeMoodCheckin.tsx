@@ -32,9 +32,9 @@ type Props = {
   initialMood?: PatientMoodToday | null;
   initialLastEntry?: PatientMoodLastEntry | null;
   moodWeekMarks?: readonly PatientMoodWeekMark[];
-  moodWeekPreviousSundayHadMarks?: boolean;
-  moodWeekPreviousSundayLastScore?: PatientMoodScore | null;
-  moodWeekLastScoreBeforeWeek?: PatientMoodScore | null;
+  moodWeekAnchorDayBeforeWindowHadMarks?: boolean;
+  moodWeekAnchorDayBeforeWindowLastScore?: PatientMoodScore | null;
+  moodWeekLastScoreBeforeWindow?: PatientMoodScore | null;
   /** IANA для полосы «Ваша неделя» — те же календарные сутки, что график самочувствия в дневнике. */
   wellbeingWeekTimeZone?: string;
 };
@@ -46,9 +46,9 @@ export function PatientHomeMoodCheckin({
   initialMood = null,
   initialLastEntry = null,
   moodWeekMarks = [],
-  moodWeekPreviousSundayHadMarks = false,
-  moodWeekPreviousSundayLastScore = null,
-  moodWeekLastScoreBeforeWeek = null,
+  moodWeekAnchorDayBeforeWindowHadMarks = false,
+  moodWeekAnchorDayBeforeWindowLastScore = null,
+  moodWeekLastScoreBeforeWindow = null,
   wellbeingWeekTimeZone = "UTC",
 }: Props) {
   const router = useRouter();
@@ -179,9 +179,9 @@ export function PatientHomeMoodCheckin({
                   <PatientHomeWellbeingWeekStrip
                     marks={moodWeekMarks}
                     timeZone={wellbeingWeekTimeZone}
-                    previousSundayHadMarks={moodWeekPreviousSundayHadMarks}
-                    previousSundayLastScore={moodWeekPreviousSundayLastScore}
-                    lastScoreBeforeWeek={moodWeekLastScoreBeforeWeek}
+                    anchorDayBeforeWindowHadMarks={moodWeekAnchorDayBeforeWindowHadMarks}
+                    anchorDayBeforeWindowLastScore={moodWeekAnchorDayBeforeWindowLastScore}
+                    lastScoreBeforeWindow={moodWeekLastScoreBeforeWindow}
                   />
                 </div>
                 <div
@@ -202,7 +202,7 @@ export function PatientHomeMoodCheckin({
                   href={routePaths.diary}
                   className="text-xs font-normal text-[var(--patient-block-heading)] underline-offset-2 hover:underline"
                 >
-                  Подробная история в дневнике
+                  Подробная статистика
                 </Link>
               </div>
               {statusLine ?

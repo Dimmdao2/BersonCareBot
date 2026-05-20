@@ -146,6 +146,7 @@ import { createPgSupportCommunicationPort } from "@/infra/repos/pgSupportCommuni
 import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
 import { createPatientMessagingService } from "@/modules/messaging/patientMessagingService";
 import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorSupportMessagingService";
+import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatientDoctorReply";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { createPgReminderRulesPort } from "@/infra/repos/pgReminderRules";
@@ -488,8 +489,17 @@ const lfkAssignmentsService = createLfkAssignmentsService(lfkAssignmentsPortReso
 const patientMessagingService = createPatientMessagingService(supportCommunicationPort, {
   isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),
 });
+const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
+  shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
+  channelPreferences: channelPreferencesPort,
+  webPushSubscriptions: webPushSubscriptionsPort,
+  systemSettings: systemSettingsService,
+  getProfileEmailFields: (platformUserId) => userProjectionPort.getProfileEmailFields(platformUserId),
+  getChannelBindings: loadPlatformUserChannelBindings,
+});
 const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort, {
   shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
+  notifyPatientOfDoctorReply: notifyPatientDoctorReply,
 });
 
 function linkFromPayload(payload: Record<string, unknown>): string | null {

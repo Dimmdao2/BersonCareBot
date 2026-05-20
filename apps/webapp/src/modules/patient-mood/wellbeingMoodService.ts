@@ -366,10 +366,115 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     };
   }
 
+  async function getRecentDaysSparkline(
+    userId: string,
+    tz: string,
+    dayCount: number = 3,
+  ): Promise<PatientMoodWeekSparkline> {
+    const trackingId = await ensureWellbeingTracking(userId);
+    const today = DateTime.now().setZone(tz).startOf("day");
+    const windowStart = today.minus({ days: dayCount - 1 });
+    const dayKeys: string[] = [];
+    for (let i = 0; i < dayCount; i += 1) {
+      const d = windowStart.plus({ days: i }).toISODate();
+      if (d) dayKeys.push(d);
+    }
+    if (dayKeys.length === 0) {
+      return {
+        days: [],
+        marks: [],
+        previousSundayHadMarks: false,
+        previousSundayLastScore: null,
+        lastScoreBeforeWeek: null,
+        previousSundayScore: null,
+      };
+    }
+
+    const anchorDayIso = windowStart.minus({ days: 1 }).toISODate();
+    const queryFromDay = anchorDayIso ?? dayKeys[0]!;
+    const from = localDayRangeUtcIso(tz, queryFromDay).from;
+    const toExclusive = localDayRangeUtcIso(tz, dayKeys[dayKeys.length - 1]!).toExclusive;
+    const entries = await deps.diaries.listSymptomEntriesForTrackingInRange({
+      userId,
+      trackingId,
+      fromRecordedAt: from,
+      toRecordedAtExclusive: toExclusive,
+    });
+
+    const dayKeySet = new Set([...(anchorDayIso ? [anchorDayIso] : []), ...dayKeys]);
+    const byDay = new Map<string, PatientMoodScore[]>();
+    for (const e of entries) {
+      if (e.entryType !== "instant") continue;
+      const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+      if (!localD || !dayKeySet.has(localD)) continue;
+      const sc = toMoodScore(e.value0_10);
+      if (sc == null) continue;
+      const arr = byDay.get(localD) ?? [];
+      arr.push(sc);
+      byDay.set(localD, arr);
+    }
+
+    const dayScore = (ymd: string): PatientMoodScore | null => {
+      const vals = byDay.get(ymd);
+      if (!vals || vals.length === 0) return null;
+      return averageMoodScores(vals);
+    };
+
+    const days = dayKeys.map((d) => {
+      const score = dayScore(d);
+      return { date: d, score, warmupHint: null, diaryNoteHint: null };
+    });
+
+    const windowMarks = entries
+      .filter((e) => e.entryType === "instant")
+      .map((e) => {
+        const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+        if (!localD || !dayKeys.includes(localD)) return null;
+        const sc = toMoodScore(e.value0_10);
+        if (sc == null) return null;
+        return { recordedAt: e.recordedAt, score: sc };
+      })
+      .filter((m): m is NonNullable<typeof m> => m != null)
+      .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+
+    const windowStartIso = dayKeys[0]!;
+    let anchorDayLastScore: PatientMoodScore | null = null;
+    let anchorDayLastMs = -1;
+    let lastScoreBeforeWindow: PatientMoodScore | null = null;
+    let lastBeforeWindowMs = -1;
+    for (const e of entries) {
+      if (e.entryType !== "instant") continue;
+      const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+      if (!localD) continue;
+      const sc = toMoodScore(e.value0_10);
+      if (sc == null) continue;
+      const ms = new Date(e.recordedAt).getTime();
+      if (anchorDayIso && localD === anchorDayIso && ms >= anchorDayLastMs) {
+        anchorDayLastMs = ms;
+        anchorDayLastScore = sc;
+      }
+      if (localD < windowStartIso && ms >= lastBeforeWindowMs) {
+        lastBeforeWindowMs = ms;
+        lastScoreBeforeWindow = sc;
+      }
+    }
+    const anchorDayHadMarks = anchorDayLastScore != null;
+
+    return {
+      days,
+      marks: windowMarks,
+      previousSundayHadMarks: anchorDayHadMarks,
+      previousSundayLastScore: anchorDayLastScore,
+      lastScoreBeforeWeek: lastScoreBeforeWindow,
+      previousSundayScore: anchorDayIso ? dayScore(anchorDayIso) : null,
+    };
+  }
+
   return {
     getCheckinState,
     submitScore,
     getWeekSparkline,
+    getRecentDaysSparkline,
     /** @deprecated Prefer `getCheckinState` (returns `mood` plus `lastEntry`). */
     async getToday(userId: string, tz: string): Promise<PatientMoodToday | null> {
       const s = await getCheckinState(userId, tz);

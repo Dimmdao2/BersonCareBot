@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, MessageCircle, NotebookText, PlayCircle } from "lucide-react";
+import { AlertTriangle, Info, NotebookText, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -487,10 +487,12 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                   ) : null}
                   {doctorComment ? (
                     <ProgramTileHintButton
-                      ariaLabel="Комментарий врача"
-                      icon={<MessageCircle className="size-4 shrink-0" aria-hidden />}
+                      ariaLabel="Комментарий специалиста"
+                      icon={<Info className="size-4 shrink-0 text-[#714c2f]" aria-hidden />}
                     >
-                      <p className="m-0 whitespace-pre-wrap text-xs leading-relaxed">{doctorComment}</p>
+                      <p className="m-0 whitespace-pre-wrap text-xs leading-relaxed text-[#714c2f]">
+                        {doctorComment}
+                      </p>
                     </ProgramTileHintButton>
                   ) : null}
                 </div>

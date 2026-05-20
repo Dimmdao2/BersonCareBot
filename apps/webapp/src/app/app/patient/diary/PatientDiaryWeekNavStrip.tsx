@@ -33,7 +33,7 @@ export function PatientDiaryWeekNavStrip({ nav }: { nav: PatientDiaryWeekNavMode
     >
       <div
         className="flex w-full shrink-0 items-stretch gap-px overflow-hidden rounded-lg border border-[var(--patient-border,#ddd6fe)] bg-[var(--patient-border,#ddd6fe)] shadow-sm"
-        aria-label="Выбор недели в дневнике"
+        aria-label="Выбор недели в статистике"
       >
       {nav.canGoPrev && nav.prevHref ?
         <Link href={nav.prevHref} className={navButtonEnabledClass} aria-label="Предыдущая неделя">

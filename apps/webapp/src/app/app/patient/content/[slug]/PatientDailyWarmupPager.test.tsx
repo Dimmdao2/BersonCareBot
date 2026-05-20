@@ -15,7 +15,8 @@ describe("PatientDailyWarmupPager", () => {
     render(<PatientDailyWarmupPager nav={nav} />);
     const navEl = screen.getByRole("navigation", { name: "Навигация по разминкам дня" });
     expect(navEl).toHaveClass("sticky", "top-0");
-    expect(screen.getByText("Разминка дня 2 / 3")).toBeInTheDocument();
+    expect(screen.getByText("Разминка дня")).toBeInTheDocument();
+    expect(screen.getByText("2 из 3")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Предыдущая разминка" })).toHaveAttribute("href", nav.prevHref);
     expect(screen.getByRole("link", { name: "Следующая разминка" })).toHaveAttribute("href", nav.nextHref);
   });

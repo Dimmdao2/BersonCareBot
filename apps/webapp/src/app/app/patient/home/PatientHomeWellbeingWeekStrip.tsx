@@ -9,16 +9,17 @@ import {
   buildPatientHomeWellbeingWeekStripChart,
   HOME_WELLBEING_STRIP_CHART_HEIGHT,
   HOME_WELLBEING_STRIP_CHART_WIDTH,
+  HOME_WELLBEING_STRIP_DAY_COUNT,
 } from "./buildPatientHomeWellbeingWeekStripChart";
 
 type Props = {
   marks: readonly PatientMoodWeekMark[];
   /** IANA TZ (как на главной). */
   timeZone: string;
-  previousSundayHadMarks?: boolean;
-  previousSundayLastScore?: PatientMoodScore | null;
-  /** Последняя оценка на прошлой неделе (пн–вс) перед текущим понедельником. */
-  lastScoreBeforeWeek?: PatientMoodScore | null;
+  anchorDayBeforeWindowHadMarks?: boolean;
+  anchorDayBeforeWindowLastScore?: PatientMoodScore | null;
+  /** Последняя оценка до начала окна (для пунктирного lead). */
+  lastScoreBeforeWindow?: PatientMoodScore | null;
   className?: string;
 };
 
@@ -44,26 +45,26 @@ function labelForDay(isoDate: string, timeZone: string): string {
   return weekdayRaw ? weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1) : "";
 }
 
-/** Неделя пн–вс: линия по всем instant-отметкам до «Сейчас»; пунктир — только lead без вс и хвост без оценки сегодня. */
+/** Последние N календарных дней (включая сегодня): линия до «Сейчас» (nowX). */
 export function PatientHomeWellbeingWeekStrip({
   marks,
   timeZone,
-  previousSundayHadMarks = false,
-  previousSundayLastScore = null,
-  lastScoreBeforeWeek = null,
+  anchorDayBeforeWindowHadMarks = false,
+  anchorDayBeforeWindowLastScore = null,
+  lastScoreBeforeWindow = null,
   className,
 }: Props) {
   const [nowMs] = useState(() => Date.now());
   const today = DateTime.now().setZone(timeZone).startOf("day");
-  const monday = today.minus({ days: today.weekday - 1 });
-  const todayIso = DateTime.now().setZone(timeZone).toISODate();
+  const todayIso = today.toISODate();
   if (!todayIso) return null;
 
-  const weekMondayIso = monday.toISODate();
-  if (!weekMondayIso) return null;
+  const windowStart = today.minus({ days: HOME_WELLBEING_STRIP_DAY_COUNT - 1 });
+  const windowStartIso = windowStart.toISODate();
+  if (!windowStartIso) return null;
 
-  const week = Array.from({ length: 7 }, (_, i) => {
-    const dt = monday.plus({ days: i });
+  const windowDays = Array.from({ length: HOME_WELLBEING_STRIP_DAY_COUNT }, (_, i) => {
+    const dt = windowStart.plus({ days: i });
     const iso = dt.toISODate();
     return {
       iso,
@@ -75,14 +76,14 @@ export function PatientHomeWellbeingWeekStrip({
     marks,
     timeZone,
     todayIso,
-    weekMondayIso,
+    windowStartIso,
     nowMs,
-    previousSundayHadMarks,
-    previousSundayLastScore,
-    lastScoreBeforeWeek,
+    anchorDayBeforeWindowHadMarks,
+    anchorDayBeforeWindowLastScore,
+    lastScoreBeforeWindow,
   });
 
-  const gradPrefix = `mood-wk-${weekMondayIso.replace(/-/g, "")}`;
+  const gradPrefix = `mood-wk-${windowStartIso.replace(/-/g, "")}`;
 
   const solidSegments = stripSegments.filter(
     (s): s is (typeof stripSegments)[number] & { s0: PatientMoodScore; s1: PatientMoodScore } =>
@@ -97,7 +98,7 @@ export function PatientHomeWellbeingWeekStrip({
           viewBox={`0 0 ${HOME_WELLBEING_STRIP_CHART_WIDTH} ${HOME_WELLBEING_STRIP_CHART_HEIGHT}`}
           preserveAspectRatio="none"
           role="img"
-          aria-label="График самочувствия за неделю"
+          aria-label="График самочувствия за последние дни"
         >
           <defs>
             {solidSegments.map((seg) => (
@@ -153,11 +154,12 @@ export function PatientHomeWellbeingWeekStrip({
       </div>
 
       <div
-        className="mt-0.5 grid shrink-0 grid-cols-7 gap-0"
+        className="mt-0.5 grid shrink-0 gap-0"
+        style={{ gridTemplateColumns: `repeat(${HOME_WELLBEING_STRIP_DAY_COUNT}, minmax(0, 1fr))` }}
         role="list"
-        aria-label="Дни недели (понедельник-воскресенье)"
+        aria-label="Дни периода"
       >
-        {week.map((d) => (
+        {windowDays.map((d) => (
           <span
             key={d.iso ?? d.weekday}
             role="listitem"

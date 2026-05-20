@@ -12,11 +12,11 @@ import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSect
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { RemindersHashScroll } from "./RemindersHashScroll";
+import { ReminderDeliveryChannelsNotice } from "./ReminderDeliveryChannelsNotice";
 import { RemindersPageAdditionalSection } from "./RemindersPageAdditionalSection";
 import { RemindersPageThirtyDayStats } from "./RemindersPageThirtyDayStats";
 import { filterPersonalRulesForSchedulePage } from "./filterPersonalRulesForSchedulePage";
 import type { AppSession } from "@/shared/types/session";
-import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from "@/modules/reminders/rehabProgramLinkedObject";
 import {
   EXERCISE_REMINDERS_TOPIC,
   resolveActiveReminderDeliveryLabelsForTopic,
@@ -126,30 +126,33 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   const activeCandidates = programList
     .filter((p) => p.status === "active")
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
-  const activeProgram = activeCandidates[0] ?? null;
+  let rehabProgramForBlock: { id: string; title: string } | null =
+    activeCandidates[0] ?
+      { id: activeCandidates[0].id, title: activeCandidates[0].title?.trim() || "Программа" }
+    : null;
 
-  const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
-  let virtualPromoTitle: string | null = null;
-  if (!activeProgram && promoTplId) {
-    try {
-      const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
-      if (tpl.status === "published") {
-        virtualPromoTitle = tpl.title?.trim() || "Программа реабилитации";
+  if (!rehabProgramForBlock) {
+    const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
+    if (promoTplId) {
+      try {
+        const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
+        if (tpl.status === "published") {
+          const ensured = await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
+            patientUserId: userId,
+          });
+          rehabProgramForBlock = {
+            id: ensured.id,
+            title: ensured.title?.trim() || tpl.title?.trim() || "Программа реабилитации",
+          };
+        }
+      } catch {
+        rehabProgramForBlock = null;
       }
-    } catch {
-      virtualPromoTitle = null;
     }
   }
 
-  const rehabProgramForBlock =
-    activeProgram ?
-      { id: activeProgram.id, title: activeProgram.title?.trim() || "Программа" }
-    : virtualPromoTitle ?
-      { id: PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER, title: virtualPromoTitle }
-    : null;
-
   const rehabMatches =
-    rehabProgramForBlock && rehabProgramForBlock.id !== PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER ?
+    rehabProgramForBlock ?
       rules.filter(
         (r) => r.linkedObjectType === "rehab_program" && r.linkedObjectId === rehabProgramForBlock.id,
       )
@@ -193,8 +196,10 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
       <RemindersHashScroll />
       <div className={cn(patientMutedTextClass, "mb-4 space-y-2")}>
         <p>Настройте расписания для разминок и тренировок.</p>
-        <p>Это обновит ваши цели активности на странице Сегодня и в Дневнике.</p>
+        <p>Это обновит ваши цели активности на странице Сегодня и в Статистике.</p>
       </div>
+
+      <ReminderDeliveryChannelsNotice />
 
       <ReminderRulesClient
         personalRows={personalRows}

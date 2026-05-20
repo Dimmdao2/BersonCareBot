@@ -18,17 +18,21 @@ vi.mock("@/shared/hooks/useReminderUnread", () => ({
   useReminderUnreadCount: () => 0,
 }));
 
+vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", () => ({
+  usePatientSupportUnreadCount: () => 0,
+}));
+
 describe("PatientTopNav", () => {
   it("renders mobile top nav as moved bottom menu, no warmups or desktop actions", () => {
     pathnameRef.value = "/app/patient";
     render(<PatientTopNav />);
 
     const mobileNav = screen.getByTestId("patient-mobile-top-nav");
-    expect(mobileNav).toHaveClass("md:hidden");
+    expect(mobileNav).toHaveClass("patient-desktop:hidden");
     expect(within(mobileNav).getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Сегодня",
       "Упражнения",
-      "Дневник",
+      "Статистика",
       "Запись",
       "Профиль",
     ]);
@@ -65,13 +69,13 @@ describe("PatientTopNav", () => {
     expect(within(mobileNav).getByRole("link", { name: "Упражнения" })).not.toHaveAttribute("aria-current", "page");
   });
 
-  it("keeps desktop nav as a separate md branch", () => {
+  it("keeps desktop nav as a separate patient-desktop branch", () => {
     pathnameRef.value = "/app/patient";
     render(<PatientTopNav />);
 
     const desktopNav = screen.getByTestId("patient-desktop-top-nav");
     expect(desktopNav).toHaveClass("hidden");
-    expect(desktopNav).toHaveClass("md:flex");
+    expect(desktopNav).toHaveClass("patient-desktop:flex");
     expect(within(desktopNav).getByText("BersonCare")).toBeInTheDocument();
     expect(within(desktopNav).getByRole("link", { name: "Напоминания" })).toBeInTheDocument();
     expect(within(desktopNav).getByRole("link", { name: "Сообщения" })).toBeInTheDocument();

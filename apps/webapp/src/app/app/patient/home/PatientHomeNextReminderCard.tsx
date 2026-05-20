@@ -11,7 +11,6 @@ import {
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { patientHomeChipFallbackImageSrc, patientHomeChipImageSrc } from "./patientHomeChipImageSrc";
 import { cn } from "@/lib/utils";
 
 /**
@@ -50,8 +49,7 @@ function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null 
       aria-hidden
     >
       <PatientHomeSafeImage
-        src={patientHomeChipImageSrc(blockIconImageUrl)}
-        fallbackSrc={patientHomeChipFallbackImageSrc(blockIconImageUrl)}
+        src={blockIconImageUrl}
         alt=""
         className="size-10 rounded-full object-cover md:size-12"
         loading="lazy"

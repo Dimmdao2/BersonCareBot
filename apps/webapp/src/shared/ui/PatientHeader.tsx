@@ -20,6 +20,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { routePaths } from "@/app-layer/routes/paths";
+import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
 import {
   patientNavByPlatform,
   type HeaderIconId,
@@ -275,14 +276,14 @@ export function PatientHeader({
 
               <Separator className="my-2" />
 
-              {/* Блок 2: дневник и помощник */}
+              {/* Блок 2: статистика и помощник */}
               <Link
                 id="patient-menu-link-diary"
                 href={routePaths.diary}
                 onClick={closeMenu}
                 className={SHEET_NAV_LINK_CLASS}
               >
-                Дневник
+                {PATIENT_DIARY_UI_LABEL}
               </Link>
               <Link
                 id="patient-menu-link-assistant"

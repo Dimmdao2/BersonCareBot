@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import {
   Bell,
-  BookOpen,
   CalendarCheck,
   CalendarPlus,
+  ChartLine,
   Dumbbell,
   Home,
   LayoutGrid,
@@ -24,6 +24,7 @@ import {
 } from "@/app-layer/routes/navigation";
 import { cn } from "@/lib/utils";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
+import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 import { usePatientShellScrollCompact } from "@/shared/hooks/usePatientShellScrollCompact";
 import {
@@ -34,7 +35,7 @@ import {
 const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
   today: Home,
   booking: CalendarPlus,
-  diary: BookOpen,
+  diary: ChartLine,
   plan: Dumbbell,
   profile: UserCircle,
 };
@@ -42,7 +43,7 @@ const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
 const DESKTOP_NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
   today: LayoutGrid,
   booking: CalendarCheck,
-  diary: BookOpen,
+  diary: ChartLine,
   plan: Dumbbell,
   profile: UserCircle,
 };
@@ -87,6 +88,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
   const pathname = usePathname() ?? "";
   const activeId = getPatientPrimaryNavActiveId(pathname);
   const reminderUnread = useReminderUnreadCount(true);
+  const chatUnread = usePatientSupportUnreadCount();
   const compact = usePatientShellScrollCompact();
   const navRootRef = useRef<HTMLDivElement>(null);
   useReportPatientTopNavHeight(navRootRef);
@@ -94,6 +96,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
   const renderMobileNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = NAV_ICONS[item.id];
     const isActive = activeId === item.id;
+    const showChatDot = item.id === "today" && chatUnread > 0;
     return (
       <Link
         key={item.id}
@@ -111,16 +114,24 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           : "font-normal text-[var(--patient-text-secondary)] hover:font-normal hover:text-[var(--patient-color-primary)]",
         )}
       >
-        <Icon
-          className={cn(
-            "size-5 shrink-0 transition-colors duration-200 ease-out",
-            isActive ?
-              "size-[22px] text-[var(--patient-color-primary)]"
-            : "text-[var(--patient-text-secondary)] group-hover:text-[var(--patient-color-primary)]",
-          )}
-          strokeWidth={NAV_STRIP_ICON_STROKE}
-          aria-hidden
-        />
+        <span className="relative inline-flex shrink-0">
+          <Icon
+            className={cn(
+              "size-5 shrink-0 transition-colors duration-200 ease-out",
+              isActive ?
+                "size-[22px] text-[var(--patient-color-primary)]"
+              : "text-[var(--patient-text-secondary)] group-hover:text-[var(--patient-color-primary)]",
+            )}
+            strokeWidth={NAV_STRIP_ICON_STROKE}
+            aria-hidden
+          />
+          {showChatDot ? (
+            <span
+              className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[#c0392b] ring-2 ring-white"
+              aria-hidden
+            />
+          ) : null}
+        </span>
         <span
           className={cn(
             "w-full truncate text-center text-[10px] leading-3 transition-[opacity,max-height] [transition-property:opacity,max-height]",
@@ -139,6 +150,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
   const renderDesktopNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = DESKTOP_NAV_ICONS[item.id];
     const isActive = activeId === item.id;
+    const showChatDot = item.id === "today" && chatUnread > 0;
     return (
       <Link
         key={item.id}
@@ -156,7 +168,15 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           !isActive && "hover:bg-muted/60",
         )}
       >
-        <Icon className="size-[18px] shrink-0" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+        <span className="relative inline-flex shrink-0">
+          <Icon className="size-[18px] shrink-0" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+          {showChatDot ? (
+            <span
+              className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[#c0392b] ring-2 ring-white"
+              aria-hidden
+            />
+          ) : null}
+        </span>
         <span
           className={cn(
             "whitespace-nowrap transition-[opacity,max-height] [transition-property:opacity,max-height]",
@@ -178,7 +198,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
       */}
       <div
         aria-hidden
-        className="shrink-0 md:hidden"
+        className="shrink-0 patient-desktop:hidden"
         style={{ height: `var(${PATIENT_TOP_NAV_HEIGHT_VAR}, 3.5rem)` }}
       />
       <div
@@ -189,15 +209,15 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           NAV_COMPACT_EASE,
           PATIENT_TOP_NAV_FIXED_MOBILE_CLASS,
           /* desktop: липкая полоска в колонке shell */
-          "md:sticky md:top-[env(safe-area-inset-top,0px)] md:left-auto md:right-auto md:max-w-none md:translate-x-0",
-          "border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md md:bg-white",
-          compact ? "shadow-md md:shadow-sm" : "shadow-[var(--patient-shadow-nav)] md:shadow-sm",
+          "patient-desktop:sticky patient-desktop:top-[env(safe-area-inset-top,0px)] patient-desktop:left-auto patient-desktop:right-auto patient-desktop:max-w-none patient-desktop:translate-x-0",
+          "border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md patient-desktop:bg-white",
+          compact ? "shadow-md patient-desktop:shadow-sm" : "shadow-[var(--patient-shadow-nav)] patient-desktop:shadow-sm",
         )}
       >
         <nav
           aria-label="Основная навигация пациента"
           data-testid="patient-mobile-top-nav"
-          className="safe-padding-patient-horiz flex w-full min-w-0 items-stretch justify-around py-1 md:hidden"
+          className="safe-padding-patient-horiz flex w-full min-w-0 items-stretch justify-around py-1 patient-desktop:hidden"
         >
           {PATIENT_PRIMARY_NAV_ITEMS.map(renderMobileNavLink)}
         </nav>
@@ -205,7 +225,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         <div
           data-testid="patient-desktop-top-nav"
           className={cn(
-            "hidden items-center gap-4 px-4 md:flex",
+            "hidden items-center gap-4 px-4 patient-desktop:flex",
             PATIENT_DESKTOP_INNER_MAX_CLASS,
             "transition-[padding-block] [transition-property:padding-block]",
             NAV_COMPACT_EASE,
@@ -265,6 +285,12 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             className={cn(TOP_ICON_BTN, "relative")}
           >
             <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+            {chatUnread > 0 ? (
+              <span
+                className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[#c0392b] ring-2 ring-[rgba(255,255,255,0.96)]"
+                aria-hidden
+              />
+            ) : null}
           </Link>
         </div>
         </div>

@@ -11,7 +11,6 @@ import {
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { patientHomeChipFallbackImageSrc, patientHomeChipImageSrc } from "./patientHomeChipImageSrc";
 import { patientButtonSecondaryClass, patientButtonSuccessClass, patientButtonGhostLinkClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
@@ -56,8 +55,7 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
               aria-hidden
             >
               <PatientHomeSafeImage
-                src={patientHomeChipImageSrc(blockIconImageUrl)}
-                fallbackSrc={patientHomeChipFallbackImageSrc(blockIconImageUrl)}
+                src={blockIconImageUrl}
                 alt=""
                 className="size-7 rounded-full object-cover"
                 loading="lazy"

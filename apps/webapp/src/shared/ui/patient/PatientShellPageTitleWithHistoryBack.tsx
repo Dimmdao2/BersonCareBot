@@ -34,18 +34,18 @@ export function PatientShellPageTitleWithHistoryBack({
   }, [router, fallbackHref]);
 
   return (
-    <div className="flex min-w-0 items-center gap-0.5">
+    <div className="flex min-w-0 items-center">
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="size-10 shrink-0 text-[var(--patient-text-primary)]"
+        className="-ml-2.5 size-10 shrink-0 text-[var(--patient-text-primary)]"
         onClick={goBack}
         aria-label={backLabel}
       >
         <ChevronLeft className="size-5" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
       </Button>
-      <h1 className={cn(patientSectionTitleClass, "min-w-0 flex-1 truncate")}>{title}</h1>
+      <h1 className={cn(patientSectionTitleClass, "min-w-0 flex-1 truncate pl-3")}>{title}</h1>
     </div>
   );
 }

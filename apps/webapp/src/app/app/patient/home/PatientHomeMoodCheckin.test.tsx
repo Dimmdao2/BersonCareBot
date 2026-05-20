@@ -54,7 +54,7 @@ describe("PatientHomeMoodCheckin", () => {
 
     expect(screen.getAllByRole("button", { name: /Самочувствие/i })).toHaveLength(5);
     expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("link", { name: /Подробная история в дневнике/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Подробная статистика/i })).toHaveAttribute(
       "href",
       routePaths.diary,
     );

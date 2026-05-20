@@ -10,7 +10,6 @@ import {
 } from "./patientHomeCardStyles";
 import { patientButtonDangerOutlineClass } from "@/shared/ui/patientVisual";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { patientHomeChipFallbackImageSrc, patientHomeChipImageSrc } from "./patientHomeChipImageSrc";
 import { cn } from "@/lib/utils";
 
 type Props = { sos: ResolvedSosCard | null; blockIconImageUrl?: string | null };
@@ -25,8 +24,7 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
         <div className="relative z-[1] flex min-h-0 flex-1 items-center gap-3 md:items-start">
           <div className={patientIconLeadingDangerClass} aria-hidden>
             <PatientHomeSafeImage
-              src={patientHomeChipImageSrc(blockIconImageUrl)}
-              fallbackSrc={patientHomeChipFallbackImageSrc(blockIconImageUrl)}
+              src={blockIconImageUrl}
               alt=""
               className="size-7 rounded-full object-cover"
               loading="lazy"

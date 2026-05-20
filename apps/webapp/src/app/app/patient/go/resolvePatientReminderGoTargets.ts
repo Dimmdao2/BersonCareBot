@@ -63,19 +63,23 @@ export async function resolveDailyWarmupStartPathForPatient(
  * Тот же целевой путь, что у «Начать занятие» на карточке плана главной и в hero программы.
  */
 export async function resolvePlanStartLessonPathForPatient(deps: Deps, userId: string): Promise<string> {
-  const instances = await deps.treatmentProgramInstance.listForPatient(userId);
-  const picked = pickActivePlanInstance(instances);
+  let instances = await deps.treatmentProgramInstance.listForPatient(userId);
+  let picked = pickActivePlanInstance(instances);
   if (!picked) {
     const promoId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
     if (promoId) {
       try {
         const tpl = await deps.treatmentProgram.getTemplate(promoId);
-        if (tpl.status === "published") return routePaths.patientTreatmentPromoDefault;
+        if (tpl.status === "published") {
+          await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({ patientUserId: userId });
+          instances = await deps.treatmentProgramInstance.listForPatient(userId);
+          picked = pickActivePlanInstance(instances);
+        }
       } catch {
         /* fall through */
       }
     }
-    return routePaths.patientTreatmentPrograms;
+    if (!picked) return routePaths.patientTreatmentPrograms;
   }
   let href = routePaths.patientTreatmentProgram(picked.id);
   const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(userId, picked.id);

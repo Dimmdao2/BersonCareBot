@@ -4,10 +4,14 @@
 import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import type { AdminConversationListRow, SupportConversationMessageRow } from "@/infra/repos/pgSupportCommunication";
 import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
+import type { NotifyPatientDoctorReplyParams } from "./notifyPatientDoctorReply";
 
 const MAX_LEN = 4000;
 
-export type DoctorSupportMessagingServiceOpts = RelayOutboundDeps;
+export type DoctorSupportMessagingServiceOpts = RelayOutboundDeps & {
+  /** Fan-out push / bot / email по настройкам пациента (`is_enabled_for_messages`). */
+  notifyPatientOfDoctorReply?: (params: NotifyPatientDoctorReplyParams) => Promise<void>;
+};
 
 export function createDoctorSupportMessagingService(
   port: SupportCommunicationPort,
@@ -69,15 +73,24 @@ export function createDoctorSupportMessagingService(
         createdAt: now,
       });
 
-      // Fire-and-forget relay — ошибка не ломает sendAdminReply
-      if (channelCode && channelExternalId) {
+      if (platformUserId && opts?.notifyPatientOfDoctorReply) {
+        opts
+          .notifyPatientOfDoctorReply({
+            platformUserId,
+            messageId: integratorMessageId,
+            text: trimmed,
+          })
+          .catch((err: unknown) => {
+            console.error("[doctorSupport] patient notify error:", err);
+          });
+      } else if (channelCode && channelExternalId) {
+        // Legacy: диалог без platform_user_id — только канал из projection
         relayOutbound(
           {
             messageId: integratorMessageId,
             channel: channelCode,
             recipient: channelExternalId,
             text: trimmed,
-            userId: platformUserId ?? undefined,
           },
           opts,
         ).catch((err: unknown) => {

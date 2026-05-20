@@ -22,7 +22,7 @@
 | `calendar.svg` | Календарь |
 | `chart.svg` | График |
 | `exercise.svg` | ЛФК / упражнения |
-| `diary.svg` | Дневник |
+| `diary.svg` | Раздел `/app/patient/diary` (в UI — «Статистика») |
 | `share.svg` | Поделиться |
 | `install.svg` | Установка приложения |
 | `settings.svg` | Настройки |

@@ -35,6 +35,7 @@ import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSect
 import { toggleReminderCategory } from "./actions";
 import { LegacyReminderScheduleDialog } from "./LegacyReminderScheduleDialog";
 import { ReminderExerciseDeliveryChannels } from "./ReminderExerciseDeliveryChannels";
+import { isPatientRehabProgramPromoPlaceholder } from "@/modules/reminders/rehabProgramLinkedObject";
 
 const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   appointment: "Запись на приём",
@@ -239,15 +240,6 @@ function PersonalReminderCard({
               <Button type="button" variant="outline" size="sm" onClick={onEdit} disabled={isPending}>
                 Изменить расписание
               </Button>
-              <Link
-                href={routePaths.patientReminderJournal(rule.id)}
-                className={cn(
-                  buttonVariants({ variant: "link", size: "sm" }),
-                  "h-auto min-h-8 px-2 py-1 text-primary",
-                )}
-              >
-                Журнал
-              </Link>
               <Button
                 type="button"
                 variant="ghost"
@@ -545,15 +537,6 @@ export function ReminderRulesClient({
                 />
               </div>
               <div className="flex flex-wrap gap-2">
-                <Link
-                  href={routePaths.patientReminderJournal(rehabRuleForBlock.id)}
-                  className={cn(
-                    buttonVariants({ variant: "link", size: "sm" }),
-                    "h-auto min-h-8 px-2 py-1 text-primary",
-                  )}
-                >
-                  Журнал
-                </Link>
                 <Button
                   type="button"
                   variant="ghost"
@@ -569,9 +552,20 @@ export function ReminderRulesClient({
               </div>
             </div>
           ) : null}
-          <Button type="button" size="sm" variant="outline" onClick={() => setRehabDialogOpen(true)}>
-            {rehabRuleForBlock ? "Изменить" : "Создать напоминание"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {activeProgram && !isPatientRehabProgramPromoPlaceholder(activeProgram.id) ?
+              <Link
+                href={routePaths.patientTreatmentProgram(activeProgram.id)}
+                prefetch={false}
+                className={cn(buttonVariants({ size: "sm" }), "no-underline")}
+              >
+                Открыть программу
+              </Link>
+            : null}
+            <Button type="button" size="sm" variant="outline" onClick={() => setRehabDialogOpen(true)}>
+              {rehabRuleForBlock ? "Изменить" : "Создать напоминание"}
+            </Button>
+          </div>
           <ReminderCreateDialog
             open={rehabDialogOpen}
             onOpenChange={setRehabDialogOpen}
@@ -605,15 +599,6 @@ export function ReminderRulesClient({
                 />
               </div>
               <div className="flex flex-wrap gap-2">
-                <Link
-                  href={routePaths.patientReminderJournal(warmupRuleForBlock.id)}
-                  className={cn(
-                    buttonVariants({ variant: "link", size: "sm" }),
-                    "h-auto min-h-8 px-2 py-1 text-primary",
-                  )}
-                >
-                  Журнал
-                </Link>
                 <Button
                   type="button"
                   variant="ghost"

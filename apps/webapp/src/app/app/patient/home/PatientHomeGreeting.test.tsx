@@ -35,4 +35,11 @@ describe("PatientHomeGreeting", () => {
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Здравствуйте, Анна");
   });
+
+  it("shows unread chat hint with link under greeting", () => {
+    render(<PatientHomeGreeting personalizedName="Анна" timeOfDayPrefix="Доброе утро" unreadChatCount={2} />);
+
+    expect(screen.getByRole("link", { name: "в чате" })).toHaveAttribute("href", "/app/patient/messages");
+    expect(screen.getByText(/У вас есть новое сообщение/i)).toBeInTheDocument();
+  });
 });

@@ -26,8 +26,9 @@ export function PatientDailyWarmupPager({ nav }: Props) {
         <ChevronLeft className="size-4 shrink-0" aria-hidden />
         <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
       </Link>
-      <div className="flex min-h-[2.75rem] min-w-0 flex-[1.4] items-center justify-center bg-[#f8f3fd] px-3 py-2 text-center text-xs font-medium text-[#555555]">
-        {`Разминка дня ${nav.index + 1} / ${nav.total}`}
+      <div className="flex min-h-[2.75rem] min-w-0 flex-[1.4] flex-col items-center justify-center bg-[#f8f3fd] px-3 py-2 text-center text-xs font-medium leading-tight text-[#555555]">
+        <span>Разминка дня</span>
+        <span>{`${nav.index + 1} из ${nav.total}`}</span>
       </div>
       <Link href={nav.nextHref} className={navButtonClass()} aria-label="Следующая разминка">
         <span className="sr-only sm:not-sr-only text-xs">След.</span>

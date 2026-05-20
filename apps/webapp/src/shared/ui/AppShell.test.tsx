@@ -33,8 +33,8 @@ describe("AppShell patient width variants", () => {
     expect(shell).toHaveClass("max-w-full");
     expect(shell).toHaveClass("overflow-x-clip");
     expect(shell).toHaveClass("safe-padding-patient");
-    expect(shell).toHaveClass("max-md:max-w-[430px]");
-    expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100%-2rem))]");
+    expect(shell).toHaveClass("max-patient-desktop:max-w-[430px]");
+    expect(shell).toHaveClass("patient-desktop:max-w-[min(1180px,calc(100%-2rem))]");
     expect(shell).toHaveAttribute("data-patient-shell-max-px", "430");
   });
 
@@ -49,8 +49,8 @@ describe("AppShell patient width variants", () => {
     expect(shell).toHaveClass("w-full");
     expect(shell).toHaveClass("max-w-full");
     expect(shell).toHaveClass("safe-padding-patient");
-    expect(shell).toHaveClass("max-md:max-w-[430px]");
-    expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100%-2rem))]");
+    expect(shell).toHaveClass("max-patient-desktop:max-w-[430px]");
+    expect(shell).toHaveClass("patient-desktop:max-w-[min(1180px,calc(100%-2rem))]");
   });
 
   it("uses white patient canvas background", () => {

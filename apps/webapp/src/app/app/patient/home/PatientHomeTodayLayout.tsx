@@ -19,6 +19,7 @@ export type PatientHomeTodayLayoutBlock = {
 type Props = {
   personalizedName: string | null;
   timeOfDayPrefix?: PatientGreetingPrefix;
+  unreadChatCount?: number;
   blocks: PatientHomeTodayLayoutBlock[];
 };
 
@@ -153,7 +154,7 @@ function desktopBlockLayout(
   }
 }
 
-export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, blocks }: Props) {
+export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, unreadChatCount, blocks }: Props) {
   const hasDailyWarmup = blocks.some((b) => b.code === "daily_warmup");
   const hasUsefulPost = blocks.some((b) => b.code === "useful_post");
   const hasPlan = blocks.some((b) => b.code === "plan");
@@ -166,7 +167,11 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
       id="patient-home-today-layout"
       className="flex min-w-0 flex-col gap-4 overflow-x-hidden pb-4 md:gap-5"
     >
-      <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
+      <PatientHomeGreeting
+        personalizedName={personalizedName}
+        timeOfDayPrefix={timeOfDayPrefix}
+        unreadChatCount={unreadChatCount}
+      />
 
       <div
         /**

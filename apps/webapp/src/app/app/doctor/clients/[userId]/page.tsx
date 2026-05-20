@@ -33,7 +33,7 @@ export default async function DoctorClientProfilePage({
       deps.doctorMessaging.listMessageHistory({ userId, pageSize: 10 }),
       deps.treatmentProgram.listTemplates({ includeArchived: false, status: "published" }),
       deps.treatmentProgramProgress.listPendingTestEvaluationsForPatient(userId),
-      Boolean(env.DATABASE_URL) ? deps.treatmentProgramInstance.listForPatient(userId) : Promise.resolve([]),
+      Boolean(env.DATABASE_URL) ? deps.treatmentProgramInstance.listForPatientClinicalView(userId) : Promise.resolve([]),
     ]);
 
   if (!profile) notFound();

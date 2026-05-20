@@ -16,6 +16,9 @@ export const PATIENT_MOBILE_SHELL_MAX_PX = 430 as const;
 
 export type PatientPrimaryNavItemId = "today" | "booking" | "diary" | "plan" | "profile";
 
+/** Подпись раздела `/app/patient/diary` в patient UI (id маршрута и путь остаются `diary`). */
+export const PATIENT_DIARY_UI_LABEL = "Статистика";
+
 export type PatientPrimaryNavItem = {
   id: PatientPrimaryNavItemId;
   label: string;
@@ -25,12 +28,12 @@ export type PatientPrimaryNavItem = {
 /**
  * Порядок primary nav пациента: верхняя полоска на всех ширинах (`PatientTopNav`).
  * Mobile повторяет бывшее нижнее меню, перенесённое наверх:
- * «Сегодня / Упражнения / Дневник / Запись / Профиль».
+ * «Сегодня / Упражнения / Статистика / Запись / Профиль».
  */
 export const PATIENT_PRIMARY_NAV_ITEMS: readonly PatientPrimaryNavItem[] = [
   { id: "today", label: "Сегодня", href: routePaths.patient },
   { id: "plan", label: "Упражнения", href: routePaths.patientTreatmentPrograms },
-  { id: "diary", label: "Дневник", href: routePaths.diary },
+  { id: "diary", label: PATIENT_DIARY_UI_LABEL, href: routePaths.diary },
   { id: "booking", label: "Запись", href: routePaths.bookingNew },
   { id: "profile", label: "Профиль", href: routePaths.profile },
 ] as const;

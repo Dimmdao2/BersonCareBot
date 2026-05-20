@@ -68,7 +68,7 @@ describe("PatientHomeNextReminderCard", () => {
       />,
     );
     const img = container.querySelector("img");
-    expect(img).toHaveAttribute("src", "/api/media/cccccccc-cccc-4ccc-8ccc-cccccccccccc/preview/sm");
+    expect(img).toHaveAttribute("src", "/api/media/cccccccc-cccc-4ccc-8ccc-cccccccccccc");
   });
 
   it("shows n/N when reminderDaySummary has plannedTotal > 0", () => {

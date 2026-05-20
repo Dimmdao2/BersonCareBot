@@ -127,10 +127,18 @@ export type TreatmentProgramInstancePort = {
   ): Promise<TreatmentProgramInstanceDetail | null>;
   listInstancesForPatient(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
 
+  /** Кабинет врача: все инстансы пациента кроме `assignment_source = promo`. */
+  listInstancesForPatientClinicalView(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
+
   countInstancesWhere(filter: {
     assignmentSource: TreatmentProgramAssignmentSource;
     status?: TreatmentProgramInstanceStatus;
   }): Promise<number>;
+
+  listInstancesWhere(filter: {
+    assignmentSource: TreatmentProgramAssignmentSource;
+    status?: TreatmentProgramInstanceStatus;
+  }): Promise<TreatmentProgramInstanceSummary[]>;
 
   updateStageItemLocalComment(
     instanceId: string,

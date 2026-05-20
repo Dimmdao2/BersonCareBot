@@ -183,8 +183,35 @@ describe("doctorSupportMessagingService", () => {
     expect(appendWebappMessage).not.toHaveBeenCalled();
   });
 
-  it("writes reply and relays outbound when conversation has channel info", async () => {
+  it("notifies patient on all message channels when platform user is linked", async () => {
     const convRow = makeConversationRow({ channelCode: "telegram", channelExternalId: "987654321" });
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
+    const notifyPatientOfDoctorReply = vi.fn(async () => undefined);
+    const service = createDoctorSupportMessagingService(
+      createPort({
+        getConversationRelayInfo: async () => convRow,
+        appendWebappMessage,
+      }),
+      { notifyPatientOfDoctorReply },
+    );
+
+    const res = await service.sendAdminReply("conv-1", "reply");
+    expect(res).toEqual({ ok: true });
+    expect(appendWebappMessage).toHaveBeenCalledTimes(1);
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(notifyPatientOfDoctorReply).toHaveBeenCalledWith(
+      expect.objectContaining({ platformUserId: "user-1", text: "reply" }),
+    );
+    expect(relayMock).not.toHaveBeenCalled();
+  });
+
+  it("legacy relay when conversation has channel but no platform user", async () => {
+    const convRow = makeConversationRow({
+      platformUserId: null,
+      channelCode: "telegram",
+      channelExternalId: "987654321",
+    });
     const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
     const service = createDoctorSupportMessagingService(
       createPort({
@@ -195,32 +222,31 @@ describe("doctorSupportMessagingService", () => {
 
     const res = await service.sendAdminReply("conv-1", "reply");
     expect(res).toEqual({ ok: true });
-    expect(appendWebappMessage).toHaveBeenCalledTimes(1);
 
-    // Fire-and-forget — wait a tick for the promise to run
     await new Promise((r) => setTimeout(r, 0));
-    expect(relayMock).toHaveBeenCalledTimes(1);
     expect(relayMock).toHaveBeenCalledWith(
       expect.objectContaining({ channel: "telegram", recipient: "987654321", text: "reply" }),
       undefined,
     );
   });
 
-  it("relay не вызывается если нет channel binding в диалоге", async () => {
-    const convRow = makeConversationRow({ channelCode: null, channelExternalId: null });
+  it("не шлёт notify и relay без platform user и без channel binding", async () => {
+    const convRow = makeConversationRow({ platformUserId: null, channelCode: null, channelExternalId: null });
     const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
+    const notifyPatientOfDoctorReply = vi.fn(async () => undefined);
     const service = createDoctorSupportMessagingService(
       createPort({
         getConversationRelayInfo: async () => convRow,
         appendWebappMessage,
       }),
+      { notifyPatientOfDoctorReply },
     );
 
     const res = await service.sendAdminReply("conv-1", "reply");
     expect(res).toEqual({ ok: true });
-    expect(appendWebappMessage).toHaveBeenCalledTimes(1);
 
     await new Promise((r) => setTimeout(r, 0));
+    expect(notifyPatientOfDoctorReply).not.toHaveBeenCalled();
     expect(relayMock).not.toHaveBeenCalled();
   });
 
@@ -256,8 +282,12 @@ describe("doctorSupportMessagingService", () => {
     expect(relayMock).not.toHaveBeenCalled();
   });
 
-  it("shouldDispatchRelay передаётся в relayOutbound как opts", async () => {
-    const convRow = makeConversationRow({ channelCode: "telegram", channelExternalId: "222", platformUserId: "u-1" });
+  it("shouldDispatchRelay передаётся в relayOutbound как opts (legacy relay)", async () => {
+    const convRow = makeConversationRow({
+      channelCode: "telegram",
+      channelExternalId: "222",
+      platformUserId: null,
+    });
     const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
     const shouldDispatchRelay = vi.fn(async () => true);
     const service = createDoctorSupportMessagingService(
@@ -272,7 +302,7 @@ describe("doctorSupportMessagingService", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(relayMock).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u-1" }),
+      expect.objectContaining({ channel: "telegram", recipient: "222", text: "reply" }),
       expect.objectContaining({ shouldDispatchRelay }),
     );
   });

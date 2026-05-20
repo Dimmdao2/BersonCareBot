@@ -43,7 +43,7 @@ export async function GET(
   const deps = buildAppDeps();
   const [identity, items] = await Promise.all([
     deps.doctorClientsPort.getClientIdentity(userId),
-    deps.treatmentProgramInstance.listForPatient(userId),
+    deps.treatmentProgramInstance.listForPatientClinicalView(userId),
   ]);
   if (!identity) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });

@@ -1,4 +1,5 @@
 import { routePaths } from "@/app-layer/routes/paths";
+import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
 import { patientSessionSnapshotHasPhone } from "@/modules/platform-access";
 import type { AppSession } from "@/shared/types/session";
 import { GuestPlaceholder } from "@/shared/ui/GuestPlaceholder";
@@ -48,7 +49,7 @@ type DiaryGateProps = {
 export function DiarySectionGuestAccess({
   session,
   returnTo,
-  title = "Дневник",
+  title = PATIENT_DIARY_UI_LABEL,
 }: DiaryGateProps) {
   if (session && patientHasPhoneOrMessenger(session)) return null;
   const next = encodeURIComponent(returnTo);
@@ -56,7 +57,7 @@ export function DiarySectionGuestAccess({
     return (
       <GuestPlaceholder
         title={title}
-        description="Дневники помогают отслеживать симптомы и занятия ЛФК. Войдите или зарегистрируйтесь, чтобы вести дневник в приложении."
+        description="Здесь собрана статистика самочувствия и активности. Войдите или зарегистрируйтесь, чтобы видеть свои данные в приложении."
         actionLabel="Зарегистрироваться"
         actionHref={`${routePaths.root}?next=${next}`}
       />
@@ -65,7 +66,7 @@ export function DiarySectionGuestAccess({
   return (
     <GuestPlaceholder
       title={title}
-      description="Для сохранения записей дневника подтвердите номер телефона."
+      description="Для сохранения статистики подтвердите номер телефона."
       actionLabel="Подтвердить номер"
       actionHref={`${routePaths.bindPhone}?next=${next}`}
     />

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
 import {
@@ -326,6 +326,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
           and(
             eq(instanceTable.patientUserId, patientUserId),
             eq(instanceTable.status, "active"),
+            ne(instanceTable.assignmentSource, "promo"),
             isNull(resultTable.decidedBy),
             isNotNull(attemptTable.submittedAt),
           ),

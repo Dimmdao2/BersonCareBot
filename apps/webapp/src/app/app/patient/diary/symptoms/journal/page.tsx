@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
+import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -31,7 +32,7 @@ export default async function SymptomsJournalPage({
         title="Журнал симптомов"
         user={session?.user ?? null}
         backHref={routePaths.diary}
-        backLabel="Дневник"
+        backLabel={PATIENT_DIARY_UI_LABEL}
         variant="patient"
       >
         <DiarySectionGuestAccess
@@ -76,7 +77,7 @@ export default async function SymptomsJournalPage({
         title="Журнал симптомов"
         user={s.user}
         backHref={routePaths.diary}
-        backLabel="Дневник"
+        backLabel={PATIENT_DIARY_UI_LABEL}
         variant="patient"
       >
         <p className={patientMutedTextClass}>Отслеживания симптомов для журнала назначает врач.</p>
@@ -84,7 +85,7 @@ export default async function SymptomsJournalPage({
           href={`${routePaths.diary}?tab=symptoms`}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 inline-flex")}
         >
-          К дневнику
+          К статистике
         </Link>
       </AppShell>
     );
@@ -111,7 +112,7 @@ export default async function SymptomsJournalPage({
       title="Журнал симптомов"
       user={s.user}
       backHref={`${routePaths.diary}?tab=symptoms`}
-      backLabel="Дневник"
+      backLabel={PATIENT_DIARY_UI_LABEL}
       variant="patient"
     >
       <SymptomsJournalClient

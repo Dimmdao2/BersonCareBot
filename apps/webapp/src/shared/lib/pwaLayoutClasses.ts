@@ -10,18 +10,18 @@ export const PWA_APP_ROOT_CLASS = "relative min-w-0 w-full max-w-full overflow-x
 export const PATIENT_SHELL_CONTAINER_CLASS =
   "mx-auto flex min-h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-x-clip bg-white pt-[max(0px,env(safe-area-inset-top,0px))]";
 
-export const PATIENT_SHELL_MOBILE_MAX_CLASS = "max-md:max-w-[430px]" as const;
+export const PATIENT_SHELL_MOBILE_MAX_CLASS = "max-patient-desktop:max-w-[430px]" as const;
 
 export const PATIENT_SHELL_DESKTOP_MAX_CLASS =
-  "md:max-w-[min(1180px,calc(100%-2rem))]" as const;
+  "patient-desktop:max-w-[min(1180px,calc(100%-2rem))]" as const;
 
 /** Desktop inner row (top nav и т.п.) — без 100vw. */
 export const PATIENT_DESKTOP_INNER_MAX_CLASS =
   "mx-auto w-full max-w-[min(1180px,calc(100%-2rem))]";
 
-/** Fixed top nav на mobile: центр в visual viewport, ширина не шире patient column. */
+/** Fixed top nav на mobile (в т.ч. landscape телефона): центр в visual viewport, ширина не шире patient column. */
 export const PATIENT_TOP_NAV_FIXED_MOBILE_CLASS =
-  "max-md:fixed max-md:left-1/2 max-md:right-auto max-md:top-[env(safe-area-inset-top,0px)] max-md:w-full max-md:max-w-[430px] max-md:-translate-x-1/2";
+  "patient-mobile:fixed patient-mobile:left-1/2 patient-mobile:right-auto patient-mobile:top-[env(safe-area-inset-top,0px)] patient-mobile:w-full patient-mobile:max-w-[430px] patient-mobile:-translate-x-1/2";
 
 /** Popover / sheet panel в patient UI — относительно колонки, не viewport. */
 export const PATIENT_OVERLAY_PANEL_WIDTH_CLASS = "w-full max-w-[17rem]";

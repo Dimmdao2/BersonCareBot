@@ -3,6 +3,8 @@ import type { PatientMoodScore, PatientMoodWeekMark } from "@/modules/patient-mo
 
 export const HOME_WELLBEING_STRIP_CHART_WIDTH = 280;
 export const HOME_WELLBEING_STRIP_CHART_HEIGHT = 40;
+/** Скользящее окно на главной «Сегодня»: последние N календарных дней включая сегодня. */
+export const HOME_WELLBEING_STRIP_DAY_COUNT = 3;
 const TOP_PAD = 2;
 const BOTTOM_PAD = 2;
 
@@ -24,11 +26,15 @@ export type BuildHomeWellbeingStripChartInput = {
   marks: readonly PatientMoodWeekMark[];
   timeZone: string;
   todayIso: string;
-  weekMondayIso: string;
+  /** Локальная дата первого дня окна (включительно). */
+  windowStartIso: string;
   nowMs: number;
-  previousSundayHadMarks: boolean;
-  previousSundayLastScore: PatientMoodScore | null;
-  lastScoreBeforeWeek: PatientMoodScore | null;
+  /** Были instant-отметки в календарный день непосредственно перед окном. */
+  anchorDayBeforeWindowHadMarks: boolean;
+  /** Последняя оценка в этот день (сплошной мост от левого края). */
+  anchorDayBeforeWindowLastScore: PatientMoodScore | null;
+  /** Последняя instant-оценка строго до начала окна. */
+  lastScoreBeforeWindow: PatientMoodScore | null;
 };
 
 export function yForWellbeingStripScore(score: number): number {
@@ -38,10 +44,10 @@ export function yForWellbeingStripScore(score: number): number {
   return maxY - normalized * (maxY - minY);
 }
 
-export function weekStripTimeToX(ms: number, weekStartMs: number, weekEndMs: number): number {
-  if (weekEndMs <= weekStartMs) return 0;
-  const clamped = Math.max(weekStartMs, Math.min(ms, weekEndMs));
-  const t = (clamped - weekStartMs) / (weekEndMs - weekStartMs);
+export function weekStripTimeToX(ms: number, windowStartMs: number, windowEndMs: number): number {
+  if (windowEndMs <= windowStartMs) return 0;
+  const clamped = Math.max(windowStartMs, Math.min(ms, windowEndMs));
+  const t = (clamped - windowStartMs) / (windowEndMs - windowStartMs);
   return t * HOME_WELLBEING_STRIP_CHART_WIDTH;
 }
 
@@ -97,7 +103,8 @@ function segmentBetween(
 
 /**
  * Линия по instant-отметкам; всегда обрезается по вертикали «Сейчас» (nowX).
- * Пунктир только: lead без вс; хвост до nowX, если сегодня нет оценки.
+ * Ось X — скользящее окно [windowStart, конец сегодня]; nowX показывает текущий момент внутри сегодня.
+ * Пунктир только: lead без якорного дня; хвост до nowX, если сегодня нет оценки.
  * Если сегодня была оценка — сплошной хвост от последней сегодняшней точки до nowX.
  */
 export function buildPatientHomeWellbeingWeekStripChart(
@@ -107,20 +114,20 @@ export function buildPatientHomeWellbeingWeekStripChart(
     marks,
     timeZone,
     todayIso,
-    weekMondayIso,
+    windowStartIso,
     nowMs,
-    previousSundayHadMarks,
-    previousSundayLastScore,
-    lastScoreBeforeWeek,
+    anchorDayBeforeWindowHadMarks,
+    anchorDayBeforeWindowLastScore,
+    lastScoreBeforeWindow,
   } = input;
 
-  const weekStartMs = DateTime.fromISO(weekMondayIso, { zone: timeZone }).startOf("day").toMillis();
-  const weekEndMs = DateTime.fromISO(weekMondayIso, { zone: timeZone }).plus({ days: 7 }).startOf("day").toMillis();
-  const nowX = weekStripTimeToX(nowMs, weekStartMs, weekEndMs);
+  const windowStartMs = DateTime.fromISO(windowStartIso, { zone: timeZone }).startOf("day").toMillis();
+  const windowEndMs = DateTime.fromISO(todayIso, { zone: timeZone }).plus({ days: 1 }).startOf("day").toMillis();
+  const nowX = weekStripTimeToX(nowMs, windowStartMs, windowEndMs);
 
   const markPoints: StripPoint[] = marks
     .map((m) => ({
-      x: weekStripTimeToX(new Date(m.recordedAt).getTime(), weekStartMs, weekEndMs),
+      x: weekStripTimeToX(new Date(m.recordedAt).getTime(), windowStartMs, windowEndMs),
       y: yForWellbeingStripScore(m.score),
       score: m.score,
     }))
@@ -139,23 +146,23 @@ export function buildPatientHomeWellbeingWeekStripChart(
 
   const first = clippedMarks[0]!;
 
-  if (!previousSundayHadMarks) {
+  if (!anchorDayBeforeWindowHadMarks) {
     const yLead =
-      lastScoreBeforeWeek != null ? yForWellbeingStripScore(lastScoreBeforeWeek) : first.y;
-    const leadScore = lastScoreBeforeWeek ?? first.score;
+      lastScoreBeforeWindow != null ? yForWellbeingStripScore(lastScoreBeforeWindow) : first.y;
+    const leadScore = lastScoreBeforeWindow ?? first.score;
     segments.push(
       segmentBetween("lead", { x: 0, y: yLead, score: leadScore }, first, "dashed"),
     );
-  } else if (previousSundayLastScore != null) {
+  } else if (anchorDayBeforeWindowLastScore != null) {
     const anchor: StripPoint = {
       x: 0,
-      y: yForWellbeingStripScore(previousSundayLastScore),
-      score: previousSundayLastScore,
+      y: yForWellbeingStripScore(anchorDayBeforeWindowLastScore),
+      score: anchorDayBeforeWindowLastScore,
     };
-    segments.push(segmentBetween("sun-mon", anchor, first, "solid"));
+    segments.push(segmentBetween("window-anchor", anchor, first, "solid"));
   }
 
-  const solidLoopStart = previousSundayHadMarks ? 1 : 0;
+  const solidLoopStart = anchorDayBeforeWindowHadMarks ? 1 : 0;
   for (let i = solidLoopStart; i < clippedMarks.length - 1; i += 1) {
     segments.push(
       segmentBetween(`solid-${i}`, clippedMarks[i]!, clippedMarks[i + 1]!, "solid"),
@@ -170,7 +177,7 @@ export function buildPatientHomeWellbeingWeekStripChart(
       const localD = DateTime.fromISO(m.recordedAt, { zone: "utc" }).setZone(timeZone).toISODate();
       if (localD === dayIso) {
         return {
-          x: weekStripTimeToX(new Date(m.recordedAt).getTime(), weekStartMs, weekEndMs),
+          x: weekStripTimeToX(new Date(m.recordedAt).getTime(), windowStartMs, windowEndMs),
           y: yForWellbeingStripScore(m.score),
           score: m.score,
         };

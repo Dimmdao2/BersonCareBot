@@ -11,6 +11,7 @@ import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
 import { PatientPlanTodayRemindersCard } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
 import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -29,7 +30,7 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
   if (dataGate === "guest") {
     return (
       <AppShell
-        title="Дневник"
+        title={PATIENT_DIARY_UI_LABEL}
         user={session?.user ?? null}
         backHref="/app/patient"
         backLabel="Меню"
@@ -49,7 +50,7 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
 
   return (
     <AppShell
-      title="Дневник"
+      title={PATIENT_DIARY_UI_LABEL}
       user={s.user}
       backHref="/app/patient"
       backLabel="Меню"

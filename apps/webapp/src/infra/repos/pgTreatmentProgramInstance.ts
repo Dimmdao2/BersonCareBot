@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   treatmentProgramInstanceStageItems as itemTable,
@@ -393,6 +393,18 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       return rows.map(mapInstance);
     },
 
+    async listInstancesForPatientClinicalView(
+      patientUserId: string,
+    ): Promise<TreatmentProgramInstanceSummary[]> {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(instTable)
+        .where(and(eq(instTable.patientUserId, patientUserId), ne(instTable.assignmentSource, "promo")))
+        .orderBy(desc(instTable.updatedAt), desc(instTable.id));
+      return rows.map(mapInstance);
+    },
+
     async countInstancesWhere(filter: {
       assignmentSource: TreatmentProgramAssignmentSource;
       status?: TreatmentProgramInstanceStatus;
@@ -407,6 +419,23 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         .from(instTable)
         .where(and(...conds));
       return row?.c ?? 0;
+    },
+
+    async listInstancesWhere(filter: {
+      assignmentSource: TreatmentProgramAssignmentSource;
+      status?: TreatmentProgramInstanceStatus;
+    }): Promise<TreatmentProgramInstanceSummary[]> {
+      const db = getDrizzle();
+      const conds = [
+        eq(instTable.assignmentSource, filter.assignmentSource),
+        ...(filter.status !== undefined ? [eq(instTable.status, filter.status)] : []),
+      ];
+      const rows = await db
+        .select()
+        .from(instTable)
+        .where(and(...conds))
+        .orderBy(desc(instTable.updatedAt), desc(instTable.id));
+      return rows.map(mapInstance);
     },
 
     async updateStageItemLocalComment(

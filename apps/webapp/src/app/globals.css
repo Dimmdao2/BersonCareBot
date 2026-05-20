@@ -4,6 +4,9 @@
 /*---break---
  */
 @custom-variant dark (&:is(.dark *));
+/** Patient shell: desktop только при достаточной ширине и высоте (landscape телефона остаётся mobile). */
+@custom-variant patient-desktop (@media (min-width: 768px) and (min-height: 600px));
+@custom-variant patient-mobile (@media ((max-width: 767px) or (max-height: 599px)));
 
 /**
  * Инфраструктура темы (Tailwind v4 + shadcn) и минимальный глобальный CSS,
@@ -190,6 +193,30 @@
 
 #app-shell-patient :where(button:not(:disabled)) {
   cursor: pointer;
+}
+
+/**
+ * PWA portrait lock fallback (iOS: manifest / screen.orientation.lock often ignored).
+ * Keeps patient column upright in physical landscape until user returns to portrait or opens video fullscreen.
+ */
+html[data-pwa-portrait-lock="1"][data-pwa-orientation-fallback="landscape"]:not([data-pwa-video-fullscreen="1"]) {
+  background-color: #ffffff;
+}
+
+html[data-pwa-portrait-lock="1"][data-pwa-orientation-fallback="landscape"]:not([data-pwa-video-fullscreen="1"]) body {
+  display: flex;
+  justify-content: center;
+  min-height: 100dvh;
+  overflow-x: clip;
+  background-color: #ffffff;
+}
+
+html[data-pwa-portrait-lock="1"][data-pwa-orientation-fallback="landscape"]:not([data-pwa-video-fullscreen="1"])
+  #app-shell-patient {
+  width: min(430px, 100dvh);
+  max-width: min(430px, 100dvh);
+  min-height: 100dvh;
+  flex-shrink: 0;
 }
 
 /* Оценка материалов (уроки/видео): 30px звезда при выборе, палитра и промежуток rr--gap-md.

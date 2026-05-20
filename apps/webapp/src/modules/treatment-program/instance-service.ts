@@ -289,6 +289,68 @@ export function createTreatmentProgramInstanceService(deps: {
       });
     },
 
+    async refreshActivePromoProgramsFromDefaultTemplate(input: { actorUserId: string | null }) {
+      const getId = deps.getDefaultPromoTemplateId;
+      if (!getId) {
+        throw new Error("Промо-программа не настроена");
+      }
+      const templateId = (await getId())?.trim() ?? "";
+      if (!templateId) {
+        throw new Error("Промо-программа не настроена");
+      }
+
+      const tpl = await templates.getTemplate(templateId);
+      if (!tpl || tpl.status !== "published") {
+        throw new Error("Назначать можно только опубликованный шаблон");
+      }
+
+      const activePromo = await instances.listInstancesWhere({
+        assignmentSource: "promo",
+        status: "active",
+      });
+
+      const pairs: Array<{ patientUserId: string; oldInstanceId: string; newInstanceId: string }> = [];
+
+      for (const row of activePromo) {
+        const prev = await instances.getInstanceById(row.id);
+        if (!prev) continue;
+
+        await instances.updateInstanceMeta(row.id, { status: "completed" });
+        await appendEvent({
+          instanceId: row.id,
+          actorId: input.actorUserId,
+          eventType: "status_changed",
+          targetType: "program",
+          targetId: row.id,
+          payload: {
+            scope: "program",
+            from: prev.status,
+            to: "completed",
+            supersededBy: "promo_refresh",
+          },
+        });
+
+        const created = await this.assignTemplateToPatient({
+          templateId,
+          patientUserId: row.patientUserId,
+          assignedBy: null,
+          assignmentSource: "promo",
+        });
+
+        pairs.push({
+          patientUserId: row.patientUserId,
+          oldInstanceId: row.id,
+          newInstanceId: created.id,
+        });
+      }
+
+      return {
+        templateId,
+        refreshedCount: pairs.length,
+        pairs,
+      };
+    },
+
     async createBlankIndividualPlan(input: {
       patientUserId: string;
       assignedBy: string | null;
@@ -350,11 +412,23 @@ export function createTreatmentProgramInstanceService(deps: {
       return instances.listInstancesForPatient(patientUserId.trim());
     },
 
+    async listForPatientClinicalView(patientUserId: string) {
+      assertUuid(patientUserId);
+      return instances.listInstancesForPatientClinicalView(patientUserId.trim());
+    },
+
     async countInstancesForAssignmentSource(input: {
       assignmentSource: TreatmentProgramAssignmentSource;
       status?: TreatmentProgramInstanceStatus;
     }) {
       return instances.countInstancesWhere(input);
+    },
+
+    async listInstancesForAssignmentSource(input: {
+      assignmentSource: TreatmentProgramAssignmentSource;
+      status?: TreatmentProgramInstanceStatus;
+    }) {
+      return instances.listInstancesWhere(input);
     },
 
     async listProgramEvents(instanceId: string) {

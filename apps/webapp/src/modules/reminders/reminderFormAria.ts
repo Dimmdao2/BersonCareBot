@@ -23,7 +23,7 @@ export function scheduleInvalidFromError(error: string | null): ReminderSchedule
     /слотов|время напоминаний|Проверьте время напоминаний|validation_error:\s*timesLocal/i.test(error) ||
     error.includes("validation_error: at least one time");
   const interval =
-    /Начало окна|Укажите время в формате|Интервал от|меньше конца/i.test(error) &&
+    /Начало (?:окна|периода)|Укажите время в формате|Интервал от|меньше конца/i.test(error) &&
     !quiet &&
     !slots;
 

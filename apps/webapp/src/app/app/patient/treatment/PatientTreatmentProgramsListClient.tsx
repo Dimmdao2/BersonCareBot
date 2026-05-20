@@ -45,10 +45,8 @@ export function PatientTreatmentProgramsListClient(props: {
   hero: PatientTreatmentProgramsListHero | null;
   archived: TreatmentProgramInstanceSummary[];
   messagesHref: string;
-  /** Ссылка на промо-шаблон, если нет активного инстанса. */
-  virtualPromo?: { title: string; href: string } | null;
 }) {
-  const { hero, archived, messagesHref, virtualPromo = null } = props;
+  const { hero, archived } = props;
 
   return (
     <div className={patientInnerPageStackClass}>
@@ -88,37 +86,9 @@ export function PatientTreatmentProgramsListClient(props: {
             </Link>
           </div>
         </section>
-      ) : virtualPromo ? (
-        <section
-          className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}
-          aria-labelledby="patient-tp-list-promo-title"
-        >
-          <h2
-            id="patient-tp-list-promo-title"
-            className={cn(patientHeroTitleBaseClass, patientInnerHeroListPrimaryTitleClass)}
-          >
-            {virtualPromo.title}
-          </h2>
-          <div className="mt-4">
-            <Link
-              href={virtualPromo.href}
-              prefetch={false}
-              className={cn(
-                patientHeroPrimaryActionClass,
-                "inline-flex min-h-9 items-center justify-center rounded-md px-4 py-2 text-sm no-underline",
-              )}
-            >
-              Открыть программу
-            </Link>
-          </div>
-        </section>
       ) : null}
 
-      {!hero ? (
-        <div className={virtualPromo ? "mt-4" : undefined}>
-          <PatientPlanPersonalProgramCtaCard />
-        </div>
-      ) : null}
+      {!hero ? <PatientPlanPersonalProgramCtaCard /> : null}
 
       {archived.length > 0 ? (
         <details className={cn(patientCardListSectionClass, "group")}>

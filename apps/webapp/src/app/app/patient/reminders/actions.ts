@@ -62,7 +62,7 @@ export async function updateReminderRule(
   }
 
   if (parsed.data.windowStartMinute >= parsed.data.windowEndMinute) {
-    return { ok: false, error: "Начало окна должно быть меньше конца" };
+    return { ok: false, error: "Начало периода должно быть меньше конца" };
   }
 
   const deps = buildAppDeps();
