@@ -14,11 +14,18 @@ import { loadAdminTranscodeHealthMetrics } from "@/app-layer/media/adminTranscod
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+  OPERATOR_REMINDERS_JOB_FAMILY,
+  OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
+import { classifyWebPushOnlyReminderTickSystemHealthStatus } from "@/modules/operator-health/adminHealthThresholds";
 import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
-import type { IntegratorPushOutboxHealthSnapshot, OperatorIncidentOpenRow } from "@/modules/operator-health/ports";
+import type {
+  IntegratorPushOutboxHealthSnapshot,
+  OperatorIncidentOpenRow,
+  OperatorJobStatusTickRow,
+} from "@/modules/operator-health/ports";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
 import { writeAuditLogDedupeOpenConflictKey } from "@/infra/adminAuditLog";
 import {
@@ -148,8 +155,8 @@ type VideoHlsProxyHealthPayload = {
 
 type VideoTranscodeHealthStatus = "ok" | "degraded" | "error";
 
-/** Снимок строки `operator_job_status` для cron reconcile (`media_transcode.reconcile`). */
-export type VideoTranscodeLastReconcileTickPayload = {
+/** Снимок строки `operator_job_status` для periodic internal job ticks. */
+export type OperatorJobStatusTickPayload = {
   jobKey: string;
   jobFamily: string;
   lastStatus: string;
@@ -160,6 +167,9 @@ export type VideoTranscodeLastReconcileTickPayload = {
   lastError: string | null;
   metaJson: Record<string, unknown>;
 };
+
+/** @deprecated alias — reconcile tick row */
+export type VideoTranscodeLastReconcileTickPayload = OperatorJobStatusTickPayload;
 
 /**
  * Поле `status`: при успешной пробе метрик — результат `classifyVideoTranscodeSystemHealthStatus`
@@ -245,6 +255,11 @@ export type SystemHealthResponse = {
   remindersPipeline: RemindersPipelineHealthPayload;
   /** Web Push: VAPID + активные подписки `user_web_push_subscriptions` (без агрегатов provider в БД). */
   webPush: WebPushHealthPayload;
+  /** Cron `POST /api/internal/reminders/web-push-only/tick` (`operator_job_status`). */
+  webPushOnlyReminderTick: {
+    status: "ok" | "degraded" | "error" | "no_data";
+    lastTick: OperatorJobStatusTickPayload | null;
+  };
   /** Фактические попытки доставки по каналам (`notification_delivery_attempts`), 24 ч. */
   notificationDelivery: NotificationDeliveryHealthPayload;
   meta: {
@@ -263,6 +278,7 @@ export type SystemHealthResponse = {
       integratorPushOutbox: { status: string; durationMs: number; errorCode?: string };
       remindersPipeline: { status: string; durationMs: number; errorCode?: string };
       webPush: { status: string; durationMs: number; errorCode?: string };
+      webPushOnlyReminderTick: { status: string; durationMs: number; errorCode?: string };
       notificationDelivery: { status: string; durationMs: number; errorCode?: string };
     };
   };
@@ -693,17 +709,7 @@ async function probeVideoTranscode(): Promise<ProbeResult<VideoTranscodeHealthPa
       read.getOperatorJobStatus(OPERATOR_MEDIA_JOB_FAMILY, OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY),
     ]);
     const lastReconcileTick: VideoTranscodeLastReconcileTickPayload | null = tickRow
-      ? {
-          jobKey: tickRow.jobKey,
-          jobFamily: tickRow.jobFamily,
-          lastStatus: tickRow.lastStatus,
-          lastFinishedAt: tickRow.lastFinishedAt,
-          lastSuccessAt: tickRow.lastSuccessAt,
-          lastFailureAt: tickRow.lastFailureAt,
-          lastDurationMs: tickRow.lastDurationMs,
-          lastError: tickRow.lastError,
-          metaJson: tickRow.metaJson,
-        }
+      ? operatorJobStatusRowToTickPayload(tickRow)
       : null;
     const transcodeHealthStatus = classifyVideoTranscodeSystemHealthStatus({
       pipelineEnabled,
@@ -741,6 +747,54 @@ async function probeVideoTranscode(): Promise<ProbeResult<VideoTranscodeHealthPa
       ok: false,
       status: "error",
       errorCode: "video_transcode_probe_failed",
+      durationMs: elapsedMs(startedAt),
+    };
+  }
+}
+
+function operatorJobStatusRowToTickPayload(tickRow: OperatorJobStatusTickRow): OperatorJobStatusTickPayload {
+  return {
+    jobKey: tickRow.jobKey,
+    jobFamily: tickRow.jobFamily,
+    lastStatus: tickRow.lastStatus,
+    lastFinishedAt: tickRow.lastFinishedAt,
+    lastSuccessAt: tickRow.lastSuccessAt,
+    lastFailureAt: tickRow.lastFailureAt,
+    lastDurationMs: tickRow.lastDurationMs,
+    lastError: tickRow.lastError,
+    metaJson: tickRow.metaJson,
+  };
+}
+
+async function probeWebPushOnlyReminderTick(): Promise<
+  ProbeResult<{
+    status: "ok" | "degraded" | "error" | "no_data";
+    lastTick: OperatorJobStatusTickPayload | null;
+  }>
+> {
+  const startedAt = Date.now();
+  try {
+    const tickRow = await buildAppDeps().operatorHealthRead.getOperatorJobStatus(
+      OPERATOR_REMINDERS_JOB_FAMILY,
+      OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+    );
+    const lastTick = tickRow ? operatorJobStatusRowToTickPayload(tickRow) : null;
+    const status = classifyWebPushOnlyReminderTickSystemHealthStatus({
+      lastStatus: tickRow?.lastStatus ?? null,
+      lastSuccessAt: tickRow?.lastSuccessAt ?? null,
+      lastFailureAt: tickRow?.lastFailureAt ?? null,
+      metaJson: tickRow?.metaJson ?? {},
+    });
+    return {
+      ok: true,
+      value: { status, lastTick },
+      durationMs: elapsedMs(startedAt),
+    };
+  } catch {
+    return {
+      ok: false,
+      status: "error",
+      errorCode: "web_push_only_reminder_tick_probe_failed",
       durationMs: elapsedMs(startedAt),
     };
   }
@@ -831,6 +885,7 @@ function logProbe(
     | "integrator_push_outbox"
     | "reminders_pipeline"
     | "web_push"
+    | "web_push_only_reminder_tick"
     | "notification_delivery",
   result: ProbeResult<unknown>,
   statusOverride?: string,
@@ -1005,6 +1060,11 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     : emptyWebPushHealthPayload("no_data");
   const webPushDurationMs = elapsedMs(webPushStartedAt);
 
+  const webPushOnlyReminderTickResult = await probeWebPushOnlyReminderTick();
+  const webPushOnlyReminderTickPayload = webPushOnlyReminderTickResult.ok
+    ? webPushOnlyReminderTickResult.value
+    : { status: "no_data" as const, lastTick: null };
+
   const notificationDeliveryStartedAt = Date.now();
   const notificationDeliveryResult = await loadAdminNotificationDeliveryHealthMetrics();
   const notificationDeliveryPayload: NotificationDeliveryHealthPayload = notificationDeliveryResult.ok
@@ -1092,6 +1152,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     integratorPushOutbox: integratorPushOutboxPayload,
     remindersPipeline: remindersPipelinePayload,
     webPush: webPushPayload,
+    webPushOnlyReminderTick: webPushOnlyReminderTickPayload,
     notificationDelivery: notificationDeliveryPayload,
     meta: {
       probes: {
@@ -1167,6 +1228,13 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           durationMs: webPushDurationMs,
           ...(!webPushResult.ok ? { errorCode: webPushResult.errorCode } : {}),
         },
+        webPushOnlyReminderTick: {
+          status: webPushOnlyReminderTickResult.ok
+            ? webPushOnlyReminderTickPayload.status
+            : webPushOnlyReminderTickResult.status,
+          durationMs: webPushOnlyReminderTickResult.durationMs,
+          ...(!webPushOnlyReminderTickResult.ok ? { errorCode: webPushOnlyReminderTickResult.errorCode } : {}),
+        },
         notificationDelivery: {
           status: notificationDeliveryResult.ok ? notificationDeliveryPayload.status : "error",
           durationMs: notificationDeliveryDurationMs,
@@ -1211,6 +1279,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           durationMs: webPushDurationMs,
         },
   );
+  logProbe("web_push_only_reminder_tick", webPushOnlyReminderTickResult, webPushOnlyReminderTickPayload.status);
   logProbe(
     "notification_delivery",
     notificationDeliveryResult.ok

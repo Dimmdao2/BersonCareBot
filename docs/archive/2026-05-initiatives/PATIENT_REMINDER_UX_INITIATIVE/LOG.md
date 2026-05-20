@@ -1,5 +1,23 @@
 # LOG — Patient Reminder UX
 
+## 2026-05-20 — Каналы доставки: синхронизация Push с ОС и страницей уведомлений
+
+**Контекст:** напоминания уходят на активные каналы (Telegram / email / **web_push**); расхождение статуса Push ломало доверие к строке «Куда отправляется» и к матрице тем на `/app/patient/notifications`.
+
+**Сделано (webapp, пациент):**
+
+- **`ReminderExerciseDeliveryChannels`:** при mount — `PatientWebPushProvider.refresh`; предупреждение и CTA при standalone и не-`enabled` push; для `denied_system` — текст про настройки устройства + попытка subscribe (с toast при ошибке); после успешного enable — `router.refresh()`.
+- **`PatientNotificationChannelsStatus`:** тот же контур статусов (`pending_permission`, `granted_no_subscription`, `enabled`, `denied_system`, `needs_pwa`); отписка через `unsubscribePatientWebPush` (server + local + global pref).
+- **Матрица тем** (страница уведомлений): `pushEffective` не опирается на SSR `hasWebPushSubscription` до client reconcile — см. также [`docs/PWA_INITIATIVE/LOG.md`](../../../PWA_INITIATIVE/LOG.md) (2026-05-20).
+
+**Проверки:** точечный vitest push/reconcile + ручной smoke: отключить push в ОС → вернуться в приложение → колонка push в матрице disabled, строка каналов на напоминаниях — предупреждение.
+
+**Не делали:** изменение integrator `reminders.dispatchDue` / M2M контракта; новые topic codes.
+
+## 2026-05-20 — Post-audit: «Отключить» Push снимает все подписки
+
+- Уточнение к записи выше: `PatientNotificationChannelsStatus` / `ReminderExerciseDeliveryChannels` вызывают `unsubscribePatientWebPush`, который после чек-листа **всегда** шлёт `{ all: true }` на сервер (не один endpoint). Детали — [`docs/PWA_INITIATIVE/LOG.md`](../../../PWA_INITIATIVE/LOG.md) (2026-05-20, post-audit).
+
 ## 2026-05-18 — Бот: диспатч-клавиатура, один тап «Пропущу», messenger-topic/disable, указатель архива и документация
 
 - **Архивный план (репозиторий), закрыт:** [`.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md`](../../../../../.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md) — статус **`completed`** во frontmatter; длинное описание задачи убрано в пользу **единственного канона §«Бот»** (`apps/webapp/src/modules/reminders/reminders.md`, этот файл).

@@ -2,6 +2,24 @@
 
 Хронология по этапам [`ROADMAP.md`](ROADMAP.md). Факты prod (без секретов) — кратко.
 
+## 2026-05-20 — Сессия: sliding TTL 90 суток и маркер «свежий вход» (все server-login пути)
+
+**Контекст:** после любого успешного входа (не только `AuthFlowV2`) PWA должен один раз предложить включить уведомления в **настройках ОС**, если permission уже `denied`; при этом logout→login с отключённым только в приложении push **не** должен показывать onboarding. Параллельно — продление сессии от активности без конфликта Next 16 middleware/proxy.
+
+**Сделано:**
+
+- **`sessionCookie.ts`:** encode/decode, `shouldRenewSession` / `renewSessionIfActive`, `applySessionRenewalToResponse` для proxy; константы имён cookie вынесены в `sessionCookieNames.ts` (клиент `freshLoginStorage` не импортирует `node:crypto`).
+- **`service.ts`:** единый codec сессии (`encodeSessionCookie` / `decodeSessionCookie`); `persistNewAuthSession` — session cookie + `writeFreshLoginMarkerCookie` на **всех** путях новой сессии (`setSessionFromUser`, `exchangeIntegratorToken`, Telegram/MAX init, widget login); `clearSession` сбрасывает маркер fresh login.
+- **Клиент:** `freshLoginStorage.consumeFreshLoginFlag` читает sessionStorage **или** короткоживущий cookie; `markFreshLoginAfterAuth` в `AuthFlowV2.redirectOk` — для client-only redirect после OAuth/email без server roundtrip.
+- **Proxy:** `apps/webapp/src/proxy.ts` — продление сессии + прежний platform context; matcher `/app`, `/app/*`, `/api/me`, `/api/patient/*`; удалён `src/middleware.ts`.
+- **`/api/me`:** `renewSessionCookieFromRequest()`; документ `apps/webapp/src/modules/auth/auth.md` — proxy вместо middleware.
+
+**Связь с PWA:** диалог и onboarding — [`docs/PWA_INITIATIVE/LOG.md`](../PWA_INITIATIVE/LOG.md) (2026-05-20); здесь только transport сессии и маркера входа.
+
+**Проверки:** `sessionCookie.test.ts`, `proxy.test.ts` (renew Set-Cookie на `/api/me`).
+
+**Не делали:** изменение срока TTL для врача отдельно от 90 суток (как и раньше — одинаковый sliding TTL); browser E2E всех провайдеров OAuth.
+
 ## 2026-05-19 — Старт инициативы
 
 - Создана папка `docs/LOGIN_REGISTER_NEW_LOGIC/`: мастер-постановка [`MAIN PLAN.md`](MAIN%20PLAN.md), `README`, `ROADMAP`, `PHASE_00`…`PHASE_08`, [`CODE_AUDIT_MAP.md`](CODE_AUDIT_MAP.md).

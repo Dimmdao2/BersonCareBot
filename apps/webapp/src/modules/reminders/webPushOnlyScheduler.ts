@@ -28,6 +28,70 @@ export type WebPushOnlyReminderTickResult = {
   failed: number;
 };
 
+export function webPushOnlyReminderTickMetaFromResult(
+  result: WebPushOnlyReminderTickResult,
+): Record<string, unknown> {
+  return {
+    rulesFound: result.rulesFound,
+    plannedUpserts: result.plannedUpserts,
+    dueClaimed: result.dueClaimed,
+    sent: result.sent,
+    skipped: result.skipped,
+    skippedNoSubscription: result.skippedNoSubscription,
+    skippedNoTopic: result.skippedNoTopic,
+    failed: result.failed,
+  };
+}
+
+function isWebPushOnlyReminderTickLogEmpty(result: WebPushOnlyReminderTickResult): boolean {
+  return (
+    result.dueClaimed === 0 &&
+    result.plannedUpserts === 0 &&
+    result.sent === 0 &&
+    result.failed === 0 &&
+    result.skipped === 0 &&
+    result.skippedNoSubscription === 0 &&
+    result.skippedNoTopic === 0
+  );
+}
+
+function isWebPushOnlyReminderTickLogActive(result: WebPushOnlyReminderTickResult): boolean {
+  return (
+    result.plannedUpserts > 0 ||
+    result.dueClaimed > 0 ||
+    result.sent > 0 ||
+    result.skipped > 0 ||
+    result.skippedNoSubscription > 0 ||
+    result.skippedNoTopic > 0
+  );
+}
+
+export function logWebPushOnlyReminderTickCompleted(result: WebPushOnlyReminderTickResult, nowIso: string): void {
+  const payload = {
+    event: "web_push_only_reminder.tick",
+    nowIso,
+    rulesFound: result.rulesFound,
+    dueClaimed: result.dueClaimed,
+    plannedUpserts: result.plannedUpserts,
+    sent: result.sent,
+    skipped: result.skipped,
+    skippedNoSubscription: result.skippedNoSubscription,
+    skippedNoTopic: result.skippedNoTopic,
+    failed: result.failed,
+  };
+
+  if (result.failed > 0) {
+    logger.warn(payload, "web push-only reminder tick completed with failures");
+    return;
+  }
+  if (isWebPushOnlyReminderTickLogEmpty(result)) {
+    return;
+  }
+  if (isWebPushOnlyReminderTickLogActive(result)) {
+    logger.info(payload, "web push-only reminder tick completed");
+  }
+}
+
 const NOTIFY_SKIP_REASONS = new Set([
   "muted",
   "topic_disabled",
@@ -151,21 +215,7 @@ export async function runWebPushOnlyReminderTick(
     failed,
   };
 
-  logger.info(
-    {
-      event: "web_push_only_reminder.tick",
-      nowIso,
-      rulesFound,
-      dueClaimed,
-      plannedUpserts,
-      sent,
-      skipped,
-      skippedNoSubscription,
-      skippedNoTopic,
-      failed,
-    },
-    "web push-only reminder tick completed",
-  );
+  logWebPushOnlyReminderTickCompleted(result, nowIso);
 
   return result;
 }

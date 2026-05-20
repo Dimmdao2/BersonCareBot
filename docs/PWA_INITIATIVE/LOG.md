@@ -1,5 +1,41 @@
 # PWA — журнал
 
+## 2026-05-20 — Web Push: статус ОС + приложение, reconcile, матрица тем, fresh-login
+
+**Проблема (прод/UX):** после отключения уведомлений в ОС или в приложении UI и сервер расходились; «Отключить» в настройках часто не снимало подписку; повторное «Включить» не восстанавливало доставку; после переустановки PWA — ложный onboarding или устаревшее server-состояние; матрица типов уведомлений мигала «push включён» до client refresh.
+
+**Сделано:**
+
+- **API / сервер:** `POST /api/patient/web-push/unsubscribe` с `{ all: true }`; `GET …/status` — поле `globalWebPushEnabled`; отписка всех endpoint при отсутствии локальной подписки (`unsubscribePatientWebPush`, `patientWebPushApi.unsubscribeAllPatientWebPush`).
+- **Reconcile:** `reconcileStalePatientWebPushSubscriptions` — сброс server subs при `permission=denied`, при `default` без local sub, при `globalWebPushEnabled === false`; вызов из `PatientWebPushContext.refresh` (в т.ч. `visibilitychange` / `focus`).
+- **UI-статус:** `resolveWebPushUiStatus` / `pushOnboardingEligibility` — «enabled» только при granted + local + server + global pref; каналы на `/app/patient/notifications` и в напоминаниях — mount refresh, кнопка «Открыть настройки» при `denied_system`.
+- **Матрица тем:** `pushEffective` только после client mount и `uiStatus === "enabled"` (`PatientNotificationsTopicsSection`); колонка push disabled через `applyWebPushColumnAvailability`; перенос подписи темы на вторую строку — **CSS** (`PatientNotificationsTopicMatrix`, без `\n` в copy).
+- **Включение push:** `enableWebPushNotificationDefaults` — при subscribe merge **только отсутствующих** строк topic; toast при ошибке subscribe — `webPushSubscribeFeedback.ts` (каналы, onboarding, install, fresh-login dialog).
+- **Fresh login (только system denied):** маркер `bersoncare_fresh_login` — cookie (`sessionCookieNames` / `writeFreshLoginMarkerCookie` на server-login) + `sessionStorage` (`freshLoginStorage.ts`, дублирование в `AuthFlowV2`); диалог `PatientWebPushFreshLoginDeniedDialog` — **не** показывается при app-only off после logout→login.
+- **Onboarding:** карточка по-прежнему с dismiss 14 дней (`pushPromptStorage`); eligibility не путает app-off с OS-denied.
+
+**Связанная инфраструктура auth (sliding session, не дублировать в LOGIN_REGISTER):** продление cookie 90 суток — `sessionCookie.ts`, `renewSessionCookieFromRequest`, `/api/me`, **`apps/webapp/src/proxy.ts`** (matcher `/app`, `/app/*`, `/api/me`, `/api/patient/*`); удалён конфликтующий `src/middleware.ts` (Next 16 — только proxy). Канон: `apps/webapp/src/modules/auth/auth.md`.
+
+**Проверки (агент):** vitest — reconcile, sessionCookie, `proxy.test.ts`, push onboarding, `profileTopicChannelsModel`, `enableWebPushNotificationDefaults`, unsubscribe/status routes; `next build` — в middleware-конвенции только `proxy.ts`.
+
+**Сознательно не делали:** broadcast врача на web_push; FCM; полный корневой `pnpm run ci` в сессии только док-синхронизации.
+
+**Код (ориентиры):** `apps/webapp/src/shared/lib/webPush/*`, `apps/webapp/src/app/api/patient/web-push/*`, `apps/webapp/src/app/app/patient/notifications/*`, `apps/webapp/src/modules/patient-notifications/profileTopicChannelsModel.ts`.
+
+## 2026-05-20 — Post-audit: три регрессии после чек-листа
+
+**Контекст:** повторный проход по DoD/чек-листу плана push+session выявил логические дыры в уже влитом коде (не сборка).
+
+**Исправлено:**
+
+1. **`PatientWebPushContext.refresh`:** синк локальной `PushSubscription` на backend (`syncLocalPushSubscriptionToServer`) выполняется **только** при `globalWebPushEnabled !== false`. Иначе после «Отключить» в приложении reconcile снимал server subs, а следующий refresh снова регистрировал подписку на сервере при сохранённом local sub + `permission=granted`.
+2. **`unsubscribePatientWebPush`:** кнопка «Отключить» всегда вызывает **`unsubscribeAllPatientWebPush`** (`POST { all: true }`), затем `sub.unsubscribe()` локально — не только один `endpoint`, чтобы не оставлять чужие device-endpoint на сервере.
+3. **`PatientWebPushBootstrap`:** обработчик SW `pushsubscriptionchange` (`WEB_PUSH_SUBSCRIPTION_CHANGE`) перед `restorePatientWebPushSubscription` проверяет `fetchPatientWebPushStatus().globalWebPushEnabled`; при app-level off восстановление на backend не запускается.
+
+**Тесты:** `unsubscribePatientWebPush.test.ts` (all + local, fail server); ранее — reconcile/session/proxy.
+
+**Не меняли:** контракт API; integrator dispatch.
+
 ## 2026-05-18 — Web Push: клиентский onboarding в PWA
 
 - **Patient PWA:** карточка «Включите уведомления» (только `standalone`, `permission=default`, нет подписки на сервере); `requestPermission` / `subscribe` только по клику; dismiss → localStorage 14 дней.

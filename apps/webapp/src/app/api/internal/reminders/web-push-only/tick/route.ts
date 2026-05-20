@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import { runWebPushOnlyReminderInternalTick } from "@/app-layer/reminders/runWebPushOnlyReminderInternalTick";
@@ -35,6 +36,9 @@ export async function POST(request: Request) {
     /* ignore */
   }
 
+  const tickStartedAt = Date.now();
+  const startedAtIso = new Date(tickStartedAt).toISOString();
+
   try {
     const result = await runWebPushOnlyReminderInternalTick({
       dispatchLimit: Number.isFinite(dispatchLimit) ? dispatchLimit : 50,
@@ -46,6 +50,21 @@ export async function POST(request: Request) {
     });
   } catch (e) {
     logger.error({ err: e }, "[internal/reminders/web-push-only/tick] failed");
+    const durationMs = Date.now() - tickStartedAt;
+    const msg = e instanceof Error ? e.message : String(e);
+    try {
+      await buildAppDeps().operatorHealthWrite.recordWebPushOnlyReminderTickFailure({
+        startedAtIso,
+        durationMs,
+        error: msg,
+        metaJson: {},
+      });
+    } catch (tickErr) {
+      logger.warn(
+        { err: tickErr },
+        "[internal/reminders/web-push-only/tick] operator_job_status failure tick failed",
+      );
+    }
     return NextResponse.json({ ok: false, error: "tick_failed" }, { status: 500 });
   }
 }

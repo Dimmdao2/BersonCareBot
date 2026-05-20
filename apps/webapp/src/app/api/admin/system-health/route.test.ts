@@ -181,6 +181,8 @@ import { GET } from "./route";
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+  OPERATOR_REMINDERS_JOB_FAMILY,
+  OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
 
 describe("GET /api/admin/system-health", () => {
@@ -706,17 +708,22 @@ describe("GET /api/admin/system-health", () => {
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
-    getOperatorJobStatusMock.mockResolvedValue({
-      jobKey: OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
-      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
-      lastStatus: "success",
-      lastStartedAt: "2026-01-01T00:00:00.000Z",
-      lastFinishedAt: "2026-01-01T00:00:05.000Z",
-      lastSuccessAt: "2026-01-01T00:00:05.000Z",
-      lastFailureAt: null,
-      lastDurationMs: 900,
-      lastError: null,
-      metaJson: { queuedNew: 2 },
+    getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
+      if (family === OPERATOR_MEDIA_JOB_FAMILY && key === OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY) {
+        return Promise.resolve({
+          jobKey: OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+          jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+          lastStatus: "success",
+          lastStartedAt: "2026-01-01T00:00:00.000Z",
+          lastFinishedAt: "2026-01-01T00:00:05.000Z",
+          lastSuccessAt: "2026-01-01T00:00:05.000Z",
+          lastFailureAt: null,
+          lastDurationMs: 900,
+          lastError: null,
+          metaJson: { queuedNew: 2 },
+        });
+      }
+      return Promise.resolve(null);
     });
 
     const res = await GET();
@@ -761,17 +768,22 @@ describe("GET /api/admin/system-health", () => {
       ),
     );
     loadAdminTranscodeHealthMetricsMock.mockResolvedValue(zeroTranscodeMetrics);
-    getOperatorJobStatusMock.mockResolvedValue({
-      jobKey: OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
-      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
-      lastStatus: "failure",
-      lastStartedAt: "2026-01-01T00:00:00.000Z",
-      lastFinishedAt: "2026-01-01T00:00:05.000Z",
-      lastSuccessAt: null,
-      lastFailureAt: "2026-01-01T00:00:05.000Z",
-      lastDurationMs: 900,
-      lastError: "cron failed",
-      metaJson: {},
+    getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
+      if (family === OPERATOR_MEDIA_JOB_FAMILY && key === OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY) {
+        return Promise.resolve({
+          jobKey: OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+          jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+          lastStatus: "failure",
+          lastStartedAt: "2026-01-01T00:00:00.000Z",
+          lastFinishedAt: "2026-01-01T00:00:05.000Z",
+          lastSuccessAt: null,
+          lastFailureAt: "2026-01-01T00:00:05.000Z",
+          lastDurationMs: 900,
+          lastError: "cron failed",
+          metaJson: {},
+        });
+      }
+      return Promise.resolve(null);
     });
 
     const res = await GET();
@@ -821,5 +833,111 @@ describe("GET /api/admin/system-health", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { videoTranscode: { status: string } };
     expect(body.videoTranscode.status).toBe("error");
+  });
+
+  it("returns webPushOnlyReminderTick ok when last success is fresh", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    checkDbHealthMock.mockResolvedValue(true);
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, db: "up" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+    proxyIntegratorProjectionHealthMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pendingCount: 0,
+          deadCount: 0,
+          retriesOverThreshold: 0,
+          lastSuccessAt: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const freshSuccess = new Date().toISOString();
+    getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
+      if (family === OPERATOR_REMINDERS_JOB_FAMILY && key === OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY) {
+        return Promise.resolve({
+          jobKey: OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+          jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
+          lastStatus: "success",
+          lastStartedAt: freshSuccess,
+          lastFinishedAt: freshSuccess,
+          lastSuccessAt: freshSuccess,
+          lastFailureAt: null,
+          lastDurationMs: 120,
+          lastError: null,
+          metaJson: { rulesFound: 1, sent: 0, failed: 0 },
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      webPushOnlyReminderTick: { status: string; lastTick: { metaJson: Record<string, unknown> } | null };
+      meta?: { probes?: { webPushOnlyReminderTick?: { status: string } } };
+    };
+    expect(body.webPushOnlyReminderTick.status).toBe("ok");
+    expect(body.webPushOnlyReminderTick.lastTick?.metaJson?.rulesFound).toBe(1);
+    expect(body.meta?.probes?.webPushOnlyReminderTick?.status).toBe("ok");
+    expect(getOperatorJobStatusMock).toHaveBeenCalledWith(
+      OPERATOR_REMINDERS_JOB_FAMILY,
+      OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+    );
+  });
+
+  it("returns webPushOnlyReminderTick degraded when last success is stale", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    checkDbHealthMock.mockResolvedValue(true);
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, db: "up" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+    proxyIntegratorProjectionHealthMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pendingCount: 0,
+          deadCount: 0,
+          retriesOverThreshold: 0,
+          lastSuccessAt: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const staleSuccess = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
+      if (family === OPERATOR_REMINDERS_JOB_FAMILY && key === OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY) {
+        return Promise.resolve({
+          jobKey: OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+          jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
+          lastStatus: "success",
+          lastStartedAt: staleSuccess,
+          lastFinishedAt: staleSuccess,
+          lastSuccessAt: staleSuccess,
+          lastFailureAt: null,
+          lastDurationMs: 50,
+          lastError: null,
+          metaJson: {},
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const res = await GET();
+    const body = (await res.json()) as { webPushOnlyReminderTick: { status: string } };
+    expect(body.webPushOnlyReminderTick.status).toBe("degraded");
   });
 });

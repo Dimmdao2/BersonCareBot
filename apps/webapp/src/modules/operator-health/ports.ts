@@ -80,4 +80,15 @@ export type OperatorHealthWritePort = {
     durationMs: number;
     error: string;
   }): Promise<void>;
+  recordWebPushOnlyReminderTickSuccess(input: {
+    startedAtIso: string;
+    durationMs: number;
+    metaJson: Record<string, unknown>;
+  }): Promise<void>;
+  recordWebPushOnlyReminderTickFailure(input: {
+    startedAtIso: string;
+    durationMs: number;
+    error: string;
+    metaJson: Record<string, unknown>;
+  }): Promise<void>;
 };

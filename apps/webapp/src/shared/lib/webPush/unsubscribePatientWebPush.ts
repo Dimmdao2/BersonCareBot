@@ -1,20 +1,13 @@
 import { unsubscribeAllPatientWebPush } from "@/shared/lib/webPush/patientWebPushApi";
 import { getExistingPushSubscription } from "@/shared/lib/webPush/pushCapability";
 
+/** Снимает все server-подписки и локальную PushSubscription (кнопка «Отключить» в кабинете). */
 export async function unsubscribePatientWebPush(): Promise<boolean> {
   const sub = await getExistingPushSubscription();
-  if (!sub) {
-    return unsubscribeAllPatientWebPush();
-  }
+  const serverOk = await unsubscribeAllPatientWebPush();
+  if (!serverOk) return false;
 
-  const endpoint = sub.endpoint;
-  const res = await fetch("/api/patient/web-push/unsubscribe", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ endpoint }),
-  });
-  if (!res.ok) return false;
+  if (!sub) return true;
 
   try {
     await sub.unsubscribe();

@@ -1,6 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { WebPushOnlyReminderRuleRow, WebPushOnlyRemindersPort } from "./webPushOnlyPorts";
 
+const loggerInfoMock = vi.fn();
+const loggerWarnMock = vi.fn();
+
+vi.mock("@/infra/logging/logger", () => ({
+  logger: {
+    info: (...args: unknown[]) => loggerInfoMock(...args),
+    warn: (...args: unknown[]) => loggerWarnMock(...args),
+  },
+}));
+
 const runPlatformUserReminderWebPushNotify = vi.fn();
 
 vi.mock("./platformUserReminderWebPushNotify", () => ({
@@ -49,6 +59,8 @@ function makeNotifyDeps() {
 describe("runWebPushOnlyReminderTick", () => {
   beforeEach(() => {
     runPlatformUserReminderWebPushNotify.mockReset();
+    loggerInfoMock.mockReset();
+    loggerWarnMock.mockReset();
   });
 
   it("dispatches web push and marks occurrence sent", async () => {
@@ -240,5 +252,54 @@ describe("runWebPushOnlyReminderTick", () => {
     expect(result.failed).toBe(1);
     expect(result.skipped).toBe(0);
     expect(reminders.markOccurrenceFailed).toHaveBeenCalledWith("occ-4", "web_push_errors");
+    expect(loggerWarnMock).toHaveBeenCalled();
+    expect(loggerInfoMock).not.toHaveBeenCalled();
+  });
+
+  it("does not info-log empty tick with only rulesFound", async () => {
+    const rule = makeRule();
+    const reminders: WebPushOnlyRemindersPort = {
+      listEnabledWebPushOnlyRules: vi.fn(async () => [rule]),
+      getRuleByIntegratorRuleId: vi.fn(async () => rule),
+      upsertPlannedOccurrences: vi.fn(async () => 0),
+      claimDueOccurrences: vi.fn(async () => []),
+      markOccurrenceSent: vi.fn(async () => {}),
+      markOccurrenceFailed: vi.fn(async () => {}),
+      resolveLinkedCatalogTitle: vi.fn(async () => null),
+    };
+
+    await runWebPushOnlyReminderTick(
+      { reminders, notify: makeNotifyDeps() },
+      { nowIso: "2026-05-19T12:00:00.000Z" },
+    );
+
+    expect(loggerInfoMock).not.toHaveBeenCalled();
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+  });
+
+  it("info-logs active tick when due claimed", async () => {
+    const rule = makeRule();
+    const dueOcc = {
+      id: "occ-log",
+      integratorRuleId: rule.integratorRuleId,
+      platformUserId: rule.platformUserId,
+      occurrenceKey: "k-log",
+      plannedAt: "2026-05-19T12:00:00.000Z",
+    };
+    const reminders: WebPushOnlyRemindersPort = {
+      listEnabledWebPushOnlyRules: vi.fn(async () => []),
+      getRuleByIntegratorRuleId: vi.fn(async () => rule),
+      upsertPlannedOccurrences: vi.fn(async () => 0),
+      claimDueOccurrences: vi.fn(async () => [dueOcc]),
+      markOccurrenceSent: vi.fn(async () => {}),
+      markOccurrenceFailed: vi.fn(async () => {}),
+      resolveLinkedCatalogTitle: vi.fn(async () => null),
+    };
+    runPlatformUserReminderWebPushNotify.mockResolvedValue({ ok: true, delivered: 1 });
+
+    await runWebPushOnlyReminderTick({ reminders, notify: makeNotifyDeps() });
+
+    expect(loggerInfoMock).toHaveBeenCalled();
+    expect(loggerWarnMock).not.toHaveBeenCalled();
   });
 });

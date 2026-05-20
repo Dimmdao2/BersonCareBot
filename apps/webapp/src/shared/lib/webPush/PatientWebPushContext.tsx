@@ -120,7 +120,7 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    if (!serverSub && localSub && perm === "granted") {
+    if (!serverSub && localSub && perm === "granted" && globalEnabled) {
       const synced = await syncLocalPushSubscriptionToServer();
       if (synced) {
         serverSub = true;

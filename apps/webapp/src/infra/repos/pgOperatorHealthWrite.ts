@@ -3,6 +3,8 @@ import { operatorJobStatus } from "../../../db/schema/operatorHealth";
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+  OPERATOR_REMINDERS_JOB_FAMILY,
+  OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
 import type { OperatorHealthWritePort } from "@/modules/operator-health/ports";
 
@@ -77,6 +79,71 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
           lastError: err,
           // Сброс: после прошлого success иначе в UI висит успешный meta_json при lastStatus=failure.
           metaJson: {},
+        },
+      });
+  },
+
+  async recordWebPushOnlyReminderTickSuccess(input) {
+    const db = getDrizzle();
+    const finishedIso = new Date().toISOString();
+    await db
+      .insert(operatorJobStatus)
+      .values({
+        jobKey: OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+        jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
+        lastStatus: "success",
+        lastStartedAt: input.startedAtIso,
+        lastFinishedAt: finishedIso,
+        lastSuccessAt: finishedIso,
+        lastFailureAt: null,
+        lastDurationMs: input.durationMs,
+        lastError: null,
+        metaJson: input.metaJson,
+      })
+      .onConflictDoUpdate({
+        target: operatorJobStatus.jobKey,
+        set: {
+          jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
+          lastStatus: "success",
+          lastStartedAt: input.startedAtIso,
+          lastFinishedAt: finishedIso,
+          lastSuccessAt: finishedIso,
+          lastFailureAt: null,
+          lastDurationMs: input.durationMs,
+          lastError: null,
+          metaJson: input.metaJson,
+        },
+      });
+  },
+
+  async recordWebPushOnlyReminderTickFailure(input) {
+    const db = getDrizzle();
+    const finishedIso = new Date().toISOString();
+    const err = clampErrorMessage(input.error);
+    await db
+      .insert(operatorJobStatus)
+      .values({
+        jobKey: OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+        jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
+        lastStatus: "failure",
+        lastStartedAt: input.startedAtIso,
+        lastFinishedAt: finishedIso,
+        lastFailureAt: finishedIso,
+        lastDurationMs: input.durationMs,
+        lastError: err,
+        metaJson: input.metaJson,
+      })
+      .onConflictDoUpdate({
+        target: operatorJobStatus.jobKey,
+        set: {
+          jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
+          lastStatus: "failure",
+          lastStartedAt: input.startedAtIso,
+          lastFinishedAt: finishedIso,
+          lastFailureAt: finishedIso,
+          lastDurationMs: input.durationMs,
+          lastError: err,
+          metaJson: input.metaJson,
         },
       });
   },

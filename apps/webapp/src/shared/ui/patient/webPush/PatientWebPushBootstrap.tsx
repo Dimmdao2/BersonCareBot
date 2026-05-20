@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { getPushPermissionState, probePushSupported } from "@/shared/lib/webPush/pushCapability";
-import { reportPwaLaunchSnapshot } from "@/shared/lib/webPush/patientWebPushApi";
+import { fetchPatientWebPushStatus, reportPwaLaunchSnapshot } from "@/shared/lib/webPush/patientWebPushApi";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
 import { restorePatientWebPushSubscription } from "@/shared/lib/webPush/subscribePatientWebPush";
@@ -36,7 +36,12 @@ export function PatientWebPushBootstrap() {
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: string } | null;
       if (data?.type !== SW_MESSAGE_TYPE) return;
-      void restorePatientWebPushSubscription().then(() => refresh());
+      void (async () => {
+        const status = await fetchPatientWebPushStatus();
+        if (status.globalWebPushEnabled === false) return;
+        const result = await restorePatientWebPushSubscription();
+        if (result.ok) await refresh();
+      })();
     };
 
     navigator.serviceWorker.addEventListener("message", onMessage);

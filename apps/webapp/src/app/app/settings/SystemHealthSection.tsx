@@ -114,6 +114,20 @@ type SystemHealthPayload = {
     subscriptionsTouchedLast24h: number;
     deliveryMetricsInDb: boolean;
   };
+  webPushOnlyReminderTick?: {
+    status: "ok" | "degraded" | "error" | "no_data";
+    lastTick: {
+      jobKey: string;
+      jobFamily: string;
+      lastStatus: string;
+      lastFinishedAt: string | null;
+      lastSuccessAt: string | null;
+      lastFailureAt: string | null;
+      lastDurationMs: number | null;
+      lastError: string | null;
+      metaJson: Record<string, unknown>;
+    } | null;
+  };
   notificationDelivery?: {
     windowHours: number;
     status: "ok" | "degraded" | "not_configured" | "no_data";
@@ -255,6 +269,7 @@ type SystemHealthPayload = {
       integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
       remindersPipeline?: { status: string; durationMs: number; errorCode?: string };
       webPush?: { status: string; durationMs: number; errorCode?: string };
+      webPushOnlyReminderTick?: { status: string; durationMs: number; errorCode?: string };
       notificationDelivery?: { status: string; durationMs: number; errorCode?: string };
     };
   };
@@ -732,6 +747,23 @@ export function SystemHealthSection() {
   const queueEmpty = queuePending === 0 && queueProcessing === 0;
   const openOperatorIncidents = data?.operatorIncidentsOpen ?? [];
   const backupJobEntries = Object.entries(data?.backupJobs ?? {}).sort(([a], [b]) => a.localeCompare(b));
+
+  const webPushTickStatus = data?.webPushOnlyReminderTick?.status ?? "no_data";
+  const webPushSubsStatus = data?.webPush?.status ?? "error";
+  const webPushSectionStatus =
+    webPushTickStatus === "error" || webPushSubsStatus === "error"
+      ? "error"
+      : webPushTickStatus === "degraded" || webPushSubsStatus === "degraded"
+        ? "degraded"
+        : webPushTickStatus === "no_data" && webPushSubsStatus === "no_data"
+          ? "no_data"
+          : webPushSubsStatus === "not_configured"
+            ? "not_configured"
+            : webPushTickStatus === "ok" && (webPushSubsStatus === "ok" || webPushSubsStatus === "no_data")
+              ? webPushSubsStatus
+              : webPushTickStatus;
+
+  const webPushTickMeta = data?.webPushOnlyReminderTick?.lastTick?.metaJson ?? {};
 
   return (
     <div className="space-y-4">
@@ -1291,11 +1323,46 @@ export function SystemHealthSection() {
               />
             </HealthAccordionItem>
 
-            <HealthAccordionItem
-              name="Web Push (PWA)"
-              status={data?.meta?.probes?.webPush?.status ?? data?.webPush?.status ?? "error"}
-            >
+            <HealthAccordionItem name="Web Push (PWA)" status={webPushSectionStatus}>
               <ProbeInfo probe={data?.meta?.probes?.webPush} />
+              <DetailRow label="Cron Web Push-only напоминаний" value={techProbeStatusHuman(webPushTickStatus)} />
+              <p className="text-[11px] text-muted-foreground">
+                Ожидается cron каждую минуту: POST /api/internal/reminders/web-push-only/tick
+              </p>
+              {data?.webPushOnlyReminderTick?.lastTick ? (
+                <>
+                  <DetailRow
+                    label="Последний успешный прогон"
+                    value={formatDateTime(data.webPushOnlyReminderTick.lastTick.lastSuccessAt)}
+                  />
+                  <DetailRow
+                    label="Последняя ошибка"
+                    value={formatDateTime(data.webPushOnlyReminderTick.lastTick.lastFailureAt)}
+                  />
+                  <DetailRow
+                    label="Текст ошибки"
+                    value={data.webPushOnlyReminderTick.lastTick.lastError ?? "—"}
+                  />
+                  <DetailRow
+                    label="Длительность, мс"
+                    value={String(data.webPushOnlyReminderTick.lastTick.lastDurationMs ?? "—")}
+                  />
+                  <DetailRow label="Правил (последний tick)" value={String(webPushTickMeta.rulesFound ?? "—")} />
+                  <DetailRow label="Запланировано upsert" value={String(webPushTickMeta.plannedUpserts ?? "—")} />
+                  <DetailRow label="Взято due" value={String(webPushTickMeta.dueClaimed ?? "—")} />
+                  <DetailRow label="Отправлено" value={String(webPushTickMeta.sent ?? "—")} />
+                  <DetailRow label="Пропущено" value={String(webPushTickMeta.skipped ?? "—")} />
+                  <DetailRow
+                    label="Пропущено (нет подписки)"
+                    value={String(webPushTickMeta.skippedNoSubscription ?? "—")}
+                  />
+                  <DetailRow label="Пропущено (нет темы)" value={String(webPushTickMeta.skippedNoTopic ?? "—")} />
+                  <DetailRow label="Ошибок" value={String(webPushTickMeta.failed ?? "—")} />
+                </>
+              ) : (
+                <DetailRow label="Последний tick" value="нет данных в operator_job_status" />
+              )}
+              <ProbeInfo probe={data?.meta?.probes?.webPushOnlyReminderTick} />
               <DetailRow
                 label="Диагностический статус"
                 value={data?.webPush?.status ?? "—"}
