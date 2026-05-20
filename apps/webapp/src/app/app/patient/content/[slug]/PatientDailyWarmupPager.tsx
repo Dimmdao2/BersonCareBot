@@ -19,7 +19,7 @@ type Props = {
 export function PatientDailyWarmupPager({ nav }: Props) {
   return (
     <nav
-      className="flex shrink-0 items-stretch gap-px overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border,#ddd6fe)] bg-[var(--patient-border,#ddd6fe)] shadow-sm lg:rounded-[var(--patient-card-radius-desktop)]"
+      className="sticky top-0 z-[5] flex shrink-0 items-stretch gap-px overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border,#ddd6fe)] bg-[var(--patient-border,#ddd6fe)] shadow-sm lg:rounded-[var(--patient-card-radius-desktop)]"
       aria-label="Навигация по разминкам дня"
     >
       <Link href={nav.prevHref} className={navButtonClass()} aria-label="Предыдущая разминка">

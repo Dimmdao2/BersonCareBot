@@ -9,6 +9,7 @@ import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/cale
 import { ReminderRulesClient, type PersonalReminderRowVM } from "./ReminderRulesClient";
 import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
+import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { RemindersHashScroll } from "./RemindersHashScroll";
 import { RemindersPageAdditionalSection } from "./RemindersPageAdditionalSection";
@@ -156,9 +157,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   rehabMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   const rehabRuleForBlock = rehabMatches[0] ?? null;
 
-  const warmMatches = rules.filter(
-    (r) => r.linkedObjectType === "content_section" && r.linkedObjectId === DEFAULT_WARMUPS_SECTION_SLUG,
-  );
+  const warmMatches = rules.filter((r) => isWarmupsContentSectionReminderRule(r, warmupsSectionSlug));
   warmMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   const warmupRuleForBlock = warmMatches[0] ?? null;
 
@@ -203,6 +202,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
         unseenCount={projectionStats.unseen}
         activeProgram={rehabProgramForBlock}
         warmupsSectionAvailable={warmupsSectionAvailable}
+        warmupsSectionSlug={warmupsSectionSlug}
         warmupsSectionTitle={warmupsSectionTitle}
         rehabRuleForBlock={rehabRuleForBlock}
         warmupRuleForBlock={warmupRuleForBlock}

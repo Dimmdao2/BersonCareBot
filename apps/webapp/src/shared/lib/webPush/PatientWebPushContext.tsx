@@ -84,7 +84,7 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
   const [vapidConfigured, setVapidConfigured] = useState(false);
   const [promptDismissedAt, setPromptDismissedAt] = useState<string | null>(null);
   const [showFreshLoginDeniedPrompt, setShowFreshLoginDeniedPrompt] = useState(false);
-  const refreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshDebounceRef = useRef<number | undefined>(undefined);
 
   const pushNeedsPwaInstall = isPushLikelyAfterPwaInstall();
 
@@ -133,7 +133,7 @@ export function PatientWebPushProvider({ children }: { children: ReactNode }) {
   const scheduleRefresh = useCallback(() => {
     if (refreshDebounceRef.current) window.clearTimeout(refreshDebounceRef.current);
     refreshDebounceRef.current = window.setTimeout(() => {
-      refreshDebounceRef.current = null;
+      refreshDebounceRef.current = undefined;
       void refresh();
     }, REFRESH_DEBOUNCE_MS);
   }, [refresh]);

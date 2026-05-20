@@ -53,7 +53,7 @@ describe("GET /api/doctor/online-intake", () => {
     const res = await GET(new Request("http://localhost/api/doctor/online-intake"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      items: Array<{ patientName: string; patientPhone: string }>;
+      items: Array<{ patientName: string; patientPhone: string; patientUserId: string }>;
     };
     expect(body.items[0].patientName).toBe("Тест Пациент");
     expect(body.items[0].patientPhone).toBe("+79001230099");

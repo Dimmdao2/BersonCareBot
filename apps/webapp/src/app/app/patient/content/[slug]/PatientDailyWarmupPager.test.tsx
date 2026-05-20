@@ -11,8 +11,10 @@ describe("PatientDailyWarmupPager", () => {
     nextHref: "/app/patient/content/c?from=daily_warmup",
   };
 
-  it("renders position label and navigation links", () => {
+  it("renders sticky pager with position label and navigation links", () => {
     render(<PatientDailyWarmupPager nav={nav} />);
+    const navEl = screen.getByRole("navigation", { name: "Навигация по разминкам дня" });
+    expect(navEl).toHaveClass("sticky", "top-0");
     expect(screen.getByText("Разминка дня 2 / 3")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Предыдущая разминка" })).toHaveAttribute("href", nav.prevHref);
     expect(screen.getByRole("link", { name: "Следующая разминка" })).toHaveAttribute("href", nav.nextHref);

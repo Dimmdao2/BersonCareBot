@@ -68,4 +68,16 @@ describe('buildPatientReminderDeepLink', () => {
     });
     expect(url).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
   });
+
+  it('generic intent + renamed warmups slug via warmupsSectionSlugs uses go URL', () => {
+    const url = buildPatientReminderDeepLink(
+      {
+        linkedObjectType: 'content_section',
+        linkedObjectId: 'razminki',
+        reminderIntent: 'generic',
+      },
+      { warmupsSectionSlugs: new Set(['razminki']) },
+    );
+    expect(url).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
+  });
 });

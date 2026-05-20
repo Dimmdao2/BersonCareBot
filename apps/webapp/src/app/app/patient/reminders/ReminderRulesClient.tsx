@@ -292,6 +292,7 @@ export function ReminderRulesClient({
   unseenCount = 0,
   activeProgram = null,
   warmupsSectionAvailable = false,
+  warmupsSectionSlug = DEFAULT_WARMUPS_SECTION_SLUG,
   warmupsSectionTitle = "Разминки",
   rehabRuleForBlock = null,
   warmupRuleForBlock = null,
@@ -304,6 +305,7 @@ export function ReminderRulesClient({
   unseenCount?: number;
   activeProgram?: { id: string; title: string } | null;
   warmupsSectionAvailable?: boolean;
+  warmupsSectionSlug?: string;
   warmupsSectionTitle?: string;
   rehabRuleForBlock?: ReminderRule | null;
   warmupRuleForBlock?: ReminderRule | null;
@@ -634,7 +636,7 @@ export function ReminderRulesClient({
             open={warmupDialogOpen}
             onOpenChange={setWarmupDialogOpen}
             linkedObjectType="content_section"
-            linkedObjectId={DEFAULT_WARMUPS_SECTION_SLUG}
+            linkedObjectId={warmupsSectionSlug}
             contextTitle={warmupsSectionTitle}
             existingRule={warmupRuleForBlock ? reminderRuleToPatientJson(warmupRuleForBlock) : null}
             onSaved={() => {

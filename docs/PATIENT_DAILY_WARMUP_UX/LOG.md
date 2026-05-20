@@ -6,6 +6,12 @@
 2. **Shell:** `from=daily_warmup` — back на `/app/patient`, без «Назад к разделу»; убран `SectionWarmupsReminderBar` с `/sections/warmups`.
 3. **Pager:** `listDailyWarmupPagesForHome`, `PatientDailyWarmupPager` под hero («Разминка дня n/N», список блока `daily_warmup`).
 
+## Аудит (доработки)
+
+- Напоминания: `warmupsSectionSlug` в `RemindersPageBody` / `ReminderRulesClient` (`isWarmupsContentSectionReminderRule`).
+- Deeplink: `warmupsSectionSlugs` / `buildReminderDeepLinkAsync`, projection + web-push tick.
+- Pager: `sticky top-0 z-[5]`.
+
 ## Проверки
 
 - `vitest`: `resolveReminderIntentForLinkedObject.test.ts`, `buildReminderDeepLink.test.ts`, `service.test.ts` (warmup create), `todayConfig.dailyWarmupList.test.ts`, `PatientDailyWarmupPager.test.tsx`, `page.warmupsGate.test.tsx`, integrator `buildPatientReminderDeepLink.test.ts`

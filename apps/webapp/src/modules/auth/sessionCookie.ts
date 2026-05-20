@@ -93,12 +93,12 @@ export function buildFreshLoginMarkerCookieOptions() {
   };
 }
 
+type CookieWriterOptions =
+  | ReturnType<typeof buildSessionCookieOptions>
+  | ReturnType<typeof buildFreshLoginMarkerCookieOptions>;
+
 type CookieWriter = {
-  set: (
-    name: string,
-    value: string,
-    options: ReturnType<typeof buildSessionCookieOptions>,
-  ) => void;
+  set: (name: string, value: string, options: CookieWriterOptions) => void;
 };
 
 export function writeFreshLoginMarkerCookie(cookieStore: CookieWriter): void {

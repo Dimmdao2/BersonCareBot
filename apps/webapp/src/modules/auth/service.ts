@@ -1,4 +1,6 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { decodeBase64Url } from "@/shared/utils/base64url";
 import { env, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
@@ -35,6 +37,16 @@ import {
 } from "./sessionCookie";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
+
+function signIntegratorPayload(value: string, secret: string): string {
+  return createHmac("sha256", secret).update(value).digest("base64url");
+}
+
+function safeEqualStrings(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
 type IntegratorTokenPayload = {
   sub: string;
@@ -102,7 +114,7 @@ async function parseIntegratorToken(token: string): Promise<IntegratorTokenPaylo
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
   const entrySecret = (await getIntegratorWebappEntrySecret()).trim();
-  if (!entrySecret || !safeEqual(signature, sign(payload, entrySecret))) return null;
+  if (!entrySecret || !safeEqualStrings(signature, signIntegratorPayload(payload, entrySecret))) return null;
 
   let parsed: IntegratorTokenPayload;
   try {
@@ -247,7 +259,7 @@ async function validateTelegramInitData(
 
   const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
   const computedHash = createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
-  if (!safeEqual(computedHash, hash.toLowerCase())) return null;
+  if (!safeEqualStrings(computedHash, hash.toLowerCase())) return null;
 
   const userJson = params.get("user");
   if (!userJson) return null;

@@ -1,4 +1,8 @@
-import { buildReminderDeepLink } from "./buildReminderDeepLink";
+import {
+  buildReminderDeepLinkAsync,
+  type BuildReminderDeepLinkOptions,
+} from "./buildReminderDeepLink";
+import type { ReminderIntentSectionLookup } from "./resolveReminderIntentForLinkedObject";
 import { notificationTopicCodeFromReminderRule } from "./notificationTopicCode";
 import type { WebPushOnlyReminderRuleRow } from "./webPushOnlyPorts";
 
@@ -14,6 +18,10 @@ export function resolveWebPushOnlyReminderTopicCode(rule: WebPushOnlyReminderRul
 export async function buildWebPushOnlyReminderNotifyContent(
   rule: WebPushOnlyReminderRuleRow,
   resolveLinkedTitle: (linkedObjectType: string, linkedObjectId: string) => Promise<string | null>,
+  opts?: {
+    sectionLookup?: ReminderIntentSectionLookup;
+    deepLinkOpts?: BuildReminderDeepLinkOptions;
+  },
 ): Promise<{ title: string; bodyText: string; openUrl: string; topicCode: string | null }> {
   let title =
     rule.customTitle?.trim() ||
@@ -26,11 +34,15 @@ export async function buildWebPushOnlyReminderNotifyContent(
 
   const notifyTitle = title?.trim() || "Напоминание";
   const bodyText = rule.customText?.trim() ?? "";
-  const openUrl = buildReminderDeepLink({
-    linkedObjectType: rule.linkedObjectType,
-    linkedObjectId: rule.linkedObjectId,
-    reminderIntent: rule.reminderIntent,
-  });
+  const openUrl = await buildReminderDeepLinkAsync(
+    {
+      linkedObjectType: rule.linkedObjectType,
+      linkedObjectId: rule.linkedObjectId,
+      reminderIntent: rule.reminderIntent,
+    },
+    opts?.sectionLookup,
+    opts?.deepLinkOpts,
+  );
   const topicCode = resolveWebPushOnlyReminderTopicCode(rule);
 
   return { title: notifyTitle, bodyText, openUrl, topicCode };

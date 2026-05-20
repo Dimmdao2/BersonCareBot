@@ -8,11 +8,15 @@ import {
   runPlatformUserReminderWebPushNotify,
   type PlatformUserReminderWebPushNotifyDeps,
 } from "./platformUserReminderWebPushNotify";
+import type { BuildReminderDeepLinkOptions } from "./buildReminderDeepLink";
+import type { ReminderIntentSectionLookup } from "./resolveReminderIntentForLinkedObject";
 import type { WebPushOnlyRemindersPort } from "./webPushOnlyPorts";
 
 export type WebPushOnlySchedulerDeps = {
   reminders: WebPushOnlyRemindersPort;
   notify: PlatformUserReminderWebPushNotifyDeps;
+  deepLinkOpts?: BuildReminderDeepLinkOptions;
+  sectionLookup?: ReminderIntentSectionLookup;
 };
 
 export type WebPushOnlyReminderTickResult = {
@@ -167,8 +171,10 @@ export async function runWebPushOnlyReminderTick(
       continue;
     }
 
-    const content = await buildWebPushOnlyReminderNotifyContent(rule, (type, id) =>
-      deps.reminders.resolveLinkedCatalogTitle(type, id),
+    const content = await buildWebPushOnlyReminderNotifyContent(
+      rule,
+      (type, id) => deps.reminders.resolveLinkedCatalogTitle(type, id),
+      { sectionLookup: deps.sectionLookup, deepLinkOpts: deps.deepLinkOpts },
     );
 
     const notifyRes = await runPlatformUserReminderWebPushNotify(

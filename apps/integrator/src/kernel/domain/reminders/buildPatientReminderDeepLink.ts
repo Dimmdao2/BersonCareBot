@@ -29,11 +29,27 @@ const KNOWN = new Set([
   'treatment_program_item',
 ]);
 
-export function buildPatientReminderDeepLink(params: {
-  linkedObjectType: string | null | undefined;
-  linkedObjectId: string | null | undefined;
-  reminderIntent?: string | null | undefined;
-}): string {
+export type BuildPatientReminderDeepLinkOptions = {
+  warmupsSectionSlugs?: ReadonlySet<string>;
+};
+
+function isWarmupsSectionDeepLink(
+  linkedObjectId: string,
+  opts?: BuildPatientReminderDeepLinkOptions,
+): boolean {
+  if (isWarmupsContentSectionLinkedId(linkedObjectId)) return true;
+  const id = linkedObjectId.trim();
+  return Boolean(id && opts?.warmupsSectionSlugs?.has(id));
+}
+
+export function buildPatientReminderDeepLink(
+  params: {
+    linkedObjectType: string | null | undefined;
+    linkedObjectId: string | null | undefined;
+    reminderIntent?: string | null | undefined;
+  },
+  opts?: BuildPatientReminderDeepLinkOptions,
+): string {
   const base = getAppBaseUrlSync().replace(/\/$/, '');
   const intentRaw = typeof params.reminderIntent === 'string' ? params.reminderIntent.trim() : '';
   if (intentRaw === 'warmup') {
@@ -49,7 +65,7 @@ export function buildPatientReminderDeepLink(params: {
   if (!linkedObjectType || !linkedObjectId) {
     return `${base}/app/patient/reminders?from=reminder`;
   }
-  if (linkedObjectType === 'content_section' && isWarmupsContentSectionLinkedId(linkedObjectId)) {
+  if (linkedObjectType === 'content_section' && isWarmupsSectionDeepLink(linkedObjectId, opts)) {
     return base ? `${base}${GO_DAILY_WARMUP}` : GO_DAILY_WARMUP;
   }
   const id = encodeURIComponent(linkedObjectId);

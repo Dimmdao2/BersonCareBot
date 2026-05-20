@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
+import { cn } from "@/lib/utils";
 
 type IntakeItem = {
   id: string;
@@ -137,12 +139,15 @@ function IntakeCardActions({
 }) {
   return (
     <div className="flex gap-2 flex-wrap">
-      <Button size="sm" variant="outline" asChild>
-        <Link href={doctorClientProfileHref(patientUserId)}>Карточка клиента</Link>
-      </Button>
-      <Button size="sm" asChild>
-        <Link href={doctorClientChatHref(patientUserId)}>Чат</Link>
-      </Button>
+      <Link
+        href={doctorClientProfileHref(patientUserId)}
+        className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+      >
+        Карточка клиента
+      </Link>
+      <Link href={doctorClientChatHref(patientUserId)} className={cn(buttonVariants({ size: "sm" }))}>
+        Чат
+      </Link>
       {status !== "closed" ? (
         <Button size="sm" variant="outline" disabled={updating} onClick={onClose}>
           Закрыть
@@ -315,12 +320,14 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
           </div>
           {detailLoading && <p className="text-xs text-muted-foreground">Обновление…</p>}
           {!detailLoading && <IntakeDetailBody detail={detail} />}
-          <IntakeCardActions
-            patientUserId={detail.patientUserId}
-            status={detail.status}
-            updating={updatingId === detail.id}
-            onClose={() => void closeRequest(detail.id)}
-          />
+          {detail.patientUserId ? (
+            <IntakeCardActions
+              patientUserId={detail.patientUserId}
+              status={detail.status}
+              updating={updatingId === detail.id}
+              onClose={() => void closeRequest(detail.id)}
+            />
+          ) : null}
         </div>
       )}
 
@@ -384,12 +391,14 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
               )}
             </div>
 
-            <IntakeCardActions
-              patientUserId={item.patientUserId}
-              status={item.status}
-              updating={updatingId === item.id}
-              onClose={() => void closeRequest(item.id)}
-            />
+            {item.patientUserId ? (
+              <IntakeCardActions
+                patientUserId={item.patientUserId}
+                status={item.status}
+                updating={updatingId === item.id}
+                onClose={() => void closeRequest(item.id)}
+              />
+            ) : null}
           </div>
         ))}
       </div>

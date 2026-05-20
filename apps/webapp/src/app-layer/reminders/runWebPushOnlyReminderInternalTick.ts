@@ -1,6 +1,8 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
+import { getPool } from "@/infra/db/client";
 import { pgWebPushOnlyRemindersPort } from "@/infra/repos/pgWebPushOnlyReminders";
+import { loadWarmupsSectionSlugs } from "@/modules/reminders/loadWarmupsSectionSlugs";
 import {
   runWebPushOnlyReminderTick,
   webPushOnlyReminderTickMetaFromResult,
@@ -17,10 +19,18 @@ export async function runWebPushOnlyReminderInternalTick(options?: {
   const reconcileStartedAt = Date.now();
   const startedAtIso = new Date(reconcileStartedAt).toISOString();
   const deps = buildAppDeps();
+  const warmupsSectionSlugs = await loadWarmupsSectionSlugs(getPool());
 
   const result = await runWebPushOnlyReminderTick(
     {
       reminders: pgWebPushOnlyRemindersPort,
+      deepLinkOpts: { warmupsSectionSlugs },
+      sectionLookup: {
+        getBySlug: async (slug) => {
+          const sec = await deps.contentSections.getBySlug(slug);
+          return sec ? { systemParentCode: sec.systemParentCode } : null;
+        },
+      },
       notify: {
         channelPreferences: deps.channelPreferencesPort,
         topicChannelPrefs: deps.topicChannelPrefs,

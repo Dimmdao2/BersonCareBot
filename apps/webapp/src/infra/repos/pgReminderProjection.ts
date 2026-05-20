@@ -6,6 +6,7 @@
 
 import { getPool } from "@/infra/db/client";
 import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
+import { loadWarmupsSectionSlugs } from "@/modules/reminders/loadWarmupsSectionSlugs";
 import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
 
 export type ReminderRuleListItem = {
@@ -297,6 +298,8 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
          FROM reminder_rules WHERE integrator_user_id = $1::bigint ORDER BY category`,
         [integratorUserId]
       );
+      const warmupsSectionSlugs = await loadWarmupsSectionSlugs(pool);
+      const deepLinkOpts = { warmupsSectionSlugs };
       return r.rows.map((row) => {
         return {
           id: row.integrator_rule_id,
@@ -321,11 +324,14 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
           quietHoursStartMinute: row.quiet_hours_start_minute ?? null,
           quietHoursEndMinute: row.quiet_hours_end_minute ?? null,
           notificationTopicCode: row.notification_topic_code ?? null,
-          deepLink: buildReminderDeepLink({
-            linkedObjectType: row.linked_object_type,
-            linkedObjectId: row.linked_object_id,
-            reminderIntent: row.reminder_intent,
-          }),
+          deepLink: buildReminderDeepLink(
+            {
+              linkedObjectType: row.linked_object_type,
+              linkedObjectId: row.linked_object_id,
+              reminderIntent: row.reminder_intent,
+            },
+            deepLinkOpts,
+          ),
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         };
@@ -372,6 +378,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
       );
       const row = r.rows[0];
       if (!row) return null;
+      const warmupsSectionSlugs = await loadWarmupsSectionSlugs(pool);
       return {
         id: row.integrator_rule_id,
         userId: row.integrator_user_id,
@@ -395,11 +402,14 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         quietHoursStartMinute: row.quiet_hours_start_minute ?? null,
         quietHoursEndMinute: row.quiet_hours_end_minute ?? null,
         notificationTopicCode: row.notification_topic_code ?? null,
-        deepLink: buildReminderDeepLink({
-          linkedObjectType: row.linked_object_type,
-          linkedObjectId: row.linked_object_id,
-          reminderIntent: row.reminder_intent,
-        }),
+        deepLink: buildReminderDeepLink(
+          {
+            linkedObjectType: row.linked_object_type,
+            linkedObjectId: row.linked_object_id,
+            reminderIntent: row.reminder_intent,
+          },
+          { warmupsSectionSlugs },
+        ),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       };
