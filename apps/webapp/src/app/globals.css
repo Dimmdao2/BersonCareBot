@@ -672,3 +672,31 @@
     animation: none;
   }
 }
+
+/**
+ * iOS Safari auto-zooms the viewport when a focused field has font-size < 16px.
+ * Mobile-only floor for text fields; desktop keeps compact text-sm in forms.
+ * PIN/OTP cells with text-lg+ are excluded (not in the small-type class list).
+ */
+@media (max-width: 767px) {
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="file"]):not([type="image"]),
+    textarea,
+    select
+  ) {
+    font-size: max(16px, 1em);
+  }
+
+  :where(input, textarea, select):is(
+    .text-xs,
+    .text-sm,
+    .text-\[10px\],
+    .text-\[11px\],
+    .text-\[12px\],
+    .text-\[13px\],
+    .text-\[14px\],
+    .text-\[15px\]
+  ) {
+    font-size: 1rem !important;
+  }
+}

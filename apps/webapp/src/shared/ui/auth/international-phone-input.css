@@ -12,13 +12,16 @@
 
 .phone-field-auth .PhoneInputCountrySelect {
   padding-left: 0.15rem;
+  /* Same 16px floor as PhoneInputInput — country picker is a native select on iOS. */
+  font-size: 1rem;
 }
 
 .phone-field-auth .PhoneInputInput {
   height: 2.5rem;
   border: 0;
   background: transparent;
-  font-size: 0.875rem;
+  /* iOS Safari auto-zooms focused inputs below 16px — breaks patient shell layout. */
+  font-size: 1rem;
   line-height: 1.25rem;
   color: var(--patient-text-primary, hsl(var(--foreground)));
   outline: none;
