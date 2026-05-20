@@ -546,7 +546,15 @@ describe("treatment-program instance service", () => {
       const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
       const tpl = await tplLocal.createTemplate({ title: "Промо v1", status: "published" }, null);
       await tplLocal.createStage(tpl.id, { title: "Этап 1" });
-      const { instSvc, instancePort, eventsPort } = makePromoSvc(async () => tpl.id);
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence();
+      const instSvc = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+        getDefaultPromoTemplateId: async () => tpl.id,
+      });
 
       const first = await instSvc.assignTemplateToPatient({
         templateId: tpl.id,

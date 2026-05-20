@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const refreshMock = vi.fn();
-const retargetMock = vi.fn();
-const revalidateMock = vi.fn();
+const { refreshMock, retargetMock, revalidateMock } = vi.hoisted(() => ({
+  refreshMock: vi.fn(),
+  retargetMock: vi.fn(),
+  revalidateMock: vi.fn(),
+}));
 
 vi.mock("@/app-layer/cache/revalidatePatientTreatmentProgramUi", () => ({
   revalidatePatientTreatmentProgramUi: revalidateMock,
