@@ -81,17 +81,28 @@ describe("GET /api/media/[id]/hls/[[...path]]", () => {
   });
 
   it("delegates to handleHlsDeliveryProxyRequest with Range header", async () => {
-    await GET(
-      new Request(`http://localhost/api/media/${mid}/hls/720p/seg.ts`, {
-        headers: { Range: "bytes=0-1" },
-      }),
-      { params: Promise.resolve({ id: mid, path: ["720p", "seg.ts"] }) },
-    );
+    const req = new Request(`http://localhost/api/media/${mid}/hls/720p/seg.ts`, {
+      headers: { Range: "bytes=0-1" },
+    });
+    await GET(req, { params: Promise.resolve({ id: mid, path: ["720p", "seg.ts"] }) });
     expect(handleMock).toHaveBeenCalledWith({
       mediaId: mid,
       pathSegments: ["720p", "seg.ts"],
       rangeHeader: "bytes=0-1",
       userId: "u1",
+      clientAbortSignal: req.signal,
     });
+  });
+
+  it("passes request.signal as clientAbortSignal", async () => {
+    const ac = new AbortController();
+    const req = new Request(`http://localhost/api/media/${mid}/hls/720p/seg.ts`, { signal: ac.signal });
+    await GET(req, { params: Promise.resolve({ id: mid, path: ["720p", "seg.ts"] }) });
+    expect(handleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaId: mid,
+        clientAbortSignal: req.signal,
+      }),
+    );
   });
 });

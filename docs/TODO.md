@@ -8,6 +8,7 @@
 
 - **Закрытые планы (корень репозитория, 2026-05-15):** Integrator → Drizzle — `.cursor/plans/integrator_drizzle_migration_master.plan.md` + `integrator_drizzle_phase_*.plan.md` (во frontmatter **`status: completed`**); журнал [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](INTEGRATOR_DRIZZLE_MIGRATION/LOG.md). Физический перенос в **`.cursor/plans/archive/`** — по процессу, см. [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md) §«Корень `.cursor/plans/`».
 - **Архив закрытых планов (репозиторий):** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md) (в т.ч. `telegram_menu_reply_admin.plan.md` — меню Telegram админ/пользователь 2026-05).
+- **Отложенные работы (не сейчас):** [`docs/TODO_NOT_NOW/`](TODO_NOT_NOW/README.md) — реестр черновиков; планы с `status: draft` (см. § «Черновики» в archive README). Пример: [public_landing_metadata](TODO_NOT_NOW/public_landing_metadata.md).
 - **Архив закрытых планов (домашний каталог Cursor):** `~/.cursor/plans/archive/2026-05-01-closed/`, `~/.cursor/plans/archive/2026-05-14-closed/` (корень `~/.cursor/plans/*.plan.md` — только открытые или без полностью закрытого набора structured `todos`).
 - **Архивные инициативы docs:** `docs/archive/2026-05-initiatives/` (в т.ч. WEBAPP Drizzle unification, Patient Reminder UX, страница программы, LFK expand — оглавление в [docs/README.md](README.md) §Архив).
 - **Закрытые пункты этого backlog (история):** [archive/TODO_BACKLOG_CLOSED_HISTORY.md](archive/TODO_BACKLOG_CLOSED_HISTORY.md).

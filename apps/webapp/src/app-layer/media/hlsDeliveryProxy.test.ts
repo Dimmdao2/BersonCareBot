@@ -200,4 +200,40 @@ describe("handleHlsDeliveryProxyRequest", () => {
       expect.objectContaining({ reasonCode: "internal_error", mediaId: mid }),
     );
   });
+
+  it("cancels segment stream without error when clientAbortSignal aborts", async () => {
+    let upstreamCancelCount = 0;
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1]));
+      },
+      cancel() {
+        upstreamCancelCount += 1;
+      },
+    });
+    hoisted.s3StreamMock.mockResolvedValue({
+      ok: true,
+      httpStatus: 200,
+      stream: upstream,
+      contentType: "video/mp2t",
+      contentLength: 1,
+    });
+
+    const ac = new AbortController();
+    const res = await handleHlsDeliveryProxyRequest({
+      mediaId: mid,
+      pathSegments: ["720p", "seg.ts"],
+      rangeHeader: null,
+      userId: uid,
+      clientAbortSignal: ac.signal,
+    });
+    expect(res.status).toBe(200);
+
+    const reader = res.body!.getReader();
+    await reader.read();
+    ac.abort();
+    await expect(reader.read()).rejects.toMatchObject({ name: "AbortError" });
+
+    expect(upstreamCancelCount).toBeGreaterThanOrEqual(1);
+  });
 });

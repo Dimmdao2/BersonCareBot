@@ -33,5 +33,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     pathSegments: path,
     rangeHeader: request.headers.get("Range"),
     userId: session.user.userId,
+    clientAbortSignal: request.signal,
   });
 }

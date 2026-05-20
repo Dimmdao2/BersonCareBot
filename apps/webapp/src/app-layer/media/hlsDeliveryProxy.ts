@@ -21,6 +21,7 @@ import {
   shouldRecordMediaHlsProxyError,
 } from "@/app-layer/media/hlsProxyErrorEvents";
 import type { HlsProxyArtifactKind, HlsProxyReasonCodeDb } from "@/modules/media/hlsProxyTelemetry";
+import { bindHlsProxyStreamToClientAbort } from "@/app-layer/media/hlsProxyClientAbortStream";
 import { isTrustedHlsArtifactS3Key } from "@/shared/lib/hlsStorageLayout";
 
 function contentTypeForArtifact(segments: string[], fromS3: string | undefined): string {
@@ -110,6 +111,7 @@ export async function handleHlsDeliveryProxyRequest(input: {
   pathSegments: string[] | undefined;
   rangeHeader: string | null;
   userId: string;
+  clientAbortSignal?: AbortSignal | null;
 }): Promise<Response> {
   const { mediaId, userId } = input;
   try {
@@ -131,6 +133,7 @@ async function runHlsDeliveryProxy(input: {
   pathSegments: string[] | undefined;
   rangeHeader: string | null;
   userId: string;
+  clientAbortSignal?: AbortSignal | null;
 }): Promise<Response> {
   const { mediaId, userId } = input;
 
@@ -258,7 +261,9 @@ async function runHlsDeliveryProxy(input: {
   if (streamed.contentRange) headers.set("Content-Range", streamed.contentRange);
   if (streamed.eTag) headers.set("ETag", streamed.eTag);
 
-  return new Response(streamed.stream, {
+  const body = bindHlsProxyStreamToClientAbort(streamed.stream, input.clientAbortSignal);
+
+  return new Response(body, {
     status: streamed.httpStatus,
     headers,
   });

@@ -2,6 +2,12 @@
 
 Закрытые планы хранятся здесь, чтобы в **`.cursor/plans/*.plan.md`** (корень) оставались в основном **открытые** треки. Исключения см. ниже.
 
+## Черновики / не сейчас (`status: draft`)
+
+Спека есть, исполнение отложено — карточка в [`docs/TODO_NOT_NOW/`](../../docs/TODO_NOT_NOW/README.md):
+
+- **`public_landing_metadata_system_settings.plan.md`** — title и meta description лендинга `/` из `system_settings`; карточка [`docs/TODO_NOT_NOW/public_landing_metadata.md`](../../docs/TODO_NOT_NOW/public_landing_metadata.md).
+
 ## Корень `.cursor/plans/` (файлы вне этого каталога `archive/`)
 
 - **Integrator → Drizzle** — закрыто **2026-05-15** (`status: completed` в `integrator_drizzle_*.plan.md`); журнал [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md). Планы по-прежнему лежат в **корне** `.cursor/plans/` (стабильные ссылки из `docs/README.md`, `docs/TODO.md`); при уборке по процессу — **`git mv`** в этот каталог ([правило планов](../../.cursor/rules/plan-authoring-execution-standard.mdc) §9).

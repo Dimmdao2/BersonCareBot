@@ -5,7 +5,7 @@ status: pending
 todos:
   - id: hls-controller-double-close
     content: "Webapp: TypeError Controller is already closed (ERR_INVALID_STATE) после playback_resolved — аудит hlsDeliveryProxy + HLS route; защита от double close при AbortSignal/обрыве клиента; тесты route.test"
-    status: pending
+    status: completed
   - id: next-server-action-mismatch
     content: "Webapp: Failed to find Server Action (x/dx) — выровнять кэш HTML/CDN, единый билд за LB; документировать обход для пользователей после деплоя"
     status: pending

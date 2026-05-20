@@ -1,6 +1,7 @@
 # Документация проекта
 
 - **Backlog (security, rate limit, observability, URL/UUID в адресах):** [`TODO.md`](TODO.md) — сводка **активных Cursor-планов** и ссылка на архив в начале файла.
+- **Отложенные работы (не сейчас):** [`TODO_NOT_NOW/README.md`](TODO_NOT_NOW/README.md) — черновики и ТЗ без активного исполнения (карточка + ссылка на `.cursor/plans`).
 - **Архив (завершённые инициативы и разовые журналы):** [`archive/README.md`](archive/README.md)
 - **Операционные отчёты / runbook:** [`REPORTS/README.md`](REPORTS/README.md)
 - **Шаблон программы: развёртывание комплекса ЛФК в упражнения** — журнал исполнения [`archive/2026-05-initiatives/TREATMENT_PROGRAM_LFK_TEMPLATE_EXPAND/LOG.md`](archive/2026-05-initiatives/TREATMENT_PROGRAM_LFK_TEMPLATE_EXPAND/LOG.md); post-prod legacy [`TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md`](TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md).
