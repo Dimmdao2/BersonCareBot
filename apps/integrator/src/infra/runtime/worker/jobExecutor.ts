@@ -57,6 +57,7 @@ function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
 
 /** Executes one delivery attempt from pre-built job payload without business decision making. */
 export async function executeJob(job: DeliveryJob, deps: JobExecutorDeps): Promise<DeliveryAttemptResult> {
+  const payload = asRecord(job.payload);
   const intent = resolveIntentForAttempt(job);
   if (!intent) {
     return {
@@ -68,6 +69,21 @@ export async function executeJob(job: DeliveryJob, deps: JobExecutorDeps): Promi
 
   try {
     await deps.dispatchOutgoing(intent);
+    const pushNotify = payload.webappPushNotify;
+    if (
+      deps.dispatchWebappPush &&
+      pushNotify &&
+      typeof pushNotify === 'object' &&
+      typeof (pushNotify as { phoneNormalized?: unknown }).phoneNormalized === 'string' &&
+      typeof (pushNotify as { slotStartIso?: unknown }).slotStartIso === 'string' &&
+      typeof (pushNotify as { stableKey?: unknown }).stableKey === 'string'
+    ) {
+      await deps.dispatchWebappPush({
+        phoneNormalized: (pushNotify as { phoneNormalized: string }).phoneNormalized,
+        slotStartIso: (pushNotify as { slotStartIso: string }).slotStartIso,
+        stableKey: (pushNotify as { stableKey: string }).stableKey,
+      });
+    }
     return { ok: true, final: true };
   } catch (error) {
     return {

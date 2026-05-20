@@ -22,8 +22,10 @@ vi.mock("@/modules/auth/phoneMessengerBindStartRateLimit", () => ({
   isPhoneMessengerBindStartRateLimited: (...args: unknown[]) => rateLimitMock(...args),
 }));
 
-vi.mock("@/modules/auth/phoneMessengerBind", () => ({
-  startPhoneMessengerBind: (...args: unknown[]) => startBindMock(...args),
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({
+    phoneMessengerBind: { start: (...args: unknown[]) => startBindMock(...args) },
+  }),
 }));
 
 import { POST } from "./route";

@@ -39,8 +39,18 @@ export interface PhoneMessengerBindPort {
     expiresAtIso: string;
   }): Promise<void>;
   updateExpired(id: string): Promise<void>;
-  updateFailed(id: string, failureCode: string): Promise<void>;
-  updateOtpReady(id: string, challengeId: string): Promise<void>;
+  updateFailed(id: string, failureCode: string, client?: PoolClient): Promise<void>;
+  updateOtpReady(id: string, challengeId: string, client?: PoolClient): Promise<void>;
   markConsumedByChallenge(challengeId: string): Promise<void>;
   withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T>;
+  applyMessengerContactPreOtp(
+    client: PoolClient,
+    params: {
+      phoneNormalized: string;
+      channelCode: PhoneMessengerBindChannel;
+      externalId: string;
+      purpose: PhoneMessengerBindPurpose;
+      sessionUserId?: string | null;
+    },
+  ): Promise<{ ok: true; accountCreated: boolean } | { ok: false; code: string }>;
 }

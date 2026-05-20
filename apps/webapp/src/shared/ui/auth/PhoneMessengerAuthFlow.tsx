@@ -242,7 +242,8 @@ export function PhoneMessengerAuthFlow({
         toast.error(data.message ?? "Не удалось начать привязку");
         return;
       }
-      setSetupToken(data.setupToken);
+      const bindToken = data.setupToken;
+      setSetupToken(bindToken);
       setBindChannel(channelCode);
       finishChannelLinkNavigation({
         blankWin: null,
@@ -260,9 +261,9 @@ export function PhoneMessengerAuthFlow({
       }
       setStep("code");
 
-      void pollBindStatus(data.setupToken, channelCode);
+      void pollBindStatus(bindToken, channelCode);
       pollRef.current = setInterval(() => {
-        void pollBindStatus(data.setupToken, channelCode);
+        void pollBindStatus(bindToken, channelCode);
       }, POLL_MS);
     } finally {
       setLoading(false);

@@ -63,6 +63,7 @@ export default [
       "src/modules/auth/checkPhoneRateLimit.ts",
       "src/modules/auth/emailAuth.ts",
       "src/modules/auth/messengerStartRateLimit.ts",
+      "src/modules/auth/phoneMessengerBindStartRateLimit.ts",
       "src/modules/auth/oauthStartRateLimit.ts",
       "src/modules/auth/oauthWebLoginResolve.ts",
       "src/modules/auth/oauthWebSession.ts",

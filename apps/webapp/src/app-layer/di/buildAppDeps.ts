@@ -22,8 +22,12 @@ import {
 } from "@/modules/auth/phoneAuth";
 import {
   completePhoneMessengerBindFromIntegrator,
+  getPhoneMessengerBindStatus,
   markPhoneMessengerBindConsumedByChallenge,
+  registerPhoneMessengerBindPort,
+  startPhoneMessengerBind,
 } from "@/modules/auth/phoneMessengerBind";
+import { createPgPhoneMessengerBindPort } from "@/infra/repos/pgPhoneMessengerBind";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import { createIntegratorSmsAdapter } from "@/infra/integrations/sms/integratorSmsAdapter";
 import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
@@ -298,6 +302,8 @@ const doctorClientsPort = !inMemoryRepos ? createPgDoctorClientsPort() : inMemor
 // Stage 9: appointment_records lives in webapp DB (projection from integrator).
 const doctorAppointmentsPort = !inMemoryRepos ? createPgDoctorAppointmentsPort() : inMemoryDoctorAppointmentsPort;
 const challengeStore = !inMemoryRepos ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
+const phoneMessengerBindPort = !inMemoryRepos ? createPgPhoneMessengerBindPort() : undefined;
+registerPhoneMessengerBindPort(phoneMessengerBindPort ?? null);
 const messageLogPort = !inMemoryRepos ? createPgMessageLogPort() : inMemoryMessageLogPort;
 const broadcastAuditPort = !inMemoryRepos ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
 const doctorBroadcastDeliveryCommitPort = !inMemoryRepos
@@ -708,7 +714,7 @@ function _buildAppDeps() {
       confirmPhoneAuth: async (challengeId: string, code: string) => {
         const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
         if (!result.ok) return result;
-        await markPhoneMessengerBindConsumedByChallenge(challengeId);
+        await markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort);
         const envRole = resolveRoleFromEnv({
           phone: result.user.phone,
           telegramId: result.user.bindings?.telegramId,
@@ -913,8 +919,13 @@ function _buildAppDeps() {
     contentSections: contentSectionsPort,
     userByPhone: userByPhonePort,
     phoneMessengerBind: {
+      start: (params: Parameters<typeof startPhoneMessengerBind>[0]) =>
+        startPhoneMessengerBind(params, phoneMessengerBindPort),
+      getStatus: (setupToken: string) => getPhoneMessengerBindStatus(setupToken, phoneMessengerBindPort),
       completeFromIntegrator: (params: Parameters<typeof completePhoneMessengerBindFromIntegrator>[0]) =>
-        completePhoneMessengerBindFromIntegrator(params, phoneAuthDeps),
+        completePhoneMessengerBindFromIntegrator(params, phoneAuthDeps, phoneMessengerBindPort),
+      markConsumedByChallenge: (challengeId: string) =>
+        markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort),
     },
     userPins: userPinsPort,
     userPasswordCredentials: userPasswordCredentialsPort,

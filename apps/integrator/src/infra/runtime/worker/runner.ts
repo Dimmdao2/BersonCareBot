@@ -11,6 +11,11 @@ export type WorkerRunnerDeps = {
   dispatchOutgoing: (intent: import('../../../kernel/contracts/index.js').OutgoingIntent) => Promise<
     import('../../../kernel/contracts/index.js').DeliverySendResult
   >;
+  dispatchWebappPush?: (input: {
+    phoneNormalized: string;
+    slotStartIso: string;
+    stableKey: string;
+  }) => Promise<void>;
   nowIso: () => string;
   retryDelaySeconds: number;
 };
@@ -20,9 +25,13 @@ export async function runWorkerTick(deps: WorkerRunnerDeps): Promise<'idle' | 'p
   const job = await deps.claimNextJob();
   if (!job) return 'idle';
 
-  const result = await executeJob(job, {
+  const executorDeps: import('./jobExecutor.js').JobExecutorDeps = {
     dispatchOutgoing: deps.dispatchOutgoing,
-  });
+  };
+  if (deps.dispatchWebappPush) {
+    executorDeps.dispatchWebappPush = deps.dispatchWebappPush;
+  }
+  const result = await executeJob(job, executorDeps);
   if (result.ok) {
     await deps.logAttempt(job.id, result);
     await deps.completeJob(job.id);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getPhoneMessengerBindStatus } from "@/modules/auth/phoneMessengerBind";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const bodySchema = z.object({
   setupToken: z.string().min(4),
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await getPhoneMessengerBindStatus(parsed.data.setupToken);
+  const result = await buildAppDeps().phoneMessengerBind.getStatus(parsed.data.setupToken);
   if (!result.ok) {
     const status = result.code === "not_found" ? 404 : 400;
     return NextResponse.json({ ok: false, error: result.code }, { status });

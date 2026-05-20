@@ -1340,7 +1340,7 @@ describe('orchestrator buildPlan', () => {
     };
 
     const baseContext: BaseContext = {
-      actor: {},
+      actor: { isAdmin: false },
       identityLinks: [],
       conversationState: 'await_phoneauth:auth_token_x',
     };

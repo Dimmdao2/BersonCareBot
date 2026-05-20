@@ -10,6 +10,7 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import type { ReminderRule } from "@/modules/reminders/types";
+import type { PatientPracticeCompletionRow } from "@/modules/patient-practice/types";
 import type { WarmupPushDynamicContext } from "./pushNotificationCopy";
 
 export type LoadWarmupPushDynamicContextDeps = {
@@ -18,7 +19,7 @@ export type LoadWarmupPushDynamicContextDeps = {
     userId: string,
     start: Date,
     end: Date,
-  ) => Promise<Array<{ source: string }>>;
+  ) => Promise<PatientPracticeCompletionRow[]>;
   patientHomeBlocks: Parameters<typeof listDailyWarmupPagesForHome>[0]["patientHomeBlocks"];
   contentPages: Parameters<typeof listDailyWarmupPagesForHome>[0]["contentPages"];
   contentSections: Parameters<typeof listDailyWarmupPagesForHome>[0]["contentSections"];
@@ -60,9 +61,7 @@ export async function loadWarmupPushDynamicContext(
   );
 
   const completions = await deps.listPracticeCompletionsInRange(platformUserId, start, end);
-  const warmupDone = countWarmupCompletionsInRows(
-    completions as Parameters<typeof countWarmupCompletionsInRows>[0],
-  );
+  const warmupDone = countWarmupCompletionsInRows(completions);
   const warmupsRemaining = warmupPlanned > warmupDone ? warmupPlanned - warmupDone : 0;
 
   return {

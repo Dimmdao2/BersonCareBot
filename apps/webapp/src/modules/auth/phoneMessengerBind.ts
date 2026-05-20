@@ -1,20 +1,14 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { PoolClient } from "pg";
 import { env } from "@/config/env";
 import { integratorWebhookSecret } from "@/config/env";
-import { createPgPhoneMessengerBindPort } from "@/infra/repos/pgPhoneMessengerBind";
-import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import type {
   PhoneMessengerBindChannel,
   PhoneMessengerBindPurpose,
   PhoneMessengerBindPort,
-  PhoneMessengerBindSecretRow,
   PhoneMessengerBindStatus,
 } from "./phoneMessengerBind.ports";
-import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
-import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
-import { channelToBindingKey, type ChannelContext } from "./channelContext";
+import type { ChannelContext } from "./channelContext";
 import { createPhoneOtpChallenge, type PhoneAuthDeps } from "./phoneAuth";
 import { normalizePhone } from "./phoneNormalize";
 import { isValidPhoneE164 } from "./phoneValidation";
@@ -64,100 +58,17 @@ function buildDeepLink(params: {
   return { url: "https://max.ru/", manualCommand: `/start ${params.startPayload}` };
 }
 
+let registeredPhoneMessengerBindPort: PhoneMessengerBindPort | null = null;
+
+/** Composition root registers the PG port once at module load. */
+export function registerPhoneMessengerBindPort(port: PhoneMessengerBindPort | null): void {
+  registeredPhoneMessengerBindPort = port;
+}
+
 function resolveBindPort(port?: PhoneMessengerBindPort): PhoneMessengerBindPort | null {
   if (port) return port;
   if (!env.DATABASE_URL?.trim()) return null;
-  return createPgPhoneMessengerBindPort();
-}
-
-async function applyMessengerContactPreOtp(
-  client: PoolClient,
-  params: {
-    phoneNormalized: string;
-    channelCode: PhoneMessengerBindChannel;
-    externalId: string;
-    purpose: PhoneMessengerBindPurpose;
-    sessionUserId?: string | null;
-  },
-): Promise<{ ok: true; accountCreated: boolean } | { ok: false; code: string }> {
-  const channelCode = params.channelCode;
-  const key = channelToBindingKey(channelCode);
-  if (!key) return { ok: false, code: "unsupported_channel" };
-
-  const existingByPhone = await client.query<{ id: string }>(
-    `SELECT id FROM platform_users WHERE phone_normalized = $1 AND merged_into_id IS NULL FOR UPDATE`,
-    [params.phoneNormalized],
-  );
-
-  if (params.purpose === "profile_bind") {
-    const sessionId = params.sessionUserId?.trim();
-    if (!sessionId) return { ok: false, code: "session_required" };
-    const canonicalSession = (await resolveCanonicalUserId(client, sessionId)) ?? sessionId;
-    if (existingByPhone.rows.length > 0 && existingByPhone.rows[0]!.id !== canonicalSession) {
-      return { ok: false, code: "phone_owned_by_other_user" };
-    }
-    await client.query(
-      `UPDATE platform_users SET phone_normalized = $1, updated_at = now() WHERE id = $2::uuid`,
-      [params.phoneNormalized, canonicalSession],
-    );
-    await applyPlatformUserPhoneHistoryTransition(client, {
-      platformUserId: canonicalSession,
-      newPhoneNormalized: params.phoneNormalized,
-      source: "messenger",
-    });
-    const ins = await client.query(
-      `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id
-       RETURNING user_id`,
-      [canonicalSession, channelCode, params.externalId],
-    );
-    if (ins.rows[0]?.user_id && ins.rows[0].user_id !== canonicalSession) {
-      return { ok: false, code: "channel_owned_by_other_user" };
-    }
-    await upsertBroadcastDefaultsAfterChannelBind(client, canonicalSession, channelCode);
-    return { ok: true, accountCreated: false };
-  }
-
-  let userId: string;
-  let accountCreated = false;
-  if (existingByPhone.rows.length > 0) {
-    userId = existingByPhone.rows[0]!.id;
-  } else {
-    const insert = await client.query<{ id: string }>(
-      `INSERT INTO platform_users (phone_normalized, display_name, role)
-       VALUES ($1, $2, 'client') RETURNING id`,
-      [params.phoneNormalized, params.phoneNormalized],
-    );
-    userId = insert.rows[0]!.id;
-    accountCreated = true;
-    await applyPlatformUserPhoneHistoryTransition(client, {
-      platformUserId: userId,
-      newPhoneNormalized: params.phoneNormalized,
-      source: "messenger",
-    });
-  }
-
-  const bindingOwner = await client.query<{ user_id: string }>(
-    `SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE`,
-    [channelCode, params.externalId],
-  );
-  if (bindingOwner.rows.length > 0 && bindingOwner.rows[0]!.user_id !== userId) {
-    const ownerCanonical = (await resolveCanonicalUserId(client, bindingOwner.rows[0]!.user_id)) ?? bindingOwner.rows[0]!.user_id;
-    const userCanonical = (await resolveCanonicalUserId(client, userId)) ?? userId;
-    if (ownerCanonical !== userCanonical) {
-      return { ok: false, code: "channel_owned_by_other_user" };
-    }
-  }
-
-  await client.query(
-    `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
-    [userId, channelCode, params.externalId],
-  );
-  await upsertBroadcastDefaultsAfterChannelBind(client, userId, channelCode);
-  return { ok: true, accountCreated };
+  return registeredPhoneMessengerBindPort;
 }
 
 export type StartPhoneMessengerBindResult =
@@ -294,10 +205,7 @@ export async function completePhoneMessengerBindFromIntegrator(
   }
 
   if (contactPhone !== row.phone_normalized) {
-    await pool.query(
-      `UPDATE phone_messenger_bind_secrets SET status = 'failed', failure_code = 'phone_mismatch' WHERE id = $1`,
-      [row.id],
-    );
+    await port.updateFailed(row.id, "phone_mismatch");
     return { ok: false, code: "phone_mismatch" };
   }
 
@@ -329,77 +237,62 @@ export async function completePhoneMessengerBindFromIntegrator(
     chatId: params.externalId.trim(),
   };
 
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-    const pre = await applyMessengerContactPreOtp(client, {
-      phoneNormalized: contactPhone,
-      channelCode: params.channelCode,
-      externalId: params.externalId.trim(),
-      purpose: row.purpose as PhoneMessengerBindPurpose,
-      sessionUserId: row.user_id,
-    });
-    if (!pre.ok) {
-      await client.query(
-        `UPDATE phone_messenger_bind_secrets SET status = 'failed', failure_code = $2 WHERE id = $1`,
-        [row.id, pre.code],
-      );
-      await client.query("COMMIT");
-      logger.warn({
-        event: "phone_messenger_bind_complete_fail",
-        metric: "phone_messenger_bind_complete_fail",
+    return await port.withTransaction(async (client) => {
+      const pre = await port.applyMessengerContactPreOtp(client, {
+        phoneNormalized: contactPhone,
+        channelCode: params.channelCode,
+        externalId: params.externalId.trim(),
+        purpose: row.purpose as PhoneMessengerBindPurpose,
+        sessionUserId: row.user_id,
+      });
+      if (!pre.ok) {
+        await port.updateFailed(row.id, pre.code, client);
+        logger.warn({
+          event: "phone_messenger_bind_complete_fail",
+          metric: "phone_messenger_bind_complete_fail",
+          channelCode: params.channelCode,
+          purpose: row.purpose,
+          failure_code: pre.code,
+          phoneSuffix: phoneSuffixForLog(contactPhone),
+        });
+        return { ok: false as const, code: pre.code };
+      }
+
+      const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps);
+      if (!challenge.ok) {
+        await port.updateFailed(row.id, challenge.code, client);
+        logger.warn({
+          event: "phone_messenger_bind_complete_fail",
+          metric: "phone_messenger_bind_complete_fail",
+          channelCode: params.channelCode,
+          purpose: row.purpose,
+          failure_code: challenge.code,
+          phoneSuffix: phoneSuffixForLog(contactPhone),
+        });
+        return { ok: false as const, code: challenge.code };
+      }
+
+      await port.updateOtpReady(row.id, challenge.challengeId, client);
+
+      logger.info({
+        event: "phone_messenger_bind_complete_ok",
+        metric: "phone_messenger_bind_complete_ok",
         channelCode: params.channelCode,
         purpose: row.purpose,
-        failure_code: pre.code,
+        replay: false,
+        accountCreated: pre.accountCreated,
         phoneSuffix: phoneSuffixForLog(contactPhone),
       });
-      return { ok: false, code: pre.code };
-    }
 
-    const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps);
-    if (!challenge.ok) {
-      await client.query(
-        `UPDATE phone_messenger_bind_secrets SET status = 'failed', failure_code = $2 WHERE id = $1`,
-        [row.id, challenge.code],
-      );
-      await client.query("COMMIT");
-      logger.warn({
-        event: "phone_messenger_bind_complete_fail",
-        metric: "phone_messenger_bind_complete_fail",
-        channelCode: params.channelCode,
-        purpose: row.purpose,
-        failure_code: challenge.code,
-        phoneSuffix: phoneSuffixForLog(contactPhone),
-      });
-      return { ok: false, code: challenge.code };
-    }
-
-    await client.query(
-      `UPDATE phone_messenger_bind_secrets
-       SET status = 'otp_ready', challenge_id = $2, failure_code = NULL
-       WHERE id = $1`,
-      [row.id, challenge.challengeId],
-    );
-    await client.query("COMMIT");
-
-    logger.info({
-      event: "phone_messenger_bind_complete_ok",
-      metric: "phone_messenger_bind_complete_ok",
-      channelCode: params.channelCode,
-      purpose: row.purpose,
-      replay: false,
-      accountCreated: pre.accountCreated,
-      phoneSuffix: phoneSuffixForLog(contactPhone),
+      return {
+        ok: true as const,
+        otpCode: challenge.code,
+        accountCreated: pre.accountCreated,
+        challengeId: challenge.challengeId,
+      };
     });
-
-    return {
-      ok: true,
-      otpCode: challenge.code,
-      accountCreated: pre.accountCreated,
-      challengeId: challenge.challengeId,
-    };
   } catch {
-    await client.query("ROLLBACK").catch(() => undefined);
     logger.warn({
       event: "phone_messenger_bind_complete_fail",
       metric: "phone_messenger_bind_complete_fail",
@@ -407,8 +300,6 @@ export async function completePhoneMessengerBindFromIntegrator(
       failure_code: "server_error",
     });
     return { ok: false, code: "server_error" };
-  } finally {
-    client.release();
   }
 }
 
@@ -422,7 +313,10 @@ export type PhoneMessengerBindStatusResult =
   | { ok: true; status: "expired" | "failed" | "consumed"; error?: string }
   | { ok: false; code: string };
 
-export async function getPhoneMessengerBindStatus(setupToken: string): Promise<PhoneMessengerBindStatusResult> {
+export async function getPhoneMessengerBindStatus(
+  setupToken: string,
+  bindPort?: PhoneMessengerBindPort,
+): Promise<PhoneMessengerBindStatusResult> {
   const trimmed = setupToken.trim();
   if (!/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
     return { ok: false, code: "invalid_token" };
@@ -432,8 +326,12 @@ export async function getPhoneMessengerBindStatus(setupToken: string): Promise<P
     return { ok: false, code: "database_unavailable" };
   }
 
-  const pool = getPool();
-  const row = await loadSecretByHash(pool, hashToken(trimmed));
+  const port = resolveBindPort(bindPort);
+  if (!port) {
+    return { ok: false, code: "database_unavailable" };
+  }
+
+  const row = await port.findByTokenHash(hashToken(trimmed));
   if (!row) {
     return { ok: false, code: "not_found" };
   }
@@ -463,19 +361,13 @@ export async function getPhoneMessengerBindStatus(setupToken: string): Promise<P
 }
 
 /** Помечает secret consumed после успешного phone/confirm (по challengeId). */
-export async function markPhoneMessengerBindConsumedByChallenge(challengeId: string): Promise<void> {
-  if (!env.DATABASE_URL?.trim()) return;
-  const pool = getPool();
-  await pool.query(
-    `UPDATE phone_messenger_bind_secrets SET status = 'consumed', consumed_at = now()
-     WHERE challenge_id = $1 AND status = 'otp_ready'`,
-    [challengeId],
-  );
+export async function markPhoneMessengerBindConsumedByChallenge(
+  challengeId: string,
+  bindPort?: PhoneMessengerBindPort,
+): Promise<void> {
+  const port = resolveBindPort(bindPort);
+  if (!port) return;
+  await port.markConsumedByChallenge(challengeId);
 }
 
-export async function findPhoneMessengerBindChallengeOwner(phone: string): Promise<string | null> {
-  if (!env.DATABASE_URL?.trim()) return null;
-  const normalized = normalizePhone(phone);
-  const pool = getPool();
-  return findCanonicalUserIdByPhone(pool, normalized);
-}
+export type { PhoneMessengerBindPort } from "./phoneMessengerBind.ports";

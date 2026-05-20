@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
-import { startPhoneMessengerBind } from "@/modules/auth/phoneMessengerBind";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isPhoneMessengerBindStartRateLimited } from "@/modules/auth/phoneMessengerBindStartRateLimit";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     getMaxLoginBotNickname(),
   ]);
 
-  const result = await startPhoneMessengerBind({
+  const result = await buildAppDeps().phoneMessengerBind.start({
     phone,
     channelCode: parsed.data.channelCode,
     purpose: parsed.data.purpose,

@@ -2,8 +2,10 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const getStatusMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/auth/phoneMessengerBind", () => ({
-  getPhoneMessengerBindStatus: (...args: unknown[]) => getStatusMock(...args),
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({
+    phoneMessengerBind: { getStatus: (...args: unknown[]) => getStatusMock(...args) },
+  }),
 }));
 
 import { POST } from "./route";

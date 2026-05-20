@@ -345,16 +345,26 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
           }
         }
         const ok = res.status === 200 && parsed.ok === true;
-        return {
-          ok,
-          status: res.status,
-          ...(ok
-            ? {
-                webPushDelivered: typeof parsed.webPushDelivered === 'number' ? parsed.webPushDelivered : undefined,
-                skipped: typeof parsed.skipped === 'string' ? parsed.skipped : undefined,
-              }
-            : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
-        };
+        if (!ok) {
+          return {
+            ok: false,
+            status: res.status,
+            error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText,
+          };
+        }
+        const success: {
+          ok: true;
+          status: number;
+          webPushDelivered?: number;
+          skipped?: string;
+        } = { ok: true, status: res.status };
+        if (typeof parsed.webPushDelivered === 'number') {
+          success.webPushDelivered = parsed.webPushDelivered;
+        }
+        if (typeof parsed.skipped === 'string') {
+          success.skipped = parsed.skipped;
+        }
+        return success;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false, status: 0, error: message };

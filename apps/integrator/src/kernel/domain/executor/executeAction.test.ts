@@ -3946,7 +3946,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     const writeDb = vi.fn().mockResolvedValue({ userPhoneLinkApplied: true });
     const tgCtx: DomainContext = {
       ...ctx,
-      base: { conversationState: 'await_phoneauth:auth_testtoken' },
+      base: { ...ctx.base, conversationState: 'await_phoneauth:auth_testtoken' },
       event: {
         type: 'message.received',
         meta: {
@@ -3977,7 +3977,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     const result = await executeAction(action, tgCtx, {
       webappEventsPort,
       templatePort: { renderTemplate },
-      writePort: { writeDb, readDb: vi.fn() },
+      writePort: { writeDb },
     });
     expect(result.status).toBe('success');
     expect(completePhoneMessengerBind).toHaveBeenCalled();
@@ -3990,10 +3990,15 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
 
   it('webapp.phoneMessengerBind.complete uses phoneAuthMismatch template on phone_mismatch', async () => {
     const completePhoneMessengerBind = vi.fn().mockResolvedValue({ ok: false, error: 'phone_mismatch' });
-    const webappEventsPort = { completePhoneMessengerBind, emit: vi.fn() };
+    const webappEventsPort = {
+      completePhoneMessengerBind,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
     const tgCtx: DomainContext = {
       ...ctx,
-      base: { conversationState: 'await_phoneauth:auth_x' },
+      base: { ...ctx.base, conversationState: 'await_phoneauth:auth_x' },
       event: {
         type: 'message.received',
         meta: {

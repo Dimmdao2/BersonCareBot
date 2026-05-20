@@ -7,6 +7,7 @@ import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
 import { createDbReadPort } from '../../db/readPort.js';
 import { createDbWritePort } from '../../db/writePort.js';
+import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../../kernel/domain/reminders/patientNotificationTopics.js';
 import { runWorkerTick } from './runner.js';
 import { runProjectionWorkerTick } from './projectionWorker.js';
 import { runOutgoingDeliveryWorkerTick } from './outgoingDeliveryWorker.js';
@@ -44,7 +45,7 @@ async function startWorker(): Promise<void> {
             const jobs = await queue.claimDueJobs(batchSize);
             if (jobs.length === 0) break;
             for (const job of jobs) {
-              await runWorkerTick({
+              const tickDeps: import('./runner.js').WorkerRunnerDeps = {
                 claimNextJob: async () => job,
                 completeJob: async (jobId) => queue.completeJob(jobId),
                 failJob: async (jobId, errorCode) => queue.failJob(jobId, { ok: false, errorCode, final: true }),
@@ -53,7 +54,27 @@ async function startWorker(): Promise<void> {
                 dispatchOutgoing: (intent) => deps.dispatchPort.dispatchOutgoing(intent),
                 nowIso: () => new Date().toISOString(),
                 retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
-              });
+              };
+              if (webappEvents.notifyPatientWebPush) {
+                const notify = webappEvents.notifyPatientWebPush.bind(webappEvents);
+                tickDeps.dispatchWebappPush = async (pushNotify) => {
+                  const base = (await getAppBaseUrl(projectionDb)).replace(/\/$/, '');
+                  const body = JSON.stringify({
+                    phoneNormalized: pushNotify.phoneNormalized,
+                    topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
+                    intentType: 'appointment_reminder',
+                    slotStartIso: pushNotify.slotStartIso,
+                    openUrl: `${base}/app/patient/booking/new`,
+                    stableKey: pushNotify.stableKey,
+                    nowIso: new Date().toISOString(),
+                  });
+                  await notify({
+                    body,
+                    idempotencyKey: `pwp:${pushNotify.stableKey}`.slice(0, 240),
+                  });
+                };
+              }
+              await runWorkerTick(tickDeps);
             }
           }
         } catch (err) {

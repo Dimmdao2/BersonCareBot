@@ -1,5 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createPgPhoneMessengerBindPort } from "@/infra/repos/pgPhoneMessengerBind";
 import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
+import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 
 const queryMock = vi.fn();
 const clientQueryMock = vi.fn();
@@ -53,10 +55,20 @@ vi.mock("./phoneAuth", async (importOriginal) => {
 import {
   completePhoneMessengerBindFromIntegrator,
   getPhoneMessengerBindStatus,
+  registerPhoneMessengerBindPort,
   startPhoneMessengerBind,
 } from "./phoneMessengerBind";
 
-const phoneAuthDeps = { challengeStore: inMemoryPhoneChallengeStore, smsPort: {} as never };
+const mockPool = {
+  query: queryMock,
+  connect: connectMock,
+} as never;
+
+const phoneAuthDeps = {
+  challengeStore: inMemoryPhoneChallengeStore,
+  smsPort: {} as never,
+  userByPhonePort: inMemoryUserByPhonePort,
+};
 
 function secretRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -75,7 +87,12 @@ function secretRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("phoneMessengerBind", () => {
+  beforeEach(() => {
+    registerPhoneMessengerBindPort(createPgPhoneMessengerBindPort(mockPool));
+  });
+
   afterEach(() => {
+    registerPhoneMessengerBindPort(null);
     queryMock.mockReset();
     clientQueryMock.mockReset();
     connectMock.mockClear();

@@ -354,7 +354,7 @@ async function handleBookingLifecycleEvent(
     });
     await sendDoctorMessage(dispatchPort, doctorCreatedText(payload, timeZone), `booking-created:${bookingId}`);
     await sendBookingWebPush({
-      webappEventsPort,
+      ...(webappEventsPort ? { webappEventsPort } : {}),
       phoneNormalized: contactPhone,
       intentType: 'appointment_lifecycle',
       variant: 'created',
@@ -368,7 +368,7 @@ async function handleBookingLifecycleEvent(
       phoneNormalized: contactPhone,
       patientName,
       timeZone,
-      webappEventsPort,
+      ...(webappEventsPort ? { webappEventsPort } : {}),
     });
     rememberBookingEventKey(dedupKey);
     return;
@@ -385,7 +385,7 @@ async function handleBookingLifecycleEvent(
     });
     await sendDoctorMessage(dispatchPort, doctorCancelledText(payload, timeZone), `booking-cancelled:${bookingId}`);
     await sendBookingWebPush({
-      webappEventsPort,
+      ...(webappEventsPort ? { webappEventsPort } : {}),
       phoneNormalized: contactPhone,
       intentType: 'appointment_lifecycle',
       variant: 'cancelled',
