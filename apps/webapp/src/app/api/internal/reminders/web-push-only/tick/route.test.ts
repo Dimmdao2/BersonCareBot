@@ -1,25 +1,50 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { envHolder, runTickMock, recordSuccessMock, recordFailureMock, loggerErrorMock, loggerWarnMock } =
-  vi.hoisted(() => ({
-    envHolder: { INTERNAL_JOB_SECRET: "test-internal-secret" as string | undefined },
-    runTickMock: vi.fn(),
-    recordSuccessMock: vi.fn(),
-    recordFailureMock: vi.fn(),
-    loggerErrorMock: vi.fn(),
-    loggerWarnMock: vi.fn(),
-  }));
+const {
+  envHolder,
+  runTickMock,
+  recordSuccessMock,
+  recordFailureMock,
+  getOperatorJobStatusMock,
+  loggerErrorMock,
+  loggerWarnMock,
+} = vi.hoisted(() => ({
+  envHolder: { INTERNAL_JOB_SECRET: "test-internal-secret" as string | undefined },
+  runTickMock: vi.fn(),
+  recordSuccessMock: vi.fn(),
+  recordFailureMock: vi.fn(),
+  getOperatorJobStatusMock: vi.fn(),
+  loggerErrorMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
+}));
 
 vi.mock("@/config/env", () => ({
   env: envHolder,
 }));
 
-vi.mock("@/app-layer/reminders/runWebPushOnlyReminderInternalTick", () => ({
-  runWebPushOnlyReminderInternalTick: runTickMock,
+vi.mock("@/modules/reminders/webPushOnlyScheduler", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/reminders/webPushOnlyScheduler")>();
+  return {
+    ...actual,
+    runWebPushOnlyReminderTick: runTickMock,
+  };
+});
+
+vi.mock("@/infra/repos/pgWebPushOnlyReminders", () => ({
+  pgWebPushOnlyRemindersPort: {},
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: vi.fn(() => ({
+    channelPreferencesPort: {},
+    topicChannelPrefs: {},
+    webPushSubscriptions: {},
+    systemSettings: {},
+    readReminderNotifyGate: {},
+    notificationDelivery: {},
+    operatorHealthRead: {
+      getOperatorJobStatus: getOperatorJobStatusMock,
+    },
     operatorHealthWrite: {
       recordWebPushOnlyReminderTickSuccess: recordSuccessMock,
       recordWebPushOnlyReminderTickFailure: recordFailureMock,
@@ -53,12 +78,14 @@ describe("POST /api/internal/reminders/web-push-only/tick", () => {
     runTickMock.mockReset();
     recordSuccessMock.mockReset();
     recordFailureMock.mockReset();
+    getOperatorJobStatusMock.mockReset();
     loggerErrorMock.mockReset();
     loggerWarnMock.mockReset();
     envHolder.INTERNAL_JOB_SECRET = "test-internal-secret";
     runTickMock.mockResolvedValue(emptyTickResult);
     recordSuccessMock.mockResolvedValue(undefined);
     recordFailureMock.mockResolvedValue(undefined);
+    getOperatorJobStatusMock.mockResolvedValue(null);
   });
 
   it("returns 401 when bearer is missing", async () => {
@@ -69,7 +96,7 @@ describe("POST /api/internal/reminders/web-push-only/tick", () => {
     expect(runTickMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 with tick summary JSON", async () => {
+  it("returns 200 with tick summary JSON and records success heartbeat", async () => {
     runTickMock.mockResolvedValue({ ...emptyTickResult, sent: 1 });
     const res = await POST(
       new Request("http://localhost/api/internal/reminders/web-push-only/tick?limit=50", {
@@ -82,10 +109,22 @@ describe("POST /api/internal/reminders/web-push-only/tick", () => {
     expect(json.ok).toBe(true);
     expect(json.sent).toBe(1);
     expect(json.planned).toBe(0);
+    expect(recordSuccessMock).toHaveBeenCalledTimes(1);
+    expect(recordSuccessMock.mock.calls[0]?.[0]?.metaJson).toMatchObject({
+      sent: 1,
+      consecutiveCronFailures: 0,
+    });
+    expect(recordFailureMock).not.toHaveBeenCalled();
   });
 
   it("records failure heartbeat when tick throws", async () => {
     runTickMock.mockRejectedValue(new Error("boom"));
+    getOperatorJobStatusMock.mockResolvedValue({
+      jobKey: "reminders.web_push_only.tick",
+      jobFamily: "reminders",
+      lastStatus: "failure",
+      metaJson: { consecutiveCronFailures: 2 },
+    });
 
     const res = await POST(
       new Request("http://localhost/api/internal/reminders/web-push-only/tick", {
@@ -97,6 +136,7 @@ describe("POST /api/internal/reminders/web-push-only/tick", () => {
     expect(res.status).toBe(500);
     expect(recordFailureMock).toHaveBeenCalledTimes(1);
     expect(recordFailureMock.mock.calls[0]?.[0]?.error).toContain("boom");
+    expect(recordFailureMock.mock.calls[0]?.[0]?.metaJson).toEqual({ consecutiveCronFailures: 3 });
     expect(loggerErrorMock).toHaveBeenCalled();
   });
 });

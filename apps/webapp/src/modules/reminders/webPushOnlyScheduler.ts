@@ -40,6 +40,8 @@ export function webPushOnlyReminderTickMetaFromResult(
     skippedNoSubscription: result.skippedNoSubscription,
     skippedNoTopic: result.skippedNoTopic,
     failed: result.failed,
+    /** Подряд идущие падения cron-тика (exception); сбрасывается в 0 при успешном HTTP tick. */
+    consecutiveCronFailures: 0,
   };
 }
 

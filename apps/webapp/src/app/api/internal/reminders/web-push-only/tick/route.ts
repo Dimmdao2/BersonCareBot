@@ -4,6 +4,10 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import { runWebPushOnlyReminderInternalTick } from "@/app-layer/reminders/runWebPushOnlyReminderInternalTick";
+import {
+  OPERATOR_REMINDERS_JOB_FAMILY,
+  OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+} from "@/modules/operator-health/reconcileJobKeys";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
   const a = Buffer.from(token, "utf8");
@@ -52,12 +56,27 @@ export async function POST(request: Request) {
     logger.error({ err: e }, "[internal/reminders/web-push-only/tick] failed");
     const durationMs = Date.now() - tickStartedAt;
     const msg = e instanceof Error ? e.message : String(e);
+    const deps = buildAppDeps();
+    let consecutiveCronFailures = 1;
     try {
-      await buildAppDeps().operatorHealthWrite.recordWebPushOnlyReminderTickFailure({
+      const prevRow = await deps.operatorHealthRead.getOperatorJobStatus(
+        OPERATOR_REMINDERS_JOB_FAMILY,
+        OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+      );
+      const prev =
+        typeof prevRow?.metaJson?.consecutiveCronFailures === "number"
+          ? prevRow.metaJson.consecutiveCronFailures
+          : 0;
+      consecutiveCronFailures = prev + 1;
+    } catch {
+      /* ignore — default 1 */
+    }
+    try {
+      await deps.operatorHealthWrite.recordWebPushOnlyReminderTickFailure({
         startedAtIso,
         durationMs,
         error: msg,
-        metaJson: {},
+        metaJson: { consecutiveCronFailures },
       });
     } catch (tickErr) {
       logger.warn(

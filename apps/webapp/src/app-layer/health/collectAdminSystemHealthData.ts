@@ -1063,7 +1063,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const webPushOnlyReminderTickResult = await probeWebPushOnlyReminderTick();
   const webPushOnlyReminderTickPayload = webPushOnlyReminderTickResult.ok
     ? webPushOnlyReminderTickResult.value
-    : { status: "no_data" as const, lastTick: null };
+    : { status: "error" as const, lastTick: null };
 
   const notificationDeliveryStartedAt = Date.now();
   const notificationDeliveryResult = await loadAdminNotificationDeliveryHealthMetrics();

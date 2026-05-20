@@ -6,19 +6,13 @@ const { runTickMock, recordSuccessMock, loggerWarnMock } = vi.hoisted(() => ({
   loggerWarnMock: vi.fn(),
 }));
 
-vi.mock("@/modules/reminders/webPushOnlyScheduler", () => ({
-  runWebPushOnlyReminderTick: runTickMock,
-  webPushOnlyReminderTickMetaFromResult: (r: Record<string, number>) => ({
-    rulesFound: r.rulesFound,
-    plannedUpserts: r.plannedUpserts,
-    dueClaimed: r.dueClaimed,
-    sent: r.sent,
-    skipped: r.skipped,
-    skippedNoSubscription: r.skippedNoSubscription,
-    skippedNoTopic: r.skippedNoTopic,
-    failed: r.failed,
-  }),
-}));
+vi.mock("@/modules/reminders/webPushOnlyScheduler", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/reminders/webPushOnlyScheduler")>();
+  return {
+    ...actual,
+    runWebPushOnlyReminderTick: runTickMock,
+  };
+});
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: vi.fn(() => ({
@@ -69,6 +63,7 @@ describe("runWebPushOnlyReminderInternalTick", () => {
     expect(recordSuccessMock.mock.calls[0]?.[0]?.metaJson).toMatchObject({
       rulesFound: 1,
       sent: 0,
+      consecutiveCronFailures: 0,
     });
   });
 

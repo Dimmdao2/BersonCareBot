@@ -5,6 +5,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { patientHomeSosSubtitleClampClass } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+import { patientHomeChipFallbackImageSrc, patientHomeChipImageSrc } from "./patientHomeChipImageSrc";
 import {
   patientButtonDangerOutlineClass,
   patientButtonGhostLinkClass,
@@ -88,7 +89,8 @@ export function PatientHomeSosBookingSplitCard({
         <div className="flex min-w-0 items-start gap-2">
           <div className={sosIconShellClass} aria-hidden>
             <PatientHomeSafeImage
-              src={sosIconUrl}
+              src={patientHomeChipImageSrc(sosIconUrl)}
+              fallbackSrc={patientHomeChipFallbackImageSrc(sosIconUrl)}
               alt=""
               className="size-6 rounded-full object-cover md:size-[26px]"
               loading="lazy"
@@ -122,7 +124,8 @@ export function PatientHomeSosBookingSplitCard({
         <div className="flex min-w-0 items-start gap-2">
           <div className={bookingIconShellClass} aria-hidden>
             <PatientHomeSafeImage
-              src={bookingIconUrl}
+              src={patientHomeChipImageSrc(bookingIconUrl)}
+              fallbackSrc={patientHomeChipFallbackImageSrc(bookingIconUrl)}
               alt=""
               className="size-6 rounded-full object-cover md:size-[26px]"
               loading="lazy"

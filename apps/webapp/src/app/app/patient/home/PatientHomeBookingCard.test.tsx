@@ -32,6 +32,6 @@ describe("PatientHomeBookingCard", () => {
     );
     const img = container.querySelector("img");
     expect(img).toBeTruthy();
-    expect(img).toHaveAttribute("src", "/api/media/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+    expect(img).toHaveAttribute("src", "/api/media/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/preview/sm");
   });
 });

@@ -940,4 +940,56 @@ describe("GET /api/admin/system-health", () => {
     const body = (await res.json()) as { webPushOnlyReminderTick: { status: string } };
     expect(body.webPushOnlyReminderTick.status).toBe("degraded");
   });
+
+  it("returns webPushOnlyReminderTick error when last cron tick status is failure", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    checkDbHealthMock.mockResolvedValue(true);
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, db: "up" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+    proxyIntegratorProjectionHealthMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pendingCount: 0,
+          deadCount: 0,
+          retriesOverThreshold: 0,
+          lastSuccessAt: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
+      if (family === OPERATOR_REMINDERS_JOB_FAMILY && key === OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY) {
+        return Promise.resolve({
+          jobKey: OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+          jobFamily: OPERATOR_REMINDERS_JOB_FAMILY,
+          lastStatus: "failure",
+          lastStartedAt: "2026-01-01T00:00:00.000Z",
+          lastFinishedAt: "2026-01-01T00:00:05.000Z",
+          lastSuccessAt: "2025-12-31T00:00:00.000Z",
+          lastFailureAt: "2026-01-01T00:00:05.000Z",
+          lastDurationMs: 50,
+          lastError: "tick_failed",
+          metaJson: { consecutiveCronFailures: 1 },
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const res = await GET();
+    const body = (await res.json()) as {
+      webPushOnlyReminderTick: { status: string; lastTick: { lastStatus: string } | null };
+      meta?: { probes?: { webPushOnlyReminderTick?: { status: string } } };
+    };
+    expect(body.webPushOnlyReminderTick.status).toBe("error");
+    expect(body.webPushOnlyReminderTick.lastTick?.lastStatus).toBe("failure");
+    expect(body.meta?.probes?.webPushOnlyReminderTick?.status).toBe("error");
+  });
 });

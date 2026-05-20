@@ -79,4 +79,28 @@ describe("classifyWebPushOnlyReminderTickSystemHealthStatus", () => {
       }),
     ).toBe("degraded");
   });
+
+  it("returns degraded when consecutiveCronFailures is 1", () => {
+    expect(
+      classifyWebPushOnlyReminderTickSystemHealthStatus({
+        lastStatus: "failure",
+        lastSuccessAt: "2026-05-20T11:00:00.000Z",
+        lastFailureAt: "2026-05-20T12:00:00.000Z",
+        metaJson: { consecutiveCronFailures: 1 },
+        nowMs,
+      }),
+    ).toBe("error");
+  });
+
+  it("returns error when consecutiveCronFailures >= 3", () => {
+    expect(
+      classifyWebPushOnlyReminderTickSystemHealthStatus({
+        lastStatus: "failure",
+        lastSuccessAt: null,
+        lastFailureAt: "2026-05-20T12:00:00.000Z",
+        metaJson: { consecutiveCronFailures: 3 },
+        nowMs,
+      }),
+    ).toBe("error");
+  });
 });

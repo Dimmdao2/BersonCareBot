@@ -102,6 +102,14 @@ export function classifyWebPushOnlyReminderTickSystemHealthStatus(
     bump(1);
   }
 
+  const consecutiveCronFailures =
+    typeof s.metaJson.consecutiveCronFailures === "number" ? s.metaJson.consecutiveCronFailures : 0;
+  if (consecutiveCronFailures >= 3) {
+    bump(2);
+  } else if (consecutiveCronFailures >= 1) {
+    bump(1);
+  }
+
   const nowMs = s.nowMs ?? Date.now();
   if (Number.isFinite(successMs)) {
     const ageSec = (nowMs - successMs) / 1000;

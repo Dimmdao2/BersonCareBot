@@ -40,6 +40,8 @@ async function expandAllServiceAccordions(): Promise<void> {
     /Открытые инциденты \(\d+\)/,
     /Бэкапы базы данных/,
     /Очередь доставки уведомлений/,
+    /Напоминания/,
+    /Web Push \(PWA\)/,
     /Очередь синка в integrator/,
   ];
   for (const name of patterns) {
@@ -213,7 +215,35 @@ function fetchHealthJson(): Record<string, unknown> {
       oldestProcessingAgeSeconds: null,
       lastQueueActivityAt: "2026-04-16T10:00:00.000Z",
     },
-    meta: { probes: probeShell },
+    webPush: {
+      windowHours: 24,
+      status: "ok",
+      vapidConfigured: true,
+      activeSubscriptionsCount: 3,
+      usersWithSubscriptionCount: 2,
+      subscriptionsTouchedLast24h: 1,
+      deliveryMetricsInDb: true,
+    },
+    webPushOnlyReminderTick: {
+      status: "ok",
+      lastTick: {
+        jobKey: "reminders.web_push_only.tick",
+        jobFamily: "reminders",
+        lastStatus: "success",
+        lastFinishedAt: "2026-04-16T10:05:00.000Z",
+        lastSuccessAt: "2026-04-16T10:05:00.000Z",
+        lastFailureAt: null,
+        lastDurationMs: 80,
+        lastError: null,
+        metaJson: { rulesFound: 1, sent: 0, failed: 0, consecutiveCronFailures: 0 },
+      },
+    },
+    meta: {
+      probes: {
+        ...probeShell,
+        webPushOnlyReminderTick: { status: "ok", durationMs: 4 },
+      },
+    },
     fetchedAt: "2026-04-16T10:06:00.000Z",
   };
 }
@@ -248,6 +278,7 @@ describe("SystemHealthSection primary-layer invariants", () => {
     expect(primary).not.toMatch(/\bjob_key\b/i);
     expect(primary).not.toMatch(/\bmedia_transcode\.reconcile\b/i);
     expect(primary).not.toMatch(/\bmax_probe_failed\b/);
+    expect(primary).not.toMatch(/reminders\.web_push_only\.tick/);
     expect(primary).not.toMatch(/\bdedup_key\b/i);
     expect(primary).not.toMatch(/max\s+sent_at/i);
     expect(primary).not.toMatch(/PostgreSQL/i);

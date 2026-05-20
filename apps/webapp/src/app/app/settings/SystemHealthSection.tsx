@@ -1324,13 +1324,17 @@ export function SystemHealthSection() {
             </HealthAccordionItem>
 
             <HealthAccordionItem name="Web Push (PWA)" status={webPushSectionStatus}>
-              <ProbeInfo probe={data?.meta?.probes?.webPush} />
               <DetailRow label="Cron Web Push-only напоминаний" value={techProbeStatusHuman(webPushTickStatus)} />
               <p className="text-[11px] text-muted-foreground">
                 Ожидается cron каждую минуту: POST /api/internal/reminders/web-push-only/tick
               </p>
+              <ProbeInfo probe={data?.meta?.probes?.webPushOnlyReminderTick} />
               {data?.webPushOnlyReminderTick?.lastTick ? (
                 <>
+                  <DetailRow
+                    label="Последний прогон (завершён)"
+                    value={formatDateTime(data.webPushOnlyReminderTick.lastTick.lastFinishedAt)}
+                  />
                   <DetailRow
                     label="Последний успешный прогон"
                     value={formatDateTime(data.webPushOnlyReminderTick.lastTick.lastSuccessAt)}
@@ -1358,11 +1362,15 @@ export function SystemHealthSection() {
                   />
                   <DetailRow label="Пропущено (нет темы)" value={String(webPushTickMeta.skippedNoTopic ?? "—")} />
                   <DetailRow label="Ошибок" value={String(webPushTickMeta.failed ?? "—")} />
+                  <DetailRow
+                    label="Подряд падений cron"
+                    value={String(webPushTickMeta.consecutiveCronFailures ?? "—")}
+                  />
                 </>
               ) : (
                 <DetailRow label="Последний tick" value="нет данных в operator_job_status" />
               )}
-              <ProbeInfo probe={data?.meta?.probes?.webPushOnlyReminderTick} />
+              <ProbeInfo probe={data?.meta?.probes?.webPush} />
               <DetailRow
                 label="Диагностический статус"
                 value={data?.webPush?.status ?? "—"}

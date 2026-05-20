@@ -9,6 +9,7 @@ import {
 } from "./patientHomeCardStyles";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+import { patientHomeChipFallbackImageSrc, patientHomeChipImageSrc } from "./patientHomeChipImageSrc";
 import { cn } from "@/lib/utils";
 
 export type PatientHomePlanCardInstance = {
@@ -33,7 +34,8 @@ function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | n
   return (
     <div className={cn(patientIconLeadingClass, "size-9 shrink-0 bg-[#fff8f1]")} aria-hidden>
       <PatientHomeSafeImage
-        src={blockIconImageUrl}
+        src={patientHomeChipImageSrc(blockIconImageUrl)}
+        fallbackSrc={patientHomeChipFallbackImageSrc(blockIconImageUrl)}
         alt=""
         className="size-5 rounded-full object-cover"
         loading="lazy"

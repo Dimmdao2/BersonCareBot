@@ -64,6 +64,6 @@ describe("PatientHomePlanCard", () => {
       />,
     );
     const img = container.querySelector("img");
-    expect(img).toHaveAttribute("src", "/api/media/ffffffff-ffff-4fff-8fff-ffffffffffff");
+    expect(img).toHaveAttribute("src", "/api/media/ffffffff-ffff-4fff-8fff-ffffffffffff/preview/sm");
   });
 });
