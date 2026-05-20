@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import type { ReminderLinkedObjectType, ReminderRule } from "@/modules/reminders/types";
 import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
 import { isMinuteOfDayInQuietHours } from "@/modules/reminders/quietHours";
+import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 
 /** Rules that participate in home «next reminder» + daily planned counts. */
 const LINKED_TYPES: ReminderLinkedObjectType[] = [
@@ -385,14 +386,7 @@ export function formatReminderMuteRemainingRu(mutedUntilIso: string, now: Date):
 
 /** Enabled reminder on warmups CMS section (`content_section` + resolved section slug). */
 export function hasEnabledWarmupsSectionReminder(rules: ReminderRule[], warmupsLinkedId: string): boolean {
-  const id = warmupsLinkedId.trim();
-  if (!id) return false;
-  return rules.some(
-    (r) =>
-      r.enabled &&
-      r.linkedObjectType === "content_section" &&
-      (r.linkedObjectId ?? "").trim() === id,
-  );
+  return rules.some((r) => r.enabled && isWarmupsContentSectionReminderRule(r, warmupsLinkedId));
 }
 
 /** Есть ли хотя бы одно включённое домашнее напоминание (тип из LINKED_TYPES). */

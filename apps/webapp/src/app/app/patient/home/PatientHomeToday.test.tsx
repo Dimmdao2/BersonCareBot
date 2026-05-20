@@ -24,6 +24,7 @@ const coursesGetCourseForDoctor = vi.fn();
 const getProgress = vi.fn();
 const getDailyWarmupHeroCooldownMeta = vi.fn();
 const listRecent = vi.fn();
+const listByUserInUtcRange = vi.fn();
 const getCheckinState = vi.fn();
 const getWeekSparkline = vi.fn();
 const refresh = vi.fn();
@@ -59,7 +60,12 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getPatientDefaultPromoTreatmentProgramTemplateId,
     },
     treatmentProgram: { getTemplate: treatmentProgramGetTemplate },
-    patientPractice: { getProgress, getDailyWarmupHeroCooldownMeta, listRecent },
+    patientPractice: {
+      getProgress,
+      getDailyWarmupHeroCooldownMeta,
+      listRecent,
+      listByUserInUtcRange,
+    },
     patientMood: { getCheckinState, getWeekSparkline },
   }),
 }));
@@ -301,6 +307,7 @@ describe("PatientHomeToday", () => {
     getProgress.mockResolvedValue({ todayDone: 1, todayTarget: 3, streak: 2 });
     getDailyWarmupHeroCooldownMeta.mockResolvedValue({ active: false });
     listRecent.mockResolvedValue([]);
+    listByUserInUtcRange.mockResolvedValue([]);
     getCheckinState.mockResolvedValue({
       mood: { moodDate: "2026-04-28", score: 4 },
       lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
@@ -367,7 +374,7 @@ describe("PatientHomeToday", () => {
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("link", { name: /Активировать профиль/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 3/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Выполнено сегодня: 1$/)).toBeInTheDocument();
     expect(screen.getByText(/Как ваше сегодня/i)).toHaveProperty("tagName", "H3");
     for (const link of screen.getAllByRole("link", { name: /Настроить/i })) {
       expect(link).toHaveAttribute("href", routePaths.patientReminders);
@@ -465,7 +472,7 @@ describe("PatientHomeToday", () => {
     });
     render(tree);
 
-    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 3/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Выполнено сегодня: 1$/)).toBeInTheDocument();
     expect(listChecklistDoneToday).toHaveBeenCalledWith(fixtureSession.user.userId, "inst-active-1");
   });
 
@@ -533,7 +540,17 @@ describe("PatientHomeToday", () => {
 
   it("patient tier: progress target uses planned reminder total when warmups section reminder exists", async () => {
     listRulesByUser.mockResolvedValueOnce(reminderRulesProgressTargetFour());
-    getProgress.mockResolvedValueOnce({ todayDone: 1, todayTarget: 3, streak: 2 });
+    getProgress.mockResolvedValueOnce({ todayDone: 0, todayTarget: 3, streak: 2 });
+    listByUserInUtcRange.mockResolvedValueOnce([
+      {
+        id: "c1",
+        userId: fixtureSession.user.userId,
+        contentPageId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        source: "daily_warmup",
+        completedAt: new Date().toISOString(),
+        feeling: null,
+      },
+    ]);
 
     const tree = await PatientHomeToday({
       session: fixtureSession,
@@ -543,7 +560,9 @@ describe("PatientHomeToday", () => {
     render(tree);
 
     expect(
-      screen.getByLabelText(/^Выполнено практик сегодня: 1, цель 4, в плане разминок: 2, остальных: 2$/),
+      screen.getByLabelText(
+        /^Выполнено сегодня: 1 из 4\. Разминок: 1 из 2\. В плане: 0 из 2\.$/,
+      ),
     ).toBeInTheDocument();
     expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 4);
   });
@@ -561,14 +580,14 @@ describe("PatientHomeToday", () => {
     render(tree);
 
     expect(getReminderMutedUntil).toHaveBeenCalledWith(fixtureSession.user.userId);
-    expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 0);
-    expect(screen.getByLabelText(/^Выполнено практик сегодня: 0, цель 0$/)).toBeInTheDocument();
+    expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 1);
+    expect(screen.getByLabelText(/^Выполнено сегодня: 0$/)).toBeInTheDocument();
     const progressArticle = document.getElementById("patient-home-progress-block");
     expect(progressArticle).not.toBeNull();
     expect(within(progressArticle as HTMLElement).queryByText(/^разминок:/)).toBeNull();
   });
 
-  it("patient tier: uses admin practice target when reminders lack enabled warmups section rule", async () => {
+  it("patient tier: progress target uses planned reminders when schedule configured without warmups section rule", async () => {
     listRulesByUser.mockResolvedValueOnce([
       {
         id: "rehab-only",
@@ -605,8 +624,11 @@ describe("PatientHomeToday", () => {
     });
     render(tree);
 
-    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 3/)).toBeInTheDocument();
-    expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 3);
+    const progressArticle = document.getElementById("patient-home-progress-block");
+    expect(progressArticle).not.toBeNull();
+    const progressLabel = within(progressArticle as HTMLElement).getByLabelText(/^Выполнено сегодня:/);
+    expect(progressLabel.getAttribute("aria-label")).toMatch(/^Выполнено сегодня: 0 из 1$/);
+    expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 1);
   });
 
   it("patient tier: week sparkline uses saved calendar IANA when set", async () => {

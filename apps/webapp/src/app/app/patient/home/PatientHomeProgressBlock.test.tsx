@@ -16,7 +16,7 @@ describe("PatientHomeProgressBlock", () => {
     render(
       <PatientHomeProgressBlock practiceTarget={3} anonymousGuest={false} progress={{ todayDone: 1, streak: 2 }} />,
     );
-    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 3/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Выполнено сегодня: 1 из 3/)).toBeInTheDocument();
     expect(screen.getByText(/2/)).toBeInTheDocument();
   });
 
@@ -28,9 +28,9 @@ describe("PatientHomeProgressBlock", () => {
         progress={{ todayDone: 2, streak: 4 }}
       />,
     );
-    expect(screen.getByLabelText(/Выполнено практик сегодня: 2, цель 3/)).toHaveTextContent(/2/);
-    expect(screen.getByLabelText(/Выполнено практик сегодня: 2, цель 3/)).toHaveTextContent(/из/);
-    expect(screen.getByLabelText(/Выполнено практик сегодня: 2, цель 3/)).toHaveTextContent(/3/);
+    expect(screen.getByLabelText(/Выполнено сегодня: 2 из 3/)).toHaveTextContent(/2/);
+    expect(screen.getByLabelText(/Выполнено сегодня: 2 из 3/)).toHaveTextContent(/из/);
+    expect(screen.getByLabelText(/Выполнено сегодня: 2 из 3/)).toHaveTextContent(/3/);
     expect(screen.getByText(/4/)).toBeInTheDocument();
   });
 
@@ -53,13 +53,15 @@ describe("PatientHomeProgressBlock", () => {
         practiceTarget={4}
         anonymousGuest={false}
         progress={{ todayDone: 1, streak: 2 }}
-        progressGoalBreakdown={{ warmup: 2, lfk: 2 }}
+        progressGoalBreakdown={{ warmupDone: 2, warmupPlanned: 2, lfkDone: 0, lfkPlanned: 2 }}
       />,
     );
-    expect(screen.getByText("разминок: 2")).toBeInTheDocument();
-    expect(screen.getByText("ЛФК: 2")).toBeInTheDocument();
+    expect(screen.getByText(/разминок: 2 из 2/)).toBeInTheDocument();
+    expect(screen.getByText(/в плане: 0 из 2/)).toBeInTheDocument();
     expect(
-      screen.getByLabelText(/^Выполнено практик сегодня: 1, цель 4, в плане разминок: 2, остальных: 2$/),
+      screen.getByLabelText(
+        /^Выполнено сегодня: 1 из 4\. Разминок: 2 из 2\. В плане: 0 из 2\.$/,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -69,10 +71,10 @@ describe("PatientHomeProgressBlock", () => {
         practiceTarget={4}
         anonymousGuest={false}
         progress={{ todayDone: 1, streak: 2 }}
-        progressGoalBreakdown={{ warmup: 0, lfk: 0 }}
+        progressGoalBreakdown={{ warmupDone: 0, warmupPlanned: 0, lfkDone: 0, lfkPlanned: 0 }}
       />,
     );
     expect(screen.queryByText(/разминок:/)).toBeNull();
-    expect(screen.getByLabelText(/^Выполнено практик сегодня: 1, цель 4$/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Выполнено сегодня: 1 из 4$/)).toBeInTheDocument();
   });
 });

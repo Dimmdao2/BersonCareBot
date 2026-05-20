@@ -4,6 +4,7 @@
  */
 export const DEFAULT_WARMUPS_SECTION_SLUG = "warmups" as const;
 
-export function patientWarmupsSectionHref(slug: string = DEFAULT_WARMUPS_SECTION_SLUG): string {
-  return `/app/patient/sections/${encodeURIComponent(slug)}`;
+/** Пациентский deep link на «Разминка дня» (не каталог CMS-раздела). */
+export function patientWarmupsSectionHref(_slug: string = DEFAULT_WARMUPS_SECTION_SLUG): string {
+  return "/app/patient/go/daily-warmup";
 }
