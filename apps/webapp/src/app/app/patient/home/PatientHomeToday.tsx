@@ -424,6 +424,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
 
   const personalizedName = personalTierOk && session ? session.user.displayName?.trim() || null : null;
   const timeOfDayPrefix = greetingPrefixFromHour(DateTime.now().setZone(appTz).hour);
+  const unreadChatCount =
+    session && personalTierOk ? await deps.messaging.patient.unreadCount(session.user.userId) : 0;
 
   const blockLeadingIconFor = (code: PatientHomeBlockCode) =>
     stripApiMediaForAnonymousGuest(homeBlocks.find((b) => b.code === code)?.iconImageUrl ?? null, anonymousGuest);
@@ -564,7 +566,12 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   layoutBlocks = moveNextReminderAfterProgress(layoutBlocks);
 
   return (
-    <PatientHomeTodayLayout personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} blocks={layoutBlocks} />
+    <PatientHomeTodayLayout
+      personalizedName={personalizedName}
+      timeOfDayPrefix={timeOfDayPrefix}
+      unreadChatCount={unreadChatCount}
+      blocks={layoutBlocks}
+    />
   );
 }
 
