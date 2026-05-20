@@ -205,6 +205,7 @@ export const dbWriteMutationSchema = z.object({
     'draft.upsert',
     'draft.cancel',
     'conversation.open',
+    'conversation.mergeLegacyToPlatform',
     'conversation.message.add',
     'conversation.state.set',
     'question.create',

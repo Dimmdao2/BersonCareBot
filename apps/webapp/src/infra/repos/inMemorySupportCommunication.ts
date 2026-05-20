@@ -364,6 +364,10 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return { id: q.integratorQuestionId, answered: q.status === "answered" };
   },
 
+  async mergeLegacySupportConversationsForPlatformUser(_platformUserId) {
+    return { mergedConversationCount: 0, movedMessageCount: 0 };
+  },
+
   async ensureWebappConversationForUser(platformUserId) {
     const key = `webapp:platform:${platformUserId}`;
     let c = Array.from(conversations.values()).find((x) => x.integratorConversationId === key);

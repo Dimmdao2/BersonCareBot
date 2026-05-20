@@ -29,6 +29,9 @@ export function createPatientMessagingService(
       messages: SupportConversationMessageRow[];
     }> {
       const { id } = await port.ensureWebappConversationForUser(platformUserId);
+      await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
+        console.error("[patientMessaging] merge legacy conversations error:", err);
+      });
       const messages = await port.listMessagesSince(id, { sinceCreatedAt: null, limit: 100 });
       return { conversationId: id, messages };
     },
@@ -60,8 +63,13 @@ export function createPatientMessagingService(
       if (trimmed.length > MAX_LEN) return { ok: false, error: "too_long" };
       const integratorMessageId = `webapp-msg:${crypto.randomUUID()}`;
       const now = new Date().toISOString();
+      await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
+        console.error("[patientMessaging] merge legacy conversations error:", err);
+      });
+      const { id: targetConversationId } = await port.ensureWebappConversationForUser(platformUserId);
+
       await port.appendWebappMessage({
-        conversationId,
+        conversationId: targetConversationId,
         integratorMessageId,
         senderRole: "user",
         text: trimmed,

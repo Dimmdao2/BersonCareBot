@@ -28,6 +28,11 @@ describe("createPatientMessagingService", () => {
     const notifyDoctorOfPatientMessage = vi.fn().mockResolvedValue(undefined);
     const port = {
       getConversationIfOwnedByUser: vi.fn().mockResolvedValue({ id: "c1" }),
+      ensureWebappConversationForUser: vi.fn().mockResolvedValue({ id: "c1" }),
+      mergeLegacySupportConversationsForPlatformUser: vi.fn().mockResolvedValue({
+        mergedConversationCount: 0,
+        movedMessageCount: 0,
+      }),
       appendWebappMessage: vi.fn().mockResolvedValue({ id: "m1" }),
     } as unknown as SupportCommunicationPort;
     const svc = createPatientMessagingService(port, {
@@ -46,6 +51,10 @@ describe("createPatientMessagingService", () => {
     const list = vi.fn().mockResolvedValue([]);
     const port = {
       ensureWebappConversationForUser: ensure,
+      mergeLegacySupportConversationsForPlatformUser: vi.fn().mockResolvedValue({
+        mergedConversationCount: 0,
+        movedMessageCount: 0,
+      }),
       listMessagesSince: list,
     } as unknown as SupportCommunicationPort;
     const svc = createPatientMessagingService(port);

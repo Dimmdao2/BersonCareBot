@@ -591,6 +591,23 @@ export function createDbWritePort(input: {
           await ensureIdentityForMessenger(db, { resource, externalId });
           return;
         }
+        case 'conversation.mergeLegacyToPlatform': {
+          const platformConversationId = asNonEmptyString(mutation.params.platformConversationId);
+          const legacyConversationId = asNonEmptyString(mutation.params.legacyConversationId);
+          const resource = readResource(mutation.params);
+          const externalId = readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
+          if (!platformConversationId || !legacyConversationId || !resource || !externalId) return;
+          const { mergeIntegratorConversationToPlatformThread } = await import(
+            './repos/mergeIntegratorConversationToPlatform.js'
+          );
+          await mergeIntegratorConversationToPlatformThread(db, {
+            platformConversationId,
+            legacyConversationId,
+            resource,
+            externalId,
+          });
+          return;
+        }
         case 'conversation.open': {
           const resource = readResource(mutation.params);
           const externalId = readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);

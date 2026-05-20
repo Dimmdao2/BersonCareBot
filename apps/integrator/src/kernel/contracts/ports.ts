@@ -53,6 +53,7 @@ export type DbWriteMutationType =
   | 'draft.upsert'
   | 'draft.cancel'
   | 'conversation.open'
+  | 'conversation.mergeLegacyToPlatform'
   | 'conversation.message.add'
   | 'conversation.state.set'
   | 'question.create'

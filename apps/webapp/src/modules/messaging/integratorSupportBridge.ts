@@ -34,6 +34,9 @@ export function createIntegratorSupportBridge(deps: {
       if (!platformUserId) return { ok: false, error: "missing_platform_user" };
 
       await deps.port.ensureWebappConversationForUser(platformUserId);
+      await deps.port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
+        console.error("[integratorSupportBridge] merge legacy conversations error:", err);
+      });
       const integratorConversationId = webappPlatformConversationId(platformUserId);
       const conv = await deps.port.getConversationByIntegratorId(integratorConversationId);
       if (!conv) return { ok: false, error: "conversation_missing" };

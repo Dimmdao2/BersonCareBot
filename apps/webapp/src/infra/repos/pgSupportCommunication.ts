@@ -5,6 +5,7 @@
 
 import { getPool } from "@/infra/db/client";
 import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { mergeLegacySupportConversationsForPlatformUser as runMergeLegacySupportConversations } from "@/infra/repos/mergeLegacySupportConversations";
 
 export type SupportConversationRow = {
   id: string;
@@ -186,6 +187,11 @@ export type SupportCommunicationPort = {
   getQuestionByIntegratorConversationId(integratorConversationId: string): Promise<{ id: string; answered: boolean } | null>;
   /** Один диалог webapp на пользователя: `integrator_conversation_id = webapp:platform:{uuid}`. */
   ensureWebappConversationForUser(platformUserId: string): Promise<{ id: string }>;
+  /** Слияние legacy UUID-диалогов projection в канонический webapp-thread. */
+  mergeLegacySupportConversationsForPlatformUser?(platformUserId: string): Promise<{
+    mergedConversationCount: number;
+    movedMessageCount: number;
+  }>;
   appendWebappMessage(params: {
     conversationId: string;
     integratorMessageId: string;
@@ -811,6 +817,22 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         [integratorConversationId, platformUserId]
       );
       return { id: r.rows[0]!.id };
+    },
+
+    async mergeLegacySupportConversationsForPlatformUser(platformUserId) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await runMergeLegacySupportConversations(client, platformUserId);
+        await client.query("COMMIT");
+        return result;
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
     },
 
     async appendWebappMessage(params) {

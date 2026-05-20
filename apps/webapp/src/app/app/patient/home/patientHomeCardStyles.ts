@@ -487,7 +487,7 @@ export const patientHomeProgressCardGeometryClass = cn(
 );
 
 export const patientHomeProgressGridClass = cn(
-  "grid min-h-[84px] min-w-0 grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-1 sm:min-h-[92px] md:min-h-0 md:flex-1 md:grid-cols-[minmax(0,1fr)_7.5rem] md:gap-4",
+  "grid min-h-[84px] min-w-0 grid-cols-[minmax(0,1fr)_5.5rem] items-center gap-1 sm:min-h-[92px] md:min-h-0 md:flex-1 md:grid-cols-[minmax(0,1fr)_8.25rem] md:gap-4",
 );
 
 /** Mobile keeps the compact divider; desktop returns the progress circle with more breathing room. */

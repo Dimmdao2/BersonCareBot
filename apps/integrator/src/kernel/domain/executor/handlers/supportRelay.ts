@@ -23,6 +23,7 @@ import {
 } from '../helpers.js';
 import { ADMIN, RELAY_USER } from '../templateKeys.js';
 import { isWebappPlatformConversationId } from '../../../../shared/support/platformConversationId.js';
+import { webappPlatformConversationId } from '../../../../shared/support/platformConversationId.js';
 import {
   adminReplyConversationId,
   applyWebappAdminReplyFromMessenger,
@@ -134,6 +135,23 @@ export async function handleConversationUserMessage(
 
   const integratorMessageId = asString(asRecord(writes[0]?.params).id) ?? randomUUID();
   const platformUserId = await resolvePlatformUserIdForChannel(deps, ctx.event.meta.source, externalId);
+  const platformConversationKey = platformUserId ? webappPlatformConversationId(platformUserId) : null;
+  if (
+    platformUserId &&
+    platformConversationKey &&
+    platformConversationKey !== conversationId &&
+    deps.writePort
+  ) {
+    await persistWrites(deps.writePort, [{
+      type: 'conversation.mergeLegacyToPlatform',
+      params: {
+        platformConversationId: platformConversationKey,
+        legacyConversationId: conversationId,
+        resource: ctx.event.meta.source,
+        externalId,
+      },
+    }]);
+  }
   const messageTextForMirror = (text ?? '').trim();
   if (platformUserId && messageTextForMirror.length > 0) {
     await mirrorPatientUserMessageToWebapp(deps, {

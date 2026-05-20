@@ -11,7 +11,6 @@ import {
   patientHomeProgressCardGeometryClass,
   patientHomeProgressGridClass,
   patientHomeProgressStreakColClass,
-  patientHomeProgressStreakValueClass,
   patientHomeProgressValueClass,
   patientHomeProgressValueSuffixClass,
   patientHomeBlockBodySmClamp2Mt2Class,
@@ -19,7 +18,11 @@ import {
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { streakFlameOpacity } from "./patientHomeStreakFlameOpacity";
+import {
+  patientHomeGoalsFlameCaption,
+  patientHomeGoalsFlameOpacity,
+  resolvePatientHomeGoalsFlameState,
+} from "./patientHomeGoalsFlame";
 import { cn } from "@/lib/utils";
 
 const PROGRESS_HINT = "Сколько напоминаний в расписании, столько и занятий в Цели дня.";
@@ -66,11 +69,15 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
     </>
   : null;
 
-  const streakLabel = (n: number) =>
-    n === 1 ? "день" : n > 1 && n < 5 ? "дня" : "дней";
-
-  const streakDays = metrics?.streakDays ?? 0;
-  const flameOpacity = anonymousGuest || !metrics ? streakFlameOpacity(0) : streakFlameOpacity(streakDays);
+  const goalsFlameState =
+    metrics && showGoal && !anonymousGuest
+      ? resolvePatientHomeGoalsFlameState({
+          doneTotal: metrics.doneTotal,
+          plannedTotal: metrics.plannedTotal,
+        })
+      : null;
+  const flameOpacity = patientHomeGoalsFlameOpacity(goalsFlameState);
+  const goalsFlameCaption = goalsFlameState ? patientHomeGoalsFlameCaption(goalsFlameState) : null;
 
   return (
     <section aria-labelledby="patient-home-progress-heading">
@@ -153,7 +160,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
             }
           </div>
           <div className={patientHomeProgressStreakColClass}>
-            <div className="flex min-h-0 flex-col items-center justify-center gap-0 md:size-24 md:justify-start md:rounded-full md:bg-white md:pt-2 md:ring-[8px] md:ring-[#f3f4f6]">
+            <div className="flex min-h-0 flex-col items-center justify-center gap-1 md:size-24 md:justify-start md:gap-0.5 md:rounded-full md:bg-white md:px-1 md:pt-2 md:ring-[8px] md:ring-[#f3f4f6]">
               <span
                 className="inline-flex shrink-0 transition-[opacity] duration-300 ease-out md:-mt-1"
                 style={{ opacity: flameOpacity }}
@@ -171,24 +178,14 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                   }
                 />
               </span>
-              {metrics && !anonymousGuest ?
-                <span className={patientHomeProgressStreakValueClass}>{metrics.streakDays}</span>
-              :
-                <span className={patientHomeProgressStreakValueClass} aria-hidden>
-                  <span className="text-[var(--patient-text-muted)]">—</span>
-                </span>
-              }
-              {metrics && !anonymousGuest ?
-                <span className="-mt-0.5 block max-w-[3.5rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-block-caption)] md:max-w-[4.75rem] md:leading-3 md:text-[11px]">
-                  <span className="block">{streakLabel(metrics.streakDays)}</span>
-                  <span className="block">подряд</span>
-                </span>
-              :
-                <span className="-mt-0.5 block max-w-[3.5rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-text-muted)] md:max-w-[4.75rem] md:leading-3 md:text-[11px]">
-                  <span className="block">дней</span>
-                  <span className="block">подряд</span>
-                </span>
-              }
+              {goalsFlameCaption ?
+                <p
+                  className="m-0 max-w-[5.25rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-block-caption)] md:max-w-[7.25rem] md:text-[11px] md:leading-3"
+                  aria-label={goalsFlameCaption}
+                >
+                  {goalsFlameCaption}
+                </p>
+              : null}
             </div>
           </div>
         </div>
