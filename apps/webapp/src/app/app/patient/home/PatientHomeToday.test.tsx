@@ -30,6 +30,7 @@ const getRecentDaysSparkline = vi.fn();
 const refresh = vi.fn();
 const systemSettingsGetSetting = vi.hoisted(() => vi.fn().mockImplementation(async () => null));
 const getReminderMutedUntil = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+const messagingPatientUnreadCount = vi.hoisted(() => vi.fn().mockResolvedValue(0));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
@@ -69,6 +70,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listByUserInUtcRange,
     },
     patientMood: { getCheckinState, getRecentDaysSparkline },
+    messaging: { patient: { unreadCount: messagingPatientUnreadCount } },
   }),
 }));
 

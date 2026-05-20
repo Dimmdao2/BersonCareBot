@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import type { ContentSectionsPort } from "@/modules/content-sections/ports";
-import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
+import { resolvePatientContentSectionSlug } from "@/modules/content-sections/resolvePatientContentSectionSlug";
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 import { computePracticeStreak } from "@/modules/patient-practice/streakLogic";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
