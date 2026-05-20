@@ -15,6 +15,7 @@ export function filterPersonalRulesForSchedulePage(rules: ReminderRule[], ctx: C
     const lot = r.linkedObjectType;
     if (lot === "lfk_complex") return false;
 
+    // Legacy custom: скрываем из «Мои напоминания»; dispatch/push для существующих строк в БД сохранён.
     if (lot === "custom") return false;
 
     if (ctx.rehabProgramForBlock) {

@@ -32,9 +32,11 @@ function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): Per
       return "page";
     case "treatment_program_item":
       return "rehab";
+    // Legacy `linkedObjectType=custom`: UI create/edit снят; правила отфильтрованы до mapIconKind (filterPersonalRulesForSchedulePage).
     case "custom":
       return "custom";
     default:
+      // Fallback для неизвестных linkedObjectType; раньше часто совпадал с custom.
       return "custom";
   }
 }
@@ -69,6 +71,7 @@ async function resolvePersonalReminderLabel(
     return "Страница";
   }
   if (lo === "custom") {
+    // Legacy custom reminders: не попадают в personalRows; ветка для типобезопасности и будущего read-only отображения.
     return rule.customTitle?.trim() || "Своё напоминание";
   }
   if (lo === "rehab_program") {

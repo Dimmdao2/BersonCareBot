@@ -65,16 +65,6 @@ const sampleObjectRule = (): ReminderRule => ({
   updatedAt: "2026-04-02T12:00:00.000Z",
 });
 
-const sampleCustomRule = (): ReminderRule => ({
-  ...sampleObjectRule(),
-  id: "wp-custom-1",
-  linkedObjectType: "custom",
-  linkedObjectId: null,
-  customTitle: "Вода",
-  customText: "Утром",
-  notificationTopicCode: null,
-});
-
 const sampleRehabSlotsRule = (): ReminderRule => ({
   ...sampleObjectRule(),
   id: "wp-rehab-1",
@@ -136,7 +126,7 @@ describe("POST /api/patient/reminders/create", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 for legacy custom linkedObjectType", async () => {
+  it("returns 400 for legacy custom linkedObjectType (create path removed from product UI)", async () => {
     const res = await POST(
       req({
         linkedObjectType: "custom",

@@ -5,7 +5,7 @@ import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
 
 const WINDOW_MS = 60 * 60 * 1000;
-const MAX_STARTS_PER_WINDOW = 20;
+const MAX_STARTS_PER_WINDOW = 30;
 const SCOPE = "auth.phone_messenger_bind_start";
 
 const buckets = new Map<string, number[]>();

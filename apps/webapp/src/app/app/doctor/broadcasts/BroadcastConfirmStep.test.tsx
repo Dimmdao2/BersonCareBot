@@ -7,13 +7,13 @@ import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
 import type { BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
 import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
 
-const policy = deriveBroadcastDeliveryPolicy("with_telegram", ["bot_message", "sms"]);
+const policy = deriveBroadcastDeliveryPolicy("with_telegram", ["bot_message", "sms", "push"]);
 
 const preview: BroadcastPreviewResult = {
   audienceSize: 42,
   category: "reminder",
   audienceFilter: "with_telegram",
-  channels: ["bot_message", "sms"],
+  channels: ["bot_message", "sms", "push"],
   deliveryPolicyKind: policy.kind,
   deliveryPolicyDescriptionRu: policy.descriptionRu,
   recipientsPreview: {
@@ -45,6 +45,7 @@ describe("BroadcastConfirmStep", () => {
     expect(screen.getByText("Мария К.")).toBeInTheDocument();
     expect(document.getElementById("broadcast-recipients-preview-truncated")).toBeInTheDocument();
     expect(document.getElementById("broadcast-channels-summary")).toHaveTextContent(/сообщение в боте/i);
+    expect(document.getElementById("broadcast-channels-summary")).toHaveTextContent(/push/i);
     expect(document.getElementById("broadcast-channels-summary")).toHaveTextContent(/sms/i);
     expect(document.getElementById("broadcast-delivery-policy")).toHaveTextContent(policy.descriptionRu);
   });

@@ -45,7 +45,7 @@ const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   broadcast: "Рассылки по темам",
 };
 
-export type PersonalReminderIconKind = "lfk" | "rehab" | "warmup" | "page" | "custom";
+export type PersonalReminderIconKind = "lfk" | "rehab" | "warmup" | "page" | "custom"; // `custom` — legacy; строки с custom не попадают в personalRowsMain
 
 export type PersonalReminderRowVM = {
   rule: ReminderRule;
@@ -92,6 +92,7 @@ function TypeIcon({ kind }: { kind: PersonalReminderIconKind }) {
     case "page":
       return <FileText className={cls} aria-hidden />;
     default:
+      // В т.ч. legacy iconKind `custom` (Sparkles); personalRowsMain custom не содержит.
       return <Sparkles className={cls} aria-hidden />;
   }
 }
@@ -318,7 +319,10 @@ export function ReminderRulesClient({
   if (rehabRuleForBlock) hiddenIds.add(rehabRuleForBlock.id);
   if (warmupRuleForBlock) hiddenIds.add(warmupRuleForBlock.id);
   const personalRowsMain = personalRows.filter(
-    (row) => !hiddenIds.has(row.rule.id) && row.rule.linkedObjectType !== "custom",
+    (row) =>
+      !hiddenIds.has(row.rule.id) &&
+      // Legacy custom: не показываем в «Мои напоминания» (создание/редактирование снято с UI).
+      row.rule.linkedObjectType !== "custom",
   );
 
   const rehabSummary =

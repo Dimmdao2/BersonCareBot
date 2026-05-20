@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PhoneMessengerAuthFlow } from "./PhoneMessengerAuthFlow";
 
@@ -127,5 +127,99 @@ describe("PhoneMessengerAuthFlow", () => {
     await user.click(screen.getByRole("button", { name: "Подтвердить" }));
 
     await waitFor(() => expect(onComplete).toHaveBeenCalled());
+  });
+
+  it("uses phone/start when messenger already bound (no messenger-bind)", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({
+          ok: true,
+          exists: true,
+          methods: { sms: false, telegram: true },
+        });
+      }
+      if (url.includes("/api/auth/phone/start")) {
+        return jsonRes({ ok: true, challengeId: "ch-bound", retryAfterSeconds: 60 });
+      }
+      throw new Error(`unexpected: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    await screen.findByLabelText("Код подтверждения");
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes("/api/auth/phone/start"))).toBe(true);
+    expect(urls.some((u) => u.includes("/api/auth/phone/messenger-bind/start"))).toBe(false);
+  });
+
+  it("falls back to messenger pick when phone/start returns channel_unavailable", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/auth/check-phone")) {
+          return jsonRes({
+            ok: true,
+            exists: true,
+            methods: { sms: false, telegram: true, max: true },
+          });
+        }
+        if (url.includes("/api/auth/phone/start")) {
+          return jsonRes({ ok: false, error: "channel_unavailable" });
+        }
+        throw new Error(`unexpected: ${url}`);
+      }),
+    );
+
+    render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    expect(await screen.findByRole("button", { name: "Telegram" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Max" })).toBeInTheDocument();
+  });
+
+  it("clears poll interval on unmount", async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/auth/check-phone")) {
+          return jsonRes({ ok: true, exists: false, methods: { sms: false } });
+        }
+        if (url.includes("/api/auth/phone/messenger-bind/start")) {
+          return jsonRes({
+            ok: true,
+            setupToken: "auth_test",
+            url: "https://t.me/bot?start=auth_test",
+          });
+        }
+        if (url.includes("/api/auth/phone/messenger-bind/status")) {
+          return new Promise(() => {});
+        }
+        throw new Error(`unexpected: ${url}`);
+      }),
+    );
+
+    const { unmount } = render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.click(await screen.findByRole("button", { name: "Telegram" }));
+
+    await waitFor(() => expect(setIntervalSpy).toHaveBeenCalled());
+    unmount();
+    cleanup();
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    setIntervalSpy.mockRestore();
+    clearIntervalSpy.mockRestore();
   });
 });

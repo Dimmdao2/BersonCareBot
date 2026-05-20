@@ -4035,6 +4035,56 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     );
   });
 
+  it('webapp.phoneMessengerBind.complete uses conflict template on channel_owned_by_other_user', async () => {
+    const completePhoneMessengerBind = vi.fn().mockResolvedValue({
+      ok: false,
+      error: 'channel_owned_by_other_user',
+    });
+    const webappEventsPort = {
+      completePhoneMessengerBind,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const tgCtx: DomainContext = {
+      ...ctx,
+      base: { ...ctx.base, conversationState: 'await_phoneauth:auth_conflict' },
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-pa-conflict',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '444',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            chatId: 444,
+            channelId: '444',
+            phone: '+79991234567',
+            userState: 'await_phoneauth:auth_conflict',
+          },
+        },
+      },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({ text: 'Конфликт привязки.' });
+    const result = await executeAction(
+      {
+        id: 'pa-conflict',
+        type: 'webapp.phoneMessengerBind.complete',
+        mode: 'sync',
+        params: { channelCode: 'telegram', externalId: '444' },
+      },
+      tgCtx,
+      { webappEventsPort, templatePort: { renderTemplate } },
+    );
+    expect(result.status).toBe('failed');
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'channelLink.completeFailed.conflict', source: 'telegram' }),
+    );
+  });
+
   it('webapp.phoneMessengerBind.complete fails when setupToken and phone missing', async () => {
     const result = await executeAction(
       {

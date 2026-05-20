@@ -187,6 +187,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       if (!target) return { ok: false, error: "not_found" };
 
       if (data.customTitle !== undefined || data.customText !== undefined) {
+        // Legacy API: PATCH customTitle/customText для существующих `linkedObjectType=custom` (UI edit снят).
         if (target.linkedObjectType !== "custom") {
           return { ok: false, error: "validation_error: custom fields only for custom reminders" };
         }

@@ -83,6 +83,7 @@
 ## Web Push / PWA
 
 - **Web Push при переносе записи (`booking.updated` / `rescheduled`):** copy для push уже в `apps/webapp/src/modules/web-push/pushNotificationCopy.ts` (`variant: rescheduled`); нужно lifecycle-событие в Rubitime/integrator и вызов `sendBookingWebPush` из `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` (сейчас только `booking.created` / `booking.cancelled`). См. также `apps/webapp/INTEGRATOR_CONTRACT.md` §«patient Web Push».
+- **Рассылки врача — отдельный preview «сколько получат push»:** сейчас в confirm показывается только общий `audienceSize` (хотя бы один выбранный канал). Число получателей именно Web Push (`eligibleClients` ∩ `webPushEligibleUserIds` при канале `push`) в UI не выводится; batch-резолв уже есть в `resolveBroadcastWebPushEligibleUserIds` / `BroadcastAudienceResolveResult.webPushEligibleUserIds`. Follow-up: поле в `BroadcastPreviewResult`, строка в `BroadcastConfirmStep`, при необходимости отдельный счётчик без пересчёта TG/SMS. См. `apps/webapp/src/modules/doctor-broadcasts/README.md`.
 
 ## Security / Auth
 

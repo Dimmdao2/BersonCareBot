@@ -84,4 +84,18 @@ describe("POST /api/auth/phone/messenger-bind/status", () => {
     expect(data.status).toBe("failed");
     expect(data.error).toBe("phone_mismatch");
   });
+
+  it("returns expired status", async () => {
+    getStatusMock.mockResolvedValue({ ok: true, status: "expired" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/messenger-bind/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ setupToken: "auth_abc" }),
+      }),
+    );
+    const data = (await res.json()) as { status?: string };
+    expect(res.status).toBe(200);
+    expect(data.status).toBe("expired");
+  });
 });

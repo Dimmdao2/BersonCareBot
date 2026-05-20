@@ -10,6 +10,7 @@
 
 - **`TREATMENT_PROGRAM` / промо по умолчанию:** смена глобального промо-шаблона — уведомление пациентам, согласие, миграция инстансов и напоминаний (`rehab_program`). Канон v1 и операционные решения: [`PROMO_ASSIGNMENT_SOURCE.md`](PROMO_ASSIGNMENT_SOURCE.md); follow-up смены шаблона — вне scope v1 (см. тот же документ).
 - **Web Push при переносе записи (`booking.updated` / rescheduled):** см. [`TODO.md`](TODO.md) §«Web Push / PWA».
+- **Рассылки врача — preview «получат push»:** см. [`TODO.md`](TODO.md) §«Web Push / PWA».
 
 ## Средние хвосты
 
