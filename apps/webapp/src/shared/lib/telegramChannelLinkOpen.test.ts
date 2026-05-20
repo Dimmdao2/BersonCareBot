@@ -2,9 +2,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const inferSpy = vi.fn();
+const standalonePwaSpy = vi.fn();
 
 vi.mock("@/shared/lib/messengerMiniApp", () => ({
   inferMessengerChannelForRequestContact: () => inferSpy(),
+}));
+
+vi.mock("@/shared/lib/webPush/pwaDisplay", () => ({
+  isStandalonePwa: () => standalonePwaSpy(),
 }));
 
 import {
@@ -13,11 +18,13 @@ import {
   finishChannelLinkNavigation,
   isLikelyMobileUserAgent,
   isMaxChannelDeepLinkUrl,
+  pickChannelLinkOpenUrl,
   pickTelegramOpenUrl,
 } from "./telegramChannelLinkOpen";
 
 beforeEach(() => {
   inferSpy.mockReturnValue(undefined);
+  standalonePwaSpy.mockReturnValue(false);
 });
 
 afterEach(() => {
@@ -73,6 +80,21 @@ describe("buildTgAppDeepLink", () => {
     expect(buildTgAppDeepLink("https://t.me/bot_name?start=a%20b")).toBe(
       "tg://resolve?domain=bot_name&start=a%20b"
     );
+  });
+});
+
+describe("pickChannelLinkOpenUrl", () => {
+  const desktopUa = "Mozilla/5.0 (Windows NT 10.0) Chrome/120";
+  const url = "https://t.me/Bot?start=link_1";
+
+  it("uses tg:// in standalone PWA even with desktop UA", () => {
+    expect(pickChannelLinkOpenUrl(url, "telegram", desktopUa, { standalonePwa: true })).toBe(
+      "tg://resolve?domain=Bot&start=link_1",
+    );
+  });
+
+  it("keeps https t.me in desktop browser tab", () => {
+    expect(pickChannelLinkOpenUrl(url, "telegram", desktopUa)).toBe(url);
   });
 });
 
@@ -228,5 +250,61 @@ describe("finishChannelLinkNavigation", () => {
     });
 
     expect(loc.href).toBe("https://t.me/Bot?start=link_1");
+  });
+
+  it("uses location.assign with tg:// in standalone PWA instead of window.open", () => {
+    const open = vi.fn();
+    const assign = vi.fn();
+    standalonePwaSpy.mockReturnValue(true);
+    vi.stubGlobal("open", open);
+    Object.defineProperty(window, "location", {
+      value: { assign },
+      writable: true,
+      configurable: true,
+    });
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url: "https://t.me/Bot?start=link_1",
+      channel: "telegram",
+      userAgent: desktopUa,
+    });
+
+    expect(assign).toHaveBeenCalledWith("tg://resolve?domain=Bot&start=link_1");
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("uses window.open in desktop browser tab", () => {
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url: "https://t.me/Bot?start=link_1",
+      channel: "telegram",
+      userAgent: desktopUa,
+    });
+
+    expect(open).toHaveBeenCalledWith("https://t.me/Bot?start=link_1", "_blank", "noopener,noreferrer");
+  });
+
+  it("uses location.assign for max.ru deeplink in standalone PWA", () => {
+    const assign = vi.fn();
+    standalonePwaSpy.mockReturnValue(true);
+    Object.defineProperty(window, "location", {
+      value: { assign },
+      writable: true,
+      configurable: true,
+    });
+    const url = "https://max.ru/MyBot?start=link_abc";
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url,
+      channel: "max",
+      userAgent: iphoneUa,
+    });
+
+    expect(assign).toHaveBeenCalledWith(url);
   });
 });

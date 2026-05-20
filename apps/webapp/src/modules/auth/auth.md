@@ -126,9 +126,9 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ### Открытие ссылки Telegram в браузере (bind-phone / профиль)
 
-Чтобы избежать блокировки всплывающих окон после `await fetch`, используется `shared/lib/telegramChannelLinkOpen.ts`: синхронно `window.open('about:blank', '_blank')` **без** `noopener`/`noreferrer` (иначе часть браузеров возвращает `null`, вкладка остаётся пустой), затем присвоение `location.href`; на мобильных UA при разборе `t.me/...?start=` подставляется `tg://resolve?domain=…&start=…`.
+После `POST /api/auth/channel-link/start` клиент вызывает `finishChannelLinkNavigation` (`shared/lib/telegramChannelLinkOpen.ts`): Mini App — `Telegram.WebApp` / MAX `WebApp.openMaxLink`; **installed PWA** (`isStandalonePwa`) — `location.assign` на `tg://resolve?…` (для Telegram всегда при разборе `t.me`, без привязки к mobile UA) или на `max.ru/…`, без `window.open('_blank')` (иначе t.me открывается внутри WebView PWA); обычный браузер — `window.open`; на мобильном UA вне PWA — `tg://` вместо `https://t.me` при возможности. UI не открывает `about:blank` до fetch.
 
-**Max:** если в ответе есть диплинк с `?start=`, тот же паттерн, что у Telegram: синхронно `about:blank`, затем `location.href` на `max.ru/…`. Иначе вкладку не открываем — команда в UI и буфер. **429** (`rate_limited`): toast на bind-phone, текст ошибки в `ConnectMessengersBlock`.
+**Max:** если в ответе есть диплинк с `?start=`, тот же `finishChannelLinkNavigation`; иначе вкладку не открываем — команда в UI и буфер. **429** (`rate_limited`): toast на bind-phone, текст ошибки в `ConnectMessengersBlock`.
 
 ### Ошибки и операции
 

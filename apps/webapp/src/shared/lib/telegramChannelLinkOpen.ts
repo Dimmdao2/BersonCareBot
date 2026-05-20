@@ -9,6 +9,7 @@
  */
 
 import { inferMessengerChannelForRequestContact } from "@/shared/lib/messengerMiniApp";
+import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
 
 /**
  * Раньше использовалось, чтобы решить, открывать ли преждевременную вкладку `about:blank`.
@@ -61,6 +62,47 @@ export function pickTelegramOpenUrl(tmeUrl: string, userAgent: string): string {
   return buildTgAppDeepLink(tmeUrl) ?? tmeUrl;
 }
 
+/** Итоговый URL для channel-link: в installed PWA для Telegram всегда предпочитаем tg://. */
+export function pickChannelLinkOpenUrl(
+  url: string,
+  channel: ChannelLinkOpenChannel,
+  userAgent: string,
+  options?: { standalonePwa?: boolean },
+): string {
+  if (channel === "telegram") {
+    if (options?.standalonePwa) {
+      return buildTgAppDeepLink(url) ?? url;
+    }
+    return pickTelegramOpenUrl(url, userAgent);
+  }
+  return url;
+}
+
+/**
+ * В standalone PWA `window.open(..., "_blank")` часто навигирует тот же WebView (t.me внутри приложения).
+ * Передаём ссылку ОС через `location.assign` / transient `<a>`.
+ */
+function openChannelLinkInBrowserOrPwa(toOpen: string, standalonePwa: boolean): void {
+  if (!standalonePwa) {
+    window.open(toOpen, "_blank", "noopener,noreferrer");
+    return;
+  }
+  try {
+    window.location.assign(toOpen);
+    return;
+  } catch {
+    /* fall through */
+  }
+  const anchor = document.createElement("a");
+  anchor.href = toOpen;
+  anchor.rel = "noopener noreferrer";
+  anchor.target = "_blank";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
 /** Ответ API channel-link для MAX с диплинком `https://max.ru/<nick>?start=…`. */
 export function isMaxChannelDeepLinkUrl(url: string): boolean {
   try {
@@ -85,8 +127,9 @@ export function assignChannelLinkToBlankWindow(
   userAgent: string
 ): void {
   try {
-    const finalUrl =
-      channel === "telegram" ? pickTelegramOpenUrl(url, userAgent) : url;
+    const finalUrl = pickChannelLinkOpenUrl(url, channel, userAgent, {
+      standalonePwa: isStandalonePwa(),
+    });
     blankWin.location.href = finalUrl;
   } catch {
     try {
@@ -139,7 +182,7 @@ export function finishChannelLinkNavigation(params: {
       return;
     }
     if (typeof tg.openLink === "function") {
-      const toOpen = channel === "telegram" ? pickTelegramOpenUrl(url, userAgent) : url;
+      const toOpen = pickChannelLinkOpenUrl(url, channel, userAgent);
       tg.openLink(toOpen, { try_instant_view: false });
       safeCloseBlank(blankWin);
       return;
@@ -157,7 +200,7 @@ export function finishChannelLinkNavigation(params: {
         return;
       }
       if (typeof w.openLink === "function") {
-        const toOpen = channel === "telegram" ? pickTelegramOpenUrl(url, userAgent) : url;
+        const toOpen = pickChannelLinkOpenUrl(url, channel, userAgent);
         w.openLink(toOpen);
         safeCloseBlank(blankWin);
         return;
@@ -170,6 +213,7 @@ export function finishChannelLinkNavigation(params: {
     return;
   }
 
-  const toOpen = channel === "telegram" ? pickTelegramOpenUrl(url, userAgent) : url;
-  window.open(toOpen, "_blank", "noopener,noreferrer");
+  const standalonePwa = isStandalonePwa();
+  const toOpen = pickChannelLinkOpenUrl(url, channel, userAgent, { standalonePwa });
+  openChannelLinkInBrowserOrPwa(toOpen, standalonePwa);
 }
