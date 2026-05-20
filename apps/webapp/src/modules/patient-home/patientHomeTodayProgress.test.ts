@@ -16,6 +16,7 @@ describe("patientHomeTodayProgress", () => {
         source: "daily_warmup",
         completedAt: "2026-05-20T10:00:00.000Z",
         feeling: null,
+        notes: "",
       },
       {
         id: "2",
@@ -24,6 +25,7 @@ describe("patientHomeTodayProgress", () => {
         source: "section_page",
         completedAt: "2026-05-20T11:00:00.000Z",
         feeling: null,
+        notes: "",
       },
     ]);
     expect(n).toBe(1);
