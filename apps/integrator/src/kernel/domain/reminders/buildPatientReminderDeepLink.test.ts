@@ -59,4 +59,13 @@ describe('buildPatientReminderDeepLink', () => {
     });
     expect(url).toBe('https://app.example/app/patient/go/plan-start-lesson?from=reminder');
   });
+
+  it('generic intent + warmups section slug uses go daily-warmup URL (legacy rules)', () => {
+    const url = buildPatientReminderDeepLink({
+      linkedObjectType: 'content_section',
+      linkedObjectId: 'warmups',
+      reminderIntent: 'generic',
+    });
+    expect(url).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
+  });
 });

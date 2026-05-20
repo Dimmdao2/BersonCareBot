@@ -329,6 +329,51 @@ describe("reminders service", () => {
       }
     });
 
+    it("sets reminderIntent warmup for warmups content_section", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      const svc = createRemindersService(port, {
+        contentSections: {
+          getBySlug: async (slug) =>
+            slug === "warmups" ? { systemParentCode: "warmups" } : { systemParentCode: "lessons" },
+        },
+      });
+      const res = await svc.createObjectReminder("user-1", {
+        linkedObjectType: "content_section",
+        linkedObjectId: "warmups",
+        schedule: {
+          intervalMinutes: 60,
+          windowStartMinute: 480,
+          windowEndMinute: 1200,
+          daysMask: "1111111",
+        },
+      });
+      expect(res.ok).toBe(true);
+      if (res.ok) expect(res.data.reminderIntent).toBe("warmup");
+    });
+
+    it("sets reminderIntent exercises for rehab_program", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      const svc = createRemindersService(port);
+      const res = await svc.createObjectReminder("user-1", {
+        linkedObjectType: "rehab_program",
+        linkedObjectId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        schedule: {
+          intervalMinutes: 60,
+          windowStartMinute: 0,
+          windowEndMinute: 1440,
+          daysMask: "1111111",
+        },
+        scheduleType: "slots_v1",
+        scheduleData: {
+          timesLocal: ["09:00"],
+          dayFilter: "weekly_mask",
+          daysMask: "1111111",
+        },
+      });
+      expect(res.ok).toBe(true);
+      if (res.ok) expect(res.data.reminderIntent).toBe("exercises");
+    });
+
     it("rejects empty linkedObjectId", async () => {
       const port = createInMemoryReminderRulesPort([]);
       const svc = createRemindersService(port);

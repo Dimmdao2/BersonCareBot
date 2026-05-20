@@ -28,7 +28,9 @@ import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoo
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
 import type { ContentStubItem } from "@/modules/content-catalog/types";
 import type { ContentPageRow } from "@/infra/repos/pgContentPages";
+import type { PatientDailyWarmupNav } from "@/modules/patient-home/todayConfig";
 import type { AppSession } from "@/shared/types/session";
+import { PatientDailyWarmupPager } from "./PatientDailyWarmupPager";
 import { PatientContentAdaptiveVideo } from "./PatientContentAdaptiveVideo";
 import { PatientContentMaterialRating } from "./PatientContentMaterialRating";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
@@ -45,6 +47,7 @@ type Props = {
   /** YouTube или RuTube — канонический URL для `<iframe>` (не файл из медиабиблиотеки). */
   hostedVideoIframeSrc: string | null;
   apiMediaId: string | null;
+  warmupNav: PatientDailyWarmupNav | null;
 };
 
 export async function PatientContentSlugArticle({
@@ -57,6 +60,7 @@ export async function PatientContentSlugArticle({
   videoPlayableUrl,
   hostedVideoIframeSrc,
   apiMediaId,
+  warmupNav,
 }: Props) {
   const deps = buildAppDeps();
 
@@ -143,7 +147,9 @@ export async function PatientContentSlugArticle({
           </div>
           <PatientDailyWarmupHeroCover imageUrl={item.imageUrl} anonymousGuest={anonymousGuest} />
         </div>
-      ) : (
+      ) : null}
+      {showWarmupBadge && warmupNav ? <PatientDailyWarmupPager nav={warmupNav} /> : null}
+      {!showWarmupBadge ? (
         <div
           className={cn(
             patientHomeCardHeroClass,
@@ -173,7 +179,7 @@ export async function PatientContentSlugArticle({
             </div>
           ) : null}
         </div>
-      )}
+      ) : null}
 
       {videoPlayableUrl ? (
         <section id={`patient-content-video-section-${slug}`} className={videoSectionShellClass}>

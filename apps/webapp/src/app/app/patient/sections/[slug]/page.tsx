@@ -4,12 +4,10 @@
  */
 
 import { notFound, permanentRedirect } from "next/navigation";
-import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
-import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { PatientSectionPageBody } from "./PatientSectionPageBody";
@@ -64,25 +62,6 @@ export default async function PatientSectionPage({ params }: Props) {
     }
   }
 
-  let warmupsReminderJson: ReturnType<typeof reminderRuleToPatientJson> | null = null;
-  let warmupsPersonalBar = false;
-  if (canonicalSlug === DEFAULT_WARMUPS_SECTION_SLUG && session) {
-    const dataGate = await patientRscPersonalDataGate(
-      session,
-      `/app/patient/sections/${encodeURIComponent(canonicalSlug)}`,
-    );
-    if (dataGate === "allow") {
-      warmupsPersonalBar = true;
-      const rules = await deps.reminders.listRulesByUser(session.user.userId);
-      const matches = rules.filter(
-        (r) => r.linkedObjectType === "content_section" && r.linkedObjectId === DEFAULT_WARMUPS_SECTION_SLUG,
-      );
-      matches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-      const latest = matches[0];
-      if (latest) warmupsReminderJson = reminderRuleToPatientJson(latest);
-    }
-  }
-
   return (
     <AppShell
       title={section.title}
@@ -94,12 +73,9 @@ export default async function PatientSectionPage({ params }: Props) {
     >
       <PatientSectionPageBody
         canonicalSlug={canonicalSlug}
-        sectionTitle={section.title}
         subscriptionSectionPresentation={subscriptionSectionPresentation}
         pages={pages}
         courseHighlightByLinkedId={courseHighlightByLinkedId}
-        warmupsReminderJson={warmupsReminderJson}
-        warmupsPersonalBar={warmupsPersonalBar}
       />
     </AppShell>
   );

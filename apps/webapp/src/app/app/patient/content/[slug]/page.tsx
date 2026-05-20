@@ -8,6 +8,11 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { routePaths } from "@/app-layer/routes/paths";
+import {
+  buildPatientDailyWarmupNav,
+  listDailyWarmupPagesForHome,
+} from "@/modules/patient-home/todayConfig";
 import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
@@ -43,7 +48,21 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
     session ? (await patientRscPersonalDataGate(session, contentPath)) === "allow" : false;
   const rawFrom = sp.from;
   const fromVal = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
-  const practiceSource = fromVal === "daily_warmup" ? ("daily_warmup" as const) : ("section_page" as const);
+  const isDailyWarmup = fromVal === "daily_warmup";
+  const practiceSource = isDailyWarmup ? ("daily_warmup" as const) : ("section_page" as const);
+
+  const warmupNav =
+    isDailyWarmup ?
+      buildPatientDailyWarmupNav(
+        slug,
+        await listDailyWarmupPagesForHome({
+          patientHomeBlocks: deps.patientHomeBlocks,
+          contentPages: deps.contentPages,
+          contentSections: deps.contentSections,
+          systemSettings: deps.systemSettings,
+        }),
+      )
+    : null;
 
   const videoPlayableUrl =
     item.videoSource?.type === "url" && item.videoSource.url.trim()
@@ -70,18 +89,23 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
 
   const sectionSlug = dbRow.section.trim();
   const backToSectionHref =
-    sectionSlug ? `/app/patient/sections/${encodeURIComponent(sectionSlug)}` : "/app/patient";
+    isDailyWarmup ? routePaths.patient
+    : sectionSlug ? `/app/patient/sections/${encodeURIComponent(sectionSlug)}`
+    : routePaths.patient;
+  const backLabel = isDailyWarmup ? "Меню" : sectionSlug ? "Назад к разделу" : "Меню";
 
   return (
     <AppShell
       title={item.title}
       user={session?.user ?? null}
       backHref={backToSectionHref}
-      backLabel={sectionSlug ? "Назад к разделу" : "Меню"}
+      backLabel={backLabel}
       variant="patient"
       patientSuppressShellTitle
       patientShellTitleSlot={
-        sectionSlug ? <PatientBackToSectionShellRow sectionSlug={dbRow.section} /> : undefined
+        !isDailyWarmup && sectionSlug ?
+          <PatientBackToSectionShellRow sectionSlug={dbRow.section} />
+        : undefined
       }
     >
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
@@ -95,6 +119,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           videoPlayableUrl={videoPlayableUrl}
           hostedVideoIframeSrc={hostedVideoIframeSrc}
           apiMediaId={apiMediaId}
+          warmupNav={warmupNav}
         />
       </Suspense>
     </AppShell>

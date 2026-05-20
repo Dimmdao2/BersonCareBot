@@ -319,11 +319,6 @@ const reminderRulesPort = !inMemoryRepos
   ? createPgReminderRulesPort()
   : createInMemoryReminderRulesPort();
 const reminderJournalPort = !inMemoryRepos ? createPgReminderJournalPort() : undefined;
-const remindersService = createRemindersService(reminderRulesPort, {
-  notifyIntegrator: notifyIntegratorRuleUpdated,
-  journal: reminderJournalPort,
-  webPushSubscriptions: webPushSubscriptionsPort,
-});
 const appointmentProjectionPort = !inMemoryRepos
   ? createPgAppointmentProjectionPort()
   : inMemoryAppointmentProjectionPort;
@@ -345,6 +340,12 @@ const subscriptionMailingProjectionPort = !inMemoryRepos
   : inMemorySubscriptionMailingProjectionPort;
 const contentPagesPort = !inMemoryRepos ? createPgContentPagesPort() : inMemoryContentPagesPort;
 const contentSectionsPort = !inMemoryRepos ? createPgContentSectionsPort() : inMemoryContentSectionsPort;
+const remindersService = createRemindersService(reminderRulesPort, {
+  notifyIntegrator: notifyIntegratorRuleUpdated,
+  journal: reminderJournalPort,
+  webPushSubscriptions: webPushSubscriptionsPort,
+  contentSections: contentSectionsPort,
+});
 const mediaStoragePort =
   !inMemoryRepos && isS3MediaEnabled(env)
     ? createS3MediaStoragePort()

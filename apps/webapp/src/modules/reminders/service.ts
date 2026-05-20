@@ -7,6 +7,10 @@ import type {
   ReminderRule,
   ReminderUpdateSchedule,
 } from "./types";
+import {
+  resolveReminderIntentForLinkedObject,
+  type ReminderIntentSectionLookup,
+} from "./resolveReminderIntentForLinkedObject";
 import type { SlotsV1ScheduleData } from "./scheduleSlots";
 import {
   DEFAULT_REHAB_DAILY_SLOTS,
@@ -81,6 +85,7 @@ export type RemindersServiceDeps = {
   notifyIntegrator?: (rule: ReminderRule) => Promise<void>;
   journal?: ReminderJournalPort;
   webPushSubscriptions?: WebPushSubscriptionsPort;
+  contentSections?: ReminderIntentSectionLookup;
 };
 
 function validateSchedule(s: ReminderUpdateSchedule): string | null {
@@ -329,6 +334,12 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       // Allow creation if has bot linking OR has web push subscription
       if (!integratorUserId && !hasWebPush) return { ok: false, error: "not_found" };
 
+      const reminderIntent = await resolveReminderIntentForLinkedObject(
+        params.linkedObjectType,
+        params.linkedObjectId,
+        deps?.contentSections,
+      );
+
       if (scheduleType === "slots_v1") {
         let sdInput: SlotsV1ScheduleData | null | undefined = params.scheduleData ?? null;
         if (!sdInput && params.linkedObjectType === "rehab_program") {
@@ -354,6 +365,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           },
           scheduleType: "slots_v1",
           scheduleData: norm.data,
+          reminderIntent,
           quietHoursStartMinute: params.quietHoursStartMinute ?? null,
           quietHoursEndMinute: params.quietHoursEndMinute ?? null,
         });
@@ -379,6 +391,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         schedule: params.schedule,
         scheduleType: "interval_window",
         scheduleData: null,
+        reminderIntent,
         quietHoursStartMinute: params.quietHoursStartMinute ?? null,
         quietHoursEndMinute: params.quietHoursEndMinute ?? null,
       });

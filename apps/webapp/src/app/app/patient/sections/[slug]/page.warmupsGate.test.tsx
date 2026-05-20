@@ -1,5 +1,5 @@
 /**
- * D-TST-1 / Phase E-FIX: warmups RSC не дергает персональные данные напоминаний при onboarding (gate guest).
+ * Warmups section RSC: reminder bar removed from section list (reminders live on /app/patient/reminders).
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { AppSession } from "@/shared/types/session";
@@ -7,7 +7,6 @@ import type { AppSession } from "@/shared/types/session";
 const listRulesByUserMock = vi.hoisted(() => vi.fn(async () => []));
 const listBlocksWithItemsMock = vi.hoisted(() => vi.fn(async () => []));
 const getOptionalPatientSessionMock = vi.hoisted(() => vi.fn());
-const patientRscPersonalDataGateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
@@ -18,7 +17,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   getOptionalPatientSession: getOptionalPatientSessionMock,
-  patientRscPersonalDataGate: patientRscPersonalDataGateMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -36,6 +34,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
             }
           : null,
       ),
+      getRedirectNewSlugForOldSlug: vi.fn(async () => null),
     },
     contentPages: {
       listBySection: vi.fn(async () => []),
@@ -46,6 +45,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     reminders: {
       listRulesByUser: listRulesByUserMock,
     },
+    courses: { getCourseForDoctor: vi.fn() },
   }),
 }));
 
@@ -67,34 +67,18 @@ function clientSession(): AppSession {
   };
 }
 
-describe("PatientSectionPage /warmups — patientRscPersonalDataGate (Phase E D-TST-1)", () => {
+describe("PatientSectionPage /warmups", () => {
   beforeEach(() => {
     listRulesByUserMock.mockClear();
     listBlocksWithItemsMock.mockClear();
     getOptionalPatientSessionMock.mockReset();
-    patientRscPersonalDataGateMock.mockReset();
   });
 
-  it("does not call listRulesByUser when gate is guest (onboarding / need_activation)", async () => {
+  it("does not load reminder rules for warmups section list", async () => {
     getOptionalPatientSessionMock.mockResolvedValue(clientSession());
-    patientRscPersonalDataGateMock.mockResolvedValue("guest");
 
     await PatientSectionPage({ params: Promise.resolve({ slug: "warmups" }) });
 
-    expect(patientRscPersonalDataGateMock).toHaveBeenCalledWith(
-      clientSession(),
-      "/app/patient/sections/warmups",
-    );
     expect(listRulesByUserMock).not.toHaveBeenCalled();
-  });
-
-  it("calls listRulesByUser when gate is allow (tier patient)", async () => {
-    getOptionalPatientSessionMock.mockResolvedValue(clientSession());
-    patientRscPersonalDataGateMock.mockResolvedValue("allow");
-    listRulesByUserMock.mockResolvedValueOnce([]);
-
-    await PatientSectionPage({ params: Promise.resolve({ slug: "warmups" }) });
-
-    expect(listRulesByUserMock).toHaveBeenCalledWith(uid);
   });
 });

@@ -6,6 +6,13 @@ import { getAppBaseUrlSync } from '../../../config/appBaseUrl.js';
 
 const GO_DAILY_WARMUP = '/app/patient/go/daily-warmup?from=reminder';
 const GO_PLAN_START_LESSON = '/app/patient/go/plan-start-lesson?from=reminder';
+/** Canonical CMS warmups section slug (mirrors webapp `DEFAULT_WARMUPS_SECTION_SLUG`). */
+const WARMUPS_SECTION_SLUG = 'warmups';
+
+function isWarmupsContentSectionLinkedId(linkedObjectId: string | null | undefined): boolean {
+  const id = typeof linkedObjectId === 'string' ? linkedObjectId.trim() : '';
+  return id.length > 0 && id === WARMUPS_SECTION_SLUG;
+}
 
 /** Primary open URL для dispatch: warmup / exercises / stretch — go-URL в webapp (редирект как на главной / в плане). */
 export function reminderDispatchUsesIntentOpenTarget(intent: string | null | undefined): boolean {
@@ -41,6 +48,9 @@ export function buildPatientReminderDeepLink(params: {
   const linkedObjectId = typeof params.linkedObjectId === 'string' ? params.linkedObjectId.trim() : '';
   if (!linkedObjectType || !linkedObjectId) {
     return `${base}/app/patient/reminders?from=reminder`;
+  }
+  if (linkedObjectType === 'content_section' && isWarmupsContentSectionLinkedId(linkedObjectId)) {
+    return base ? `${base}${GO_DAILY_WARMUP}` : GO_DAILY_WARMUP;
   }
   const id = encodeURIComponent(linkedObjectId);
   switch (linkedObjectType) {

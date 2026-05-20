@@ -88,50 +88,26 @@ function mapPage(row: {
   };
 }
 
-/**
- * Конфиг «Сегодня» для главной пациента (Phase 2): разминка из блока `daily_warmup` + целевое число практик.
- * Разминка не берётся из system_settings slug — только из `patient_home_block_items`.
- * @param warmupWeekdayMonday0 день недели в таймзоне приложения: 0 = понедельник, 6 = воскресенье. Ротация выбранного материала по `sortOrder`.
- */
-export async function getPatientHomeTodayConfig(
-  deps: PatientHomeTodayConfigDeps,
-  warmupWeekdayMonday0 = 0,
-  warmupPick?: PatientHomeWarmupPickContext,
-): Promise<PatientHomeTodayConfigResult> {
-  const setting = await deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin");
-  const practiceTarget = parsePatientHomeDailyPracticeTarget(setting?.valueJson ?? null);
+export type DailyWarmupListEntry = ResolvedWarmupPage & {
+  blockItem: PatientHomeBlockItem;
+};
 
+/**
+ * Упорядоченный список опубликованных разминок из блока главной `daily_warmup` (для pager и ротации дня).
+ */
+export async function listDailyWarmupPagesForHome(
+  deps: PatientHomeTodayConfigDeps,
+): Promise<DailyWarmupListEntry[]> {
   const blocks = await deps.patientHomeBlocks.listBlocksWithItems();
   const warmupBlock = blocks.find((b) => b.code === "daily_warmup");
-  if (!warmupBlock?.isVisible) {
-    return {
-      dailyWarmupItem: null,
-      practiceTarget,
-      allDailyWarmupsInCooldown: false,
-      allDailyWarmupsCooldownMinutesRemaining: null,
-    };
-  }
+  if (!warmupBlock?.isVisible) return [];
 
   const items = [...warmupBlock.items]
     .filter((i) => i.isVisible && i.targetType === "content_page")
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 
-  const n = items.length;
-  if (n === 0) {
-    return {
-      dailyWarmupItem: null,
-      practiceTarget,
-      allDailyWarmupsInCooldown: false,
-      allDailyWarmupsCooldownMinutesRemaining: null,
-    };
-  }
-
-  const start = ((warmupWeekdayMonday0 % n) + n) % n;
-  let minMinutesWhenAllInCooldown: number | null = null;
-  let sawAnyValidCandidate = false;
-
-  for (let step = 0; step < n; step++) {
-    const blockItem = items[(start + step) % n]!;
+  const result: DailyWarmupListEntry[] = [];
+  for (const blockItem of items) {
     const slug = blockItem.targetRef.trim();
     if (!slug) continue;
     const row = await deps.contentPages.getBySlug(slug);
@@ -155,12 +131,74 @@ export async function getPatientHomeTodayConfig(
     ) {
       continue;
     }
+    result.push({ ...mapPage(row), blockItem });
+  }
+  return result;
+}
+
+export type PatientDailyWarmupNav = {
+  index: number;
+  total: number;
+  prevHref: string;
+  nextHref: string;
+};
+
+export function buildPatientDailyWarmupNav(
+  slug: string,
+  pages: ReadonlyArray<Pick<ResolvedWarmupPage, "slug">>,
+): PatientDailyWarmupNav | null {
+  const total = pages.length;
+  if (total <= 1) return null;
+  const index = pages.findIndex((p) => p.slug === slug);
+  if (index < 0) return null;
+  const hrefFor = (s: string) =>
+    `/app/patient/content/${encodeURIComponent(s)}?from=daily_warmup`;
+  const prev = pages[(index - 1 + total) % total]!;
+  const next = pages[(index + 1) % total]!;
+  return {
+    index,
+    total,
+    prevHref: hrefFor(prev.slug),
+    nextHref: hrefFor(next.slug),
+  };
+}
+
+/**
+ * Конфиг «Сегодня» для главной пациента (Phase 2): разминка из блока `daily_warmup` + целевое число практик.
+ * Разминка не берётся из system_settings slug — только из `patient_home_block_items`.
+ * @param warmupWeekdayMonday0 день недели в таймзоне приложения: 0 = понедельник, 6 = воскресенье. Ротация выбранного материала по `sortOrder`.
+ */
+export async function getPatientHomeTodayConfig(
+  deps: PatientHomeTodayConfigDeps,
+  warmupWeekdayMonday0 = 0,
+  warmupPick?: PatientHomeWarmupPickContext,
+): Promise<PatientHomeTodayConfigResult> {
+  const setting = await deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin");
+  const practiceTarget = parsePatientHomeDailyPracticeTarget(setting?.valueJson ?? null);
+
+  const dailyPages = await listDailyWarmupPagesForHome(deps);
+  const n = dailyPages.length;
+  if (n === 0) {
+    return {
+      dailyWarmupItem: null,
+      practiceTarget,
+      allDailyWarmupsInCooldown: false,
+      allDailyWarmupsCooldownMinutesRemaining: null,
+    };
+  }
+
+  const start = ((warmupWeekdayMonday0 % n) + n) % n;
+  let minMinutesWhenAllInCooldown: number | null = null;
+  let sawAnyValidCandidate = false;
+
+  for (let step = 0; step < n; step++) {
+    const entry = dailyPages[(start + step) % n]!;
     sawAnyValidCandidate = true;
 
     if (warmupPick?.skipCooldownPages) {
       const meta = await warmupPick.getDailyWarmupHeroCooldownMeta(
         warmupPick.userId,
-        row.id,
+        entry.contentPageId,
         warmupPick.cooldownMinutes,
       );
       if (meta.active) {
@@ -174,8 +212,9 @@ export async function getPatientHomeTodayConfig(
       }
     }
 
+    const { blockItem, ...page } = entry;
     return {
-      dailyWarmupItem: { blockItem, page: mapPage(row) },
+      dailyWarmupItem: { blockItem, page },
       practiceTarget,
       allDailyWarmupsInCooldown: false,
       allDailyWarmupsCooldownMinutesRemaining: null,

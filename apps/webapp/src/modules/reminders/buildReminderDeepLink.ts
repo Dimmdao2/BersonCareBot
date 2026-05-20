@@ -1,5 +1,6 @@
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
+import { isWarmupsContentSectionLinkedId } from "./resolveReminderIntentForLinkedObject";
 import type { ReminderLinkedObjectType } from "./types";
 
 const KNOWN: ReminderLinkedObjectType[] = [
@@ -41,6 +42,12 @@ export function buildReminderDeepLink(params: {
     return `${base}/app/patient/reminders?from=reminder`;
   }
   const id = encodeURIComponent(linkedObjectId.trim());
+  if (
+    linkedObjectType === "content_section" &&
+    isWarmupsContentSectionLinkedId(linkedObjectId)
+  ) {
+    return `${base}${routePaths.patientGoDailyWarmup}?from=reminder`;
+  }
   switch (linkedObjectType) {
     case "lfk_complex":
       return `${base}/app/patient/diary/lfk/journal?complexId=${id}&from=reminder`;
