@@ -12,9 +12,7 @@ import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSect
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { RemindersHashScroll } from "./RemindersHashScroll";
-import { ReminderDeliveryChannelsNotice } from "./ReminderDeliveryChannelsNotice";
 import { RemindersPageAdditionalSection } from "./RemindersPageAdditionalSection";
-import { RemindersPageThirtyDayStats } from "./RemindersPageThirtyDayStats";
 import { filterPersonalRulesForSchedulePage } from "./filterPersonalRulesForSchedulePage";
 import type { AppSession } from "@/shared/types/session";
 import {
@@ -194,12 +192,9 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   return (
     <div className={cn(patientInnerPageStackClass, "pb-10 md:pb-14")}>
       <RemindersHashScroll />
-      <div className={cn(patientMutedTextClass, "mb-4 space-y-2")}>
-        <p>Настройте расписания для разминок и тренировок.</p>
-        <p>Это обновит ваши цели активности на странице Сегодня и в Статистике.</p>
-      </div>
-
-      <ReminderDeliveryChannelsNotice />
+      <p className={cn(patientMutedTextClass, "mb-4")}>
+        Настройте расписание – это обновит ваши цели активности.
+      </p>
 
       <ReminderRulesClient
         personalRows={personalRows}
@@ -217,8 +212,6 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
       />
 
       <RemindersPageAdditionalSection muteUntilLabel={muteUntilLabel} />
-
-      <RemindersPageThirtyDayStats projectionStats={projectionStats} />
     </div>
   );
 }
