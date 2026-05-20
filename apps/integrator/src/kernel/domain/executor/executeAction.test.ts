@@ -3930,9 +3930,10 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(readDb).not.toHaveBeenCalled();
   });
 
-  it('webapp.phoneMessengerBind.complete sends phoneAuthAccountCreated on success', async () => {
+  it("webapp.phoneMessengerBind.complete sends phoneAuthAccountCreated on login with new account", async () => {
     const completePhoneMessengerBind = vi.fn().mockResolvedValue({
       ok: true,
+      purpose: 'login',
       otpCode: '123456',
       accountCreated: true,
       challengeId: 'ch-1',
@@ -3986,6 +3987,135 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(renderTemplate).toHaveBeenCalledWith(
       expect.objectContaining({ templateId: 'phoneAuthAccountCreated', source: 'telegram' }),
     );
+  });
+
+  it('webapp.phoneMessengerBind.complete sends phoneAuthLoginCode for login without new account', async () => {
+    const completePhoneMessengerBind = vi.fn().mockResolvedValue({
+      ok: true,
+      purpose: 'login',
+      otpCode: '654321',
+      accountCreated: false,
+      challengeId: 'ch-2',
+    });
+    const webappEventsPort = {
+      completePhoneMessengerBind,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const writeDb = vi.fn().mockResolvedValue({ userPhoneLinkApplied: true });
+    const tgCtx: DomainContext = {
+      ...ctx,
+      base: { ...ctx.base, conversationState: 'await_phoneauth:auth_testtoken' },
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-pa-login',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '222',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            chatId: 222,
+            channelId: '222',
+            phone: '+79991234567',
+            userRow: null,
+            userState: 'await_phoneauth:auth_testtoken',
+          },
+        },
+      },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({ text: 'Код 654321' });
+    const result = await executeAction(
+      {
+        id: 'pa-login',
+        type: 'webapp.phoneMessengerBind.complete',
+        mode: 'sync',
+        params: { channelCode: 'telegram', externalId: '222' },
+      },
+      tgCtx,
+      {
+        webappEventsPort,
+        templatePort: { renderTemplate },
+        writePort: { writeDb },
+      },
+    );
+    expect(result.status).toBe('success');
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthLoginCode', source: 'telegram' }),
+    );
+  });
+
+  it('webapp.phoneMessengerBind.complete sends phoneAuthPhoneLinked keyboard for profile_bind', async () => {
+    const completePhoneMessengerBind = vi.fn().mockResolvedValue({
+      ok: true,
+      purpose: 'profile_bind',
+    });
+    const webappEventsPort = {
+      completePhoneMessengerBind,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const writeDb = vi.fn().mockResolvedValue({ userPhoneLinkApplied: true });
+    const tgCtx: DomainContext = {
+      ...ctx,
+      base: { ...ctx.base, conversationState: 'await_phoneauth:auth_bind' },
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-pa-bind',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '333',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            chatId: 333,
+            channelId: '333',
+            phone: '+79991234567',
+            userRow: null,
+            userState: 'await_phoneauth:auth_bind',
+          },
+        },
+      },
+    };
+    const renderTemplate = vi.fn().mockImplementation(async (input: { templateId?: string }) => {
+      if (input.templateId === 'phoneAuthPhoneLinked') return { text: 'Номер привязан.' };
+      if (input.templateId === 'menu.book') return { text: 'Запись' };
+      if (input.templateId === 'menu.app') return { text: 'Приложение' };
+      return { text: '' };
+    });
+    const result = await executeAction(
+      {
+        id: 'pa-bind',
+        type: 'webapp.phoneMessengerBind.complete',
+        mode: 'sync',
+        params: { channelCode: 'telegram', externalId: '333' },
+      },
+      tgCtx,
+      {
+        webappEventsPort,
+        templatePort: { renderTemplate },
+        writePort: { writeDb },
+      },
+    );
+    expect(result.status).toBe('success');
+    const replyKeyboard = result.intents?.find((i) => i.type === 'message.send' && (i.payload as { replyMarkup?: unknown }).replyMarkup);
+    expect(replyKeyboard).toBeDefined();
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthPhoneLinked', source: 'telegram' }),
+    );
+    const codeSend = result.intents?.find(
+      (i) =>
+        i.type === 'message.send' &&
+        !(i.payload as { replyMarkup?: unknown }).replyMarkup &&
+        (i.payload as { message?: { text?: string } }).message?.text?.includes('654321'),
+    );
+    expect(codeSend).toBeUndefined();
   });
 
   it('webapp.phoneMessengerBind.complete uses phoneAuthMismatch template on phone_mismatch', async () => {

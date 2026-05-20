@@ -408,6 +408,7 @@ export type WebappEventsPort = {
   }): Promise<{
     ok: boolean;
     error?: string;
+    purpose?: 'login' | 'profile_bind';
     otpCode?: string;
     accountCreated?: boolean;
     challengeId?: string;

@@ -53,6 +53,7 @@ describe("POST /api/integrator/phone-messenger-bind/complete", () => {
   it("returns 200 with otpCode on success", async () => {
     completeMock.mockResolvedValue({
       ok: true,
+      purpose: "login",
       otpCode: "654321",
       accountCreated: true,
       challengeId: "ch-1",
@@ -76,9 +77,40 @@ describe("POST /api/integrator/phone-messenger-bind/complete", () => {
       }),
     );
     expect(res.status).toBe(200);
-    const data = (await res.json()) as { otpCode?: string; ok?: boolean };
+    const data = (await res.json()) as { otpCode?: string; ok?: boolean; purpose?: string };
     expect(data.ok).toBe(true);
+    expect(data.purpose).toBe("login");
     expect(data.otpCode).toBe("654321");
+  });
+
+  it("returns profile_bind without otpCode", async () => {
+    completeMock.mockResolvedValue({
+      ok: true,
+      purpose: "profile_bind",
+    });
+    const body = JSON.stringify({
+      setupToken: "auth_abc",
+      channelCode: "telegram",
+      externalId: "123",
+      phoneNormalized: "+79991234567",
+    });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const res = await POST(
+      new Request("http://localhost/api/integrator/phone-messenger-bind/complete", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-bersoncare-timestamp": timestamp,
+          "x-bersoncare-signature": sign(timestamp, body),
+        },
+        body,
+      }),
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok?: boolean; purpose?: string; otpCode?: string };
+    expect(data.ok).toBe(true);
+    expect(data.purpose).toBe("profile_bind");
+    expect(data.otpCode).toBeUndefined();
   });
 
   it("returns 409 for phone_mismatch", async () => {
@@ -107,6 +139,7 @@ describe("POST /api/integrator/phone-messenger-bind/complete", () => {
   it("returns replay otp on otp_ready replay", async () => {
     completeMock.mockResolvedValue({
       ok: true,
+      purpose: "login",
       otpCode: "111222",
       accountCreated: false,
       challengeId: "ch-replay",

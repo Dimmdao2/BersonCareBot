@@ -64,6 +64,41 @@ describe("PhoneMessengerAuthFlow", () => {
     expect(screen.getByRole("button", { name: "Max" })).toBeInTheDocument();
   });
 
+  it("profile_bind messenger bind completes on consumed status without otp form", async () => {
+    const user = userEvent.setup();
+    const onComplete = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/auth/check-phone")) {
+          return jsonRes({ ok: true, exists: false, methods: { sms: false } });
+        }
+        if (url.includes("/api/auth/phone/messenger-bind/start")) {
+          return jsonRes({
+            ok: true,
+            setupToken: "auth_test",
+            url: "https://t.me/bot?start=auth_test",
+          });
+        }
+        if (url.includes("/api/auth/phone/messenger-bind/status")) {
+          return jsonRes({ ok: true, status: "consumed" });
+        }
+        throw new Error(`unexpected: ${url}`);
+      }),
+    );
+
+    render(
+      <PhoneMessengerAuthFlow purpose="profile_bind" onBack={() => {}} onProfileComplete={onComplete} />,
+    );
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.click(await screen.findByRole("button", { name: "Telegram" }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalled());
+    expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
+  });
+
   it("polls status until otp_ready after messenger bind start", async () => {
     const user = userEvent.setup();
     let statusCalls = 0;

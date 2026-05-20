@@ -438,6 +438,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     }): Promise<{
       ok: boolean;
       error?: string;
+      purpose?: 'login' | 'profile_bind';
       otpCode?: string;
       accountCreated?: boolean;
       challengeId?: string;
@@ -471,6 +472,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
           ok?: boolean;
           error?: string;
           mergeReason?: string;
+          purpose?: 'login' | 'profile_bind';
           otpCode?: string;
           accountCreated?: boolean;
           challengeId?: string;
@@ -490,6 +492,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         }
         return {
           ok: true,
+          ...(data.purpose === 'login' || data.purpose === 'profile_bind' ? { purpose: data.purpose } : {}),
           ...(typeof data.otpCode === 'string' ? { otpCode: data.otpCode } : {}),
           ...(data.accountCreated === true ? { accountCreated: true } : {}),
           ...(typeof data.challengeId === 'string' ? { challengeId: data.challengeId } : {}),

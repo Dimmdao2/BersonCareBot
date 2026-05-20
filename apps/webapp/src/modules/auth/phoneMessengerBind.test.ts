@@ -58,6 +58,7 @@ import {
   registerPhoneMessengerBindPort,
   startPhoneMessengerBind,
 } from "./phoneMessengerBind";
+import { createPhoneOtpChallenge } from "./phoneAuth";
 
 const mockPool = {
   query: queryMock,
@@ -89,6 +90,7 @@ function secretRow(overrides: Record<string, unknown> = {}) {
 describe("phoneMessengerBind", () => {
   beforeEach(() => {
     registerPhoneMessengerBindPort(createPgPhoneMessengerBindPort(mockPool));
+    vi.mocked(createPhoneOtpChallenge).mockClear();
   });
 
   afterEach(() => {
@@ -139,6 +141,7 @@ describe("phoneMessengerBind", () => {
 
     expect(res).toMatchObject({
       ok: true,
+      purpose: "login",
       accountCreated: true,
       challengeId: expect.any(String),
       otpCode: expect.any(String),
@@ -227,11 +230,42 @@ describe("phoneMessengerBind", () => {
 
     expect(res).toMatchObject({
       ok: true,
+      purpose: "login",
       otpCode: "123456",
       challengeId,
       replay: true,
       accountCreated: false,
     });
+  });
+
+  it("profile_bind complete marks consumed without otp challenge", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [secretRow({ purpose: "profile_bind", user_id: "u-session" })] });
+    clientQueryMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "u-session" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ user_id: "u-session" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const createOtpMock = vi.mocked(createPhoneOtpChallenge);
+
+    const res = await completePhoneMessengerBindFromIntegrator(
+      {
+        setupToken: "auth_testtoken",
+        channelCode: "telegram",
+        externalId: "tg-1",
+        contactPhoneNormalized: "+79991234567",
+      },
+      phoneAuthDeps,
+    );
+
+    expect(res).toEqual({ ok: true, purpose: "profile_bind" });
+    expect(createOtpMock).not.toHaveBeenCalled();
+    expect(clientQueryMock).toHaveBeenCalledWith(
+      expect.stringContaining("status = 'consumed'"),
+      expect.any(Array),
+    );
   });
 
   it("profile_bind rejects phone owned by other user", async () => {

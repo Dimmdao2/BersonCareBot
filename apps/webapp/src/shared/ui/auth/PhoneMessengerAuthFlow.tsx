@@ -110,8 +110,19 @@ export function PhoneMessengerAuthFlow({
         error?: string;
       };
       if (!statusRes.ok || !statusData.ok) return;
+      if (statusData.status === "consumed") {
+        clearPoll();
+        if (purpose === "profile_bind") {
+          onProfileComplete?.();
+        }
+        return;
+      }
       if (statusData.status === "otp_ready" && statusData.challengeId) {
         clearPoll();
+        if (purpose === "profile_bind") {
+          onProfileComplete?.();
+          return;
+        }
         setChallengeId(statusData.challengeId);
         setRetryAfterSeconds(statusData.retryAfterSeconds ?? 60);
         setOtpChannel(channel);
@@ -127,7 +138,7 @@ export function PhoneMessengerAuthFlow({
         resetBindAttempt();
       }
     },
-    [clearPoll, resetBindAttempt],
+    [clearPoll, resetBindAttempt, purpose, onProfileComplete],
   );
 
   useEffect(() => () => clearPoll(), [clearPoll]);
@@ -362,13 +373,15 @@ export function PhoneMessengerAuthFlow({
 
   if (step === "code") {
     const waitingForBot = setupToken != null && challengeId == null;
+    const waitingDescription =
+      purpose === "profile_bind"
+        ? `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}. После этого можно вернуться в приложение.`
+        : `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}, затем введите код из сообщения бота.`;
     return (
       <div id="phone-messenger-auth-code" className="flex w-full flex-col gap-3 text-left">
         {waitingForBot ? (
           <>
-            <p className={patientMutedTextClass}>
-              Подтвердите номер в {bindChannel === "max" ? "Max" : "Telegram"}, затем введите код из сообщения бота.
-            </p>
+            <p className={patientMutedTextClass}>{waitingDescription}</p>
             <Button type="button" variant="link" className={patientInlineLinkClass} onClick={resetBindAttempt}>
               Начать снова
             </Button>

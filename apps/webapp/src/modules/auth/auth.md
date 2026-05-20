@@ -108,14 +108,17 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ### Phone messenger bind (вход / привязка по `auth_*`)
 
-Поток для **публичного браузера/PWA** и **inline-привязки в профиле**, когда у номера ещё нет привязки TG/Max для OTP: вместо SMS — deep link в бота, контакт, код в чате, затем `phone/confirm`.
+Поток для **публичного браузера/PWA** и **inline-привязки в профиле**, когда у номера ещё нет привязки TG/Max для OTP: вместо SMS — deep link в бота, контакт; дальше ветка по **`purpose`**.
 
 - **`POST /api/auth/phone/messenger-bind/start`** — тело `{ phone, channelCode: "telegram"|"max", purpose: "login"|"profile_bind" }`. **`profile_bind`** требует сессию пациента. Ответ: `{ ok, setupToken, url, expiresAtIso, manualCommand? }` (`setupToken` = `auth_*`). **Rate limit:** scope `auth.phone_messenger_bind_start` (ключ — userId для `profile_bind`, иначе IP/anon), до **30**/час в `auth_rate_limit_events`.
-- **`POST /api/auth/phone/messenger-bind/status`** — `{ setupToken }` → `pending_contact` \| `otp_ready` (+ `challengeId`, `retryAfterSeconds`) \| `failed` \| `expired` \| `consumed`.
-- **`POST /api/integrator/phone-messenger-bind/complete`** (M2M, подпись как channel-link) — контакт из бота; при успехе создаётся OTP-challenge, secret → `otp_ready`. **Replay:** если secret уже `otp_ready` — **200** с тем же `otpCode` и `challengeId` (`replay: true`); если `consumed` — **200** `{ status: "already_used" }` без кода.
-- После **`POST /api/auth/phone/confirm`** (через `buildAppDeps.auth.confirmPhoneAuth`): verify + bind → `markPhoneMessengerBindConsumedByChallenge` → при ошибке post-steps **`server_error`** (челлендж и код сохраняются для повтора) → `consumePhoneOtpChallenge` только при полном успехе → secret `consumed`.
+- **`POST /api/auth/phone/messenger-bind/status`** — `{ setupToken }` → `pending_contact` \| `otp_ready` (+ `challengeId`, только **`login`**) \| `failed` \| `expired` \| `consumed` (**`profile_bind`** — ожидаемый успех без OTP).
+- **`POST /api/integrator/phone-messenger-bind/complete`** (M2M, подпись как channel-link) — контакт из бота. Ответ **200** `{ ok: true, purpose, … }`:
+  - **`purpose: login`** — OTP-challenge, secret → `otp_ready`; integrator шлёт `*:phoneAuthAccountCreated` или `*:phoneAuthLoginCode` с кодом; **replay** `otp_ready` → тот же `otpCode`/`challengeId`.
+  - **`purpose: profile_bind`** — OTP не создаётся, secret → `consumed`; integrator `user.phone.link` + шаблон `*:phoneAuthPhoneLinked` (главное меню в TG); **`otpCode` нет**.
+  - **`used_token`** / secret уже `consumed` → **200** `{ status: "already_used" }`.
+- **`POST /api/auth/phone/confirm`** — только **`login`**: verify + bind → `markPhoneMessengerBindConsumedByChallenge` → при ошибке post-steps **`server_error`** → `consumePhoneOtpChallenge` при полном успехе.
 
-Клиент: `PhoneMessengerAuthFlow` (`purpose: login` в `AuthFlowV2`, `profile_bind` на **`/app/patient/bind-phone` в браузере**). Mini App на bind-phone — по-прежнему `PatientBindPhoneClient` (request-contact). Открытие deep link — `finishChannelLinkNavigation` (как channel-link). Логи: `phone_messenger_bind_start`, `phone_messenger_bind_complete_ok|fail` (без `otpCode`). Runbook: `docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md`.
+Клиент: `PhoneMessengerAuthFlow` (`purpose: login` в `AuthFlowV2`, `profile_bind` на **`/app/patient/bind-phone` в браузере** — poll до `consumed`, без формы кода). Mini App на bind-phone — по-прежнему `PatientBindPhoneClient` (request-contact). Открытие deep link — `finishChannelLinkNavigation` (как channel-link). Логи: `phone_messenger_bind_start`, `phone_messenger_bind_complete_ok|fail` (без `otpCode`). Runbook: `docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md`.
 
 ### Channel link (старт ссылки из сессии)
 

@@ -60,9 +60,14 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    otpCode: result.otpCode,
-    accountCreated: result.accountCreated,
-    challengeId: result.challengeId,
-    ...(result.replay ? { replay: true } : {}),
+    purpose: result.purpose,
+    ...(result.purpose === "login"
+      ? {
+          otpCode: result.otpCode,
+          accountCreated: result.accountCreated,
+          challengeId: result.challengeId,
+          ...(result.replay ? { replay: true } : {}),
+        }
+      : { ...(result.replay ? { replay: true } : {}) }),
   });
 }

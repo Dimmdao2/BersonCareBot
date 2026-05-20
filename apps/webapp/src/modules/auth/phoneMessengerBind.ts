@@ -154,7 +154,15 @@ export async function startPhoneMessengerBind(
 }
 
 export type CompletePhoneMessengerBindResult =
-  | { ok: true; otpCode: string; accountCreated: boolean; challengeId: string; replay?: boolean }
+  | {
+      ok: true;
+      purpose: "login";
+      otpCode: string;
+      accountCreated: boolean;
+      challengeId: string;
+      replay?: boolean;
+    }
+  | { ok: true; purpose: "profile_bind"; replay?: boolean }
   | { ok: false; code: string };
 
 export async function completePhoneMessengerBindFromIntegrator(
@@ -209,7 +217,21 @@ export async function completePhoneMessengerBindFromIntegrator(
     return { ok: false, code: "phone_mismatch" };
   }
 
+  const bindPurpose = row.purpose as PhoneMessengerBindPurpose;
+
   if (row.status === "otp_ready" && row.challenge_id) {
+    if (bindPurpose === "profile_bind") {
+      await port.markConsumed(row.id);
+      logger.info({
+        event: "phone_messenger_bind_complete_ok",
+        metric: "phone_messenger_bind_complete_ok",
+        channelCode: params.channelCode,
+        purpose: bindPurpose,
+        replay: true,
+        phoneSuffix: phoneSuffixForLog(contactPhone),
+      });
+      return { ok: true, purpose: "profile_bind", replay: true };
+    }
     const stored = await phoneAuthDeps.challengeStore.get(row.challenge_id);
     const nowSec = Math.floor(Date.now() / 1000);
     if (!stored?.code || stored.expiresAt < nowSec) {
@@ -219,12 +241,13 @@ export async function completePhoneMessengerBindFromIntegrator(
       event: "phone_messenger_bind_complete_ok",
       metric: "phone_messenger_bind_complete_ok",
       channelCode: params.channelCode,
-      purpose: row.purpose,
+      purpose: bindPurpose,
       replay: true,
       phoneSuffix: phoneSuffixForLog(contactPhone),
     });
     return {
       ok: true,
+      purpose: "login",
       otpCode: stored.code,
       accountCreated: false,
       challengeId: row.challenge_id,
@@ -252,11 +275,25 @@ export async function completePhoneMessengerBindFromIntegrator(
           event: "phone_messenger_bind_complete_fail",
           metric: "phone_messenger_bind_complete_fail",
           channelCode: params.channelCode,
-          purpose: row.purpose,
+          purpose: bindPurpose,
           failure_code: pre.code,
           phoneSuffix: phoneSuffixForLog(contactPhone),
         });
         return { ok: false as const, code: pre.code };
+      }
+
+      if (bindPurpose === "profile_bind") {
+        await port.markConsumed(row.id, client);
+        logger.info({
+          event: "phone_messenger_bind_complete_ok",
+          metric: "phone_messenger_bind_complete_ok",
+          channelCode: params.channelCode,
+          purpose: bindPurpose,
+          replay: false,
+          accountCreated: false,
+          phoneSuffix: phoneSuffixForLog(contactPhone),
+        });
+        return { ok: true as const, purpose: "profile_bind" };
       }
 
       const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps);
@@ -266,7 +303,7 @@ export async function completePhoneMessengerBindFromIntegrator(
           event: "phone_messenger_bind_complete_fail",
           metric: "phone_messenger_bind_complete_fail",
           channelCode: params.channelCode,
-          purpose: row.purpose,
+          purpose: bindPurpose,
           failure_code: challenge.code,
           phoneSuffix: phoneSuffixForLog(contactPhone),
         });
@@ -279,7 +316,7 @@ export async function completePhoneMessengerBindFromIntegrator(
         event: "phone_messenger_bind_complete_ok",
         metric: "phone_messenger_bind_complete_ok",
         channelCode: params.channelCode,
-        purpose: row.purpose,
+        purpose: bindPurpose,
         replay: false,
         accountCreated: pre.accountCreated,
         phoneSuffix: phoneSuffixForLog(contactPhone),
@@ -287,6 +324,7 @@ export async function completePhoneMessengerBindFromIntegrator(
 
       return {
         ok: true as const,
+        purpose: "login",
         otpCode: challenge.code,
         accountCreated: pre.accountCreated,
         challengeId: challenge.challengeId,

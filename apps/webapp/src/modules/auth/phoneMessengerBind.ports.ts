@@ -41,6 +41,7 @@ export interface PhoneMessengerBindPort {
   updateExpired(id: string): Promise<void>;
   updateFailed(id: string, failureCode: string, client?: PoolClient): Promise<void>;
   updateOtpReady(id: string, challengeId: string, client?: PoolClient): Promise<void>;
+  markConsumed(id: string, client?: PoolClient): Promise<void>;
   markConsumedByChallenge(challengeId: string): Promise<void>;
   withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T>;
   applyMessengerContactPreOtp(

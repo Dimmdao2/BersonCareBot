@@ -2,6 +2,21 @@
 
 Хронология по этапам [`ROADMAP.md`](ROADMAP.md). Факты prod (без секретов) — кратко.
 
+## 2026-05-20 — Phone messenger bind: код только для `login` (PWA)
+
+**Контекст:** при `profile_bind` (bind-phone с уже существующей сессией) после контакта в боте integrator сразу выставлял `patient_phone_trust_at`, но бот всё равно слал «Аккаунт создан… код», а PWA показывал форму OTP без необходимости.
+
+**Сделано:**
+
+- **`purpose` в complete API** (`POST /api/integrator/phone-messenger-bind/complete`) → integrator ветвит сообщения после контакта.
+- **`login`:** OTP + `phoneAuthAccountCreated` / `phoneAuthLoginCode`; PWA — poll `otp_ready` → `phone/confirm`.
+- **`profile_bind`:** без OTP, secret → `consumed`; бот — `phoneAuthPhoneLinked` + главное меню (TG); PWA — poll `consumed` → `onProfileComplete`.
+- Шаблоны: `phoneAuthLoginCode`, `phoneAuthPhoneLinked` (TG/Max).
+
+**Доки:** `docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md`, `apps/webapp/src/modules/auth/auth.md`, `apps/webapp/INTEGRATOR_CONTRACT.md`.
+
+**Проверки:** `phoneMessengerBind.test.ts`, `PhoneMessengerAuthFlow.test.tsx`, integrator `executeAction` (phoneMessengerBind), complete route tests.
+
 ## 2026-05-20 — Сессия: sliding TTL 90 суток и маркер «свежий вход» (все server-login пути)
 
 **Контекст:** после любого успешного входа (не только `AuthFlowV2`) PWA должен один раз предложить включить уведомления в **настройках ОС**, если permission уже `denied`; при этом logout→login с отключённым только в приложении push **не** должен показывать onboarding. Параллельно — продление сессии от активности без конфликта Next 16 middleware/proxy.

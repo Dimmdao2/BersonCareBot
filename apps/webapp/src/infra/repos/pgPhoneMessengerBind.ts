@@ -159,6 +159,15 @@ export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMes
       );
     },
 
+    async markConsumed(id, client) {
+      const q = client ?? pool;
+      await q.query(
+        `UPDATE phone_messenger_bind_secrets SET status = 'consumed', consumed_at = now()
+         WHERE id = $1 AND status <> 'consumed'`,
+        [id],
+      );
+    },
+
     async markConsumedByChallenge(challengeId) {
       await pool.query(
         `UPDATE phone_messenger_bind_secrets SET status = 'consumed', consumed_at = now()

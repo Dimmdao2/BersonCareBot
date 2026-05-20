@@ -343,25 +343,83 @@ export async function executeAction(
       }
 
       const successIntents: OutgoingIntent[] = [];
-      const otpCode = typeof result.otpCode === 'string' ? result.otpCode.trim() : '';
-      if (tplPort && (source === 'telegram' || source === 'max') && chatId !== null && otpCode.length > 0) {
-        const text = await renderText({
-          templateKey: `${source}:phoneAuthAccountCreated`,
-          ctx,
-          templatePort: tplPort,
-          vars: { code: otpCode },
-        });
-        if (text.trim().length > 0) {
-          const channels = source === 'max' ? ['max'] : ['telegram'];
-          successIntents.push({
-            type: 'message.send',
-            meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-success` }, ctx),
-            payload: {
-              recipient: { chatId },
-              message: { text },
-              delivery: { channels, maxAttempts: 1 },
-            },
-          });
+      const bindPurpose = result.purpose === 'profile_bind' ? 'profile_bind' : 'login';
+
+      if (tplPort && (source === 'telegram' || source === 'max') && chatId !== null) {
+        if (bindPurpose === 'profile_bind') {
+          if (source === 'telegram') {
+            const rawChat = readIncomingChatId(ctx);
+            const fromEvent = rawChat !== null ? Number(rawChat) : NaN;
+            const tgChatId = Number.isFinite(fromEvent) ? fromEvent : Number(externalId);
+            if (Number.isFinite(tgChatId)) {
+              const linkedAction: Action = {
+                id: `${action.id}:phone-auth-linked`,
+                type: 'message.replyKeyboard.show',
+                mode: 'async',
+                params: {
+                  chatId: tgChatId,
+                  templateKey: 'telegram:phoneAuthPhoneLinked',
+                  keyboard: [
+                    [
+                      { textTemplateKey: 'telegram:menu.book' },
+                      { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
+                    ],
+                  ],
+                  resizeKeyboard: true,
+                },
+              };
+              const linkedResult = await executeAction(linkedAction, ctx, fullDeps);
+              if (linkedResult.intents?.length) {
+                successIntents.push(...linkedResult.intents);
+              }
+            }
+          } else {
+            const chatIdResolved = resolveChannelLinkFailureChatId(ctx, externalId);
+            if (chatIdResolved !== null) {
+              const text = await renderText({
+                templateKey: 'max:phoneAuthPhoneLinked',
+                ctx,
+                templatePort: tplPort,
+              });
+              if (text.trim().length > 0) {
+                successIntents.push({
+                  type: 'message.send',
+                  meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-linked` }, ctx),
+                  payload: {
+                    recipient: { chatId: chatIdResolved },
+                    message: { text },
+                    delivery: { channels: ['max'], maxAttempts: 1 },
+                  },
+                });
+              }
+            }
+          }
+        } else {
+          const otpCode = typeof result.otpCode === 'string' ? result.otpCode.trim() : '';
+          if (otpCode.length > 0) {
+            const templateKey =
+              result.accountCreated === true
+                ? `${source}:phoneAuthAccountCreated`
+                : `${source}:phoneAuthLoginCode`;
+            const text = await renderText({
+              templateKey,
+              ctx,
+              templatePort: tplPort,
+              vars: { code: otpCode },
+            });
+            if (text.trim().length > 0) {
+              const channels = source === 'max' ? ['max'] : ['telegram'];
+              successIntents.push({
+                type: 'message.send',
+                meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-success` }, ctx),
+                payload: {
+                  recipient: { chatId },
+                  message: { text },
+                  delivery: { channels, maxAttempts: 1 },
+                },
+              });
+            }
+          }
         }
       }
 
@@ -379,6 +437,7 @@ export async function executeAction(
           channelCode: messengerChannel,
           accountCreated: result.accountCreated === true,
           replay: result.replay === true,
+          purpose: bindPurpose,
         },
         '[webapp.phoneMessengerBind.complete] ok',
       );
@@ -389,6 +448,7 @@ export async function executeAction(
         values: {
           phoneMessengerBind: {
             ok: true,
+            purpose: bindPurpose,
             accountCreated: result.accountCreated === true,
             challengeId: result.challengeId,
             status: result.status,
