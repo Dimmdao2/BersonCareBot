@@ -316,9 +316,25 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     );
     const scheduleInstant = reminderScheduleEvaluationInstant(patientHomeReminderEvaluatedAt, mutedUntilIso);
     homeReminder = pickNextHomeReminder(rules, scheduleInstant, appTz);
-    const picked = pickActivePlanInstance(instances);
-    const doctorPlan = picked?.assignmentSource === "doctor" ? picked : null;
-    planInstance = doctorPlan ? { id: doctorPlan.id, title: doctorPlan.title } : null;
+    let picked = pickActivePlanInstance(instances);
+    if (!picked) {
+      const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
+      if (promoTplId) {
+        try {
+          const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
+          if (tpl.status === "published") {
+            await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
+              patientUserId: session.user.userId,
+            });
+            const refreshed = await deps.treatmentProgramInstance.listForPatient(session.user.userId);
+            picked = pickActivePlanInstance(refreshed);
+          }
+        } catch {
+          picked = null;
+        }
+      }
+    }
+    planInstance = picked ? { id: picked.id, title: picked.title } : null;
     if (planInstance) {
       planStartLessonHref = routePaths.patientTreatmentProgram(planInstance.id);
       const [nudge, rawDetail, snap] = await Promise.all([

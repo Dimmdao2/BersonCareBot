@@ -37,6 +37,7 @@ vi.mock("next/navigation", () => ({
 
 const getPatientDefaultPromoTreatmentProgramTemplateId = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 const treatmentProgramGetTemplate = vi.hoisted(() => vi.fn());
+const ensureDefaultPromoProgramForPatient = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -52,6 +53,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listForPatient,
       getInstanceForPatient,
       patientPlanUpdatedBadgeForInstance,
+      ensureDefaultPromoProgramForPatient,
     },
     patientCalendarTimezone: { getIanaForUser: patientCalendarGetIanaForUser },
     treatmentProgramPatientActions: { listChecklistDoneToday, listLocalDoneDateKeysForRecentDays },
@@ -476,7 +478,7 @@ describe("PatientHomeToday", () => {
     expect(listChecklistDoneToday).toHaveBeenCalledWith(fixtureSession.user.userId, "inst-active-1");
   });
 
-  it("patient tier: hides plan block for promo assignment (doctor plan only on home)", async () => {
+  it("patient tier: shows plan block for promo assignment", async () => {
     listForPatient.mockResolvedValueOnce([
       {
         id: "inst-promo-1",
@@ -486,6 +488,9 @@ describe("PatientHomeToday", () => {
         updatedAt: "2026-04-28T10:00:00.000Z",
       },
     ]);
+    getInstanceForPatient.mockResolvedValueOnce(null);
+    patientPlanUpdatedBadgeForInstance.mockResolvedValueOnce({ show: false, eventIso: null });
+    listChecklistDoneToday.mockResolvedValueOnce(emptyChecklistTodaySnapshot());
 
     const tree = await PatientHomeToday({
       session: fixtureSession,
@@ -494,8 +499,8 @@ describe("PatientHomeToday", () => {
     });
     render(tree);
 
-    expect(screen.queryByRole("heading", { name: /Мой план реабилитации/i })).toBeNull();
-    expect(getPatientDefaultPromoTreatmentProgramTemplateId).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: /Мой план реабилитации/i })).toBeInTheDocument();
+    expect(screen.getByText("Promo plan")).toBeInTheDocument();
   });
 
   it("patient tier: shows plan block for doctor-assigned active program", async () => {
