@@ -30,6 +30,7 @@ export function HorizontalOverflowProbe() {
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
+    if (pathname === "/") return;
 
     const schedule = (reason: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

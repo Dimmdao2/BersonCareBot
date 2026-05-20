@@ -31,14 +31,17 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   return (
-    <div className="min-h-screen bg-white text-[#17264A]">
+    <div
+      data-landing-public
+      className="min-h-screen scroll-smooth overflow-x-hidden bg-white text-[#17264A]"
+    >
       <LandingPwaClientBootstrap />
       <LandingHeader />
       <main>
         <HeroSection />
+        <InstallSection />
         <FeatureGrid />
         <SpecialistSection />
-        <InstallSection />
         <FinalCta />
       </main>
       <LandingFooter />
