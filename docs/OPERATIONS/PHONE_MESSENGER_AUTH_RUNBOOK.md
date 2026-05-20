@@ -51,6 +51,10 @@
 - Webapp: `phone_messenger_bind_start`, `phone_messenger_bind_complete_ok|fail` (поля `purpose`, `channelCode`, `failure_code`, `phoneSuffix`; **не** `otpCode`).
 - Integrator: `phone_messenger_bind_complete_ok`, `phone_messenger_bind_complete_failed`.
 
+## Rate limit (webapp)
+
+`POST /api/auth/phone/messenger-bind/start` — scope `auth.phone_messenger_bind_start`, до **30** запросов на ключ за скользящий час (сессия `profile_bind` / иначе телефон или anon).
+
 ## Deploy checklist
 
 1. Применить миграции webapp на хосте.
