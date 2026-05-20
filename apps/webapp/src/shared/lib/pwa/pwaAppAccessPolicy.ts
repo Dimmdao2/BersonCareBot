@@ -1,9 +1,18 @@
+import { routePaths } from "@/app-layer/routes/paths";
+
 export const PWA_APP_MESSENGER_ENTRY_PATHS = ["/app/tg", "/app/max"] as const;
 
-export function normalizeAppPathname(pathname: string): string {
+function normalizeAppPathname(pathname: string): string {
   const trimmed = pathname.trim() || "/";
   if (trimmed.length <= 1) return trimmed;
   return trimmed.replace(/\/+$/, "") || "/";
+}
+
+const PATIENT_APP_ROOT = normalizeAppPathname(routePaths.patient);
+
+export function isPatientPwaGatedPath(pathname: string): boolean {
+  const normalized = normalizeAppPathname(pathname);
+  return normalized === PATIENT_APP_ROOT || normalized.startsWith(`${PATIENT_APP_ROOT}/`);
 }
 
 export function isPwaMessengerEntryPath(pathname: string): boolean {
@@ -11,24 +20,9 @@ export function isPwaMessengerEntryPath(pathname: string): boolean {
   return (PWA_APP_MESSENGER_ENTRY_PATHS as readonly string[]).includes(normalized);
 }
 
-/** `/app` and nested routes require installed PWA (standalone) unless exempt. */
+/** Patient cabinet (`/app/patient/**`) requires installed PWA (standalone) unless exempt. Doctor/admin/settings — browser OK. */
 export function browserRequiresPwaStandaloneForAppPath(pathname: string): boolean {
-  const normalized = normalizeAppPathname(pathname);
-  if (!normalized.startsWith("/app")) return false;
-  if (isPwaMessengerEntryPath(normalized)) return false;
-  return true;
-}
-
-export function hasAppEntryTokenQuery(search: string): boolean {
-  const raw = search.startsWith("?") ? search.slice(1) : search;
-  if (!raw.trim()) return false;
-  const params = new URLSearchParams(raw);
-  return Boolean((params.get("t") ?? params.get("token") ?? "").trim());
-}
-
-/** Deep link `?t=` / `?token=` on `/app` — legacy entry exchange in browser. */
-export function isAppEntryTokenBypass(pathname: string, search: string): boolean {
-  return normalizeAppPathname(pathname) === "/app" && hasAppEntryTokenQuery(search);
+  return isPatientPwaGatedPath(pathname);
 }
 
 export type PwaAppAccessDecisionInput = {
@@ -45,7 +39,6 @@ export function shouldAllowPwaAppShellAccess(input: PwaAppAccessDecisionInput): 
   if (input.allowBrowserAccess) return true;
   if (input.messengerMiniApp) return true;
   if (input.standalone) return true;
-  if (isAppEntryTokenBypass(input.pathname, input.search)) return true;
   return false;
 }
 
@@ -53,9 +46,7 @@ export function shouldAllowPwaAppShellAccess(input: PwaAppAccessDecisionInput): 
 export function buildPwaInstallLandingRedirectUrl(pathname: string, search: string): string {
   const returnTo = `${pathname}${search}`;
   const params = new URLSearchParams();
-  if (returnTo && normalizeAppPathname(returnTo.split("?")[0] ?? "") !== "/app") {
-    params.set("next", returnTo);
-  } else if (search.trim()) {
+  if (isPatientPwaGatedPath(returnTo.split("?")[0] ?? "") || search.trim()) {
     params.set("next", returnTo);
   }
   const query = params.toString();

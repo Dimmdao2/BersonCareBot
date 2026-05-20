@@ -15,7 +15,7 @@ type Props = {
   allowBrowserAccess: boolean;
 };
 
-/** Redirects browser `/app/*` visits to marketing install landing; PWA standalone and Mini App pass through. */
+/** Redirects browser `/app/patient/*` to install landing; PWA standalone and Mini App pass through. */
 export function PwaAppAccessGate({ children, allowBrowserAccess }: Props) {
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
