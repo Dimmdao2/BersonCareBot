@@ -8,6 +8,7 @@ import { logger } from "@/infra/logging/logger";
 import { enableWebPushNotificationDefaults } from "@/modules/patient-notifications/enableWebPushNotificationDefaults";
 import { hashWebPushEndpoint } from "@/modules/patient-notifications/hashWebPushEndpoint";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
+import { ensureWarmupsReminderOnFirstPwaPush } from "@/modules/reminders/ensureWarmupsReminderOnFirstPwaPush";
 
 const platformSchema = z.enum(["pwa", "browser", "ios-pwa", "android-pwa"]);
 
@@ -46,6 +47,8 @@ export async function POST(request: Request) {
     platform ?
       `[bc-push:${platform}]${uaHeader ? ` ${uaHeader}` : ""}`.trim()
     : uaHeader || null;
+
+  const hadExistingPushSubscription = await deps.webPushSubscriptions.hasAnyForUserId(uid);
 
   await deps.webPushSubscriptions.saveSubscription(
     uid,
@@ -93,9 +96,31 @@ export async function POST(request: Request) {
     "web push defaults enabled for notification topics",
   );
 
+  const warmupsReminder = await ensureWarmupsReminderOnFirstPwaPush({
+    userId: uid,
+    platform,
+    hadExistingPushSubscription,
+    deps: {
+      reminders: deps.reminders,
+      contentSections: deps.contentSections,
+    },
+  });
+  if (warmupsReminder.created) {
+    logger.info(
+      {
+        event: "web_push_warmups_reminder_onboarding_created",
+        userId: uid,
+        ruleId: warmupsReminder.ruleId,
+        platform: platform ?? null,
+      },
+      "warmups reminder created on first PWA push",
+    );
+  }
+
   revalidatePath(routePaths.notifications);
   revalidatePath(routePaths.profile);
   revalidatePath(routePaths.patient);
+  revalidatePath(routePaths.patientReminders);
 
-  return NextResponse.json({ ok: true, enabledTopics });
+  return NextResponse.json({ ok: true, enabledTopics, warmupsReminderOnboarding: warmupsReminder });
 }

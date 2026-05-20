@@ -18,6 +18,12 @@ export const DEFAULT_REHAB_DAILY_SLOTS: SlotsV1ScheduleData = {
   daysMask: "1111111",
 };
 
+/** Преднастройка разминок при первом включении push в PWA: 3 слота в рабочий день. */
+export const DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS: SlotsV1ScheduleData = {
+  timesLocal: ["11:00", "14:00", "17:00"],
+  dayFilter: "weekdays",
+};
+
 /** Sentinel stored in DB / POST when schedule_type is slots_v1 (dispatch uses schedule_data). */
 export const SLOTS_V1_DB_PLACEHOLDER = {
   intervalMinutes: 60,
