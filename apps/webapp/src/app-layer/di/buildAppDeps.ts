@@ -736,20 +736,20 @@ function _buildAppDeps() {
       confirmPhoneAuth: async (challengeId: string, code: string) => {
         const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
         if (!result.ok) return result;
-        try {
-          await markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort);
-        } catch {
-          return { ok: false as const, code: "server_error" };
-        }
         const envRole = resolveRoleFromEnv({
           phone: result.user.phone,
           telegramId: result.user.bindings?.telegramId,
           maxId: result.user.bindings?.maxId,
         });
-        if (result.user.role !== envRole) {
-          await userProjectionPort.updateRole(result.user.userId, envRole);
+        try {
+          await markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort);
+          if (result.user.role !== envRole) {
+            await userProjectionPort.updateRole(result.user.userId, envRole);
+          }
+          await consumePhoneOtpChallenge(challengeId, phoneAuthDeps);
+        } catch {
+          return { ok: false as const, code: "server_error" };
         }
-        await consumePhoneOtpChallenge(challengeId, phoneAuthDeps);
         const user =
           result.user.role === envRole ? result.user : { ...result.user, role: envRole };
         return {

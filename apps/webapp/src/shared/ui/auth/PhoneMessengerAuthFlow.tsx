@@ -236,6 +236,7 @@ export function PhoneMessengerAuthFlow({
         manualCommand?: string;
         message?: string;
         error?: string;
+        retryAfterSeconds?: number;
       };
       if (res.status === 429 || data.error === "rate_limited") {
         toast.error(

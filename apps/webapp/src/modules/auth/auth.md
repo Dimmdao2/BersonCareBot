@@ -113,7 +113,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 - **`POST /api/auth/phone/messenger-bind/start`** — тело `{ phone, channelCode: "telegram"|"max", purpose: "login"|"profile_bind" }`. **`profile_bind`** требует сессию пациента. Ответ: `{ ok, setupToken, url, expiresAtIso, manualCommand? }` (`setupToken` = `auth_*`). **Rate limit:** scope `auth.phone_messenger_bind_start` (ключ — userId для `profile_bind`, иначе IP/anon), до **30**/час в `auth_rate_limit_events`.
 - **`POST /api/auth/phone/messenger-bind/status`** — `{ setupToken }` → `pending_contact` \| `otp_ready` (+ `challengeId`, `retryAfterSeconds`) \| `failed` \| `expired` \| `consumed`.
 - **`POST /api/integrator/phone-messenger-bind/complete`** (M2M, подпись как channel-link) — контакт из бота; при успехе создаётся OTP-challenge, secret → `otp_ready`. **Replay:** если secret уже `otp_ready` — **200** с тем же `otpCode` и `challengeId` (`replay: true`); если `consumed` — **200** `{ status: "already_used" }` без кода.
-- После **`POST /api/auth/phone/confirm`** — `markPhoneMessengerBindConsumedByChallenge(challengeId)` → secret `consumed`.
+- После **`POST /api/auth/phone/confirm`** (через `buildAppDeps.auth.confirmPhoneAuth`): verify + bind → `markPhoneMessengerBindConsumedByChallenge` → при ошибке post-steps **`server_error`** (челлендж и код сохраняются для повтора) → `consumePhoneOtpChallenge` только при полном успехе → secret `consumed`.
 
 Клиент: `PhoneMessengerAuthFlow` (`purpose: login` в `AuthFlowV2`, `profile_bind` на **`/app/patient/bind-phone` в браузере**). Mini App на bind-phone — по-прежнему `PatientBindPhoneClient` (request-contact). Открытие deep link — `finishChannelLinkNavigation` (как channel-link). Логи: `phone_messenger_bind_start`, `phone_messenger_bind_complete_ok|fail` (без `otpCode`). Runbook: `docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md`.
 
@@ -157,7 +157,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ## Телефон и OTP
 
-- **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`), верификация кода; доставка задаётся `PhoneOtpDelivery` (в т.ч. telegram / max / email).
+- **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`: **4** неверных ввода → блок 10 мин, resend cooldown **60 с**), верификация кода; успешный verify **не** удаляет челлендж (удаление — `consumePhoneOtpChallenge` после post-steps в DI). Доставка — `PhoneOtpDelivery` (telegram / max / email / sms).
 - HTTP `POST /api/auth/phone/start` для **`channel: web`** не принимает доставку **SMS** (`sms_disabled_web`).
 - `POST /api/auth/phone/confirm`: опционально **`browserCalendarIana`** (IANA из `Intl`, до 120 символов) — после успешного входа выставляет `platform_users.calendar_timezone`, если поле ещё `null`.
 - Порты: **SmsPort**, **PhoneChallengeStore**, **UserByPhonePort**.

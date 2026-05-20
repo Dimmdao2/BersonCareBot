@@ -1465,9 +1465,16 @@ export function AuthFlowV2({
             if (data.error === "rate_limited" && data.retryAfterSeconds != null) {
               return {
                 ok: false as const,
-                message: "",
+                message: data.message ?? "",
                 code: "rate_limited",
                 retryAfterSeconds: data.retryAfterSeconds,
+              };
+            }
+            if (data.error === "server_error") {
+              return {
+                ok: false as const,
+                message: data.message ?? "Не удалось завершить вход. Повторите ввод того же кода.",
+                code: "server_error",
               };
             }
             return { ok: false as const, message: data.message ?? "Ошибка входа" };
