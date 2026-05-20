@@ -81,6 +81,7 @@ type MediaListResponse = {
   error?: string;
   hasMore?: boolean;
   nextOffset?: number;
+  total?: number;
 };
 
 type ViewMode = "media" | "files";
@@ -179,6 +180,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState(0);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(null);
@@ -235,6 +237,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
           setItems(data.items ?? []);
           setHasMore(Boolean(data.hasMore));
           setNextOffset(data.nextOffset ?? (data.items?.length ?? 0));
+          setTotalCount(typeof data.total === "number" ? data.total : null);
           setLightboxIndex(null);
         }
       })
@@ -360,7 +363,8 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         return [...prev, ...unique];
       });
       setHasMore(Boolean(data.hasMore));
-      setNextOffset(data.nextOffset ?? (nextOffset + incoming.length));
+      setNextOffset(data.nextOffset ?? nextOffset + incoming.length);
+      if (typeof data.total === "number") setTotalCount(data.total);
     } catch {
       setError("Не удалось загрузить следующую страницу");
     } finally {
@@ -372,7 +376,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   onLoadMoreRef.current = onLoadMore;
 
   useEffect(() => {
-    if (!hasMore || loadingMore) return;
+    if (!hasMore || loadingMore || loading) return;
     const el = loadMoreSentinelRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
@@ -383,7 +387,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [hasMore, loadingMore, reloadKey, searchParams]);
+  }, [hasMore, loadingMore, loading, reloadKey, searchParams, items.length]);
 
   async function onCopyUrl(item: MediaItem) {
     try {
@@ -1282,7 +1286,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
             <option value="date">Дате загрузки</option>
             <option value="name">Названию</option>
             <option value="size">Размеру</option>
-            <option value="type">MIME-типу</option>
+            <option value="type">Типу (MIME)</option>
           </select>
         </label>
 
@@ -1532,8 +1536,24 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
 
       {!loading && items.length > 0 ? (
         <div className="flex flex-col items-center gap-2 py-3">
-          {loadingMore ? <p className="text-xs text-muted-foreground">Загрузка…</p> : null}
-          {!hasMore ? <p className="text-xs text-muted-foreground">Больше файлов нет</p> : null}
+          <p className="text-xs text-muted-foreground">
+            {totalCount != null
+              ? `Показано ${items.length} из ${totalCount}`
+              : `Показано ${items.length}`}
+          </p>
+          {hasMore ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loadingMore}
+              onClick={() => void onLoadMore()}
+            >
+              {loadingMore ? "Загрузка…" : "Загрузить ещё"}
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground">Все файлы загружены</p>
+          )}
           {hasMore ? <div ref={loadMoreSentinelRef} className="h-1 w-full shrink-0" aria-hidden /> : null}
         </div>
       ) : null}

@@ -83,6 +83,20 @@ export type MediaListParams = {
   includeDescendants?: boolean;
 };
 
+export type MediaListResult = {
+  items: MediaRecord[];
+  total: number;
+};
+
+/** Counts where a library file is referenced (admin info panel). */
+export type MediaUsageSummary = {
+  materials: number;
+  exercises: number;
+  clinicalTests: number;
+  recommendations: number;
+  sections: number;
+};
+
 export type MediaUsageRef = {
   pageId: string;
   pageSlug: string;

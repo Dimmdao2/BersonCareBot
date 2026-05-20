@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,9 +57,42 @@ export function MediaCardActionsMenu({
   triggerVariant = "icon",
 }: Props) {
   const previewLabel = item.kind === "file" ? "Предпросмотр" : "Просмотр";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [usageLines, setUsageLines] = useState<string[] | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setUsageLines(null);
+      setUsageLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setUsageLoading(true);
+    fetch(`/api/admin/media/${item.id}/usage-summary`, { credentials: "same-origin" })
+      .then(async (res) => {
+        const data = (await res.json()) as { ok?: boolean; lines?: string[]; total?: number };
+        if (!res.ok || !data.ok) throw new Error("usage_failed");
+        if (cancelled) return;
+        if ((data.total ?? 0) === 0) {
+          setUsageLines(["Не используется"]);
+        } else {
+          setUsageLines(data.lines ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setUsageLines(null);
+      })
+      .finally(() => {
+        if (!cancelled) setUsageLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [menuOpen, item.id]);
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger
         className={
           triggerVariant === "icon"

@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   const deps = buildAppDeps();
   const limit = parsed.data.limit ?? 50;
   const offset = parsed.data.offset ?? 0;
-  const records = await deps.media.list({
+  const { items: records, total } = await deps.media.list({
     kind: parsed.data.kind ?? "all",
     query: parsed.data.q ?? "",
     sortBy: parsed.data.sortBy ? sortByMap[parsed.data.sortBy] : "createdAt",
@@ -82,7 +82,8 @@ export async function GET(request: Request) {
     ok: true,
     limit,
     offset,
-    hasMore: records.length === limit,
+    total,
+    hasMore: offset + records.length < total,
     nextOffset: offset + records.length,
     items,
   });

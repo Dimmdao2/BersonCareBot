@@ -93,16 +93,30 @@ export const mockMediaStoragePort: MediaStoragePort = {
     const sortBy = params.sortBy ?? "createdAt";
     const sortDir = params.sortDir === "asc" ? 1 : -1;
     const displayLabel = (item: (typeof filtered)[number]) => item.displayName?.trim() || item.filename;
+    const nameGroup = (label: string) => {
+      const lower = label.toLowerCase();
+      if (/^[0-9]/.test(lower)) return 0;
+      if (/^[a-z]/.test(lower)) return 1;
+      if (/^[а-яё]/.test(lower)) return 2;
+      return 3;
+    };
     filtered.sort((a, b) => {
       if (sortBy === "size") return (a.size - b.size) * sortDir;
       if (sortBy === "kind") return a.kind.localeCompare(b.kind) * sortDir;
-      if (sortBy === "name") return displayLabel(a).localeCompare(displayLabel(b), "ru") * sortDir;
+      if (sortBy === "name") {
+        const la = displayLabel(a);
+        const lb = displayLabel(b);
+        const g = (nameGroup(la) - nameGroup(lb)) * sortDir;
+        if (g !== 0) return g;
+        return la.localeCompare(lb, "ru") * sortDir;
+      }
       return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * sortDir;
     });
 
     const offset = Math.max(0, params.offset ?? 0);
     const limit = Math.max(1, Math.min(200, params.limit ?? 50));
-    return filtered.slice(offset, offset + limit).map((r) => {
+    const total = filtered.length;
+    const items = filtered.slice(offset, offset + limit).map((r) => {
       const base = `${MEDIA_PATH_PREFIX}/${r.id}`;
       const visual = r.kind === "image" || r.kind === "video";
       return {
@@ -115,6 +129,7 @@ export const mockMediaStoragePort: MediaStoragePort = {
         sourceHeight: null,
       };
     });
+    return { items, total };
   },
 
   async updateDisplayName(mediaId, displayName) {

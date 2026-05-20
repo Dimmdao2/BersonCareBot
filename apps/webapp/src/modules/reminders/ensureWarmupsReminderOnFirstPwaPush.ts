@@ -1,4 +1,7 @@
-import { resolvePatientContentSectionSlug } from "@/modules/content-sections/resolvePatientContentSectionSlug";
+import {
+  resolvePatientContentSectionSlug,
+  type PatientContentSectionSlugResolverDeps,
+} from "@/modules/content-sections/resolvePatientContentSectionSlug";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { DEFAULT_REMINDER_FORM_DAYS_MASK } from "./reminderFormDefaults";
 import {
@@ -18,10 +21,7 @@ type RemindersService = ReturnType<typeof createRemindersService>;
 
 export type EnsureWarmupsReminderOnFirstPwaPushDeps = {
   reminders: Pick<RemindersService, "createObjectReminder" | "listRulesByUser">;
-  contentSections: {
-    getBySlug: (slug: string) => Promise<{ isVisible: boolean; requiresAuth?: boolean } | null>;
-    getRedirectNewSlugForOldSlug: (oldSlug: string) => Promise<string | null>;
-  };
+  contentSections: PatientContentSectionSlugResolverDeps;
 };
 
 export type EnsureWarmupsReminderOnFirstPwaPushResult =

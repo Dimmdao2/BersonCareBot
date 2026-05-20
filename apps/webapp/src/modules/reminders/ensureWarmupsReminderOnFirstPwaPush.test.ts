@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ContentSectionRow } from "@/modules/content-sections/ports";
+import type { ReminderRule } from "./types";
 import {
   ensureWarmupsReminderOnFirstPwaPush,
   isPwaPushPlatform,
@@ -16,9 +18,18 @@ describe("isPwaPushPlatform", () => {
 });
 
 describe("ensureWarmupsReminderOnFirstPwaPush", () => {
-  const warmSection = {
+  const warmSection: ContentSectionRow = {
+    id: "sec-1",
+    slug: "warmups",
+    title: "Разминки",
+    description: "",
+    sortOrder: 0,
     isVisible: true,
     requiresAuth: false,
+    coverImageUrl: null,
+    iconImageUrl: null,
+    kind: "system",
+    systemParentCode: "warmups",
   };
 
   it("creates warmups slots_v1 rule on first PWA push when none exists", async () => {
@@ -97,13 +108,14 @@ describe("ensureWarmupsReminderOnFirstPwaPush", () => {
       deps: {
         reminders: {
           createObjectReminder,
-          listRulesByUser: async () => [
-            {
-              id: "existing",
-              linkedObjectType: "content_section",
-              linkedObjectId: "warmups",
-            },
-          ],
+          listRulesByUser: async () =>
+            [
+              {
+                id: "existing",
+                linkedObjectType: "content_section",
+                linkedObjectId: "warmups",
+              },
+            ] as ReminderRule[],
         },
         contentSections: {
           getBySlug: async () => warmSection,

@@ -1,14 +1,24 @@
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
 
-/** Server-fetched rows keyed by full `listUrl` (kind, folder, sort, limit). */
-const mediaLibraryPickerListCache = new Map<string, MediaListItem[]>();
+export type MediaLibraryPickerListCacheEntry = {
+  items: MediaListItem[];
+  hasMore: boolean;
+  nextOffset: number;
+  total: number | null;
+};
 
-export function getMediaLibraryPickerListCached(listUrl: string): MediaListItem[] | undefined {
+/** Server-fetched rows keyed by full `listUrl` (kind, folder, sort, q, limit; offset always 0). */
+const mediaLibraryPickerListCache = new Map<string, MediaLibraryPickerListCacheEntry>();
+
+export function getMediaLibraryPickerListCached(listUrl: string): MediaLibraryPickerListCacheEntry | undefined {
   return mediaLibraryPickerListCache.get(listUrl);
 }
 
-export function setMediaLibraryPickerListCached(listUrl: string, items: MediaListItem[]): void {
-  mediaLibraryPickerListCache.set(listUrl, items);
+export function setMediaLibraryPickerListCached(
+  listUrl: string,
+  entry: MediaLibraryPickerListCacheEntry,
+): void {
+  mediaLibraryPickerListCache.set(listUrl, entry);
 }
 
 /**

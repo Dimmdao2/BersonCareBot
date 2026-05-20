@@ -247,14 +247,26 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         }
       }
 
+      const nameSortKey =
+        "LOWER(COALESCE(NULLIF(TRIM(m.display_name), ''), m.original_name))";
       const sortCol: Record<NonNullable<MediaListParams["sortBy"]>, string> = {
         createdAt: "m.created_at",
         size: "m.size_bytes",
         kind: "m.mime_type",
-        name: "LOWER(COALESCE(NULLIF(TRIM(m.display_name), ''), m.original_name))",
+        name: nameSortKey,
       };
-      const sortBy = params.sortBy ? sortCol[params.sortBy] : "m.created_at";
       const sortDir = params.sortDir === "asc" ? "ASC" : "DESC";
+      const orderBySql =
+        params.sortBy === "name"
+          ? `CASE
+               WHEN ${nameSortKey} ~ '^[0-9]' THEN 0
+               WHEN ${nameSortKey} ~ '^[a-z]' THEN 1
+               WHEN ${nameSortKey} ~ '^[а-яё]' THEN 2
+               ELSE 3
+             END ${sortDir},
+             ${nameSortKey} ${sortDir},
+             m.id ${sortDir}`
+          : `${params.sortBy ? sortCol[params.sortBy] : "m.created_at"} ${sortDir}, m.id ${sortDir}`;
       const limit = Math.max(1, Math.min(200, params.limit ?? 50));
       const offset = Math.max(0, params.offset ?? 0);
 
@@ -287,6 +299,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         video_duration_seconds: number | null;
         available_qualities_json: unknown;
         video_delivery_override: string | null;
+        total_count: string;
       }>(
         `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
@@ -298,16 +311,18 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             m.source_width, m.source_height,
             m.video_processing_status, m.video_processing_error,
             m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
-            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
+            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override,
+            COUNT(*) OVER()::text AS total_count
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          ${whereSql} AND m.s3_key IS NOT NULL
-         ORDER BY ${sortBy} ${sortDir}, m.id ${sortDir}
+         ORDER BY ${orderBySql}
          LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
         values,
       );
 
-      return res.rows.map((row) => {
+      const total = res.rows.length > 0 ? Number(res.rows[0]!.total_count) : 0;
+      const items = res.rows.map((row) => {
         const previewStatus = (row.preview_status ?? "pending") as MediaPreviewStatus;
         return {
           id: row.id,
@@ -329,6 +344,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           ...mapVideoHlsColumns(row),
         };
       });
+      return { items, total };
     },
 
     async updateDisplayName(mediaId: string, displayName: string | null) {
