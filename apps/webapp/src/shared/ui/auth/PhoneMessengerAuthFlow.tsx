@@ -53,6 +53,8 @@ export type PhoneMessengerAuthFlowProps = {
   /** После успешного подтверждения в профиле (без полного redirect login). */
   onProfileComplete?: () => void;
   title?: string;
+  /** Скрыть «Назад» на шаге ввода номера (bind-phone из профиля — назад только в AppShell). */
+  hideBackOnPhoneStep?: boolean;
 };
 
 type FlowStep = "phone" | "messenger_pick" | "code";
@@ -64,6 +66,7 @@ export function PhoneMessengerAuthFlow({
   nextParam = null,
   onProfileComplete,
   title = "Вход по номеру",
+  hideBackOnPhoneStep = false,
 }: PhoneMessengerAuthFlowProps) {
   const [step, setStep] = useState<FlowStep>("phone");
   const [loading, setLoading] = useState(false);
@@ -298,9 +301,11 @@ export function PhoneMessengerAuthFlow({
   if (step === "phone") {
     return (
       <div id="phone-messenger-auth-phone" className="flex w-full flex-col gap-3 text-left">
-        <Button type="button" variant="link" className={patientInlineLinkClass} disabled={loading} onClick={onBack}>
-          Назад
-        </Button>
+        {!hideBackOnPhoneStep ? (
+          <Button type="button" variant="link" className={patientInlineLinkClass} disabled={loading} onClick={onBack}>
+            Назад
+          </Button>
+        ) : null}
         <h2 className="text-center text-lg font-semibold text-[var(--patient-text-primary)]">{title}</h2>
         <InternationalPhoneInput disabled={loading} onSubmit={runCheckPhone} submitLabel="Продолжить" />
       </div>

@@ -66,12 +66,16 @@ export default async function BindPhonePage({ searchParams }: Props) {
       ? "Номер необходим для записи на приём. Для входа в кабинет он не обязателен."
       : undefined;
 
+  const nextTrimmed = next?.trim() ?? "";
+  const backFromProfile =
+    nextTrimmed === routePaths.profile || nextTrimmed.startsWith(`${routePaths.profile}/`);
+
   return (
     <AppShell
       title="Привязка телефона"
       user={session.user}
-      backHref={routePaths.patient}
-      backLabel="Меню"
+      backHref={backFromProfile ? routePaths.profile : routePaths.patient}
+      backLabel={backFromProfile ? "Профиль" : "Меню"}
       variant="patient"
       patientHideHome={isBotMiniApp}
       patientHideRightIcons={isBotMiniApp}

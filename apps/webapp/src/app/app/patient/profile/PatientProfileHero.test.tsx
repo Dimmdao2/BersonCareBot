@@ -3,20 +3,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { routePaths } from "@/app-layer/routes/paths";
 import { PatientProfileHero } from "./PatientProfileHero";
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
-}));
+const pushMock = vi.fn();
 
-vi.mock("@/shared/ui/auth/PhoneMessengerAuthFlow", () => ({
-  PhoneMessengerAuthFlow: ({ title }: { title?: string }) => (
-    <div data-testid="phone-messenger-auth-flow">{title ?? ""}</div>
-  ),
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: pushMock }),
 }));
 
 describe("PatientProfileHero", () => {
-  it("shows inline phone messenger flow when no phone (no bind-phone redirect link)", () => {
+  it("shows bind link when no phone and redirects to bind-phone", async () => {
+    pushMock.mockClear();
+    const user = userEvent.setup();
     render(
       <PatientProfileHero
         displayName="Test"
@@ -28,12 +27,19 @@ describe("PatientProfileHero", () => {
       />,
     );
 
-    expect(screen.getByTestId("phone-messenger-auth-flow")).toBeInTheDocument();
-    expect(screen.getByText("Привязать номер")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Привязать номер" })).not.toBeInTheDocument();
+    const bindButtons = screen.getAllByRole("button", { name: "Привязать" });
+    expect(bindButtons).toHaveLength(2);
+    expect(screen.queryByLabelText("Номер телефона")).not.toBeInTheDocument();
+
+    await user.click(bindButtons[0]!);
+
+    expect(pushMock).toHaveBeenCalledWith(
+      `${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.profile)}`,
+    );
   });
 
-  it("shows messenger bind flow when editing phone", async () => {
+  it("shows phone and redirects to bind-phone when editing", async () => {
+    pushMock.mockClear();
     const user = userEvent.setup();
     render(
       <PatientProfileHero
@@ -46,10 +52,13 @@ describe("PatientProfileHero", () => {
       />,
     );
 
+    expect(screen.getByText("+79991234567")).toBeInTheDocument();
+
     const editButtons = screen.getAllByRole("button", { name: "Изменить" });
     await user.click(editButtons[1]!);
 
-    expect(screen.getByTestId("phone-messenger-auth-flow")).toBeInTheDocument();
-    expect(screen.getByText("Изменить номер")).toBeInTheDocument();
+    expect(pushMock).toHaveBeenCalledWith(
+      `${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.profile)}`,
+    );
   });
 });

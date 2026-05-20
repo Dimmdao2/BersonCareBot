@@ -21,6 +21,7 @@ export function PatientBindPhoneBrowser({ supportContactHref, nextPath, hint }: 
         purpose="profile_bind"
         title="Привязать номер"
         supportContactHref={supportContactHref}
+        hideBackOnPhoneStep
         onBack={() => router.push(routePaths.patient)}
         onProfileComplete={() => {
           const target =

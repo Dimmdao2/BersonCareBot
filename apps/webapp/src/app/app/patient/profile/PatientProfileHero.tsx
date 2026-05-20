@@ -1,9 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PhoneMessengerAuthFlow } from "@/shared/ui/auth/PhoneMessengerAuthFlow";
+import { routePaths } from "@/app-layer/routes/paths";
 import { InlineEditField } from "@/shared/ui/InlineEditField";
 import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
 import {
@@ -31,13 +30,16 @@ export function PatientProfileHero({
   emailVerified,
 }: Props) {
   const router = useRouter();
-  const [bindingPhone, setBindingPhone] = useState(!phone);
 
   const handleSaveName = async (next: string) => {
     const trimmedName = next.trim();
     if (!trimmedName || trimmedName === displayName) return;
     await updateDisplayName(trimmedName);
     router.refresh();
+  };
+
+  const goToBindPhone = () => {
+    router.push(`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.profile)}`);
   };
 
   return (
@@ -57,35 +59,17 @@ export function PatientProfileHero({
         <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <span className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")}>Телефон</span>
-            {phone && !bindingPhone ? (
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
-                onClick={() => setBindingPhone(true)}
-              >
-                Изменить
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+              onClick={goToBindPhone}
+            >
+              {phone ? "Изменить" : "Привязать"}
+            </Button>
           </div>
-          {phone && !bindingPhone ? (
-            <p className="text-sm text-[var(--patient-text-primary)]">{phone}</p>
-          ) : null}
-          {bindingPhone ? (
-            <div className="flex flex-col gap-2 sm:max-w-md">
-              <PhoneMessengerAuthFlow
-                purpose="profile_bind"
-                title={phone ? "Изменить номер" : "Привязать номер"}
-                supportContactHref={supportContactHref}
-                onBack={() => setBindingPhone(false)}
-                onProfileComplete={() => {
-                  setBindingPhone(false);
-                  router.refresh();
-                }}
-              />
-            </div>
-          ) : null}
+          {phone ? <p className="text-sm text-[var(--patient-text-primary)]">{phone}</p> : null}
         </div>
 
         <EmailAccountPanel

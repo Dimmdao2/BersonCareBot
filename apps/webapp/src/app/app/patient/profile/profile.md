@@ -4,7 +4,7 @@
 
 ## Структура
 
-1. **Hero** — ФИО (`InlineEditField`), телефон (привязка / изменение через Telegram или Max), email (`EmailAccountPanel`).
+1. **Hero** — ФИО (`InlineEditField`), телефон (ссылка «Привязать» / «Изменить» → `/app/patient/bind-phone?next=…`), email (`EmailAccountPanel`).
 2. **Мессенджеры** — всегда `ConnectMessengersBlock` (Telegram / MAX, сетка 2 колонки).
 3. **Уведомления** — ссылки «Настройка» и «Расписание» (`/app/patient/notifications`, `/app/patient/reminders`).
 4. **Календарный пояс (UTC / IANA)** — `PatientCalendarTimezoneSection` (всегда видимая секция под уведомлениями).

@@ -157,3 +157,11 @@ export async function confirmPhoneAuth(
     deliveryChannel,
   };
 }
+
+/** Удаляет OTP-челлендж после успешного confirm (verify + bind + post-steps). */
+export async function consumePhoneOtpChallenge(
+  challengeId: string,
+  deps: Pick<PhoneAuthDeps, "challengeStore">,
+): Promise<void> {
+  await deps.challengeStore.delete(challengeId);
+}

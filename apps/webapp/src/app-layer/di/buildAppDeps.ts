@@ -18,6 +18,7 @@ import type { TelegramLoginWidgetPayload } from "@/modules/auth/telegramLoginVer
 import {
   startPhoneAuth as startPhoneAuthFlow,
   confirmPhoneAuth as confirmPhoneAuthFlow,
+  consumePhoneOtpChallenge,
   type StartPhoneAuthOptions,
 } from "@/modules/auth/phoneAuth";
 import {
@@ -735,7 +736,12 @@ function _buildAppDeps() {
       confirmPhoneAuth: async (challengeId: string, code: string) => {
         const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
         if (!result.ok) return result;
-        await markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort);
+        try {
+          await markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort);
+        } catch {
+          return { ok: false as const, code: "server_error" };
+        }
+        await consumePhoneOtpChallenge(challengeId, phoneAuthDeps);
         const envRole = resolveRoleFromEnv({
           phone: result.user.phone,
           telegramId: result.user.bindings?.telegramId,

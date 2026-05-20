@@ -32,6 +32,17 @@ describe("PhoneMessengerAuthFlow", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows back button on phone step for login by default", () => {
+    render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
+    expect(screen.getByRole("button", { name: "Назад" })).toBeInTheDocument();
+  });
+
+  it("hides back button on phone step when hideBackOnPhoneStep is set", () => {
+    render(<PhoneMessengerAuthFlow purpose="profile_bind" hideBackOnPhoneStep onBack={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Назад" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
+  });
+
   it("shows messenger pick when check-phone has no binding", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

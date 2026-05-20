@@ -62,7 +62,6 @@ export function createStubSmsAdapter(deps: StubSmsAdapterDeps): SmsPort {
       if (stored.code !== code) {
         return onPhoneWrongCode(stored.phone, challengeId, challengeStore);
       }
-      await challengeStore.delete(challengeId);
       return { ok: true };
     },
   };

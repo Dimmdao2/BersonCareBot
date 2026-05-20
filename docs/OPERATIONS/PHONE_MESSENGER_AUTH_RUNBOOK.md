@@ -34,7 +34,7 @@
 
 ## База
 
-Миграция: `apps/webapp/db/migrations/0078_phone_messenger_bind_secrets.sql` (таблица `phone_messenger_bind_secrets`).
+Миграция: `apps/webapp/db/drizzle-migrations/0078_phone_messenger_bind_secrets.sql` (таблица `phone_messenger_bind_secrets`; запись в `meta/_journal.json`, применяется через `pnpm migrate` / `pnpm --dir apps/webapp run migrate`).
 
 ## Типичные ошибки
 

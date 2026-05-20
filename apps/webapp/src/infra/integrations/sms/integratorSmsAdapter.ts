@@ -258,7 +258,7 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
       if (stored.code !== code) {
         return onPhoneWrongCode(stored.phone, challengeId, challengeStore);
       }
-      await challengeStore.delete(challengeId);
+      /** Челлендж удаляется после полного confirm (bind + messenger secret consumed), не здесь. */
       return { ok: true };
     },
   };
