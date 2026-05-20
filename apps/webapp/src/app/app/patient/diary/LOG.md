@@ -10,8 +10,9 @@
 
 - Захват прошлых дней: patient-wide `program_action_log`, `plan_instance_id` по фактам дня (`captureDiaryDaySnapshot.ts`).
 - Показ прошлой недели: снимок или синтез без записи; не `null`, если есть активность.
-- `promo_refresh`: `snapshotPromoDaysBeforeRefresh` до `completed` старого promo.
-- Статистика программы (`passage-stats`): primary — `patient_diary_day_snapshots`; fallback journal для дней без снимка; `showCollectingCopy` с учётом более ранней активности в снимках.
+- `promo_refresh` и **`doctor_assign`** (закрытие promo): `snapshotPromoDaysBeforeRefresh` до `completed`.
+- Показ прошлых дней: если снимок есть, но **занижает** plan/warmup — **read-time** подмешивание из journal (без UPDATE в БД).
+- Статистика программы (`passage-stats`): primary — снимки с активностью; окно log-supplement = расширенное `windowStartLocalYmd`; `showCollectingCopy` с учётом более ранней активности в снимках.
 
 ### Ops: испорченные снимки (до фикса)
 

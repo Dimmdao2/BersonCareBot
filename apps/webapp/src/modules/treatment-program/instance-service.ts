@@ -90,6 +90,12 @@ export function createTreatmentProgramInstanceService(deps: {
           if (row.status === "active" && row.assignmentSource === "promo") {
             const prev = await instances.getInstanceById(row.id);
             if (!prev) continue;
+            if (deps.snapshotDiaryDaysBeforePromoRefresh) {
+              await deps.snapshotDiaryDaysBeforePromoRefresh({
+                patientUserId: row.patientUserId,
+                closingInstanceId: row.id,
+              });
+            }
             await instances.updateInstanceMeta(row.id, { status: "completed" });
             await appendEvent({
               instanceId: row.id,

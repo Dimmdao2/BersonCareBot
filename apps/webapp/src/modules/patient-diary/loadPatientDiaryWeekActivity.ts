@@ -15,6 +15,7 @@ import {
   type CaptureDiaryDaySnapshotDeps,
 } from "./captureDiaryDaySnapshot";
 import type { PatientDiaryDaySnapshotRow } from "../../../db/schema/patientDiarySnapshots";
+import { snapshotDayHasPlanOrWarmupActivity } from "./aggregatePassageStatsFromSnapshots";
 
 const WARMUP_COMPLETION_SOURCES = new Set(["daily_warmup", "reminder"]);
 
@@ -123,6 +124,68 @@ async function synthesizePlanDay(
 }
 
 /**
+ * Прошлый день: снимок immutable, но при занижении plan/warmup — подмешать синтез из journal (без записи в БД).
+ */
+async function resolvePastDayActivityModels(
+  deps: PatientDiaryWeekActivityDeps,
+  params: {
+    userId: string;
+    localYmd: string;
+    iana: string;
+    rules: ReminderRule[];
+    instances: TreatmentProgramInstanceSummary[];
+    snap: PatientDiaryDaySnapshotRow | undefined;
+  },
+): Promise<{ warmup: DiaryWarmupDayModel; plan: DiaryPlanDayModel | null }> {
+  const { userId, localYmd, iana, rules, instances, snap } = params;
+
+  if (!snap) {
+    const [warmup, plan] = await Promise.all([
+      synthesizeWarmupDay(deps, { userId, localYmd, iana, rules }),
+      synthesizePlanDay(deps, { userId, localYmd, iana, instances }),
+    ]);
+    return { warmup, plan };
+  }
+
+  let warmup = snapToWarmupDay(snap);
+  let plan = snapToPlanDay(snap);
+
+  const planNeedsSynth = !snap.planDoneMask.some(Boolean);
+  const warmupNeedsSynth = snap.warmupDoneCount <= 0 && !snap.warmupAllDone;
+
+  if (planNeedsSynth || warmupNeedsSynth) {
+    const [synPlan, synWarmup] = await Promise.all([
+      planNeedsSynth
+        ? synthesizePlanDay(deps, { userId, localYmd, iana, instances })
+        : Promise.resolve(plan),
+      warmupNeedsSynth
+        ? synthesizeWarmupDay(deps, { userId, localYmd, iana, rules })
+        : Promise.resolve(warmup),
+    ]);
+    if (planNeedsSynth && synPlan?.items.some((it) => it.done)) {
+      plan = synPlan;
+    } else if (planNeedsSynth && synPlan && plan.items.length === 0) {
+      plan = synPlan;
+    }
+    if (warmupNeedsSynth && (synWarmup.doneCount > 0 || synWarmup.allDone)) {
+      warmup = synWarmup;
+    }
+  }
+
+  if (!snapshotDayHasPlanOrWarmupActivity(snap) && !hasPlanOrWarmupActivity(plan, warmup)) {
+    const [synWarmup, synPlan] = await Promise.all([
+      synthesizeWarmupDay(deps, { userId, localYmd, iana, rules }),
+      synthesizePlanDay(deps, { userId, localYmd, iana, instances }),
+    ]);
+    if (hasPlanOrWarmupActivity(synPlan, synWarmup)) {
+      return { warmup: synWarmup, plan: synPlan };
+    }
+  }
+
+  return { warmup, plan };
+}
+
+/**
  * Снимки прошлых дней недели: immutable после записи; capture по patient-wide journal.
  */
 async function ensurePastDaySnapshots(
@@ -227,17 +290,14 @@ export async function loadPatientDiaryWeekActivity(
     }
 
     if (ymd < todayYmd) {
-      const snap = snapBy.get(ymd);
-      let warmup: DiaryWarmupDayModel = null;
-      let plan: DiaryPlanDayModel | null = null;
-
-      if (snap) {
-        warmup = snapToWarmupDay(snap);
-        plan = snapToPlanDay(snap);
-      } else {
-        warmup = await synthesizeWarmupDay(deps, { userId, localYmd: ymd, iana, rules });
-        plan = await synthesizePlanDay(deps, { userId, localYmd: ymd, iana, instances });
-      }
+      const { warmup, plan } = await resolvePastDayActivityModels(deps, {
+        userId,
+        localYmd: ymd,
+        iana,
+        rules,
+        instances,
+        snap: snapBy.get(ymd),
+      });
 
       if (!hasPlanOrWarmupActivity(plan, warmup)) {
         warmupDays.push(null);

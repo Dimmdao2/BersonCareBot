@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregatePassageStatsFromSnapshots,
+  earliestLocalDateWithActivityFromSnapshots,
   hasPriorDiaryActivityBeforeInstance,
   snapshotDayHasPlanOrWarmupActivity,
 } from "./aggregatePassageStatsFromSnapshots";
@@ -37,6 +38,14 @@ describe("aggregatePassageStatsFromSnapshots", () => {
     expect(result.daysWithActivity).toBe(2);
     expect(result.missedDays).toBe(3);
     expect(result.avgCompletionsPerDay).toBe(0.2);
+  });
+
+  it("earliestLocalDateWithActivityFromSnapshots ignores empty snaps", () => {
+    const snaps = [
+      snap({ localDate: "2026-05-08", planDoneMask: [false], planItemIds: ["x"] }),
+      snap({ localDate: "2026-05-10", planDoneMask: [true], planItemIds: ["a"] }),
+    ];
+    expect(earliestLocalDateWithActivityFromSnapshots(snaps)).toBe("2026-05-10");
   });
 
   it("hasPriorDiaryActivityBeforeInstance detects earlier snapshot activity", () => {

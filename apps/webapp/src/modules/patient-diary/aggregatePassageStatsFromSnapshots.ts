@@ -6,6 +6,18 @@ export function snapshotDayHasPlanOrWarmupActivity(snap: PatientDiaryDaySnapshot
   return snap.planDoneMask.some(Boolean);
 }
 
+/** Минимальный `local_date` среди снимков с plan/warmup-активностью (или null). */
+export function earliestLocalDateWithActivityFromSnapshots(
+  snapshots: readonly PatientDiaryDaySnapshotRow[],
+): string | null {
+  let earliest: string | null = null;
+  for (const snap of snapshots) {
+    if (!snapshotDayHasPlanOrWarmupActivity(snap)) continue;
+    if (earliest === null || snap.localDate < earliest) earliest = snap.localDate;
+  }
+  return earliest;
+}
+
 export function countPlanCompletionsInSnapshot(snap: PatientDiaryDaySnapshotRow): number {
   return snap.planDoneMask.filter(Boolean).length;
 }

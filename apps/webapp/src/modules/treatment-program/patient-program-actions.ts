@@ -15,6 +15,7 @@ import {
 import { listLfkSnapshotExerciseLines } from "./programActionActivityKey";
 import {
   aggregatePassageStatsFromSnapshots,
+  earliestLocalDateWithActivityFromSnapshots,
   hasPriorDiaryActivityBeforeInstance,
 } from "@/modules/patient-diary/aggregatePassageStatsFromSnapshots";
 import type { PatientDiarySnapshotsPort } from "@/modules/patient-diary/ports";
@@ -239,17 +240,26 @@ export function createTreatmentProgramPatientActionService(deps: {
         displayIana: iana,
       });
 
-      const earliestSnapYmd = await deps.patientDiarySnapshots.minLocalDateForUser(patientUserId);
       let windowStartLocalYmd = DateTime.fromISO(instanceWindow.windowStartUtcIso, { zone: "utc" })
         .setZone(iana)
         .toISODate()!;
-      if (earliestSnapYmd && earliestSnapYmd < windowStartLocalYmd) {
-        windowStartLocalYmd = earliestSnapYmd;
-      }
 
       const windowEndYmd =
         DateTime.fromISO(endAnchorIso, { zone: "utc" }).setZone(iana).startOf("day").toISODate() ??
         windowStartLocalYmd;
+
+      const minStoredYmd = await deps.patientDiarySnapshots.minLocalDateForUser(patientUserId);
+      const fetchFromYmd =
+        minStoredYmd && minStoredYmd < windowStartLocalYmd ? minStoredYmd : windowStartLocalYmd;
+      const snapsFetched = await deps.patientDiarySnapshots.listForUserDateRange(
+        patientUserId,
+        fetchFromYmd,
+        windowEndYmd,
+      );
+      const earliestActiveSnapYmd = earliestLocalDateWithActivityFromSnapshots(snapsFetched);
+      if (earliestActiveSnapYmd && earliestActiveSnapYmd < windowStartLocalYmd) {
+        windowStartLocalYmd = earliestActiveSnapYmd;
+      }
 
       const windowStartUtcIso = DateTime.fromISO(`${windowStartLocalYmd}T00:00:00`, { zone: iana })
         .toUTC()
@@ -260,15 +270,13 @@ export function createTreatmentProgramPatientActionService(deps: {
         displayIana: iana,
       });
 
-      const snapshots = await deps.patientDiarySnapshots.listForUserDateRange(
-        patientUserId,
-        windowStartLocalYmd,
-        windowEndYmd,
+      const snapshots = snapsFetched.filter(
+        (s) => s.localDate >= windowStartLocalYmd && s.localDate <= windowEndYmd,
       );
 
       const logDateKeys = await deps.actionLog.listDistinctLocalDoneDateKeysInWindowForPatient({
         patientUserId,
-        windowStartUtcIso: instanceWindow.windowStartUtcIso,
+        windowStartUtcIso,
         windowEndUtcExclusiveIso: instanceWindow.windowEndUtcExclusiveIso,
         displayIana: iana,
       });

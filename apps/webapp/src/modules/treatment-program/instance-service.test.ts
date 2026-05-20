@@ -508,6 +508,84 @@ describe("treatment-program instance service", () => {
       expect(active[0]?.assignmentSource).toBe("doctor");
     });
 
+    it("doctor assign snapshots week days on closing promo instance", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-05-13T12:00:00.000Z"));
+      resetInMemoryPatientDiarySnapshotsForTests();
+      try {
+        const tplPortLocal = createInMemoryTreatmentProgramPort();
+        const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+        const tplPromo = await tplLocal.createTemplate({ title: "Промо", status: "published" }, null);
+        const s1 = await tplLocal.createStage(tplPromo.id, { title: "Этап 1" });
+        const g1 = await tplLocal.createTemplateStageGroup(s1.id, { title: "G" });
+        await tplLocal.addStageItem(s1.id, {
+          itemType: "lesson",
+          itemRefId: refA,
+          comment: null,
+          groupId: g1.id,
+        });
+        const tplDoc = await tplLocal.createTemplate({ title: "Клиника", status: "published" }, null);
+        await tplLocal.createStage(tplDoc.id, { title: "Этап 1" });
+
+        const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence();
+        const actionLog = createInMemoryProgramActionLogPort();
+        const diarySnapshots = createInMemoryPatientDiarySnapshotsPort();
+        const instSvc = createTreatmentProgramInstanceService({
+          instances: instancePort,
+          templates: tplLocal,
+          snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+          itemRefs,
+          events: eventsPort,
+          snapshotDiaryDaysBeforePromoRefresh: (input) =>
+            snapshotPromoDaysBeforeRefresh(
+              {
+                reminders: { listRulesByUser: async () => [] },
+                patientPractice: { listByUserInUtcRange: async () => [] },
+                programActionLog: actionLog,
+                treatmentProgramInstance: instancePort,
+                diarySnapshots,
+                getAppDefaultTimezoneIana: async () => "UTC",
+                getPatientCalendarTimezoneIana: async () => null,
+              },
+              input,
+            ),
+        });
+
+        const promoInst = await instSvc.assignTemplateToPatient({
+          templateId: tplPromo.id,
+          patientUserId: patient,
+          assignedBy: null,
+          assignmentSource: "promo",
+        });
+        const stage = instStageForTpl(promoInst, s1.id);
+        const itemDone = stage.items[0]!;
+        await actionLog.insertAction({
+          instanceId: promoInst.id,
+          instanceStageItemId: itemDone.id,
+          patientUserId: patient,
+          actionType: "done",
+          sessionId: null,
+          payload: { source: "checklist_toggle" },
+          note: null,
+        });
+
+        vi.setSystemTime(new Date("2026-05-14T12:00:00.000Z"));
+        await instSvc.assignTemplateToPatient({
+          templateId: tplDoc.id,
+          patientUserId: patient,
+          assignedBy: doctorId,
+          assignmentSource: "doctor",
+        });
+
+        const snaps = await diarySnapshots.listForUserDateRange(patient, "2026-05-11", "2026-05-13");
+        const wed = snaps.find((s) => s.localDate === "2026-05-13");
+        expect(wed?.planInstanceId).toBe(promoInst.id);
+        expect(wed?.planDoneMask.some(Boolean)).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("ensureDefaultPromoProgramForPatient is idempotent under parallel calls", async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort();
       const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
