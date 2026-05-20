@@ -1,8 +1,9 @@
 # Фаза 7 — Backfill appointment_records (prod)
 
-**Статус:** `deferred` — не в волне 1; задачи сохранены ([`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md), 2026-05-19)  
-**Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §10  
-**Зависит от:** [PHASE_01](PHASE_01_RUBITIME_PLATFORM_USER.md)
+**Статус:** `deferred` — не в волне 1; задачи сохранены ([`SCOPE_DECISIONS.md`](../LOGIN_REGISTER_NEW_LOGIC/SCOPE_DECISIONS.md), 2026-05-19)  
+**Канон:** [MAIN PLAN.md](../LOGIN_REGISTER_NEW_LOGIC/MAIN%20PLAN.md) §10  
+**Зависит от:** [PHASE_01](../LOGIN_REGISTER_NEW_LOGIC/PHASE_01_RUBITIME_PLATFORM_USER.md)  
+**Инициатива (волна 1 закрыта):** [`../LOGIN_REGISTER_NEW_LOGIC/README.md`](../LOGIN_REGISTER_NEW_LOGIC/README.md)
 
 ## Цель
 
@@ -21,8 +22,8 @@
 
 - [ ] Транзакционный или батчевый backfill по согласованному плану
 - [ ] Email из payload → unverified contact **если безопасно**
-- [ ] **Не** вызывать mass setup email (см. фаза 8)
-- [ ] Запись в [`LOG.md`](LOG.md) + runbook в `docs/REPORTS/` при необходимости
+- [ ] **Не** вызывать mass setup email (см. [фаза 8](login-register-mass-setup-email.md))
+- [ ] Запись в [`LOG.md`](../LOGIN_REGISTER_NEW_LOGIC/LOG.md) + runbook в `docs/REPORTS/` при необходимости
 
 ## Prod команды
 

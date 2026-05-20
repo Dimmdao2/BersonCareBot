@@ -15,7 +15,7 @@ PHASE_00 ✓ audit + scope
                             └── PHASE_05 register/login/forgot
 ```
 
-**Отложено (волна 2+):** PHASE_07, PHASE_08 — см. [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md). PHASE_06 закрыта (страховка, без нового merge engine).
+**Отложено (волна 2+):** PHASE_07, PHASE_08 — спеки в [`docs/TODO_NOT_NOW/`](../TODO_NOT_NOW/README.md); см. [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md). PHASE_06 закрыта (страховка, без нового merge engine).
 
 ## Статус этапов
 
@@ -28,7 +28,7 @@ PHASE_00 ✓ audit + scope
 | 4 | [PHASE_04_EMAIL_SETUP_FLOW.md](PHASE_04_EMAIL_SETUP_FLOW.md) | done | 3 |
 | 5 | [PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md) | done | 4 |
 | 6 | [PHASE_06_MERGE_IDENTITY.md](PHASE_06_MERGE_IDENTITY.md) | done | 1, 5 |
-| 7 | [PHASE_07_BACKFILL_APPOINTMENTS.md](PHASE_07_BACKFILL_APPOINTMENTS.md) | **deferred** | 1 (после MVP) |
-| 8 | [PHASE_08_MASS_SETUP_EMAIL.md](PHASE_08_MASS_SETUP_EMAIL.md) | **deferred** | 4, 7 |
+| 7 | [login-register-backfill-appointments.md](../TODO_NOT_NOW/login-register-backfill-appointments.md) | **deferred** | 1 (после MVP) |
+| 8 | [login-register-mass-setup-email.md](../TODO_NOT_NOW/login-register-mass-setup-email.md) | **deferred** | 4, 7 |
 
 Обновлять **Статус** при закрытии этапа.

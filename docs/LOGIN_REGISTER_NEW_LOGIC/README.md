@@ -4,7 +4,7 @@
 
 - **Согласованный scope (волна 1):** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) — **live-flow** + фаза 6 (merge-страховка); фазы 7–8 **отложены** (backfill / mass setup).
 - **Мастер-постановка (канон требований):** [`MAIN PLAN.md`](MAIN%20PLAN.md)
-- **Дорожная карта (индекс этапов):** [`ROADMAP.md`](ROADMAP.md)
+- **Дорожная карта (индекс этапов):** [`ROADMAP.md`](ROADMAP.md) (волна 2+: [`docs/TODO_NOT_NOW/`](../TODO_NOT_NOW/README.md))
 - **Журнал исполнения:** [`LOG.md`](LOG.md) (в т.ч. post-MVP hardening 2026-05-20)
 - **Отчёт аудита (фаза 0):** [`AUDIT_REPORT.md`](AUDIT_REPORT.md)
 - **Карта кода для аудита (фаза 0):** [`CODE_AUDIT_MAP.md`](CODE_AUDIT_MAP.md)
@@ -21,8 +21,8 @@
 | 4 | [PHASE_04_EMAIL_SETUP_FLOW.md](PHASE_04_EMAIL_SETUP_FLOW.md) | UI/API `/app/auth/email-setup` |
 | 5 | [PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md) | Состояния email в AuthFlow + API |
 | 6 | [PHASE_06_MERGE_IDENTITY.md](PHASE_06_MERGE_IDENTITY.md) | Merge — страховка, тесты + docs |
-| 7 | [PHASE_07_BACKFILL_APPOINTMENTS.md](PHASE_07_BACKFILL_APPOINTMENTS.md) | Backfill старой базы — **отложено** |
-| 8 | [PHASE_08_MASS_SETUP_EMAIL.md](PHASE_08_MASS_SETUP_EMAIL.md) | Mass setup mail — **отложено** |
+| 7 | [login-register-backfill-appointments.md](../TODO_NOT_NOW/login-register-backfill-appointments.md) | Backfill старой базы — **отложено** → `docs/TODO_NOT_NOW/` |
+| 8 | [login-register-mass-setup-email.md](../TODO_NOT_NOW/login-register-mass-setup-email.md) | Mass setup mail — **отложено** → `docs/TODO_NOT_NOW/` |
 
 ## Связанная архитектура
 

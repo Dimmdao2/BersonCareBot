@@ -4,7 +4,7 @@
 
 ## Отложено (волна 2+, задачи сохранены)
 
-Не входит в **текущую** реализацию; планы в [PHASE_07](PHASE_07_BACKFILL_APPOINTMENTS.md), [PHASE_08](PHASE_08_MASS_SETUP_EMAIL.md) и §10 [MAIN PLAN](MAIN%20PLAN.md) **не удаляются** — вернёмся после live-flow.
+Не входит в **текущую** реализацию; спеки в [`docs/TODO_NOT_NOW/`](../TODO_NOT_NOW/README.md) ([PHASE_07](../TODO_NOT_NOW/login-register-backfill-appointments.md), [PHASE_08](../TODO_NOT_NOW/login-register-mass-setup-email.md)); §10 [MAIN PLAN](MAIN%20PLAN.md) **не удаляется** — вернёмся после live-flow.
 
 - **PHASE_07** — backfill старых `appointment_records` / Rubitime-истории (dry-run → apply).
 - **PHASE_08** — массовая рассылка setup-link **старой** базе (только после отдельного продуктового OK).

@@ -1,9 +1,10 @@
 # Фаза 8 — Массовая рассылка setup (опционально)
 
 **Статус:** `deferred` (scope 2026-05-19 — mass setup для старой базы; волна 2+)  
-**Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §10 (последний абзац)  
-**Зависит от:** [PHASE_04](PHASE_04_EMAIL_SETUP_FLOW.md), [PHASE_07](PHASE_07_BACKFILL_APPOINTMENTS.md)  
-**Требует:** отдельное продуктовое и юридическое OK
+**Канон:** [MAIN PLAN.md](../LOGIN_REGISTER_NEW_LOGIC/MAIN%20PLAN.md) §10 (последний абзац)  
+**Зависит от:** [PHASE_04](../LOGIN_REGISTER_NEW_LOGIC/PHASE_04_EMAIL_SETUP_FLOW.md), [фаза 7 — backfill](login-register-backfill-appointments.md)  
+**Требует:** отдельное продуктовое и юридическое OK  
+**Инициатива (волна 1 закрыта):** [`../LOGIN_REGISTER_NEW_LOGIC/README.md`](../LOGIN_REGISTER_NEW_LOGIC/README.md)
 
 ## Цель
 
@@ -19,7 +20,7 @@
 
 ## Definition of Done
 
-Не применяется, пока статус `deferred`. При активации волны 2+ — отдельная запись в [`LOG.md`](LOG.md) с датой и объёмом рассылки.
+Не применяется, пока статус `deferred`. При активации волны 2+ — отдельная запись в [`LOG.md`](../LOGIN_REGISTER_NEW_LOGIC/LOG.md) с датой и объёмом рассылки.
 
 ## Примечание
 

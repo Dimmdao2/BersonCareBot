@@ -28,5 +28,7 @@
 | Карточка | Тема |
 |----------|------|
 | [`public_landing_metadata.md`](public_landing_metadata.md) | Title и meta description лендинга `/` из `system_settings` |
+| [`login-register-backfill-appointments.md`](login-register-backfill-appointments.md) | Login/Register волна 2+: backfill `appointment_records` без `platform_user_id` (PHASE_07) |
+| [`login-register-mass-setup-email.md`](login-register-mass-setup-email.md) | Login/Register волна 2+: массовая рассылка setup-link старой базе (PHASE_08) |
 
 При добавлении новой карточки — одна строка в таблице выше и ссылка из [`../README.md`](../README.md) (блок «Отложенные работы»).
