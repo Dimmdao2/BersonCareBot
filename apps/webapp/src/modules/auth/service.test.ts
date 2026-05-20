@@ -13,16 +13,16 @@ vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getMaxBotApiKey: async () => "",
 }));
 
-const serviceSourcePath = join(dirname(fileURLToPath(import.meta.url)), "service.ts");
+const sessionCookieSourcePath = join(dirname(fileURLToPath(import.meta.url)), "sessionCookie.ts");
 
 function signPayload(payload: string): string {
   return createHmac("sha256", TEST_ENTRY_SECRET).update(payload).digest("base64url");
 }
 
 describe("auth service", () => {
-  it("SESSION_TTL_SECONDS is 90 days for client (non-doctor) sessions", () => {
-    const src = readFileSync(serviceSourcePath, "utf8");
-    expect(src).toMatch(/const\s+SESSION_TTL_SECONDS\s*=\s*60\s*\*\s*60\s*\*\s*24\s*\*\s*90/);
+  it("SESSION_SLIDING_TTL_SECONDS is 90 days for client (non-doctor) sessions", () => {
+    const src = readFileSync(sessionCookieSourcePath, "utf8");
+    expect(src).toMatch(/const\s+SESSION_SLIDING_TTL_SECONDS\s*=\s*60\s*\*\s*60\s*\*\s*24\s*\*\s*90/);
   });
 
   it("returns null for malformed signed integrator token payload", async () => {

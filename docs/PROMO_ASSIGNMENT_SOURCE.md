@@ -20,7 +20,7 @@
 | Ключ настройки | `patient_default_promo_treatment_program_template_id` в [`types.ts`](../apps/webapp/src/modules/system-settings/types.ts), чтение [`service.ts`](../apps/webapp/src/modules/system-settings/service.ts) (`getPatientDefaultPromoTreatmentProgramTemplateId`) |
 | UI промо (doctor + admin) | [`/app/doctor/treatment-program-promo`](../apps/webapp/src/app/app/doctor/treatment-program-promo/page.tsx) (legacy `/app/admin/promo` → redirect) |
 | Материализация / действие | [`POST .../treatment-program-promo/action`](../apps/webapp/src/app/api/patient/treatment-program-promo/action/route.ts) |
-| Виртуальный промо (RSC) | [`treatment/promo/`](../apps/webapp/src/app/app/patient/treatment/promo/), home / list программ |
+| Виртуальный промо (RSC) | [`treatment/promo/`](../apps/webapp/src/app/app/patient/treatment/promo/), список [`/app/patient/treatment`](../apps/webapp/src/app/app/patient/treatment/page.tsx) (карточка промо при отсутствии active); главная — **не** показывает промо (только врачебный план) |
 | Follow-up (вне v1) | [`BACKLOG_TAILS.md`](BACKLOG_TAILS.md) — смена глобального промо-шаблона |
 
 ---
@@ -125,7 +125,8 @@ flowchart TD
 
 ### Пациент: виртуальный промо и материализация
 
-- Условие: нет ни одного `active` + валидный ключ промо.
+- Условие: нет ни одного `active` + валидный ключ промо + tier **patient** (email/OAuth/телефон по §3 SPEC; **не** анонимный guest).
+- Поверхности: карточка на [`/app/patient/treatment`](../apps/webapp/src/app/app/patient/treatment/page.tsx), прямой [`/app/patient/treatment/promo`](../apps/webapp/src/app/app/patient/treatment/promo/page.tsx), deeplink [`/app/patient/go/plan-start-lesson`](../apps/webapp/src/app/app/patient/go/[kind]/page.tsx).
 - Терминология UX: «программа реабилитации» (см. `.cursor/rules/patient-lfk-means-rehab-program.mdc`).
 - После материализации: [`revalidatePatientTreatmentProgramUi`](../apps/webapp/src/app-layer/cache/revalidatePatientTreatmentProgramUi.ts).
 

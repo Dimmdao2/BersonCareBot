@@ -42,7 +42,8 @@ export type PatientRscPersonalDataGate = "guest" | "allow";
 
 /**
  * RSC: можно ли грузить персональные данные из БД по `userId` — тот же критерий, что {@link patientClientBusinessGate} / API.
- * Без сессии — `guest` (заглушки). `need_activation` — `guest`. `stale_session` — редирект на `/app?next=`.
+ * Без сессии — `guest` (заглушки). `need_activation` (tier onboarding, не patient) — `guest` для RSC-заглушек;
+ * tier **patient** с email/OAuth без телефона — `allow`. `stale_session` — редирект на `/app?next=`.
  */
 export async function patientRscPersonalDataGate(
   session: AppSession | null,

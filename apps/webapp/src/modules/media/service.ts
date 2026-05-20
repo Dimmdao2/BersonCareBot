@@ -25,6 +25,9 @@ export function createMediaService(port: MediaStoragePort) {
     async findUsage(mediaId: string) {
       return port.findUsage(mediaId);
     },
+    async getUsageSummary(mediaId: string) {
+      return port.getUsageSummary(mediaId);
+    },
     async deleteHard(mediaId: string) {
       return port.deleteHard(mediaId);
     },

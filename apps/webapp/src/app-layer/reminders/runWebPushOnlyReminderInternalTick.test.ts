@@ -25,11 +25,22 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     operatorHealthWrite: {
       recordWebPushOnlyReminderTickSuccess: recordSuccessMock,
     },
+    contentSections: {
+      getBySlug: vi.fn(async () => null),
+    },
   })),
 }));
 
 vi.mock("@/infra/repos/pgWebPushOnlyReminders", () => ({
   pgWebPushOnlyRemindersPort: {},
+}));
+
+vi.mock("@/infra/db/client", () => ({
+  getPool: vi.fn(() => ({})),
+}));
+
+vi.mock("@/modules/reminders/loadWarmupsSectionSlugs", () => ({
+  loadWarmupsSectionSlugs: vi.fn(async () => []),
 }));
 
 vi.mock("@/app-layer/logging/logger", () => ({

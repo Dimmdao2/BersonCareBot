@@ -2,6 +2,8 @@
 
 Детализация для реализации и ревью. Пути к файлам — от корня репозитория.
 
+**Важно (PWA / email):** tier **guest** — только без сессии. Пользователь с подтверждённым email, паролем или web OAuth — tier **patient** (`resolvePlatformAccessContext`), даже без телефона до записи на приём; это **не** guest и не «заглушка кабинета». Доверенный телефон — отдельно для native-записи (`requirePatientBookingTrustedPhoneAccess`). Канон: [`PLATFORM_IDENTITY_SPECIFICATION.md`](PLATFORM_IDENTITY_SPECIFICATION.md) §3, §15.
+
 ---
 
 ## 1. Данные и канон (webapp DB)

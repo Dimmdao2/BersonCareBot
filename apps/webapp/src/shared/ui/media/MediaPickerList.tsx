@@ -149,18 +149,20 @@ export const MediaPickerList = memo(function MediaPickerList({
 }: Props) {
   const [quickPreviewItem, setQuickPreviewItem] = useState<MediaListItem | null>(null);
 
-  if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
-  }
-  if (loading) {
+  if (loading && !error && items.length === 0) {
     return <p className="text-sm text-muted-foreground">Загрузка...</p>;
-  }
-  if (items.length === 0) {
-    return <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">Нет файлов</p>;
   }
 
   return (
     <>
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {loading && items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Загрузка...</p>
+      ) : null}
+      {!loading && items.length === 0 ? (
+        <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">Нет файлов</p>
+      ) : null}
+      {items.length > 0 ? (
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => (
           <MediaPickerListItem
@@ -173,6 +175,7 @@ export const MediaPickerList = memo(function MediaPickerList({
           />
         ))}
       </div>
+      ) : null}
       <MediaPickerQuickPreviewDialog
         item={quickPreviewItem}
         open={quickPreviewItem !== null}

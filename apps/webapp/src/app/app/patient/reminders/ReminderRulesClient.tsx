@@ -528,8 +528,8 @@ export function ReminderRulesClient({
 
       {activeProgram ? (
         <section id="patient-reminders-rehab" className={cn(patientHeroBookingSectionClass, "mb-4 !gap-3")}>
-          <h2 className={patientSectionTitleNormalClass}>Программа реабилитации</h2>
-          <p className={cn(patientMutedTextClass, "text-sm")}>Активная программа: {activeProgram.title}</p>
+          <h2 className={patientSectionTitleNormalClass}>Тренировки</h2>
+          <p className={cn(patientMutedTextClass, "text-xs font-normal")}>{activeProgram.title}</p>
           <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {rehabCalendarLine}</p>
           <ReminderExerciseDeliveryChannels deliveryChannelLabels={exerciseDeliveryChannelLabels} />
           {rehabRuleForBlock ? (

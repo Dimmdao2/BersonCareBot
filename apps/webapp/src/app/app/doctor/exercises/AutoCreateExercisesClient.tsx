@@ -163,6 +163,7 @@ export function AutoCreateExercisesClient() {
     loadMore,
     inServerMode,
     serverSearchPending,
+    localSearchHint,
   } = useMediaPickerFilteredList({
     open: true,
     listUrl,
@@ -468,16 +469,17 @@ export function AutoCreateExercisesClient() {
                 ))}
               </div>
             ) : null}
-            {!listLoading ? (
+            {serverSearchPending || !listLoading ? (
               <MediaPickerListFooter
                 shownCount={displayedItems.length}
-                total={listTotal}
+                total={newOnly ? null : listTotal}
                 hasMore={listHasMore}
                 loadingMore={listLoadingMore}
                 onLoadMore={loadMore}
                 inServerMode={inServerMode}
                 serverSearchPending={serverSearchPending}
                 listError={listError}
+                localSearchHint={localSearchHint}
               />
             ) : null}
           </div>

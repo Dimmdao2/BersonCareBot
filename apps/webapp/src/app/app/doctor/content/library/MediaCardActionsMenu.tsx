@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,20 +60,24 @@ export function MediaCardActionsMenu({
   const [menuOpen, setMenuOpen] = useState(false);
   const [usageLines, setUsageLines] = useState<string[] | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
+  const [usageError, setUsageError] = useState(false);
 
-  useEffect(() => {
-    if (!menuOpen) {
+  const handleMenuOpenChange = (open: boolean) => {
+    setMenuOpen(open);
+    if (!open) {
       setUsageLines(null);
       setUsageLoading(false);
+      setUsageError(false);
       return;
     }
-    let cancelled = false;
+
     setUsageLoading(true);
-    fetch(`/api/admin/media/${item.id}/usage-summary`, { credentials: "same-origin" })
+    setUsageError(false);
+    setUsageLines(null);
+    void fetch(`/api/admin/media/${item.id}/usage-summary`, { credentials: "same-origin" })
       .then(async (res) => {
         const data = (await res.json()) as { ok?: boolean; lines?: string[]; total?: number };
         if (!res.ok || !data.ok) throw new Error("usage_failed");
-        if (cancelled) return;
         if ((data.total ?? 0) === 0) {
           setUsageLines(["Не используется"]);
         } else {
@@ -81,18 +85,16 @@ export function MediaCardActionsMenu({
         }
       })
       .catch(() => {
-        if (!cancelled) setUsageLines(null);
+        setUsageLines(null);
+        setUsageError(true);
       })
       .finally(() => {
-        if (!cancelled) setUsageLoading(false);
+        setUsageLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [menuOpen, item.id]);
+  };
 
   return (
-    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+    <DropdownMenu open={menuOpen} onOpenChange={handleMenuOpenChange}>
       <DropdownMenuTrigger
         className={
           triggerVariant === "icon"
@@ -151,15 +153,17 @@ export function MediaCardActionsMenu({
             <p className="pt-1 font-medium text-foreground">Использование</p>
             {usageLoading ? (
               <p>Загрузка…</p>
+            ) : usageError ? (
+              <p>Не удалось загрузить</p>
             ) : usageLines && usageLines.length > 0 ? (
               <ul className="list-none space-y-0.5 p-0">
                 {usageLines.map((line) => (
                   <li key={line}>{line}</li>
                 ))}
               </ul>
-            ) : usageLines === null && !usageLoading ? (
+            ) : (
               <p>—</p>
-            ) : null}
+            )}
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" disabled={deleting} onClick={onDelete}>

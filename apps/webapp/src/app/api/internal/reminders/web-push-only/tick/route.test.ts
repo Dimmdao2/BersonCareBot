@@ -22,16 +22,8 @@ vi.mock("@/config/env", () => ({
   env: envHolder,
 }));
 
-vi.mock("@/modules/reminders/webPushOnlyScheduler", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/modules/reminders/webPushOnlyScheduler")>();
-  return {
-    ...actual,
-    runWebPushOnlyReminderTick: runTickMock,
-  };
-});
-
-vi.mock("@/infra/repos/pgWebPushOnlyReminders", () => ({
-  pgWebPushOnlyRemindersPort: {},
+vi.mock("@/app-layer/reminders/runWebPushOnlyReminderInternalTick", () => ({
+  runWebPushOnlyReminderInternalTick: runTickMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -96,7 +88,7 @@ describe("POST /api/internal/reminders/web-push-only/tick", () => {
     expect(runTickMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 with tick summary JSON and records success heartbeat", async () => {
+  it("returns 200 with tick summary JSON when internal tick succeeds", async () => {
     runTickMock.mockResolvedValue({ ...emptyTickResult, sent: 1 });
     const res = await POST(
       new Request("http://localhost/api/internal/reminders/web-push-only/tick?limit=50", {
@@ -109,11 +101,7 @@ describe("POST /api/internal/reminders/web-push-only/tick", () => {
     expect(json.ok).toBe(true);
     expect(json.sent).toBe(1);
     expect(json.planned).toBe(0);
-    expect(recordSuccessMock).toHaveBeenCalledTimes(1);
-    expect(recordSuccessMock.mock.calls[0]?.[0]?.metaJson).toMatchObject({
-      sent: 1,
-      consecutiveCronFailures: 0,
-    });
+    expect(runTickMock).toHaveBeenCalledWith({ dispatchLimit: 50 });
     expect(recordFailureMock).not.toHaveBeenCalled();
   });
 

@@ -10,6 +10,7 @@ import {
   pgMoveFolder,
   pgRenameFolder,
 } from "@/infra/repos/mediaFoldersRepo";
+import { pgMediaUsageSummaryForMediaId } from "@/infra/repos/pgMediaUsageSummary";
 import { s3DeleteObject, s3ListObjectKeysUnderPrefix, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/infra/s3/client";
 import type { MediaStoragePort } from "@/modules/media/ports";
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
@@ -435,6 +436,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         pageSlug: row.pageSlug,
         field: row.field,
       }));
+    },
+
+    async getUsageSummary(mediaId: string) {
+      return pgMediaUsageSummaryForMediaId(mediaId);
     },
 
     async deleteHard(mediaId: string) {

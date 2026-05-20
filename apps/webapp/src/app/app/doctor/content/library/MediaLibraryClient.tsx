@@ -207,6 +207,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   const uploadAbortRef = useRef<AbortController | null>(null);
   const multipartSessionRef = useRef<string | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const listRequestRef = useRef(0);
 
   const currentFolderId = crumbs[crumbs.length - 1]?.id ?? null;
   const parentForChildFolders = viewAllFiles ? null : currentFolderId;
@@ -229,30 +230,28 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   }, [kind, sortBy, sortDir, query, currentFolderId, viewAllFiles]);
 
   useEffect(() => {
-    let cancelled = false;
+    const requestId = ++listRequestRef.current;
     setLoading(true);
     setError(null);
     fetch(`/api/admin/media?${searchParams}&limit=${PAGE_SIZE}&offset=0`, { credentials: "same-origin" })
       .then(async (res) => {
         const data = (await res.json()) as MediaListResponse;
         if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
-        if (!cancelled) {
-          setItems(data.items ?? []);
-          setHasMore(Boolean(data.hasMore));
-          setNextOffset(data.nextOffset ?? (data.items?.length ?? 0));
-          setTotalCount(typeof data.total === "number" ? data.total : null);
-          setLightboxIndex(null);
-        }
+        if (requestId !== listRequestRef.current) return;
+        setItems(data.items ?? []);
+        setHasMore(Boolean(data.hasMore));
+        setNextOffset(data.nextOffset ?? (data.items?.length ?? 0));
+        setTotalCount(typeof data.total === "number" ? data.total : null);
+        setLightboxIndex(null);
       })
       .catch(() => {
-        if (!cancelled) setError("Не удалось загрузить библиотеку");
+        if (requestId !== listRequestRef.current) return;
+        setError("Не удалось загрузить библиотеку");
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (requestId !== listRequestRef.current) return;
+        setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, [searchParams, reloadKey]);
 
   useEffect(() => {
@@ -351,6 +350,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
 
   async function onLoadMore() {
     if (!hasMore || loadingMore) return;
+    const requestId = listRequestRef.current;
     setLoadingMore(true);
     setError(null);
     try {
@@ -359,6 +359,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
       });
       const data = (await res.json()) as MediaListResponse;
       if (!res.ok || !data.ok) throw new Error(data.error ?? "load_more_failed");
+      if (requestId !== listRequestRef.current) return;
       const incoming = data.items ?? [];
       setItems((prev) => {
         const known = new Set(prev.map((item) => item.id));
@@ -369,8 +370,10 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
       setNextOffset(data.nextOffset ?? nextOffset + incoming.length);
       if (typeof data.total === "number") setTotalCount(data.total);
     } catch {
+      if (requestId !== listRequestRef.current) return;
       setError("Не удалось загрузить следующую страницу");
     } finally {
+      if (requestId !== listRequestRef.current) return;
       setLoadingMore(false);
     }
   }

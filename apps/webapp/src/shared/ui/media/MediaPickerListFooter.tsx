@@ -11,6 +11,7 @@ type Props = {
   inServerMode?: boolean;
   serverSearchPending?: boolean;
   listError?: string | null;
+  localSearchHint?: string | null;
 };
 
 export function MediaPickerListFooter({
@@ -22,12 +23,14 @@ export function MediaPickerListFooter({
   inServerMode,
   serverSearchPending,
   listError,
+  localSearchHint,
 }: Props) {
-  if (shownCount === 0 && !serverSearchPending) return null;
+  if (shownCount === 0 && !serverSearchPending && !inServerMode && !localSearchHint) return null;
 
   return (
     <div className="flex flex-col items-center gap-2">
       {inServerMode ? <p className="text-xs text-muted-foreground">По всей библиотеке</p> : null}
+      {localSearchHint ? <p className="max-w-md text-center text-xs text-muted-foreground">{localSearchHint}</p> : null}
       {shownCount > 0 ? (
         <>
           <p className="text-xs text-muted-foreground">

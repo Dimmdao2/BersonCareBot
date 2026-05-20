@@ -160,14 +160,10 @@ describe("patientProgramsListCurrentStageTitle", () => {
 });
 
 describe("PatientTreatmentProgramsListClient", () => {
-  it("renders empty state with personal program CTA when no active program", () => {
+  it("renders personal program CTA when no active program and no promo", () => {
     render(
       <PatientTreatmentProgramsListClient hero={null} archived={[]} messagesHref="/app/patient/messages" />,
     );
-
-    expect(
-      screen.getByRole("heading", { name: "Нет индивидуальных назначений" }),
-    ).toBeInTheDocument();
 
     expect(
       screen.getByRole("heading", { name: "Хочу персональную программу!" }),
@@ -175,6 +171,24 @@ describe("PatientTreatmentProgramsListClient", () => {
 
     const link = screen.getByRole("link", { name: /Консультация/i });
     expect(link).toHaveAttribute("href", "/app/patient/intake/lfk");
+  });
+
+  it("renders virtual promo card with open link and personal program CTA", () => {
+    render(
+      <PatientTreatmentProgramsListClient
+        hero={null}
+        archived={[]}
+        messagesHref="/app/patient/messages"
+        virtualPromo={{ title: "Стартовая программа", href: "/app/patient/treatment/promo" }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Стартовая программа" })).toBeInTheDocument();
+    const openLink = screen.getByRole("link", { name: /Открыть программу/i });
+    expect(openLink).toHaveAttribute("href", "/app/patient/treatment/promo");
+    expect(
+      screen.getByRole("heading", { name: "Хочу персональную программу!" }),
+    ).toBeInTheDocument();
   });
 
   it("renders hero with current stage, plan nudge, and CTA", () => {

@@ -64,25 +64,27 @@ export function useMediaLibraryPickerServerSearch(options: {
 
   const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const loadMoreAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!enabled) {
-      setDebouncedReady(false);
+      queueMicrotask(() => setDebouncedReady(false));
       return;
     }
+    queueMicrotask(() => setDebouncedReady(false));
     const t = window.setTimeout(() => setDebouncedReady(true), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
   }, [enabled, trimmedQuery, listUrlBase]);
 
   const fetchPage = useCallback(
-    async (offset: number, append: boolean, signal: AbortSignal) => {
+    async (offset: number, append: boolean, signal: AbortSignal, requestId: number) => {
       const res = await fetch(pageUrl(listUrlBase, trimmedQuery, offset), {
         credentials: "same-origin",
         signal,
       });
       const data = (await res.json()) as ListResponse;
       if (!res.ok || !data.ok) throw new Error(data.error ?? "search_failed");
-      if (signal.aborted) return;
+      if (signal.aborted || requestId !== requestIdRef.current) return;
 
       const incoming = data.items ?? [];
       setItems((prev) => {
@@ -99,16 +101,20 @@ export function useMediaLibraryPickerServerSearch(options: {
 
   useEffect(() => {
     abortRef.current?.abort();
+    loadMoreAbortRef.current?.abort();
     abortRef.current = null;
+    loadMoreAbortRef.current = null;
 
     if (!enabled || !debouncedReady || !trimmedQuery) {
-      setItems([]);
-      setLoading(false);
-      setLoadingMore(false);
-      setHasMore(false);
-      setNextOffset(0);
-      setTotal(null);
-      setError(null);
+      queueMicrotask(() => {
+        setItems([]);
+        setLoading(false);
+        setLoadingMore(false);
+        setHasMore(false);
+        setNextOffset(0);
+        setTotal(null);
+        setError(null);
+      });
       return;
     }
 
@@ -116,35 +122,39 @@ export function useMediaLibraryPickerServerSearch(options: {
     const ac = new AbortController();
     abortRef.current = ac;
 
-    setLoading(true);
-    setError(null);
-    setItems([]);
-
-    void fetchPage(0, false, ac.signal)
-      .catch((e: unknown) => {
-        if (ac.signal.aborted || requestId !== requestIdRef.current) return;
-        const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
-        if (name === "AbortError") return;
-        setError("Не удалось выполнить поиск по библиотеке");
-        setItems([]);
-      })
-      .finally(() => {
-        if (requestId !== requestIdRef.current) return;
-        setLoading(false);
-      });
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+      setItems([]);
+      void fetchPage(0, false, ac.signal, requestId)
+        .catch((e: unknown) => {
+          if (ac.signal.aborted || requestId !== requestIdRef.current) return;
+          const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
+          if (name === "AbortError") return;
+          setError("Не удалось выполнить поиск по библиотеке");
+          setItems([]);
+        })
+        .finally(() => {
+          if (requestId !== requestIdRef.current) return;
+          setLoading(false);
+        });
+    });
 
     return () => {
       ac.abort();
+      loadMoreAbortRef.current?.abort();
     };
   }, [enabled, debouncedReady, trimmedQuery, listUrlBase, fetchPage]);
 
   const loadMore = useCallback(() => {
     if (!enabled || !debouncedReady || !hasMore || loading || loadingMore) return;
     const requestId = requestIdRef.current;
+    loadMoreAbortRef.current?.abort();
     const ac = new AbortController();
+    loadMoreAbortRef.current = ac;
     setLoadingMore(true);
     setError(null);
-    void fetchPage(nextOffset, true, ac.signal)
+    void fetchPage(nextOffset, true, ac.signal, requestId)
       .catch((e: unknown) => {
         if (requestId !== requestIdRef.current) return;
         const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";

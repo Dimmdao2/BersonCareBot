@@ -146,6 +146,16 @@ export const mockMediaStoragePort: MediaStoragePort = {
     return [];
   },
 
+  async getUsageSummary(_mediaId) {
+    return {
+      materials: 0,
+      exercises: 0,
+      clinicalTests: 0,
+      recommendations: 0,
+      sections: 0,
+    };
+  },
+
   async deleteHard(mediaId) {
     return store.delete(mediaId);
   },

@@ -6,6 +6,7 @@ import {
   filterMediaLibraryPickerItemsByQuery,
   narrowMediaLibraryPickerItemsByKind,
 } from "@/shared/ui/media/useMediaLibraryPickerItems";
+import { pickerListTotalForKind } from "@/shared/ui/media/useMediaPickerFilteredList";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
 
 const baseItem = (overrides: Partial<MediaListItem>): MediaListItem => ({
@@ -39,6 +40,12 @@ describe("buildAdminMediaListUrl", () => {
     const id = "11111111-1111-4111-8111-111111111111";
     const u = buildAdminMediaListUrl({ apiKind: "video", folderId: id });
     expect(u).toContain(`folderId=${id}`);
+    expect(u).toMatch(/includeDescendants=true/);
+  });
+
+  it("omits includeDescendants for root folder", () => {
+    const u = buildAdminMediaListUrl({ apiKind: "all", folderId: null });
+    expect(u).not.toMatch(/includeDescendants/);
   });
 });
 
@@ -68,6 +75,13 @@ describe("filterMediaLibraryPickerItemsByQuery", () => {
     const item = baseItem({ filename: `упражнение_${nfc}.mp4` });
     expect(filterMediaLibraryPickerItemsByQuery([item], nfd)).toHaveLength(1);
     expect(filterMediaLibraryPickerItemsByQuery([item], nfc)).toHaveLength(1);
+  });
+});
+
+describe("pickerListTotalForKind", () => {
+  it("hides total for image_or_video", () => {
+    expect(pickerListTotalForKind("image_or_video", 100)).toBeNull();
+    expect(pickerListTotalForKind("image", 100)).toBe(100);
   });
 });
 

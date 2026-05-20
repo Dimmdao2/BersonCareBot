@@ -188,6 +188,7 @@ export function MediaPickerPanel({
     loadMore,
     inServerMode,
     serverSearchPending,
+    localSearchHint,
   } = useMediaPickerFilteredList({
     open,
     listUrl,
@@ -494,16 +495,17 @@ export function MediaPickerPanel({
           enableQuickPreview={exercisePicker}
         />
 
-        {!listLoading ? (
+        {serverSearchPending || !listLoading ? (
           <MediaPickerListFooter
             shownCount={displayedItems.length}
-            total={listTotal}
+            total={exercisePicker && newOnly ? null : listTotal}
             hasMore={listHasMore}
             loadingMore={listLoadingMore}
             onLoadMore={loadMore}
             inServerMode={inServerMode}
             serverSearchPending={serverSearchPending}
             listError={listError}
+            localSearchHint={localSearchHint}
           />
         ) : null}
       </TabsContent>

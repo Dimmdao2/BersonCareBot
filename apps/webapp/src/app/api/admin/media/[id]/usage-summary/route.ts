@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { webappReposAreInMemory } from "@/config/env";
-import {
-  formatMediaUsageSummaryLines,
-  pgMediaUsageSummaryForMediaId,
-} from "@/infra/repos/pgMediaUsageSummary";
 import { getCurrentSession } from "@/modules/auth/service";
+import { formatMediaUsageSummaryLines } from "@/modules/media/usageSummaryFormat";
 import { canAccessDoctor } from "@/modules/roles/service";
 
 const paramsSchema = z.object({
@@ -42,7 +40,8 @@ export async function GET(
     });
   }
 
-  const summary = await pgMediaUsageSummaryForMediaId(parsed.data.id);
+  const deps = buildAppDeps();
+  const summary = await deps.media.getUsageSummary(parsed.data.id);
   const lines = formatMediaUsageSummaryLines(summary);
   const total =
     summary.materials +

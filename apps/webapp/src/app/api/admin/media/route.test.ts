@@ -43,18 +43,21 @@ describe("GET /api/admin/media", () => {
 
   it("returns media list for doctor using url from list()", async () => {
     getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
-    listMock.mockResolvedValue([
-      {
-        id: "11111111-1111-4111-8111-111111111111",
-        kind: "image",
-        mimeType: "image/jpeg",
-        filename: "x.jpg",
-        size: 10,
-        userId: null,
-        createdAt: "2026-01-01T00:00:00.000Z",
-        url: "/api/media/11111111-1111-4111-8111-111111111111",
-      },
-    ]);
+    listMock.mockResolvedValue({
+      items: [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          kind: "image",
+          mimeType: "image/jpeg",
+          filename: "x.jpg",
+          size: 10,
+          userId: null,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          url: "/api/media/11111111-1111-4111-8111-111111111111",
+        },
+      ],
+      total: 1,
+    });
     const res = await GET(
       new Request("http://localhost/api/admin/media?kind=image&sortBy=size&sortDir=asc&limit=10&offset=5")
     );
@@ -85,18 +88,21 @@ describe("GET /api/admin/media", () => {
 
   it("falls back to /api/media/:id when list() returns no url", async () => {
     getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
-    listMock.mockResolvedValue([
-      {
-        id: "22222222-2222-4222-8222-222222222222",
-        kind: "image",
-        mimeType: "image/jpeg",
-        filename: "y.jpg",
-        size: 5,
-        userId: null,
-        createdAt: "2026-01-01T00:00:00.000Z",
-        // url not provided → should fallback
-      },
-    ]);
+    listMock.mockResolvedValue({
+      items: [
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          kind: "image",
+          mimeType: "image/jpeg",
+          filename: "y.jpg",
+          size: 5,
+          userId: null,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          // url not provided → should fallback
+        },
+      ],
+      total: 1,
+    });
     const res = await GET(new Request("http://localhost/api/admin/media"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { items: Array<{ url: string }> };
@@ -111,7 +117,7 @@ describe("GET /api/admin/media", () => {
 
   it("maps sortBy=name to list()", async () => {
     getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
-    listMock.mockResolvedValue([]);
+    listMock.mockResolvedValue({ items: [], total: 0 });
     const res = await GET(new Request("http://localhost/api/admin/media?sortBy=name&sortDir=asc&limit=5"));
     expect(res.status).toBe(200);
     expect(listMock).toHaveBeenCalledWith(

@@ -20,6 +20,8 @@ export type AdminMediaListUrlSortBy = "date" | "size" | "type" | "name";
 export function buildAdminMediaListUrl(args: {
   apiKind: string;
   folderId?: string | null;
+  /** При выборе конкретной папки — включать вложенные (как в экране библиотеки). По умолчанию `true` для uuid-папки. */
+  includeDescendants?: boolean;
   sortBy?: AdminMediaListUrlSortBy;
   sortDir?: "asc" | "desc";
   q?: string;
@@ -35,7 +37,11 @@ export function buildAdminMediaListUrl(args: {
   if (args.q?.trim()) p.set("q", args.q.trim());
   if (args.folderId !== undefined) {
     if (args.folderId === null) p.set("folderId", "root");
-    else p.set("folderId", args.folderId);
+    else {
+      p.set("folderId", args.folderId);
+      const includeDescendants = args.includeDescendants ?? true;
+      if (includeDescendants) p.set("includeDescendants", "true");
+    }
   }
   return `/api/admin/media?${p.toString()}`;
 }
@@ -173,16 +179,18 @@ export function useMediaLibraryPickerItems(options: {
       setNextOffset(0);
     });
 
-    fetchPage(listUrl, 0, false, requestId)
-      .catch(() => {
-        if (requestId !== latestRequestRef.current) return;
-        setError("Не удалось загрузить библиотеку");
-        setItems([]);
-      })
-      .finally(() => {
-        if (requestId !== latestRequestRef.current) return;
-        setInFlight(false);
-      });
+    queueMicrotask(() => {
+      void fetchPage(listUrl, 0, false, requestId)
+        .catch(() => {
+          if (requestId !== latestRequestRef.current) return;
+          setError("Не удалось загрузить библиотеку");
+          setItems([]);
+        })
+        .finally(() => {
+          if (requestId !== latestRequestRef.current) return;
+          setInFlight(false);
+        });
+    });
   }, [open, listUrl, reloadKey, fetchPage]);
 
   const loadMore = useCallback(() => {

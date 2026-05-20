@@ -41,10 +41,10 @@ describe("MediaLibraryInsertDialog", () => {
 
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(1));
     const fetchCalls = fetchMock.mock.calls as unknown[][];
-    const firstUrl = String(fetchCalls[0]?.[0] ?? "");
-    expect(firstUrl).toContain("/api/admin/media");
-    expect(new URL(firstUrl, "http://localhost").searchParams.get("q")).toBeNull();
-    expect(firstUrl).toMatch(/limit=200/);
+    const listUrl = fetchCalls.map((c) => String(c[0] ?? "")).find((u) => u.includes("/api/admin/media?"));
+    expect(listUrl).toBeTruthy();
+    expect(listUrl).toMatch(/limit=50/);
+    expect(new URL(listUrl!, "http://localhost").searchParams.get("q")).toBeNull();
 
     const afterOpenCount = fetchMock.mock.calls.length;
 

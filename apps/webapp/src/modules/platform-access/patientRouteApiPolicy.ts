@@ -101,7 +101,8 @@ function patientPageAllowsGuestOptionalSession(path: string): boolean {
 }
 
 /**
- * При `patientClientBusinessGate === 'need_activation'` (OAuth без доверенного телефона) пациент
+ * При `patientClientBusinessGate === 'need_activation'` (onboarding без tier patient: нет web-активации
+ * и нет доверенного телефона; **не** «email-only PWA user», у того tier patient) пациент
  * видит только эти пути; остальное под `/app/patient` — редирект на bind-phone.
  * Пустой или не `/app/patient*` pathname → не разрешён (редирект).
  */

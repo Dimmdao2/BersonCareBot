@@ -18,11 +18,8 @@ import {
   patientCardListSectionClass,
   patientHeroPrimaryActionClass,
   patientHeroTitleBaseClass,
-  patientInnerHeroListEmptyTitleClass,
   patientInnerHeroListPrimaryTitleClass,
-  patientInlineLinkClass,
   patientMutedTextClass,
-  patientSurfaceInfoClass,
   patientInnerPageStackClass,
 } from "@/shared/ui/patientVisual";
 import { PatientPlanPersonalProgramCtaCard } from "@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard";
@@ -91,15 +88,37 @@ export function PatientTreatmentProgramsListClient(props: {
             </Link>
           </div>
         </section>
-      ) : (
-          <>
-          <h2 id="patient-tp-list-empty-heading" className={cn(patientInnerHeroListEmptyTitleClass)}>
-            Нет индивидуальных назначений
-          </h2><div className="mt-4">
-              <PatientPlanPersonalProgramCtaCard />
-            </div>
-            </>
-      )}
+      ) : virtualPromo ? (
+        <section
+          className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}
+          aria-labelledby="patient-tp-list-promo-title"
+        >
+          <h2
+            id="patient-tp-list-promo-title"
+            className={cn(patientHeroTitleBaseClass, patientInnerHeroListPrimaryTitleClass)}
+          >
+            {virtualPromo.title}
+          </h2>
+          <div className="mt-4">
+            <Link
+              href={virtualPromo.href}
+              prefetch={false}
+              className={cn(
+                patientHeroPrimaryActionClass,
+                "inline-flex min-h-9 items-center justify-center rounded-md px-4 py-2 text-sm no-underline",
+              )}
+            >
+              Открыть программу
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
+      {!hero ? (
+        <div className={virtualPromo ? "mt-4" : undefined}>
+          <PatientPlanPersonalProgramCtaCard />
+        </div>
+      ) : null}
 
       {archived.length > 0 ? (
         <details className={cn(patientCardListSectionClass, "group")}>
