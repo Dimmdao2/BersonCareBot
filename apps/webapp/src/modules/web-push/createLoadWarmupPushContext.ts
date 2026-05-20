@@ -1,12 +1,25 @@
-import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
   loadWarmupPushDynamicContext,
   type LoadWarmupPushDynamicContextDeps,
 } from "@/modules/web-push/loadWarmupPushDynamicContext";
 
-type AppDeps = ReturnType<typeof buildAppDeps>;
+/** Narrow deps slice for warmup push (avoids importing composition root). */
+export type LoadWarmupPushContextDeps = {
+  reminders: { listRulesByUser: LoadWarmupPushDynamicContextDeps["listRulesByUser"] };
+  patientPractice: {
+    listByUserInUtcRange: (
+      userId: string,
+      startIso: string,
+      endIso: string,
+    ) => Promise<Awaited<ReturnType<LoadWarmupPushDynamicContextDeps["listPracticeCompletionsInRange"]>>>;
+  };
+  patientHomeBlocks: LoadWarmupPushDynamicContextDeps["patientHomeBlocks"];
+  contentPages: LoadWarmupPushDynamicContextDeps["contentPages"];
+  contentSections: LoadWarmupPushDynamicContextDeps["contentSections"];
+  patientCalendarTimezone: { getIanaForUser: LoadWarmupPushDynamicContextDeps["getPatientCalendarIana"] };
+};
 
-export function createLoadWarmupPushContext(deps: AppDeps) {
+export function createLoadWarmupPushContext(deps: LoadWarmupPushContextDeps) {
   const loaderDeps: LoadWarmupPushDynamicContextDeps = {
     listRulesByUser: (userId) => deps.reminders.listRulesByUser(userId),
     listPracticeCompletionsInRange: async (userId, start, end) =>
