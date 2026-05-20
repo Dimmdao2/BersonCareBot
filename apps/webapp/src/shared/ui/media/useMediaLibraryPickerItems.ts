@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
 import {
   getMediaLibraryPickerListCached,
@@ -58,11 +59,11 @@ export function narrowMediaLibraryPickerItemsByKind(
  * @deprecated Prefer server `q` in {@link buildAdminMediaListUrl}. Kept for unit tests.
  */
 export function filterMediaLibraryPickerItemsByQuery(items: MediaListItem[], query: string): MediaListItem[] {
-  const needle = query.trim().toLowerCase();
+  const needle = normalizeRuSearchString(query.trim());
   if (!needle) return items;
   return items.filter((item) => {
-    const filename = item.filename.toLowerCase();
-    const displayName = item.displayName ? item.displayName.toLowerCase() : "";
+    const filename = normalizeRuSearchString(item.filename);
+    const displayName = item.displayName ? normalizeRuSearchString(item.displayName) : "";
     return filename.includes(needle) || displayName.includes(needle);
   });
 }

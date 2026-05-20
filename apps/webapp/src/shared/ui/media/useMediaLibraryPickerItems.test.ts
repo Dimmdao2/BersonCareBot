@@ -26,7 +26,7 @@ describe("buildAdminMediaListUrl", () => {
     expect(u).toMatch(/kind=image/);
     expect(u).toMatch(/sortBy=date/);
     expect(u).toMatch(/sortDir=desc/);
-    expect(u).toMatch(/limit=200/);
+    expect(u).toMatch(/limit=50/);
     expect(u).not.toMatch(/[?&]q=/);
   });
 

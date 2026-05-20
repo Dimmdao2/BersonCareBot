@@ -11,14 +11,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MediaPickerList, type MediaListItem } from "@/shared/ui/media/MediaPickerList";
-import {
-  buildAdminMediaListUrl,
-  filterMediaLibraryPickerItemsByQuery,
-  invalidateMediaLibraryPickerListCache,
-  narrowMediaLibraryPickerItemsByKind,
-  useMediaLibraryPickerItems,
-  type MediaLibraryPickerKindFilter,
-} from "@/shared/ui/media/useMediaLibraryPickerItems";
+import { buildAdminMediaListUrl, invalidateMediaLibraryPickerListCache } from "@/shared/ui/media/useMediaLibraryPickerItems";
+import type { MediaLibraryPickerKindFilter } from "@/shared/ui/media/useMediaLibraryPickerItems";
+import { MediaPickerListFooter } from "@/shared/ui/media/MediaPickerListFooter";
+import { useMediaPickerFilteredList } from "@/shared/ui/media/useMediaPickerFilteredList";
 import type { MediaExerciseUsageEntry, MediaFolderRecord } from "@/modules/media/types";
 import { cn } from "@/lib/utils";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
@@ -182,13 +178,29 @@ export function MediaPickerPanel({
     [apiKind, folderId, listSortBy, listSortDir, showSort],
   );
 
-  const { items, loading, error } = useMediaLibraryPickerItems({
+  const {
+    listSourceItems,
+    listLoading,
+    listError,
+    listHasMore,
+    listLoadingMore,
+    listTotal,
+    loadMore,
+    inServerMode,
+    serverSearchPending,
+  } = useMediaPickerFilteredList({
     open,
     listUrl,
+    kind,
+    query,
     reloadKey: libraryReloadKey,
   });
 
   const usageRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
 
   useEffect(() => {
     if (!open || !showFolderScope) {
@@ -230,7 +242,7 @@ export function MediaPickerPanel({
       });
       return;
     }
-    const ids = [...new Set(items.map((i) => i.id).filter(Boolean))];
+    const ids = [...new Set(listSourceItems.map((i) => i.id).filter(Boolean))];
     if (ids.length === 0) {
       queueMicrotask(() => {
         setExerciseUsageByMediaId({});
@@ -293,21 +305,15 @@ export function MediaPickerPanel({
       }
       if (timeoutId !== undefined) clearTimeout(timeoutId);
     };
-  }, [open, exercisePicker, items]);
-
-  const kindFiltered = useMemo(() => narrowMediaLibraryPickerItemsByKind(items, kind), [items, kind]);
-  const queryFiltered = useMemo(
-    () => filterMediaLibraryPickerItemsByQuery(kindFiltered, query),
-    [kindFiltered, query],
-  );
+  }, [open, exercisePicker, listSourceItems]);
 
   const displayedItems = useMemo(() => {
-    if (!exercisePicker || !newOnly || !usageReady) return queryFiltered;
-    return queryFiltered.filter((item) => {
+    if (!exercisePicker || !newOnly || !usageReady) return listSourceItems;
+    return listSourceItems.filter((item) => {
       const u = exerciseUsageByMediaId[item.id.toLowerCase()];
       return !u?.length;
     });
-  }, [exercisePicker, newOnly, queryFiltered, usageReady, exerciseUsageByMediaId]);
+  }, [exercisePicker, newOnly, listSourceItems, usageReady, exerciseUsageByMediaId]);
 
   const uploadTargetFolderId = useMemo(() => resolveUploadTargetFolderId(folderId), [folderId]);
 
@@ -481,12 +487,25 @@ export function MediaPickerPanel({
 
         <MediaPickerList
           items={displayedItems}
-          loading={loading}
-          error={error}
+          loading={listLoading}
+          error={listError}
           onSelect={onPick}
           exerciseUsageByMediaId={exercisePicker ? exerciseUsageByMediaId : undefined}
           enableQuickPreview={exercisePicker}
         />
+
+        {!listLoading ? (
+          <MediaPickerListFooter
+            shownCount={displayedItems.length}
+            total={listTotal}
+            hasMore={listHasMore}
+            loadingMore={listLoadingMore}
+            onLoadMore={loadMore}
+            inServerMode={inServerMode}
+            serverSearchPending={serverSearchPending}
+            listError={listError}
+          />
+        ) : null}
       </TabsContent>
 
       <TabsContent value="upload" className="mt-0 flex flex-col gap-3 outline-none">

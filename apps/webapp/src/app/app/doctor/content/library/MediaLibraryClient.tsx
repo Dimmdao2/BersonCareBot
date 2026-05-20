@@ -193,7 +193,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   const mobileCaptureInputRef = useRef<HTMLInputElement | null>(null);
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, label: "Корень" }]);
   /** Список без ограничения по папке в запросе медиа (все файлы библиотеки). */
-  const [viewAllFiles, setViewAllFiles] = useState(false);
+  const [viewAllFiles, setViewAllFiles] = useState(true);
   const { folders: flatFolderRecords, foldersLoaded: flatFoldersLoaded } = useFlatMediaFolders(true);
   const [childFolders, setChildFolders] = useState<FolderRow[]>([]);
   const [foldersLoading, setFoldersLoading] = useState(false);
@@ -220,7 +220,10 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
     if (query.trim()) p.set("q", query.trim());
     if (!viewAllFiles) {
       if (currentFolderId === null) p.set("folderId", "root");
-      else p.set("folderId", currentFolderId);
+      else {
+        p.set("folderId", currentFolderId);
+        p.set("includeDescendants", "true");
+      }
     }
     return p.toString();
   }, [kind, sortBy, sortDir, query, currentFolderId, viewAllFiles]);

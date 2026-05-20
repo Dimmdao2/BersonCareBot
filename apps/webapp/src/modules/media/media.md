@@ -10,7 +10,7 @@
 - Видео: **`GET /api/media/{id}/playback`** (дескриптор); при выдаче **HLS** master и сегменты идут через **`GET /api/media/{id}/hls/...`** (прокси webapp, не presigned master). Контракт — `src/app/api/api.md`.
 - Листинг с фильтрацией/сортировкой и **папками**: `folderId`, `includeDescendants` в list API.
 - **Иерархия папок** (`media_folders`): CRUD через admin API; в UI библиотеки — хлебные крошки и дочерние папки с действиями переименовать / переместить / удалить (пустая папка). Перемещение файла — `PATCH /api/admin/media/[id]` с `folderId`.
-- Поиск использований в CMS (`content_pages`); hard-delete с подтверждением в UI.
+- Поиск использований в CMS (`content_pages`); **`GET /api/admin/media/[id]/usage-summary`** — агрегат по зонам (материалы, упражнения, тесты, рекомендации, разделы); hard-delete с подтверждением в UI.
 - Канонические ссылки в контенте остаются **`/api/media/{uuid}`**; смена папки не меняет id.
 
 ## Лимиты и MIME

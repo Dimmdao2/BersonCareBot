@@ -148,6 +148,18 @@ export function MediaCardActionsMenu({
                 Файл: {item.filename}
               </p>
             ) : null}
+            <p className="pt-1 font-medium text-foreground">Использование</p>
+            {usageLoading ? (
+              <p>Загрузка…</p>
+            ) : usageLines && usageLines.length > 0 ? (
+              <ul className="list-none space-y-0.5 p-0">
+                {usageLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : usageLines === null && !usageLoading ? (
+              <p>—</p>
+            ) : null}
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" disabled={deleting} onClick={onDelete}>

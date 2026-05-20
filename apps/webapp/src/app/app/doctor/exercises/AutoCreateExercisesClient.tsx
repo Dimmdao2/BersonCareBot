@@ -19,12 +19,9 @@ import { cn } from "@/lib/utils";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import {
-  buildAdminMediaListUrl,
-  filterMediaLibraryPickerItemsByQuery,
-  narrowMediaLibraryPickerItemsByKind,
-  useMediaLibraryPickerItems,
-} from "@/shared/ui/media/useMediaLibraryPickerItems";
+import { buildAdminMediaListUrl } from "@/shared/ui/media/useMediaLibraryPickerItems";
+import { MediaPickerListFooter } from "@/shared/ui/media/MediaPickerListFooter";
+import { useMediaPickerFilteredList } from "@/shared/ui/media/useMediaPickerFilteredList";
 
 import {
   type MediaLibraryListSortPreset,
@@ -156,7 +153,22 @@ export function AutoCreateExercisesClient() {
     [pickerFolderId, listSortBy, listSortDir],
   );
 
-  const { items, loading, error } = useMediaLibraryPickerItems({ open: true, listUrl });
+  const {
+    listSourceItems,
+    listLoading,
+    listError,
+    listHasMore,
+    listLoadingMore,
+    listTotal,
+    loadMore,
+    inServerMode,
+    serverSearchPending,
+  } = useMediaPickerFilteredList({
+    open: true,
+    listUrl,
+    kind: "video",
+    query,
+  });
 
   useEffect(() => {
     const ac = new AbortController();
@@ -183,7 +195,7 @@ export function AutoCreateExercisesClient() {
   const usageRequestRef = useRef(0);
 
   useEffect(() => {
-    const ids = [...new Set(items.map((i) => i.id).filter(Boolean))];
+    const ids = [...new Set(listSourceItems.map((i) => i.id).filter(Boolean))];
     if (ids.length === 0) {
       queueMicrotask(() => {
         setExerciseUsageByMediaId({});
@@ -244,7 +256,7 @@ export function AutoCreateExercisesClient() {
       }
       if (timeoutId !== undefined) clearTimeout(timeoutId);
     };
-  }, [items]);
+  }, [listSourceItems]);
 
   const sortedFolders = useMemo(() => {
     if (folders.length === 0) return [];
@@ -266,19 +278,13 @@ export function AutoCreateExercisesClient() {
     return foldersLoaded ? pickerFolderId : "Загрузка…";
   }, [pickerFolderId, folders, foldersLoaded]);
 
-  const kindFiltered = useMemo(() => narrowMediaLibraryPickerItemsByKind(items, "video"), [items]);
-  const queryFiltered = useMemo(
-    () => filterMediaLibraryPickerItemsByQuery(kindFiltered, query),
-    [kindFiltered, query],
-  );
-
   const displayedItems = useMemo(() => {
-    if (!newOnly || !usageReady) return queryFiltered;
-    return queryFiltered.filter((item) => {
+    if (!newOnly || !usageReady) return listSourceItems;
+    return listSourceItems.filter((item) => {
       const u = exerciseUsageByMediaId[item.id.toLowerCase()];
       return !u?.length;
     });
-  }, [newOnly, queryFiltered, usageReady, exerciseUsageByMediaId]);
+  }, [newOnly, listSourceItems, usageReady, exerciseUsageByMediaId]);
 
   const selectedList = useMemo(() => {
     return [...selectedById.values()].sort((a, b) => {
@@ -444,12 +450,12 @@ export function AutoCreateExercisesClient() {
           </div>
 
           <div className="mt-3">
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
-            {!loading && !error && displayedItems.length === 0 ? (
+            {listError ? <p className="text-sm text-destructive">{listError}</p> : null}
+            {listLoading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
+            {!listLoading && !listError && displayedItems.length === 0 && !serverSearchPending ? (
               <p className="rounded-md border border-border p-3 text-sm text-muted-foreground">Нет видео</p>
             ) : null}
-            {!loading && !error && displayedItems.length > 0 ? (
+            {!listLoading && !listError && displayedItems.length > 0 ? (
               <div className="grid max-h-[65vh] grid-cols-1 gap-2 overflow-auto sm:grid-cols-2">
                 {displayedItems.map((item) => (
                   <MediaCard
@@ -461,6 +467,18 @@ export function AutoCreateExercisesClient() {
                   />
                 ))}
               </div>
+            ) : null}
+            {!listLoading ? (
+              <MediaPickerListFooter
+                shownCount={displayedItems.length}
+                total={listTotal}
+                hasMore={listHasMore}
+                loadingMore={listLoadingMore}
+                onLoadMore={loadMore}
+                inServerMode={inServerMode}
+                serverSearchPending={serverSearchPending}
+                listError={listError}
+              />
             ) : null}
           </div>
         </section>
