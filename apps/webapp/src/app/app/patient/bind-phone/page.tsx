@@ -1,7 +1,7 @@
 /**
  * Страница привязки номера телефона для доступа к разделам с личными данными (записи, дневники, покупки).
  * Показывается при переходе в эти разделы без привязанного номера. После успешной привязки — редирект по ?next=.
- * В Mini App при привязке к боту — «контакт в боте». В браузере — deep link `link_*` (TG/Max) и запрос контакта; SMS на этой странице не используется (`PatientBindPhoneClient`).
+ * В Mini App — «контакт в боте» (`PatientBindPhoneClient`). В браузере — `auth_*` deep link через `PhoneMessengerAuthFlow` (как вход и профиль).
  */
 
 import { redirect } from "next/navigation";
@@ -10,12 +10,14 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
 import { patientSessionSnapshotHasPhone, resolvePlatformAccessContext } from "@/modules/platform-access";
+import { resolveSkipBindPhoneSurface } from "./resolveSkipBindPhoneSurface";
 import Link from "next/link";
 import { AppShell } from "@/shared/ui/AppShell";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
+import { PatientBindPhoneBrowser } from "./PatientBindPhoneBrowser";
 import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
@@ -24,29 +26,33 @@ type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
 export default async function BindPhonePage({ searchParams }: Props) {
   const session = await requirePatientAccess();
 
-  /** SPEC §11 / `patientClientBusinessGate`: при БД — tier **patient** (доверенный телефон), не snapshot в cookie. */
-  let skipBindSurface = false;
+  const snapshotHasPhone = patientSessionSnapshotHasPhone(session);
+  let phoneTrustedForPatient: boolean | undefined;
+  let platformContextFailed = false;
   if (env.DATABASE_URL?.trim()) {
     try {
       const ctx = await resolvePlatformAccessContext(getPool(), {
         sessionUserId: session.user.userId,
         sessionRoleHint: session.user.role,
       });
-      skipBindSurface = ctx.phoneTrustedForPatient;
+      phoneTrustedForPatient = ctx.phoneTrustedForPatient;
     } catch {
-      skipBindSurface = patientSessionSnapshotHasPhone(session);
+      platformContextFailed = true;
     }
-  } else {
-    skipBindSurface = patientSessionSnapshotHasPhone(session);
   }
+  const skipBindSurface = resolveSkipBindPhoneSurface({
+    databaseUrlSet: Boolean(env.DATABASE_URL?.trim()),
+    phoneTrustedForPatient,
+    platformContextFailed,
+    sessionSnapshotHasPhone: snapshotHasPhone,
+  });
+
+  const { next, reason } = await searchParams;
 
   if (skipBindSurface) {
-    const { next } = await searchParams;
     const target = next?.trim();
     redirect(target && target.startsWith("/app/patient") ? target : routePaths.patient);
   }
-
-  const { reason } = await searchParams;
   const [supportContactHref, platformEntry] = await Promise.all([
     getSupportContactUrl(),
     getPlatformEntry(),
@@ -71,12 +77,20 @@ export default async function BindPhonePage({ searchParams }: Props) {
       patientHideRightIcons={isBotMiniApp}
     >
       <div id="patient-bind-phone-section" className="flex flex-col gap-4">
-        <PatientBindPhoneClient
-          telegramId={telegramId}
-          maxId={maxId}
-          supportContactHref={supportContactHref}
-          hint={hint}
-        />
+        {isBotMiniApp ? (
+          <PatientBindPhoneClient
+            telegramId={telegramId}
+            maxId={maxId}
+            supportContactHref={supportContactHref}
+            hint={hint}
+          />
+        ) : (
+          <PatientBindPhoneBrowser
+            supportContactHref={supportContactHref}
+            hint={hint}
+            nextPath={next}
+          />
+        )}
         {isBotMiniApp ? (
           <div
             id="patient-bind-phone-miniapp-extras"

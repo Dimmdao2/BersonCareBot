@@ -3,6 +3,7 @@ import { logger } from "@/app-layer/logging/logger";
 import { getPool } from "@/infra/db/client";
 import { pgWebPushOnlyRemindersPort } from "@/infra/repos/pgWebPushOnlyReminders";
 import { loadWarmupsSectionSlugs } from "@/modules/reminders/loadWarmupsSectionSlugs";
+import { createLoadWarmupPushContext } from "@/modules/web-push/createLoadWarmupPushContext";
 import {
   runWebPushOnlyReminderTick,
   webPushOnlyReminderTickMetaFromResult,
@@ -20,10 +21,12 @@ export async function runWebPushOnlyReminderInternalTick(options?: {
   const startedAtIso = new Date(reconcileStartedAt).toISOString();
   const deps = buildAppDeps();
   const warmupsSectionSlugs = await loadWarmupsSectionSlugs(getPool());
+  const loadWarmupPushContext = createLoadWarmupPushContext(deps);
 
   const result = await runWebPushOnlyReminderTick(
     {
       reminders: pgWebPushOnlyRemindersPort,
+      loadWarmupPushContext,
       deepLinkOpts: { warmupsSectionSlugs },
       sectionLookup: {
         getBySlug: async (slug) => {

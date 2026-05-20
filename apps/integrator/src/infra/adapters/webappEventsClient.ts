@@ -383,6 +383,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
       accountCreated?: boolean;
       challengeId?: string;
       status?: string;
+      replay?: boolean;
     }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
@@ -415,6 +416,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
           accountCreated?: boolean;
           challengeId?: string;
           status?: string;
+          replay?: boolean;
         };
         if (!res.ok) {
           const err =
@@ -433,6 +435,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
           ...(data.accountCreated === true ? { accountCreated: true } : {}),
           ...(typeof data.challengeId === 'string' ? { challengeId: data.challengeId } : {}),
           ...(typeof data.status === 'string' ? { status: data.status } : {}),
+          ...(data.replay === true ? { replay: true } : {}),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

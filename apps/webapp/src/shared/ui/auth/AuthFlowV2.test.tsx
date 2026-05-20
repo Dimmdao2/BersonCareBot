@@ -26,6 +26,10 @@ vi.mock("react-hot-toast", () => ({
   },
 }));
 
+vi.mock("@/shared/lib/telegramChannelLinkOpen", () => ({
+  finishChannelLinkNavigation: vi.fn(),
+}));
+
 function jsonRes(data: unknown, init?: { ok?: boolean; status?: number }) {
   const ok = init?.ok ?? true;
   const status = init?.status ?? (ok ? 200 : 400);
@@ -211,9 +215,17 @@ describe("AuthFlowV2 — mini-app (phone)", () => {
 });
 
 describe("AuthFlowV2 — browser", () => {
+  const locationAssign = vi.fn();
+
   beforeEach(() => {
     replace.mockClear();
     toastError.mockClear();
+    locationAssign.mockClear();
+    Object.defineProperty(window, "location", {
+      value: { assign: locationAssign, href: "http://localhost/" },
+      writable: true,
+      configurable: true,
+    });
     isMiniAppHost.mockReturnValue(false);
     sessionStorage.clear();
     if (!globalThis.crypto?.randomUUID) {
@@ -309,6 +321,58 @@ describe("AuthFlowV2 — browser", () => {
     await user.click(screen.getByRole("button", { name: "Войти по номеру телефона" }));
     expect(await screen.findByRole("heading", { name: "Вход по номеру" })).toBeInTheDocument();
     expect(document.getElementById("auth-flow-v2-phone-login")).toBeTruthy();
+  });
+
+  it("phone login path: check-phone, messenger bind, confirm", async () => {
+    const user = userEvent.setup();
+    let statusCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/auth/config")) {
+          return jsonRes({
+            oauthProviders: { yandex: true, google: false, apple: false },
+            telegramBotUsername: "testbot",
+            maxBotOpenUrl: null,
+          });
+        }
+        if (url.includes("/api/auth/check-phone")) {
+          return jsonRes({ ok: true, exists: false, methods: { sms: false } });
+        }
+        if (url.includes("/api/auth/phone/messenger-bind/start")) {
+          return jsonRes({
+            ok: true,
+            setupToken: "auth_flow",
+            url: "https://t.me/testbot?start=auth_flow",
+          });
+        }
+        if (url.includes("/api/auth/phone/messenger-bind/status")) {
+          statusCalls += 1;
+          return jsonRes({
+            ok: true,
+            status: "otp_ready",
+            challengeId: "ch-auth",
+            retryAfterSeconds: 60,
+          });
+        }
+        if (url.includes("/api/auth/phone/confirm")) {
+          return jsonRes({ ok: true, redirectTo: "/app/patient" });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_WEB_OAUTH }} />);
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Войти по номеру телефона" }));
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.click(await screen.findByRole("button", { name: "Telegram" }));
+    await waitFor(() => expect(screen.getByLabelText("Код подтверждения")).toBeInTheDocument());
+    await user.type(screen.getByLabelText("Код подтверждения"), "654321");
+    await user.click(screen.getByRole("button", { name: "Войти" }));
+    await waitFor(() => expect(locationAssign).toHaveBeenCalled());
   });
 
   it("does not show Apple when Yandex or Google is enabled alongside Apple", async () => {

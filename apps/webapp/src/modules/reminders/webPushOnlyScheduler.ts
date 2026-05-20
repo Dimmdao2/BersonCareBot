@@ -1,4 +1,6 @@
 import { logger } from "@/infra/logging/logger";
+import { classifyReminderPushKind } from "@/modules/web-push/pushNotificationCopy";
+import type { WarmupPushDynamicContext } from "@/modules/web-push/pushNotificationCopy";
 import { planDueReminderOccurrences } from "./planDueReminderOccurrences";
 import {
   buildWebPushOnlyReminderNotifyContent,
@@ -15,6 +17,7 @@ import type { WebPushOnlyRemindersPort } from "./webPushOnlyPorts";
 export type WebPushOnlySchedulerDeps = {
   reminders: WebPushOnlyRemindersPort;
   notify: PlatformUserReminderWebPushNotifyDeps;
+  loadWarmupPushContext?: (platformUserId: string) => Promise<WarmupPushDynamicContext>;
   deepLinkOpts?: BuildReminderDeepLinkOptions;
   sectionLookup?: ReminderIntentSectionLookup;
 };
@@ -104,6 +107,7 @@ const NOTIFY_SKIP_REASONS = new Set([
   "web_push_not_selected",
   "vapid_missing",
   "no_active_subscriptions",
+  "push_copy_skipped",
 ]);
 
 function isNotifySkipReason(reason: string): boolean {
@@ -177,6 +181,19 @@ export async function runWebPushOnlyReminderTick(
       { sectionLookup: deps.sectionLookup, deepLinkOpts: deps.deepLinkOpts },
     );
 
+    const ruleMeta = {
+      linkedObjectType: rule.linkedObjectType,
+      linkedObjectId: rule.linkedObjectId,
+      reminderIntent: rule.reminderIntent,
+      customTitle: rule.customTitle,
+      customText: rule.customText,
+    };
+    const pushKind = classifyReminderPushKind({ ...ruleMeta, openUrl: content.openUrl });
+    const warmupContext =
+      pushKind === "warmup" && deps.loadWarmupPushContext ?
+        await deps.loadWarmupPushContext(occ.platformUserId).catch(() => ({}))
+      : undefined;
+
     const notifyRes = await runPlatformUserReminderWebPushNotify(
       {
         platformUserId: occ.platformUserId,
@@ -185,6 +202,8 @@ export async function runWebPushOnlyReminderTick(
         title: content.title,
         bodyText: content.bodyText,
         openUrl: content.openUrl,
+        ruleMeta,
+        warmupContext,
       },
       deps.notify,
     );

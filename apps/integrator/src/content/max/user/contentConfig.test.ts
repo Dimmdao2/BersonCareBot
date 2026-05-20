@@ -6,6 +6,23 @@ import { describe, expect, it } from 'vitest';
 const dir = dirname(fileURLToPath(import.meta.url));
 
 describe('max user static content', () => {
+  it('scripts: start.phoneauth and contact.phoneauth for phone login bind', () => {
+    const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
+      id: string;
+      priority?: number;
+      match?: Record<string, unknown>;
+      steps?: Array<{ action?: string; params?: Record<string, unknown> }>;
+    }>;
+    const start = scripts.find((s) => s.id === 'max.start.phoneauth');
+    expect(start?.priority).toBe(56);
+    const contact = scripts.find((s) => s.id === 'max.contact.phoneauth');
+    expect(contact?.priority).toBe(54);
+    expect(contact?.steps?.[0]?.action).toBe('webapp.phoneMessengerBind.complete');
+    const onboarding = scripts.find((s) => s.id === 'max.start.onboarding');
+    const exclude = (onboarding?.match as { input?: { excludeActions?: string[] } })?.input?.excludeActions;
+    expect(exclude).toContain('start.phoneauth');
+  });
+
   it('scripts: max.start.link — высокий priority (выше диалога/reminder freeText) и externalId = meta.userId (id пользователя MAX)', () => {
     const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
       id: string;

@@ -4,14 +4,12 @@ import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSign
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
 import {
-  integratorPatientReminderNotifyBodySchema,
-  runPatientReminderIntegratorNotify,
-} from "@/modules/patient-reminders/integratorNotifyChannels";
-import { createLoadWarmupPushContext } from "@/modules/web-push/createLoadWarmupPushContext";
+  integratorPatientWebPushNotifyBodySchema,
+  runPatientWebPushNotify,
+} from "@/modules/patient-notifications/patientWebPushNotify";
 
 /**
- * POST /api/integrator/patient-reminders/notify-channels — M2M fan-out напоминания в Web Push и email (webapp).
- * Подпись: как у POST /api/integrator/events (`timestamp.body`).
+ * POST /api/integrator/patient-notifications/web-push — M2M Web Push (запись на приём, рассылки и т.д.).
  */
 export async function POST(request: Request) {
   const timestamp = request.headers.get("x-bersoncare-timestamp");
@@ -25,7 +23,6 @@ export async function POST(request: Request) {
   if (!isKeyValid(idempotencyKey)) {
     return NextResponse.json({ ok: false, error: "invalid idempotency key" }, { status: 400 });
   }
-
   if (!verifyIntegratorSignature(timestamp, rawBody, signature)) {
     return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
   }
@@ -46,29 +43,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
   }
 
-  const parsed = integratorPatientReminderNotifyBodySchema.safeParse(parsedJson);
+  const parsed = integratorPatientWebPushNotifyBodySchema.safeParse(parsedJson);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid body" }, { status: 400 });
   }
+  if (!parsed.data.integratorUserId && !parsed.data.phoneNormalized) {
+    return NextResponse.json({ ok: false, error: "missing_user_ref" }, { status: 400 });
+  }
 
   const deps = buildAppDeps();
-  const loadWarmupPushContext = createLoadWarmupPushContext(deps);
   try {
-    const result = await runPatientReminderIntegratorNotify(parsed.data, {
+    const result = await runPatientWebPushNotify(parsed.data, {
       findPlatformUserByIntegratorId: async (integratorUserId) => {
         const row = await deps.userProjection.findByIntegratorId(integratorUserId);
+        return row ? { platformUserId: row.platformUserId } : null;
+      },
+      findPlatformUserByPhone: async (phoneNormalized) => {
+        const row = await deps.userProjection.findByPhoneNormalized(phoneNormalized);
         return row ? { platformUserId: row.platformUserId } : null;
       },
       channelPreferences: deps.channelPreferencesPort,
       topicChannelPrefs: deps.topicChannelPrefs,
       webPushSubscriptions: deps.webPushSubscriptions,
       systemSettings: deps.systemSettings,
-      getProfileEmailFields: deps.userProjection.getProfileEmailFields,
       readReminderNotifyGate: deps.readReminderNotifyGate,
-      reminderTransactionalEmailCooldown: deps.reminderTransactionalEmailCooldown,
-      getChannelBindings: deps.loadPlatformUserChannelBindings,
       recordDeliveryAttempt: (input) => deps.notificationDelivery.recordNotificationDeliveryAttempt(input),
-      loadWarmupPushContext,
     });
 
     const status = 200;

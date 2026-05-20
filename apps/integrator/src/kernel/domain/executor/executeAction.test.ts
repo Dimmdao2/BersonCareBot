@@ -3929,4 +3929,118 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(targets).toEqual([{ resource: 'telegram', address: { phoneNormalized: '+79991234567' } }]);
     expect(readDb).not.toHaveBeenCalled();
   });
+
+  it('webapp.phoneMessengerBind.complete sends phoneAuthAccountCreated on success', async () => {
+    const completePhoneMessengerBind = vi.fn().mockResolvedValue({
+      ok: true,
+      otpCode: '123456',
+      accountCreated: true,
+      challengeId: 'ch-1',
+    });
+    const webappEventsPort = {
+      completePhoneMessengerBind,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const writeDb = vi.fn().mockResolvedValue({ userPhoneLinkApplied: true });
+    const tgCtx: DomainContext = {
+      ...ctx,
+      base: { conversationState: 'await_phoneauth:auth_testtoken' },
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-pa-ok',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '222',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            chatId: 222,
+            channelId: '222',
+            phone: '+79991234567',
+            userRow: null,
+            userState: 'await_phoneauth:auth_testtoken',
+          },
+        },
+      },
+    };
+    const action: Action = {
+      id: 'pa-ok',
+      type: 'webapp.phoneMessengerBind.complete',
+      mode: 'sync',
+      params: { channelCode: 'telegram', externalId: '222' },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({ text: 'Код 123456' });
+    const result = await executeAction(action, tgCtx, {
+      webappEventsPort,
+      templatePort: { renderTemplate },
+      writePort: { writeDb, readDb: vi.fn() },
+    });
+    expect(result.status).toBe('success');
+    expect(completePhoneMessengerBind).toHaveBeenCalled();
+    const send = result.intents?.find((i) => i.type === 'message.send');
+    expect(send).toBeDefined();
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthAccountCreated', source: 'telegram' }),
+    );
+  });
+
+  it('webapp.phoneMessengerBind.complete uses phoneAuthMismatch template on phone_mismatch', async () => {
+    const completePhoneMessengerBind = vi.fn().mockResolvedValue({ ok: false, error: 'phone_mismatch' });
+    const webappEventsPort = { completePhoneMessengerBind, emit: vi.fn() };
+    const tgCtx: DomainContext = {
+      ...ctx,
+      base: { conversationState: 'await_phoneauth:auth_x' },
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-pa-mm',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '333',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            chatId: 333,
+            channelId: '333',
+            phone: '+79990000000',
+            userState: 'await_phoneauth:auth_x',
+          },
+        },
+      },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({ text: 'Номер не совпадает' });
+    const result = await executeAction(
+      {
+        id: 'pa-mm',
+        type: 'webapp.phoneMessengerBind.complete',
+        mode: 'sync',
+        params: { channelCode: 'telegram', externalId: '333' },
+      },
+      tgCtx,
+      { webappEventsPort, templatePort: { renderTemplate } },
+    );
+    expect(result.status).toBe('failed');
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthMismatch', source: 'telegram' }),
+    );
+  });
+
+  it('webapp.phoneMessengerBind.complete fails when setupToken and phone missing', async () => {
+    const result = await executeAction(
+      {
+        id: 'pa-miss',
+        type: 'webapp.phoneMessengerBind.complete',
+        mode: 'sync',
+        params: { channelCode: 'telegram', externalId: '1' },
+      },
+      ctx,
+      {},
+    );
+    expect(result.status).toBe('failed');
+  });
 });

@@ -1318,4 +1318,70 @@ describe('orchestrator buildPlan', () => {
       externalId: '9001',
     });
   });
+
+  it('contact in await_phoneauth selects webapp.phoneMessengerBind.complete (not generic phone.link)', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-pa-contact',
+        occurredAt: '2026-04-11T12:00:00.000Z',
+        source: 'max',
+        userId: 'max-u-1',
+      },
+      payload: {
+        incoming: {
+          phone: '+79991234567',
+          channelId: 'max-u-1',
+          chatId: 'chat-1',
+          channelUserId: 'max-u-1',
+          userState: 'await_phoneauth:auth_token_x',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: {},
+      identityLinks: [],
+      conversationState: 'await_phoneauth:auth_token_x',
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'max.contact.phone.link',
+          source: 'max',
+          event: 'message.received',
+          match: { input: { phonePresent: true } },
+          steps: [{ action: 'user.phone.link', mode: 'sync', params: {} }],
+        },
+        {
+          id: 'max.contact.phoneauth',
+          source: 'max',
+          event: 'message.received',
+          priority: 54,
+          match: {
+            context: { conversationState: { $startsWith: 'await_phoneauth:' } },
+            input: { phonePresent: true },
+          },
+          steps: [
+            {
+              action: 'webapp.phoneMessengerBind.complete',
+              mode: 'sync',
+              params: { channelCode: 'max', externalId: '{{meta.userId}}' },
+            },
+          ],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]?.kind).toBe('webapp.phoneMessengerBind.complete');
+  });
 });

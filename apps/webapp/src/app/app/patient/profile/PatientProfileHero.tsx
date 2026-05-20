@@ -16,8 +16,6 @@ import { updateDisplayName } from "./actions";
 type Props = {
   displayName: string;
   phone: string | null;
-  telegramId: string;
-  maxId: string;
   supportContactHref: string;
   fallbackDisplayName: string;
   initialEmail: string | null;
@@ -27,8 +25,6 @@ type Props = {
 export function PatientProfileHero({
   displayName,
   phone,
-  telegramId,
-  maxId,
   supportContactHref,
   fallbackDisplayName,
   initialEmail,

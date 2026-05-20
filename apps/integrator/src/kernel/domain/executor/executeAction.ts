@@ -371,6 +371,18 @@ export async function executeAction(
         }
       }
 
+      logger.info(
+        {
+          event: 'phone_messenger_bind_complete_ok',
+          metric: 'phone_messenger_bind_complete_ok',
+          externalId,
+          channelCode: messengerChannel,
+          accountCreated: result.accountCreated === true,
+          replay: result.replay === true,
+        },
+        '[webapp.phoneMessengerBind.complete] ok',
+      );
+
       return {
         actionId: action.id,
         status: 'success',
@@ -380,6 +392,7 @@ export async function executeAction(
             accountCreated: result.accountCreated === true,
             challengeId: result.challengeId,
             status: result.status,
+            replay: result.replay === true,
           },
         },
         ...(syncWrites.length > 0 ? { writes: syncWrites } : {}),

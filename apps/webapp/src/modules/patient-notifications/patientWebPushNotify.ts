@@ -1,0 +1,190 @@
+import { z } from "zod";
+import { logger } from "@/infra/logging/logger";
+import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
+import { smtpInnerFromValueJson } from "@/modules/outbound-email/sendTransactionalSmtp";
+import type { RecordNotificationDeliveryAttemptInput } from "@/modules/notification-delivery/types";
+import {
+  resolvePatientNotificationChannels,
+  type NotificationTopicGate,
+} from "@/modules/patient-notifications/resolveNotificationChannels";
+import { REMINDER_NOTIFICATION_TOPIC_APPOINTMENT } from "@/modules/reminders/notificationTopicCode";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import type { SystemSettingsService } from "@/modules/system-settings/service";
+import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
+import {
+  buildAppointmentLifecyclePushCopy,
+  buildAppointmentReminderPushCopy,
+  buildNewsPushCopy,
+  type AppointmentLifecycleVariant,
+} from "@/modules/web-push/pushNotificationCopy";
+import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
+import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
+import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
+
+export const integratorPatientWebPushNotifyBodySchema = z.object({
+  integratorUserId: z.string().regex(/^\d+$/).optional(),
+  phoneNormalized: z.string().min(8).max(32).optional(),
+  topicCode: z.string().min(1).max(120).default(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT),
+  intentType: z.enum(["appointment_lifecycle", "appointment_reminder", "news"]),
+  variant: z.enum(["created", "cancelled", "rescheduled"]).optional(),
+  slotStartIso: z.string().min(1).max(64).optional(),
+  openUrl: z.string().min(1).max(4000),
+  stableKey: z.string().min(1).max(240),
+  broadcastTitle: z.string().max(500).optional(),
+  nowIso: z.string().max(64).optional(),
+});
+
+export type IntegratorPatientWebPushNotifyBody = z.infer<typeof integratorPatientWebPushNotifyBodySchema>;
+
+export type PatientWebPushNotifyDeps = {
+  findPlatformUserByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
+  findPlatformUserByPhone: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
+  channelPreferences: ChannelPreferencesPort;
+  topicChannelPrefs: TopicChannelPrefsPort;
+  webPushSubscriptions: WebPushSubscriptionsPort;
+  systemSettings: Pick<SystemSettingsService, "getSetting">;
+  readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<NotificationTopicGate>;
+  recordDeliveryAttempt?: (input: RecordNotificationDeliveryAttemptInput) => Promise<void>;
+};
+
+const INTENT_TYPE = "patient_web_push";
+
+function buildCopy(
+  body: IntegratorPatientWebPushNotifyBody,
+  timeZone: string,
+): { title: string; body: string } | null {
+  if (body.intentType === "news") {
+    return buildNewsPushCopy(body.broadcastTitle ?? "");
+  }
+  if (body.intentType === "appointment_reminder") {
+    if (!body.slotStartIso) return null;
+    return buildAppointmentReminderPushCopy(
+      body.slotStartIso,
+      body.nowIso ?? new Date().toISOString(),
+      timeZone,
+    );
+  }
+  if (!body.variant || !body.slotStartIso) return null;
+  return buildAppointmentLifecyclePushCopy(body.variant as AppointmentLifecycleVariant, body.slotStartIso, timeZone);
+}
+
+export async function runPatientWebPushNotify(
+  body: IntegratorPatientWebPushNotifyBody,
+  deps: PatientWebPushNotifyDeps,
+): Promise<Record<string, unknown>> {
+  const platform =
+    body.integratorUserId ?
+      await deps.findPlatformUserByIntegratorId(body.integratorUserId)
+    : body.phoneNormalized ?
+      await deps.findPlatformUserByPhone(body.phoneNormalized)
+    : null;
+
+  if (!platform) {
+    return { ok: true, skipped: "no_platform_user" };
+  }
+
+  const uid = platform.platformUserId;
+  const gate = await deps.readReminderNotifyGate(uid, body.topicCode);
+  if (gate.muted || !gate.topicMasterEnabled) {
+    return { ok: true, skipped: gate.muted ? "muted" : "topic_disabled" };
+  }
+
+  const prefs = await deps.channelPreferences.getPreferences(uid);
+  const topicRows = await deps.topicChannelPrefs.listByUserId(uid);
+  const vapidKeys = await getWebPushVapidKeyPair(deps.systemSettings);
+  const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
+  const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
+  const subs = await deps.webPushSubscriptions.listActiveByUserId(uid);
+
+  const resolved = resolvePatientNotificationChannels({
+    topicCode: body.topicCode,
+    availability: {
+      hasTelegram: false,
+      hasMax: false,
+      hasEmail: false,
+      emailVerified: false,
+      hasWebPushSubscription: subs.length > 0,
+      vapidConfigured: Boolean(vapidKeys),
+      smtpConfigured: smtpParsed?.success === true,
+    },
+    channelPrefs: prefs,
+    topicChannelRows: topicRows,
+    gate,
+  });
+
+  if (!resolved.selectedChannels.includes("web_push")) {
+    return { ok: true, skipped: "web_push_not_selected", skippedChannels: resolved.skippedChannels };
+  }
+  if (!vapidKeys) {
+    return { ok: true, skipped: "vapid_missing" };
+  }
+  if (subs.length === 0) {
+    return { ok: true, skipped: "no_active_subscriptions" };
+  }
+
+  const timeZone = await getAppDisplayTimeZone();
+  const copy = buildCopy(body, timeZone);
+  if (!copy?.title.trim() && !copy?.body.trim()) {
+    return { ok: true, skipped: "push_copy_empty" };
+  }
+
+  const vapidSubject =
+    smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
+      `mailto:${smtpParsed.data.from}`
+    : "mailto:noreply@invalid";
+
+  const r = await sendWebPushToSubscriptions({
+    subscriptions: subs,
+    vapidPublicKey: vapidKeys.publicKey,
+    vapidPrivateKey: vapidKeys.privateKey,
+    vapidSubject,
+    payload: {
+      title: copy.title,
+      body: copy.body,
+      url: body.openUrl,
+      tag: body.stableKey.slice(0, 240),
+    },
+    onSubscriptionDead: async (endpoint) => {
+      await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
+    },
+    onAttempt: deps.recordDeliveryAttempt
+      ? async (attempt) => {
+          await deps.recordDeliveryAttempt!({
+            userId: uid,
+            integratorUserId: body.integratorUserId,
+            topicCode: body.topicCode,
+            intentType: INTENT_TYPE,
+            channel: "web_push",
+            status: attempt.status,
+            reason: attempt.reason,
+            providerStatusCode: attempt.providerStatusCode,
+            endpointHash: attempt.endpointHash,
+            errorMessage: attempt.errorMessage,
+          });
+        }
+      : undefined,
+    logContext: {
+      userId: uid,
+      topicCode: body.topicCode,
+    },
+  });
+
+  logger.info(
+    {
+      event: "patient_web_push_notify.result",
+      platformUserId: uid,
+      topicCode: body.topicCode,
+      intentType: body.intentType,
+      delivered: r.delivered,
+      errors: r.errors,
+    },
+    "patient web push notify result",
+  );
+
+  return {
+    ok: true,
+    webPushDelivered: r.delivered,
+    webPushErrors: r.errors,
+    webPushDeactivated: r.deactivated,
+  };
+}

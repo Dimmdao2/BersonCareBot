@@ -412,6 +412,7 @@ export type WebappEventsPort = {
     accountCreated?: boolean;
     challengeId?: string;
     status?: string;
+    replay?: boolean;
   }>;
   /**
    * Fan-out напоминания в Web Push + email на webapp (POST /api/integrator/patient-reminders/notify-channels).

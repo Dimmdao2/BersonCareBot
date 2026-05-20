@@ -7,11 +7,11 @@ import type { SystemSettingsService } from "@/modules/system-settings/service";
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
+import { buildMessagePushCopy } from "@/modules/web-push/pushNotificationCopy";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
 import { resolvePatientMessageChannels } from "./resolvePatientMessageChannels";
 
-const PUSH_TITLE = "Новое сообщение";
 const EMAIL_SUBJECT = "Новое сообщение в чате";
 
 export type NotifyPatientDoctorReplyParams = {
@@ -147,8 +147,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
             vapidPrivateKey: vapidKeys.privateKey,
             vapidSubject,
             payload: {
-              title: PUSH_TITLE,
-              body: previewText(trimmed, 120) || PUSH_TITLE,
+              ...buildMessagePushCopy(trimmed),
               url: openUrl,
               tag: `doctor_reply:${messageId}`,
             },

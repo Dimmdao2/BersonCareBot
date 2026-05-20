@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   const res = await sendTransactionalSmtpEmail({
     smtpValueJson: smtp?.valueJson,
     to: body.to,
-    subject: "Тест SMTP — BersonCareBot",
+    subject: "Тест SMTP — BersonCare",
     text: "Это тестовое письмо с экрана настроек администратора. Если вы его получили, исходящая почта настроена верно.",
   });
 

@@ -19,6 +19,8 @@ import type { RecordNotificationDeliveryAttemptInput } from "@/modules/notificat
 import type { SkippedNotificationChannel } from "@/modules/patient-notifications/notificationChannelContract";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
+import type { WarmupPushDynamicContext } from "@/modules/web-push/pushNotificationCopy";
+import { resolveReminderWebPushPayload } from "@/modules/web-push/resolveReminderWebPushPayload";
 
 export type ReminderTransactionalEmailCooldownPort = {
   shouldSkipDueToCooldown: (platformUserId: string) => Promise<boolean>;
@@ -32,6 +34,11 @@ export const integratorPatientReminderNotifyBodySchema = z.object({
   title: z.string().min(1).max(500),
   bodyText: z.string().max(4000).optional().default(""),
   openUrl: z.string().min(1).max(4000),
+  linkedObjectType: z.string().max(64).nullable().optional(),
+  linkedObjectId: z.string().max(240).nullable().optional(),
+  reminderIntent: z.string().max(32).nullable().optional(),
+  occurrenceCategory: z.string().max(64).nullable().optional(),
+  customTitle: z.string().max(500).nullable().optional(),
 });
 
 export type IntegratorPatientReminderNotifyBody = z.infer<typeof integratorPatientReminderNotifyBodySchema>;
@@ -60,6 +67,7 @@ export type PatientReminderIntegratorNotifyDeps = {
   ) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
   reminderTransactionalEmailCooldown?: ReminderTransactionalEmailCooldownPort;
   recordDeliveryAttempt?: (input: RecordNotificationDeliveryAttemptInput) => Promise<void>;
+  loadWarmupPushContext?: (platformUserId: string) => Promise<WarmupPushDynamicContext>;
 };
 
 const PATIENT_REMINDER_INTENT_TYPE = "patient_reminder";
@@ -324,23 +332,46 @@ export async function runPatientReminderIntegratorNotify(
   }
 
   if (resolved.selectedChannels.includes("web_push") && vapidKeys) {
-    const title = stripHtmlLight(body.title).slice(0, 200);
-    const textBody = stripHtmlLight(body.bodyText ?? "").slice(0, 500);
+    const warmupContext =
+      deps.loadWarmupPushContext ? await deps.loadWarmupPushContext(uid).catch(() => ({})) : undefined;
+    const pushPayload = resolveReminderWebPushPayload({
+      stableKey: body.occurrenceId,
+      linkedObjectType: body.linkedObjectType,
+      linkedObjectId: body.linkedObjectId,
+      reminderIntent: body.reminderIntent,
+      occurrenceCategory: body.occurrenceCategory,
+      openUrl: body.openUrl,
+      customTitle: body.customTitle ?? body.title,
+      customText: body.bodyText ?? "",
+      warmupContext,
+    });
     const vapidSubject =
       smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
         `mailto:${smtpParsed.data.from}`
       : "mailto:noreply@invalid";
 
+    if (!pushPayload) {
+      await deps.recordDeliveryAttempt?.({
+        userId: uid,
+        integratorUserId: body.integratorUserId,
+        topicCode: body.topicCode,
+        intentType: PATIENT_REMINDER_INTENT_TYPE,
+        channel: "web_push",
+        status: "skipped",
+        reason: "push_copy_skipped",
+        occurrenceId: body.occurrenceId,
+      });
+    } else {
     const r = await sendWebPushToSubscriptions({
       subscriptions: subs,
       vapidPublicKey: vapidKeys.publicKey,
       vapidPrivateKey: vapidKeys.privateKey,
       vapidSubject,
       payload: {
-        title: title || "Напоминание",
-        body: textBody || title || "Напоминание",
+        title: pushPayload.title,
+        body: pushPayload.body,
         url: body.openUrl,
-        tag: `reminder:${body.occurrenceId}`,
+        tag: pushPayload.tag,
       },
       onSubscriptionDead: async (endpoint) => {
         await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
@@ -398,6 +429,7 @@ export async function runPatientReminderIntegratorNotify(
       },
       "patient reminder web push result",
     );
+    }
   }
 
   let emailSkipped: PatientReminderEmailSkippedReason | undefined;

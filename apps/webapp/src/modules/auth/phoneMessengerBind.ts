@@ -12,8 +12,14 @@ import { createPhoneOtpChallenge, type PhoneAuthDeps } from "./phoneAuth";
 import { normalizePhone } from "./phoneNormalize";
 import { isValidPhoneE164 } from "./phoneValidation";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+import { logger } from "@/infra/logging/logger";
 
 const SECRET_TTL_MIN = 15;
+
+function phoneSuffixForLog(phoneNormalized: string): string {
+  const digits = phoneNormalized.replace(/\D/g, "");
+  return digits.length >= 4 ? digits.slice(-4) : "****";
+}
 
 export type PhoneMessengerBindPurpose = "login" | "profile_bind";
 export type PhoneMessengerBindChannel = "telegram" | "max";
@@ -228,6 +234,14 @@ export async function startPhoneMessengerBind(params: {
     [hashToken(startPayload), phoneNormalized, params.channelCode, params.purpose, userId, expiresAt.toISOString()],
   );
 
+  logger.info({
+    event: "phone_messenger_bind_start",
+    metric: "phone_messenger_bind_start",
+    purpose: params.purpose,
+    channelCode: params.channelCode,
+    phoneSuffix: phoneSuffixForLog(phoneNormalized),
+  });
+
   return {
     ok: true,
     setupToken,
@@ -238,7 +252,7 @@ export async function startPhoneMessengerBind(params: {
 }
 
 export type CompletePhoneMessengerBindResult =
-  | { ok: true; otpCode: string; accountCreated: boolean; challengeId: string }
+  | { ok: true; otpCode: string; accountCreated: boolean; challengeId: string; replay?: boolean }
   | { ok: false; code: string };
 
 export async function completePhoneMessengerBindFromIntegrator(
@@ -270,10 +284,6 @@ export async function completePhoneMessengerBindFromIntegrator(
     return { ok: false, code: "unknown_or_expired" };
   }
 
-  if (row.status === "otp_ready" && row.challenge_id) {
-    return { ok: false, code: "already_completed" };
-  }
-
   if (row.consumed_at || row.status === "consumed") {
     return { ok: false, code: "used_token" };
   }
@@ -298,6 +308,29 @@ export async function completePhoneMessengerBindFromIntegrator(
     return { ok: false, code: "phone_mismatch" };
   }
 
+  if (row.status === "otp_ready" && row.challenge_id) {
+    const stored = await phoneAuthDeps.challengeStore.get(row.challenge_id);
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (!stored?.code || stored.expiresAt < nowSec) {
+      return { ok: false, code: "challenge_expired" };
+    }
+    logger.info({
+      event: "phone_messenger_bind_complete_ok",
+      metric: "phone_messenger_bind_complete_ok",
+      channelCode: params.channelCode,
+      purpose: row.purpose,
+      replay: true,
+      phoneSuffix: phoneSuffixForLog(contactPhone),
+    });
+    return {
+      ok: true,
+      otpCode: stored.code,
+      accountCreated: false,
+      challengeId: row.challenge_id,
+      replay: true,
+    };
+  }
+
   const context: ChannelContext = {
     channel: params.channelCode,
     chatId: params.externalId.trim(),
@@ -319,6 +352,14 @@ export async function completePhoneMessengerBindFromIntegrator(
         [row.id, pre.code],
       );
       await client.query("COMMIT");
+      logger.warn({
+        event: "phone_messenger_bind_complete_fail",
+        metric: "phone_messenger_bind_complete_fail",
+        channelCode: params.channelCode,
+        purpose: row.purpose,
+        failure_code: pre.code,
+        phoneSuffix: phoneSuffixForLog(contactPhone),
+      });
       return { ok: false, code: pre.code };
     }
 
@@ -329,6 +370,14 @@ export async function completePhoneMessengerBindFromIntegrator(
         [row.id, challenge.code],
       );
       await client.query("COMMIT");
+      logger.warn({
+        event: "phone_messenger_bind_complete_fail",
+        metric: "phone_messenger_bind_complete_fail",
+        channelCode: params.channelCode,
+        purpose: row.purpose,
+        failure_code: challenge.code,
+        phoneSuffix: phoneSuffixForLog(contactPhone),
+      });
       return { ok: false, code: challenge.code };
     }
 
@@ -340,6 +389,16 @@ export async function completePhoneMessengerBindFromIntegrator(
     );
     await client.query("COMMIT");
 
+    logger.info({
+      event: "phone_messenger_bind_complete_ok",
+      metric: "phone_messenger_bind_complete_ok",
+      channelCode: params.channelCode,
+      purpose: row.purpose,
+      replay: false,
+      accountCreated: pre.accountCreated,
+      phoneSuffix: phoneSuffixForLog(contactPhone),
+    });
+
     return {
       ok: true,
       otpCode: challenge.code,
@@ -348,6 +407,12 @@ export async function completePhoneMessengerBindFromIntegrator(
     };
   } catch {
     await client.query("ROLLBACK").catch(() => undefined);
+    logger.warn({
+      event: "phone_messenger_bind_complete_fail",
+      metric: "phone_messenger_bind_complete_fail",
+      channelCode: params.channelCode,
+      failure_code: "server_error",
+    });
     return { ok: false, code: "server_error" };
   } finally {
     client.release();

@@ -9,6 +9,8 @@ import {
 } from "@/modules/patient-notifications/resolveNotificationChannels";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
+import type { WarmupPushDynamicContext } from "@/modules/web-push/pushNotificationCopy";
+import { resolveReminderWebPushPayload } from "@/modules/web-push/resolveReminderWebPushPayload";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 
@@ -23,13 +25,25 @@ export type PlatformUserReminderWebPushNotifyDeps = {
   notificationDelivery?: NotificationDeliveryService;
 };
 
+export type ReminderWebPushRuleMeta = {
+  linkedObjectType?: string | null;
+  linkedObjectId?: string | null;
+  reminderIntent?: string | null;
+  occurrenceCategory?: string | null;
+  customTitle?: string | null;
+  customText?: string | null;
+};
+
 export type PlatformUserReminderWebPushNotifyInput = {
   platformUserId: string;
   occurrenceId: string;
   topicCode: string;
-  title: string;
-  bodyText: string;
   openUrl: string;
+  /** @deprecated Push copy is built from ruleMeta; kept for logging/email parity elsewhere. */
+  title?: string;
+  bodyText?: string;
+  ruleMeta?: ReminderWebPushRuleMeta;
+  warmupContext?: WarmupPushDynamicContext;
 };
 
 export type PlatformUserReminderWebPushNotifyResult =
@@ -38,6 +52,30 @@ export type PlatformUserReminderWebPushNotifyResult =
 
 function stripHtmlLight(s: string): string {
   return s.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+}
+
+function resolvePushPayload(input: PlatformUserReminderWebPushNotifyInput): { title: string; body: string; tag: string } | null {
+  if (input.ruleMeta) {
+    return resolveReminderWebPushPayload({
+      stableKey: input.occurrenceId,
+      linkedObjectType: input.ruleMeta.linkedObjectType,
+      linkedObjectId: input.ruleMeta.linkedObjectId,
+      reminderIntent: input.ruleMeta.reminderIntent,
+      occurrenceCategory: input.ruleMeta.occurrenceCategory,
+      openUrl: input.openUrl,
+      customTitle: input.ruleMeta.customTitle,
+      customText: input.ruleMeta.customText,
+      warmupContext: input.warmupContext,
+    });
+  }
+  const title = stripHtmlLight(input.title ?? "").slice(0, 200);
+  const textBody = stripHtmlLight(input.bodyText ?? "").slice(0, 500);
+  if (!title && !textBody) return null;
+  return {
+    title: title || "Напоминание",
+    body: textBody || title,
+    tag: `reminder:${input.occurrenceId}`,
+  };
 }
 
 export async function runPlatformUserReminderWebPushNotify(
@@ -106,8 +144,20 @@ export async function runPlatformUserReminderWebPushNotify(
     return { ok: true, delivered: 0, skipped: "no_active_subscriptions" };
   }
 
-  const title = stripHtmlLight(input.title).slice(0, 200);
-  const textBody = stripHtmlLight(input.bodyText).slice(0, 500);
+  const pushPayload = resolvePushPayload(input);
+  if (!pushPayload) {
+    await deps.notificationDelivery?.recordNotificationDeliveryAttempt({
+      userId: input.platformUserId,
+      topicCode: input.topicCode,
+      intentType: PATIENT_REMINDER_INTENT_TYPE,
+      channel: "web_push",
+      status: "skipped",
+      reason: "push_copy_skipped",
+      occurrenceId: input.occurrenceId,
+    });
+    return { ok: true, delivered: 0, skipped: "push_copy_skipped" };
+  }
+
   const vapidSubject =
     smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
       `mailto:${smtpParsed.data.from}`
@@ -119,10 +169,10 @@ export async function runPlatformUserReminderWebPushNotify(
     vapidPrivateKey: vapidKeys.privateKey,
     vapidSubject,
     payload: {
-      title: title || "Напоминание",
-      body: textBody || title || "Напоминание",
+      title: pushPayload.title,
+      body: pushPayload.body,
       url: input.openUrl,
-      tag: `reminder:${input.occurrenceId}`,
+      tag: pushPayload.tag,
     },
     onSubscriptionDead: async (endpoint) => {
       await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);

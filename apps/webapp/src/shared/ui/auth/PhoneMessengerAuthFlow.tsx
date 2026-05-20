@@ -84,6 +84,49 @@ export function PhoneMessengerAuthFlow({
     }
   }, []);
 
+  const resetBindAttempt = useCallback(() => {
+    clearPoll();
+    setSetupToken(null);
+    setBindChannel(null);
+    setChallengeId(null);
+    setStep("messenger_pick");
+  }, [clearPoll]);
+
+  const pollBindStatus = useCallback(
+    async (token: string, channel: "telegram" | "max") => {
+      const statusRes = await fetch("/api/auth/phone/messenger-bind/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ setupToken: token }),
+      });
+      const statusData = (await statusRes.json().catch(() => ({}))) as {
+        ok?: boolean;
+        status?: string;
+        challengeId?: string;
+        retryAfterSeconds?: number;
+        error?: string;
+      };
+      if (!statusRes.ok || !statusData.ok) return;
+      if (statusData.status === "otp_ready" && statusData.challengeId) {
+        clearPoll();
+        setChallengeId(statusData.challengeId);
+        setRetryAfterSeconds(statusData.retryAfterSeconds ?? 60);
+        setOtpChannel(channel);
+      }
+      if (statusData.status === "failed") {
+        clearPoll();
+        toast.error("Не удалось подтвердить номер в мессенджере");
+        resetBindAttempt();
+      }
+      if (statusData.status === "expired") {
+        clearPoll();
+        toast.error("Время привязки истекло. Начните снова.");
+        resetBindAttempt();
+      }
+    },
+    [clearPoll, resetBindAttempt],
+  );
+
   useEffect(() => () => clearPoll(), [clearPoll]);
 
   const redirectOk = (redirectTo: string, role?: "client" | "doctor" | "admin") => {
@@ -217,41 +260,9 @@ export function PhoneMessengerAuthFlow({
       }
       setStep("code");
 
+      void pollBindStatus(data.setupToken, channelCode);
       pollRef.current = setInterval(() => {
-        void (async () => {
-          const statusRes = await fetch("/api/auth/phone/messenger-bind/status", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ setupToken: data.setupToken }),
-          });
-          const statusData = (await statusRes.json().catch(() => ({}))) as {
-            ok?: boolean;
-            status?: string;
-            challengeId?: string;
-            retryAfterSeconds?: number;
-            error?: string;
-          };
-          if (!statusRes.ok || !statusData.ok) return;
-          if (statusData.status === "otp_ready" && statusData.challengeId) {
-            clearPoll();
-            setChallengeId(statusData.challengeId);
-            setRetryAfterSeconds(statusData.retryAfterSeconds ?? 60);
-            setOtpChannel(channelCode);
-          }
-          if (statusData.status === "failed") {
-            clearPoll();
-            toast.error("Не удалось подтвердить номер в мессенджере");
-            setStep("messenger_pick");
-            setChallengeId(null);
-          }
-          if (statusData.status === "expired") {
-            clearPoll();
-            toast.error("Время привязки истекло. Начните снова.");
-            setStep("messenger_pick");
-            setSetupToken(null);
-            setChallengeId(null);
-          }
-        })();
+        void pollBindStatus(data.setupToken, channelCode);
       }, POLL_MS);
     } finally {
       setLoading(false);
@@ -342,9 +353,14 @@ export function PhoneMessengerAuthFlow({
     return (
       <div id="phone-messenger-auth-code" className="flex w-full flex-col gap-3 text-left">
         {waitingForBot ? (
-          <p className={patientMutedTextClass}>
-            Подтвердите номер в {bindChannel === "max" ? "Max" : "Telegram"}, затем введите код из сообщения бота.
-          </p>
+          <>
+            <p className={patientMutedTextClass}>
+              Подтвердите номер в {bindChannel === "max" ? "Max" : "Telegram"}, затем введите код из сообщения бота.
+            </p>
+            <Button type="button" variant="link" className={patientInlineLinkClass} onClick={resetBindAttempt}>
+              Начать снова
+            </Button>
+          </>
         ) : null}
         {challengeId ? (
           <OtpCodeForm

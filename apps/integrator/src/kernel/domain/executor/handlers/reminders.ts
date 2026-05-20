@@ -611,6 +611,11 @@ export async function handleReminders(
           title: notifyTitle,
           bodyText: reminderBodyRaw.trim().slice(0, 4000),
           openUrl,
+          linkedObjectType: rule?.linkedObjectType ?? null,
+          linkedObjectId: rule?.linkedObjectId ?? null,
+          reminderIntent: rule?.reminderIntent ?? null,
+          occurrenceCategory: occ.category,
+          customTitle: rule?.customTitle?.trim() || null,
         };
         const body = JSON.stringify(notifyPayload);
         logger.info(

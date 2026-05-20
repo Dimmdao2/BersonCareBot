@@ -93,6 +93,27 @@ describe("POST /api/auth/phone/messenger-bind/start", () => {
     expect(data.error).toBe("rate_limited");
   });
 
+  it("returns 200 for profile_bind with patient session", async () => {
+    getCurrentSessionMock.mockResolvedValue({
+      user: { userId: "user-1", role: "client", bindings: {} },
+    });
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/messenger-bind/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          phone: "+79001234567",
+          channelCode: "max",
+          purpose: "profile_bind",
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(startBindMock).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: "profile_bind", sessionUserId: "user-1" }),
+    );
+  });
+
   it("returns 200 for login without session", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/phone/messenger-bind/start", {

@@ -30,9 +30,6 @@ export default async function PatientProfilePage() {
       emailVerified,
     },
   );
-  const telegramId = session.user.bindings.telegramId ?? "";
-  const maxId = session.user.bindings.maxId ?? "";
-
   const fallbackDisplayName =
     (emailFields.email && emailFields.email.trim()) ||
     (session.user.phone && session.user.phone.trim()) ||
@@ -44,8 +41,6 @@ export default async function PatientProfilePage() {
         <PatientProfileHero
           displayName={session.user.displayName ?? ""}
           phone={session.user.phone ?? null}
-          telegramId={telegramId}
-          maxId={maxId}
           supportContactHref={supportContactHref}
           fallbackDisplayName={fallbackDisplayName}
           initialEmail={emailFields.email}

@@ -21,8 +21,6 @@ describe("PatientProfileHero", () => {
       <PatientProfileHero
         displayName="Test"
         phone={null}
-        telegramId=""
-        maxId=""
         supportContactHref="https://support.example"
         fallbackDisplayName="."
         initialEmail={null}
@@ -41,8 +39,6 @@ describe("PatientProfileHero", () => {
       <PatientProfileHero
         displayName="Test"
         phone="+79991234567"
-        telegramId=""
-        maxId=""
         supportContactHref="https://support.example"
         fallbackDisplayName="."
         initialEmail={null}

@@ -54,6 +54,28 @@ describe('telegram user static content', () => {
     ]);
   });
 
+  it('scripts: start.phoneauth and contact.phoneauth for phone login bind', () => {
+    const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
+      id: string;
+      priority?: number;
+      match?: Record<string, unknown>;
+      steps?: Array<{ action?: string; params?: Record<string, unknown> }>;
+    }>;
+    const start = scripts.find((s) => s.id === 'telegram.start.phoneauth');
+    expect(start?.priority).toBe(56);
+    expect(start?.match).toMatchObject({ input: { action: 'start.phoneauth' } });
+    const stateStep = start?.steps?.find((s) => s.action === 'user.state.set');
+    expect((stateStep?.params as { state?: string })?.state).toBe('await_phoneauth:{{input.authSecret}}');
+
+    const contact = scripts.find((s) => s.id === 'telegram.contact.phoneauth');
+    expect(contact?.priority).toBe(54);
+    expect(contact?.steps?.[0]?.action).toBe('webapp.phoneMessengerBind.complete');
+
+    const onboarding = scripts.find((s) => s.id === 'telegram.start.onboarding');
+    const exclude = (onboarding?.match as { input?: { excludeActions?: string[] } })?.input?.excludeActions;
+    expect(exclude).toContain('start.phoneauth');
+  });
+
   it('menu.json main — одна строка: запись и приложение (webapp)', () => {
     const menus = JSON.parse(readFileSync(join(dir, 'menu.json'), 'utf8')) as {
       main: Array<Array<{ textTemplateKey?: string; callbackData?: string; webAppUrlFact?: string }>>;

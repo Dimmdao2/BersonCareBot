@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     if (result.code === "phone_owned_by_other_user" || result.code === "channel_owned_by_other_user") {
       return NextResponse.json({ ok: false, error: "conflict", mergeReason: result.code }, { status: 409 });
     }
-    if (result.code === "already_completed" || result.code === "used_token") {
+    if (result.code === "used_token") {
       return NextResponse.json({ ok: true, status: "already_used" });
     }
     return NextResponse.json({ ok: false, error: result.code }, { status: 400 });
@@ -63,5 +63,6 @@ export async function POST(request: Request) {
     otpCode: result.otpCode,
     accountCreated: result.accountCreated,
     challengeId: result.challengeId,
+    ...(result.replay ? { replay: true } : {}),
   });
 }

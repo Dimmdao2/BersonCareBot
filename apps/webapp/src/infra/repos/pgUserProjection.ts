@@ -37,6 +37,7 @@ export type UserProjectionPort = {
     platformUserId: string;
     phoneNormalized?: string | null;
   } | null>;
+  findByPhoneNormalized: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
   updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
   updateDisplayName: (platformUserId: string, displayName: string) => Promise<void>;
   /** Update profile (first_name, last_name, email, display_name) by phone; no-op if no user found. */

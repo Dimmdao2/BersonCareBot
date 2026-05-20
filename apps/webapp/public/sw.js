@@ -28,14 +28,15 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = {};
+    return;
   }
-  const title = typeof data.title === "string" ? data.title : "Напоминание";
+  const title = typeof data.title === "string" ? data.title.trim() : "";
   const body = typeof data.body === "string" ? data.body : "";
+  if (!title && !body) return;
   const url = typeof data.url === "string" ? data.url : "/app";
   const tag = typeof data.tag === "string" ? data.tag : undefined;
   event.waitUntil(
-    self.registration.showNotification(title, {
+    self.registration.showNotification(title || "BersonCare", {
       body,
       tag,
       data: { url },
