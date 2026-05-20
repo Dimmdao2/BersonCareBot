@@ -1,11 +1,12 @@
 /**
- * Открытие deep link t.me после async fetch без popup-blocker: синхронно
- * `window.open('about:blank')`, затем присвоение `location.href`.
- * На мобильных — предпочтение `tg://resolve?domain=…&start=…` для открытия приложения Telegram.
+ * Открытие deep link привязки канала (POST /api/auth/channel-link/start) после async fetch.
  *
- * В **Telegram Mini App** нельзя открывать `about:blank` — WebView спрашивает «Open about:blank?»;
- * используем `Telegram.WebApp.openTelegramLink` / `openLink`. В **MAX Mini App** — `WebApp.openMaxLink`
- * для диплинков max.ru (см. dev.max.ru — MAX Bridge).
+ * - **Telegram Mini App:** `Telegram.WebApp.openTelegramLink` / `openLink`.
+ * - **MAX Mini App:** `WebApp.openMaxLink` / `openLink` (dev.max.ru — MAX Bridge).
+ * - **Installed PWA:** Telegram — `location.assign` на `tg://resolve?…`; MAX — `window.open` / `<a target="_blank">`
+ *   (HTTPS `max.ru`, без схемы `max://`), чтобы по возможности открыть во внешнем браузере, а не в WebView PWA.
+ *   Заглушка `https://max.ru/` без `?start=` в PWA не открывается.
+ * - **Обычный браузер:** `window.open`; на мобильном UA для Telegram — `tg://` при разборе `t.me`.
  */
 
 import { inferMessengerChannelForRequestContact } from "@/shared/lib/messengerMiniApp";
@@ -78,29 +79,59 @@ export function pickChannelLinkOpenUrl(
   return url;
 }
 
-/**
- * В standalone PWA `window.open(..., "_blank")` часто навигирует тот же WebView (t.me внутри приложения).
- * Передаём ссылку ОС через `location.assign` / transient `<a>`.
- */
-function openChannelLinkInBrowserOrPwa(toOpen: string, standalonePwa: boolean): void {
-  if (!standalonePwa) {
-    window.open(toOpen, "_blank", "noopener,noreferrer");
-    return;
+/** MAX Bridge вне Mini App (если скрипт уже на странице). */
+function tryOpenMaxDeepLinkViaBridge(url: string): boolean {
+  if (!isMaxChannelDeepLinkUrl(url)) return false;
+  const w = (window as Window & { WebApp?: MaxWebAppOpen }).WebApp;
+  if (typeof w?.openMaxLink === "function") {
+    w.openMaxLink(url);
+    return true;
   }
-  try {
-    window.location.assign(toOpen);
-    return;
-  } catch {
-    /* fall through */
-  }
+  return false;
+}
+
+/** Новая вкладка / внешний браузер (не навигация текущего WebView). */
+function openInNewBrowserTab(url: string): void {
+  const opened = window.open(url, "_blank", "noopener,noreferrer");
+  if (opened) return;
   const anchor = document.createElement("a");
-  anchor.href = toOpen;
+  anchor.href = url;
   anchor.rel = "noopener noreferrer";
   anchor.target = "_blank";
   anchor.style.display = "none";
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
+}
+
+/**
+ * Standalone PWA: Telegram — `location.assign(tg://)` (приложение Telegram); MAX — внешняя вкладка.
+ * Для `https://t.me` в PWA `window.open('_blank')` часто остаётся внутри WebView — поэтому TG не через open.
+ */
+function openChannelLinkInBrowserOrPwa(
+  toOpen: string,
+  standalonePwa: boolean,
+  channel: ChannelLinkOpenChannel,
+): void {
+  if (standalonePwa && channel === "max") {
+    if (tryOpenMaxDeepLinkViaBridge(toOpen)) return;
+    if (!isMaxChannelDeepLinkUrl(toOpen)) return;
+    openInNewBrowserTab(toOpen);
+    return;
+  }
+
+  if (!standalonePwa) {
+    openInNewBrowserTab(toOpen);
+    return;
+  }
+
+  try {
+    window.location.assign(toOpen);
+    return;
+  } catch {
+    /* fall through */
+  }
+  openInNewBrowserTab(toOpen);
 }
 
 /** Ответ API channel-link для MAX с диплинком `https://max.ru/<nick>?start=…`. */
@@ -215,5 +246,5 @@ export function finishChannelLinkNavigation(params: {
 
   const standalonePwa = isStandalonePwa();
   const toOpen = pickChannelLinkOpenUrl(url, channel, userAgent, { standalonePwa });
-  openChannelLinkInBrowserOrPwa(toOpen, standalonePwa);
+  openChannelLinkInBrowserOrPwa(toOpen, standalonePwa, channel);
 }

@@ -147,6 +147,8 @@ import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportC
 import { createPatientMessagingService } from "@/modules/messaging/patientMessagingService";
 import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorSupportMessagingService";
 import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatientDoctorReply";
+import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPatientMessage";
+import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { createPgReminderRulesPort } from "@/infra/repos/pgReminderRules";
@@ -486,9 +488,6 @@ const lfkAssignmentsPortResolved: LfkAssignmentsPort = !inMemoryRepos
   : lfkAssignmentsStubPort;
 const lfkAssignmentsService = createLfkAssignmentsService(lfkAssignmentsPortResolved);
 
-const patientMessagingService = createPatientMessagingService(supportCommunicationPort, {
-  isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),
-});
 const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
   shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
   channelPreferences: channelPreferencesPort,
@@ -496,6 +495,26 @@ const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
   systemSettings: systemSettingsService,
   getProfileEmailFields: (platformUserId) => userProjectionPort.getProfileEmailFields(platformUserId),
   getChannelBindings: loadPlatformUserChannelBindings,
+});
+const integratorSupportBridge = createIntegratorSupportBridge({
+  port: supportCommunicationPort,
+  notifyPatientOfDoctorReply: notifyPatientDoctorReply,
+});
+const patientMessagingService = createPatientMessagingService(supportCommunicationPort, {
+  isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),
+  notifyDoctorOfPatientMessage: async (input) => {
+    await notifyDoctorPatientMessage({
+      platformUserId: input.platformUserId,
+      messageId: input.messageId,
+      messageText: input.messageText,
+      patientLabel: input.patientLabel,
+      source: "webapp",
+    });
+  },
+  resolvePatientLabel: async (platformUserId) => {
+    const identity = await doctorClientsPort.getClientIdentity(platformUserId);
+    return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";
+  },
 });
 const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort, {
   shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
@@ -871,6 +890,7 @@ function _buildAppDeps() {
       patchAdminClientProfile: userProjectionPort.patchAdminClientProfile,
     },
     supportCommunication: supportCommunicationPort,
+    integratorSupportBridge,
     /** Поддержка: чат webapp ↔ админ (этап 8). */
     messaging: {
       patient: patientMessagingService,

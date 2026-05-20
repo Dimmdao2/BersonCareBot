@@ -47,12 +47,20 @@ function buildIntent(parsed: RelayPayload) {
   };
 
   if (parsed.channel === 'telegram' || parsed.channel === 'max') {
+    const rawMarkup = parsed.metadata?.replyMarkup;
+    const replyMarkup =
+      rawMarkup !== null &&
+      typeof rawMarkup === 'object' &&
+      Array.isArray((rawMarkup as { inline_keyboard?: unknown }).inline_keyboard)
+        ? (rawMarkup as { inline_keyboard: unknown[] })
+        : undefined;
     return {
       type: 'message.send' as const,
       meta,
       payload: {
         recipient: { chatId: parsed.recipient },
         message: { text: parsed.text },
+        ...(replyMarkup ? { replyMarkup } : {}),
         delivery: { channels: [parsed.channel] },
       },
     };

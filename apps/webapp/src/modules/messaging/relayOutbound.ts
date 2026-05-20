@@ -11,6 +11,8 @@ export type RelayResult =
   | { ok: true; status: "accepted" | "duplicate" }
   | { ok: false; reason: string };
 
+export type RelayInlineButton = { text: string; callback_data: string };
+
 export type RelayOutboundParams = {
   messageId: string;
   channel: string;
@@ -18,6 +20,8 @@ export type RelayOutboundParams = {
   text: string;
   /** Опционально: platform user id для отладки/idempotency; не используется в dev_mode guard. */
   userId?: string;
+  /** Inline-клавиатура (Telegram / MAX) через integrator relay-outbound `metadata.replyMarkup`. */
+  replyMarkup?: { inline_keyboard: RelayInlineButton[][] };
 };
 
 export type RelayOutboundDeps = {
@@ -106,7 +110,10 @@ export async function relayOutbound(
   const idempotencyKey = `${messageId}:${channel}:${recipient}`;
   const url = `${integratorUrl.replace(/\/$/, "")}/api/bersoncare/relay-outbound`;
 
-  const bodyObj = { messageId, channel, recipient, text, idempotencyKey };
+  const bodyObj: Record<string, unknown> = { messageId, channel, recipient, text, idempotencyKey };
+  if (params.replyMarkup) {
+    bodyObj.metadata = { replyMarkup: params.replyMarkup };
+  }
   const rawBody = JSON.stringify(bodyObj);
 
   let lastError: string = "unknown";

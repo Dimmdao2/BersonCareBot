@@ -95,6 +95,13 @@ export function createDbReadPort(input: {
           if (!resource || !externalId) return null as T;
           return (await getActiveDraftByIdentity(db, { resource, externalId, ...(source ? { source } : {}) })) as T;
         }
+        case 'platformUser.idByChannelBinding': {
+          const channelCode = asNonEmptyString(query.params.channelCode ?? query.params.resource);
+          const externalId = asNonEmptyString(query.params.externalId);
+          if (!channelCode || !externalId) return null as T;
+          const { resolveCanonicalPlatformUserIdByChannel } = await import('./repos/platformUserByChannel.js');
+          return (await resolveCanonicalPlatformUserIdByChannel(db, { channelCode, externalId })) as T;
+        }
         case 'conversation.openByIdentity': {
           const resource = asNonEmptyString(query.params.resource);
           const externalId = asNonEmptyString(query.params.externalId);

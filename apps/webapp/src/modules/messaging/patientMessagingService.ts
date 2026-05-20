@@ -8,6 +8,14 @@ const MAX_LEN = 4000;
 export type PatientMessagingServiceOptions = {
   /** Если true — пациент не может отправлять сообщения (этап 9, `platform_users.is_blocked`). */
   isUserMessagingBlocked?: (platformUserId: string) => Promise<boolean>;
+  /** Уведомление врача в Telegram/Max после сообщения из PWA. */
+  notifyDoctorOfPatientMessage?: (input: {
+    platformUserId: string;
+    messageId: string;
+    messageText: string;
+    patientLabel: string;
+  }) => Promise<void>;
+  resolvePatientLabel?: (platformUserId: string) => Promise<string>;
 };
 
 export function createPatientMessagingService(
@@ -60,6 +68,23 @@ export function createPatientMessagingService(
         source: "webapp",
         createdAt: now,
       });
+
+      if (options?.notifyDoctorOfPatientMessage) {
+        const patientLabel = options.resolvePatientLabel
+          ? await options.resolvePatientLabel(platformUserId)
+          : "Пациент";
+        options
+          .notifyDoctorOfPatientMessage({
+            platformUserId,
+            messageId: integratorMessageId,
+            messageText: trimmed,
+            patientLabel,
+          })
+          .catch((err: unknown) => {
+            console.error("[patientMessaging] doctor notify error:", err);
+          });
+      }
+
       return { ok: true };
     },
 

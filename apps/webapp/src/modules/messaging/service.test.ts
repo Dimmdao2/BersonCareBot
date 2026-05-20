@@ -24,6 +24,23 @@ describe("createPatientMessagingService", () => {
     expect(r).toEqual({ ok: false, error: "not_found" });
   });
 
+  it("sendText notifies doctor when configured", async () => {
+    const notifyDoctorOfPatientMessage = vi.fn().mockResolvedValue(undefined);
+    const port = {
+      getConversationIfOwnedByUser: vi.fn().mockResolvedValue({ id: "c1" }),
+      appendWebappMessage: vi.fn().mockResolvedValue({ id: "m1" }),
+    } as unknown as SupportCommunicationPort;
+    const svc = createPatientMessagingService(port, {
+      notifyDoctorOfPatientMessage,
+      resolvePatientLabel: async () => "Иван",
+    });
+    const r = await svc.sendText("u1", "00000000-0000-4000-8000-000000000001", "Привет");
+    expect(r).toEqual({ ok: true });
+    expect(notifyDoctorOfPatientMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ messageText: "Привет", patientLabel: "Иван" }),
+    );
+  });
+
   it("bootstrap calls ensure and listMessagesSince", async () => {
     const ensure = vi.fn().mockResolvedValue({ id: "conv-1" });
     const list = vi.fn().mockResolvedValue([]);

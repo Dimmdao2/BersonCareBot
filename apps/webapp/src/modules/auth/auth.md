@@ -126,7 +126,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 ### Открытие ссылки Telegram в браузере (bind-phone / профиль)
 
-После `POST /api/auth/channel-link/start` клиент вызывает `finishChannelLinkNavigation` (`shared/lib/telegramChannelLinkOpen.ts`): Mini App — `Telegram.WebApp` / MAX `WebApp.openMaxLink`; **installed PWA** (`isStandalonePwa`) — `location.assign` на `tg://resolve?…` (для Telegram всегда при разборе `t.me`, без привязки к mobile UA) или на `max.ru/…`, без `window.open('_blank')` (иначе t.me открывается внутри WebView PWA); обычный браузер — `window.open`; на мобильном UA вне PWA — `tg://` вместо `https://t.me` при возможности. UI не открывает `about:blank` до fetch.
+После `POST /api/auth/channel-link/start` клиент вызывает `finishChannelLinkNavigation` (`shared/lib/telegramChannelLinkOpen.ts`): Mini App — `Telegram.WebApp` / MAX `WebApp.openMaxLink`; **installed PWA** (`isStandalonePwa`) — Telegram: `location.assign` на `tg://resolve?…` (не `window.open`, иначе t.me в WebView); MAX: `window.open` / `<a target="_blank">` на `https://max.ru/<nick>?start=…` (внешний браузер по возможности; схемы `max://` нет); заглушка `https://max.ru/` без `?start=` в PWA не открывается. Обычный браузер — `window.open`; на мобильном UA — `tg://` для Telegram при возможности. Профиль и bind-phone: при неподключённых каналах `ConnectMessengersBlock` / `PatientBrowserMessengerBindPanel` делают `router.refresh()` раз в 4 с, чтобы после Start в боте подтянуть «Уже подключено».
 
 **Max:** если в ответе есть диплинк с `?start=`, тот же `finishChannelLinkNavigation`; иначе вкладку не открываем — команда в UI и буфер. **429** (`rate_limited`): toast на bind-phone, текст ошибки в `ConnectMessengersBlock`.
 

@@ -22,6 +22,13 @@ import {
   renderText,
 } from '../helpers.js';
 import { ADMIN, RELAY_USER } from '../templateKeys.js';
+import { isWebappPlatformConversationId } from '../../../../shared/support/platformConversationId.js';
+import {
+  adminReplyConversationId,
+  applyWebappAdminReplyFromMessenger,
+  mirrorPatientUserMessageToWebapp,
+  resolvePlatformUserIdForChannel,
+} from '../../support/webappSupportSync.js';
 
 function channelDeliveryPayload(channel: string) {
   return { channels: [channel], maxAttempts: 1 };
@@ -125,6 +132,20 @@ export async function handleConversationUserMessage(
   ];
   await persistWrites(deps.writePort, writes);
 
+  const integratorMessageId = asString(asRecord(writes[0]?.params).id) ?? randomUUID();
+  const platformUserId = await resolvePlatformUserIdForChannel(deps, ctx.event.meta.source, externalId);
+  const messageTextForMirror = (text ?? '').trim();
+  if (platformUserId && messageTextForMirror.length > 0) {
+    await mirrorPatientUserMessageToWebapp(deps, {
+      platformUserId,
+      integratorMessageId,
+      text: messageTextForMirror,
+      source,
+      createdAt: ctx.nowIso,
+    });
+  }
+  const replyConversationId = adminReplyConversationId(conversationId, platformUserId);
+
   let userLabel = formatActorLabel({
     firstName: asString(conversation?.first_name),
     lastName: asString(conversation?.last_name),
@@ -174,7 +195,7 @@ export async function handleConversationUserMessage(
       message: { text: notificationOnlyText },
       replyMarkup: {
         inline_keyboard: [[
-          { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
+          { text: replyButtonText, callback_data: `admin_reply:${replyConversationId}` },
         ]],
       },
       delivery: channelDeliveryPayload(adminChannel),
@@ -219,6 +240,69 @@ export async function handleConversationAdminReply(
   if (!isTextReply && adminMessageIdFinite === null) {
     return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
   }
+
+  if (isWebappPlatformConversationId(conversationId)) {
+    if (!isTextReply || !text) {
+      return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_WEBAPP_TEXT_ONLY' };
+    }
+    const applyResult = await applyWebappAdminReplyFromMessenger(deps, {
+      integratorConversationId: conversationId,
+      text,
+      createdAt: ctx.nowIso,
+      adminMessageId: readIncomingMessageId(ctx),
+    });
+    const intents: OutgoingIntent[] = [];
+    if (!applyResult.ok && adminChatId !== null) {
+      intents.push({
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text: 'Не удалось отправить ответ в чат приложения. Попробуйте в кабинете врача.' },
+          delivery: channelDeliveryPayload(adminChannel),
+        },
+      });
+      return { actionId: action.id, status: 'success', intents };
+    }
+    if (adminChatId !== null) {
+      const sentText = deps.templatePort
+        ? (await renderText({ templateKey: ADMIN.REPLY_SENT, ctx, templatePort: deps.templatePort })) || 'Сообщение отправлено.'
+        : 'Сообщение отправлено.';
+      const continueButtonText = deps.templatePort
+        ? (await renderText({ templateKey: ADMIN.REPLY_CONTINUE_BUTTON, ctx, templatePort: deps.templatePort })) || 'Дополнить ответ'
+        : 'Дополнить ответ';
+      const closeButtonText = deps.templatePort
+        ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() ?? ''
+        : '';
+      const replyRows: Array<Array<{ text: string; callback_data: string }>> = [
+        [{ text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` }],
+      ];
+      if (closeButtonText) {
+        replyRows.push([{ text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` }]);
+      }
+      intents.push({
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text: sentText },
+          replyMarkup: { inline_keyboard: replyRows },
+          delivery: channelDeliveryPayload(adminChannel),
+        },
+      });
+    }
+    return {
+      actionId: action.id,
+      status: 'success',
+      intents,
+      values: {
+        hasOpenConversation: true,
+        activeConversationId: conversationId,
+        activeConversationStatus: 'waiting_user',
+      },
+    };
+  }
+
   const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
     type: 'conversation.byId',
     params: { id: conversationId },

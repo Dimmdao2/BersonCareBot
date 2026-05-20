@@ -178,6 +178,7 @@ export const dbReadQuerySchema = z.object({
     'questions.unanswered',
     'question.byConversationId',
     'identity.idByResourceAndExternalId',
+    'platformUser.idByChannelBinding',
     'notifications.settings',
     'booking.byExternalId',
     'booking.activeByUser',

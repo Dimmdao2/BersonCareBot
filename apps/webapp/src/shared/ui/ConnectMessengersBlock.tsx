@@ -5,12 +5,15 @@
  * Для MAX дополнительно показывается команда `/start link_...`, если deep-link не подставился автоматически.
  */
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
 import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
+
+const BIND_POLL_MS = 4000;
 
 type Props = {
   channelCards: ChannelCard[];
@@ -21,6 +24,7 @@ type Props = {
 };
 
 export function ConnectMessengersBlock({ channelCards, implementedOnly = true, showHeading = true }: Props) {
+  const router = useRouter();
   const cards = implementedOnly
     ? channelCards.filter((c): c is ChannelCard => c.code === "telegram" || c.code === "max")
     : channelCards.filter((c) => c.code !== "vk" && c.code !== "web_push");
@@ -29,6 +33,15 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   const [error, setError] = useState<string | null>(null);
   const [maxManualCommand, setMaxManualCommand] = useState<string | null>(null);
   const [maxOpenUrl, setMaxOpenUrl] = useState<string | null>(null);
+  const hasUnlinked = linkedCount < cards.length;
+
+  useEffect(() => {
+    if (!hasUnlinked) return;
+    const id = window.setInterval(() => {
+      router.refresh();
+    }, BIND_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [hasUnlinked, router]);
 
   async function copyMaxCommand(cmd: string): Promise<void> {
     try {
@@ -39,7 +52,6 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   }
 
   async function startChannelLink(channelCode: "telegram" | "max"): Promise<void> {
-    /** Не открываем `about:blank` до fetch: в WebView Telegram/MAX это даёт диалог «Open about:blank?»; `finishChannelLinkNavigation` использует WebApp.openLink / window.open(url). */
     const blank = null as Window | null;
     setError(null);
     setBusy(channelCode);

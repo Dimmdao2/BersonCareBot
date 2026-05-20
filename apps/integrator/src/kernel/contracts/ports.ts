@@ -27,6 +27,7 @@ export type DbReadQueryType =
   | 'questions.unanswered'
   | 'question.byConversationId'
   | 'identity.idByResourceAndExternalId'
+  | 'platformUser.idByChannelBinding'
   | 'notifications.settings'
   | 'booking.byExternalId'
   | 'booking.activeByUser'
@@ -418,6 +419,16 @@ export type WebappEventsPort = {
     selectedChannels?: string[];
     skippedChannels?: Array<{ channel: string; reason: string }>;
   }>;
+  /** Единый webapp-thread: сообщение пациента из бота (POST /api/integrator/support/sync-user-message). */
+  syncSupportUserMessage?(input: {
+    body: string;
+    idempotencyKey: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
+  /** Ответ врача из admin_reply для `webapp:platform:{uuid}` (POST /api/integrator/support/admin-reply). */
+  applySupportAdminReply?(input: {
+    body: string;
+    idempotencyKey: string;
+  }): Promise<{ ok: boolean; status: number; error?: string }>;
 };
 
 /** Channel bindings for multi-channel delivery (telegramId, maxId). */

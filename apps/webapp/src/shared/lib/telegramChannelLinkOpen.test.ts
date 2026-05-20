@@ -288,9 +288,11 @@ describe("finishChannelLinkNavigation", () => {
     expect(open).toHaveBeenCalledWith("https://t.me/Bot?start=link_1", "_blank", "noopener,noreferrer");
   });
 
-  it("uses location.assign for max.ru deeplink in standalone PWA", () => {
+  it("uses window.open for max.ru deeplink in standalone PWA (external browser, not WebView navigation)", () => {
+    const open = vi.fn(() => ({ closed: false }) as Window);
     const assign = vi.fn();
     standalonePwaSpy.mockReturnValue(true);
+    vi.stubGlobal("open", open);
     Object.defineProperty(window, "location", {
       value: { assign },
       writable: true,
@@ -305,6 +307,52 @@ describe("finishChannelLinkNavigation", () => {
       userAgent: iphoneUa,
     });
 
-    expect(assign).toHaveBeenCalledWith(url);
+    expect(open).toHaveBeenCalledWith(url, "_blank", "noopener,noreferrer");
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("does not navigate to max.ru stub without start in standalone PWA", () => {
+    const open = vi.fn();
+    const assign = vi.fn();
+    standalonePwaSpy.mockReturnValue(true);
+    vi.stubGlobal("open", open);
+    Object.defineProperty(window, "location", {
+      value: { assign },
+      writable: true,
+      configurable: true,
+    });
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url: "https://max.ru/",
+      channel: "max",
+      userAgent: iphoneUa,
+    });
+
+    expect(assign).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("prefers WebApp.openMaxLink in standalone PWA when bridge is present", () => {
+    const openMaxLink = vi.fn();
+    const assign = vi.fn();
+    standalonePwaSpy.mockReturnValue(true);
+    vi.stubGlobal("WebApp", { openMaxLink, openLink: vi.fn() });
+    Object.defineProperty(window, "location", {
+      value: { assign },
+      writable: true,
+      configurable: true,
+    });
+    const url = "https://max.ru/MyBot?start=link_abc";
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url,
+      channel: "max",
+      userAgent: iphoneUa,
+    });
+
+    expect(openMaxLink).toHaveBeenCalledWith(url);
+    expect(assign).not.toHaveBeenCalled();
   });
 });
