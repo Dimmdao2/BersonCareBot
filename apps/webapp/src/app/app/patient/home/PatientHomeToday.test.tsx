@@ -472,7 +472,7 @@ describe("PatientHomeToday", () => {
     });
     render(tree);
 
-    expect(screen.getByLabelText(/^Выполнено сегодня: 1$/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Выполнено сегодня: 1 из 3$/)).toBeInTheDocument();
     expect(listChecklistDoneToday).toHaveBeenCalledWith(fixtureSession.user.userId, "inst-active-1");
   });
 
@@ -561,7 +561,7 @@ describe("PatientHomeToday", () => {
 
     expect(
       screen.getByLabelText(
-        /^Выполнено сегодня: 1 из 4\. Разминок: 1 из 2\. В плане: 0 из 2\.$/,
+        /^Выполнено сегодня: 1 из 4\. Разминки: 1 из 2\. Тренировки: 0 из 2\.$/,
       ),
     ).toBeInTheDocument();
     expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 4);
@@ -584,7 +584,7 @@ describe("PatientHomeToday", () => {
     expect(screen.getByLabelText(/^Выполнено сегодня: 0$/)).toBeInTheDocument();
     const progressArticle = document.getElementById("patient-home-progress-block");
     expect(progressArticle).not.toBeNull();
-    expect(within(progressArticle as HTMLElement).queryByText(/^разминок:/)).toBeNull();
+    expect(within(progressArticle as HTMLElement).queryByText(/^Разминки/)).toBeNull();
   });
 
   it("patient tier: progress target uses planned reminders when schedule configured without warmups section rule", async () => {
@@ -626,7 +626,7 @@ describe("PatientHomeToday", () => {
 
     expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 1);
     expect(
-      screen.getByLabelText(/^Выполнено сегодня: 0 из 1\. В плане: 0 из 1\.$/),
+      screen.getByLabelText(/^Выполнено сегодня: 0 из 1\. Тренировки: 0 из 1\.$/),
     ).toBeInTheDocument();
   });
 

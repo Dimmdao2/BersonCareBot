@@ -4,7 +4,10 @@ import Link from "next/link";
 import { Flame, Info } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { PatientHomeProgressGoalBreakdown } from "@/modules/patient-home/patientHomeTodayProgress";
+import {
+  buildPatientHomeProgressAriaLabel,
+  type PatientHomeProgressGoalBreakdown,
+} from "@/modules/patient-home/patientHomeTodayProgress";
 import {
   patientHomeBlockHeadingClass,
   patientHomeCardClass,
@@ -25,8 +28,8 @@ import { cn } from "@/lib/utils";
 
 export type { PatientHomeProgressGoalBreakdown };
 
-const PROGRESS_HINT =
-  "Считаем разминки (кнопка на экране «Разминка дня») и пункты программы, отмеченные сегодня. «Из N» — только если у вас настроены напоминания на сегодня; иначе показываем число выполненных без цели.";
+const PROGRESS_HINT_BASE =
+  "Считаем разминки с экрана «Разминка дня» и пункты программы, отмеченные сегодня по вашему календарю. «Из N» — по напоминаниям на сегодня или по цели из настроек кабинета.";
 
 type Props = {
   practiceTarget: number;
@@ -35,6 +38,19 @@ type Props = {
   progressGoalBreakdown?: PatientHomeProgressGoalBreakdown | null;
   blockIconImageUrl?: string | null;
 };
+
+function progressHintDetail(breakdown: PatientHomeProgressGoalBreakdown | null): string {
+  if (!breakdown) return PROGRESS_HINT_BASE;
+  const lines: string[] = [];
+  if (breakdown.warmupPlanned > 0) {
+    lines.push(`Разминки ${breakdown.warmupDone} из ${breakdown.warmupPlanned}`);
+  }
+  if (breakdown.lfkPlanned > 0) {
+    lines.push(`Тренировки ${breakdown.lfkDone} из ${breakdown.lfkPlanned}`);
+  }
+  if (lines.length === 0) return PROGRESS_HINT_BASE;
+  return `${PROGRESS_HINT_BASE} ${lines.join(". ")}.`;
+}
 
 export function PatientHomeProgressBlock({
   practiceTarget,
@@ -46,19 +62,19 @@ export function PatientHomeProgressBlock({
   const showGoal = practiceTarget > 0;
   const displayDone =
     progress && showGoal ? Math.min(progress.todayDone, practiceTarget) : progress?.todayDone ?? 0;
-  const pct = showGoal ? Math.min(100, Math.round((displayDone / practiceTarget) * 100)) : 0;
+  const pct = showGoal && practiceTarget > 0 ? Math.min(100, Math.round((displayDone / practiceTarget) * 100)) : 0;
 
   const showWarmupBreakdown = (progressGoalBreakdown?.warmupPlanned ?? 0) > 0;
   const showLfkBreakdown = (progressGoalBreakdown?.lfkPlanned ?? 0) > 0;
   const showBreakdown =
     progressGoalBreakdown != null && showGoal && (showWarmupBreakdown || showLfkBreakdown);
 
-  const progressAriaLabel =
-    showBreakdown ?
-      `Выполнено сегодня: ${progress?.todayDone ?? 0} из ${practiceTarget}.${showWarmupBreakdown ? ` Разминок: ${progressGoalBreakdown!.warmupDone} из ${progressGoalBreakdown!.warmupPlanned}.` : ""}${showLfkBreakdown ? ` В плане: ${progressGoalBreakdown!.lfkDone} из ${progressGoalBreakdown!.lfkPlanned}.` : ""}`
-    : showGoal ?
-      `Выполнено сегодня: ${progress?.todayDone ?? 0} из ${practiceTarget}`
-    : `Выполнено сегодня: ${progress?.todayDone ?? 0}`;
+  const progressAriaLabel = buildPatientHomeProgressAriaLabel({
+    displayDone,
+    practiceTarget,
+    showGoal,
+    breakdown: showBreakdown ? progressGoalBreakdown : null,
+  });
 
   const guestCopy = anonymousGuest ?
     <>
@@ -88,13 +104,13 @@ export function PatientHomeProgressBlock({
               <Popover>
                 <PopoverTrigger
                   type="button"
-                  className="inline-flex shrink-0 rounded-sm text-[var(--patient-text-muted)] hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]"
+                  className="inline-flex shrink-0 rounded-sm p-0.5 text-[var(--patient-text-muted)] hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]"
                   aria-label="Как считается прогресс"
                 >
-                  <Info className="size-3.5" aria-hidden />
+                  <Info className="size-4" aria-hidden />
                 </PopoverTrigger>
                 <PopoverContent className="max-w-[min(18rem,calc(100vw-2rem))] text-xs leading-snug">
-                  {PROGRESS_HINT}
+                  {progressHintDetail(showBreakdown ? progressGoalBreakdown : null)}
                 </PopoverContent>
               </Popover>
             </h3>
@@ -109,8 +125,8 @@ export function PatientHomeProgressBlock({
                 <p className={patientHomeBlockBodySmClass}>Загрузка прогресса…</p>
               </div>
             : <>
-                <div className="mt-0.5 flex flex-row flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <p className="m-0 shrink-0" aria-label={progressAriaLabel}>
+                <div className="mt-0.5 flex flex-row flex-nowrap items-baseline gap-x-3">
+                  <p className="m-0 shrink-0 tabular-nums" aria-label={progressAriaLabel}>
                     <span className={patientHomeProgressValueClass}>{displayDone}</span>
                     {showGoal ?
                       <span className={patientHomeProgressValueSuffixClass}>
@@ -121,17 +137,17 @@ export function PatientHomeProgressBlock({
                   </p>
                   {showBreakdown ?
                     <div
-                      className="min-w-0 text-[10px] leading-tight text-[var(--patient-text-muted)] md:text-xs"
+                      className="min-w-0 shrink text-[10px] leading-tight text-[var(--patient-text-muted)] md:text-xs"
                       aria-hidden
                     >
                       {showWarmupBreakdown ?
                         <div>
-                          разминок: {progressGoalBreakdown!.warmupDone} из {progressGoalBreakdown!.warmupPlanned}
+                          Разминки {progressGoalBreakdown!.warmupDone} из {progressGoalBreakdown!.warmupPlanned}
                         </div>
                       : null}
                       {showLfkBreakdown ?
                         <div>
-                          в плане: {progressGoalBreakdown!.lfkDone} из {progressGoalBreakdown!.lfkPlanned}
+                          Тренировки {progressGoalBreakdown!.lfkDone} из {progressGoalBreakdown!.lfkPlanned}
                         </div>
                       : null}
                     </div>
@@ -144,7 +160,7 @@ export function PatientHomeProgressBlock({
                     aria-valuenow={displayDone}
                     aria-valuemin={0}
                     aria-valuemax={practiceTarget}
-                    aria-label={showBreakdown ? `${progressAriaLabel}. Полоса прогресса.` : "Прогресс за сегодня"}
+                    aria-label={showBreakdown ? `${progressAriaLabel} Полоса прогресса.` : "Прогресс за сегодня"}
                   >
                     <div
                       className="h-full rounded-full bg-[var(--patient-color-primary)] transition-[width] duration-300"

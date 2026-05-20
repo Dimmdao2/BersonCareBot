@@ -2,10 +2,9 @@ import { DateTime } from "luxon";
 import type { ChecklistTodaySnapshot } from "@/modules/treatment-program/patient-program-actions";
 import type { PatientPracticeCompletionRow } from "@/modules/patient-practice/types";
 
-/** Источники отметки разминки (разминка дня и напоминание на раздел). */
+/** Источник отметки разминки на главной — только «разминка дня». */
 export const PATIENT_HOME_WARMUP_COMPLETION_SOURCES = new Set<PatientPracticeCompletionRow["source"]>([
   "daily_warmup",
-  "reminder",
 ]);
 
 export type PatientHomeProgressGoalBreakdown = {
@@ -28,6 +27,72 @@ export function computePatientHomeTodayDoneCount(params: {
   programChecklistDoneToday: number;
 }): number {
   return params.warmupCompletionsToday + params.programChecklistDoneToday;
+}
+
+/** Знаменатель «из N» для блока «Сегодня выполнено». */
+export function resolvePatientHomePracticeTarget(params: {
+  muted: boolean;
+  hasConfiguredHomeLinkedReminders: boolean;
+  plannedTotal: number;
+  adminPracticeTarget: number;
+}): number {
+  if (params.muted) return 0;
+  if (params.hasConfiguredHomeLinkedReminders) return params.plannedTotal;
+  return params.adminPracticeTarget;
+}
+
+export type PatientHomeProgressAssembly = {
+  todayDone: number;
+  practiceTarget: number;
+  goalBreakdown: PatientHomeProgressGoalBreakdown | null;
+};
+
+export function assemblePatientHomeProgress(params: {
+  practiceTarget: number;
+  warmupDoneToday: number;
+  programDoneToday: number;
+  warmupPlanned: number;
+  lfkPlanned: number;
+  hasConfiguredSchedule: boolean;
+  muted: boolean;
+  plannedTotal: number;
+}): PatientHomeProgressAssembly {
+  const todayDone = computePatientHomeTodayDoneCount({
+    warmupCompletionsToday: params.warmupDoneToday,
+    programChecklistDoneToday: params.programDoneToday,
+  });
+  const goalBreakdown =
+    params.hasConfiguredSchedule && !params.muted && params.plannedTotal > 0
+      ? buildPatientHomeProgressGoalBreakdown({
+          warmupDone: params.warmupDoneToday,
+          warmupPlanned: params.warmupPlanned,
+          programDone: params.programDoneToday,
+          lfkPlanned: params.lfkPlanned,
+        })
+      : null;
+  return { todayDone, practiceTarget: params.practiceTarget, goalBreakdown };
+}
+
+/** aria-label для блока прогресса: совпадает с крупной цифрой на экране. */
+export function buildPatientHomeProgressAriaLabel(params: {
+  displayDone: number;
+  practiceTarget: number;
+  showGoal: boolean;
+  breakdown: PatientHomeProgressGoalBreakdown | null;
+}): string {
+  const { displayDone, practiceTarget, showGoal, breakdown } = params;
+  const base = showGoal
+    ? `Выполнено сегодня: ${displayDone} из ${practiceTarget}`
+    : `Выполнено сегодня: ${displayDone}`;
+  if (!breakdown) return base;
+  const parts = [base];
+  if (breakdown.warmupPlanned > 0) {
+    parts.push(`Разминки: ${breakdown.warmupDone} из ${breakdown.warmupPlanned}`);
+  }
+  if (breakdown.lfkPlanned > 0) {
+    parts.push(`Тренировки: ${breakdown.lfkDone} из ${breakdown.lfkPlanned}`);
+  }
+  return `${parts.join(". ")}.`;
 }
 
 export function buildPatientHomeProgressGoalBreakdown(params: {

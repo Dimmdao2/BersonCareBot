@@ -28,18 +28,11 @@ const reminderCtaDesktopClass = cn(reminderCtaBaseClass, "min-h-9 min-w-[7.5rem]
 
 type Props = {
   rule: ReminderRule | null;
+  /** Подзаголовок: «Через N часов», «Напоминания не настроены» и т.п. */
   scheduleLabel: string;
   blockIconImageUrl?: string | null;
   anonymousGuest?: boolean;
   personalTierOk?: boolean;
-  /** Local app-day progress; omitted for guests / builds without journal. */
-  reminderDaySummary?: {
-    done: number;
-    plannedTotal: number;
-    muted: boolean;
-    muteRemainingLabel: string | null;
-    hasConfiguredSchedule: boolean;
-  } | null;
 };
 
 function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
@@ -59,60 +52,12 @@ function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null 
   );
 }
 
-function reminderMobileSubtitle(
-  scheduleLabel: string,
-  reminderDaySummary: Props["reminderDaySummary"],
-): string {
-  if (reminderDaySummary?.muted) {
-    const tail = reminderDaySummary.muteRemainingLabel?.trim();
-    return tail ? `Напоминания заглушены на ${tail}` : "Напоминания заглушены";
-  }
-  return scheduleLabel;
-}
-
-function ReminderDaySummaryLines({
-  summary,
-}: {
-  summary: {
-    done: number;
-    plannedTotal: number;
-    muted: boolean;
-    muteRemainingLabel: string | null;
-    hasConfiguredSchedule: boolean;
-  };
-}) {
-  if (summary.muted) {
-    const tail = summary.muteRemainingLabel?.trim();
-    return (
-      <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "text-muted-foreground")}>
-        {tail ? `Напоминания заглушены на ${tail}` : "Напоминания заглушены"}
-      </p>
-    );
-  }
-  if (summary.plannedTotal > 0) {
-    return (
-      <p
-        className={patientHomeBlockCaptionSmClamp2Mt1Class}
-        aria-label={`Сегодня: ${summary.done} из ${summary.plannedTotal}`}
-      >
-        <span className="font-medium tabular-nums">{summary.done}</span>
-        <span> из {summary.plannedTotal}</span>
-      </p>
-    );
-  }
-  if (summary.hasConfiguredSchedule) {
-    return <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>На сегодня напоминаний нет</p>;
-  }
-  return null;
-}
-
 export function PatientHomeNextReminderCard({
   rule,
   scheduleLabel,
   blockIconImageUrl,
   anonymousGuest = false,
   personalTierOk = true,
-  reminderDaySummary = null,
 }: Props) {
   if (!rule) {
     const remindersHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientReminders) : routePaths.patientReminders;
@@ -126,10 +71,9 @@ export function PatientHomeNextReminderCard({
               <h3 id="patient-home-reminder-heading" className={cn(patientHomeReminderMobileHeadingClass, "md:whitespace-nowrap")}>
                 Следующее напоминание
               </h3>
-              <p className={cn(patientHomeReminderMobileSubtitleClass, "md:hidden")}>{reminderMobileSubtitle(scheduleLabel, reminderDaySummary)}</p>
+              <p className={cn(patientHomeReminderMobileSubtitleClass, "md:hidden")}>{scheduleLabel}</p>
               <div className="hidden md:block">
                 <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</p>
-                {reminderDaySummary ? <ReminderDaySummaryLines summary={reminderDaySummary} /> : null}
                 {(anonymousGuest || !personalTierOk) && (
                   <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>
                     {anonymousGuest ? "Чтобы настроить напоминания." : "После активации профиля."}
@@ -158,10 +102,9 @@ export function PatientHomeNextReminderCard({
             <h3 id="patient-home-reminder-heading" className={cn(patientHomeReminderMobileHeadingClass, "md:whitespace-nowrap")}>
               Следующее напоминание
             </h3>
-            <p className={cn(patientHomeReminderMobileSubtitleClass, "md:hidden")}>{reminderMobileSubtitle(scheduleLabel, reminderDaySummary)}</p>
+            <p className={cn(patientHomeReminderMobileSubtitleClass, "md:hidden")}>{scheduleLabel}</p>
             <div className="hidden md:block">
               <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</p>
-              {reminderDaySummary ? <ReminderDaySummaryLines summary={reminderDaySummary} /> : null}
             </div>
           </div>
           <Link href={routePaths.patientReminders} prefetch={false} className={reminderCtaMobileClass}>

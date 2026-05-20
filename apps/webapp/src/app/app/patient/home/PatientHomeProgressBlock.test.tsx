@@ -56,11 +56,11 @@ describe("PatientHomeProgressBlock", () => {
         progressGoalBreakdown={{ warmupDone: 2, warmupPlanned: 2, lfkDone: 0, lfkPlanned: 2 }}
       />,
     );
-    expect(screen.getByText(/разминок: 2 из 2/)).toBeInTheDocument();
-    expect(screen.getByText(/в плане: 0 из 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Разминки 2 из 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Тренировки 0 из 2/)).toBeInTheDocument();
     expect(
       screen.getByLabelText(
-        /^Выполнено сегодня: 1 из 4\. Разминок: 2 из 2\. В плане: 0 из 2\.$/,
+        /^Выполнено сегодня: 1 из 4\. Разминки: 2 из 2\. Тренировки: 0 из 2\.$/,
       ),
     ).toBeInTheDocument();
   });
@@ -74,7 +74,7 @@ describe("PatientHomeProgressBlock", () => {
         progressGoalBreakdown={{ warmupDone: 0, warmupPlanned: 0, lfkDone: 0, lfkPlanned: 0 }}
       />,
     );
-    expect(screen.queryByText(/разминок:/)).toBeNull();
+    expect(screen.queryByText(/Разминки/)).toBeNull();
     expect(screen.getByLabelText(/^Выполнено сегодня: 1 из 4$/)).toBeInTheDocument();
   });
 });
