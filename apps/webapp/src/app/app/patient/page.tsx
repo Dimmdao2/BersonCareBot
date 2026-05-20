@@ -12,6 +12,8 @@ import { Suspense } from "react";
 import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
 import { PatientHomeToday } from "./home/PatientHomeToday";
 
+export const dynamic = "force-dynamic";
+
 export default async function PatientHomePage() {
   const session = await requirePatientAccess(routePaths.patient);
 

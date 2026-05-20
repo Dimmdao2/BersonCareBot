@@ -6,17 +6,14 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
-const mockLoadPatientHomeProgressForUser = vi.hoisted(() => vi.fn());
-const mockGetSetting = vi.hoisted(() => vi.fn());
+const mockLoadMetrics = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
-  buildAppDeps: () => ({
-    systemSettings: { getSetting: mockGetSetting },
-  }),
+  buildAppDeps: () => ({}),
 }));
 
-vi.mock("@/modules/patient-home/patientHomeProgressResolver", () => ({
-  loadPatientHomeProgressForUser: mockLoadPatientHomeProgressForUser,
+vi.mock("@/modules/patient-home/loadPatientHomeProgressMetrics", () => ({
+  loadPatientHomeProgressMetrics: mockLoadMetrics,
 }));
 
 vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
@@ -33,8 +30,15 @@ describe("GET /api/patient/practice/progress", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
-    mockGetSetting.mockResolvedValue({ valueJson: { value: 4 } });
-    mockLoadPatientHomeProgressForUser.mockResolvedValue({ todayDone: 2, todayTarget: 4, streak: 1 });
+    mockLoadMetrics.mockResolvedValue({
+      warmupPlanned: 2,
+      warmupDone: 1,
+      trainingPlanned: 1,
+      trainingDone: 1,
+      streakDays: 2,
+      doneTotal: 2,
+      plannedTotal: 3,
+    });
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -46,16 +50,18 @@ describe("GET /api/patient/practice/progress", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns progress json from home progress resolver", async () => {
+  it("returns five-metric progress json", async () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toEqual({ todayDone: 2, todayTarget: 4, streak: 1 });
-    expect(mockLoadPatientHomeProgressForUser).toHaveBeenCalledWith(
-      expect.objectContaining({ systemSettings: { getSetting: mockGetSetting } }),
-      SESSION.user.userId,
-      "Europe/Moscow",
-      4,
-    );
+    expect(json).toEqual({
+      todayDone: 2,
+      todayTarget: 3,
+      streak: 2,
+      warmupPlanned: 2,
+      warmupDone: 1,
+      trainingPlanned: 1,
+      trainingDone: 1,
+    });
   });
 });

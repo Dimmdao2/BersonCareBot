@@ -143,6 +143,26 @@ export function createTreatmentProgramPatientActionService(deps: {
     utcDayWindowIso,
     localDayWindowIso,
 
+    /** ISO-времена всех `done` за сегодня по календарю пациента (для подсчёта занятий на главной). */
+    async listProgramDoneTimestampsToday(patientUserId: string, instanceId: string): Promise<string[]> {
+      assertUuid(patientUserId);
+      assertUuid(instanceId);
+      const win = await checklistDayWindow(patientUserId);
+      const rows = await deps.actionLog.listForInstance({ instanceId, limit: 500 });
+      const out: string[] = [];
+      for (const row of rows) {
+        if (row.actionType !== "done") continue;
+        if (row.createdAt < win.start || row.createdAt >= win.end) continue;
+        const src =
+          row.payload && typeof row.payload === "object" && "source" in row.payload
+            ? String((row.payload as { source?: unknown }).source ?? "")
+            : "";
+        if (src === "test_submitted" || src === "lfk_exercise_done") continue;
+        out.push(row.createdAt);
+      }
+      return out;
+    },
+
     async listChecklistDoneToday(patientUserId: string, instanceId: string): Promise<ChecklistTodaySnapshot> {
       assertUuid(patientUserId);
       assertUuid(instanceId);

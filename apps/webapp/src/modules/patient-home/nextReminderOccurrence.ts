@@ -123,6 +123,25 @@ function countSlotsV1OccurrencesInRange(rule: ReminderRule, rangeStart: Date, ra
   return count;
 }
 
+/** Слоты напоминаний с заданным {@link ReminderRule.reminderIntent} в UTC-окне (без fallback). */
+export function countReminderIntentSlotsInUtcRange(
+  rules: ReminderRule[],
+  intent: ReminderRule["reminderIntent"],
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
+  let n = 0;
+  for (const rule of rules) {
+    if (!rule.enabled || rule.reminderIntent !== intent) continue;
+    if (rule.scheduleType === "slots_v1" && rule.scheduleData) {
+      n += countSlotsV1OccurrencesInRange(rule, rangeStart, rangeEnd);
+    } else {
+      n += countIntervalWindowOccurrencesInRange(rule, rangeStart, rangeEnd);
+    }
+  }
+  return n;
+}
+
 /**
  * Число «плановых» срабатываний напоминаний с {@link ReminderRule.reminderIntent} `warmup` в полуинтервале
  * `[rangeStart, rangeEnd)` (UTC). Учитывает `slots_v1` и `interval_window` так же, как подсчёт на главной,
@@ -131,15 +150,7 @@ function countSlotsV1OccurrencesInRange(rule: ReminderRule, rangeStart: Date, ra
  * Если подходящих слотов нет (`0`), возвращает **3** — минимальная шкала делений по спеке дневника пациента (`diary.md`).
  */
 export function countWarmupReminderSlotsInUtcRange(rules: ReminderRule[], rangeStart: Date, rangeEnd: Date): number {
-  let n = 0;
-  for (const rule of rules) {
-    if (!rule.enabled || rule.reminderIntent !== "warmup") continue;
-    if (rule.scheduleType === "slots_v1" && rule.scheduleData) {
-      n += countSlotsV1OccurrencesInRange(rule, rangeStart, rangeEnd);
-    } else {
-      n += countIntervalWindowOccurrencesInRange(rule, rangeStart, rangeEnd);
-    }
-  }
+  const n = countReminderIntentSlotsInUtcRange(rules, "warmup", rangeStart, rangeEnd);
   return n === 0 ? 3 : n;
 }
 

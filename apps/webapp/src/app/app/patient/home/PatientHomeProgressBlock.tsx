@@ -4,10 +4,7 @@ import Link from "next/link";
 import { Flame, Info } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  buildPatientHomeProgressAriaLabel,
-  type PatientHomeProgressGoalBreakdown,
-} from "@/modules/patient-home/patientHomeTodayProgress";
+import type { PatientHomeProgressDisplay } from "@/modules/patient-home/patientHomeProgressMetrics";
 import {
   patientHomeBlockHeadingClass,
   patientHomeCardClass,
@@ -25,41 +22,40 @@ import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { streakFlameOpacity } from "./patientHomeStreakFlameOpacity";
 import { cn } from "@/lib/utils";
 
-export type { PatientHomeProgressGoalBreakdown };
-
 const PROGRESS_HINT = "Сколько напоминаний в расписании, столько и занятий в Цели дня.";
 
 type Props = {
-  practiceTarget: number;
+  metrics: PatientHomeProgressDisplay | null;
   anonymousGuest: boolean;
-  progress: { todayDone: number; streak: number } | null;
-  progressGoalBreakdown?: PatientHomeProgressGoalBreakdown | null;
   blockIconImageUrl?: string | null;
 };
 
-export function PatientHomeProgressBlock({
-  practiceTarget,
-  anonymousGuest,
-  progress,
-  progressGoalBreakdown = null,
-  blockIconImageUrl,
-}: Props) {
-  const showGoal = practiceTarget > 0;
+function buildProgressAriaLabel(metrics: PatientHomeProgressDisplay, displayDone: number): string {
+  const { plannedTotal, warmupPlanned, warmupDone, trainingPlanned, trainingDone } = metrics;
+  const base =
+    plannedTotal > 0
+      ? `Выполнено сегодня: ${displayDone} из ${plannedTotal}`
+      : `Выполнено сегодня: ${displayDone}`;
+  const parts = [base];
+  if (warmupPlanned > 0) parts.push(`Разминки: ${warmupDone} из ${warmupPlanned}`);
+  if (trainingPlanned > 0) parts.push(`Тренировки: ${trainingDone} из ${trainingPlanned}`);
+  return `${parts.join(". ")}.`;
+}
+
+export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconImageUrl }: Props) {
+  const showGoal = (metrics?.plannedTotal ?? 0) > 0;
   const displayDone =
-    progress && showGoal ? Math.min(progress.todayDone, practiceTarget) : progress?.todayDone ?? 0;
-  const pct = showGoal && practiceTarget > 0 ? Math.min(100, Math.round((displayDone / practiceTarget) * 100)) : 0;
+    metrics && showGoal ? Math.min(metrics.doneTotal, metrics.plannedTotal) : metrics?.doneTotal ?? 0;
+  const pct =
+    metrics && showGoal && metrics.plannedTotal > 0
+      ? Math.min(100, Math.round((displayDone / metrics.plannedTotal) * 100))
+      : 0;
 
-  const showWarmupBreakdown = (progressGoalBreakdown?.warmupPlanned ?? 0) > 0;
-  const showLfkBreakdown = (progressGoalBreakdown?.lfkPlanned ?? 0) > 0;
-  const showBreakdown =
-    progressGoalBreakdown != null && showGoal && (showWarmupBreakdown || showLfkBreakdown);
+  const showWarmupBreakdown = (metrics?.warmupPlanned ?? 0) > 0;
+  const showTrainingBreakdown = (metrics?.trainingPlanned ?? 0) > 0;
+  const showBreakdown = metrics != null && (showWarmupBreakdown || showTrainingBreakdown);
 
-  const progressAriaLabel = buildPatientHomeProgressAriaLabel({
-    displayDone,
-    practiceTarget,
-    showGoal,
-    breakdown: showBreakdown ? progressGoalBreakdown : null,
-  });
+  const progressAriaLabel = metrics ? buildProgressAriaLabel(metrics, displayDone) : "Выполнено сегодня";
 
   const guestCopy = anonymousGuest ?
     <>
@@ -73,8 +69,8 @@ export function PatientHomeProgressBlock({
   const streakLabel = (n: number) =>
     n === 1 ? "день" : n > 1 && n < 5 ? "дня" : "дней";
 
-  const flameOpacity =
-    anonymousGuest || !progress ? streakFlameOpacity(0) : streakFlameOpacity(progress.streak);
+  const streakDays = metrics?.streakDays ?? 0;
+  const flameOpacity = anonymousGuest || !metrics ? streakFlameOpacity(0) : streakFlameOpacity(streakDays);
 
   return (
     <section aria-labelledby="patient-home-progress-heading">
@@ -101,7 +97,7 @@ export function PatientHomeProgressBlock({
             </h3>
             {anonymousGuest ?
               <p className={patientHomeBlockBodySmClamp2Mt2Class}>{guestCopy}</p>
-            : !progress ?
+            : !metrics ?
               <div className="mt-2 space-y-2" aria-busy="true">
                 <div className="h-9 min-h-[36px] w-24 animate-pulse rounded-lg bg-muted/80 sm:h-10 sm:min-h-[40px]" />
                 <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]">
@@ -116,7 +112,7 @@ export function PatientHomeProgressBlock({
                     {showGoal ?
                       <span className={patientHomeProgressValueSuffixClass}>
                         {" "}
-                        из {practiceTarget}
+                        из {metrics.plannedTotal}
                       </span>
                     : null}
                   </p>
@@ -127,12 +123,12 @@ export function PatientHomeProgressBlock({
                     >
                       {showWarmupBreakdown ?
                         <div>
-                          Разминки {progressGoalBreakdown!.warmupDone} из {progressGoalBreakdown!.warmupPlanned}
+                          Разминки {metrics.warmupDone} из {metrics.warmupPlanned}
                         </div>
                       : null}
-                      {showLfkBreakdown ?
+                      {showTrainingBreakdown ?
                         <div>
-                          Тренировки {progressGoalBreakdown!.lfkDone} из {progressGoalBreakdown!.lfkPlanned}
+                          Тренировки {metrics.trainingDone} из {metrics.trainingPlanned}
                         </div>
                       : null}
                     </div>
@@ -144,8 +140,8 @@ export function PatientHomeProgressBlock({
                     role="progressbar"
                     aria-valuenow={displayDone}
                     aria-valuemin={0}
-                    aria-valuemax={practiceTarget}
-                    aria-label={showBreakdown ? `${progressAriaLabel} Полоса прогресса.` : "Прогресс за сегодня"}
+                    aria-valuemax={metrics.plannedTotal}
+                    aria-label={`${progressAriaLabel} Полоса прогресса.`}
                   >
                     <div
                       className="h-full rounded-full bg-[var(--patient-color-primary)] transition-[width] duration-300"
@@ -175,16 +171,16 @@ export function PatientHomeProgressBlock({
                   }
                 />
               </span>
-              {progress && !anonymousGuest ?
-                <span className={patientHomeProgressStreakValueClass}>{progress.streak}</span>
+              {metrics && !anonymousGuest ?
+                <span className={patientHomeProgressStreakValueClass}>{metrics.streakDays}</span>
               :
                 <span className={patientHomeProgressStreakValueClass} aria-hidden>
                   <span className="text-[var(--patient-text-muted)]">—</span>
                 </span>
               }
-              {progress && !anonymousGuest ?
+              {metrics && !anonymousGuest ?
                 <span className="-mt-0.5 block max-w-[3.5rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-block-caption)] md:max-w-[4.75rem] md:leading-3 md:text-[11px]">
-                  <span className="block">{streakLabel(progress.streak)}</span>
+                  <span className="block">{streakLabel(metrics.streakDays)}</span>
                   <span className="block">подряд</span>
                 </span>
               :
