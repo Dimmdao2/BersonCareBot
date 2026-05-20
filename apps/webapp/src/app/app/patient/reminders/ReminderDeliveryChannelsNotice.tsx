@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { routePaths } from "@/app-layer/routes/paths";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { patientHeroBookingCardChromeClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 

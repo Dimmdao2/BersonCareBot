@@ -14,10 +14,7 @@ import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab"
 import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
-import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
-import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
-import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
-import { formatPlanReminderTodayLine } from "@/modules/reminders/summarizeReminderForCalendarDay";
+import { formatExercisesTodayTrainingStatus } from "@/modules/reminders/summarizeReminderForCalendarDay";
 import { parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 
 type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ tab?: string | string[] }> };
@@ -59,20 +56,12 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
 
   const appTz = await getAppDisplayTimeZone();
 
-  const [initialTestResults, initialProgramEvents, patientIana, rules, canViewAuth, warmRes, planItemCooldownSetting] =
+  const [initialTestResults, initialProgramEvents, patientIana, rules, planItemCooldownSetting] =
     await Promise.all([
       deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
       deps.treatmentProgramInstance.listProgramEvents(instanceId),
       deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
       deps.reminders.listRulesByUser(session.user.userId),
-      resolvePatientCanViewAuthOnlyContent(session),
-      resolvePatientContentSectionSlug(
-        {
-          getBySlug: (s) => deps.contentSections.getBySlug(s),
-          getRedirectNewSlugForOldSlug: (s) => deps.contentSections.getRedirectNewSlugForOldSlug(s),
-        },
-        DEFAULT_WARMUPS_SECTION_SLUG,
-      ),
       deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
     ]);
 
@@ -92,9 +81,6 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   }
 
   const resolvedIana = resolveCalendarDayIanaForPatient(patientIana, appTz);
-  const warmupsSectionAvailable = Boolean(
-    warmRes && (!warmRes.section.requiresAuth || canViewAuth),
-  );
   const calendarDateKey = DateTime.now().setZone(resolvedIana).toISODate()!;
   const planReminderNow = new Date();
 
@@ -104,20 +90,18 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   rehabMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   const rehabRuleForStrip = rehabMatches[0] ?? null;
 
-  const warmMatches = rules.filter(
-    (r) => r.linkedObjectType === "content_section" && r.linkedObjectId === DEFAULT_WARMUPS_SECTION_SLUG,
-  );
-  warmMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-  const warmupRuleForStrip = warmMatches[0] ?? null;
-
   const planReminderStrip =
     detail.status === "active" ?
       {
-        rehabTodayLine: formatPlanReminderTodayLine(rehabRuleForStrip, calendarDateKey, resolvedIana, planReminderNow),
-        warmupTodayLine: warmupsSectionAvailable
-          ? formatPlanReminderTodayLine(warmupRuleForStrip, calendarDateKey, resolvedIana, planReminderNow)
-          : null,
+        rehabTodayLine: formatExercisesTodayTrainingStatus(
+          rehabRuleForStrip,
+          calendarDateKey,
+          resolvedIana,
+          planReminderNow,
+        ),
+        warmupTodayLine: null,
         remindersHref: `${routePaths.patientReminders}#patient-reminders-rehab`,
+        variant: "trainingsToday" as const,
       }
     : null;
 

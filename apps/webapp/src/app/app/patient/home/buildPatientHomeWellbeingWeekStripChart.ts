@@ -1,10 +1,19 @@
 import { DateTime } from "luxon";
 import type { PatientMoodScore, PatientMoodWeekMark } from "@/modules/patient-mood/types";
+import {
+  bucketInstantWellbeingChartPoints,
+  WELLBEING_INSTANT_CHART_BUCKET_HOURS,
+  WELLBEING_INSTANT_CHART_BUCKET_MS,
+} from "@/modules/patient-mood/wellbeingInstantChartBucketing";
 
 export const HOME_WELLBEING_STRIP_CHART_WIDTH = 280;
 export const HOME_WELLBEING_STRIP_CHART_HEIGHT = 40;
 /** Скользящее окно на главной «Сегодня»: последние N календарных дней включая сегодня. */
 export const HOME_WELLBEING_STRIP_DAY_COUNT = 3;
+/** @deprecated Prefer {@link WELLBEING_INSTANT_CHART_BUCKET_HOURS}. */
+export const HOME_WELLBEING_STRIP_BUCKET_HOURS = WELLBEING_INSTANT_CHART_BUCKET_HOURS;
+/** @deprecated Prefer {@link WELLBEING_INSTANT_CHART_BUCKET_MS}. */
+export const HOME_WELLBEING_STRIP_BUCKET_MS = WELLBEING_INSTANT_CHART_BUCKET_MS;
 const TOP_PAD = 2;
 const BOTTOM_PAD = 2;
 
@@ -49,6 +58,22 @@ export function weekStripTimeToX(ms: number, windowStartMs: number, windowEndMs:
   const clamped = Math.max(windowStartMs, Math.min(ms, windowEndMs));
   const t = (clamped - windowStartMs) / (windowEndMs - windowStartMs);
   return t * HOME_WELLBEING_STRIP_CHART_WIDTH;
+}
+
+/** @see bucketInstantWellbeingChartPoints */
+export function bucketWellbeingStripMarksForChart(
+  marks: readonly PatientMoodWeekMark[],
+  windowStartMs: number,
+  nowMs: number,
+): PatientMoodWeekMark[] {
+  return bucketInstantWellbeingChartPoints(
+    marks.map((m) => ({ t: new Date(m.recordedAt).getTime(), v: m.score })),
+    windowStartMs,
+    nowMs,
+  ).map((p) => ({
+    recordedAt: new Date(p.t).toISOString(),
+    score: Math.min(5, Math.max(1, Math.round(p.v))) as PatientMoodScore,
+  }));
 }
 
 function buildSmoothSegmentPath(points: Array<{ x: number; y: number }>): string {
@@ -125,7 +150,9 @@ export function buildPatientHomeWellbeingWeekStripChart(
   const windowEndMs = DateTime.fromISO(todayIso, { zone: timeZone }).plus({ days: 1 }).startOf("day").toMillis();
   const nowX = weekStripTimeToX(nowMs, windowStartMs, windowEndMs);
 
-  const markPoints: StripPoint[] = marks
+  const bucketedMarks = bucketWellbeingStripMarksForChart(marks, windowStartMs, nowMs);
+
+  const markPoints: StripPoint[] = bucketedMarks
     .map((m) => ({
       x: weekStripTimeToX(new Date(m.recordedAt).getTime(), windowStartMs, windowEndMs),
       y: yForWellbeingStripScore(m.score),
@@ -169,7 +196,7 @@ export function buildPatientHomeWellbeingWeekStripChart(
     );
   }
 
-  const sortedMarks = [...marks].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+  const sortedMarks = [...bucketedMarks].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
 
   const lastMarkPointForDay = (dayIso: string): StripPoint | null => {
     for (let i = sortedMarks.length - 1; i >= 0; i -= 1) {

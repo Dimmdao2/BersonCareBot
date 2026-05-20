@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  assemblePatientHomeProgress,
   buildPatientHomeProgressAriaLabel,
   buildPatientHomeProgressGoalBreakdown,
   computePatientHomeTodayDoneCount,
+  countPatientHomeDoneTowardReminderPlan,
   countProgramChecklistItemsDoneToday,
   countWarmupCompletionsInRows,
   resolvePatientHomePracticeTarget,
@@ -79,15 +81,43 @@ describe("patientHomeTodayProgress", () => {
     ).toBe(3);
   });
 
-  it("builds breakdown with capped lfk done", () => {
+  it("builds breakdown from capped slot counts", () => {
     expect(
       buildPatientHomeProgressGoalBreakdown({
         warmupDone: 1,
         warmupPlanned: 2,
-        programDone: 3,
+        lfkDone: 2,
         lfkPlanned: 2,
       }),
     ).toEqual({ warmupDone: 1, warmupPlanned: 2, lfkDone: 2, lfkPlanned: 2 });
+  });
+
+  it("reminder plan todayDone matches breakdown sum (no extra checklist beyond slots)", () => {
+    expect(
+      countPatientHomeDoneTowardReminderPlan({
+        warmupDoneToday: 1,
+        programDoneToday: 2,
+        warmupPlanned: 2,
+        lfkPlanned: 1,
+      }),
+    ).toEqual({ warmupDone: 1, lfkDone: 1, todayDone: 2 });
+    const assembled = assemblePatientHomeProgress({
+      practiceTarget: 3,
+      warmupDoneToday: 1,
+      programDoneToday: 2,
+      warmupPlanned: 2,
+      lfkPlanned: 1,
+      hasConfiguredSchedule: true,
+      muted: false,
+      plannedTotal: 3,
+    });
+    expect(assembled.todayDone).toBe(2);
+    expect(assembled.goalBreakdown).toEqual({
+      warmupDone: 1,
+      warmupPlanned: 2,
+      lfkDone: 1,
+      lfkPlanned: 1,
+    });
   });
 
   it("countProgramChecklistItemsDoneToday uses doneItemIds length", () => {

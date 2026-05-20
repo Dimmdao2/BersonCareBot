@@ -49,7 +49,7 @@ const planCtaClass = cn(
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b4585]/35",
 );
 
-/** Карточка «Мой план» на главной — только при активном назначении врачом (см. `PatientHomeToday`). */
+/** Карточка «Мой план» на главной — только при назначении врачом или курсе (см. `PatientHomeToday`). */
 export function PatientHomePlanCard({
   instance,
   startLessonHref,

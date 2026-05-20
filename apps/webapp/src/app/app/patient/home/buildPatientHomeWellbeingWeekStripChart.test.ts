@@ -1,12 +1,46 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DateTime } from "luxon";
 import {
+  bucketWellbeingStripMarksForChart,
   buildPatientHomeWellbeingWeekStripChart,
   HOME_WELLBEING_STRIP_CHART_WIDTH,
   HOME_WELLBEING_STRIP_DAY_COUNT,
 } from "./buildPatientHomeWellbeingWeekStripChart";
 
 const tz = "Europe/Moscow";
+
+describe("bucketWellbeingStripMarksForChart", () => {
+  it("merges marks within the same 2h slot into one averaged point", () => {
+    const windowStartMs = DateTime.fromISO("2026-05-20T00:00:00", { zone: tz }).toMillis();
+    const nowMs = DateTime.fromISO("2026-05-20T14:00:00", { zone: tz }).toMillis();
+    const bucketed = bucketWellbeingStripMarksForChart(
+      [
+        { recordedAt: DateTime.fromISO("2026-05-20T10:05:00", { zone: tz }).toUTC().toISO()!, score: 2 },
+        { recordedAt: DateTime.fromISO("2026-05-20T10:20:00", { zone: tz }).toUTC().toISO()!, score: 4 },
+        { recordedAt: DateTime.fromISO("2026-05-20T10:50:00", { zone: tz }).toUTC().toISO()!, score: 4 },
+      ],
+      windowStartMs,
+      nowMs,
+    );
+    expect(bucketed).toHaveLength(1);
+    expect(bucketed[0]!.score).toBe(3);
+  });
+
+  it("keeps separate points for marks in different 2h slots", () => {
+    const windowStartMs = DateTime.fromISO("2026-05-20T00:00:00", { zone: tz }).toMillis();
+    const nowMs = DateTime.fromISO("2026-05-20T18:00:00", { zone: tz }).toMillis();
+    const bucketed = bucketWellbeingStripMarksForChart(
+      [
+        { recordedAt: DateTime.fromISO("2026-05-20T09:30:00", { zone: tz }).toUTC().toISO()!, score: 2 },
+        { recordedAt: DateTime.fromISO("2026-05-20T13:30:00", { zone: tz }).toUTC().toISO()!, score: 5 },
+      ],
+      windowStartMs,
+      nowMs,
+    );
+    expect(bucketed).toHaveLength(2);
+    expect(bucketed.map((m) => m.score)).toEqual([2, 5]);
+  });
+});
 
 describe("buildPatientHomeWellbeingWeekStripChart", () => {
   beforeEach(() => {
@@ -104,6 +138,29 @@ describe("buildPatientHomeWellbeingWeekStripChart", () => {
     });
     expect(segments.find((s) => s.key === "lead")).toBeUndefined();
     expect(segments.find((s) => s.key === "window-anchor")?.kind).toBe("solid");
+  });
+
+  it("uses fewer solid segments when many marks fall in the same 2h bucket", () => {
+    const friday = DateTime.fromObject({ year: 2026, month: 5, day: 22, hour: 11 }, { zone: tz });
+    vi.setSystemTime(friday.toMillis());
+    const windowStartIso = friday.minus({ days: HOME_WELLBEING_STRIP_DAY_COUNT - 1 }).toISODate()!;
+    const { segments } = buildPatientHomeWellbeingWeekStripChart({
+      marks: [
+        { recordedAt: DateTime.fromISO("2026-05-22T08:10:00", { zone: tz }).toUTC().toISO()!, score: 1 },
+        { recordedAt: DateTime.fromISO("2026-05-22T08:25:00", { zone: tz }).toUTC().toISO()!, score: 5 },
+        { recordedAt: DateTime.fromISO("2026-05-22T08:40:00", { zone: tz }).toUTC().toISO()!, score: 3 },
+        { recordedAt: DateTime.fromISO("2026-05-22T09:05:00", { zone: tz }).toUTC().toISO()!, score: 4 },
+      ],
+      timeZone: tz,
+      todayIso: "2026-05-22",
+      windowStartIso,
+      nowMs: friday.toMillis(),
+      anchorDayBeforeWindowHadMarks: false,
+      anchorDayBeforeWindowLastScore: null,
+      lastScoreBeforeWindow: null,
+    });
+    const solidBetween = segments.filter((s) => s.kind === "solid" && s.key.startsWith("solid-"));
+    expect(solidBetween.length).toBeLessThanOrEqual(1);
   });
 
   it("places nowX near the right edge within today (3-day window ends at end of today)", () => {

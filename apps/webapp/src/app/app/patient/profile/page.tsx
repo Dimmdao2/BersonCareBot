@@ -67,14 +67,14 @@ export default async function PatientProfilePage() {
               href={routePaths.notifications}
               className="inline-flex shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
             >
-              Настройки уведомлений
+              Настройка
             </Link>
             <Link
               href={routePaths.patientReminders}
               prefetch={false}
               className="inline-flex shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
             >
-              Расписание напоминаний
+              Расписание
             </Link>
           </div>
         </section>

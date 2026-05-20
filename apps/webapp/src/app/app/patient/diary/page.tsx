@@ -56,7 +56,7 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
       backLabel="Меню"
       variant="patient"
       patientShellAboveTitleSlot={
-        <PatientPlanTodayRemindersCard {...planReminderStrip} defaultOpen />
+        <PatientPlanTodayRemindersCard {...planReminderStrip} />
       }
     >
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>

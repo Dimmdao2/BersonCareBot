@@ -112,7 +112,26 @@ export function summarizeReminderForCalendarDay(
   return `${formatReminderMinuteOfDayToHhMm(ws)}–${formatReminderMinuteOfDayToHhMm(we)}, каждые ${interval} мин.`;
 }
 
-const PLAN_REMINDER_DONE_TODAY = "На сегодня всё";
+export const PLAN_REMINDER_DONE_TODAY = "На сегодня всё";
+
+const PLAN_REMINDER_REMAINING_RE = /^Сегодня еще (\d+): в (.+)$/;
+
+/**
+ * Краткий статус для карточки «Расписание» на странице «Упражнения»:
+ * «нет тренировок» | «все выполнено» | «еще n в ЧЧ:ММ, …».
+ */
+export function formatExercisesTodayTrainingStatus(
+  rule: SummarizeReminderInput | null,
+  calendarDateKey: string,
+  patientCalendarDayIana: string,
+  now: Date,
+): string {
+  const line = formatPlanReminderTodayLine(rule, calendarDateKey, patientCalendarDayIana, now);
+  if (line === PLAN_REMINDER_DONE_TODAY) return "все выполнено";
+  const m = PLAN_REMINDER_REMAINING_RE.exec(line);
+  if (m) return `еще ${m[1]} в ${m[2]}`;
+  return "нет тренировок";
+}
 
 /**
  * Строка для карточки «План»: при оставшихся на сегодня срабатываниях — «Сегодня еще n: в ЧЧ:ММ, …»;

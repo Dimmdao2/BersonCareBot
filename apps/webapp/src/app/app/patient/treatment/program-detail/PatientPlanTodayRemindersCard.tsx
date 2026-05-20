@@ -30,9 +30,16 @@ export type PatientPlanTodayRemindersCardProps = {
   remindersHref: string;
   /** Узкая кнопка/ссылка в одну строку с триггером (напр. поддержка); корень блока занимает ширину колонки страницы. */
   trailingAccessory?: ReactNode;
-  /** Начальное состояние раскрытия (дневник — развёрнуто). */
+  /** Начальное состояние раскрытия. */
   defaultOpen?: boolean;
+  /** «Упражнения»: только блок про тренировки на сегодня. */
+  variant?: "schedule" | "trainingsToday";
 };
+
+const configureScheduleButtonClass = cn(
+  patientButtonWarningOutlineClass,
+  "h-7 shrink-0 self-center px-2 text-[11px] font-normal leading-none",
+);
 
 export function PatientPlanTodayRemindersCard({
   rehabTodayLine,
@@ -40,6 +47,7 @@ export function PatientPlanTodayRemindersCard({
   remindersHref,
   trailingAccessory,
   defaultOpen = false,
+  variant = "schedule",
 }: PatientPlanTodayRemindersCardProps) {
   const [scheduleOpen, setScheduleOpen] = useState(defaultOpen);
 
@@ -84,26 +92,32 @@ export function PatientPlanTodayRemindersCard({
       </div>
       <CollapsibleContent className="outline-none">
         <div className={cn(scheduleExpandedPanelClass, "px-3 py-3 md:px-3.5")}>
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1 space-y-2">
-              <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
-                Тренировки: {rehabTodayLine}
-              </p>
-              {warmupTodayLine != null ? (
-                <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
-                  Разминки: {warmupTodayLine}
-                </p>
-              ) : null}
-            </div>
-            <Link
-              href={remindersHref}
-              prefetch={false}
-              className={cn(
-                patientButtonWarningOutlineClass,
-                "min-h-8 w-auto shrink-0 self-center px-2.5 text-xs font-normal",
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1 space-y-1">
+              {variant === "trainingsToday" ? (
+                <>
+                  <p className="text-xs font-medium leading-snug text-[var(--patient-block-heading)]">
+                    Тренировки на сегодня
+                  </p>
+                  <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
+                    {rehabTodayLine}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
+                    Тренировки: {rehabTodayLine}
+                  </p>
+                  {warmupTodayLine != null ? (
+                    <p className="text-xs font-normal leading-snug text-[var(--patient-color-primary)]">
+                      Разминки: {warmupTodayLine}
+                    </p>
+                  ) : null}
+                </>
               )}
-            >
-              Настроить расписание
+            </div>
+            <Link href={remindersHref} prefetch={false} className={configureScheduleButtonClass}>
+              Настроить
             </Link>
           </div>
         </div>

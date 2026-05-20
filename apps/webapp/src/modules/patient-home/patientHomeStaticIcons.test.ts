@@ -11,7 +11,7 @@ describe("patientHomeStaticIcons", () => {
     expect(PATIENT_HOME_BLOCK_STATIC_ICON_URL.sos).toBe("/patient/home/icons/sos.png");
     expect(PATIENT_HOME_BLOCK_STATIC_ICON_URL.progress).toBe("/patient/home/icons/progress.png");
     expect(PATIENT_HOME_BLOCK_STATIC_ICON_URL.next_reminder).toBe("/patient/home/icons/next-reminder.png");
-    expect(PATIENT_HOME_BLOCK_STATIC_ICON_URL.plan).toBe("/patient/home/icons/plan.png");
+    expect(PATIENT_HOME_BLOCK_STATIC_ICON_URL.plan).toBe("/patient/home/icons/chart-line.png");
   });
 
   it("maps mood scores to public PNG paths", () => {

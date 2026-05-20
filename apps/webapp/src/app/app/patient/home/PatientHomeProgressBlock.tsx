@@ -27,8 +27,7 @@ import { cn } from "@/lib/utils";
 
 export type { PatientHomeProgressGoalBreakdown };
 
-const PROGRESS_HINT_BASE =
-  "Считаем разминки с экрана «Разминка дня» и пункты программы, отмеченные сегодня по вашему календарю. «Из N» — по напоминаниям на сегодня или по цели из настроек кабинета.";
+const PROGRESS_HINT = "Сколько напоминаний в расписании, столько и занятий в Цели дня.";
 
 type Props = {
   practiceTarget: number;
@@ -37,19 +36,6 @@ type Props = {
   progressGoalBreakdown?: PatientHomeProgressGoalBreakdown | null;
   blockIconImageUrl?: string | null;
 };
-
-function progressHintDetail(breakdown: PatientHomeProgressGoalBreakdown | null): string {
-  if (!breakdown) return PROGRESS_HINT_BASE;
-  const lines: string[] = [];
-  if (breakdown.warmupPlanned > 0) {
-    lines.push(`Разминки ${breakdown.warmupDone} из ${breakdown.warmupPlanned}`);
-  }
-  if (breakdown.lfkPlanned > 0) {
-    lines.push(`Тренировки ${breakdown.lfkDone} из ${breakdown.lfkPlanned}`);
-  }
-  if (lines.length === 0) return PROGRESS_HINT_BASE;
-  return `${PROGRESS_HINT_BASE} ${lines.join(". ")}.`;
-}
 
 export function PatientHomeProgressBlock({
   practiceTarget,
@@ -109,7 +95,7 @@ export function PatientHomeProgressBlock({
                   <Info className="size-4" aria-hidden />
                 </PopoverTrigger>
                 <PopoverContent className="max-w-[min(18rem,calc(100vw-2rem))] text-xs leading-snug">
-                  {progressHintDetail(showBreakdown ? progressGoalBreakdown : null)}
+                  {PROGRESS_HINT}
                 </PopoverContent>
               </Popover>
             </h3>
@@ -124,8 +110,8 @@ export function PatientHomeProgressBlock({
                 <p className={patientHomeBlockBodySmClass}>Загрузка прогресса…</p>
               </div>
             : <>
-                <div className="mt-0.5 flex flex-row flex-nowrap items-baseline gap-x-3">
-                  <p className="m-0 shrink-0 tabular-nums" aria-label={progressAriaLabel}>
+                <div className="mt-0.5 flex flex-row flex-nowrap items-start gap-x-3">
+                  <p className="m-0 shrink-0 tabular-nums leading-none" aria-label={progressAriaLabel}>
                     <span className={patientHomeProgressValueClass}>{displayDone}</span>
                     {showGoal ?
                       <span className={patientHomeProgressValueSuffixClass}>
@@ -136,7 +122,7 @@ export function PatientHomeProgressBlock({
                   </p>
                   {showBreakdown ?
                     <div
-                      className="min-w-0 shrink text-[10px] leading-tight text-[var(--patient-text-muted)] md:text-xs"
+                      className="min-w-0 shrink pt-0.5 text-[10px] leading-tight text-[var(--patient-text-muted)] md:text-xs"
                       aria-hidden
                     >
                       {showWarmupBreakdown ?

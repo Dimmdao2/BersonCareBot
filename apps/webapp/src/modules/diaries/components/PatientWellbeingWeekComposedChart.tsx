@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
 import { wellbeingValue10ToRgb } from "@/modules/diaries/wellbeingWeekChartMoodColors";
+import { bucketInstantWellbeingChartPoints } from "@/modules/patient-mood/wellbeingInstantChartBucketing";
 
 /** Fallback, если нет точек «Среднее за день» (только instant). */
 const STROKE_AREA_FALLBACK = "hsl(var(--patient-color-primary, 215 65% 38%))";
@@ -351,7 +352,12 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
   const aggData = aggDataRaw.filter((p) => p.x <= chartEndMs);
   const aggregateSegments = buildAggregateSolidSegments(aggData, weekStartMs, chartEndMs);
   const instDataRaw = instantSeries.map((p) => ({ x: p.t, y: p.v }));
-  const instData = clipSeriesAtEndMs(instDataRaw, chartEndMs);
+  const instDataClipped = clipSeriesAtEndMs(instDataRaw, chartEndMs);
+  const instData = bucketInstantWellbeingChartPoints(
+    instDataClipped.map((p) => ({ t: p.x, v: p.y })),
+    weekStartMs,
+    chartEndMs,
+  ).map((p) => ({ x: p.t, y: p.v }));
   const instSmooth = instData.length > 1 ? smoothInstantPolyline(instData, 10) : instData;
   const instantStrokeSegments = buildInstantStrokeSegments(instSmooth);
   const scatterData = warmupScatter

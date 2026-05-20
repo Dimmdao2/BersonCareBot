@@ -20,7 +20,7 @@ import {
 } from "@/modules/patient-home/nextReminderOccurrence";
 import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
-import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
+import { pickActivePlanInstanceForPatientHome } from "@/modules/treatment-program/pickActivePlanInstance";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
 import type { PatientMoodCheckinState, PatientMoodScore, PatientMoodWeekMark } from "@/modules/patient-mood/types";
@@ -317,24 +317,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     );
     const scheduleInstant = reminderScheduleEvaluationInstant(patientHomeReminderEvaluatedAt, mutedUntilIso);
     homeReminder = pickNextHomeReminder(rules, scheduleInstant, appTz);
-    let picked = pickActivePlanInstance(instances);
-    if (!picked) {
-      const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
-      if (promoTplId) {
-        try {
-          const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
-          if (tpl.status === "published") {
-            await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
-              patientUserId: session.user.userId,
-            });
-            const refreshed = await deps.treatmentProgramInstance.listForPatient(session.user.userId);
-            picked = pickActivePlanInstance(refreshed);
-          }
-        } catch {
-          picked = null;
-        }
-      }
-    }
+    const picked = pickActivePlanInstanceForPatientHome(instances);
     planInstance = picked ? { id: picked.id, title: picked.title } : null;
     if (planInstance) {
       planStartLessonHref = routePaths.patientTreatmentProgram(planInstance.id);

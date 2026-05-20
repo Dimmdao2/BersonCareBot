@@ -6,7 +6,7 @@ export const PATIENT_HOME_BLOCK_STATIC_ICON_URL: Partial<Record<PatientHomeBlock
   sos: "/patient/home/icons/sos.png",
   progress: "/patient/home/icons/progress.png",
   next_reminder: "/patient/home/icons/next-reminder.png",
-  plan: "/patient/home/icons/plan.png",
+  plan: "/patient/home/icons/chart-line.png",
 };
 
 /** Bundled mood scale icons (`public/patient/home/icons/mood/`). */

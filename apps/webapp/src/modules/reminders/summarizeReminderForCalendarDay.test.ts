@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   summarizeReminderForCalendarDay,
   isSlotsV1DayActive,
+  formatExercisesTodayTrainingStatus,
   formatPlanReminderTodayLine,
 } from "./summarizeReminderForCalendarDay";
 import type { ReminderRule } from "./types";
@@ -157,5 +158,33 @@ describe("formatPlanReminderTodayLine", () => {
     };
     const now = DateTime.fromISO("2026-05-11T19:00:00", { zone: "Europe/Moscow" }).toJSDate();
     expect(formatPlanReminderTodayLine(r, "2026-05-11", "Europe/Moscow", now)).toBe("На сегодня всё");
+  });
+});
+
+describe("formatExercisesTodayTrainingStatus", () => {
+  it("returns нет тренировок for null rule", () => {
+    expect(
+      formatExercisesTodayTrainingStatus(null, "2026-05-11", "Europe/Moscow", new Date("2026-05-11T10:00:00+03:00")),
+    ).toBe("нет тренировок");
+  });
+
+  it("maps remaining slots to еще n в …", () => {
+    const r: ReminderRule = {
+      ...baseRule(),
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["09:00", "18:00"], dayFilter: "weekdays" },
+    };
+    const now = DateTime.fromISO("2026-05-11T10:00:00", { zone: "Europe/Moscow" }).toJSDate();
+    expect(formatExercisesTodayTrainingStatus(r, "2026-05-11", "Europe/Moscow", now)).toBe("еще 1 в 18:00");
+  });
+
+  it("maps all done to все выполнено", () => {
+    const r: ReminderRule = {
+      ...baseRule(),
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["09:00", "18:00"], dayFilter: "weekdays" },
+    };
+    const now = DateTime.fromISO("2026-05-11T19:00:00", { zone: "Europe/Moscow" }).toJSDate();
+    expect(formatExercisesTodayTrainingStatus(r, "2026-05-11", "Europe/Moscow", now)).toBe("все выполнено");
   });
 });

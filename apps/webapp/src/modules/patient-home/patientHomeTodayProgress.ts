@@ -57,20 +57,34 @@ export function assemblePatientHomeProgress(params: {
   muted: boolean;
   plannedTotal: number;
 }): PatientHomeProgressAssembly {
+  const useReminderPlan =
+    params.hasConfiguredSchedule && !params.muted && params.plannedTotal > 0;
+
+  if (useReminderPlan) {
+    const toward = countPatientHomeDoneTowardReminderPlan({
+      warmupDoneToday: params.warmupDoneToday,
+      programDoneToday: params.programDoneToday,
+      warmupPlanned: params.warmupPlanned,
+      lfkPlanned: params.lfkPlanned,
+    });
+    const goalBreakdown = buildPatientHomeProgressGoalBreakdown({
+      warmupDone: toward.warmupDone,
+      warmupPlanned: params.warmupPlanned,
+      lfkDone: toward.lfkDone,
+      lfkPlanned: params.lfkPlanned,
+    });
+    return {
+      todayDone: toward.todayDone,
+      practiceTarget: params.practiceTarget,
+      goalBreakdown,
+    };
+  }
+
   const todayDone = computePatientHomeTodayDoneCount({
     warmupCompletionsToday: params.warmupDoneToday,
     programChecklistDoneToday: params.programDoneToday,
   });
-  const goalBreakdown =
-    params.hasConfiguredSchedule && !params.muted && params.plannedTotal > 0
-      ? buildPatientHomeProgressGoalBreakdown({
-          warmupDone: params.warmupDoneToday,
-          warmupPlanned: params.warmupPlanned,
-          programDone: params.programDoneToday,
-          lfkPlanned: params.lfkPlanned,
-        })
-      : null;
-  return { todayDone, practiceTarget: params.practiceTarget, goalBreakdown };
+  return { todayDone, practiceTarget: params.practiceTarget, goalBreakdown: null };
 }
 
 /** aria-label для блока прогресса: совпадает с крупной цифрой на экране. */
@@ -95,15 +109,27 @@ export function buildPatientHomeProgressAriaLabel(params: {
   return `${parts.join(". ")}.`;
 }
 
+/** Вклад в «Сегодня выполнено» по слотам напоминаний (не больше плана на день). */
+export function countPatientHomeDoneTowardReminderPlan(params: {
+  warmupDoneToday: number;
+  programDoneToday: number;
+  warmupPlanned: number;
+  lfkPlanned: number;
+}): { warmupDone: number; lfkDone: number; todayDone: number } {
+  const warmupDone =
+    params.warmupPlanned > 0 ? Math.min(params.warmupDoneToday, params.warmupPlanned) : 0;
+  const lfkDone = params.lfkPlanned > 0 ? Math.min(params.programDoneToday, params.lfkPlanned) : 0;
+  return { warmupDone, lfkDone, todayDone: warmupDone + lfkDone };
+}
+
 export function buildPatientHomeProgressGoalBreakdown(params: {
   warmupDone: number;
   warmupPlanned: number;
-  programDone: number;
+  lfkDone: number;
   lfkPlanned: number;
 }): PatientHomeProgressGoalBreakdown | null {
-  const { warmupDone, warmupPlanned, programDone, lfkPlanned } = params;
+  const { warmupDone, warmupPlanned, lfkDone, lfkPlanned } = params;
   if (warmupPlanned <= 0 && lfkPlanned <= 0) return null;
-  const lfkDone = lfkPlanned > 0 ? Math.min(programDone, lfkPlanned) : programDone;
   return { warmupDone, warmupPlanned, lfkDone, lfkPlanned };
 }
 

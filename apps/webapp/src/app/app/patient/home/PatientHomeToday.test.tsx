@@ -480,13 +480,36 @@ describe("PatientHomeToday", () => {
     expect(listChecklistDoneToday).toHaveBeenCalledWith(fixtureSession.user.userId, "inst-active-1");
   });
 
-  it("patient tier: shows plan block for promo assignment", async () => {
+  it("patient tier: hides plan block for promo assignment", async () => {
     listForPatient.mockResolvedValueOnce([
       {
         id: "inst-promo-1",
         title: "Promo plan",
         status: "active",
         assignmentSource: "promo",
+        updatedAt: "2026-04-28T10:00:00.000Z",
+      },
+    ]);
+
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(screen.queryByRole("heading", { name: /Мой план реабилитации/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Promo plan")).not.toBeInTheDocument();
+    expect(ensureDefaultPromoProgramForPatient).not.toHaveBeenCalled();
+  });
+
+  it("patient tier: shows plan block for course assignment", async () => {
+    listForPatient.mockResolvedValueOnce([
+      {
+        id: "inst-course-1",
+        title: "Course plan",
+        status: "active",
+        assignmentSource: "course",
         updatedAt: "2026-04-28T10:00:00.000Z",
       },
     ]);
@@ -502,7 +525,7 @@ describe("PatientHomeToday", () => {
     render(tree);
 
     expect(screen.getByRole("heading", { name: /Мой план реабилитации/i })).toBeInTheDocument();
-    expect(screen.getByText("Promo plan")).toBeInTheDocument();
+    expect(screen.getByText("Course plan")).toBeInTheDocument();
   });
 
   it("patient tier: shows plan block for doctor-assigned active program", async () => {
