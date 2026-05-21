@@ -37,7 +37,7 @@ const features: ReadonlyArray<{ title: string; description: string; icon: Lucide
   },
   {
     title: "Напоминания",
-    description: "Не забывать о занятиях и важных действиях.",
+    description: "Чтобы не забывать о занятиях.",
     icon: Bell,
     tone: "blue",
   },
@@ -45,11 +45,11 @@ const features: ReadonlyArray<{ title: string; description: string; icon: Lucide
 
 export function FeatureGrid() {
   return (
-    <section id="features" className="overflow-x-hidden bg-white py-8 sm:py-10 lg:py-14">
+    <section id="features" className="overflow-x-hidden bg-white py-8 sm:py-10 lg:py-12">
       <div className={landingContainer}>
         <h2 className={cn(landingH2, "text-center")}>Что будет в приложении</h2>
 
-        <div className="mt-5 flex flex-col gap-3.5 sm:mt-6 sm:gap-4">
+        <div className="mt-5 flex flex-col gap-3 sm:mt-6">
           {features.map((f) => {
             const Icon = f.icon;
             return (
@@ -64,16 +64,12 @@ export function FeatureGrid() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className={landingStepTitle}>{f.title}</h3>
-                  <p className={cn(landingBodySecondary, "mt-0.5 line-clamp-2")}>{f.description}</p>
+                  <p className={cn(landingBodySecondary, "mt-0.5")}>{f.description}</p>
                 </div>
               </div>
             );
           })}
         </div>
-
-        <p className="mt-5 text-center text-sm leading-5 text-[#98A2B3]">
-          Также в кабинете: материалы и запись на приём.
-        </p>
       </div>
     </section>
   );

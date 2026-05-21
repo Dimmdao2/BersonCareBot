@@ -4,15 +4,22 @@ import type { LandingInstallPlatform } from "@/components/landing/detectLandingI
 export type InstallStep = {
   title: string;
   hint?: InstallHintKind;
+  footnote?: string;
 };
 
 export const IOS_INSTALL_INTRO = "Важно: установка работает через Safari.";
 
 export const ANDROID_INSTALL_INTRO = "Важно: откройте сайт в Chrome.";
 
+export const INSTALL_SUCCESS_NOTE = "Готово: иконка BersonCare появится на экране телефона.";
+
 export const stepsIos: readonly InstallStep[] = [
   { title: "Нажмите «Поделиться»", hint: "ios-share" },
-  { title: "Выберите «На экран Домой»", hint: "ios-add-home" },
+  {
+    title: "Выберите «На экран Домой»",
+    hint: "ios-add-home",
+    footnote: "Если пункта не видно — прокрутите меню ниже.",
+  },
   { title: "Нажмите «Добавить»", hint: "ios-add" },
 ] as const;
 
@@ -21,6 +28,10 @@ export const stepsAndroid: readonly InstallStep[] = [
   { title: "Выберите «Установить приложение»", hint: "android-install" },
   { title: "Подтвердите установку", hint: "android-confirm" },
 ] as const;
+
+export function platformSectionTitle(platform: LandingInstallPlatform): string {
+  return platform === "ios" ? "Как установить на iPhone" : "Как установить на Android";
+}
 
 export function platformIntro(platform: LandingInstallPlatform): string {
   return platform === "ios" ? IOS_INSTALL_INTRO : ANDROID_INSTALL_INTRO;

@@ -18,6 +18,8 @@ const allowedDevOrigins = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  /** Скрывает dev-бейдж «N Issue» (build/overlay) при локальной проверке лендинга. */
+  devIndicators: false,
   allowedDevOrigins,
   output: "standalone",
   outputFileTracingRoot,

@@ -4,12 +4,14 @@ import { useMemo, useState } from "react";
 import { PlatformInstallCard } from "@/components/landing/PlatformInstallCard";
 import { detectLandingInstallPlatform } from "@/components/landing/detectLandingInstallPlatform";
 import {
+  INSTALL_SUCCESS_NOTE,
   otherPlatform,
   otherPlatformLabel,
   platformIntro,
+  platformSectionTitle,
   stepsForPlatform,
 } from "@/components/landing/installSteps";
-import { landingBodySecondary } from "@/components/landing/landingTypography";
+import { landingH2 } from "@/components/landing/landingTypography";
 import { cn } from "@/lib/utils";
 
 export function InstallSectionClient() {
@@ -22,33 +24,37 @@ export function InstallSectionClient() {
   const [showOther, setShowOther] = useState(false);
 
   return (
-    <div className="mt-6 sm:mt-7">
-      <PlatformInstallCard platform={primary} intro={platformIntro(primary)} steps={stepsForPlatform(primary)} />
+    <>
+      <h2 className={cn(landingH2, "text-center")}>{platformSectionTitle(primary)}</h2>
 
-      <div className="mt-4">
-        <button
-          type="button"
-          onClick={() => setShowOther((v) => !v)}
-          className="text-base font-medium text-[#2F55B7] underline-offset-2 hover:text-[#2448A5] hover:underline"
-          aria-expanded={showOther}
-        >
-          {otherPlatformLabel(primary)}
-        </button>
+      <div className="mt-5 sm:mt-6">
+        <PlatformInstallCard
+          intro={platformIntro(primary)}
+          steps={stepsForPlatform(primary)}
+          successNote={INSTALL_SUCCESS_NOTE}
+        />
 
-        {showOther ? (
-          <div className="mt-4">
-            <PlatformInstallCard
-              platform={secondary}
-              intro={platformIntro(secondary)}
-              steps={stepsForPlatform(secondary)}
-            />
-          </div>
-        ) : null}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setShowOther((v) => !v)}
+            className="text-base font-medium text-[#2F55B7] underline-offset-2 hover:text-[#2448A5] hover:underline"
+            aria-expanded={showOther}
+          >
+            {otherPlatformLabel(primary)}
+          </button>
+
+          {showOther ? (
+            <div className="mt-4">
+              <PlatformInstallCard
+                intro={platformIntro(secondary)}
+                steps={stepsForPlatform(secondary)}
+                successNote={INSTALL_SUCCESS_NOTE}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
-
-      <p className={cn(landingBodySecondary, "mt-4 text-center text-[#98A2B3]")}>
-        После установки иконка BersonCare появится на экране телефона.
-      </p>
-    </div>
+    </>
   );
 }

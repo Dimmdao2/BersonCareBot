@@ -20,8 +20,7 @@ export function HeroSection() {
             <h1 className={landingH1}>BersonCare — приложение для восстановления</h1>
 
             <p className={cn(landingBody, "mt-4")}>
-              Установите BersonCare на телефон: программа, разминки, дневник и напоминания будут открываться в один
-              клик.
+              Программа, разминки, дневник и напоминания будут открываться в один клик.
             </p>
 
             <div className="mt-6">
@@ -35,15 +34,15 @@ export function HeroSection() {
               <span className="min-w-0 break-words">Устанавливается без App Store и Google Play.</span>
             </p>
 
-            <div className="mx-auto mt-6 w-full max-w-[260px] md:hidden">
+            <div className="mx-auto mt-6 w-full max-w-[240px] md:hidden">
               <Image
                 src="/images/landing/hero-phones.png"
                 alt=""
                 width={522}
                 height={515}
                 priority
-                sizes="260px"
-                className="mx-auto h-auto w-full max-w-[260px] opacity-95 drop-shadow-lg"
+                sizes="240px"
+                className="mx-auto h-auto w-full max-w-[240px] opacity-90 drop-shadow-md"
               />
             </div>
           </div>

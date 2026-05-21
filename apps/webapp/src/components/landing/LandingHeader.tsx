@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { LANDING_INSTALL_HASH } from "@/components/landing/landingConstants";
 import { landingContainer } from "@/components/landing/landingTypography";
 import { cn } from "@/lib/utils";
 
 const installBtnClass = cn(
-  buttonVariants({ size: "default" }),
-  "min-h-11 rounded-xl bg-[#2F55B7] px-4 text-base font-semibold text-white hover:bg-[#2448A5] sm:min-h-9 sm:text-sm",
+  "inline-flex h-9 items-center justify-center rounded-lg border border-[#2F55B7]/35 bg-white px-3.5",
+  "text-sm font-semibold text-[#2F55B7] hover:border-[#2F55B7]/55 hover:bg-[#EEF4FF]",
 );
 
 export function LandingHeader() {
