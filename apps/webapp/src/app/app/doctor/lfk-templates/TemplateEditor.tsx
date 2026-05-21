@@ -370,7 +370,7 @@ export function TemplateEditor({
     return () => {
       cancelled = true;
     };
-  }, [template, externalUsageSnapshot]);
+  }, [template?.id, externalUsageSnapshot]);
 
   const [archiveState, archiveFormAction, archivePending] = useActionState(
     archiveDoctorLfkTemplate,
