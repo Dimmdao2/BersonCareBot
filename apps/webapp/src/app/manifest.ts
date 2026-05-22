@@ -1,18 +1,22 @@
 import type { MetadataRoute } from "next";
 
 /**
- * Web App Manifest (PWA). Иконки — `public/pwa-icon-*.png`, `apple-touch-icon.png`.
- * Лендинг `/`: установка «На экран Домой» с корня сайта (start_url /, scope /).
- * Service worker: `public/sw.js` — регистрация с лендинга (`LandingPwaClientBootstrap`), scope `/app` для кабинета.
+ * Web App Manifest (PWA).
+ *
+ * Лендинг `/` используется только как публичная страница установки.
+ * Установленное PWA должно открывать приложение пациента.
+ *
+ * Service worker: `public/sw.js`, scope `/app`.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    id: "/",
-    name: "BersonCare",
+    id: "/app",
+    name: "BersonCare — забота о твоём здоровье",
     short_name: "BersonCare",
-    description: "Разминки и упражнения от реабилитолога",
-    start_url: "/",
-    scope: "/",
+    description:
+      "Мобильный помощник для восстановления и реабилитации: разминки, упражнения, дневник самочувствия, напоминания и полезные материалы.",
+    start_url: "/app/patient",
+    scope: "/app",
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#ffffff",

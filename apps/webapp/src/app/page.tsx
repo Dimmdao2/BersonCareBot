@@ -1,5 +1,8 @@
 /**
- * Корневая страница «/»: лендинг PWA BersonCare (без редиректа в `/app`).
+ * Корневая страница «/»: лендинг PWA BersonCare.
+ *
+ * В обычном браузере остаётся лендинг.
+ * В установленной PWA корень страхуется редиректом в приложение пациента.
  */
 
 import type { Metadata } from "next";
@@ -11,10 +14,11 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingPwaClientBootstrap } from "@/components/landing/LandingPwaClientBootstrap";
 import { SpecialistSection } from "@/components/landing/SpecialistSection";
+import { StandaloneRootRedirect } from "@/components/landing/StandaloneRootRedirect";
 
-const ogTitle = "BersonCare — кабинет восстановления и реабилитации";
+const ogTitle = "BersonCare — забота о твоём здоровье";
 const ogDescription =
-  "PWA-приложение для пациентов: программа реабилитации, разминки, дневник самочувствия, напоминания, материалы и запись на приём.";
+  "Мобильный помощник для восстановления и реабилитации: разминки, упражнения, дневник самочувствия, напоминания и полезные материалы.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://bersoncare.ru"),
@@ -35,6 +39,7 @@ export default async function HomePage() {
       data-landing-public
       className="min-h-screen scroll-smooth overflow-x-hidden bg-white text-[#17264A]"
     >
+      <StandaloneRootRedirect />
       <LandingPwaClientBootstrap />
       <LandingHeader />
       <main>

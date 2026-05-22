@@ -70,6 +70,47 @@ export function createTreatmentProgramInstanceService(deps: {
     }
   }
 
+  async function completeActivePromoForDoctorAssignment(input: {
+    patientUserId: string;
+    actorId: string | null;
+  }): Promise<void> {
+    const pre = await instances.listInstancesForPatient(input.patientUserId.trim());
+
+    for (const row of pre) {
+      if (row.status !== "active" || row.assignmentSource !== "promo") {
+        continue;
+      }
+
+      const prev = await instances.getInstanceById(row.id);
+      if (!prev) {
+        continue;
+      }
+
+      if (deps.snapshotDiaryDaysBeforePromoRefresh) {
+        await deps.snapshotDiaryDaysBeforePromoRefresh({
+          patientUserId: row.patientUserId,
+          closingInstanceId: row.id,
+        });
+      }
+
+      await instances.updateInstanceMeta(row.id, { status: "completed" });
+
+      await appendEvent({
+        instanceId: row.id,
+        actorId: input.actorId,
+        eventType: "status_changed",
+        targetType: "program",
+        targetId: row.id,
+        payload: {
+          scope: "program",
+          from: prev.status,
+          to: "completed",
+          supersededBy: "doctor_assign",
+        },
+      });
+    }
+  }
+
   return {
     async assignTemplateToPatient(input: {
       templateId: string;
@@ -84,34 +125,11 @@ export function createTreatmentProgramInstanceService(deps: {
       const assignmentSource: TreatmentProgramAssignmentSource =
         input.assignmentSource ?? (input.assignedBy != null ? "doctor" : "course");
 
-      if (assignmentSource === "doctor" && input.assignedBy) {
-        const pre = await instances.listInstancesForPatient(input.patientUserId.trim());
-        for (const row of pre) {
-          if (row.status === "active" && row.assignmentSource === "promo") {
-            const prev = await instances.getInstanceById(row.id);
-            if (!prev) continue;
-            if (deps.snapshotDiaryDaysBeforePromoRefresh) {
-              await deps.snapshotDiaryDaysBeforePromoRefresh({
-                patientUserId: row.patientUserId,
-                closingInstanceId: row.id,
-              });
-            }
-            await instances.updateInstanceMeta(row.id, { status: "completed" });
-            await appendEvent({
-              instanceId: row.id,
-              actorId: input.assignedBy,
-              eventType: "status_changed",
-              targetType: "program",
-              targetId: row.id,
-              payload: {
-                scope: "program",
-                from: prev.status,
-                to: "completed",
-                supersededBy: "doctor_assign",
-              },
-            });
-          }
-        }
+      if (assignmentSource === "doctor") {
+        await completeActivePromoForDoctorAssignment({
+          patientUserId: input.patientUserId,
+          actorId: input.assignedBy,
+        });
       }
 
       const existing = await instances.listInstancesForPatient(input.patientUserId.trim());
@@ -376,6 +394,11 @@ export function createTreatmentProgramInstanceService(deps: {
     }) {
       assertUuid(input.patientUserId);
       if (input.assignedBy) assertUuid(input.assignedBy);
+
+      await completeActivePromoForDoctorAssignment({
+        patientUserId: input.patientUserId,
+        actorId: input.assignedBy,
+      });
 
       const existing = await instances.listInstancesForPatient(input.patientUserId.trim());
       if (existing.some((i) => i.status === "active")) {
