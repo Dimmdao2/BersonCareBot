@@ -128,6 +128,176 @@
 		]
 	},
 	{
+		"id": "max.phoneauth.cancel.linked",
+		"source": "max",
+		"event": "message.received",
+		"priority": 57,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				},
+				"linkedPhone": true
+			},
+			"input": {
+				"action": "phone.request.cancel"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "max:chooseMenu",
+					"menu": "main",
+					"delivery": {
+						"channels": [
+							"max"
+						],
+						"maxAttempts": 1
+					}
+				}
+			}
+		]
+	},
+	{
+		"id": "max.phoneauth.cancel.unlinked",
+		"source": "max",
+		"event": "message.received",
+		"priority": 57,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				},
+				"linkedPhone": false
+			},
+			"input": {
+				"action": "phone.request.cancel"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
+					"templateKey": "max:phoneAuthCancelled",
+					"delivery": {
+						"channels": [
+							"max"
+						],
+						"maxAttempts": 1
+					}
+				}
+			}
+		]
+	},
+	{
+		"id": "max.phoneauth.cancel.text.linked",
+		"source": "max",
+		"event": "message.received",
+		"priority": 57,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				},
+				"linkedPhone": true
+			},
+			"input": {
+				"text": "Отмена"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "max:chooseMenu",
+					"menu": "main",
+					"delivery": {
+						"channels": [
+							"max"
+						],
+						"maxAttempts": 1
+					}
+				}
+			}
+		]
+	},
+	{
+		"id": "max.phoneauth.cancel.text.unlinked",
+		"source": "max",
+		"event": "message.received",
+		"priority": 57,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				},
+				"linkedPhone": false
+			},
+			"input": {
+				"text": "Отмена"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
+					"templateKey": "max:phoneAuthCancelled",
+					"delivery": {
+						"channels": [
+							"max"
+						],
+						"maxAttempts": 1
+					}
+				}
+			}
+		]
+	},
+	{
 		"id": "max.start.onboarding",
 		"source": "max",
 		"event": "message.received",
@@ -1781,13 +1951,16 @@
 					"start.setrubitimerecord",
 					"start.setphone",
 					"start.phoneauth",
-					"start.set"
+					"start.set",
+					"phone.request.cancel"
 				],
 				"excludeTexts": [
 					"/start",
 					"/book",
 					"/diary",
-					"/menu"
+					"/menu",
+					"Отмена",
+					"Вернуться в меню"
 				],
 				"excludeTextPrefixes": [
 					"/start"
@@ -2171,13 +2344,16 @@
 					"start.setrubitimerecord",
 					"start.setphone",
 					"start.phoneauth",
-					"start.set"
+					"start.set",
+					"phone.request.cancel"
 				],
 				"excludeTexts": [
 					"/start",
 					"/book",
 					"/diary",
-					"/menu"
+					"/menu",
+					"Отмена",
+					"Вернуться в меню"
 				],
 				"excludeTextPrefixes": [
 					"/start"

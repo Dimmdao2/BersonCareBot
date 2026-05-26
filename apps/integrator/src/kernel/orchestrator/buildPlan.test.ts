@@ -1384,4 +1384,243 @@ describe('orchestrator buildPlan', () => {
     expect(plan).toHaveLength(1);
     expect(plan[0]?.kind).toBe('webapp.phoneMessengerBind.complete');
   });
+
+  it('Отмена in await_phoneauth selects phoneauth.cancel not telegram.menu.default', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-pa-cancel',
+        occurredAt: '2026-04-11T12:00:00.000Z',
+        source: 'telegram',
+        userId: '222',
+      },
+      payload: {
+        incoming: {
+          text: 'Отмена',
+          chatId: 222,
+          channelUserId: 222,
+          userState: 'await_phoneauth:auth_token_x',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      conversationState: 'await_phoneauth:auth_token_x',
+      linkedPhone: false,
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.phoneauth.cancel.text.unlinked',
+          source: 'telegram',
+          event: 'message.received',
+          priority: 57,
+          match: {
+            context: {
+              conversationState: { $startsWith: 'await_phoneauth:' },
+              linkedPhone: false,
+            },
+            input: { text: 'Отмена' },
+          },
+          steps: [
+            { action: 'user.state.set', mode: 'sync', params: { state: 'idle' } },
+            { action: 'message.send', mode: 'async', params: { templateKey: 'telegram:phoneAuthCancelled' } },
+          ],
+        },
+        {
+          id: 'telegram.menu.default',
+          source: 'telegram',
+          event: 'message.received',
+          match: {
+            actor: { isAdmin: false },
+            input: { textPresent: true, excludeTexts: ['Отмена'] },
+          },
+          steps: [{ action: 'draft.upsertFromMessage', mode: 'sync', params: {} }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = { request: vi.fn().mockResolvedValue({}) };
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan[0]?.kind).toBe('user.state.set');
+    expect(plan.some((step) => step.kind === 'draft.upsertFromMessage')).toBe(false);
+  });
+
+  it('phone.request.cancel in await_phoneauth selects phoneauth.cancel not menu.default', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-pa-cancel-action',
+        occurredAt: '2026-04-11T12:00:00.000Z',
+        source: 'telegram',
+        userId: '222',
+      },
+      payload: {
+        incoming: {
+          action: 'phone.request.cancel',
+          chatId: 222,
+          channelUserId: 222,
+          userState: 'await_phoneauth:auth_token_x',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      conversationState: 'await_phoneauth:auth_token_x',
+      linkedPhone: true,
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.phoneauth.cancel.linked',
+          source: 'telegram',
+          event: 'message.received',
+          priority: 57,
+          match: {
+            context: {
+              conversationState: { $startsWith: 'await_phoneauth:' },
+              linkedPhone: true,
+            },
+            input: { action: 'phone.request.cancel' },
+          },
+          steps: [
+            { action: 'user.state.set', mode: 'sync', params: { state: 'idle' } },
+            { action: 'message.replyKeyboard.show', mode: 'async', params: {} },
+          ],
+        },
+        {
+          id: 'telegram.menu.default',
+          source: 'telegram',
+          event: 'message.received',
+          match: {
+            actor: { isAdmin: false },
+            input: { textPresent: true },
+          },
+          steps: [{ action: 'draft.upsertFromMessage', mode: 'sync', params: {} }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = { request: vi.fn().mockResolvedValue({}) };
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan[0]?.kind).toBe('user.state.set');
+    expect(plan.some((step) => step.kind === 'draft.upsertFromMessage')).toBe(false);
+  });
+
+  it('contact.link.remind does not match idle after phoneauth', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-idle-text',
+        occurredAt: '2026-04-11T12:00:00.000Z',
+        source: 'telegram',
+        userId: '222',
+      },
+      payload: {
+        incoming: {
+          text: 'привет',
+          chatId: 222,
+          channelUserId: 222,
+          userState: 'idle',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      conversationState: 'idle',
+      linkedPhone: true,
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.contact.link.remind',
+          source: 'telegram',
+          event: 'message.received',
+          match: {
+            context: { conversationState: 'await_contact:subscription' },
+            input: { phonePresent: false },
+          },
+          steps: [{ action: 'message.replyKeyboard.show', mode: 'async', params: {} }],
+        },
+        {
+          id: 'telegram.menu.default',
+          source: 'telegram',
+          event: 'message.received',
+          match: {
+            actor: { isAdmin: false },
+            input: { textPresent: true, excludeTexts: [] },
+          },
+          steps: [{ action: 'draft.upsertFromMessage', mode: 'sync', params: {} }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = { request: vi.fn().mockResolvedValue({}) };
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan.some((step) => step.kind === 'message.replyKeyboard.show')).toBe(false);
+    expect(plan.some((step) => step.kind === 'draft.upsertFromMessage')).toBe(true);
+  });
+
+  it('booking.open callback with linkedPhone true is not contact-gated', async () => {
+    const event: IncomingEvent = {
+      type: 'callback.received',
+      meta: {
+        eventId: 'evt-booking-open-linked',
+        occurredAt: '2026-04-11T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          action: 'booking.open',
+          chatId: 123,
+          channelUserId: 123,
+          callbackQueryId: 'cb-booking',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      linkedPhone: true,
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.booking.open',
+          source: 'telegram',
+          event: 'callback.received',
+          match: {
+            input: { action: 'booking.open' },
+            context: { linkedPhone: true },
+          },
+          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'telegram:bookingMessage' } }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = { request: vi.fn().mockResolvedValue({}) };
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(contentPort.getScriptsBySource).toHaveBeenCalled();
+    expect(plan[0]?.kind).toBe('message.send');
+    expect(plan.some((step) => step.kind === 'message.replyKeyboard.show')).toBe(false);
+  });
 });

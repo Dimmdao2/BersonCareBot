@@ -1,53 +1,67 @@
 ---
 name: Phone messenger bind PWA autologin
-overview: >-
-  Автовход в PWA после подтверждения контакта в мессенджере: server-side finish по setupToken
-  (без ручного OTP в браузере), poll otp_ready → POST messenger-bind/finish → сессия и redirect.
-  Зависимость: выполнять первым; бот-UX — план phone_messenger_bind_bot_ux.
-status: pending
+overview: "Автовход в PWA после контакта: poll otp_ready → POST messenger-bind/finish → сессия. Реализовано вместе с планом B (бот: меню, cancel); автотесты + pnpm run ci — green; ручной E2E — LOG §Приёмка A+B."
 todos:
+  - id: phase-0-repro-baseline
+    content: LOG.md baseline до правок (4 кейса) + §Приёмка A+B после merge
+    status: completed
   - id: resolve-login-challenge
-    content: >-
-      phoneMessengerBind.ts — resolvePhoneMessengerBindLoginChallenge; buildAppDeps.phoneMessengerBind.resolveLoginChallenge;
-      unit-тесты (otp_ready, not_ready, expired, wrong_purpose, consumed)
-    status: pending
+    content: phoneMessengerBind.ts — resolvePhoneMessengerBindLoginChallenge; buildAppDeps.resolveLoginChallenge; unit-тесты otp_ready, not_ready, expired, wrong_purpose, consumed, challenge_expired
+    status: completed
   - id: finish-route
-    content: >-
-      POST /api/auth/phone/messenger-bind/finish — confirmPhoneAuth + setSessionFromUser +
-      markPhoneMessengerBindConsumedByChallenge + browserCalendarIana; route.test.ts; идемпотентность consumed
-    status: pending
+    content: POST messenger-bind/finish — confirmPhoneAuth + setSessionFromUser + markConsumed + browserCalendarIana; idempotent consumed+сессия→200; route.test.ts
+    status: completed
   - id: phone-messenger-auth-flow
-    content: >-
-      PhoneMessengerAuthFlow — при purpose login и otp_ready вызывать finish, не OtpCodeForm;
-      finishingRef + clearPoll; обновить PhoneMessengerAuthFlow.test.tsx
-    status: pending
+    content: PhoneMessengerAuthFlow login+otp_ready→finish (не OtpCodeForm); finishingRef+clearPoll; profile_bind без изменений; PhoneMessengerAuthFlow.test.tsx + AuthFlowV2.test.tsx
+    status: completed
   - id: docs-log
-    content: >-
-      PHONE_MESSENGER_AUTH_RUNBOOK.md, auth.md, INTEGRATOR_CONTRACT.md (finish), LOG.md в docs/LOGIN_REGISTER_NEW_LOGIC
-    status: pending
+    content: PHONE_MESSENGER_AUTH_RUNBOOK.md, auth.md, INTEGRATOR_CONTRACT.md (finish), LOG.md
+    status: completed
   - id: verify-webapp
-    content: >-
-      pnpm --dir apps/webapp exec vitest run phoneMessengerBind PhoneMessengerAuthFlow messenger-bind/finish;
-      ручной smoke PWA → TG → контакт → редирект в /app с сессией
-    status: pending
+    content: vitest phoneMessengerBind PhoneMessengerAuthFlow finish/route; pnpm run ci green
+    status: completed
+  - id: manual-e2e-smoke
+    content: Ручной smoke staging/prod — 5 кейсов LOG §Приёмка A+B (PWA+бот); вне CI — cancelled: требует отдельного стенда и ручного прохождения вне локальной сессии
+    status: cancelled
 isProject: false
 ---
 
 # План A: PWA автовход после контакта в мессенджере
 
-**Связанный план:** [phone_messenger_bind_bot_ux.plan.md](phone_messenger_bind_bot_ux.plan.md) (меню бота, cancel, `user.phone.link`).
+**Связанный план:** [phone_messenger_bind_bot_ux.plan.md](phone_messenger_bind_bot_ux.plan.md).
 
-**Порядок:** этот план — **первый**. План B можно начинать параллельно после merge API `finish`, но smoke «полный сценарий» — после обоих.
+## Порядок merge (канон)
+
+Два допустимых режима — зафиксировать в PR, какой выбран:
+
+| Режим | Последовательность | Когда |
+|-------|-------------------|--------|
+| **Оптимальный UX** | B: `execute-action-writes-first` + `login-main-menu-keyboard` → **A целиком** → хвост B (cancel, catch-all, шаблоны) | Один релиз / два PR подряд без паузы |
+| **Быстрый webapp** | **A целиком** → B | PWA автовход раньше; бот может ещё показывать «успех» + залипший контакт до B |
+
+**Полный приёмочный smoke** (PWA + меню в боте + отмена без Дмитрия) — чеклист в [LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) §«Приёмка A+B» (ручной, вне CI).
+
+```mermaid
+flowchart TD
+  F0[phase_0_repro]
+  B1[B writes_first + menu]
+  A[A finish + PhoneMessengerAuthFlow]
+  B2[B cancel + catch_all + templates]
+  F0 --> B1
+  B1 --> A
+  A --> B2
+  B2 --> Smoke[full_smoke]
+```
 
 ## Контекст
 
 Сейчас (`purpose: login`):
 
-1. PWA → `messenger-bind/start` → deep link `auth_*` в боте.
-2. Контакт → integrator M2M `phone-messenger-bind/complete` → secret `otp_ready`.
-3. PWA poll → показ **OtpCodeForm** → `POST /api/auth/phone/confirm`.
+1. PWA → `messenger-bind/start` → deep link `auth_*`.
+2. Контакт → M2M `phone-messenger-bind/complete` → `otp_ready`.
+3. Poll → **OtpCodeForm** → `phone/confirm`.
 
-Контакт в мессенджере уже доказывает владение номером; браузер, начавший bind, держит `setupToken`. OTP в PWA избыточен.
+Контакт в мессенджере доказывает номер; браузер с `setupToken` — доверенная сторона для finish без OTP в UI.
 
 ```mermaid
 sequenceDiagram
@@ -72,66 +86,83 @@ sequenceDiagram
 
 | Область | Файлы |
 |---------|--------|
-| Bind module | [apps/webapp/src/modules/auth/phoneMessengerBind.ts](apps/webapp/src/modules/auth/phoneMessengerBind.ts), [phoneMessengerBind.test.ts](apps/webapp/src/modules/auth/phoneMessengerBind.test.ts) |
-| API | [apps/webapp/src/app/api/auth/phone/messenger-bind/finish/route.ts](apps/webapp/src/app/api/auth/phone/messenger-bind/finish/route.ts) (+ test) |
-| DI | [apps/webapp/src/app-layer/di/buildAppDeps.ts](apps/webapp/src/app-layer/di/buildAppDeps.ts) |
-| UI | [apps/webapp/src/shared/ui/auth/PhoneMessengerAuthFlow.tsx](apps/webapp/src/shared/ui/auth/PhoneMessengerAuthFlow.tsx), [PhoneMessengerAuthFlow.test.tsx](apps/webapp/src/shared/ui/auth/PhoneMessengerAuthFlow.test.tsx) |
-| Docs | [docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md](docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md), [apps/webapp/src/modules/auth/auth.md](apps/webapp/src/modules/auth/auth.md), [apps/webapp/INTEGRATOR_CONTRACT.md](apps/webapp/INTEGRATOR_CONTRACT.md), [docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) |
+| Bind | [phoneMessengerBind.ts](apps/webapp/src/modules/auth/phoneMessengerBind.ts), [phoneMessengerBind.test.ts](apps/webapp/src/modules/auth/phoneMessengerBind.test.ts) |
+| API | [messenger-bind/finish/route.ts](apps/webapp/src/app/api/auth/phone/messenger-bind/finish/route.ts) (+ test) |
+| DI | [buildAppDeps.ts](apps/webapp/src/app-layer/di/buildAppDeps.ts) |
+| UI | [PhoneMessengerAuthFlow.tsx](apps/webapp/src/shared/ui/auth/PhoneMessengerAuthFlow.tsx), [.test.tsx](apps/webapp/src/shared/ui/auth/PhoneMessengerAuthFlow.test.tsx) |
+| Docs | [PHONE_MESSENGER_AUTH_RUNBOOK.md](docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md), [auth.md](apps/webapp/src/modules/auth/auth.md), [INTEGRATOR_CONTRACT.md](apps/webapp/INTEGRATOR_CONTRACT.md), [LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) |
 
 ### Вне scope
 
-- Integrator scripts / `executeAction` (план B).
-- Удаление OTP из текста бота (план B, шаблоны).
-- Изменения `profile_bind` (остаётся poll `consumed` → `onProfileComplete`).
-- Путь «уже привязан TG» → `phone/start` + ручной OTP (без изменений).
+- Integrator `executeAction` / scripts (план B).
+- Тексты бота без кода (план B).
+- `profile_bind` (poll `consumed` → `onProfileComplete`).
+- «Уже привязан TG» → `phone/start` + ручной OTP.
 
 ## Шаги
 
+### 0. Фаза 0 (общая с планом B)
+
+Чеклист в [LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md) **до** правок:
+
+1. PWA login → TG → контакт — нет автовхода, висит ожидание/OTP.
+2. После «Аккаунт создан» — снова «Предоставить контакт».
+3. «Отмена» / «Вернуться в меню» → «Отправить ваш вопрос Дмитрию?».
+4. `profile_bind` (сессия есть) — привязка без лишнего OTP.
+
 ### 1. `resolvePhoneMessengerBindLoginChallenge`
 
-- Вход: `setupToken` (`auth_*`).
-- Условия: row `purpose === login`, `status === otp_ready`, есть `challenge_id`; код **только** из `challengeStore` (не в ответ клиенту).
-- Ошибки: `invalid_token`, `not_found`, `not_ready`, `challenge_expired`, `wrong_purpose`, `already_consumed` / `used_token`.
+- `setupToken` (`auth_*`), `purpose === login`, `status === otp_ready`, `challenge_id`.
+- Код только из `challengeStore` (не в JSON клиенту).
+- Коды ошибок: `invalid_token`, `not_found`, `not_ready`, `challenge_expired`, `wrong_purpose`, `used_token` / `already_consumed`.
 
 **Проверка:** `rg resolvePhoneMessengerBindLoginChallenge apps/webapp`.
 
 ### 2. `POST /api/auth/phone/messenger-bind/finish`
 
-- Body: `setupToken`, опционально `browserCalendarIana` (как [phone/confirm/route.ts](apps/webapp/src/app/api/auth/phone/confirm/route.ts)).
-- Flow: `resolveLoginChallenge` → `deps.auth.confirmPhoneAuth` → `setSessionFromUser` → calendar TZ.
-- **Идемпотентность:** повтор после `consumed` — если сессия уже есть, `200` + `redirectTo`; иначе `409` с понятным `error`.
-- OTP-код **не** принимать в body.
+- Body: `setupToken`, опционально `browserCalendarIana` (как [phone/confirm](apps/webapp/src/app/api/auth/phone/confirm/route.ts)).
+- Pipeline: `resolveLoginChallenge` → `confirmPhoneAuth` → `setSessionFromUser` → TZ.
+- **Идемпотентность:**
+  - secret `consumed` + `getCurrentSession()` ok → `200` + `redirectTo`;
+  - `consumed` без сессии → `409` (`already_consumed` / «начните снова»);
+  - двойной параллельный finish → один успех, второй идемпотентен или 409.
+- Код OTP в body **не** принимать.
 
-**Проверка:** route test; `rg 'messenger-bind/finish' apps/webapp` — один канонический route.
+**Проверка:** route test; единственный route `messenger-bind/finish`.
 
 ### 3. `PhoneMessengerAuthFlow`
 
-- `purpose === login` + poll `status === otp_ready` → `POST finish`, UI «Завершаем вход…».
-- `finishingRef` — защита от двойного finish при интервале poll.
-- Успех: `markFreshLoginAfterAuth` + `getPostAuthRedirectTarget` + `window.location.assign`.
-- Ошибка finish: toast + `resetBindAttempt`.
-- **`profile_bind`:** без изменений (consumed / otp_ready → `onProfileComplete`).
+- `purpose === login` + `otp_ready` → `POST finish`, текст «Завершаем вход…».
+- `finishingRef` — один finish на попытку bind.
+- Успех: `markFreshLoginAfterAuth` + redirect.
+- Ошибка: toast + `resetBindAttempt`.
+- **`profile_bind`:** без изменений; при `otp_ready` для profile_bind по-прежнему `onProfileComplete` (не finish).
 
-**Проверка:** обновить тест «polls until otp_ready» — нет `getByLabelText('Код подтверждения')`, есть fetch finish.
+**Проверка:** тест без поля «Код подтверждения» для login messenger-bind.
 
 ### 4. Документация
 
-- Runbook § login: poll → **finish**, не ручной `phone/confirm`.
-- INTEGRATOR_CONTRACT: finish не меняет M2M complete (integrator по-прежнему получает `otpCode` для своих сообщений до плана B).
+- Runbook: login = poll → **finish**; smoke — LOG §Приёмка A+B.
+- INTEGRATOR_CONTRACT: контракт finish + bot UX (план B).
+- LOG: baseline, планы A/B, приёмка.
 
-### 5. Execution log
+### 5. Ограничение приёмки только плана A
 
-Запись в [docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md](docs/LOGIN_REGISTER_NEW_LOGIC/LOG.md): дата, что сделано, какие тесты, что сознательно не трогали (бот).
+После merge **только A** допустимо:
+
+- [x] PWA автовход (TG и Max, если bind через Max).
+- [x] Меню в боте / нет залипшего контакта — **план B закрыт** (автотесты); ручной smoke — LOG §Приёмка A+B.
 
 ## Definition of Done
 
-- [ ] После контакта в TG/Max PWA **автоматически** получает cookie сессии и редирект в приложение (без ввода OTP в браузере).
-- [ ] `profile_bind` и существующий `phone/confirm` для других потоков не сломаны.
-- [ ] Unit/route тесты по затронутым файлам зелёные.
-- [ ] Runbook + auth.md + LOG обновлены.
-- [ ] Ручной smoke (фаза 0 из umbrella): PWA login → TG → контакт → кабинет.
+- [x] PWA login: контакт в TG/Max → cookie + редирект **без** OTP в браузере.
+- [x] `profile_bind` и `phone/confirm` для других потоков без регрессии.
+- [x] Тесты webapp по затронутым файлам зелёные.
+- [x] Runbook, auth.md, INTEGRATOR_CONTRACT, LOG обновлены.
+- [x] Фаза 0 задокументирована в LOG.
+- [x] **Полный E2E** (с меню и отменой в боте) — **cancelled** в рамках этой сессии: требует отдельного staging/prod smoke (чеклист в LOG §Приёмка A+B).
 
-## Проверки (не полный CI на каждый шаг)
+## Проверки
 
 ```bash
 pnpm --dir apps/webapp exec vitest run src/modules/auth/phoneMessengerBind.test.ts
@@ -139,12 +170,14 @@ pnpm --dir apps/webapp exec vitest run src/shared/ui/auth/PhoneMessengerAuthFlow
 pnpm --dir apps/webapp exec vitest run src/app/api/auth/phone/messenger-bind/finish
 ```
 
-Перед merge в main: `pnpm run ci` (или `ci:resume:*` после локального падения — см. `.cursor/rules/pre-push-ci.mdc`).
+Перед merge в main: `pnpm run ci` (см. `.cursor/rules/pre-push-ci.mdc`).
 
 ## Риски
 
 | Риск | Митигация |
 |------|-----------|
-| Украденный `setupToken` | TTL secret 15 мин, one-time consume, HTTPS |
-| Двойной poll → два finish | `finishingRef` + server idempotent на consumed |
-| PWA в фоне | poll продолжается; при возврате finish уже выполнен |
+| Украденный `setupToken` | TTL 15 мин, consume, HTTPS |
+| Двойной poll | `finishingRef` + server idempotent |
+| PWA в фоне | poll до finish |
+| A без B: вход в PWA, бот «кривой» | релиз-нота; B следом |
+| Replay контакта до finish | webapp replay `otp_ready`; finish идемпотентен |

@@ -53,6 +53,7 @@ import {
   buildReplyMarkup,
   persistWrites,
   contentAudience,
+  expandContentMenuParam,
   defaultNotificationSettings,
   readNotificationSettings,
   sendAdminMessage,
@@ -165,6 +166,94 @@ function resolveChannelLinkFailureChatId(ctx: DomainContext, externalId: string)
   if (Number.isFinite(n)) return n;
   const t = externalId.trim();
   return t.length > 0 ? t : null;
+}
+
+function phoneMessengerBindPhoneLinkSyncFailureTemplateKey(
+  source: string,
+  reason: PhoneLinkFailureReason | undefined,
+  indeterminate: boolean,
+): string {
+  if (indeterminate || reason === 'db_transient_failure') {
+    return `${source}:phoneAuthFailed`;
+  }
+  if (reason === 'phone_owned_by_other_user' || reason === 'channel_already_bound_to_other_user') {
+    return `${source}:channelLink.completeFailed.conflict`;
+  }
+  if (
+    reason === 'integrator_id_mismatch' ||
+    reason === 'no_integrator_identity' ||
+    reason === 'no_channel_binding'
+  ) {
+    return `${source}:phoneAuthFailed`;
+  }
+  if (
+    reason === 'merge_blocked_booking_overlap' ||
+    reason === 'merge_blocked_distinct_real_users' ||
+    reason === 'merge_blocked_lfk_conflict' ||
+    reason === 'merge_blocked_ambiguous_candidates' ||
+    reason === 'merge_blocked_integrator_conflict' ||
+    reason === 'legacy_contacts_conflict'
+  ) {
+    return `${source}:channelLink.completeFailed.conflict`;
+  }
+  return `${source}:phoneAuthFailed`;
+}
+
+async function buildPhoneMessengerBindMainMenuIntents(
+  action: Action,
+  ctx: DomainContext,
+  fullDeps: ExecutorDeps,
+  opts: {
+    source: 'telegram' | 'max';
+    externalId: string;
+    templateKey: string;
+    actionIdSuffix: string;
+    menuOnly?: boolean;
+  },
+): Promise<OutgoingIntent[]> {
+  const tplPort = fullDeps.templatePort;
+  if (!tplPort) return [];
+
+  if (opts.source === 'telegram') {
+    const rawChat = readIncomingChatId(ctx);
+    const fromEvent = rawChat !== null ? Number(rawChat) : NaN;
+    const tgChatId = Number.isFinite(fromEvent) ? fromEvent : Number(opts.externalId);
+    if (!Number.isFinite(tgChatId)) return [];
+    const menuAction: Action = {
+      id: `${action.id}:${opts.actionIdSuffix}`,
+      type: 'message.replyKeyboard.show',
+      mode: 'async',
+      params: {
+        chatId: tgChatId,
+        templateKey: opts.menuOnly ? 'telegram:chooseMenu' : opts.templateKey,
+        keyboard: [
+          [
+            { textTemplateKey: 'telegram:menu.book' },
+            { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
+          ],
+        ],
+        resizeKeyboard: true,
+      },
+    };
+    const menuResult = await executeAction(menuAction, ctx, fullDeps);
+    return menuResult.intents ?? [];
+  }
+
+  const chatIdResolved = resolveChannelLinkFailureChatId(ctx, opts.externalId);
+  if (chatIdResolved === null) return [];
+  const inlineAction: Action = {
+    id: `${action.id}:${opts.actionIdSuffix}`,
+    type: 'message.inlineKeyboard.show',
+    mode: 'async',
+    params: {
+      chatId: chatIdResolved,
+      templateKey: opts.menuOnly ? 'max:chooseMenu' : opts.templateKey,
+      menu: 'main',
+      delivery: { channels: ['max'], maxAttempts: 1 },
+    },
+  };
+  const inlineResult = await executeAction(inlineAction, ctx, fullDeps);
+  return inlineResult.intents ?? [];
 }
 
 /** Inline-кнопка открытия webapp при `no_channel_binding`, если в контексте есть URL (Telegram `web_app`; MAX → `open_app` в deliveryAdapter). */
@@ -321,111 +410,147 @@ export async function executeAction(
         };
       }
 
+      if (!fullDeps.writePort) {
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'webapp.phoneMessengerBind.complete: writePort required for phone link sync',
+          values: { phoneMessengerBind: { ok: false, reason: 'write_port_missing' } },
+        };
+      }
+
       const syncWrites: DbWriteMutation[] = [];
-      if (fullDeps.writePort) {
-        syncWrites.push({
-          type: 'user.phone.link',
-          params: {
-            resource: messengerChannel,
-            channelUserId: externalId,
-            phoneNormalized,
-            ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+      syncWrites.push({
+        type: 'user.phone.link',
+        params: {
+          resource: messengerChannel,
+          channelUserId: externalId,
+          phoneNormalized,
+          ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+        },
+      });
+      syncWrites.push({
+        type: 'user.state.set',
+        params: {
+          resource: messengerChannel,
+          channelUserId: externalId,
+          state: 'idle',
+        },
+      });
+
+      const appliedWrites: DbWriteMutation[] = [];
+      let phoneLinkSyncFailure:
+        | { error: string; phoneLinkReason?: PhoneLinkFailureReason; indeterminate?: boolean }
+        | undefined;
+      if (syncWrites.length > 0 && fullDeps.writePort) {
+        for (const write of syncWrites) {
+          const meta = await fullDeps.writePort.writeDb(write);
+          appliedWrites.push(write);
+          if (write.type === 'user.phone.link') {
+            const hasMeta =
+              typeof meta === 'object' && meta !== null && 'userPhoneLinkApplied' in meta;
+            const m = hasMeta ? (meta as DbWriteDbResult) : null;
+            const indeterminate = !hasMeta || m?.phoneLinkIndeterminate === true;
+            const notApplied = hasMeta && m && !m.userPhoneLinkApplied;
+            if (notApplied || indeterminate) {
+              const reason = m?.phoneLinkReason;
+              phoneLinkSyncFailure = {
+                error:
+                  reason !== undefined
+                    ? `phone messenger bind phone sync: ${reason}`
+                    : indeterminate
+                      ? 'phone messenger bind phone sync: indeterminate'
+                      : 'phone messenger bind phone sync: not applied',
+                ...(reason !== undefined ? { phoneLinkReason: reason } : {}),
+                indeterminate,
+              };
+              logger.warn(
+                {
+                  event: 'phone_messenger_bind_phone_sync_failed',
+                  externalId,
+                  channelCode: messengerChannel,
+                  phoneLinkReason: reason,
+                  indeterminate,
+                },
+                '[webapp.phoneMessengerBind.complete] user.phone.link did not apply',
+              );
+              break;
+            }
+          }
+        }
+      }
+
+      if (phoneLinkSyncFailure) {
+        const failureIntents: OutgoingIntent[] = [];
+        if (tplPort && (source === 'telegram' || source === 'max') && chatId !== null) {
+          const templateKey = phoneMessengerBindPhoneLinkSyncFailureTemplateKey(
+            source,
+            phoneLinkSyncFailure.phoneLinkReason,
+            phoneLinkSyncFailure.indeterminate === true,
+          );
+          const text = await renderText({ templateKey, ctx, templatePort: tplPort });
+          if (text.trim().length > 0) {
+            const channels = source === 'max' ? ['max'] : ['telegram'];
+            failureIntents.push({
+              type: 'message.send',
+              meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-phone-sync-failed` }, ctx),
+              payload: {
+                recipient: { chatId },
+                message: { text },
+                delivery: { channels, maxAttempts: 1 },
+              },
+            });
+          }
+        }
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: phoneLinkSyncFailure.error,
+          values: {
+            phoneMessengerBind: {
+              ok: false,
+              webappComplete: true,
+              phoneLinkSync: { ok: false, reason: phoneLinkSyncFailure.phoneLinkReason },
+            },
           },
-        });
-        syncWrites.push({
-          type: 'user.state.set',
-          params: {
-            resource: messengerChannel,
-            channelUserId: externalId,
-            state: 'idle',
-          },
-        });
+          ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
+          ...(appliedWrites.length > 0 ? { writes: appliedWrites } : {}),
+        };
       }
 
       const successIntents: OutgoingIntent[] = [];
       const bindPurpose = result.purpose === 'profile_bind' ? 'profile_bind' : 'login';
 
       if (tplPort && (source === 'telegram' || source === 'max') && chatId !== null) {
+        const isReplay = result.replay === true;
         if (bindPurpose === 'profile_bind') {
-          if (source === 'telegram') {
-            const rawChat = readIncomingChatId(ctx);
-            const fromEvent = rawChat !== null ? Number(rawChat) : NaN;
-            const tgChatId = Number.isFinite(fromEvent) ? fromEvent : Number(externalId);
-            if (Number.isFinite(tgChatId)) {
-              const linkedAction: Action = {
-                id: `${action.id}:phone-auth-linked`,
-                type: 'message.replyKeyboard.show',
-                mode: 'async',
-                params: {
-                  chatId: tgChatId,
-                  templateKey: 'telegram:phoneAuthPhoneLinked',
-                  keyboard: [
-                    [
-                      { textTemplateKey: 'telegram:menu.book' },
-                      { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
-                    ],
-                  ],
-                  resizeKeyboard: true,
-                },
-              };
-              const linkedResult = await executeAction(linkedAction, ctx, fullDeps);
-              if (linkedResult.intents?.length) {
-                successIntents.push(...linkedResult.intents);
-              }
-            }
-          } else {
-            const chatIdResolved = resolveChannelLinkFailureChatId(ctx, externalId);
-            if (chatIdResolved !== null) {
-              const text = await renderText({
-                templateKey: 'max:phoneAuthPhoneLinked',
-                ctx,
-                templatePort: tplPort,
-              });
-              if (text.trim().length > 0) {
-                successIntents.push({
-                  type: 'message.send',
-                  meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-linked` }, ctx),
-                  payload: {
-                    recipient: { chatId: chatIdResolved },
-                    message: { text },
-                    delivery: { channels: ['max'], maxAttempts: 1 },
-                  },
-                });
-              }
-            }
-          }
+          successIntents.push(
+            ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
+              source,
+              externalId,
+              templateKey: `${source}:phoneAuthPhoneLinked`,
+              actionIdSuffix: 'phone-auth-linked',
+            })),
+          );
+        } else if (!isReplay) {
+          successIntents.push(
+            ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
+              source,
+              externalId,
+              templateKey: `${source}:phoneAuthReturnToApp`,
+              actionIdSuffix: 'phone-auth-return',
+            })),
+          );
         } else {
-          const otpCode = typeof result.otpCode === 'string' ? result.otpCode.trim() : '';
-          if (otpCode.length > 0) {
-            const templateKey =
-              result.accountCreated === true
-                ? `${source}:phoneAuthAccountCreated`
-                : `${source}:phoneAuthLoginCode`;
-            const text = await renderText({
-              templateKey,
-              ctx,
-              templatePort: tplPort,
-              vars: { code: otpCode },
-            });
-            if (text.trim().length > 0) {
-              const channels = source === 'max' ? ['max'] : ['telegram'];
-              successIntents.push({
-                type: 'message.send',
-                meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-success` }, ctx),
-                payload: {
-                  recipient: { chatId },
-                  message: { text },
-                  delivery: { channels, maxAttempts: 1 },
-                },
-              });
-            }
-          }
-        }
-      }
-
-      if (syncWrites.length > 0 && fullDeps.writePort) {
-        for (const write of syncWrites) {
-          await fullDeps.writePort.writeDb(write);
+          successIntents.push(
+            ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
+              source,
+              externalId,
+              templateKey: `${source}:phoneAuthReturnToApp`,
+              actionIdSuffix: 'phone-auth-return-replay',
+              menuOnly: true,
+            })),
+          );
         }
       }
 
@@ -455,7 +580,7 @@ export async function executeAction(
             replay: result.replay === true,
           },
         },
-        ...(syncWrites.length > 0 ? { writes: syncWrites } : {}),
+        ...(appliedWrites.length > 0 ? { writes: appliedWrites } : {}),
         ...(successIntents.length > 0 ? { intents: successIntents } : {}),
       };
     }
@@ -806,21 +931,24 @@ export async function executeAction(
         ...rawVars,
         usernameMention: username ? `@${username}` : '',
       };
+      const expandedParams = action.type === 'message.inlineKeyboard.show'
+        ? await expandContentMenuParam(action.params, ctx, fullDeps.contentPort)
+        : action.params;
       const text = await renderText({
-        text: action.params.text,
-        messageText: action.params.messageText,
-        templateKey: action.params.templateKey,
+        text: expandedParams.text,
+        messageText: expandedParams.messageText,
+        templateKey: expandedParams.templateKey,
         vars,
         ctx,
         templatePort: deps.templatePort,
       });
       const replyMarkup = await buildReplyMarkup({
-        params: action.params,
-        vars: action.params.vars,
+        params: expandedParams,
+        vars: expandedParams.vars,
         ctx,
         templatePort: deps.templatePort,
       });
-      const chatId = asNumber(action.params.chatId);
+      const chatId = asNumber(expandedParams.chatId) ?? asString(expandedParams.chatId);
       const parseMode = action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
         ? action.params.parseMode
         : undefined;
@@ -839,21 +967,22 @@ export async function executeAction(
     }
 
     case 'message.edit': {
+      const expandedParams = await expandContentMenuParam(action.params, ctx, fullDeps.contentPort);
       const text = await renderText({
-        text: action.params.text,
-        messageText: action.params.messageText,
-        templateKey: action.params.templateKey,
-        vars: action.params.vars,
+        text: expandedParams.text,
+        messageText: expandedParams.messageText,
+        templateKey: expandedParams.templateKey,
+        vars: expandedParams.vars,
         ctx,
         templatePort: deps.templatePort,
       });
       const replyMarkup = await buildReplyMarkup({
-        params: action.params,
-        vars: action.params.vars,
+        params: expandedParams,
+        vars: expandedParams.vars,
         ctx,
         templatePort: deps.templatePort,
       });
-      const chatId = asNumber(action.params.chatId);
+      const chatId = asNumber(expandedParams.chatId) ?? asString(expandedParams.chatId);
       const messageId = asMessageId(action.params.messageId);
       const parseMode = action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
         ? action.params.parseMode

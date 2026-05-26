@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE } from "./instance-service";
-import { resolvePatientTreatmentProgramEntry } from "./patientTreatmentProgramEntry";
+import {
+  resolvePatientTreatmentProgramEntry,
+  type PatientTreatmentProgramEntryDeps,
+} from "./patientTreatmentProgramEntry";
 
 const listForPatient = vi.fn();
 const ensureDefaultPromo = vi.fn();
@@ -11,7 +14,7 @@ const deps = {
   treatmentProgramInstance: { listForPatient, ensureDefaultPromoProgramForPatient: ensureDefaultPromo },
   treatmentProgram: { getTemplate },
   systemSettings: { getPatientDefaultPromoTreatmentProgramTemplateId: getPromoTplId },
-};
+} as unknown as PatientTreatmentProgramEntryDeps;
 
 const patientId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 

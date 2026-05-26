@@ -245,6 +245,22 @@ export function contentAudience(ctx: DomainContext): 'user' | 'admin' {
   return ctx.base?.actor?.isAdmin === true ? 'admin' : 'user';
 }
 
+/** Expands `params.menu` → `inlineKeyboard` from content bundle (same as orchestrator buildPlan). */
+export async function expandContentMenuParam(
+  params: Record<string, unknown>,
+  ctx: DomainContext,
+  contentPort: ContentPort | undefined,
+): Promise<Record<string, unknown>> {
+  const menuId = asString(params.menu);
+  if (!menuId || !contentPort?.getBundle) return params;
+  const bundle = await contentPort.getBundle({ source: ctx.event.meta.source, audience: contentAudience(ctx) });
+  const menuKeyboard = bundle?.menus?.[menuId];
+  if (!Array.isArray(menuKeyboard)) return params;
+  const next: Record<string, unknown> = { ...params, inlineKeyboard: menuKeyboard };
+  delete next.menu;
+  return next;
+}
+
 export async function buildMainReplyKeyboardMarkup(input: {
   ctx: DomainContext;
   templatePort: TemplatePort | undefined;

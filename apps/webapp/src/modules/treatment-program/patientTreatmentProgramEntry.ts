@@ -1,13 +1,22 @@
 import { logger } from "@/infra/logging/logger";
-import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pickActivePlanInstance } from "./pickActivePlanInstance";
 import { SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE } from "./instance-service";
 import type { TreatmentProgramInstanceSummary } from "./types";
 
-export type PatientTreatmentProgramEntryDeps = Pick<
-  ReturnType<typeof buildAppDeps>,
-  "treatmentProgramInstance" | "treatmentProgram" | "systemSettings"
->;
+export type PatientTreatmentProgramEntryDeps = {
+  treatmentProgramInstance: {
+    listForPatient(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
+    ensureDefaultPromoProgramForPatient(params: {
+      patientUserId: string;
+    }): Promise<{ id: string }>;
+  };
+  treatmentProgram: {
+    getTemplate(id: string): Promise<{ status: string } | null>;
+  };
+  systemSettings: {
+    getPatientDefaultPromoTreatmentProgramTemplateId(): Promise<string | null>;
+  };
+};
 
 export type PatientTreatmentProgramEntryResult =
   | { kind: "redirect"; instanceId: string }
@@ -26,7 +35,7 @@ async function tryEnsureDefaultPromoInstanceId(
 
   try {
     const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
-    if (tpl.status !== "published") return null;
+    if (!tpl || tpl.status !== "published") return null;
     const ensured = await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
       patientUserId,
     });

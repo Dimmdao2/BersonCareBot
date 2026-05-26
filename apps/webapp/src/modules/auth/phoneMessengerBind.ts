@@ -398,6 +398,67 @@ export async function getPhoneMessengerBindStatus(
   return { ok: true, status: "pending_contact" };
 }
 
+export type ResolvePhoneMessengerBindLoginChallengeResult =
+  | { ok: true; challengeId: string; code: string }
+  | { ok: false; code: string };
+
+/**
+ * Возвращает challengeId и OTP для server-side finish после контакта в боте.
+ * Код не отдаётся клиенту — только для POST messenger-bind/finish.
+ */
+export async function resolvePhoneMessengerBindLoginChallenge(
+  setupToken: string,
+  phoneAuthDeps: PhoneAuthDeps,
+  bindPort?: PhoneMessengerBindPort,
+): Promise<ResolvePhoneMessengerBindLoginChallengeResult> {
+  const trimmed = setupToken.trim();
+  if (!/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
+    return { ok: false, code: "invalid_token" };
+  }
+
+  if (!env.DATABASE_URL?.trim()) {
+    return { ok: false, code: "database_unavailable" };
+  }
+
+  const port = resolveBindPort(bindPort);
+  if (!port) {
+    return { ok: false, code: "database_unavailable" };
+  }
+
+  const row = await port.findByTokenHash(hashToken(trimmed));
+  if (!row) {
+    return { ok: false, code: "not_found" };
+  }
+
+  if (row.purpose !== "login") {
+    return { ok: false, code: "wrong_purpose" };
+  }
+
+  if (row.consumed_at || row.status === "consumed") {
+    return { ok: false, code: "already_consumed" };
+  }
+
+  if (row.status === "failed") {
+    return { ok: false, code: row.failure_code ?? "failed" };
+  }
+
+  if (new Date(row.expires_at).getTime() < Date.now() && row.status !== "otp_ready") {
+    return { ok: false, code: "expired" };
+  }
+
+  if (row.status !== "otp_ready" || !row.challenge_id) {
+    return { ok: false, code: "not_ready" };
+  }
+
+  const stored = await phoneAuthDeps.challengeStore.get(row.challenge_id);
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (!stored?.code || stored.expiresAt < nowSec) {
+    return { ok: false, code: "challenge_expired" };
+  }
+
+  return { ok: true, challengeId: row.challenge_id, code: stored.code };
+}
+
 /** Помечает secret consumed после успешного phone/confirm (по challengeId). */
 export async function markPhoneMessengerBindConsumedByChallenge(
   challengeId: string,

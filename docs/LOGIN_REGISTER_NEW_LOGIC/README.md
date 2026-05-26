@@ -5,7 +5,7 @@
 - **Согласованный scope (волна 1):** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) — **live-flow** + фаза 6 (merge-страховка); фазы 7–8 **отложены** (backfill / mass setup).
 - **Мастер-постановка (канон требований):** [`MAIN PLAN.md`](MAIN%20PLAN.md)
 - **Дорожная карта (индекс этапов):** [`ROADMAP.md`](ROADMAP.md) (волна 2+: [`docs/TODO_NOT_NOW/`](../TODO_NOT_NOW/README.md))
-- **Журнал исполнения:** [`LOG.md`](LOG.md) (в т.ч. post-MVP hardening 2026-05-20)
+- **Журнал исполнения:** [`LOG.md`](LOG.md) (в т.ч. post-MVP hardening 2026-05-20; **phone messenger bind A+B** 2026-05-27)
 - **Отчёт аудита (фаза 0):** [`AUDIT_REPORT.md`](AUDIT_REPORT.md)
 - **Карта кода для аудита (фаза 0):** [`CODE_AUDIT_MAP.md`](CODE_AUDIT_MAP.md)
 - **Аудиты этапов 1–6:** [`PHASE_01_AUDIT.md`](PHASE_01_AUDIT.md) … [`PHASE_06_AUDIT.md`](PHASE_06_AUDIT.md)
@@ -32,6 +32,19 @@
 - [`../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
 - [`../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md) — `smtp_outbound`
 - Auth (email+password): `apps/webapp/src/modules/auth/auth.md`
+
+## Phone messenger bind (PWA + бот, 2026-05-27)
+
+Автовход в PWA после контакта в Telegram/Max + UX бота (меню, cancel без `confirmQuestion`).
+
+| Документ | Назначение |
+|----------|------------|
+| [`.cursor/plans/phone_messenger_bind_pwa_autologin.plan.md`](../../.cursor/plans/phone_messenger_bind_pwa_autologin.plan.md) | План A — `messenger-bind/finish`, `PhoneMessengerAuthFlow` |
+| [`.cursor/plans/phone_messenger_bind_bot_ux.plan.md`](../../.cursor/plans/phone_messenger_bind_bot_ux.plan.md) | План B — integrator writes-first, меню, cancel |
+| [`../OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md`](../OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md) | Операционный runbook + deploy checklist |
+| [`LOG.md`](LOG.md) §«Приёмка A+B» | Ручной smoke (5 кейсов, ☐ до деплоя) |
+
+Код и CI закрыты; **`manual-e2e-smoke`** в frontmatter планов — `pending`.
 
 ## Правила исполнения для агентов
 

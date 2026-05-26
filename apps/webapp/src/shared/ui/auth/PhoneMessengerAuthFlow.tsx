@@ -78,7 +78,9 @@ export function PhoneMessengerAuthFlow({
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
   const [otpChannel, setOtpChannel] = useState<"telegram" | "max">("telegram");
+  const [finishingLogin, setFinishingLogin] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const finishingRef = useRef(false);
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
@@ -89,14 +91,65 @@ export function PhoneMessengerAuthFlow({
 
   const resetBindAttempt = useCallback(() => {
     clearPoll();
+    finishingRef.current = false;
+    setFinishingLogin(false);
     setSetupToken(null);
     setBindChannel(null);
     setChallengeId(null);
     setStep("messenger_pick");
   }, [clearPoll]);
 
+  const redirectOk = useCallback(
+    (redirectTo: string, role?: "client" | "doctor" | "admin") => {
+      markFreshLoginAfterAuth();
+      const target = getPostAuthRedirectTarget(role ?? "client", nextParam, redirectTo);
+      window.location.assign(target);
+    },
+    [nextParam],
+  );
+
+  const finishMessengerLogin = useCallback(
+    async (token: string) => {
+      if (finishingRef.current) return;
+      finishingRef.current = true;
+      setFinishingLogin(true);
+      let succeeded = false;
+      try {
+        const res = await fetch("/api/auth/phone/messenger-bind/finish", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            setupToken: token,
+            browserCalendarIana: getBrowserCalendarIanaForAuth(),
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          redirectTo?: string;
+          role?: "client" | "doctor" | "admin";
+          message?: string;
+          error?: string;
+        };
+        if (data.ok && data.redirectTo) {
+          clearPoll();
+          redirectOk(data.redirectTo, data.role);
+          succeeded = true;
+          return;
+        }
+        toast.error(data.message ?? "Не удалось завершить вход");
+        resetBindAttempt();
+      } finally {
+        if (!succeeded) {
+          finishingRef.current = false;
+          setFinishingLogin(false);
+        }
+      }
+    },
+    [clearPoll, resetBindAttempt, redirectOk],
+  );
+
   const pollBindStatus = useCallback(
-    async (token: string, channel: "telegram" | "max") => {
+    async (token: string, _channel: "telegram" | "max") => {
       const statusRes = await fetch("/api/auth/phone/messenger-bind/status", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -114,6 +167,8 @@ export function PhoneMessengerAuthFlow({
         clearPoll();
         if (purpose === "profile_bind") {
           onProfileComplete?.();
+        } else {
+          void finishMessengerLogin(token);
         }
         return;
       }
@@ -123,9 +178,8 @@ export function PhoneMessengerAuthFlow({
           onProfileComplete?.();
           return;
         }
-        setChallengeId(statusData.challengeId);
-        setRetryAfterSeconds(statusData.retryAfterSeconds ?? 60);
-        setOtpChannel(channel);
+        void finishMessengerLogin(token);
+        return;
       }
       if (statusData.status === "failed") {
         clearPoll();
@@ -138,16 +192,10 @@ export function PhoneMessengerAuthFlow({
         resetBindAttempt();
       }
     },
-    [clearPoll, resetBindAttempt, purpose, onProfileComplete],
+    [clearPoll, resetBindAttempt, purpose, onProfileComplete, finishMessengerLogin],
   );
 
   useEffect(() => () => clearPoll(), [clearPoll]);
-
-  const redirectOk = (redirectTo: string, role?: "client" | "doctor" | "admin") => {
-    markFreshLoginAfterAuth();
-    const target = getPostAuthRedirectTarget(role ?? "client", nextParam, redirectTo);
-    window.location.assign(target);
-  };
 
   const startPhoneOtp = async (
     normalized: string,
@@ -372,11 +420,12 @@ export function PhoneMessengerAuthFlow({
   }
 
   if (step === "code") {
-    const waitingForBot = setupToken != null && challengeId == null;
-    const waitingDescription =
-      purpose === "profile_bind"
+    const waitingForBot = setupToken != null && challengeId == null && purpose === "login";
+    const waitingDescription = finishingLogin
+      ? "Завершаем вход…"
+      : purpose === "profile_bind"
         ? `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}. После этого можно вернуться в приложение.`
-        : `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}, затем введите код из сообщения бота.`;
+        : `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}.`;
     return (
       <div id="phone-messenger-auth-code" className="flex w-full flex-col gap-3 text-left">
         {waitingForBot ? (

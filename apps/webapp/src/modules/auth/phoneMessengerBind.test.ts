@@ -56,6 +56,7 @@ import {
   completePhoneMessengerBindFromIntegrator,
   getPhoneMessengerBindStatus,
   registerPhoneMessengerBindPort,
+  resolvePhoneMessengerBindLoginChallenge,
   startPhoneMessengerBind,
 } from "./phoneMessengerBind";
 import { createPhoneOtpChallenge } from "./phoneAuth";
@@ -298,5 +299,76 @@ describe("phoneMessengerBind", () => {
 
     const res = await getPhoneMessengerBindStatus("auth_testtoken");
     expect(res).toMatchObject({ ok: true, status: "otp_ready", challengeId: "ch-1" });
+  });
+
+  it("resolveLoginChallenge returns challenge and code when otp_ready", async () => {
+    const challengeId = "ch-finish-1";
+    await inMemoryPhoneChallengeStore.set(challengeId, {
+      phone: "+79991234567",
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+      code: "987654",
+      deliveryChannel: "telegram",
+    });
+    queryMock.mockResolvedValueOnce({
+      rows: [secretRow({ status: "otp_ready", challenge_id: challengeId })],
+    });
+
+    const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
+    expect(res).toEqual({ ok: true, challengeId, code: "987654" });
+  });
+
+  it("resolveLoginChallenge returns not_ready when pending_contact", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [secretRow()] });
+    const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
+    expect(res).toEqual({ ok: false, code: "not_ready" });
+  });
+
+  it("resolveLoginChallenge returns wrong_purpose for profile_bind", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [secretRow({ purpose: "profile_bind", status: "otp_ready", challenge_id: "ch-x" })],
+    });
+    const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
+    expect(res).toEqual({ ok: false, code: "wrong_purpose" });
+  });
+
+  it("resolveLoginChallenge returns already_consumed", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [secretRow({ status: "consumed", consumed_at: new Date().toISOString() })],
+    });
+    const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
+    expect(res).toEqual({ ok: false, code: "already_consumed" });
+  });
+
+  it("resolveLoginChallenge returns challenge_expired when store empty", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [secretRow({ status: "otp_ready", challenge_id: "ch-missing" })],
+    });
+    const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
+    expect(res).toEqual({ ok: false, code: "challenge_expired" });
+  });
+
+  it("resolveLoginChallenge returns invalid_token for malformed setupToken", async () => {
+    const res = await resolvePhoneMessengerBindLoginChallenge("not_auth_token", phoneAuthDeps);
+    expect(res).toEqual({ ok: false, code: "invalid_token" });
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it("resolveLoginChallenge returns not_found when secret missing", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
+    expect(res).toEqual({ ok: false, code: "not_found" });
+  });
+
+  it("resolveLoginChallenge returns expired when TTL passed before otp_ready", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [
+        secretRow({
+          status: "pending_contact",
+          expires_at: new Date(Date.now() - 60_000).toISOString(),
+        }),
+      ],
+    });
+    const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
+    expect(res).toEqual({ ok: false, code: "expired" });
   });
 });

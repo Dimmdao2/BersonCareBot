@@ -87,6 +87,186 @@
 		]
 	},
 	{
+		"id": "telegram.phoneauth.cancel.linked",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 57,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				},
+				"linkedPhone": true
+			},
+			"input": {
+				"action": "phone.request.cancel"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"keyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:menu.book"
+							},
+							{
+								"textTemplateKey": "telegram:menu.app",
+								"webAppUrlFact": "links.webappHomeUrl"
+							}
+						]
+					],
+					"resizeKeyboard": true
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.phoneauth.cancel.unlinked",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 57,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				},
+				"linkedPhone": false
+			},
+			"input": {
+				"action": "phone.request.cancel"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
+					"templateKey": "telegram:phoneAuthCancelled",
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					}
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.phoneauth.cancel.text.linked",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 57,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				},
+				"linkedPhone": true
+			},
+			"input": {
+				"text": "Отмена"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"keyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:menu.book"
+							},
+							{
+								"textTemplateKey": "telegram:menu.app",
+								"webAppUrlFact": "links.webappHomeUrl"
+							}
+						]
+					],
+					"resizeKeyboard": true
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.phoneauth.cancel.text.unlinked",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 57,
+		"match": {
+			"context": {
+				"conversationState": {
+					"$startsWith": "await_phoneauth:"
+				},
+				"linkedPhone": false
+			},
+			"input": {
+				"text": "Отмена"
+			}
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
+					"templateKey": "telegram:phoneAuthCancelled",
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					}
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.start.setphone",
 		"source": "telegram",
 		"event": "message.received",
@@ -585,7 +765,9 @@
 					"diary.open",
 					"start.setrubitimerecord",
 					"start.noticeme",
-					"start.set"
+					"start.set",
+					"phone.request.cancel",
+					"start.phoneauth"
 				],
 				"excludeTexts": [
 					"/start",
@@ -596,7 +778,9 @@
 					"📓 Дневник",
 					"Дневник",
 					"👤 Кабинет",
-					"Кабинет"
+					"Кабинет",
+					"Отмена",
+					"Вернуться в меню"
 				],
 				"excludeTextPrefixes": [
 					"/start"
@@ -657,7 +841,9 @@
 					"diary.open",
 					"start.setrubitimerecord",
 					"start.noticeme",
-					"start.set"
+					"start.set",
+					"phone.request.cancel",
+					"start.phoneauth"
 				],
 				"excludeTexts": [
 					"/start",
@@ -668,7 +854,9 @@
 					"📓 Дневник",
 					"Дневник",
 					"👤 Кабинет",
-					"Кабинет"
+					"Кабинет",
+					"Отмена",
+					"Вернуться в меню"
 				],
 				"excludeTextPrefixes": [
 					"/start"
@@ -986,7 +1174,9 @@
 					"diary.open",
 					"start.setrubitimerecord",
 					"start.noticeme",
-					"start.set"
+					"start.set",
+					"phone.request.cancel",
+					"start.phoneauth"
 				],
 				"excludeTexts": [
 					"/start",
@@ -997,7 +1187,9 @@
 					"📓 Дневник",
 					"Дневник",
 					"👤 Кабинет",
-					"Кабинет"
+					"Кабинет",
+					"Отмена",
+					"Вернуться в меню"
 				],
 				"excludeTextPrefixes": [
 					"/start"
@@ -2950,7 +3142,9 @@
 					"diary.open",
 					"start.setrubitimerecord",
 					"start.noticeme",
-					"start.set"
+					"start.set",
+					"phone.request.cancel",
+					"start.phoneauth"
 				],
 				"excludeTexts": [
 					"/start",
@@ -2961,7 +3155,9 @@
 					"📓 Дневник",
 					"Дневник",
 					"👤 Кабинет",
-					"Кабинет"
+					"Кабинет",
+					"Отмена",
+					"Вернуться в меню"
 				],
 				"excludeTextPrefixes": [
 					"/start"

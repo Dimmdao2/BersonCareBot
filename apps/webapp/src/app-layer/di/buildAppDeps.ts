@@ -26,6 +26,7 @@ import {
   getPhoneMessengerBindStatus,
   markPhoneMessengerBindConsumedByChallenge,
   registerPhoneMessengerBindPort,
+  resolvePhoneMessengerBindLoginChallenge,
   startPhoneMessengerBind,
 } from "@/modules/auth/phoneMessengerBind";
 import { createPgPhoneMessengerBindPort } from "@/infra/repos/pgPhoneMessengerBind";
@@ -999,6 +1000,8 @@ function _buildAppDeps() {
         completePhoneMessengerBindFromIntegrator(params, phoneAuthDeps, phoneMessengerBindPort),
       markConsumedByChallenge: (challengeId: string) =>
         markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort),
+      resolveLoginChallenge: (setupToken: string) =>
+        resolvePhoneMessengerBindLoginChallenge(setupToken, phoneAuthDeps, phoneMessengerBindPort),
     },
     userPins: userPinsPort,
     userPasswordCredentials: userPasswordCredentialsPort,

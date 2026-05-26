@@ -21,6 +21,8 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '/book': 'booking.open',
   '/diary': 'nav.webapp.diary',
   '/menu': 'nav.webapp.menu',
+  'Отмена': 'phone.request.cancel',
+  'Вернуться в меню': 'phone.request.cancel',
   'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 

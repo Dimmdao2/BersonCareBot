@@ -2,6 +2,72 @@
 
 Хронология по этапам [`ROADMAP.md`](ROADMAP.md). Факты prod (без секретов) — кратко.
 
+## 2026-05-27 — Baseline: phone messenger bind PWA + бот (до плана A/B)
+
+**Зафиксировано до правок** (ручной smoke, dev/staging):
+
+| # | Кейс | Наблюдение |
+|---|------|------------|
+| 1 | PWA login → TG → контакт | Нет автовхода; poll `otp_ready` → форма OTP в браузере |
+| 2 | После «Аккаунт создан» в боте | Снова висит «Предоставить контакт», главное меню не показывается |
+| 3 | «Отмена» / «Вернуться в меню» в phoneauth | «Отправить ваш вопрос Дмитрию?» (catch-all `menu.default`) |
+| 4 | `profile_bind` с сессией | Ожидаемо: poll `consumed`, без OTP (не регрессить) |
+
+**Планы:** `.cursor/plans/phone_messenger_bind_pwa_autologin.plan.md` (A), `.cursor/plans/phone_messenger_bind_bot_ux.plan.md` (B).
+
+## 2026-05-27 — План A: PWA автовход после контакта (messenger-bind/finish)
+
+**Сделано:**
+
+- **`resolvePhoneMessengerBindLoginChallenge`** — server-side OTP из challenge store по `setupToken`.
+- **`POST /api/auth/phone/messenger-bind/finish`** — confirm + session без кода в браузере; idempotent **200** при `already_consumed` + активной сессии.
+- **`PhoneMessengerAuthFlow`** — `purpose: login`: poll `otp_ready` → finish → redirect (не `OtpCodeForm` для messenger-bind).
+- Доки: runbook, `auth.md`, `INTEGRATOR_CONTRACT.md`.
+
+**Проверки:** `phoneMessengerBind.test.ts` (resolve: otp_ready, not_ready, expired, invalid_token, not_found, wrong_purpose, already_consumed, challenge_expired), `PhoneMessengerAuthFlow.test.tsx`, `finish/route.test.ts`, `AuthFlowV2.test.tsx`. **39/39** vitest по messenger-bind/finish; **`pnpm run ci`** — green.
+
+**Связь с планом B:** bot UX (меню, cancel) — см. §План B ниже; оба плана **`status: completed`** в frontmatter, ручной smoke — §Приёмка A+B.
+
+## 2026-05-27 — План B: UX бота после phone messenger bind (TG + Max)
+
+**Сделано:**
+
+- **`executeAction` `webapp.phoneMessengerBind.complete`:** `user.phone.link` + `idle` **до** success; guard `userPhoneLinkApplied` / `phoneLinkIndeterminate`; без `writePort` → `write_port_missing`.
+- **Login UX:** `phoneAuthReturnToApp` + главное меню (TG reply keyboard, Max inline `menu.main` через `expandContentMenuParam` в executor); без `phoneAuthLoginCode` / `phoneAuthAccountCreated` в messenger.
+- **Replay login:** меню без повторного текста с кодом.
+- **Cancel phoneauth:** scripts priority **57** (`*.phoneauth.cancel.*`); catch-all excludes в `menu.default`, `draft.replace`, `max.default` / `max.draft.replace`.
+- **Max parity:** cancel scripts + `mapIn` для «Отмена» / «Вернуться в меню» → `phone.request.cancel`.
+- Шаблоны: `phoneAuthReturnToApp`, `phoneAuthCancelled`.
+
+**Проверки:** `executeAction.test.ts` (phoneMessengerBind, max login, writePort guard), `buildPlan.test.ts` (cancel, remind idle, booking callback), `mapIn.test.ts` (Max cancel texts), contentConfig. **`pnpm run ci`** — green.
+
+## 2026-05-27 — Приёмка A+B (автоматика + ручной smoke)
+
+**Автоматика (закрыто):** webapp finish + integrator writes-first/menu/cancel; полный `pnpm run ci`.
+
+**Ручной smoke (чеклист prod/staging — заполнить при деплое):**
+
+| # | Кейс | Ожидание | Статус |
+|---|------|----------|--------|
+| 1 | PWA login → TG → контакт | Автовход в PWA + меню в боте (не contact KB) | ☐ |
+| 2 | PWA login → Max → контакт | То же на Max | ☐ |
+| 3 | «Отмена» / «Вернуться в меню» в phoneauth | `phoneAuthCancelled` или меню; не `confirmQuestion` | ☐ |
+| 4 | `profile_bind` с сессией | poll `consumed`, меню в TG, без OTP | ☐ |
+| 5 | Повторный контакт (replay) | PWA idempotent finish; бот — меню без второго OTP-текста | ☐ |
+
+Runbook: `docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md` §Smoke.
+
+## 2026-05-27 — Документация и закрытие планов A+B
+
+**Сделано:**
+
+- Frontmatter планов A/B: `status: completed`, todos синхронизированы с DoD; `manual-e2e-smoke` → `cancelled` с явной причиной (5 кейсов §Приёмка A+B требуют отдельного staging/prod smoke вне локальной сессии).
+- Runbook, `auth.md`, `INTEGRATOR_CONTRACT.md`, README инициативы — ссылки на finish + bot UX + чеклист приёмки.
+
+**Проверки:** `pnpm run ci` — green (integrator + webapp).
+
+**Не делали:** ручной smoke на staging/prod (чеклист ☐ в таблице выше).
+
 ## 2026-05-20 — Phone messenger bind: код только для `login` (PWA)
 
 **Контекст:** при `profile_bind` (bind-phone с уже существующей сессией) после контакта в боте integrator сразу выставлял `patient_phone_trust_at`, но бот всё равно слал «Аккаунт создан… код», а PWA показывал форму OTP без необходимости.

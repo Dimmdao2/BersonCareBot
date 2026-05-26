@@ -43,6 +43,23 @@ describe('max mapIn', () => {
     if (incoming?.kind === 'message') expect(incoming.action).toBe('menu.more');
   });
 
+  it('maps phoneauth cancel texts to phone.request.cancel', () => {
+    for (const text of ['Отмена', 'Вернуться в меню'] as const) {
+      const body = {
+        update_type: 'message_created' as const,
+        timestamp: 1,
+        message: {
+          recipient: { chat_id: 201 },
+          body: { text },
+          sender: { user_id: 201 },
+        },
+      };
+      const incoming = fromMax(body);
+      expect(incoming?.kind).toBe('message');
+      if (incoming?.kind === 'message') expect(incoming.action).toBe('phone.request.cancel');
+    }
+  });
+
   it('maps /diary and /menu to webapp nav actions', () => {
     const diary = {
       update_type: 'message_created' as const,

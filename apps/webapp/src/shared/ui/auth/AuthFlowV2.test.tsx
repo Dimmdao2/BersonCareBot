@@ -356,8 +356,8 @@ describe("AuthFlowV2 — browser", () => {
             retryAfterSeconds: 60,
           });
         }
-        if (url.includes("/api/auth/phone/confirm")) {
-          return jsonRes({ ok: true, redirectTo: "/app/patient" });
+        if (url.includes("/api/auth/phone/messenger-bind/finish")) {
+          return jsonRes({ ok: true, redirectTo: "/app/patient", role: "client" });
         }
         return jsonRes({});
       }),
@@ -369,10 +369,9 @@ describe("AuthFlowV2 — browser", () => {
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
     await user.click(await screen.findByRole("button", { name: "Telegram" }));
-    await waitFor(() => expect(screen.getByLabelText("Код подтверждения")).toBeInTheDocument());
-    await user.type(screen.getByLabelText("Код подтверждения"), "654321");
-    await user.click(screen.getByRole("button", { name: "Войти" }));
     await waitFor(() => expect(locationAssign).toHaveBeenCalled());
+    expect(statusCalls).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
   });
 
   it("does not show Apple when Yandex or Google is enabled alongside Apple", async () => {
