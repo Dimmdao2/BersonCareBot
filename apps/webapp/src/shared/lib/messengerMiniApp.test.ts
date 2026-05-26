@@ -27,4 +27,14 @@ describe("isMessengerMiniAppHost", () => {
 
     expect(isMessengerMiniAppHost()).toBe(true);
   });
+
+  it("returns true for MAX webview when platform bot cookie is set (middleware entry)", () => {
+    (window as Window & { WebApp?: { ready?: () => void; initData?: string } }).WebApp = {
+      ready: () => undefined,
+      initData: "",
+    };
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+
+    expect(isMessengerMiniAppHost()).toBe(true);
+  });
 });

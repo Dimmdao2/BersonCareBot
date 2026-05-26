@@ -11,8 +11,8 @@
 ## Платформа: бот vs браузер / PWA
 
 - **Канон:** см. `apps/webapp/src/shared/lib/platform.md` — `PlatformEntry` / `PlatformMode`, cookie, proxy `?ctx=bot`, детект Mini App на клиенте.
-- **Маршруты мини‑аппов:** `/app/tg`, `/app/max` (см. архивные планы miniapp в `docs/README.md`).
-- **Публичная установка PWA и обложка:** **`/`** — маркетинг + `PwaInstallSection` (`src/shared/ui/marketing/`), регистрация **`public/sw.js`** только если **не** `isMessengerMiniAppHost()` (см. [`PHASE_02`](PHASE_02_INSTALL_FLOW.md)).
+- **Маршруты мини‑аппов:** `/app/tg`, `/app/max` (см. архивные планы miniapp в `docs/README.md`). Proxy на entry выставляет platform/surface cookies — см. `platform.md` (2026-05-27).
+- **Публичная установка PWA и обложка:** **`/`** — маркетинг + `PwaInstallSection` (`src/shared/ui/marketing/`), регистрация **`public/sw.js`** только если **не** `isMessengerMiniAppHost()` (см. [`PHASE_02`](PHASE_02_INSTALL_FLOW.md)). **`/app/patient/*`** в обычном браузере без PWA — редирект на **`/`** (`PwaAppAccessGate`); Mini App exempt при `isMessengerMiniAppHost()` (initData или cookie **`bot`** + MAX/TG bridge).
 - **Инструкции в кабинете пациента:** **`/app/patient/install`** — текст для **уже вошедшего** пациента (не дублирует маркетинг **`/`**).
 
 ## План дальнейших работ

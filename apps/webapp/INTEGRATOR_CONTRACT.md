@@ -34,7 +34,7 @@ This document defines the explicit contract between `tgcarebot` and `webapp`.
 
 Integrator/reminder URLs **usually include** `?t=` (JWT-style signed token); if it is absent, bootstrap may still authenticate from messenger **initData** first (`telegram-init` / `max-init`) and only rely on **`POST /api/auth/exchange`** with `?t=` after the messenger poll soft-cap — see client `AuthBootstrap`.
 
-Legacy `https://bersoncare.ru/app?t=<signed-token>&ctx=bot|max` may still appear in old links; webapp middleware normalizes `ctx` into cookies and (for `ctx=max` on `/app`) redirects to `/app/max`.
+Legacy `https://bersoncare.ru/app?t=<signed-token>&ctx=bot|max` may still appear in old links; webapp middleware normalizes `ctx` into cookies and (for `ctx=max` on `/app`) redirects to `/app/max`. **Канон (2026-05-27):** заход на **`/app/tg`** / **`/app/max`** без `ctx` тоже выставляет **`bersoncare_platform=bot`** и **`bersoncare_messenger_surface`** через **`applyMessengerEntryPathCookies`** в `proxy.ts` (если cookie ещё нет) — см. `apps/webapp/src/shared/lib/platform.md`.
 
 Token payload shape:
 

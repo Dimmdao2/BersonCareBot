@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { describe, expect, it } from "vitest";
 import {
+  applyMessengerEntryPathCookies,
   classifyEntryHintFromRequest,
   handlePlatformContextRequest,
   normalizeWebappEntryPathname,
@@ -56,6 +57,48 @@ describe("handlePlatformContextRequest", () => {
     const req = new NextRequest("https://example.com/app");
     const res = handlePlatformContextRequest(req);
     expect(res.headers.get("location")).toBeNull();
+  });
+});
+
+describe("applyMessengerEntryPathCookies", () => {
+  it("sets max cookies on /app/max when platform cookie absent", () => {
+    const req = new NextRequest("https://example.com/app/max?t=abc");
+    const res = NextResponse.next();
+    applyMessengerEntryPathCookies(req, res, { isProduction: false });
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain(`${PLATFORM_COOKIE_NAME}=bot`);
+    expect(setCookie).toContain(`${MESSENGER_SURFACE_COOKIE_NAME}=max`);
+  });
+
+  it("sets telegram cookies on /app/tg when platform cookie absent", () => {
+    const req = new NextRequest("https://example.com/app/tg");
+    const res = NextResponse.next();
+    applyMessengerEntryPathCookies(req, res, { isProduction: false });
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain(`${MESSENGER_SURFACE_COOKIE_NAME}=telegram`);
+  });
+
+  it("normalizes /app/max/ trailing slash", () => {
+    const req = new NextRequest("https://example.com/app/max/");
+    const res = NextResponse.next();
+    applyMessengerEntryPathCookies(req, res, { isProduction: false });
+    expect(res.headers.get("set-cookie") ?? "").toContain(`${MESSENGER_SURFACE_COOKIE_NAME}=max`);
+  });
+
+  it("does not set cookies when platform cookie already bot", () => {
+    const req = new NextRequest("https://example.com/app/max", {
+      headers: { cookie: `${PLATFORM_COOKIE_NAME}=bot` },
+    });
+    const res = NextResponse.next();
+    applyMessengerEntryPathCookies(req, res, { isProduction: false });
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("no-op on non-entry paths", () => {
+    const req = new NextRequest("https://example.com/app/patient");
+    const res = NextResponse.next();
+    applyMessengerEntryPathCookies(req, res, { isProduction: false });
+    expect(res.headers.get("set-cookie")).toBeNull();
   });
 });
 

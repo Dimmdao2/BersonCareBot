@@ -1,5 +1,13 @@
 # PWA — журнал
 
+## 2026-05-27 — Mini App entry cookies vs PWA gate
+
+**Проблема:** MAX WebView на **`/app/max`** при уже существующей сессии: мелькал кабинет, затем **`PwaAppAccessGate`** отправлял на лендинг **`/`** — не было cookie **`bersoncare_platform=bot`** до auth (статический URL без legacy **`?ctx=`**).
+
+**Сделано (webapp):** **`applyMessengerEntryPathCookies`** в `middleware/platformContext.ts`, вызов из **`proxy.ts`** для **`/app/tg`** / **`/app/max`**. Доки: `platform.md`, `MINIAPP_AUTH_FIX_EXECUTION_LOG.md` §2026-05-27, `BASELINE_STRUCTURE.md`.
+
+**Проверки:** vitest — `platformContext.test.ts`, `proxy.test.ts`, `messengerMiniApp.test.ts`.
+
 ## 2026-05-20 — Web Push: статус ОС + приложение, reconcile, матрица тем, fresh-login
 
 **Проблема (прод/UX):** после отключения уведомлений в ОС или в приложении UI и сервер расходились; «Отключить» в настройках часто не снимало подписку; повторное «Включить» не восстанавливало доставку; после переустановки PWA — ложный onboarding или устаревшее server-состояние; матрица типов уведомлений мигала «push включён» до client refresh.

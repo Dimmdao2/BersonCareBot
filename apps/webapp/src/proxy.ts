@@ -1,7 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { applySessionRenewalToResponse } from "@/modules/auth/sessionCookie";
-import { handlePlatformContextRequest } from "@/middleware/platformContext";
+import {
+  applyMessengerEntryPathCookies,
+  handlePlatformContextRequest,
+} from "@/middleware/platformContext";
 
 export function proxy(request: NextRequest) {
   const ctxResponse = handlePlatformContextRequest(request);
@@ -18,6 +21,7 @@ export function proxy(request: NextRequest) {
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
+  applyMessengerEntryPathCookies(request, response);
   return applySessionRenewalToResponse(request, response);
 }
 

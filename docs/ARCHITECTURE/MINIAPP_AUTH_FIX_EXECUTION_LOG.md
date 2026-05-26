@@ -259,3 +259,16 @@ Todos плана (все **`completed`**): `route-entry-split`, `auth-bootstrap-
 - **`max_bot_api_key`** в **`public.system_settings`** scope **`admin`** — см. образец **`psql`** в плане / `SERVER CONVENTIONS.md` (**секрет не выводить**)
 
 Статус ops: **`partial (ops)`** — подтверждения из консолей мессенджеров и проверки production DB в репозитории не фиксировались (см. §Шаг 5 плана `miniapp-audit-fixes`).
+
+---
+
+## 2026-05-27 — MAX entry cookies для PWA gate (без `?ctx=`)
+
+| Поле | Значение |
+|------|----------|
+| Проблема | MAX → **`/app/max`** (статический URL в MAX Business): при **уже существующей** browser-сессии RSC редиректил в **`/app/patient`**, **`PwaAppAccessGate`** не видел Mini App (**initData** пуст, cookie **`bot`** не было) → сброс на лендинг **`/`**; параллельно таймаут initData на entry. |
+| Webapp | **`applyMessengerEntryPathCookies`** + **`setMessengerPlatformCookies`** в `middleware/platformContext.ts`; вызов из **`proxy.ts`** на pass-through для **`/app/tg`** / **`/app/max`** (если **`bersoncare_platform=bot`** ещё нет). Тесты: `platformContext.test.ts`, `proxy.test.ts`, `messengerMiniApp.test.ts` (cookie + `WebApp.ready`). |
+| Доки | `platform.md`, `INTEGRATOR_CONTRACT.md`, `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`, `apps/webapp/README.md`, этот журнал. |
+| Не в scope | Пустой **initData** / **`max_bot_api_key`** — отдельная ops-настройка; cookie fix не заменяет **`max-init`**. |
+
+**Проверки:** targeted vitest (файлы выше).
