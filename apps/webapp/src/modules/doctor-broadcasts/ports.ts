@@ -128,6 +128,8 @@ export type DoctorBroadcastDeliveryCommitPort = {
     auditId: string;
     audit: Omit<BroadcastAuditEntry, "id" | "executedAt">;
     jobs: readonly DoctorBroadcastQueueJob[];
+    /** Получатели рассылки (включая push-only) для patient read page. */
+    recipientUserIds: readonly string[];
   }): Promise<BroadcastAuditEntry>;
 };
 

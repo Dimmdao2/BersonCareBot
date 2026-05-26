@@ -1,5 +1,20 @@
 # PWA — журнал
 
+## 2026-05-27 — Рассылка врача: страница полного текста + deep link из push
+
+**Проблема:** клик по Web Push рассылки вёл на несуществующий `/app/patient/home` (404); полного текста рассылки в PWA не было.
+
+**Сделано:**
+
+- **`/app/patient/broadcasts/[auditId]`** — заголовок, тело, дата; доступ по строке в **`broadcast_audit_recipients`**.
+- Push **`openUrl`:** `/app/patient/broadcasts/{auditId}` (`fanOutBroadcastWebPush`, `buildPatientBroadcastOpenPath`).
+- Миграция **`0080_broadcast_audit_recipients`**; запись получателей в той же транзакции, что `broadcast_audit` + очередь.
+- Telegram/MAX: **`parse_mode: HTML`**, жирный заголовок + обычное тело; лимит **3500** символов combined plain (как SMS).
+
+**Документация:** [`ARCHITECTURE/DOCTOR_BROADCASTS.md`](../ARCHITECTURE/DOCTOR_BROADCASTS.md), модули `patient-broadcasts` / `doctor-broadcasts` README.
+
+**Проверки:** vitest — `doctor-broadcasts`, `patient-broadcasts` (50 тестов в зоне рассылок).
+
 ## 2026-05-27 — Mini App entry cookies vs PWA gate
 
 **Проблема:** MAX WebView на **`/app/max`** при уже существующей сессии: мелькал кабинет, затем **`PwaAppAccessGate`** отправлял на лендинг **`/`** — не было cookie **`bersoncare_platform=bot`** до auth (статический URL без legacy **`?ctx=`**).

@@ -87,6 +87,14 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
             throw new Error("outgoing_delivery_queue_insert_conflict_or_skipped");
           }
         }
+        const recipientIds = [...new Set(input.recipientUserIds.map((id) => id.trim()).filter(Boolean))];
+        if (recipientIds.length > 0) {
+          await client.query(
+            `INSERT INTO broadcast_audit_recipients (audit_id, platform_user_id)
+             SELECT $1::uuid, unnest($2::uuid[])`,
+            [auditId, recipientIds],
+          );
+        }
         await client.query("COMMIT");
         return mapRow(ins.rows[0] as Record<string, unknown>);
       } catch (e) {

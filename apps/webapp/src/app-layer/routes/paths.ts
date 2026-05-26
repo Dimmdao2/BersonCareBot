@@ -55,6 +55,9 @@ export const routePaths = {
   patientInstall: "/app/patient/install",
   /** Напоминания пациента. */
   patientReminders: "/app/patient/reminders",
+  /** Полный текст рассылки врача (deep link из push). */
+  patientBroadcast: (auditId: string) =>
+    `/app/patient/broadcasts/${encodeURIComponent(auditId)}`,
   /** Журнал действий по одному правилу (`integrator_rule_id`). */
   patientReminderJournal: (ruleIntegratorId: string) =>
     `/app/patient/reminders/journal/${encodeURIComponent(ruleIntegratorId)}`,

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildDoctorBroadcastDeliveryJobs, buildBroadcastMessageText } from "./deliveryJobs";
+import {
+  buildBroadcastMessengerHtml,
+  buildBroadcastMessageText,
+  buildDoctorBroadcastDeliveryJobs,
+  splitBroadcastPlainCombined,
+} from "./deliveryJobs";
 import type { BroadcastNotificationPrefsFlags } from "./ports";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 
@@ -26,7 +31,8 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
         cl({ userId: "u1", phone: null, bindings: { telegramId: "111" } }),
       ],
       channels: ["bot_message"],
-      messageText: "Hello",
+      messageTitle: "T",
+      messageBodyPlain: "Hello",
     });
     expect(jobs.length).toBe(1);
     expect(jobs[0].channel).toBe("telegram");
@@ -44,7 +50,8 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
         }),
       ],
       channels: ["bot_message"],
-      messageText: "Hi",
+      messageTitle: "T",
+      messageBodyPlain: "Hi",
       notificationPrefsByUserId: new Map<string, BroadcastNotificationPrefsFlags>([
         ["u1", { telegram: true, max: true, sms: true }],
       ]),
@@ -64,7 +71,8 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
         }),
       ],
       channels: ["bot_message"],
-      messageText: "Hi",
+      messageTitle: "T",
+      messageBodyPlain: "Hi",
       notificationPrefsByUserId: new Map([["u1", { telegram: false, max: false, sms: true }]]),
     });
     expect(jobs.length).toBe(1);
@@ -82,7 +90,8 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
         }),
       ],
       channels: ["bot_message"],
-      messageText: "Hi",
+      messageTitle: "T",
+      messageBodyPlain: "Hi",
     });
     expect(jobs.length).toBe(1);
     expect(jobs[0].channel).toBe("max");
@@ -94,7 +103,8 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
       audienceFilter: "all",
       eligibleClients: [cl({ userId: "u1", bindings: { telegramId: "111", maxId: "m2" } })],
       channels: ["bot_message"],
-      messageText: "Hi",
+      messageTitle: "T",
+      messageBodyPlain: "Hi",
       notificationPrefsByUserId: new Map([["u1", { telegram: false, max: true, sms: true }]]),
     });
     expect(jobs.length).toBe(1);
@@ -108,7 +118,8 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
         cl({ userId: "u1", phone: null, bindings: { telegramId: "111" } }),
       ],
       channels: ["bot_message"],
-      messageText: "Hello",
+      messageTitle: "T",
+      messageBodyPlain: "Hello",
       attachMenu: true,
     });
     expect(jobs.length).toBe(1);
@@ -121,7 +132,8 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
       audienceFilter: "all",
       eligibleClients: [cl({ userId: "u1", bindings: {} })],
       channels: ["sms"],
-      messageText: "SMS text",
+      messageTitle: "T",
+      messageBodyPlain: "SMS text",
       notificationPrefsByUserId: new Map([["u1", { telegram: true, max: true, sms: false }]]),
     });
     expect(jobs.length).toBe(0);
@@ -133,7 +145,8 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
       audienceFilter: "sms_only",
       eligibleClients: [cl({ userId: "u1", bindings: {} })],
       channels: ["sms"],
-      messageText: "SMS text",
+      messageTitle: "T",
+      messageBodyPlain: "SMS text",
       notificationPrefsByUserId: new Map([["u1", { telegram: true, max: true, sms: false }]]),
     });
     expect(jobs.length).toBe(1);
@@ -145,7 +158,8 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
       auditId,
       eligibleClients: [cl({ userId: "u1", bindings: {}, phone: "+79990001122" })],
       channels: ["sms"],
-      messageText: "SMS text",
+      messageTitle: "T",
+      messageBodyPlain: "SMS text",
     });
     expect(jobs.length).toBe(1);
     expect(jobs[0].channel).toBe("sms");
@@ -155,5 +169,77 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
 describe("buildBroadcastMessageText", () => {
   it("joins title and body", () => {
     expect(buildBroadcastMessageText("T", "B")).toBe("T\n\nB");
+  });
+
+  it("truncates combined text at MESSAGE_TEXT_MAX", () => {
+    const body = "x".repeat(4000);
+    const combined = buildBroadcastMessageText("T", body);
+    expect(combined.length).toBe(3500);
+    expect(combined.endsWith("…")).toBe(true);
+  });
+});
+
+describe("splitBroadcastPlainCombined", () => {
+  it("splits title and body after truncation", () => {
+    const combined = buildBroadcastMessageText("Head", "y".repeat(4000));
+    const parts = splitBroadcastPlainCombined(combined);
+    expect(parts.title).toBe("Head");
+    expect(parts.body.length).toBeGreaterThan(0);
+    expect(parts.body.endsWith("…")).toBe(true);
+  });
+});
+
+describe("buildBroadcastMessengerHtml", () => {
+  it("wraps title in bold and escapes html in body", () => {
+    expect(buildBroadcastMessengerHtml("News", "a < b")).toBe("<b>News</b>\n\na &lt; b");
+  });
+});
+
+describe("messenger delivery intent", () => {
+  it("telegram job uses HTML parse_mode and messenger html text", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [cl({ userId: "u1", phone: null, bindings: { telegramId: "111" } })],
+      channels: ["bot_message"],
+      messageTitle: "Title",
+      messageBodyPlain: "Body",
+    });
+    const intent = jobs[0].payloadJson.intent as { payload: { parse_mode?: string; message: { text: string } } };
+    expect(intent.payload.parse_mode).toBe("HTML");
+    expect(intent.payload.message.text).toBe("<b>Title</b>\n\nBody");
+  });
+
+  it("sms job uses plain combined text without parse_mode", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [cl({ userId: "u1", bindings: {}, phone: "+79990001122" })],
+      channels: ["sms"],
+      messageTitle: "Title",
+      messageBodyPlain: "Body",
+    });
+    const intent = jobs[0].payloadJson.intent as { payload: { parse_mode?: string; message: { text: string } } };
+    expect(intent.payload.parse_mode).toBeUndefined();
+    expect(intent.payload.message.text).toBe("Title\n\nBody");
+  });
+
+  it("telegram and sms share the same truncated plain cap for long body", () => {
+    const longBody = "z".repeat(4000);
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [
+        cl({ userId: "u1", phone: "+79990001122", bindings: { telegramId: "111" } }),
+      ],
+      channels: ["bot_message", "sms"],
+      messageTitle: "Long",
+      messageBodyPlain: longBody,
+    });
+    const tg = jobs.find((j) => j.channel === "telegram")!;
+    const sms = jobs.find((j) => j.channel === "sms")!;
+    const tgIntent = tg.payloadJson.intent as { payload: { message: { text: string } } };
+    const smsIntent = sms.payloadJson.intent as { payload: { message: { text: string } } };
+    const plainCap = buildBroadcastMessageText("Long", longBody);
+    expect(smsIntent.payload.message.text).toBe(plainCap);
+    expect(tgIntent.payload.message.text.length).toBeLessThanOrEqual(plainCap.length + 20);
+    expect(tgIntent.payload.message.text).toContain("<b>Long</b>");
   });
 });

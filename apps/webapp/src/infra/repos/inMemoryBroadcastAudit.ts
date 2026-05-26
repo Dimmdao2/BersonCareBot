@@ -1,9 +1,16 @@
 import type { BroadcastAuditEntry, BroadcastAuditPort } from "@/modules/doctor-broadcasts/ports";
+import { registerInMemoryBroadcastAuditForPatientRead } from "./inMemoryPatientBroadcasts";
 
 const store: BroadcastAuditEntry[] = [];
 
 export function pushInMemoryBroadcastAuditEntry(entry: BroadcastAuditEntry): void {
   store.push(entry);
+  registerInMemoryBroadcastAuditForPatientRead(entry.id, {
+    messageTitle: entry.messageTitle,
+    messageBody: entry.messageBody,
+    executedAt: entry.executedAt,
+    previewOnly: entry.previewOnly,
+  });
 }
 
 export const inMemoryBroadcastAuditPort: BroadcastAuditPort = {

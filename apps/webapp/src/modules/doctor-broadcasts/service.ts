@@ -79,7 +79,8 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         auditId,
         eligibleClients,
         channels,
-        messageText: messageBody,
+        messageTitle: command.message.title,
+        messageBodyPlain: command.message.body,
         attachMenu: command.attachMenuAfterSend === true,
         audienceFilter: command.audienceFilter,
         notificationPrefsByUserId,
@@ -102,6 +103,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         auditId,
         audit: auditBase,
         jobs,
+        recipientUserIds: eligibleClients.map((c) => c.userId),
       });
 
       if (

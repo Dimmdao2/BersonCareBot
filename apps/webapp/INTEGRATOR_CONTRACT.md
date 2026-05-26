@@ -361,7 +361,7 @@ Canonical linking rules:
 
 Экран **`/app/doctor/broadcasts`** в предпросмотре учитывает ту же семантику для оценки доставки в мессенджер (пересечение сегмента с тестовыми Telegram/Max ID). Подробнее: **`docs/ARCHITECTURE/DOCTOR_BROADCASTS.md`**.
 
-**Массовые рассылки врача** (`/app/doctor/broadcasts`): после подтверждения webapp пишет `broadcast_audit` (в т.ч. флаг **`attach_menu_after_send`**) и строки в `public.outgoing_delivery_queue` с `kind = doctor_broadcast_intent` и **`payload_json.attachMenu`** при включённой опции меню; доставка идёт **воркером integrator** (`dispatchOutgoing`), без HTTP `relay-outbound` на каждого получателя. См. **`docs/ARCHITECTURE/DOCTOR_BROADCASTS.md`**.
+**Массовые рассылки врача** (`/app/doctor/broadcasts`): после подтверждения webapp пишет `broadcast_audit`, **`broadcast_audit_recipients`** (все eligible, в т.ч. push-only) и строки в `public.outgoing_delivery_queue` с `kind = doctor_broadcast_intent` и **`payload_json.attachMenu`** при включённой опции меню; доставка идёт **воркером integrator** (`dispatchOutgoing`), без HTTP `relay-outbound` на каждого получателя. См. **`docs/ARCHITECTURE/DOCTOR_BROADCASTS.md`**.
 
 ### Каналы dispatch
 
@@ -497,7 +497,7 @@ Canonical linking rules:
 
 **Rubitime booking:** integrator worker вызывает этот endpoint после TG/MAX для slot-напоминаний (`intentType: appointment_reminder`).
 
-**Doctor broadcasts:** webapp fan-out при канале `push` в UI рассылок (`intentType: news`, `topicCode: news`) — in-process, без HTTP.
+**Doctor broadcasts:** webapp fan-out при канале `push` в UI рассылок (`intentType: news`, `topicCode: news`) — in-process, без HTTP. `openUrl` для рассылки: `/app/patient/broadcasts/{auditId}` (полный текст на странице пациента).
 
 ---
 

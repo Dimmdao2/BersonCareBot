@@ -4,10 +4,10 @@ import {
   runPatientWebPushNotify,
   type PatientWebPushNotifyDeps,
 } from "@/modules/patient-notifications/patientWebPushNotify";
+import { buildPatientBroadcastOpenPath } from "@/modules/patient-broadcasts/buildPatientBroadcastOpenPath";
 import { broadcastIncludeWebPushJob } from "./broadcastEligible";
 
 const NEWS_TOPIC_CODE = "news";
-const BROADCAST_OPEN_URL = "/app/patient/home";
 
 export type FanOutBroadcastWebPushInput = {
   auditId: string;
@@ -39,13 +39,14 @@ export async function fanOutBroadcastWebPush(
 
     attempted += 1;
     try {
+      const openUrl = buildPatientBroadcastOpenPath(input.auditId);
       const result = await runPatientWebPushNotify(
         {
           platformUserId: client.userId,
           topicCode: NEWS_TOPIC_CODE,
           intentType: "news",
           broadcastTitle: input.broadcastTitle,
-          openUrl: BROADCAST_OPEN_URL,
+          openUrl,
           stableKey: `broadcast:${input.auditId}:${client.userId}`.slice(0, 240),
         },
         deps,

@@ -18,4 +18,5 @@ export * from "./operatorHealthFailureArchive";
 export * from "./notificationDeliveryAttempts";
 export * from "./webappReminderOccurrences";
 export * from "./userEmailSetupTokens";
+export * from "./broadcastAuditRecipients";
 export * from "./relations";

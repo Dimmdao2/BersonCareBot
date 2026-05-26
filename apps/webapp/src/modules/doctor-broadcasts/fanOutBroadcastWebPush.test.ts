@@ -28,7 +28,7 @@ describe("fanOutBroadcastWebPush", () => {
         intentType: "news",
         topicCode: "news",
         broadcastTitle: "Акция",
-        openUrl: "/app/patient/home",
+        openUrl: "/app/patient/broadcasts/audit-1",
       }),
       {},
     );

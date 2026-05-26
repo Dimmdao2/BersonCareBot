@@ -1,9 +1,10 @@
 import type { BroadcastAuditEntry, DoctorBroadcastDeliveryCommitPort } from "@/modules/doctor-broadcasts/ports";
 import { pushInMemoryBroadcastAuditEntry } from "./inMemoryBroadcastAudit";
+import { setInMemoryBroadcastRecipients } from "./inMemoryBroadcastRecipients";
 
 export function createInMemoryDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeliveryCommitPort {
   return {
-    async commitAuditAndDeliveryQueue({ auditId, audit, jobs }) {
+    async commitAuditAndDeliveryQueue({ auditId, audit, jobs, recipientUserIds }) {
       const executedAt = new Date().toISOString();
       const entry: BroadcastAuditEntry = {
         ...audit,
@@ -13,6 +14,7 @@ export function createInMemoryDoctorBroadcastDeliveryCommitPort(): DoctorBroadca
         messageBody: audit.messageBody ?? "",
       };
       pushInMemoryBroadcastAuditEntry(entry);
+      setInMemoryBroadcastRecipients(auditId, recipientUserIds);
       return entry;
     },
   };

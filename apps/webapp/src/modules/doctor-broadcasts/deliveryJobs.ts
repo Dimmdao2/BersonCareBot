@@ -1,6 +1,7 @@
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
+import { escapeHtml } from "@/shared/lib/escapeHtml";
 import type { BroadcastChannel } from "./broadcastChannels";
 import type { BroadcastAudienceFilter, BroadcastNotificationPrefsFlags, DoctorBroadcastQueueJob } from "./ports";
 import {
@@ -24,6 +25,26 @@ export function buildBroadcastMessageText(title: string, body: string): string {
   return `${raw.slice(0, MESSAGE_TEXT_MAX - 1)}…`;
 }
 
+/** Split combined plain text (`title\\n\\nbody`, possibly truncated) for messenger HTML. */
+export function splitBroadcastPlainCombined(combined: string): { title: string; body: string } {
+  const sep = "\n\n";
+  const idx = combined.indexOf(sep);
+  if (idx < 0) return { title: combined.trim(), body: "" };
+  return {
+    title: combined.slice(0, idx).trim(),
+    body: combined.slice(idx + sep.length),
+  };
+}
+
+/** Telegram/MAX HTML: bold title, plain body. */
+export function buildBroadcastMessengerHtml(title: string, body: string): string {
+  const t = title.trim();
+  const b = body.trim();
+  const head = t ? `<b>${escapeHtml(t)}</b>` : "";
+  if (!b) return head || "";
+  return head ? `${head}\n\n${escapeHtml(b)}` : escapeHtml(b);
+}
+
 function stableEventId(auditId: string, channel: string, clientUserId: string, suffix: string): string {
   const base = `broadcast:${auditId}:${channel}:${clientUserId}:${suffix}`;
   return base.length > 240 ? base.slice(0, 240) : base;
@@ -36,6 +57,7 @@ function buildMessageSendIntent(input: {
   recipient: Record<string, unknown>;
   text: string;
   deliveryChannels: string[];
+  parseMode?: "HTML";
 }): Record<string, unknown> {
   const occurredAt = new Date().toISOString();
   const source = input.channel === "sms" ? "sms" : input.channel;
@@ -52,6 +74,7 @@ function buildMessageSendIntent(input: {
       recipient: input.recipient,
       message: { text: input.text },
       delivery: { channels: input.deliveryChannels, maxAttempts: 1 },
+      ...(input.parseMode ? { parse_mode: input.parseMode } : {}),
     },
   };
 }
@@ -61,7 +84,8 @@ export type DoctorBroadcastDeliveryJobsParams = {
   /** Тот же состав, что в превью «получатели» (**`eligibleClients`** из резолвера аудитории). */
   eligibleClients: readonly ClientListItem[];
   channels: readonly BroadcastChannel[];
-  messageText: string;
+  messageTitle: string;
+  messageBodyPlain: string;
   audienceFilter?: BroadcastAudienceFilter;
   notificationPrefsByUserId?: ReadonlyMap<string, BroadcastNotificationPrefsFlags>;
   /** Копия на момент постановки в очередь; воркер читает из `payload_json`. */
@@ -80,6 +104,10 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
   const wantsSms = input.channels.includes("sms");
   const jobs: DoctorBroadcastQueueJob[] = [];
   const attachMenu = input.attachMenu === true;
+  const plainCombined = buildBroadcastMessageText(input.messageTitle, input.messageBodyPlain);
+  const { title: truncatedTitle, body: truncatedBody } = splitBroadcastPlainCombined(plainCombined);
+  const messengerText = buildBroadcastMessengerHtml(truncatedTitle, truncatedBody);
+  const smsText = plainCombined;
 
   for (const client of input.eligibleClients) {
     const prefs = resolveBroadcastNotificationPrefsFromBatch(prefsMap, client.userId);
@@ -104,8 +132,9 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
               channel: "telegram",
               clientUserId: client.userId,
               recipient: { chatId },
-              text: input.messageText,
+              text: messengerText,
               deliveryChannels: ["telegram"],
+              parseMode: "HTML",
             }),
           },
         });
@@ -126,8 +155,9 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
               channel: "max",
               clientUserId: client.userId,
               recipient: { chatId: mx },
-              text: input.messageText,
+              text: messengerText,
               deliveryChannels: ["max"],
+              parseMode: "HTML",
             }),
           },
         });
@@ -152,7 +182,7 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
               channel: "sms",
               clientUserId: client.userId,
               recipient: { phoneNormalized: normalized },
-              text: input.messageText,
+              text: smsText,
               deliveryChannels: ["smsc"],
             }),
           },

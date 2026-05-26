@@ -19,7 +19,11 @@ import {
 
 describe("doctor-broadcasts service", () => {
   const auditEntries: BroadcastAuditEntry[] = [];
-  const committed: Array<{ auditId: string; jobs: DoctorBroadcastQueueJob[] }> = [];
+  const committed: Array<{
+    auditId: string;
+    jobs: DoctorBroadcastQueueJob[];
+    recipientUserIds: readonly string[];
+  }> = [];
 
   const client = (
     id: string,
@@ -88,8 +92,13 @@ describe("doctor-broadcasts service", () => {
       auditId: string;
       audit: Omit<BroadcastAuditEntry, "id" | "executedAt">;
       jobs: readonly DoctorBroadcastQueueJob[];
+      recipientUserIds: readonly string[];
     }): Promise<BroadcastAuditEntry> {
-      committed.push({ auditId: input.auditId, jobs: [...input.jobs] });
+      committed.push({
+        auditId: input.auditId,
+        jobs: [...input.jobs],
+        recipientUserIds: input.recipientUserIds,
+      });
       const executedAt = new Date().toISOString();
       const full: BroadcastAuditEntry = {
         ...input.audit,
@@ -146,6 +155,7 @@ describe("doctor-broadcasts service", () => {
     expect(committed.length).toBe(1);
     expect(committed[0].jobs.length).toBe(2);
     expect(committed[0].jobs[0].kind).toBe("doctor_broadcast_intent");
+    expect(committed[0].recipientUserIds).toEqual(["u1", "u2"]);
   });
 
   it("execute stores attachMenuAfterSend and sets attachMenu on queue jobs", async () => {

@@ -68,6 +68,8 @@ import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit
 import { createPgBroadcastAuditPort } from "@/infra/repos/pgBroadcastAudit";
 import { createPgDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/pgDoctorBroadcastDelivery";
 import { createInMemoryDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/inMemoryDoctorBroadcastDelivery";
+import { createPgPatientBroadcastsPort } from "@/infra/repos/pgPatientBroadcasts";
+import { inMemoryPatientBroadcastsPort } from "@/infra/repos/inMemoryPatientBroadcasts";
 import { createPgDoctorMotivationQuotesEditorPort } from "@/infra/repos/pgDoctorMotivationQuotesEditor";
 import { inMemoryDoctorMotivationQuotesEditorPort } from "@/infra/repos/inMemoryDoctorMotivationQuotesEditor";
 import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppointments";
@@ -317,6 +319,7 @@ const broadcastAuditPort = !inMemoryRepos ? createPgBroadcastAuditPort() : inMem
 const doctorBroadcastDeliveryCommitPort = !inMemoryRepos
   ? createPgDoctorBroadcastDeliveryCommitPort()
   : createInMemoryDoctorBroadcastDeliveryCommitPort();
+const patientBroadcastsPort = !inMemoryRepos ? createPgPatientBroadcastsPort() : inMemoryPatientBroadcastsPort;
 const doctorMotivationQuotesEditorPort = !inMemoryRepos
   ? createPgDoctorMotivationQuotesEditorPort()
   : inMemoryDoctorMotivationQuotesEditorPort;
@@ -1017,6 +1020,7 @@ function _buildAppDeps() {
     patientHomeBlocks: patientHomeBlocksService,
     /** Legacy новости / рассылки / цитаты главной пациента (Drizzle или in-memory в Vitest). */
     patientHomeLegacy: patientHomeLegacyContentPort,
+    patientBroadcasts: patientBroadcastsPort,
     patientPractice: patientPracticeService,
     materialRating: materialRatingService,
     materialRatingFeedback: materialRatingFeedbackService,

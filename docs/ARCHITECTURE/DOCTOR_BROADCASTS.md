@@ -18,7 +18,9 @@
 | Оценка аудитории / dev_mode | `.../doctor-broadcasts/broadcastAudienceMetrics.ts` |
 | DI | `apps/webapp/src/app-layer/di/buildAppDeps.ts` (`doctorBroadcasts`, `doctorBroadcastDeliveryCommitPort`) |
 | Аудит в БД | `apps/webapp/src/infra/repos/pgBroadcastAudit.ts` → **`broadcast_audit`** |
-| Транзакция аудит + очередь | `apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts` |
+| Транзакция аудит + очередь + recipients | `apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts` |
+| Чтение рассылки пациентом | `apps/webapp/src/modules/patient-broadcasts/`, `apps/webapp/src/infra/repos/pgPatientBroadcasts.ts` |
+| Страница пациента | `apps/webapp/src/app/app/patient/broadcasts/[auditId]/page.tsx` |
 
 ## Преференсы каналов и изолированные аудитории
 
@@ -69,7 +71,16 @@
 1. Собирает текст сообщения (заголовок + тело, с усечением по лимиту в `deliveryJobs.ts`).
 2. Генерирует `auditId`, строит плоский список заданий (`buildDoctorBroadcastDeliveryJobs`) с `event_id` и `payload_json` (`intent` + `broadcastAuditId` + `clientUserId` + флаг **`attachMenu`** при включённой опции меню).
 3. Ограничение **`MAX_BROADCAST_DELIVERY_JOBS`** — при превышении ошибка до транзакции.
-4. **`commitAuditAndDeliveryQueue`**: `INSERT broadcast_audit` (в т.ч. `message_body`, `delivery_jobs_total`, **`attach_menu_after_send`**) + для каждой строки очереди — `INSERT … ON CONFLICT (event_id) DO NOTHING` в `outgoing_delivery_queue`; если вставка строки не произошла (`rowCount ≠ 1`, дубликат `event_id` или иной сбой) — **откат всей транзакции** (в т.ч. запись `broadcast_audit` не фиксируется).
+4. **`commitAuditAndDeliveryQueue`**: `INSERT broadcast_audit` (в т.ч. `message_body`, `delivery_jobs_total`, **`attach_menu_after_send`**) + batch `INSERT` в **`broadcast_audit_recipients`** (все **`eligibleClients`**, включая push-only) + для каждой строки очереди — `INSERT … ON CONFLICT (event_id) DO NOTHING` в `outgoing_delivery_queue`; если вставка строки не произошла (`rowCount ≠ 1`, дубликат `event_id` или иной сбой) — **откат всей транзакции** (в т.ч. запись `broadcast_audit` не фиксируется).
+
+### Пациент: полный текст и Web Push
+
+- **Страница:** `/app/patient/broadcasts/[auditId]` — заголовок, тело, дата (`apps/webapp/src/app/app/patient/broadcasts/[auditId]/page.tsx`).
+- **Доступ:** только `platform_user_id` из **`broadcast_audit_recipients`** для данного `audit_id`; `preview_only` → 404.
+- **Web Push:** `openUrl` = `/app/patient/broadcasts/{auditId}` (`fanOutBroadcastWebPush`, `buildPatientBroadcastOpenPath`).
+- **Telegram / MAX:** текст в боте — HTML (`parse_mode: HTML`): жирный заголовок, тело обычным текстом (`buildBroadcastMessengerHtml` в `deliveryJobs.ts`). Перед HTML тот же лимит **3500** символов на combined plain, что и для SMS (`buildBroadcastMessageText` + `splitBroadcastPlainCombined`). SMS — plain `title\n\nbody`.
+
+Модуль чтения: `apps/webapp/src/modules/patient-broadcasts/`.
 
 ### Меню в чате (опция формы)
 
