@@ -1,13 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
+import { getRequestOrigin } from "@/shared/lib/http/getRequestOrigin";
 
 const LOGIN_PATH = "/app";
 
 function loginRedirectUrl(request: NextRequest): URL {
-  const base = getAppBaseUrlSync() || request.url;
-  return new URL(LOGIN_PATH, base);
+  return new URL(LOGIN_PATH, getRequestOrigin(request));
 }
 
 /** Выход: POST очищает сессию и редирект на экран входа (форма из меню/профиля). */

@@ -19,6 +19,7 @@ const redirectMock = vi.hoisted(() =>
 vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
   redirect: redirectMock,
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
 }));
 
 vi.mock("@/shared/ui/AppShell", () => ({
@@ -46,25 +47,14 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   patientRscPersonalDataGate: vi.fn(async () => "allow" as const),
 }));
 
-const listForPatientMock = vi.hoisted(() => vi.fn());
-const getPatientDefaultPromoTreatmentProgramTemplateIdMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+const resolvePatientTreatmentProgramEntryMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
-  buildAppDeps: () => ({
-    treatmentProgramInstance: {
-      listForPatient: listForPatientMock,
-    },
-    systemSettings: {
-      getPatientDefaultPromoTreatmentProgramTemplateId: getPatientDefaultPromoTreatmentProgramTemplateIdMock,
-    },
-    treatmentProgram: {
-      getTemplate: vi.fn(),
-    },
-  }),
+vi.mock("@/modules/treatment-program/patientTreatmentProgramEntry", () => ({
+  resolvePatientTreatmentProgramEntry: resolvePatientTreatmentProgramEntryMock,
 }));
 
-vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
-  getAppDisplayTimeZone: vi.fn(async () => "Europe/Moscow"),
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({}),
 }));
 
 import PatientTreatmentProgramsPage from "./page";
@@ -73,9 +63,12 @@ describe("PatientTreatmentProgramsPage / list loader", () => {
   beforeEach(() => {
     notFoundMock.mockClear();
     redirectMock.mockClear();
-    listForPatientMock.mockResolvedValue([]);
-    getPatientDefaultPromoTreatmentProgramTemplateIdMock.mockReset();
-    getPatientDefaultPromoTreatmentProgramTemplateIdMock.mockResolvedValue(null);
+    resolvePatientTreatmentProgramEntryMock.mockReset();
+    resolvePatientTreatmentProgramEntryMock.mockResolvedValue({
+      kind: "list",
+      archived: [],
+      promoEnsureFailed: false,
+    });
   });
 
   it("renders empty state when there is no active program (no redirect)", async () => {
@@ -89,16 +82,23 @@ describe("PatientTreatmentProgramsPage / list loader", () => {
     expect(notFoundMock).not.toHaveBeenCalled();
   });
 
-  it("redirects to detail when the newest item in the list is active", async () => {
-    listForPatientMock.mockResolvedValue([
-      {
-        id: "11111111-1111-4111-8111-111111111111",
-        title: "Программа",
-        status: "active",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      },
-    ]);
+  it("redirects to detail when entry resolves redirect", async () => {
+    resolvePatientTreatmentProgramEntryMock.mockResolvedValue({
+      kind: "redirect",
+      instanceId: "11111111-1111-4111-8111-111111111111",
+    });
     await expect(PatientTreatmentProgramsPage()).rejects.toThrow("NEXT_REDIRECT");
     expect(redirectMock).toHaveBeenCalled();
+  });
+
+  it("shows promo retry when ensure failed and no redirect target", async () => {
+    resolvePatientTreatmentProgramEntryMock.mockResolvedValue({
+      kind: "list",
+      archived: [],
+      promoEnsureFailed: true,
+    });
+    const ui = await PatientTreatmentProgramsPage();
+    render(ui);
+    expect(screen.getByRole("alert")).toHaveTextContent("Не удалось открыть программу");
   });
 });

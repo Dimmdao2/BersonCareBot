@@ -17,7 +17,8 @@ import {
   resolvePatientProgramControlRemainderDaysForPatientUi,
   expectedStageControlDeadlineIsoForPatientUi,
 } from "@/modules/treatment-program/stage-semantics";
-import { patientPersonalProgramCtaShouldRender } from "@/modules/treatment-program/patientPersonalProgramCtaEligible";
+import { patientPersonalProgramCtaShouldRenderOnPlanScreen } from "@/modules/treatment-program/patientPersonalProgramCtaEligible";
+import { resolveProgramTabStageForPatientDetail } from "@/modules/treatment-program/resolveProgramTabStageForPatientDetail";
 import {
   normalizeChecklistCountMap,
   normalizeChecklistLastMap,
@@ -175,13 +176,10 @@ export function PatientTreatmentProgramDetailClient(props: {
     };
   }, [detail.stages]);
 
-  /** Этап для вкладки «Программа»: pipeline-этап или единственный «нулевой», если других этапов нет. */
-  const programTabStage = useMemo(() => {
-    if (currentWorkingStage) return currentWorkingStage;
-    const hasPipeline = detail.stages.some((s) => s.sortOrder > 0);
-    if (!hasPipeline && stageZeroStages[0]) return stageZeroStages[0];
-    return null;
-  }, [currentWorkingStage, detail.stages, stageZeroStages]);
+  const programTabStage = useMemo(
+    () => resolveProgramTabStageForPatientDetail(detail),
+    [detail],
+  );
 
   const stagesTimeline = useMemo(() => {
     const { archive, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
@@ -285,6 +283,11 @@ export function PatientTreatmentProgramDetailClient(props: {
           programEvents={programEvents}
           passedStages={passedStages}
         />
+        {patientPersonalProgramCtaShouldRenderOnPlanScreen(detail) ? (
+          <div className="mt-4">
+            <PatientPlanPersonalProgramCtaCard />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -349,7 +352,7 @@ export function PatientTreatmentProgramDetailClient(props: {
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
       />
 
-      {detail.status === "active" && patientPersonalProgramCtaShouldRender(detail.assignmentSource) ? (
+      {patientPersonalProgramCtaShouldRenderOnPlanScreen(detail) ? (
         <div className="mt-4">
           <PatientPlanPersonalProgramCtaCard />
         </div>

@@ -2,7 +2,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolveFirstPendingProgramTabItemId } from "@/app/app/patient/home/resolveFirstPendingProgramTabItemId";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
-import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
+import { resolveActiveTreatmentProgramInstanceId } from "@/modules/treatment-program/patientTreatmentProgramEntry";
 import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
 import type { AppSession } from "@/shared/types/session";
 
@@ -45,32 +45,17 @@ export async function resolveDailyWarmupStartPathForPatient(
  * Тот же целевой путь, что у «Начать занятие» на карточке плана главной и в hero программы.
  */
 export async function resolvePlanStartLessonPathForPatient(deps: Deps, userId: string): Promise<string> {
-  let instances = await deps.treatmentProgramInstance.listForPatient(userId);
-  let picked = pickActivePlanInstance(instances);
-  if (!picked) {
-    const promoId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
-    if (promoId) {
-      try {
-        const tpl = await deps.treatmentProgram.getTemplate(promoId);
-        if (tpl.status === "published") {
-          await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({ patientUserId: userId });
-          instances = await deps.treatmentProgramInstance.listForPatient(userId);
-          picked = pickActivePlanInstance(instances);
-        }
-      } catch {
-        /* fall through */
-      }
-    }
-    if (!picked) return routePaths.patientTreatmentPrograms;
-  }
-  let href = routePaths.patientTreatmentProgram(picked.id);
-  const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(userId, picked.id);
+  const instanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId);
+  if (!instanceId) return routePaths.patientTreatmentPrograms;
+
+  let href = routePaths.patientTreatmentProgram(instanceId);
+  const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(userId, instanceId);
   if (!rawDetail) return href;
   const detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
-  const snap = await deps.treatmentProgramPatientActions.listChecklistDoneToday(userId, picked.id);
+  const snap = await deps.treatmentProgramPatientActions.listChecklistDoneToday(userId, instanceId);
   const firstItemId = resolveFirstPendingProgramTabItemId(detail, snap.doneItemIds);
   if (firstItemId) {
-    href = routePaths.patientTreatmentProgramItem(picked.id, firstItemId, "exec", "program");
+    href = routePaths.patientTreatmentProgramItem(instanceId, firstItemId, "exec", "program");
   }
   return href;
 }

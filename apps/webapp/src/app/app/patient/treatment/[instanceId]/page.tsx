@@ -19,6 +19,8 @@ import { parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes } from "@/module
 
 type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ tab?: string | string[] }> };
 
+export const dynamic = "force-dynamic";
+
 export default async function PatientTreatmentProgramDetailPage({ params, searchParams }: Props) {
   const session = await getOptionalPatientSession();
   if (!session) {

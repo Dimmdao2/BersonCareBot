@@ -11,6 +11,7 @@ import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientCo
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { resolveActiveTreatmentProgramInstanceId } from "@/modules/treatment-program/patientTreatmentProgramEntry";
 import { RemindersHashScroll } from "./RemindersHashScroll";
 import { RemindersPageAdditionalSection } from "./RemindersPageAdditionalSection";
 import { filterPersonalRulesForSchedulePage } from "./filterPersonalRulesForSchedulePage";
@@ -124,32 +125,14 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   const warmupsSectionTitle = warmRes?.section.title?.trim() || "Разминки";
   const warmupsSectionSlug = (warmRes?.canonicalSlug ?? DEFAULT_WARMUPS_SECTION_SLUG).trim();
 
-  const activeCandidates = programList
-    .filter((p) => p.status === "active")
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
-  let rehabProgramForBlock: { id: string; title: string } | null =
-    activeCandidates[0] ?
-      { id: activeCandidates[0].id, title: activeCandidates[0].title?.trim() || "Программа" }
-    : null;
-
-  if (!rehabProgramForBlock) {
-    const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
-    if (promoTplId) {
-      try {
-        const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
-        if (tpl.status === "published") {
-          const ensured = await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
-            patientUserId: userId,
-          });
-          rehabProgramForBlock = {
-            id: ensured.id,
-            title: ensured.title?.trim() || tpl.title?.trim() || "Программа реабилитации",
-          };
-        }
-      } catch {
-        rehabProgramForBlock = null;
-      }
-    }
+  const activeInstanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId);
+  let rehabProgramForBlock: { id: string; title: string } | null = null;
+  if (activeInstanceId) {
+    const row = programList.find((p) => p.id === activeInstanceId);
+    rehabProgramForBlock = {
+      id: activeInstanceId,
+      title: row?.title?.trim() || "Программа реабилитации",
+    };
   }
 
   const rehabMatches =

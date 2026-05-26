@@ -47,7 +47,9 @@ export function AppEntryLoginContent({
               Режим разработки
             </p>
             <p className={patientMutedTextClass}>
-              Войти в интерфейс без Telegram (только при ALLOW_DEV_AUTH_BYPASS=true):
+              Войти в интерфейс без Telegram (только при ALLOW_DEV_AUTH_BYPASS=true). Открывайте dev по{" "}
+              <strong className="font-medium text-foreground">127.0.0.1:5200</strong>, не{" "}
+              <strong className="font-medium text-foreground">localhost</strong> — иначе выход не сбросит сессию.
             </p>
             <div id="app-entry-dev-bypass-actions" className="flex flex-wrap gap-3">
               <a

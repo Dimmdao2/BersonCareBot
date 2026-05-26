@@ -23,6 +23,7 @@ import {
   patientInnerPageStackClass,
 } from "@/shared/ui/patientVisual";
 import { PatientPlanPersonalProgramCtaCard } from "@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard";
+import { PatientTreatmentProgramsListPromoRetry } from "./PatientTreatmentProgramsListPromoRetry";
 
 
 /** Текущий этап для hero списка: та же семантика, что на detail (`pipeline` без этапа 0). */
@@ -45,11 +46,13 @@ export function PatientTreatmentProgramsListClient(props: {
   hero: PatientTreatmentProgramsListHero | null;
   archived: TreatmentProgramInstanceSummary[];
   messagesHref: string;
+  promoEnsureFailed?: boolean;
 }) {
-  const { hero, archived } = props;
+  const { hero, archived, promoEnsureFailed = false } = props;
 
   return (
     <div className={patientInnerPageStackClass}>
+      {promoEnsureFailed ? <PatientTreatmentProgramsListPromoRetry /> : null}
       {hero ? (
         <section
           className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}

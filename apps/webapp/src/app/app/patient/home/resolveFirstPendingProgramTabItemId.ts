@@ -3,11 +3,7 @@
  * в {@link PatientTreatmentProgramDetailClient} / {@link PatientPlanHero}.
  */
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import {
-  patientStageSectionShouldRender,
-  selectCurrentWorkingStageForPatientDetail,
-  splitPatientProgramStagesForDetailUi,
-} from "@/modules/treatment-program/stage-semantics";
+import { resolveProgramTabStageForPatientDetail } from "@/modules/treatment-program/resolveProgramTabStageForPatientDetail";
 import { flatExecIds } from "@/app/app/patient/treatment/patientProgramItemNavLists";
 
 export function resolveFirstPendingProgramTabItemId(
@@ -16,14 +12,7 @@ export function resolveFirstPendingProgramTabItemId(
 ): string | null {
   if (detail.status !== "active") return null;
 
-  const { stageZero, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
-  const currentWorkingStage = selectCurrentWorkingStageForPatientDetail(pipeline);
-  const stageZeroStages = stageZero.filter((s) => patientStageSectionShouldRender(s, true));
-
-  const programTabStage =
-    currentWorkingStage ??
-    (!detail.stages.some((s) => s.sortOrder > 0) && stageZeroStages[0] ? stageZeroStages[0] : null);
-
+  const programTabStage = resolveProgramTabStageForPatientDetail(detail);
   if (!programTabStage) return null;
 
   const itemInteraction =
