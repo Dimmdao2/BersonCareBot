@@ -29,6 +29,8 @@ export type PatientPracticePort = {
   updateFeelingById(completionId: string, userId: string, feeling: number): Promise<boolean>;
   /** Последнее `completed_at` для разминки дня по странице, либо `null`. */
   getLatestDailyWarmupCompletionCompletedAt(userId: string, contentPageId: string): Promise<string | null>;
+  /** Последняя выполненная разминка дня (любая страница), либо `null`. */
+  getLatestDailyWarmupCompletedContentPageId(userId: string): Promise<string | null>;
 };
 
 export type { PracticeSource };

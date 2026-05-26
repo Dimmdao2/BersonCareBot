@@ -69,10 +69,9 @@ const patientHomeRepeatCooldownsSaveSchema = z.object({
     .int()
     .min(PATIENT_REPEAT_COOLDOWN_MINUTES_MIN)
     .max(PATIENT_REPEAT_COOLDOWN_MINUTES_MAX),
-  skipWarmupToNextAvailable: z.boolean(),
 });
 
-/** Только admin: паузы повтора разминки / пунктов плана + флаг skip (как UI на `/app/doctor/patient-home`). */
+/** Только admin: паузы повтора разминки / пунктов плана (как UI на `/app/doctor/patient-home`). */
 export async function savePatientHomeRepeatCooldownsAction(
   input: z.infer<typeof patientHomeRepeatCooldownsSaveSchema>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -82,7 +81,7 @@ export async function savePatientHomeRepeatCooldownsAction(
     if (!parsed.success) {
       return { ok: false, error: "invalid_body" };
     }
-    const { warmupRepeatMinutes, planItemRepeatMinutes, skipWarmupToNextAvailable } = parsed.data;
+    const { warmupRepeatMinutes, planItemRepeatMinutes } = parsed.data;
     const deps = buildAppDeps();
     await Promise.all([
       deps.systemSettings.updateSetting(
@@ -95,12 +94,6 @@ export async function savePatientHomeRepeatCooldownsAction(
         "patient_treatment_plan_item_done_repeat_cooldown_minutes",
         "admin",
         { value: planItemRepeatMinutes },
-        userId,
-      ),
-      deps.systemSettings.updateSetting(
-        "patient_home_warmup_skip_to_next_available_enabled",
-        "admin",
-        { value: skipWarmupToNextAvailable },
         userId,
       ),
     ]);

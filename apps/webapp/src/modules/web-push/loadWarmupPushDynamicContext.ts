@@ -4,7 +4,10 @@ import {
   patientHomeLocalDayUtcWindow,
 } from "@/modules/patient-home/patientHomeTodayProgress";
 import { countPlannedHomeLinkedReminderOccurrencesWithPredicate } from "@/modules/patient-home/nextReminderOccurrence";
-import { listDailyWarmupPagesForHome } from "@/modules/patient-home/todayConfig";
+import {
+  listDailyWarmupPagesForHome,
+  resolveDailyWarmupPickIndex,
+} from "@/modules/patient-home/todayConfig";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
@@ -24,6 +27,7 @@ export type LoadWarmupPushDynamicContextDeps = {
   contentPages: Parameters<typeof listDailyWarmupPagesForHome>[0]["contentPages"];
   contentSections: Parameters<typeof listDailyWarmupPagesForHome>[0]["contentSections"];
   getPatientCalendarIana: (userId: string) => Promise<string | null>;
+  getLatestDailyWarmupCompletedContentPageId: (userId: string) => Promise<string | null>;
 };
 
 export async function loadWarmupPushDynamicContext(
@@ -39,7 +43,6 @@ export async function loadWarmupPushDynamicContext(
   const localYmd = DateTime.now().setZone(patientIana).toISODate()!;
   const { start, end } = patientHomeLocalDayUtcWindow(localYmd, patientIana);
 
-  const weekdayMonday0 = DateTime.now().setZone(appTz).weekday - 1;
   const dailyPages = await listDailyWarmupPagesForHome({
     patientHomeBlocks: deps.patientHomeBlocks,
     contentPages: deps.contentPages,
@@ -48,9 +51,12 @@ export async function loadWarmupPushDynamicContext(
       getSetting: async () => null,
     },
   });
-  const n = dailyPages.length;
-  const dailyWarmupTitle =
-    n > 0 ? dailyPages[((weekdayMonday0 % n) + n) % n]?.title?.trim() || null : null;
+  const pickIndex = await resolveDailyWarmupPickIndex(dailyPages, {
+    tier: "patient",
+    userId: platformUserId,
+    getLatestCompletedContentPageId: deps.getLatestDailyWarmupCompletedContentPageId,
+  });
+  const dailyWarmupTitle = dailyPages[pickIndex]?.title?.trim() || null;
 
   const warmupPlanned = countPlannedHomeLinkedReminderOccurrencesWithPredicate(
     rules,

@@ -12,6 +12,7 @@ export type LoadWarmupPushContextDeps = {
       startIso: string,
       endIso: string,
     ) => Promise<Awaited<ReturnType<LoadWarmupPushDynamicContextDeps["listPracticeCompletionsInRange"]>>>;
+    getLatestDailyWarmupCompletedContentPageId: LoadWarmupPushDynamicContextDeps["getLatestDailyWarmupCompletedContentPageId"];
   };
   patientHomeBlocks: LoadWarmupPushDynamicContextDeps["patientHomeBlocks"];
   contentPages: LoadWarmupPushDynamicContextDeps["contentPages"];
@@ -28,6 +29,8 @@ export function createLoadWarmupPushContext(deps: LoadWarmupPushContextDeps) {
     contentPages: deps.contentPages,
     contentSections: deps.contentSections,
     getPatientCalendarIana: (userId) => deps.patientCalendarTimezone.getIanaForUser(userId),
+    getLatestDailyWarmupCompletedContentPageId: (userId) =>
+      deps.patientPractice.getLatestDailyWarmupCompletedContentPageId(userId),
   };
   return (platformUserId: string) => loadWarmupPushDynamicContext(platformUserId, loaderDeps);
 }

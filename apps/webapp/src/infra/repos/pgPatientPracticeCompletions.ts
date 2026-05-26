@@ -83,6 +83,22 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
       return rows[0]?.completedAt ?? null;
     },
 
+    async getLatestDailyWarmupCompletedContentPageId(userId) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ contentPageId: patientPracticeCompletions.contentPageId })
+        .from(patientPracticeCompletions)
+        .where(
+          and(
+            eq(patientPracticeCompletions.userId, userId),
+            eq(patientPracticeCompletions.source, "daily_warmup"),
+          ),
+        )
+        .orderBy(desc(patientPracticeCompletions.completedAt))
+        .limit(1);
+      return rows[0]?.contentPageId ?? null;
+    },
+
     async listRecent(userId, limit) {
       const db = getDrizzle();
       const rows = await db

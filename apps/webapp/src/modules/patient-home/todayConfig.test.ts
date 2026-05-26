@@ -53,8 +53,6 @@ describe("getPatientHomeTodayConfig", () => {
     const out = await getPatientHomeTodayConfig(deps);
     expect(out.dailyWarmupItem).toBeNull();
     expect(out.practiceTarget).toBe(3);
-    expect(out.allDailyWarmupsInCooldown).toBe(false);
-    expect(out.allDailyWarmupsCooldownMinutesRemaining).toBeNull();
     expect(deps.contentPages.getBySlug).not.toHaveBeenCalled();
   });
 
@@ -100,7 +98,6 @@ describe("getPatientHomeTodayConfig", () => {
     };
     const out = await getPatientHomeTodayConfig(deps);
     expect(out.practiceTarget).toBe(4);
-    expect(out.allDailyWarmupsInCooldown).toBe(false);
     expect(out.dailyWarmupItem?.page?.slug).toBe("warm-1");
     expect(out.dailyWarmupItem?.page?.contentPageId).toBe("11111111-1111-4111-8111-111111111111");
     expect(getBySlug).toHaveBeenCalledWith("warm-1");
@@ -156,11 +153,11 @@ describe("getPatientHomeTodayConfig", () => {
       : null,
     );
     const out = await getPatientHomeTodayConfig(deps);
-    expect(out.allDailyWarmupsInCooldown).toBe(false);
     expect(out.dailyWarmupItem?.page?.slug).toBe("ok");
   });
 
-  it("rotates visible warmup items by weekday index", async () => {
+  it("guest tier returns first warmup without calling getLatestCompleted", async () => {
+    const getLatestCompletedContentPageId = vi.fn(async () => "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
     const getBySlug = vi.fn(async (slug: string) =>
       slug === "warm-a" || slug === "warm-b" ?
         {
@@ -208,12 +205,178 @@ describe("getPatientHomeTodayConfig", () => {
       contentSections: warmSection,
       systemSettings: { getSetting: async () => null },
     };
-    const monday = await getPatientHomeTodayConfig(deps, 0);
-    expect(monday.allDailyWarmupsInCooldown).toBe(false);
-    expect(monday.dailyWarmupItem?.page?.slug).toBe("warm-a");
-    const tuesday = await getPatientHomeTodayConfig(deps, 1);
-    expect(tuesday.allDailyWarmupsInCooldown).toBe(false);
-    expect(tuesday.dailyWarmupItem?.page?.slug).toBe("warm-b");
+    const out = await getPatientHomeTodayConfig(deps, { tier: "guest" });
+    expect(out.dailyWarmupItem?.page?.slug).toBe("warm-a");
+    expect(getLatestCompletedContentPageId).not.toHaveBeenCalled();
+  });
+
+  it("no_tier returns first warmup without calling getLatestCompleted", async () => {
+    const getLatestCompletedContentPageId = vi.fn(async () => "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+    const getBySlug = vi.fn(async (slug: string) =>
+      slug === "warm-a" || slug === "warm-b" ?
+        {
+          id: slug === "warm-a" ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          slug,
+          title: slug,
+          summary: "",
+          imageUrl: null,
+          section: "warmups",
+        }
+      : null,
+    );
+    const deps = {
+      patientHomeBlocks: {
+        listBlocksWithItems: async () => [
+          block("daily_warmup", [
+            {
+              id: "i1",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-a",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 0,
+            },
+            {
+              id: "i2",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-b",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 1,
+            },
+          ]),
+        ],
+      },
+      contentPages: { getBySlug },
+      contentSections: warmSection,
+      systemSettings: { getSetting: async () => null },
+    };
+    const out = await getPatientHomeTodayConfig(deps, { tier: "no_tier" });
+    expect(out.dailyWarmupItem?.page?.slug).toBe("warm-a");
+    expect(getLatestCompletedContentPageId).not.toHaveBeenCalled();
+  });
+
+  it("patient tier rotates from last completed daily_warmup", async () => {
+    const getBySlug = vi.fn(async (slug: string) =>
+      slug === "warm-a" || slug === "warm-b" ?
+        {
+          id: slug === "warm-a" ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          slug,
+          title: slug,
+          summary: "",
+          imageUrl: null,
+          section: "warmups",
+        }
+      : null,
+    );
+    const deps = {
+      patientHomeBlocks: {
+        listBlocksWithItems: async () => [
+          block("daily_warmup", [
+            {
+              id: "i1",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-a",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 0,
+            },
+            {
+              id: "i2",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-b",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 1,
+            },
+          ]),
+        ],
+      },
+      contentPages: { getBySlug },
+      contentSections: warmSection,
+      systemSettings: { getSetting: async () => null },
+    };
+    const none = await getPatientHomeTodayConfig(deps, {
+      tier: "patient",
+      userId: "user-1",
+      getLatestCompletedContentPageId: async () => null,
+    });
+    expect(none.dailyWarmupItem?.page?.slug).toBe("warm-a");
+
+    const afterFirst = await getPatientHomeTodayConfig(deps, {
+      tier: "patient",
+      userId: "user-1",
+      getLatestCompletedContentPageId: async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    });
+    expect(afterFirst.dailyWarmupItem?.page?.slug).toBe("warm-b");
+
+    const wrap = await getPatientHomeTodayConfig(deps, {
+      tier: "patient",
+      userId: "user-1",
+      getLatestCompletedContentPageId: async () => "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    });
+    expect(wrap.dailyWarmupItem?.page?.slug).toBe("warm-a");
+  });
+
+  it("patient tier falls back to first when last completed is not in list", async () => {
+    const getBySlug = vi.fn(async (slug: string) =>
+      slug === "warm-a" ?
+        {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          slug: "warm-a",
+          title: "warm-a",
+          summary: "",
+          imageUrl: null,
+          section: "warmups",
+        }
+      : null,
+    );
+    const deps = {
+      patientHomeBlocks: {
+        listBlocksWithItems: async () => [
+          block("daily_warmup", [
+            {
+              id: "i1",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-a",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 0,
+            },
+          ]),
+        ],
+      },
+      contentPages: { getBySlug },
+      contentSections: warmSection,
+      systemSettings: { getSetting: async () => null },
+    };
+    const out = await getPatientHomeTodayConfig(deps, {
+      tier: "patient",
+      userId: "user-1",
+      getLatestCompletedContentPageId: async () => "removed-page-id",
+    });
+    expect(out.dailyWarmupItem?.page?.slug).toBe("warm-a");
+    expect(out.dailyWarmupCount).toBe(1);
   });
 
   it("returns null warmup when daily_warmup block hidden", async () => {
@@ -246,218 +409,5 @@ describe("getPatientHomeTodayConfig", () => {
     };
     const out = await getPatientHomeTodayConfig(deps);
     expect(out.dailyWarmupItem).toBeNull();
-    expect(out.allDailyWarmupsInCooldown).toBe(false);
-    expect(out.allDailyWarmupsCooldownMinutesRemaining).toBeNull();
-  });
-
-  it("warmupPick skips items in hero cooldown and returns next available", async () => {
-    const getBySlug = vi.fn(async (slug: string) => {
-      if (slug === "warm-a") {
-        return {
-          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          slug: "warm-a",
-          title: "A",
-          summary: "",
-          imageUrl: null,
-          section: "warmups",
-        };
-      }
-      if (slug === "warm-b") {
-        return {
-          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-          slug: "warm-b",
-          title: "B",
-          summary: "",
-          imageUrl: null,
-          section: "warmups",
-        };
-      }
-      return null;
-    });
-    const getDailyWarmupHeroCooldownMeta = vi.fn(async (_userId: string, contentPageId: string) => {
-      if (contentPageId === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") {
-        return { active: true, minutesRemaining: 12 };
-      }
-      return { active: false };
-    });
-    const deps = {
-      patientHomeBlocks: {
-        listBlocksWithItems: async () => [
-          block("daily_warmup", [
-            {
-              id: "i1",
-              blockCode: "daily_warmup",
-              targetType: "content_page",
-              targetRef: "warm-a",
-              titleOverride: null,
-              subtitleOverride: null,
-              imageUrlOverride: null,
-              badgeLabel: null,
-              isVisible: true,
-              sortOrder: 0,
-            },
-            {
-              id: "i2",
-              blockCode: "daily_warmup",
-              targetType: "content_page",
-              targetRef: "warm-b",
-              titleOverride: null,
-              subtitleOverride: null,
-              imageUrlOverride: null,
-              badgeLabel: null,
-              isVisible: true,
-              sortOrder: 1,
-            },
-          ]),
-        ],
-      },
-      contentPages: { getBySlug },
-      contentSections: warmSection,
-      systemSettings: { getSetting: async () => null },
-    };
-    const out = await getPatientHomeTodayConfig(deps, 0, {
-      userId: "user-1",
-      getDailyWarmupHeroCooldownMeta,
-      cooldownMinutes: 60,
-      skipCooldownPages: true,
-    });
-    expect(out.allDailyWarmupsInCooldown).toBe(false);
-  });
-
-  it("warmupPick when every candidate is in cooldown returns null and aggregate minutes", async () => {
-    const getBySlug = vi.fn(async (slug: string) => ({
-      id: slug === "warm-a" ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      slug,
-      title: slug,
-      summary: "",
-      imageUrl: null,
-      section: "warmups",
-    }));
-    const getDailyWarmupHeroCooldownMeta = vi.fn(async (_userId: string, contentPageId: string) => {
-      if (contentPageId === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") {
-        return { active: true, minutesRemaining: 10 };
-      }
-      return { active: true, minutesRemaining: 5 };
-    });
-    const deps = {
-      patientHomeBlocks: {
-        listBlocksWithItems: async () => [
-          block("daily_warmup", [
-            {
-              id: "i1",
-              blockCode: "daily_warmup",
-              targetType: "content_page",
-              targetRef: "warm-a",
-              titleOverride: null,
-              subtitleOverride: null,
-              imageUrlOverride: null,
-              badgeLabel: null,
-              isVisible: true,
-              sortOrder: 0,
-            },
-            {
-              id: "i2",
-              blockCode: "daily_warmup",
-              targetType: "content_page",
-              targetRef: "warm-b",
-              titleOverride: null,
-              subtitleOverride: null,
-              imageUrlOverride: null,
-              badgeLabel: null,
-              isVisible: true,
-              sortOrder: 1,
-            },
-          ]),
-        ],
-      },
-      contentPages: { getBySlug },
-      contentSections: warmSection,
-      systemSettings: { getSetting: async () => null },
-    };
-    const out = await getPatientHomeTodayConfig(deps, 0, {
-      userId: "user-1",
-      getDailyWarmupHeroCooldownMeta,
-      cooldownMinutes: 60,
-      skipCooldownPages: true,
-    });
-    expect(out.dailyWarmupItem).toBeNull();
-    expect(out.allDailyWarmupsInCooldown).toBe(true);
-    expect(out.allDailyWarmupsCooldownMinutesRemaining).toBe(5);
-  });
-
-  it("warmupPick skipCooldownPages false returns first rotated page even when in cooldown", async () => {
-    const getBySlug = vi.fn(async (slug: string) => {
-      if (slug === "warm-a") {
-        return {
-          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          slug: "warm-a",
-          title: "A",
-          summary: "",
-          imageUrl: null,
-          section: "warmups",
-        };
-      }
-      if (slug === "warm-b") {
-        return {
-          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-          slug: "warm-b",
-          title: "B",
-          summary: "",
-          imageUrl: null,
-          section: "warmups",
-        };
-      }
-      return null;
-    });
-    const getDailyWarmupHeroCooldownMeta = vi.fn(async (_userId: string, contentPageId: string) => {
-      if (contentPageId === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") {
-        return { active: true, minutesRemaining: 12 };
-      }
-      return { active: false };
-    });
-    const deps = {
-      patientHomeBlocks: {
-        listBlocksWithItems: async () => [
-          block("daily_warmup", [
-            {
-              id: "i1",
-              blockCode: "daily_warmup",
-              targetType: "content_page",
-              targetRef: "warm-a",
-              titleOverride: null,
-              subtitleOverride: null,
-              imageUrlOverride: null,
-              badgeLabel: null,
-              isVisible: true,
-              sortOrder: 0,
-            },
-            {
-              id: "i2",
-              blockCode: "daily_warmup",
-              targetType: "content_page",
-              targetRef: "warm-b",
-              titleOverride: null,
-              subtitleOverride: null,
-              imageUrlOverride: null,
-              badgeLabel: null,
-              isVisible: true,
-              sortOrder: 1,
-            },
-          ]),
-        ],
-      },
-      contentPages: { getBySlug },
-      contentSections: warmSection,
-      systemSettings: { getSetting: async () => null },
-    };
-    const out = await getPatientHomeTodayConfig(deps, 0, {
-      userId: "user-1",
-      getDailyWarmupHeroCooldownMeta,
-      cooldownMinutes: 60,
-      skipCooldownPages: false,
-    });
-    expect(out.dailyWarmupItem?.page?.slug).toBe("warm-a");
-    expect(out.allDailyWarmupsInCooldown).toBe(false);
-    expect(getDailyWarmupHeroCooldownMeta).not.toHaveBeenCalled();
   });
 });

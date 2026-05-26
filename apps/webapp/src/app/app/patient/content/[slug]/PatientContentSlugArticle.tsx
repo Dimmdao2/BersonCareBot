@@ -28,13 +28,14 @@ import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoo
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
 import type { ContentStubItem } from "@/modules/content-catalog/types";
 import type { ContentPageRow } from "@/infra/repos/pgContentPages";
-import type { PatientDailyWarmupNav } from "@/modules/patient-home/todayConfig";
+import type { DailyWarmupListEntry, PatientDailyWarmupNav } from "@/modules/patient-home/todayConfig";
 import type { AppSession } from "@/shared/types/session";
 import { PatientDailyWarmupPager } from "./PatientDailyWarmupPager";
 import { PatientContentAdaptiveVideo } from "./PatientContentAdaptiveVideo";
 import { PatientContentMaterialRating } from "./PatientContentMaterialRating";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
 import { PatientDailyWarmupHeroCover } from "./PatientDailyWarmupHeroCover";
+import { PatientDailyWarmupQuickList } from "./PatientDailyWarmupQuickList";
 
 type Props = {
   slug: string;
@@ -42,12 +43,14 @@ type Props = {
   dbRow: ContentPageRow;
   item: ContentStubItem;
   personalTierOk: boolean;
+  isDailyWarmup: boolean;
   practiceSource: "daily_warmup" | "section_page";
   videoPlayableUrl: string | undefined;
   /** YouTube или RuTube — канонический URL для `<iframe>` (не файл из медиабиблиотеки). */
   hostedVideoIframeSrc: string | null;
   apiMediaId: string | null;
   warmupNav: PatientDailyWarmupNav | null;
+  orderedDailyWarmupPages: DailyWarmupListEntry[];
 };
 
 export async function PatientContentSlugArticle({
@@ -56,11 +59,13 @@ export async function PatientContentSlugArticle({
   dbRow,
   item,
   personalTierOk,
+  isDailyWarmup,
   practiceSource,
   videoPlayableUrl,
   hostedVideoIframeSrc,
   apiMediaId,
   warmupNav,
+  orderedDailyWarmupPages,
 }: Props) {
   const deps = buildAppDeps();
 
@@ -100,7 +105,7 @@ export async function PatientContentSlugArticle({
   }
 
   const contentPath = `/app/patient/content/${encodeURIComponent(slug)}`;
-  const showWarmupBadge = practiceSource === "daily_warmup";
+  const showWarmupBadge = isDailyWarmup;
   /** Уроки из разделов (не «разминка дня»): без CTA «Я выполнил(а) практику», оценка — полосой под видео как у элемента программы. */
   const simpleSectionMaterial = !showWarmupBadge;
   const hasDecorImage = Boolean(item.imageUrl);
@@ -121,6 +126,7 @@ export async function PatientContentSlugArticle({
           contentPageId={dbRow.id}
           guest={session === null}
           needsActivation={session !== null && !personalTierOk}
+          isDailyWarmup={isDailyWarmup}
           className="w-full min-w-0"
         />
       </div>
@@ -243,9 +249,14 @@ export async function PatientContentSlugArticle({
           contentPageId={dbRow.id}
           guest={session === null}
           needsActivation={session !== null && !personalTierOk}
+          isDailyWarmup={isDailyWarmup}
           className="mt-2"
         />
       ) : null}
+
+      {showWarmupBadge ?
+        <PatientDailyWarmupQuickList currentSlug={slug} pages={orderedDailyWarmupPages} className="mt-1" />
+      : null}
 
       {courseCta ? (
         <section id={`patient-content-course-cta-${slug}`} className={cn(patientSectionSurfaceClass)}>

@@ -254,6 +254,10 @@ import { createInMemoryPatientPracticeCompletionsPort } from "@/infra/repos/inMe
 import { createPgMaterialRatingPort } from "@/infra/repos/pgMaterialRating";
 import { createInMemoryMaterialRatingPort } from "@/infra/repos/inMemoryMaterialRating";
 import { createMaterialRatingService } from "@/modules/material-rating/service";
+import { createPgMaterialRatingFeedbackPort } from "@/infra/repos/pgMaterialRatingFeedback";
+import { createInMemoryMaterialRatingFeedbackPort } from "@/infra/repos/inMemoryMaterialRatingFeedback";
+import { createMaterialRatingFeedbackService } from "@/modules/material-rating-feedback/service";
+import { isContentPageInDailyWarmupBlock } from "@/modules/patient-home/todayConfig";
 import { createPgWarmupFeelingCompletionPort } from "@/infra/repos/pgWarmupFeelingCompletion";
 import { createInMemoryWarmupFeelingCompletionPort } from "@/infra/repos/inMemoryWarmupFeelingCompletion";
 import { createPatientHomeBlocksService } from "@/modules/patient-home/service";
@@ -450,6 +454,19 @@ const materialRatingService = createMaterialRatingService({
   contentPages: contentPagesPort,
   itemRefs: treatmentProgramItemRefValidationPort,
   instances: treatmentProgramInstancePort,
+});
+const materialRatingFeedbackPort = !inMemoryRepos
+  ? createPgMaterialRatingFeedbackPort()
+  : createInMemoryMaterialRatingFeedbackPort();
+const materialRatingFeedbackService = createMaterialRatingFeedbackService({
+  feedback: materialRatingFeedbackPort,
+  isDailyWarmupContentPage: (contentPageId) =>
+    isContentPageInDailyWarmupBlock(contentPageId, {
+      patientHomeBlocks: patientHomeBlocksPort,
+      contentPages: contentPagesPort,
+      contentSections: contentSectionsPort,
+      systemSettings: systemSettingsService,
+    }),
 });
 const warmupFeelingCompletionPort = !inMemoryRepos
   ? createPgWarmupFeelingCompletionPort({
@@ -1002,6 +1019,7 @@ function _buildAppDeps() {
     patientHomeLegacy: patientHomeLegacyContentPort,
     patientPractice: patientPracticeService,
     materialRating: materialRatingService,
+    materialRatingFeedback: materialRatingFeedbackService,
     warmupFeelingCompletion: warmupFeelingCompletionPort,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,

@@ -1,6 +1,7 @@
 import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-home/ports";
 import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
 import { isPatientHomeContentPageCandidateForBlock } from "@/modules/patient-home/blocks";
+import { pickDailyWarmupFromOrderedList } from "@/modules/patient-home/pickDailyWarmupFromOrderedList";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 
 export type ResolvedWarmupPage = {
@@ -34,26 +35,20 @@ export type PatientHomeTodayConfigDeps = {
   };
 };
 
-/** Выбор разминки дня: cooldown по минутам и (опционально) пропуск страниц в паузе. */
+export type PatientHomeWarmupPickTier = "guest" | "no_tier" | "patient";
+
+/** Контекст выбора разминки дня для patient tier (round-robin от последней completion). */
 export type PatientHomeWarmupPickContext = {
-  userId: string;
-  getDailyWarmupHeroCooldownMeta: (
-    userId: string,
-    contentPageId: string,
-    cooldownMinutes: number,
-  ) => Promise<{ active: boolean; minutesRemaining?: number }>;
-  cooldownMinutes: number;
-  /** Если true — пропускать страницы в hero-cooldown и брать следующую доступную. */
-  skipCooldownPages: boolean;
+  tier: PatientHomeWarmupPickTier;
+  userId?: string;
+  getLatestCompletedContentPageId?: (userId: string) => Promise<string | null>;
 };
 
 export type PatientHomeTodayConfigResult = {
   dailyWarmupItem: ResolvedPatientHomeBlockItem | null;
   practiceTarget: number;
-  /** Все видимые разминки дня сейчас в cooldown — показываем финальный hero «выполнено». */
-  allDailyWarmupsInCooldown: boolean;
-  /** Минимум из `minutesRemaining` по страницам, если `allDailyWarmupsInCooldown`. */
-  allDailyWarmupsCooldownMinutesRemaining: number | null;
+  /** Число доступных разминок в блоке (для cooldown UI при n===1). */
+  dailyWarmupCount: number;
 };
 
 /** Парсит `patient_home_daily_practice_target` из `value_json` (обёртка `{ value }` или число). Default 3, clamp 1–10. */
@@ -136,6 +131,15 @@ export async function listDailyWarmupPagesForHome(
   return result;
 }
 
+/** Membership в блоке `daily_warmup` по `content_pages.id`. */
+export async function isContentPageInDailyWarmupBlock(
+  contentPageId: string,
+  deps: PatientHomeTodayConfigDeps,
+): Promise<boolean> {
+  const pages = await listDailyWarmupPagesForHome(deps);
+  return pages.some((p) => p.contentPageId === contentPageId);
+}
+
 export type PatientDailyWarmupNav = {
   index: number;
   total: number;
@@ -163,15 +167,30 @@ export function buildPatientDailyWarmupNav(
   };
 }
 
+export async function resolveDailyWarmupPickIndex(
+  pages: ReadonlyArray<Pick<DailyWarmupListEntry, "contentPageId">>,
+  pickContext?: PatientHomeWarmupPickContext,
+): Promise<number> {
+  if (pages.length === 0) return 0;
+  if (
+    !pickContext ||
+    pickContext.tier !== "patient" ||
+    !pickContext.userId ||
+    !pickContext.getLatestCompletedContentPageId
+  ) {
+    return 0;
+  }
+  const lastId = await pickContext.getLatestCompletedContentPageId(pickContext.userId);
+  return pickDailyWarmupFromOrderedList(pages, lastId);
+}
+
 /**
- * Конфиг «Сегодня» для главной пациента (Phase 2): разминка из блока `daily_warmup` + целевое число практик.
- * Разминка не берётся из system_settings slug — только из `patient_home_block_items`.
- * @param warmupWeekdayMonday0 день недели в таймзоне приложения: 0 = понедельник, 6 = воскресенье. Ротация выбранного материала по `sortOrder`.
+ * Конфиг «Сегодня» для главной пациента: разминка из блока `daily_warmup` + целевое число практик.
+ * Ротация: round-robin от последней выполненной `daily_warmup` (patient tier) или первая по sortOrder (guest/no tier).
  */
 export async function getPatientHomeTodayConfig(
   deps: PatientHomeTodayConfigDeps,
-  warmupWeekdayMonday0 = 0,
-  warmupPick?: PatientHomeWarmupPickContext,
+  pickContext?: PatientHomeWarmupPickContext,
 ): Promise<PatientHomeTodayConfigResult> {
   const setting = await deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin");
   const practiceTarget = parsePatientHomeDailyPracticeTarget(setting?.valueJson ?? null);
@@ -182,50 +201,17 @@ export async function getPatientHomeTodayConfig(
     return {
       dailyWarmupItem: null,
       practiceTarget,
-      allDailyWarmupsInCooldown: false,
-      allDailyWarmupsCooldownMinutesRemaining: null,
+      dailyWarmupCount: 0,
     };
   }
 
-  const start = ((warmupWeekdayMonday0 % n) + n) % n;
-  let minMinutesWhenAllInCooldown: number | null = null;
-  let sawAnyValidCandidate = false;
+  const pickIndex = await resolveDailyWarmupPickIndex(dailyPages, pickContext);
+  const entry = dailyPages[pickIndex]!;
+  const { blockItem, ...page } = entry;
 
-  for (let step = 0; step < n; step++) {
-    const entry = dailyPages[(start + step) % n]!;
-    sawAnyValidCandidate = true;
-
-    if (warmupPick?.skipCooldownPages) {
-      const meta = await warmupPick.getDailyWarmupHeroCooldownMeta(
-        warmupPick.userId,
-        entry.contentPageId,
-        warmupPick.cooldownMinutes,
-      );
-      if (meta.active) {
-        const rem =
-          typeof meta.minutesRemaining === "number" && Number.isFinite(meta.minutesRemaining) ?
-            meta.minutesRemaining
-          : 1;
-        minMinutesWhenAllInCooldown =
-          minMinutesWhenAllInCooldown === null ? rem : Math.min(minMinutesWhenAllInCooldown, rem);
-        continue;
-      }
-    }
-
-    const { blockItem, ...page } = entry;
-    return {
-      dailyWarmupItem: { blockItem, page },
-      practiceTarget,
-      allDailyWarmupsInCooldown: false,
-      allDailyWarmupsCooldownMinutesRemaining: null,
-    };
-  }
-
-  const allDailyWarmupsInCooldown = Boolean(warmupPick?.skipCooldownPages && warmupPick && sawAnyValidCandidate);
   return {
-    dailyWarmupItem: null,
+    dailyWarmupItem: { blockItem, page },
     practiceTarget,
-    allDailyWarmupsInCooldown,
-    allDailyWarmupsCooldownMinutesRemaining: allDailyWarmupsInCooldown ? minMinutesWhenAllInCooldown : null,
+    dailyWarmupCount: n,
   };
 }

@@ -1,18 +1,12 @@
 /**
  * Страница одного материала по адресу «/app/patient/content/[slug]».
- * Только для пациента. Открывается из разделов «Полезные уроки» и «Скорая помощь» по идентификатору
- * материала. Показывает заголовок, картинку, текст и блок «Видео» (YouTube / RuTube по URL или файл из медиабиблиотеки). Если материал не найден —
- * 404. Сверху — «Назад к разделу» или «Меню»; при `from=daily_warmup` — назад на главную, без строки «Назад к разделу».
+ * Warmup layout определяется membership в блоке `daily_warmup`, не query param.
  */
 
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
-import {
-  buildPatientDailyWarmupNav,
-  listDailyWarmupPagesForHome,
-} from "@/modules/patient-home/todayConfig";
+import { listDailyWarmupPagesForHome, type DailyWarmupListEntry } from "@/modules/patient-home/todayConfig";
 import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
@@ -22,6 +16,7 @@ import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
 import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
 import { parseApiMediaIdFromHref, parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import { PatientContentSlugArticle } from "./PatientContentSlugArticle";
+import { resolvePatientContentWarmupPageContext } from "./patientContentWarmupPageContext";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -48,21 +43,21 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
     session ? (await patientRscPersonalDataGate(session, contentPath)) === "allow" : false;
   const rawFrom = sp.from;
   const fromVal = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
-  const isDailyWarmup = fromVal === "daily_warmup";
-  const practiceSource = isDailyWarmup ? ("daily_warmup" as const) : ("section_page" as const);
+  const fromDailyWarmup = fromVal === "daily_warmup";
 
-  const warmupNav =
-    isDailyWarmup ?
-      buildPatientDailyWarmupNav(
-        slug,
-        await listDailyWarmupPagesForHome({
-          patientHomeBlocks: deps.patientHomeBlocks,
-          contentPages: deps.contentPages,
-          contentSections: deps.contentSections,
-          systemSettings: deps.systemSettings,
-        }),
-      )
-    : null;
+  const orderedDailyWarmupPages: DailyWarmupListEntry[] = await listDailyWarmupPagesForHome({
+    patientHomeBlocks: deps.patientHomeBlocks,
+    contentPages: deps.contentPages,
+    contentSections: deps.contentSections,
+    systemSettings: deps.systemSettings,
+  });
+
+  const { isDailyWarmupMember, practiceSource, warmupNav, backNav } = resolvePatientContentWarmupPageContext({
+    slug,
+    fromDailyWarmup,
+    sectionSlug: dbRow.section,
+    orderedDailyWarmupPages,
+  });
 
   const videoPlayableUrl =
     item.videoSource?.type === "url" && item.videoSource.url.trim()
@@ -87,23 +82,16 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           parseApiMediaIdFromHref(videoPlayableUrl, appTrustedOrigin))
       : null;
 
-  const sectionSlug = dbRow.section.trim();
-  const backToSectionHref =
-    isDailyWarmup ? routePaths.patient
-    : sectionSlug ? `/app/patient/sections/${encodeURIComponent(sectionSlug)}`
-    : routePaths.patient;
-  const backLabel = isDailyWarmup ? "Меню" : sectionSlug ? "Назад к разделу" : "Меню";
-
   return (
     <AppShell
       title={item.title}
       user={session?.user ?? null}
-      backHref={backToSectionHref}
-      backLabel={backLabel}
+      backHref={backNav.backHref}
+      backLabel={backNav.backLabel}
       variant="patient"
       patientSuppressShellTitle
       patientShellTitleSlot={
-        !isDailyWarmup && sectionSlug ?
+        backNav.showBackToSectionRow ?
           <PatientBackToSectionShellRow sectionSlug={dbRow.section} />
         : undefined
       }
@@ -115,11 +103,13 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           dbRow={dbRow}
           item={item}
           personalTierOk={personalTierOk}
+          isDailyWarmup={isDailyWarmupMember}
           practiceSource={practiceSource}
           videoPlayableUrl={videoPlayableUrl}
           hostedVideoIframeSrc={hostedVideoIframeSrc}
           apiMediaId={apiMediaId}
           warmupNav={warmupNav}
+          orderedDailyWarmupPages={orderedDailyWarmupPages}
         />
       </Suspense>
     </AppShell>

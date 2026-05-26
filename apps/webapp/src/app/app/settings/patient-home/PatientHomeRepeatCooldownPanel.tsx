@@ -30,7 +30,6 @@ function minuteTriggerLabel(valueStr: string): string {
 type Props = {
   initialWarmupMinutes: number;
   initialPlanItemMinutes: number;
-  initialSkipToNext: boolean;
 };
 
 export function PatientHomeRepeatCooldownPanel(props: Props) {
@@ -43,7 +42,6 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
   }, [props.initialWarmupMinutes, props.initialPlanItemMinutes]);
   const [warmupMin, setWarmupMin] = useState(String(props.initialWarmupMinutes));
   const [planMin, setPlanMin] = useState(String(props.initialPlanItemMinutes));
-  const [skipNext, setSkipNext] = useState(props.initialSkipToNext);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +67,6 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
       const result = await savePatientHomeRepeatCooldownsAction({
         warmupRepeatMinutes: w,
         planItemRepeatMinutes: p,
-        skipWarmupToNextAvailable: skipNext,
       });
       if (!result.ok) {
         setError(result.error === "forbidden" ? "Нет доступа." : "Не удалось сохранить.");
@@ -103,6 +100,7 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
               ))}
             </SelectContent>
           </Select>
+          <span className="text-xs text-muted-foreground">Только при одной разминке в блоке</span>
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">Пункты плана (мин)</span>
@@ -116,17 +114,6 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
               ))}
             </SelectContent>
           </Select>
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="size-4 rounded border"
-            checked={skipNext}
-            onChange={(e) => setSkipNext(e.target.checked)}
-            disabled={pending}
-            aria-label="Показывать следующую доступную разминку дня"
-          />
-          <span>Следующая разминка сразу</span>
         </label>
         <Button type="button" onClick={() => void onSave()} disabled={pending}>
           {pending ? "Сохранение…" : "Сохранить"}

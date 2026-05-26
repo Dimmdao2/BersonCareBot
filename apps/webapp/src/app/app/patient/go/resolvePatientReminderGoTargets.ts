@@ -2,15 +2,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolveFirstPendingProgramTabItemId } from "@/app/app/patient/home/resolveFirstPendingProgramTabItemId";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
-import {
-  parsePatientHomeDailyWarmupRepeatCooldownMinutes,
-  parsePatientHomeWarmupSkipToNextAvailableEnabled,
-} from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import type { AppSession } from "@/shared/types/session";
-import { DateTime } from "luxon";
 
 type Deps = ReturnType<typeof buildAppDeps>;
 
@@ -22,27 +16,16 @@ export async function resolveDailyWarmupStartPathForPatient(
   session: AppSession,
   personalTierOk: boolean,
 ): Promise<string> {
-  const appTz = await getAppDisplayTimeZone();
-  const weekdayMonday0 = DateTime.now().setZone(appTz).weekday - 1;
-  const [warmupRepeatSetting, warmupSkipSetting] = await Promise.all([
-    deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin"),
-    deps.systemSettings.getSetting("patient_home_warmup_skip_to_next_available_enabled", "admin"),
-  ]);
-  const dailyWarmupRepeatCooldownMinutes = parsePatientHomeDailyWarmupRepeatCooldownMinutes(
-    warmupRepeatSetting?.valueJson ?? null,
-  );
-  const warmupSkipCooldownPages = parsePatientHomeWarmupSkipToNextAvailableEnabled(
-    warmupSkipSetting?.valueJson ?? null,
-  );
   const warmupPick =
     personalTierOk ?
       {
+        tier: "patient" as const,
         userId: session.user.userId,
-        getDailyWarmupHeroCooldownMeta: deps.patientPractice.getDailyWarmupHeroCooldownMeta.bind(deps.patientPractice),
-        cooldownMinutes: dailyWarmupRepeatCooldownMinutes,
-        skipCooldownPages: warmupSkipCooldownPages,
+        getLatestCompletedContentPageId: deps.patientPractice.getLatestDailyWarmupCompletedContentPageId.bind(
+          deps.patientPractice,
+        ),
       }
-    : undefined;
+    : { tier: "no_tier" as const };
 
   const todayCfg = await getPatientHomeTodayConfig(
     {
@@ -51,7 +34,6 @@ export async function resolveDailyWarmupStartPathForPatient(
       contentSections: deps.contentSections,
       systemSettings: deps.systemSettings,
     },
-    weekdayMonday0,
     warmupPick,
   );
   const slug = todayCfg.dailyWarmupItem?.page?.slug?.trim();

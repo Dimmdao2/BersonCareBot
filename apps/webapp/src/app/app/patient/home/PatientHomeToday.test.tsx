@@ -23,6 +23,7 @@ const contentPagesGetBySlug = vi.fn();
 const coursesGetCourseForDoctor = vi.fn();
 const loadPatientHomeProgressMetrics = vi.hoisted(() => vi.fn());
 const getDailyWarmupHeroCooldownMeta = vi.fn();
+const getLatestDailyWarmupCompletedContentPageId = vi.fn();
 const listRecent = vi.fn();
 const listByUserInUtcRange = vi.fn();
 const getCheckinState = vi.fn();
@@ -69,6 +70,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     treatmentProgram: { getTemplate: treatmentProgramGetTemplate },
     patientPractice: {
       getDailyWarmupHeroCooldownMeta,
+      getLatestDailyWarmupCompletedContentPageId,
       listRecent: vi.fn().mockResolvedValue([]),
       listByUserInUtcRange: vi.fn().mockResolvedValue([]),
     },
@@ -256,8 +258,7 @@ describe("PatientHomeToday", () => {
         },
       },
       practiceTarget: 3,
-      allDailyWarmupsInCooldown: false,
-      allDailyWarmupsCooldownMinutesRemaining: null,
+      dailyWarmupCount: 1,
     });
 
     listBlocksWithItems.mockResolvedValue([
@@ -327,6 +328,7 @@ describe("PatientHomeToday", () => {
     listLocalDoneDateKeysForRecentDays.mockResolvedValue({ iana: "Europe/Moscow", dateKeys: [] });
     loadPatientHomeProgressMetrics.mockResolvedValue(defaultProgressMetrics);
     getDailyWarmupHeroCooldownMeta.mockResolvedValue({ active: false });
+    getLatestDailyWarmupCompletedContentPageId.mockResolvedValue(null);
     listRecent.mockResolvedValue([]);
     listByUserInUtcRange.mockResolvedValue([]);
     getCheckinState.mockResolvedValue({
@@ -357,6 +359,7 @@ describe("PatientHomeToday", () => {
     expect(listRulesByUser).not.toHaveBeenCalled();
     expect(listForPatient).not.toHaveBeenCalled();
     expect(loadPatientHomeProgressMetrics).not.toHaveBeenCalled();
+    getLatestDailyWarmupCompletedContentPageId.mockResolvedValue(null);
     expect(getDailyWarmupHeroCooldownMeta).not.toHaveBeenCalled();
     expect(getCheckinState).not.toHaveBeenCalled();
 
@@ -389,6 +392,7 @@ describe("PatientHomeToday", () => {
     expect(listRulesByUser).not.toHaveBeenCalled();
     expect(listForPatient).not.toHaveBeenCalled();
     expect(loadPatientHomeProgressMetrics).toHaveBeenCalled();
+    getLatestDailyWarmupCompletedContentPageId.mockResolvedValue(null);
     expect(getDailyWarmupHeroCooldownMeta).not.toHaveBeenCalled();
     expect(getCheckinState).not.toHaveBeenCalled();
 
@@ -436,9 +440,6 @@ describe("PatientHomeToday", () => {
       if (key === "patient_home_daily_warmup_repeat_cooldown_minutes") {
         return { valueJson: { value: 90 } };
       }
-      if (key === "patient_home_warmup_skip_to_next_available_enabled") {
-        return { valueJson: { value: true } };
-      }
       return null;
     });
     const tree = await PatientHomeToday({
@@ -455,7 +456,7 @@ describe("PatientHomeToday", () => {
     );
   });
 
-  it("patient tier: warmup hero shows «Разминка выполнена» and cooldown caption when cooldown active", async () => {
+  it("patient tier: warmup hero shows «Разминка выполнена» and cooldown caption when cooldown active and n===1", async () => {
     getDailyWarmupHeroCooldownMeta.mockResolvedValueOnce({ active: true, minutesAgo: 3, minutesRemaining: 17 });
     const tree = await PatientHomeToday({
       session: fixtureSession,
@@ -467,6 +468,33 @@ describe("PatientHomeToday", () => {
     expect(screen.getByRole("status", { name: /Разминка дня уже отмечена выполненной/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Начать разминку/i })).toBeNull();
     expect(screen.getByText(/Разминка будет доступна через 17 минут\./i)).toBeInTheDocument();
+  });
+
+  it("patient tier: keeps warmup CTA when cooldown active but dailyWarmupCount >= 2", async () => {
+    vi.mocked(getPatientHomeTodayConfig).mockResolvedValueOnce({
+      dailyWarmupItem: {
+        blockItem: homeItem("i-w", "daily_warmup", "content_page", "fixture-warmup-page", 0),
+        page: {
+          contentPageId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          slug: "fixture-warmup-page",
+          title: "Fixture warmup",
+          summary: "Summary",
+          imageUrl: "/api/media/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        },
+      },
+      practiceTarget: 3,
+      dailyWarmupCount: 2,
+    });
+    getDailyWarmupHeroCooldownMeta.mockResolvedValueOnce({ active: true, minutesAgo: 3, minutesRemaining: 17 });
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(screen.queryByRole("status", { name: /Разминка дня уже отмечена выполненной/i })).toBeNull();
+    expect(screen.getByRole("link", { name: /Начать разминку/i })).toBeInTheDocument();
   });
 
   it("patient tier: progress shows metrics from loader", async () => {

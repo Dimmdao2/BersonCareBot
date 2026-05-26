@@ -57,6 +57,10 @@ export function createPatientPracticeService(deps: {
       return buildDailyWarmupHeroCooldownMeta(latestIso, cooldownMinutes, Date.now());
     },
 
+    async getLatestDailyWarmupCompletedContentPageId(userId: string): Promise<string | null> {
+      return deps.completions.getLatestDailyWarmupCompletedContentPageId(userId);
+    },
+
     async listRecent(userId: string, limit: number) {
       return deps.completions.listRecent(userId, limit);
     },

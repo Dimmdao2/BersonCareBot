@@ -10,7 +10,6 @@ import { PatientHomeMoodIconsPanel } from "./PatientHomeMoodIconsPanel";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
 import {
   parsePatientHomeDailyWarmupRepeatCooldownMinutes,
-  parsePatientHomeWarmupSkipToNextAvailableEnabled,
   parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes,
 } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 import {
@@ -30,7 +29,7 @@ export default async function DoctorPatientHomeSettingsPage() {
   const isAdmin = session.user.role === "admin";
 
   const deps = buildAppDeps();
-  const [blocks, pages, sections, courses, practiceSetting, moodSetting, morningPingEn, morningPingT, warmupCd, planCd, skipNext] =
+  const [blocks, pages, sections, courses, practiceSetting, moodSetting, morningPingEn, morningPingT, warmupCd, planCd] =
     await Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
     deps.contentPages.listAll(),
@@ -42,7 +41,6 @@ export default async function DoctorPatientHomeSettingsPage() {
     isAdmin ? deps.systemSettings.getSetting("patient_home_morning_ping_local_time", "admin") : Promise.resolve(null),
     isAdmin ? deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin") : Promise.resolve(null),
     isAdmin ? deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin") : Promise.resolve(null),
-    isAdmin ? deps.systemSettings.getSetting("patient_home_warmup_skip_to_next_available_enabled", "admin") : Promise.resolve(null),
   ]);
   const initialPracticeTarget = parsePatientHomeDailyPracticeTarget(practiceSetting?.valueJson ?? null);
   const moodOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
@@ -50,7 +48,6 @@ export default async function DoctorPatientHomeSettingsPage() {
   const initialMorningPingTime = parsePatientHomeMorningPingLocalTime(morningPingT?.valueJson ?? null);
   const initialWarmupRepeatMinutes = parsePatientHomeDailyWarmupRepeatCooldownMinutes(warmupCd?.valueJson ?? null);
   const initialPlanItemRepeatMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(planCd?.valueJson ?? null);
-  const initialSkipWarmupToNext = parsePatientHomeWarmupSkipToNextAvailableEnabled(skipNext?.valueJson ?? null);
 
   const knownRefs = {
     contentPages: [...new Set(pages.map((p) => p.slug))],
@@ -103,7 +100,6 @@ export default async function DoctorPatientHomeSettingsPage() {
           <PatientHomeRepeatCooldownPanel
             initialWarmupMinutes={initialWarmupRepeatMinutes}
             initialPlanItemMinutes={initialPlanItemRepeatMinutes}
-            initialSkipToNext={initialSkipWarmupToNext}
           />
         </div>
       ) : null}

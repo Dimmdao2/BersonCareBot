@@ -10,6 +10,7 @@ describe("createPatientPracticeService", () => {
       listRecent: vi.fn(),
       listByUserInUtcRange: vi.fn(),
       getLatestDailyWarmupCompletionCompletedAt: vi.fn(),
+      getLatestDailyWarmupCompletedContentPageId: vi.fn(),
     };
     const contentPages = {
       getById: vi.fn().mockResolvedValue({
@@ -36,6 +37,7 @@ describe("createPatientPracticeService", () => {
       listRecent: vi.fn(),
       listByUserInUtcRange: vi.fn(),
       getLatestDailyWarmupCompletionCompletedAt: vi.fn(),
+      getLatestDailyWarmupCompletedContentPageId: vi.fn(),
     };
     const contentPages = {
       getById: vi.fn().mockResolvedValue({
@@ -66,6 +68,7 @@ describe("createPatientPracticeService", () => {
       listRecent: vi.fn(),
       listByUserInUtcRange: vi.fn(),
       getLatestDailyWarmupCompletionCompletedAt: vi.fn(),
+      getLatestDailyWarmupCompletedContentPageId: vi.fn(),
     };
     const contentPages = { getById: vi.fn() };
     const svc = createPatientPracticeService({ completions: completions as never, contentPages });

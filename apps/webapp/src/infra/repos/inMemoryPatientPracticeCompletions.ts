@@ -56,6 +56,19 @@ export function createInMemoryPatientPracticeCompletionsPort(): PatientPracticeP
       return latest;
     },
 
+    async getLatestDailyWarmupCompletedContentPageId(userId) {
+      let latestAt: string | null = null;
+      let latestPageId: string | null = null;
+      for (const r of rows) {
+        if (r.userId !== userId || r.source !== "daily_warmup") continue;
+        if (!latestAt || r.completedAt > latestAt) {
+          latestAt = r.completedAt;
+          latestPageId = r.contentPageId;
+        }
+      }
+      return latestPageId;
+    },
+
     async listRecent(userId, limit) {
       return rows
         .filter((r) => r.userId === userId)

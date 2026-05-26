@@ -19,6 +19,8 @@ export type MaterialRatingBlockProps = {
   needsActivation?: boolean;
   readOnly?: boolean;
   variant?: "patient" | "doctorCompact";
+  /** После успешного PUT, только если сохранённые звёзды 1–3. */
+  onLowRatingSaved?: (stars: number) => void;
   className?: string;
 };
 
@@ -97,6 +99,7 @@ export function MaterialRatingBlock({
   needsActivation = false,
   readOnly = false,
   variant = "patient",
+  onLowRatingSaved,
   className,
 }: MaterialRatingBlockProps) {
   const [loading, setLoading] = useState(true);
@@ -199,6 +202,9 @@ export function MaterialRatingBlock({
             });
             setValue(my ?? 0);
             setEditRatingPicker(false);
+            if (my != null && my >= 1 && my <= 3) {
+              onLowRatingSaved?.(my);
+            }
           } catch {
             setError("Не удалось сохранить");
             await load();
@@ -206,7 +212,7 @@ export function MaterialRatingBlock({
         })();
       }, 320);
     },
-    [interactive, load, programInstanceId, programStageItemId, targetId, targetKind],
+    [interactive, load, onLowRatingSaved, programInstanceId, programStageItemId, targetId, targetKind],
   );
 
   const pickerClassName = cn("material-rating-stars material-rating-stars--size-primary");

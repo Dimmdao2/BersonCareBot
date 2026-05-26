@@ -3,9 +3,9 @@ import type { AppSession } from "@/shared/types/session";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { formatPatientHomeWarmupCooldownCaption } from "@/modules/patient-home/dailyWarmupHeroCooldown";
+import { shouldActivateDailyWarmupHeroCooldown } from "@/modules/patient-home/dailyWarmupHeroCooldownGate";
 import {
   parsePatientHomeDailyWarmupRepeatCooldownMinutes,
-  parsePatientHomeWarmupSkipToNextAvailableEnabled,
 } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 import { filterAndSortPatientHomeBlocks } from "@/modules/patient-home/patientHomeBlockPolicy";
 import type { ReminderRule } from "@/modules/reminders/types";
@@ -122,31 +122,29 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   const anonymousGuest = session === null;
 
   let appTz = await getAppDisplayTimeZone();
-  const weekdayMonday0 = DateTime.now().setZone(appTz).weekday - 1;
 
-  const [homeBlocks, moodSetting, warmupRepeatSetting, warmupSkipSetting] = await Promise.all([
+  const [homeBlocks, moodSetting, warmupRepeatSetting] = await Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
     deps.systemSettings.getSetting("patient_home_mood_icons", "admin"),
     deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin"),
-    deps.systemSettings.getSetting("patient_home_warmup_skip_to_next_available_enabled", "admin"),
   ]);
 
   const dailyWarmupRepeatCooldownMinutes = parsePatientHomeDailyWarmupRepeatCooldownMinutes(
     warmupRepeatSetting?.valueJson ?? null,
   );
-  const warmupSkipCooldownPages = parsePatientHomeWarmupSkipToNextAvailableEnabled(
-    warmupSkipSetting?.valueJson ?? null,
-  );
 
   const warmupPick =
     session && personalTierOk ?
       {
+        tier: "patient" as const,
         userId: session.user.userId,
-        getDailyWarmupHeroCooldownMeta: deps.patientPractice.getDailyWarmupHeroCooldownMeta.bind(deps.patientPractice),
-        cooldownMinutes: dailyWarmupRepeatCooldownMinutes,
-        skipCooldownPages: warmupSkipCooldownPages,
+        getLatestCompletedContentPageId: deps.patientPractice.getLatestDailyWarmupCompletedContentPageId.bind(
+          deps.patientPractice,
+        ),
       }
-    : undefined;
+    : session ?
+      { tier: "no_tier" as const }
+    : { tier: "guest" as const };
 
   const todayCfg = await getPatientHomeTodayConfig(
     {
@@ -155,7 +153,6 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       contentSections: deps.contentSections,
       systemSettings: deps.systemSettings,
     },
-    weekdayMonday0,
     warmupPick,
   );
   const moodIconOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
@@ -235,17 +232,15 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     const muted = !!(mutedUntilIso && new Date(mutedUntilIso).getTime() > compareNow.getTime());
     hasConfiguredSchedule = hasConfiguredHomeLinkedReminders(rules);
 
-    if (warmupCooldownMeta.active) {
-      dailyWarmupHeroCooldownActive = true;
-      warmupCooldownCaption = formatPatientHomeWarmupCooldownCaption(warmupCooldownMeta.minutesRemaining);
-    } else if (
-      todayCfg.allDailyWarmupsInCooldown &&
-      todayCfg.allDailyWarmupsCooldownMinutesRemaining != null
+    if (
+      warmupCooldownMeta.active &&
+      shouldActivateDailyWarmupHeroCooldown({
+        dailyWarmupCount: todayCfg.dailyWarmupCount,
+        cooldownActive: true,
+      })
     ) {
       dailyWarmupHeroCooldownActive = true;
-      warmupCooldownCaption = formatPatientHomeWarmupCooldownCaption(
-        todayCfg.allDailyWarmupsCooldownMinutesRemaining,
-      );
+      warmupCooldownCaption = formatPatientHomeWarmupCooldownCaption(warmupCooldownMeta.minutesRemaining);
     }
     const weekSparkline = await deps.patientMood.getRecentDaysSparkline(
       session.user.userId,
@@ -340,7 +335,6 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             anonymousGuest={anonymousGuest}
             warmupRecentlyCompletedHero={dailyWarmupHeroCooldownActive}
             warmupCooldownCaption={warmupCooldownCaption}
-            allDailyWarmupsInCooldown={todayCfg.allDailyWarmupsInCooldown}
           />
         );
       case "useful_post":

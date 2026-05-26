@@ -7,6 +7,7 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 import { AppShell } from "@/shared/ui/AppShell";
 
 import { MaterialRatingDetailClient } from "@/app/app/doctor/material-ratings/MaterialRatingDetailClient";
+import { MaterialRatingFeedbackDoctorPanel } from "@/app/app/doctor/material-ratings/MaterialRatingFeedbackDoctorPanel";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,9 +32,11 @@ export default async function DoctorMaterialRatingDetailPage({ params }: Props) 
   const calendarTodayYmd = DateTime.now().setZone(iana).toFormat("yyyy-LL-dd");
 
   let titleSuffix = id;
+  let feedbackSummary = null;
   if (kind === "content_page") {
     const meta = await deps.contentPages.listMetaByIds([id]);
     titleSuffix = meta[0]?.title?.trim() || id;
+    feedbackSummary = await deps.materialRatingFeedback.getDoctorSummary(id);
   } else if (kind === "lfk_exercise") {
     const titles = await deps.lfkExercises.listExerciseTitlesByIds([id]);
     titleSuffix = titles.get(id)?.trim() || id;
@@ -52,6 +55,9 @@ export default async function DoctorMaterialRatingDetailPage({ params }: Props) 
     >
       <div className="flex flex-col gap-6">
         <MaterialRatingDetailClient kind={kind} id={id} calendarTodayYmd={calendarTodayYmd} />
+        {feedbackSummary ?
+          <MaterialRatingFeedbackDoctorPanel contentPageId={id} summary={feedbackSummary} />
+        : null}
       </div>
     </AppShell>
   );
