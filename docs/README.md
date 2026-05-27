@@ -5,6 +5,7 @@
 - **Архив (завершённые инициативы и разовые журналы):** [`archive/README.md`](archive/README.md)
 - **Операционные отчёты / runbook:** [`REPORTS/README.md`](REPORTS/README.md)
 - **ЛФК-комплекс в программе лечения (шаблон + инстанс, cleanup legacy):** журнал [`archive/2026-05-initiatives/TREATMENT_PROGRAM_LFK_TEMPLATE_EXPAND/LOG.md`](archive/2026-05-initiatives/TREATMENT_PROGRAM_LFK_TEMPLATE_EXPAND/LOG.md); post-prod / миграции [`TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md`](TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md); закрытый план [`.cursor/plans/archive/lfk_expand_instance_cleanup.plan.md`](../.cursor/plans/archive/lfk_expand_instance_cleanup.plan.md).
+- **Продуктовая аналитика webapp (закрыта 2026-05-27):** [`PRODUCT_ANALYTICS_INITIATIVE/README.md`](PRODUCT_ANALYTICS_INITIATIVE/README.md) · [`LOG.md`](PRODUCT_ANALYTICS_INITIATIVE/LOG.md) · план [`.cursor/plans/archive/product_analytics.plan.md`](../.cursor/plans/archive/product_analytics.plan.md).
 
 ## Архитектура и эксплуатация
 

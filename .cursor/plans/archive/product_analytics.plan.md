@@ -86,7 +86,7 @@ flowchart LR
 
 ## Критические уточнения перед реализацией
 
-1. **Один источник `app_open`:** не дублировать событие из [`/api/patient/pwa/launch`](apps/webapp/src/app/api/patient/pwa/launch/route.ts) и из `PatientAnalyticsReporter` в одном и том же клиентском цикле. Канон: `app_open` шлёт только reporter; `pwa/launch` остаётся совместимым endpoint-алиасом для snapshot, который проксирует в тот же service без второго инкремента.
+1. **Один источник `app_open`:** не дублировать с `PatientAnalyticsReporter`. Канон: `app_open` шлёт только reporter; [`POST /api/patient/pwa/launch`](apps/webapp/src/app/api/patient/pwa/launch/route.ts) пишет **`heartbeat`** с metadata `pwa_launch_snapshot` (не `app_open`).
 2. **Auth hook-точка:** не внедрять `buildAppDeps()` внутрь [`setSessionFromUser`](apps/webapp/src/modules/auth/service.ts), чтобы не раздувать низкоуровневый auth helper. Канон: запись `auth_login` на уровне route/callback orchestration рядом с уже существующим `setSessionFromUser(...)`.
 3. **SW click fallback:** `notificationclick` в [`sw.js`](apps/webapp/public/sw.js) пишет push-open best-effort; если `fetch` неуспешен, не блокировать `focus/navigate/openWindow` и не делать повторные попытки в цикле.
 4. **Dedupe push-open:** dedupe на сервере обязателен по `push_tracking_id` (idempotent upsert), иначе повторный клик/двойной tap искажает open rate.
@@ -210,7 +210,7 @@ Composition root [`apps/webapp/src/app-layer/product-analytics/recordAuthLogin.t
 
 1. [`PatientAnalyticsReporter.tsx`](apps/webapp/src/shared/ui/patient/PatientAnalyticsReporter.tsx) — client-only, mount в [`PatientClientLayout.tsx`](apps/webapp/src/app/app/patient/PatientClientLayout.tsx).
 
-2. Расширить [`POST /api/patient/pwa/launch`](apps/webapp/src/app/api/patient/pwa/launch/route.ts): вместо только `logger.info` — `recordEventsBatch` с `app_open` (сохранить logger как debug).
+2. [`POST /api/patient/pwa/launch`](apps/webapp/src/app/api/patient/pwa/launch/route.ts): `recordEventsBatch` с **`heartbeat`** и metadata snapshot PWA (`isStandalone`, push support, `notificationPermission`); **`app_open` не писать** (канон — reporter). Сохранить `logger.info`.
 
 3. Новый **`POST /api/patient/analytics/events`** (batch до 20 событий, Zod):
    - auth: `requirePatientApiBusinessAccess`
@@ -310,9 +310,9 @@ Admin API отдаёт:
 По образцу [`playbackHourlyRetention.ts`](apps/webapp/src/app-layer/media/playbackHourlyRetention.ts):
 
 - **`POST /api/internal/product-analytics/retention`** + Bearer `INTERNAL_JOB_SECRET`
-- Query: `recentDays=90`, `userHourlyDays=180`, `dryRun=1`
+- Query: `recentDays=90`, `userHourlyDays=180`, `hourlyDays=730`, `pushDays=730`, `dryRun=1`
 - Документировать cron в [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md) (редкий weekly cron, рядом с playback retention)
-- `product_analytics_hourly` и `product_push_notifications` — дольше (12–24 мес) или purge по `created_at` отдельным параметром
+- Дефолты retention: `product_analytics_events_recent` 90 дн., `product_analytics_user_hourly` 180 дн., `product_analytics_hourly` и `product_push_notifications` по 730 дн.
 
 ## Смысловые цельные блоки для Composer (one-pass)
 

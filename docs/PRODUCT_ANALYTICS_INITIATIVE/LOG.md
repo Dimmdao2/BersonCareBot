@@ -162,3 +162,9 @@
 ### Инициатива
 
 Все блоки 1–6 закрыты. Перед merge: `pnpm run migrate` (dev) + smoke + один `pnpm run ci`.
+
+## 2026-05-28 — Синхронизация документации (post-audit)
+
+- План: [`.cursor/plans/archive/product_analytics.plan.md`](../../.cursor/plans/archive/product_analytics.plan.md) — `todos` 1–6 `completed`, DoD `[x]`; уточнено, что `pwa/launch` пишет `heartbeat` (snapshot), не `app_open`.
+- IDE-копия плана (`product_analytics_plan_6f8e3d0b`) приведена к тому же состоянию.
+- Retention в плане: дефолты `recentDays=90`, `userHourlyDays=180`, `hourlyDays=730`, `pushDays=730` (как в `productAnalyticsRetention.ts` и `deploy/HOST_DEPLOY_README.md`).
