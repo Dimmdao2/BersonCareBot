@@ -1,6 +1,7 @@
 /** Навигация кабинета врача: кластеры + отдельные верхнеуровневые ссылки (desktop sidebar и mobile Sheet). */
 
 import { routePaths } from "@/app-layer/routes/paths";
+import type { UserRole } from "@/shared/types/session";
 
 /** Устаревший ключ: один открытый кластер. Читается только для миграции в формат множества. */
 export const DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY = "doctorMenu.openCluster.v1";
@@ -19,7 +20,19 @@ export type DoctorMenuLinkItem = {
   label: string;
   href: string;
   badgeKey?: DoctorMenuBadgeKey;
+  /** Пункт виден только при role=admin и включённом admin mode (как admin API). */
+  requiresAdminMode?: boolean;
 };
+
+export type DoctorMenuAccess = {
+  role: UserRole;
+  adminMode: boolean;
+};
+
+export function isDoctorMenuLinkVisible(item: DoctorMenuLinkItem, access: DoctorMenuAccess): boolean {
+  if (!item.requiresAdminMode) return true;
+  return access.role === "admin" && access.adminMode;
+}
 
 export type DoctorMenuCluster = {
   id: string;
@@ -102,6 +115,12 @@ const CLUSTER_SYSTEM: DoctorMenuCluster = {
   items: [
     { id: "references", label: "Справочники", href: "/app/doctor/references" },
     { id: "stats", label: "Статистика", href: "/app/doctor/stats" },
+    {
+      id: "usage",
+      label: "Использование",
+      href: "/app/doctor/usage",
+      requiresAdminMode: true,
+    },
   ],
 };
 
@@ -123,11 +142,15 @@ export const DOCTOR_MENU_STANDALONE_LINKS: DoctorMenuLinkItem[] = [
   },
 ];
 
+function filterMenuLinks(items: DoctorMenuLinkItem[], access: DoctorMenuAccess): DoctorMenuLinkItem[] {
+  return items.filter((item) => isDoctorMenuLinkVisible(item, access));
+}
+
 /**
  * Порядок секций для sidebar/Sheet: три кластера, затем standalone «Библиотека файлов», затем коммуникации и система.
  */
-export function getDoctorMenuRenderSections(): DoctorMenuRenderSection[] {
-  return [
+export function getDoctorMenuRenderSections(access: DoctorMenuAccess): DoctorMenuRenderSection[] {
+  const raw: DoctorMenuRenderSection[] = [
     { type: "cluster", cluster: CLUSTER_PATIENTS_WORK },
     { type: "cluster", cluster: CLUSTER_ASSIGNMENTS },
     { type: "cluster", cluster: CLUSTER_APP_CONTENT },
@@ -135,6 +158,15 @@ export function getDoctorMenuRenderSections(): DoctorMenuRenderSection[] {
     { type: "cluster", cluster: CLUSTER_COMMUNICATIONS },
     { type: "cluster", cluster: CLUSTER_SYSTEM },
   ];
+
+  return raw.flatMap((section) => {
+    if (section.type === "standalone") {
+      const links = filterMenuLinks(section.links, access);
+      return links.length > 0 ? [{ type: "standalone" as const, links }] : [];
+    }
+    const items = filterMenuLinks(section.cluster.items, access);
+    return items.length > 0 ? [{ type: "cluster" as const, cluster: { ...section.cluster, items } }] : [];
+  });
 }
 
 export function isDoctorMenuClusterId(id: string): boolean {

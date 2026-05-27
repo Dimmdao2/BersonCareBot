@@ -14,6 +14,7 @@ import {
   getDoctorMenuRenderSections,
   isDoctorMenuClusterId,
   isDoctorNavItemActive,
+  type DoctorMenuAccess,
   type DoctorMenuBadgeKey,
   type DoctorMenuLinkItem,
 } from "@/shared/ui/doctorNavLinks";
@@ -83,11 +84,12 @@ function readOpenClustersFromStorage(): Set<string> | null {
 export type DoctorMenuAccordionProps = {
   variant: "sidebar" | "sheet";
   pathname: string;
+  menuAccess: DoctorMenuAccess;
   /** Вызывается после навигации по пункту меню (например закрытие Sheet на mobile). */
   onNavigate?: () => void;
 };
 
-export function DoctorMenuAccordion({ variant, pathname, onNavigate }: DoctorMenuAccordionProps) {
+export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate }: DoctorMenuAccordionProps) {
   const linkClass = variant === "sidebar" ? SIDEBAR_LINK_CLASS : SHEET_LINK_CLASS;
 
   const messagesUnread = useDoctorSupportUnreadCount();
@@ -136,7 +138,7 @@ export function DoctorMenuAccordion({ variant, pathname, onNavigate }: DoctorMen
     [],
   );
 
-  const sections = getDoctorMenuRenderSections();
+  const sections = getDoctorMenuRenderSections(menuAccess);
 
   const renderLink = (item: DoctorMenuLinkItem, navPrefix: "sidebar" | "menu") => {
     const rawCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;

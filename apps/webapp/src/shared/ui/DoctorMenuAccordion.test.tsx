@@ -10,6 +10,8 @@ import {
   DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
 } from "./doctorNavLinks";
 
+const menuAccess = { role: "doctor" as const, adminMode: false };
+
 const pathnameRef = vi.hoisted(() => ({ value: "/app/doctor" }));
 const unreadCountRef = vi.hoisted(() => ({ value: 0 }));
 const intakeCountRef = vi.hoisted(() => ({ value: 0 }));
@@ -78,7 +80,7 @@ describe("DoctorMenuAccordion", () => {
   });
 
   it("opens Работа с пациентами by default when localStorage empty", async () => {
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
     });
@@ -92,7 +94,7 @@ describe("DoctorMenuAccordion", () => {
 
   it("toggles Работа с пациентами closed and open on header click", async () => {
     const user = userEvent.setup();
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => screen.getByRole("link", { name: "Сегодня" }));
     await user.click(screen.getByRole("button", { name: "Работа с пациентами" }));
     expect(screen.queryByRole("link", { name: "Сегодня" })).not.toBeInTheDocument();
@@ -112,7 +114,7 @@ describe("DoctorMenuAccordion", () => {
 
   it("adds assignments cluster when its header clicked without closing other open clusters", async () => {
     const user = userEvent.setup();
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => screen.getByRole("link", { name: "Сегодня" }));
     await user.click(screen.getByRole("button", { name: "Назначения" }));
     expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
@@ -127,7 +129,7 @@ describe("DoctorMenuAccordion", () => {
   });
 
   it("always shows standalone Библиотека файлов", async () => {
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => screen.getByRole("link", { name: "Библиотека файлов" }));
     expect(screen.getByRole("link", { name: "Библиотека файлов" })).toHaveAttribute(
       "href",
@@ -137,7 +139,7 @@ describe("DoctorMenuAccordion", () => {
 
   it("restores from legacy v1 single-cluster key when v2 absent", async () => {
     localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY, "assignments");
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     });
@@ -146,7 +148,7 @@ describe("DoctorMenuAccordion", () => {
 
   it("restores open clusters from localStorage (JSON array)", async () => {
     localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify(["assignments"]));
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     });
@@ -156,7 +158,7 @@ describe("DoctorMenuAccordion", () => {
   it("falls back to default cluster when localStorage invalid for both keys", async () => {
     localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, "not-json");
     localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY, "no-such-cluster");
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
     });
@@ -165,7 +167,7 @@ describe("DoctorMenuAccordion", () => {
   it("calls onNavigate when link clicked", async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();
-    render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" onNavigate={onNavigate} />);
+    render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} onNavigate={onNavigate} />);
     await waitFor(() => screen.getByRole("link", { name: "Сегодня" }));
     await user.click(screen.getByRole("link", { name: "Сегодня" }));
     expect(onNavigate).toHaveBeenCalledTimes(1);
@@ -174,7 +176,7 @@ describe("DoctorMenuAccordion", () => {
   it("shows online-intake and messages badges in sidebar when counts > 0", async () => {
     intakeCountRef.value = 4;
     unreadCountRef.value = 2;
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       const intake = screen.getByRole("link", { name: /Онлайн-заявки/ });
       const messages = screen.getByRole("link", { name: /Сообщения/ });
@@ -188,7 +190,7 @@ describe("DoctorMenuAccordion", () => {
   it("shows the same badges in sheet variant", async () => {
     intakeCountRef.value = 1;
     unreadCountRef.value = 5;
-    render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: /Онлайн-заявки/ })).toHaveAttribute(
         "id",
@@ -201,7 +203,7 @@ describe("DoctorMenuAccordion", () => {
   it("hides badges when counts are zero", async () => {
     intakeCountRef.value = 0;
     unreadCountRef.value = 0;
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => screen.getByRole("link", { name: /Онлайн-заявки/ }));
     expect(
       screen.getByRole("link", { name: /Онлайн-заявки/ }).querySelector("[aria-label^='Новых заявок']"),
@@ -213,7 +215,7 @@ describe("DoctorMenuAccordion", () => {
 
   it("shows 99+ when count is at least 100", async () => {
     intakeCountRef.value = 150;
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: /Онлайн-заявки/ })).toHaveTextContent("99+");
     });

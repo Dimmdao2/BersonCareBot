@@ -34,7 +34,6 @@ import { GoogleCalendarSection } from "./GoogleCalendarSection";
 import { AdminAuditLogSection } from "./AdminAuditLogSection";
 import { SystemHealthSection } from "./SystemHealthSection";
 import { ReminderStatsSection } from "./ReminderStatsSection";
-import { ProductAnalyticsSection } from "./ProductAnalyticsSection";
 import { HealthFailureArchiveSection } from "./HealthFailureArchiveSection";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
@@ -140,6 +139,9 @@ export default async function SettingsPage({
         ? adminTabRaw[0]
         : undefined;
   const healthArchiveProbe = parseHealthArchiveProbeParam(sp.probe);
+  if (adminTab === "product-analytics") {
+    redirect("/app/doctor/usage");
+  }
   const session = await getCurrentSession();
   if (!session) redirect("/app");
   if (session.user.role === "client") redirect("/app/patient/profile");
@@ -405,7 +407,6 @@ export default async function SettingsPage({
             }
             systemHealth={<SystemHealthSection />}
             reminderStats={<ReminderStatsSection />}
-            productAnalytics={<ProductAnalyticsSection />}
             healthArchive={
               <HealthFailureArchiveSection
                 initialProbe={healthArchiveProbe ?? "all"}

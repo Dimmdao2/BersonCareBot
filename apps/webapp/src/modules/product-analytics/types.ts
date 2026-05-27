@@ -53,8 +53,11 @@ export type RecordPushOpenInput = {
 
 export type ProductAnalyticsAdminSummary = {
   uniqueActiveUsers: number;
+  totalAuthLogins: number;
   totalAppOpens: number;
   totalPageViews: number;
+  totalActiveMinutes: number;
+  totalPushSent: number;
   totalPushOpens: number;
   pushOpenRate: number;
 };

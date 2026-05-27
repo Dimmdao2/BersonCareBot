@@ -20,8 +20,11 @@ const samplePayload = {
   generatedAt: "2026-05-27T12:00:00.000Z",
   summary: {
     uniqueActiveUsers: 2,
+    totalAuthLogins: 0,
     totalAppOpens: 4,
     totalPageViews: 5,
+    totalActiveMinutes: 0,
+    totalPushSent: 4,
     totalPushOpens: 1,
     pushOpenRate: 0.25,
   },

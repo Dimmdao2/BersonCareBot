@@ -23,10 +23,12 @@ import { DoctorMenuAccordion } from "@/shared/ui/DoctorMenuAccordion";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 import { DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
+import type { DoctorMenuAccess } from "@/shared/ui/doctorNavLinks";
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
   adminMode?: boolean;
+  menuAccess: DoctorMenuAccess;
   /** Когда true (админ + левый сайдбар в layout), кнопка «Меню» скрыта на md+. */
   hideMenuOnDesktop?: boolean;
 };
@@ -39,7 +41,7 @@ const DOCTOR_SHEET_LINK_CLASS = cn(
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
 const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
 
-export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: DoctorHeaderProps) {
+export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuOnDesktop }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? "/app/doctor";
   const title = getDoctorScreenTitle(pathname);
@@ -150,7 +152,12 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
               className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"
               aria-label="Разделы кабинета"
             >
-              <DoctorMenuAccordion variant="sheet" pathname={pathname} onNavigate={closeMenu} />
+              <DoctorMenuAccordion
+                variant="sheet"
+                pathname={pathname}
+                menuAccess={menuAccess}
+                onNavigate={closeMenu}
+              />
               <Separator className="my-2" />
               <Link href="/app/settings" onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
                 Профиль и настройки

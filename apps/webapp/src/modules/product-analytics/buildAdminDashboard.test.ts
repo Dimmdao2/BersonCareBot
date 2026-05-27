@@ -100,8 +100,11 @@ describe("buildAdminDashboard", () => {
       warmupSloganSamples: [{ sloganKey: "s1", sampleText: "Разминка" }],
     });
 
+    expect(dashboard.summary.totalAuthLogins).toBe(0);
     expect(dashboard.summary.totalAppOpens).toBe(4);
     expect(dashboard.summary.totalPageViews).toBe(5);
+    expect(dashboard.summary.totalActiveMinutes).toBe(2);
+    expect(dashboard.summary.totalPushSent).toBe(10);
     expect(dashboard.summary.totalPushOpens).toBe(2);
     expect(dashboard.summary.pushOpenRate).toBeCloseTo(0.2);
     expect(dashboard.summary.uniqueActiveUsers).toBe(2);
@@ -131,6 +134,27 @@ describe("buildAdminDashboard", () => {
     });
 
     expect(dashboard.activeUsersDaily).toEqual([{ day: "2026-05-20", activeUsers: 2 }]);
+  });
+
+  it("counts auth_login in summary", () => {
+    const dashboard = buildAdminDashboard({
+      windowHours: 24,
+      startHourInclusive: startHour,
+      hourlyRows: [
+        {
+          bucketHour: bucket,
+          eventType: "auth_login",
+          entryChannel: "browser",
+          pageKey: ALL,
+          topicCode: ALL,
+          pushKind: ALL,
+          warmupSloganKey: ALL,
+          eventCount: 7,
+        },
+      ],
+      userHourlyRows: [],
+    });
+    expect(dashboard.summary.totalAuthLogins).toBe(7);
   });
 
   it("excludes buckets before startHourInclusive", () => {

@@ -10,6 +10,7 @@ import {
   DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
   DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
 } from "@/shared/ui/doctorWorkspaceLayout";
+import type { DoctorMenuAccess } from "@/shared/ui/doctorNavLinks";
 
 const SIDEBAR_LINK_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
@@ -18,12 +19,13 @@ const SIDEBAR_LINK_CLASS = cn(
 
 type DoctorAdminSidebarProps = {
   userDisplayName?: string;
+  menuAccess: DoctorMenuAccess;
 };
 
 /**
  * Левое меню разделов кабинета на md+ (под полноширинной шапкой); на мобильных скрыто (Sheet в шапке).
  */
-export function DoctorAdminSidebar({ userDisplayName }: DoctorAdminSidebarProps) {
+export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? "/app/doctor";
 
   return (
@@ -41,7 +43,7 @@ export function DoctorAdminSidebar({ userDisplayName }: DoctorAdminSidebarProps)
     >
       <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Разделы</p>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Разделы кабинета">
-        <DoctorMenuAccordion variant="sidebar" pathname={pathname} />
+        <DoctorMenuAccordion variant="sidebar" pathname={pathname} menuAccess={menuAccess} />
         <Separator className="my-2" />
         <Link href="/app/settings" className={SIDEBAR_LINK_CLASS}>
           Профиль и настройки

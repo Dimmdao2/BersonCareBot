@@ -69,10 +69,12 @@ export function buildAdminDashboard(input: {
   const hourly = input.hourlyRows.filter((r) => inWindow(r.bucketHour));
   const userHourly = input.userHourlyRows.filter((r) => inWindow(r.bucketHour));
 
+  let totalAuthLogins = 0;
   let totalAppOpens = 0;
   let totalPageViews = 0;
   let totalPushOpens = 0;
   let totalPushSent = 0;
+  let totalActiveMinutes = 0;
 
   const channelByBucket = new Map<string, Record<ProductAnalyticsEntryChannel, number>>();
   const pageViews = new Map<string, number>();
@@ -95,6 +97,10 @@ export function buildAdminDashboard(input: {
       isRollupTotalDim(r.topicCode) &&
       isRollupTotalDim(r.pushKind) &&
       isRollupTotalDim(r.warmupSloganKey);
+
+    if (r.eventType === "auth_login" && isPlatformTotal) {
+      totalAuthLogins += r.eventCount;
+    }
 
     if (r.eventType === "app_open" && isPlatformTotal) {
       totalAppOpens += r.eventCount;
@@ -136,6 +142,7 @@ export function buildAdminDashboard(input: {
   const dailyActiveUsers = new Map<string, Set<string>>();
 
   for (const r of userHourly) {
+    totalActiveMinutes += r.activeMinutes;
     const activity = r.appOpens + r.pageViews + r.pushOpens + r.activeMinutes;
     if (activity <= 0) continue;
     activeUserIds.add(r.userId);
@@ -203,8 +210,11 @@ export function buildAdminDashboard(input: {
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     summary: {
       uniqueActiveUsers: activeUserIds.size,
+      totalAuthLogins,
       totalAppOpens,
       totalPageViews,
+      totalActiveMinutes,
+      totalPushSent,
       totalPushOpens,
       pushOpenRate: openRate(totalPushOpens, totalPushSent),
     },

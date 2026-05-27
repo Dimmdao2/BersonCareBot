@@ -32,10 +32,16 @@ export function DoctorWorkspaceShell({
         <DoctorHeader
           userDisplayName={userDisplayName}
           adminMode={adminMode}
+          menuAccess={{ role: userRole, adminMode }}
           hideMenuOnDesktop={showDoctorDesktopNav}
         />
         <div className={cn("flex min-h-0 flex-1", DOCTOR_WORKSPACE_TOP_PADDING_CLASS)}>
-          {showDoctorDesktopNav ? <DoctorAdminSidebar userDisplayName={userDisplayName} /> : null}
+          {showDoctorDesktopNav ? (
+            <DoctorAdminSidebar
+              userDisplayName={userDisplayName}
+              menuAccess={{ role: userRole, adminMode }}
+            />
+          ) : null}
           <div className="flex min-w-0 flex-1 flex-col">{children}</div>
         </div>
       </div>

@@ -7,9 +7,13 @@ import {
   DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
   DOCTOR_MENU_STANDALONE_LINKS,
   getDoctorMenuRenderSections,
+  isDoctorMenuLinkVisible,
   isDoctorMenuClusterId,
   isDoctorNavItemActive,
 } from "./doctorNavLinks";
+
+const doctorAccess = { role: "doctor" as const, adminMode: false };
+const adminAccess = { role: "admin" as const, adminMode: true };
 
 describe("isDoctorNavItemActive", () => {
   it("matches overview only on /app/doctor", () => {
@@ -53,7 +57,7 @@ describe("doctor menu structure", () => {
   });
 
   it("renders standalone library between app-content and communications", () => {
-    const sections = getDoctorMenuRenderSections();
+    const sections = getDoctorMenuRenderSections(doctorAccess);
     const types = sections.map((s) => s.type);
     expect(types).toEqual([
       "cluster",
@@ -90,6 +94,25 @@ describe("doctor menu structure", () => {
   it("exposes localStorage keys for accordion (legacy single id + open set JSON)", () => {
     expect(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY).toBe("doctorMenu.openCluster.v1");
     expect(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY).toBe("doctorMenu.openClusters.v1");
+  });
+
+  it("shows usage link only for admin in admin mode", () => {
+    const usage = { id: "usage", label: "Использование", href: "/app/doctor/usage", requiresAdminMode: true };
+    expect(isDoctorMenuLinkVisible(usage, doctorAccess)).toBe(false);
+    expect(isDoctorMenuLinkVisible(usage, { role: "admin", adminMode: false })).toBe(false);
+    expect(isDoctorMenuLinkVisible(usage, adminAccess)).toBe(true);
+
+    const systemDoctor = getDoctorMenuRenderSections(doctorAccess).find(
+      (s) => s.type === "cluster" && s.cluster.id === "system",
+    );
+    expect(systemDoctor?.type === "cluster" && systemDoctor.cluster.items.some((i) => i.id === "usage")).toBe(
+      false,
+    );
+
+    const systemAdmin = getDoctorMenuRenderSections(adminAccess).find(
+      (s) => s.type === "cluster" && s.cluster.id === "system",
+    );
+    expect(systemAdmin?.type === "cluster" && systemAdmin.cluster.items.some((i) => i.id === "usage")).toBe(true);
   });
 
   it("assigns badgeKey to online intake and messages only", () => {

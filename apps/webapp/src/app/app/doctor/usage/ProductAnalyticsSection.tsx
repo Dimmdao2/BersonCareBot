@@ -135,8 +135,11 @@ export function ProductAnalyticsSection() {
                 ]}
                 rows={[
                   { k: "Активные клиенты", v: data.summary.uniqueActiveUsers },
+                  { k: "Входы (auth_login)", v: data.summary.totalAuthLogins },
                   { k: "Заходы (app_open)", v: data.summary.totalAppOpens },
                   { k: "Просмотры страниц", v: data.summary.totalPageViews },
+                  { k: "Минуты активности (heartbeat)", v: data.summary.totalActiveMinutes },
+                  { k: "Push отправлено", v: data.summary.totalPushSent },
                   { k: "Открытия push", v: data.summary.totalPushOpens },
                   { k: "Open rate push", v: formatOpenRate(data.summary.pushOpenRate) },
                 ]}
