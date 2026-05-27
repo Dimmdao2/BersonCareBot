@@ -25,6 +25,7 @@
 - `buildPatientHomeWarmupPickContext.ts` — pick context для patient tier (`patientPractice` + `patientDailyWarmupPresentation`).
 - `recordDailyWarmupVideoView.ts` / `advanceDailyWarmupPresentationAfterVideoView.ts` — бизнес-логика после просмотра видео.
 - `dailyWarmupPresentationPorts.ts` + `infra/repos/pgPatientDailyWarmupPresentation.ts` — таблица `patient_daily_warmup_presentations`.
+- `dailyWarmupVideoViewPorts.ts` + `infra/repos/pgPatientDailyWarmupVideoView.ts` — журнал `patient_daily_warmup_video_views` (агрегат **`warmupVideoTopPages`** в **`loadContentEngagementStats`**).
 - `dailyWarmupHeroCooldownGate.ts` — hero «Разминка выполнена» только при `dailyWarmupCount === 1`.
 - `patientHomeRepeatCooldownSettings.ts` — парсинг `patient_home_daily_warmup_repeat_cooldown_minutes`, `patient_treatment_plan_item_done_repeat_cooldown_minutes`, `patient_home_warmup_skip_to_next_available_enabled` (дефолты 60 / 60 / true).
 - `patientHomeBlockPolicy.ts` - фильтр/сортировка блоков для главной, включая скрытие персональных блоков при `personalTierOk === false`.
@@ -62,7 +63,7 @@
 
 **Guest / no tier:** всегда первая страница в list; `patient_daily_warmup_presentations` не читается.
 
-**DDL:** migration `0084_patient_daily_warmup_presentations.sql` — `user_id` PK, `content_page_id`, `updated_at`.
+**DDL:** migration `0084_patient_daily_warmup_presentations.sql` — `user_id` PK, `content_page_id`, `updated_at`; migration `0085_patient_daily_warmup_video_views.sql` — журнал просмотров (`id`, `user_id`, `content_page_id`, `viewed_at`).
 
 Журнал продукта: [`docs/PATIENT_DAILY_WARMUP_UX/LOG.md`](../../../../docs/PATIENT_DAILY_WARMUP_UX/LOG.md).
 

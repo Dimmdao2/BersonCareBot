@@ -17,6 +17,11 @@ const PRESETS = [
   { hours: 720, label: "30 дн." },
 ] as const;
 
+function formatPushOpenRate(rate: number): string {
+  if (!Number.isFinite(rate) || rate <= 0) return "0%";
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
 function StatTable({
   rows,
   columns,
@@ -158,27 +163,45 @@ export function ReminderStatsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Журнал реакций</CardTitle>
+              <CardTitle className="text-sm">Открытия push</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <StatTable
                 columns={[
-                  { key: "k", header: "Действие" },
-                  { key: "v", header: "Кол-во" },
+                  { key: "k", header: "Метрика" },
+                  { key: "v", header: "Значение" },
                 ]}
                 rows={[
-                  { k: "done", v: data.journalByAction.done },
-                  { k: "skipped", v: data.journalByAction.skipped },
-                  { k: "snoozed", v: data.journalByAction.snoozed },
+                  { k: "Открытий", v: data.pushOpensSummary.opened },
+                  { k: "Отправлено", v: data.pushOpensSummary.sent },
+                  { k: "Доля открытий", v: formatPushOpenRate(data.pushOpensSummary.openRate) },
                 ]}
               />
-              <p className="text-xs font-medium text-muted-foreground">Пропуски: причины (топ)</p>
+              <p className="text-xs font-medium text-muted-foreground">По суткам (UTC)</p>
               <StatTable
                 columns={[
-                  { key: "reason", header: "Причина" },
-                  { key: "count", header: "Кол-во" },
+                  { key: "bucket", header: "Сутки" },
+                  { key: "sent", header: "sent" },
+                  { key: "opened", header: "opened" },
                 ]}
-                rows={data.journalSkipReasonsTop.map((r) => ({ reason: r.reason, count: r.count }))}
+                rows={data.pushOpensDaily.map((r) => ({
+                  bucket: r.bucket,
+                  sent: r.sent,
+                  opened: r.opened,
+                }))}
+              />
+              <p className="text-xs font-medium text-muted-foreground">По часам (UTC)</p>
+              <StatTable
+                columns={[
+                  { key: "bucket", header: "Час" },
+                  { key: "sent", header: "sent" },
+                  { key: "opened", header: "opened" },
+                ]}
+                rows={data.pushOpensHourly.map((r) => ({
+                  bucket: r.bucket,
+                  sent: r.sent,
+                  opened: r.opened,
+                }))}
               />
             </CardContent>
           </Card>

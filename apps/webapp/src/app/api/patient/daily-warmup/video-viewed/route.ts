@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     contentSections: deps.contentSections,
     systemSettings: deps.systemSettings,
     patientDailyWarmupPresentation: deps.patientDailyWarmupPresentation,
+    patientDailyWarmupVideoViews: deps.patientDailyWarmupVideoViews,
   });
 
   if (!result.ok) {

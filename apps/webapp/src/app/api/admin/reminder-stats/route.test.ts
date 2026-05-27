@@ -59,10 +59,12 @@ const samplePayload = {
   reminderRulesEnabledCount: 12,
   occurrenceHistoryHourly: [] as Array<{ bucket: string; sent: number; failed: number }>,
   occurrenceHistoryDaily: [] as Array<{ bucket: string; sent: number; failed: number }>,
-  journalByAction: { done: 1, skipped: 2, snoozed: 0 },
-  journalSkipReasonsTop: [] as Array<{ reason: string; count: number }>,
+  pushOpensSummary: { opened: 1, sent: 4, openRate: 0.25 },
+  pushOpensHourly: [] as Array<{ bucket: string; opened: number; sent: number }>,
+  pushOpensDaily: [] as Array<{ bucket: string; opened: number; sent: number }>,
   practiceBySource: { reminder: 3 } as Record<string, number>,
   practiceTopPages: [] as Array<{ contentPageId: string; section: string; slug: string; count: number }>,
+  warmupVideoTopPages: [] as Array<{ contentPageId: string; section: string; slug: string; count: number }>,
   videoPlayback: {
     byDelivery: { hls: 1, mp4: 0, file: 0 },
     fallbackTotal: 0,
@@ -97,7 +99,7 @@ describe("GET /api/admin/reminder-stats", () => {
     const res = await GET(new Request("http://localhost/api/admin/reminder-stats?windowHours=48"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as typeof samplePayload;
-    expect(body.journalByAction.done).toBe(1);
+    expect(body.pushOpensSummary.opened).toBe(1);
     expect(body.reminderRulesEnabledCount).toBe(12);
     expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({ windowHours: 48 });
   });

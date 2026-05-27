@@ -1,17 +1,26 @@
-import { and, asc, count, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, sql, sum } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { loadAdminPlaybackHealthMetrics, type AdminPlaybackHealthMetrics } from "@/app-layer/media/adminPlaybackHealthMetrics";
 import {
   loadAdminPlaybackClientHealthMetrics,
   type AdminPlaybackClientHealthMetrics,
 } from "@/app-layer/media/playbackClientEvents";
+import { productAnalyticsWindowStartHour } from "@/modules/product-analytics/buildAdminDashboard";
+import { patientDailyWarmupVideoViews } from "../../../db/schema/patientDailyWarmupVideoView";
 import { patientPracticeCompletions } from "../../../db/schema/patientPractice";
+import { productAnalyticsHourly } from "../../../db/schema/productAnalytics";
 import {
   contentPages,
-  reminderJournal,
   reminderOccurrenceHistory,
   reminderRules,
 } from "../../../db/schema/schema";
+
+export type ContentEngagementTopPageRow = {
+  contentPageId: string;
+  section: string;
+  slug: string;
+  count: number;
+};
 
 const DEFAULT_WINDOW_HOURS = 168;
 const MIN_WINDOW_HOURS = 1;
@@ -26,6 +35,20 @@ export type OccurrenceHourlyBucket = {
 /** UTC-дни (`date_trunc('day', occurred_at)`). */
 export type OccurrenceDailyBucket = OccurrenceHourlyBucket;
 
+/** UTC-час / сутки из `product_analytics_hourly` (`push_open`, `push_sent`). */
+export type PushOpenBucket = {
+  bucket: string;
+  opened: number;
+  sent: number;
+};
+
+export type PushOpensSummary = {
+  opened: number;
+  sent: number;
+  /** 0…1; 0 если sent = 0 */
+  openRate: number;
+};
+
 export type ContentEngagementStatsResponse = {
   windowHours: number;
   /**
@@ -34,19 +57,13 @@ export type ContentEngagementStatsResponse = {
   reminderRulesEnabledCount: number;
   occurrenceHistoryHourly: OccurrenceHourlyBucket[];
   occurrenceHistoryDaily: OccurrenceDailyBucket[];
-  journalByAction: {
-    done: number;
-    skipped: number;
-    snoozed: number;
-  };
-  journalSkipReasonsTop: Array<{ reason: string; count: number }>;
+  pushOpensSummary: PushOpensSummary;
+  pushOpensHourly: PushOpenBucket[];
+  pushOpensDaily: PushOpenBucket[];
   practiceBySource: Record<string, number>;
-  practiceTopPages: Array<{
-    contentPageId: string;
-    section: string;
-    slug: string;
-    count: number;
-  }>;
+  practiceTopPages: ContentEngagementTopPageRow[];
+  /** Открытия видео разминки дня (`patient_daily_warmup_video_views`), не завершения практики. */
+  warmupVideoTopPages: ContentEngagementTopPageRow[];
   /** Same rolling window as other blocks; reuses `loadAdminPlaybackHealthMetrics`. */
   videoPlayback: AdminPlaybackHealthMetrics;
   /** Ошибки воспроизведения в браузере; тот же helper, что `GET /api/admin/system-health` → `videoPlaybackClient`. */
@@ -86,6 +103,38 @@ function mergeOccurrenceHourly(
     .map(([bucket, v]) => ({ bucket, sent: v.sent, failed: v.failed }));
 }
 
+const PUSH_ANALYTICS_EVENT_TYPES = ["push_open", "push_sent"] as const;
+
+function mergePushOpenBuckets(
+  rows: Array<{ bucket: string; eventType: string; n: unknown }>,
+): PushOpenBucket[] {
+  const map = new Map<string, { opened: number; sent: number }>();
+  for (const r of rows) {
+    if (!map.has(r.bucket)) map.set(r.bucket, { opened: 0, sent: 0 });
+    const m = map.get(r.bucket)!;
+    const n = Number(r.n ?? 0);
+    if (r.eventType === "push_open") m.opened += n;
+    else if (r.eventType === "push_sent") m.sent += n;
+  }
+  return [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([bucket, v]) => ({ bucket, opened: v.opened, sent: v.sent }));
+}
+
+function summarizePushOpens(buckets: PushOpenBucket[]): PushOpensSummary {
+  let opened = 0;
+  let sent = 0;
+  for (const b of buckets) {
+    opened += b.opened;
+    sent += b.sent;
+  }
+  return {
+    opened,
+    sent,
+    openRate: sent > 0 ? opened / sent : 0,
+  };
+}
+
 /**
  * Платформенные агрегаты: напоминания, практика по страницам, метрики выдачи видео (без списков PII).
  * Используется и админкой (`/api/admin/reminder-stats`), и кабинетом врача (`/api/doctor/content-stats`).
@@ -95,18 +144,22 @@ export async function loadContentEngagementStats(opts: {
 }): Promise<ContentEngagementStatsResponse> {
   const windowHours = clampWindowHours(opts.windowHours);
   const windowCutoffSql = sql`(now() - (${windowHours}::integer * interval '1 hour'))`;
+  const pushStartHour = productAnalyticsWindowStartHour(windowHours);
   const db = getDrizzle();
 
   const hourTruncOcc = sql`date_trunc('hour', ${reminderOccurrenceHistory.occurredAt})`;
   const dayTruncOcc = sql`date_trunc('day', ${reminderOccurrenceHistory.occurredAt})`;
+  const hourTruncPush = sql`date_trunc('hour', ${productAnalyticsHourly.bucketHour})`;
+  const dayTruncPush = sql`date_trunc('day', ${productAnalyticsHourly.bucketHour})`;
 
   const [
     occRows,
     occDailyRows,
-    journalRows,
-    skipRows,
+    pushHourlyRows,
+    pushDailyRows,
     practiceSourceRows,
     practicePageRows,
+    warmupVideoPageRows,
     reminderRulesEnabledRow,
     videoPlayback,
     videoPlaybackClient,
@@ -133,29 +186,34 @@ export async function loadContentEngagementStats(opts: {
       .orderBy(asc(dayTruncOcc)),
     db
       .select({
-        action: reminderJournal.action,
-        n: count(),
+        bucket: sql<string>`${hourTruncPush}::text`.as("bucket"),
+        eventType: productAnalyticsHourly.eventType,
+        n: sum(productAnalyticsHourly.eventCount),
       })
-      .from(reminderJournal)
-      .where(gte(reminderJournal.createdAt, windowCutoffSql))
-      .groupBy(reminderJournal.action),
-    db
-      .select({
-        reason: sql<string>`left(btrim(${reminderJournal.skipReason}), 200)`,
-        n: count(),
-      })
-      .from(reminderJournal)
+      .from(productAnalyticsHourly)
       .where(
         and(
-          eq(reminderJournal.action, "skipped"),
-          gte(reminderJournal.createdAt, windowCutoffSql),
-          isNotNull(reminderJournal.skipReason),
-          sql`btrim(${reminderJournal.skipReason}) <> ''`,
+          gte(productAnalyticsHourly.bucketHour, pushStartHour),
+          inArray(productAnalyticsHourly.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
         ),
       )
-      .groupBy(sql`left(btrim(${reminderJournal.skipReason}), 200)`)
-      .orderBy(desc(count()))
-      .limit(20),
+      .groupBy(hourTruncPush, productAnalyticsHourly.eventType)
+      .orderBy(asc(hourTruncPush)),
+    db
+      .select({
+        bucket: sql<string>`${dayTruncPush}::text`.as("bucket"),
+        eventType: productAnalyticsHourly.eventType,
+        n: sum(productAnalyticsHourly.eventCount),
+      })
+      .from(productAnalyticsHourly)
+      .where(
+        and(
+          gte(productAnalyticsHourly.bucketHour, pushStartHour),
+          inArray(productAnalyticsHourly.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
+        ),
+      )
+      .groupBy(dayTruncPush, productAnalyticsHourly.eventType)
+      .orderBy(asc(dayTruncPush)),
     db
       .select({
         source: patientPracticeCompletions.source,
@@ -177,18 +235,31 @@ export async function loadContentEngagementStats(opts: {
       .groupBy(patientPracticeCompletions.contentPageId, contentPages.section, contentPages.slug)
       .orderBy(desc(count()))
       .limit(15),
+    db
+      .select({
+        contentPageId: patientDailyWarmupVideoViews.contentPageId,
+        section: contentPages.section,
+        slug: contentPages.slug,
+        n: count(),
+      })
+      .from(patientDailyWarmupVideoViews)
+      .innerJoin(contentPages, eq(patientDailyWarmupVideoViews.contentPageId, contentPages.id))
+      .where(gte(patientDailyWarmupVideoViews.viewedAt, windowCutoffSql))
+      .groupBy(patientDailyWarmupVideoViews.contentPageId, contentPages.section, contentPages.slug)
+      .orderBy(desc(count()))
+      .limit(15),
     db.select({ cnt: count() }).from(reminderRules).where(eq(reminderRules.isEnabled, true)),
     loadAdminPlaybackHealthMetrics({ windowHours }),
     loadAdminPlaybackClientHealthMetrics({ windowHours }),
   ]);
 
-  const journalByAction = { done: 0, skipped: 0, snoozed: 0 };
-  for (const r of journalRows) {
-    const n = Number(r.n ?? 0);
-    if (r.action === "done") journalByAction.done += n;
-    else if (r.action === "skipped") journalByAction.skipped += n;
-    else if (r.action === "snoozed") journalByAction.snoozed += n;
-  }
+  const pushOpensHourly = mergePushOpenBuckets(
+    pushHourlyRows.map((r) => ({ bucket: r.bucket, eventType: r.eventType, n: r.n })),
+  );
+  const pushOpensDaily = mergePushOpenBuckets(
+    pushDailyRows.map((r) => ({ bucket: r.bucket, eventType: r.eventType, n: r.n })),
+  );
+  const pushOpensSummary = summarizePushOpens(pushOpensHourly);
 
   const practiceBySource: Record<string, number> = {};
   for (const r of practiceSourceRows) {
@@ -206,10 +277,17 @@ export async function loadContentEngagementStats(opts: {
     occurrenceHistoryDaily: mergeOccurrenceHourly(
       occDailyRows.map((r) => ({ bucket: r.bucket, status: r.status, n: r.n })),
     ),
-    journalByAction,
-    journalSkipReasonsTop: skipRows.map((r) => ({ reason: r.reason, count: Number(r.n ?? 0) })),
+    pushOpensSummary,
+    pushOpensHourly,
+    pushOpensDaily,
     practiceBySource,
     practiceTopPages: practicePageRows.map((r) => ({
+      contentPageId: r.contentPageId,
+      section: r.section,
+      slug: r.slug,
+      count: Number(r.n ?? 0),
+    })),
+    warmupVideoTopPages: warmupVideoPageRows.map((r) => ({
       contentPageId: r.contentPageId,
       section: r.section,
       slug: r.slug,

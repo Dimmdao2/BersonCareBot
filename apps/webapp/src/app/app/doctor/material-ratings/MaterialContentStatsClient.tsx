@@ -33,6 +33,59 @@ const STROKE_FAILED = "hsl(0 72% 48%)";
 const FILL_SENT = "hsl(215 55% 52% / 0.85)";
 const FILL_FAILED = "hsl(0 65% 52% / 0.85)";
 const FILL_PRACTICE = "hsl(142 45% 42% / 0.9)";
+const FILL_WARMUP_VIDEO = "hsl(215 55% 48% / 0.9)";
+const STROKE_PUSH_OPEN = "hsl(142 50% 38%)";
+const FILL_PUSH_OPEN = "hsl(142 45% 42% / 0.85)";
+const FILL_PUSH_SENT = "hsl(215 55% 52% / 0.85)";
+
+type TopPageRow = { section: string; slug: string; count: number };
+
+function topPagesToChartData(rows: TopPageRow[]) {
+  return rows.map((r) => {
+    const full = `${r.section}/${r.slug}`;
+    return {
+      label: full.length > 44 ? `${full.slice(0, 41)}…` : full,
+      count: r.count,
+    };
+  });
+}
+
+function chartHeightForRows(rowCount: number): number {
+  return Math.min(360, 80 + rowCount * 28);
+}
+
+function TopPagesHorizontalBarChart({
+  data,
+  barName,
+  fill,
+}: {
+  data: Array<{ label: string; count: number }>;
+  barName: string;
+  fill: string;
+}) {
+  if (data.length === 0) {
+    return <p className="text-sm text-muted-foreground">Нет данных за период.</p>;
+  }
+  const height = chartHeightForRows(data.length);
+  return (
+    <div className="w-full min-w-0" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart layout="vertical" data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+          <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+          <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+          <YAxis
+            type="category"
+            dataKey="label"
+            width={168}
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+          />
+          <Tooltip />
+          <Bar dataKey="count" name={barName} fill={fill} radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 function shortUtcDay(bucket: string): string {
   const s = bucket.trim();
@@ -43,6 +96,11 @@ function shortUtcDay(bucket: string): string {
 function shortUtcHour(bucket: string): string {
   const s = bucket.trim().replace("T", " ");
   return s.length >= 16 ? s.slice(0, 16) : s;
+}
+
+function formatPushOpenRate(rate: number): string {
+  if (!Number.isFinite(rate) || rate <= 0) return "0%";
+  return `${(rate * 100).toFixed(1)}%`;
 }
 
 export function MaterialContentStatsClient() {
@@ -98,21 +156,37 @@ export function MaterialContentStatsClient() {
   );
 
   const practiceChartData = useMemo(
-    () =>
-      (data?.practiceTopPages ?? []).map((r) => ({
-        label:
-          `${r.section}/${r.slug}`.length > 44 ? `${`${r.section}/${r.slug}`.slice(0, 41)}…` : `${r.section}/${r.slug}`,
-        count: r.count,
-      })),
+    () => topPagesToChartData(data?.practiceTopPages ?? []),
     [data?.practiceTopPages],
   );
 
-  const practiceChartHeight = Math.min(360, 80 + practiceChartData.length * 28);
+  const warmupVideoChartData = useMemo(
+    () => topPagesToChartData(data?.warmupVideoTopPages ?? []),
+    [data?.warmupVideoTopPages],
+  );
+
+  const pushDailyChartData = useMemo(
+    () =>
+      (data?.pushOpensDaily ?? []).map((r) => ({
+        ...r,
+        day: shortUtcDay(r.bucket),
+      })),
+    [data?.pushOpensDaily],
+  );
+
+  const pushHourlyChartData = useMemo(
+    () =>
+      (data?.pushOpensHourly ?? []).map((r) => ({
+        ...r,
+        hour: shortUtcHour(r.bucket),
+      })),
+    [data?.pushOpensHourly],
+  );
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Платформа за выбранный период (не фильтр по вашим пациентам). Отправки напоминаний и часы — UTC.
+        Платформа за выбранный период (не фильтр по вашим пациентам). Часы и сутки — UTC.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <Select
@@ -223,75 +297,105 @@ export function MaterialContentStatsClient() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Реакции на напоминания</CardTitle>
+              <CardTitle className="text-sm">Открытия push</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-6 text-sm tabular-nums">
                 <span>
-                  Выполнено: <strong>{data.journalByAction.done}</strong>
+                  Открытий: <strong>{data.pushOpensSummary.opened}</strong>
                 </span>
                 <span>
-                  Пропуск: <strong>{data.journalByAction.skipped}</strong>
+                  Отправлено: <strong>{data.pushOpensSummary.sent}</strong>
                 </span>
                 <span>
-                  Отложено: <strong>{data.journalByAction.snoozed}</strong>
-                </span>
-                <span>
-                  Правил включено (всего в системе): <strong>{data.reminderRulesEnabledCount}</strong>
+                  Доля открытий: <strong>{formatPushOpenRate(data.pushOpensSummary.openRate)}</strong>
                 </span>
               </div>
-              <div className="h-[160px] w-full max-w-md min-w-0">
+              <div className="h-[200px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={[
-                      { name: "Выполнено", v: data.journalByAction.done },
-                      { name: "Пропуск", v: data.journalByAction.skipped },
-                      { name: "Отложено", v: data.journalByAction.snoozed },
-                    ]}
-                    margin={{ top: 8, right: 8, left: 4, bottom: 8 }}
-                  >
+                  <BarChart data={pushDailyChartData} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
                     <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      interval={0}
+                      angle={-35}
+                      textAnchor="end"
+                      height={60}
+                    />
                     <YAxis width={36} allowDecimals={false} tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Bar dataKey="v" name="Событий" fill={FILL_SENT} radius={[4, 4, 0, 0]} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        fontSize: 12,
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="sent" name="Отправлено" fill={FILL_PUSH_SENT} />
+                    <Bar dataKey="opened" name="Открыто" fill={FILL_PUSH_OPEN} />
                   </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="h-[200px] w-full min-w-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={pushHourlyChartData} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="hour"
+                      tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                      interval="preserveStartEnd"
+                      minTickGap={24}
+                    />
+                    <YAxis width={36} allowDecimals={false} tick={{ fontSize: 10 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        fontSize: 12,
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Line
+                      type="monotone"
+                      dataKey="opened"
+                      name="Открыто"
+                      stroke={STROKE_PUSH_OPEN}
+                      dot={false}
+                      strokeWidth={2}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="sent"
+                      name="Отправлено"
+                      stroke={STROKE_SENT}
+                      dot={false}
+                      strokeWidth={2}
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Завершения практики по страницам (топ)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {practiceChartData.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Нет данных за период.</p>
-              ) : (
-                <div className="w-full min-w-0" style={{ height: practiceChartHeight }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      layout="vertical"
-                      data={practiceChartData}
-                      margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
-                    >
-                      <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                      <YAxis
-                        type="category"
-                        dataKey="label"
-                        width={168}
-                        tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      />
-                      <Tooltip />
-                      <Bar dataKey="count" name="Завершений" fill={FILL_PRACTICE} radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">Завершения практики по страницам (топ)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TopPagesHorizontalBarChart data={practiceChartData} barName="Завершений" fill={FILL_PRACTICE} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">Открытия видео разминок по страницам (топ)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TopPagesHorizontalBarChart data={warmupVideoChartData} barName="Просмотров" fill={FILL_WARMUP_VIDEO} />
+              </CardContent>
+            </Card>
+          </div>
 
           <Card>
             <CardHeader className="py-3">

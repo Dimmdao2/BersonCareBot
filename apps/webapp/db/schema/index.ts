@@ -10,6 +10,7 @@ export * from "./entityComments";
 export * from "./courses";
 export * from "./patientPractice";
 export * from "./patientDailyWarmupPresentation";
+export * from "./patientDailyWarmupVideoView";
 export * from "./materialRatings";
 export * from "./patientContentRatingFeedback";
 export * from "./patientDiarySnapshots";

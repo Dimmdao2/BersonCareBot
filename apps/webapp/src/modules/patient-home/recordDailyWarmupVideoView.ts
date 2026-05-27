@@ -5,9 +5,11 @@ import {
   type PatientHomeTodayConfigDeps,
 } from "@/modules/patient-home/todayConfig";
 import type { PatientDailyWarmupPresentationPort } from "@/modules/patient-home/dailyWarmupPresentationPorts";
+import type { PatientDailyWarmupVideoViewPort } from "@/modules/patient-home/dailyWarmupVideoViewPorts";
 
 export type RecordDailyWarmupVideoViewDeps = PatientHomeTodayConfigDeps & {
   patientDailyWarmupPresentation: PatientDailyWarmupPresentationPort;
+  patientDailyWarmupVideoViews: PatientDailyWarmupVideoViewPort;
 };
 
 export async function recordDailyWarmupVideoView(
@@ -26,6 +28,7 @@ export async function recordDailyWarmupVideoView(
       deps.patientDailyWarmupPresentation,
     ),
   });
+  await deps.patientDailyWarmupVideoViews.recordView(userId, contentPageId);
 
   return { ok: true };
 }

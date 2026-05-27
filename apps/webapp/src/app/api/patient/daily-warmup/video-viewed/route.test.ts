@@ -18,6 +18,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     contentSections: {},
     systemSettings: {},
     patientDailyWarmupPresentation: {},
+    patientDailyWarmupVideoViews: { recordView: vi.fn() },
   }),
 }));
 
