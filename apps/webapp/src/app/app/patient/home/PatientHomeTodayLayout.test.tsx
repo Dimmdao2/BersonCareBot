@@ -112,7 +112,7 @@ describe("PatientHomeTodayLayout", () => {
     expect(split).toHaveClass("md:order-[43]");
   });
 
-  it("keeps plan on mood row (order 40) when situations block is absent", () => {
+  it("stretches plan full-width when situations block is absent", () => {
     const { container } = render(
       <PatientHomeTodayLayout
         personalizedName={null}
@@ -120,8 +120,10 @@ describe("PatientHomeTodayLayout", () => {
       />,
     );
     const plan = container.querySelector('[data-patient-home-block="plan"]');
-    expect(plan).toHaveAttribute("data-md-order", "40");
-    expect(plan).toHaveClass("md:order-[40]");
+    expect(plan).toHaveAttribute("data-md-order", "20");
+    expect(plan).toHaveAttribute("data-md-col-start", "1");
+    expect(plan).toHaveAttribute("data-md-col-span", "12");
+    expect(plan).toHaveClass("md:col-span-12");
   });
 
   it("does not render full-width carousel wrapper when carousel block is absent", () => {
@@ -139,6 +141,81 @@ describe("PatientHomeTodayLayout", () => {
 
     const warmupOnly = container.querySelector('[data-patient-home-block="daily_warmup"]');
     expect(warmupOnly).toHaveClass("sm:col-span-12");
+    expect(warmupOnly).toHaveClass("md:col-span-12");
+    expect(warmupOnly).toHaveAttribute("data-md-col-span", "12");
+  });
+
+  it("stretches useful post full-width when warmup block is absent", () => {
+    const { container } = render(
+      <PatientHomeTodayLayout
+        personalizedName={null}
+        blocks={[
+          block("useful_post", "UsefulPost"),
+          block("booking", "Booking"),
+        ]}
+      />,
+    );
+
+    const usefulPostOnly = container.querySelector('[data-patient-home-block="useful_post"]');
+    expect(usefulPostOnly).toHaveClass("sm:col-span-12");
+    expect(usefulPostOnly).toHaveClass("md:col-span-12");
+    expect(usefulPostOnly).toHaveAttribute("data-md-col-start", "1");
+    expect(usefulPostOnly).toHaveAttribute("data-md-col-span", "12");
+  });
+
+  it("keeps md placement stable across useful_post and situations combinations", () => {
+    const cases = [
+      {
+        name: "post on, situations on",
+        blocks: [block("daily_warmup", "Warmup"), block("useful_post", "UsefulPost"), block("situations", "Situations"), block("plan", "Plan")],
+        expected: {
+          daily_warmup: ["1", "8"],
+          useful_post: ["9", "4"],
+          situations: ["1", "8"],
+          plan: ["9", "4"],
+        },
+      },
+      {
+        name: "post off, situations on",
+        blocks: [block("daily_warmup", "Warmup"), block("situations", "Situations"), block("plan", "Plan")],
+        expected: {
+          daily_warmup: ["1", "12"],
+          situations: ["1", "8"],
+          plan: ["9", "4"],
+        },
+      },
+      {
+        name: "post on, situations off",
+        blocks: [block("daily_warmup", "Warmup"), block("useful_post", "UsefulPost"), block("plan", "Plan")],
+        expected: {
+          daily_warmup: ["1", "8"],
+          useful_post: ["9", "4"],
+          plan: ["1", "12"],
+        },
+      },
+      {
+        name: "post off, situations off",
+        blocks: [block("daily_warmup", "Warmup"), block("plan", "Plan")],
+        expected: {
+          daily_warmup: ["1", "12"],
+          plan: ["1", "12"],
+        },
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const { container, unmount } = render(
+        <PatientHomeTodayLayout personalizedName={null} blocks={[...testCase.blocks]} />,
+      );
+
+      for (const [code, [colStart, colSpan]] of Object.entries(testCase.expected)) {
+        const node = container.querySelector(`[data-patient-home-block="${code}"]`);
+        expect(node, testCase.name).toHaveAttribute("data-md-col-start", colStart);
+        expect(node, testCase.name).toHaveAttribute("data-md-col-span", colSpan);
+      }
+
+      unmount();
+    }
   });
 
   it("keeps mobile block order in the same order as resolved settings", () => {

@@ -40,7 +40,7 @@ function smHeroRowLayout(
 /** Wide-viewport grid placement (`md+`): Tailwind classes + stable `data-md-*` for tests (avoid coupling tests to full class strings). */
 function desktopBlockLayout(
   code: PatientHomeTodayLayoutBlockCode,
-  ctx: { hasPlan: boolean; hasSituations: boolean },
+  ctx: { hasDailyWarmup: boolean; hasUsefulPost: boolean; hasPlan: boolean; hasSituations: boolean },
 ): {
   className: string;
   "data-md-order"?: string;
@@ -50,17 +50,21 @@ function desktopBlockLayout(
   switch (code) {
     case "daily_warmup":
       return {
-        className: "md:col-span-8 md:col-start-1 md:order-[10]",
+        className: ctx.hasUsefulPost ?
+          "md:col-span-8 md:col-start-1 md:order-[10]"
+        : "md:col-span-12 md:col-start-1 md:order-[10]",
         "data-md-order": "10",
         "data-md-col-start": "1",
-        "data-md-col-span": "8",
+        "data-md-col-span": ctx.hasUsefulPost ? "8" : "12",
       };
     case "useful_post":
       return {
-        className: "md:col-span-4 md:col-start-9 md:order-[10]",
+        className: ctx.hasDailyWarmup ?
+          "md:col-span-4 md:col-start-9 md:order-[10]"
+        : "md:col-span-12 md:col-start-1 md:order-[10]",
         "data-md-order": "10",
-        "data-md-col-start": "9",
-        "data-md-col-span": "4",
+        "data-md-col-start": ctx.hasDailyWarmup ? "9" : "1",
+        "data-md-col-span": ctx.hasDailyWarmup ? "4" : "12",
       };
     case "situations":
       return ctx.hasPlan ?
@@ -124,10 +128,10 @@ function desktopBlockLayout(
             "data-md-col-span": "4",
           }
         : {
-            className: "md:col-span-4 md:col-start-9 md:order-[40]",
-            "data-md-order": "40",
-            "data-md-col-start": "9",
-            "data-md-col-span": "4",
+            className: "md:col-span-12 md:col-start-1 md:order-[20]",
+            "data-md-order": "20",
+            "data-md-col-start": "1",
+            "data-md-col-span": "12",
           };
     /** Полная ширина: неделя + самочувствие (на `md+` не сжимать в 4 колонки). */
     case "mood_checkin":
@@ -160,7 +164,7 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, unre
   const hasPlan = blocks.some((b) => b.code === "plan");
   const hasSituations = blocks.some((b) => b.code === "situations");
   const heroRowCtx = { hasDailyWarmup, hasUsefulPost };
-  const desktopCtx = { hasPlan, hasSituations };
+  const desktopCtx = { hasDailyWarmup, hasUsefulPost, hasPlan, hasSituations };
 
   return (
     <div
