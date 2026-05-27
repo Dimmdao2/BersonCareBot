@@ -39,6 +39,8 @@ describe("createProductAnalyticsService", () => {
       getAdminDashboard: vi.fn(),
       purgeRecentOlderThan: vi.fn(async () => ({ deleted: 0 })),
       purgeUserHourlyOlderThan: vi.fn(async () => ({ deleted: 0 })),
+      purgeHourlyOlderThan: vi.fn(async () => ({ deleted: 0 })),
+      purgePushNotificationsOlderThan: vi.fn(async () => ({ deleted: 0 })),
     };
     const svc = createProductAnalyticsService(port);
     await svc.recordEventsBatch([

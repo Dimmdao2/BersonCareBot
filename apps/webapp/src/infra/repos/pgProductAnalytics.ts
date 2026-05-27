@@ -11,7 +11,7 @@ import {
   userHourlyDeltaFromEvent,
   userHourlyPageKeyForEvent,
 } from "@/modules/product-analytics/aggregateKeys";
-import type { ProductAnalyticsPort } from "@/modules/product-analytics/ports";
+import type { ProductAnalyticsPort, ProductAnalyticsPurgeOptions } from "@/modules/product-analytics/ports";
 import type { ProductAnalyticsIngestEvent, RecordPushOpenInput } from "@/modules/product-analytics/types";
 import { PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
 import {
@@ -30,6 +30,9 @@ function pgErrCode(e: unknown): string | undefined {
   return undefined;
 }
 
+function retentionCutoffIso(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
 
 async function upsertHourlyCount(
   db: ReturnType<typeof getDrizzle>,
@@ -270,9 +273,16 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       });
     },
 
-    async purgeRecentOlderThan(days) {
+    async purgeRecentOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
       const db = getDrizzle();
-      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      const cutoff = retentionCutoffIso(days);
+      if (options?.dryRun) {
+        const row = await db
+          .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+          .from(productAnalyticsEventsRecent)
+          .where(lt(productAnalyticsEventsRecent.occurredAt, cutoff));
+        return { deleted: Number.parseInt(row[0]?.c ?? "0", 10) || 0 };
+      }
       const deleted = await db
         .delete(productAnalyticsEventsRecent)
         .where(lt(productAnalyticsEventsRecent.occurredAt, cutoff))
@@ -280,15 +290,54 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       return { deleted: deleted.length };
     },
 
-    async purgeUserHourlyOlderThan(days) {
+    async purgeUserHourlyOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
       const db = getDrizzle();
-      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      const cutoff = retentionCutoffIso(days);
+      if (options?.dryRun) {
+        const row = await db
+          .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+          .from(productAnalyticsUserHourly)
+          .where(lt(productAnalyticsUserHourly.bucketHour, cutoff));
+        return { deleted: Number.parseInt(row[0]?.c ?? "0", 10) || 0 };
+      }
       const deleted = await db
         .delete(productAnalyticsUserHourly)
         .where(lt(productAnalyticsUserHourly.bucketHour, cutoff))
-        .returning({
-          userId: productAnalyticsUserHourly.userId,
-        });
+        .returning({ userId: productAnalyticsUserHourly.userId });
+      return { deleted: deleted.length };
+    },
+
+    async purgeHourlyOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
+      const db = getDrizzle();
+      const cutoff = retentionCutoffIso(days);
+      if (options?.dryRun) {
+        const row = await db
+          .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+          .from(productAnalyticsHourly)
+          .where(lt(productAnalyticsHourly.bucketHour, cutoff));
+        return { deleted: Number.parseInt(row[0]?.c ?? "0", 10) || 0 };
+      }
+      const deleted = await db
+        .delete(productAnalyticsHourly)
+        .where(lt(productAnalyticsHourly.bucketHour, cutoff))
+        .returning({ bucketHour: productAnalyticsHourly.bucketHour });
+      return { deleted: deleted.length };
+    },
+
+    async purgePushNotificationsOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
+      const db = getDrizzle();
+      const cutoff = retentionCutoffIso(days);
+      if (options?.dryRun) {
+        const row = await db
+          .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+          .from(productPushNotifications)
+          .where(lt(productPushNotifications.createdAt, cutoff));
+        return { deleted: Number.parseInt(row[0]?.c ?? "0", 10) || 0 };
+      }
+      const deleted = await db
+        .delete(productPushNotifications)
+        .where(lt(productPushNotifications.createdAt, cutoff))
+        .returning({ id: productPushNotifications.id });
       return { deleted: deleted.length };
     },
   };

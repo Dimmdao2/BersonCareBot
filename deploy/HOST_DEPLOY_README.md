@@ -322,6 +322,8 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Retention журнала ошибок HLS‑прокси (HOUSEKEEPING):** `POST /api/internal/media-hls-proxy-errors/retention` с тем же Bearer: удаление строк **`media_hls_proxy_error_events`** старше окна **`?days=`** суток (по умолчанию **90**, минимум 1; **`?dryRun=1`** — только подсчёт затронутых строк без удаления). На хосте достаточно **редкого** cron на loopback, логично ставить **рядом по расписанию** с retention почасовой playback‑статистики (`media-playback-stats/retention`), чтобы housekeeping по медиа‑метрикам и по логам прокси совпадали по ритму.
 
+**Продуктовая аналитика (HOUSEKEEPING):** `POST /api/internal/product-analytics/retention` с тем же Bearer. Удаляет устаревшие строки в **`product_analytics_events_recent`** (**`?recentDays=`**, по умолчанию **90**), **`product_analytics_user_hourly`** (**`?userHourlyDays=`**, **180**), **`product_analytics_hourly`** (**`?hourlyDays=`**, **730**), **`product_push_notifications`** (**`?pushDays=`**, **730**). **`?dryRun=1`** — только подсчёт без DELETE. Ответ JSON с полями `deletedRecent`, `deletedUserHourly`, `deletedHourly`, `deletedPushNotifications`. На хосте — **редкий** weekly cron на loopback (рядом с playback/HLS retention).
+
 **HLS: reconcile очереди транскода (легаси-библиотека):** `POST /api/internal/media-transcode/reconcile` с тем же Bearer и JSON-телом **`{ "limit": 50 }`** (опционально; верхний cap на стороне сервера **200**). Работает только при **`video_hls_pipeline_enabled`** и **`video_hls_reconcile_enabled`** в admin **`system_settings`** (иначе **`503`** `pipeline_disabled` / `reconcile_disabled`). Один вызов = один батч постановки в **`media_transcode_jobs`** по той же логике, что скрипт phase-07 backfill. Успешная итерация обновляет строку **`public.operator_job_status`** (`job_family=media`, ключ **`media_transcode.reconcile`**), чтобы в админском «Здоровье системы» было видно последний тик reconcile.
 
 **Integrator push outbox (опциональный relay):** `POST /api/internal/system-health-guard/tick` с тем же Bearer — читает **`public.integrator_push_outbox`** и при деградации шлёт Telegram/Max, если в **`admin_incident_alert_config`** включена тема **`system_health_db_guard`** (по умолчанию **выключена**). Рекомендуется редкий cron на loopback (например **`*/15 * * * *`**), тот же `INTERNAL_JOB_SECRET`, тот же nginx `allow 127.0.0.1` для `/api/internal/`. Дрейн очереди по-прежнему: `pnpm run integrator-push-outbox-tick` или отдельный systemd unit.
@@ -406,6 +408,20 @@ location /api/internal/ {
 
 ```cron
 20 4 * * 1 root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-hls-proxy-errors/retention" >/dev/null'
+```
+
+Пример недельной очистки продуктовой аналитики (понедельник **04:30**, после HLS‑proxy retention):
+
+```cron
+30 4 * * 1 root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/product-analytics/retention" >/dev/null'
+```
+
+Dry-run перед сменой политики (только подсчёт):
+
+```bash
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
+  "http://127.0.0.1:6200/api/internal/product-analytics/retention?dryRun=1"
 ```
 
 **Примечание:** в файлах **`/etc/cron.d/*`** между расписанием и командой указывается пользователь (**`root`** в примерах выше). В **личном** `crontab` пользователя **`root`** (`crontab -e` от root) поле пользователя **не пишется** — только пять полей расписания и команда.
@@ -523,7 +539,7 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
 
-**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention`, `POST /api/internal/media-hls-proxy-errors/retention`, `POST /api/internal/media-transcode/reconcile` и `POST /api/internal/system-health-guard/tick`, `POST /api/internal/reminders/web-push-only/tick`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
+**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention`, `POST /api/internal/media-hls-proxy-errors/retention`, `POST /api/internal/product-analytics/retention`, `POST /api/internal/media-transcode/reconcile` и `POST /api/internal/system-health-guard/tick`, `POST /api/internal/reminders/web-push-only/tick`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
 
 **Auth (webapp):** Yandex OAuth и Telegram Login Widget **не** требуют новых ключей в `webapp.prod` — клиент OAuth и имя бота для виджета задаются в **`system_settings`** (admin scope) в БД webapp; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`. Секреты в env-файлы деплоя не добавлять.
 

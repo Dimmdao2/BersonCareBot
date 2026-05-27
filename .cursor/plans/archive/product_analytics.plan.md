@@ -19,7 +19,7 @@ todos:
     status: completed
   - id: phase-6-retention-docs
     content: "Блок 6: retention+docs+hardening (internal retention endpoint, host cron docs, LOG.md, final tests)"
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -415,14 +415,18 @@ Admin API отдаёт:
 
 См. раздел «2026-05-27 — Block 5» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): вкладка «Использование», `ProductAnalyticsSection`.
 
+### Block 6 (2026-05-27) — закрыт
+
+См. раздел «2026-05-27 — Block 6» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): retention endpoint, host cron, финальные тесты.
+
 ## Definition of Done
 
-- [ ] Миграции применены; 4 таблицы + индексы на prod-совместимой схеме `public`
-- [ ] Заход фиксируется с каналом `pwa|telegram|max|browser` (server login + client app_open)
-- [ ] `page_view` агрегируется по `page_key` почасово
-- [ ] Push: при отправке создаётся `product_push_notifications` с `topic_code`, `push_kind`, `warmup_slogan_key`
-- [ ] Клик по push пишет `push_open` с dedupe по `trackingId`
-- [ ] `product_analytics_user_hourly` даёт активность по `user_id`
-- [ ] Admin: вкладка Settings «Использование» + `GET /api/admin/product-analytics` с конверсиями push/topic/slogan
-- [ ] Retention internal endpoint задокументирован для host cron
-- [ ] Unit/route tests зелёные; LOG.md заполнен
+- [x] Миграции применены; 4 таблицы + индексы на prod-совместимой схеме `public`
+- [x] Заход фиксируется с каналом `pwa|telegram|max|browser` (server login + client app_open)
+- [x] `page_view` агрегируется по `page_key` почасово
+- [x] Push: при отправке создаётся `product_push_notifications` с `topic_code`, `push_kind`, `warmup_slogan_key`
+- [x] Клик по push пишет `push_open` с dedupe по `trackingId`
+- [x] `product_analytics_user_hourly` даёт активность по `user_id`
+- [x] Admin: вкладка Settings «Использование» + `GET /api/admin/product-analytics` с конверсиями push/topic/slogan
+- [x] Retention internal endpoint задокументирован для host cron
+- [x] Unit/route tests зелёные; LOG.md заполнен

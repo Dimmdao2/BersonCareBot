@@ -137,6 +137,28 @@
 
 1. **`ProductAnalyticsSection`** — при смене окна сбрасывать `data` до ответа API, чтобы не показывать метрики предыдущего интервала.
 
-### Следующий шаг
+## 2026-05-27 — Block 6 (retention + docs + финализация)
 
-Block 6: retention endpoint, host cron docs, финальные тесты.
+### Сделано
+
+- `POST /api/internal/product-analytics/retention` — Bearer `INTERNAL_JOB_SECRET`, query `recentDays` / `userHourlyDays` / `hourlyDays` / `pushDays`, `dryRun=1`.
+- `runProductAnalyticsRetention` + purge в port (pg/inMemory) с dry-run.
+- `deploy/HOST_DEPLOY_README.md` — weekly cron + dry-run smoke.
+- `api.md` — контракт internal retention.
+
+### Проверка (post-review)
+
+| Проверка | Результат |
+|----------|-----------|
+| `vitest` product-analytics (все затронутые) | 36 passed |
+| `pnpm --dir apps/webapp run typecheck` | OK |
+| `eslint` Block 6 файлы | OK |
+
+### Исправления по review
+
+1. **inMemory `purgeUserHourlyOlderThan`** — реализован (раньше заглушка `{ deleted: 0 }`).
+2. **retention route.test** — кейс дефолтных окон без query.
+
+### Инициатива
+
+Все блоки 1–6 закрыты. Перед merge: `pnpm run migrate` (dev) + smoke + один `pnpm run ci`.

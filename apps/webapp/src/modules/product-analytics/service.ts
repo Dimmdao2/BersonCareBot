@@ -1,3 +1,7 @@
+import {
+  runProductAnalyticsRetention,
+  type ProductAnalyticsRetentionParams,
+} from "@/modules/product-analytics/productAnalyticsRetention";
 import { normalizePageKey } from "@/modules/product-analytics/normalizePageKey";
 import type { ProductAnalyticsPort } from "@/modules/product-analytics/ports";
 import { clampProductAnalyticsWindowHours } from "@/modules/product-analytics/timeRange";
@@ -57,12 +61,19 @@ export function createProductAnalyticsService(port: ProductAnalyticsPort) {
       return port.getAdminDashboard({ windowHours });
     },
 
-    async purgeRecentOlderThan(days: number) {
-      return port.purgeRecentOlderThan(days);
+    async purgeRecentOlderThan(days: number, options?: Parameters<ProductAnalyticsPort["purgeRecentOlderThan"]>[1]) {
+      return port.purgeRecentOlderThan(days, options);
     },
 
-    async purgeUserHourlyOlderThan(days: number) {
-      return port.purgeUserHourlyOlderThan(days);
+    async purgeUserHourlyOlderThan(
+      days: number,
+      options?: Parameters<ProductAnalyticsPort["purgeUserHourlyOlderThan"]>[1],
+    ) {
+      return port.purgeUserHourlyOlderThan(days, options);
+    },
+
+    async runRetention(params?: ProductAnalyticsRetentionParams) {
+      return runProductAnalyticsRetention(port, params);
     },
   };
 }

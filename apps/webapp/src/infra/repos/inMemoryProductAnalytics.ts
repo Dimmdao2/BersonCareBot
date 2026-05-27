@@ -9,7 +9,7 @@ import {
   buildAdminDashboard,
   productAnalyticsWindowStartHour,
 } from "@/modules/product-analytics/buildAdminDashboard";
-import type { ProductAnalyticsPort } from "@/modules/product-analytics/ports";
+import type { ProductAnalyticsPort, ProductAnalyticsPurgeOptions } from "@/modules/product-analytics/ports";
 import type {
   CreatePushNotificationInput,
   ProductAnalyticsIngestEvent,
@@ -188,8 +188,13 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
       });
     },
 
-    async purgeRecentOlderThan(days) {
+    async purgeRecentOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
       const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      let matched = 0;
+      for (const row of recent) {
+        if (new Date(row.occurredAt).getTime() < cutoff) matched++;
+      }
+      if (options?.dryRun) return { deleted: matched };
       const before = recent.length;
       for (let i = recent.length - 1; i >= 0; i--) {
         const row = recent[i]!;
@@ -200,8 +205,38 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
       return { deleted: before - recent.length };
     },
 
-    async purgeUserHourlyOlderThan(_days) {
-      return { deleted: 0 };
+    async purgeUserHourlyOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
+      const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+      const keys = [...userHourly.keys()].filter((k) => {
+        const bucketHour = k.split("\0")[0]!;
+        return new Date(bucketHour).getTime() < cutoffMs;
+      });
+      if (options?.dryRun) return { deleted: keys.length };
+      for (const k of keys) userHourly.delete(k);
+      return { deleted: keys.length };
+    },
+
+    async purgeHourlyOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
+      const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+      const keys = [...hourly.keys()].filter((k) => {
+        const bucketHour = k.split("\0")[0]!;
+        return new Date(bucketHour).getTime() < cutoffMs;
+      });
+      if (options?.dryRun) return { deleted: keys.length };
+      for (const k of keys) hourly.delete(k);
+      return { deleted: keys.length };
+    },
+
+    async purgePushNotificationsOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
+      const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+      const ids: string[] = [];
+      for (const [id, row] of pushNotifications) {
+        const at = row.createdAt ? new Date(row.createdAt).getTime() : 0;
+        if (at < cutoffMs) ids.push(id);
+      }
+      if (options?.dryRun) return { deleted: ids.length };
+      for (const id of ids) pushNotifications.delete(id);
+      return { deleted: ids.length };
     },
   };
 }
