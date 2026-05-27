@@ -20,7 +20,7 @@ import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 export const PATIENT_HEADER_BAR_HEIGHT_VAR = "--patient-header-bar-height";
 
 const MOBILE_TOOLBAR_ROW_BASE =
-  "patient-shell-mobile-toolbar h-[var(--patient-header-bar-row-height,3rem)] overflow-hidden patient-desktop:hidden";
+  "relative flex h-[var(--patient-header-bar-row-height,3rem)] w-full min-w-0 items-center overflow-hidden patient-desktop:hidden";
 
 const CHROME_ICON_BTN_BASE =
   "inline-flex size-9 shrink-0 items-center justify-center rounded-md transition-colors duration-200 ease-out hover:bg-[var(--patient-color-primary-soft)]/50";
@@ -28,8 +28,9 @@ const CHROME_ICON_BTN_BASE =
 const MOBILE_HEADER_TITLE_CLASS =
   "m-0 min-w-0 truncate text-left text-[15px] font-normal leading-5 text-[var(--patient-block-heading)]";
 
+/** Заголовок не уходит под профиль; без back начинается от визуального края содержимого карточек. */
 const MOBILE_HEADER_TITLE_ROW_CLASS =
-  "flex min-w-0 flex-1 items-center justify-start gap-1.5";
+  "flex w-full min-w-0 items-center justify-start gap-1.5 pr-[calc(var(--patient-shell-chrome-action-width,2.25rem)+0.375rem)]";
 
 function profileIconBtnClass(isActive: boolean): string {
   return cn(
@@ -98,8 +99,9 @@ export function PatientShellTopChrome({
           )}
         >
         <div className={MOBILE_TOOLBAR_ROW_BASE}>
-          <div className="patient-shell-chrome-action-slot">
-            {showBack ?
+          {/* Кнопка «Назад»: отдельный слот слева, не меняет правый край профиля. */}
+          {showBack ?
+            <div className="absolute left-0 flex h-full w-[var(--patient-shell-chrome-action-width,2.25rem)] items-center justify-center">
               <Button
                 type="button"
                 variant="ghost"
@@ -110,10 +112,17 @@ export function PatientShellTopChrome({
               >
                 <ChevronLeft className="size-5" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
               </Button>
-            : null}
-          </div>
+            </div>
+          : null}
           {showMobileTitle ?
-            <div className={MOBILE_HEADER_TITLE_ROW_CLASS}>
+            <div
+              className={cn(
+                MOBILE_HEADER_TITLE_ROW_CLASS,
+                showBack ?
+                  "pl-[calc(var(--patient-shell-chrome-action-width,2.25rem)+0.375rem)]"
+                : "pl-[var(--patient-shell-content-visual-inset,1.125rem)]",
+              )}
+            >
               {shellTitleBadge ?
                 <span
                   data-testid="patient-header-title-badge"
@@ -129,8 +138,8 @@ export function PatientShellTopChrome({
                 <h1 className={cn(MOBILE_HEADER_TITLE_CLASS, "flex-1")}>{shellTitle}</h1>
               : null}
             </div>
-          : <div aria-hidden />}
-          <div className="patient-shell-chrome-action-slot">
+          : null}
+          <div className="absolute right-1 flex h-full w-[var(--patient-shell-chrome-action-width,2.25rem)] items-center justify-center">
             <Link
               href={routePaths.profile}
               prefetch={false}

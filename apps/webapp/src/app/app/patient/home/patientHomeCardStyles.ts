@@ -391,14 +391,14 @@ export const patientDailyWarmupDetailHeroTitleClampClass = cn(
  */
 export const patientHomeHeroTextColumnClass = cn(
   "relative z-10 flex flex-1 flex-col md:min-h-0",
-  "pr-[100px] min-[380px]:pr-[124px] min-[415px]:pr-[160px] md:pr-[244px] xl:pr-[268px]",
+  "pr-[100px] min-[380px]:pr-[124px] min-[415px]:pr-[160px] md:pr-[200px] lg:pr-[244px] xl:pr-[268px]",
 );
 
 /** Hero: заголовок (крупнее на mobile), line-clamp-2 — база {@link patientHeroTitleBaseClass}, адаптивные размеры под макет главной. */
 export const patientHomeHeroTitleClampClass = cn(
   "min-w-0",
   patientHeroTitleBaseClass,
-  "mt-2 max-w-[min(100%,240px)] text-[18px] leading-6 min-[380px]:text-[20px] min-[380px]:leading-[26px] md:mt-4 md:max-w-[min(100%,390px)] md:line-clamp-2 md:text-[34px] md:leading-10 xl:text-[36px] xl:leading-[42px]",
+  "mt-2 max-w-[min(100%,240px)] text-[18px] leading-6 min-[380px]:text-[20px] min-[380px]:leading-[26px] md:mt-4 md:max-w-[min(100%,320px)] md:line-clamp-2 md:text-[30px] md:leading-9 lg:max-w-[min(100%,390px)] lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]",
 );
 
 /** Hero: summary, line-clamp-2. */
@@ -409,8 +409,8 @@ export const patientHomeHeroSummaryClampClass = cn(
 
 /** Hero: фиксированный слот картинки / декора справа снизу. */
 export const patientHomeHeroImageSlotClass = cn(
-  "pointer-events-none absolute bottom-0 right-4 z-[1] flex items-end justify-end overflow-hidden min-[380px]:right-6 md:right-10",
-  "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] md:h-[262px] md:w-[224px] xl:h-[274px] xl:w-[248px]",
+  "pointer-events-none absolute bottom-0 right-4 z-[1] flex items-end justify-end overflow-hidden min-[380px]:right-6 md:right-7 lg:right-10",
+  "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] md:h-[242px] md:w-[188px] lg:h-[262px] lg:w-[224px] xl:h-[274px] xl:w-[248px]",
 );
 
 /**

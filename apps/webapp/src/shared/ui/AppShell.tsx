@@ -192,7 +192,7 @@ export function AppShell({
               id="app-shell-content"
               className={cn(
                 "flex min-h-0 min-w-0 flex-1 flex-col",
-                patientEmbedMain ? "gap-0 pt-0" : "gap-[var(--patient-gap)] pt-1",
+                patientEmbedMain ? "gap-0 pt-0" : "gap-[var(--patient-gap)] patient-desktop:pt-1",
                 "max-patient-desktop:pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pb-[calc(var(--patient-bottom-nav-height,var(--patient-bottom-nav-chrome-fallback))+var(--patient-bottom-nav-content-gap))]",
               )}
             >

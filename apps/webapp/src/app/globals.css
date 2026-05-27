@@ -95,6 +95,8 @@
    * Чуть шире между 431px и `md` (~1.5rem), чтобы на «широких» телефонах поля читались заметнее.
    */
   --patient-shell-inline-pad: 1rem;
+  /** Визуальный край содержимого внутри карточек/hero относительно shell-pad. */
+  --patient-shell-content-visual-inset: 1.125rem;
   /** Ширина боковых слотов mobile-шапки (назад / профиль) — одна линия с краями нижнего меню. */
   --patient-shell-chrome-action-width: 2.25rem;
   /** Доп. зазор под вкладками поверх home indicator (mobile bottom nav). */
@@ -608,26 +610,6 @@
   .safe-padding-patient-horiz {
     padding-left: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px));
     padding-right: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px));
-  }
-
-  /** Mobile-шапка: симметричные боковые слоты + центр (заголовок). */
-  .patient-shell-mobile-toolbar {
-    display: grid;
-    width: 100%;
-    min-width: 0;
-    grid-template-columns:
-      var(--patient-shell-chrome-action-width, 2.25rem)
-      minmax(0, 1fr)
-      var(--patient-shell-chrome-action-width, 2.25rem);
-    column-gap: 0.375rem;
-    align-items: center;
-  }
-
-  .patient-shell-chrome-action-slot {
-    display: flex;
-    width: var(--patient-shell-chrome-action-width, 2.25rem);
-    justify-content: center;
-    align-items: center;
   }
 
   /** Нижнее меню: 5 равных колонок на всю ширину между shell-pad. */

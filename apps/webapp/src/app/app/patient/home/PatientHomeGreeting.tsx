@@ -60,7 +60,13 @@ export function PatientHomeGreeting({ personalizedName, timeOfDayPrefix, unreadC
   const showUnreadHint = unreadChatCount > 0;
 
   return (
-    <header id="patient-home-greeting" className="pt-0 patient-desktop:pl-2 patient-desktop:pr-0">
+    <header
+      id="patient-home-greeting"
+      className={cn(
+        "pt-0 patient-desktop:pl-2 patient-desktop:pr-0",
+        !showUnreadHint && "hidden patient-desktop:block",
+      )}
+    >
       <h1 className={cn(PATIENT_HOME_GREETING_TITLE_CLASS, "hidden patient-desktop:block")}>{title}</h1>
       {showUnreadHint ? (
         <p className="m-0 mt-1 text-sm leading-snug text-[var(--patient-text-secondary)]">
