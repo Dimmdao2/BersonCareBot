@@ -38,6 +38,7 @@ Master и сегменты запрашиваются с **того же origin*
 | `title` | `title` элемента `<video>`. |
 | `initialPlayback` | JSON с сервера (RSC), если уже резолвнут; **`null`** — компонент сам выполнит `fetch` на `/playback` после монтирования. |
 | `shellClassName` | Опционально: оболочка (фон, скругление), по умолчанию стиль «карточка контента». |
+| `onFirstPlaying` | Один раз при первом событии `playing` на `<video>` (каталожный файл). Для разминки дня: [`PatientDailyWarmupVideoEngagement`](../../apps/webapp/src/app/app/patient/content/[slug]/PatientDailyWarmupVideoEngagement.tsx) → `POST /api/patient/daily-warmup/video-viewed` (см. [`patient-home.md`](../../apps/webapp/src/modules/patient-home/patient-home.md) §Daily warmup rotation). Hosted iframe — отдельный pointer handler в том же engagement-компоненте. |
 
 ## Вспомогательные модули
 

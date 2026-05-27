@@ -17,6 +17,10 @@
 
 Дата «сегодня» в таблице completions и streak в `getProgress` — в переданном IANA (на главной и в API — **календарь пациента**, см. `patientHomeProgressResolver`). PG-реализация использует Drizzle ORM; бизнес-слой работает только через порт.
 
+**Ротация «разминки дня» на главной** не привязана к completion: после выполнения карточка на главной не переключается на следующую страницу. Сдвиг — после просмотра видео (`POST /api/patient/daily-warmup/video-viewed`, таблица `patient_daily_warmup_presentations`). См. [`patient-home.md`](../patient-home/patient-home.md) §Daily warmup rotation.
+
+`getLatestDailyWarmupCompletedContentPageId` — для fallback home pick и прогресса, не для автоматического «next after complete» на главной.
+
 ## API and UI
 
 - `POST /api/patient/practice/completion` — сохранить выполнение практики (`feeling` опционален; для сценария разминки клиент может отправить `feeling: null`, затем выбрать ощущение отдельным PATCH).

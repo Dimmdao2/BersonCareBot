@@ -1,11 +1,29 @@
 # LOG — daily warmup UX (rotation, layout, quick list, feedback)
 
+**Канон runtime (pick, API, UI):** [`apps/webapp/src/modules/patient-home/patient-home.md`](../../apps/webapp/src/modules/patient-home/patient-home.md).
+
+## Сделано (2026-05-28) — ротация после просмотра видео
+
+### Поведение
+- **Главная (patient tier):** показывается **presented** (`patient_daily_warmup_presentations.content_page_id`) или, если записи нет, **последняя выполненная** `daily_warmup` (та же страница, не «следующая» после completion).
+- **Push-напоминание:** заголовок и deeplink — **следующая** разминка после текущей главной (`resolveDailyWarmupPickIndex` с consumer `push_reminder`); `/app/patient/go/daily-warmup?from=reminder` → push pick, без `from=reminder` / CTA с главной → home pick.
+- **Сдвиг ротации:** после первого воспроизведения видео (событие `playing` в `PatientMediaPlaybackVideo`) или клика по hosted iframe — `POST /api/patient/daily-warmup/video-viewed` → presented = следующая после просмотренной страницы; `revalidatePath(/app/patient)` + `router.refresh` на клиенте.
+- **Completion** по-прежнему пишет `patient_practice_completions`, но **не** меняет pick на главной.
+
+### Код / DDL
+- Таблица `patient_daily_warmup_presentations` (migration `0084_patient_daily_warmup_presentations.sql`).
+- Модули: `resolveDailyWarmupHomePickIndex`, `advanceDailyWarmupPresentationAfterVideoView`, `recordDailyWarmupVideoView`, `buildPatientHomeWarmupPickContext`; порт `patientDailyWarmupPresentation` в `buildAppDeps`.
+- UI: `PatientDailyWarmupVideoEngagement` на странице разминки (`isDailyWarmup`).
+
+### Проверки
+- Targeted vitest: `todayConfig`, `resolveDailyWarmupHomePickIndex`, `advanceDailyWarmupPresentationAfterVideoView`, `loadWarmupPushDynamicContext`, `resolvePatientReminderGoTargets`, `video-viewed/route`, `PatientHomeToday`.
+
 ## Сделано (2026-05-26)
 
-### Pick / rotation
-- Убрана weekday-ротация; `pickDailyWarmupFromOrderedList` — round-robin от последнего `daily_warmup` completion (patient tier).
+### Pick / rotation (superseded для patient tier — см. 2026-05-28)
+- Убрана weekday-ротация; round-robin от completion заменён на presented + video-viewed (2026-05-28).
 - Guest / no tier → первая по `sortOrder`; без `patientPractice` для pick.
-- Единый pick: главная, `/app/patient/go/daily-warmup`, push title.
+- `pickDailyWarmupFromOrderedList` — «следующая после anchor» (push pick и сдвиг после видео).
 
 ### Warmup layout
 - Membership в блоке `daily_warmup` задаёт `practiceSource`, warmup chrome, back matrix.

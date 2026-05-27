@@ -4,6 +4,7 @@ import type { SystemSetting } from "@/modules/system-settings/types";
 import {
   getPatientHomeTodayConfig,
   parsePatientHomeDailyPracticeTarget,
+  resolveDailyWarmupPickIndex,
 } from "@/modules/patient-home/todayConfig";
 
 function block(code: PatientHomeBlock["code"], items: PatientHomeBlockItem[], isVisible = true): PatientHomeBlock {
@@ -264,7 +265,7 @@ describe("getPatientHomeTodayConfig", () => {
     expect(getLatestCompletedContentPageId).not.toHaveBeenCalled();
   });
 
-  it("patient tier rotates from last completed daily_warmup", async () => {
+  it("patient tier keeps home on last completed until presented advances (e.g. after video)", async () => {
     const getBySlug = vi.fn(async (slug: string) =>
       slug === "warm-a" || slug === "warm-b" ?
         {
@@ -324,14 +325,30 @@ describe("getPatientHomeTodayConfig", () => {
       userId: "user-1",
       getLatestCompletedContentPageId: async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     });
-    expect(afterFirst.dailyWarmupItem?.page?.slug).toBe("warm-b");
+    expect(afterFirst.dailyWarmupItem?.page?.slug).toBe("warm-a");
 
-    const wrap = await getPatientHomeTodayConfig(deps, {
+    const afterPresented = await getPatientHomeTodayConfig(deps, {
       tier: "patient",
       userId: "user-1",
-      getLatestCompletedContentPageId: async () => "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      getLatestCompletedContentPageId: async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      getPresentedContentPageId: async () => "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     });
-    expect(wrap.dailyWarmupItem?.page?.slug).toBe("warm-a");
+    expect(afterPresented.dailyWarmupItem?.page?.slug).toBe("warm-b");
+
+    const pushPick = await resolveDailyWarmupPickIndex(
+      [
+        { contentPageId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+        { contentPageId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+      ],
+      {
+        tier: "patient",
+        userId: "user-1",
+        getLatestCompletedContentPageId: async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        getPresentedContentPageId: async () => null,
+      },
+      "push_reminder",
+    );
+    expect(pushPick).toBe(1);
   });
 
   it("patient tier falls back to first when last completed is not in list", async () => {

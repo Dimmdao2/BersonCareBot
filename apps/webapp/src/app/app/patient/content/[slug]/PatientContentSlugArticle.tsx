@@ -32,6 +32,7 @@ import type { DailyWarmupListEntry, PatientDailyWarmupNav } from "@/modules/pati
 import type { AppSession } from "@/shared/types/session";
 import { PatientDailyWarmupPager } from "./PatientDailyWarmupPager";
 import { PatientContentAdaptiveVideo } from "./PatientContentAdaptiveVideo";
+import { PatientDailyWarmupVideoEngagement } from "./PatientDailyWarmupVideoEngagement";
 import { PatientContentMaterialRating } from "./PatientContentMaterialRating";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
 import { PatientDailyWarmupHeroCover } from "./PatientDailyWarmupHeroCover";
@@ -189,7 +190,26 @@ export async function PatientContentSlugArticle({
 
       {videoPlayableUrl ? (
         <section id={`patient-content-video-section-${slug}`} className={videoSectionShellClass}>
-          {hostedVideoIframeSrc ? (
+          {isDailyWarmup ?
+            hostedVideoIframeSrc ?
+              <PatientDailyWarmupVideoEngagement
+                mode="hosted"
+                contentPageId={dbRow.id}
+                iframeSrc={hostedVideoIframeSrc}
+                title={item.title}
+              />
+            : <PatientDailyWarmupVideoEngagement
+                mode="catalog"
+                contentPageId={dbRow.id}
+                player={{
+                  mediaId: apiMediaId ?? "",
+                  mp4Url: videoPlayableUrl,
+                  title: item.title,
+                  initialPlayback: patientPlaybackInitial,
+                }}
+              />
+
+          : hostedVideoIframeSrc ?
             <div className="relative aspect-video">
               <iframe
                 src={hostedVideoIframeSrc}
@@ -199,14 +219,13 @@ export async function PatientContentSlugArticle({
                 title={item.title}
               />
             </div>
-          ) : (
-            <PatientContentAdaptiveVideo
+          : <PatientContentAdaptiveVideo
               mediaId={apiMediaId ?? ""}
               mp4Url={videoPlayableUrl}
               title={item.title}
               initialPlayback={patientPlaybackInitial}
             />
-          )}
+          }
           {sectionMaterialRatingUnderVideo}
         </section>
       ) : (

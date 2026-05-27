@@ -2,6 +2,7 @@ import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-h
 import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
 import { isPatientHomeContentPageCandidateForBlock } from "@/modules/patient-home/blocks";
 import { pickDailyWarmupFromOrderedList } from "@/modules/patient-home/pickDailyWarmupFromOrderedList";
+import { resolveDailyWarmupHomePickIndex } from "@/modules/patient-home/resolveDailyWarmupHomePickIndex";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 
 export type ResolvedWarmupPage = {
@@ -37,12 +38,16 @@ export type PatientHomeTodayConfigDeps = {
 
 export type PatientHomeWarmupPickTier = "guest" | "no_tier" | "patient";
 
-/** Контекст выбора разминки дня для patient tier (round-robin от последней completion). */
+/** Контекст выбора разминки дня для patient tier. */
 export type PatientHomeWarmupPickContext = {
   tier: PatientHomeWarmupPickTier;
   userId?: string;
   getLatestCompletedContentPageId?: (userId: string) => Promise<string | null>;
+  /** Последняя разминка, зафиксированная при открытии push-напоминания. */
+  getPresentedContentPageId?: (userId: string) => Promise<string | null>;
 };
+
+export type DailyWarmupPickConsumer = "home" | "push_reminder";
 
 export type PatientHomeTodayConfigResult = {
   dailyWarmupItem: ResolvedPatientHomeBlockItem | null;
@@ -170,23 +175,30 @@ export function buildPatientDailyWarmupNav(
 export async function resolveDailyWarmupPickIndex(
   pages: ReadonlyArray<Pick<DailyWarmupListEntry, "contentPageId">>,
   pickContext?: PatientHomeWarmupPickContext,
+  consumer: DailyWarmupPickConsumer = "home",
 ): Promise<number> {
   if (pages.length === 0) return 0;
-  if (
-    !pickContext ||
-    pickContext.tier !== "patient" ||
-    !pickContext.userId ||
-    !pickContext.getLatestCompletedContentPageId
-  ) {
+  if (!pickContext || pickContext.tier !== "patient" || !pickContext.userId) {
     return 0;
   }
-  const lastId = await pickContext.getLatestCompletedContentPageId(pickContext.userId);
-  return pickDailyWarmupFromOrderedList(pages, lastId);
+
+  const presentedId = pickContext.getPresentedContentPageId
+    ? await pickContext.getPresentedContentPageId(pickContext.userId)
+    : null;
+  const lastCompletedId = pickContext.getLatestCompletedContentPageId
+    ? await pickContext.getLatestCompletedContentPageId(pickContext.userId)
+    : null;
+
+  const homeIndex = resolveDailyWarmupHomePickIndex(pages, presentedId, lastCompletedId);
+  if (consumer === "home") return homeIndex;
+
+  const homePageId = pages[homeIndex]?.contentPageId ?? null;
+  return pickDailyWarmupFromOrderedList(pages, homePageId);
 }
 
 /**
  * Конфиг «Сегодня» для главной пациента: разминка из блока `daily_warmup` + целевое число практик.
- * Ротация: round-robin от последней выполненной `daily_warmup` (patient tier) или первая по sortOrder (guest/no tier).
+ * Ротация (patient): главная — presented (после открытия push) или последняя выполненная; push-напоминание — следующая после главной.
  */
 export async function getPatientHomeTodayConfig(
   deps: PatientHomeTodayConfigDeps,

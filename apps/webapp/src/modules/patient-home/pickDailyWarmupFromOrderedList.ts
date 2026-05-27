@@ -1,4 +1,4 @@
-/** Round-robin pick: next page after last completed, wrap, fallback index 0. */
+/** Round-robin: следующая страница после anchor (для push-напоминания — после текущей главной). */
 export function pickDailyWarmupFromOrderedList(
   pages: ReadonlyArray<{ contentPageId: string }>,
   lastCompletedContentPageId: string | null,

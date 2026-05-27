@@ -50,7 +50,10 @@ const warmupItems: PatientHomeBlockItem[] = [
   },
 ];
 
-function buildDeps(getLatestCompletedContentPageId: (userId: string) => Promise<string | null>) {
+function buildDeps(
+  getLatestCompletedContentPageId: (userId: string) => Promise<string | null>,
+  getPresentedContentPageId: (userId: string) => Promise<string | null> = async () => null,
+) {
   const getBySlug = vi.fn(async (slug: string) =>
     slug === "warm-a" || slug === "warm-b" ?
       {
@@ -71,11 +74,12 @@ function buildDeps(getLatestCompletedContentPageId: (userId: string) => Promise<
     contentSections: warmSection,
     systemSettings: { getSetting: async () => null },
     patientPractice: { getLatestDailyWarmupCompletedContentPageId: getLatestCompletedContentPageId },
+    patientDailyWarmupPresentation: { getPresentedContentPageId, setPresentedContentPageId: async () => {} },
   };
 }
 
 describe("resolveDailyWarmupStartPathForPatient", () => {
-  it("matches home pick slug for the same patient completion state", async () => {
+  it("home uses last completed; reminder go uses next warmup for push", async () => {
     const getLatest = vi.fn(async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     const deps = buildDeps(getLatest);
     const session = { user: { userId: "user-1", role: "client" as const, phone: "+79990001122" } };
@@ -91,12 +95,19 @@ describe("resolveDailyWarmupStartPathForPatient", () => {
         tier: "patient",
         userId: session.user.userId,
         getLatestCompletedContentPageId: getLatest,
+        getPresentedContentPageId: async () => null,
       },
     );
 
-    const goPath = await resolveDailyWarmupStartPathForPatient(deps as never, session as never, true);
-    const homeSlug = todayCfg.dailyWarmupItem?.page?.slug;
-    expect(homeSlug).toBe("warm-b");
-    expect(goPath).toBe("/app/patient/content/warm-b?from=daily_warmup");
+    const homePath = await resolveDailyWarmupStartPathForPatient(deps as never, session as never, true, "home");
+    const reminderPath = await resolveDailyWarmupStartPathForPatient(
+      deps as never,
+      session as never,
+      true,
+      "push_reminder",
+    );
+    expect(todayCfg.dailyWarmupItem?.page?.slug).toBe("warm-a");
+    expect(homePath).toBe("/app/patient/content/warm-a?from=daily_warmup");
+    expect(reminderPath).toBe("/app/patient/content/warm-b?from=daily_warmup");
   });
 });

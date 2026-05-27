@@ -19,7 +19,13 @@
 - `repository.ts` / `newsMotivation.ts` - только типы и re-export pure utils для legacy-данных главной (баннеры/рассылки); отдельные секции под это на новой главной не используются.
 - `ports.ts` - контракт хранилища `patient_home_blocks` / `patient_home_block_items`.
 - `service.ts` - валидация команд admin UI (show/hide, reorder, add/update/delete item), без прямого доступа к infra.
-- `todayConfig.ts` — `listDailyWarmupPagesForHome(deps)` (упорядоченный список опубликованных `content_page` блока `daily_warmup`), `buildPatientDailyWarmupNav(slug, pages)` для pager на `/app/patient/content/[slug]?from=daily_warmup`; `getPatientHomeTodayConfig(deps, pickContext?)`: **round-robin pick** — guest/no tier → первая по `sortOrder`, patient tier → следующая после последнего `daily_warmup` completion (глобально), wrap; `dailyWarmupCount` для cooldown UI. Hero-cooldown «Разминка выполнена» только при `dailyWarmupCount === 1` (`dailyWarmupHeroCooldownGate.ts`). Экран разминки: membership в блоке `daily_warmup` задаёт warmup layout (не query `from`); `PatientDailyWarmupQuickList` при `pages.length > 1`; `PatientDailyWarmupPager` («Разминка дня n/N»). Deeplink `/app/patient/go/daily-warmup` и push используют тот же pick что главная.
+- `todayConfig.ts` — список разминок, nav pager, `getPatientHomeTodayConfig`, `resolveDailyWarmupPickIndex` (`home` | `push_reminder`). См. **Daily warmup rotation** ниже.
+- `resolveDailyWarmupHomePickIndex.ts` — индекс на главной: presented → last completed → первая.
+- `pickDailyWarmupFromOrderedList.ts` — следующая страница после anchor (push pick, сдвиг после видео).
+- `buildPatientHomeWarmupPickContext.ts` — pick context для patient tier (`patientPractice` + `patientDailyWarmupPresentation`).
+- `recordDailyWarmupVideoView.ts` / `advanceDailyWarmupPresentationAfterVideoView.ts` — бизнес-логика после просмотра видео.
+- `dailyWarmupPresentationPorts.ts` + `infra/repos/pgPatientDailyWarmupPresentation.ts` — таблица `patient_daily_warmup_presentations`.
+- `dailyWarmupHeroCooldownGate.ts` — hero «Разминка выполнена» только при `dailyWarmupCount === 1`.
 - `patientHomeRepeatCooldownSettings.ts` — парсинг `patient_home_daily_warmup_repeat_cooldown_minutes`, `patient_treatment_plan_item_done_repeat_cooldown_minutes`, `patient_home_warmup_skip_to_next_available_enabled` (дефолты 60 / 60 / true).
 - `patientHomeBlockPolicy.ts` - фильтр/сортировка блоков для главной, включая скрытие персональных блоков при `personalTierOk === false`.
 - `patientHomeResolvers.ts` — разрешение items блоков `situations`, `subscription_carousel`, `sos`, `courses`, плюс `resolveUsefulPostCard` для блока `useful_post` (первый видимый `content_page`). Здесь же `DEFAULT_SUBSCRIPTION_BADGE` и `getSubscriptionCarouselSectionPresentation(blocks, sectionSlug)` для промо-бейджа на странице раздела.
@@ -39,7 +45,26 @@
 - Подписочная карусель и бейджи не закрывают доступ к контенту.
 - `useful_post`: item хранит `badgeLabel` для бейджа «Новый пост» и `showTitle` для видимого текста заголовка на cover-карточке. Если `showTitle=false`, ссылка остаётся доступной, но заголовок визуально скрыт.
 - Страница материалов раздела [`app/app/patient/sections/[slug]/page.tsx`](../../app/app/patient/sections/[slug]/page.tsx): промо из `getSubscriptionCarouselSectionPresentation`, бейдж в шапке, ссылки «Открыть курс» через `FeatureCard.secondaryHref`. Напоминания на разминки — только [`/app/patient/reminders`](../../app/app/patient/reminders/page.tsx) (блок `#patient-reminders-warmups`), не на списке раздела `warmups`.
-- Материал разминки дня: [`content/[slug]`](../../app/app/patient/content/[slug]/page.tsx) — warmup layout по membership в блоке `daily_warmup` (query `?from=daily_warmup` только для back на главную); quick list всех разминок блока; feedback modal после star rating 1–3 (`patient_content_rating_feedback`). CTA с главной и из напоминания (`/app/patient/go/daily-warmup` → тот же pick).
+- Материал разминки дня: [`content/[slug]`](../../app/app/patient/content/[slug]/page.tsx) — warmup layout по membership; [`PatientDailyWarmupVideoEngagement`](../../app/app/patient/content/[slug]/PatientDailyWarmupVideoEngagement.tsx) на видео; quick list; feedback 1–3. CTA главной → `resolveDailyWarmupStartPathForPatient(..., "home")`; напоминание → `/app/patient/go/daily-warmup?from=reminder` → `push_reminder` pick ([`go/[kind]/page.tsx`](../../app/app/patient/go/[kind]/page.tsx)).
+
+## Daily warmup rotation
+
+**Ordered list:** `listDailyWarmupPagesForHome` — visible items блока `daily_warmup` по `sortOrder`.
+
+| Consumer | Кто использует | Правило (patient tier) |
+|----------|----------------|-------------------------|
+| `home` | Главная, CTA «Начать разминку», `go/daily-warmup` без `from=reminder` | Индекс **presented** в `patient_daily_warmup_presentations`, иначе индекс **последней** `daily_warmup` completion, иначе `0` |
+| `push_reminder` | `loadWarmupPushDynamicContext`, `go/daily-warmup?from=reminder` | Следующая после home pick (`pickDailyWarmupFromOrderedList` от content page главной) |
+
+**Сдвиг presented:** `POST /api/patient/daily-warmup/video-viewed` `{ contentPageId }` (только страницы из блока `daily_warmup`) — после первого `playing` каталожного плеера или pointer down на hosted iframe; presented := следующая после просмотренной; `revalidatePath(routePaths.patient)`.
+
+**Не сдвигает pick:** отметка «выполнил(а) практику» (`patient_practice_completions`, `source=daily_warmup`).
+
+**Guest / no tier:** всегда первая страница в list; `patient_daily_warmup_presentations` не читается.
+
+**DDL:** migration `0084_patient_daily_warmup_presentations.sql` — `user_id` PK, `content_page_id`, `updated_at`.
+
+Журнал продукта: [`docs/PATIENT_DAILY_WARMUP_UX/LOG.md`](../../../../docs/PATIENT_DAILY_WARMUP_UX/LOG.md).
 
 ## Public home
 

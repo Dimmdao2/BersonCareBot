@@ -1,7 +1,13 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolveFirstPendingProgramTabItemId } from "@/app/app/patient/home/resolveFirstPendingProgramTabItemId";
-import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
+import { buildPatientHomeWarmupPickContext } from "@/modules/patient-home/buildPatientHomeWarmupPickContext";
+import {
+  getPatientHomeTodayConfig,
+  listDailyWarmupPagesForHome,
+  resolveDailyWarmupPickIndex,
+  type DailyWarmupPickConsumer,
+} from "@/modules/patient-home/todayConfig";
 import { resolveActiveTreatmentProgramInstanceId } from "@/modules/treatment-program/patientTreatmentProgramEntry";
 import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
 import type { AppSession } from "@/shared/types/session";
@@ -15,28 +21,33 @@ export async function resolveDailyWarmupStartPathForPatient(
   deps: Deps,
   session: AppSession,
   personalTierOk: boolean,
+  pickConsumer: DailyWarmupPickConsumer = "home",
 ): Promise<string> {
-  const warmupPick =
-    personalTierOk ?
-      {
-        tier: "patient" as const,
-        userId: session.user.userId,
-        getLatestCompletedContentPageId: deps.patientPractice.getLatestDailyWarmupCompletedContentPageId.bind(
-          deps.patientPractice,
-        ),
-      }
-    : { tier: "no_tier" as const };
+  const homeDeps = {
+    patientHomeBlocks: deps.patientHomeBlocks,
+    contentPages: deps.contentPages,
+    contentSections: deps.contentSections,
+    systemSettings: deps.systemSettings,
+  };
 
-  const todayCfg = await getPatientHomeTodayConfig(
-    {
-      patientHomeBlocks: deps.patientHomeBlocks,
-      contentPages: deps.contentPages,
-      contentSections: deps.contentSections,
-      systemSettings: deps.systemSettings,
-    },
-    warmupPick,
-  );
-  const slug = todayCfg.dailyWarmupItem?.page?.slug?.trim();
+  if (!personalTierOk) {
+    const todayCfg = await getPatientHomeTodayConfig(homeDeps, { tier: "no_tier" });
+    const slug = todayCfg.dailyWarmupItem?.page?.slug?.trim();
+    if (!slug) return routePaths.patient;
+    return `/app/patient/content/${encodeURIComponent(slug)}?from=daily_warmup`;
+  }
+
+  const warmupPick = buildPatientHomeWarmupPickContext(session.user.userId, deps);
+  if (pickConsumer === "home") {
+    const todayCfg = await getPatientHomeTodayConfig(homeDeps, warmupPick);
+    const slug = todayCfg.dailyWarmupItem?.page?.slug?.trim();
+    if (!slug) return routePaths.patient;
+    return `/app/patient/content/${encodeURIComponent(slug)}?from=daily_warmup`;
+  }
+
+  const pages = await listDailyWarmupPagesForHome(homeDeps);
+  const pickIndex = await resolveDailyWarmupPickIndex(pages, warmupPick, "push_reminder");
+  const slug = pages[pickIndex]?.slug?.trim();
   if (!slug) return routePaths.patient;
   return `/app/patient/content/${encodeURIComponent(slug)}?from=daily_warmup`;
 }

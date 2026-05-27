@@ -45,6 +45,8 @@ export type PatientMediaPlaybackVideoProps = {
   initialPlayback: MediaPlaybackPayload | null;
   /** Оболочка (фон, скругление, shrink). */
   shellClassName?: string;
+  /** Один раз при первом фактическом воспроизведении (событие `playing`). */
+  onFirstPlaying?: () => void;
 };
 
 /** Dev-only diagnostics: never include presigned URLs. */
@@ -107,18 +109,21 @@ function PlaybackEngine({
   title,
   initialPayload,
   shellClassName,
+  onFirstPlaying,
 }: {
   mediaId: string;
   mp4Url: string;
   title: string;
   initialPayload: MediaPlaybackPayload;
   shellClassName: string;
+  onFirstPlaying?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const autoFallbackUsedRef = useRef(false);
   const hlsRefreshAttemptedRef = useRef(false);
   const lastIssueReportAtRef = useRef<Record<string, number>>({});
+  const firstPlayingFiredRef = useRef(false);
 
   const [payload, setPayload] = useState<MediaPlaybackPayload>(initialPayload);
   const [sourceKind, setSourceKind] = useState<"hls" | "mp4">(() =>
@@ -192,6 +197,18 @@ function PlaybackEngine({
       return null;
     }
   }, [mediaId]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !onFirstPlaying) return;
+    const onPlaying = () => {
+      if (firstPlayingFiredRef.current) return;
+      firstPlayingFiredRef.current = true;
+      onFirstPlaying();
+    };
+    video.addEventListener("playing", onPlaying);
+    return () => video.removeEventListener("playing", onPlaying);
+  }, [onFirstPlaying]);
 
   const reportPlaybackIssue = useCallback(
     (input: { eventClass: string; delivery?: "hls" | "mp4" | "file"; errorDetail?: string }) => {
@@ -538,6 +555,7 @@ export function PatientMediaPlaybackVideo({
   title,
   initialPlayback,
   shellClassName,
+  onFirstPlaying,
 }: PatientMediaPlaybackVideoProps) {
   const shell = cn(DEFAULT_SHELL, shellClassName);
   const [payload, setPayload] = useState<MediaPlaybackPayload | null>(() => initialPlayback);
@@ -647,6 +665,7 @@ export function PatientMediaPlaybackVideo({
       title={title}
       initialPayload={payload}
       shellClassName={shell}
+      onFirstPlaying={onFirstPlaying}
     />
   );
 }

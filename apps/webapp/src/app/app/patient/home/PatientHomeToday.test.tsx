@@ -74,6 +74,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listRecent: vi.fn().mockResolvedValue([]),
       listByUserInUtcRange: vi.fn().mockResolvedValue([]),
     },
+    patientDailyWarmupPresentation: {
+      getPresentedContentPageId: vi.fn().mockResolvedValue(null),
+      setPresentedContentPageId: vi.fn().mockResolvedValue(undefined),
+    },
     patientMood: { getCheckinState, getRecentDaysSparkline },
     messaging: { patient: { unreadCount: messagingPatientUnreadCount } },
   }),

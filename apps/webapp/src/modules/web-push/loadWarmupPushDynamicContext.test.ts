@@ -75,10 +75,12 @@ describe("loadWarmupPushDynamicContext", () => {
       systemSettings: { getSetting: async () => null },
     };
 
+    const getPresented = vi.fn(async () => null);
     const todayCfg = await getPatientHomeTodayConfig(homeDeps, {
       tier: "patient",
       userId: "user-1",
       getLatestCompletedContentPageId: getLatest,
+      getPresentedContentPageId: getPresented,
     });
 
     const pushCtx = await loadWarmupPushDynamicContext("user-1", {
@@ -89,9 +91,10 @@ describe("loadWarmupPushDynamicContext", () => {
       contentSections: homeDeps.contentSections,
       getPatientCalendarIana: async () => null,
       getLatestDailyWarmupCompletedContentPageId: getLatest,
+      getPresentedDailyWarmupContentPageId: getPresented,
     });
 
+    expect(todayCfg.dailyWarmupItem?.page?.title).toBe("Warm A");
     expect(pushCtx.dailyWarmupTitle).toBe("Warm B");
-    expect(todayCfg.dailyWarmupItem?.page?.title).toBe("Warm B");
   });
 });

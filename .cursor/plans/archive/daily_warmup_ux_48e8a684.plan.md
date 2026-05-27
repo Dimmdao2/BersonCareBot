@@ -1,6 +1,6 @@
 ---
 name: Daily warmup UX
-overview: "Доработка daily_warmup: round-robin ротация от последней выполненной разминки, warmup layout по membership в блоке главной, quick list на detail-странице, feedback-модалка после оценки 1–3 и read-only агрегаты для доктора. Без favorite/dislike и без персонализации ротации по оценкам."
+overview: "Доработка daily_warmup (2026-05-26): layout, quick list, feedback. Ротация на главной с 2026-05-28 — presented + video-viewed, не completion; см. docs/PATIENT_DAILY_WARMUP_UX и patient-home.md §Daily warmup rotation."
 todos:
   - id: phase-0-freeze
     content: "Этап 0: Design freeze — reason codes enum, pick/back/cooldown edge cases"
@@ -28,9 +28,11 @@ isProject: false
 
 # Daily warmup: ротация, layout, quick list, feedback
 
+> **Обновление 2026-05-28 (после закрытия плана):** ротация на главной и в push **не** привязана к completion. Канон: [`docs/PATIENT_DAILY_WARMUP_UX/README.md`](../../../docs/PATIENT_DAILY_WARMUP_UX/README.md), [`patient-home.md`](../../../apps/webapp/src/modules/patient-home/patient-home.md) §Daily warmup rotation. Ниже в §Phase 1 описан **исходный** pick от completion — исторический контекст.
+
 ## Цель и границы
 
-**In scope**
+**In scope** (на момент плана 2026-05-26; pick superseded — см. блок выше)
 - Ротация «разминки дня» на главной: round-robin от последней `daily_warmup` completion (не weekday).
 - Warmup layout для всех `content_page` из visible items блока `daily_warmup` (membership, не query).
 - Quick list всех разминок на warmup-detail.

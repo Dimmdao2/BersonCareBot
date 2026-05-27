@@ -29,9 +29,14 @@
 - **Webapp:** `pgReminderJournal.recordDone` — агрегаты `firstDoneForOccurrence`, `dayDoneCount`, `daySentTotal`, `dayFullyDone`; ответы **`POST /api/integrator/reminders/occurrences/done`** и **`POST /api/patient/reminders/[id]/done`** с этими полями.
 - **Integrator:** `reminders.done.callback` — `callback.answer` → `message.delete` → условный `message.send`; при ошибке webapp — `failed`. Тесты: `executeAction.test.ts`, `reminderInlineKeyboard.test.ts`; webapp: `inMemoryReminderJournal.test.ts`.
 
+## 2026-05-28 — Ротация разминки: home vs push pick (дополнение к deeplink)
+
+- **Поведение:** push/deeplink `?from=reminder` → **следующая** разминка после главной; главная — presented / последняя выполненная; сдвиг после **просмотра видео** (`POST /api/patient/daily-warmup/video-viewed`), не после completion.
+- **Канон:** [`patient-home.md`](../../../../apps/webapp/src/modules/patient-home/patient-home.md) §Daily warmup rotation; журнал [`PATIENT_DAILY_WARMUP_UX/LOG.md`](../../../PATIENT_DAILY_WARMUP_UX/LOG.md).
+
 ## 2026-05-17 — Deeplink из бота: разминка дня и старт занятия по плану
 
-- **Webapp:** маршруты `routePaths.patientGoDailyWarmup` / `patientGoPlanStartLesson`; `app/app/patient/go/[kind]/page.tsx` + `resolvePatientReminderGoTargets.ts` (та же логика выбора, что главная «Начать разминку» / план «Начать занятие»); `buildReminderDeepLink` с `reminder_intent`; проекция и M2M upsert передают intent; `patientRouteApiPolicy` — префикс `/app/patient/go/` при `need_activation` и в `PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER` (без лишнего bind-phone в legacy snapshot до редиректа, как у drilldown на `/app/patient/content/…`).
+- **Webapp:** маршруты `routePaths.patientGoDailyWarmup` / `patientGoPlanStartLesson`; `app/app/patient/go/[kind]/page.tsx` + `resolvePatientReminderGoTargets.ts` (выбор разминки: home vs `from=reminder` — см. 2026-05-28); `buildReminderDeepLink` с `reminder_intent`; проекция и M2M upsert передают intent; `patientRouteApiPolicy` — префикс `/app/patient/go/` при `need_activation` и в `PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER` (без лишнего bind-phone в legacy snapshot до редиректа, как у drilldown на `/app/patient/content/…`).
 - **Integrator:** `buildPatientReminderDeepLink` / `reminderDispatchUsesIntentOpenTarget`; `reminders.dispatchDue` — для warmup/exercises/stretch игнорируется кастомный `deepLink` правила; primary label разминки — «Начать разминку».
 - **Тесты:** `buildPatientReminderDeepLink.test.ts`, `reminderInlineKeyboard.test.ts`; smoke RSC — `patient/go/[kind]/page`; `patientRouteApiPolicy.test.ts` (go-пути, `need_activation`, `patientPageMinAccessTier`).
 - **Документация модуля:** [`reminders.md`](../../../../apps/webapp/src/modules/reminders/reminders.md).

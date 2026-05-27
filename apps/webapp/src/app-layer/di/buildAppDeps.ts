@@ -258,6 +258,8 @@ import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHom
 import { createInMemoryPatientHomeLegacyContentPort } from "@/infra/repos/inMemoryPatientHomeLegacyContent";
 import { createPgPatientPracticeCompletionsPort } from "@/infra/repos/pgPatientPracticeCompletions";
 import { createInMemoryPatientPracticeCompletionsPort } from "@/infra/repos/inMemoryPatientPracticeCompletions";
+import { createPgPatientDailyWarmupPresentationPort } from "@/infra/repos/pgPatientDailyWarmupPresentation";
+import { createInMemoryPatientDailyWarmupPresentationPort } from "@/infra/repos/inMemoryPatientDailyWarmupPresentation";
 import { createPgMaterialRatingPort } from "@/infra/repos/pgMaterialRating";
 import { createInMemoryMaterialRatingPort } from "@/infra/repos/inMemoryMaterialRating";
 import { createMaterialRatingService } from "@/modules/material-rating/service";
@@ -466,6 +468,9 @@ const patientHomeLegacyContentPort = !inMemoryRepos
 const patientPracticeCompletionsPort = !inMemoryRepos
   ? createPgPatientPracticeCompletionsPort()
   : createInMemoryPatientPracticeCompletionsPort();
+const patientDailyWarmupPresentationPort = !inMemoryRepos
+  ? createPgPatientDailyWarmupPresentationPort()
+  : createInMemoryPatientDailyWarmupPresentationPort();
 const materialRatingPort = !inMemoryRepos ? createPgMaterialRatingPort() : createInMemoryMaterialRatingPort();
 const materialRatingService = createMaterialRatingService({
   ratings: materialRatingPort,
@@ -1042,6 +1047,7 @@ function _buildAppDeps() {
     patientHomeLegacy: patientHomeLegacyContentPort,
     patientBroadcasts: patientBroadcastsPort,
     patientPractice: patientPracticeService,
+    patientDailyWarmupPresentation: patientDailyWarmupPresentationPort,
     materialRating: materialRatingService,
     materialRatingFeedback: materialRatingFeedbackService,
     warmupFeelingCompletion: warmupFeelingCompletionPort,

@@ -11,6 +11,8 @@
 
 Если в процессе обнаружится конфликт с реальностью кода — **сначала зафиксировать в LOG.md**, обсудить, и только потом отклоняться от ТЗ. Молча отклоняться запрещено.
 
+**Разминка дня (pick на главной, 2026-05-28):** для patient tier — presented / fallback на последнюю выполненную; push — «следующая»; сдвиг после просмотра видео. Канон runtime: [`patient-home.md`](../../../../apps/webapp/src/modules/patient-home/patient-home.md) §Daily warmup rotation · [`PATIENT_DAILY_WARMUP_UX/README.md`](../../../PATIENT_DAILY_WARMUP_UX/README.md). Формулировки ниже про «первый видимый item» / pick от completion — **исторический контекст ТЗ**, не текущее поведение.
+
 Визуальная система, навигационные решения и mapping к текущим patient-компонентам зафиксированы отдельно: [`VISUAL_SYSTEM_SPEC.md`](VISUAL_SYSTEM_SPEC.md). Перед задачами по визуальному редизайну, patient shell, header/nav, карточкам главной и переносом стиля на другие patient-страницы читать этот документ вместе с текущим README.
 
 ---

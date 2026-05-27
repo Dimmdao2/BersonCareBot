@@ -28,6 +28,7 @@ export type LoadWarmupPushDynamicContextDeps = {
   contentSections: Parameters<typeof listDailyWarmupPagesForHome>[0]["contentSections"];
   getPatientCalendarIana: (userId: string) => Promise<string | null>;
   getLatestDailyWarmupCompletedContentPageId: (userId: string) => Promise<string | null>;
+  getPresentedDailyWarmupContentPageId: (userId: string) => Promise<string | null>;
 };
 
 export async function loadWarmupPushDynamicContext(
@@ -51,11 +52,16 @@ export async function loadWarmupPushDynamicContext(
       getSetting: async () => null,
     },
   });
-  const pickIndex = await resolveDailyWarmupPickIndex(dailyPages, {
-    tier: "patient",
-    userId: platformUserId,
-    getLatestCompletedContentPageId: deps.getLatestDailyWarmupCompletedContentPageId,
-  });
+  const pickIndex = await resolveDailyWarmupPickIndex(
+    dailyPages,
+    {
+      tier: "patient",
+      userId: platformUserId,
+      getLatestCompletedContentPageId: deps.getLatestDailyWarmupCompletedContentPageId,
+      getPresentedContentPageId: deps.getPresentedDailyWarmupContentPageId,
+    },
+    "push_reminder",
+  );
   const dailyWarmupTitle = dailyPages[pickIndex]?.title?.trim() || null;
 
   const warmupPlanned = countPlannedHomeLinkedReminderOccurrencesWithPredicate(

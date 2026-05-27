@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { AppSession } from "@/shared/types/session";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { buildPatientHomeWarmupPickContext } from "@/modules/patient-home/buildPatientHomeWarmupPickContext";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { formatPatientHomeWarmupCooldownCaption } from "@/modules/patient-home/dailyWarmupHeroCooldown";
 import { shouldActivateDailyWarmupHeroCooldown } from "@/modules/patient-home/dailyWarmupHeroCooldownGate";
@@ -136,13 +137,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
 
   const warmupPick =
     session && personalTierOk ?
-      {
-        tier: "patient" as const,
-        userId: session.user.userId,
-        getLatestCompletedContentPageId: deps.patientPractice.getLatestDailyWarmupCompletedContentPageId.bind(
-          deps.patientPractice,
-        ),
-      }
+      buildPatientHomeWarmupPickContext(session.user.userId, deps)
     : session ?
       { tier: "no_tier" as const }
     : { tier: "guest" as const };
