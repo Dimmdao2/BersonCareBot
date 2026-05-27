@@ -82,6 +82,8 @@
 
 `broadcast_audit_recipients` и модуль `patient-broadcasts` остаются для журнала/ACL; отдельная страница чтения не используется.
 
+Непрочитанные и бейдж на главной — общий контур чата: [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
+
 ### Меню в чате (опция формы)
 
 Переключатель **«Прикрепить / обновить меню»** (по умолчанию выкл., действует только если выбран канал «сообщение в боте»): в аудит пишется **`broadcast_audit.attach_menu_after_send`**, в каждую строку очереди — **`payload_json.attachMenu`**. Воркер integrator (`doctorBroadcastIntentMenu`) перед **`dispatchOutgoing`** обогащает `message.send` той же разметкой, что и обычная доставка в **`delivery.ts`** (reply keyboard в Telegram при **`sendMenuOnButtonPress`** и привязанном телефоне; для MAX — inline `menus.main` при `linkedPhone` и числовом `chatId`, как в доменном обработчике). Глобальные команды меню BotFather / MAX setup из воркера **не** вызываются. SMS-задания не получают клавиатуру.
@@ -105,6 +107,7 @@
 
 ## Связанные документы
 
+- Inbox PWA-чат (рассылки, unread, deep links): [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
 - Кабинет специалиста (продуктовый смысл раздела «Рассылки»): [`SPECIALIST_CABINET_STRUCTURE.md`](SPECIALIST_CABINET_STRUCTURE.md) §9.
 - Guard relay: [`apps/webapp/INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) (Flow 6, dev_mode).
 - Режимы и тестовые аккаунты: [`APP_RESTRUCTURE_INITIATIVE/done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](../APP_RESTRUCTURE_INITIATIVE/done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md).

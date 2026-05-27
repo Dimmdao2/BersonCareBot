@@ -1,19 +1,28 @@
 # PWA — журнал
 
-## 2026-05-27 — Рассылка врача: страница полного текста + deep link из push
+## 2026-05-27 — Inbox: рассылки и запись в PWA-чат + бейдж непрочитанного
 
-**Проблема:** клик по Web Push рассылки вёл на несуществующий `/app/patient/home` (404); полного текста рассылки в PWA не было.
+**Проблема:** рассылки и уведомления о записи не были в чате; push вёл на отдельную страницу или 404; точка на «Сегодня» могла не сходиться с пустым чатом.
 
 **Сделано:**
 
-- **`/app/patient/broadcasts/[auditId]`** — заголовок, тело, дата; доступ по строке в **`broadcast_audit_recipients`**.
-- Push **`openUrl`:** `/app/patient/broadcasts/{auditId}` (`fanOutBroadcastWebPush`, `buildPatientBroadcastOpenPath`).
-- Миграция **`0080_broadcast_audit_recipients`**; запись получателей в той же транзакции, что `broadcast_audit` + очередь.
-- Telegram/MAX: **`parse_mode: HTML`**, жирный заголовок + обычное тело; лимит **3500** символов combined plain (как SMS).
+- Рассылки врача и **`appointment_lifecycle`** (создана/отменена запись) — входящие в **`/app/patient/messages`** (`appendPatientInboundAdminMessage`).
+- Web Push **`openUrl`:** `/app/patient/messages` (рассылки + lifecycle; integrator + webapp).
+- Legacy **`/app/patient/broadcasts/[auditId]`** → редирект в чат.
+- Непрочитанные: mark read по всем диалогам, merge legacy перед count, **`notifyPatientSupportUnreadCountChanged`** после read (bootstrap + poll).
+- Напоминания о разминке/занятиях и **`appointment_reminder`** — без изменений deep link.
 
-**Документация:** [`ARCHITECTURE/DOCTOR_BROADCASTS.md`](../ARCHITECTURE/DOCTOR_BROADCASTS.md), модули `patient-broadcasts` / `doctor-broadcasts` README.
+**Документация:** [`ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md`](../ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md), [`DOCTOR_BROADCASTS.md`](../ARCHITECTURE/DOCTOR_BROADCASTS.md), [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md).
 
-**Проверки:** vitest — `doctor-broadcasts`, `patient-broadcasts` (50 тестов в зоне рассылок).
+**Проверки:** vitest — `doctor-broadcasts`, `patient-notifications`, `messaging`, `PatientTopNav`, `pgSupportCommunication`; integrator `recordM2mRoute`; `pnpm run ci`.
+
+**Ранее в этот день (заменено inbox-моделью):** отдельная страница `/app/patient/broadcasts/[auditId]` как основной UX чтения рассылки — см. коммит `c28da53e`, superseded коммитом inbox.
+
+## 2026-05-27 — Рассылка врача: страница полного текста + deep link из push (superseded)
+
+**Статус:** заменено блоком «Inbox» выше. Страница рассылки оставлена только как legacy redirect.
+
+- Push **`openUrl`** был `/app/patient/broadcasts/{auditId}`; миграция **`0080_broadcast_audit_recipients`** по-прежнему в проде.
 
 ## 2026-05-27 — Mini App entry cookies vs PWA gate
 

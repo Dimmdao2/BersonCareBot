@@ -30,6 +30,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 **Patient path (webapp):**
 1. `POST /api/booking/create` → `patient_bookings` (confirmed) → `emitBookingEvent('booking.created')` → TG/MAX уведомления + напоминания.
+2. Integrator → M2M **`POST /api/integrator/patient-notifications/web-push`** (`intentType: appointment_lifecycle`) → текст в **PWA-чат** (`/app/patient/messages`) + Web Push с тем же `openUrl`. См. [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md). Slot-напоминания (`appointment_reminder`) в чат **не** пишутся.
 
 **Doctor projection + GCal path (integrator):**
 1. Webapp → `POST /api/bersoncare/rubitime/create-record` (M2M) → integrator создаёт запись в Rubitime API → получает `recordId`. Пока integrator не ответил, исходящий запрос webapp к integrator **обычно открыт** всё время ожиданий throttle и повторов api2 — на стороне webapp нужен **индикатор загрузки** (см. `apps/webapp/INTEGRATOR_CONTRACT.md`).

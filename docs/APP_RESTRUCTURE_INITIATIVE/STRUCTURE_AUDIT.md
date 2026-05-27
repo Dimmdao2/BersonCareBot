@@ -84,7 +84,7 @@
 | Подписки на уведомления | `/app/patient/notifications` | Каналы доставки + темы | Уведомления |
 | Напоминания | `/app/patient/reminders` | Правила (ЛФК, разделы, кастом) | Напоминания |
 | Журнал напоминания | `/app/patient/reminders/journal/[ruleId]` | События по правилу | Аналитика |
-| Сообщения | `/app/patient/messages` | Чат с поддержкой | Переписка |
+| Сообщения | `/app/patient/messages` | Чат с поддержкой + inbox (рассылки, lifecycle записи) | Переписка; см. [`../ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md`](../ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md) |
 | Поддержка | `/app/patient/support` | Форма администратору | Обращение |
 | Справка | `/app/patient/help` | Краткая справка + ссылки | FAQ |
 | Привязка телефона | `/app/patient/bind-phone` | Привязка номера | Tier patient |
