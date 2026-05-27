@@ -940,4 +940,130 @@ describe("treatment-program instance service", () => {
       ).rejects.toThrow(/Набор тестов не найден/);
     });
   });
+
+  describe("doctorExpandLfkComplexIntoStage", () => {
+    const complexId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const ex1 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const ex2 = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+    it("expands complex into instance exercises in custom group", async () => {
+      const tplPortLocal = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null },
+        },
+      });
+      const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null },
+        },
+      });
+      const instSvcLocal = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplSvcLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+      });
+      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const g1 = await tplSvcLocal.createTemplateStageGroup(s1.id, { title: "ЛФК" });
+      const inst = await instSvcLocal.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        assignedBy: null,
+      });
+      const st = instStageForTpl(inst, s1.id);
+      const customG = st.groups.find((g) => g.title === "ЛФК") ?? st.groups.find((g) => !g.systemKind)!;
+      const out = await instSvcLocal.doctorExpandLfkComplexIntoStage({
+        instanceId: inst.id,
+        stageId: st.id,
+        complexTemplateId: complexId,
+        groupId: customG.id,
+        actorId: null,
+      });
+      expect(out.items).toHaveLength(2);
+      expect(out.items.every((i) => i.itemType === "exercise" && i.groupId === customG.id)).toBe(true);
+      const evs = await eventsPort.listEventsForInstance(inst.id);
+      const expandEvs = evs.filter(
+        (e) =>
+          e.eventType === "item_added" &&
+          (e.payload as { source?: string }).source === "expand_lfk_complex_into_exercises",
+      );
+      expect(expandEvs).toHaveLength(2);
+    });
+
+    it("rejects expand on instance stage zero", async () => {
+      const tplPortLocal = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+        },
+      });
+      const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+        },
+      });
+      const instSvcLocal = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplSvcLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+      });
+      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
+      await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const inst = await instSvcLocal.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: "99999999-9999-4999-8999-999999999999",
+        assignedBy: null,
+      });
+      const s0 = inst.stages.find((s) => s.sortOrder === 0)!;
+      const anyGroup = s0.groups[0]?.id ?? "00000000-0000-4000-8000-000000000099";
+      await expect(
+        instSvcLocal.doctorExpandLfkComplexIntoStage({
+          instanceId: inst.id,
+          stageId: s0.id,
+          complexTemplateId: complexId,
+          groupId: anyGroup,
+          actorId: null,
+        }),
+      ).rejects.toThrow(/Общие рекомендации/);
+    });
+
+    it("rejects doctorAddStageItem with lfk_complex", async () => {
+      const tplPortLocal = createInMemoryTreatmentProgramPort();
+      const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const { instancePort } = createInMemoryTreatmentProgramPersistence();
+      const instSvcLocal = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplSvcLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+      });
+      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const g1 = await tplSvcLocal.createTemplateStageGroup(s1.id, { title: "G" });
+      const inst = await instSvcLocal.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        assignedBy: null,
+      });
+      const st = instStageForTpl(inst, s1.id);
+      const legacyLfkInsert = {
+        instanceId: inst.id,
+        stageId: st.id,
+        itemType: "lfk_complex",
+        itemRefId: complexId,
+        groupId: g1.id,
+        actorId: null,
+      };
+      await expect(
+        instSvcLocal.doctorAddStageItem(
+          legacyLfkInsert as Parameters<typeof instSvcLocal.doctorAddStageItem>[0],
+        ),
+      ).rejects.toThrow(/from-lfk-complex/);
+    });
+  });
 });

@@ -206,119 +206,6 @@ describe("patient-program-actions", () => {
     }
   });
 
-  it("LFK post-session twice same day appends two sessions (four exercise done rows)", async () => {
-    const tplPort = createInMemoryTreatmentProgramPort();
-    const instPort = createInMemoryTreatmentProgramInstancePort();
-    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
-    const baseSnapshots = createInMemoryTreatmentProgramItemSnapshotPort();
-    const snapshots: TreatmentProgramItemSnapshotPort = {
-      async buildSnapshot(type, itemRefId) {
-        if (type === "lfk_complex") {
-          return {
-            itemType: "lfk_complex",
-            title: "Комплекс",
-            exercises: [
-              { exerciseId: "e1111111-1111-4111-8111-111111111111", title: "Упр 1", sortOrder: 0 },
-              { exerciseId: "e2222222-2222-4222-8222-222222222222", title: "Упр 2", sortOrder: 1 },
-            ],
-          };
-        }
-        return baseSnapshots.buildSnapshot(type, itemRefId);
-      },
-    };
-    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
-    const instSvc = createTreatmentProgramInstanceService({
-      instances: instPort,
-      templates: tplSvc,
-      snapshots,
-      itemRefs,
-    });
-    const actionLog = createInMemoryProgramActionLogPort();
-    const insertSpy = vi.spyOn(actionLog, "insertAction");
-    const actions = createTreatmentProgramPatientActionService({
-      instances: instPort,
-      actionLog,
-      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
-      now: () => new Date("2026-05-03T12:00:00.000Z"),
-      getAppDefaultTimezoneIana: async () => "UTC",
-      getPatientCalendarTimezoneIana: async () => null,
-    });
-
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
-    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
-    await tplSvc.addStageItem(s1.id, {
-      itemType: "lfk_complex",
-      itemRefId: refB,
-      comment: null,
-      groupId: g1.id,
-    });
-    const inst = await instSvc.assignTemplateToPatient({
-      templateId: tpl.id,
-      patientUserId: patient,
-      assignedBy: null,
-    });
-    const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
-    await actions.patientSubmitLfkPostSession({
-      patientUserId: patient,
-      instanceId: inst.id,
-      stageItemId: itemId,
-      difficulty: "hard",
-      note: "Устал",
-    });
-    expect(insertSpy).toHaveBeenCalledTimes(2);
-    await actions.patientSubmitLfkPostSession({
-      patientUserId: patient,
-      instanceId: inst.id,
-      stageItemId: itemId,
-      difficulty: "easy",
-      note: "Второй раз",
-    });
-    expect(insertSpy).toHaveBeenCalledTimes(4);
-    const calls = insertSpy.mock.calls.map((c) => c[0]);
-    expect(calls[0]).toMatchObject({
-      actionType: "done",
-      note: "Устал",
-      sessionId: expect.any(String),
-      payload: {
-        source: "lfk_exercise_done",
-        exerciseId: "e1111111-1111-4111-8111-111111111111",
-        difficulty: "hard",
-      },
-    });
-    expect(calls[1]).toMatchObject({
-      actionType: "done",
-      note: null,
-      sessionId: (calls[0] as { sessionId?: string }).sessionId,
-      payload: {
-        source: "lfk_exercise_done",
-        exerciseId: "e2222222-2222-4222-8222-222222222222",
-        difficulty: "hard",
-      },
-    });
-    const session2First = calls[2] as { sessionId?: string };
-    expect(session2First).toMatchObject({
-      actionType: "done",
-      note: "Второй раз",
-      sessionId: expect.any(String),
-      payload: {
-        source: "lfk_exercise_done",
-        exerciseId: "e1111111-1111-4111-8111-111111111111",
-        difficulty: "easy",
-      },
-    });
-    expect(session2First.sessionId).not.toBe((calls[0] as { sessionId?: string }).sessionId);
-    expect(calls[3]).toMatchObject({
-      actionType: "done",
-      note: null,
-      sessionId: session2First.sessionId,
-      payload: {
-        source: "lfk_exercise_done",
-        exerciseId: "e2222222-2222-4222-8222-222222222222",
-        difficulty: "easy",
-      },
-    });
-  });
 
   it("localDayWindowIso uses Europe/Helsinki local midnight boundaries", () => {
     const now = new Date("2026-05-03T21:30:00.000Z");
@@ -547,5 +434,111 @@ describe("patient-program-actions", () => {
 
     const stats = await actions.getPatientPlanPassageStats(patient, inst.id);
     expect(stats.neverCompletedChecklistItemCount).toBe(0);
+  });
+
+  it("patientAppendObservationNote rejects promo programs", async () => {
+    const tplPort = createInMemoryTreatmentProgramPort();
+    const instPort = createInMemoryTreatmentProgramInstancePort();
+    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
+    const instSvc = createTreatmentProgramInstanceService({
+      instances: instPort,
+      templates: tplSvc,
+      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      itemRefs,
+    });
+    const actionLog = createInMemoryProgramActionLogPort();
+    const notifyDoctorOfProgramNote = vi.fn().mockResolvedValue(undefined);
+    const actions = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
+      resolvePatientLabel: async () => "Пациент",
+      notifyDoctorOfProgramNote,
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "Промо", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+      assignmentSource: "promo",
+    });
+    const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
+
+    await expect(
+      actions.patientAppendObservationNote({
+        patientUserId: patient,
+        instanceId: inst.id,
+        stageItemId: itemId,
+        note: "Текст",
+      }),
+    ).rejects.toThrow(/промо/i);
+    expect(notifyDoctorOfProgramNote).not.toHaveBeenCalled();
+  });
+
+  it("patientAppendObservationNote notifies doctor for doctor-assigned programs", async () => {
+    const tplPort = createInMemoryTreatmentProgramPort();
+    const instPort = createInMemoryTreatmentProgramInstancePort();
+    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
+    const instSvc = createTreatmentProgramInstanceService({
+      instances: instPort,
+      templates: tplSvc,
+      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      itemRefs,
+    });
+    const actionLog = createInMemoryProgramActionLogPort();
+    const insertSpy = vi.spyOn(actionLog, "insertAction");
+    const notifyDoctorOfProgramNote = vi.fn().mockResolvedValue(undefined);
+    const actions = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
+      resolvePatientLabel: async () => "Иван П.",
+      notifyDoctorOfProgramNote,
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: refA, comment: null, groupId: g1.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+      assignmentSource: "doctor",
+    });
+    const item = instStageForTpl(inst, s1.id).items[0]!;
+
+    await actions.patientAppendObservationNote({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: item.id,
+      note: "  Болит колено ",
+    });
+
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "note",
+        note: "Болит колено",
+        payload: { source: "patient_observation" },
+      }),
+    );
+    expect(notifyDoctorOfProgramNote).toHaveBeenCalledWith({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: item.id,
+      patientLabel: "Иван П.",
+      exerciseTitle: "Пункт программы",
+      noteText: "Болит колено",
+    });
   });
 });

@@ -265,10 +265,10 @@ describe("patientStageSectionShouldRender", () => {
     expect(out.map((x) => x.id)).toEqual(["b", "c", "a", "d"]);
   });
 
-  it("includes lfk_complex in composition modal when active", () => {
+  it("includes exercise in composition modal when active", () => {
     expect(
       isInstanceStageItemShownInPatientCompositionModal({
-        itemType: "lfk_complex",
+        itemType: "exercise",
         status: "active",
         isActionable: true,
       }),

@@ -8,20 +8,20 @@ import {
   lfkExercises,
 } from "../../../db/schema/schema";
 import type { TreatmentProgramItemRefValidationPort } from "@/modules/treatment-program/ports";
-import type { TreatmentProgramItemType } from "@/modules/treatment-program/types";
+import type { TreatmentProgramItemType, TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
 import {
   LESSON_CONTENT_SECTION,
   LESSON_CONTENT_SECTION_LEGACY,
 } from "@/modules/treatment-program/types";
 
-function notFound(type: TreatmentProgramItemType): Error {
+function notFound(type: TreatmentProgramLibraryPickType): Error {
   return new Error(`Объект для типа «${type}» не найден или недоступен`);
 }
 
 /** Валидация полиморфной ссылки `item_ref_id` по типу — без FK в БД. */
 export function createPgTreatmentProgramItemRefValidationPort(): TreatmentProgramItemRefValidationPort {
   return {
-    async assertItemRefExists(type: TreatmentProgramItemType, itemRefId: string): Promise<void> {
+    async assertItemRefExists(type: TreatmentProgramLibraryPickType, itemRefId: string): Promise<void> {
       const db = getDrizzle();
       switch (type) {
         case "exercise": {

@@ -23,6 +23,7 @@ export function PatientTreatmentTabProgram(props: {
   /** `planTab` в ссылках на пункты (вкладка «Программа»). */
   itemLinksPlanTab?: PatientPlanTab | null;
   planItemDoneRepeatCooldownMinutes: number;
+  assignmentSource: TreatmentProgramInstanceDetail["assignmentSource"];
 }) {
   const {
     instanceId,
@@ -35,6 +36,7 @@ export function PatientTreatmentTabProgram(props: {
     onRefreshDetail,
     itemLinksPlanTab = "program",
     planItemDoneRepeatCooldownMinutes,
+    assignmentSource,
   } = props;
 
   if (!currentWorkingStage) {
@@ -58,6 +60,7 @@ export function PatientTreatmentTabProgram(props: {
       onRefreshDetail={onRefreshDetail}
       itemLinksPlanTab={itemLinksPlanTab ?? null}
       planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
+      assignmentSource={assignmentSource}
     />
   );
 }

@@ -57,6 +57,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({}),
 }));
 
+import { PATIENT_PLAN_TAB_UI_LABEL } from "@/app-layer/routes/navigation";
 import PatientTreatmentProgramsPage from "./page";
 
 describe("PatientTreatmentProgramsPage / list loader", () => {
@@ -74,7 +75,7 @@ describe("PatientTreatmentProgramsPage / list loader", () => {
   it("renders empty state when there is no active program (no redirect)", async () => {
     const ui = await PatientTreatmentProgramsPage();
     render(ui);
-    expect(screen.getByTestId("shell-title")).toHaveTextContent("Программы лечения");
+    expect(screen.getByTestId("shell-title")).toHaveTextContent(PATIENT_PLAN_TAB_UI_LABEL);
     expect(
       screen.getByRole("heading", { name: "Хочу персональную программу!" }),
     ).toBeInTheDocument();

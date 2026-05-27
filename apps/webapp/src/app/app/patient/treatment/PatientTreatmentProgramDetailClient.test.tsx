@@ -863,7 +863,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
                 {
                   id: "aaaaaaaa-1111-4111-8111-111111111111",
                   stageId,
-                  itemType: "lfk_complex",
+                  itemType: "exercise",
                   itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
                   sortOrder: 0,
                   comment: null,
@@ -871,16 +871,8 @@ describe("PatientTreatmentProgramDetailClient", () => {
                   settings: null,
                   snapshot: {
                     title: "Шаблон комплекса",
-                    exercises: [
-                      { exerciseId: "e2222222-2222-4222-8222-222222222222", title: "Второе", sortOrder: 1 },
-                      {
-                        exerciseId: "e1111111-1111-4111-8111-111111111111",
-                        title: "Первое",
-                        sortOrder: 0,
-                        media: [
-                          { url: "https://example.com/lfk-exercise-preview.jpg", type: "image", sortOrder: 0 },
-                        ],
-                      },
+                    media: [
+                      { url: "https://example.com/lfk-exercise-preview.jpg", type: "image", sortOrder: 0 },
                     ],
                   },
                   completedAt: null,

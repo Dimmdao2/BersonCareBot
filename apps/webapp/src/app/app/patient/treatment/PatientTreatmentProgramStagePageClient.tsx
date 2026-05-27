@@ -166,6 +166,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
   itemLinksPlanTab?: PatientPlanTab | null;
   /** Пауза перед повторным «Выполнено» у простых пунктов (мин), из `system_settings`. */
   planItemDoneRepeatCooldownMinutes: number;
+  assignmentSource: TreatmentProgramInstanceDetail["assignmentSource"];
 }) {
   const {
     instanceId,
@@ -178,6 +179,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
     itemLinksPlanTab = null,
     patientCalendarDayIana,
     planItemDoneRepeatCooldownMinutes,
+    assignmentSource,
   } = props;
   const [detachedStage, setDetachedStage] = useState<Stage>(props.stage);
   const stageForUi = embedded ? props.stage : detachedStage;
@@ -534,6 +536,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         appDisplayTimeZone={appDisplayTimeZone}
         itemLinksPlanTab={itemLinksPlanTab ?? null}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
+        allowPatientObservationComment={assignmentSource === "doctor"}
       />
     </div>
   );

@@ -1,7 +1,6 @@
 import { DateTime } from "luxon";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import { formatRelativePatientCalendarDayRu } from "@/modules/treatment-program/stage-semantics";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 
@@ -99,17 +98,6 @@ export function recommendationBodyMdPreviewPlain(bodyMd: unknown): string {
 
 export function primaryMediaForStageItem(item: InstanceStageItem): RecommendationMediaItem | null {
   const snap = item.snapshot as Record<string, unknown>;
-  if (item.itemType === "lfk_complex") {
-    const lines = listLfkSnapshotExerciseLines(snap);
-    for (const line of lines) {
-      if (line.media != null && Array.isArray(line.media)) {
-        const thumbItems = parseCatalogMediaRows(line.media);
-        const picked = pickRecommendationRowPreviewMedia(thumbItems);
-        if (picked) return picked;
-      }
-    }
-    return null;
-  }
   const all = parseSnapshotMediaForRowThumb(snap);
   const video = all.find((m) => m.mediaType === "video");
   return video ?? all[0] ?? null;

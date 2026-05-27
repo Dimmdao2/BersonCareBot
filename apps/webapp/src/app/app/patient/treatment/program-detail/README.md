@@ -29,12 +29,11 @@
 | `PatientProgramBlockHeading.tsx` | Заголовок секции с иконкой. |
 | `PatientStageHeaderFields.tsx` | Поля шапки этапа (экспорт для страницы этапа и др.). |
 | `PatientInstanceStageBody.tsx` / `PatientInstanceStageItemCard.tsx` | Тело этапа и карточка пункта (списки, действия). Встроенный **`clinical_test`**: после `refresh` (форма, «Снять Новое», `mark-viewed` по видимости) повторно подтягивается snapshot через `reloadClinicalTestSnap`. |
-| `PatientLfkChecklistRow.tsx` | Форма отметки ЛФК за сегодня. |
 | `usePostMarkItemViewedWhenVisible.ts` | IntersectionObserver → `mark-viewed`. |
 
 ## Вкладка «Программа»: комментарий с плитки
 
-- В **`PatientTreatmentProgramStagePageProgramSection`** кнопка «Добавить комментарий» открывает **модалку «Наблюдение»** (тот же поток API, что на странице пункта: `observation-note` / `lfk-session` с выбором сложности для ЛФК), без перехода на `/treatment/[instanceId]/item/...`.
+- В **`PatientTreatmentProgramStagePageProgramSection`** кнопка «Добавить комментарий» (только `assignment_source === doctor`) открывает модалку «Наблюдение» → **`POST .../progress/observation-note`**, без перехода на `/treatment/[instanceId]/item/...`. Для **promo** кнопки нет; API отклоняет запрос.
 
 ## Инварианты после декомпозиции
 

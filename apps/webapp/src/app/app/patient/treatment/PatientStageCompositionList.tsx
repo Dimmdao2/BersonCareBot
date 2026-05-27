@@ -14,7 +14,7 @@ import {
   isInstanceStageItemShownInPatientCompositionModal,
   sortDoctorInstanceStageGroupsForDisplay,
 } from "@/modules/treatment-program/stage-semantics";
-import { listLfkSnapshotExerciseLines, programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
+import { programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
 import {
   mergeLastActivityDisplayedIso,
   parseSnapshotMediaForRowThumb,
@@ -51,42 +51,7 @@ function compositionModalTodayDoneCount(params: {
   doneTodayCountByItemId: Readonly<Record<string, number>>;
 }): number {
   const { parentItem, activityKey, doneTodayCountByActivityKey, doneTodayCountByItemId } = params;
-  const direct = doneTodayCountByActivityKey[activityKey] ?? 0;
-  if (direct > 0) return direct;
-
-  if (parentItem.itemType !== "lfk_complex") return 0;
-
-  const lines = listLfkSnapshotExerciseLines(parentItem.snapshot as Record<string, unknown>);
-  const id = parentItem.id;
-
-  if (lines.length === 0) {
-    return doneTodayCountByItemId[id] ?? doneTodayCountByActivityKey[id] ?? 0;
-  }
-
-  const siblingsSum = lines.reduce(
-    (acc, l) =>
-      acc + (doneTodayCountByActivityKey[programActionDoneActivityKey(id, { exerciseId: l.exerciseId })] ?? 0),
-    0,
-  );
-  const itemTotal = doneTodayCountByItemId[id] ?? 0;
-  const slack = itemTotal - siblingsSum;
-  if (slack <= 0) return 0;
-
-  const zeroLines = lines.filter(
-    (l) =>
-      (doneTodayCountByActivityKey[programActionDoneActivityKey(id, { exerciseId: l.exerciseId })] ?? 0) === 0,
-  );
-  if (zeroLines.length === 0) return 0;
-
-  const idxInZero = zeroLines.findIndex(
-    (l) => programActionDoneActivityKey(id, { exerciseId: l.exerciseId }) === activityKey,
-  );
-  if (idxInZero < 0) return 0;
-
-  const z = zeroLines.length;
-  const base = Math.floor(slack / z);
-  const rem = slack % z;
-  return base + (idxInZero < rem ? 1 : 0);
+  return doneTodayCountByActivityKey[activityKey] ?? doneTodayCountByItemId[parentItem.id] ?? 0;
 }
 
 type CompositionModalEmptyMediaIcon = "exercise" | "recommendation";
@@ -113,32 +78,6 @@ function compositionModalRowsForStageItem(item: InstanceStageRow["items"][number
       ? "exercise"
       : "recommendation"
     : null;
-
-  if (item.itemType === "lfk_complex") {
-    const lines = listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>);
-    if (lines.length === 0) {
-      const t = snapshotTitle(item.snapshot, item.itemType);
-      return t.trim() !== ""
-        ? [{ key: item.id, activityKey: item.id, text: t, thumbMedia: null, emptyMediaSlotKind: null }]
-        : [];
-    }
-    return lines.map((line) => {
-      const rowThumb =
-        line.media != null && Array.isArray(line.media)
-          ? pickRecommendationRowPreviewMedia(
-              parseSnapshotMediaForRowThumb({ media: line.media } as Record<string, unknown>),
-            )
-          : null;
-      const rowKey = programActionDoneActivityKey(item.id, { exerciseId: line.exerciseId });
-      return {
-        key: rowKey,
-        activityKey: rowKey,
-        text: line.title,
-        thumbMedia: rowThumb,
-        emptyMediaSlotKind: "exercise" as const,
-      };
-    });
-  }
 
   return [
     {

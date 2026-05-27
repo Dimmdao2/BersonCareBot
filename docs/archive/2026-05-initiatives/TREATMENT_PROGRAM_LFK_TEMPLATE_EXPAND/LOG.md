@@ -15,13 +15,21 @@
 
 - Как у остальных мутаций конструктора шаблонов программы под `/api/doctor/treatment-program-templates/*`: проверяются **сессия** и роль **врача** (`canAccessDoctor`). Отдельной привязки шаблона к `userId` врача в API **нет** — любой врач с валидной сессией, знающий UUID шаблона/этапа, может вызвать эндпоинт (наследованная модель доступа; при необходимости сужения — отдельная задача).
 
-## Не делали
+## Не делали (на момент шаблонного expand)
 
-- Миграцию старых шаблонов с уже сохранёнными строками `lfk_complex`.
-- Изменения назначения экземпляра пациенту и пациентских экранов ЛФК.
+- Миграцию старых шаблонов с уже сохранёнными строками `lfk_complex` (см. ниже — выполнено отдельно).
+- Изменения назначения экземпляра пациенту и пациентских экранов ЛФК (см. ниже — выполнено отдельно).
 - Лимит на число упражнений за один запрос (риск нагрузки при огромном комплексе) — вынесено в продуктовый backlog при появлении таких данных.
 
-## Проверки (целевые тесты webapp)
+## Дополнение (2026-05-27): инстанс + пациент
+
+- **Инстанс:** `POST .../treatment-program-instances/.../items/from-lfk-complex`, `doctorExpandLfkComplexIntoStage`, `InstanceAddLibraryItemDialog` → разворот в `exercise`; прямой `doctorAddStageItem(lfk_complex)` — отказ.
+- **Данные:** `0081_expand_lfk_complex_stage_items.sql`, `0082_drop_lfk_complex_item_type_check.sql`; канон — `docs/TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md`.
+- **Пациент:** удалены `lfk-session`, `PatientLfkChecklistRow`; комментарий — `observation-note`; promo без комментария; notify врачу — `notifyDoctorPatientProgramNote`.
+- **Проверки:** `instance-service.test.ts`, `patient-program-actions.test.ts`, `InstanceAddLibraryItemDialog.test.tsx`, `notifyDoctorPatientProgramNote.test.ts`, patient treatment UI-тесты; корневой **`pnpm run ci`** — зелёный (2026-05-27).
+- **Документация:** `api.md`, `program-detail/README.md`, `docs/TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md`, план [`.cursor/plans/archive/lfk_expand_instance_cleanup.plan.md`](../../../.cursor/plans/archive/lfk_expand_instance_cleanup.plan.md) (`status: completed`).
+
+## Проверки (целевые тесты webapp — шаблон)
 
 Из каталога `apps/webapp`:
 
@@ -38,4 +46,4 @@ pnpm exec vitest run src/modules/treatment-program/service.test.ts \
 
 ## PR
 
-- (заполнить при создании PR)
+- Закрыто в основной ветке разработки (2026-05-27); отдельный PR-номер не фиксировался в журнале.

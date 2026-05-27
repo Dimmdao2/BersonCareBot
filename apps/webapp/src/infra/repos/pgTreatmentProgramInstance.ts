@@ -17,6 +17,8 @@ import type {
   CreateTreatmentProgramInstanceTreeInput,
   ExpandTestSetIntoInstanceStageItemsPortInput,
   ExpandTestSetIntoInstanceStageItemsResult,
+  ExpandLfkComplexIntoInstanceStageItemsPortInput,
+  ExpandLfkComplexIntoInstanceStageItemsResult,
   ReplaceTreatmentProgramInstanceStageItemInput,
   TreatmentProgramAssignmentSource,
   TreatmentProgramInstanceDetail,
@@ -42,6 +44,8 @@ import {
 import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
 import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
 import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
+import { lfkComplexTemplateExercises, lfkComplexTemplates } from "../../../db/schema/schema";
+import { TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -49,6 +53,14 @@ function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   for (const id of ordered) {
     if (!expected.has(id) || seen.has(id)) return false;
     seen.add(id);
+  }
+  return true;
+}
+
+function sameUuidOrder(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
   }
   return true;
 }
@@ -868,6 +880,93 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         }
         await touchInstanceUpdatedAt(db, input.instanceId);
         return { added, skipped, items: inserted };
+      });
+    },
+
+    async expandLfkComplexIntoInstanceStageItems(
+      input: ExpandLfkComplexIntoInstanceStageItemsPortInput,
+    ): Promise<ExpandLfkComplexIntoInstanceStageItemsResult | null> {
+      const db = getDrizzle();
+      const snapshots = createPgTreatmentProgramItemSnapshotPort();
+      return db.transaction(async (tx) => {
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, input.stageId),
+        });
+        if (!stRow || stRow.instanceId !== input.instanceId) return null;
+        if (stRow.sortOrder === 0) {
+          throw new Error("На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК");
+        }
+
+        const complexRow = await tx.query.lfkComplexTemplates.findFirst({
+          where: and(
+            eq(lfkComplexTemplates.id, input.complexTemplateId),
+            ne(lfkComplexTemplates.status, "archived"),
+          ),
+        });
+        if (!complexRow) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
+
+        const exerciseRows = await tx
+          .select()
+          .from(lfkComplexTemplateExercises)
+          .where(eq(lfkComplexTemplateExercises.templateId, input.complexTemplateId))
+          .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
+
+        if (exerciseRows.length === 0) throw new Error("В комплексе нет упражнений");
+
+        const idsFromDb = exerciseRows.map((r) => r.exerciseId);
+        if (!sameUuidOrder(idsFromDb, input.expectedExerciseIds)) {
+          throw new Error("Комплекс ЛФК был изменён; обновите страницу и повторите попытку");
+        }
+
+        const [gRow] = await tx
+          .select()
+          .from(instGroupTable)
+          .where(eq(instGroupTable.id, input.groupId))
+          .limit(1);
+        if (!gRow || gRow.stageId !== input.stageId) {
+          throw new TreatmentProgramExpandNotFoundError("Группа не найдена или не принадлежит этапу");
+        }
+        if (gRow.systemKind === "recommendations" || gRow.systemKind === "tests") {
+          throw new Error("Нельзя добавить упражнения в системную группу");
+        }
+
+        const [{ max: itemMax }] = await tx
+          .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
+          .from(itemTable)
+          .where(eq(itemTable.stageId, input.stageId));
+
+        const base = itemMax + 1;
+        const nowIso = new Date().toISOString();
+        const inserted: TreatmentProgramInstanceStageItemRow[] = [];
+        for (let i = 0; i < idsFromDb.length; i++) {
+          const line = exerciseRows[i]!;
+          const exerciseId = line.exerciseId;
+          const snapshot = await snapshots.buildSnapshot("exercise", exerciseId);
+          const [irow] = await tx
+            .insert(itemTable)
+            .values({
+              stageId: input.stageId,
+              itemType: "exercise",
+              itemRefId: exerciseId,
+              sortOrder: base + i,
+              comment: line.comment ?? null,
+              localComment: null,
+              settings: null,
+              snapshot,
+              completedAt: null,
+              isActionable: null,
+              status: "active",
+              groupId: input.groupId,
+              createdAt: nowIso,
+              lastViewedAt: nowIso,
+            })
+            .returning();
+          if (!irow) throw new Error("insert failed");
+          inserted.push(mapItem(irow));
+        }
+
+        await touchInstanceUpdatedAt(tx, input.instanceId);
+        return { items: inserted };
       });
     },
 

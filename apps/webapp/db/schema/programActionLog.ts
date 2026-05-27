@@ -8,8 +8,7 @@ import {
 
 /**
  * A4 PROGRAM_PATIENT_SHAPE: журнал действий пациента по экземпляру программы.
- * O2: ЛФК — одна запись на комплекс (instance_stage_item типа lfk_complex).
- * O3: текст пост-сессии — в колонке `note` (без отдельного lfk_session.note).
+ * Наблюдения пациента — `action_type: note`, текст в `note`; исторические `lfk_exercise_done` не трогаем.
  */
 export const programActionLog = pgTable(
   "program_action_log",

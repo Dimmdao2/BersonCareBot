@@ -1,9 +1,24 @@
 # Legacy TODO: шаблоны программ с элементом `lfk_complex`
 
-После стабилизации потока «комплекс ЛФК → только упражнения в шаблоне» в конструкторе:
+**Статус (2026-05-27):** миграция данных выполнена (`0081_expand_lfk_complex_stage_items.sql`). Тип `lfk_complex` убран из CHECK пунктов шаблона и инстанса (`0082_drop_lfk_complex_item_type_check.sql`). Новые строки `lfk_complex` в stage items не создаются; добавление комплекса в **инстанс** и **шаблон** — только разворот в `exercise` (`from-lfk-complex`). Пациентский legacy (`lfk-session`, карточка комплекса) удалён; комментарии к программе врача — `observation-note` + notify только для `assignment_source=doctor`.
 
-1. **Данные:** при желании единообразия — одноразовая миграция / скрипт, который для каждой строки `treatment_program_template_stage_items` с `item_type = 'lfk_complex'` разворачивает её в набор строк `exercise` по актуальному составу шаблона комплекса в каталоге (с явной политикой для конфликтов и устаревших комплексов).
-2. **Врачебский UI:** убрать или скрыть тип «Комплекс ЛФК» из селекта добавления элемента, когда миграция данных завершена и legacy-строк не осталось (или оставить только read-only для архивных шаблонов).
-3. **Пациент / интегратор:** при удалении типа из новых шаблонов — пересмотреть ветки, которые всё ещё опираются на snapshot блока `lfk_complex` для экземпляров, созданных со старых шаблонов (документ `SYSTEM_LOGIC_SCHEMA` §11 и связанные API).
+## Выкат миграций (production)
+
+Порядок обязателен: **`0081_expand_lfk_complex_stage_items.sql`**, затем **`0082_drop_lfk_complex_item_type_check.sql`** (`pnpm --dir apps/webapp run migrate` после deploy webapp с файлами миграций).
+
+После наката — проверка (без секретов в лог):
+
+```sql
+SELECT count(*) FROM treatment_program_template_stage_items WHERE item_type = 'lfk_complex';
+SELECT count(*) FROM treatment_program_instance_stage_items WHERE item_type = 'lfk_complex';
+```
+
+Ожидание: **0** в обеих таблицах.
+
+## Вне scope (без изменений)
+
+- Напоминания с `linked_object_type = lfk_complex` (каталог).
+- Исторический `program_action_log` с `lfk_exercise_done` / `lfk_session`.
+- Каталог `lfk_complex_templates` и API материалов с `target_kind = lfk_complex`.
 
 Секреты и ключи в этот файл не записывать.

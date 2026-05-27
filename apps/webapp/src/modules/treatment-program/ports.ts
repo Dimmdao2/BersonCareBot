@@ -20,6 +20,7 @@ import type {
   TreatmentProgramAssignmentSource,
   TreatmentProgramInstanceStatus,
   TreatmentProgramItemType,
+  TreatmentProgramLibraryPickType,
   TreatmentProgramTemplate,
   TreatmentProgramTemplateDetail,
   TreatmentProgramTemplateFilter,
@@ -41,6 +42,8 @@ import type {
   ExpandTestSetIntoTemplateStageItemsResult,
   ExpandTestSetIntoInstanceStageItemsPortInput,
   ExpandTestSetIntoInstanceStageItemsResult,
+  ExpandLfkComplexIntoInstanceStageItemsPortInput,
+  ExpandLfkComplexIntoInstanceStageItemsResult,
   ProgramActionLogInsert,
   ProgramActionLogListRow,
   UpdateTreatmentProgramStageInput,
@@ -110,7 +113,7 @@ export type TreatmentProgramPort = {
 
 /** Проверка полиморфной ссылки без FK на уровне БД — только в сервисе. */
 export type TreatmentProgramItemRefValidationPort = {
-  assertItemRefExists(type: TreatmentProgramItemType, itemRefId: string): Promise<void>;
+  assertItemRefExists(type: TreatmentProgramLibraryPickType, itemRefId: string): Promise<void>;
 };
 
 /** Снимок блока библиотеки на момент назначения (§4 SYSTEM_LOGIC_SCHEMA). */
@@ -225,6 +228,10 @@ export type TreatmentProgramInstancePort = {
   expandTestSetIntoInstanceStageItems(
     input: ExpandTestSetIntoInstanceStageItemsPortInput,
   ): Promise<ExpandTestSetIntoInstanceStageItemsResult | null>;
+  /** Развёртывание комплекса ЛФК в строки `exercise` (снимок на каждую строку). */
+  expandLfkComplexIntoInstanceStageItems(
+    input: ExpandLfkComplexIntoInstanceStageItemsPortInput,
+  ): Promise<ExpandLfkComplexIntoInstanceStageItemsResult | null>;
   replaceInstanceStageItem(
     instanceId: string,
     itemId: string,

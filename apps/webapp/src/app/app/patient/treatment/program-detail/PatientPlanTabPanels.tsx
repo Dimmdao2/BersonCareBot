@@ -83,6 +83,7 @@ export function PatientPlanTabPanels(props: {
             onRefreshDetail={onRefreshDetail}
             itemLinksPlanTab="program"
             planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
+            assignmentSource={detail.assignmentSource}
           />
         </Suspense>
       </div>

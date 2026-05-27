@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type {
   TreatmentProgramInstanceStatus,
   TreatmentProgramItemType,
+  TreatmentProgramLibraryPickType,
 } from "@/modules/treatment-program/types";
 import { runIfProgramInstanceMutationAllowed } from "./programInstanceMutationGuard";
 import type { TreatmentProgramLibraryPickers, TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
@@ -50,7 +51,7 @@ function LibraryMediaThumb({
   itemType,
 }: {
   src: string | null | undefined;
-  itemType: TreatmentProgramItemType;
+  itemType: TreatmentProgramLibraryPickType;
 }) {
   const shell =
     "flex size-[70px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/40";
@@ -130,7 +131,7 @@ export function InstanceAddLibraryItemDialog(props: {
     }
   }, [open]);
 
-  const resolvedItemType: TreatmentProgramItemType = useMemo(() => {
+  const resolvedItemType: TreatmentProgramLibraryPickType = useMemo(() => {
     if (!spec) return "exercise";
     switch (spec.context) {
       case "phase_zero_recommendations":
@@ -191,6 +192,32 @@ export function InstanceAddLibraryItemDialog(props: {
           const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
           if (!res.ok || !data.ok) {
             setError(data.error ?? "Не удалось добавить тесты из набора");
+            return;
+          }
+          onOpenChange(false);
+          await onAdded();
+          return;
+        }
+
+        if (resolvedItemType === "lfk_complex") {
+          if (!spec.customGroupId?.trim()) {
+            setError("Не задана группа");
+            return;
+          }
+          const res = await fetch(
+            `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(spec.stageId)}/items/from-lfk-complex`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                complexTemplateId: row.id,
+                groupId: spec.customGroupId,
+              }),
+            },
+          );
+          const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+          if (!res.ok || !data.ok) {
+            setError(data.error ?? "Не удалось добавить упражнения из комплекса");
             return;
           }
           onOpenChange(false);

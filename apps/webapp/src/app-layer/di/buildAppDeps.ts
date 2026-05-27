@@ -162,6 +162,7 @@ import { createPatientMessagingService } from "@/modules/messaging/patientMessag
 import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorSupportMessagingService";
 import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatientDoctorReply";
 import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPatientMessage";
+import { notifyDoctorPatientProgramNote } from "@/modules/messaging/notifyDoctorPatientProgramNote";
 import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
@@ -438,6 +439,11 @@ const treatmentProgramPatientActions = createTreatmentProgramPatientActionServic
   patientDiarySnapshots: patientDiarySnapshotsPort,
   getAppDefaultTimezoneIana: getAppDisplayTimeZone,
   getPatientCalendarTimezoneIana: patientCalendarTimezoneGet,
+  resolvePatientLabel: async (platformUserId) => {
+    const identity = await doctorClientsPort.getClientIdentity(platformUserId);
+    return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";
+  },
+  notifyDoctorOfProgramNote: notifyDoctorPatientProgramNote,
 });
 const treatmentProgramItemSnapshotPort = !inMemoryRepos
   ? createPgTreatmentProgramItemSnapshotPort()

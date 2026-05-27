@@ -2,7 +2,6 @@ import { DateTime } from "luxon";
 import type { ProgramActionLogPort, TreatmentProgramInstancePort } from "./ports";
 import { assertUuid } from "./service";
 import type {
-  LfkPostSessionDifficulty,
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageItemView,
 } from "./types";
@@ -12,7 +11,6 @@ import {
   isPersistentRecommendation,
   isStageZero,
 } from "./stage-semantics";
-import { listLfkSnapshotExerciseLines } from "./programActionActivityKey";
 import {
   aggregatePassageStatsFromSnapshots,
   earliestLocalDateWithActivityFromSnapshots,
@@ -56,7 +54,6 @@ export function isProgramChecklistItem(
   if (item.itemType === "recommendation" && item.isActionable === false) return false;
   return (
     item.itemType === "exercise" ||
-    item.itemType === "lfk_complex" ||
     item.itemType === "lesson" ||
     item.itemType === "recommendation"
   );
@@ -121,6 +118,15 @@ export function createTreatmentProgramPatientActionService(deps: {
   now?: () => Date;
   getAppDefaultTimezoneIana: () => Promise<string>;
   getPatientCalendarTimezoneIana?: (platformUserId: string) => Promise<string | null>;
+  resolvePatientLabel?: (platformUserId: string) => Promise<string>;
+  notifyDoctorOfProgramNote?: (input: {
+    patientUserId: string;
+    instanceId: string;
+    stageItemId: string;
+    patientLabel: string;
+    exerciseTitle: string;
+    noteText: string;
+  }) => Promise<void>;
 }) {
   const nowFn = deps.now ?? (() => new Date());
   const getPersonalTz = deps.getPatientCalendarTimezoneIana ?? (async () => null);
@@ -366,9 +372,6 @@ export function createTreatmentProgramPatientActionService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
       const { item } = await assertItemAccessible(input.patientUserId, input.instanceId, input.stageItemId);
-      if (item.itemType === "lfk_complex") {
-        throw new Error("ЛФК отмечайте через форму «Как прошло занятие?»");
-      }
       const win = await checklistDayWindow(input.patientUserId);
       if (input.checked) {
         await deps.actionLog.insertAction({
@@ -397,71 +400,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       });
     },
 
-    async patientSubmitLfkPostSession(input: {
-      patientUserId: string;
-      instanceId: string;
-      stageItemId: string;
-      difficulty: LfkPostSessionDifficulty;
-      note?: string | null;
-      /** Подмножество упражнений снимка; если не задано — отмечаются все упражнения комплекса. */
-      completedExerciseIds?: string[] | null;
-    }): Promise<string[]> {
-      assertUuid(input.patientUserId);
-      assertUuid(input.instanceId);
-      assertUuid(input.stageItemId);
-      const detail = await deps.instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
-      const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
-      if (!item) throw new Error("Элемент не найден");
-      const stage = detail.stages.find((s) => s.id === item.stageId);
-      if (!stage) throw new Error("Этап не найден");
-      if (!isStageZero(stage) && (stage.status === "locked" || stage.status === "skipped")) {
-        throw new Error("Этап недоступен");
-      }
-      if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error("Элемент отключён");
-      }
-      if (item.itemType !== "lfk_complex") throw new Error("Только для ЛФК-комплекса");
-      const allowed = listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>).map((l) => l.exerciseId);
-      const allowedSet = new Set(allowed);
-      let toMark = allowed;
-      if (input.completedExerciseIds != null && input.completedExerciseIds.length > 0) {
-        for (const id of input.completedExerciseIds) {
-          assertUuid(id);
-          if (!allowedSet.has(id)) throw new Error("Упражнение не входит в назначенный комплекс");
-        }
-        toMark = [...new Set(input.completedExerciseIds)];
-      }
-      if (toMark.length === 0) throw new Error("В комплексе нет упражнений для отметки");
-
-      const win = await checklistDayWindow(input.patientUserId);
-      const noteTrim = input.note?.trim() ? input.note.trim().slice(0, 4000) : null;
-      const sessionId = crypto.randomUUID();
-      for (let i = 0; i < toMark.length; i++) {
-        const exerciseId = toMark[i]!;
-        await deps.actionLog.insertAction({
-          instanceId: input.instanceId,
-          instanceStageItemId: input.stageItemId,
-          patientUserId: input.patientUserId,
-          actionType: "done",
-          sessionId,
-          payload: {
-            source: "lfk_exercise_done",
-            exerciseId,
-            difficulty: input.difficulty,
-          },
-          note: i === 0 ? noteTrim : null,
-        });
-      }
-      return deps.actionLog.listDoneItemIdsInWindow({
-        instanceId: input.instanceId,
-        patientUserId: input.patientUserId,
-        windowStartIso: win.start,
-        windowEndIso: win.end,
-      });
-    },
-
-    /** Свободное наблюдение пациента по пункту (журнал `program_action_log`, `action_type = note`). Не для ЛФК и не для набора тестов. */
+    /** Свободное наблюдение пациента по пункту (журнал `program_action_log`, `action_type = note`). Не для набора тестов. */
     async patientAppendObservationNote(input: {
       patientUserId: string;
       instanceId: string;
@@ -485,8 +424,8 @@ export function createTreatmentProgramPatientActionService(deps: {
       if (!isInstanceStageItemActiveForPatient(item)) {
         throw new Error("Элемент отключён");
       }
-      if (item.itemType === "lfk_complex") {
-        throw new Error("Для ЛФК используйте отметку занятия");
+      if (detail.assignmentSource === "promo") {
+        throw new Error("Комментарии недоступны для промо-программы");
       }
       if (item.itemType === "clinical_test") {
         throw new Error("Для клинического теста используйте запись результатов");
@@ -500,6 +439,20 @@ export function createTreatmentProgramPatientActionService(deps: {
         payload: { source: "patient_observation" },
         note: noteTrim.slice(0, 4000),
       });
+      if (detail.assignmentSource === "doctor" && deps.notifyDoctorOfProgramNote && deps.resolvePatientLabel) {
+        const snap = item.snapshot as Record<string, unknown>;
+        const title =
+          typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "Пункт программы";
+        const patientLabel = await deps.resolvePatientLabel(input.patientUserId);
+        await deps.notifyDoctorOfProgramNote({
+          patientUserId: input.patientUserId,
+          instanceId: input.instanceId,
+          stageItemId: input.stageItemId,
+          patientLabel,
+          exerciseTitle: title,
+          noteText: noteTrim,
+        });
+      }
     },
   };
 }

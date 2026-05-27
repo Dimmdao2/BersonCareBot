@@ -11,6 +11,9 @@ import type {
   CreateTreatmentProgramInstanceTreeInput,
   ExpandTestSetIntoInstanceStageItemsPortInput,
   ExpandTestSetIntoInstanceStageItemsResult,
+  ExpandLfkComplexIntoInstanceStageItemsPortInput,
+  ExpandLfkComplexIntoInstanceStageItemsResult,
+  LfkComplexExpandPreview,
   ReplaceTreatmentProgramInstanceStageItemInput,
   TreatmentProgramInstanceStageGroup,
   UpdateTreatmentProgramInstanceStageGroupInput,
@@ -51,6 +54,14 @@ function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   return true;
 }
 
+function sameUuidOrder(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 function isoNow(): string {
   return new Date().toISOString();
 }
@@ -68,6 +79,8 @@ export type InMemoryTreatmentProgramPersistence = {
 export function createInMemoryTreatmentProgramPersistence(seed?: {
   /** testSetId -> ordered test ids (для `expandTestSetIntoInstanceStageItems` в Vitest). */
   testSetExpandLines?: Record<string, string[]>;
+  /** complexTemplateId -> preview (для `expandLfkComplexIntoInstanceStageItems` в Vitest). */
+  lfkComplexExpandPreview?: Record<string, LfkComplexExpandPreview>;
 }): InMemoryTreatmentProgramPersistence {
   const instances = new Map<string, InstRow>();
   const stages = new Map<string, StageRow>();
@@ -76,6 +89,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
   const attempts = new Map<string, TreatmentProgramTestAttemptRow>();
   const results = new Map<string, TreatmentProgramTestResultRow>();
   const programEvents: TreatmentProgramEventRow[] = [];
+  const lfkComplexExpandPreview = seed?.lfkComplexExpandPreview ?? {};
   let attemptStartedAtSeq = 0;
   const startedAtForNewAttempt = () => {
     attemptStartedAtSeq += 1;
@@ -644,6 +658,66 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       }
       touchInstance(input.instanceId);
       return { added, skipped, items: inserted };
+    },
+
+    async expandLfkComplexIntoInstanceStageItems(
+      input: ExpandLfkComplexIntoInstanceStageItemsPortInput,
+    ): Promise<ExpandLfkComplexIntoInstanceStageItemsResult | null> {
+      const st = stages.get(input.stageId);
+      if (!st || st.instanceId !== input.instanceId) return null;
+      if (st.sortOrder === 0) {
+        throw new Error("На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК");
+      }
+      const preview = lfkComplexExpandPreview[input.complexTemplateId];
+      if (!preview) throw new Error("Комплекс ЛФК не найден или в архиве");
+      const idsFromDb = [...preview.exerciseIds];
+      if (idsFromDb.length === 0) throw new Error("В комплексе нет упражнений");
+      if (!sameUuidOrder(idsFromDb, input.expectedExerciseIds)) {
+        throw new Error("Комплекс ЛФК был изменён; обновите страницу и повторите попытку");
+      }
+      const gRow = instGroups.get(input.groupId);
+      if (!gRow || gRow.stageId !== input.stageId) {
+        throw new Error("Группа не найдена или не принадлежит этапу");
+      }
+      if (gRow.systemKind === "recommendations" || gRow.systemKind === "tests") {
+        throw new Error("Нельзя добавить упражнения в системную группу");
+      }
+      const itemMax = Math.max(
+        -1,
+        ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder),
+      );
+      const inserted: TreatmentProgramInstanceStageItemRow[] = [];
+      const t = isoNow();
+      for (let i = 0; i < idsFromDb.length; i++) {
+        const exerciseId = idsFromDb[i]!;
+        const iid = crypto.randomUUID();
+        const snapshot: Record<string, unknown> = {
+          itemType: "exercise",
+          id: exerciseId,
+          title: null,
+        };
+        const itemRow: ItemRow = {
+          id: iid,
+          stageId: input.stageId,
+          itemType: "exercise",
+          itemRefId: exerciseId,
+          sortOrder: itemMax + 1 + i,
+          comment: null,
+          localComment: null,
+          settings: null,
+          snapshot,
+          completedAt: null,
+          isActionable: null,
+          status: "active",
+          groupId: input.groupId,
+          createdAt: t,
+          lastViewedAt: t,
+        };
+        items.set(iid, itemRow);
+        inserted.push(itemRow);
+      }
+      touchInstance(input.instanceId);
+      return { items: inserted };
     },
 
     async patchInstanceStageItem(

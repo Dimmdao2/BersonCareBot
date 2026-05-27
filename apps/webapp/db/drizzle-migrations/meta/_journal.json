@@ -568,6 +568,20 @@
       "when": 1782300000000,
       "tag": "0080_broadcast_audit_recipients",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0081_expand_lfk_complex_stage_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1782500000000,
+      "tag": "0082_drop_lfk_complex_item_type_check",
+      "breakpoints": true
     }
   ]
 }

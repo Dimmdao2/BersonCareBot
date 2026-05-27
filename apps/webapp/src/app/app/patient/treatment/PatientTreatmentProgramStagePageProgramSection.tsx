@@ -7,19 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { patientLfkDifficultySelectItems } from "@/shared/ui/selectOpaqueValueLabels";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import {
   formatRelativePatientCalendarDayRu,
   isPersistentRecommendation,
@@ -59,7 +50,6 @@ type Stage = TreatmentProgramInstanceDetail["stages"][number];
 /** Кнопка `progress/complete` на плитке — только для типов, которые реально поддерживают simple complete. */
 function programTileShowsSimpleCompleteActions(item: InstanceStageItem): boolean {
   if (isPersistentRecommendation(item)) return false;
-  if (item.itemType === "lfk_complex") return false;
   if (item.itemType === "clinical_test") return false;
   return true;
 }
@@ -261,6 +251,8 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   className?: string;
   itemLinksPlanTab?: PatientPlanTab | null;
   planItemDoneRepeatCooldownMinutes: number;
+  /** Комментарии к пунктам — только для программ на сопровождении врача. */
+  allowPatientObservationComment: boolean;
 }) {
   const {
     instanceId,
@@ -280,6 +272,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     className,
     itemLinksPlanTab = null,
     planItemDoneRepeatCooldownMinutes,
+    allowPatientObservationComment,
   } = props;
   const planItemDoneRepeatCooldownMs = useMemo(
     () => planItemDoneRepeatCooldownMsFromMinutes(planItemDoneRepeatCooldownMinutes),
@@ -289,8 +282,6 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   const [commentModalItemId, setCommentModalItemId] = useState<string | null>(null);
   const [observationDraft, setObservationDraft] = useState("");
   const [observationSaving, setObservationSaving] = useState(false);
-  const [lfkFeeling, setLfkFeeling] = useState<"easy" | "medium" | "hard">("medium");
-
   const commentModalItem = useMemo(() => {
     if (!commentModalItemId) return null;
     return stage.items.find((it) => it.id === commentModalItemId) ?? null;
@@ -299,68 +290,34 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   useEffect(() => {
     if (!commentModalItemId) return;
     setObservationDraft("");
-    setLfkFeeling("medium");
   }, [commentModalItemId]);
 
   const submitObservationFromPlanModal = useCallback(async () => {
     if (!commentModalItem) return;
-    const item = commentModalItem;
     const noteTrim = observationDraft.trim();
-    if (item.itemType !== "lfk_complex" && noteTrim === "") {
+    if (noteTrim === "") {
       setError("Введите текст наблюдения");
       return;
     }
     setObservationSaving(true);
     setError(null);
     try {
-      if (item.itemType === "lfk_complex") {
-        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/lfk-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            difficulty: lfkFeeling,
-            note: noteTrim === "" ? null : noteTrim,
-            completedExerciseIds: listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>).map(
-              (l) => l.exerciseId,
-            ),
-          }),
-        });
-        const data = (await res.json().catch(() => null)) as {
-          ok?: boolean;
-          doneItemIds?: string[];
-          error?: string;
-        };
-        if (!res.ok || !data.ok) {
-          setError(data.error ?? "Ошибка сохранения");
-          return;
-        }
-        if (data.doneItemIds) onDoneItemIds(data.doneItemIds);
-      } else {
-        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/observation-note`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note: noteTrim }),
-        });
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setError(data.error ?? "Ошибка сохранения");
-          return;
-        }
+      const res = await fetch(`${base}/${encodeURIComponent(commentModalItem.id)}/progress/observation-note`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: noteTrim }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? "Ошибка сохранения");
+        return;
       }
       setCommentModalItemId(null);
       await refresh();
     } finally {
       setObservationSaving(false);
     }
-  }, [
-    commentModalItem,
-    observationDraft,
-    lfkFeeling,
-    base,
-    setError,
-    onDoneItemIds,
-    refresh,
-  ]);
+  }, [commentModalItem, observationDraft, base, setError, refresh]);
 
   const readOnly = itemInteraction === "readOnly";
   const visibleProgramItems = useMemo(
@@ -503,21 +460,23 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
 
           {!readOnlyTile ? (
             <div className="mt-1.5 flex w-full min-w-0 gap-2 border-t border-[var(--patient-border)] pt-2">
-              <button
-                type="button"
-                className={cn(
-                  patientSecondaryActionClass,
-                  "!w-auto min-h-9 min-w-0 flex-1 basis-0 px-2 py-2.5 text-center text-xs font-medium leading-tight",
-                  "inline-flex cursor-pointer items-center justify-center gap-1.5",
-                )}
-                disabled={busy !== null || (observationSaving && commentModalItemId === item.id)}
-                onClick={() => {
-                  setError(null);
-                  setCommentModalItemId(item.id);
-                }}
-              >
-                <span className="w-full text-center leading-tight">Добавить комментарий</span>
-              </button>
+              {allowPatientObservationComment ? (
+                <button
+                  type="button"
+                  className={cn(
+                    patientSecondaryActionClass,
+                    "!w-auto min-h-9 min-w-0 flex-1 basis-0 px-2 py-2.5 text-center text-xs font-medium leading-tight",
+                    "inline-flex cursor-pointer items-center justify-center gap-1.5",
+                  )}
+                  disabled={busy !== null || (observationSaving && commentModalItemId === item.id)}
+                  onClick={() => {
+                    setError(null);
+                    setCommentModalItemId(item.id);
+                  }}
+                >
+                  <span className="w-full text-center leading-tight">Добавить комментарий</span>
+                </button>
+              ) : null}
               {showSimpleCompleteFooter ? (
                 <PatientProgramTileSimpleCompleteButton
                   itemId={item.id}
@@ -592,28 +551,6 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
               <DialogTitle>Наблюдение</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-3">
-              {commentModalItem.itemType === "lfk_complex" ? (
-                <div className={cn(patientFormSurfaceClass, "flex flex-col gap-2 border border-[var(--patient-border)]/70 p-3")}>
-                  <Label className={cn(patientMutedTextClass, "text-xs")}>Как прошло занятие?</Label>
-                  <Select
-                    value={lfkFeeling}
-                    onValueChange={(v) => setLfkFeeling(v as "easy" | "medium" | "hard")}
-                    items={patientLfkDifficultySelectItems}
-                  >
-                    <SelectTrigger
-                      className="h-10 w-full max-w-xs"
-                      displayLabel={patientLfkDifficultySelectItems[lfkFeeling]}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Легко</SelectItem>
-                      <SelectItem value="medium">Средне</SelectItem>
-                      <SelectItem value="hard">Тяжело</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
               <div className="flex flex-col gap-2">
                 <Label
                   htmlFor={`patient-plan-observation-note-${commentModalItem.id}`}

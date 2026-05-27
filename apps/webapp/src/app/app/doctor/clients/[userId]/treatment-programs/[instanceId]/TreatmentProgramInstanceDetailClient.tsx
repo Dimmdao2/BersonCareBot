@@ -68,7 +68,6 @@ import {
 import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { primaryMediaForStageItem } from "@/app/app/patient/treatment/stageItemSnapshot";
-import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -227,15 +226,6 @@ function effectiveLoadTripleFromParts(
       maxPain: pickFirstFiniteNum(ov.maxPain, snapshot.maxPain, snapshot.difficulty),
     };
   }
-  if (itemType === "lfk_complex") {
-    const lines = listLfkSnapshotExerciseLines(snapshot);
-    const L = lines[0];
-    return {
-      reps: pickFirstFiniteNum(ov.reps, L?.reps),
-      sets: pickFirstFiniteNum(ov.sets, L?.sets),
-      maxPain: pickFirstFiniteNum(ov.maxPain, L?.maxPain),
-    };
-  }
   return { reps: null, sets: null, maxPain: null };
 }
 
@@ -256,8 +246,6 @@ function DoctorInstanceStageItemPreviewBlock(props: { item: InstanceStageItemT }
         <ClipboardList className="size-7 text-muted-foreground" aria-hidden />
       ) : item.itemType === "lesson" ? (
         <BookOpen className="size-7 text-muted-foreground" aria-hidden />
-      ) : item.itemType === "lfk_complex" ? (
-        <Layers className="size-7 text-muted-foreground" aria-hidden />
       ) : (
         <Activity className="size-7 text-muted-foreground" aria-hidden />
       );
@@ -494,7 +482,7 @@ function DoctorProgramInstanceItemCard(props: {
               onSaved={onSaved}
               hideGroupSelect={recPhase0}
             />
-            {item.itemType === "exercise" || item.itemType === "lfk_complex" ? (
+            {item.itemType === "exercise" ? (
               <DoctorInstanceStageItemLoadForm
                 instanceId={instanceId}
                 item={item}

@@ -3,13 +3,7 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
 import { recommendations } from "../../../db/schema/recommendations";
-import {
-  contentPages,
-  lfkComplexTemplateExercises,
-  lfkComplexTemplates,
-  lfkExerciseMedia,
-  lfkExercises,
-} from "../../../db/schema/schema";
+import { contentPages, lfkExerciseMedia, lfkExercises } from "../../../db/schema/schema";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { TreatmentProgramItemSnapshotPort } from "@/modules/treatment-program/ports";
 import type { TreatmentProgramItemType } from "@/modules/treatment-program/types";
@@ -142,79 +136,6 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             difficulty: row.difficulty110 ?? null,
             loadType: row.loadType ?? null,
             ...(media ? { media } : {}),
-          };
-        }
-        case "lfk_complex": {
-          /** `exercises[].media` — как у `case "exercise"` (превью в модалке состава без клиентских join). */
-          const tpl = await db.query.lfkComplexTemplates.findFirst({
-            where: and(eq(lfkComplexTemplates.id, itemRefId), ne(lfkComplexTemplates.status, "archived")),
-          });
-          if (!tpl) throw notFound(type);
-          const lines = await db
-            .select()
-            .from(lfkComplexTemplateExercises)
-            .where(eq(lfkComplexTemplateExercises.templateId, itemRefId))
-            .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
-          const exIds = [...new Set(lines.map((l) => l.exerciseId))];
-          const exRows =
-            exIds.length === 0
-              ? []
-              : await db
-                  .select()
-                  .from(lfkExercises)
-                  .where(inArray(lfkExercises.id, exIds));
-          const exTitle = new Map(exRows.map((e) => [e.id, e.title]));
-          const pool = getPool();
-          const mediaByExerciseId = new Map<string, CatalogMediaSnapshotRow[]>();
-          if (exIds.length > 0) {
-            const mediaRows = await db
-              .select()
-              .from(lfkExerciseMedia)
-              .where(inArray(lfkExerciseMedia.exerciseId, exIds))
-              .orderBy(asc(lfkExerciseMedia.exerciseId), asc(lfkExerciseMedia.sortOrder), asc(lfkExerciseMedia.id));
-            const baseInputs: CatalogMediaRowInput[] = mediaRows.map((m) => ({
-              mediaUrl: m.mediaUrl,
-              mediaType: m.mediaType,
-              sortOrder: m.sortOrder,
-            }));
-            const enriched = await catalogMediaRowsWithWorkerPreviews(pool, baseInputs);
-            for (let i = 0; i < mediaRows.length; i++) {
-              const mrow = mediaRows[i]!;
-              const erow = enriched[i];
-              if (!erow) continue;
-              const eid = mrow.exerciseId;
-              const list = mediaByExerciseId.get(eid) ?? [];
-              list.push(erow);
-              mediaByExerciseId.set(eid, list);
-            }
-          }
-          const exerciseMediaToSnapshot = (rows: CatalogMediaSnapshotRow[]) =>
-            rows.map((m) => ({
-              url: m.mediaUrl,
-              type: m.mediaType,
-              sortOrder: m.sortOrder,
-              previewSmUrl: m.previewSmUrl,
-              previewMdUrl: m.previewMdUrl,
-              previewStatus: m.previewStatus,
-            }));
-          return {
-            itemType: type,
-            id: tpl.id,
-            title: tpl.title,
-            description: tpl.description ?? null,
-            exercises: lines.map((l) => {
-              const media = exerciseMediaToSnapshot(mediaByExerciseId.get(l.exerciseId) ?? []);
-              return {
-                exerciseId: l.exerciseId,
-                title: exTitle.get(l.exerciseId) ?? null,
-                sortOrder: l.sortOrder,
-                reps: l.reps ?? null,
-                sets: l.sets ?? null,
-                side: l.side ?? null,
-                comment: l.comment ?? null,
-                ...(media.length > 0 ? { media } : {}),
-              };
-            }),
           };
         }
         case "clinical_test": {

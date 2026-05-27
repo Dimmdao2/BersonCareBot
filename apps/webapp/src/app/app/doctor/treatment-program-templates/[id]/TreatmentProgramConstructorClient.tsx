@@ -25,6 +25,7 @@ import {
 } from "@/shared/ui/selectOpaqueValueLabels";
 import type {
   TreatmentProgramItemType,
+  TreatmentProgramLibraryPickType,
   TreatmentProgramStageItem,
   TreatmentProgramTemplateDetail,
   TreatmentProgramTemplateStageGroup,
@@ -58,7 +59,7 @@ import type {
   TreatmentProgramLibraryRow,
 } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
 
-const ITEM_TYPE_LABEL: Record<TreatmentProgramItemType, string> = {
+const ITEM_TYPE_LABEL: Record<TreatmentProgramLibraryPickType, string> = {
   exercise: "Упражнение ЛФК",
   lfk_complex: "Комплекс ЛФК",
   recommendation: "Рекомендация",
@@ -149,7 +150,7 @@ function LibraryMediaThumb({
   compact,
 }: {
   src: string | null | undefined;
-  itemType: TreatmentProgramItemType;
+  itemType: TreatmentProgramLibraryPickType;
   /** Компактная строка списка этапа (~36px). */
   compact?: boolean;
 }) {
@@ -185,7 +186,7 @@ function LibraryMediaThumb({
 
 function findLibraryRow(
   lib: TreatmentProgramLibraryPickers,
-  type: TreatmentProgramItemType,
+  type: TreatmentProgramLibraryPickType,
   id: string,
 ): TreatmentProgramLibraryRow | null {
   const rows = (() => {
@@ -367,7 +368,7 @@ export function TreatmentProgramConstructorClient({
   const [newStageGoals, setNewStageGoals] = useState("");
   const [newStageObjectives, setNewStageObjectives] = useState("");
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
-  const [itemType, setItemType] = useState<TreatmentProgramItemType>("exercise");
+  const [itemType, setItemType] = useState<TreatmentProgramLibraryPickType>("exercise");
   const [itemSearch, setItemSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -10,7 +10,7 @@ export type ProgramItemRatingTarget =
  * `lfk_complex` → id строки **шаблона комплекса** (`lfk_complex_templates`), как в {@link createPgTreatmentProgramItemRefValidationPort}.
  */
 export function treatmentProgramItemToRatingTarget(
-  itemType: TreatmentProgramItemType,
+  itemType: TreatmentProgramItemType | "lfk_complex",
   itemRefId: string,
 ): ProgramItemRatingTarget {
   switch (itemType) {

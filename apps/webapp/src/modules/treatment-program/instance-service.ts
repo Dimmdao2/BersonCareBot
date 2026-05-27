@@ -681,6 +681,9 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.itemRefId);
       if (input.actorId) assertUuid(input.actorId);
       if (input.groupId) assertUuid(input.groupId);
+      if ((input.itemType as string) === "lfk_complex") {
+        throw new Error("Для комплекса ЛФК используйте разворот комплекса (from-lfk-complex)");
+      }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
       const snapshot = await snapshots.buildSnapshot(input.itemType, input.itemRefId);
       const detail = await instances.getInstanceById(input.instanceId);
@@ -818,6 +821,54 @@ export function createTreatmentProgramInstanceService(deps: {
             itemRefId: row.itemRefId,
             sortOrder: row.sortOrder,
             source: "expand_test_set_into_clinical_tests",
+          },
+        });
+      }
+      return out;
+    },
+
+    async doctorExpandLfkComplexIntoStage(input: {
+      instanceId: string;
+      stageId: string;
+      complexTemplateId: string;
+      groupId: string;
+      actorId: string | null;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.stageId);
+      assertUuid(input.complexTemplateId);
+      assertUuid(input.groupId);
+      if (input.actorId) assertUuid(input.actorId);
+
+      const preview = await templates.getLfkComplexExpandPreview(input.complexTemplateId.trim());
+      if (!preview) throw new Error("Комплекс ЛФК не найден или в архиве");
+      if (preview.exerciseIds.length === 0) throw new Error("В комплексе нет упражнений");
+
+      for (const id of preview.exerciseIds) {
+        await itemRefs.assertItemRefExists("exercise", id);
+      }
+
+      const out = await instances.expandLfkComplexIntoInstanceStageItems({
+        instanceId: input.instanceId,
+        stageId: input.stageId,
+        complexTemplateId: input.complexTemplateId.trim(),
+        groupId: input.groupId,
+        expectedExerciseIds: preview.exerciseIds,
+      });
+      if (!out) throw new Error("Этап не найден");
+      for (const row of out.items) {
+        await appendEvent({
+          instanceId: input.instanceId,
+          actorId: input.actorId,
+          eventType: "item_added",
+          targetType: "stage_item",
+          targetId: row.id,
+          payload: {
+            stageId: input.stageId,
+            itemType: row.itemType,
+            itemRefId: row.itemRefId,
+            sortOrder: row.sortOrder,
+            source: "expand_lfk_complex_into_exercises",
           },
         });
       }
@@ -1313,8 +1364,8 @@ export function createTreatmentProgramInstanceService(deps: {
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
       if (!item) throw new Error("Элемент не найден");
-      if (item.itemType !== "exercise" && item.itemType !== "lfk_complex") {
-        throw new Error("Нагрузку можно менять только для упражнений и ЛФК-комплексов");
+      if (item.itemType !== "exercise") {
+        throw new Error("Нагрузку можно менять только для упражнений");
       }
 
       const prevRaw = item.settings;
@@ -1416,35 +1467,9 @@ export function createTreatmentProgramInstanceService(deps: {
     },
 
     async listTreatmentProgramLfkBlocksForIntegratorPatient(
-      patientUserId: string,
+      _patientUserId: string,
     ): Promise<TreatmentProgramIntegratorLfkBlock[]> {
-      assertUuid(patientUserId);
-      const summaries = await instances.listInstancesForPatient(patientUserId.trim());
-      const blocks: TreatmentProgramIntegratorLfkBlock[] = [];
-      for (const summ of summaries) {
-        if (summ.status !== "active") continue;
-        const detail = await instances.getInstanceById(summ.id);
-        if (!detail) continue;
-        for (const st of detail.stages) {
-          for (const it of st.items) {
-            if (it.status === "disabled") continue;
-            if (it.itemType !== "lfk_complex") continue;
-            const snap = it.snapshot;
-            const title =
-              typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : null;
-            blocks.push({
-              instanceId: detail.id,
-              instanceStatus: detail.status,
-              stageId: st.id,
-              stageTitle: st.title,
-              stageItemId: it.id,
-              lfkComplexId: it.itemRefId,
-              lfkComplexTitle: title,
-            });
-          }
-        }
-      }
-      return blocks;
+      return [];
     },
   };
 }

@@ -369,30 +369,13 @@ describe("treatment-program events (§8)", () => {
       events: persistence.eventsPort,
       testAttempts: persistence.testAttemptsPort,
     });
-    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
-    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК" });
-    await tplSvc.addStageItem(s1.id, {
-      itemType: "lfk_complex",
-      itemRefId: refA,
-      groupId: g1.id,
-    });
     const inst = await localInstSvc.assignTemplateToPatient({
-      templateId: tpl.id,
+      templateId: (await tplSvc.createTemplate({ title: "П", status: "published" }, null)).id,
       patientUserId: "60606060-6060-4060-8060-606060606060",
       assignedBy: null,
     });
     const blocks = await localInstSvc.listTreatmentProgramLfkBlocksForIntegratorPatient(inst.patientUserId);
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0]).toMatchObject({
-      instanceId: inst.id,
-      instanceStatus: "active",
-      lfkComplexId: refA,
-      lfkComplexTitle: "Снимок комплекса",
-    });
-    await localInstSvc.updateInstance({ instanceId: inst.id, status: "completed", actorId: doctor });
-    const after = await localInstSvc.listTreatmentProgramLfkBlocksForIntegratorPatient(inst.patientUserId);
-    expect(after).toHaveLength(0);
+    expect(blocks).toHaveLength(0);
   });
 
   it("AUDIT_PHASE_9 FIX 9-M-2: цепочка add → replace → reorder сохраняет id и обновляет snapshot", async () => {

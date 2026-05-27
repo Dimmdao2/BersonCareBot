@@ -8,18 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { patientLfkDifficultySelectItems } from "@/shared/ui/selectOpaqueValueLabels";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import {
   isPersistentRecommendation,
@@ -123,10 +114,6 @@ function exerciseSnapshotDescriptionBody(snap: Record<string, unknown>): string 
 function briefNonExerciseHeroParts(item: StageItem, navMode: PatientProgramItemNavMode): string[] {
   const snap = item.snapshot as Record<string, unknown>;
   const parts: string[] = [];
-  if (item.itemType === "lfk_complex") {
-    const lines = listLfkSnapshotExerciseLines(snap);
-    if (lines.length > 0) parts.push(`${lines.length} упражнений в комплексе`);
-  }
   if (item.itemType === "recommendation") {
     if (typeof snap.durationText === "string" && snap.durationText.trim()) parts.push(snap.durationText.trim());
     if (typeof snap.frequencyText === "string" && snap.frequencyText.trim()) parts.push(snap.frequencyText.trim());
@@ -321,9 +308,8 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [observationDraft, setObservationDraft] = useState("");
   const [observationSaving, setObservationSaving] = useState(false);
-  const [lfkFeeling, setLfkFeeling] = useState<"easy" | "medium" | "hard">("medium");
-
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
+  const allowPatientObservationComment = detail.assignmentSource === "doctor";
 
   const navForPath = navMode === "default" ? undefined : navMode;
 
@@ -429,7 +415,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
   useEffect(() => {
     setCommentModalOpen(false);
-    setLfkFeeling("medium");
   }, [itemId]);
 
   const stage = resolved?.stage;
@@ -493,46 +478,22 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const submitObservationFromModal = async () => {
     if (!item) return;
     const noteTrim = observationDraft.trim();
-    if (item.itemType !== "lfk_complex" && noteTrim === "") {
+    if (noteTrim === "") {
       setError("Введите текст наблюдения");
       return;
     }
     setObservationSaving(true);
     setError(null);
     try {
-      if (item.itemType === "lfk_complex") {
-        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/lfk-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            difficulty: lfkFeeling,
-            note: noteTrim === "" ? null : noteTrim,
-            completedExerciseIds: listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>).map(
-              (l) => l.exerciseId,
-            ),
-          }),
-        });
-        const data = (await res.json().catch(() => null)) as {
-          ok?: boolean;
-          doneItemIds?: string[];
-          error?: string;
-        };
-        if (!res.ok || !data.ok) {
-          setError(data.error ?? "Ошибка сохранения");
-          return;
-        }
-        if (data.doneItemIds) setDoneItemIds(data.doneItemIds);
-      } else {
-        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/observation-note`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note: noteTrim }),
-        });
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setError(data.error ?? "Ошибка сохранения");
-          return;
-        }
+      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/observation-note`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: noteTrim }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? "Ошибка сохранения");
+        return;
       }
       setObservationDraft("");
       setCommentModalOpen(false);
@@ -765,23 +726,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         })()}
 
         <div className={cn(patientInnerPageStackClass, "p-4 pb-8 lg:p-5 lg:pb-10")}>
-          {item.itemType === "lfk_complex" ? (
-            <div>
-              <h2 className={cn(patientSectionTitleClass, "mb-2")}>Состав комплекса</h2>
-              <ul className={cn(patientMutedTextClass, "m-0 list-none space-y-1 p-0 text-sm")}>
-                {listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>).map((line) => (
-                  <li key={line.exerciseId} className="flex items-start gap-2">
-                    <span
-                      className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--patient-color-primary,#284da0)]/40"
-                      aria-hidden
-                    />
-                    {line.title}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
           <div className="flex flex-col gap-0">
             {!contentBlocked && !readOnly && item.itemType !== "clinical_test" ? (
               <div className="flex flex-wrap items-stretch gap-2">
@@ -810,42 +754,42 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                 ) : (
                   <div className="flex w-full min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 flex-nowrap items-stretch gap-2">
-                      {!(item.itemType === "lfk_complex" && !isPersistentRecommendation(item)) ? (
-                        <button
-                          type="button"
-                          className={cn(
-                            patientButtonPrimaryClass,
-                            "min-h-9 min-w-0 shrink basis-0 flex-1 py-2.5 text-xs font-medium leading-tight sm:min-h-10",
-                            simpleCompleteDoneFrozen &&
-                              cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
-                            !simpleCompleteDoneFrozen && "gap-0",
-                          )}
-                          disabled={busy !== null || simpleCompleteDoneFrozen}
-                          onClick={() => void handleComplete()}
-                        >
-                          {simpleCompleteDoneFrozen ? (
-                            <>
-                              <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
-                              <span className="min-w-0 flex-1 text-center font-semibold leading-tight">
-                                Выполнено
-                              </span>
-                            </>
-                          ) : (
-                            <span className="w-full text-center leading-tight">Отметить выполнение</span>
-                          )}
-                        </button>
-                      ) : null}
                       <button
                         type="button"
                         className={cn(
-                          "inline-flex min-h-9 min-w-0 shrink basis-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-color-primary,#284da0)]/28 bg-[var(--patient-color-primary-soft,#e0e7ff)]/40 px-3 py-2.5 text-center text-xs font-medium leading-tight text-[var(--patient-color-primary,#284da0)] transition-colors sm:min-h-10",
-                          "hover:bg-[var(--patient-color-primary-soft,#e0e7ff)]/75 active:bg-[var(--patient-color-primary-soft,#e0e7ff)]",
-                          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
+                          patientButtonPrimaryClass,
+                          "min-h-9 min-w-0 shrink basis-0 flex-1 py-2.5 text-xs font-medium leading-tight sm:min-h-10",
+                          simpleCompleteDoneFrozen &&
+                            cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
+                          !simpleCompleteDoneFrozen && "gap-0",
                         )}
-                        onClick={() => setCommentModalOpen(true)}
+                        disabled={busy !== null || simpleCompleteDoneFrozen}
+                        onClick={() => void handleComplete()}
                       >
-                        <span className="w-full text-center leading-tight">Добавить комментарий</span>
+                        {simpleCompleteDoneFrozen ? (
+                          <>
+                            <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
+                            <span className="min-w-0 flex-1 text-center font-semibold leading-tight">
+                              Выполнено
+                            </span>
+                          </>
+                        ) : (
+                          <span className="w-full text-center leading-tight">Отметить выполнение</span>
+                        )}
                       </button>
+                      {allowPatientObservationComment ? (
+                        <button
+                          type="button"
+                          className={cn(
+                            "inline-flex min-h-9 min-w-0 shrink basis-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-color-primary,#284da0)]/28 bg-[var(--patient-color-primary-soft,#e0e7ff)]/40 px-3 py-2.5 text-center text-xs font-medium leading-tight text-[var(--patient-color-primary,#284da0)] transition-colors sm:min-h-10",
+                            "hover:bg-[var(--patient-color-primary-soft,#e0e7ff)]/75 active:bg-[var(--patient-color-primary-soft,#e0e7ff)]",
+                            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
+                          )}
+                          onClick={() => setCommentModalOpen(true)}
+                        >
+                          <span className="w-full text-center leading-tight">Добавить комментарий</span>
+                        </button>
+                      ) : null}
                     </div>
                     {/* Скрыто: строка «Можно отметить повторно…» — см. закомментированный simpleCompleteCooldownMinutes выше.
                     {simpleCompleteDoneFrozen && simpleCompleteCooldownMinutes != null ? (
@@ -878,39 +822,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               <ItemPageTodayDots todayCount={doneTodayCountByItemId[item.id] ?? 0} />
             </div>
           </div>
-
-          {!contentBlocked && !readOnly && item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
-            <div
-              className={cn(
-                patientFormSurfaceClass,
-                "flex flex-col gap-2 border border-[var(--patient-border)]/70 p-3",
-              )}
-            >
-              {doneItemIds.includes(item.id) ? (
-                <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                  Сегодня занятие уже отмечено — при необходимости добавьте ещё одну отметку.
-                </p>
-              ) : null}
-              <Label className={cn(patientMutedTextClass, "text-xs")}>Как прошло занятие?</Label>
-              <Select
-                value={lfkFeeling}
-                onValueChange={(v) => setLfkFeeling(v as "easy" | "medium" | "hard")}
-                items={patientLfkDifficultySelectItems}
-              >
-                <SelectTrigger
-                  className="h-10 w-full max-w-xs"
-                  displayLabel={patientLfkDifficultySelectItems[lfkFeeling]}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="easy">Легко</SelectItem>
-                  <SelectItem value="medium">Средне</SelectItem>
-                  <SelectItem value="hard">Тяжело</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
 
           {item.effectiveComment?.trim() ? (
             <div className="my-4 flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-[#fff5e8] px-3 py-2.5">

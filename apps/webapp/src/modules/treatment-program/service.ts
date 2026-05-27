@@ -383,6 +383,11 @@ export function createTreatmentProgramService(
       if (!stage) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
       return port.expandTestSetIntoTemplateStageItems({ templateId, stageId, testSetId: testSetId.trim() });
     },
+
+    async getLfkComplexExpandPreview(complexTemplateId: string) {
+      assertUuid(complexTemplateId);
+      return port.getLfkComplexExpandPreview(complexTemplateId.trim());
+    },
   };
 }
 

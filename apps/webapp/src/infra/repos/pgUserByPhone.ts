@@ -75,7 +75,7 @@ async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser>
     role: u.role as SessionUser["role"],
     displayName: u.display_name ?? "",
     ...(firstName ? { firstName } : {}),
-    phone: u.phone_normalized,
+    phone: u.phone_normalized ?? undefined,
     bindings,
   };
 }
@@ -130,7 +130,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
       role: u.role as SessionUser["role"],
       displayName: u.display_name ?? "",
       ...(firstName ? { firstName } : {}),
-      phone: u.phone_normalized,
+      phone: u.phone_normalized ?? undefined,
       bindings,
     };
   },

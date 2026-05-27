@@ -1,7 +1,6 @@
 /** Совпадает с CHECK в `treatment_program_template_stage_items`. */
 export const TREATMENT_PROGRAM_ITEM_TYPES = [
   "exercise",
-  "lfk_complex",
   "recommendation",
   "lesson",
   "clinical_test",
@@ -15,6 +14,9 @@ export const LESSON_CONTENT_SECTION_LEGACY = "course_lessons" as const;
 export type TreatmentProgramTemplateStatus = "draft" | "published" | "archived";
 
 export type TreatmentProgramItemType = (typeof TREATMENT_PROGRAM_ITEM_TYPES)[number];
+
+/** Тип выбора из каталога в UI врача; `lfk_complex` разворачивается в `exercise`, в stage items не сохраняется. */
+export type TreatmentProgramLibraryPickType = TreatmentProgramItemType | "lfk_complex";
 
 /** Миниатюра первого элемента шаблона в списке врача (когда удалось разрешить медиа на сервере). */
 export type TreatmentProgramTemplateListPreviewMedia = {
@@ -283,6 +285,19 @@ export type ExpandTestSetIntoInstanceStageItemsPortInput = {
 export type ExpandTestSetIntoInstanceStageItemsResult = {
   added: number;
   skipped: number;
+  items: TreatmentProgramInstanceStageItemRow[];
+};
+
+/** Развёртывание каталожного шаблона комплекса ЛФК в строки `exercise` этапа инстанса (без `lfk_complex`). */
+export type ExpandLfkComplexIntoInstanceStageItemsPortInput = {
+  instanceId: string;
+  stageId: string;
+  complexTemplateId: string;
+  groupId: string;
+  expectedExerciseIds: string[];
+};
+
+export type ExpandLfkComplexIntoInstanceStageItemsResult = {
   items: TreatmentProgramInstanceStageItemRow[];
 };
 

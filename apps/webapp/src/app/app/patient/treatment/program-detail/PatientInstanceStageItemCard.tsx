@@ -10,7 +10,6 @@ import {
   isPersistentRecommendation,
   patientStageItemShowsNewBadge,
 } from "@/modules/treatment-program/stage-semantics";
-import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
 import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import {
@@ -34,7 +33,6 @@ import {
 import { patientTreatmentProgramListItemClass } from "@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass";
 import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
 import { usePostMarkItemViewedWhenVisible } from "@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible";
-import { PatientLfkChecklistRow } from "@/app/app/patient/treatment/program-detail/PatientLfkChecklistRow";
 import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
 import { MaterialRatingBlock } from "@/shared/ui/material-rating/MaterialRatingBlock";
 
@@ -98,17 +96,6 @@ export function PatientInstanceStageItemCard(props: {
   const [markingViewed, setMarkingViewed] = useState(false);
   const showsNew =
     !readOnly && patientStageItemShowsNewBadge(item, contentBlocked);
-  const lfkRow = useMemo(
-    (): PatientProgramChecklistRow => ({
-      stageId: stage.id,
-      stageTitle: stage.title,
-      stageSortOrder: stage.sortOrder,
-      groupId: item.groupId,
-      groupTitle,
-      item,
-    }),
-    [stage.id, stage.title, stage.sortOrder, item, groupTitle],
-  );
   const recommendationPreviewMedia = useMemo(() => {
     if (item.itemType !== "recommendation") return null;
     return pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(item.snapshot));
@@ -353,22 +340,6 @@ export function PatientInstanceStageItemCard(props: {
                     serverSnapshot={clinicalTestSnap}
                   />
                 )}
-              </div>
-            ) : item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
-              <div
-                className="mt-2"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-              >
-                <PatientLfkChecklistRow
-                  row={lfkRow}
-                  instanceId={instanceId}
-                  itemBaseUrl={base}
-                  done={doneItemIds.includes(item.id)}
-                  onUpdated={onDoneItemIds}
-                  onAfterSave={refresh}
-                  setError={setError}
-                />
               </div>
             ) : !isPersistentRecommendation(item) ? (
               <div className="mt-2 flex flex-col gap-0.5">

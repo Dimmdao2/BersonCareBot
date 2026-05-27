@@ -183,7 +183,7 @@ describe("PatientTreatmentProgramDetailPage / template description (RSC)", () =>
 
     expect(getTemplateMock).toHaveBeenCalledWith(templateUuid);
     expect(screen.getByTestId("program-description")).toHaveTextContent("Текст описания шаблона");
-    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-suppress-shell-title", "1");
+    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-suppress-shell-title", "0");
     expect(notFoundMock).not.toHaveBeenCalled();
   });
 
