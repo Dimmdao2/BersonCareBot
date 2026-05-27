@@ -38,7 +38,7 @@ export function PatientBottomNav() {
     >
       <div
         className={cn(
-          "mx-auto min-h-14 w-full min-w-0 safe-padding-patient-horiz pt-1.5 pb-0",
+          "mx-auto min-h-14 w-full min-w-0 safe-padding-patient-horiz pt-2 pb-0",
           PATIENT_SHELL_MOBILE_MAX_CLASS,
           PATIENT_SHELL_DESKTOP_MAX_CLASS,
         )}

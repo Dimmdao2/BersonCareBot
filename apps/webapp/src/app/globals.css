@@ -100,7 +100,7 @@
   /** Ширина боковых слотов mobile-шапки (назад / профиль) — одна линия с краями нижнего меню. */
   --patient-shell-chrome-action-width: 2.25rem;
   /** Доп. зазор под вкладками поверх home indicator (mobile bottom nav). */
-  --patient-bottom-nav-extra-pad: 0.5rem;
+  --patient-bottom-nav-extra-pad: 0.125rem;
   --patient-bottom-nav-safe-bottom: calc(
     env(safe-area-inset-bottom, 0px) + var(--patient-bottom-nav-extra-pad)
   );

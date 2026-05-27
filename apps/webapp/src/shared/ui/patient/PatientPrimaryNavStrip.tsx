@@ -86,7 +86,7 @@ export function PatientPrimaryNavStrip({ className, variant = "bottom" }: Props)
         aria-label={ariaLabel}
         aria-current={isActive ? "page" : undefined}
         className={cn(
-          "group flex min-h-0 min-w-0 w-full flex-col items-center justify-start gap-px px-1 pt-0 pb-0",
+          "group flex min-h-0 min-w-0 w-full flex-col items-center justify-center gap-0.5 px-1.5 py-1",
           isActive ?
             "font-medium text-[var(--patient-color-primary)]"
           : "font-normal text-[var(--patient-text-secondary)] hover:font-normal hover:text-[var(--patient-color-primary)]",
@@ -120,7 +120,7 @@ export function PatientPrimaryNavStrip({ className, variant = "bottom" }: Props)
       aria-label="Основная навигация пациента"
       className={cn(
         variant === "bottom" ?
-          "patient-shell-bottom-nav-grid"
+          "patient-shell-bottom-nav-grid mx-auto max-w-[26.5rem]"
         : "flex w-full min-w-0 items-stretch justify-center gap-1",
         className,
       )}
