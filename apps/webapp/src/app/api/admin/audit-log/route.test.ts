@@ -77,6 +77,37 @@ describe("GET /api/admin/audit-log", () => {
     expect(countOpenAutoMergeConflictsMock).toHaveBeenCalled();
   });
 
+  it("passes excludeSystemHealth to list when query flag set", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" } },
+    });
+    listAdminAuditLogMock.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 50,
+    });
+    const res = await GET(new Request("http://localhost/api/admin/audit-log?excludeSystemHealth=1"));
+    expect(res.status).toBe(200);
+    expect(listAdminAuditLogMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ excludeActionPrefix: "system_health_" }),
+    );
+  });
+
+  it("returns 400 when excludeSystemHealth and systemHealthOnly both set", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" } },
+    });
+    const res = await GET(
+      new Request("http://localhost/api/admin/audit-log?excludeSystemHealth=1&systemHealthOnly=1"),
+    );
+    expect(res.status).toBe(400);
+    expect(listAdminAuditLogMock).not.toHaveBeenCalled();
+  });
+
   it("passes involvesPlatformUserId to list when valid uuid", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,

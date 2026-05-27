@@ -24,6 +24,16 @@ const querySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  /** Скрыть `system_health_*` (список по умолчанию в UI). */
+  excludeSystemHealth: z
+    .enum(["1", "true"])
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
+  /** Только `system_health_*` (фильтр «Системные снимки»). */
+  systemHealthOnly: z
+    .enum(["1", "true"])
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
 });
 
 function dayStartUtcIso(date: string): string {
@@ -54,6 +64,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid_date_range" }, { status: 400 });
   }
 
+  if (q.excludeSystemHealth && q.systemHealthOnly) {
+    return NextResponse.json({ ok: false, error: "invalid_system_health_filter" }, { status: 400 });
+  }
+
   const pool = getPool();
   const [result, openAutoMergeConflictCount] = await Promise.all([
     listAdminAuditLog(pool, {
@@ -65,6 +79,11 @@ export async function GET(req: Request) {
       status: q.status,
       fromInclusive,
       toInclusive,
+      ...(q.systemHealthOnly
+        ? { actionPrefix: "system_health_" }
+        : q.excludeSystemHealth
+          ? { excludeActionPrefix: "system_health_" }
+          : {}),
     }),
     countOpenAutoMergeConflicts(pool),
   ]);

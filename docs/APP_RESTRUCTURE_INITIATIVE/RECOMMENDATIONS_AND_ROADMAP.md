@@ -130,7 +130,7 @@
 
 ## II.2. Дашборд `/app/doctor`
 
-**Факт (2026-05-02):** `/app/doctor` — рабочий экран «Сегодня» ([`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md), [`LOG.md`](LOG.md)): записи на сегодня, новые онлайн-заявки (`status=new`), непрочитанные диалоги поддержки, ближайшие записи (неделя с дедупом относительно «сегодня»); агрегированные метрики — на `/app/doctor/stats`.
+**Факт (2026-05-02, навигация обновлена 2026-05):** `/app/doctor` — рабочий экран «Сегодня» ([`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md), [`LOG.md`](LOG.md)): записи на сегодня, новые онлайн-заявки (`status=new`), непрочитанные диалоги поддержки, ближайшие записи (неделя с дедупом относительно «сегодня»); KPI на «Сегодня», полные агрегаты и графики регистраций — на **`/app/doctor/analytics/clients`** ([`DOCTOR_CABINET_NAVIGATION.md`](../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md)); `/app/doctor/stats` — redirect.
 
 **Что остаётся backlog относительно полной «рабочей модели дня»:**
 1. **«К проверке»** как реальная очередь — нет готового единого источника «требует проверки врача» (вне MVP этапа 4 [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md)).

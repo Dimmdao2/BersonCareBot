@@ -128,7 +128,7 @@
 
 | Группа | URL | Назначение |
 |--------|-----|------------|
-| Дашборд | `/app/doctor` | Метрики-плитки + ближайший приём |
+| Сегодня | `/app/doctor` | Рабочий inbox: KPI, очереди (заявки, сообщения, записи); health-баннер для admin |
 | Клиенты | `/app/doctor/clients` | Список + master-detail; query `scope=appointments\|all\|archived` |
 | Карточка клиента | `/app/doctor/clients/[userId]` | Аккордеон с 13 секциями |
 | Подписчики (legacy) | `/app/doctor/subscribers`, `/subscribers/[userId]` | Полные redirect-ы на `/clients?scope=all` |
@@ -153,7 +153,12 @@
 | CMS — мотивации | `/app/doctor/content/motivation` | `motivational_quotes` |
 | CMS — библиотека | `/app/doctor/content/library`, `/library/delete-errors` | Файлы |
 | CMS — главная пациента | `/app/doctor/patient-home` | Блоки + items |
-| Статистика | `/app/doctor/stats` | Агрегаты |
+| Аналитика по клиентам | `/app/doctor/analytics/clients` | Агрегаты + графики регистраций (admin); `/app/doctor/stats` → redirect |
+| Здоровье системы | `/app/doctor/system-health` | Admin: `SystemHealthSection` |
+| Журнал операций | `/app/doctor/audit-log` | Admin: `admin_audit_log` |
+| Аналитика по уведомлениям | `/app/doctor/analytics/notifications` | Admin: reminder/content stats |
+| Использование (product) | `/app/doctor/usage` | Admin: product analytics |
+| Админ-настройки | `/app/doctor/admin/*` | Параметры, auth, интеграции, booking, technical |
 
 ## II.3. Карточка пациента — `ClientProfileCard.tsx`
 

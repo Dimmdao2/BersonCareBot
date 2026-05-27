@@ -2,7 +2,7 @@ import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "@/modules/operator-health/ad
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
 import { collectAdminSystemHealthData, type SystemHealthResponse } from "./collectAdminSystemHealthData";
 
-const SYSTEM_HEALTH_HREF = "/app/settings?adminTab=system-health";
+const SYSTEM_HEALTH_HREF = "/app/doctor/system-health";
 
 export type AdminDoctorTodayHealthBanner =
   | { show: true; href: string; title: string }
@@ -22,11 +22,6 @@ export function adminDoctorTodayHealthBannerFromSystemHealth(s: SystemHealthResp
   if (s.webappDb === "down") return BANNER_ON;
   if (s.integratorApi.status !== "ok") return BANNER_ON;
   if (s.projection.status !== "ok") return BANNER_ON;
-  if (s.mediaPreview.status === "error") return BANNER_ON;
-  if (s.videoPlayback.status === "error") return BANNER_ON;
-  if (s.videoPlaybackClient.status !== "ok") return BANNER_ON;
-  if (s.videoTranscode.status !== "ok") return BANNER_ON;
-  if (s.videoTranscode.pipelineEnabled && s.videoTranscode.failedLastHour > 0) return BANNER_ON;
   if (Object.values(s.backupJobs).some((j) => j.lastStatus === "failure")) return BANNER_ON;
   if (s.operatorIncidentsOpen.length > 0) return BANNER_ON;
   const od = s.outgoingDelivery;

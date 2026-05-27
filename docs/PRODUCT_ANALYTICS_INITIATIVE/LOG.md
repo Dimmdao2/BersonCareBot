@@ -120,7 +120,7 @@
 
 ### Сделано
 
-- Вкладка **`product-analytics`** («Использование») в `AdminSettingsTabsClient`, `?adminTab=product-analytics`.
+- UI «Использование»: **`/app/doctor/usage`** (ранее `?adminTab=product-analytics` в Settings).
 - `ProductAnalyticsSection` — пресеты 24ч / 7д / 30д, fetch `GET /api/admin/product-analytics`.
 - Блоки: сводка, заходы по каналу (line chart), страницы, push/topic + слоганы разминки, активные клиенты (line chart).
 - `settings.md` обновлён.

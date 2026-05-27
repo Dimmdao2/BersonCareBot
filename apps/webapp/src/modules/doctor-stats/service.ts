@@ -17,6 +17,8 @@ export type DoctorStatsState = {
     withNoChannels: number;
     withOneChannel: number;
     withMultipleChannels: number;
+    /** Созданы за последние 7 суток, без telegram/max (KPI «Сегодня»). */
+    newClients7dWithNoChannels: number;
   };
 };
 
@@ -49,14 +51,16 @@ export type DoctorStatsServiceDeps = {
   >;
   getDashboardPatientMetrics: () => Promise<DoctorDashboardPatientMetrics>;
   getDashboardAppointmentMetrics: () => Promise<DoctorDashboardAppointmentMetrics>;
+  countRecentClientsWithoutMessagingChannels: (days: number) => Promise<number>;
 };
 
 export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
   return {
     async getStats(): Promise<DoctorStatsState> {
-      const [appointmentStats, allClients] = await Promise.all([
+      const [appointmentStats, allClients, newClients7dWithNoChannels] = await Promise.all([
         deps.getAppointmentStats({ range: "week" }),
         deps.listClients({}),
+        deps.countRecentClientsWithoutMessagingChannels(7),
       ]);
 
       let withNoChannels = 0;
@@ -81,6 +85,7 @@ export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
           withNoChannels,
           withOneChannel,
           withMultipleChannels,
+          newClients7dWithNoChannels,
         },
       };
     },

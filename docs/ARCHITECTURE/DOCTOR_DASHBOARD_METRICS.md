@@ -1,7 +1,8 @@
 # Метрики дашборда специалиста (webapp)
 
-**Назначение:** единые определения плиток `/app/doctor` и соответствующих SQL/списков.  
-**Код:** `apps/webapp/src/infra/repos/pgDoctorAppointments.ts`, `pgDoctorClients.ts`, типы в `modules/doctor-appointments/ports.ts` и `modules/doctor-clients/ports.ts`; админский блок регистраций — `modules/admin-platform-stats/`, `pgAdminPlatformUserStats.ts`.
+**Назначение:** единые определения метрик кабинета специалиста: KPI на **`/app/doctor` («Сегодня»)**, плитки на **`/app/doctor/analytics/clients`**, SQL/списки.  
+**Код:** `apps/webapp/src/infra/repos/pgDoctorAppointments.ts`, `pgDoctorClients.ts`, типы в `modules/doctor-appointments/ports.ts` и `modules/doctor-clients/ports.ts`; админские графики регистраций — `modules/admin-platform-stats/`, `pgAdminPlatformUserStats.ts`.  
+**Навигация:** [`DOCTOR_CABINET_NAVIGATION.md`](DOCTOR_CABINET_NAVIGATION.md).
 
 ---
 
@@ -57,16 +58,27 @@
 
 ---
 
-## Страница «Статистика» (`/app/doctor/stats`)
+## Экран «Сегодня» (`/app/doctor`) — KPI
 
-- `getStats().appointments` берётся из `getAppointmentStats({ range: 'week' })`.
-- **Всего записей:** все не soft-delete строки с `record_at` в окне недели (**включая отменённые**).
-- **Отмен в окне:** подмножество с `status = 'canceled'` и фильтром `last_event`.
-- **Отмен за 30 дн.:** по `updated_at`, не soft-delete.
+Верхние плитки (`DoctorTodayDashboard`, `deps.doctorStats.getStats()`):
+
+| Плитка | Источник |
+|--------|----------|
+| Записи сегодня | Число записей на текущий UTC-день (данные дашборда «Сегодня») |
+| Записи на неделю | `getAppointmentStats({ range: 'week' }).total` — все не удалённые строки с `record_at` в окне недели (**включая отменённые**) |
+| Отмены за 30 дн. | `getAppointmentStats` → `cancellations30d` (по `updated_at`, см. ниже) |
+| Новые клиенты за 7 дн. без каналов связи | `countRecentClientsWithoutMessagingChannels(7)` — `platform_users` с `created_at` ≥ now−7d, без привязок telegram/max |
+
+Ссылка «Аналитика по клиентам» (admin) → `/app/doctor/analytics/clients`.
+
+## Страница «Аналитика по клиентам» (`/app/doctor/analytics/clients`)
+
+- Legacy URL **`/app/doctor/stats`** — server redirect на `analytics/clients`.
+- Операционные агрегаты `getStats().clients`: **всего**, **без каналов** (все клиенты), с одним/несколькими каналами; блок записей — те же правила, что `getAppointmentStats({ range: 'week' })` (**отмен в окне**, **отмен за 30 дн.**).
 
 ### Блок админа: регистрации и слияния
 
-Только **`session.user.role === admin`**: клиентский блок загружает **`GET /api/admin/platform-user-registration-stats`** (контракт — [`api.md`](../../apps/webapp/src/app/api/api.md) в дереве `app/api`). Границы **«сегодня / N дней / произвольный период»** считаются в **IANA `app_display_timezone`** (через `getAppDisplayTimeZone()`), не в UTC-полуночи страницы записей выше. **Новые аккаунты** — `platform_users.role = 'client'` и `created_at` в интервале; **слияния** — строки с `merged_into_id` и меткой времени **`merged_at`** (заполняется при merge и channel-link claim; миграция **`0067_platform_users_merged_at.sql`**). График — Recharts (`LineChart`), см. `AdminRegistrationLineChart.tsx`.
+Только **`session.user.role === admin`**: клиентский блок загружает **`GET /api/admin/platform-user-registration-stats`** (контракт — [`api.md`](../../apps/webapp/src/app/api/api.md) в дереве `app/api`). Границы **«сегодня / N дней / произвольный период»** считаются в **IANA `app_display_timezone`** (через `getAppDisplayTimeZone()`), не в UTC-полуночи страницы записей выше. **Новые аккаунты** — `platform_users.role = 'client'` и `created_at` в интервале; **слияния** — строки с `merged_into_id` и меткой времени **`merged_at`** (заполняется при merge и channel-link claim; миграция **`0067_platform_users_merged_at.sql`**). График — Recharts (`LineChart`), см. `apps/webapp/src/app/app/doctor/analytics/clients/AdminRegistrationLineChart.tsx`.
 
 ## Журнал изменений
 

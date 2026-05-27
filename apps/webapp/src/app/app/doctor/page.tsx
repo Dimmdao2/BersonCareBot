@@ -13,20 +13,29 @@ export default async function DoctorPage() {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
   const intakeService = getOnlineIntakeService();
-  const data = await loadDoctorTodayDashboard(
-    {
-      doctorAppointments: deps.doctorAppointments,
-      doctorClients: deps.doctorClientsPort,
-      messaging: deps.messaging,
-    },
-    intakeService,
-  );
+  const [data, kpiStats] = await Promise.all([
+    loadDoctorTodayDashboard(
+      {
+        doctorAppointments: deps.doctorAppointments,
+        doctorClients: deps.doctorClientsPort,
+        messaging: deps.messaging,
+      },
+      intakeService,
+    ),
+    deps.doctorStats.getStats(),
+  ]);
   const adminHealthBanner =
     session.user.role === "admin" ? await loadAdminDoctorTodayHealthBanner() : undefined;
 
   return (
     <AppShell title="Сегодня" user={session.user} variant="doctor">
-      <DoctorTodayDashboard data={data} adminHealthBanner={adminHealthBanner} />
+      <DoctorTodayDashboard
+        data={data}
+        kpiStats={kpiStats}
+        appointmentsTodayCount={data.todayAppointments.length}
+        adminHealthBanner={adminHealthBanner}
+        showAnalyticsLink={session.user.role === "admin"}
+      />
     </AppShell>
   );
 }

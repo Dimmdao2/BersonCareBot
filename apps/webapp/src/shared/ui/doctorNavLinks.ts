@@ -20,7 +20,7 @@ export type DoctorMenuLinkItem = {
   label: string;
   href: string;
   badgeKey?: DoctorMenuBadgeKey;
-  /** Пункт виден только при role=admin и включённом admin mode (как admin API). */
+  /** Пункт виден только при role=admin (как admin API). */
   requiresAdminMode?: boolean;
 };
 
@@ -31,7 +31,7 @@ export type DoctorMenuAccess = {
 
 export function isDoctorMenuLinkVisible(item: DoctorMenuLinkItem, access: DoctorMenuAccess): boolean {
   if (!item.requiresAdminMode) return true;
-  return access.role === "admin" && access.adminMode;
+  return access.role === "admin";
 }
 
 export type DoctorMenuCluster = {
@@ -48,13 +48,19 @@ const CLUSTER_PATIENTS_WORK: DoctorMenuCluster = {
   id: "patients-work",
   label: "Работа с пациентами",
   items: [
-    { id: "overview", label: "Сегодня", href: "/app/doctor" },
     {
       id: "clients",
       label: "Пациенты",
       href: "/app/doctor/clients?scope=appointments",
     },
     { id: "appointments", label: "Записи", href: "/app/doctor/appointments" },
+  ],
+};
+
+const CLUSTER_COMMUNICATIONS: DoctorMenuCluster = {
+  id: "communications",
+  label: "Коммуникации",
+  items: [
     {
       id: "online-intake",
       label: "Онлайн-заявки",
@@ -67,12 +73,13 @@ const CLUSTER_PATIENTS_WORK: DoctorMenuCluster = {
       href: "/app/doctor/messages",
       badgeKey: "messagesUnread",
     },
+    { id: "broadcasts", label: "Рассылки", href: "/app/doctor/broadcasts" },
   ],
 };
 
-const CLUSTER_ASSIGNMENTS: DoctorMenuCluster = {
-  id: "assignments",
-  label: "Назначения",
+const CLUSTER_LFK: DoctorMenuCluster = {
+  id: "lfk-catalog",
+  label: "Каталог ЛФК",
   items: [
     { id: "exercises", label: "Упражнения", href: "/app/doctor/exercises" },
     { id: "lfk-templates", label: "Комплексы ЛФК", href: "/app/doctor/lfk-templates" },
@@ -90,31 +97,42 @@ const CLUSTER_ASSIGNMENTS: DoctorMenuCluster = {
       href: "/app/doctor/treatment-program-promo",
     },
     { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
+    { id: "references", label: "Справочники", href: "/app/doctor/references" },
   ],
 };
 
-const CLUSTER_APP_CONTENT: DoctorMenuCluster = {
-  id: "app-content",
-  label: "Контент приложения",
+const CLUSTER_CONTENT: DoctorMenuCluster = {
+  id: "content",
+  label: "Контент",
   items: [
     { id: "patient-home", label: "Главная пациента", href: "/app/doctor/patient-home" },
-    { id: "content", label: "CMS", href: "/app/doctor/content" },
-    { id: "material-ratings", label: "Статистика материалов", href: "/app/doctor/material-ratings" },
+    { id: "content", label: "Материалы", href: "/app/doctor/content" },
+    { id: "library", label: "Библиотека файлов", href: "/app/doctor/content/library" },
   ],
 };
 
-const CLUSTER_COMMUNICATIONS: DoctorMenuCluster = {
-  id: "communications",
-  label: "Коммуникации",
-  items: [{ id: "broadcasts", label: "Рассылки", href: "/app/doctor/broadcasts" }],
-};
-
-const CLUSTER_SYSTEM: DoctorMenuCluster = {
-  id: "system",
-  label: "Система",
+const CLUSTER_ANALYTICS: DoctorMenuCluster = {
+  id: "analytics",
+  label: "Аналитика",
   items: [
-    { id: "references", label: "Справочники", href: "/app/doctor/references" },
-    { id: "stats", label: "Статистика", href: "/app/doctor/stats" },
+    {
+      id: "analytics-clients",
+      label: "По клиентам",
+      href: "/app/doctor/analytics/clients",
+      requiresAdminMode: true,
+    },
+    {
+      id: "material-ratings",
+      label: "По контенту",
+      href: "/app/doctor/material-ratings",
+      requiresAdminMode: true,
+    },
+    {
+      id: "analytics-notifications",
+      label: "По уведомлениям",
+      href: "/app/doctor/analytics/notifications",
+      requiresAdminMode: true,
+    },
     {
       id: "usage",
       label: "Использование",
@@ -124,22 +142,82 @@ const CLUSTER_SYSTEM: DoctorMenuCluster = {
   ],
 };
 
+const CLUSTER_SISTEMA: DoctorMenuCluster = {
+  id: "sistema",
+  label: "Система",
+  items: [
+    {
+      id: "system-health",
+      label: "Здоровье системы",
+      href: "/app/doctor/system-health",
+      requiresAdminMode: true,
+    },
+    {
+      id: "health-archive",
+      label: "Архив сбоев",
+      href: "/app/doctor/health-archive",
+      requiresAdminMode: true,
+    },
+    {
+      id: "audit-log",
+      label: "Журнал операций",
+      href: "/app/doctor/audit-log",
+      requiresAdminMode: true,
+    },
+  ],
+};
+
+const CLUSTER_ADMINISTRATION: DoctorMenuCluster = {
+  id: "administration",
+  label: "Администрирование",
+  items: [
+    {
+      id: "admin-app-settings",
+      label: "Настройки приложения",
+      href: "/app/doctor/admin/app-settings",
+      requiresAdminMode: true,
+    },
+    {
+      id: "admin-auth",
+      label: "Авторизация",
+      href: "/app/doctor/admin/auth",
+      requiresAdminMode: true,
+    },
+    {
+      id: "admin-integrations",
+      label: "Интеграции",
+      href: "/app/doctor/admin/integrations",
+      requiresAdminMode: true,
+    },
+    {
+      id: "admin-booking",
+      label: "Запись / Rubitime",
+      href: "/app/doctor/admin/booking",
+      requiresAdminMode: true,
+    },
+    {
+      id: "admin-technical",
+      label: "Технические режимы",
+      href: "/app/doctor/admin/technical",
+      requiresAdminMode: true,
+    },
+  ],
+};
+
 /** Все кластеры в каноническом порядке (без учёта позиции standalone между блоками). */
 export const DOCTOR_MENU_CLUSTERS: DoctorMenuCluster[] = [
   CLUSTER_PATIENTS_WORK,
-  CLUSTER_ASSIGNMENTS,
-  CLUSTER_APP_CONTENT,
   CLUSTER_COMMUNICATIONS,
-  CLUSTER_SYSTEM,
+  CLUSTER_LFK,
+  CLUSTER_CONTENT,
+  CLUSTER_ANALYTICS,
+  CLUSTER_SISTEMA,
+  CLUSTER_ADMINISTRATION,
 ];
 
-/** Верхнеуровневые ссылки вне кластеров (по ТЗ — между «Контент приложения» и «Коммуникации» при рендере). */
+/** Верхнеуровневые ссылки вне кластеров. */
 export const DOCTOR_MENU_STANDALONE_LINKS: DoctorMenuLinkItem[] = [
-  {
-    id: "library",
-    label: "Библиотека файлов",
-    href: "/app/doctor/content/library",
-  },
+  { id: "overview", label: "Сегодня", href: "/app/doctor" },
 ];
 
 function filterMenuLinks(items: DoctorMenuLinkItem[], access: DoctorMenuAccess): DoctorMenuLinkItem[] {
@@ -147,26 +225,31 @@ function filterMenuLinks(items: DoctorMenuLinkItem[], access: DoctorMenuAccess):
 }
 
 /**
- * Порядок секций для sidebar/Sheet: три кластера, затем standalone «Библиотека файлов», затем коммуникации и система.
+ * Порядок секций для sidebar/Sheet: «Сегодня», затем кластеры (для admin — с аналитикой и системой).
  */
 export function getDoctorMenuRenderSections(access: DoctorMenuAccess): DoctorMenuRenderSection[] {
   const raw: DoctorMenuRenderSection[] = [
-    { type: "cluster", cluster: CLUSTER_PATIENTS_WORK },
-    { type: "cluster", cluster: CLUSTER_ASSIGNMENTS },
-    { type: "cluster", cluster: CLUSTER_APP_CONTENT },
     { type: "standalone", links: DOCTOR_MENU_STANDALONE_LINKS },
+    { type: "cluster", cluster: CLUSTER_PATIENTS_WORK },
     { type: "cluster", cluster: CLUSTER_COMMUNICATIONS },
-    { type: "cluster", cluster: CLUSTER_SYSTEM },
+    { type: "cluster", cluster: CLUSTER_LFK },
+    { type: "cluster", cluster: CLUSTER_CONTENT },
+    { type: "cluster", cluster: CLUSTER_ANALYTICS },
+    { type: "cluster", cluster: CLUSTER_SISTEMA },
+    { type: "cluster", cluster: CLUSTER_ADMINISTRATION },
   ];
 
-  return raw.flatMap((section) => {
+  const out: DoctorMenuRenderSection[] = [];
+  for (const section of raw) {
     if (section.type === "standalone") {
       const links = filterMenuLinks(section.links, access);
-      return links.length > 0 ? [{ type: "standalone" as const, links }] : [];
+      if (links.length > 0) out.push({ type: "standalone", links });
+      continue;
     }
     const items = filterMenuLinks(section.cluster.items, access);
-    return items.length > 0 ? [{ type: "cluster" as const, cluster: { ...section.cluster, items } }] : [];
-  });
+    if (items.length > 0) out.push({ type: "cluster", cluster: { ...section.cluster, items } });
+  }
+  return out;
 }
 
 export function isDoctorMenuClusterId(id: string): boolean {
@@ -176,7 +259,7 @@ export function isDoctorMenuClusterId(id: string): boolean {
 /** Плоский список всех пунктов навигации (кластеры + standalone), без служебных действий. */
 export const DOCTOR_MENU_LINKS: DoctorMenuLinkItem[] = (() => {
   const fromClusters = DOCTOR_MENU_CLUSTERS.flatMap((c) => c.items);
-  return [...fromClusters, ...DOCTOR_MENU_STANDALONE_LINKS];
+  return [...DOCTOR_MENU_STANDALONE_LINKS, ...fromClusters];
 })();
 
 /** Активный пункт навигации по текущему пути. */

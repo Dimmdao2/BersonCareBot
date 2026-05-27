@@ -35,23 +35,45 @@ function emptyData(): TodayDashboardData {
   };
 }
 
+const emptyKpi = {
+  appointments: { total: 0, cancellations: 0, cancellations30d: 0, reschedules: 0 },
+  clients: {
+    total: 0,
+    withNoChannels: 0,
+    withOneChannel: 0,
+    withMultipleChannels: 0,
+    newClients7dWithNoChannels: 0,
+  },
+};
+
 describe("DoctorTodayDashboard", () => {
-  it("renders title, stats link, and section headings", () => {
-    render(<DoctorTodayDashboard data={emptyData()} />);
-    expect(screen.getByRole("heading", { level: 1, name: "Сегодня" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть статистику" })).toHaveAttribute(
-      "href",
-      "/app/doctor/stats",
+  it("renders title, KPI, attention block, and section headings", () => {
+    render(
+      <DoctorTodayDashboard
+        data={emptyData()}
+        kpiStats={emptyKpi}
+        appointmentsTodayCount={0}
+        showAnalyticsLink
+      />,
     );
+    expect(screen.getByRole("heading", { level: 1, name: "Сегодня" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Аналитика по клиентам" })).toHaveAttribute(
+      "href",
+      "/app/doctor/analytics/clients",
+    );
+    expect(screen.getByRole("heading", { name: "Требует внимания" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Записи сегодня" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Новые онлайн-заявки" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Непрочитанные сообщения" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ближайшие записи" })).toBeInTheDocument();
+    expect(screen.getByText("Новые клиенты за 7 дн. без каналов связи")).toBeInTheDocument();
   });
 
   it("shows empty states and CTAs", () => {
-    render(<DoctorTodayDashboard data={emptyData()} />);
+    render(
+      <DoctorTodayDashboard data={emptyData()} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
+    );
     expect(screen.getByText("Клиентов на сопровождении нет")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Список клиентов" })).toHaveAttribute(
       "href",
@@ -98,7 +120,9 @@ describe("DoctorTodayDashboard", () => {
         },
       ],
     };
-    render(<DoctorTodayDashboard data={data} />);
+    render(
+      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={1} />,
+    );
     expect(screen.getByText(/09:00 · Клиент/)).toBeInTheDocument();
     expect(screen.getByText(/Осмотр · created/)).toBeInTheDocument();
     expect(screen.getByText(/Филиал А/)).toBeInTheDocument();
@@ -127,7 +151,9 @@ describe("DoctorTodayDashboard", () => {
         },
       ],
     };
-    render(<DoctorTodayDashboard data={data} />);
+    render(
+      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={1} />,
+    );
     expect(screen.getByText("В Rubitime: Иванов И.И.")).toBeInTheDocument();
   });
 
@@ -147,7 +173,9 @@ describe("DoctorTodayDashboard", () => {
         },
       ],
     };
-    render(<DoctorTodayDashboard data={data} />);
+    render(
+      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
+    );
     expect(screen.getByText("Анна")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть заявку" })).toHaveAttribute(
       "href",
@@ -165,7 +193,9 @@ describe("DoctorTodayDashboard", () => {
       ],
       onSupportListTruncated: true,
     };
-    render(<DoctorTodayDashboard data={data} />);
+    render(
+      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
+    );
     expect(screen.getByText(/Клиентов: 2/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Анна" })).toHaveAttribute(
       "href",
@@ -198,7 +228,9 @@ describe("DoctorTodayDashboard", () => {
         },
       ],
     };
-    render(<DoctorTodayDashboard data={data} />);
+    render(
+      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
+    );
     expect(screen.getByText(/Всего непрочитанных: 5/)).toBeInTheDocument();
     expect(screen.getByText("Пациент")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();

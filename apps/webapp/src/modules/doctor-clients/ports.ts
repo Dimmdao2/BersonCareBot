@@ -68,6 +68,11 @@ export type DoctorClientsPort = {
   listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;
   getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics>;
+  /**
+   * Клиенты, созданные за последние `days` суток, без привязок telegram/max.
+   * Для KPI «Сегодня» (см. план навигации).
+   */
+  countRecentClientsWithoutMessagingChannels(days: number): Promise<number>;
   /** Блокировка исходящих сообщений пациента (проверка в patient messaging). */
   isClientMessagingBlocked(userId: string): Promise<boolean>;
   /** Врач/админ: установить блокировку подписчика. */

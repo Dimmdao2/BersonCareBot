@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { CopyForAiButton } from "./CopyForAiButton";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -427,7 +428,24 @@ type HealthAccordionItemProps = {
   name: string;
   status: string;
   children: ReactNode;
+  aiSnapshot?: Record<string, unknown>;
 };
+
+function healthCardAiSnapshot(
+  name: string,
+  status: string,
+  metrics: Record<string, unknown>,
+  technical?: Record<string, unknown> | null,
+  fetchedAt?: string | null,
+): Record<string, unknown> {
+  return {
+    card: name,
+    status,
+    metrics,
+    technical: technical ?? {},
+    fetchedAt: fetchedAt ?? null,
+  };
+}
 
 function NotificationDeliveryChannelBlock({
   channel,
@@ -520,25 +538,29 @@ function ProbeInfo({
   return bare ? inner : <TechDiagBlock>{inner}</TechDiagBlock>;
 }
 
-function HealthAccordionItem({ name, status, children }: HealthAccordionItemProps) {
+function HealthAccordionItem({ name, status, children, aiSnapshot }: HealthAccordionItemProps) {
   const [open, setOpen] = useState(false);
+  const snapshot = aiSnapshot ?? healthCardAiSnapshot(name, status, { status }, null, null);
   return (
     <div className="rounded-md border border-border/60">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <span className="font-medium">{name}</span>
-        <span className="flex items-center gap-2">
-          <StatusPill status={status} />
-          <ChevronDown
-            className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")}
-            aria-hidden
-          />
-        </span>
-      </button>
+      <div className="flex w-full items-center gap-1 px-2 py-1">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 px-1 py-1.5 text-left"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          <span className="font-medium">{name}</span>
+          <span className="flex items-center gap-2">
+            <StatusPill status={status} />
+            <ChevronDown
+              className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")}
+              aria-hidden
+            />
+          </span>
+        </button>
+        <CopyForAiButton payload={snapshot} label="Скопировать" className="h-7 shrink-0 px-2 text-xs" />
+      </div>
       {open ? (
         <div className="space-y-2 border-t border-border/50 px-3 pb-3 pt-3 text-xs text-muted-foreground">
           {children}
@@ -771,9 +793,24 @@ export function SystemHealthSection() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">Здоровье системы</CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-              Обновить
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {data ? (
+                <CopyForAiButton
+                  payload={healthCardAiSnapshot(
+                    "Всё состояние",
+                    "snapshot",
+                    data as unknown as Record<string, unknown>,
+                    (data.meta ?? null) as Record<string, unknown> | null,
+                    data.fetchedAt,
+                  )}
+                  label="Скопировать всё состояние"
+                  className="h-8 text-xs"
+                />
+              ) : null}
+              <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+                Обновить
+              </Button>
+            </div>
           </div>
           <CardDescription>Косвенные сигналы о состоянии сервисов. Раскройте карточку для деталей и блока технической диагностики.</CardDescription>
         </CardHeader>
@@ -794,7 +831,17 @@ export function SystemHealthSection() {
         <CardContent className="space-y-3 text-sm">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Платформа и API</p>
-            <HealthAccordionItem name="База данных веб-приложения" status={data?.webappDb ?? "down"}>
+            <HealthAccordionItem
+              name="База данных веб-приложения"
+              status={data?.webappDb ?? "down"}
+              aiSnapshot={healthCardAiSnapshot(
+                "База данных веб-приложения",
+                data?.webappDb ?? "down",
+                { webappDb: data?.webappDb ?? "down" },
+                data?.meta?.probes?.webappDb ?? null,
+                data?.fetchedAt,
+              )}
+            >
               <DetailRow
                 label="Итог"
                 value={data?.webappDb === "up" ? "Подключение к базе в норме" : "База недоступна по проверке"}
@@ -803,7 +850,17 @@ export function SystemHealthSection() {
               <ProbeInfo probe={data?.meta?.probes?.webappDb} />
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Сервер интеграций" status={data?.integratorApi.status ?? "error"}>
+            <HealthAccordionItem
+              name="Сервер интеграций"
+              status={data?.integratorApi.status ?? "error"}
+              aiSnapshot={healthCardAiSnapshot(
+                "Сервер интеграций",
+                data?.integratorApi.status ?? "error",
+                { integratorApi: data?.integratorApi },
+                data?.meta?.probes?.integratorApi ?? null,
+                data?.fetchedAt,
+              )}
+            >
               <DetailRow
                 label="Итог"
                 value={data?.integratorApi.status === "ok" ? "Сервис отвечает" : "Сервис не отвечает или ошибка"}

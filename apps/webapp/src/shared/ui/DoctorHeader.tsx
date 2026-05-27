@@ -160,7 +160,7 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
               />
               <Separator className="my-2" />
               <Link href="/app/settings" onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
-                Профиль и настройки
+                Настройки специалиста
               </Link>
               <Separator className="my-2" />
               <form action="/api/auth/logout" method="post" className="w-full">

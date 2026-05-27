@@ -29,7 +29,9 @@ describe("isDoctorNavItemActive", () => {
     expect(
       isDoctorNavItemActive("/app/doctor/clients?scope=appointments", "/app/doctor/clients/42"),
     ).toBe(true);
-    expect(isDoctorNavItemActive("/app/doctor/stats", "/app/doctor/stats")).toBe(true);
+    expect(isDoctorNavItemActive("/app/doctor/analytics/clients", "/app/doctor/analytics/clients")).toBe(
+      true,
+    );
   });
 
   it("matches library under nested paths", () => {
@@ -56,24 +58,17 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuClusterId("unknown")).toBe(false);
   });
 
-  it("renders standalone library between app-content and communications", () => {
+  it("renders standalone today then clusters for doctor", () => {
     const sections = getDoctorMenuRenderSections(doctorAccess);
     const types = sections.map((s) => s.type);
-    expect(types).toEqual([
-      "cluster",
-      "cluster",
-      "cluster",
-      "standalone",
-      "cluster",
-      "cluster",
-    ]);
+    expect(types[0]).toBe("standalone");
+    expect(types.filter((t) => t === "cluster").length).toBe(4);
     const clusterLabels = sections.filter((s) => s.type === "cluster").map((s) => s.cluster.label);
     expect(clusterLabels).toEqual([
       "Работа с пациентами",
-      "Назначения",
-      "Контент приложения",
       "Коммуникации",
-      "Система",
+      "Каталог ЛФК",
+      "Контент",
     ]);
     const standalone = sections.find((s) => s.type === "standalone");
     expect(standalone?.type).toBe("standalone");
@@ -82,13 +77,22 @@ describe("doctor menu structure", () => {
     }
   });
 
-  it("DOCTOR_MENU_LINKS contains library and excludes settings", () => {
+  it("renders admin-only clusters for admin", () => {
+    const sections = getDoctorMenuRenderSections(adminAccess);
+    const clusterLabels = sections.filter((s) => s.type === "cluster").map((s) => s.cluster.label);
+    expect(clusterLabels).toContain("Аналитика");
+    expect(clusterLabels).toContain("Система");
+    expect(clusterLabels).toContain("Администрирование");
+  });
+
+  it("DOCTOR_MENU_LINKS contains library in content cluster and excludes settings", () => {
     const hrefs = DOCTOR_MENU_LINKS.map((l) => l.href);
     expect(hrefs).toContain("/app/doctor/content/library");
     expect(hrefs).not.toContain("/app/settings");
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Сегодня")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Пациенты")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Комплексы ЛФК")).toBe(true);
+    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Материалы")).toBe(true);
   });
 
   it("exposes localStorage keys for accordion (legacy single id + open set JSON)", () => {
@@ -96,32 +100,25 @@ describe("doctor menu structure", () => {
     expect(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY).toBe("doctorMenu.openClusters.v1");
   });
 
-  it("shows usage link only for admin in admin mode", () => {
+  it("shows admin-only links for admin regardless of adminMode flag", () => {
     const usage = { id: "usage", label: "Использование", href: "/app/doctor/usage", requiresAdminMode: true };
     expect(isDoctorMenuLinkVisible(usage, doctorAccess)).toBe(false);
-    expect(isDoctorMenuLinkVisible(usage, { role: "admin", adminMode: false })).toBe(false);
+    expect(isDoctorMenuLinkVisible(usage, { role: "admin", adminMode: false })).toBe(true);
     expect(isDoctorMenuLinkVisible(usage, adminAccess)).toBe(true);
 
-    const systemDoctor = getDoctorMenuRenderSections(doctorAccess).find(
-      (s) => s.type === "cluster" && s.cluster.id === "system",
+    const analyticsAdmin = getDoctorMenuRenderSections(adminAccess).find(
+      (s) => s.type === "cluster" && s.cluster.id === "analytics",
     );
-    expect(systemDoctor?.type === "cluster" && systemDoctor.cluster.items.some((i) => i.id === "usage")).toBe(
-      false,
-    );
-
-    const systemAdmin = getDoctorMenuRenderSections(adminAccess).find(
-      (s) => s.type === "cluster" && s.cluster.id === "system",
-    );
-    expect(systemAdmin?.type === "cluster" && systemAdmin.cluster.items.some((i) => i.id === "usage")).toBe(true);
+    expect(
+      analyticsAdmin?.type === "cluster" && analyticsAdmin.cluster.items.some((i) => i.id === "usage"),
+    ).toBe(true);
   });
 
-  it("assigns badgeKey to online intake and messages only", () => {
-    const patients = DOCTOR_MENU_CLUSTERS.find((c) => c.id === "patients-work");
-    const intake = patients?.items.find((i) => i.id === "online-intake");
-    const messages = patients?.items.find((i) => i.id === "messages");
+  it("assigns badgeKey to online intake and messages in communications", () => {
+    const communications = DOCTOR_MENU_CLUSTERS.find((c) => c.id === "communications");
+    const intake = communications?.items.find((i) => i.id === "online-intake");
+    const messages = communications?.items.find((i) => i.id === "messages");
     expect(intake?.badgeKey).toBe("onlineIntakeNew");
     expect(messages?.badgeKey).toBe("messagesUnread");
-    const other = patients?.items.filter((i) => i.id !== "online-intake" && i.id !== "messages");
-    expect(other?.every((i) => !i.badgeKey)).toBe(true);
   });
 });

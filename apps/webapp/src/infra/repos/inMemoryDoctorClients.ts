@@ -61,6 +61,10 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     };
   },
 
+  async countRecentClientsWithoutMessagingChannels(_days: number): Promise<number> {
+    return 0;
+  },
+
   async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
     const found = STUB_CLIENTS.find((c) => c.userId === userId);
     if (!found) return null;

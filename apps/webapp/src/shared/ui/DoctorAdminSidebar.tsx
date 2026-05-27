@@ -46,7 +46,7 @@ export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminS
         <DoctorMenuAccordion variant="sidebar" pathname={pathname} menuAccess={menuAccess} />
         <Separator className="my-2" />
         <Link href="/app/settings" className={SIDEBAR_LINK_CLASS}>
-          Профиль и настройки
+          Настройки специалиста
         </Link>
         <Separator className="my-2" />
         <form action="/api/auth/logout" method="post" className="w-full">

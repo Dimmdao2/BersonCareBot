@@ -91,6 +91,29 @@ export async function writeAuditLog(pool: Pool, entry: AuditLogWriteEntry): Prom
 /**
  * Insert audit row; ignore unique violation on open `conflict_key` (hourly / severity dedupe).
  */
+/** Последнее значение `details->>field` для action (для state-change снимков health). */
+export async function getLastAuditLogDetailsField(
+  pool: Pool,
+  action: string,
+  field: string,
+): Promise<string | null> {
+  try {
+    const res = await pool.query<{ value: string | null }>(
+      `SELECT details->>$2 AS value
+       FROM admin_audit_log
+       WHERE action = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [action, field],
+    );
+    const v = res.rows[0]?.value;
+    return typeof v === "string" ? v : null;
+  } catch (err) {
+    logger.error({ err, action, field }, "getLastAuditLogDetailsField failed");
+    return null;
+  }
+}
+
 export async function writeAuditLogDedupeOpenConflictKey(
   pool: Pool,
   entry: AuditLogWriteEntry & { conflictKey: string },
@@ -303,6 +326,10 @@ export type ListAdminAuditLogParams = {
   status?: AuditLogStatus;
   fromInclusive?: string;
   toInclusive?: string;
+  /** `l.action LIKE $prefix || '%'` */
+  actionPrefix?: string;
+  /** `l.action NOT LIKE $prefix || '%'` */
+  excludeActionPrefix?: string;
 };
 
 /** Count of distinct open `auto_merge_conflict` rows (`resolved_at IS NULL`). */
@@ -383,6 +410,16 @@ export async function listAdminAuditLog(pool: Pool, params: ListAdminAuditLogPar
   if (params.toInclusive) {
     conditions.push(`l.created_at <= $${i}::timestamptz`);
     values.push(params.toInclusive);
+    i++;
+  }
+  if (params.actionPrefix?.trim()) {
+    conditions.push(`l.action LIKE $${i} || '%'`);
+    values.push(params.actionPrefix.trim());
+    i++;
+  }
+  if (params.excludeActionPrefix?.trim()) {
+    conditions.push(`l.action NOT LIKE $${i} || '%'`);
+    values.push(params.excludeActionPrefix.trim());
     i++;
   }
 

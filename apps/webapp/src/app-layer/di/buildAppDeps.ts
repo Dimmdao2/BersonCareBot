@@ -842,6 +842,8 @@ function _buildAppDeps() {
       listClients: (filters) => doctorClientsPort.listClients(filters),
       getDashboardPatientMetrics: () => doctorClientsPort.getDashboardPatientMetrics(),
       getDashboardAppointmentMetrics: () => doctorAppointmentsPort.getDashboardAppointmentMetrics(),
+      countRecentClientsWithoutMessagingChannels: (days) =>
+        doctorClientsPort.countRecentClientsWithoutMessagingChannels(days),
     }),
     adminPlatformUserStats,
     productAnalytics,

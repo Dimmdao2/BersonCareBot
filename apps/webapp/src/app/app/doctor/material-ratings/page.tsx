@@ -64,7 +64,7 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
   const basePath = "/app/doctor/material-ratings";
 
   return (
-    <AppShell title="Статистика материалов" user={session.user} variant="doctor" backHref="/app/doctor/content" backLabel="CMS">
+    <AppShell title="По контенту" user={session.user} variant="doctor" backHref="/app/doctor/content" backLabel="Материалы">
       <div className="flex flex-col gap-6">
         <MaterialContentStatsClient />
         <p className="text-xs text-muted-foreground">

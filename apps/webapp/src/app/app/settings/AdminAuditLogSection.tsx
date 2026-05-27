@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
 import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
+import { CopyForAiButton } from "./CopyForAiButton";
 
 type AuditItem = {
   id: string;
@@ -35,22 +36,20 @@ type ApiOk = {
   openAutoMergeConflictCount?: number;
 };
 
+const ACTION_FILTER_ALL = "";
+const ACTION_FILTER_SYSTEM_HEALTH = "__system_health__";
+
 const ACTION_FILTER_OPTIONS = [
-  "",
-  "auto_merge_conflict",
-  "auto_merge_conflict_anomaly",
-  "user_purge",
-  "user_purge_external_retry",
-  "user_merge",
-  "integrator_user_merge",
-  "settings_change",
-  "doctor_settings_change",
-  "appointment_soft_delete",
-  "media_delete",
-  "reference_archive",
-  "admin_mode_toggle",
-  "admin_client_profile_patch",
-  "health_failure_archive_clear_dead",
+  { value: ACTION_FILTER_ALL, label: "Все действия" },
+  { value: ACTION_FILTER_SYSTEM_HEALTH, label: "Системные снимки" },
+  { value: "auto_merge_conflict", label: "auto_merge_conflict" },
+  { value: "auto_merge_conflict_anomaly", label: "auto_merge_conflict_anomaly" },
+  { value: "user_purge", label: "user_purge" },
+  { value: "user_purge_external_retry", label: "user_purge_external_retry" },
+  { value: "user_merge", label: "user_merge" },
+  { value: "integrator_user_merge", label: "integrator_user_merge" },
+  { value: "admin_client_profile_patch", label: "admin_client_profile_patch" },
+  { value: "health_failure_archive_clear_dead", label: "health_failure_archive_clear_dead" },
 ] as const;
 
 function actionTierLabel(action: string): string {
@@ -138,7 +137,13 @@ export function AdminAuditLogSection() {
     const p = new URLSearchParams();
     p.set("page", String(page));
     p.set("limit", String(limit));
-    if (applied.action.trim()) p.set("action", applied.action.trim());
+    if (applied.action === ACTION_FILTER_SYSTEM_HEALTH) {
+      p.set("systemHealthOnly", "1");
+    } else if (applied.action.trim()) {
+      p.set("action", applied.action.trim());
+    } else {
+      p.set("excludeSystemHealth", "1");
+    }
     if (applied.target.trim()) p.set("target", applied.target.trim());
     if (applied.status) p.set("status", applied.status);
     if (applied.from) p.set("from", applied.from);
@@ -155,7 +160,7 @@ export function AdminAuditLogSection() {
       if (!res.ok || !json || (json as { ok?: boolean }).ok !== true) {
         setError(
           res.status === 403
-            ? "Нужны роль admin и режим администратора."
+            ? "Нужна роль admin."
             : (json as { error?: string }).error ?? `request_failed_${res.status}`,
         );
         setData(null);
@@ -175,6 +180,8 @@ export function AdminAuditLogSection() {
   }, [load]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
+
+  const visibleItems = data?.items ?? [];
 
   return (
     <Card>
@@ -208,9 +215,9 @@ export function AdminAuditLogSection() {
                 "ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
               )}
             >
-              {ACTION_FILTER_OPTIONS.map((actionCode) => (
-                <option key={actionCode || "_all"} value={actionCode}>
-                  {actionCode || "Все действия"}
+              {ACTION_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value || "_all"} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
@@ -287,6 +294,7 @@ export function AdminAuditLogSection() {
           <>
             <p className="text-sm text-muted-foreground">
               Записей: {data.total}. Страница {data.page} из {totalPages}.
+              {applied.action === "" ? " Системные снимки скрыты — фильтр «Системные снимки»." : null}
             </p>
             <div className="overflow-x-auto rounded-md border border-border/60">
               <table className="w-full min-w-[720px] text-left text-sm">
@@ -301,14 +309,14 @@ export function AdminAuditLogSection() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.length === 0 ? (
+                  {visibleItems.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
                         Пока нет записей.
                       </td>
                     </tr>
                   ) : (
-                    data.items.map((row) => {
+                    visibleItems.map((row) => {
                       const expanded = openId === row.id;
                       return (
                         <Fragment key={row.id}>
@@ -381,15 +389,22 @@ export function AdminAuditLogSection() {
                               </div>
                             </td>
                             <td className="px-3 py-2 align-top">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 text-xs"
-                                onClick={() => setOpenId(expanded ? null : row.id)}
-                              >
-                                {expanded ? "Скрыть" : "Детали"}
-                              </Button>
+                              <div className="flex flex-col gap-1">
+                                <CopyForAiButton
+                                  payload={row as unknown as Record<string, unknown>}
+                                  label="Скопировать"
+                                  className="h-7 px-2 text-[10px]"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-xs"
+                                  onClick={() => setOpenId(expanded ? null : row.id)}
+                                >
+                                  {expanded ? "Скрыть" : "Детали"}
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                           {expanded ? (

@@ -119,7 +119,7 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
           <Button type="button" variant="outline" size="sm" onClick={() => void loadPage(null, false)} disabled={loading}>
             Обновить
           </Button>
-          <Link href="/app/settings?adminTab=system-health" className="text-xs text-muted-foreground underline underline-offset-2">
+          <Link href="/app/doctor/system-health" className="text-xs text-muted-foreground underline underline-offset-2">
             К здоровью системы
           </Link>
         </div>

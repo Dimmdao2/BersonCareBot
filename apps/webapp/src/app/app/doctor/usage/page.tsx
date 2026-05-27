@@ -5,8 +5,8 @@ import { ProductAnalyticsSection } from "./ProductAnalyticsSection";
 
 export default async function DoctorUsageAnalyticsPage() {
   const session = await requireDoctorAccess();
-  if (session.user.role !== "admin" || !session.adminMode) {
-    redirect("/app/doctor/stats");
+  if (session.user.role !== "admin") {
+    redirect("/app/doctor");
   }
 
   return (

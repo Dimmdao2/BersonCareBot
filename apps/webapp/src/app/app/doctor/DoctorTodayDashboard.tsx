@@ -1,13 +1,27 @@
 import Link from "next/link";
 import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
+import type { DoctorStatsState } from "@/modules/doctor-stats/service";
+import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import { ON_SUPPORT_LIST_HREF, type TodayDashboardData } from "./loadDoctorTodayDashboard";
 
 type Props = {
   data: TodayDashboardData;
+  kpiStats: DoctorStatsState;
+  appointmentsTodayCount: number;
   adminHealthBanner?: AdminDoctorTodayHealthBanner;
+  showAnalyticsLink?: boolean;
 };
 
-export function DoctorTodayDashboard({ data, adminHealthBanner }: Props) {
+export function DoctorTodayDashboard({
+  data,
+  kpiStats,
+  appointmentsTodayCount,
+  adminHealthBanner,
+  showAnalyticsLink,
+}: Props) {
+  const intakeAttentionCount = data.newIntakeRequests.length;
+  const messagesAttentionCount = data.unreadTotal;
+
   return (
     <div id="doctor-today-dashboard" className="flex flex-col gap-3">
       {adminHealthBanner?.show ? (
@@ -25,14 +39,76 @@ export function DoctorTodayDashboard({ data, adminHealthBanner }: Props) {
           <h1 className="text-base font-semibold tracking-tight text-foreground">Сегодня</h1>
           <p className="text-sm text-muted-foreground">Рабочие задачи на ближайшие часы</p>
         </div>
-        <Link
-          id="doctor-today-link-stats"
-          href="/app/doctor/stats"
-          className="shrink-0 text-sm text-primary underline underline-offset-2"
-        >
-          Открыть статистику
-        </Link>
+        {showAnalyticsLink ? (
+          <Link
+            id="doctor-today-link-stats"
+            href="/app/doctor/analytics/clients"
+            className="shrink-0 text-sm text-primary underline underline-offset-2"
+          >
+            Аналитика по клиентам
+          </Link>
+        ) : null}
       </header>
+
+      <section
+        id="doctor-today-kpi"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Показатели"
+      >
+        <DoctorStatCard
+          id="doctor-today-kpi-appointments-today"
+          title="Записи сегодня"
+          value={appointmentsTodayCount}
+        />
+        <DoctorStatCard
+          id="doctor-today-kpi-appointments-week"
+          title="Записи на неделю"
+          value={kpiStats.appointments.total}
+        />
+        <DoctorStatCard
+          id="doctor-today-kpi-cancellations-30d"
+          title="Отмены за 30 дн."
+          value={kpiStats.appointments.cancellations30d}
+          tone="warning"
+          href="/app/doctor/appointments?view=cancellationsMonth"
+        />
+        <DoctorStatCard
+          id="doctor-today-kpi-clients-no-channels"
+          title="Новые клиенты за 7 дн. без каналов связи"
+          value={kpiStats.clients.newClients7dWithNoChannels}
+          tone={kpiStats.clients.newClients7dWithNoChannels > 0 ? "warning" : "neutral"}
+        />
+      </section>
+
+      <section
+        id="doctor-today-section-attention"
+        className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2"
+      >
+        <h2 className="text-sm font-semibold text-foreground">Требует внимания</h2>
+        <ul className="m-0 list-none space-y-1.5 p-0 text-sm">
+          <li>
+            <Link href="/app/doctor/online-intake" className="text-primary underline underline-offset-2">
+              Онлайн-заявки
+            </Link>
+            {intakeAttentionCount > 0 ? (
+              <span className="text-muted-foreground"> — новых: {intakeAttentionCount}</span>
+            ) : (
+              <span className="text-muted-foreground"> — нет новых</span>
+            )}
+          </li>
+          <li>
+            <Link href="/app/doctor/messages" className="text-primary underline underline-offset-2">
+              Сообщения
+            </Link>
+            {messagesAttentionCount > 0 ? (
+              <span className="text-muted-foreground"> — непрочитанных: {messagesAttentionCount}</span>
+            ) : (
+              <span className="text-muted-foreground"> — нет непрочитанных</span>
+            )}
+          </li>
+          <li className="text-muted-foreground">Комментарии к материалам — скоро</li>
+        </ul>
+      </section>
 
       <section
         id="doctor-today-section-on-support"

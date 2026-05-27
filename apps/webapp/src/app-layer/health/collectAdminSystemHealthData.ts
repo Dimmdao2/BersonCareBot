@@ -27,7 +27,7 @@ import type {
   OperatorJobStatusTickRow,
 } from "@/modules/operator-health/ports";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
-import { writeAuditLogDedupeOpenConflictKey } from "@/infra/adminAuditLog";
+import { getLastAuditLogDetailsField, writeAuditLog } from "@/infra/adminAuditLog";
 import {
   ADMIN_DELIVERY_DUE_BACKLOG_WARNING,
   classifyVideoTranscodeSystemHealthStatus,
@@ -1074,24 +1074,34 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
 
   const integratorPushOutboxClassified = classifyIntegratorPushOutboxSystemHealthStatus(integratorPushOutboxPayload);
 
-  if (operatorHealthResult.ok && integratorPushOutboxClassified !== "ok") {
-    const rank = integratorPushOutboxClassified === "error" ? 2 : 1;
-    const hourKey = new Date().toISOString().slice(0, 13);
-    void writeAuditLogDedupeOpenConflictKey(getPool(), {
-      actorId: null,
-      action: "system_health_integrator_push_outbox",
-      conflictKey: `system_health:ipo:${hourKey}:s${rank}`,
-      details: {
-        status: integratorPushOutboxClassified,
-        dueBacklog: integratorPushOutboxPayload.dueBacklog,
-        deadTotal: integratorPushOutboxPayload.deadTotal,
-        processingCount: integratorPushOutboxPayload.processingCount,
-        oldestDueAgeSeconds: integratorPushOutboxPayload.oldestDueAgeSeconds,
-        oldestProcessingAgeSeconds: integratorPushOutboxPayload.oldestProcessingAgeSeconds,
-        fetchedAt: nowIso(),
-      },
-      status: integratorPushOutboxClassified === "error" ? "error" : "partial_failure",
-    });
+  if (operatorHealthResult.ok) {
+    const prevIpoStatus = await getLastAuditLogDetailsField(
+      getPool(),
+      "system_health_integrator_push_outbox",
+      "status",
+    );
+    if (prevIpoStatus != null && prevIpoStatus !== integratorPushOutboxClassified) {
+      void writeAuditLog(getPool(), {
+        actorId: null,
+        action: "system_health_integrator_push_outbox",
+        details: {
+          status: integratorPushOutboxClassified,
+          previousStatus: prevIpoStatus,
+          dueBacklog: integratorPushOutboxPayload.dueBacklog,
+          deadTotal: integratorPushOutboxPayload.deadTotal,
+          processingCount: integratorPushOutboxPayload.processingCount,
+          oldestDueAgeSeconds: integratorPushOutboxPayload.oldestDueAgeSeconds,
+          oldestProcessingAgeSeconds: integratorPushOutboxPayload.oldestProcessingAgeSeconds,
+          fetchedAt: nowIso(),
+        },
+        status:
+          integratorPushOutboxClassified === "error"
+            ? "error"
+            : integratorPushOutboxClassified === "ok"
+              ? "ok"
+              : "partial_failure",
+      });
+    }
   }
 
   const operatorIncidentsProbeStatus = !operatorHealthResult.ok

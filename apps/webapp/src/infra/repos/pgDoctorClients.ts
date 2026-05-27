@@ -217,6 +217,27 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       };
     },
 
+    async countRecentClientsWithoutMessagingChannels(days: number): Promise<number> {
+      const pool = getPool();
+      const safeDays = Math.max(1, Math.min(365, Math.floor(days)));
+      const r = await pool.query<{ c: string }>(
+        `SELECT COUNT(*)::text AS c
+         FROM platform_users pu
+         WHERE pu.role = 'client'
+           AND pu.merged_into_id IS NULL
+           AND COALESCE(pu.is_archived, false) = false
+           AND pu.created_at >= NOW() - ($1::int * interval '1 day')
+           AND NOT EXISTS (
+             SELECT 1
+             FROM user_channel_bindings ucb
+             WHERE ucb.user_id = pu.id
+               AND ucb.channel_code IN ('telegram', 'max')
+           )`,
+        [safeDays],
+      );
+      return parseInt(r.rows[0]?.c ?? "0", 10);
+    },
+
     async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;

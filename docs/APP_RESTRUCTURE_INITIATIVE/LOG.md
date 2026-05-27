@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-05-28 — Кабинет врача: реструктуризация навигации (admin из Settings в меню)
+
+**Документация:** канон [`docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`](../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md); обновлены `DOCTOR_DASHBOARD_METRICS.md`, `SPECIALIST_CABINET_STRUCTURE.md`, `STRUCTURE_AUDIT.md`, `api.md`, `docs/README.md`, Operator Health / Product Analytics README.
+
+**Код (кратко):** кластеры меню в `doctorNavLinks.ts`; `/app/settings` — только `SettingsForm`; маршруты `/app/doctor/system-health`, `audit-log`, `analytics/*`, `admin/*`; `/app/doctor/stats` → redirect `analytics/clients`; KPI «7 дн. без каналов» на «Сегодня»; журнал audit — server-side фильтр `system_health_*`.
+
+---
+
 ## 2026-05-13 — ROADMAP_2 §1.1b: закрыт по факту, спецификация помечена устаревшей
 
 **Документация:** [`ROADMAP_2.md`](ROADMAP_2.md) — синхронизация 2026-05-13, строка §0, §2, схема 1.x, §7 DoD, §9; §1.1b заменён на статус «выполнено иначе» + `<details>` с кратким архивом; источник правды по UI — [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), [`docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md).
