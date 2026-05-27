@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { logger } from "@/infra/logging/logger";
@@ -10,7 +11,9 @@ const bodySchema = z.object({
   notificationPermission: z.enum(["default", "granted", "denied", "unsupported"]),
 });
 
-/** POST /api/patient/pwa/launch — lightweight PWA open analytics (no DB write). */
+/**
+ * POST /api/patient/pwa/launch — PWA capability snapshot (не `app_open`; канон — PatientAnalyticsReporter).
+ */
 export async function POST(request: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });
   if (!gate.ok) return gate.response;
@@ -33,6 +36,25 @@ export async function POST(request: Request) {
     userId: gate.session.user.userId,
     ...parsed.data,
   });
+
+  try {
+    const deps = buildAppDeps();
+    await deps.productAnalytics.recordEventsBatch([
+      {
+        eventType: "heartbeat",
+        entryChannel: parsed.data.isStandalone ? "pwa" : "browser",
+        userId: gate.session.user.userId,
+        metadata: {
+          kind: "pwa_launch_snapshot",
+          isStandalone: parsed.data.isStandalone,
+          pushSupported: parsed.data.pushSupported,
+          notificationPermission: parsed.data.notificationPermission,
+        },
+      },
+    ]);
+  } catch {
+    /* analytics only */
+  }
 
   return NextResponse.json({ ok: true });
 }

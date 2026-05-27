@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
 import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuthVerboseServerLog";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { logger } from "@/app-layer/logging/logger";
@@ -87,6 +88,11 @@ export async function POST(request: Request) {
   }
 
   const u = result.session.user;
+  await recordAuthLogin({
+    userId: u.userId,
+    entryChannel: "telegram",
+    authMethod: "telegram_initData",
+  });
   logger.info(
     {
       route: ROUTE,

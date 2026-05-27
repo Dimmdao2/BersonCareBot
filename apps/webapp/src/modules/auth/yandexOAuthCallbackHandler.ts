@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { env, webappReposAreInMemory } from "@/config/env";
 import { exchangeYandexCode, fetchYandexUserInfo } from "@/modules/auth/oauthService";
+import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { resolveRoleAsync } from "@/modules/auth/envRole";
@@ -126,6 +127,12 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   } catch {
     return NextResponse.redirect(redirectToAppQuery("session_failed"));
   }
+
+  await recordAuthLogin({
+    userId: sessionUser.userId,
+    entryChannel: "browser",
+    authMethod: "yandex_oauth",
+  });
 
   const finalRedirect = getRedirectPathForRole(role);
   return NextResponse.redirect(new URL(finalRedirect, appBase));

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  entryChannelFromMessengerBindings,
+  recordAuthLogin,
+} from "@/app-layer/product-analytics/recordAuthLogin";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
@@ -54,6 +58,12 @@ export async function POST(request: Request) {
   if (process.env.NODE_ENV !== "test") {
     console.info("[auth/exchange] success source=%s role=%s", source, result.session.user.role);
   }
+
+  await recordAuthLogin({
+    userId: result.session.user.userId,
+    entryChannel: entryChannelFromMessengerBindings(result.session.user.bindings),
+    authMethod: result.session.authSource === "dev_bypass" ? "dev_bypass" : "integrator_exchange",
+  });
 
   const response = NextResponse.json({
     ok: true,

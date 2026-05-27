@@ -143,6 +143,7 @@ export async function POST(request: Request) {
   const done = await completeOAuthWebLoginRedirectUrls({
     userId: resolved.userId,
     displayNameHint: displayName?.trim() || email || claims.sub,
+    authMethod: "apple_oauth",
   });
 
   if (!done.ok) {

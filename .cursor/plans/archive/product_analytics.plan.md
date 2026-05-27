@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: phase-2-ingest-auth-client
     content: "Блок 2: ingest app_open/page_view/auth_login (routes + patient reporter + /api/patient/analytics/events + pwa/launch)"
-    status: pending
+    status: completed
   - id: phase-3-push-pipeline
     content: "Блок 3: push pipeline (sloganKey, trackingId, push fact table, sw notificationclick, /api/patient/analytics/push-open)"
     status: pending
@@ -398,6 +398,10 @@ Admin API отдаёт:
 ### Block 1 (2026-05-27) — закрыт
 
 См. раздел «2026-05-27 — Block 1» в LOG: schema, migration 0083, module + DI, review-fixes (page_view filter, push_open dedupe 23505).
+
+### Block 2 (2026-05-27) — закрыт
+
+См. раздел «2026-05-27 — Block 2» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): ingest, post-review (UUID guard, тесты канала).
 
 ## Definition of Done
 

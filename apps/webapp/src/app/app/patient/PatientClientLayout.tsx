@@ -8,6 +8,7 @@ import { PatientCalendarTimezoneBootstrap } from "./PatientCalendarTimezoneBoots
 import { PatientWebPushProvider } from "@/shared/lib/webPush/PatientWebPushContext";
 import { PatientWebPushBootstrap } from "@/shared/ui/patient/webPush/PatientWebPushBootstrap";
 import { PwaAppAccessGate } from "@/shared/ui/pwa/PwaAppAccessGate";
+import { PatientAnalyticsReporter } from "@/shared/ui/patient/PatientAnalyticsReporter";
 
 const allowPatientBrowserAccess = process.env.NODE_ENV !== "production";
 
@@ -21,6 +22,7 @@ export function PatientClientLayout({ children }: { children: ReactNode }) {
             <PwaAppAccessGate allowBrowserAccess={allowPatientBrowserAccess}>
               <PatientCalendarTimezoneBootstrap />
               <PatientWebPushBootstrap />
+              <PatientAnalyticsReporter />
               {children}
             </PwaAppAccessGate>
           </Suspense>

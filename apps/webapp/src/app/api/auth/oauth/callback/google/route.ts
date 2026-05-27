@@ -85,6 +85,7 @@ export async function GET(request: Request) {
   const done = await completeOAuthWebLoginRedirectUrls({
     userId: resolved.userId,
     displayNameHint: profile.name?.trim() || profile.email || profile.sub,
+    authMethod: "google_oauth",
   });
 
   if (!done.ok) {

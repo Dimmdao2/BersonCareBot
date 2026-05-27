@@ -1,3 +1,4 @@
+import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
@@ -14,6 +15,7 @@ export function oauthWebLoginErrorRedirect(reason: string): string {
 export async function completeOAuthWebLoginRedirectUrls(opts: {
   userId: string;
   displayNameHint: string;
+  authMethod?: string;
 }): Promise<{ ok: true; redirectUrl: string } | { ok: false; reason: string }> {
   const appBase = await getAppBaseUrl();
   let sessionUser;
@@ -43,6 +45,12 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   } catch {
     return { ok: false, reason: "session_failed" };
   }
+
+  await recordAuthLogin({
+    userId: opts.userId,
+    entryChannel: "browser",
+    authMethod: opts.authMethod ?? "oauth_web",
+  });
 
   const finalRedirect = getRedirectPathForRole(role);
   return { ok: true, redirectUrl: new URL(finalRedirect, appBase).toString() };
