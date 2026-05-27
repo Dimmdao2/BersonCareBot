@@ -949,13 +949,13 @@ describe("treatment-program instance service", () => {
     it("expands complex into instance exercises in custom group", async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null },
+          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null, complexTitle: null },
         },
       });
       const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
       const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null },
+          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null, complexTitle: null },
         },
       });
       const instSvcLocal = createTreatmentProgramInstanceService({
@@ -996,13 +996,13 @@ describe("treatment-program instance service", () => {
     it("rejects expand on instance stage zero", async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+          [complexId]: { exerciseIds: [ex1], complexDescription: null, complexTitle: null },
         },
       });
       const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
       const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+          [complexId]: { exerciseIds: [ex1], complexDescription: null, complexTitle: null },
         },
       });
       const instSvcLocal = createTreatmentProgramInstanceService({

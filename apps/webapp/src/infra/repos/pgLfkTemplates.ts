@@ -19,6 +19,11 @@ import {
 } from "@/modules/lfk-templates/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 
+/** Legacy `lfk_complex` или разворот в `exercise` с `settings.lfkComplexTemplateId`. */
+function sqlTpStageItemUsesLfkComplexTemplate(alias: string): string {
+  return `((${alias}.item_type = 'lfk_complex' AND ${alias}.item_ref_id = $1::uuid) OR (${alias}.settings->>'lfkComplexTemplateId' = $1::text))`;
+}
+
 function mapTemplateRow(
   row: {
     id: string;
@@ -158,22 +163,22 @@ async function loadTemplateUsageSummary(
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'lfk_complex' AND si.item_ref_id = $1::uuid AND t.status = 'published') AS published_tp_templates,
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")} AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'lfk_complex' AND si.item_ref_id = $1::uuid AND t.status = 'draft') AS draft_tp_templates,
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")} AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'lfk_complex' AND sii.item_ref_id = $1::uuid AND i.status = 'active') AS active_tp_instances,
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")} AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'lfk_complex' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances,
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")} AND i.status = 'completed') AS completed_tp_instances,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT jsonb_build_object(
@@ -204,7 +209,7 @@ async function loadTemplateUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'lfk_complex' AND si.item_ref_id = $1::uuid AND t.status = 'published'
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")} AND t.status = 'published'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS published_tp_template_refs,
@@ -219,7 +224,7 @@ async function loadTemplateUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'lfk_complex' AND si.item_ref_id = $1::uuid AND t.status = 'draft'
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")} AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS draft_tp_template_refs,
@@ -236,7 +241,7 @@ async function loadTemplateUsageSummary(
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'lfk_complex' AND sii.item_ref_id = $1::uuid AND i.status = 'active'
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")} AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_tp_instance_refs,
@@ -253,7 +258,7 @@ async function loadTemplateUsageSummary(
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'lfk_complex' AND sii.item_ref_id = $1::uuid AND i.status = 'completed'
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")} AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS completed_tp_instance_refs`,

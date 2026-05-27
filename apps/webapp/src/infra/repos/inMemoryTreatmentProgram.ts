@@ -455,6 +455,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       return {
         exerciseIds: [...row.exerciseIds],
         complexDescription: row.complexDescription,
+        complexTitle: row.complexTitle ?? null,
       };
     },
 
@@ -532,6 +533,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       const base = m + 1;
 
       const insertedItems: TreatmentProgramStageItem[] = [];
+      const itemSettings = { lfkComplexTemplateId: input.complexTemplateId };
       for (let i = 0; i < idsFromDb.length; i++) {
         const exerciseId = idsFromDb[i]!;
         const id = crypto.randomUUID();
@@ -542,7 +544,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
           itemRefId: exerciseId,
           sortOrder: base + i,
           comment: null,
-          settings: null,
+          settings: itemSettings,
           groupId: targetGroupId,
         };
         items.set(id, row);

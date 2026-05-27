@@ -27,6 +27,15 @@ export async function POST(
 
   const deps = buildAppDeps();
   try {
+    const inst = await deps.treatmentProgramInstance.getInstanceById(instanceId);
+    if (!inst) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    const identity = await deps.doctorClientsPort.getClientIdentity(inst.patientUserId);
+    if (!identity) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+
     const result = await deps.treatmentProgramInstance.doctorExpandTestSetIntoStage({
       instanceId,
       stageId,

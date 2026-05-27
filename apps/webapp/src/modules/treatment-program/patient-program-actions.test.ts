@@ -482,6 +482,52 @@ describe("patient-program-actions", () => {
     expect(notifyDoctorOfProgramNote).not.toHaveBeenCalled();
   });
 
+  it("patientAppendObservationNote rejects course programs", async () => {
+    const tplPort = createInMemoryTreatmentProgramPort();
+    const instPort = createInMemoryTreatmentProgramInstancePort();
+    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
+    const instSvc = createTreatmentProgramInstanceService({
+      instances: instPort,
+      templates: tplSvc,
+      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      itemRefs,
+    });
+    const actionLog = createInMemoryProgramActionLogPort();
+    const notifyDoctorOfProgramNote = vi.fn().mockResolvedValue(undefined);
+    const actions = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
+      resolvePatientLabel: async () => "Пациент",
+      notifyDoctorOfProgramNote,
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "Курс", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+      assignmentSource: "course",
+    });
+    const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
+
+    await expect(
+      actions.patientAppendObservationNote({
+        patientUserId: patient,
+        instanceId: inst.id,
+        stageItemId: itemId,
+        note: "Текст",
+      }),
+    ).rejects.toThrow(/курса/i);
+    expect(notifyDoctorOfProgramNote).not.toHaveBeenCalled();
+  });
+
   it("patientAppendObservationNote notifies doctor for doctor-assigned programs", async () => {
     const tplPort = createInMemoryTreatmentProgramPort();
     const instPort = createInMemoryTreatmentProgramInstancePort();

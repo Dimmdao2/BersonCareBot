@@ -245,6 +245,7 @@ export type ExpandLfkComplexIntoStageItemsBody =
 export type LfkComplexExpandPreview = {
   exerciseIds: string[];
   complexDescription: string | null;
+  complexTitle: string | null;
 };
 
 export type ExpandLfkComplexIntoStageItemsPortInput = {

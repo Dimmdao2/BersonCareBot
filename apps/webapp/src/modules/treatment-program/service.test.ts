@@ -213,7 +213,7 @@ describe("treatment-program service", () => {
     it("inserts exercise rows ungrouped", async () => {
       port = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: "D1" },
+          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: "D1", complexTitle: null },
         },
       });
       const svc = createTreatmentProgramService(port, itemRefs);
@@ -236,7 +236,7 @@ describe("treatment-program service", () => {
     it("rejects empty complex", async () => {
       port = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [], complexDescription: null },
+          [complexId]: { exerciseIds: [], complexDescription: null, complexTitle: null },
         },
       });
       const svc = createTreatmentProgramService(port, itemRefs);
@@ -255,7 +255,7 @@ describe("treatment-program service", () => {
     it("rejects wrong stage for template", async () => {
       port = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+          [complexId]: { exerciseIds: [ex1], complexDescription: null, complexTitle: null },
         },
       });
       const svc = createTreatmentProgramService(port, itemRefs);
@@ -275,7 +275,7 @@ describe("treatment-program service", () => {
     it("rejects existing_group when group belongs to another stage of the same template", async () => {
       port = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+          [complexId]: { exerciseIds: [ex1], complexDescription: null, complexTitle: null },
         },
       });
       const svc = createTreatmentProgramService(port, itemRefs);
@@ -298,7 +298,7 @@ describe("treatment-program service", () => {
     it("rejects expand when template is archived", async () => {
       port = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+          [complexId]: { exerciseIds: [ex1], complexDescription: null, complexTitle: null },
         },
       });
       const svc = createTreatmentProgramService(port, itemRefs);
@@ -318,7 +318,7 @@ describe("treatment-program service", () => {
     it("port rejects when expectedExerciseIds diverge from catalog order (TOCTOU guard)", async () => {
       port = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null },
+          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null, complexTitle: null },
         },
       });
       const svc = createTreatmentProgramService(port, itemRefs);
@@ -339,7 +339,7 @@ describe("treatment-program service", () => {
     it("409 path: existing group with description and copy requested", async () => {
       port = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1], complexDescription: "From complex" },
+          [complexId]: { exerciseIds: [ex1], complexDescription: "From complex", complexTitle: null },
         },
       });
       const svc = createTreatmentProgramService(port, itemRefs);
@@ -364,7 +364,7 @@ describe("treatment-program service", () => {
     it("new_group copies complex description when checkbox true", async () => {
       port = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
-          [complexId]: { exerciseIds: [ex1], complexDescription: "Catalog text" },
+          [complexId]: { exerciseIds: [ex1], complexDescription: "Catalog text", complexTitle: null },
         },
       });
       const svc = createTreatmentProgramService(port, itemRefs);

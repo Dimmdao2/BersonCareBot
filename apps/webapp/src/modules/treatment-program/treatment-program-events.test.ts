@@ -353,29 +353,50 @@ describe("treatment-program events (§8)", () => {
     ).rejects.toThrow(/историей теста/);
   });
 
-  it("фаза 9–11: проекция ЛФК из активных программ для интегратора", async () => {
+  it("фаза 9–11: проекция ЛФК из активных программ для интегратора (развёрнутый комплекс)", async () => {
+    const complexId = "77777777-7777-4777-8777-777777777777";
+    const ex1 = "88888888-8888-4888-8888-888888888888";
+    const lfkPreview = {
+      [complexId]: { exerciseIds: [ex1], complexDescription: null, complexTitle: "Комплекс А" },
+    };
+    const tplPortLocal = createInMemoryTreatmentProgramPort({ lfkComplexExpandPreview: lfkPreview });
+    const persistenceLocal = createInMemoryTreatmentProgramPersistence({ lfkComplexExpandPreview: lfkPreview });
+    const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
     const snapshots = {
       buildSnapshot: vi.fn(async (type: TreatmentProgramItemType, id: string) => ({
         itemType: type,
         id,
-        title: "Снимок комплекса",
+        title: "Упражнение",
       })),
     };
     const localInstSvc = createTreatmentProgramInstanceService({
-      instances: persistence.instancePort,
-      templates: tplSvc,
+      instances: persistenceLocal.instancePort,
+      templates: tplSvcLocal,
       snapshots,
       itemRefs,
-      events: persistence.eventsPort,
-      testAttempts: persistence.testAttemptsPort,
+      events: persistenceLocal.eventsPort,
+      testAttempts: persistenceLocal.testAttemptsPort,
     });
+    const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
+    const s1 = await tplSvcLocal.createStage(tpl.id, { title: "Э1" });
+    const g1 = await tplSvcLocal.createTemplateStageGroup(s1.id, { title: "ЛФК" });
     const inst = await localInstSvc.assignTemplateToPatient({
-      templateId: (await tplSvc.createTemplate({ title: "П", status: "published" }, null)).id,
+      templateId: tpl.id,
       patientUserId: "60606060-6060-4060-8060-606060606060",
       assignedBy: null,
     });
+    const stId = instStageByTpl(inst, s1.id).id;
+    await localInstSvc.doctorExpandLfkComplexIntoStage({
+      instanceId: inst.id,
+      stageId: stId,
+      complexTemplateId: complexId,
+      groupId: g1.id,
+      actorId: doctor,
+    });
     const blocks = await localInstSvc.listTreatmentProgramLfkBlocksForIntegratorPatient(inst.patientUserId);
-    expect(blocks).toHaveLength(0);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.lfkComplexId).toBe(complexId);
+    expect(blocks[0]?.lfkComplexTitle).toBe("Комплекс А");
   });
 
   it("AUDIT_PHASE_9 FIX 9-M-2: цепочка add → replace → reorder сохраняет id и обновляет snapshot", async () => {

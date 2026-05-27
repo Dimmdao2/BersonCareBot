@@ -9,6 +9,7 @@ import { buildAppendEventInput } from "./event-recording";
 import type { TreatmentProgramService } from "./service";
 import { assertUuid } from "./service";
 import type { TreatmentProgramAssignmentSource, TreatmentProgramInstanceStageStatus, TreatmentProgramInstanceStatus } from "./types";
+import { lfkComplexTemplateIdFromItemSettings } from "./lfkComplexTemplateSettings";
 import {
   BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE,
   effectiveInstanceStageItemComment,
@@ -869,6 +870,7 @@ export function createTreatmentProgramInstanceService(deps: {
             itemRefId: row.itemRefId,
             sortOrder: row.sortOrder,
             source: "expand_lfk_complex_into_exercises",
+            complexTemplateId: input.complexTemplateId,
           },
         });
       }
@@ -1467,9 +1469,53 @@ export function createTreatmentProgramInstanceService(deps: {
     },
 
     async listTreatmentProgramLfkBlocksForIntegratorPatient(
-      _patientUserId: string,
+      patientUserId: string,
     ): Promise<TreatmentProgramIntegratorLfkBlock[]> {
-      return [];
+      assertUuid(patientUserId);
+      const summaries = await instances.listInstancesForPatient(patientUserId.trim());
+      const blocks: TreatmentProgramIntegratorLfkBlock[] = [];
+      const seen = new Set<string>();
+      for (const summ of summaries) {
+        if (summ.status !== "active") continue;
+        const detail = await instances.getInstanceById(summ.id);
+        if (!detail) continue;
+        for (const st of detail.stages) {
+          const groupReps = new Map<
+            string,
+            { rep: TreatmentProgramInstanceStageItemRow; complexId: string }
+          >();
+          for (const it of st.items) {
+            if (it.status === "disabled") continue;
+            const complexId = lfkComplexTemplateIdFromItemSettings(it.settings);
+            if (!complexId) continue;
+            const groupKey = `${st.id}:${it.groupId ?? ""}:${complexId}`;
+            const cur = groupReps.get(groupKey);
+            if (!cur || it.sortOrder < cur.rep.sortOrder) {
+              groupReps.set(groupKey, { rep: it, complexId });
+            }
+          }
+          for (const { rep, complexId } of groupReps.values()) {
+            const dedupeKey = `${detail.id}:${st.id}:${rep.groupId ?? ""}:${complexId}`;
+            if (seen.has(dedupeKey)) continue;
+            seen.add(dedupeKey);
+            const preview = await templates.getLfkComplexExpandPreview(complexId);
+            const titleFromPreview = preview?.complexTitle?.trim() ?? "";
+            const snap = rep.snapshot as Record<string, unknown>;
+            const titleFromSnap =
+              typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "";
+            blocks.push({
+              instanceId: detail.id,
+              instanceStatus: detail.status,
+              stageId: st.id,
+              stageTitle: st.title,
+              stageItemId: rep.id,
+              lfkComplexId: complexId,
+              lfkComplexTitle: titleFromPreview || titleFromSnap || null,
+            });
+          }
+        }
+      }
+      return blocks;
     },
   };
 }

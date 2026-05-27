@@ -66,8 +66,9 @@ export async function notifyDoctorPatientProgramNote(
     inline_keyboard: [[{ text: "Ответить", callback_data: `admin_reply:${replyConversationId}` }]],
   };
 
+  const noteKey = input.noteText.trim().slice(0, 64).replace(/\s+/g, " ");
   await relayTextToDoctorTargets(
-    `patient-program-note:${input.stageItemId}:${Date.now()}`,
+    `patient-program-note:${input.stageItemId}:${noteKey}`,
     targets,
     text,
     "patient-program-note",

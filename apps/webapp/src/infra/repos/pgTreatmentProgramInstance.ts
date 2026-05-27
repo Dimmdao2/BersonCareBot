@@ -951,7 +951,9 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
               sortOrder: base + i,
               comment: line.comment ?? null,
               localComment: null,
-              settings: null,
+              settings: {
+                lfkComplexTemplateId: input.complexTemplateId,
+              },
               snapshot,
               completedAt: null,
               isActionable: null,

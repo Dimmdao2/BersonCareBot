@@ -15,10 +15,21 @@ SELECT count(*) FROM treatment_program_instance_stage_items WHERE item_type = 'l
 
 Ожидание: **0** в обеих таблицах.
 
+## Миграция 0081 и журнал действий
+
+При развороте инстанса `0081` переносит строки `program_action_log` с удаляемого пункта `lfk_complex` на новые `exercise`:
+
+- `lfk_exercise_done` с `payload.exerciseId` → пункт с тем же упражнением;
+- прочие записи (в т.ч. `lfk_session`, `note`) → первое упражнение комплекса;
+- `completed_at` с комплекса копируется только на **первое** упражнение.
+
+Развёрнутые пункты помечаются `settings.lfkComplexTemplateId` (учёт в каталоге комплексов и integrator `treatmentProgramLfkBlocks`).
+
+Если `0081` уже накатили **до** этой версии скрипта — оценить потери лога и при необходимости восстановить из бэкапа; повторный накат 0081 не идемпотентен.
+
 ## Вне scope (без изменений)
 
 - Напоминания с `linked_object_type = lfk_complex` (каталог).
-- Исторический `program_action_log` с `lfk_exercise_done` / `lfk_session`.
 - Каталог `lfk_complex_templates` и API материалов с `target_kind = lfk_complex`.
 
 Секреты и ключи в этот файл не записывать.

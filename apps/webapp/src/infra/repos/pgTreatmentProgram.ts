@@ -830,9 +830,11 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         .where(eq(lfkComplexTemplateExercises.templateId, complexTemplateId))
         .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
       const d = row.description?.trim() ?? "";
+      const title = row.title?.trim() ?? "";
       return {
         exerciseIds: exerciseRows.map((r) => r.exerciseId),
         complexDescription: d ? d : null,
+        complexTitle: title ? title : null,
       };
     },
 
@@ -864,7 +866,10 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         if (!complexRow) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
 
         const exerciseRows = await tx
-          .select({ exerciseId: lfkComplexTemplateExercises.exerciseId })
+          .select({
+            exerciseId: lfkComplexTemplateExercises.exerciseId,
+            comment: lfkComplexTemplateExercises.comment,
+          })
           .from(lfkComplexTemplateExercises)
           .where(eq(lfkComplexTemplateExercises.templateId, input.complexTemplateId))
           .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
@@ -938,8 +943,10 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
 
         const base = itemMax + 1;
         const insertedItems: TreatmentProgramStageItem[] = [];
+        const itemSettings = { lfkComplexTemplateId: input.complexTemplateId };
         for (let i = 0; i < idsFromDb.length; i++) {
-          const exerciseId = idsFromDb[i]!;
+          const line = exerciseRows[i]!;
+          const exerciseId = line.exerciseId;
           const [row] = await tx
             .insert(itemTable)
             .values({
@@ -947,7 +954,8 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
               itemType: "exercise",
               itemRefId: exerciseId,
               sortOrder: base + i,
-              comment: null,
+              comment: line.comment ?? null,
+              settings: itemSettings,
               groupId: targetGroupId,
             })
             .returning();

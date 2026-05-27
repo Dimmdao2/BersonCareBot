@@ -427,6 +427,9 @@ export function createTreatmentProgramPatientActionService(deps: {
       if (detail.assignmentSource === "promo") {
         throw new Error("Комментарии недоступны для промо-программы");
       }
+      if (detail.assignmentSource === "course") {
+        throw new Error("Комментарии недоступны для программы курса");
+      }
       if (item.itemType === "clinical_test") {
         throw new Error("Для клинического теста используйте запись результатов");
       }

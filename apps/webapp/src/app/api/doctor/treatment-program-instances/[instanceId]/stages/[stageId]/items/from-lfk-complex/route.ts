@@ -21,6 +21,10 @@ export async function POST(
   }
 
   const { instanceId, stageId } = await ctx.params;
+  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageId).success) {
+    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  }
+
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
@@ -29,6 +33,15 @@ export async function POST(
 
   const deps = buildAppDeps();
   try {
+    const inst = await deps.treatmentProgramInstance.getInstanceById(instanceId);
+    if (!inst) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    const identity = await deps.doctorClientsPort.getClientIdentity(inst.patientUserId);
+    if (!identity) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+
     const result = await deps.treatmentProgramInstance.doctorExpandLfkComplexIntoStage({
       instanceId,
       stageId,

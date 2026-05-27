@@ -704,7 +704,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           sortOrder: itemMax + 1 + i,
           comment: null,
           localComment: null,
-          settings: null,
+          settings: { lfkComplexTemplateId: input.complexTemplateId },
           snapshot,
           completedAt: null,
           isActionable: null,
