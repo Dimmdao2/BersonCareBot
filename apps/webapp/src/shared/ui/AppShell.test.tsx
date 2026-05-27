@@ -4,8 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { AppShell } from "./AppShell";
 
+const pathnameRef = vi.hoisted(() => ({ value: "/app/patient" }));
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/app/patient",
+  usePathname: () => pathnameRef.value,
   useRouter: () => ({
     back: vi.fn(),
     push: vi.fn(),
@@ -36,7 +38,7 @@ describe("AppShell patient width variants", () => {
     expect(shell).toHaveClass("w-full");
     expect(shell).toHaveClass("max-w-full");
     expect(shell).toHaveClass("overflow-x-clip");
-    expect(shell).toHaveClass("safe-padding-patient");
+    expect(shell).toHaveClass("safe-padding-patient-horiz");
     expect(shell).toHaveClass("max-patient-desktop:max-w-[430px]");
     expect(shell).toHaveClass("patient-desktop:max-w-[min(1180px,calc(100%-2rem))]");
     expect(shell).toHaveAttribute("data-patient-shell-max-px", "430");
@@ -52,7 +54,7 @@ describe("AppShell patient width variants", () => {
     const shell = container.querySelector("#app-shell-patient");
     expect(shell).toHaveClass("w-full");
     expect(shell).toHaveClass("max-w-full");
-    expect(shell).toHaveClass("safe-padding-patient");
+    expect(shell).toHaveClass("safe-padding-patient-horiz");
     expect(shell).toHaveClass("max-patient-desktop:max-w-[430px]");
     expect(shell).toHaveClass("patient-desktop:max-w-[min(1180px,calc(100%-2rem))]");
   });
@@ -68,49 +70,53 @@ describe("AppShell patient width variants", () => {
     expect(shell).toHaveClass("bg-white");
   });
 
-  it("forwards patientTitleBadge in bottom shell header bar", () => {
+  it("forwards patientTitleBadge in subpage title strip on non-primary routes", () => {
+    pathnameRef.value = "/app/patient/profile";
     render(
-      <AppShell title="Раздел" user={null} variant="patient" patientTitleBadge="По подписке">
+      <AppShell
+        title="Раздел"
+        user={null}
+        variant="patient"
+        patientTitleBadge="По подписке"
+        backHref="/app/patient"
+      >
         <div>Body</div>
       </AppShell>,
     );
-    expect(screen.getByTestId("patient-header-title-badge")).toHaveTextContent("По подписке");
-    expect(screen.queryByTestId("patient-shell-page-title-wrap")).toBeNull();
-    expect(screen.getByTestId("patient-shell-header-bar")).toBeInTheDocument();
+    const chrome = screen.getByTestId("patient-shell-top-chrome");
+    expect(within(chrome).getByTestId("patient-header-title-badge")).toHaveTextContent("По подписке");
+    expect(screen.getByTestId("patient-shell-page-title-wrap")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Сегодня" })).toBeNull();
   });
 
-  it("renders bottom nav shell chrome when patient nav is active", () => {
+  it("renders bottom nav shell without page title on primary tab", () => {
+    pathnameRef.value = "/app/patient";
     const { container } = render(
       <AppShell title="Сегодня" user={null} variant="patient" patientSuppressShellTitle>
         <div>Content</div>
       </AppShell>,
     );
 
-    expect(screen.getByTestId("patient-shell-header-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("patient-shell-top-chrome")).toBeInTheDocument();
     expect(screen.getByTestId("patient-bottom-nav")).toBeInTheDocument();
     expect(container.querySelector("#patient-top-nav")).toBeNull();
     expect(screen.queryByTestId("patient-gated-header-wrap")).toBeNull();
-    expect(within(screen.getByTestId("patient-shell-header-bar")).getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Сегодня",
-    );
+    expect(screen.queryByTestId("patient-shell-page-title-wrap")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1, name: "Сегодня" })).toBeNull();
   });
 
-  it("does not render title strip in bottom shell variant", () => {
+  it("renders mobile header title and desktop subpage strip on nested routes", () => {
+    pathnameRef.value = "/app/patient/profile";
     render(
-      <AppShell
-        title="Скрытый заголовок"
-        user={null}
-        variant="patient"
-        patientSuppressShellTitle
-        patientShellTitleSlot={<span data-testid="patient-shell-custom-slot">Custom</span>}
-      >
+      <AppShell title="Мой профиль" user={null} variant="patient" backHref="/app/patient">
         <div>Content</div>
       </AppShell>,
     );
 
-    expect(screen.queryByTestId("patient-shell-page-title-wrap")).toBeNull();
-    expect(screen.queryByTestId("patient-shell-custom-slot")).toBeNull();
-    expect(screen.getByText("Скрытый заголовок")).toBeInTheDocument();
+    const chrome = screen.getByTestId("patient-shell-top-chrome");
+    expect(within(chrome).getByRole("heading", { level: 1, name: "Мой профиль" })).toBeInTheDocument();
+    expect(within(chrome).getByRole("button", { name: "Назад" })).toBeInTheDocument();
+    expect(screen.getByTestId("patient-shell-page-title-wrap")).toBeInTheDocument();
   });
 
   it("shows patient header on all breakpoints when bottom nav is hidden (no top nav)", () => {

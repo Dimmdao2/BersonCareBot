@@ -4,13 +4,18 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { usePatientShellScrollCompact } from "@/shared/hooks/usePatientShellScrollCompact";
 
+type Props = {
+  children: ReactNode;
+  /** При `false` полоска всегда видна (bottom-nav shell). */
+  collapseOnScroll?: boolean;
+};
+
 /**
- * Полоска заголовка под {@link PatientTopNav}: при прокрутке вниз схлопывается,
- * при возврате страницы наверх — снова видна (тот же порог скролла, что компактное меню).
+ * Полоска заголовка под primary nav: при `collapseOnScroll` схлопывается при прокрутке.
  */
-export function PatientShellPageTitleStrip({ children }: { children: ReactNode }) {
+export function PatientShellPageTitleStrip({ children, collapseOnScroll = true }: Props) {
   const compactScroll = usePatientShellScrollCompact();
-  const show = !compactScroll;
+  const show = collapseOnScroll ? !compactScroll : true;
 
   return (
     <div

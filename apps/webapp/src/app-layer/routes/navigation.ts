@@ -72,6 +72,31 @@ export function isPatientHeaderProfileRoute(pathname: string | null): boolean {
   return PATIENT_PRIMARY_NAV_ITEMS.some((item) => normalized === item.href);
 }
 
+/** Подпись вкладки treatment в primary nav («Упражнения»). */
+export const PATIENT_PLAN_TAB_UI_LABEL =
+  PATIENT_PRIMARY_NAV_ITEMS.find((item) => item.id === "plan")?.label ?? "Упражнения";
+
+/**
+ * Стрелка «назад» в mobile-шапке: не на корнях вкладок и не на `/treatment/[instanceId]`
+ * (остаётся вкладка «Упражнения»).
+ */
+export function shouldShowPatientMobileHeaderBack(
+  pathname: string | null,
+  backHref?: string,
+): boolean {
+  if (!backHref?.trim()) return false;
+  const normalized = normalizePatientPathname(pathname);
+  if (!normalized || isPatientHeaderProfileRoute(pathname)) return false;
+
+  const treatmentRoot = routePaths.patientTreatmentPrograms;
+  if (normalized.startsWith(`${treatmentRoot}/`)) {
+    const suffix = normalized.slice(treatmentRoot.length + 1);
+    const depth = suffix.split("/").filter(Boolean).length;
+    if (depth === 1) return false;
+  }
+  return true;
+}
+
 /** @deprecated Используйте {@link isPatientHeaderProfileRoute}. */
 export function isPatientPrimaryNavRoute(pathname: string | null): boolean {
   return isPatientHeaderProfileRoute(pathname);

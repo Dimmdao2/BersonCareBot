@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { DateTime } from "luxon";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { PATIENT_PLAN_TAB_UI_LABEL } from "@/app-layer/routes/navigation";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
@@ -109,12 +110,11 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
 
   return (
     <AppShell
-      title={detail.title}
+      title={PATIENT_PLAN_TAB_UI_LABEL}
       user={session.user}
       backHref={routePaths.patientTreatmentPrograms}
-      backLabel="Программы"
+      backLabel={PATIENT_PLAN_TAB_UI_LABEL}
       variant="patient"
-      patientSuppressShellTitle
     >
       <PatientTreatmentProgramDetailClient
         initial={detail}

@@ -3,6 +3,10 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import { patientInlineLinkClass } from "@/shared/ui/patientVisual";
 
+/** Тот же вид, что у приветствия на главной (не стиль заголовка шапки). */
+export const PATIENT_HOME_GREETING_TITLE_CLASS =
+  "m-0 text-sm font-normal leading-snug tracking-tight text-[var(--patient-text-secondary)] md:text-base md:leading-snug";
+
 export type PatientGreetingPrefix =
   | "Доброе утро"
   | "Добрый день"
@@ -16,8 +20,34 @@ export function greetingPrefixFromHour(hour: number): PatientGreetingPrefix {
   return "Доброй ночи";
 }
 
+export function buildPatientGreetingTitle(
+  personalizedName: string | null,
+  timeOfDayPrefix?: PatientGreetingPrefix,
+): string {
+  const displayName = personalizedName?.trim() || null;
+  if (timeOfDayPrefix) {
+    return displayName ? `${timeOfDayPrefix}, ${displayName}!` : `${timeOfDayPrefix}!`;
+  }
+  return displayName ? `Здравствуйте, ${displayName}` : "Здравствуйте";
+}
+
+/** Приветствие в mobile-шапке главной (те же стили, что в контенте). */
+export function PatientHomeGreetingMobileHeader({
+  personalizedName,
+  timeOfDayPrefix,
+}: {
+  personalizedName: string | null;
+  timeOfDayPrefix?: PatientGreetingPrefix;
+}) {
+  return (
+    <h1 className={cn(PATIENT_HOME_GREETING_TITLE_CLASS, "min-w-0 flex-1 truncate text-left")}>
+      {buildPatientGreetingTitle(personalizedName, timeOfDayPrefix)}
+    </h1>
+  );
+}
+
 type Props = {
-  /** Имя только при полном tier patient (без ПДн при onboarding). */
+  /** Имя для обращения (`first_name`, иначе `display_name`); только при полном tier patient. */
   personalizedName: string | null;
   /** §10.1: вычисляется сервером в timezone приложения; fallback сохраняет старый заголовок. */
   timeOfDayPrefix?: PatientGreetingPrefix;
@@ -26,25 +56,12 @@ type Props = {
 };
 
 export function PatientHomeGreeting({ personalizedName, timeOfDayPrefix, unreadChatCount = 0 }: Props) {
-  const displayName = personalizedName?.trim() || null;
-  const title =
-    timeOfDayPrefix ?
-      displayName ? `${timeOfDayPrefix}, ${displayName}!` : `${timeOfDayPrefix}!`
-    : displayName ? `Здравствуйте, ${displayName}`
-    : "Здравствуйте";
-
+  const title = buildPatientGreetingTitle(personalizedName, timeOfDayPrefix);
   const showUnreadHint = unreadChatCount > 0;
 
   return (
-    <header id="patient-home-greeting" className="pl-2 pr-0 pt-0">
-      <h1
-        className={cn(
-          "m-0 text-sm font-normal leading-snug tracking-tight text-[var(--patient-text-secondary)]",
-          "md:text-base md:leading-snug",
-        )}
-      >
-        {title}
-      </h1>
+    <header id="patient-home-greeting" className="pt-0 patient-desktop:pl-2 patient-desktop:pr-0">
+      <h1 className={cn(PATIENT_HOME_GREETING_TITLE_CLASS, "hidden patient-desktop:block")}>{title}</h1>
       {showUnreadHint ? (
         <p className="m-0 mt-1 text-sm leading-snug text-[var(--patient-text-secondary)]">
           У вас есть новое сообщение{" "}

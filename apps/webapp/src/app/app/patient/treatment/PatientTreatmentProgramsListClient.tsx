@@ -11,6 +11,7 @@ import {
   selectCurrentWorkingStageForPatientDetail,
   splitPatientProgramStagesForDetailUi,
 } from "@/modules/treatment-program/stage-semantics";
+import { PATIENT_PLAN_TAB_UI_LABEL } from "@/app-layer/routes/navigation";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import {
@@ -21,6 +22,7 @@ import {
   patientInnerHeroListPrimaryTitleClass,
   patientMutedTextClass,
   patientInnerPageStackClass,
+  patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 import { PatientPlanPersonalProgramCtaCard } from "@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard";
 import { PatientTreatmentProgramsListPromoRetry } from "./PatientTreatmentProgramsListPromoRetry";
@@ -52,6 +54,9 @@ export function PatientTreatmentProgramsListClient(props: {
 
   return (
     <div className={patientInnerPageStackClass}>
+      <h1 className={cn(patientSectionTitleClass, "hidden min-w-0 patient-desktop:block")}>
+        {PATIENT_PLAN_TAB_UI_LABEL}
+      </h1>
       {promoEnsureFailed ? <PatientTreatmentProgramsListPromoRetry /> : null}
       {hero ? (
         <section

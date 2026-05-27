@@ -4,6 +4,8 @@ import {
   getPatientPrimaryNavActiveId,
   isPatientHeaderProfileRoute,
   isPatientPrimaryNavRoute,
+  PATIENT_PLAN_TAB_UI_LABEL,
+  shouldShowPatientMobileHeaderBack,
 } from "@/app-layer/routes/navigation";
 
 describe("isPatientHeaderProfileRoute", () => {
@@ -32,6 +34,34 @@ describe("isPatientHeaderProfileRoute", () => {
     expect(isPatientPrimaryNavRoute(routePaths.profile)).toBe(false);
   });
 
+  it("PATIENT_PLAN_TAB_UI_LABEL matches plan nav item", () => {
+    expect(PATIENT_PLAN_TAB_UI_LABEL).toBe("Упражнения");
+  });
+});
+
+describe("shouldShowPatientMobileHeaderBack", () => {
+  it("hides back on treatment list and program instance", () => {
+    expect(shouldShowPatientMobileHeaderBack(routePaths.patientTreatmentPrograms, "/x")).toBe(false);
+    expect(
+      shouldShowPatientMobileHeaderBack(
+        "/app/patient/treatment/11111111-1111-4111-8111-111111111111",
+        routePaths.patientTreatmentPrograms,
+      ),
+    ).toBe(false);
+  });
+
+  it("shows back on deeper treatment subpaths", () => {
+    expect(
+      shouldShowPatientMobileHeaderBack(
+        "/app/patient/treatment/11111111-1111-4111-8111-111111111111/item/abc",
+        routePaths.patientTreatmentPrograms,
+      ),
+    ).toBe(true);
+    expect(shouldShowPatientMobileHeaderBack(routePaths.profile, routePaths.patient)).toBe(true);
+  });
+});
+
+describe("getPatientPrimaryNavActiveId", () => {
   it("keeps prefix-based active id for bottom nav highlight on subpaths", () => {
     expect(getPatientPrimaryNavActiveId(routePaths.patientMessages)).toBe("messages");
     expect(

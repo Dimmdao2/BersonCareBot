@@ -2,7 +2,12 @@
 
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { PatientHomeGreeting, greetingPrefixFromHour } from "./PatientHomeGreeting";
+import {
+  buildPatientGreetingTitle,
+  PatientHomeGreeting,
+  PatientHomeGreetingMobileHeader,
+  greetingPrefixFromHour,
+} from "./PatientHomeGreeting";
 
 describe("greetingPrefixFromHour", () => {
   it("maps day parts for the patient greeting", () => {
@@ -14,6 +19,22 @@ describe("greetingPrefixFromHour", () => {
     expect(greetingPrefixFromHour(22)).toBe("Добрый вечер");
     expect(greetingPrefixFromHour(23)).toBe("Доброй ночи");
     expect(greetingPrefixFromHour(4)).toBe("Доброй ночи");
+  });
+});
+
+describe("buildPatientGreetingTitle", () => {
+  it("formats time-of-day with name", () => {
+    expect(buildPatientGreetingTitle("Demo Client", "Доброй ночи")).toBe("Доброй ночи, Demo Client!");
+  });
+});
+
+describe("PatientHomeGreetingMobileHeader", () => {
+  it("uses greeting styles not shell header title", () => {
+    render(<PatientHomeGreetingMobileHeader personalizedName="Demo Client" timeOfDayPrefix="Доброй ночи" />);
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("Доброй ночи, Demo Client!");
+    expect(heading).toHaveClass("text-[var(--patient-text-secondary)]");
+    expect(heading).not.toHaveClass("text-[var(--patient-block-heading)]");
   });
 });
 

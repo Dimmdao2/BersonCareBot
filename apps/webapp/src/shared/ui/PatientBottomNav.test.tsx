@@ -69,12 +69,12 @@ describe("PatientBottomNav", () => {
     expect(chatLink.querySelector(".bg-\\[\\#c0392b\\]")).toBeNull();
   });
 
-  it("uses sticky bottom chrome on mobile without viewport fixed centering", () => {
+  it("uses viewport-fixed bottom chrome on mobile", () => {
     pathnameRef.value = "/app/patient";
     render(<PatientBottomNav />);
     const bottomNav = screen.getByTestId("patient-bottom-nav");
-    expect(bottomNav).toHaveClass("safe-bleed-x");
-    expect(bottomNav).toHaveClass("sticky");
-    expect(bottomNav).not.toHaveClass("patient-mobile:fixed");
+    expect(bottomNav).toHaveClass("patient-mobile:fixed");
+    expect(bottomNav).toHaveClass("patient-mobile:inset-x-0");
+    expect(bottomNav).not.toHaveClass("patient-mobile:-translate-x-1/2");
   });
 });

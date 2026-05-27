@@ -50,14 +50,21 @@ async function loadPuRowForMerge(client: PoolClient, id: string): Promise<PuMerg
 
 async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser> {
   const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
-  const userRow = await pool.query(
-    "SELECT id, display_name, role, phone_normalized FROM platform_users WHERE id = $1",
+  const userRow = await pool.query<{
+    id: string;
+    display_name: string | null;
+    first_name: string | null;
+    role: string;
+    phone_normalized: string | null;
+  }>(
+    "SELECT id, display_name, first_name, role, phone_normalized FROM platform_users WHERE id = $1",
     [canonicalId],
   );
   if (userRow.rows.length === 0) {
     throw new Error(`loadSessionUser: user ${userId} missing after canonical resolve`);
   }
-  const u = userRow.rows[0];
+  const u = userRow.rows[0]!;
+  const firstName = u.first_name?.trim() || undefined;
   const bindingsRows = await pool.query(
     "SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1",
     [canonicalId],
@@ -67,6 +74,7 @@ async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser>
     userId: canonicalId,
     role: u.role as SessionUser["role"],
     displayName: u.display_name ?? "",
+    ...(firstName ? { firstName } : {}),
     phone: u.phone_normalized,
     bindings,
   };
@@ -99,12 +107,19 @@ export const pgUserByPhonePort: UserByPhonePort = {
     const pool = getPool();
     const canonicalId = await resolveCanonicalUserId(pool, userId);
     if (!canonicalId) return null;
-    const userRow = await pool.query(
-      "SELECT id, display_name, role, phone_normalized FROM platform_users WHERE id = $1",
+    const userRow = await pool.query<{
+      id: string;
+      display_name: string | null;
+      first_name: string | null;
+      role: string;
+      phone_normalized: string | null;
+    }>(
+      "SELECT id, display_name, first_name, role, phone_normalized FROM platform_users WHERE id = $1",
       [canonicalId],
     );
     if (userRow.rows.length === 0) return null;
-    const u = userRow.rows[0];
+    const u = userRow.rows[0]!;
+    const firstName = u.first_name?.trim() || undefined;
     const bindingsRows = await pool.query(
       "SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1",
       [canonicalId],
@@ -114,6 +129,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
       userId: u.id,
       role: u.role as SessionUser["role"],
       displayName: u.display_name ?? "",
+      ...(firstName ? { firstName } : {}),
       phone: u.phone_normalized,
       bindings,
     };

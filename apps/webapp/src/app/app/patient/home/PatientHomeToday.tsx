@@ -34,6 +34,7 @@ import {
   resolveSubscriptionCarouselCards,
   resolveUsefulPostCard,
 } from "@/modules/patient-home/patientHomeResolvers";
+import { patientGreetingPersonalizedName } from "@/modules/patient-home/patientGreetingPersonalizedName";
 import { greetingPrefixFromHour } from "./PatientHomeGreeting";
 import { PatientHomeDailyWarmupCard } from "./PatientHomeDailyWarmupCard";
 import { PatientHomeSituationsRow } from "./PatientHomeSituationsRow";
@@ -313,7 +314,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         ? "Ближайших напоминаний нет"
         : "Напоминания не настроены");
 
-  const personalizedName = personalTierOk && session ? session.user.displayName?.trim() || null : null;
+  const personalizedName =
+    personalTierOk && session ? patientGreetingPersonalizedName(session.user) : null;
   const timeOfDayPrefix = greetingPrefixFromHour(DateTime.now().setZone(appTz).hour);
   const unreadChatCount =
     session && personalTierOk ? await deps.messaging.patient.unreadCount(session.user.userId) : 0;

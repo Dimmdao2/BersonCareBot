@@ -14,6 +14,8 @@ export type SessionUser = {
   userId: string;
   role: UserRole;
   displayName: string;
+  /** `platform_users.first_name` — для приветствия и короткого обращения. */
+  firstName?: string;
   phone?: string;
   bindings: ChannelBindings;
 };

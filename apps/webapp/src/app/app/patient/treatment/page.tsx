@@ -5,6 +5,7 @@
 import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { PATIENT_PLAN_TAB_UI_LABEL } from "@/app-layer/routes/navigation";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientTreatmentProgramEntry } from "@/modules/treatment-program/patientTreatmentProgramEntry";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -40,14 +41,7 @@ export default async function PatientTreatmentProgramsPage() {
   }
 
   return (
-    <AppShell
-      title="Программы лечения"
-      user={session.user}
-      backHref={routePaths.patient}
-      backLabel="Меню"
-      variant="patient"
-      patientSuppressShellTitle
-    >
+    <AppShell title={PATIENT_PLAN_TAB_UI_LABEL} user={session.user} variant="patient">
       <PatientTreatmentProgramsListClient
         hero={null}
         archived={entry.archived}
