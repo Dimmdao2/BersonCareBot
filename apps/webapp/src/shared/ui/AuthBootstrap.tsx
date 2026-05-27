@@ -134,12 +134,12 @@ export function AuthBootstrap({
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawToken = searchParams.get("t") ?? searchParams.get("token");
-  const token = entryClassification === "token_exchange" ? rawToken : null;
   const nextParam = searchParams.get("next");
   const debug = searchParams.get("debug") === "1";
   const [effectiveEntryClassification, setEffectiveEntryClassification] =
     useState<UnauthenticatedAppEntryClassification>(entryClassification);
-  /** После сброса устаревшего bot-cookie: показываем обычный browser-interactive поток без server refresh. */
+  const token = effectiveEntryClassification === "token_exchange" ? rawToken : null;
+  /** После сброса устаревшего bot-cookie: продолжаем query-token exchange либо показываем web login без server refresh. */
   /** MAX init вернул `max_unavailable` — не показываем телефонный OTP и Telegram fallback. */
   const [maxMiniappServerUnavailable, setMaxMiniappServerUnavailable] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -395,12 +395,17 @@ export function AuthBootstrap({
       setState("idle");
       setError(null);
       setInitDataStatus("no");
+      const nextClassification: UnauthenticatedAppEntryClassification =
+        miniappFallbackTokenTrim.length > 0 ? "token_exchange" : "browser_interactive";
       logAuthBootstrap("stale platform bot cookie cleared → web auth", {
         flow: flowHint,
         correlationId,
-        entry: "stale_bot_cookie_web_auth",
+        entry:
+          nextClassification === "token_exchange"
+            ? "stale_bot_cookie_token_exchange"
+            : "stale_bot_cookie_web_auth",
       });
-      setEffectiveEntryClassification("browser_interactive");
+      setEffectiveEntryClassification(nextClassification);
     };
 
     const postMessengerInit = (
@@ -730,7 +735,8 @@ export function AuthBootstrap({
         return;
       }
 
-      const cookieOnlyMessenger = readPlatformCookieBot() && !isMessengerMiniAppEntry;
+      const cookieDerivedMessengerEntry = readPlatformCookieBot() && !routeBoundMiniappEntry;
+      const cookieOnlyMessenger = cookieDerivedMessengerEntry;
       const maxSurfaceEarly = isLikelyMaxMiniAppSurface(true, maxBridgeReady);
       /** Как при `POLL_MS_MAX`: внешний браузер с TG-скриптом (`platform=web`) или полное отсутствие `Telegram.WebApp` — не ждать poll до конца. */
       const staleBotStandaloneBrowser =
@@ -848,7 +854,7 @@ export function AuthBootstrap({
         ) {
           queueMicrotask(() => {
             if (epoch !== authEpochRef.current) return;
-            const cookieOnlyMessengerEntry = readPlatformCookieBot() && !isMessengerMiniAppEntry;
+            const cookieOnlyMessengerEntry = readPlatformCookieBot() && !routeBoundMiniappEntry;
             const staleBotCookieInExternalBrowser =
               messengerEntry &&
               cookieOnlyMessengerEntry &&

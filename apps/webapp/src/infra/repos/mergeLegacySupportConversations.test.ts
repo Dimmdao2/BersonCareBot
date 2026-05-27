@@ -28,7 +28,7 @@ describe("mergeLegacySupportConversationsForPlatformUser", () => {
     expect(result.movedMessageCount).toBe(2);
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("merged_into_platform_thread"),
-      expect.any(Array),
+      [legacyId],
     );
   });
 });

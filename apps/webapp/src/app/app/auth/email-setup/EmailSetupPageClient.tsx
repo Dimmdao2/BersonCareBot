@@ -20,6 +20,8 @@ import {
 } from "@/shared/ui/patientVisual";
 
 const ALREADY_HAS_LOGIN_MESSAGE = "Доступ по этой почте уже настроен. Войдите с паролем.";
+const NETWORK_ERROR_MESSAGE =
+  "Не удалось проверить ссылку. Проверьте интернет и обновите страницу.";
 
 type PageState =
   | { kind: "loading" }
@@ -48,16 +50,26 @@ export default function EmailSetupPageClient({ initialToken }: Props) {
       return;
     }
     setPageState({ kind: "loading" });
-    const res = await fetch("/api/auth/email-setup/validate", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: setupToken }),
-    });
-    const body = (await res.json().catch(() => ({}))) as {
-      ok?: boolean;
-      email?: string;
-      error?: string;
-    };
+    let res: Response;
+    let body: { ok?: boolean; email?: string; error?: string } = {};
+    try {
+      res = await fetch("/api/auth/email-setup/validate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: setupToken }),
+      });
+      body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        email?: string;
+        error?: string;
+      };
+    } catch {
+      setPageState({
+        kind: "error",
+        message: NETWORK_ERROR_MESSAGE,
+      });
+      return;
+    }
     if (body.ok && body.email) {
       setPageState({ kind: "ready", email: body.email });
       return;
@@ -90,16 +102,23 @@ export default function EmailSetupPageClient({ initialToken }: Props) {
     setFormError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/auth/email-setup/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token, password }),
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        redirectTo?: string;
-        error?: string;
-      };
+      let res: Response;
+      let body: { ok?: boolean; redirectTo?: string; error?: string } = {};
+      try {
+        res = await fetch("/api/auth/email-setup/complete", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token, password }),
+        });
+        body = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          redirectTo?: string;
+          error?: string;
+        };
+      } catch {
+        setFormError(NETWORK_ERROR_MESSAGE);
+        return;
+      }
       if (body.ok && body.redirectTo) {
         router.replace(body.redirectTo);
         return;
@@ -128,12 +147,18 @@ export default function EmailSetupPageClient({ initialToken }: Props) {
     setResending(true);
     setFormError(null);
     try {
-      const res = await fetch("/api/auth/email-setup/resend", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      let body: { ok?: boolean; error?: string } = {};
+      try {
+        const res = await fetch("/api/auth/email-setup/resend", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      } catch {
+        setFormError(NETWORK_ERROR_MESSAGE);
+        return;
+      }
       if (body.ok) {
         setPageState({ kind: "resend_sent", email: pageState.email });
         return;

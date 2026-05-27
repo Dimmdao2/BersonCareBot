@@ -49,6 +49,21 @@ const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
 const SMS_DISABLED_WEB_MESSAGE =
   "SMS для входа с сайта отключён. Используйте код в Telegram, Max или на email.";
+const AUTH_NETWORK_ERROR_MESSAGE = "Нет связи с сервером. Проверьте интернет и повторите.";
+
+type FetchJsonResult<T> =
+  | { ok: true; response: Response; data: T }
+  | { ok: false };
+
+async function fetchJsonSafe<T>(url: string, init: RequestInit): Promise<FetchJsonResult<T>> {
+  try {
+    const response = await fetch(url, init);
+    const data = (await response.json().catch(() => ({}))) as T;
+    return { ok: true, response, data };
+  } catch {
+    return { ok: false };
+  }
+}
 
 const authFlowShellClass = cn(
   patientHeroBookingSectionClass,
@@ -275,7 +290,12 @@ export function AuthFlowV2({
     engageInteractive();
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/oauth/start", {
+      const oauthResult = await fetchJsonSafe<{
+        ok?: boolean;
+        authUrl?: string;
+        message?: string;
+        error?: string;
+      }>("/api/auth/oauth/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -283,12 +303,11 @@ export function AuthFlowV2({
           browserCalendarIana: getBrowserCalendarIanaForAuth(),
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        authUrl?: string;
-        message?: string;
-        error?: string;
-      };
+      if (!oauthResult.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      const { response: res, data } = oauthResult;
       if (data.ok && data.authUrl) {
         window.location.href = data.authUrl;
         return;
@@ -332,14 +351,21 @@ export function AuthFlowV2({
     | "verified_with_password"
     | "needs_email_setup"
     | "email_conflict"
+    | "network_error"
     | null
   > => {
-    const res = await fetch("/api/auth/email-password/lookup", {
+    const lookupResult = await fetchJsonSafe<{ ok?: boolean; state?: string }>(
+      "/api/auth/email-password/lookup",
+      {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email }),
-    });
-    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; state?: string };
+      },
+    );
+    if (!lookupResult.ok) {
+      return "network_error";
+    }
+    const { response: res, data } = lookupResult;
     if (!res.ok || !data.ok || typeof data.state !== "string") {
       return null;
     }
@@ -351,14 +377,17 @@ export function AuthFlowV2({
       | "email_conflict";
   };
 
-  const sendEmailSetupAccessLink = async (email: string): Promise<boolean> => {
-    const res = await fetch("/api/auth/email-password/setup-access", {
+  const sendEmailSetupAccessLink = async (email: string): Promise<"ok" | "failed" | "network_error"> => {
+    const setupLinkResult = await fetchJsonSafe<{ ok?: boolean }>("/api/auth/email-password/setup-access", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email }),
     });
-    const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
-    return res.ok && Boolean(data.ok);
+    if (!setupLinkResult.ok) {
+      return "network_error";
+    }
+    const { response: res, data } = setupLinkResult;
+    return res.ok && Boolean(data.ok) ? "ok" : "failed";
   };
 
   const goBackToEntry = () => {
@@ -408,35 +437,43 @@ export function AuthFlowV2({
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/email-password/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password: emailLoginPassword }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
+      const loginResult = await fetchJsonSafe<{
         ok?: boolean;
         redirectTo?: string;
         role?: "client" | "doctor" | "admin";
         error?: string;
-      };
+      }>("/api/auth/email-password/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password: emailLoginPassword }),
+      });
+      if (!loginResult.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      const { response: res, data } = loginResult;
       if (data.ok && data.redirectTo) {
         redirectOk(data.redirectTo, data.role);
         return;
       }
       if (res.status === 409 || data.error === "email_not_verified") {
         const dn = email.split("@")[0] || "Пациент";
-        const resReg = await fetch("/api/auth/email-password/register", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password: emailLoginPassword, displayName: dn }),
-        });
-        const regData = (await resReg.json().catch(() => ({}))) as {
+        const registerResult = await fetchJsonSafe<{
           ok?: boolean;
           challengeId?: string;
           retryAfterSeconds?: number;
           message?: string;
           error?: string;
-        };
+        }>("/api/auth/email-password/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password: emailLoginPassword, displayName: dn }),
+        });
+        if (!registerResult.ok) {
+          toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+          return;
+        }
+        const { response: resReg, data: regData } = registerResult;
         if (regData.ok && regData.challengeId) {
           saveRegisterVerifyPending({
             email,
@@ -466,6 +503,10 @@ export function AuthFlowV2({
       }
       if (res.status === 401 || data.error === "invalid_credentials") {
         const lookupState = await lookupEmailAuthState(email);
+        if (lookupState === "network_error") {
+          toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+          return;
+        }
         if (lookupState === "needs_email_setup") {
           setEmailSetupPromptEmail(email);
           return;
@@ -507,18 +548,22 @@ export function AuthFlowV2({
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/email-password/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password, displayName }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
+      const registerResult = await fetchJsonSafe<{
         ok?: boolean;
         challengeId?: string;
         retryAfterSeconds?: number;
         error?: string;
         message?: string;
-      };
+      }>("/api/auth/email-password/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password, displayName }),
+      });
+      if (!registerResult.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      const { response: res, data } = registerResult;
       if (data.ok && data.error === "existing_account_needs_email_setup") {
         setEmailSetupPromptEmail(email);
         toast.success("Отправили ссылку на почту для настройки доступа.");
@@ -572,13 +617,21 @@ export function AuthFlowV2({
     setLoading(true);
     try {
       const lookupState = await lookupEmailAuthState(email);
+      if (lookupState === "network_error") {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
       if (lookupState === "needs_email_setup") {
-        const res = await fetch("/api/auth/email-password/forgot", {
+        const forgotForSetupResult = await fetchJsonSafe<{ ok?: boolean }>("/api/auth/email-password/forgot", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ email }),
         });
-        const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
+        if (!forgotForSetupResult.ok) {
+          toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+          return;
+        }
+        const { data } = forgotForSetupResult;
         if (!data.ok) {
           toast.error("Не удалось выполнить запрос");
           return;
@@ -593,12 +646,19 @@ export function AuthFlowV2({
         return;
       }
 
-      const res = await fetch("/api/auth/email-password/forgot", {
+      const forgotResult = await fetchJsonSafe<{ ok?: boolean; retryAfterSeconds?: number }>(
+        "/api/auth/email-password/forgot",
+        {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; retryAfterSeconds?: number };
+        },
+      );
+      if (!forgotResult.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      const { data } = forgotResult;
       if (!data.ok) {
         toast.error("Не удалось выполнить запрос");
         return;
@@ -625,8 +685,12 @@ export function AuthFlowV2({
     engageInteractive();
     setLoading(true);
     try {
-      const ok = await sendEmailSetupAccessLink(email);
-      if (ok) {
+      const result = await sendEmailSetupAccessLink(email);
+      if (result === "network_error") {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      if (result === "ok") {
         toast.success("Отправили ссылку на почту.");
         return;
       }
@@ -646,17 +710,21 @@ export function AuthFlowV2({
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/email-password/reset", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, code: pwResetCode.trim(), newPassword: pwNewPassword }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
+      const resetResult = await fetchJsonSafe<{
         ok?: boolean;
         error?: string;
         message?: string;
         retryAfterSeconds?: number;
-      };
+      }>("/api/auth/email-password/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, code: pwResetCode.trim(), newPassword: pwNewPassword }),
+      });
+      if (!resetResult.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      const { response: res, data } = resetResult;
       if (data.ok) {
         clearAuthFlowPending();
         setPwRecoveryPhase("none");
@@ -693,18 +761,22 @@ export function AuthFlowV2({
     setLoading(true);
     try {
       const chatId = getWebChatId();
-      const res = await fetch("/api/auth/phone/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: effectivePhone, channel: "web", chatId, deliveryChannel }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
+      const startOtpResult = await fetchJsonSafe<{
         ok?: boolean;
         challengeId?: string;
         retryAfterSeconds?: number;
         message?: string;
         error?: string;
-      };
+      }>("/api/auth/phone/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: effectivePhone, channel: "web", chatId, deliveryChannel }),
+      });
+      if (!startOtpResult.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return { kind: "error", message: AUTH_NETWORK_ERROR_MESSAGE };
+      }
+      const { response: res, data } = startOtpResult;
       if (!res.ok || !data.ok || !data.challengeId) {
         if (res.status === 429 || data.error === "rate_limited") {
           const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
@@ -731,17 +803,21 @@ export function AuthFlowV2({
     engageInteractive();
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/check-phone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: normalized }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
+      const checkPhoneResult = await fetchJsonSafe<{
         ok?: boolean;
         exists?: boolean;
         methods?: AuthMethodsPayload;
         preferredOtpChannel?: OtpChannel | null;
-      };
+      }>("/api/auth/check-phone", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: normalized }),
+      });
+      if (!checkPhoneResult.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      const { response: res, data } = checkPhoneResult;
       if (!res.ok || !data.ok || !data.methods) {
         toast.error("Не удалось проверить номер");
         return;
@@ -1069,19 +1145,22 @@ export function AuthFlowV2({
               description="Введите код из письма."
               onConfirm={async (code) => {
                 engageInteractive();
-                const res = await fetch("/api/auth/email-password/register/confirm", {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ challengeId: emailRegChallengeId, code }),
-                });
-                const data = (await res.json().catch(() => ({}))) as {
+                const confirmEmailResult = await fetchJsonSafe<{
                   ok?: boolean;
                   redirectTo?: string;
                   role?: "client" | "doctor" | "admin";
                   error?: string;
                   message?: string;
                   retryAfterSeconds?: number;
-                };
+                }>("/api/auth/email-password/register/confirm", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ challengeId: emailRegChallengeId, code }),
+                });
+                if (!confirmEmailResult.ok) {
+                  return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
+                }
+                const { response: res, data } = confirmEmailResult;
                 if (data.ok && data.redirectTo) {
                   redirectOk(data.redirectTo, data.role);
                   return { ok: true as const, redirectTo: data.redirectTo };
@@ -1102,7 +1181,13 @@ export function AuthFlowV2({
                 if (!email || !password) {
                   return { kind: "error" as const, message: "Нет данных для повторной отправки" };
                 }
-                const res = await fetch("/api/auth/email-password/register", {
+                const resendRegisterResult = await fetchJsonSafe<{
+                  ok?: boolean;
+                  challengeId?: string;
+                  retryAfterSeconds?: number;
+                  error?: string;
+                  message?: string;
+                }>("/api/auth/email-password/register", {
                   method: "POST",
                   headers: { "content-type": "application/json" },
                   body: JSON.stringify({
@@ -1111,13 +1196,10 @@ export function AuthFlowV2({
                     displayName: emailRegDisplayName.trim() || undefined,
                   }),
                 });
-                const data = (await res.json().catch(() => ({}))) as {
-                  ok?: boolean;
-                  challengeId?: string;
-                  retryAfterSeconds?: number;
-                  error?: string;
-                  message?: string;
-                };
+                if (!resendRegisterResult.ok) {
+                  return { kind: "error" as const, message: AUTH_NETWORK_ERROR_MESSAGE };
+                }
+                const { response: res, data } = resendRegisterResult;
                 if (data.ok && data.challengeId) {
                   setEmailRegChallengeId(data.challengeId);
                   setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
@@ -1439,7 +1521,14 @@ export function AuthFlowV2({
           onConfirm={async (code) => {
             engageInteractive();
             const chatId = getWebChatId();
-            const res = await fetch("/api/auth/phone/confirm", {
+            const confirmPhoneResult = await fetchJsonSafe<{
+              ok?: boolean;
+              redirectTo?: string;
+              role?: "client" | "doctor" | "admin";
+              message?: string;
+              error?: string;
+              retryAfterSeconds?: number;
+            }>("/api/auth/phone/confirm", {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({
@@ -1450,14 +1539,10 @@ export function AuthFlowV2({
                 browserCalendarIana: getBrowserCalendarIanaForAuth(),
               }),
             });
-            const data = (await res.json().catch(() => ({}))) as {
-              ok?: boolean;
-              redirectTo?: string;
-              role?: "client" | "doctor" | "admin";
-              message?: string;
-              error?: string;
-              retryAfterSeconds?: number;
-            };
+            if (!confirmPhoneResult.ok) {
+              return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
+            }
+            const { data } = confirmPhoneResult;
             if (data.ok && data.redirectTo) {
               redirectOk(data.redirectTo, data.role);
               return { ok: true as const, redirectTo: data.redirectTo };
@@ -1485,7 +1570,13 @@ export function AuthFlowV2({
               return { kind: "error" as const, message: SMS_DISABLED_WEB_MESSAGE };
             }
             const chatId = getWebChatId();
-            const res = await fetch("/api/auth/phone/start", {
+            const resendOtpResult = await fetchJsonSafe<{
+              ok?: boolean;
+              challengeId?: string;
+              retryAfterSeconds?: number;
+              error?: string;
+              message?: string;
+            }>("/api/auth/phone/start", {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({
@@ -1495,13 +1586,10 @@ export function AuthFlowV2({
                 deliveryChannel: otpChannel,
               }),
             });
-            const data = (await res.json().catch(() => ({}))) as {
-              ok?: boolean;
-              challengeId?: string;
-              retryAfterSeconds?: number;
-              error?: string;
-              message?: string;
-            };
+            if (!resendOtpResult.ok) {
+              return { kind: "error" as const, message: AUTH_NETWORK_ERROR_MESSAGE };
+            }
+            const { response: res, data } = resendOtpResult;
             if (data.ok && data.challengeId) {
               setChallengeId(data.challengeId);
               setRetryAfterSeconds(data.retryAfterSeconds ?? 60);

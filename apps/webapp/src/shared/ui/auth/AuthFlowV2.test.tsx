@@ -394,6 +394,28 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.queryByRole("button", { name: "Войти через Apple" })).not.toBeInTheDocument();
   });
 
+  it("shows network toast when OAuth start request fails at transport level", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/oauth/start")) {
+          return Promise.reject(new TypeError("Failed to fetch"));
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_WEB_OAUTH }} />);
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Войти через Яндекс" }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith("Нет связи с сервером. Проверьте интернет и повторите.");
+    });
+  });
+
   it("shows Apple when only Apple OAuth is configured (Yandex and Google off)", async () => {
     vi.stubGlobal(
       "fetch",

@@ -99,6 +99,60 @@ describe("AuthBootstrap", () => {
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
   });
 
+  it("сбрасывает cookie-derived miniapp в обычной PWA и показывает веб-вход", async () => {
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app");
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+
+    render(
+      <AuthBootstrap entryClassification="telegram_miniapp" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+  });
+
+  it("после stale bot-cookie не теряет email/token link и выполняет exchange", async () => {
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=signed-email-token"));
+    window.history.pushState({}, "", "/app?t=signed-email-token");
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("/api/auth/exchange")) {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toEqual({ token: "signed-email-token" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthBootstrap entryClassification="telegram_miniapp" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1800);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/exchange",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockReplace).toHaveBeenCalledWith("/app/patient");
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+  });
+
   it("в обычном браузере без ctx не ждёт grace MAX bridge и показывает веб-вход", async () => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
     window.history.pushState({}, "", "/");
@@ -190,6 +244,40 @@ describe("AuthBootstrap", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<AuthBootstrap entryClassification="max_miniapp" routeBoundMiniappEntry />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/exchange",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockReplace).toHaveBeenCalled();
+  });
+
+  it("при telegram_miniapp с ?t= без initData после cap вызывает обмен JWT (email/link fallback)", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=signed-entry-token"));
+    window.history.pushState({}, "", "/app/tg?t=signed-entry-token");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("/api/auth/exchange")) {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toEqual({ token: "signed-entry-token" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="telegram_miniapp" routeBoundMiniappEntry />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(8000);

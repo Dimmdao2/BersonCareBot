@@ -73,8 +73,8 @@ export async function mergeLegacySupportConversationsForPlatformUser(
            closed_at = COALESCE(closed_at, now()),
            close_reason = 'merged_into_platform_thread',
            updated_at = now()
-       WHERE id = $2::uuid`,
-      [canonicalId, legacy.id],
+       WHERE id = $1::uuid`,
+      [legacy.id],
     );
   }
 

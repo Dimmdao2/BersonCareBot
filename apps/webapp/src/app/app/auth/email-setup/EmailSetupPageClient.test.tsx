@@ -87,4 +87,42 @@ describe("EmailSetupPageClient", () => {
     });
     expect(screen.getByRole("link", { name: "Перейти ко входу" })).toHaveAttribute("href", "/app");
   });
+
+  it("не зависает на 'Проверка ссылки…' при сетевой ошибке validate", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    render(<EmailSetupPageClient initialToken="est_network_fail" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Не удалось проверить ссылку. Проверьте интернет и обновите страницу."),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Проверка ссылки…")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Перейти ко входу" })).toHaveAttribute("href", "/app");
+  });
+
+  it("показывает текст сетевой ошибки при отправке пароля и не зависает в submitting", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, email: "user@example.com", status: "ready" }), {
+          status: 200,
+        }),
+      )
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const user = userEvent.setup();
+    render(<EmailSetupPageClient initialToken="est_submit_network_fail" />);
+
+    await waitFor(() => expect(screen.getByLabelText("Пароль")).toBeInTheDocument());
+    await user.type(screen.getByLabelText("Пароль"), "secret1234");
+    await user.click(screen.getByRole("button", { name: "Создать доступ" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Не удалось проверить ссылку. Проверьте интернет и обновите страницу."),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Создать доступ" })).not.toBeDisabled();
+  });
 });
