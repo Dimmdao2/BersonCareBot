@@ -37,6 +37,7 @@ export default defineConfig({
     "./db/schema/operatorHealthFailureArchive.ts",
     "./db/schema/notificationDeliveryAttempts.ts",
     "./db/schema/userEmailSetupTokens.ts",
+    "./db/schema/productAnalytics.ts",
   ],
   out: "./db/drizzle-migrations",
   dbCredentials: {

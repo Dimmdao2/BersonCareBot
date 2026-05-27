@@ -50,6 +50,9 @@ import { createDoctorAppointmentsService } from "@/modules/doctor-appointments/s
 import { createDoctorMessagingService } from "@/modules/doctor-messaging/service";
 import { createDoctorStatsService } from "@/modules/doctor-stats/service";
 import { createAdminPlatformUserStatsService } from "@/modules/admin-platform-stats/service";
+import { createProductAnalyticsService } from "@/modules/product-analytics/service";
+import { createPgProductAnalyticsPort } from "@/infra/repos/pgProductAnalytics";
+import { createInMemoryProductAnalyticsPort } from "@/infra/repos/inMemoryProductAnalytics";
 import { createDoctorNotesService } from "@/modules/doctor-notes/service";
 import type { ClientAppointmentHistoryItem } from "@/modules/doctor-clients/service";
 import { createDoctorBroadcastsService } from "@/modules/doctor-broadcasts/service";
@@ -274,6 +277,11 @@ const adminPlatformUserStatsPort = !inMemoryRepos
   ? createPgAdminPlatformUserStatsPort()
   : createInMemoryAdminPlatformUserStatsPort();
 const adminPlatformUserStats = createAdminPlatformUserStatsService(adminPlatformUserStatsPort);
+
+const productAnalyticsPort = !inMemoryRepos
+  ? createPgProductAnalyticsPort()
+  : createInMemoryProductAnalyticsPort();
+const productAnalytics = createProductAnalyticsService(productAnalyticsPort);
 
 const operatorHealthReadPort = !inMemoryRepos ? pgOperatorHealthReadPort : inMemoryOperatorHealthReadPort;
 const operatorHealthWritePort = !inMemoryRepos ? pgOperatorHealthWritePort : inMemoryOperatorHealthWritePort;
@@ -831,6 +839,7 @@ function _buildAppDeps() {
       getDashboardAppointmentMetrics: () => doctorAppointmentsPort.getDashboardAppointmentMetrics(),
     }),
     adminPlatformUserStats,
+    productAnalytics,
     doctorBroadcasts: createDoctorBroadcastsService({
       resolveBroadcastAudience: async (filter, channels) => {
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
