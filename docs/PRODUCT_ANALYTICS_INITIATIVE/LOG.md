@@ -94,6 +94,28 @@
 - Doctor reply push — вне Block 3 (не в списке плана).
 - `push_sent` фиксируется при создании факта отправки, не по факту доставки провайдером.
 
+## 2026-05-27 — Block 4 (admin read API)
+
+### Сделано
+
+- `buildAdminDashboard` — агрегации summary / entryChannelHourly / topPages / pushByTopic / warmupSlogans / activeUsersDaily из hourly + user_hourly.
+- `pgProductAnalytics.getAdminDashboard` — выборка rollups + sample text из `product_push_notifications`.
+- `inMemoryProductAnalytics.getAdminDashboard` — тот же builder для тестов.
+- `GET /api/admin/product-analytics` + `loadAdminProductAnalytics`.
+- Контракт в `apps/webapp/src/app/api/api.md`.
+
+### Проверка (post-review)
+
+| Проверка | Результат |
+|----------|-----------|
+| `vitest` `buildAdminDashboard.test.ts`, `service.test.ts`, `route.test.ts` | 8 passed |
+| `pnpm --dir apps/webapp run typecheck` | OK |
+| `eslint` Block 4 файлы | OK |
+
+### Исправления по review
+
+1. **inMemory `warmupSloganSamples`** — фильтр по окну `windowHours` (как в pg по `created_at`), чтобы `sampleText` не подтягивался из push вне интервала.
+
 ### Следующий шаг
 
-Block 4: `GET /api/admin/product-analytics` + агрегации в service.
+Block 5: вкладка Settings «Использование» + `ProductAnalyticsSection`.

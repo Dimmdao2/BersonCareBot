@@ -5,10 +5,13 @@ import {
   userHourlyDeltaFromEvent,
   userHourlyPageKeyForEvent,
 } from "@/modules/product-analytics/aggregateKeys";
+import {
+  buildAdminDashboard,
+  productAnalyticsWindowStartHour,
+} from "@/modules/product-analytics/buildAdminDashboard";
 import type { ProductAnalyticsPort } from "@/modules/product-analytics/ports";
 import type {
   CreatePushNotificationInput,
-  ProductAnalyticsAdminDashboard,
   ProductAnalyticsIngestEvent,
   RecordPushOpenInput,
 } from "@/modules/product-analytics/types";
@@ -30,25 +33,6 @@ function hourlyKey(
 
 function userHourlyKey(bucketHour: string, userId: string, entryChannel: string, pageKey: string): UserHourlyKey {
   return [bucketHour, userId, entryChannel, pageKey].join("\0");
-}
-
-function emptyDashboard(windowHours: number): ProductAnalyticsAdminDashboard {
-  return {
-    windowHours,
-    generatedAt: new Date().toISOString(),
-    summary: {
-      uniqueActiveUsers: 0,
-      totalAppOpens: 0,
-      totalPageViews: 0,
-      totalPushOpens: 0,
-      pushOpenRate: 0,
-    },
-    entryChannelHourly: [],
-    topPages: [],
-    pushByTopic: [],
-    warmupSlogans: [],
-    activeUsersDaily: [],
-  };
 }
 
 export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
@@ -159,7 +143,49 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
     },
 
     async getAdminDashboard({ windowHours }) {
-      return emptyDashboard(windowHours);
+      const startHour = productAnalyticsWindowStartHour(windowHours);
+      const hourlyRows = [...hourly.entries()].map(([key, eventCount]) => {
+        const [bucketHour, eventType, entryChannel, pageKey, topicCode, pushKind, warmupSloganKey] =
+          key.split("\0");
+        return {
+          bucketHour: bucketHour!,
+          eventType: eventType!,
+          entryChannel: entryChannel!,
+          pageKey: pageKey!,
+          topicCode: topicCode!,
+          pushKind: pushKind!,
+          warmupSloganKey: warmupSloganKey!,
+          eventCount,
+        };
+      });
+      const userHourlyRows = [...userHourly.entries()].map(([key, counters]) => {
+        const [bucketHour, userId, entryChannel, pageKey] = key.split("\0");
+        return {
+          bucketHour: bucketHour!,
+          userId: userId!,
+          entryChannel: entryChannel!,
+          pageKey: pageKey!,
+          ...counters,
+        };
+      });
+      const windowStartMs = new Date(startHour).getTime();
+      const warmupSloganSamples = [...pushNotifications.values()]
+        .filter((p) => {
+          if (p.pushKind !== "warmup" || !p.warmupSloganKey) return false;
+          if (!p.createdAt) return true;
+          return new Date(p.createdAt).getTime() >= windowStartMs;
+        })
+        .map((p) => ({
+          sloganKey: p.warmupSloganKey!,
+          sampleText: p.warmupSloganText ?? null,
+        }));
+      return buildAdminDashboard({
+        windowHours,
+        startHourInclusive: startHour,
+        hourlyRows,
+        userHourlyRows,
+        warmupSloganSamples,
+      });
     },
 
     async purgeRecentOlderThan(days) {

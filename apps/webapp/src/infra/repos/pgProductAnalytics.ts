@@ -1,4 +1,8 @@
-import { eq, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
+import {
+  buildAdminDashboard,
+  productAnalyticsWindowStartHour,
+} from "@/modules/product-analytics/buildAdminDashboard";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   hourlyDimsFromEvent,
@@ -8,11 +12,7 @@ import {
   userHourlyPageKeyForEvent,
 } from "@/modules/product-analytics/aggregateKeys";
 import type { ProductAnalyticsPort } from "@/modules/product-analytics/ports";
-import type {
-  ProductAnalyticsAdminDashboard,
-  ProductAnalyticsIngestEvent,
-  RecordPushOpenInput,
-} from "@/modules/product-analytics/types";
+import type { ProductAnalyticsIngestEvent, RecordPushOpenInput } from "@/modules/product-analytics/types";
 import { PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
 import {
   productAnalyticsEventsRecent,
@@ -30,24 +30,6 @@ function pgErrCode(e: unknown): string | undefined {
   return undefined;
 }
 
-function emptyDashboard(windowHours: number): ProductAnalyticsAdminDashboard {
-  return {
-    windowHours,
-    generatedAt: new Date().toISOString(),
-    summary: {
-      uniqueActiveUsers: 0,
-      totalAppOpens: 0,
-      totalPageViews: 0,
-      totalPushOpens: 0,
-      pushOpenRate: 0,
-    },
-    entryChannelHourly: [],
-    topPages: [],
-    pushByTopic: [],
-    warmupSlogans: [],
-    activeUsersDaily: [],
-  };
-}
 
 async function upsertHourlyCount(
   db: ReturnType<typeof getDrizzle>,
@@ -231,7 +213,61 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
     },
 
     async getAdminDashboard({ windowHours }) {
-      return emptyDashboard(windowHours);
+      const db = getDrizzle();
+      const startHour = productAnalyticsWindowStartHour(windowHours);
+      const startIso = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
+
+      const hourlyRows = await db
+        .select({
+          bucketHour: productAnalyticsHourly.bucketHour,
+          eventType: productAnalyticsHourly.eventType,
+          entryChannel: productAnalyticsHourly.entryChannel,
+          pageKey: productAnalyticsHourly.pageKey,
+          topicCode: productAnalyticsHourly.topicCode,
+          pushKind: productAnalyticsHourly.pushKind,
+          warmupSloganKey: productAnalyticsHourly.warmupSloganKey,
+          eventCount: productAnalyticsHourly.eventCount,
+        })
+        .from(productAnalyticsHourly)
+        .where(gte(productAnalyticsHourly.bucketHour, startHour));
+
+      const userHourlyRows = await db
+        .select({
+          bucketHour: productAnalyticsUserHourly.bucketHour,
+          userId: productAnalyticsUserHourly.userId,
+          entryChannel: productAnalyticsUserHourly.entryChannel,
+          pageKey: productAnalyticsUserHourly.pageKey,
+          appOpens: productAnalyticsUserHourly.appOpens,
+          pageViews: productAnalyticsUserHourly.pageViews,
+          pushOpens: productAnalyticsUserHourly.pushOpens,
+          activeMinutes: productAnalyticsUserHourly.activeMinutes,
+        })
+        .from(productAnalyticsUserHourly)
+        .where(gte(productAnalyticsUserHourly.bucketHour, startHour));
+
+      const warmupSamples = await db
+        .select({
+          sloganKey: productPushNotifications.warmupSloganKey,
+          sampleText: productPushNotifications.warmupSloganText,
+        })
+        .from(productPushNotifications)
+        .where(
+          and(
+            gte(productPushNotifications.createdAt, startIso),
+            eq(productPushNotifications.pushKind, "warmup"),
+            isNotNull(productPushNotifications.warmupSloganKey),
+          ),
+        );
+
+      return buildAdminDashboard({
+        windowHours,
+        startHourInclusive: startHour,
+        hourlyRows,
+        userHourlyRows,
+        warmupSloganSamples: warmupSamples
+          .filter((r): r is { sloganKey: string; sampleText: string | null } => r.sloganKey != null)
+          .map((r) => ({ sloganKey: r.sloganKey, sampleText: r.sampleText })),
+      });
     },
 
     async purgeRecentOlderThan(days) {

@@ -64,6 +64,12 @@ describe("createProductAnalyticsService", () => {
       },
     ]);
     const dashboard = await svc.getAdminDashboard({ windowHours: 24 });
-    expect(dashboard.windowHours).toBe(24);
+    expect(dashboard.topPages).toEqual([
+      {
+        pageKey: "/app/patient/content/:slug",
+        views: 1,
+        uniqueUsers: 1,
+      },
+    ]);
   });
 });

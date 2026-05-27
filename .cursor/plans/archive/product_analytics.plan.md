@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: phase-4-admin-api
     content: "Блок 4: admin read model/API (GET /api/admin/product-analytics, service aggregations, api.md)"
-    status: pending
+    status: completed
   - id: phase-5-admin-ui
     content: "Блок 5: admin UI в Settings (new tab + ProductAnalyticsSection: каналы/страницы/push/slogan/активность)"
     status: pending
@@ -406,6 +406,10 @@ Admin API отдаёт:
 ### Block 3 (2026-05-27) — закрыт
 
 См. раздел «2026-05-27 — Block 3» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): trackingId, SW push-open, post-review (occurrence UUID guard).
+
+### Block 4 (2026-05-27) — закрыт
+
+См. раздел «2026-05-27 — Block 4» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): `buildAdminDashboard`, `GET /api/admin/product-analytics`, `api.md`.
 
 ## Definition of Done
 
