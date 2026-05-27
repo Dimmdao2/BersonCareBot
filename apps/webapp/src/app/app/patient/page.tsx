@@ -21,7 +21,7 @@ export default async function PatientHomePage() {
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(session);
 
   return (
-    <AppShell title="Сегодня" user={session.user} variant="patient-wide" patientSuppressShellTitle>
+    <AppShell title="" user={session.user} variant="patient-wide" patientSuppressShellTitle>
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
         <PatientHomeToday
           session={session}

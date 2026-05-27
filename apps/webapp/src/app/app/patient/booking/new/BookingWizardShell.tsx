@@ -14,8 +14,10 @@ type Props = {
   user: SessionUser | null;
   /** Скрыть полоску заголовка под верхней навигацией (как главная «Сегодня»). */
   suppressShellTitle?: boolean;
-  /** Кастомная полоска заголовка (например «Запись» на первом шаге). */
+  /** Кастомная полоска заголовка (top-shell откат). */
   shellTitleSlot?: ReactNode;
+  /** Контент под шапкой (bottom-shell: промо-блок и т.п.). */
+  shellAboveTitleSlot?: ReactNode;
 };
 
 /** Общая оболочка шагов wizard записи (layout-only). */
@@ -28,6 +30,7 @@ export function BookingWizardShell({
   user,
   suppressShellTitle = false,
   shellTitleSlot,
+  shellAboveTitleSlot,
 }: Props) {
   /** На последнем шаге тоже показываем «Назад», если передан `backHref` (например к выбору слота). */
   const showWizardBack = Boolean(backHref && step > 1);
@@ -40,6 +43,7 @@ export function BookingWizardShell({
       variant="patient"
       patientSuppressShellTitle={suppressShellTitle}
       patientShellTitleSlot={shellTitleSlot}
+      patientShellAboveTitleSlot={shellAboveTitleSlot}
     >
       <div
         className={cn(

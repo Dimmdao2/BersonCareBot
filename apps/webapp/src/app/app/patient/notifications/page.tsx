@@ -5,7 +5,6 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 import { buildProfileNotificationTopicModels } from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { AppShell } from "@/shared/ui/AppShell";
-import { PatientShellPageTitleWithHistoryBack } from "@/shared/ui/patient/PatientShellPageTitleWithHistoryBack";
 import {
   patientInnerPageStackClass,
   patientMutedTextClass,
@@ -53,15 +52,9 @@ export default async function PatientNotificationsPage() {
     <AppShell
       title="Настройка уведомлений"
       user={session.user}
-      backHref={routePaths.patient}
-      backLabel="Меню"
+      backHref={routePaths.profile}
+      backLabel="Назад"
       variant="patient"
-      patientShellTitleSlot={
-        <PatientShellPageTitleWithHistoryBack
-          title="Настройка уведомлений"
-          fallbackHref={routePaths.profile}
-        />
-      }
     >
       <div className={patientInnerPageStackClass}>
         <section className={patientSectionSurfaceClass}>

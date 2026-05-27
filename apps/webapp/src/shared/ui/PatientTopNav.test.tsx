@@ -49,7 +49,7 @@ describe("PatientTopNav", () => {
       "Упражнения",
       "Статистика",
       "Запись",
-      "Профиль",
+      "Чат",
     ]);
     expect(within(mobileNav).queryByRole("link", { name: /Разминки/i })).not.toBeInTheDocument();
     expect(within(mobileNav).queryByRole("link", { name: "Напоминания" })).not.toBeInTheDocument();
@@ -84,18 +84,18 @@ describe("PatientTopNav", () => {
     expect(within(mobileNav).getByRole("link", { name: "Упражнения" })).not.toHaveAttribute("aria-current", "page");
   });
 
-  it("shows chat unread dot on Сегодня when chatUnread > 0 and hides after refresh event", () => {
+  it("shows chat unread dot on Чат when chatUnread > 0 and hides after refresh event", () => {
     pathnameRef.value = "/app/patient";
     chatUnreadState.count = 2;
     const { rerender } = render(<PatientTopNav />);
     const mobileNav = screen.getByTestId("patient-mobile-top-nav");
-    const todayLink = within(mobileNav).getByRole("link", { name: "Сегодня" });
-    expect(todayLink.querySelector(".bg-\\[\\#c0392b\\]")).not.toBeNull();
+    const chatLink = within(mobileNav).getByRole("link", { name: "Чат" });
+    expect(chatLink.querySelector(".bg-\\[\\#c0392b\\]")).not.toBeNull();
 
     chatUnreadState.count = 0;
     notifyPatientSupportUnreadCountChanged();
     rerender(<PatientTopNav />);
-    expect(todayLink.querySelector(".bg-\\[\\#c0392b\\]")).toBeNull();
+    expect(chatLink.querySelector(".bg-\\[\\#c0392b\\]")).toBeNull();
   });
 
   it("keeps desktop nav as a separate patient-desktop branch", () => {

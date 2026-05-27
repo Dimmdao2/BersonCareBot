@@ -1,7 +1,7 @@
 /**
  * Общая оболочка страницы приложения: верхняя панель и контент.
- * Для пациента (variant="patient" / "patient-wide") — {@link PatientTopNav} на всех ширинах;
- * заголовок экрана под полоской меню (кроме главной при `patientSuppressShellTitle`);
+ * Для пациента (variant="patient" / "patient-wide") — {@link PatientShellHeaderBar} + {@link PatientBottomNav}
+ * (или при откате {@link PatientTopNav} + {@link PatientShellPageTitleStrip});
  * при `patientEmbedMain` / `patientHideBottomNav` / `patientBrandTitleBar` — классическая {@link PatientGatedHeader}.
  * Для кабинета врача (variant="doctor") — контейнер контента; шапка в `app/doctor/layout.tsx`.
  */
@@ -12,13 +12,17 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientGatedHeader } from "@/shared/ui/PatientGatedHeader";
 import { PatientTopNav } from "@/shared/ui/PatientTopNav";
+import { PatientBottomNav } from "@/shared/ui/PatientBottomNav";
+import { PatientShellHeaderBar } from "@/shared/ui/PatientShellHeaderBar";
 import { PatientShellPageTitleStrip } from "@/shared/ui/PatientShellPageTitleStrip";
+import { PATIENT_SHELL_NAV_VARIANT } from "@/shared/ui/patient/patientShellNavVariant";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
 import { patientSectionTitleClass } from "@/shared/ui/patientVisual";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import {
   PATIENT_SHELL_CONTAINER_CLASS,
+  PATIENT_SHELL_CONTAINER_BOTTOM_NAV_CLASS,
   PATIENT_SHELL_DESKTOP_MAX_CLASS,
   PATIENT_SHELL_MOBILE_MAX_CLASS,
   patientShellMaxWidthDataAttribute,
@@ -75,7 +79,7 @@ export function AppShell({
   user,
   children,
   backHref,
-  backLabel = "Меню",
+  backLabel = "Назад",
   titleSmall,
   variant = "default",
   patientFloatingSlot,
@@ -91,10 +95,12 @@ export function AppShell({
 }: AppShellProps) {
   if (variant === "patient" || variant === "patient-wide") {
     const showPatientShellNav = !patientEmbedMain && !patientHideBottomNav && !patientBrandTitleBar;
+    const useBottomNavShell = PATIENT_SHELL_NAV_VARIANT === "bottom";
     const shellTitleBadge = patientTitleBadge?.trim() ?? "";
     const shellTitle = title?.trim() ?? "";
     const showShellTitleStrip =
       showPatientShellNav &&
+      !useBottomNavShell &&
       (patientShellTitleSlot != null ||
         (!patientSuppressShellTitle && (Boolean(shellTitleBadge) || Boolean(shellTitle))));
     return (
@@ -102,7 +108,7 @@ export function AppShell({
         id="app-shell-patient"
         {...patientShellMaxWidthDataAttribute()}
         className={cn(
-          PATIENT_SHELL_CONTAINER_CLASS,
+          useBottomNavShell ? PATIENT_SHELL_CONTAINER_BOTTOM_NAV_CLASS : PATIENT_SHELL_CONTAINER_CLASS,
           patientEmbedMain
             ? "max-w-[480px] gap-0 pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
             : cn(
@@ -113,7 +119,21 @@ export function AppShell({
         )}
       >
         {showPatientShellNav ?
-          <>
+          useBottomNavShell ?
+            <>
+              <div className="z-50 shrink-0">
+                <PatientShellHeaderBar
+                  title={shellTitle}
+                  titleBadge={shellTitleBadge || undefined}
+                  backHref={backHref}
+                  backLabel={backLabel}
+                />
+              </div>
+              {patientShellAboveTitleSlot ?
+                <div className="w-full min-w-0 shrink-0">{patientShellAboveTitleSlot}</div>
+              : null}
+            </>
+          : <>
             <div className="z-50 shrink-0">
               <PatientTopNav backHref={backHref} backLabel={backLabel} />
             </div>
@@ -170,10 +190,15 @@ export function AppShell({
           className={cn(
             "flex min-h-0 min-w-0 flex-1 flex-col",
             patientEmbedMain ? "gap-0 pt-0" : "gap-[var(--patient-gap)] pt-1",
+            showPatientShellNav && useBottomNavShell &&
+              "max-patient-desktop:pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pb-[calc(var(--patient-bottom-nav-height,3.5rem)+env(safe-area-inset-bottom,0px))]",
           )}
         >
           {children}
         </main>
+        {showPatientShellNav && useBottomNavShell ?
+          <PatientBottomNav />
+        : null}
         {patientFloatingSlot}
       </div>
     );

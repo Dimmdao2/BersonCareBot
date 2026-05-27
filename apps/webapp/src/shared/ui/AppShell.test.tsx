@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { AppShell } from "./AppShell";
 
 vi.mock("next/navigation", () => ({
@@ -18,6 +18,10 @@ vi.mock("@/shared/hooks/usePlatform", () => ({
 
 vi.mock("@/shared/hooks/useReminderUnread", () => ({
   useReminderUnreadCount: () => 0,
+}));
+
+vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", () => ({
+  usePatientSupportUnreadCount: () => 0,
 }));
 
 describe("AppShell patient width variants", () => {
@@ -64,28 +68,34 @@ describe("AppShell patient width variants", () => {
     expect(shell).toHaveClass("bg-white");
   });
 
-  it("forwards patientTitleBadge below top nav title strip", () => {
+  it("forwards patientTitleBadge in bottom shell header bar", () => {
     render(
       <AppShell title="Раздел" user={null} variant="patient" patientTitleBadge="По подписке">
         <div>Body</div>
       </AppShell>,
     );
     expect(screen.getByTestId("patient-header-title-badge")).toHaveTextContent("По подписке");
-    expect(screen.getByTestId("patient-shell-page-title-wrap")).toBeInTheDocument();
+    expect(screen.queryByTestId("patient-shell-page-title-wrap")).toBeNull();
+    expect(screen.getByTestId("patient-shell-header-bar")).toBeInTheDocument();
   });
 
-  it("does not render patient header row when top nav shell is active", () => {
+  it("renders bottom nav shell chrome when patient nav is active", () => {
     const { container } = render(
       <AppShell title="Сегодня" user={null} variant="patient" patientSuppressShellTitle>
         <div>Content</div>
       </AppShell>,
     );
 
-    expect(container.querySelector("#patient-top-nav")).toBeTruthy();
+    expect(screen.getByTestId("patient-shell-header-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("patient-bottom-nav")).toBeInTheDocument();
+    expect(container.querySelector("#patient-top-nav")).toBeNull();
     expect(screen.queryByTestId("patient-gated-header-wrap")).toBeNull();
+    expect(within(screen.getByTestId("patient-shell-header-bar")).getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Сегодня",
+    );
   });
 
-  it("renders patientShellTitleSlot under top nav when title strip is suppressed", () => {
+  it("does not render title strip in bottom shell variant", () => {
     render(
       <AppShell
         title="Скрытый заголовок"
@@ -98,8 +108,9 @@ describe("AppShell patient width variants", () => {
       </AppShell>,
     );
 
-    expect(screen.getByTestId("patient-shell-page-title-wrap")).toBeInTheDocument();
-    expect(screen.getByTestId("patient-shell-custom-slot")).toHaveTextContent("Custom");
+    expect(screen.queryByTestId("patient-shell-page-title-wrap")).toBeNull();
+    expect(screen.queryByTestId("patient-shell-custom-slot")).toBeNull();
+    expect(screen.getByText("Скрытый заголовок")).toBeInTheDocument();
   });
 
   it("shows patient header on all breakpoints when bottom nav is hidden (no top nav)", () => {

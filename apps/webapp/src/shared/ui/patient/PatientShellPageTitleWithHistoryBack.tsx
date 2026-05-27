@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { usePatientShellGoBack } from "@/shared/hooks/usePatientShellGoBack";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 import { patientSectionTitleClass } from "@/shared/ui/patientVisual";
 
@@ -21,17 +20,7 @@ export function PatientShellPageTitleWithHistoryBack({
   backLabel = "Назад",
   fallbackHref,
 }: Props) {
-  const router = useRouter();
-
-  const goBack = useCallback(() => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-      return;
-    }
-    if (fallbackHref) {
-      router.push(fallbackHref);
-    }
-  }, [router, fallbackHref]);
+  const goBack = usePatientShellGoBack(fallbackHref);
 
   return (
     <div className="flex min-w-0 items-center">

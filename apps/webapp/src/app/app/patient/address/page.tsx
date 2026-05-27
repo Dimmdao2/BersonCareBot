@@ -22,7 +22,7 @@ export default async function PatientAddressPage() {
         <iframe
           title="Адрес кабинета"
           src={ADDRESS_IFRAME_SRC}
-          className="h-[calc(100dvh-9rem)] w-full shrink-0 rounded-lg border border-border bg-background sm:h-[calc(100dvh-8.5rem)]"
+          className="h-[calc(100dvh-var(--patient-header-bar-height,3rem)-var(--patient-bottom-nav-height,3.5rem)-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-2rem)] w-full shrink-0 rounded-lg border border-border bg-background max-patient-desktop:h-[calc(100dvh-var(--patient-header-bar-height,3rem)-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-3rem)]"
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
         />

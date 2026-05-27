@@ -18,6 +18,29 @@ import { FormatStepClient } from "./FormatStepClient";
 
 export const dynamic = "force-dynamic";
 
+function BookingFormatPromoBanner() {
+  return (
+    <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 max-w-none shrink-0">
+      <div
+        className={cn(
+          patientHomePlanCardClass,
+          "rounded-none border-0 text-sm font-light leading-snug md:rounded-none",
+        )}
+      >
+        <span className="text-[#132a52]">Подробно обо мне и моих услугах вы можете почитать </span>
+        <a
+          href="https://dmitryberson.ru"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-light text-[var(--patient-color-primary)] underline decoration-[var(--patient-color-primary)] underline-offset-2"
+        >
+          на моём сайте
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default async function BookingNewFormatPage() {
   const session = await getOptionalPatientSession();
   if (!session) {
@@ -36,29 +59,11 @@ export default async function BookingNewFormatPage() {
 
   return (
     <BookingWizardShell
-      title=""
+      title="Запись"
+      shellAboveTitleSlot={<BookingFormatPromoBanner />}
       shellTitleSlot={
         <div className="flex min-w-0 flex-col gap-8">
-          <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 max-w-none shrink-0">
-            <div
-              className={cn(
-                patientHomePlanCardClass,
-                "rounded-none border-0 text-sm font-light leading-snug md:rounded-none",
-              )}
-            >
-              <span className="text-[#132a52]">
-                Подробно обо мне и моих услугах вы можете почитать{" "}
-              </span>
-              <a
-                href="https://dmitryberson.ru"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-light text-[var(--patient-color-primary)] underline decoration-[var(--patient-color-primary)] underline-offset-2"
-              >
-                на моём сайте
-              </a>
-            </div>
-          </div>
+          <BookingFormatPromoBanner />
           <h1 className={cn(patientSectionTitleClass, "min-w-0")}>Запись</h1>
         </div>
       }

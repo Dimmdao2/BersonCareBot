@@ -84,13 +84,13 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
 
   return (
     <AppShell
-      title={item.title}
+      title=""
       user={session?.user ?? null}
       backHref={backNav.backHref}
       backLabel={backNav.backLabel}
       variant="patient"
       patientSuppressShellTitle
-      patientShellTitleSlot={
+      patientShellAboveTitleSlot={
         backNav.showBackToSectionRow ?
           <PatientBackToSectionShellRow sectionSlug={dbRow.section} />
         : undefined

@@ -13,7 +13,6 @@ import {
   LayoutGrid,
   MessageCircle,
   Stethoscope,
-  UserCircle,
 } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
@@ -37,7 +36,7 @@ const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
   booking: CalendarPlus,
   diary: ChartLine,
   plan: Dumbbell,
-  profile: UserCircle,
+  messages: MessageCircle,
 };
 
 const DESKTOP_NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
@@ -45,7 +44,7 @@ const DESKTOP_NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
   booking: CalendarCheck,
   diary: ChartLine,
   plan: Dumbbell,
-  profile: UserCircle,
+  messages: MessageCircle,
 };
 
 const TOP_ICON_BTN =
@@ -96,7 +95,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
   const renderMobileNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = NAV_ICONS[item.id];
     const isActive = activeId === item.id;
-    const showChatDot = item.id === "today" && chatUnread > 0;
+    const showChatDot = item.id === "messages" && chatUnread > 0;
     return (
       <Link
         key={item.id}
@@ -150,7 +149,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
   const renderDesktopNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = DESKTOP_NAV_ICONS[item.id];
     const isActive = activeId === item.id;
-    const showChatDot = item.id === "today" && chatUnread > 0;
+    const showChatDot = item.id === "messages" && chatUnread > 0;
     return (
       <Link
         key={item.id}
