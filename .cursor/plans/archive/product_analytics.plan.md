@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: phase-5-admin-ui
     content: "Блок 5: admin UI в Settings (new tab + ProductAnalyticsSection: каналы/страницы/push/slogan/активность)"
-    status: pending
+    status: completed
   - id: phase-6-retention-docs
     content: "Блок 6: retention+docs+hardening (internal retention endpoint, host cron docs, LOG.md, final tests)"
     status: pending
@@ -410,6 +410,10 @@ Admin API отдаёт:
 ### Block 4 (2026-05-27) — закрыт
 
 См. раздел «2026-05-27 — Block 4» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): `buildAdminDashboard`, `GET /api/admin/product-analytics`, `api.md`.
+
+### Block 5 (2026-05-27) — закрыт
+
+См. раздел «2026-05-27 — Block 5» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): вкладка «Использование», `ProductAnalyticsSection`.
 
 ## Definition of Done
 

@@ -116,6 +116,27 @@
 
 1. **inMemory `warmupSloganSamples`** — фильтр по окну `windowHours` (как в pg по `created_at`), чтобы `sampleText` не подтягивался из push вне интервала.
 
+## 2026-05-27 — Block 5 (admin Settings UI)
+
+### Сделано
+
+- Вкладка **`product-analytics`** («Использование») в `AdminSettingsTabsClient`, `?adminTab=product-analytics`.
+- `ProductAnalyticsSection` — пресеты 24ч / 7д / 30д, fetch `GET /api/admin/product-analytics`.
+- Блоки: сводка, заходы по каналу (line chart), страницы, push/topic + слоганы разминки, активные клиенты (line chart).
+- `settings.md` обновлён.
+
+### Проверка (post-review)
+
+| Проверка | Результат |
+|----------|-----------|
+| `pnpm --dir apps/webapp run typecheck` | OK |
+| `eslint` Block 5 файлы | OK |
+| `vitest` `api/admin/product-analytics/route.test.ts` | 2 passed |
+
+### Исправления по review
+
+1. **`ProductAnalyticsSection`** — при смене окна сбрасывать `data` до ответа API, чтобы не показывать метрики предыдущего интервала.
+
 ### Следующий шаг
 
-Block 5: вкладка Settings «Использование» + `ProductAnalyticsSection`.
+Block 6: retention endpoint, host cron docs, финальные тесты.
