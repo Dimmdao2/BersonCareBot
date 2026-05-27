@@ -385,12 +385,13 @@ describe("treatment-program events (§8)", () => {
       patientUserId: "60606060-6060-4060-8060-606060606060",
       assignedBy: null,
     });
-    const stId = instStageByTpl(inst, s1.id).id;
+    const st = instStageByTpl(inst, s1.id);
+    const customG = st.groups.find((g) => g.title === "ЛФК") ?? st.groups.find((g) => !g.systemKind)!;
     await localInstSvc.doctorExpandLfkComplexIntoStage({
       instanceId: inst.id,
-      stageId: stId,
+      stageId: st.id,
       complexTemplateId: complexId,
-      groupId: g1.id,
+      groupId: customG.id,
       actorId: doctor,
     });
     const blocks = await localInstSvc.listTreatmentProgramLfkBlocksForIntegratorPatient(inst.patientUserId);
