@@ -35,11 +35,24 @@ self.addEventListener("push", (event) => {
   if (!title && !body) return;
   const url = typeof data.url === "string" ? data.url : "/app";
   const tag = typeof data.tag === "string" ? data.tag : undefined;
+  const notificationData = { url };
+  if (typeof data.trackingId === "string" && data.trackingId) {
+    notificationData.trackingId = data.trackingId;
+  }
+  if (typeof data.topicCode === "string" && data.topicCode) {
+    notificationData.topicCode = data.topicCode;
+  }
+  if (typeof data.pushKind === "string" && data.pushKind) {
+    notificationData.pushKind = data.pushKind;
+  }
+  if (typeof data.warmupSloganKey === "string" && data.warmupSloganKey) {
+    notificationData.warmupSloganKey = data.warmupSloganKey;
+  }
   event.waitUntil(
     self.registration.showNotification(title || "BersonCare", {
       body,
       tag,
-      data: { url },
+      data: notificationData,
     }),
   );
 });
@@ -56,10 +69,30 @@ self.addEventListener("pushsubscriptionchange", (event) => {
   );
 });
 
+function postPushOpenBestEffort(data) {
+  if (!data || typeof data.trackingId !== "string" || !data.trackingId) return;
+  try {
+    fetch("/api/patient/analytics/push-open", {
+      method: "POST",
+      credentials: "include",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pushTrackingId: data.trackingId,
+        entryChannel: "pwa",
+      }),
+    }).catch(() => {});
+  } catch {
+    /* analytics must not block navigation */
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const raw = event.notification.data && event.notification.data.url;
+  const notifData = event.notification.data || {};
+  const raw = notifData.url;
   const openPath = safeOpenPathFromNotificationUrl(raw);
+  postPushOpenBestEffort(notifData);
   event.waitUntil(
     (async () => {
       const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

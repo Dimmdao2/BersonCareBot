@@ -8,6 +8,11 @@ export type WebPushClientPayload = {
   body: string;
   url: string;
   tag?: string;
+  trackingId?: string;
+  topicCode?: string | null;
+  intentType?: string | null;
+  pushKind?: string | null;
+  warmupSloganKey?: string | null;
 };
 
 /**
@@ -45,6 +50,11 @@ export async function sendWebPushToSubscriptions(params: {
     body: payload.body,
     url: payload.url,
     ...(payload.tag ? { tag: payload.tag } : {}),
+    ...(payload.trackingId ? { trackingId: payload.trackingId } : {}),
+    ...(payload.topicCode ? { topicCode: payload.topicCode } : {}),
+    ...(payload.intentType ? { intentType: payload.intentType } : {}),
+    ...(payload.pushKind ? { pushKind: payload.pushKind } : {}),
+    ...(payload.warmupSloganKey ? { warmupSloganKey: payload.warmupSloganKey } : {}),
   });
 
   let delivered = 0;

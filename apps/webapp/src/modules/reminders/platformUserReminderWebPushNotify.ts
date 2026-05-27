@@ -10,7 +10,14 @@ import {
 import type { SystemSettingsService } from "@/modules/system-settings/service";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
 import type { WarmupPushDynamicContext } from "@/modules/web-push/pushNotificationCopy";
-import { resolveReminderWebPushPayload } from "@/modules/web-push/resolveReminderWebPushPayload";
+import {
+  createTrackedWebPushPayload,
+  productAnalyticsMetadataFromPayload,
+} from "@/app-layer/product-analytics/createTrackedWebPushPayload";
+import {
+  resolveReminderWebPushPayload,
+  type ReminderWebPushPayload,
+} from "@/modules/web-push/resolveReminderWebPushPayload";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 
@@ -54,7 +61,7 @@ function stripHtmlLight(s: string): string {
   return s.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 }
 
-function resolvePushPayload(input: PlatformUserReminderWebPushNotifyInput): { title: string; body: string; tag: string } | null {
+function resolvePushPayload(input: PlatformUserReminderWebPushNotifyInput): ReminderWebPushPayload | null {
   if (input.ruleMeta) {
     return resolveReminderWebPushPayload({
       stableKey: input.occurrenceId,
@@ -75,6 +82,8 @@ function resolvePushPayload(input: PlatformUserReminderWebPushNotifyInput): { ti
     title: title || "Напоминание",
     body: textBody || title,
     tag: `reminder:${input.occurrenceId}`,
+    pushKind: "custom",
+    warmupSloganKey: null,
   };
 }
 
@@ -163,17 +172,25 @@ export async function runPlatformUserReminderWebPushNotify(
       `mailto:${smtpParsed.data.from}`
     : "mailto:noreply@invalid";
 
+  const trackedPayload = await createTrackedWebPushPayload({
+    userId: input.platformUserId,
+    title: pushPayload.title,
+    body: pushPayload.body,
+    url: input.openUrl,
+    tag: pushPayload.tag,
+    topicCode: input.topicCode,
+    intentType: PATIENT_REMINDER_INTENT_TYPE,
+    occurrenceId: input.occurrenceId,
+    pushKind: pushPayload.pushKind,
+    warmupSloganKey: pushPayload.warmupSloganKey,
+  });
+
   const r = await sendWebPushToSubscriptions({
     subscriptions: subs,
     vapidPublicKey: vapidKeys.publicKey,
     vapidPrivateKey: vapidKeys.privateKey,
     vapidSubject,
-    payload: {
-      title: pushPayload.title,
-      body: pushPayload.body,
-      url: input.openUrl,
-      tag: pushPayload.tag,
-    },
+    payload: trackedPayload,
     onSubscriptionDead: async (endpoint) => {
       await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
     },
@@ -190,6 +207,7 @@ export async function runPlatformUserReminderWebPushNotify(
             endpointHash: attempt.endpointHash,
             occurrenceId: input.occurrenceId,
             errorMessage: attempt.errorMessage,
+            metadata: productAnalyticsMetadataFromPayload(trackedPayload),
           });
         }
       : undefined,

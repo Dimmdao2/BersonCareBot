@@ -10,7 +10,7 @@ todos:
     status: completed
   - id: phase-3-push-pipeline
     content: "Блок 3: push pipeline (sloganKey, trackingId, push fact table, sw notificationclick, /api/patient/analytics/push-open)"
-    status: pending
+    status: completed
   - id: phase-4-admin-api
     content: "Блок 4: admin read model/API (GET /api/admin/product-analytics, service aggregations, api.md)"
     status: pending
@@ -402,6 +402,10 @@ Admin API отдаёт:
 ### Block 2 (2026-05-27) — закрыт
 
 См. раздел «2026-05-27 — Block 2» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): ingest, post-review (UUID guard, тесты канала).
+
+### Block 3 (2026-05-27) — закрыт
+
+См. раздел «2026-05-27 — Block 3» в [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../../docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md): trackingId, SW push-open, post-review (occurrence UUID guard).
 
 ## Definition of Done
 

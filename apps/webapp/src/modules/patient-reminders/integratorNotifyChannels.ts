@@ -18,6 +18,10 @@ import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRu
 import type { RecordNotificationDeliveryAttemptInput } from "@/modules/notification-delivery/types";
 import type { SkippedNotificationChannel } from "@/modules/patient-notifications/notificationChannelContract";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
+import {
+  createTrackedWebPushPayload,
+  productAnalyticsMetadataFromPayload,
+} from "@/app-layer/product-analytics/createTrackedWebPushPayload";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 import type { WarmupPushDynamicContext } from "@/modules/web-push/pushNotificationCopy";
 import { resolveReminderWebPushPayload } from "@/modules/web-push/resolveReminderWebPushPayload";
@@ -362,17 +366,25 @@ export async function runPatientReminderIntegratorNotify(
         occurrenceId: body.occurrenceId,
       });
     } else {
+    const trackedPayload = await createTrackedWebPushPayload({
+      userId: uid,
+      title: pushPayload.title,
+      body: pushPayload.body,
+      url: body.openUrl,
+      tag: pushPayload.tag,
+      topicCode: body.topicCode,
+      intentType: PATIENT_REMINDER_INTENT_TYPE,
+      occurrenceId: body.occurrenceId,
+      pushKind: pushPayload.pushKind,
+      warmupSloganKey: pushPayload.warmupSloganKey,
+    });
+
     const r = await sendWebPushToSubscriptions({
       subscriptions: subs,
       vapidPublicKey: vapidKeys.publicKey,
       vapidPrivateKey: vapidKeys.privateKey,
       vapidSubject,
-      payload: {
-        title: pushPayload.title,
-        body: pushPayload.body,
-        url: body.openUrl,
-        tag: pushPayload.tag,
-      },
+      payload: trackedPayload,
       onSubscriptionDead: async (endpoint) => {
         await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
       },
@@ -390,6 +402,7 @@ export async function runPatientReminderIntegratorNotify(
               endpointHash: attempt.endpointHash,
               occurrenceId: body.occurrenceId,
               errorMessage: attempt.errorMessage,
+              metadata: productAnalyticsMetadataFromPayload(trackedPayload),
             });
           }
         : undefined,

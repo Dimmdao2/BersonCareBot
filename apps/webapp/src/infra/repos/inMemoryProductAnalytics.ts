@@ -12,6 +12,7 @@ import type {
   ProductAnalyticsIngestEvent,
   RecordPushOpenInput,
 } from "@/modules/product-analytics/types";
+import { PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
 type HourlyKey = string;
 type UserHourlyKey = string;
 
@@ -127,6 +128,14 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
 
     async createPushNotification(row) {
       pushNotifications.set(row.id, row);
+      ingestOne({
+        eventType: "push_sent",
+        entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent["entryChannel"],
+        occurredAt: row.createdAt,
+        topicCode: row.topicCode ?? null,
+        pushKind: row.pushKind ?? null,
+        warmupSloganKey: row.warmupSloganKey ?? null,
+      });
     },
 
     async recordPushOpen(input: RecordPushOpenInput) {

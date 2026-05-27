@@ -1,5 +1,6 @@
 import {
   buildReminderWebPushCopy,
+  type ReminderPushKind,
   type WarmupPushDynamicContext,
 } from "./pushNotificationCopy";
 
@@ -15,9 +16,17 @@ export type ReminderWebPushCopyInput = {
   warmupContext?: WarmupPushDynamicContext;
 };
 
+export type ReminderWebPushPayload = {
+  title: string;
+  body: string;
+  tag: string;
+  pushKind: ReminderPushKind | "news";
+  warmupSloganKey: string | null;
+};
+
 export function resolveReminderWebPushPayload(
   input: ReminderWebPushCopyInput,
-): { title: string; body: string; tag: string } | null {
+): ReminderWebPushPayload | null {
   const copy = buildReminderWebPushCopy({
     stableKey: input.stableKey,
     linkedObjectType: input.linkedObjectType,
@@ -34,5 +43,7 @@ export function resolveReminderWebPushPayload(
     title: copy.title,
     body: copy.body,
     tag: `reminder:${input.stableKey}`.slice(0, 240),
+    pushKind: copy.pushKind,
+    warmupSloganKey: copy.warmupSloganKey,
   };
 }

@@ -13,12 +13,14 @@ import type {
   ProductAnalyticsIngestEvent,
   RecordPushOpenInput,
 } from "@/modules/product-analytics/types";
+import { PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
 import {
   productAnalyticsEventsRecent,
   productAnalyticsHourly,
   productAnalyticsUserHourly,
   productPushNotifications,
 } from "../../../db/schema/productAnalytics";
+import type { CreatePushNotificationInput } from "@/modules/product-analytics/types";
 
 function pgErrCode(e: unknown): string | undefined {
   if (typeof e === "object" && e !== null && "code" in e) {
@@ -170,8 +172,9 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       }
     },
 
-    async createPushNotification(row) {
+    async createPushNotification(row: CreatePushNotificationInput) {
       const db = getDrizzle();
+      const createdAt = row.createdAt ?? new Date().toISOString();
       await db.insert(productPushNotifications).values({
         id: row.id,
         userId: row.userId,
@@ -183,7 +186,15 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         warmupSloganText: row.warmupSloganText ?? null,
         openUrl: row.openUrl ?? null,
         title: row.title ?? null,
-        createdAt: row.createdAt ?? new Date().toISOString(),
+        createdAt,
+      });
+      await upsertHourlyCount(db, {
+        eventType: "push_sent",
+        entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent["entryChannel"],
+        occurredAt: createdAt,
+        topicCode: row.topicCode ?? null,
+        pushKind: row.pushKind ?? null,
+        warmupSloganKey: row.warmupSloganKey ?? null,
       });
     },
 

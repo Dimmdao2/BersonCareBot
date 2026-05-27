@@ -18,22 +18,31 @@ export type WarmupPushDynamicContext = {
   warmupsRemaining?: number | null;
 };
 
-const WARMUP_BODY_POOL: readonly ((ctx: WarmupPushDynamicContext) => string | null)[] = [
-  () => "Пора подвигаться!",
-  () => "5 минут разминки дарят + 5 лет здоровья позвоночнику",
-  () => "Самое время сделать перерыв",
-  () => "Заработался? Перезагрузись!",
-  () => "Движение – жизнь!",
-  (ctx) => {
-    const title = ctx.dailyWarmupTitle?.trim();
-    return title ? `Сегодня в меню: ${title}` : null;
+const WARMUP_BODY_VARIANTS: readonly {
+  key: string;
+  fn: (ctx: WarmupPushDynamicContext) => string | null;
+}[] = [
+  { key: "move_now", fn: () => "Пора подвигаться!" },
+  { key: "spine_health", fn: () => "5 минут разминки дарят + 5 лет здоровья позвоночнику" },
+  { key: "take_break", fn: () => "Самое время сделать перерыв" },
+  { key: "recharge", fn: () => "Заработался? Перезагрузись!" },
+  { key: "movement_life", fn: () => "Движение – жизнь!" },
+  {
+    key: "daily_menu",
+    fn: (ctx) => {
+      const title = ctx.dailyWarmupTitle?.trim();
+      return title ? `Сегодня в меню: ${title}` : null;
+    },
   },
-  (ctx) => {
-    const n = ctx.warmupsRemaining;
-    if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return null;
-    return formatWarmupsRemainingPhrase(n);
+  {
+    key: "remaining_goal",
+    fn: (ctx) => {
+      const n = ctx.warmupsRemaining;
+      if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return null;
+      return formatWarmupsRemainingPhrase(n);
+    },
   },
-  () => "А после разминки и думается лучше 😉",
+  { key: "after_warmup", fn: () => "А после разминки и думается лучше 😉" },
 ];
 
 const TRAINING_BODY_POOL: readonly string[] = [
@@ -44,6 +53,8 @@ const TRAINING_BODY_POOL: readonly string[] = [
   "Шаг за шагом — и всё получится.",
   "Давай сделаем, чтобы не болело!",
 ];
+
+const TRAINING_BODY_KEYS = TRAINING_BODY_POOL.map((_, i) => `training_${i}`);
 
 const APPOINTMENT_SPECIALIST_DATIVE = "Дмитрию";
 
@@ -111,25 +122,44 @@ export function classifyReminderPushKind(input: {
   return "training";
 }
 
-function pickWarmupBody(ctx: WarmupPushDynamicContext, stableKey: string): string {
-  const candidates = WARMUP_BODY_POOL.map((fn) => fn(ctx)).filter((s): s is string => Boolean(s?.trim()));
-  const pool = candidates.length > 0 ? candidates : ["Пора подвигаться!"];
-  return pool[stablePoolIndex(stableKey, pool.length)]!;
+function pickWarmupVariant(
+  ctx: WarmupPushDynamicContext,
+  stableKey: string,
+): { body: string; sloganKey: string } {
+  const candidates = WARMUP_BODY_VARIANTS.map((v) => ({
+    key: v.key,
+    text: v.fn(ctx),
+  })).filter((v): v is { key: string; text: string } => Boolean(v.text?.trim()));
+  const pool =
+    candidates.length > 0 ? candidates : [{ key: "fallback", text: "Пора подвигаться!" }];
+  const picked = pool[stablePoolIndex(stableKey, pool.length)]!;
+  return { body: picked.text, sloganKey: picked.key };
+}
+
+export function getWarmupSloganKey(stableKey: string, ctx: WarmupPushDynamicContext = {}): string {
+  return pickWarmupVariant(ctx, stableKey).sloganKey;
 }
 
 export function buildWarmupPushCopy(
   stableKey: string,
   ctx: WarmupPushDynamicContext = {},
-): { title: string; body: string } {
+): { title: string; body: string; sloganKey: string } {
+  const picked = pickWarmupVariant(ctx, stableKey);
   return {
     title: WARMUP_PUSH_TITLE,
-    body: pickWarmupBody(ctx, stableKey),
+    body: picked.body,
+    sloganKey: picked.sloganKey,
   };
 }
 
-export function buildTrainingPushCopy(stableKey: string): { title: string; body: string } {
-  const body = TRAINING_BODY_POOL[stablePoolIndex(stableKey, TRAINING_BODY_POOL.length)]!;
-  return { title: TRAINING_PUSH_TITLE, body };
+export function buildTrainingPushCopy(stableKey: string): {
+  title: string;
+  body: string;
+  sloganKey: string;
+} {
+  const idx = stablePoolIndex(stableKey, TRAINING_BODY_POOL.length);
+  const body = TRAINING_BODY_POOL[idx]!;
+  return { title: TRAINING_PUSH_TITLE, body, sloganKey: TRAINING_BODY_KEYS[idx]! };
 }
 
 export function buildCustomReminderPushCopy(
@@ -235,21 +265,41 @@ export type BuildReminderWebPushCopyInput = {
   warmupContext?: WarmupPushDynamicContext;
 };
 
+export type ReminderWebPushCopyResult = {
+  title: string;
+  body: string;
+  pushKind: Exclude<ReminderPushKind, "skip">;
+  warmupSloganKey: string | null;
+};
+
 export function buildReminderWebPushCopy(
   input: BuildReminderWebPushCopyInput,
-): { title: string; body: string } | null {
+): ReminderWebPushCopyResult | null {
   const kind = classifyReminderPushKind(input);
   if (kind === "skip") return null;
 
   if (kind === "custom") {
     const title = input.customTitle?.trim() ?? "";
     if (!title) return null;
-    return buildCustomReminderPushCopy(title, input.customText?.trim() ?? "");
+    const copy = buildCustomReminderPushCopy(title, input.customText?.trim() ?? "");
+    return { ...copy, pushKind: "custom", warmupSloganKey: null };
   }
 
   if (kind === "warmup") {
-    return buildWarmupPushCopy(input.stableKey, input.warmupContext ?? {});
+    const copy = buildWarmupPushCopy(input.stableKey, input.warmupContext ?? {});
+    return {
+      title: copy.title,
+      body: copy.body,
+      pushKind: "warmup",
+      warmupSloganKey: copy.sloganKey,
+    };
   }
 
-  return buildTrainingPushCopy(input.stableKey);
+  const copy = buildTrainingPushCopy(input.stableKey);
+  return {
+    title: copy.title,
+    body: copy.body,
+    pushKind: "training",
+    warmupSloganKey: null,
+  };
 }

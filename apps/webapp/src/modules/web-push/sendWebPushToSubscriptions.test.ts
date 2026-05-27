@@ -27,13 +27,23 @@ describe("sendWebPushToSubscriptions onAttempt", () => {
       vapidPublicKey: "pub",
       vapidPrivateKey: "priv",
       vapidSubject: "mailto:test@example.com",
-      payload: { title: "t", body: "b", url: "https://x" },
+      payload: {
+        title: "t",
+        body: "b",
+        url: "https://x",
+        trackingId: "track-1",
+        pushKind: "warmup",
+        warmupSloganKey: "move_now",
+      },
       onSubscriptionDead: async () => {},
       onAttempt: (r) => {
         attempts.push(r);
       },
     });
     expect(attempts).toEqual([{ status: "success", endpointHash: expect.any(String), providerStatusCode: 201 }]);
+    const sentBody = JSON.parse(sendNotificationMock.mock.calls[0]![1] as string) as Record<string, string>;
+    expect(sentBody.trackingId).toBe("track-1");
+    expect(sentBody.warmupSloganKey).toBe("move_now");
   });
 
   it("calls onAttempt with provider_410 and deactivates subscription", async () => {

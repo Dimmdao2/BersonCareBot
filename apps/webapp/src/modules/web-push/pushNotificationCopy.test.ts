@@ -7,6 +7,7 @@ import {
   buildReminderWebPushCopy,
   buildTrainingPushCopy,
   buildWarmupPushCopy,
+  getWarmupSloganKey,
   classifyReminderPushKind,
   formatWarmupsRemainingPhrase,
   stablePoolIndex,
@@ -44,6 +45,13 @@ describe("classifyReminderPushKind", () => {
 describe("buildWarmupPushCopy", () => {
   it("uses fixed title", () => {
     expect(buildWarmupPushCopy("occ-1").title).toBe(WARMUP_PUSH_TITLE);
+  });
+
+  it("returns stable sloganKey for stableKey", () => {
+    const a = buildWarmupPushCopy("occ-slogan");
+    const b = buildWarmupPushCopy("occ-slogan");
+    expect(a.sloganKey).toBe(b.sloganKey);
+    expect(getWarmupSloganKey("occ-slogan")).toBe(a.sloganKey);
   });
 
   it("includes daily warmup title when pool selects it", () => {

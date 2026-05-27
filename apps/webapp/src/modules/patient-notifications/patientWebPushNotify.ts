@@ -25,6 +25,10 @@ import {
   type AppointmentLifecycleVariant,
 } from "@/modules/web-push/pushNotificationCopy";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
+import {
+  createTrackedWebPushPayload,
+  productAnalyticsMetadataFromPayload,
+} from "@/app-layer/product-analytics/createTrackedWebPushPayload";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 
@@ -198,17 +202,29 @@ export async function runPatientWebPushNotify(
       `mailto:${smtpParsed.data.from}`
     : "mailto:noreply@invalid";
 
+  const pushKind =
+    body.intentType === "news" ? "news"
+    : body.intentType === "appointment_reminder" ? "custom"
+    : "custom";
+
+  const trackedPayload = await createTrackedWebPushPayload({
+    userId: uid,
+    title: copy.title,
+    body: copy.body,
+    url: pushOpenUrl,
+    tag: body.stableKey.slice(0, 240),
+    topicCode: body.topicCode,
+    intentType: body.intentType,
+    pushKind,
+    warmupSloganKey: null,
+  });
+
   const r = await sendWebPushToSubscriptions({
     subscriptions: subs,
     vapidPublicKey: vapidKeys.publicKey,
     vapidPrivateKey: vapidKeys.privateKey,
     vapidSubject,
-    payload: {
-      title: copy.title,
-      body: copy.body,
-      url: pushOpenUrl,
-      tag: body.stableKey.slice(0, 240),
-    },
+    payload: trackedPayload,
     onSubscriptionDead: async (endpoint) => {
       await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
     },
@@ -225,6 +241,7 @@ export async function runPatientWebPushNotify(
             providerStatusCode: attempt.providerStatusCode,
             endpointHash: attempt.endpointHash,
             errorMessage: attempt.errorMessage,
+            metadata: productAnalyticsMetadataFromPayload(trackedPayload),
           });
         }
       : undefined,

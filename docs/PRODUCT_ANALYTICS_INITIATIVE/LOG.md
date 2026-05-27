@@ -64,6 +64,36 @@
 - `app_open` не дублируется из `pwa/launch`.
 - SMS/email login в Block 2 не подключались (в плане — перечисленные auth entry routes + OAuth).
 
+## 2026-05-27 — Block 3 (push pipeline)
+
+### Сделано
+
+- `pushNotificationCopy`: `sloganKey` / `getWarmupSloganKey`; `resolveReminderWebPushPayload` → `pushKind`, `warmupSloganKey`.
+- `createTrackedWebPushPayload` — факт в `product_push_notifications` + hourly `push_sent` перед отправкой.
+- Трекинг в: `integratorNotifyChannels`, `platformUserReminderWebPushNotify`, `patientWebPushNotify` (news/appointments); metadata в `notification_delivery_attempts`.
+- `sendWebPushToSubscriptions` / `sw.js`: `trackingId`, topic/kind/slogan в payload и `notification.data`.
+- `POST /api/patient/analytics/push-open` — dedupe, сессия опциональна (`user_id` null без cookie).
+
+### Проверка (post-review)
+
+| Проверка | Результат |
+|----------|-----------|
+| `vitest` web-push + analytics + push-open + tracked payload | 54 passed |
+| `pnpm --dir apps/webapp run typecheck` | OK |
+| `eslint` Block 3 файлы | OK |
+
+### Исправления по review
+
+1. **`occurrence_id`** — в `createTrackedWebPushPayload` пишется только при валидном UUID (integrator `occurrenceId` часто text → `null`, иначе silent fail без `trackingId`).
+2. **`clientEntryChannel.test.ts`** — импорт `beforeEach` (typecheck).
+3. **Тесты:** `createTrackedWebPushPayload.test.ts`, сериализация tracking-полей в `sendWebPushToSubscriptions.test.ts`.
+
+### Ограничения (зафиксировано)
+
+- SW только scope `/app`; mini app без SW; open без сессии — только `tracking_id`.
+- Doctor reply push — вне Block 3 (не в списке плана).
+- `push_sent` фиксируется при создании факта отправки, не по факту доставки провайдером.
+
 ### Следующий шаг
 
-Block 3: push pipeline (`trackingId`, SW `notificationclick`, `push-open` API).
+Block 4: `GET /api/admin/product-analytics` + агрегации в service.
