@@ -39,6 +39,8 @@ export type BaseContext = {
   activeConversationStatus?: string;
   replyMode?: boolean;
   replyConversationId?: string;
+  /** Ответ на наблюдение пациента по пункту программы (suffix `#pn:` в user state). */
+  programNoteStageItemId?: string;
 };
 
 export type OrchestratorInput = {

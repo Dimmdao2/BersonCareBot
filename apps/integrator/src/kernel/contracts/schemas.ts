@@ -49,6 +49,7 @@ const baseContextSchema = z.object({
   activeConversationStatus: z.string().min(1).optional(),
   replyMode: z.boolean().optional(),
   replyConversationId: z.string().min(1).optional(),
+  programNoteStageItemId: z.string().uuid().optional(),
 });
 
 /** Валидация входящего события pipeline. */

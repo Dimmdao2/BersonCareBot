@@ -11,6 +11,7 @@
 | Массовая рассылка врача | Полный `title` + `body` (`buildBroadcastMessageText`) | `/app/patient/messages` | Полный HTML/plain в боте/SMS — **без изменений** |
 | Запись: создана / отменена (`appointment_lifecycle`) | Copy из `buildAppointmentLifecyclePushCopy` | `/app/patient/messages` | Как раньше (`sendLinkedChannelMessage` в integrator) |
 | Ответ врача в чате (1:1) | Текст ответа | `/app/patient/messages` (`notifyPatientDoctorReply`) | Preview + ссылка на чат |
+| Ответ врача на **наблюдение по упражнению** (program note) | `Ответ на ваш комментарий к упражнению «…»:` + текст | `/app/patient/messages` | То же (`notifyPatientDoctorReply`); кнопка в боте — `program_reply:{stageItemId}` |
 
 Идемпотентность входящих: стабильный `integrator_message_id` + `ON CONFLICT DO NOTHING` в `appendWebappMessage`.
 
@@ -24,6 +25,7 @@
 - Напоминания о приёме (`appointment_reminder`, 24ч/2ч) — push ведёт на booking, в чат **не** дублируется.
 - Напоминания о разминке / занятии / rehab — deep link на занятие **без изменений**.
 - Дублирование рассылки через `notifyPatientDoctorReply` — **запрещено** (второе сообщение в TG/MAX).
+- Комментарии врача через **`/api/doctor/comments`** (карточка клиента, `entity_comments`) — **не** этот inbox; см. [`DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
 
 ## Legacy deep link
 
@@ -53,10 +55,12 @@
 | Push рассылки | [`fanOutBroadcastWebPush.ts`](../../apps/webapp/src/modules/doctor-broadcasts/fanOutBroadcastWebPush.ts) |
 | Lifecycle запись | [`patientWebPushNotify.ts`](../../apps/webapp/src/modules/patient-notifications/patientWebPushNotify.ts) при `intentType === appointment_lifecycle` |
 | Unread API | [`patientMessagingService.ts`](../../apps/webapp/src/modules/messaging/patientMessagingService.ts), [`pgSupportCommunication.ts`](../../apps/webapp/src/infra/repos/pgSupportCommunication.ts) |
+| Program note → ответ врача | [`notifyDoctorPatientProgramNote.ts`](../../apps/webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts), [`programNoteReplyContext.ts`](../../apps/webapp/src/modules/messaging/programNoteReplyContext.ts), [`integratorSupportBridge.ts`](../../apps/webapp/src/modules/messaging/integratorSupportBridge.ts) |
 
 ## Код (integrator)
 
 - [`recordM2mRoute.ts`](../../apps/integrator/src/integrations/rubitime/recordM2mRoute.ts) — `sendBookingWebPush`: для `appointment_lifecycle` `openUrl` = `{appBase}/app/patient/messages`.
+- Program note reply: `content/*/admin/scripts.json` (`program_reply`, `reply.message`), `handlers/supportRelay.ts`, `webapp.programNote.replyBegin` — см. [`DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
 
 ## Тесты (ориентир)
 

@@ -511,6 +511,38 @@ Canonical linking rules:
 
 ---
 
+## Flow: Webapp M2M — support chat (пациент ↔ врач)
+
+Канон UX и ограничения: [`docs/ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md`](../../docs/ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md), program note: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
+
+**Headers:** `x-bersoncare-timestamp`, `x-bersoncare-signature`, `x-bersoncare-idempotency-key` (как у других signed M2M).
+
+### `POST /api/integrator/support/sync-user-message`
+
+Входящее сообщение пациента из бота в thread `webapp:platform:{platformUserId}`.
+
+### `POST /api/integrator/support/admin-reply`
+
+Ответ врача/админа из бота в тот же thread.
+
+**Body (JSON):** `integratorConversationId`, `integratorMessageId`, `text`, `createdAt`; опционально **`programNoteStageItemId`** — при ответе на наблюдение по упражнению webapp добавляет префикс `Ответ на ваш комментарий к упражнению «…»:` перед текстом.
+
+**Idempotency key:** `support-admin:{integratorMessageId}`.
+
+**Ответ 200:** `{ ok: true }` (и поля доставки пациенту по каналам — см. `integratorSupportBridge`).
+
+### `POST /api/integrator/program-note/reply-begin`
+
+Подготовка режима ответа на program note (callback `program_reply:{stageItemId}` в Telegram/MAX).
+
+**Body (JSON):** `{ stageItemId: uuid }`.
+
+**Ответ 200:** `{ ok: true, programNoteReplyState, platformUserId, exerciseTitle, integratorConversationId }` — `programNoteReplyState` имеет вид `admin_reply:webapp:platform:{platformUserId}#pn:{stageItemId}` для `user.state.set` в integrator.
+
+**Integrator action:** `webapp.programNote.replyBegin` → сценарии `telegram.admin.programNote.reply.start` / `max.admin.programNote.reply.start`.
+
+---
+
 ## Future Extensions
 
 The contract is intentionally narrow so the services can evolve independently.

@@ -30,6 +30,7 @@ import {
   mirrorPatientUserMessageToWebapp,
   resolvePlatformUserIdForChannel,
 } from '../../support/webappSupportSync.js';
+import { buildProgramNoteReplyState } from '../../../../shared/support/programNoteReplyState.js';
 
 function channelDeliveryPayload(channel: string) {
   return { channels: [channel], maxAttempts: 1 };
@@ -47,6 +48,29 @@ function getUnsupportedAdminRelayText(source: string): string {
     return 'Пока для ответа пользователю в MAX поддерживается только текст. Скоро добавим пересылку других типов контента.';
   }
   return 'Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.';
+}
+
+function adminContinueCallbackData(conversationId: string, programNoteStageItemId: string | null): string {
+  if (programNoteStageItemId) {
+    return `program_reply:${programNoteStageItemId}`;
+  }
+  return `admin_reply_continue:${conversationId}`;
+}
+
+async function persistAdminMessengerUserState(
+  deps: ExecutorDeps,
+  ctx: DomainContext,
+  state: string,
+): Promise<DbWriteMutation[]> {
+  const channelUserId = readExternalActorId(ctx);
+  const resource = ctx.event.meta.source;
+  if (!channelUserId || !resource || !deps.writePort) return [];
+  const writes: DbWriteMutation[] = [{
+    type: 'user.state.set',
+    params: { resource, channelUserId, state },
+  }];
+  await persistWrites(deps.writePort, writes);
+  return writes;
 }
 
 export async function handleConversationUserMessage(
@@ -264,11 +288,16 @@ export async function handleConversationAdminReply(
       // eslint-disable-next-line no-secrets/no-secrets -- stable executor error code, not a credential
       return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_WEBAPP_TEXT_ONLY' };
     }
+    const programNoteStageItemId =
+      typeof ctx.base.programNoteStageItemId === 'string' && ctx.base.programNoteStageItemId.trim()
+        ? ctx.base.programNoteStageItemId.trim()
+        : null;
     const applyResult = await applyWebappAdminReplyFromMessenger(deps, {
       integratorConversationId: conversationId,
       text,
       createdAt: ctx.nowIso,
       adminMessageId: readIncomingMessageId(ctx),
+      programNoteStageItemId,
     });
     const intents: OutgoingIntent[] = [];
     if (!applyResult.ok && adminChatId !== null) {
@@ -283,6 +312,11 @@ export async function handleConversationAdminReply(
       });
       return { actionId: action.id, status: 'success', intents };
     }
+    const writes: DbWriteMutation[] = [];
+    const nextAdminState = programNoteStageItemId
+      ? buildProgramNoteReplyState(conversationId, programNoteStageItemId)
+      : 'idle';
+    writes.push(...await persistAdminMessengerUserState(deps, ctx, nextAdminState));
     if (adminChatId !== null) {
       const sentText = deps.templatePort
         ? (await renderText({ templateKey: ADMIN.REPLY_SENT, ctx, templatePort: deps.templatePort })) || 'Сообщение отправлено.'
@@ -294,7 +328,10 @@ export async function handleConversationAdminReply(
         ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() ?? ''
         : '';
       const replyRows: Array<Array<{ text: string; callback_data: string }>> = [
-        [{ text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` }],
+        [{
+          text: continueButtonText,
+          callback_data: adminContinueCallbackData(conversationId, programNoteStageItemId),
+        }],
       ];
       if (closeButtonText) {
         replyRows.push([{ text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` }]);
@@ -313,6 +350,7 @@ export async function handleConversationAdminReply(
     return {
       actionId: action.id,
       status: 'success',
+      writes,
       intents,
       values: {
         hasOpenConversation: true,
@@ -431,6 +469,7 @@ export async function handleConversationAdminReply(
       },
     });
   }
+  writes.push(...await persistAdminMessengerUserState(deps, ctx, 'idle'));
   if (adminChatId !== null) {
     const sentText = deps.templatePort
       ? (await renderText({ templateKey: ADMIN.REPLY_SENT, ctx, templatePort: deps.templatePort })) || 'Сообщение отправлено.'

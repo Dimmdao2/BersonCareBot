@@ -201,6 +201,16 @@ describe('reply keyboard text to gated menu action', () => {
   });
 });
 
+describe('normalizeChannelCallbackPayload program_reply', () => {
+  it('parses program_reply with stage item id', () => {
+    const id = '22222222-2222-4222-8222-222222222222';
+    expect(normalizeChannelCallbackPayload(`program_reply:${id}`)).toEqual({
+      action: 'program_reply',
+      stageItemId: id,
+    });
+  });
+});
+
 describe('normalizeTelegramMessageAction', () => {
   it('maps diary button text to diary.open', () => {
     expect(normalizeTelegramMessageAction('📓 Дневник')).toBe('diary.open');

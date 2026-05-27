@@ -5,6 +5,7 @@
   "admin.stats.bookings": "📅 Активных записей: {{activeBookings}}",
   "admin.stats.users": "👥 Пользователи по интеграциям\n\nTelegram: {{telegramTotal}} всего, {{telegramWithPhone}} с телефоном\nRubiTime: {{rubitimeTotal}} всего",
   "admin.reply.prompt": "Напишите ответ пользователю следующим сообщением.",
+  "admin.reply.hintUnmatched": "Чтобы ответить пациенту, нажмите «Ответить» под его сообщением. Команды: /dialogs, /admin_bookings, /admin_users, /unanswered, /show_my_id",
   "admin.reply.sent": "Сообщение отправлено.",
   "admin.reply.button": "Ответить",
   "admin.reply.continueButton": "Дополнить ответ",
@@ -19,6 +20,5 @@
   "admin.questions.markAllDone": "Отмечено ответов: {{markedCount}}.",
   "admin.conversation.newMessage": "Новое сообщение в диалоге\nОт: {{userLabel}}\n\n{{text}}",
   "admin.conversation.show": "Диалог\nПользователь: {{label}}\nСтатус: {{status}}",
-  "admin.relay.unsupportedType": "Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.",
-  "admin.test.commandReceived": "Тест: команда получена — {{rawText}}"
+  "admin.relay.unsupportedType": "Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ."
 }

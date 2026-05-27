@@ -34,6 +34,7 @@
 ## Вкладка «Программа»: комментарий с плитки
 
 - В **`PatientTreatmentProgramStagePageProgramSection`** кнопка «Добавить комментарий» (только `assignment_source === doctor`) открывает модалку «Наблюдение» → **`POST .../progress/observation-note`**, без перехода на `/treatment/[instanceId]/item/...`. Для **promo** кнопки нет; API отклоняет запрос.
+- Ответ врача из Telegram/MAX (кнопка «Ответить» под уведомлением) попадает в **`/app/patient/messages`** с текстом `Ответ на ваш комментарий к упражнению «…»:` — не путать с **`/api/doctor/comments`** (карточка клиента). Канон: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
 
 ## Инварианты после декомпозиции
 

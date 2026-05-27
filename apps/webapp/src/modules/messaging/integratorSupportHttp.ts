@@ -13,6 +13,7 @@ export const integratorSupportAdminReplySchema = z.object({
   integratorMessageId: z.string().min(1).max(200),
   text: z.string().min(1).max(4000),
   createdAt: z.string().min(1),
+  programNoteStageItemId: z.string().uuid().optional(),
 });
 
 export type IntegratorSupportSyncUserMessageBody = z.infer<typeof integratorSupportSyncUserMessageSchema>;

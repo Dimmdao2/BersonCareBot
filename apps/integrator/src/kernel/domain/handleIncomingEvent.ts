@@ -116,6 +116,7 @@ async function loadUserContext(
   | 'activeConversationStatus'
   | 'replyMode'
   | 'replyConversationId'
+  | 'programNoteStageItemId'
 >> {
   if (!readPort) return {};
   const externalId = extractChannelId(event);
@@ -154,6 +155,7 @@ async function loadUserContext(
     | 'activeConversationStatus'
     | 'replyMode'
     | 'replyConversationId'
+    | 'programNoteStageItemId'
   > = {};
 
   if (!user || typeof user !== 'object') {
@@ -197,10 +199,17 @@ async function loadUserContext(
   if (phoneNormalized) result.phoneNormalized = phoneNormalized;
 
   if (conversationState?.startsWith('admin_reply:')) {
-    const replyConversationId = conversationState.slice('admin_reply:'.length).trim();
+    let replyConversationId = conversationState.slice('admin_reply:'.length).trim();
+    let programNoteStageItemId: string | undefined;
+    const pnIdx = replyConversationId.indexOf('#pn:');
+    if (pnIdx >= 0) {
+      programNoteStageItemId = replyConversationId.slice(pnIdx + 4).trim() || undefined;
+      replyConversationId = replyConversationId.slice(0, pnIdx).trim();
+    }
     if (replyConversationId) {
       result.replyMode = true;
       result.replyConversationId = replyConversationId;
+      if (programNoteStageItemId) result.programNoteStageItemId = programNoteStageItemId;
     }
   }
 

@@ -14,10 +14,6 @@ vi.mock("@/modules/messaging/doctorNotifyTargets", () => ({
   relayTextToDoctorTargets: vi.fn(),
 }));
 
-vi.mock("@/modules/messaging/notifyDoctorPatientMessage", () => ({
-  doctorReplyCallbackConversationId: vi.fn((id: string) => `conv:${id}`),
-}));
-
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import {
   loadDoctorNotifyTargets,
@@ -82,7 +78,7 @@ describe("notifyDoctorPatientProgramNote", () => {
       expect.stringContaining("Комментарий"),
       "patient-program-note",
       expect.objectContaining({
-        inline_keyboard: [[{ text: "Ответить", callback_data: `admin_reply:conv:${patientUserId}` }]],
+        inline_keyboard: [[{ text: "Ответить", callback_data: `program_reply:${stageItemId}` }]],
       }),
     );
   });

@@ -1180,23 +1180,6 @@ describe('orchestrator buildPlan', () => {
     const contentPort: ContentPort = {
       getScriptsBySource: vi.fn().mockResolvedValue([
         {
-          id: 'telegram.admin.test.anyCommand',
-          source: 'telegram',
-          event: 'message.received',
-          priority: 1,
-          match: {
-            actor: { isAdmin: true },
-            input: { excludeActions: ['start.link'] },
-          },
-          steps: [
-            {
-              action: 'message.send',
-              mode: 'async',
-              params: { templateKey: 'telegram:admin.test.commandReceived' },
-            },
-          ],
-        },
-        {
           id: 'telegram.admin.start.link',
           source: 'telegram',
           event: 'message.received',

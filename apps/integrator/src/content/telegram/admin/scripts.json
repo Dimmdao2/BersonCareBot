@@ -301,14 +301,6 @@
 				"params": {
 					"conversationId": "{{context.replyConversationId}}"
 				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"channelUserId": "{{actor.channelUserId}}",
-					"state": "idle"
-				}
 			}
 		]
 	},
@@ -368,13 +360,67 @@
 		]
 	},
 	{
-		"id": "telegram.admin.test.anyCommand",
+		"id": "telegram.admin.programNote.reply.start",
+		"source": "telegram",
+		"event": "callback.received",
+		"priority": 15,
+		"match": {
+			"input": { "action": "program_reply" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "webapp.programNote.replyBegin",
+				"mode": "sync",
+				"params": {
+					"stageItemId": "{{input.stageItemId}}"
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "{{values.programNoteReplyState}}"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:admin.reply.prompt",
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.admin.message.unmatched",
 		"source": "telegram",
 		"event": "message.received",
-		"priority": 1,
+		"priority": 2,
 		"match": {
 			"actor": { "isAdmin": true },
-			"input": { "excludeActions": ["start.link"] }
+			"input": {
+				"relayContentPresent": true,
+				"excludeActions": [
+					"start.link",
+					"admin.dialogs.open",
+					"admin.stats.bookings",
+					"admin.stats.users",
+					"admin.questions.unanswered",
+					"debug.show_my_id"
+				],
+				"excludeTexts": ["/start"]
+			}
 		},
 		"steps": [
 			{
@@ -382,8 +428,7 @@
 				"mode": "async",
 				"params": {
 					"recipient": { "chatId": "{{actor.chatId}}" },
-					"templateKey": "telegram:admin.test.commandReceived",
-					"vars": { "rawText": "{{input.text}}" },
+					"templateKey": "telegram:admin.reply.hintUnmatched",
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
 				}
 			}

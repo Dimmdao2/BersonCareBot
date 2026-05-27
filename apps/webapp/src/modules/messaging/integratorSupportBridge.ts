@@ -4,6 +4,10 @@ import {
   webappPlatformConversationId,
 } from "@/modules/messaging/supportConversationIds";
 import type { NotifyPatientDoctorReplyParams } from "@/modules/messaging/notifyPatientDoctorReply";
+import {
+  formatPatientExerciseCommentReplyText,
+  resolveProgramNoteReplyContext,
+} from "@/modules/messaging/programNoteReplyContext";
 
 export type IntegratorSupportSyncMessageInput = {
   platformUserId: string;
@@ -20,6 +24,7 @@ export type IntegratorSupportAdminReplyInput = {
   integratorMessageId: string;
   text: string;
   createdAt: string;
+  programNoteStageItemId?: string;
 };
 
 export function createIntegratorSupportBridge(deps: {
@@ -64,6 +69,17 @@ export function createIntegratorSupportBridge(deps: {
       const trimmed = input.text.trim();
       if (!trimmed) return { ok: false, error: "empty" };
 
+      let chatText = trimmed;
+      if (input.programNoteStageItemId) {
+        const noteCtx = await resolveProgramNoteReplyContext(input.programNoteStageItemId);
+        if (noteCtx && noteCtx.platformUserId === platformUserId) {
+          chatText = formatPatientExerciseCommentReplyText({
+            exerciseTitle: noteCtx.exerciseTitle,
+            doctorText: trimmed,
+          });
+        }
+      }
+
       const { id: conversationId } = await deps.port.ensureWebappConversationForUser(platformUserId);
       const integratorMessageId = input.integratorMessageId.trim() || `webapp-msg:${crypto.randomUUID()}`;
       const createdAt = input.createdAt || new Date().toISOString();
@@ -72,7 +88,7 @@ export function createIntegratorSupportBridge(deps: {
         conversationId,
         integratorMessageId,
         senderRole: "admin",
-        text: trimmed,
+        text: chatText,
         source: "webapp",
         createdAt,
       });
@@ -81,7 +97,7 @@ export function createIntegratorSupportBridge(deps: {
         await deps.notifyPatientOfDoctorReply({
           platformUserId,
           messageId: integratorMessageId,
-          text: trimmed,
+          text: chatText,
         });
       }
 

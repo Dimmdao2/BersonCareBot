@@ -1,3 +1,30 @@
 # admin
 
-Сценарии и шаблоны для админа в Telegram: диалоги с пользователями, ответы на вопросы, списки неотвеченных вопросов.
+Сценарии и шаблоны для **админ-чата** в Telegram и MAX: диалоги с пользователями, ответы на вопросы поддержки, списки неотвеченных вопросов, ответ на **наблюдение пациента по упражнению** (program note).
+
+## Кто считается admin в боте
+
+- **`isAdmin`** в integrator — только id из env (`TELEGRAM_ADMIN_ID` / MAX admin), **не** список `doctor_telegram_ids` в `system_settings`.
+- Врачи из `doctor_telegram_ids` **получают** уведомления о program note, но сценарии `*.admin.*` срабатывают только если их messenger id совпадает с admin env или они в `admin_telegram_ids`.
+
+## Ответ на сообщение пациента (поддержка)
+
+1. Уведомление с кнопкой **«Ответить»** → callback `admin_reply:webapp:platform:{platformUserId}` (64 байта).
+2. Сценарий `telegram.admin.reply.start` → `user.state.set` → prompt.
+3. Текст → `telegram.admin.reply.message` → M2M `POST /api/integrator/support/admin-reply` → PWA-чат + `notifyPatientDoctorReply`.
+
+## Ответ на наблюдение по упражнению (program note)
+
+1. Уведомление [`notifyDoctorPatientProgramNote`](../../../../../webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts) → кнопка **«Ответить»** → callback **`program_reply:{stageItemId}`** (укладывается в лимит 64 байта).
+2. `telegram.admin.programNote.reply.start` / `max.admin.programNote.reply.start` → `webapp.programNote.replyBegin` → state `admin_reply:webapp:platform:{userId}#pn:{stageItemId}`.
+3. Текст → `*.admin.reply.message` → `admin-reply` с **`programNoteStageItemId`** → префикс в чате пациента.
+4. После ответа state **не** сбрасывается в `idle` (можно дописать несколько сообщений); **«Дополнить ответ»** снова через `program_reply:{stageItemId}`.
+
+Канон: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
+
+## Прочие команды
+
+- `/dialogs`, `/admin_bookings`, … — см. `scripts.json`, priority выше unmatched.
+- Свободный текст **без** режима ответа: `telegram.admin.message.unmatched` / `max.admin.message.unmatched` (priority 2) — шаблон `admin.reply.hintUnmatched`.
+
+**Удалено (dev):** catch-all `admin.test.commandReceived` («Тест: команда получена»).

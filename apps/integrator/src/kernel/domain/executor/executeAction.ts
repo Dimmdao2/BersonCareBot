@@ -585,6 +585,73 @@ export async function executeAction(
       };
     }
 
+    case 'webapp.programNote.replyBegin': {
+      const port = deps.webappEventsPort;
+      const stageItemId = asString(action.params.stageItemId)
+        ?? asString(readIncoming(ctx).stageItemId);
+      if (!stageItemId) {
+        return { actionId: action.id, status: 'failed', error: 'webapp.programNote.replyBegin: stageItemId required' };
+      }
+      if (!port?.beginProgramNoteReply) {
+        const intents: OutgoingIntent[] = [];
+        const adminChatId = asNumber(readIncoming(ctx).chatId);
+        const source = ctx.event.meta.source;
+        if (adminChatId !== null && (source === 'telegram' || source === 'max')) {
+          intents.push({
+            type: 'message.send',
+            meta: buildIntentMeta(action, ctx),
+            payload: {
+              recipient: { chatId: adminChatId },
+              message: { text: 'Не удалось открыть ответ на комментарий. Попробуйте в кабинете врача.' },
+              delivery: { channels: [source], maxAttempts: 1 },
+            },
+          });
+        }
+        return {
+          actionId: action.id,
+          status: 'success',
+          values: { programNoteReply: { ok: false, reason: 'program_note_reply_port_missing' } },
+          intents,
+          abortPlan: true,
+        };
+      }
+      const result = await port.beginProgramNoteReply({
+        stageItemId,
+        idempotencyKey: `program-note-reply-begin:${stageItemId}`,
+      });
+      if (!result.ok || !result.programNoteReplyState) {
+        const intents: OutgoingIntent[] = [];
+        const adminChatId = asNumber(readIncoming(ctx).chatId);
+        const source = ctx.event.meta.source;
+        if (adminChatId !== null && (source === 'telegram' || source === 'max')) {
+          intents.push({
+            type: 'message.send',
+            meta: buildIntentMeta(action, ctx),
+            payload: {
+              recipient: { chatId: adminChatId },
+              message: { text: 'Не удалось открыть ответ на комментарий. Попробуйте в кабинете врача.' },
+              delivery: { channels: [source], maxAttempts: 1 },
+            },
+          });
+        }
+        return {
+          actionId: action.id,
+          status: 'success',
+          values: { programNoteReply: { ok: false, error: result.error } },
+          intents,
+          abortPlan: true,
+        };
+      }
+      return {
+        actionId: action.id,
+        status: 'success',
+        values: {
+          programNoteReply: { ok: true },
+          programNoteReplyState: result.programNoteReplyState,
+        },
+      };
+    }
+
     case 'webapp.channelLink.complete': {
       const port = deps.webappEventsPort;
       const linkToken = asString(action.params.linkToken);
@@ -1119,12 +1186,17 @@ export async function executeAction(
     }
 
     case 'user.state.set': {
+      const stateRaw = action.params.state;
+      const stateStr = typeof stateRaw === 'string' ? stateRaw.trim() : '';
+      if (!stateStr) {
+        return { actionId: action.id, status: 'skipped', error: 'USER_STATE_EMPTY' };
+      }
       const writes: DbWriteMutation[] = [{
         type: 'user.state.set',
         params: {
           resource: ctx.event.meta.source,
           channelUserId: action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx),
-          state: action.params.state ?? null,
+          state: stateStr,
         },
       }];
       await persistWrites(deps.writePort, writes);
@@ -1132,7 +1204,7 @@ export async function executeAction(
         actionId: action.id,
         status: 'success',
         writes,
-        ...(typeof action.params.state === 'string' ? { values: { userState: action.params.state } } : {}),
+        values: { userState: stateStr },
       };
     }
 

@@ -107,6 +107,7 @@ export function incomingCallbackPayloadFromNormalized(
 ): IncomingCallbackPayloadFromNormalize {
   const out: IncomingCallbackPayloadFromNormalize = {};
   if (typeof normalized.conversationId === 'string') out.conversationId = normalized.conversationId;
+  if (typeof normalized.stageItemId === 'string') out.stageItemId = normalized.stageItemId;
   if (typeof normalized.trackingId === 'string') out.trackingId = normalized.trackingId;
   if (typeof normalized.value === 'number') out.value = normalized.value;
   if (typeof normalized.entryType === 'string') out.entryType = normalized.entryType;
@@ -126,6 +127,13 @@ export function incomingCallbackPayloadFromNormalized(
 export function normalizeChannelCallbackPayload(value: string): DynamicChannelCallbackPayload {
   const trimmed = value.trim();
   if (!trimmed) return { action: '' };
+  if (trimmed.startsWith('program_reply:')) {
+    const stageItemId = trimmed.slice('program_reply:'.length).trim();
+    if (stageItemId) {
+      return { action: 'program_reply', stageItemId };
+    }
+    return { action: 'program_reply' };
+  }
   for (const prefix of ['admin_reply:', 'admin_reply_continue:', 'admin_close_dialog:', 'dialogs.view:']) {
     if (trimmed.startsWith(prefix)) {
       const conversationId = trimmed.slice(prefix.length).trim();

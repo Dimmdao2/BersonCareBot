@@ -11,6 +11,15 @@
 
 Канон: [`docs/ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md`](../../../../docs/ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md).
 
+## Program note (наблюдение по упражнению)
+
+- [`notifyDoctorPatientProgramNote.ts`](notifyDoctorPatientProgramNote.ts) — уведомление врачу в TG/MAX, кнопка «Ответить» → callback `program_reply:{stageItemId}`.
+- [`programNoteReplyContext.ts`](programNoteReplyContext.ts) — resolve по `stageItemId`, префикс `Ответ на ваш комментарий к упражнению «…»:`.
+- [`integratorSupportBridge.ts`](integratorSupportBridge.ts) — `applyAdminReply` с опциональным `programNoteStageItemId`.
+- Integrator: `webapp.programNote.replyBegin`, state `admin_reply:webapp:platform:{userId}#pn:{stageItemId}`.
+
+Канон потока: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
+
 ## Unread
 
 - [`patientMessagingService.ts`](patientMessagingService.ts) — `unreadCount` (merge legacy перед подсчётом)

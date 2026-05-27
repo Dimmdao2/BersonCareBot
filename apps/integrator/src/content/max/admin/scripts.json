@@ -301,14 +301,6 @@
         "params": {
           "conversationId": "{{context.replyConversationId}}"
         }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
       }
     ]
   },
@@ -347,12 +339,65 @@
     ]
   },
   {
-    "id": "max.admin.test.anyCommand",
+    "id": "max.admin.programNote.reply.start",
+    "source": "max",
+    "event": "callback.received",
+    "priority": 15,
+    "match": {
+      "input": { "action": "program_reply" },
+      "actor": { "isAdmin": true }
+    },
+    "steps": [
+      {
+        "action": "webapp.programNote.replyBegin",
+        "mode": "sync",
+        "params": {
+          "stageItemId": "{{input.stageItemId}}"
+        }
+      },
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "{{values.programNoteReplyState}}"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "telegram:admin.reply.prompt",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": {
+          "callbackQueryId": "{{input.callbackQueryId}}"
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.admin.message.unmatched",
     "source": "max",
     "event": "message.received",
-    "priority": 1,
+    "priority": 2,
     "match": {
-      "actor": { "isAdmin": true }
+      "actor": { "isAdmin": true },
+      "input": {
+        "relayContentPresent": true,
+        "excludeActions": [
+          "admin.dialogs.open",
+          "admin.stats.bookings",
+          "admin.stats.users",
+          "admin.questions.unanswered",
+          "debug.show_my_id"
+        ]
+      }
     },
     "steps": [
       {
@@ -360,8 +405,7 @@
         "mode": "async",
         "params": {
           "recipient": { "chatId": "{{actor.chatId}}" },
-          "templateKey": "telegram:admin.test.commandReceived",
-          "vars": { "rawText": "{{input.text}}" },
+          "templateKey": "telegram:admin.reply.hintUnmatched",
           "delivery": { "channels": ["max"], "maxAttempts": 1 }
         }
       }

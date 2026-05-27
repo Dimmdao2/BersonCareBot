@@ -3,9 +3,6 @@ import {
   loadDoctorNotifyTargets,
   relayTextToDoctorTargets,
 } from "@/modules/messaging/doctorNotifyTargets";
-import {
-  doctorReplyCallbackConversationId,
-} from "@/modules/messaging/notifyDoctorPatientMessage";
 
 export function buildDoctorPatientProgramDeepLink(input: {
   patientUserId: string;
@@ -61,9 +58,8 @@ export async function notifyDoctorPatientProgramNote(
     deepLink,
   });
 
-  const replyConversationId = doctorReplyCallbackConversationId(input.patientUserId);
   const replyMarkup = {
-    inline_keyboard: [[{ text: "Ответить", callback_data: `admin_reply:${replyConversationId}` }]],
+    inline_keyboard: [[{ text: "Ответить", callback_data: `program_reply:${input.stageItemId}` }]],
   };
 
   const noteKey = input.noteText.trim().slice(0, 64).replace(/\s+/g, " ");
