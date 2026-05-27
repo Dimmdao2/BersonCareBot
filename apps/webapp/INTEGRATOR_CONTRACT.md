@@ -497,7 +497,9 @@ Canonical linking rules:
 
 **Rubitime booking:** integrator worker вызывает этот endpoint после TG/MAX для slot-напоминаний (`intentType: appointment_reminder`).
 
-**Doctor broadcasts:** webapp fan-out при канале `push` в UI рассылок (`intentType: news`, `topicCode: news`) — in-process, без HTTP. `openUrl` для рассылки: `/app/patient/broadcasts/{auditId}` (полный текст на странице пациента).
+**Doctor broadcasts:** webapp fan-out при канале `push` в UI рассылок (`intentType: news`, `topicCode: news`) — in-process, без HTTP. Полный текст — в PWA-чат (`support_conversation_messages`); `openUrl` для push: `/app/patient/messages`. Legacy `/app/patient/broadcasts/{auditId}` → редирект в чат.
+
+**Booking lifecycle (`appointment_lifecycle`):** при web-push из integrator текст дублируется в PWA-чат; `openUrl` для push — `/app/patient/messages` (integrator и webapp переопределяют legacy `/app/patient/booking/new`). `appointment_reminder` и напоминания о занятиях — без изменений.
 
 ---
 

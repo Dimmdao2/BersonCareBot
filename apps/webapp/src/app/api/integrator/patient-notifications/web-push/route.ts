@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       systemSettings: deps.systemSettings,
       readReminderNotifyGate: deps.readReminderNotifyGate,
       recordDeliveryAttempt: (input) => deps.notificationDelivery.recordNotificationDeliveryAttempt(input),
+      patientInboundChatPort: deps.supportCommunication,
     });
 
     const status = 200;

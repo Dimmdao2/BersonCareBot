@@ -305,7 +305,10 @@ async function sendBookingWebPush(input: {
   if (!input.webappEventsPort?.notifyPatientWebPush || !input.phoneNormalized) return;
   const dbPort = createDbPort();
   const base = (await getAppBaseUrl(dbPort)).replace(/\/$/, '');
-  const openUrl = `${base}/app/patient/booking/new`;
+  const openUrl =
+    input.intentType === "appointment_lifecycle" ?
+      `${base}/app/patient/messages`
+    : `${base}/app/patient/booking/new`;
   const body = JSON.stringify({
     phoneNormalized: input.phoneNormalized,
     topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,

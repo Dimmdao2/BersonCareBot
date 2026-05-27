@@ -3,10 +3,16 @@
 import { useEffect, useState } from "react";
 
 const DOCTOR_SUPPORT_UNREAD_REFRESH_EVENT = "bersoncare:doctor-support-unread-refresh";
+const PATIENT_SUPPORT_UNREAD_REFRESH_EVENT = "bersoncare:patient-support-unread-refresh";
 
 export function notifyDoctorSupportUnreadCountChanged() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(DOCTOR_SUPPORT_UNREAD_REFRESH_EVENT));
+}
+
+export function notifyPatientSupportUnreadCountChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(PATIENT_SUPPORT_UNREAD_REFRESH_EVENT));
 }
 
 /** Бейдж непрочитанных для пациента (`/api/patient/messages/unread-count`). */
@@ -30,10 +36,12 @@ export function usePatientSupportUnreadCount() {
       if (document.visibilityState === "visible") void run();
     };
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener(PATIENT_SUPPORT_UNREAD_REFRESH_EVENT, run);
     return () => {
       cancelled = true;
       clearInterval(t);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener(PATIENT_SUPPORT_UNREAD_REFRESH_EVENT, run);
     };
   }, []);
   return count;

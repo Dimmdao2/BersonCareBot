@@ -330,4 +330,68 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     expect(q!.id).toBe("q-admin-1");
     expect(q!.answered).toBe(false);
   });
+
+  it("markInboundReadForUser clears all inbound unread for platform user", async () => {
+    const platformUserId = "patient-unread-mark-1";
+    const { id: convId } = await port.ensureWebappConversationForUser(platformUserId);
+    const now = new Date().toISOString();
+    await port.appendWebappMessage({
+      conversationId: convId,
+      integratorMessageId: "webapp-unread-a",
+      senderRole: "admin",
+      text: "One",
+      source: "webapp",
+      createdAt: now,
+    });
+    await port.appendWebappMessage({
+      conversationId: convId,
+      integratorMessageId: "webapp-unread-b",
+      senderRole: "admin",
+      text: "Two",
+      source: "webapp",
+      createdAt: now,
+    });
+
+    expect(await port.countUnreadForUser(platformUserId)).toBe(2);
+    await port.markInboundReadForUser(convId, platformUserId);
+    expect(await port.countUnreadForUser(platformUserId)).toBe(0);
+  });
+
+  it("markInboundReadForUser clears unread in legacy and canonical conversations for same user", async () => {
+    const platformUserId = "patient-unread-legacy-2";
+    const { id: canonicalId } = await port.ensureWebappConversationForUser(platformUserId);
+    const legacy = await port.upsertConversationFromProjection({
+      integratorConversationId: "legacy-unread-conv-2",
+      integratorUserId: null,
+      source: "telegram",
+      adminScope: "support",
+      status: "open",
+      openedAt: new Date().toISOString(),
+      lastMessageAt: new Date().toISOString(),
+    });
+    const legacyRow = (await port.getConversationWithMessages(legacy.id))!.conversation;
+    (legacyRow as { platformUserId: string | null }).platformUserId = platformUserId;
+
+    const now = new Date().toISOString();
+    await port.appendWebappMessage({
+      conversationId: canonicalId,
+      integratorMessageId: "webapp-unread-canonical-2",
+      senderRole: "admin",
+      text: "Canonical",
+      source: "webapp",
+      createdAt: now,
+    });
+    await port.appendWebappMessage({
+      conversationId: legacy.id,
+      integratorMessageId: "webapp-unread-legacy-2",
+      senderRole: "admin",
+      text: "Legacy",
+      source: "webapp",
+      createdAt: now,
+    });
+
+    expect(await port.countUnreadForUser(platformUserId)).toBe(2);
+    await port.markInboundReadForUser(canonicalId, platformUserId);
+    expect(await port.countUnreadForUser(platformUserId)).toBe(0);
+  });
 });

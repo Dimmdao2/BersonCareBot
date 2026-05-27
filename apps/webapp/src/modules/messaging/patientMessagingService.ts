@@ -100,7 +100,10 @@ export function createPatientMessagingService(
       await port.markInboundReadForUser(conversationId, platformUserId);
     },
 
-    unreadCount(platformUserId: string): Promise<number> {
+    async unreadCount(platformUserId: string): Promise<number> {
+      await port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
+        console.error("[patientMessaging] merge legacy conversations error:", err);
+      });
       return port.countUnreadForUser(platformUserId);
     },
   };

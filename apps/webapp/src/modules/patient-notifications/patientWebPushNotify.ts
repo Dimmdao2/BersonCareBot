@@ -1,6 +1,13 @@
 import { z } from "zod";
+import { routePaths } from "@/app-layer/routes/paths";
 import { logger } from "@/infra/logging/logger";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
+import type { PatientInboundChatPort } from "@/modules/messaging/ports";
+import {
+  appendPatientInboundAdminMessage,
+  bookingLifecycleChatIntegratorMessageId,
+} from "@/modules/messaging/appendPatientInboundAdminMessage";
+import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import { smtpInnerFromValueJson } from "@/modules/outbound-email/sendTransactionalSmtp";
 import type { RecordNotificationDeliveryAttemptInput } from "@/modules/notification-delivery/types";
 import {
@@ -50,7 +57,25 @@ export type PatientWebPushNotifyDeps = {
   systemSettings: Pick<SystemSettingsService, "getSetting">;
   readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<NotificationTopicGate>;
   recordDeliveryAttempt?: (input: RecordNotificationDeliveryAttemptInput) => Promise<void>;
+  patientInboundChatPort?: PatientInboundChatPort;
 };
+
+function buildPatientMessagesOpenUrl(): string {
+  const base = getAppBaseUrlSync().replace(/\/$/, "");
+  return `${base}${routePaths.patientMessages}`;
+}
+
+function bookingIdFromLifecycleStableKey(stableKey: string): string | null {
+  const m = stableKey.match(/^booking-(?:created|cancelled|rescheduled):(.+)$/);
+  return m?.[1] ?? null;
+}
+
+function lifecycleChatText(copy: { title: string; body: string }): string {
+  const t = copy.title.trim();
+  const b = copy.body.trim();
+  if (t && b) return `${t}\n\n${b}`;
+  return t || b;
+}
 
 const INTENT_TYPE = "patient_web_push";
 
@@ -91,6 +116,37 @@ export async function runPatientWebPushNotify(
   }
 
   const uid = platform.platformUserId;
+  const timeZone = await getAppDisplayTimeZone();
+
+  if (
+    body.intentType === "appointment_lifecycle" &&
+    body.variant &&
+    body.slotStartIso &&
+    deps.patientInboundChatPort
+  ) {
+    const lifecycleCopy = buildAppointmentLifecyclePushCopy(
+      body.variant as AppointmentLifecycleVariant,
+      body.slotStartIso,
+      timeZone,
+    );
+    const bookingId = bookingIdFromLifecycleStableKey(body.stableKey);
+    const chatText = lifecycleChatText(lifecycleCopy);
+    if (bookingId && chatText) {
+      try {
+        await appendPatientInboundAdminMessage(deps.patientInboundChatPort, {
+          platformUserId: uid,
+          text: chatText,
+          integratorMessageId: bookingLifecycleChatIntegratorMessageId(body.variant, bookingId),
+        });
+      } catch (err) {
+        logger.warn(
+          { err, event: "patient_web_push.booking_chat_append_failed", platformUserId: uid, stableKey: body.stableKey },
+          "booking lifecycle chat append failed",
+        );
+      }
+    }
+  }
+
   const gate = await deps.readReminderNotifyGate(uid, body.topicCode);
   if (gate.muted || !gate.topicMasterEnabled) {
     return { ok: true, skipped: gate.muted ? "muted" : "topic_disabled" };
@@ -129,11 +185,13 @@ export async function runPatientWebPushNotify(
     return { ok: true, skipped: "no_active_subscriptions" };
   }
 
-  const timeZone = await getAppDisplayTimeZone();
   const copy = buildCopy(body, timeZone);
   if (!copy || (!copy.title.trim() && !copy.body.trim())) {
     return { ok: true, skipped: "push_copy_empty" };
   }
+
+  const pushOpenUrl =
+    body.intentType === "appointment_lifecycle" ? buildPatientMessagesOpenUrl() : body.openUrl;
 
   const vapidSubject =
     smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
@@ -148,7 +206,7 @@ export async function runPatientWebPushNotify(
     payload: {
       title: copy.title,
       body: copy.body,
-      url: body.openUrl,
+      url: pushOpenUrl,
       tag: body.stableKey.slice(0, 240),
     },
     onSubscriptionDead: async (endpoint) => {

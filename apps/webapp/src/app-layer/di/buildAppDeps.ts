@@ -875,6 +875,7 @@ function _buildAppDeps() {
       },
       broadcastAuditPort,
       doctorBroadcastDeliveryCommitPort,
+      patientInboundChatPort: supportCommunicationPort,
       fanOutBroadcastWebPush,
       patientWebPushNotifyDeps: {
         findPlatformUserByIntegratorId: async (integratorUserId) => {
@@ -889,6 +890,7 @@ function _buildAppDeps() {
         systemSettings: systemSettingsService,
         readReminderNotifyGate: readReminderWebappNotifyGate,
         recordDeliveryAttempt: (input) => notificationDelivery.recordNotificationDeliveryAttempt(input),
+        patientInboundChatPort: supportCommunicationPort,
       },
     }),
     doctorMotivationQuotesEditor: doctorMotivationQuotesEditorPort,

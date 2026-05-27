@@ -16,7 +16,13 @@ import {
   fanOutBroadcastWebPush,
   type FanOutBroadcastWebPushResult,
 } from "./fanOutBroadcastWebPush";
+import {
+  appendPatientInboundAdminMessage,
+  broadcastChatIntegratorMessageId,
+} from "@/modules/messaging/appendPatientInboundAdminMessage";
+import type { PatientInboundChatPort } from "@/modules/messaging/ports";
 import type { PatientWebPushNotifyDeps } from "@/modules/patient-notifications/patientWebPushNotify";
+import { logger } from "@/infra/logging/logger";
 
 export type DoctorBroadcastsServiceDeps = {
   resolveBroadcastAudience(
@@ -30,6 +36,7 @@ export type DoctorBroadcastsServiceDeps = {
     deps: PatientWebPushNotifyDeps,
   ) => Promise<FanOutBroadcastWebPushResult>;
   patientWebPushNotifyDeps?: PatientWebPushNotifyDeps;
+  patientInboundChatPort?: PatientInboundChatPort;
 };
 
 const CATEGORIES: BroadcastCategory[] = [
@@ -105,6 +112,28 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         jobs,
         recipientUserIds: eligibleClients.map((c) => c.userId),
       });
+
+      if (deps.patientInboundChatPort) {
+        for (const client of eligibleClients) {
+          try {
+            await appendPatientInboundAdminMessage(deps.patientInboundChatPort, {
+              platformUserId: client.userId,
+              text: messageBody,
+              integratorMessageId: broadcastChatIntegratorMessageId(auditId, client.userId),
+            });
+          } catch (err) {
+            logger.warn(
+              {
+                err,
+                event: "doctor_broadcast.chat_append_failed",
+                auditId,
+                platformUserId: client.userId,
+              },
+              "doctor broadcast chat append failed",
+            );
+          }
+        }
+      }
 
       if (
         channels.includes("push") &&

@@ -48,7 +48,7 @@ vi.mock('../../infra/db/branchTimezone.js', () => ({
 
 import { registerRubitimeRecordM2mRoutes } from './recordM2mRoute.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
-import type { DbPort } from '../../kernel/contracts/index.js';
+import type { DbPort, WebappEventsPort } from '../../kernel/contracts/index.js';
 import * as smtpOutbound from '../../config/smtpOutbound.js';
 
 const resolveSmtpOutboundCfg = 'resolveSmtp' + 'OutboundConfig' as keyof typeof smtpOutbound;
@@ -68,7 +68,10 @@ function makeHeaders(rawBody: string) {
   };
 }
 
-async function buildApp(dispatchOutgoing = vi.fn().mockResolvedValue(undefined)) {
+async function buildApp(
+  dispatchOutgoing = vi.fn().mockResolvedValue(undefined),
+  webappEventsPort?: Pick<WebappEventsPort, 'notifyPatientWebPush'>,
+) {
   const app = Fastify();
   vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue({
     configured: true,
@@ -87,6 +90,9 @@ async function buildApp(dispatchOutgoing = vi.fn().mockResolvedValue(undefined))
     sharedSecret: TEST_SECRET,
     dispatchPort: { dispatchOutgoing },
     dbWritePort: mockWritePort,
+    ...(webappEventsPort ?
+      { webappEventsPort: webappEventsPort as WebappEventsPort }
+    : {}),
   });
   return app;
 }
@@ -263,6 +269,31 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     });
     expect(res2.statusCode).toBe(200);
     expect(dispatchOutgoing.mock.calls.length).toBe(afterFirst);
+  });
+
+  it('booking.created patient web push uses messages openUrl', async () => {
+    const notifyPatientWebPush = vi.fn().mockResolvedValue(undefined);
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    getTargetsByPhone.mockResolvedValue({ channelBindings: { telegramId: 'tg-patient-immediate', maxId: null } });
+    const app = await buildApp(dispatchOutgoing, { notifyPatientWebPush });
+    const slot = bookingEventBody({
+      bookingId: '8f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+    });
+    const raw = JSON.stringify(slot);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(notifyPatientWebPush).toHaveBeenCalledOnce();
+    const body = JSON.parse(String(notifyPatientWebPush.mock.calls[0]![0].body)) as {
+      openUrl: string;
+      intentType: string;
+    };
+    expect(body.intentType).toBe('appointment_lifecycle');
+    expect(body.openUrl).toContain('/app/patient/messages');
   });
 
   it('booking.created schedules patient reminders using delivery-targets topic appointment_reminders', async () => {

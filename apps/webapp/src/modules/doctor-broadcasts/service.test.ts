@@ -1,5 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
+import {
+  appendPatientInboundAdminMessage,
+  broadcastChatIntegratorMessageId,
+} from "@/modules/messaging/appendPatientInboundAdminMessage";
 import { createDoctorBroadcastsService } from "./service";
+
+vi.mock("@/modules/messaging/appendPatientInboundAdminMessage", () => ({
+  appendPatientInboundAdminMessage: vi.fn().mockResolvedValue({ conversationId: "c1", messageId: "m1" }),
+  broadcastChatIntegratorMessageId: (auditId: string, userId: string) => `broadcast:${auditId}:${userId}`,
+}));
 import type {
   BroadcastAudienceFilter,
   BroadcastAuditEntry,
@@ -217,6 +226,33 @@ describe("doctor-broadcasts service", () => {
     const list = await service.listAudit(10);
     expect(list.length).toBeGreaterThan(0);
     expect(list[0].messageTitle).toBe("Важно");
+  });
+
+  it("execute appends inbound chat message for each eligible client", async () => {
+    vi.mocked(appendPatientInboundAdminMessage).mockClear();
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: makeResolve([client("u1"), client("u2")]),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+      patientInboundChatPort: {} as never,
+    });
+
+    await svc.execute({
+      category: "marketing",
+      audienceFilter: "all",
+      message: { title: "Новость", body: "Текст длиннее десяти символов" },
+      actorId: "doctor-1",
+      channels: ["bot_message"],
+    });
+
+    expect(appendPatientInboundAdminMessage).toHaveBeenCalledTimes(2);
+    expect(appendPatientInboundAdminMessage).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        platformUserId: "u1",
+        integratorMessageId: expect.stringMatching(/^broadcast:/),
+      }),
+    );
   });
 
   it("execute with push channel calls fan-out after queue commit", async () => {

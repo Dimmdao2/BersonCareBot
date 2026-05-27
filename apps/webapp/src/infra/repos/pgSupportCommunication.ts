@@ -968,8 +968,11 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       if (ok.rows.length === 0) return;
       await pool.query(
         `UPDATE support_conversation_messages SET read_at = COALESCE(read_at, now())
-         WHERE conversation_id = $1::uuid AND sender_role <> 'user' AND read_at IS NULL`,
-        [conversationId]
+         WHERE conversation_id IN (
+           SELECT id FROM support_conversations WHERE platform_user_id = $1::uuid
+         )
+         AND sender_role <> 'user' AND read_at IS NULL`,
+        [platformUserId]
       );
     },
 

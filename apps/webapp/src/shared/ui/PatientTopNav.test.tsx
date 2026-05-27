@@ -1,10 +1,13 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi } from "vitest";
+import { useEffect, useState } from "react";
 import { render, screen, within } from "@testing-library/react";
 import { PatientTopNav } from "./PatientTopNav";
+import { notifyPatientSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 
 const pathnameRef = vi.hoisted(() => ({ value: "/app/patient" }));
+const chatUnreadState = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameRef.value,
@@ -18,9 +21,21 @@ vi.mock("@/shared/hooks/useReminderUnread", () => ({
   useReminderUnreadCount: () => 0,
 }));
 
-vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", () => ({
-  usePatientSupportUnreadCount: () => 0,
-}));
+vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/messaging/hooks/useSupportUnreadPolling")>();
+  return {
+    ...actual,
+    usePatientSupportUnreadCount: () => {
+      const [count, setCount] = useState(chatUnreadState.count);
+      useEffect(() => {
+        const onRefresh = () => setCount(chatUnreadState.count);
+        window.addEventListener("bersoncare:patient-support-unread-refresh", onRefresh);
+        return () => window.removeEventListener("bersoncare:patient-support-unread-refresh", onRefresh);
+      }, []);
+      return count;
+    },
+  };
+});
 
 describe("PatientTopNav", () => {
   it("renders mobile top nav as moved bottom menu, no warmups or desktop actions", () => {
@@ -67,6 +82,20 @@ describe("PatientTopNav", () => {
     render(<PatientTopNav />);
     const mobileNav = screen.getByTestId("patient-mobile-top-nav");
     expect(within(mobileNav).getByRole("link", { name: "Упражнения" })).not.toHaveAttribute("aria-current", "page");
+  });
+
+  it("shows chat unread dot on Сегодня when chatUnread > 0 and hides after refresh event", () => {
+    pathnameRef.value = "/app/patient";
+    chatUnreadState.count = 2;
+    const { rerender } = render(<PatientTopNav />);
+    const mobileNav = screen.getByTestId("patient-mobile-top-nav");
+    const todayLink = within(mobileNav).getByRole("link", { name: "Сегодня" });
+    expect(todayLink.querySelector(".bg-\\[\\#c0392b\\]")).not.toBeNull();
+
+    chatUnreadState.count = 0;
+    notifyPatientSupportUnreadCountChanged();
+    rerender(<PatientTopNav />);
+    expect(todayLink.querySelector(".bg-\\[\\#c0392b\\]")).toBeNull();
   });
 
   it("keeps desktop nav as a separate patient-desktop branch", () => {

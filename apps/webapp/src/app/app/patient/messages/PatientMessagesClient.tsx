@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
+import { notifyPatientSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 import { cn } from "@/lib/utils";
 import { PatientShimmerPanel, patientCardClass, patientChatComposerTextareaClass, patientInnerPageStackClass, patientMutedTextClass, patientPrimaryActionClass } from "@/shared/ui/patientVisual";
@@ -31,11 +32,12 @@ export function PatientMessagesClient() {
     }
     setConversationId(data.conversationId);
     setMessages(data.messages ?? []);
-    await fetch("/api/patient/messages/read", {
+    const readRes = await fetch("/api/patient/messages/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conversationId: data.conversationId }),
     });
+    if (readRes.ok) notifyPatientSupportUnreadCountChanged();
   }, []);
 
   useEffect(() => {
@@ -74,11 +76,12 @@ export function PatientMessagesClient() {
       merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       return merged;
     });
-    await fetch("/api/patient/messages/read", {
+    const readRes = await fetch("/api/patient/messages/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conversationId }),
     });
+    if (readRes.ok) notifyPatientSupportUnreadCountChanged();
   }, [conversationId, lastCreatedAt]);
 
   useMessagePolling(poll, Boolean(conversationId && lastCreatedAt), 18000);

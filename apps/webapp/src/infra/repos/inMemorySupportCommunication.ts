@@ -464,9 +464,15 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
   async markInboundReadForUser(conversationId, platformUserId) {
     const c = conversations.get(conversationId);
     if (!c || c.platformUserId !== platformUserId) return;
+    const convIds = new Set(
+      Array.from(conversations.values())
+        .filter((row) => row.platformUserId === platformUserId)
+        .map((row) => row.id),
+    );
+    const now = new Date().toISOString();
     for (const m of messages.values()) {
-      if (m.conversationId === conversationId && m.senderRole !== "user" && m.readAt == null) {
-        m.readAt = new Date().toISOString();
+      if (convIds.has(m.conversationId) && m.senderRole !== "user" && m.readAt == null) {
+        m.readAt = now;
       }
     }
   },
