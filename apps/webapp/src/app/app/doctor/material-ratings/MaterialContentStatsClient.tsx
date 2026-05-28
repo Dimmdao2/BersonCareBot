@@ -6,9 +6,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -25,27 +22,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
+import { PushOpensAnalyticsCard } from "@/app/app/doctor/analytics/shared/PushOpensAnalyticsCard";
 
 const PRESETS = [
   { hours: 168, label: "7 дн." },
   { hours: 720, label: "30 дн." },
 ] as const;
 
-const STROKE_SENT = "hsl(215 65% 42%)";
-const STROKE_FAILED = "hsl(0 72% 48%)";
-const FILL_SENT = "hsl(215 55% 52% / 0.85)";
-const FILL_FAILED = "hsl(0 65% 52% / 0.85)";
 const FILL_PRACTICE = "hsl(142 45% 42% / 0.9)";
 const FILL_WARMUP_VIDEO = "hsl(215 55% 48% / 0.9)";
-const STROKE_PUSH_OPEN = "hsl(142 50% 38%)";
-const FILL_PUSH_OPEN = "hsl(142 45% 42% / 0.85)";
-const FILL_PUSH_SENT = "hsl(215 55% 52% / 0.85)";
 
 const VIDEO_DELIVERY_COLORS: Record<string, string> = {
   HLS: "hsl(215 60% 52%)",
   MP4: "hsl(38 75% 52%)",
   Файл: "hsl(142 45% 48%)",
 };
+
+const CHART_H_ROWS = 200;
 
 type TopPageRow = { section: string; slug: string; count: number };
 
@@ -60,7 +53,7 @@ function topPagesToChartData(rows: TopPageRow[]) {
 }
 
 function chartHeightForRows(rowCount: number): number {
-  return Math.min(360, 80 + rowCount * 28);
+  return Math.min(CHART_H_ROWS, 72 + rowCount * 24);
 }
 
 function KpiCard({
@@ -85,9 +78,9 @@ function KpiCard({
             ? "border-l-4 border-l-amber-500/70"
             : "";
   return (
-    <div className={`rounded-lg border border-border/60 bg-card p-4 ${borderClass}`}>
+    <div className={`rounded-lg border border-border/60 bg-card p-3 ${borderClass}`}>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums leading-tight">{value}</p>
+      <p className="mt-1 text-xl font-bold tabular-nums leading-tight">{value}</p>
       {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
     </div>
   );
@@ -139,15 +132,15 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
 
   return (
     <div className="flex items-center gap-4">
-      <div className="h-[100px] w-[100px] shrink-0">
+      <div className="h-[88px] w-[88px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={slices}
               cx="50%"
               cy="50%"
-              innerRadius={28}
-              outerRadius={46}
+              innerRadius={24}
+              outerRadius={40}
               paddingAngle={2}
               dataKey="value"
             >
@@ -166,11 +159,11 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <ul className="space-y-1.5 text-xs">
+      <ul className="space-y-1 text-xs">
         {slices.map((s) => (
           <li key={s.name} className="flex items-center gap-2">
             <span
-              className="inline-block h-2.5 w-2.5 rounded-sm"
+              className="inline-block h-2 w-2 rounded-sm"
               style={{ background: VIDEO_DELIVERY_COLORS[s.name] }}
             />
             <span className="text-muted-foreground">{s.name}</span>
@@ -180,22 +173,6 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
       </ul>
     </div>
   );
-}
-
-function shortUtcDay(bucket: string): string {
-  const s = bucket.trim();
-  if (s.length >= 10) return s.slice(0, 10);
-  return s;
-}
-
-function shortUtcHour(bucket: string): string {
-  const s = bucket.trim().replace("T", " ");
-  return s.length >= 16 ? s.slice(0, 16) : s;
-}
-
-function formatPushOpenRate(rate: number): string {
-  if (!Number.isFinite(rate) || rate <= 0) return "0%";
-  return `${(rate * 100).toFixed(1)}%`;
 }
 
 export function MaterialContentStatsClient() {
@@ -232,24 +209,6 @@ export function MaterialContentStatsClient() {
 
   const presetLabel = PRESETS.find((p) => p.hours === windowHours)?.label ?? String(windowHours);
 
-  const dailyChartData = useMemo(
-    () =>
-      (data?.occurrenceHistoryDaily ?? []).map((r) => ({
-        ...r,
-        day: shortUtcDay(r.bucket),
-      })),
-    [data?.occurrenceHistoryDaily],
-  );
-
-  const hourlyChartData = useMemo(
-    () =>
-      (data?.occurrenceHistoryHourly ?? []).map((r) => ({
-        ...r,
-        hour: shortUtcHour(r.bucket),
-      })),
-    [data?.occurrenceHistoryHourly],
-  );
-
   const practiceChartData = useMemo(
     () => topPagesToChartData(data?.practiceTopPages ?? []),
     [data?.practiceTopPages],
@@ -260,28 +219,10 @@ export function MaterialContentStatsClient() {
     [data?.warmupVideoTopPages],
   );
 
-  const pushDailyChartData = useMemo(
-    () =>
-      (data?.pushOpensDaily ?? []).map((r) => ({
-        ...r,
-        day: shortUtcDay(r.bucket),
-      })),
-    [data?.pushOpensDaily],
-  );
-
-  const pushHourlyChartData = useMemo(
-    () =>
-      (data?.pushOpensHourly ?? []).map((r) => ({
-        ...r,
-        hour: shortUtcHour(r.bucket),
-      })),
-    [data?.pushOpensHourly],
-  );
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Платформа за выбранный период (не фильтр по вашим пациентам). Часы и сутки — UTC.
+        Платформа за выбранный период (не фильтр по вашим пациентам).
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <Select
@@ -308,195 +249,35 @@ export function MaterialContentStatsClient() {
       </div>
 
       {data ? (
-        <>
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Напоминания: отправки по суткам (UTC)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[240px] w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dailyChartData} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      interval={0}
-                      angle={-35}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    <YAxis
-                      width={36}
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="sent" name="Отправлено" stackId="o" fill={FILL_SENT} />
-                    <Bar dataKey="failed" name="Ошибка" stackId="o" fill={FILL_FAILED} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Напоминания: отправки по часам (UTC)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[260px] w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={hourlyChartData} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="hour"
-                      tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                      interval="preserveStartEnd"
-                      minTickGap={24}
-                    />
-                    <YAxis
-                      width={36}
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line type="monotone" dataKey="sent" name="Отправлено" stroke={STROKE_SENT} dot={false} strokeWidth={2} />
-                    <Line
-                      type="monotone"
-                      dataKey="failed"
-                      name="Ошибка"
-                      stroke={STROKE_FAILED}
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Открытия push</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <KpiCard label="Отправлено" value={data.pushOpensSummary.sent} accent="blue" />
-                <KpiCard label="Открыто" value={data.pushOpensSummary.opened} accent="green" />
-                <KpiCard
-                  label="Open rate"
-                  value={formatPushOpenRate(data.pushOpensSummary.openRate)}
-                  sub={data.pushOpensSummary.sent > 0 ? undefined : "нет отправок"}
-                  accent={data.pushOpensSummary.openRate >= 0.1 ? "green" : "muted"}
-                />
-              </div>
-              <div className="h-[200px] w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={pushDailyChartData} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      interval={0}
-                      angle={-35}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    <YAxis width={36} allowDecimals={false} tick={{ fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="sent" name="Отправлено" fill={FILL_PUSH_SENT} />
-                    <Bar dataKey="opened" name="Открыто" fill={FILL_PUSH_OPEN} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="h-[200px] w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={pushHourlyChartData} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="hour"
-                      tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                      interval="preserveStartEnd"
-                      minTickGap={24}
-                    />
-                    <YAxis width={36} allowDecimals={false} tick={{ fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line
-                      type="monotone"
-                      dataKey="opened"
-                      name="Открыто"
-                      stroke={STROKE_PUSH_OPEN}
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="sent"
-                      name="Отправлено"
-                      stroke={STROKE_SENT}
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm">Завершения практики по страницам (топ)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TopPagesHorizontalBarChart data={practiceChartData} barName="Завершений" fill={FILL_PRACTICE} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm">Открытия видео разминок по страницам (топ)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TopPagesHorizontalBarChart data={warmupVideoChartData} barName="Просмотров" fill={FILL_WARMUP_VIDEO} />
-              </CardContent>
-            </Card>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <PushOpensAnalyticsCard data={data} variant="1" />
           </div>
 
-          <Card>
-            <CardHeader className="py-3">
+          <Card className="h-full">
+            <CardHeader className="py-2">
+              <CardTitle className="text-sm">Завершения практики по страницам (топ)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TopPagesHorizontalBarChart data={practiceChartData} barName="Завершений" fill={FILL_PRACTICE} />
+            </CardContent>
+          </Card>
+
+          <Card className="h-full">
+            <CardHeader className="py-2">
+              <CardTitle className="text-sm">Открытия видео разминок по страницам (топ)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TopPagesHorizontalBarChart data={warmupVideoChartData} barName="Просмотров" fill={FILL_WARMUP_VIDEO} />
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader className="py-2">
               <CardTitle className="text-sm">Видео: платформа</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <KpiCard
                   label="Выдач всего"
                   value={data.videoPlayback.totalResolutions}
@@ -546,7 +327,7 @@ export function MaterialContentStatsClient() {
               </p>
             </CardContent>
           </Card>
-        </>
+        </div>
       ) : null}
     </div>
   );

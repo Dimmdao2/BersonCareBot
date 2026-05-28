@@ -203,3 +203,34 @@
 ### Примечание по plan-файлам
 
 - По запросу пользователя отдельный plan-файл не редактировался; изменения отражены в коде и в этом execution log.
+
+---
+
+## 2026-05-28 — Аналитика уведомлений: люди, каналы, пояс приложения
+
+### Сделано
+
+1. **«По уведомлениям» / `loadContentEngagementStats`:**
+   - Блок **«Люди с уведомлениями»** (`peopleWithNotifications`): рост по локальным суткам + donut каналов (взаимоисключающие сегменты).
+   - Циферблат **24 ч** отправок (`reminderSendsLast24hClock`); push **вар 1/2** на контенте и уведомлениях.
+   - Все бакеты и UI — **`app_display_timezone`** (`displayTimezone` в JSON), без подписей UTC в doctor-аналитике.
+   - **`reminderRulesEnabledCount`** оставлен в API как `@deprecated` (число правил, не людей).
+
+2. **Общие модули:** `reminderNotificationPeopleStats.ts`, `reminderHourlyClock.ts`, `displayTimeZoneFormat.ts`, `analytics/shared/*`.
+
+3. **Product analytics:** перегруппировка hourly rollups в `buildAdminDashboard` по `displayTimezone`.
+
+4. **Записи (неделя):** `pgDoctorAppointments` — границы «сегодня/завтра/неделя» через `localDayRangeBoundsIso` + `getAppDisplayTimeZone`.
+
+5. **Здоровье системы:** убраны пользовательские «UTC» в подписях `SystemHealthSection`.
+
+### Ограничения (осознанно)
+
+- Рост людей с напоминаниями — кумулятив по `created_at` среди **сейчас** включённых правил; история отключений не учитывается.
+- Пояс — **единый** `app_display_timezone`, не `calendar_timezone` каждого пациента.
+
+### Проверки
+
+| Проверка | Результат |
+|----------|-----------|
+| `vitest` stats/datetime/product-analytics/route tests | зелёные (локально) |

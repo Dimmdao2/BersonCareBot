@@ -5,7 +5,9 @@ import {
   loadAdminPlaybackClientHealthMetrics,
   type AdminPlaybackClientHealthMetrics,
 } from "@/app-layer/media/playbackClientEvents";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { productAnalyticsWindowStartHour } from "@/modules/product-analytics/buildAdminDashboard";
+import { buildReminderSendsLast24hClock, type HourlyClockSlice } from "@/app-layer/stats/reminderHourlyClock";
 import { patientDailyWarmupVideoViews } from "../../../db/schema/patientDailyWarmupVideoView";
 import { patientPracticeCompletions } from "../../../db/schema/patientPractice";
 import { productAnalyticsHourly } from "../../../db/schema/productAnalytics";
@@ -14,6 +16,10 @@ import {
   reminderOccurrenceHistory,
   reminderRules,
 } from "../../../db/schema/schema";
+import {
+  loadReminderPeopleWithNotificationsStats,
+  type ReminderPeopleWithNotificationsStats,
+} from "@/app-layer/stats/reminderNotificationPeopleStats";
 
 export type ContentEngagementTopPageRow = {
   contentPageId: string;
@@ -32,10 +38,10 @@ export type OccurrenceHourlyBucket = {
   failed: number;
 };
 
-/** UTC-дни (`date_trunc('day', occurred_at)`). */
+/** Сутки в `app_display_timezone`. */
 export type OccurrenceDailyBucket = OccurrenceHourlyBucket;
 
-/** UTC-час / сутки из `product_analytics_hourly` (`push_open`, `push_sent`). */
+/** Час / сутки в `app_display_timezone` (`product_analytics_hourly`: push_open, push_sent). */
 export type PushOpenBucket = {
   bucket: string;
   opened: number;
@@ -51,10 +57,12 @@ export type PushOpensSummary = {
 
 export type ContentEngagementStatsResponse = {
   windowHours: number;
-  /**
-   * Число строк в `reminder_rules` с `is_enabled = true` (вся таблица webapp, без дедупликации по пациенту).
-   */
-  reminderRulesEnabledCount: number;
+  /** IANA из `system_settings.app_display_timezone` — все бакеты и подписи графиков. */
+  displayTimezone: string;
+  /** Люди с ≥1 включённым напоминанием и каналы доставки (см. `loadReminderPeopleWithNotificationsStats`). */
+  peopleWithNotifications: ReminderPeopleWithNotificationsStats;
+  /** Распределение отправок по часам 0–23 за последние 24 ч в `displayTimezone`. */
+  reminderSendsLast24hClock: HourlyClockSlice[];
   occurrenceHistoryHourly: OccurrenceHourlyBucket[];
   occurrenceHistoryDaily: OccurrenceDailyBucket[];
   pushOpensSummary: PushOpensSummary;
@@ -68,6 +76,10 @@ export type ContentEngagementStatsResponse = {
   videoPlayback: AdminPlaybackHealthMetrics;
   /** Ошибки воспроизведения в браузере; тот же helper, что `GET /api/admin/system-health` → `videoPlaybackClient`. */
   videoPlaybackClient: AdminPlaybackClientHealthMetrics;
+  /**
+   * @deprecated Число строк `reminder_rules` с `is_enabled=true` (не люди). Используйте `peopleWithNotifications.currentPeopleCount`.
+   */
+  reminderRulesEnabledCount: number;
 };
 
 /** @deprecated Prefer {@link ContentEngagementStatsResponse}. */
@@ -143,23 +155,26 @@ export async function loadContentEngagementStats(opts: {
   windowHours?: number;
 }): Promise<ContentEngagementStatsResponse> {
   const windowHours = clampWindowHours(opts.windowHours);
+  const displayTimezone = await getAppDisplayTimeZone();
   const windowCutoffSql = sql`(now() - (${windowHours}::integer * interval '1 hour'))`;
   const pushStartHour = productAnalyticsWindowStartHour(windowHours);
   const db = getDrizzle();
 
-  const hourTruncOcc = sql`date_trunc('hour', ${reminderOccurrenceHistory.occurredAt})`;
-  const dayTruncOcc = sql`date_trunc('day', ${reminderOccurrenceHistory.occurredAt})`;
-  const hourTruncPush = sql`date_trunc('hour', ${productAnalyticsHourly.bucketHour})`;
-  const dayTruncPush = sql`date_trunc('day', ${productAnalyticsHourly.bucketHour})`;
+  const hourTruncOcc = sql`date_trunc('hour', timezone(${displayTimezone}, ${reminderOccurrenceHistory.occurredAt}))`;
+  const dayTruncOcc = sql`date_trunc('day', timezone(${displayTimezone}, ${reminderOccurrenceHistory.occurredAt}))`;
+  const hourTruncPush = sql`date_trunc('hour', timezone(${displayTimezone}, ${productAnalyticsHourly.bucketHour}))`;
+  const dayTruncPush = sql`date_trunc('day', timezone(${displayTimezone}, ${productAnalyticsHourly.bucketHour}))`;
 
   const [
     occRows,
     occDailyRows,
+    occClockRows,
     pushHourlyRows,
     pushDailyRows,
     practiceSourceRows,
     practicePageRows,
     warmupVideoPageRows,
+    peopleWithNotifications,
     reminderRulesEnabledRow,
     videoPlayback,
     videoPlaybackClient,
@@ -184,6 +199,20 @@ export async function loadContentEngagementStats(opts: {
       .where(gte(reminderOccurrenceHistory.occurredAt, windowCutoffSql))
       .groupBy(dayTruncOcc, reminderOccurrenceHistory.status)
       .orderBy(asc(dayTruncOcc)),
+    db
+      .select({
+        bucket: sql<string>`${hourTruncOcc}::text`.as("bucket"),
+        status: reminderOccurrenceHistory.status,
+        n: count(),
+      })
+      .from(reminderOccurrenceHistory)
+      .where(
+        and(
+          gte(reminderOccurrenceHistory.occurredAt, sql`now() - interval '24 hours'`),
+        ),
+      )
+      .groupBy(hourTruncOcc, reminderOccurrenceHistory.status)
+      .orderBy(asc(hourTruncOcc)),
     db
       .select({
         bucket: sql<string>`${hourTruncPush}::text`.as("bucket"),
@@ -248,6 +277,7 @@ export async function loadContentEngagementStats(opts: {
       .groupBy(patientDailyWarmupVideoViews.contentPageId, contentPages.section, contentPages.slug)
       .orderBy(desc(count()))
       .limit(15),
+    loadReminderPeopleWithNotificationsStats({ windowHours, displayTimezone }),
     db.select({ cnt: count() }).from(reminderRules).where(eq(reminderRules.isEnabled, true)),
     loadAdminPlaybackHealthMetrics({ windowHours }),
     loadAdminPlaybackClientHealthMetrics({ windowHours }),
@@ -266,10 +296,19 @@ export async function loadContentEngagementStats(opts: {
     practiceBySource[r.source] = Number(r.n ?? 0);
   }
 
+  const reminderSendsLast24hClock = buildReminderSendsLast24hClock(
+    mergeOccurrenceHourly(
+      occClockRows.map((r) => ({ bucket: r.bucket, status: r.status, n: r.n })),
+    ),
+  );
+
   const reminderRulesEnabledCount = Number(reminderRulesEnabledRow[0]?.cnt ?? 0);
 
   return {
     windowHours,
+    displayTimezone,
+    peopleWithNotifications,
+    reminderSendsLast24hClock,
     reminderRulesEnabledCount,
     occurrenceHistoryHourly: mergeOccurrenceHourly(
       occRows.map((r) => ({ bucket: r.bucket, status: r.status, n: r.n })),

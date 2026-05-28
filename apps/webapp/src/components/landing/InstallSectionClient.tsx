@@ -1,59 +1,83 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlatformInstallCard } from "@/components/landing/PlatformInstallCard";
-import { detectLandingInstallPlatform } from "@/components/landing/detectLandingInstallPlatform";
+import {
+  type LandingInstallPlatform,
+  detectLandingInstallPlatform,
+} from "@/components/landing/detectLandingInstallPlatform";
 import {
   INSTALL_SUCCESS_NOTE,
-  otherPlatform,
-  otherPlatformLabel,
   platformIntro,
-  platformSectionTitle,
   stepsForPlatform,
 } from "@/components/landing/installSteps";
-import { landingH2 } from "@/components/landing/landingTypography";
+import { landingH2, landingBodySecondary } from "@/components/landing/landingTypography";
 import { cn } from "@/lib/utils";
 
+const tabs: ReadonlyArray<{ value: LandingInstallPlatform; label: string }> = [
+  { value: "ios", label: "iPhone" },
+  { value: "android", label: "Android" },
+] as const;
+
 export function InstallSectionClient() {
-  const primary = useMemo(() => {
-    if (typeof navigator === "undefined") return "ios" as const;
+  const detected = useMemo<LandingInstallPlatform>(() => {
+    if (typeof navigator === "undefined") return "ios";
     return detectLandingInstallPlatform(navigator.userAgent, navigator.maxTouchPoints);
   }, []);
 
-  const secondary = otherPlatform(primary);
-  const [showOther, setShowOther] = useState(false);
+  const [active, setActive] = useState<LandingInstallPlatform>(detected);
+
+  useEffect(() => {
+    setActive(detected);
+  }, [detected]);
 
   return (
     <>
-      <h2 className={cn(landingH2, "text-center")}>{platformSectionTitle(primary)}</h2>
+      <div className="text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#2F55B7] sm:text-[0.8125rem]">
+          Установка за 30 секунд
+        </p>
+        <h2 className={cn(landingH2, "mt-2")}>Как установить приложение</h2>
+        <p className={cn(landingBodySecondary, "mx-auto mt-3 max-w-md")}>
+          Выберите ваш телефон и повторите шаги — приложение появится на экране как обычная иконка.
+        </p>
+      </div>
 
-      <div className="mt-5 sm:mt-6">
+      <div className="mt-6 flex justify-center sm:mt-7">
+        <div
+          role="tablist"
+          aria-label="Выберите тип телефона"
+          className="inline-flex w-full max-w-xs gap-1 rounded-2xl border border-[#E6ECF8] bg-white p-1 shadow-sm sm:w-auto"
+        >
+          {tabs.map((tab) => {
+            const selected = active === tab.value;
+            return (
+              <button
+                key={tab.value}
+                role="tab"
+                type="button"
+                aria-selected={selected}
+                onClick={() => setActive(tab.value)}
+                className={cn(
+                  "flex-1 rounded-xl px-5 py-2.5 text-base font-semibold transition sm:px-7",
+                  selected
+                    ? "bg-[#2F55B7] text-white shadow-[0_6px_18px_rgba(47,85,183,0.28)]"
+                    : "text-[#475467] hover:bg-[#F4F7FF] hover:text-[#17264A]",
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-6 sm:mt-8">
         <PlatformInstallCard
-          intro={platformIntro(primary)}
-          steps={stepsForPlatform(primary)}
+          intro={platformIntro(active)}
+          steps={stepsForPlatform(active)}
           successNote={INSTALL_SUCCESS_NOTE}
         />
-
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={() => setShowOther((v) => !v)}
-            className="text-base font-medium text-[#2F55B7] underline-offset-2 hover:text-[#2448A5] hover:underline"
-            aria-expanded={showOther}
-          >
-            {otherPlatformLabel(primary)}
-          </button>
-
-          {showOther ? (
-            <div className="mt-4">
-              <PlatformInstallCard
-                intro={platformIntro(secondary)}
-                steps={stepsForPlatform(secondary)}
-                successNote={INSTALL_SUCCESS_NOTE}
-              />
-            </div>
-          ) : null}
-        </div>
       </div>
     </>
   );

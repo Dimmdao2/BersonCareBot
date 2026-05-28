@@ -16,7 +16,14 @@ import { GET } from "./route";
 
 const samplePayload = {
   windowHours: 168,
+  displayTimezone: "Europe/Moscow",
+  reminderSendsLast24hClock: [],
   reminderRulesEnabledCount: 5,
+  peopleWithNotifications: {
+    currentPeopleCount: 5,
+    daily: [],
+    channelSegmentsToday: [],
+  },
   occurrenceHistoryHourly: [] as Array<{ bucket: string; sent: number; failed: number }>,
   occurrenceHistoryDaily: [] as Array<{ bucket: string; sent: number; failed: number }>,
   pushOpensSummary: { opened: 3, sent: 10, openRate: 0.3 },
@@ -83,7 +90,7 @@ describe("GET /api/doctor/content-stats", () => {
     const res = await GET(new Request("http://localhost/api/doctor/content-stats?windowHours=720"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as typeof samplePayload;
-    expect(body.reminderRulesEnabledCount).toBe(5);
+    expect(body.peopleWithNotifications.currentPeopleCount).toBe(5);
     expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({ windowHours: 720 });
   });
 

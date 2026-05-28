@@ -29,22 +29,10 @@ export const stepsAndroid: readonly InstallStep[] = [
   { title: "Подтвердите установку", hint: "android-confirm" },
 ] as const;
 
-export function platformSectionTitle(platform: LandingInstallPlatform): string {
-  return platform === "ios" ? "Как установить на iPhone" : "Как установить на Android";
-}
-
 export function platformIntro(platform: LandingInstallPlatform): string {
   return platform === "ios" ? IOS_INSTALL_INTRO : ANDROID_INSTALL_INTRO;
 }
 
 export function stepsForPlatform(platform: LandingInstallPlatform): readonly InstallStep[] {
   return platform === "ios" ? stepsIos : stepsAndroid;
-}
-
-export function otherPlatformLabel(primary: LandingInstallPlatform): string {
-  return primary === "ios" ? "Инструкция для Android" : "Инструкция для iPhone";
-}
-
-export function otherPlatform(primary: LandingInstallPlatform): LandingInstallPlatform {
-  return primary === "ios" ? "android" : "ios";
 }

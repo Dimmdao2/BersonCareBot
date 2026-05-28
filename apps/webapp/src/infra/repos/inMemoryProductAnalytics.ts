@@ -181,6 +181,7 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
         }));
       return buildAdminDashboard({
         windowHours,
+        displayTimezone: "Europe/Moscow",
         startHourInclusive: startHour,
         hourlyRows,
         userHourlyRows,

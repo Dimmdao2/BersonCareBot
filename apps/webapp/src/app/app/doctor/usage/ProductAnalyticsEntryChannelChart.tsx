@@ -12,6 +12,7 @@ import {
 } from "recharts";
 
 import type { ProductAnalyticsEntryChannelHourlyRow } from "@/modules/product-analytics/types";
+import { formatDisplayZoneHourFromBucket } from "@/shared/datetime/displayTimeZoneFormat";
 
 const STROKE = {
   pwa: "hsl(142 55% 36%)",
@@ -21,12 +22,10 @@ const STROKE = {
 } as const;
 
 function formatBucketTick(bucket: string): string {
-  const d = new Date(bucket);
-  if (Number.isNaN(d.getTime())) return bucket;
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  return `${mm}-${dd} ${hh}:00`;
+  const hour = formatDisplayZoneHourFromBucket(bucket);
+  const day = bucket.trim().slice(0, 10).replace(/-/g, ".").slice(5);
+  if (day.length >= 5) return `${day} ${hour}`;
+  return hour;
 }
 
 export function ProductAnalyticsEntryChannelChart({

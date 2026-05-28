@@ -131,6 +131,8 @@ export type ProductAnalyticsClientActivityRow = {
 
 export type ProductAnalyticsAdminDashboard = {
   windowHours: number;
+  /** IANA `app_display_timezone` — бакеты графиков в этом поясе. */
+  displayTimezone: string;
   generatedAt: string;
   summary: ProductAnalyticsAdminSummary;
   entryChannelHourly: ProductAnalyticsEntryChannelHourlyRow[];

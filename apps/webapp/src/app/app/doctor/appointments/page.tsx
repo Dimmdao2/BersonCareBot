@@ -49,7 +49,7 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
       <section id="doctor-appointments-stats-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Статистика (сегодня)</h2>
         <p className="text-muted-foreground text-sm">
-          Сводка ниже — по окну «сегодня» (UTC). Список может быть в другом режиме — см. заголовок блока записей.
+          Сводка ниже — по окну «сегодня». Список может быть в другом режиме — см. заголовок блока записей.
         </p>
         <ul id="doctor-appointments-stats-list" className="m-0 list-none space-y-3 p-0">
           <li id="doctor-appointments-stats-total">Записей (сегодня, все статусы кроме soft-delete): {stats.total}</li>

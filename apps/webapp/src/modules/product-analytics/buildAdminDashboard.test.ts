@@ -12,6 +12,7 @@ describe("buildAdminDashboard", () => {
   it("aggregates summary, channels, pages, push and daily users", () => {
     const dashboard = buildAdminDashboard({
       windowHours: 168,
+      displayTimezone: "Europe/Moscow",
       startHourInclusive: startHour,
       hourlyRows: [
         {
@@ -117,7 +118,7 @@ describe("buildAdminDashboard", () => {
     expect(dashboard.summary.uniqueActiveUsers).toBe(2);
 
     expect(dashboard.entryChannelHourly).toEqual([
-      { bucket, pwa: 3, telegram: 1, max: 0, browser: 0 },
+      { bucket: "2026-05-20T15:00:00", pwa: 3, telegram: 1, max: 0, browser: 0 },
     ]);
     expect(dashboard.entryChannelTotals).toEqual([
       { entryChannel: "pwa", appOpens: 3 },
@@ -133,7 +134,7 @@ describe("buildAdminDashboard", () => {
     });
     expect(dashboard.pageViewsHourly).toEqual([
       {
-        bucket,
+        bucket: "2026-05-20T15:00:00",
         pageKey: "/app/patient/home",
         views: 5,
         uniqueUsers: 1,
@@ -202,6 +203,7 @@ describe("buildAdminDashboard", () => {
   it("counts auth_login in summary", () => {
     const dashboard = buildAdminDashboard({
       windowHours: 24,
+      displayTimezone: "Europe/Moscow",
       startHourInclusive: startHour,
       hourlyRows: [
         {
@@ -223,6 +225,7 @@ describe("buildAdminDashboard", () => {
   it("excludes buckets before startHourInclusive", () => {
     const dashboard = buildAdminDashboard({
       windowHours: 24,
+      displayTimezone: "Europe/Moscow",
       startHourInclusive: startHour,
       hourlyRows: [
         {

@@ -1,4 +1,4 @@
-/** Диапазон для агрегатов `getAppointmentStats` (сегодня / завтра / неделя от UTC-полуночи). */
+/** Диапазон для агрегатов `getAppointmentStats` (сегодня / завтра / неделя в `app_display_timezone`). */
 export type DoctorAppointmentsStatsRange = "today" | "tomorrow" | "week";
 
 export type DoctorAppointmentStatsFilter = {

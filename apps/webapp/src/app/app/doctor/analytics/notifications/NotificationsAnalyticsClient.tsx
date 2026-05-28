@@ -24,6 +24,9 @@ import {
 } from "@/components/ui/select";
 import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
+import { PeopleWithNotificationsCard } from "@/app/app/doctor/analytics/shared/PeopleWithNotificationsCard";
+import { PushOpensAnalyticsCard } from "@/app/app/doctor/analytics/shared/PushOpensAnalyticsCard";
+import { ReminderSendsHourlyClockChart } from "@/app/app/doctor/analytics/shared/ReminderSendsHourlyClockChart";
 
 const PRESETS = [
   { hours: 24, label: "24 ч" },
@@ -31,10 +34,6 @@ const PRESETS = [
   { hours: 720, label: "30 дн." },
 ] as const;
 
-const FILL_SENT = "hsl(215 55% 52% / 0.85)";
-const FILL_FAILED = "hsl(0 65% 52% / 0.85)";
-const FILL_PUSH_OPEN = "hsl(142 45% 42% / 0.85)";
-const FILL_PUSH_SENT = "hsl(215 55% 52% / 0.85)";
 const FILL_PRACTICE = "hsl(142 45% 42% / 0.9)";
 const FILL_WARMUP_VIDEO = "hsl(215 55% 48% / 0.9)";
 
@@ -46,14 +45,8 @@ const VIDEO_DELIVERY_COLORS: Record<string, string> = {
 
 type TopPageRow = { section: string; slug: string; count: number };
 
-function shortUtcDay(bucket: string): string {
-  const s = bucket.trim();
-  if (s.length >= 10) return s.slice(0, 10);
-  return s;
-}
-
 function chartHeightForRows(rowCount: number): number {
-  return Math.min(360, 80 + rowCount * 28);
+  return Math.min(200, 72 + rowCount * 24);
 }
 
 function formatPct(rate: number): string {
@@ -83,7 +76,6 @@ function TopPagesHorizontalBarChart({
   if (data.length === 0) {
     return <p className="text-sm text-muted-foreground">Нет данных за период.</p>;
   }
-
   const height = chartHeightForRows(data.length);
   return (
     <div className="w-full min-w-0" style={{ height }}>
@@ -117,16 +109,16 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
   }
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="h-[120px] w-[120px] shrink-0">
+    <div className="flex items-center gap-3">
+      <div className="h-[88px] w-[88px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={slices}
               cx="50%"
               cy="50%"
-              innerRadius={32}
-              outerRadius={54}
+              innerRadius={24}
+              outerRadius={40}
               paddingAngle={2}
               dataKey="value"
             >
@@ -145,11 +137,11 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <ul className="space-y-1.5 text-xs">
+      <ul className="space-y-1 text-xs">
         {slices.map((s) => (
           <li key={s.name} className="flex items-center gap-2">
             <span
-              className="inline-block h-2.5 w-2.5 rounded-sm"
+              className="inline-block h-2 w-2 rounded-sm"
               style={{ background: VIDEO_DELIVERY_COLORS[s.name] }}
             />
             <span className="text-muted-foreground">{s.name}</span>
@@ -193,24 +185,6 @@ export function NotificationsAnalyticsClient() {
 
   const presetLabel = PRESETS.find((p) => p.hours === windowHours)?.label ?? String(windowHours);
 
-  const remindersDailyChartData = useMemo(
-    () =>
-      (data?.occurrenceHistoryDaily ?? []).map((r) => ({
-        ...r,
-        day: shortUtcDay(r.bucket),
-      })),
-    [data?.occurrenceHistoryDaily],
-  );
-
-  const pushDailyChartData = useMemo(
-    () =>
-      (data?.pushOpensDaily ?? []).map((r) => ({
-        ...r,
-        day: shortUtcDay(r.bucket),
-      })),
-    [data?.pushOpensDaily],
-  );
-
   const practiceChartData = useMemo(
     () => topPagesToChartData(data?.practiceTopPages ?? []),
     [data?.practiceTopPages],
@@ -222,20 +196,20 @@ export function NotificationsAnalyticsClient() {
   );
 
   const remindersSentTotal = useMemo(
-    () => remindersDailyChartData.reduce((acc, row) => acc + row.sent, 0),
-    [remindersDailyChartData],
+    () => (data?.occurrenceHistoryDaily ?? []).reduce((acc, row) => acc + row.sent, 0),
+    [data?.occurrenceHistoryDaily],
   );
 
   const remindersFailedTotal = useMemo(
-    () => remindersDailyChartData.reduce((acc, row) => acc + row.failed, 0),
-    [remindersDailyChartData],
+    () => (data?.occurrenceHistoryDaily ?? []).reduce((acc, row) => acc + row.failed, 0),
+    [data?.occurrenceHistoryDaily],
   );
 
   const remindersFailRate = remindersSentTotal > 0 ? (remindersFailedTotal / remindersSentTotal) * 100 : 0;
   const openRatePct = data ? Number((data.pushOpensSummary.openRate * 100).toFixed(1)) : 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <Select
           value={String(windowHours)}
@@ -256,19 +230,13 @@ export function NotificationsAnalyticsClient() {
             ))}
           </SelectContent>
         </Select>
-        {loading ? <span className="text-xs text-muted-foreground">Загрузка...</span> : null}
+        {loading ? <span className="text-xs text-muted-foreground">Загрузка…</span> : null}
         {error ? <span className="text-xs text-destructive">{error}</span> : null}
       </div>
 
       {data ? (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <DoctorStatCard
-              id="notif-rules-enabled"
-              title="Правил включено"
-              value={data.reminderRulesEnabledCount}
-              hint="во всей системе"
-            />
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
             <DoctorStatCard id="notif-sent-total" title="Отправлено" value={remindersSentTotal} />
             <DoctorStatCard
               id="notif-failed-total"
@@ -285,114 +253,56 @@ export function NotificationsAnalyticsClient() {
             />
           </div>
 
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Напоминания: отправки по суткам (UTC)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[240px] w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={remindersDailyChartData} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      interval={0}
-                      angle={-35}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    <YAxis
-                      width={36}
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="sent" name="Отправлено" stackId="delivery" fill={FILL_SENT} />
-                    <Bar dataKey="failed" name="Ошибка" stackId="delivery" fill={FILL_FAILED} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid gap-3 md:grid-cols-2">
+            <PeopleWithNotificationsCard stats={data.peopleWithNotifications} />
 
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Push: отправлено и открыто по суткам (UTC)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[220px] w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={pushDailyChartData} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      interval={0}
-                      angle={-35}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    <YAxis width={36} allowDecimals={false} tick={{ fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="sent" name="Отправлено" fill={FILL_PUSH_SENT} />
-                    <Bar dataKey="opened" name="Открыто" fill={FILL_PUSH_OPEN} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="h-full">
+              <CardHeader className="py-2">
+                <CardTitle className="text-sm">Напоминания: отправки по часам, 24 ч</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ReminderSendsHourlyClockChart slices={data.reminderSendsLast24hClock} />
+              </CardContent>
+            </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader className="py-3">
+            <PushOpensAnalyticsCard data={data} variant="2" />
+
+            <Card className="h-full">
+              <CardHeader className="py-2">
                 <CardTitle className="text-sm">Завершения практики по страницам (топ)</CardTitle>
               </CardHeader>
               <CardContent>
                 <TopPagesHorizontalBarChart data={practiceChartData} barName="Завершений" fill={FILL_PRACTICE} />
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="py-3">
+
+            <Card className="h-full">
+              <CardHeader className="py-2">
                 <CardTitle className="text-sm">Открытия видео разминок по страницам (топ)</CardTitle>
               </CardHeader>
               <CardContent>
                 <TopPagesHorizontalBarChart data={warmupVideoChartData} barName="Просмотров" fill={FILL_WARMUP_VIDEO} />
               </CardContent>
             </Card>
-          </div>
 
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Видео: формат доставки и ошибки</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <VideoDeliveryPie
-                hls={data.videoPlayback.byDelivery.hls}
-                mp4={data.videoPlayback.byDelivery.mp4}
-                file={data.videoPlayback.byDelivery.file}
-              />
-              <p className="text-xs text-muted-foreground">
-                Ошибок клиента за период: {data.videoPlaybackClient.totalErrors}, за 1 ч UTC:{" "}
-                {data.videoPlaybackClient.totalErrorsLast1h}
-                {data.videoPlaybackClient.likelyLooping ? ", есть признак цикла (hls_fatal)." : "."}
-              </p>
-            </CardContent>
-          </Card>
+            <Card className="h-full md:col-span-2">
+              <CardHeader className="py-2">
+                <CardTitle className="text-sm">Видео: формат доставки и ошибки</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <VideoDeliveryPie
+                  hls={data.videoPlayback.byDelivery.hls}
+                  mp4={data.videoPlayback.byDelivery.mp4}
+                  file={data.videoPlayback.byDelivery.file}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ошибок клиента за период: {data.videoPlaybackClient.totalErrors}, за последний час:{" "}
+                  {data.videoPlaybackClient.totalErrorsLast1h}
+                  {data.videoPlaybackClient.likelyLooping ? ", есть признак цикла (hls_fatal)." : "."}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </>
       ) : null}
     </div>

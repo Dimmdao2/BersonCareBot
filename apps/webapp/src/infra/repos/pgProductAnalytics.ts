@@ -4,6 +4,7 @@ import {
   productAnalyticsWindowStartHour,
 } from "@/modules/product-analytics/buildAdminDashboard";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import {
   hourlyDimsFromEvent,
   shouldUpdateUserHourly,
@@ -219,6 +220,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
 
     async getAdminDashboard({ windowHours }) {
       const db = getDrizzle();
+      const displayTimezone = await getAppDisplayTimeZone();
       const startHour = productAnalyticsWindowStartHour(windowHours);
       const startIso = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
 
@@ -286,6 +288,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
 
       return buildAdminDashboard({
         windowHours,
+        displayTimezone,
         startHourInclusive: startHour,
         hourlyRows,
         userHourlyRows,

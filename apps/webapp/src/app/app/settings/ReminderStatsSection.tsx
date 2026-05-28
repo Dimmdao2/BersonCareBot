@@ -119,11 +119,11 @@ export function ReminderStatsSection() {
       {data ? (
         <>
           <p className="text-xs text-muted-foreground tabular-nums">
-            Включено правил напоминаний (в системе): {data.reminderRulesEnabledCount}
+            Людей с включёнными напоминаниями: {data.peopleWithNotifications.currentPeopleCount}
           </p>
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">События напоминаний по часам (UTC)</CardTitle>
+              <CardTitle className="text-sm">События напоминаний по часам</CardTitle>
             </CardHeader>
             <CardContent>
               <StatTable
@@ -143,7 +143,7 @@ export function ReminderStatsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">События напоминаний по суткам (UTC)</CardTitle>
+              <CardTitle className="text-sm">События напоминаний по суткам</CardTitle>
             </CardHeader>
             <CardContent>
               <StatTable
@@ -177,7 +177,7 @@ export function ReminderStatsSection() {
                   { k: "Доля открытий", v: formatPushOpenRate(data.pushOpensSummary.openRate) },
                 ]}
               />
-              <p className="text-xs font-medium text-muted-foreground">По суткам (UTC)</p>
+              <p className="text-xs font-medium text-muted-foreground">По суткам</p>
               <StatTable
                 columns={[
                   { key: "bucket", header: "Сутки" },
@@ -190,7 +190,7 @@ export function ReminderStatsSection() {
                   opened: r.opened,
                 }))}
               />
-              <p className="text-xs font-medium text-muted-foreground">По часам (UTC)</p>
+              <p className="text-xs font-medium text-muted-foreground">По часам</p>
               <StatTable
                 columns={[
                   { key: "bucket", header: "Час" },

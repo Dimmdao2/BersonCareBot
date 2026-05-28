@@ -56,7 +56,22 @@ const emptyPlaybackClient = (): {
 
 const samplePayload = {
   windowHours: 24,
+  displayTimezone: "Europe/Moscow",
+  reminderSendsLast24hClock: Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    label: `${String(hour).padStart(2, "0")}:00`,
+    sent: 0,
+    failed: 0,
+  })),
   reminderRulesEnabledCount: 12,
+  peopleWithNotifications: {
+    currentPeopleCount: 27,
+    daily: [{ bucket: "2026-05-27T00:00:00.000Z", peopleCount: 26 }],
+    channelSegmentsToday: [
+      { segment: "only_push" as const, label: "Только Push", peopleCount: 12 },
+      { segment: "multiple" as const, label: "Несколько каналов", peopleCount: 8 },
+    ],
+  },
   occurrenceHistoryHourly: [] as Array<{ bucket: string; sent: number; failed: number }>,
   occurrenceHistoryDaily: [] as Array<{ bucket: string; sent: number; failed: number }>,
   pushOpensSummary: { opened: 1, sent: 4, openRate: 0.25 },
@@ -100,7 +115,7 @@ describe("GET /api/admin/reminder-stats", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as typeof samplePayload;
     expect(body.pushOpensSummary.opened).toBe(1);
-    expect(body.reminderRulesEnabledCount).toBe(12);
+    expect(body.peopleWithNotifications.currentPeopleCount).toBe(27);
     expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({ windowHours: 48 });
   });
 });

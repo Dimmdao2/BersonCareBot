@@ -1,3 +1,5 @@
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
 import { getPool } from "@/infra/db/client";
 import { rubitimeNameIfDifferent } from "@/shared/lib/appointmentRubitimeNameMismatch";
 import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordProvenance";
@@ -26,23 +28,6 @@ export const AR_ACTIVE_UPCOMING_SQL = `ar.deleted_at IS NULL
   AND ar.status IN ('created', 'updated')
   AND ar.record_at IS NOT NULL
   AND ar.record_at >= NOW()`;
-
-function getDateBounds(range: DoctorAppointmentStatsFilter["range"]): { from: string; to: string } {
-  const now = new Date();
-  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
-  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-  const tomorrowEnd = new Date(tomorrowStart.getTime() + 24 * 60 * 60 * 1000 - 1);
-  const weekEnd = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
-
-  if (range === "today") {
-    return { from: todayStart.toISOString(), to: todayEnd.toISOString() };
-  }
-  if (range === "tomorrow") {
-    return { from: tomorrowStart.toISOString(), to: tomorrowEnd.toISOString() };
-  }
-  return { from: todayStart.toISOString(), to: weekEnd.toISOString() };
-}
 
 const LIST_SELECT = `SELECT
           ar.integrator_record_id,
@@ -114,7 +99,8 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
       };
 
       if (filter.kind === "range") {
-        const { from, to } = getDateBounds(filter.range);
+        const iana = await getAppDisplayTimeZone();
+        const { from, to } = localDayRangeBoundsIso(filter.range, iana);
         result = await pool.query(
           `${LIST_SELECT}
          FROM appointment_records ar
@@ -169,7 +155,8 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
 
     async getAppointmentStats(filter: DoctorAppointmentStatsFilter): Promise<AppointmentStats> {
       const pool = getPool();
-      const { from, to } = getDateBounds(filter.range);
+      const iana = await getAppDisplayTimeZone();
+      const { from, to } = localDayRangeBoundsIso(filter.range, iana);
       const rangeResult = await pool.query<{
         total: string;
         cancellations: string;

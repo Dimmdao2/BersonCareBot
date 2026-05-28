@@ -1,3 +1,7 @@
+import {
+  toDisplayZoneDayKey,
+  toDisplayZoneHourBucketKey,
+} from "@/shared/datetime/displayTimeZoneFormat";
 import { truncateToUtcHour } from "@/modules/product-analytics/aggregateKeys";
 import type {
   ProductAnalyticsAdminDashboard,
@@ -60,6 +64,7 @@ export function productAnalyticsWindowStartHour(windowHours: number, now = new D
 
 export function buildAdminDashboard(input: {
   windowHours: number;
+  displayTimezone: string;
   generatedAt?: string;
   startHourInclusive: string;
   hourlyRows: ProductAnalyticsHourlyRollupRow[];
@@ -67,6 +72,7 @@ export function buildAdminDashboard(input: {
   warmupSloganSamples?: WarmupSloganSampleRow[];
   userDisplayNames?: Record<string, string>;
 }): ProductAnalyticsAdminDashboard {
+  const displayTimezone = input.displayTimezone;
   const startMs = new Date(input.startHourInclusive).getTime();
   const inWindow = (bucketHour: string) => new Date(bucketHour).getTime() >= startMs;
 
@@ -134,9 +140,10 @@ export function buildAdminDashboard(input: {
       totalAppOpens += r.eventCount;
       if (PRODUCT_ANALYTICS_ENTRY_CHANNELS.includes(r.entryChannel as ProductAnalyticsEntryChannel)) {
         const ch = r.entryChannel as ProductAnalyticsEntryChannel;
-        const bucketRow = channelByBucket.get(r.bucketHour) ?? emptyChannelCounts();
+        const bucketKey = toDisplayZoneHourBucketKey(r.bucketHour, displayTimezone);
+        const bucketRow = channelByBucket.get(bucketKey) ?? emptyChannelCounts();
         bucketRow[ch] += r.eventCount;
-        channelByBucket.set(r.bucketHour, bucketRow);
+        channelByBucket.set(bucketKey, bucketRow);
         channelTotals[ch] += r.eventCount;
       }
     }
@@ -144,9 +151,10 @@ export function buildAdminDashboard(input: {
     if (r.eventType === "page_view" && !isRollupTotalDim(r.pageKey)) {
       pageViews.set(r.pageKey, (pageViews.get(r.pageKey) ?? 0) + r.eventCount);
       totalPageViews += r.eventCount;
-      const byPage = pageViewsByBucket.get(r.bucketHour) ?? new Map<string, number>();
+      const bucketKey = toDisplayZoneHourBucketKey(r.bucketHour, displayTimezone);
+      const byPage = pageViewsByBucket.get(bucketKey) ?? new Map<string, number>();
       byPage.set(r.pageKey, (byPage.get(r.pageKey) ?? 0) + r.eventCount);
-      pageViewsByBucket.set(r.bucketHour, byPage);
+      pageViewsByBucket.set(bucketKey, byPage);
     }
 
     if (r.eventType === "push_sent") {
@@ -178,7 +186,7 @@ export function buildAdminDashboard(input: {
     const activity = r.appOpens + r.pageViews + r.pushOpens + r.activeMinutes;
     if (activity <= 0) continue;
     activeUserIds.add(r.userId);
-    const day = r.bucketHour.slice(0, 10);
+    const day = toDisplayZoneDayKey(r.bucketHour, displayTimezone);
     const daySet = dailyActiveUsers.get(day) ?? new Set<string>();
     daySet.add(r.userId);
     dailyActiveUsers.set(day, daySet);
@@ -188,11 +196,12 @@ export function buildAdminDashboard(input: {
       users.add(r.userId);
       pageUniqueUsers.set(r.pageKey, users);
 
-      const byPage = pageUniqueUsersByBucket.get(r.bucketHour) ?? new Map<string, Set<string>>();
+      const bucketKey = toDisplayZoneHourBucketKey(r.bucketHour, displayTimezone);
+      const byPage = pageUniqueUsersByBucket.get(bucketKey) ?? new Map<string, Set<string>>();
       const pageUsers = byPage.get(r.pageKey) ?? new Set<string>();
       pageUsers.add(r.userId);
       byPage.set(r.pageKey, pageUsers);
-      pageUniqueUsersByBucket.set(r.bucketHour, byPage);
+      pageUniqueUsersByBucket.set(bucketKey, byPage);
     }
 
     if (!PRODUCT_ANALYTICS_ENTRY_CHANNELS.includes(r.entryChannel as ProductAnalyticsEntryChannel)) {
@@ -357,6 +366,7 @@ export function buildAdminDashboard(input: {
 
   return {
     windowHours: input.windowHours,
+    displayTimezone,
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     summary: {
       uniqueActiveUsers: activeUserIds.size,

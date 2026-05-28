@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import type { ProductAnalyticsAdminDashboard } from "@/modules/product-analytics/types";
+import { formatDisplayZoneInstantRu } from "@/shared/datetime/displayTimeZoneFormat";
 import { ProductAnalyticsActiveUsersChart } from "./ProductAnalyticsActiveUsersChart";
 import { ProductAnalyticsEntryChannelChart } from "./ProductAnalyticsEntryChannelChart";
 import { ProductAnalyticsPushByTopicChart } from "./ProductAnalyticsPushByTopicChart";
@@ -185,7 +186,7 @@ export function ProductAnalyticsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Активные клиенты по суткам (UTC)</CardTitle>
+              <CardTitle className="text-sm">Активные клиенты по суткам</CardTitle>
             </CardHeader>
             <CardContent>
               <ProductAnalyticsActiveUsersChart rows={data.activeUsersDaily} />
@@ -194,7 +195,7 @@ export function ProductAnalyticsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Заходы по каналу (UTC)</CardTitle>
+              <CardTitle className="text-sm">Заходы по каналу</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <ProductAnalyticsEntryChannelChart rows={data.entryChannelHourly} />
@@ -259,7 +260,7 @@ export function ProductAnalyticsSection() {
               <StatTable
                 columns={[
                   { key: "displayName", header: "Клиент" },
-                  { key: "lastSeenAt", header: "Последний визит (UTC)" },
+                  { key: "lastSeenAt", header: "Последний визит" },
                   { key: "appOpens", header: "Заходы" },
                   { key: "pageViews", header: "Страницы" },
                   { key: "pushOpens", header: "Push open" },
@@ -268,7 +269,7 @@ export function ProductAnalyticsSection() {
                 ]}
                 rows={topClientRows.map((r) => ({
                   displayName: r.displayName,
-                  lastSeenAt: r.lastSeenAt ?? "—",
+                  lastSeenAt: formatDisplayZoneInstantRu(r.lastSeenAt, data.displayTimezone),
                   appOpens: r.appOpens,
                   pageViews: r.pageViews,
                   pushOpens: r.pushOpens,
@@ -288,7 +289,7 @@ export function ProductAnalyticsSection() {
                     <StatTable
                       columns={[
                         { key: "displayName", header: "Клиент" },
-                        { key: "lastSeenAt", header: "Последний визит (UTC)" },
+                        { key: "lastSeenAt", header: "Последний визит" },
                         { key: "appOpens", header: "Заходы" },
                         { key: "pageViews", header: "Страницы" },
                         { key: "pushOpens", header: "Push open" },
@@ -297,7 +298,7 @@ export function ProductAnalyticsSection() {
                       ]}
                       rows={extraClientRows.map((r) => ({
                         displayName: r.displayName,
-                        lastSeenAt: r.lastSeenAt ?? "—",
+                        lastSeenAt: formatDisplayZoneInstantRu(r.lastSeenAt, data.displayTimezone),
                         appOpens: r.appOpens,
                         pageViews: r.pageViews,
                         pushOpens: r.pushOpens,

@@ -992,7 +992,7 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="Смысл"
-                value={`Окно ${data?.videoPlayback?.windowHours ?? 24} ч — UTC.`}
+                value={`Окно ${data?.videoPlayback?.windowHours ?? 24} ч.`}
               />
               <DetailRow
                 label="API выдачи ссылок на видео"
@@ -1011,7 +1011,7 @@ export function SystemHealthSection() {
                     value={`${data?.videoPlayback?.byDelivery.hls ?? 0} / ${data?.videoPlayback?.byDelivery.mp4 ?? 0} / ${data?.videoPlayback?.byDelivery.file ?? 0}`}
                   />
                   <DetailRow
-                    label="За последний час (UTC)"
+                    label="За последний час"
                     value={`${data?.videoPlayback?.totalResolutionsLast1h ?? 0} всего · HLS ${data?.videoPlayback?.byDeliveryLast1h?.hls ?? 0} / MP4 ${data?.videoPlayback?.byDeliveryLast1h?.mp4 ?? 0} / файл ${data?.videoPlayback?.byDeliveryLast1h?.file ?? 0}`}
                   />
                   <DetailRow
@@ -1019,7 +1019,7 @@ export function SystemHealthSection() {
                     value={String(data?.videoPlayback?.fallbackTotal ?? 0)}
                   />
                   <DetailRow
-                    label="Переходов на запасной вариант (1 ч UTC)"
+                    label="Переходов на запасной вариант (1 ч)"
                     value={String(data?.videoPlayback?.fallbackTotalLast1h ?? 0)}
                   />
                   <DetailRow
@@ -1036,20 +1036,20 @@ export function SystemHealthSection() {
                   label="Итог"
                   value={
                     data?.videoPlaybackClient?.status === "ok"
-                      ? "За последний час UTC — без зафиксированных ошибок"
+                      ? "За последний час — без зафиксированных ошибок"
                       : data?.videoPlaybackClient?.status === "degraded"
-                        ? "За последний час UTC есть ошибки"
+                        ? "За последний час есть ошибки"
                         : "Диагностика недоступна"
                   }
                 />
                 <DetailRow label="Всего за 24 ч" value={String(data?.videoPlaybackClient?.totalErrors ?? 0)} />
-                <DetailRow label="За 1 ч UTC" value={String(data?.videoPlaybackClient?.totalErrorsLast1h ?? 0)} />
+                <DetailRow label="За 1 ч" value={String(data?.videoPlaybackClient?.totalErrorsLast1h ?? 0)} />
                 <DetailRow
                   label="В ошибках: HLS / MP4 / файл"
                   value={`${data?.videoPlaybackClient?.byDelivery.hls ?? 0} / ${data?.videoPlaybackClient?.byDelivery.mp4 ?? 0} / ${data?.videoPlaybackClient?.byDelivery.file ?? 0}`}
                 />
                 <DetailRow
-                  label="Повторяющийся сбой HLS по одному видео (текущий UTC-час)"
+                  label="Повторяющийся сбой HLS по одному видео (текущий час)"
                   value={data?.videoPlaybackClient?.likelyLooping ? "да" : "нет"}
                 />
                 <TechDiagBlock>
@@ -1104,7 +1104,7 @@ export function SystemHealthSection() {
             </HealthAccordionItem>
 
             <HealthAccordionItem name="Транскод HLS и очередь" status={transcodeAccordionStatus}>
-              <p className="text-xs text-muted-foreground">Счётчики задач за 1 ч и 24 ч — в UTC.</p>
+              <p className="text-xs text-muted-foreground">Счётчики задач за 1 ч и 24 ч.</p>
               <DetailRow
                 label="Итог"
                 value={
@@ -1127,8 +1127,8 @@ export function SystemHealthSection() {
                     : `${data?.videoTranscode?.pendingCount ?? 0} / ${data?.videoTranscode?.processingCount ?? 0}`
                 }
               />
-              <DetailRow label="Завершено / ошибки (1 ч UTC)" value={`${data?.videoTranscode?.doneLastHour ?? 0} / ${data?.videoTranscode?.failedLastHour ?? 0}`} />
-              <DetailRow label="Завершено / ошибки (24 ч UTC)" value={`${data?.videoTranscode?.doneLast24h ?? 0} / ${data?.videoTranscode?.failedLast24h ?? 0}`} />
+              <DetailRow label="Завершено / ошибки (1 ч)" value={`${data?.videoTranscode?.doneLastHour ?? 0} / ${data?.videoTranscode?.failedLastHour ?? 0}`} />
+              <DetailRow label="Завершено / ошибки (24 ч)" value={`${data?.videoTranscode?.doneLast24h ?? 0} / ${data?.videoTranscode?.failedLast24h ?? 0}`} />
               <DetailRow label="Завершено / ошибки (всего)" value={`${data?.videoTranscode?.doneLifetime ?? 0} / ${data?.videoTranscode?.failedLifetime ?? 0}`} />
               <DetailRow
                 label="Видео без потоковой версии (кандидаты сверки, до 3 ГиБ)"
@@ -1139,7 +1139,7 @@ export function SystemHealthSection() {
                 value={String(data?.videoTranscode?.readableVideoReadyWithHlsCount ?? 0)}
               />
               <DetailRow
-                label="Среднее время успешной задачи (1 ч UTC), мс"
+                label="Среднее время успешной задачи (1 ч), мс"
                 value={
                   data?.videoTranscode?.avgProcessingMsDoneLastHour == null
                     ? "—"

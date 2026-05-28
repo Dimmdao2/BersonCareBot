@@ -1,55 +1,93 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Smartphone } from "lucide-react";
+import { Check } from "lucide-react";
 import { LANDING_INSTALL_HASH } from "@/components/landing/landingConstants";
 import {
-  landingBody,
-  landingCaption,
   landingContainer,
   landingCtaPrimary,
+  landingCtaSecondary,
   landingH1,
+  landingLead,
 } from "@/components/landing/landingTypography";
 import { cn } from "@/lib/utils";
 
+const trustPoints = [
+  "Без App Store и Google Play",
+  "Бесплатно, без подписок и рекламы",
+  "Открывается с экрана телефона в один клик",
+] as const;
+
 export function HeroSection() {
   return (
-    <section className="overflow-x-hidden bg-gradient-to-br from-[#EEF4FF] via-[#F4F7FF] to-white py-10 sm:py-12 lg:py-20">
-      <div className={landingContainer}>
-        <div className="grid min-w-0 items-center gap-8 md:grid-cols-2 md:gap-10 lg:gap-12">
-          <div className="flex min-w-0 flex-col items-stretch">
-            <h1 className={landingH1}>BersonCare — приложение для восстановления</h1>
+    <section className="relative overflow-x-hidden bg-gradient-to-br from-[#EEF4FF] via-[#F4F7FF] to-white py-12 sm:py-14 lg:py-24">
+      <div
+        className="pointer-events-none absolute -top-24 right-[-10%] hidden h-[420px] w-[420px] rounded-full bg-[#2F55B7]/[0.08] blur-3xl md:block"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute bottom-[-30%] left-[-15%] hidden h-[420px] w-[420px] rounded-full bg-[#5A78D6]/[0.08] blur-3xl md:block"
+        aria-hidden
+      />
 
-            <p className={cn(landingBody, "mt-4")}>
-              Программа, разминки, дневник и напоминания будут открываться в один клик.
+      <div className={cn("relative", landingContainer)}>
+        <div className="grid min-w-0 items-center gap-10 md:grid-cols-2 md:gap-10 lg:gap-16">
+          <div className="flex min-w-0 flex-col items-stretch">
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[#D5DEF1] bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#2F55B7] backdrop-blur sm:text-[0.8125rem]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#2F55B7]" aria-hidden />
+              Кабинет пациента
+            </span>
+
+            <h1 className={cn(landingH1, "mt-4")}>
+              Восстановление, которое всегда под рукой
+            </h1>
+
+            <p className={cn(landingLead, "mt-4 max-w-xl")}>
+              Программа реабилитации, разминки, дневник самочувствия и напоминания —
+              в одном приложении на вашем телефоне.
             </p>
 
-            <div className="mt-6">
+            <ul className="mt-6 flex flex-col gap-2.5">
+              {trustPoints.map((text) => (
+                <li
+                  key={text}
+                  className="flex items-start gap-2.5 text-[0.9375rem] font-medium leading-6 text-[#17264A] sm:text-base"
+                >
+                  <span
+                    className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#ECFDF3] text-[#17A56B]"
+                    aria-hidden
+                  >
+                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                  </span>
+                  <span className="min-w-0">{text}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <Link href={LANDING_INSTALL_HASH} className={landingCtaPrimary}>
                 Установить приложение
               </Link>
+              <Link href={LANDING_INSTALL_HASH} className={landingCtaSecondary}>
+                Как установить
+              </Link>
             </div>
 
-            <p className={cn("mt-4 flex min-w-0 items-start gap-2", landingCaption)}>
-              <Smartphone className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span className="min-w-0 break-words">Устанавливается без App Store и Google Play.</span>
-            </p>
-
-            <div className="mx-auto mt-6 w-full max-w-[240px] md:hidden">
+            <div className="mx-auto mt-10 w-full max-w-[260px] md:hidden">
               <Image
                 src="/images/landing/hero-phones.png"
                 alt=""
                 width={522}
                 height={515}
                 priority
-                sizes="240px"
-                className="mx-auto h-auto w-full max-w-[240px] opacity-90 drop-shadow-md"
+                sizes="260px"
+                className="mx-auto h-auto w-full max-w-[260px] drop-shadow-xl"
               />
             </div>
           </div>
 
           <div className="relative hidden min-w-0 items-center justify-end md:flex">
             <div
-              className="pointer-events-none absolute inset-[8%] rounded-full bg-[#2F55B7]/[0.06] blur-3xl"
+              className="pointer-events-none absolute inset-[6%] rounded-[40%] bg-[#2F55B7]/10 blur-3xl"
               aria-hidden
             />
             <Image
@@ -58,8 +96,8 @@ export function HeroSection() {
               width={522}
               height={515}
               priority
-              sizes="(max-width: 1024px) 46vw, 480px"
-              className="relative h-auto w-full max-w-[420px] drop-shadow-2xl lg:max-w-[480px]"
+              sizes="(max-width: 1024px) 46vw, 520px"
+              className="relative h-auto w-full max-w-[440px] drop-shadow-[0_28px_50px_rgba(31,61,120,0.25)] lg:max-w-[520px]"
             />
           </div>
         </div>
