@@ -14,8 +14,8 @@ import {
   YAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ReminderPeopleWithNotificationsStats } from "@/app-layer/stats/reminderNotificationPeopleStats";
-import { reminderPeopleChannelSegmentColor } from "@/app-layer/stats/reminderNotificationPeopleStats";
+import type { ReminderPeopleWithNotificationsStats } from "@/app-layer/stats/reminderNotificationPeopleShared";
+import { reminderPeopleChannelSegmentColor } from "@/app-layer/stats/reminderNotificationPeopleShared";
 import {
   formatDisplayZoneDayRuFromBucket,
   formatDisplayZoneDayShortFromBucket,

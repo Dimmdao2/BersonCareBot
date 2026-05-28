@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateReminderPeopleChannelSegments,
   classifyReminderDeliveryChannelSegment,
-} from "./reminderNotificationPeopleStats";
+} from "./reminderNotificationPeopleShared";
 
 describe("classifyReminderDeliveryChannelSegment", () => {
   it("returns no_channel when nothing active", () => {
