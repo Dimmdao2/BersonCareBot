@@ -7,8 +7,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -25,72 +23,52 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
+import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 
 const PRESETS = [
+  { hours: 24, label: "24 ч" },
   { hours: 168, label: "7 дн." },
   { hours: 720, label: "30 дн." },
 ] as const;
 
-const STROKE_SENT = "hsl(215 65% 42%)";
-const STROKE_FAILED = "hsl(0 72% 48%)";
 const FILL_SENT = "hsl(215 55% 52% / 0.85)";
 const FILL_FAILED = "hsl(0 65% 52% / 0.85)";
-const FILL_PRACTICE = "hsl(142 45% 42% / 0.9)";
-const FILL_WARMUP_VIDEO = "hsl(215 55% 48% / 0.9)";
-const STROKE_PUSH_OPEN = "hsl(142 50% 38%)";
 const FILL_PUSH_OPEN = "hsl(142 45% 42% / 0.85)";
 const FILL_PUSH_SENT = "hsl(215 55% 52% / 0.85)";
+const FILL_PRACTICE = "hsl(142 45% 42% / 0.9)";
+const FILL_WARMUP_VIDEO = "hsl(215 55% 48% / 0.9)";
 
 const VIDEO_DELIVERY_COLORS: Record<string, string> = {
   HLS: "hsl(215 60% 52%)",
   MP4: "hsl(38 75% 52%)",
-  Файл: "hsl(142 45% 48%)",
+  FILE: "hsl(142 45% 48%)",
 };
 
 type TopPageRow = { section: string; slug: string; count: number };
 
-function topPagesToChartData(rows: TopPageRow[]) {
-  return rows.map((r) => {
-    const full = `${r.section}/${r.slug}`;
-    return {
-      label: full.length > 44 ? `${full.slice(0, 41)}…` : full,
-      count: r.count,
-    };
-  });
+function shortUtcDay(bucket: string): string {
+  const s = bucket.trim();
+  if (s.length >= 10) return s.slice(0, 10);
+  return s;
 }
 
 function chartHeightForRows(rowCount: number): number {
   return Math.min(360, 80 + rowCount * 28);
 }
 
-function KpiCard({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  accent?: "blue" | "green" | "red" | "orange" | "muted";
-}) {
-  const borderClass =
-    accent === "blue"
-      ? "border-l-4 border-l-blue-500/70"
-      : accent === "green"
-        ? "border-l-4 border-l-emerald-500/70"
-        : accent === "red"
-          ? "border-l-4 border-l-red-500/70"
-          : accent === "orange"
-            ? "border-l-4 border-l-amber-500/70"
-            : "";
-  return (
-    <div className={`rounded-lg border border-border/60 bg-card p-4 ${borderClass}`}>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums leading-tight">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
-    </div>
-  );
+function formatPct(rate: number): string {
+  if (!Number.isFinite(rate) || rate <= 0) return "0%";
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
+function topPagesToChartData(rows: TopPageRow[]) {
+  return rows.map((r) => {
+    const full = `${r.section}/${r.slug}`;
+    return {
+      label: full.length > 44 ? `${full.slice(0, 41)}...` : full,
+      count: r.count,
+    };
+  });
 }
 
 function TopPagesHorizontalBarChart({
@@ -105,6 +83,7 @@ function TopPagesHorizontalBarChart({
   if (data.length === 0) {
     return <p className="text-sm text-muted-foreground">Нет данных за период.</p>;
   }
+
   const height = chartHeightForRows(data.length);
   return (
     <div className="w-full min-w-0" style={{ height }}>
@@ -130,7 +109,7 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
   const slices = [
     { name: "HLS", value: hls },
     { name: "MP4", value: mp4 },
-    { name: "Файл", value: file },
+    { name: "FILE", value: file },
   ].filter((s) => s.value > 0);
 
   if (slices.length === 0) {
@@ -139,15 +118,15 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
 
   return (
     <div className="flex items-center gap-4">
-      <div className="h-[100px] w-[100px] shrink-0">
+      <div className="h-[120px] w-[120px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={slices}
               cx="50%"
               cy="50%"
-              innerRadius={28}
-              outerRadius={46}
+              innerRadius={32}
+              outerRadius={54}
               paddingAngle={2}
               dataKey="value"
             >
@@ -182,23 +161,7 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
   );
 }
 
-function shortUtcDay(bucket: string): string {
-  const s = bucket.trim();
-  if (s.length >= 10) return s.slice(0, 10);
-  return s;
-}
-
-function shortUtcHour(bucket: string): string {
-  const s = bucket.trim().replace("T", " ");
-  return s.length >= 16 ? s.slice(0, 16) : s;
-}
-
-function formatPushOpenRate(rate: number): string {
-  if (!Number.isFinite(rate) || rate <= 0) return "0%";
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-export function MaterialContentStatsClient() {
+export function NotificationsAnalyticsClient() {
   const [windowHours, setWindowHours] = useState<number>(168);
   const [data, setData] = useState<ContentEngagementStatsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -208,9 +171,7 @@ export function MaterialContentStatsClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/doctor/content-stats?windowHours=${hours}`, {
-        credentials: "include",
-      });
+      const res = await fetch(`/api/admin/reminder-stats?windowHours=${hours}`, { credentials: "include" });
       if (!res.ok) {
         setError(res.status === 403 ? "Доступ запрещён" : `Ошибка ${res.status}`);
         setData(null);
@@ -232,7 +193,7 @@ export function MaterialContentStatsClient() {
 
   const presetLabel = PRESETS.find((p) => p.hours === windowHours)?.label ?? String(windowHours);
 
-  const dailyChartData = useMemo(
+  const remindersDailyChartData = useMemo(
     () =>
       (data?.occurrenceHistoryDaily ?? []).map((r) => ({
         ...r,
@@ -241,13 +202,13 @@ export function MaterialContentStatsClient() {
     [data?.occurrenceHistoryDaily],
   );
 
-  const hourlyChartData = useMemo(
+  const pushDailyChartData = useMemo(
     () =>
-      (data?.occurrenceHistoryHourly ?? []).map((r) => ({
+      (data?.pushOpensDaily ?? []).map((r) => ({
         ...r,
-        hour: shortUtcHour(r.bucket),
+        day: shortUtcDay(r.bucket),
       })),
-    [data?.occurrenceHistoryHourly],
+    [data?.pushOpensDaily],
   );
 
   const practiceChartData = useMemo(
@@ -260,29 +221,21 @@ export function MaterialContentStatsClient() {
     [data?.warmupVideoTopPages],
   );
 
-  const pushDailyChartData = useMemo(
-    () =>
-      (data?.pushOpensDaily ?? []).map((r) => ({
-        ...r,
-        day: shortUtcDay(r.bucket),
-      })),
-    [data?.pushOpensDaily],
+  const remindersSentTotal = useMemo(
+    () => remindersDailyChartData.reduce((acc, row) => acc + row.sent, 0),
+    [remindersDailyChartData],
   );
 
-  const pushHourlyChartData = useMemo(
-    () =>
-      (data?.pushOpensHourly ?? []).map((r) => ({
-        ...r,
-        hour: shortUtcHour(r.bucket),
-      })),
-    [data?.pushOpensHourly],
+  const remindersFailedTotal = useMemo(
+    () => remindersDailyChartData.reduce((acc, row) => acc + row.failed, 0),
+    [remindersDailyChartData],
   );
+
+  const remindersFailRate = remindersSentTotal > 0 ? (remindersFailedTotal / remindersSentTotal) * 100 : 0;
+  const openRatePct = data ? Number((data.pushOpensSummary.openRate * 100).toFixed(1)) : 0;
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Платформа за выбранный период (не фильтр по вашим пациентам). Часы и сутки — UTC.
-      </p>
       <div className="flex flex-wrap items-center gap-3">
         <Select
           value={String(windowHours)}
@@ -303,12 +256,35 @@ export function MaterialContentStatsClient() {
             ))}
           </SelectContent>
         </Select>
-        {loading ? <span className="text-xs text-muted-foreground">Загрузка…</span> : null}
+        {loading ? <span className="text-xs text-muted-foreground">Загрузка...</span> : null}
         {error ? <span className="text-xs text-destructive">{error}</span> : null}
       </div>
 
       {data ? (
         <>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <DoctorStatCard
+              id="notif-rules-enabled"
+              title="Правил включено"
+              value={data.reminderRulesEnabledCount}
+              hint="во всей системе"
+            />
+            <DoctorStatCard id="notif-sent-total" title="Отправлено" value={remindersSentTotal} />
+            <DoctorStatCard
+              id="notif-failed-total"
+              title="Ошибок"
+              value={remindersFailedTotal}
+              tone={remindersFailedTotal > 0 ? "warning" : "neutral"}
+              hint={remindersSentTotal > 0 ? `Доля: ${formatPct(remindersFailRate / 100)}` : "Нет отправок"}
+            />
+            <DoctorStatCard
+              id="notif-open-rate"
+              title="Push open rate"
+              value={openRatePct}
+              hint={`Открыто: ${data.pushOpensSummary.opened} из ${data.pushOpensSummary.sent}`}
+            />
+          </div>
+
           <Card>
             <CardHeader className="py-3">
               <CardTitle className="text-sm">Напоминания: отправки по суткам (UTC)</CardTitle>
@@ -316,7 +292,7 @@ export function MaterialContentStatsClient() {
             <CardContent>
               <div className="h-[240px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dailyChartData} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
+                  <BarChart data={remindersDailyChartData} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
                     <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
                     <XAxis
                       dataKey="day"
@@ -339,8 +315,8 @@ export function MaterialContentStatsClient() {
                       }}
                     />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="sent" name="Отправлено" stackId="o" fill={FILL_SENT} />
-                    <Bar dataKey="failed" name="Ошибка" stackId="o" fill={FILL_FAILED} />
+                    <Bar dataKey="sent" name="Отправлено" stackId="delivery" fill={FILL_SENT} />
+                    <Bar dataKey="failed" name="Ошибка" stackId="delivery" fill={FILL_FAILED} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -349,63 +325,10 @@ export function MaterialContentStatsClient() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Напоминания: отправки по часам (UTC)</CardTitle>
+              <CardTitle className="text-sm">Push: отправлено и открыто по суткам (UTC)</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[260px] w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={hourlyChartData} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="hour"
-                      tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                      interval="preserveStartEnd"
-                      minTickGap={24}
-                    />
-                    <YAxis
-                      width={36}
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line type="monotone" dataKey="sent" name="Отправлено" stroke={STROKE_SENT} dot={false} strokeWidth={2} />
-                    <Line
-                      type="monotone"
-                      dataKey="failed"
-                      name="Ошибка"
-                      stroke={STROKE_FAILED}
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Открытия push</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <KpiCard label="Отправлено" value={data.pushOpensSummary.sent} accent="blue" />
-                <KpiCard label="Открыто" value={data.pushOpensSummary.opened} accent="green" />
-                <KpiCard
-                  label="Open rate"
-                  value={formatPushOpenRate(data.pushOpensSummary.openRate)}
-                  sub={data.pushOpensSummary.sent > 0 ? undefined : "нет отправок"}
-                  accent={data.pushOpensSummary.openRate >= 0.1 ? "green" : "muted"}
-                />
-              </div>
-              <div className="h-[200px] w-full min-w-0">
+              <div className="h-[220px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={pushDailyChartData} margin={{ top: 8, right: 8, left: 4, bottom: 48 }}>
                     <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
@@ -429,44 +352,6 @@ export function MaterialContentStatsClient() {
                     <Bar dataKey="sent" name="Отправлено" fill={FILL_PUSH_SENT} />
                     <Bar dataKey="opened" name="Открыто" fill={FILL_PUSH_OPEN} />
                   </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="h-[200px] w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={pushHourlyChartData} margin={{ top: 8, right: 12, left: 4, bottom: 8 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="hour"
-                      tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                      interval="preserveStartEnd"
-                      minTickGap={24}
-                    />
-                    <YAxis width={36} allowDecimals={false} tick={{ fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line
-                      type="monotone"
-                      dataKey="opened"
-                      name="Открыто"
-                      stroke={STROKE_PUSH_OPEN}
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="sent"
-                      name="Отправлено"
-                      stroke={STROKE_SENT}
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
@@ -493,56 +378,18 @@ export function MaterialContentStatsClient() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Видео: платформа</CardTitle>
+              <CardTitle className="text-sm">Видео: формат доставки и ошибки</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <KpiCard
-                  label="Выдач всего"
-                  value={data.videoPlayback.totalResolutions}
-                  sub="за период"
-                  accent="blue"
-                />
-                <KpiCard
-                  label="Уникальных пар"
-                  value={data.videoPlayback.uniquePlaybackPairsFirstSeenInWindow}
-                  sub="пользователь + видео"
-                  accent="green"
-                />
-                <KpiCard
-                  label="Fallback на MP4"
-                  value={data.videoPlayback.fallbackTotal}
-                  sub={data.videoPlayback.fallbackTotal > 0 ? "HLS → MP4" : "не потребовался"}
-                  accent={data.videoPlayback.fallbackTotal > 0 ? "orange" : "muted"}
-                />
-                <KpiCard
-                  label="Ошибок плеера"
-                  value={data.videoPlaybackClient.totalErrors}
-                  sub={
-                    data.videoPlaybackClient.likelyLooping
-                      ? "признак цикла hls_fatal"
-                      : data.videoPlaybackClient.totalErrorsLast1h > 0
-                        ? `за 1 ч: ${data.videoPlaybackClient.totalErrorsLast1h}`
-                        : "за 1 ч: 0"
-                  }
-                  accent={data.videoPlaybackClient.totalErrors > 0 ? "red" : "muted"}
-                />
-              </div>
-
-              {data.videoPlayback.totalResolutions > 0 ? (
-                <div>
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">Формат доставки</p>
-                  <VideoDeliveryPie
-                    hls={data.videoPlayback.byDelivery.hls}
-                    mp4={data.videoPlayback.byDelivery.mp4}
-                    file={data.videoPlayback.byDelivery.file}
-                  />
-                </div>
-              ) : null}
-
+            <CardContent className="space-y-3">
+              <VideoDeliveryPie
+                hls={data.videoPlayback.byDelivery.hls}
+                mp4={data.videoPlayback.byDelivery.mp4}
+                file={data.videoPlayback.byDelivery.file}
+              />
               <p className="text-xs text-muted-foreground">
-                При выключенной выдаче видео в настройках счётчики могут быть нулевыми — это не показатель интереса к
-                контенту.
+                Ошибок клиента за период: {data.videoPlaybackClient.totalErrors}, за 1 ч UTC:{" "}
+                {data.videoPlaybackClient.totalErrorsLast1h}
+                {data.videoPlaybackClient.likelyLooping ? ", есть признак цикла (hls_fatal)." : "."}
               </p>
             </CardContent>
           </Card>

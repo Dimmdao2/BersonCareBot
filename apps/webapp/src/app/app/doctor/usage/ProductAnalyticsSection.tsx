@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -9,9 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import type { ProductAnalyticsAdminDashboard } from "@/modules/product-analytics/types";
 import { ProductAnalyticsActiveUsersChart } from "./ProductAnalyticsActiveUsersChart";
 import { ProductAnalyticsEntryChannelChart } from "./ProductAnalyticsEntryChannelChart";
+import { ProductAnalyticsPushByTopicChart } from "./ProductAnalyticsPushByTopicChart";
+import { ProductAnalyticsTopPagesChart } from "./ProductAnalyticsTopPagesChart";
 
 const PRESETS = [
   { hours: 24, label: "24 ч" },
@@ -72,6 +80,7 @@ export function ProductAnalyticsSection() {
   const [data, setData] = useState<ProductAnalyticsAdminDashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showAllClients, setShowAllClients] = useState(false);
 
   const load = useCallback(async (hours: number) => {
     setLoading(true);
@@ -101,6 +110,20 @@ export function ProductAnalyticsSection() {
   }, [load, windowHours]);
 
   const presetLabel = PRESETS.find((p) => p.hours === windowHours)?.label ?? String(windowHours);
+  const pushOpenRatePct = data ? Math.round(data.summary.pushOpenRate * 100) : 0;
+  const sortedClientRows = useMemo(
+    () =>
+      (data?.clientActivity ?? [])
+        .slice()
+        .sort((a, b) => b.totalActivity - a.totalActivity || b.pageViews - a.pageViews),
+    [data?.clientActivity],
+  );
+  const topClientRows = sortedClientRows.slice(0, 10);
+  const extraClientRows = sortedClientRows.slice(10);
+  const channelTotalsText =
+    data?.entryChannelTotals
+      .map((row) => `${CHANNEL_LABEL[row.entryChannel] ?? row.entryChannel}: ${row.appOpens}`)
+      .join(" · ") ?? "—";
 
   return (
     <div className="space-y-4">
@@ -130,119 +153,35 @@ export function ProductAnalyticsSection() {
 
       {data ? (
         <>
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Сводка</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StatTable
-                columns={[
-                  { key: "k", header: "Метрика" },
-                  { key: "v", header: "Значение" },
-                ]}
-                rows={[
-                  { k: "Активные клиенты", v: data.summary.uniqueActiveUsers },
-                  { k: "Входы (auth_login)", v: data.summary.totalAuthLogins },
-                  { k: "Заходы (app_open)", v: data.summary.totalAppOpens },
-                  {
-                    k: "Заходы по каналам",
-                    v:
-                      data.entryChannelTotals
-                        .map((row) => `${CHANNEL_LABEL[row.entryChannel] ?? row.entryChannel}: ${row.appOpens}`)
-                        .join(" | ") || "—",
-                  },
-                  { k: "Просмотры страниц", v: data.summary.totalPageViews },
-                  { k: "Минуты активности (heartbeat)", v: data.summary.totalActiveMinutes },
-                  { k: "Push отправлено", v: data.summary.totalPushSent },
-                  { k: "Открытия push", v: data.summary.totalPushOpens },
-                  { k: "Open rate push", v: formatOpenRate(data.summary.pushOpenRate) },
-                ]}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Заходы по каналу (UTC)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ProductAnalyticsEntryChannelChart rows={data.entryChannelHourly} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Страницы</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StatTable
-                columns={[
-                  { key: "pageKey", header: "Страница" },
-                  { key: "views", header: "Просмотры" },
-                  { key: "uniqueUsers", header: "Клиенты" },
-                ]}
-                rows={data.topPages.map((r) => ({
-                  pageKey: r.pageKey,
-                  views: r.views,
-                  uniqueUsers: r.uniqueUsers,
-                }))}
-              />
-              <p className="mt-4 text-xs font-medium text-muted-foreground">Почасовой срез (топ-страницы)</p>
-              <StatTable
-                columns={[
-                  { key: "bucket", header: "Час (UTC)" },
-                  { key: "pageKey", header: "Страница" },
-                  { key: "views", header: "Просмотры" },
-                  { key: "uniqueUsers", header: "Клиенты" },
-                ]}
-                rows={data.pageViewsHourly.map((r) => ({
-                  bucket: r.bucket,
-                  pageKey: r.pageKey,
-                  views: r.views,
-                  uniqueUsers: r.uniqueUsers,
-                }))}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Push по теме</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <StatTable
-                columns={[
-                  { key: "topicCode", header: "Тема" },
-                  { key: "sent", header: "Отправлено" },
-                  { key: "opened", header: "Открыто" },
-                  { key: "openRate", header: "Open rate" },
-                ]}
-                rows={data.pushByTopic.map((r) => ({
-                  topicCode: r.topicCode,
-                  sent: r.sent,
-                  opened: r.opened,
-                  openRate: formatOpenRate(r.openRate),
-                }))}
-              />
-              <p className="text-xs font-medium text-muted-foreground">Разминка: слоганы</p>
-              <StatTable
-                columns={[
-                  { key: "sloganKey", header: "Ключ" },
-                  { key: "sampleText", header: "Текст" },
-                  { key: "sent", header: "Отправлено" },
-                  { key: "opened", header: "Открыто" },
-                  { key: "openRate", header: "Open rate" },
-                ]}
-                rows={data.warmupSlogans.map((r) => ({
-                  sloganKey: r.sloganKey,
-                  sampleText: r.sampleText ?? "—",
-                  sent: r.sent,
-                  opened: r.opened,
-                  openRate: formatOpenRate(r.openRate),
-                }))}
-              />
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <DoctorStatCard
+              id="usage-kpi-active-users"
+              title="Активных клиентов"
+              value={data.summary.uniqueActiveUsers}
+            />
+            <DoctorStatCard id="usage-kpi-app-opens" title="Заходы" value={data.summary.totalAppOpens} />
+            <DoctorStatCard
+              id="usage-kpi-page-views"
+              title="Просмотры страниц"
+              value={data.summary.totalPageViews}
+            />
+            <DoctorStatCard
+              id="usage-kpi-active-minutes"
+              title="Минуты активности"
+              value={data.summary.totalActiveMinutes}
+            />
+            <DoctorStatCard
+              id="usage-kpi-push-sent"
+              title="Push отправлено"
+              value={data.summary.totalPushSent}
+            />
+            <DoctorStatCard
+              id="usage-kpi-push-open-rate"
+              title="Push open rate"
+              value={pushOpenRatePct}
+              hint={`Открыто: ${data.summary.totalPushOpens}`}
+            />
+          </div>
 
           <Card>
             <CardHeader className="py-3">
@@ -255,9 +194,68 @@ export function ProductAnalyticsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Клиенты</CardTitle>
+              <CardTitle className="text-sm">Заходы по каналу (UTC)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <ProductAnalyticsEntryChannelChart rows={data.entryChannelHourly} />
+              <p className="text-xs text-muted-foreground">{channelTotalsText}</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Топ страниц</CardTitle>
             </CardHeader>
             <CardContent>
+              <ProductAnalyticsTopPagesChart rows={data.topPages} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Push по теме</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ProductAnalyticsPushByTopicChart rows={data.pushByTopic} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Слоганы разминки</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger className="text-xs text-primary underline underline-offset-2">
+                  Слоганы разминки ({data.warmupSlogans.length})
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
+                  <StatTable
+                    columns={[
+                      { key: "sloganKey", header: "Ключ" },
+                      { key: "sampleText", header: "Текст" },
+                      { key: "sent", header: "Отправлено" },
+                      { key: "opened", header: "Открыто" },
+                      { key: "openRate", header: "Open rate" },
+                    ]}
+                    rows={data.warmupSlogans.map((r) => ({
+                      sloganKey: r.sloganKey,
+                      sampleText: r.sampleText ?? "—",
+                      sent: r.sent,
+                      opened: r.opened,
+                      openRate: formatOpenRate(r.openRate),
+                    }))}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Клиенты</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <StatTable
                 columns={[
                   { key: "displayName", header: "Клиент" },
@@ -268,7 +266,7 @@ export function ProductAnalyticsSection() {
                   { key: "activeMinutes", header: "Минуты" },
                   { key: "channels", header: "Каналы" },
                 ]}
-                rows={data.clientActivity.map((r) => ({
+                rows={topClientRows.map((r) => ({
                   displayName: r.displayName,
                   lastSeenAt: r.lastSeenAt ?? "—",
                   appOpens: r.appOpens,
@@ -281,6 +279,38 @@ export function ProductAnalyticsSection() {
                       .join(", ") || "—",
                 }))}
               />
+              {extraClientRows.length > 0 ? (
+                <Collapsible open={showAllClients} onOpenChange={setShowAllClients}>
+                  <CollapsibleTrigger className="text-xs text-primary underline underline-offset-2">
+                    {showAllClients ? "Скрыть" : `Показать всех (${sortedClientRows.length})`}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-3">
+                    <StatTable
+                      columns={[
+                        { key: "displayName", header: "Клиент" },
+                        { key: "lastSeenAt", header: "Последний визит (UTC)" },
+                        { key: "appOpens", header: "Заходы" },
+                        { key: "pageViews", header: "Страницы" },
+                        { key: "pushOpens", header: "Push open" },
+                        { key: "activeMinutes", header: "Минуты" },
+                        { key: "channels", header: "Каналы" },
+                      ]}
+                      rows={extraClientRows.map((r) => ({
+                        displayName: r.displayName,
+                        lastSeenAt: r.lastSeenAt ?? "—",
+                        appOpens: r.appOpens,
+                        pageViews: r.pageViews,
+                        pushOpens: r.pushOpens,
+                        activeMinutes: r.activeMinutes,
+                        channels:
+                          r.channels
+                            .map((c) => `${CHANNEL_LABEL[c.entryChannel] ?? c.entryChannel}: ${c.totalActivity}`)
+                            .join(", ") || "—",
+                      }))}
+                    />
+                  </CollapsibleContent>
+                </Collapsible>
+              ) : null}
             </CardContent>
           </Card>
         </>
