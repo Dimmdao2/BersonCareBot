@@ -5,7 +5,7 @@
 - **Согласованный scope (волна 1):** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) — **live-flow** + фаза 6 (merge-страховка); фазы 7–8 **отложены** (backfill / mass setup).
 - **Мастер-постановка (канон требований):** [`MAIN PLAN.md`](MAIN%20PLAN.md)
 - **Дорожная карта (индекс этапов):** [`ROADMAP.md`](ROADMAP.md) (волна 2+: [`docs/TODO_NOT_NOW/`](../TODO_NOT_NOW/README.md))
-- **Журнал исполнения:** [`LOG.md`](LOG.md) (в т.ч. post-MVP hardening 2026-05-20; **phone messenger bind A+B** 2026-05-27)
+- **Журнал исполнения:** [`LOG.md`](LOG.md) (в т.ч. post-MVP hardening 2026-05-20; **phone messenger bind A+B** 2026-05-27; **registration funnel logging** 2026-05-28)
 - **Отчёт аудита (фаза 0):** [`AUDIT_REPORT.md`](AUDIT_REPORT.md)
 - **Карта кода для аудита (фаза 0):** [`CODE_AUDIT_MAP.md`](CODE_AUDIT_MAP.md)
 - **Аудиты этапов 1–6:** [`PHASE_01_AUDIT.md`](PHASE_01_AUDIT.md) … [`PHASE_06_AUDIT.md`](PHASE_06_AUDIT.md)
@@ -45,6 +45,20 @@
 | [`LOG.md`](LOG.md) §«Приёмка A+B» | Ручной smoke (5 кейсов, ☐ до деплоя) |
 
 Код и CI закрыты; **`manual-e2e-smoke`** в frontmatter планов — `pending`.
+
+## Журнал воронки регистрации (2026-05-28)
+
+Серверный отлов ошибок регистрации (без уведомлений пользователю): attempt → success/failure в product analytics; system-сбои — также в `admin_audit_log`.
+
+| Документ | Назначение |
+|----------|------------|
+| [`LOG.md`](LOG.md) §2026-05-28 | Журнал исполнения, smoke SQL |
+| [`../PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../PRODUCT_ANALYTICS_INITIATIVE/LOG.md) §2026-05-28 | Контекст PA event types |
+| [`../../apps/webapp/src/modules/auth/auth.md`](../../apps/webapp/src/modules/auth/auth.md) | Контракт metadata, `attemptId`, маршруты |
+| [`../../apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) | `GET /api/admin/auth-registration-events` |
+| UI | `/app/doctor/audit-log` — секция «Ошибки регистрации» |
+
+Код: `recordAuthRegistration.ts`, `maskContactHint.ts`, `registrationErrorClass.ts`, `AdminAuthRegistrationEventsSection.tsx`.
 
 ## Правила исполнения для агентов
 

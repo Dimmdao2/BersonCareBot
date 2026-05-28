@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,7 @@ const ACTION_FILTER_SYSTEM_HEALTH = "__system_health__";
 const ACTION_FILTER_OPTIONS = [
   { value: ACTION_FILTER_ALL, label: "Все действия" },
   { value: ACTION_FILTER_SYSTEM_HEALTH, label: "Системные снимки" },
-  { value: "auth_register_failure", label: "auth_register_failure" },
+  { value: "auth_register_failure", label: "Сбои регистрации" },
   { value: "auto_merge_conflict", label: "auto_merge_conflict" },
   { value: "auto_merge_conflict_anomaly", label: "auto_merge_conflict_anomaly" },
   { value: "user_purge", label: "user_purge" },
@@ -124,6 +125,7 @@ const emptyFilters = (): FilterState => ({
 });
 
 export function AdminAuditLogSection() {
+  const searchParams = useSearchParams();
   const [applied, setApplied] = useState<FilterState>(emptyFilters);
   const [draft, setDraft] = useState<FilterState>(emptyFilters);
   const [page, setPage] = useState(1);
@@ -180,12 +182,21 @@ export function AdminAuditLogSection() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const action = searchParams.get("action")?.trim() ?? "";
+    if (!action) return;
+    const known = ACTION_FILTER_OPTIONS.some((o) => o.value === action);
+    if (!known) return;
+    setApplied((prev) => (prev.action === action ? prev : { ...prev, action }));
+    setDraft((prev) => (prev.action === action ? prev : { ...prev, action }));
+  }, [searchParams]);
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
 
   const visibleItems = data?.items ?? [];
 
   return (
-    <Card>
+    <Card id="admin-audit-log">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <CardTitle className="text-base">Лог операций</CardTitle>

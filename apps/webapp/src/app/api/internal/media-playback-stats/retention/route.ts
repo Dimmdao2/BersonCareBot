@@ -6,6 +6,11 @@ import {
   PLAYBACK_HOURLY_STATS_RETENTION_DAYS,
   purgeStalePlaybackHourlyStats,
 } from "@/app-layer/media/playbackHourlyRetention";
+import { recordOperatorCronJobTickBestEffort } from "@/app-layer/operator-health/recordOperatorCronJobTick";
+import {
+  OPERATOR_MEDIA_JOB_FAMILY,
+  OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
+} from "@/modules/operator-health/reconcileJobKeys";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
   const a = Buffer.from(token, "utf8");
@@ -53,20 +58,50 @@ export async function POST(request: Request) {
     /* ignore */
   }
 
-  const result = await purgeStalePlaybackHourlyStats({
-    dryRun,
-    retentionDays,
-  });
+  const startedAt = Date.now();
+  const startedAtIso = new Date(startedAt).toISOString();
 
-  logger.info(
-    { dryRun: result.dryRun, deleted: result.deleted, retentionDays: result.retentionDays },
-    "media_playback_stats_retention_job",
-  );
+  try {
+    const result = await purgeStalePlaybackHourlyStats({
+      dryRun,
+      retentionDays,
+    });
 
-  return NextResponse.json({
-    ok: true,
-    deleted: result.deleted,
-    dryRun: result.dryRun,
-    retentionDays: result.retentionDays,
-  });
+    logger.info(
+      { dryRun: result.dryRun, deleted: result.deleted, retentionDays: result.retentionDays },
+      "media_playback_stats_retention_job",
+    );
+
+    await recordOperatorCronJobTickBestEffort({
+      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+      jobKey: OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
+      startedAtIso,
+      durationMs: Date.now() - startedAt,
+      success: true,
+      metaJson: {
+        dryRun: result.dryRun,
+        deleted: result.deleted,
+        retentionDays: result.retentionDays,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      deleted: result.deleted,
+      dryRun: result.dryRun,
+      retentionDays: result.retentionDays,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await recordOperatorCronJobTickBestEffort({
+      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+      jobKey: OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
+      startedAtIso,
+      durationMs: Date.now() - startedAt,
+      success: false,
+      error: msg,
+    });
+    logger.error({ err: e }, "[internal/media-playback-stats/retention] failed");
+    return NextResponse.json({ ok: false, error: "retention_failed" }, { status: 500 });
+  }
 }

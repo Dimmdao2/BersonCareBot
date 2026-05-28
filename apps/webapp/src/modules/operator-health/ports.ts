@@ -68,7 +68,22 @@ export type OperatorHealthReadPort = {
   getIntegratorPushOutboxHealth(): Promise<IntegratorPushOutboxHealthSnapshot>;
 };
 
+export type OperatorJobTickWriteInput = {
+  jobFamily: string;
+  jobKey: string;
+  startedAtIso: string;
+  durationMs: number;
+  metaJson: Record<string, unknown>;
+};
+
+export type OperatorJobTickFailureWriteInput = OperatorJobTickWriteInput & {
+  error: string;
+};
+
 export type OperatorHealthWritePort = {
+  /** Универсальный upsert periodic job tick (cron / internal HTTP). */
+  recordOperatorJobTickSuccess(input: OperatorJobTickWriteInput): Promise<void>;
+  recordOperatorJobTickFailure(input: OperatorJobTickFailureWriteInput): Promise<void>;
   /** Успешный cron-тик reconcile (не должен пробрасывать наружу из роутера при уже успешном отчёте). */
   recordMediaTranscodeReconcileSuccess(input: {
     startedAtIso: string;

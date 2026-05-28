@@ -13,7 +13,7 @@ export const DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY = "doctorMenu.openClusters.v1
 export const DOCTOR_MENU_DEFAULT_CLUSTER_ID = "patients-work";
 
 /** Ключ счётчика для бейджа пункта меню врача (навигация). */
-export type DoctorMenuBadgeKey = "onlineIntakeNew" | "messagesUnread";
+export type DoctorMenuBadgeKey = "onlineIntakeNew" | "messagesUnread" | "registrationSystemFailures";
 
 export type DoctorMenuLinkItem = {
   id: string;
@@ -163,6 +163,7 @@ const CLUSTER_SISTEMA: DoctorMenuCluster = {
       label: "Журнал операций",
       href: "/app/doctor/audit-log",
       requiresAdminMode: true,
+      badgeKey: "registrationSystemFailures",
     },
   ],
 };

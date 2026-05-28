@@ -325,6 +325,7 @@ describe("GET /api/admin/system-health", () => {
         deliveryEvents: { sent: number; failed: number };
         patientReminderM2mIdempotencyKeysActive: number;
       };
+      cronJobs: { status: string; jobs: Array<{ id: string; jobKey: string }> };
       meta?: {
         probes?: {
           projection?: { status: string; durationMs: number };
@@ -335,6 +336,7 @@ describe("GET /api/admin/system-health", () => {
           outgoingDelivery?: { status: string; durationMs: number; errorCode?: string };
           integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
           remindersPipeline?: { status: string; durationMs: number; errorCode?: string };
+          cronJobs?: { status: string; durationMs: number; errorCode?: string };
         };
       };
       fetchedAt: string;
@@ -373,6 +375,9 @@ describe("GET /api/admin/system-health", () => {
     expect(body.meta?.probes?.integratorPushOutbox?.status).toBe("ok");
     expect(body.meta?.probes?.remindersPipeline?.status).toBe("ok");
     expect(loadAdminReminderPipelineMetricsMock).toHaveBeenCalled();
+    expect(body.cronJobs.jobs.length).toBeGreaterThan(0);
+    expect(body.cronJobs.jobs.some((j) => j.id === "playback_retention")).toBe(true);
+    expect(body.meta?.probes?.cronJobs?.status).toBeDefined();
   });
 
   it("returns integrator unreachable when /health probe fails", async () => {

@@ -40,6 +40,14 @@ vi.mock("@/config/env", () => ({
     NODE_ENV: "production",
     SESSION_COOKIE_SECRET: "test-session-secret-16chars",
   },
+  webappReposAreInMemory: () => false,
+}));
+
+vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
+  newRegistrationAttemptId: () => "attempt-1",
+  recordAuthRegistrationAttempt: vi.fn().mockResolvedValue(undefined),
+  recordAuthRegistrationFailure: vi.fn().mockResolvedValue(undefined),
+  registrationAttemptIdFromOAuthState: () => null,
 }));
 
 import { POST } from "./route";

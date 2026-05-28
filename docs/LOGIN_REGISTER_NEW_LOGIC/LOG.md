@@ -4,19 +4,25 @@
 
 ## 2026-05-28 — Журнал регистрации: отлов ошибок (без уведомлений)
 
+**Статус:** закрыто (реализация + доработки по аудиту).
+
 **Сделано:**
 
-- Product analytics: `auth_register_attempt` / `auth_register_success` / `auth_register_failure` в `product_analytics_events_recent` (retention как у PA, ~90 дней).
-- Helper `recordAuthRegistration` (best-effort); маскирование контакта `maskContactHint`, классификация `registrationErrorClass`.
-- Инструментация публичных auth registration routes: email register/confirm, OAuth start + callbacks (Yandex, Google, Apple), phone start/confirm, messenger-bind start/finish, telegram-init, max-init, exchange.
-- `attemptId`: email в JSON + `authFlowPendingStorage`; OAuth — `n` в signed state; phone — challenge metadata; messenger-bind — `setupToken`.
+- Product analytics: `auth_register_attempt` / `auth_register_success` / `auth_register_failure` в `product_analytics_events_recent` (+ hourly rollup; retention PA ~90 дней).
+- Helper `recordAuthRegistration` (best-effort); `maskContactHint`, `registrationErrorClass` (`access_denied` — user, не audit).
+- Инструментированы публичные registration routes: email register/confirm, OAuth start + callbacks (Yandex, Google, Apple, в т.ч. `?error=` от провайдера), phone start/confirm, messenger-bind start/finish, telegram-init, max-init, exchange.
+- `attemptId`: email — `{ attemptId }` в JSON + `authFlowPendingStorage` → confirm; OAuth — `n` в signed state; phone — challenge metadata; messenger-bind — `setupToken`.
 - `success` только при создании аккаунта (`accountOutcome=created`, `wasCreated`); login-only не пишет success.
-- System failures дублируются в `admin_audit_log` (`auth_register_failure`).
-- Admin: `GET /api/admin/auth-registration-events`, UI на `/app/doctor/audit-log`.
+- System failures (`errorClass=system`) дублируются в `admin_audit_log` (`action=auth_register_failure`).
+- Admin: `GET /api/admin/auth-registration-events`; UI «Ошибки регистрации» на `/app/doctor/audit-log` (фильтры preset/eventType/authMethod, «все ошибки», copy attemptId).
 
-**Проверки:** `pnpm --dir apps/webapp run typecheck`; vitest: `maskContactHint`, `registrationErrorClass`, `recordAuthRegistration`, `auth-registration-events/route`, `register/route`, exchangeIntegratorToken mocks.
+**Документация:** `apps/webapp/src/modules/auth/auth.md` (§Журнал воронки), `apps/webapp/src/app/api/api.md` (`admin/auth-registration-events`), `docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`.
 
-**Вне scope:** push/email/TG уведомления пользователю о сбоях.
+**Проверки:** `pnpm --dir apps/webapp run typecheck`; vitest (44 теста): `maskContactHint`, `registrationErrorClass`, `recordAuthRegistration`, `register/route`, `register/confirm/route`, `oauth/start/route`, `auth-registration-events/route`, messenger-bind start/finish, `oauthYandexResolve`.
+
+**Вне scope:** push/email/TG-уведомления пользователю о сбоях.
+
+**Smoke SQL (dev):** `SELECT event_type, metadata->>'errorCode', metadata->>'attemptId' FROM product_analytics_events_recent WHERE event_type LIKE 'auth_register_%' ORDER BY occurred_at DESC LIMIT 20;`
 
 ## 2026-05-27 — Baseline: phone messenger bind PWA + бот (до плана A/B)
 

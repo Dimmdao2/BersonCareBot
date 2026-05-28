@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useDoctorRegistrationSystemFailureCount } from "@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount";
 import { useDoctorOnlineIntakeNewCount } from "@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount";
 import { useDoctorSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
 import {
@@ -28,16 +29,23 @@ export function formatNavBadgeCount(n: number): string | null {
 }
 
 function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): string {
-  return badgeKey === "onlineIntakeNew"
-    ? `Новых заявок: ${formatted}`
-    : `Непрочитанных сообщений: ${formatted}`;
+  if (badgeKey === "onlineIntakeNew") return `Новых заявок: ${formatted}`;
+  if (badgeKey === "registrationSystemFailures") return `Сбоев регистрации: ${formatted}`;
+  return `Непрочитанных сообщений: ${formatted}`;
 }
 
 function linkAriaLabelWhenBadged(item: DoctorMenuLinkItem, formatted: string): string | undefined {
   if (!item.badgeKey || !formatted) return undefined;
-  return item.badgeKey === "onlineIntakeNew"
-    ? `${item.label}. Новых заявок: ${formatted}.`
-    : `${item.label}. Непрочитанных сообщений: ${formatted}.`;
+  if (item.badgeKey === "onlineIntakeNew") return `${item.label}. Новых заявок: ${formatted}.`;
+  if (item.badgeKey === "registrationSystemFailures") return `${item.label}. Сбоев регистрации: ${formatted}.`;
+  return `${item.label}. Непрочитанных сообщений: ${formatted}.`;
+}
+
+function navBadgeClassName(badgeKey: DoctorMenuBadgeKey): string {
+  if (badgeKey === "registrationSystemFailures") {
+    return "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium tabular-nums leading-none text-destructive-foreground";
+  }
+  return "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums leading-none text-muted-foreground";
 }
 
 const SIDEBAR_LINK_CLASS = cn(
@@ -94,14 +102,16 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
 
   const messagesUnread = useDoctorSupportUnreadCount();
   const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
+  const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(menuAccess.role === "admin");
 
   const badgeCounts = useMemo(
     () =>
       ({
         onlineIntakeNew,
         messagesUnread,
+        registrationSystemFailures,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
-    [onlineIntakeNew, messagesUnread],
+    [onlineIntakeNew, messagesUnread, registrationSystemFailures],
   );
 
   const [openClusterIds, setOpenClusterIds] = useState<Set<string>>(
@@ -163,9 +173,7 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
           <span className="min-w-0 flex-1 text-left">{item.label}</span>
           {badgeText && item.badgeKey ? (
             <span
-              className={cn(
-                "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums leading-none text-muted-foreground",
-              )}
+              className={navBadgeClassName(item.badgeKey)}
               aria-label={badgeSpanAriaLabel(item.badgeKey, badgeText)}
             >
               {badgeText}

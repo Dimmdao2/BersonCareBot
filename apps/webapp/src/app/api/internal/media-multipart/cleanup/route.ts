@@ -10,6 +10,11 @@ import {
   markUploadSessionExpiredTx,
 } from "@/app-layer/media/mediaUploadSessionsRepo";
 import { s3AbortMultipartUpload } from "@/app-layer/media/s3Client";
+import { recordOperatorCronJobTickBestEffort } from "@/app-layer/operator-health/recordOperatorCronJobTick";
+import {
+  OPERATOR_MEDIA_JOB_FAMILY,
+  OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY,
+} from "@/modules/operator-health/reconcileJobKeys";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
   const a = Buffer.from(token, "utf8");
@@ -47,6 +52,8 @@ export async function POST(request: Request) {
   const pool = getPool();
   let cleaned = 0;
   let errors = 0;
+  const startedAt = Date.now();
+  const startedAtIso = new Date(startedAt).toISOString();
 
   try {
     const rows = await listExpiredActiveUploadSessions(Number.isFinite(limit) ? limit : 25);
@@ -95,8 +102,25 @@ export async function POST(request: Request) {
         });
       }
     }
+    await recordOperatorCronJobTickBestEffort({
+      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+      jobKey: OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY,
+      startedAtIso,
+      durationMs: Date.now() - startedAt,
+      success: true,
+      metaJson: { cleaned, errors },
+    });
     return NextResponse.json({ ok: true, cleaned, errors });
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await recordOperatorCronJobTickBestEffort({
+      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+      jobKey: OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY,
+      startedAtIso,
+      durationMs: Date.now() - startedAt,
+      success: false,
+      error: msg,
+    });
     logger.error({ err: e }, "[internal/media-multipart/cleanup] failed");
     return NextResponse.json({ ok: false, error: "cleanup_failed" }, { status: 500 });
   }

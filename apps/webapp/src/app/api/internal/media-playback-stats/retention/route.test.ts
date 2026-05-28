@@ -2,10 +2,11 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { envHolder, purgeMock, loggerInfoMock } = vi.hoisted(() => ({
+const { envHolder, purgeMock, loggerInfoMock, recordTickMock } = vi.hoisted(() => ({
   envHolder: { INTERNAL_JOB_SECRET: "test-internal-secret" as string },
   purgeMock: vi.fn(),
   loggerInfoMock: vi.fn(),
+  recordTickMock: vi.fn(),
 }));
 
 vi.mock("@/config/env", () => ({
@@ -18,7 +19,11 @@ vi.mock("@/app-layer/media/playbackHourlyRetention", () => ({
 }));
 
 vi.mock("@/app-layer/logging/logger", () => ({
-  logger: { info: loggerInfoMock },
+  logger: { info: loggerInfoMock, error: vi.fn() },
+}));
+
+vi.mock("@/app-layer/operator-health/recordOperatorCronJobTick", () => ({
+  recordOperatorCronJobTickBestEffort: (...args: unknown[]) => recordTickMock(...args),
 }));
 
 import { POST } from "./route";
@@ -28,7 +33,9 @@ describe("POST /api/internal/media-playback-stats/retention", () => {
     envHolder.INTERNAL_JOB_SECRET = "test-internal-secret";
     purgeMock.mockReset();
     loggerInfoMock.mockReset();
+    recordTickMock.mockReset();
     purgeMock.mockResolvedValue({ deleted: 3, retentionDays: 90, dryRun: false });
+    recordTickMock.mockResolvedValue(undefined);
   });
 
   it("returns 503 when INTERNAL_JOB_SECRET is not configured", async () => {
@@ -90,5 +97,12 @@ describe("POST /api/internal/media-playback-stats/retention", () => {
     );
     expect(res.status).toBe(200);
     expect(purgeMock).toHaveBeenCalledWith({ dryRun: false, retentionDays: 90 });
+    expect(recordTickMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        jobKey: "media.playback_stats.retention",
+        metaJson: expect.objectContaining({ deleted: 3 }),
+      }),
+    );
   });
 });

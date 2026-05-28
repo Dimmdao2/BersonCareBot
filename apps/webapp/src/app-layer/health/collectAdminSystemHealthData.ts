@@ -28,6 +28,7 @@ import type {
 } from "@/modules/operator-health/ports";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
 import { getLastAuditLogDetailsField, writeAuditLog } from "@/infra/adminAuditLog";
+import { collectCronJobsHealth, type CronJobsHealthPayload } from "@/app-layer/health/collectCronJobsHealth";
 import {
   ADMIN_DELIVERY_DUE_BACKLOG_WARNING,
   classifyVideoTranscodeSystemHealthStatus,
@@ -262,6 +263,8 @@ export type SystemHealthResponse = {
   };
   /** Фактические попытки доставки по каналам (`notification_delivery_attempts`), 24 ч. */
   notificationDelivery: NotificationDeliveryHealthPayload;
+  /** Host cron / internal periodic jobs (`operator_job_status` + backup tiers). */
+  cronJobs: CronJobsHealthPayload;
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
@@ -280,10 +283,13 @@ export type SystemHealthResponse = {
       webPush: { status: string; durationMs: number; errorCode?: string };
       webPushOnlyReminderTick: { status: string; durationMs: number; errorCode?: string };
       notificationDelivery: { status: string; durationMs: number; errorCode?: string };
+      cronJobs: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
 };
+
+export type { CronJobsHealthPayload };
 
 type ProbeResult<T> =
   | { ok: true; value: T; durationMs: number }
@@ -886,7 +892,8 @@ function logProbe(
     | "reminders_pipeline"
     | "web_push"
     | "web_push_only_reminder_tick"
-    | "notification_delivery",
+    | "notification_delivery"
+    | "cron_jobs",
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
@@ -1065,6 +1072,17 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     ? webPushOnlyReminderTickResult.value
     : { status: "error" as const, lastTick: null };
 
+  const cronJobsStartedAt = Date.now();
+  let cronJobsPayload: CronJobsHealthPayload = { status: "no_data", jobs: [] };
+  try {
+    cronJobsPayload = await collectCronJobsHealth({ backupJobs });
+  } catch {
+    cronJobsPayload = { status: "error", jobs: [] };
+  }
+  const cronJobsDurationMs = elapsedMs(cronJobsStartedAt);
+  const cronJobsProbeStatus =
+    cronJobsPayload.status === "no_data" && cronJobsPayload.jobs.length === 0 ? "no_data" : cronJobsPayload.status;
+
   const notificationDeliveryStartedAt = Date.now();
   const notificationDeliveryResult = await loadAdminNotificationDeliveryHealthMetrics();
   const notificationDeliveryPayload: NotificationDeliveryHealthPayload = notificationDeliveryResult.ok
@@ -1164,6 +1182,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     webPush: webPushPayload,
     webPushOnlyReminderTick: webPushOnlyReminderTickPayload,
     notificationDelivery: notificationDeliveryPayload,
+    cronJobs: cronJobsPayload,
     meta: {
       probes: {
         webappDb: {
@@ -1250,6 +1269,10 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           durationMs: notificationDeliveryDurationMs,
           ...(!notificationDeliveryResult.ok ? { errorCode: notificationDeliveryResult.errorCode } : {}),
         },
+        cronJobs: {
+          status: cronJobsProbeStatus,
+          durationMs: cronJobsDurationMs,
+        },
       },
     },
     fetchedAt: nowIso(),
@@ -1290,6 +1313,11 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         },
   );
   logProbe("web_push_only_reminder_tick", webPushOnlyReminderTickResult, webPushOnlyReminderTickPayload.status);
+  logProbe(
+    "cron_jobs",
+    { ok: true, value: cronJobsPayload, durationMs: cronJobsDurationMs },
+    cronJobsProbeStatus,
+  );
   logProbe(
     "notification_delivery",
     notificationDeliveryResult.ok

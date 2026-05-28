@@ -6,8 +6,8 @@ import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 export default async function DoctorAuditLogPage() {
   await requireAdminDoctorPage();
   return (
-    <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <h1 className="mb-6 text-xl font-semibold">Журнал операций</h1>
+    <div className={`${DOCTOR_PAGE_CONTAINER_CLASS} flex flex-col gap-6`}>
+      <h1 className="text-xl font-semibold">Журнал операций</h1>
       <AdminAuthRegistrationEventsSection />
       <AdminAuditLogSection />
     </div>

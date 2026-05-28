@@ -45,6 +45,8 @@ function healthyShell(overrides: Partial<SystemHealthResponse> = {}): SystemHeal
     remindersPipeline: {} as SystemHealthResponse["remindersPipeline"],
     webPush: {} as SystemHealthResponse["webPush"],
     webPushOnlyReminderTick: { status: "ok", lastTick: null },
+    notificationDelivery: {} as SystemHealthResponse["notificationDelivery"],
+    cronJobs: { status: "ok", jobs: [] },
     ...overrides,
   } as SystemHealthResponse;
 }

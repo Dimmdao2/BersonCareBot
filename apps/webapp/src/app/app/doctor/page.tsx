@@ -4,6 +4,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { loadAdminRegistrationFailureAttention } from "@/app-layer/product-analytics/loadAdminRegistrationFailureAttention";
 import { loadAdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
@@ -24,8 +25,10 @@ export default async function DoctorPage() {
     ),
     deps.doctorStats.getStats(),
   ]);
-  const adminHealthBanner =
-    session.user.role === "admin" ? await loadAdminDoctorTodayHealthBanner() : undefined;
+  const [adminHealthBanner, adminRegistrationFailureBanner] =
+    session.user.role === "admin"
+      ? await Promise.all([loadAdminDoctorTodayHealthBanner(), loadAdminRegistrationFailureAttention()])
+      : [undefined, undefined];
 
   return (
     <AppShell title="Сегодня" user={session.user} variant="doctor">
@@ -34,6 +37,7 @@ export default async function DoctorPage() {
         kpiStats={kpiStats}
         appointmentsTodayCount={data.todayAppointments.length}
         adminHealthBanner={adminHealthBanner}
+        adminRegistrationFailureBanner={adminRegistrationFailureBanner}
         showAnalyticsLink={session.user.role === "admin"}
       />
     </AppShell>

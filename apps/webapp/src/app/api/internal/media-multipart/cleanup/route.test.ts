@@ -51,6 +51,10 @@ vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({}),
 }));
 
+vi.mock("@/app-layer/operator-health/recordOperatorCronJobTick", () => ({
+  recordOperatorCronJobTickBestEffort: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/internal/media-multipart/cleanup", () => {

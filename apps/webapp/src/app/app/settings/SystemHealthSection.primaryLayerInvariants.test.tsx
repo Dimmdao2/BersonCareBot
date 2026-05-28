@@ -238,10 +238,37 @@ function fetchHealthJson(): Record<string, unknown> {
         metaJson: { rulesFound: 1, sent: 0, failed: 0, consecutiveCronFailures: 0 },
       },
     },
+    cronJobs: {
+      status: "ok",
+      jobs: [
+        {
+          id: "playback_retention",
+          jobFamily: "media",
+          jobKey: "media.playback_stats.retention",
+          label: "Retention playback stats",
+          scheduleHint: "еженедельно",
+          kind: "internal_http",
+          internalPath: "/api/internal/media-playback-stats/retention",
+          status: "ok",
+          lastTick: {
+            jobKey: "media.playback_stats.retention",
+            jobFamily: "media",
+            lastStatus: "success",
+            lastFinishedAt: "2026-04-16T04:15:00.000Z",
+            lastSuccessAt: "2026-04-16T04:15:00.000Z",
+            lastFailureAt: null,
+            lastDurationMs: 120,
+            lastError: null,
+            metaJson: { deleted: 0 },
+          },
+        },
+      ],
+    },
     meta: {
       probes: {
         ...probeShell,
         webPushOnlyReminderTick: { status: "ok", durationMs: 4 },
+        cronJobs: { status: "ok", durationMs: 2 },
       },
     },
     fetchedAt: "2026-04-16T10:06:00.000Z",

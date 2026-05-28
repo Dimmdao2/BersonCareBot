@@ -1,13 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const recordAuthRegistrationSuccessMock = vi.fn(async () => undefined);
-const recordAuthRegistrationFailureMock = vi.fn(async () => undefined);
+const recordAuthRegistrationSuccessMock = vi.fn(async (_params: unknown) => undefined);
+const recordAuthRegistrationFailureMock = vi.fn(async (_params: unknown) => undefined);
 const confirmEmailChallengeMock = vi.fn();
 const setSessionFromUserMock = vi.fn();
 
 vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
-  recordAuthRegistrationSuccess: (...args: unknown[]) => recordAuthRegistrationSuccessMock(...args),
-  recordAuthRegistrationFailure: (...args: unknown[]) => recordAuthRegistrationFailureMock(...args),
+  recordAuthRegistrationSuccess: (params: unknown) => recordAuthRegistrationSuccessMock(params),
+  recordAuthRegistrationFailure: (params: unknown) => recordAuthRegistrationFailureMock(params),
 }));
 
 vi.mock("@/modules/auth/emailAuth", () => ({
@@ -25,7 +25,7 @@ vi.mock("@/modules/auth/envRole", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {
-      findUserIdByEmailChallengeId: vi.fn(async () => "11111111-1111-1111-1111-111111111111"),
+      findUserIdByEmailChallengeId: vi.fn(async () => "11111111-1111-4111-8111-111111111111"),
     },
     userProjection: {
       getProfileEmailFields: vi.fn(async () => ({ email: "user@example.com", emailVerifiedAt: null })),
@@ -61,9 +61,9 @@ describe("POST /api/auth/email-password/register/confirm", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          challengeId: "22222222-2222-2222-2222-222222222222",
+          challengeId: "22222222-2222-4222-8222-222222222222",
           code: "123456",
-          attemptId: "33333333-3333-3333-3333-333333333333",
+          attemptId: "33333333-3333-4333-8333-333333333333",
         }),
       }),
     );
@@ -72,7 +72,7 @@ describe("POST /api/auth/email-password/register/confirm", () => {
     expect(recordAuthRegistrationSuccessMock).toHaveBeenCalledWith(
       expect.objectContaining({
         stage: "confirm",
-        attemptId: "33333333-3333-3333-3333-333333333333",
+        attemptId: "33333333-3333-4333-8333-333333333333",
         isNewAccount: true,
       }),
     );
@@ -86,7 +86,7 @@ describe("POST /api/auth/email-password/register/confirm", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          challengeId: "22222222-2222-2222-2222-222222222222",
+          challengeId: "22222222-2222-4222-8222-222222222222",
           code: "000000",
         }),
       }),

@@ -14,6 +14,10 @@ vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   purgePendingMediaDeleteBatch: (...args: unknown[]) => purgeMock(...args),
 }));
 
+vi.mock("@/app-layer/operator-health/recordOperatorCronJobTick", () => ({
+  recordOperatorCronJobTickBestEffort: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/internal/media-pending-delete/purge", () => {

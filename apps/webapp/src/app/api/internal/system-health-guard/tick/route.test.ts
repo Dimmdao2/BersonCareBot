@@ -14,6 +14,10 @@ vi.mock("@/app-layer/health/runIntegratorPushOutboxHealthGuardTick", () => ({
   runIntegratorPushOutboxHealthGuardTick: runTickMock,
 }));
 
+vi.mock("@/app-layer/operator-health/recordOperatorCronJobTick", () => ({
+  recordOperatorCronJobTickBestEffort: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/internal/system-health-guard/tick", () => {

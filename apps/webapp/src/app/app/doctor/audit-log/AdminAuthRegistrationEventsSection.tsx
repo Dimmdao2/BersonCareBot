@@ -1,10 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import {
+  formatRegistrationAuthMethodLabel,
+  formatRegistrationErrorClassLabel,
+  formatRegistrationErrorCodeLabel,
+  formatRegistrationStageLabel,
+  REGISTRATION_AUTH_METHOD_FILTER_OPTIONS,
+  REGISTRATION_EVENT_TYPE_FILTER_OPTIONS,
+} from "@/modules/auth/registrationEventPresentation";
 import type { AuthRegistrationEventType } from "@/modules/product-analytics/types";
 
 type Row = {
@@ -25,26 +35,6 @@ type ApiOk = {
 };
 
 type Preset = "week" | "month";
-
-const EVENT_TYPE_OPTIONS: { value: AuthRegistrationEventType | ""; label: string }[] = [
-  { value: "auth_register_failure", label: "failure" },
-  { value: "auth_register_attempt", label: "attempt" },
-  { value: "auth_register_success", label: "success" },
-  { value: "", label: "все типы" },
-];
-
-const AUTH_METHOD_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "все методы" },
-  { value: "email_password", label: "email_password" },
-  { value: "oauth_yandex", label: "oauth_yandex" },
-  { value: "oauth_google", label: "oauth_google" },
-  { value: "oauth_apple", label: "oauth_apple" },
-  { value: "phone_otp", label: "phone_otp" },
-  { value: "messenger_bind", label: "messenger_bind" },
-  { value: "telegram_init", label: "telegram_init" },
-  { value: "max_init", label: "max_init" },
-  { value: "integrator_exchange", label: "integrator_exchange" },
-];
 
 function metaStr(row: Row, key: string): string {
   const v = row.metadata[key];
@@ -68,9 +58,9 @@ function AttemptIdCell({ attemptId }: { attemptId: string }) {
 
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="font-mono text-xs break-all">{attemptId}</span>
-      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0" onClick={() => void onCopy()}>
-        {copied ? "ok" : "copy"}
+      <span className="break-all font-mono text-xs">{attemptId}</span>
+      <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={() => void onCopy()}>
+        {copied ? "OK" : "Копир."}
       </Button>
     </span>
   );
@@ -85,6 +75,9 @@ export function AdminAuthRegistrationEventsSection() {
   const [data, setData] = useState<ApiOk | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const showingSystemFailuresOnly =
+    eventType === "auth_register_failure" && !showAllErrors;
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -96,7 +89,7 @@ export function AdminAuthRegistrationEventsSection() {
       });
       if (eventType) params.set("eventType", eventType);
       if (authMethod) params.set("authMethod", authMethod);
-      if (eventType === "auth_register_failure" && !showAllErrors) {
+      if (showingSystemFailuresOnly) {
         params.set("errorClass", "system");
       }
       const res = await fetch(`/api/admin/auth-registration-events?${params.toString()}`);
@@ -113,16 +106,34 @@ export function AdminAuthRegistrationEventsSection() {
     } finally {
       setLoading(false);
     }
-  }, [preset, eventType, authMethod, showAllErrors]);
+  }, [preset, eventType, authMethod, showingSystemFailuresOnly]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const total = data?.total ?? 0;
+  const presetLabel = preset === "week" ? "за неделю" : "за месяц";
+  const showAttentionBanner = showingSystemFailuresOnly && total > 0;
+
+  const emptyMessage = useMemo(() => {
+    if (showingSystemFailuresOnly) {
+      return `Системных сбоев регистрации ${presetLabel} нет`;
+    }
+    return "Нет записей";
+  }, [presetLabel, showingSystemFailuresOnly]);
+
   return (
-    <Card className="mt-8">
+    <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-        <CardTitle className="text-base">Ошибки регистрации</CardTitle>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <CardTitle className="text-base">Ошибки регистрации</CardTitle>
+          {total > 0 ? (
+            <Badge variant={showingSystemFailuresOnly ? "destructive" : "secondary"} className="tabular-nums">
+              {total}
+            </Badge>
+          ) : null}
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <Label className="flex items-center gap-2 text-sm font-normal">
             <select
@@ -130,8 +141,8 @@ export function AdminAuthRegistrationEventsSection() {
               value={preset}
               onChange={(e) => setPreset(e.target.value as Preset)}
             >
-              <option value="week">неделя</option>
-              <option value="month">месяц</option>
+              <option value="week">Неделя</option>
+              <option value="month">Месяц</option>
             </select>
           </Label>
           <Label className="flex items-center gap-2 text-sm font-normal">
@@ -140,7 +151,7 @@ export function AdminAuthRegistrationEventsSection() {
               value={eventType}
               onChange={(e) => setEventType(e.target.value as AuthRegistrationEventType | "")}
             >
-              {EVENT_TYPE_OPTIONS.map((o) => (
+              {REGISTRATION_EVENT_TYPE_FILTER_OPTIONS.map((o) => (
                 <option key={o.value || "all-types"} value={o.value}>
                   {o.label}
                 </option>
@@ -153,7 +164,7 @@ export function AdminAuthRegistrationEventsSection() {
               value={authMethod}
               onChange={(e) => setAuthMethod(e.target.value)}
             >
-              {AUTH_METHOD_OPTIONS.map((o) => (
+              {REGISTRATION_AUTH_METHOD_FILTER_OPTIONS.map((o) => (
                 <option key={o.value || "all-methods"} value={o.value}>
                   {o.label}
                 </option>
@@ -167,7 +178,7 @@ export function AdminAuthRegistrationEventsSection() {
                 checked={showAllErrors}
                 onChange={(e) => setShowAllErrors(e.target.checked)}
               />
-              все ошибки
+              Все ошибки
             </Label>
           ) : null}
           <Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void load()}>
@@ -175,38 +186,70 @@ export function AdminAuthRegistrationEventsSection() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-3">
+        {showAttentionBanner ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+            <span className="font-medium text-destructive">
+              {total === 1 ? "1 системный сбой" : `${total} системных сбоев`} {presetLabel}.{" "}
+            </span>
+            <Link
+              href="/app/doctor/audit-log?action=auth_register_failure#admin-audit-log"
+              className="text-primary underline underline-offset-2"
+            >
+              Смотреть в журнале операций
+            </Link>
+          </div>
+        ) : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {!data?.items.length && !loading && !error ? (
-          <p className="text-sm text-muted-foreground">Нет записей</p>
+          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b text-muted-foreground">
                   <th className="py-2 pr-3 font-medium">Время</th>
                   <th className="py-2 pr-3 font-medium">Метод</th>
                   <th className="py-2 pr-3 font-medium">Этап</th>
+                  {eventType === "auth_register_failure" && showAllErrors ? (
+                    <th className="py-2 pr-3 font-medium">Тип</th>
+                  ) : null}
                   <th className="py-2 pr-3 font-medium">Контакт</th>
                   <th className="py-2 pr-3 font-medium">Код</th>
-                  <th className="py-2 font-medium">attemptId</th>
+                  <th className="py-2 font-medium">Попытка</th>
                 </tr>
               </thead>
               <tbody>
-                {data?.items.map((row) => (
-                  <tr key={row.id} className="border-b border-border/60 align-top">
-                    <td className="py-2 pr-3 whitespace-nowrap tabular-nums">{row.occurredAt.slice(0, 19)}</td>
-                    <td className="py-2 pr-3">{metaStr(row, "authMethod")}</td>
-                    <td className="py-2 pr-3">{metaStr(row, "stage")}</td>
-                    <td className="py-2 pr-3">{metaStr(row, "contactHint")}</td>
-                    <td className={cn("py-2 pr-3", row.eventType === "auth_register_failure" && "text-destructive")}>
-                      {metaStr(row, "errorCode")}
-                    </td>
-                    <td className="py-2">
-                      <AttemptIdCell attemptId={metaStr(row, "attemptId")} />
-                    </td>
-                  </tr>
-                ))}
+                {data?.items.map((row) => {
+                  const errorClassRaw = metaStr(row, "errorClass");
+                  const isSystemFailure = errorClassRaw === "system";
+                  return (
+                    <tr key={row.id} className="border-b border-border/60 align-top">
+                      <td className="whitespace-nowrap py-2 pr-3 tabular-nums">{row.occurredAt.slice(0, 19)}</td>
+                      <td className="py-2 pr-3">{formatRegistrationAuthMethodLabel(metaStr(row, "authMethod"))}</td>
+                      <td className="py-2 pr-3">{formatRegistrationStageLabel(metaStr(row, "stage"))}</td>
+                      {eventType === "auth_register_failure" && showAllErrors ? (
+                        <td className="py-2 pr-3">
+                          <Badge variant={isSystemFailure ? "destructive" : "secondary"} className="font-normal">
+                            {formatRegistrationErrorClassLabel(errorClassRaw)}
+                          </Badge>
+                        </td>
+                      ) : null}
+                      <td className="py-2 pr-3">{metaStr(row, "contactHint")}</td>
+                      <td
+                        className={cn(
+                          "py-2 pr-3",
+                          row.eventType === "auth_register_failure" && isSystemFailure && "font-medium text-destructive",
+                        )}
+                      >
+                        {formatRegistrationErrorCodeLabel(metaStr(row, "errorCode"))}
+                      </td>
+                      <td className="py-2">
+                        <AttemptIdCell attemptId={metaStr(row, "attemptId")} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

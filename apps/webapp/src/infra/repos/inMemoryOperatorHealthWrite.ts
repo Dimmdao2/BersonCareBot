@@ -38,7 +38,39 @@ export function resetWebPushOnlyReminderTickWriteLog(): void {
   webPushOnlyReminderTickWriteLog.length = 0;
 }
 
+export const operatorJobTickWriteLog: Array<
+  | ({ kind: "success"; jobFamily: string; jobKey: string } & SuccessCall)
+  | ({ kind: "failure"; jobFamily: string; jobKey: string } & FailureCall & { metaJson: Record<string, unknown> })
+> = [];
+
+export function resetOperatorJobTickWriteLog(): void {
+  operatorJobTickWriteLog.length = 0;
+}
+
 export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
+  async recordOperatorJobTickSuccess(input) {
+    operatorJobTickWriteLog.push({
+      kind: "success",
+      jobFamily: input.jobFamily,
+      jobKey: input.jobKey,
+      startedAtIso: input.startedAtIso,
+      durationMs: input.durationMs,
+      metaJson: input.metaJson,
+    });
+  },
+
+  async recordOperatorJobTickFailure(input) {
+    operatorJobTickWriteLog.push({
+      kind: "failure",
+      jobFamily: input.jobFamily,
+      jobKey: input.jobKey,
+      startedAtIso: input.startedAtIso,
+      durationMs: input.durationMs,
+      error: input.error,
+      metaJson: input.metaJson,
+    });
+  },
+
   async recordMediaTranscodeReconcileSuccess(input) {
     if (reconcileSuccessThrowsForTests != null) {
       throw reconcileSuccessThrowsForTests;

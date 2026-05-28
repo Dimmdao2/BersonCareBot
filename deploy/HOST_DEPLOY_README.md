@@ -775,7 +775,9 @@ sudo systemctl reload nginx
 | **`bersoncarebot-webpush-reminders`** | **обязателен** после deploy | `POST /api/internal/reminders/web-push-only/tick` каждую минуту — Web Push для `reminder_rules` без бота (`integrator_user_id IS NULL`) |
 | `bersoncarebot-media-purge` | обязателен (медиа CMS) | purge очереди удаления `media-pending-delete` |
 | `bersoncarebot-media-multipart` (имя на усмотрение) | рекомендуется | multipart cleanup |
-| прочие | см. раздел **Nginx → Webapp → CMS медиа и S3** выше | превью, retention, reconcile HLS, health-guard и т.д. |
+| `bersoncarebot-webapp-hls-retention` | рекомендуется | playback + HLS proxy errors retention (weekly) |
+| `bersoncarebot-product-analytics-retention` | рекомендуется | `POST /api/internal/product-analytics/retention` (weekly) |
+| прочие | см. раздел **Nginx → Webapp → CMS медиа и S3** выше | превью, reconcile HLS, health-guard и т.д. |
 
 Проверка обязательного webpush-cron:
 
@@ -787,6 +789,16 @@ set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
 ```
 
 Полные примеры строк cron и smoke — в разделе **Nginx → Webapp** («Web Push-only напоминания», блоки cron).
+
+**Наблюдаемость в админке:** после каждого успешного/ошибочного вызова internal job (и backup-скриптов) в **`public.operator_job_status`** пишется tick. Сводка — **`GET /api/admin/system-health`** → поле **`cronJobs`**, UI **`/app/doctor/system-health`** → «Cron-задачи хоста». Канон ключей: **`apps/webapp/src/modules/operator-health/cronJobRegistry.ts`**. Smoke после deploy:
+
+```bash
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+# loopback dry-run retention (без DELETE) — после вызова tick появится в operator_job_status:
+curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
+  "http://127.0.0.1:6200/api/internal/product-analytics/retention?dryRun=1"
+# в UI: /app/doctor/system-health → «Cron-задачи хоста»
+```
 
 ---
 

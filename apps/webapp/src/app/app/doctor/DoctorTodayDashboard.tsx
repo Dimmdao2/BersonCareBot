@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { AdminRegistrationFailureAttention } from "@/app-layer/product-analytics/loadAdminRegistrationFailureAttention";
 import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
@@ -9,6 +10,7 @@ type Props = {
   kpiStats: DoctorStatsState;
   appointmentsTodayCount: number;
   adminHealthBanner?: AdminDoctorTodayHealthBanner;
+  adminRegistrationFailureBanner?: AdminRegistrationFailureAttention;
   showAnalyticsLink?: boolean;
 };
 
@@ -17,6 +19,7 @@ export function DoctorTodayDashboard({
   kpiStats,
   appointmentsTodayCount,
   adminHealthBanner,
+  adminRegistrationFailureBanner,
   showAnalyticsLink,
 }: Props) {
   const intakeAttentionCount = data.newIntakeRequests.length;
@@ -28,6 +31,16 @@ export function DoctorTodayDashboard({
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
           <Link href={adminHealthBanner.href} className="font-medium text-primary underline underline-offset-2">
             {adminHealthBanner.title}
+          </Link>
+        </div>
+      ) : null}
+      {adminRegistrationFailureBanner?.show ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+          <Link
+            href={adminRegistrationFailureBanner.href}
+            className="font-medium text-primary underline underline-offset-2"
+          >
+            {adminRegistrationFailureBanner.title}
           </Link>
         </div>
       ) : null}

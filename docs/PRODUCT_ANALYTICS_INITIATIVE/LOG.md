@@ -4,16 +4,32 @@
 
 ## 2026-05-28 — Registration funnel events (auth error logging)
 
+**Статус:** закрыто.
+
 ### Сделано
 
-- Event types: `auth_register_attempt`, `auth_register_success`, `auth_register_failure` в `product_analytics_events_recent` (+ hourly rollup).
-- Helper `recordAuthRegistration`; system failures дублируются в `admin_audit_log`.
-- Admin read API `GET /api/admin/auth-registration-events` + UI на `/app/doctor/audit-log`.
+- Event types: `auth_register_attempt`, `auth_register_success`, `auth_register_failure` в `product_analytics_events_recent` (+ `product_analytics_hourly` rollup).
+- `recordAuthRegistration` (best-effort); `maskContactHint`, `registrationErrorClass`; port `listRegistrationEvents` на `ProductAnalyticsPort`.
+- System failures → `admin_audit_log` (`action=auth_register_failure`, `status=error`); user errors (в т.ч. `access_denied`, `duplicate_email`) — только PA.
+- Admin: `GET /api/admin/auth-registration-events`; UI `/app/doctor/audit-log` (preset week/month, eventType, authMethod, copy attemptId).
+- Ingest из auth routes: email, OAuth (start + Yandex/Google/Apple callbacks, provider `?error=`), phone OTP, messenger-bind, telegram/max-init, exchange.
+
+### Код
+
+- `apps/webapp/src/app-layer/product-analytics/recordAuthRegistration.ts`
+- `apps/webapp/src/modules/auth/maskContactHint.ts`, `registrationErrorClass.ts`
+- `apps/webapp/src/infra/repos/pgProductAnalytics.ts` — `listRegistrationEvents`
+- `apps/webapp/src/app/app/doctor/audit-log/AdminAuthRegistrationEventsSection.tsx`
 
 ### Проверка
 
-- `pnpm --dir apps/webapp run typecheck`
-- vitest: `recordAuthRegistration`, `maskContactHint`, `registrationErrorClass`, auth registration routes
+| Проверка | Результат |
+|----------|-----------|
+| `pnpm --dir apps/webapp run typecheck` | OK |
+| vitest (registration bundle, 44 tests) | OK |
+| `register/route`, `register/confirm/route`, `oauth/start/route`, `auth-registration-events/route` | OK |
+
+Связанный журнал login/register: [`../LOGIN_REGISTER_NEW_LOGIC/LOG.md`](../LOGIN_REGISTER_NEW_LOGIC/LOG.md) §2026-05-28.
 
 ## 2026-05-27 — Block 1 (data foundation)
 
@@ -156,8 +172,8 @@
 
 - `POST /api/internal/product-analytics/retention` — Bearer `INTERNAL_JOB_SECRET`, query `recentDays` / `userHourlyDays` / `hourlyDays` / `pushDays`, `dryRun=1`.
 - `runProductAnalyticsRetention` + purge в port (pg/inMemory) с dry-run.
-- `deploy/HOST_DEPLOY_README.md` — weekly cron + dry-run smoke.
-- `api.md` — контракт internal retention.
+- `deploy/HOST_DEPLOY_README.md` — weekly cron + dry-run smoke; ссылка на UI **`cronJobs`** в system-health.
+- `api.md` — контракт internal retention + tick `operator_job_status` (`analytics.product_analytics.retention`).
 
 ### Проверка (post-review)
 
@@ -247,3 +263,20 @@
 | Проверка | Результат |
 |----------|-----------|
 | `vitest` stats/datetime/product-analytics/route tests | зелёные (локально) |
+
+---
+
+## 2026-05-28 — Retention tick + наблюдаемость cron (cross-cutting)
+
+### Сделано (связь с Operator Health)
+
+- `POST /api/internal/product-analytics/retention` — best-effort tick в **`operator_job_status`**: `job_family=analytics`, `job_key=analytics.product_analytics.retention` (`meta_json`: deleted* / dryRun).
+- Сводка всех host cron — **`GET /api/admin/system-health`** → **`cronJobs`**, UI `/app/doctor/system-health` → «Cron-задачи хоста». Канон: [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`](../OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md) § 2026-05-28, реестр `apps/webapp/src/modules/operator-health/cronJobRegistry.ts`.
+
+### Проверки
+
+| Проверка | Результат |
+|----------|-----------|
+| `vitest` `product-analytics/retention/route.test.ts` (tick mock) | OK |
+| `vitest` `collectCronJobsHealth.test.ts`, `system-health/route.test.ts` | OK |
+| `pnpm --dir apps/webapp run typecheck` | OK |

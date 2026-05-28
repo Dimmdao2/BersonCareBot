@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import { purgePendingMediaDeleteBatch } from "@/app-layer/media/s3MediaStorage";
+import { recordOperatorCronJobTickBestEffort } from "@/app-layer/operator-health/recordOperatorCronJobTick";
+import {
+  OPERATOR_MEDIA_JOB_FAMILY,
+  OPERATOR_MEDIA_PENDING_DELETE_PURGE_JOB_KEY,
+} from "@/modules/operator-health/reconcileJobKeys";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
   const a = Buffer.from(token, "utf8");
@@ -38,10 +43,30 @@ export async function POST(request: Request) {
     /* ignore */
   }
 
+  const startedAt = Date.now();
+  const startedAtIso = new Date(startedAt).toISOString();
+
   try {
     const { removed, errors } = await purgePendingMediaDeleteBatch(Number.isFinite(limit) ? limit : 25);
+    await recordOperatorCronJobTickBestEffort({
+      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+      jobKey: OPERATOR_MEDIA_PENDING_DELETE_PURGE_JOB_KEY,
+      startedAtIso,
+      durationMs: Date.now() - startedAt,
+      success: true,
+      metaJson: { removed, errors },
+    });
     return NextResponse.json({ ok: true, removed, errors });
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await recordOperatorCronJobTickBestEffort({
+      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+      jobKey: OPERATOR_MEDIA_PENDING_DELETE_PURGE_JOB_KEY,
+      startedAtIso,
+      durationMs: Date.now() - startedAt,
+      success: false,
+      error: msg,
+    });
     logger.error({ err: e }, "[internal/media-pending-delete/purge] failed");
     return NextResponse.json({ ok: false, error: "purge_failed" }, { status: 500 });
   }

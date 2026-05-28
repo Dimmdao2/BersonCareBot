@@ -36,13 +36,13 @@ vi.mock("@/config/env", () => ({
   env: { SESSION_COOKIE_SECRET: "test-session-secret-16chars" },
 }));
 
-const recordAuthRegistrationAttemptMock = vi.fn(async () => undefined);
+const recordAuthRegistrationAttemptMock = vi.fn(async (_params: unknown) => undefined);
 
 vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
   newRegistrationAttemptId: () => "11111111-1111-4111-8111-111111111111",
-  recordAuthRegistrationAttempt: (...args: unknown[]) => recordAuthRegistrationAttemptMock(...args),
+  recordAuthRegistrationAttempt: (params: unknown) => recordAuthRegistrationAttemptMock(params),
   recordAuthRegistrationFailure: vi.fn(async () => undefined),
-  registrationAttemptIdFromOAuthState: () => "22222222-2222-2222-2222-222222222222",
+  registrationAttemptIdFromOAuthState: () => "22222222-2222-4222-8222-222222222222",
 }));
 
 import { POST } from "./route";

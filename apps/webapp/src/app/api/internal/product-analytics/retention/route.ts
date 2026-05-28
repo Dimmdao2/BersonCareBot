@@ -9,6 +9,11 @@ import {
   PRODUCT_ANALYTICS_USER_HOURLY_RETENTION_DAYS,
 } from "@/modules/product-analytics/productAnalyticsRetention";
 import { env } from "@/config/env";
+import { recordOperatorCronJobTickBestEffort } from "@/app-layer/operator-health/recordOperatorCronJobTick";
+import {
+  OPERATOR_ANALYTICS_JOB_FAMILY,
+  OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
+} from "@/modules/operator-health/reconcileJobKeys";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
   const a = Buffer.from(token, "utf8");
@@ -79,29 +84,61 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_days" }, { status: 400 });
   }
 
-  const deps = buildAppDeps();
-  const result = await deps.productAnalytics.runRetention({
-    dryRun,
-    recentDays,
-    userHourlyDays,
-    hourlyDays,
-    pushDays,
-  });
+  const startedAt = Date.now();
+  const startedAtIso = new Date(startedAt).toISOString();
 
-  logger.info(
-    {
-      dryRun: result.dryRun,
-      recentDays: result.recentDays,
-      userHourlyDays: result.userHourlyDays,
-      hourlyDays: result.hourlyDays,
-      pushDays: result.pushDays,
-      deletedRecent: result.deletedRecent,
-      deletedUserHourly: result.deletedUserHourly,
-      deletedHourly: result.deletedHourly,
-      deletedPushNotifications: result.deletedPushNotifications,
-    },
-    "product_analytics_retention_job",
-  );
+  try {
+    const deps = buildAppDeps();
+    const result = await deps.productAnalytics.runRetention({
+      dryRun,
+      recentDays,
+      userHourlyDays,
+      hourlyDays,
+      pushDays,
+    });
 
-  return NextResponse.json({ ok: true, ...result });
+    logger.info(
+      {
+        dryRun: result.dryRun,
+        recentDays: result.recentDays,
+        userHourlyDays: result.userHourlyDays,
+        hourlyDays: result.hourlyDays,
+        pushDays: result.pushDays,
+        deletedRecent: result.deletedRecent,
+        deletedUserHourly: result.deletedUserHourly,
+        deletedHourly: result.deletedHourly,
+        deletedPushNotifications: result.deletedPushNotifications,
+      },
+      "product_analytics_retention_job",
+    );
+
+    await recordOperatorCronJobTickBestEffort({
+      jobFamily: OPERATOR_ANALYTICS_JOB_FAMILY,
+      jobKey: OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
+      startedAtIso,
+      durationMs: Date.now() - startedAt,
+      success: true,
+      metaJson: {
+        dryRun: result.dryRun,
+        deletedRecent: result.deletedRecent,
+        deletedUserHourly: result.deletedUserHourly,
+        deletedHourly: result.deletedHourly,
+        deletedPushNotifications: result.deletedPushNotifications,
+      },
+    });
+
+    return NextResponse.json({ ok: true, ...result });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await recordOperatorCronJobTickBestEffort({
+      jobFamily: OPERATOR_ANALYTICS_JOB_FAMILY,
+      jobKey: OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
+      startedAtIso,
+      durationMs: Date.now() - startedAt,
+      success: false,
+      error: msg,
+    });
+    logger.error({ err: e }, "[internal/product-analytics/retention] failed");
+    return NextResponse.json({ ok: false, error: "retention_failed" }, { status: 500 });
+  }
 }

@@ -121,4 +121,10 @@ describe("doctor menu structure", () => {
     expect(intake?.badgeKey).toBe("onlineIntakeNew");
     expect(messages?.badgeKey).toBe("messagesUnread");
   });
+
+  it("assigns registration failure badge to audit log in sistema cluster", () => {
+    const sistema = DOCTOR_MENU_CLUSTERS.find((c) => c.id === "sistema");
+    const auditLog = sistema?.items.find((i) => i.id === "audit-log");
+    expect(auditLog?.badgeKey).toBe("registrationSystemFailures");
+  });
 });

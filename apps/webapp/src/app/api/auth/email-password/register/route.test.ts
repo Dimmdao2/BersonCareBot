@@ -6,15 +6,15 @@ const tryResend = vi.fn();
 const resolveAuthState = vi.fn();
 const requestContactEmailSetup = vi.fn();
 
-const recordAuthRegistrationAttemptMock = vi.fn(async () => undefined);
-const recordAuthRegistrationFailureMock = vi.fn(async () => undefined);
-const recordAuthRegistrationSuccessMock = vi.fn(async () => undefined);
+const recordAuthRegistrationAttemptMock = vi.fn(async (_params: unknown) => undefined);
+const recordAuthRegistrationFailureMock = vi.fn(async (_params: unknown) => undefined);
+const recordAuthRegistrationSuccessMock = vi.fn(async (_params: unknown) => undefined);
 
 vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
   newRegistrationAttemptId: () => "11111111-1111-4111-8111-111111111111",
-  recordAuthRegistrationAttempt: (...args: unknown[]) => recordAuthRegistrationAttemptMock(...args),
-  recordAuthRegistrationFailure: (...args: unknown[]) => recordAuthRegistrationFailureMock(...args),
-  recordAuthRegistrationSuccess: (...args: unknown[]) => recordAuthRegistrationSuccessMock(...args),
+  recordAuthRegistrationAttempt: (params: unknown) => recordAuthRegistrationAttemptMock(params),
+  recordAuthRegistrationFailure: (params: unknown) => recordAuthRegistrationFailureMock(params),
+  recordAuthRegistrationSuccess: (params: unknown) => recordAuthRegistrationSuccessMock(params),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({

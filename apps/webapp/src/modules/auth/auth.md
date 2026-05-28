@@ -35,7 +35,8 @@
 
 ### Email + пароль (пациент)
 
-- **`POST /api/auth/email-password/register`** — создание канона с паролем в `user_password_credentials`, отправка кода на почту (`startEmailChallenge`). Если email уже на **contact-only** карточке (врач/Rubitime, нет `user_password_credentials` или нет полноценного login) — **200** `{ ok: true, error: "existing_account_needs_email_setup", setupLinkSent: true }` и письмо со ссылкой `/app/auth/email-setup` (не `duplicate_email`).
+- **`POST /api/auth/email-password/register`** — создание канона с паролем в `user_password_credentials`, отправка кода на почту (`startEmailChallenge`); ответ при успехе включает **`attemptId`** (корреляция с confirm). Если email уже на **contact-only** карточке (врач/Rubitime, нет `user_password_credentials` или нет полноценного login) — **200** `{ ok: true, error: "existing_account_needs_email_setup", setupLinkSent: true, attemptId? }` и письмо со ссылкой `/app/auth/email-setup` (не `duplicate_email`).
+- **`POST /api/auth/email-password/register/confirm`** — тело: `challengeId`, `code`, опционально **`attemptId`**; сессия после успеха; события `auth_register_*` в product analytics.
 - **`POST /api/auth/email-password/lookup`** — `{ ok: true, state }` для ветвления UI (`free` | `pending_registration` | `verified_with_password` | `needs_email_setup` | `email_conflict`).
 - **`POST /api/auth/email-password/setup-access`** — повторная отправка setup-link для `needs_email_setup`.
 - **`POST /api/auth/email-password/login`** — при верном пароле и **`email_verified_at`** возвращает сессию и `redirectTo`. Если пароль верный, но email ещё не подтверждён — **409** `email_not_verified` (UI запускает повторную регистрацию/код).
@@ -208,11 +209,13 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 **Success только для регистрации:** OAuth/phone/exchange/mini-app — когда создан новый аккаунт (`accountOutcome=created` / `wasCreated`); обычный login не пишет `auth_register_success`.
 
-**System failures** (`errorClass=system`) дублируются в `admin_audit_log` (`action=auth_register_failure`, `status=error`). User-ошибки (`invalid_code`, `duplicate_email`, …) — только product analytics.
+**System failures** (`errorClass=system`) дублируются в `admin_audit_log` (`action=auth_register_failure`, `status=error`). User-ошибки (`invalid_code`, `duplicate_email`, `access_denied`, отмена OAuth через `?error=`, …) — только product analytics.
 
-**Просмотр:** `GET /api/admin/auth-registration-events` (admin mode); UI — секция «Ошибки регистрации» на `/app/doctor/audit-log`.
+**OAuth callbacks:** при redirect с `?error=` (отмена пользователем) пишется `auth_register_failure` до обмена code (Yandex, Google, Apple).
 
-Утилиты: `maskContactHint.ts`, `registrationErrorClass.ts`.
+**Просмотр:** `GET /api/admin/auth-registration-events` (admin mode). UI — секция «Ошибки регистрации» на `/app/doctor/audit-log`: таблица (время, метод, stage, contactHint, errorCode, attemptId с copy), фильтры preset (неделя/месяц), eventType, authMethod; по умолчанию `auth_register_failure` + `errorClass=system`; чекбокс «все ошибки».
+
+**Модули:** `recordAuthRegistration.ts`, `registrationOAuthWebCallback.ts`, `maskContactHint.ts`, `registrationErrorClass.ts`; port `listRegistrationEvents` в `product-analytics/ports.ts`.
 
 ## Операционные логи OTP
 

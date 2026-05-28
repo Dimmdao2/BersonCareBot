@@ -1,12 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const setSessionFromUserMock = vi.fn().mockResolvedValue(undefined);
 
 const trySetInitialIfEmptyMock = vi.fn().mockResolvedValue(undefined);
 
+const getPhoneChallengeMock = vi.fn();
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     auth: {
+      getPhoneChallenge: (...args: unknown[]) => getPhoneChallengeMock(...args),
       setSessionFromUser: setSessionFromUserMock,
       confirmPhoneAuth: async (_challengeId: string, code: string) => {
         if (code === "123456") {
@@ -31,9 +34,22 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
+  recordAuthRegistrationFailure: vi.fn().mockResolvedValue(undefined),
+  recordAuthRegistrationSuccess: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/auth/phone/confirm", () => {
+  beforeEach(() => {
+    getPhoneChallengeMock.mockReset();
+    getPhoneChallengeMock.mockResolvedValue({
+      isRegistrationIntent: false,
+      phone: "+79991234567",
+    });
+  });
+
   it("returns 400 when challengeId or code is missing", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/phone/confirm", {

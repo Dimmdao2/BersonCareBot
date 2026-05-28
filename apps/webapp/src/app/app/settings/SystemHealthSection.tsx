@@ -129,6 +129,30 @@ type SystemHealthPayload = {
       metaJson: Record<string, unknown>;
     } | null;
   };
+  cronJobs?: {
+    status: "ok" | "degraded" | "error" | "no_data";
+    jobs: Array<{
+      id: string;
+      jobFamily: string;
+      jobKey: string;
+      label: string;
+      scheduleHint: string;
+      kind: "internal_http" | "backup_shell";
+      internalPath?: string;
+      status: "ok" | "degraded" | "error" | "no_data";
+      lastTick: {
+        jobKey: string;
+        jobFamily: string;
+        lastStatus: string;
+        lastFinishedAt: string | null;
+        lastSuccessAt: string | null;
+        lastFailureAt: string | null;
+        lastDurationMs: number | null;
+        lastError: string | null;
+        metaJson: Record<string, unknown>;
+      } | null;
+    }>;
+  };
   notificationDelivery?: {
     windowHours: number;
     status: "ok" | "degraded" | "not_configured" | "no_data";
@@ -272,6 +296,7 @@ type SystemHealthPayload = {
       webPush?: { status: string; durationMs: number; errorCode?: string };
       webPushOnlyReminderTick?: { status: string; durationMs: number; errorCode?: string };
       notificationDelivery?: { status: string; durationMs: number; errorCode?: string };
+      cronJobs?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -769,6 +794,8 @@ export function SystemHealthSection() {
   const queueEmpty = queuePending === 0 && queueProcessing === 0;
   const openOperatorIncidents = data?.operatorIncidentsOpen ?? [];
   const backupJobEntries = Object.entries(data?.backupJobs ?? {}).sort(([a], [b]) => a.localeCompare(b));
+  const cronJobRows = data?.cronJobs?.jobs ?? [];
+  const cronJobsAccordionStatus = data?.cronJobs?.status ?? "no_data";
 
   const webPushTickStatus = data?.webPushOnlyReminderTick?.status ?? "no_data";
   const webPushSubsStatus = data?.webPush?.status ?? "error";
@@ -1224,6 +1251,35 @@ export function SystemHealthSection() {
                       <DetailRow label="Последний успешный прогон" value={formatDateTime(st.lastSuccessAt)} />
                       <DetailRow label="Последняя ошибка" value={formatDateTime(st.lastFailureAt)} />
                       <DetailRow label="Текст ошибки" value={st.lastError ?? "—"} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </HealthAccordionItem>
+
+            <HealthAccordionItem name="Cron-задачи хоста" status={cronJobsAccordionStatus}>
+              <DetailRow label="Итог" value={techProbeStatusHuman(cronJobsAccordionStatus)} />
+              <ProbeInfo probe={data?.meta?.probes?.cronJobs} />
+              {cronJobRows.length === 0 ? (
+                <DetailRow label="Задачи" value="нет данных" />
+              ) : (
+                <div className="space-y-2">
+                  {cronJobRows.map((job) => (
+                    <div key={job.id} className="rounded border border-border/50 p-2 text-[11px] leading-snug">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">{job.label}</span>
+                        <StatusPill status={job.status} />
+                      </div>
+                      <DetailRow label="Расписание" value={job.scheduleHint} />
+                      <DetailRow label="Последний успех" value={formatDateTime(job.lastTick?.lastSuccessAt ?? null)} />
+                      <DetailRow label="Последняя ошибка" value={formatDateTime(job.lastTick?.lastFailureAt ?? null)} />
+                      {job.lastTick?.lastError ? (
+                        <DetailRow label="Текст ошибки" value={job.lastTick.lastError} />
+                      ) : null}
+                      <TechDiagBlock>
+                        <DetailRow label="job_key" value={job.jobKey} />
+                        {job.internalPath ? <DetailRow label="endpoint" value={job.internalPath} /> : null}
+                      </TechDiagBlock>
                     </div>
                   ))}
                 </div>

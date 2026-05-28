@@ -38,7 +38,7 @@
 | Использование (product) | `/app/doctor/usage` | Бывш. `?adminTab=product-analytics` |
 | Здоровье системы | `/app/doctor/system-health` | `GET /api/admin/system-health` |
 | Архив сбоев | `/app/doctor/health-archive` | |
-| Журнал операций | `/app/doctor/audit-log` | `GET /api/admin/audit-log` |
+| Журнал операций | `/app/doctor/audit-log` | `GET /api/admin/audit-log`; сверху — ошибки регистрации (`GET /api/admin/auth-registration-events`) |
 | Параметры приложения | `/app/doctor/admin/app-settings` | |
 | Авторизация | `/app/doctor/admin/auth` | |
 | Интеграции | `/app/doctor/admin/integrations` | |
@@ -55,14 +55,15 @@
 
 ## Журнал операций (`admin_audit_log`)
 
-- UI: `/app/doctor/audit-log` (`AdminAuditLogSection`).
-- API: `GET /api/admin/audit-log` — guard admin + admin mode.
+- UI: `/app/doctor/audit-log` — сверху **`AdminAuthRegistrationEventsSection`** (product analytics `auth_register_*`), ниже **`AdminAuditLogSection`** (`admin_audit_log`).
+- API audit: `GET /api/admin/audit-log` — guard admin + admin mode.
+- API registration funnel: `GET /api/admin/auth-registration-events` — raw events из `product_analytics_events_recent` (см. `auth.md` §«Журнал воронки регистрации»).
 - По умолчанию в UI: **`excludeSystemHealth=1`** (строки `action` с префиксом `system_health_` скрыты).
 - Фильтр «Системные снимки»: **`systemHealthOnly=1`** (`actionPrefix` в SQL).
 - Оба флага одновременно → **400** `invalid_system_health_filter`.
 - Запись `system_health_integrator_push_outbox` в audit — только при **смене** статуса и если уже был предыдущий снимок в журнале (не первая запись `ok`).
 
-См. также [`api.md`](../../apps/webapp/src/app/api/api.md) (admin/audit-log), [`DB_STRUCTURE.md`](DB_STRUCTURE.md) (`admin_audit_log`).
+См. также [`api.md`](../../apps/webapp/src/app/api/api.md) (admin/audit-log, admin/auth-registration-events), [`DB_STRUCTURE.md`](DB_STRUCTURE.md) (`admin_audit_log`, `product_analytics_events_recent`).
 
 ## Связанные документы
 

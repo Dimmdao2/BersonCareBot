@@ -4,6 +4,19 @@
 
 ## Записи
 
+### 2026-05-28 — Наблюдаемость host cron в «Здоровье системы»
+
+- **Цель:** видеть в админке статус всех критичных periodic jobs (internal HTTP + backup tiers) без чтения `/var/log` на хосте.
+- **Реестр:** [`apps/webapp/src/modules/operator-health/cronJobRegistry.ts`](../../apps/webapp/src/modules/operator-health/cronJobRegistry.ts) — `job_family` / `job_key`, `scheduleHint`, SLA `staleAfterSec` (классификатор [`classifyOperatorCronJobHealthStatus.ts`](../../apps/webapp/src/modules/operator-health/classifyOperatorCronJobHealthStatus.ts)).
+- **Запись tick:** универсальный upsert [`recordOperatorJobTickSuccess` / `recordOperatorJobTickFailure`](../../apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts) через [`recordOperatorCronJobTickBestEffort`](../../apps/webapp/src/app-layer/operator-health/recordOperatorCronJobTick.ts). Ранее тики были только у reconcile, web-push-only tick и backup-скрипта.
+- **Internal routes с tick (добавлено):** `media-pending-delete/purge`, `media-multipart/cleanup`, `media-preview/process`, `media-playback-stats/retention`, `media-hls-proxy-errors/retention`, `product-analytics/retention`, `system-health-guard/tick` (плюс уже существующие reconcile и `reminders/web-push-only/tick`).
+- **API:** `GET /api/admin/system-health` → поле **`cronJobs`** ([`collectCronJobsHealth.ts`](../../apps/webapp/src/app-layer/health/collectCronJobsHealth.ts)); проба **`meta.probes.cronJobs`**.
+- **UI:** `/app/doctor/system-health` — аккордеон **«Cron-задачи хоста»** в [`SystemHealthSection.tsx`](../../apps/webapp/src/app/app/settings/SystemHealthSection.tsx) (последний успех / ошибка / расписание по задаче).
+- **Документация:** [`apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) (admin/system-health, internal retention), [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) §Host cron, [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../ARCHITECTURE/SERVER%20CONVENTIONS.md) (`INTERNAL_JOB_SECRET`).
+- **Проверки:** `classifyOperatorCronJobHealthStatus.test.ts`, `collectCronJobsHealth.test.ts`, `system-health/route.test.ts`, retention route tests (мок tick), `typecheck` webapp.
+
+**Ops (prod):** после deploy каждый настроенный cron при первом успешном/ошибочном прогоне появится в UI; до первого прогона — `no_data` по задаче. Smoke tick без DELETE: `POST …/product-analytics/retention?dryRun=1` (см. HOST_DEPLOY).
+
 ### 2026-05-18 — `remindersPipeline`: M2M idempotency + `deliveryEvents`
 
 - Поле **`patientReminderM2mIdempotencyKeysActive`**: число неистёкших строк **`idempotency_keys`** с ключом **`LIKE 'prn:%:channels'`** (`expires_at > now()`), индикатор «ответ M2M на fan-out ещё в TTL» для web push + email.
