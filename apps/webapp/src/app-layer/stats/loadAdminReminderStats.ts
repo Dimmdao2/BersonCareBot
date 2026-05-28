@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, sql, sum } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { loadAdminPlaybackHealthMetrics, type AdminPlaybackHealthMetrics } from "@/app-layer/media/adminPlaybackHealthMetrics";
 import {
@@ -187,8 +187,9 @@ export async function loadContentEngagementStats(opts: {
       })
       .from(reminderOccurrenceHistory)
       .where(gte(reminderOccurrenceHistory.occurredAt, windowCutoffSql))
-      .groupBy(hourTruncOcc, reminderOccurrenceHistory.status)
-      .orderBy(asc(hourTruncOcc)),
+      // GROUP BY select positions: Drizzle duplicates timezone() params and PG rejects mismatched GROUP BY.
+      .groupBy(sql`1`, sql`2`)
+      .orderBy(sql`1`),
     db
       .select({
         bucket: sql<string>`${dayTruncOcc}::text`.as("bucket"),
@@ -197,8 +198,8 @@ export async function loadContentEngagementStats(opts: {
       })
       .from(reminderOccurrenceHistory)
       .where(gte(reminderOccurrenceHistory.occurredAt, windowCutoffSql))
-      .groupBy(dayTruncOcc, reminderOccurrenceHistory.status)
-      .orderBy(asc(dayTruncOcc)),
+      .groupBy(sql`1`, sql`2`)
+      .orderBy(sql`1`),
     db
       .select({
         bucket: sql<string>`${hourTruncOcc}::text`.as("bucket"),
@@ -211,8 +212,8 @@ export async function loadContentEngagementStats(opts: {
           gte(reminderOccurrenceHistory.occurredAt, sql`now() - interval '24 hours'`),
         ),
       )
-      .groupBy(hourTruncOcc, reminderOccurrenceHistory.status)
-      .orderBy(asc(hourTruncOcc)),
+      .groupBy(sql`1`, sql`2`)
+      .orderBy(sql`1`),
     db
       .select({
         bucket: sql<string>`${hourTruncPush}::text`.as("bucket"),
@@ -226,8 +227,8 @@ export async function loadContentEngagementStats(opts: {
           inArray(productAnalyticsHourly.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
         ),
       )
-      .groupBy(hourTruncPush, productAnalyticsHourly.eventType)
-      .orderBy(asc(hourTruncPush)),
+      .groupBy(sql`1`, sql`2`)
+      .orderBy(sql`1`),
     db
       .select({
         bucket: sql<string>`${dayTruncPush}::text`.as("bucket"),
@@ -241,8 +242,8 @@ export async function loadContentEngagementStats(opts: {
           inArray(productAnalyticsHourly.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
         ),
       )
-      .groupBy(dayTruncPush, productAnalyticsHourly.eventType)
-      .orderBy(asc(dayTruncPush)),
+      .groupBy(sql`1`, sql`2`)
+      .orderBy(sql`1`),
     db
       .select({
         source: patientPracticeCompletions.source,
