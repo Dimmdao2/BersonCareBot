@@ -131,7 +131,7 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
         eventType: "push_open",
         entryChannel: input.entryChannel ?? "pwa",
         occurredAt: input.occurredAt,
-        userId: input.userId ?? null,
+        userId: input.userId ?? push?.userId ?? null,
         pushTrackingId: input.pushTrackingId,
         topicCode: push?.topicCode ?? null,
         pushKind: push?.pushKind ?? null,

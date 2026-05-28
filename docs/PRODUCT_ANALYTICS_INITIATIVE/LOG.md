@@ -168,3 +168,38 @@
 - План: [`.cursor/plans/archive/product_analytics.plan.md`](../../.cursor/plans/archive/product_analytics.plan.md) — `todos` 1–6 `completed`, DoD `[x]`; уточнено, что `pwa/launch` пишет `heartbeat` (snapshot), не `app_open`.
 - IDE-копия плана (`product_analytics_plan_6f8e3d0b`) приведена к тому же состоянию.
 - Retention в плане: дефолты `recentDays=90`, `userHourlyDays=180`, `hourlyDays=730`, `pushDays=730` (как в `productAnalyticsRetention.ts` и `deploy/HOST_DEPLOY_README.md`).
+
+## 2026-05-28 — Gap closure (персонификация + page-hourly + push attribution)
+
+### Что дозакрыто
+
+1. **Активность каждого клиента (персонифицировано):**
+   - `GET /api/admin/product-analytics` теперь возвращает `clientActivity[]`:
+     - `userId`, `displayName`, `lastSeenAt`,
+     - `appOpens`, `pageViews`, `pushOpens`, `activeMinutes`, `totalActivity`,
+     - `channels[]` с теми же счетчиками по каждому `entryChannel`.
+   - Источник имени: `platform_users.display_name` (fallback: `first_name + last_name`, затем `Пациент`).
+   - UI `/app/doctor/usage`: добавлена таблица «Клиенты».
+
+2. **Почасовой разрез по страницам:**
+   - API расширен `pageViewsHourly[]` (`bucket`, `pageKey`, `views`, `uniqueUsers`) для top страниц в окне.
+   - UI `/app/doctor/usage`: добавлен блок «Почасовой срез (топ-страницы)».
+
+3. **Push-open attribution к владельцу push:**
+   - В `recordPushOpen` (pg/inMemory): если `input.userId` отсутствует (клик из SW без сессии), используется `product_push_notifications.user_id`.
+   - Dedupe по `push_tracking_id` сохранен (повторный click не увеличивает счетчики).
+
+4. **Явные каналы PWA/Telegram/MAX/Browser в отчете:**
+   - API расширен `entryChannelTotals[]`.
+   - В summary UI добавлена строка «Заходы по каналам» с явными лейблами `PWA`, `Telegram`, `MAX`, `Браузер`.
+
+### Проверки
+
+| Проверка | Результат |
+|----------|-----------|
+| `pnpm --dir apps/webapp exec vitest run src/modules/product-analytics/buildAdminDashboard.test.ts src/modules/product-analytics/service.test.ts src/modules/product-analytics/clientEntryChannel.test.ts src/app/api/admin/product-analytics/route.test.ts src/app/api/patient/analytics/push-open/route.test.ts src/app-layer/product-analytics/createTrackedWebPushPayload.test.ts` | 22 passed |
+| `pnpm --dir apps/webapp run typecheck` | OK |
+
+### Примечание по plan-файлам
+
+- По запросу пользователя отдельный plan-файл не редактировался; изменения отражены в коде и в этом execution log.

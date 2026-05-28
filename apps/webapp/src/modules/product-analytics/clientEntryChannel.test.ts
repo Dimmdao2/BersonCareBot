@@ -16,7 +16,11 @@ vi.mock("@/shared/lib/webPush/pwaDisplay", () => ({
   isStandalonePwa: vi.fn(() => false),
 }));
 
-import { isMessengerMiniAppHost, readTelegramInitDataForAuth } from "@/shared/lib/messengerMiniApp";
+import {
+  getMaxWebAppInitDataForAuth,
+  isMessengerMiniAppHost,
+  readTelegramInitDataForAuth,
+} from "@/shared/lib/messengerMiniApp";
 import { readMessengerSurfaceCookie } from "@/shared/lib/platform";
 import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
 
@@ -30,6 +34,7 @@ describe("resolveClientEntryChannel", () => {
     vi.mocked(isMessengerMiniAppHost).mockReturnValue(false);
     vi.mocked(readMessengerSurfaceCookie).mockReturnValue(null);
     vi.mocked(readTelegramInitDataForAuth).mockReturnValue("");
+    vi.mocked(getMaxWebAppInitDataForAuth).mockReturnValue("");
     vi.mocked(isStandalonePwa).mockReturnValue(false);
   });
 
@@ -47,6 +52,14 @@ describe("resolveClientEntryChannel", () => {
   it("returns max when surface cookie is max", () => {
     vi.mocked(isMessengerMiniAppHost).mockReturnValue(true);
     vi.mocked(readMessengerSurfaceCookie).mockReturnValue("max");
+    expect(resolveClientEntryChannel()).toBe("max");
+  });
+
+  it("falls back to max when max init data exists and telegram init data missing", () => {
+    vi.mocked(isMessengerMiniAppHost).mockReturnValue(true);
+    vi.mocked(readMessengerSurfaceCookie).mockReturnValue(null);
+    vi.mocked(getMaxWebAppInitDataForAuth).mockReturnValue("max-init-data");
+    vi.mocked(readTelegramInitDataForAuth).mockReturnValue("");
     expect(resolveClientEntryChannel()).toBe("max");
   });
 

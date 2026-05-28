@@ -19,6 +19,13 @@ const PRESETS = [
   { hours: 720, label: "30 дн." },
 ] as const;
 
+const CHANNEL_LABEL: Record<string, string> = {
+  pwa: "PWA",
+  telegram: "Telegram",
+  max: "MAX",
+  browser: "Браузер",
+};
+
 function formatOpenRate(rate: number): string {
   if (!Number.isFinite(rate) || rate <= 0) return "0%";
   return `${(rate * 100).toFixed(1)}%`;
@@ -137,6 +144,13 @@ export function ProductAnalyticsSection() {
                   { k: "Активные клиенты", v: data.summary.uniqueActiveUsers },
                   { k: "Входы (auth_login)", v: data.summary.totalAuthLogins },
                   { k: "Заходы (app_open)", v: data.summary.totalAppOpens },
+                  {
+                    k: "Заходы по каналам",
+                    v:
+                      data.entryChannelTotals
+                        .map((row) => `${CHANNEL_LABEL[row.entryChannel] ?? row.entryChannel}: ${row.appOpens}`)
+                        .join(" | ") || "—",
+                  },
                   { k: "Просмотры страниц", v: data.summary.totalPageViews },
                   { k: "Минуты активности (heartbeat)", v: data.summary.totalActiveMinutes },
                   { k: "Push отправлено", v: data.summary.totalPushSent },
@@ -168,6 +182,21 @@ export function ProductAnalyticsSection() {
                   { key: "uniqueUsers", header: "Клиенты" },
                 ]}
                 rows={data.topPages.map((r) => ({
+                  pageKey: r.pageKey,
+                  views: r.views,
+                  uniqueUsers: r.uniqueUsers,
+                }))}
+              />
+              <p className="mt-4 text-xs font-medium text-muted-foreground">Почасовой срез (топ-страницы)</p>
+              <StatTable
+                columns={[
+                  { key: "bucket", header: "Час (UTC)" },
+                  { key: "pageKey", header: "Страница" },
+                  { key: "views", header: "Просмотры" },
+                  { key: "uniqueUsers", header: "Клиенты" },
+                ]}
+                rows={data.pageViewsHourly.map((r) => ({
+                  bucket: r.bucket,
                   pageKey: r.pageKey,
                   views: r.views,
                   uniqueUsers: r.uniqueUsers,
@@ -221,6 +250,37 @@ export function ProductAnalyticsSection() {
             </CardHeader>
             <CardContent>
               <ProductAnalyticsActiveUsersChart rows={data.activeUsersDaily} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Клиенты</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StatTable
+                columns={[
+                  { key: "displayName", header: "Клиент" },
+                  { key: "lastSeenAt", header: "Последний визит (UTC)" },
+                  { key: "appOpens", header: "Заходы" },
+                  { key: "pageViews", header: "Страницы" },
+                  { key: "pushOpens", header: "Push open" },
+                  { key: "activeMinutes", header: "Минуты" },
+                  { key: "channels", header: "Каналы" },
+                ]}
+                rows={data.clientActivity.map((r) => ({
+                  displayName: r.displayName,
+                  lastSeenAt: r.lastSeenAt ?? "—",
+                  appOpens: r.appOpens,
+                  pageViews: r.pageViews,
+                  pushOpens: r.pushOpens,
+                  activeMinutes: r.activeMinutes,
+                  channels:
+                    r.channels
+                      .map((c) => `${CHANNEL_LABEL[c.entryChannel] ?? c.entryChannel}: ${c.totalActivity}`)
+                      .join(", ") || "—",
+                }))}
+              />
             </CardContent>
           </Card>
         </>

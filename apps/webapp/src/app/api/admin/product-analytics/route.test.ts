@@ -29,10 +29,13 @@ const samplePayload = {
     pushOpenRate: 0.25,
   },
   entryChannelHourly: [],
+  entryChannelTotals: [],
   topPages: [],
+  pageViewsHourly: [],
   pushByTopic: [],
   warmupSlogans: [],
   activeUsersDaily: [],
+  clientActivity: [],
 };
 
 describe("GET /api/admin/product-analytics", () => {

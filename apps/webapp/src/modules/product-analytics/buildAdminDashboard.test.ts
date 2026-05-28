@@ -75,6 +75,7 @@ describe("buildAdminDashboard", () => {
           pageViews: 0,
           pushOpens: 0,
           activeMinutes: 0,
+          lastSeenAt: "2026-05-20T12:02:00.000Z",
         },
         {
           bucketHour: bucket,
@@ -85,6 +86,7 @@ describe("buildAdminDashboard", () => {
           pageViews: 3,
           pushOpens: 0,
           activeMinutes: 0,
+          lastSeenAt: "2026-05-20T12:12:00.000Z",
         },
         {
           bucketHour: bucket,
@@ -95,8 +97,13 @@ describe("buildAdminDashboard", () => {
           pageViews: 0,
           pushOpens: 1,
           activeMinutes: 2,
+          lastSeenAt: "2026-05-20T12:20:00.000Z",
         },
       ],
+      userDisplayNames: {
+        u1: "Анна",
+        u2: "Борис",
+      },
       warmupSloganSamples: [{ sloganKey: "s1", sampleText: "Разминка" }],
     });
 
@@ -112,12 +119,26 @@ describe("buildAdminDashboard", () => {
     expect(dashboard.entryChannelHourly).toEqual([
       { bucket, pwa: 3, telegram: 1, max: 0, browser: 0 },
     ]);
+    expect(dashboard.entryChannelTotals).toEqual([
+      { entryChannel: "pwa", appOpens: 3 },
+      { entryChannel: "telegram", appOpens: 1 },
+      { entryChannel: "max", appOpens: 0 },
+      { entryChannel: "browser", appOpens: 0 },
+    ]);
 
     expect(dashboard.topPages[0]).toEqual({
       pageKey: "/app/patient/home",
       views: 5,
       uniqueUsers: 1,
     });
+    expect(dashboard.pageViewsHourly).toEqual([
+      {
+        bucket,
+        pageKey: "/app/patient/home",
+        views: 5,
+        uniqueUsers: 1,
+      },
+    ]);
 
     expect(dashboard.pushByTopic[0]).toMatchObject({
       topicCode: "warmup_reminder",
@@ -134,6 +155,48 @@ describe("buildAdminDashboard", () => {
     });
 
     expect(dashboard.activeUsersDaily).toEqual([{ day: "2026-05-20", activeUsers: 2 }]);
+    expect(dashboard.clientActivity).toEqual([
+      {
+        userId: "u2",
+        displayName: "Борис",
+        lastSeenAt: "2026-05-20T12:20:00.000Z",
+        appOpens: 1,
+        pageViews: 0,
+        pushOpens: 1,
+        activeMinutes: 2,
+        totalActivity: 4,
+        channels: [
+          {
+            entryChannel: "browser",
+            appOpens: 1,
+            pageViews: 0,
+            pushOpens: 1,
+            activeMinutes: 2,
+            totalActivity: 4,
+          },
+        ],
+      },
+      {
+        userId: "u1",
+        displayName: "Анна",
+        lastSeenAt: "2026-05-20T12:12:00.000Z",
+        appOpens: 1,
+        pageViews: 3,
+        pushOpens: 0,
+        activeMinutes: 0,
+        totalActivity: 4,
+        channels: [
+          {
+            entryChannel: "pwa",
+            appOpens: 1,
+            pageViews: 3,
+            pushOpens: 0,
+            activeMinutes: 0,
+            totalActivity: 4,
+          },
+        ],
+      },
+    ]);
   });
 
   it("counts auth_login in summary", () => {

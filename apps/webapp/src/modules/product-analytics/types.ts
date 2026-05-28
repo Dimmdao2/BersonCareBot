@@ -70,7 +70,19 @@ export type ProductAnalyticsEntryChannelHourlyRow = {
   browser: number;
 };
 
+export type ProductAnalyticsEntryChannelTotalRow = {
+  entryChannel: ProductAnalyticsEntryChannel;
+  appOpens: number;
+};
+
 export type ProductAnalyticsTopPageRow = {
+  pageKey: string;
+  views: number;
+  uniqueUsers: number;
+};
+
+export type ProductAnalyticsPageViewsHourlyRow = {
+  bucket: string;
   pageKey: string;
   views: number;
   uniqueUsers: number;
@@ -96,13 +108,37 @@ export type ProductAnalyticsActiveUsersDailyRow = {
   activeUsers: number;
 };
 
+export type ProductAnalyticsClientChannelStatsRow = {
+  entryChannel: ProductAnalyticsEntryChannel;
+  appOpens: number;
+  pageViews: number;
+  pushOpens: number;
+  activeMinutes: number;
+  totalActivity: number;
+};
+
+export type ProductAnalyticsClientActivityRow = {
+  userId: string;
+  displayName: string;
+  lastSeenAt: string | null;
+  appOpens: number;
+  pageViews: number;
+  pushOpens: number;
+  activeMinutes: number;
+  totalActivity: number;
+  channels: ProductAnalyticsClientChannelStatsRow[];
+};
+
 export type ProductAnalyticsAdminDashboard = {
   windowHours: number;
   generatedAt: string;
   summary: ProductAnalyticsAdminSummary;
   entryChannelHourly: ProductAnalyticsEntryChannelHourlyRow[];
+  entryChannelTotals: ProductAnalyticsEntryChannelTotalRow[];
   topPages: ProductAnalyticsTopPageRow[];
+  pageViewsHourly: ProductAnalyticsPageViewsHourlyRow[];
   pushByTopic: ProductAnalyticsPushByTopicRow[];
   warmupSlogans: ProductAnalyticsWarmupSloganRow[];
   activeUsersDaily: ProductAnalyticsActiveUsersDailyRow[];
+  clientActivity: ProductAnalyticsClientActivityRow[];
 };

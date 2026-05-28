@@ -30,6 +30,28 @@ describe("createProductAnalyticsService", () => {
     expect(second.deduped).toBe(true);
   });
 
+  it("attributes push_open to push owner when session user missing", async () => {
+    const port = createInMemoryProductAnalyticsPort();
+    const svc = createProductAnalyticsService(port);
+    await svc.createPushNotification({
+      id: "push-owner",
+      userId: "user-owner",
+      topicCode: "warmup",
+      pushKind: "warmup",
+    });
+    const first = await svc.recordPushOpen({ pushTrackingId: "push-owner", userId: null });
+    const second = await svc.recordPushOpen({ pushTrackingId: "push-owner", userId: null });
+    expect(first.deduped).toBe(false);
+    expect(second.deduped).toBe(true);
+
+    const dashboard = await svc.getAdminDashboard({ windowHours: 24 });
+    expect(dashboard.summary.totalPushOpens).toBe(1);
+    expect(dashboard.clientActivity[0]).toMatchObject({
+      userId: "user-owner",
+      pushOpens: 1,
+    });
+  });
+
   it("drops page_view outside patient paths", async () => {
     const recordEventsBatch = vi.fn(async (_events: Parameters<ProductAnalyticsPort["recordEventsBatch"]>[0]) => {});
     const port: ProductAnalyticsPort = {

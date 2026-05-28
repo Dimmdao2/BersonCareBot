@@ -1,4 +1,4 @@
-import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import {
   buildAdminDashboard,
   productAnalyticsWindowStartHour,
@@ -20,6 +20,7 @@ import {
   productAnalyticsUserHourly,
   productPushNotifications,
 } from "../../../db/schema/productAnalytics";
+import { platformUsers } from "../../../db/schema/schema";
 import type { CreatePushNotificationInput } from "@/modules/product-analytics/types";
 
 function pgErrCode(e: unknown): string | undefined {
@@ -187,6 +188,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const db = getDrizzle();
       const [push] = await db
         .select({
+          userId: productPushNotifications.userId,
           topicCode: productPushNotifications.topicCode,
           pushKind: productPushNotifications.pushKind,
           warmupSloganKey: productPushNotifications.warmupSloganKey,
@@ -199,7 +201,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         eventType: "push_open",
         entryChannel: input.entryChannel ?? "pwa",
         occurredAt: input.occurredAt,
-        userId: input.userId ?? null,
+        userId: input.userId ?? push?.userId ?? null,
         pushTrackingId: input.pushTrackingId,
         topicCode: push?.topicCode ?? null,
         pushKind: push?.pushKind ?? null,
@@ -244,9 +246,29 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
           pageViews: productAnalyticsUserHourly.pageViews,
           pushOpens: productAnalyticsUserHourly.pushOpens,
           activeMinutes: productAnalyticsUserHourly.activeMinutes,
+          lastSeenAt: productAnalyticsUserHourly.lastSeenAt,
         })
         .from(productAnalyticsUserHourly)
         .where(gte(productAnalyticsUserHourly.bucketHour, startHour));
+
+      const userIds = [...new Set(userHourlyRows.map((r) => r.userId))];
+      const userDisplayNames: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const userRows = await db
+          .select({
+            id: platformUsers.id,
+            displayName: platformUsers.displayName,
+            firstName: platformUsers.firstName,
+            lastName: platformUsers.lastName,
+          })
+          .from(platformUsers)
+          .where(inArray(platformUsers.id, userIds));
+        for (const row of userRows) {
+          const firstLast = [row.firstName?.trim(), row.lastName?.trim()].filter(Boolean).join(" ").trim();
+          const displayName = row.displayName?.trim() || firstLast || "Пациент";
+          userDisplayNames[row.id] = displayName;
+        }
+      }
 
       const warmupSamples = await db
         .select({
@@ -267,6 +289,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         startHourInclusive: startHour,
         hourlyRows,
         userHourlyRows,
+        userDisplayNames,
         warmupSloganSamples: warmupSamples
           .filter((r): r is { sloganKey: string; sampleText: string | null } => r.sloganKey != null)
           .map((r) => ({ sloganKey: r.sloganKey, sampleText: r.sampleText })),
