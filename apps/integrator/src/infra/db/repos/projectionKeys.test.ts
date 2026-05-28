@@ -1,8 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import { USER_SUBSCRIPTION_UPSERTED } from '../../../kernel/contracts/index.js';
-import { projectionIdempotencyKey, hashPayload, hashPayloadExcludingKeys } from './projectionKeys.js';
+import {
+  asciiSafeProjectionStableIdentifier,
+  projectionIdempotencyKey,
+  hashPayload,
+  hashPayloadExcludingKeys,
+} from './projectionKeys.js';
+
+describe('asciiSafeProjectionStableIdentifier', () => {
+  it('passes through Latin-1 identifiers unchanged', () => {
+    expect(asciiSafeProjectionStableIdentifier('corr-uuid-123')).toBe('corr-uuid-123');
+  });
+
+  it('hashes identifiers with code points above 255', () => {
+    const cyrillic = 'напоминание-упражнение-abc';
+    const safe = asciiSafeProjectionStableIdentifier(cyrillic);
+    expect(safe).toMatch(/^u-[0-9a-f]{32}$/);
+    expect(asciiSafeProjectionStableIdentifier(cyrillic)).toBe(safe);
+  });
+});
 
 describe('projectionIdempotencyKey', () => {
+  it('uses ascii-safe stable segment for Cyrillic correlation ids', () => {
+    const cyrillic = 'тема:напоминания';
+    const key = projectionIdempotencyKey('support.delivery.attempt.logged', cyrillic, 'fp1');
+    expect(key).toMatch(/^support\.delivery\.attempt\.logged:u-[0-9a-f]{32}:fp1$/);
+    expect(key).not.toContain('тема');
+  });
+
   it('returns deterministic key for same inputs', () => {
     const a = projectionIdempotencyKey('user.upserted', '42', 'fp1');
     const b = projectionIdempotencyKey('user.upserted', '42', 'fp1');

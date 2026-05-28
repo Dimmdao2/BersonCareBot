@@ -27,6 +27,11 @@ export type CronJobRegistryEntry = {
   staleAfterSec: number;
   kind: CronJobRegistryKind;
   internalPath?: string;
+  /**
+   * Нет строки в `operator_job_status` — только «нет данных» по задаче.
+   * Не ухудшает сводный статус «Cron-задачи хоста» (редкое расписание, опциональный job).
+   */
+  optionalNoData?: boolean;
 };
 
 /** Канонический список host cron / internal jobs для «Здоровье системы». */
@@ -138,6 +143,7 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     scheduleHint: "ежедневно",
     staleAfterSec: 28 * 60 * 60,
     kind: "backup_shell",
+    optionalNoData: true,
   },
   {
     id: "backup_weekly",
@@ -147,6 +153,7 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     scheduleHint: "еженедельно",
     staleAfterSec: 8 * 24 * 60 * 60,
     kind: "backup_shell",
+    optionalNoData: true,
   },
   {
     id: "backup_prune",
@@ -156,6 +163,7 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     scheduleHint: "по расписанию retention",
     staleAfterSec: 8 * 24 * 60 * 60,
     kind: "backup_shell",
+    optionalNoData: true,
   },
 ] as const;
 

@@ -9,16 +9,36 @@ import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRu
 
 export const NOTIFICATION_DELIVERY_HEALTH_WINDOW_HOURS = 24 as const;
 
-const DEGRADED_SKIP_REASONS = new Set([
+/**
+ * Skip reasons that indicate misconfiguration or provider failure — not user/product choice.
+ * User-facing skips (no binding, topic disallows channel, prefs off) stay in DB for analytics
+ * but must not mark «Здоровье системы» as degraded.
+ */
+const OPERATOR_DEGRADED_SKIP_REASONS = new Set([
   "vapid_missing",
   "provider_disabled",
   "smtp_error",
   "provider_error",
-  "no_active_subscriptions",
-  "missing_binding",
-  "missing_email",
-  "email_not_verified",
 ]);
+
+export function isOperatorRelevantDeliveryIssue(issue: {
+  status: string;
+  reason: string | null;
+}): boolean {
+  if (issue.status === "failed") return true;
+  return (
+    issue.status === "skipped" &&
+    issue.reason !== null &&
+    OPERATOR_DEGRADED_SKIP_REASONS.has(issue.reason)
+  );
+}
+
+/** Issues shown on «Здоровье системы» (excludes routine user/product skips). */
+export function filterOperatorRelevantDeliveryIssues<
+  T extends { status: string; reason: string | null },
+>(issues: T[]): T[] {
+  return issues.filter(isOperatorRelevantDeliveryIssue);
+}
 
 export type NotificationDeliveryHealthPayload = NotificationDeliveryHealthSnapshot & {
   status: NotificationDeliverySystemHealthStatus;
@@ -72,24 +92,25 @@ export function classifyNotificationDeliverySystemHealthStatus(input: {
 
   const hasSuccess = NOTIFICATION_DELIVERY_CHANNELS.some((ch) => input.byChannel[ch].successCount > 0);
   const hasFailed = NOTIFICATION_DELIVERY_CHANNELS.some((ch) => input.byChannel[ch].failedCount > 0);
-  const hasDegradedSkip = input.recentIssues.some(
-    (issue) => issue.status === "skipped" && issue.reason !== null && DEGRADED_SKIP_REASONS.has(issue.reason),
-  );
+  const hasOperatorSkip = input.recentIssues.some(isOperatorRelevantDeliveryIssue);
 
   const pushInfraGap =
     !input.vapidConfigured &&
     (input.byChannel.web_push.failedCount > 0 ||
-      input.byChannel.web_push.skippedCount > 0 ||
-      input.recentIssues.some((i) => i.channel === "web_push"));
+      input.recentIssues.some(
+        (i) => i.channel === "web_push" && isOperatorRelevantDeliveryIssue(i),
+      ));
   const emailInfraGap =
     !input.smtpConfigured &&
     (input.byChannel.email.failedCount > 0 ||
-      input.byChannel.email.skippedCount > 0 ||
-      input.recentIssues.some((i) => i.channel === "email"));
+      input.recentIssues.some(
+        (i) => i.channel === "email" && isOperatorRelevantDeliveryIssue(i),
+      ));
 
-  if (hasFailed || hasDegradedSkip || pushInfraGap || emailInfraGap) return "degraded";
+  if (hasFailed || hasOperatorSkip || pushInfraGap || emailInfraGap) return "degraded";
   if (hasSuccess) return "ok";
-  return "degraded";
+  if (input.totalAttempts24h > 0) return "ok";
+  return "no_data";
 }
 
 export async function loadAdminNotificationDeliveryHealthMetrics(): Promise<
@@ -104,10 +125,12 @@ export async function loadAdminNotificationDeliveryHealthMetrics(): Promise<
     const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
     const smtpConfigured = smtpParsed?.success === true;
 
+    const operatorRecentIssues = filterOperatorRelevantDeliveryIssues(snapshot.recentIssues);
+
     const status = classifyNotificationDeliverySystemHealthStatus({
       totalAttempts24h: snapshot.totalAttempts24h,
       byChannel: snapshot.byChannel,
-      recentIssues: snapshot.recentIssues,
+      recentIssues: operatorRecentIssues,
       vapidConfigured,
       smtpConfigured,
     });
@@ -116,6 +139,7 @@ export async function loadAdminNotificationDeliveryHealthMetrics(): Promise<
       ok: true,
       value: {
         ...snapshot,
+        recentIssues: operatorRecentIssues,
         status,
         vapidConfigured,
         smtpConfigured,

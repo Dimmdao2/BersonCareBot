@@ -2,6 +2,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { classifyOperatorCronJobHealthStatus } from "@/modules/operator-health/classifyOperatorCronJobHealthStatus";
 import {
   CRON_JOB_REGISTRY,
+  findCronJobRegistryEntry,
   type CronJobRegistryEntry,
 } from "@/modules/operator-health/cronJobRegistry";
 import { OPERATOR_BACKUP_JOB_FAMILY } from "@/modules/operator-health/reconcileJobKeys";
@@ -83,9 +84,10 @@ function aggregateCronJobsStatus(
     if (to > rank) rank = to;
   };
   for (const j of jobs) {
+    const reg = findCronJobRegistryEntry(j.jobFamily, j.jobKey);
     if (j.status === "error") bump(2);
     else if (j.status === "degraded") bump(1);
-    else if (j.status === "no_data") bump(1);
+    else if (j.status === "no_data" && !reg?.optionalNoData) bump(1);
   }
   if (rank >= 2) return "error";
   if (rank >= 1) return "degraded";

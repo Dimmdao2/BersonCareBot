@@ -236,6 +236,48 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).toHaveBeenCalledTimes(1);
   });
 
+  it("same idempotency key and reminder.rule.upserted with different payload.updatedAt does not 409", async () => {
+    handleIntegratorEventMock.mockResolvedValueOnce({ accepted: true });
+    const headers = {
+      "x-bersoncare-timestamp": "1700000000",
+      "x-bersoncare-signature": "sig",
+      "x-bersoncare-idempotency-key": "reminder.rule.upserted:wp-1:abc123",
+      "content-type": "application/json",
+    };
+    const payloadBase = {
+      integratorRuleId: "wp-1",
+      integratorUserId: "87",
+      category: "exercise",
+      isEnabled: true,
+      scheduleType: "slots_v1",
+      timezone: "Europe/Moscow",
+      intervalMinutes: 60,
+      windowStartMinute: 0,
+      windowEndMinute: 1440,
+      daysMask: "1111111",
+      contentMode: "none",
+    };
+    const bodyA = JSON.stringify({
+      eventType: "reminder.rule.upserted",
+      payload: { ...payloadBase, updatedAt: "2026-05-28T10:00:00.093Z" },
+    });
+    const bodyB = JSON.stringify({
+      eventType: "reminder.rule.upserted",
+      payload: { ...payloadBase, updatedAt: "2026-05-28T12:04:00.181Z" },
+    });
+
+    const first = await POST(
+      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyA }),
+    );
+    const second = await POST(
+      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyB }),
+    );
+
+    expect(first.status).toBe(202);
+    expect(second.status).toBe(202);
+    expect(handleIntegratorEventMock).toHaveBeenCalledTimes(1);
+  });
+
   it("returns 409 when same idempotency key is reused with different payload", async () => {
     handleIntegratorEventMock.mockResolvedValue({ accepted: true });
     const bodyA = JSON.stringify({ eventType: "user.upserted", payload: { integratorUserId: "1" } });

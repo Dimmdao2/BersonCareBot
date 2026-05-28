@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { NOTIFICATION_DELIVERY_CHANNELS } from "@/modules/notification-delivery/types";
-import { classifyNotificationDeliverySystemHealthStatus } from "./adminNotificationDeliveryHealthMetrics";
+import {
+  classifyNotificationDeliverySystemHealthStatus,
+  filterOperatorRelevantDeliveryIssues,
+} from "./adminNotificationDeliveryHealthMetrics";
 
 function emptyByChannel() {
   return Object.fromEntries(
@@ -89,9 +92,73 @@ describe("classifyNotificationDeliverySystemHealthStatus", () => {
     ).toBe("degraded");
   });
 
-  it("returns degraded on config-like skip reason", () => {
+  it("returns ok on user/product skip reasons (missing_binding, channel_not_allowed_for_topic)", () => {
     const byChannel = emptyByChannel();
-    byChannel.email.skippedCount = 1;
+    byChannel.max.skippedCount = 5;
+    byChannel.email.skippedCount = 3;
+    byChannel.telegram.successCount = 10;
+    expect(
+      classifyNotificationDeliverySystemHealthStatus({
+        totalAttempts24h: 18,
+        byChannel,
+        recentIssues: [
+          {
+            createdAt: new Date().toISOString(),
+            channel: "max",
+            status: "skipped",
+            reason: "missing_binding",
+            topicCode: "exercise_reminders",
+            recipientRef: null,
+            userId: null,
+            errorMessage: null,
+          },
+          {
+            createdAt: new Date().toISOString(),
+            channel: "email",
+            status: "skipped",
+            reason: "channel_not_allowed_for_topic",
+            topicCode: "exercise_reminders",
+            recipientRef: null,
+            userId: null,
+            errorMessage: null,
+          },
+        ],
+        vapidConfigured: true,
+        smtpConfigured: true,
+      }),
+    ).toBe("ok");
+  });
+
+  it("filterOperatorRelevantDeliveryIssues drops routine skips", () => {
+    const issues = [
+      {
+        createdAt: new Date().toISOString(),
+        channel: "max",
+        status: "skipped" as const,
+        reason: "missing_binding",
+        topicCode: "exercise_reminders",
+        recipientRef: null,
+        userId: null,
+        errorMessage: null,
+      },
+      {
+        createdAt: new Date().toISOString(),
+        channel: "telegram",
+        status: "failed" as const,
+        reason: "provider_error",
+        topicCode: null,
+        recipientRef: null,
+        userId: null,
+        errorMessage: "timeout",
+      },
+    ];
+    expect(filterOperatorRelevantDeliveryIssues(issues)).toHaveLength(1);
+    expect(filterOperatorRelevantDeliveryIssues(issues)[0]?.channel).toBe("telegram");
+  });
+
+  it("returns degraded on infra skip (vapid_missing)", () => {
+    const byChannel = emptyByChannel();
+    byChannel.web_push.skippedCount = 1;
     expect(
       classifyNotificationDeliverySystemHealthStatus({
         totalAttempts24h: 1,
@@ -99,16 +166,16 @@ describe("classifyNotificationDeliverySystemHealthStatus", () => {
         recentIssues: [
           {
             createdAt: new Date().toISOString(),
-            channel: "email",
+            channel: "web_push",
             status: "skipped",
-            reason: "missing_email",
-            topicCode: "appointment_reminders",
+            reason: "vapid_missing",
+            topicCode: "exercise_reminders",
             recipientRef: null,
             userId: null,
             errorMessage: null,
           },
         ],
-        vapidConfigured: true,
+        vapidConfigured: false,
         smtpConfigured: true,
       }),
     ).toBe("degraded");

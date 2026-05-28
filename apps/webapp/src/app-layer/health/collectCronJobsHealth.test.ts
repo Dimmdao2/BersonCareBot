@@ -64,4 +64,39 @@ describe("collectCronJobsHealth", () => {
     expect(hourly?.status).toBe("ok");
     expect(hourly?.lastTick?.jobKey).toBe("backup.hourly");
   });
+
+  it("aggregate status stays ok when only optional backup jobs have no_data", async () => {
+    getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
+      return Promise.resolve({
+        jobKey: key,
+        jobFamily: family,
+        lastStatus: "success",
+        lastStartedAt: null,
+        lastFinishedAt: new Date().toISOString(),
+        lastSuccessAt: new Date(Date.now() - 60_000).toISOString(),
+        lastFailureAt: null,
+        lastDurationMs: 2,
+        lastError: null,
+        metaJson: {},
+      });
+    });
+
+    const result = await collectCronJobsHealth({
+      backupJobs: {
+        "backup.hourly": {
+          lastStatus: "success",
+          lastStartedAt: null,
+          lastFinishedAt: new Date().toISOString(),
+          lastSuccessAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+          lastFailureAt: null,
+          lastDurationMs: 1000,
+          lastError: null,
+        },
+      },
+    });
+
+    expect(result.jobs.find((j) => j.id === "backup_daily")?.status).toBe("no_data");
+    expect(result.jobs.find((j) => j.id === "backup_weekly")?.status).toBe("no_data");
+    expect(result.status).toBe("ok");
+  });
 });
