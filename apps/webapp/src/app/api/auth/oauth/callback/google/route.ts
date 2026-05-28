@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  logOAuthWebCallbackFailure,
+  logOAuthWebCallbackRegistrationSuccess,
+} from "@/app-layer/product-analytics/registrationOAuthWebCallback";
+import { registrationAttemptIdFromOAuthState } from "@/app-layer/product-analytics/recordAuthRegistration";
 import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import {
   getGoogleClientId,
@@ -22,7 +27,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";
   const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, "google_login");
+  const attemptId = registrationAttemptIdFromOAuthState(verifiedState);
+  const logBase = {
+    attemptId,
+    authMethod: "oauth_google" as const,
+    contactValue: "google",
+  };
   if (!verifiedState) {
+    await logOAuthWebCallbackFailure(logBase, "oauth_csrf");
     return NextResponse.json(
       { error: "oauth_csrf", message: "Недействительный или просроченный state" },
       { status: 403 },
@@ -35,11 +47,19 @@ export async function GET(request: Request) {
   const redirectUri = (await getGoogleOauthLoginRedirectUri()).trim();
 
   if (!clientId || !clientSecret || !redirectUri) {
+    await logOAuthWebCallbackFailure(logBase, "oauth_disabled");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("not_configured"), appBase));
+  }
+
+  const errorParam = url.searchParams.get("error");
+  if (errorParam) {
+    await logOAuthWebCallbackFailure(logBase, errorParam.slice(0, 80));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect(errorParam.slice(0, 80)), appBase));
   }
 
   const code = url.searchParams.get("code");
   if (!code) {
+    await logOAuthWebCallbackFailure(logBase, "no_code");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_code"), appBase));
   }
 
@@ -49,11 +69,13 @@ export async function GET(request: Request) {
     accessToken = tokens.accessToken;
     void tokens.refreshToken;
   } catch {
+    await logOAuthWebCallbackFailure(logBase, "exchange_failed");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("exchange_failed"), appBase));
   }
 
   const profile = await fetchGoogleUserProfile(accessToken);
   if (!profile) {
+    await logOAuthWebCallbackFailure(logBase, "userinfo_failed");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("userinfo_failed"), appBase));
   }
 
@@ -68,6 +90,7 @@ export async function GET(request: Request) {
 
   if (!resolved.ok) {
     const r = resolved.reason;
+    await logOAuthWebCallbackFailure(logBase, r);
     if (r === "no_identity") {
       return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_identity"), appBase));
     }
@@ -89,8 +112,11 @@ export async function GET(request: Request) {
   });
 
   if (!done.ok) {
+    await logOAuthWebCallbackFailure(logBase, done.reason, "session_set", resolved.userId);
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect(done.reason), appBase));
   }
+
+  await logOAuthWebCallbackRegistrationSuccess(logBase, resolved.accountOutcome, resolved.userId);
 
   return NextResponse.redirect(done.redirectUrl);
 }

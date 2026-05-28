@@ -6,6 +6,7 @@ import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import { resolveRoleAsync, isWhitelistedAsync } from "./envRole";
 import type { IdentityResolutionPort, MessengerIdentityResolutionHints } from "./identityResolutionPort";
+import type { AccountOutcome } from "./oauthYandexResolve";
 import { normalizePhone } from "./phoneNormalize";
 import { isValidPhoneE164 } from "./phoneValidation";
 import { getRedirectPathForRole } from "./redirectPolicy";
@@ -63,6 +64,7 @@ type IntegratorTokenPayload = {
 export type ExchangeResult = {
   session: AppSession;
   redirectTo: string;
+  accountOutcome?: AccountOutcome;
   /**
    * Только для `exchangeIntegratorToken`: ставить `bersoncare_platform=bot` на ответе `/api/auth/exchange`.
    * Для dev bypass (`dev:*`) — всегда false (синтетические bindings не должны включать miniapp-ветку в браузере).
@@ -408,17 +410,20 @@ export async function exchangeIntegratorToken(
   }
 
   let user: SessionUser;
+  let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
     const binding = effectiveMessengerBinding(parsed);
     if (binding) {
       const resolutionHints = !devParsed ? messengerResolutionHintsFromToken(parsed) : undefined;
-      user = await identityResolutionPort.findOrCreateByChannelBinding({
+      const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
         channelCode: binding.channelCode,
         externalId: binding.externalId,
         displayName: parsed.displayName,
         role: parsed.role,
         ...(resolutionHints ? { resolutionHints } : {}),
       });
+      user = resolved.user;
+      accountOutcome = resolved.accountOutcome;
     } else if (!devParsed) {
       const subTrim = parsed.sub.trim();
       // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.
@@ -492,10 +497,9 @@ export async function exchangeIntegratorToken(
     session,
     redirectTo: getRedirectPathForRole(user.role),
     setMessengerPlatformCookie,
+    ...(accountOutcome ? { accountOutcome } : {}),
   };
 }
-
-/** Validates Telegram Web App initData and creates session. Used when user opens Mini App without ?t= token. */
 export async function exchangeTelegramInitData(
   initData: string,
   identityResolutionPort?: IdentityResolutionPort | null,
@@ -521,14 +525,17 @@ export async function exchangeTelegramInitData(
   }
 
   let user: SessionUser;
+  let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
-    user = await identityResolutionPort.findOrCreateByChannelBinding({
+    const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
       channelCode: "telegram",
       externalId: parsed.telegramId,
       displayName: parsed.displayName,
       role: parsed.role,
       ...(resolutionHints ? { resolutionHints } : {}),
     });
+    user = resolved.user;
+    accountOutcome = resolved.accountOutcome;
   } else {
     // No DB port (tests): `tg:…` transport — onboarding-only for client tier; see `sessionCanonicalUserIdPolicy.ts`.
     user = {
@@ -562,6 +569,7 @@ export async function exchangeTelegramInitData(
   return {
     session,
     redirectTo,
+    ...(accountOutcome ? { accountOutcome } : {}),
   };
 }
 
@@ -623,14 +631,17 @@ export async function exchangeMaxInitData(
   }
 
   let user: SessionUser;
+  let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
-    user = await identityResolutionPort.findOrCreateByChannelBinding({
+    const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
       channelCode: "max",
       externalId: parsed.maxUserId,
       displayName: parsed.displayName,
       role: parsed.role,
       ...(resolutionHints ? { resolutionHints } : {}),
     });
+    user = resolved.user;
+    accountOutcome = resolved.accountOutcome;
   } else {
     user = {
       userId: `max:${parsed.maxUserId}`,
@@ -663,6 +674,7 @@ export async function exchangeMaxInitData(
   return {
     session,
     redirectTo,
+    ...(accountOutcome ? { accountOutcome } : {}),
   };
 }
 
@@ -709,14 +721,17 @@ export async function exchangeTelegramLoginWidget(
   }
 
   let user: SessionUser;
+  let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
-    user = await identityResolutionPort.findOrCreateByChannelBinding({
+    const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
       channelCode: "telegram",
       externalId: telegramId,
       displayName: displayName || undefined,
       role,
       ...(resolutionHints ? { resolutionHints } : {}),
     });
+    user = resolved.user;
+    accountOutcome = resolved.accountOutcome;
   } else {
     // No DB port (tests): `tg:…` — onboarding-only for client; see `sessionCanonicalUserIdPolicy.ts`.
     user = {
@@ -744,6 +759,7 @@ export async function exchangeTelegramLoginWidget(
   return {
     session,
     redirectTo: getRedirectPathForRole(user.role),
+    ...(accountOutcome ? { accountOutcome } : {}),
   };
 }
 

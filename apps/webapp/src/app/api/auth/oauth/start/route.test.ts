@@ -36,6 +36,15 @@ vi.mock("@/config/env", () => ({
   env: { SESSION_COOKIE_SECRET: "test-session-secret-16chars" },
 }));
 
+const recordAuthRegistrationAttemptMock = vi.fn(async () => undefined);
+
+vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
+  newRegistrationAttemptId: () => "11111111-1111-4111-8111-111111111111",
+  recordAuthRegistrationAttempt: (...args: unknown[]) => recordAuthRegistrationAttemptMock(...args),
+  recordAuthRegistrationFailure: vi.fn(async () => undefined),
+  registrationAttemptIdFromOAuthState: () => "22222222-2222-2222-2222-222222222222",
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/auth/oauth/start", () => {
@@ -51,6 +60,7 @@ describe("POST /api/auth/oauth/start", () => {
     oauthMocks.getAppleOauthTeamId.mockResolvedValue("");
     oauthMocks.getAppleOauthKeyId.mockResolvedValue("");
     oauthMocks.getAppleOauthPrivateKey.mockResolvedValue("");
+    recordAuthRegistrationAttemptMock.mockReset();
   });
 
   it("returns 400 for missing body", async () => {
@@ -124,6 +134,9 @@ describe("POST /api/auth/oauth/start", () => {
     expect(data.authUrl).toContain("https://oauth.yandex.ru/authorize");
     expect(data.authUrl).toContain("client_id=test-client-id");
     expect(data.authUrl).toContain("login%3Adefault_phone");
+    expect(recordAuthRegistrationAttemptMock).toHaveBeenCalledWith(
+      expect.objectContaining({ authMethod: "oauth_yandex", stage: "start" }),
+    );
   });
 
   it("returns 200 with Google authorize URL when configured", async () => {

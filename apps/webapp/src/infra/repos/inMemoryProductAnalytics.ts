@@ -12,10 +12,12 @@ import {
 import type { ProductAnalyticsPort, ProductAnalyticsPurgeOptions } from "@/modules/product-analytics/ports";
 import type {
   CreatePushNotificationInput,
+  ListRegistrationEventsParams,
+  ListRegistrationEventsResult,
   ProductAnalyticsIngestEvent,
   RecordPushOpenInput,
 } from "@/modules/product-analytics/types";
-import { PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
+import { AUTH_REGISTRATION_EVENT_TYPES, PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
 type HourlyKey = string;
 type UserHourlyKey = string;
 
@@ -238,6 +240,40 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
       if (options?.dryRun) return { deleted: ids.length };
       for (const id of ids) pushNotifications.delete(id);
       return { deleted: ids.length };
+    },
+
+    async listRegistrationEvents(params: ListRegistrationEventsParams): Promise<ListRegistrationEventsResult> {
+      const startMs = new Date(params.startIso).getTime();
+      const endMs = new Date(params.endExclusiveIso).getTime();
+      let filtered = recent.filter((row) => {
+        const t = new Date(row.occurredAt).getTime();
+        if (t < startMs || t >= endMs) return false;
+        if (!(AUTH_REGISTRATION_EVENT_TYPES as readonly string[]).includes(row.eventType)) return false;
+        if (params.eventType && row.eventType !== params.eventType) return false;
+        const meta = row.metadata ?? {};
+        if (params.authMethod?.trim() && meta.authMethod !== params.authMethod.trim()) return false;
+        if (params.errorClass && meta.errorClass !== params.errorClass) return false;
+        return true;
+      });
+      filtered = [...filtered].sort(
+        (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+      );
+      const total = filtered.length;
+      const offset = (params.page - 1) * params.limit;
+      const pageItems = filtered.slice(offset, offset + params.limit);
+      return {
+        items: pageItems.map((row) => ({
+          id: row.id,
+          occurredAt: row.occurredAt,
+          eventType: row.eventType as ListRegistrationEventsResult["items"][number]["eventType"],
+          entryChannel: row.entryChannel as ListRegistrationEventsResult["items"][number]["entryChannel"],
+          userId: row.userId ?? null,
+          metadata: (row.metadata ?? {}) as Record<string, unknown>,
+        })),
+        total,
+        page: params.page,
+        limit: params.limit,
+      };
     },
   };
 }

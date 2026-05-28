@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
+  newRegistrationAttemptId,
+  recordAuthRegistrationAttempt,
+  recordAuthRegistrationFailure,
+  recordAuthRegistrationSuccess,
+} from "@/app-layer/product-analytics/recordAuthRegistration";
+import {
   entryChannelFromMessengerBindings,
   recordAuthLogin,
 } from "@/app-layer/product-analytics/recordAuthLogin";
@@ -19,6 +25,15 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
+    await recordAuthRegistrationFailure({
+      attemptId: newRegistrationAttemptId(),
+      authMethod: "integrator_exchange",
+      stage: "start",
+      entryChannel: "browser",
+      contactType: "oauth_provider",
+      contactValue: "integrator",
+      errorCode: "invalid_body",
+    });
     const res = NextResponse.json({ ok: false, error: "token is required" }, { status: 400 });
     logAuthRouteTiming({
       route: ROUTE,
@@ -31,10 +46,28 @@ export async function POST(request: Request) {
     return res;
   }
   const { token } = parsed.data;
+  const attemptId = newRegistrationAttemptId();
+  await recordAuthRegistrationAttempt({
+    attemptId,
+    authMethod: "integrator_exchange",
+    stage: "start",
+    entryChannel: "browser",
+    contactType: "oauth_provider",
+    contactValue: "integrator",
+  });
 
   const deps = buildAppDeps();
   const result = await deps.auth.exchangeIntegratorToken(token);
   if (!result) {
+    await recordAuthRegistrationFailure({
+      attemptId,
+      authMethod: "integrator_exchange",
+      stage: "session_set",
+      entryChannel: "browser",
+      contactType: "oauth_provider",
+      contactValue: "integrator",
+      errorCode: "access_denied",
+    });
     if (process.env.NODE_ENV !== "test") {
       console.info("[auth/exchange] access_denied");
     }
@@ -64,6 +97,18 @@ export async function POST(request: Request) {
     entryChannel: entryChannelFromMessengerBindings(result.session.user.bindings),
     authMethod: result.session.authSource === "dev_bypass" ? "dev_bypass" : "integrator_exchange",
   });
+  if (result.accountOutcome === "created") {
+    await recordAuthRegistrationSuccess({
+      attemptId,
+      authMethod: "integrator_exchange",
+      stage: "session_set",
+      entryChannel: entryChannelFromMessengerBindings(result.session.user.bindings),
+      contactType: "oauth_provider",
+      contactValue: "integrator",
+      userId: result.session.user.userId,
+      isNewAccount: true,
+    });
+  }
 
   const response = NextResponse.json({
     ok: true,

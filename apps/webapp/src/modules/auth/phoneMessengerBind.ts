@@ -296,7 +296,10 @@ export async function completePhoneMessengerBindFromIntegrator(
         return { ok: true as const, purpose: "profile_bind" };
       }
 
-      const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps);
+      const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps, {
+        registrationAttemptId: trimmed,
+        isRegistrationIntent: pre.accountCreated,
+      });
       if (!challenge.ok) {
         await port.updateFailed(row.id, challenge.code, client);
         logger.warn({

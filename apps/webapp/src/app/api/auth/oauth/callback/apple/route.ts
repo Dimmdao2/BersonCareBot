@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  logOAuthWebCallbackFailure,
+  logOAuthWebCallbackRegistrationSuccess,
+} from "@/app-layer/product-analytics/registrationOAuthWebCallback";
+import { registrationAttemptIdFromOAuthState } from "@/app-layer/product-analytics/recordAuthRegistration";
 import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import {
   getAppleOauthClientId,
@@ -43,12 +48,20 @@ export async function POST(request: Request) {
 
   const stateRaw = params.get("state") ?? "";
   const verified = parseVerifiedSignedOAuthState(stateRaw, "apple");
+  const attemptId = registrationAttemptIdFromOAuthState(verified);
+  const logBase = {
+    attemptId,
+    authMethod: "oauth_apple" as const,
+    contactValue: "apple",
+  };
   if (!verified || !verified.nonce) {
+    await logOAuthWebCallbackFailure(logBase, "invalid_state");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("invalid_state"), appBase));
   }
 
   const errorParam = params.get("error");
   if (errorParam) {
+    await logOAuthWebCallbackFailure(logBase, errorParam.slice(0, 80));
     return NextResponse.redirect(
       new URL(oauthWebLoginErrorRedirect(errorParam.slice(0, 80)), appBase),
     );
@@ -56,6 +69,7 @@ export async function POST(request: Request) {
 
   const code = params.get("code");
   if (!code) {
+    await logOAuthWebCallbackFailure(logBase, "no_code");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_code"), appBase));
   }
 
@@ -66,6 +80,7 @@ export async function POST(request: Request) {
   const privateKey = (await getAppleOauthPrivateKey()).trim();
 
   if (!clientId || !redirectUri || !teamId || !keyId || !privateKey) {
+    await logOAuthWebCallbackFailure(logBase, "not_configured");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("not_configured"), appBase));
   }
 
@@ -78,6 +93,7 @@ export async function POST(request: Request) {
       privateKeyPem: privateKey,
     });
   } catch {
+    await logOAuthWebCallbackFailure(logBase, "apple_jwt_failed");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("apple_jwt_failed"), appBase));
   }
 
@@ -91,10 +107,12 @@ export async function POST(request: Request) {
     });
     idToken = tokens.id_token;
   } catch {
+    await logOAuthWebCallbackFailure(logBase, "exchange_failed");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("exchange_failed"), appBase));
   }
 
   if (!idToken) {
+    await logOAuthWebCallbackFailure(logBase, "no_id_token");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_id_token"), appBase));
   }
 
@@ -106,6 +124,7 @@ export async function POST(request: Request) {
       expectedNonce: verified.nonce,
     });
   } catch {
+    await logOAuthWebCallbackFailure(logBase, "id_token_invalid");
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("id_token_invalid"), appBase));
   }
 
@@ -125,6 +144,7 @@ export async function POST(request: Request) {
 
   if (!resolved.ok) {
     const r = resolved.reason;
+    await logOAuthWebCallbackFailure(logBase, r);
     if (r === "no_identity") {
       return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_identity"), appBase));
     }
@@ -147,8 +167,11 @@ export async function POST(request: Request) {
   });
 
   if (!done.ok) {
+    await logOAuthWebCallbackFailure(logBase, done.reason, "session_set", resolved.userId);
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect(done.reason), appBase));
   }
+
+  await logOAuthWebCallbackRegistrationSuccess(logBase, resolved.accountOutcome, resolved.userId);
 
   return NextResponse.redirect(done.redirectUrl);
 }

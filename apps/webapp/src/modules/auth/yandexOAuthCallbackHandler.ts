@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { env, webappReposAreInMemory } from "@/config/env";
+import {
+  recordAuthRegistrationFailure,
+  recordAuthRegistrationSuccess,
+  registrationAttemptIdFromOAuthState,
+} from "@/app-layer/product-analytics/recordAuthRegistration";
 import { exchangeYandexCode, fetchYandexUserInfo } from "@/modules/auth/oauthService";
 import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
 import { setSessionFromUser } from "@/modules/auth/service";
@@ -18,6 +23,28 @@ import {
 } from "@/modules/system-settings/integrationRuntime";
 import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
 
+const LOG_BASE = {
+  authMethod: "oauth_yandex" as const,
+  entryChannel: "browser" as const,
+  contactType: "oauth_provider" as const,
+  contactValue: "yandex",
+};
+
+async function logOAuthFailure(
+  attemptId: string,
+  errorCode: string,
+  stage: "callback" | "session_set",
+  userId?: string | null,
+) {
+  await recordAuthRegistrationFailure({
+    ...LOG_BASE,
+    attemptId,
+    stage,
+    userId,
+    errorCode,
+  });
+}
+
 /**
  * Yandex OAuth callback: signed state → code → token → userinfo → resolve user → session → redirect.
  * Used by {@link GET} on `/api/auth/oauth/callback/yandex` and legacy `/api/auth/oauth/callback`.
@@ -31,7 +58,9 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   const stateFromQuery = url.searchParams.get("state") ?? "";
 
   const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, "yandex");
+  const attemptId = registrationAttemptIdFromOAuthState(verifiedState);
   if (!verifiedState) {
+    await logOAuthFailure(attemptId, "oauth_csrf", "callback");
     return NextResponse.json(
       { error: "oauth_csrf", message: "Недействительный или просроченный state" },
       { status: 403 },
@@ -43,11 +72,19 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   const secret = (await getYandexOauthClientSecret()).trim();
 
   if (!clientId || !redirectUri || !secret) {
+    await logOAuthFailure(attemptId, "oauth_disabled", "callback");
     return NextResponse.redirect(new URL("/app?oauth=disabled&reason=not_configured", appBase));
+  }
+
+  const errorParam = url.searchParams.get("error");
+  if (errorParam) {
+    await logOAuthFailure(attemptId, errorParam.slice(0, 80), "callback");
+    return NextResponse.redirect(redirectToAppQuery(errorParam.slice(0, 80)));
   }
 
   const code = url.searchParams.get("code");
   if (!code) {
+    await logOAuthFailure(attemptId, "no_code", "callback");
     return NextResponse.redirect(redirectToAppQuery("no_code"));
   }
 
@@ -60,6 +97,7 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
     });
     accessToken = tokenResult.accessToken;
   } catch {
+    await logOAuthFailure(attemptId, "exchange_failed", "callback");
     return NextResponse.redirect(redirectToAppQuery("exchange_failed"));
   }
 
@@ -74,6 +112,7 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
     oauthName = info.name;
     oauthPhone = info.phone;
   } catch {
+    await logOAuthFailure(attemptId, "userinfo_failed", "callback");
     return NextResponse.redirect(redirectToAppQuery("userinfo_failed"));
   }
 
@@ -88,6 +127,7 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
 
   if (!resolved.ok) {
     const r = resolved.reason;
+    await logOAuthFailure(attemptId, r, "callback");
     if (r === "no_identity") {
       return NextResponse.redirect(redirectToAppQuery("no_identity"));
     }
@@ -105,10 +145,12 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   try {
     sessionUser = await pgUserByPhonePort.findByUserId(resolved.userId);
   } catch {
+    await logOAuthFailure(attemptId, "db_error", "session_set", resolved.userId);
     return NextResponse.redirect(redirectToAppQuery("db_error"));
   }
 
   if (!sessionUser) {
+    await logOAuthFailure(attemptId, "session_failed", "session_set", resolved.userId);
     return NextResponse.redirect(redirectToAppQuery("session_failed"));
   }
 
@@ -125,6 +167,7 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
       displayName: oauthName?.trim() || sessionUser.displayName || oauthEmail || yandexId,
     });
   } catch {
+    await logOAuthFailure(attemptId, "session_failed", "session_set", resolved.userId);
     return NextResponse.redirect(redirectToAppQuery("session_failed"));
   }
 
@@ -133,6 +176,17 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
     entryChannel: "browser",
     authMethod: "yandex_oauth",
   });
+
+  if (resolved.accountOutcome === "created") {
+    await recordAuthRegistrationSuccess({
+      ...LOG_BASE,
+      attemptId,
+      stage: "session_set",
+      userId: sessionUser.userId,
+      contactValue: oauthEmail ?? oauthPhone ?? "yandex",
+      isNewAccount: true,
+    });
+  }
 
   const finalRedirect = getRedirectPathForRole(role);
   return NextResponse.redirect(new URL(finalRedirect, appBase));

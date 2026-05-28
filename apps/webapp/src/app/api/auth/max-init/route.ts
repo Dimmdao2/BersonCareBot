@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  newRegistrationAttemptId,
+  recordAuthRegistrationAttempt,
+  recordAuthRegistrationFailure,
+  recordAuthRegistrationSuccess,
+} from "@/app-layer/product-analytics/recordAuthRegistration";
 import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
 import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuthVerboseServerLog";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
@@ -53,6 +59,15 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
+    await recordAuthRegistrationFailure({
+      attemptId: newRegistrationAttemptId(),
+      authMethod: "max_init",
+      stage: "start",
+      entryChannel: "max",
+      contactType: "oauth_provider",
+      contactValue: "max",
+      errorCode: "invalid_body",
+    });
     logger.warn(
       {
         route: ROUTE,
@@ -78,6 +93,15 @@ export async function POST(request: Request) {
   }
   const { initData } = parsed.data;
   const fields = maxInitDataLogFields(initData);
+  const attemptId = newRegistrationAttemptId();
+  await recordAuthRegistrationAttempt({
+    attemptId,
+    authMethod: "max_init",
+    stage: "start",
+    entryChannel: "max",
+    contactType: "oauth_provider",
+    contactValue: "max",
+  });
 
   const deps = buildAppDeps();
   const verboseServerLog = await isMiniappAuthVerboseServerLogEnabled(deps);
@@ -107,6 +131,15 @@ export async function POST(request: Request) {
   const result = await deps.auth.exchangeMaxInitData(initData);
   if (result && "denied" in result && result.denied) {
     const reason = result.reason;
+    await recordAuthRegistrationFailure({
+      attemptId,
+      authMethod: "max_init",
+      stage: "session_set",
+      entryChannel: "max",
+      contactType: "oauth_provider",
+      contactValue: "max",
+      errorCode: reason === "max_bot_api_key_missing" ? "config" : "access_denied",
+    });
     const configMissing = reason === "max_bot_api_key_missing";
     logger.warn(
       {
@@ -162,6 +195,18 @@ export async function POST(request: Request) {
     entryChannel: "max",
     authMethod: "max_initData",
   });
+  if (exchange.accountOutcome === "created") {
+    await recordAuthRegistrationSuccess({
+      attemptId,
+      authMethod: "max_init",
+      stage: "session_set",
+      entryChannel: "max",
+      contactType: "oauth_provider",
+      contactValue: "max",
+      userId: u.userId,
+      isNewAccount: true,
+    });
+  }
   logger.info(
     {
       route: ROUTE,

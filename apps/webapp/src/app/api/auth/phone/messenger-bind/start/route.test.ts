@@ -26,8 +26,11 @@ vi.mock("@/modules/auth/phoneMessengerBindStartRateLimit", async (importOriginal
   };
 });
 
+const findByPhoneMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
+    userByPhone: { findByPhone: (...args: unknown[]) => findByPhoneMock(...args) },
     phoneMessengerBind: { start: (...args: unknown[]) => startBindMock(...args) },
   }),
 }));
@@ -39,12 +42,14 @@ describe("POST /api/auth/phone/messenger-bind/start", () => {
     getCurrentSessionMock.mockReset();
     rateLimitMock.mockReset();
     startBindMock.mockReset();
+    findByPhoneMock.mockReset();
     getTelegramLoginBotUsernameMock.mockReset();
     getMaxLoginBotNicknameMock.mockReset();
     getTelegramLoginBotUsernameMock.mockResolvedValue("test_bot");
     getMaxLoginBotNicknameMock.mockResolvedValue("");
     rateLimitMock.mockResolvedValue(false);
     getCurrentSessionMock.mockResolvedValue(null);
+    findByPhoneMock.mockResolvedValue(null);
     startBindMock.mockResolvedValue({
       ok: true as const,
       setupToken: "auth_test",

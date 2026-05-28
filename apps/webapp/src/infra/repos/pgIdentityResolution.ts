@@ -71,7 +71,7 @@ async function loadSessionUserForId(userId: string, externalIdForDisplay: string
 }
 
 export const pgIdentityResolutionPort: IdentityResolutionPort = {
-  async findOrCreateByChannelBinding(params): Promise<SessionUser> {
+  async findOrCreateByChannelBinding(params) {
     const pool = getPool();
     const client = await pool.connect();
     try {
@@ -82,6 +82,7 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
       );
 
       let userId: string;
+      let accountOutcome: "created" | "linked_existing" = "linked_existing";
 
       if (existing.rows.length > 0) {
         userId = existing.rows[0].user_id;
@@ -137,6 +138,9 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
         );
         if (insBinding.rows.length > 0) {
           await upsertBroadcastDefaultsAfterChannelBind(client, userId, params.channelCode);
+          if (insertedNewPlatformUser) {
+            accountOutcome = "created";
+          }
         } else {
           const reread = await client.query<{ user_id: string }>(
             "SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE",
@@ -153,7 +157,10 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
         }
       }
       await client.query("COMMIT");
-      return loadSessionUserForId(userId, params.externalId);
+      return {
+        user: await loadSessionUserForId(userId, params.externalId),
+        accountOutcome,
+      };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;

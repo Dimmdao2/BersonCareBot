@@ -50,7 +50,7 @@ describe("resolveUserIdForYandexOAuth", () => {
       displayName: "A",
       phone: "+79001234567",
     });
-    expect(r).toEqual({ ok: true, userId: "bound-1" });
+    expect(r).toEqual({ ok: true, userId: "bound-1", accountOutcome: "linked_existing" });
     expect(queryMock).toHaveBeenCalledTimes(2);
   });
 
@@ -68,7 +68,7 @@ describe("resolveUserIdForYandexOAuth", () => {
       phone: "+79001234567",
     });
 
-    expect(r).toEqual({ ok: true, userId: "phone-user" });
+    expect(r).toEqual({ ok: true, userId: "phone-user", accountOutcome: "linked_existing" });
     expect(queryMock).toHaveBeenCalledTimes(4);
     const firstSql = queryMock.mock.calls[0]?.[0] as string;
     expect(firstSql).toContain("phone_normalized");
@@ -90,7 +90,7 @@ describe("resolveUserIdForYandexOAuth", () => {
       phone: null,
     });
 
-    expect(r).toEqual({ ok: true, userId: "email-user" });
+    expect(r).toEqual({ ok: true, userId: "email-user", accountOutcome: "linked_existing" });
     expect(queryMock).toHaveBeenCalledTimes(4);
     const firstSql = queryMock.mock.calls[0]?.[0] as string;
     expect(firstSql).toContain("email_verified_at");
@@ -114,7 +114,7 @@ describe("resolveUserIdForYandexOAuth", () => {
       phone: "+79001234568",
     });
 
-    expect(r).toEqual({ ok: true, userId: "new-id" });
+    expect(r).toEqual({ ok: true, userId: "new-id", accountOutcome: "created" });
     expect(queryMock).toHaveBeenCalledTimes(6);
     const insertSql = queryMock.mock.calls[2]?.[0] as string;
     expect(insertSql).toContain("phone_normalized");
@@ -136,7 +136,7 @@ describe("resolveUserIdForYandexOAuth", () => {
       phone: null,
     });
 
-    expect(r).toEqual({ ok: true, userId: "new-email-id" });
+    expect(r).toEqual({ ok: true, userId: "new-email-id", accountOutcome: "created" });
     expect(queryMock).toHaveBeenCalledTimes(5);
   });
 

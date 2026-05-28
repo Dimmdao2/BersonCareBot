@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  newRegistrationAttemptId,
+  recordAuthRegistrationAttempt,
+  recordAuthRegistrationFailure,
+  recordAuthRegistrationSuccess,
+} from "@/app-layer/product-analytics/recordAuthRegistration";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import type { PhoneOtpDelivery } from "@/modules/auth/smsPort";
@@ -109,6 +115,20 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   const user = await deps.userByPhone.findByPhone(normalized);
+  const isRegistrationIntent = !user;
+  const registrationAttemptId = isRegistrationIntent ? newRegistrationAttemptId() : undefined;
+  const entryChannel = channel === "telegram" ? ("telegram" as const) : ("browser" as const);
+
+  if (isRegistrationIntent) {
+    await recordAuthRegistrationAttempt({
+      attemptId: registrationAttemptId!,
+      authMethod: "phone_otp",
+      stage: "start",
+      entryChannel,
+      contactType: "phone",
+      contactValue: normalized,
+    });
+  }
 
   let delivery: PhoneOtpDelivery | undefined;
   if (deliveryChannel === "sms") {
@@ -148,9 +168,23 @@ export async function POST(request: Request) {
     delivery = { channel: "email", email };
   }
 
-  const result = await deps.auth.startPhoneAuth(normalized, context, { delivery });
+  const result = await deps.auth.startPhoneAuth(normalized, context, {
+    delivery,
+    ...(registrationAttemptId ? { registrationAttemptId, isRegistrationIntent: true } : {}),
+  });
 
   if (!result.ok) {
+    if (isRegistrationIntent && registrationAttemptId) {
+      await recordAuthRegistrationFailure({
+        attemptId: registrationAttemptId,
+        authMethod: "phone_otp",
+        stage: "start",
+        entryChannel,
+        contactType: "phone",
+        contactValue: normalized,
+        errorCode: result.code,
+      });
+    }
     const status =
       result.code === "rate_limited" || result.code === "too_many_attempts"
         ? 429
@@ -173,11 +207,25 @@ export async function POST(request: Request) {
     );
   }
 
+  if (isRegistrationIntent && registrationAttemptId) {
+    await recordAuthRegistrationSuccess({
+      attemptId: registrationAttemptId,
+      authMethod: "phone_otp",
+      stage: "challenge_sent",
+      entryChannel,
+      contactType: "phone",
+      contactValue: normalized,
+      challengeId: result.challengeId,
+      isNewAccount: true,
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     challengeId: result.challengeId,
     retryAfterSeconds: result.retryAfterSeconds,
     deliveryChannel,
+    ...(registrationAttemptId ? { attemptId: registrationAttemptId } : {}),
   });
 }
 

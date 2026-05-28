@@ -6,12 +6,15 @@ const setSessionFromUserMock = vi.hoisted(() => vi.fn());
 const trySetInitialIfEmptyMock = vi.hoisted(() => vi.fn());
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 
+const getPhoneChallengeMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     phoneMessengerBind: {
       resolveLoginChallenge: (...args: unknown[]) => resolveLoginChallengeMock(...args),
     },
     auth: {
+      getPhoneChallenge: (...args: unknown[]) => getPhoneChallengeMock(...args),
       confirmPhoneAuth: (...args: unknown[]) => confirmPhoneAuthMock(...args),
       setSessionFromUser: (...args: unknown[]) => setSessionFromUserMock(...args),
     },
@@ -34,7 +37,9 @@ describe("POST /api/auth/phone/messenger-bind/finish", () => {
     setSessionFromUserMock.mockReset();
     trySetInitialIfEmptyMock.mockReset();
     getCurrentSessionMock.mockReset();
+    getPhoneChallengeMock.mockReset();
     getCurrentSessionMock.mockResolvedValue(null);
+    getPhoneChallengeMock.mockResolvedValue({ isRegistrationIntent: false, phone: "+79991234567" });
   });
 
   it("returns 400 for invalid body", async () => {

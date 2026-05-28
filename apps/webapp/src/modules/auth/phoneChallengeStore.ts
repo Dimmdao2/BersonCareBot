@@ -16,6 +16,10 @@ export type PhoneChallengePayload = {
   deliveryChannel?: "sms" | "telegram" | "max" | "email";
   /** Контекст канала, зафиксированный на start (только trusted). При отсутствии — web. */
   channelContext?: ChannelContext;
+  /** Сквозной id попытки регистрации (product analytics). */
+  registrationAttemptId?: string;
+  /** Новый пользователь (нет строки по phone на start). */
+  isRegistrationIntent?: boolean;
 };
 
 export type PhoneChallengeStore = {

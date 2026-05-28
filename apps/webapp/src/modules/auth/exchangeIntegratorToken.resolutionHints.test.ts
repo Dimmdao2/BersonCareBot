@@ -60,12 +60,15 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
   it("passes platformUserSub, integratorUserId, phoneNormalized when present on token", async () => {
     cookieSet.mockClear();
     const platformUuid = "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee";
-    const findOrCreateByChannelBinding = vi.fn(async (): Promise<SessionUser> => ({
-      userId: platformUuid,
-      role: "client",
-      displayName: "Test",
-      phone: "+79991234567",
-      bindings: { telegramId: CLIENT_TG },
+    const findOrCreateByChannelBinding = vi.fn(async () => ({
+      user: {
+        userId: platformUuid,
+        role: "client" as const,
+        displayName: "Test",
+        phone: "+79991234567",
+        bindings: { telegramId: CLIENT_TG },
+      },
+      accountOutcome: "created" as const,
     }));
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),
@@ -98,12 +101,15 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
 
   it("does not set platformUserSub when sub is external (e.g. tg:…)", async () => {
     cookieSet.mockClear();
-    const findOrCreateByChannelBinding = vi.fn(async (): Promise<SessionUser> => ({
-      userId: "u1",
-      role: "client",
-      displayName: "Test",
-      phone: undefined,
-      bindings: { telegramId: CLIENT_TG },
+    const findOrCreateByChannelBinding = vi.fn(async () => ({
+      user: {
+        userId: "u1",
+        role: "client" as const,
+        displayName: "Test",
+        phone: undefined,
+        bindings: { telegramId: CLIENT_TG },
+      },
+      accountOutcome: "created" as const,
     }));
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),
@@ -126,12 +132,15 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
 
   it("resolves messenger binding from sub when bindings are omitted (tg:…)", async () => {
     cookieSet.mockClear();
-    const findOrCreateByChannelBinding = vi.fn(async (): Promise<SessionUser> => ({
-      userId: "u1",
-      role: "client",
-      displayName: "Test",
-      phone: undefined,
-      bindings: { telegramId: CLIENT_TG },
+    const findOrCreateByChannelBinding = vi.fn(async () => ({
+      user: {
+        userId: "u1",
+        role: "client" as const,
+        displayName: "Test",
+        phone: undefined,
+        bindings: { telegramId: CLIENT_TG },
+      },
+      accountOutcome: "created" as const,
     }));
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),
@@ -155,12 +164,15 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
 
   it("dev bypass with identityResolutionPort resolves canonical user by messenger binding", async () => {
     cookieSet.mockClear();
-    const findOrCreateByChannelBinding = vi.fn(async (): Promise<SessionUser> => ({
-      userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
-      role: "client",
-      displayName: "Demo Client",
-      phone: "+79990000001",
-      bindings: { telegramId: "111111111" },
+    const findOrCreateByChannelBinding = vi.fn(async () => ({
+      user: {
+        userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+        role: "client" as const,
+        displayName: "Demo Client",
+        phone: "+79990000001",
+        bindings: { telegramId: "111111111" },
+      },
+      accountOutcome: "linked_existing" as const,
     }));
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),

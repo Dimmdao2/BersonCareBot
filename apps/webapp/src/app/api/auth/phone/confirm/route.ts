@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
+  recordAuthRegistrationFailure,
+  recordAuthRegistrationSuccess,
+} from "@/app-layer/product-analytics/recordAuthRegistration";
+import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
 } from "@/modules/auth/otpConstants";
@@ -9,14 +13,13 @@ import {
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
   code: z.string().trim().min(1),
-  /** IANA с браузера (`Intl`), опционально — заполняет `calendar_timezone` при первом входе, если ещё пусто. */
   browserCalendarIana: z.string().max(120).optional(),
+  attemptId: z.string().uuid().optional(),
 });
 
 /**
  * Confirm phone code. Channel/chatId/displayName are never read from body;
  * binding uses only the context stored in the challenge at start.
- * Optional `browserCalendarIana` (IANA from `Intl`) fills `calendar_timezone` on first login if still empty.
  */
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -30,9 +33,34 @@ export async function POST(request: Request) {
   const { challengeId, code, browserCalendarIana } = parsed.data;
 
   const deps = buildAppDeps();
+  const challenge = await deps.auth.getPhoneChallenge(challengeId);
+  const attemptId =
+    parsed.data.attemptId?.trim() ||
+    challenge?.registrationAttemptId?.trim() ||
+    challengeId;
+  const isRegistrationIntent = challenge?.isRegistrationIntent === true;
+  const entryChannel =
+    challenge?.channelContext?.channel === "telegram"
+      ? ("telegram" as const)
+      : challenge?.channelContext?.channel === "max"
+        ? ("max" as const)
+        : ("browser" as const);
+
   const result = await deps.auth.confirmPhoneAuth(challengeId, code);
 
   if (!result.ok) {
+    if (isRegistrationIntent) {
+      await recordAuthRegistrationFailure({
+        attemptId,
+        authMethod: "phone_otp",
+        stage: "confirm",
+        entryChannel,
+        contactType: "phone",
+        contactValue: challenge?.phone ?? null,
+        challengeId,
+        errorCode: result.code,
+      });
+    }
     const status =
       result.code === "too_many_attempts" || result.code === "rate_limited" ? 429 : 400;
     return NextResponse.json(
@@ -60,6 +88,20 @@ export async function POST(request: Request) {
     await deps.patientCalendarTimezone.trySetInitialIfEmpty(result.user.userId, tz);
   }
 
+  if (isRegistrationIntent && result.wasCreated) {
+    await recordAuthRegistrationSuccess({
+      attemptId,
+      authMethod: "phone_otp",
+      stage: "session_set",
+      entryChannel,
+      contactType: "phone",
+      contactValue: result.user.phone ?? challenge?.phone ?? null,
+      userId: result.user.userId,
+      challengeId,
+      isNewAccount: true,
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     redirectTo: result.redirectTo,
@@ -79,8 +121,6 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
       return retryAfterSeconds != null
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
         : "Слишком много запросов. Попробуйте позже.";
-    case "server_error":
-      return "Не удалось завершить вход. Повторите ввод того же кода.";
     default:
       return "Ошибка подтверждения.";
   }

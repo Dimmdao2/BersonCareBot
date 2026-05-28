@@ -2,6 +2,22 @@
 
 Хронология по этапам [`ROADMAP.md`](ROADMAP.md). Факты prod (без секретов) — кратко.
 
+## 2026-05-28 — Журнал регистрации: отлов ошибок (без уведомлений)
+
+**Сделано:**
+
+- Product analytics: `auth_register_attempt` / `auth_register_success` / `auth_register_failure` в `product_analytics_events_recent` (retention как у PA, ~90 дней).
+- Helper `recordAuthRegistration` (best-effort); маскирование контакта `maskContactHint`, классификация `registrationErrorClass`.
+- Инструментация публичных auth registration routes: email register/confirm, OAuth start + callbacks (Yandex, Google, Apple), phone start/confirm, messenger-bind start/finish, telegram-init, max-init, exchange.
+- `attemptId`: email в JSON + `authFlowPendingStorage`; OAuth — `n` в signed state; phone — challenge metadata; messenger-bind — `setupToken`.
+- `success` только при создании аккаунта (`accountOutcome=created`, `wasCreated`); login-only не пишет success.
+- System failures дублируются в `admin_audit_log` (`auth_register_failure`).
+- Admin: `GET /api/admin/auth-registration-events`, UI на `/app/doctor/audit-log`.
+
+**Проверки:** `pnpm --dir apps/webapp run typecheck`; vitest: `maskContactHint`, `registrationErrorClass`, `recordAuthRegistration`, `auth-registration-events/route`, `register/route`, exchangeIntegratorToken mocks.
+
+**Вне scope:** push/email/TG уведомления пользователю о сбоях.
+
 ## 2026-05-27 — Baseline: phone messenger bind PWA + бот (до плана A/B)
 
 **Зафиксировано до правок** (ручной smoke, dev/staging):

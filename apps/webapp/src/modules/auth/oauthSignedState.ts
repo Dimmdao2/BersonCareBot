@@ -75,7 +75,7 @@ export function createAppleSignedOAuthState(
   return { state: signPayload(payload), nonce };
 }
 
-export type VerifiedOAuthState = { nonce?: string; browserCalendarIana?: string };
+export type VerifiedOAuthState = { attemptId?: string; nonce?: string; browserCalendarIana?: string };
 
 function verifyTokenInternal(
   token: string,
@@ -131,7 +131,7 @@ function verifyTokenInternal(
   if (nonce !== undefined && typeof nonce !== "string") return null;
   if (tz !== undefined && (typeof tz !== "string" || tz.length > 120)) return null;
 
-  const out: VerifiedOAuthState = {};
+  const out: VerifiedOAuthState = { attemptId: n };
   if (typeof nonce === "string") out.nonce = nonce;
   if (typeof tz === "string" && tz.trim().length > 0) {
     out.browserCalendarIana = tz.trim();

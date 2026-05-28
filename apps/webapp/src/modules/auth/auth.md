@@ -194,6 +194,26 @@ Tier **`patient`** (доступ к основному пациентскому 
 
 Только для **внешнего** M2M-клиента (другой сервис, админка): та же транзакция, что **`user.phone.link`** в integrator (`public` binding-first + `integrator.contacts`), подпись **`x-bersoncare-timestamp` / `x-bersoncare-signature`**, обязательный **`x-bersoncare-idempotency-key`**. Семантический хеш для кеша успешного ответа — поля **`channelCode`**, **`externalId`**, **`phoneNormalized`** (`apps/webapp/src/infra/idempotency/messengerPhoneBindRequestHash.ts`). При **одной БД** сценарии бота **не** вызывают этот URL — привязка идёт через `user.phone.link` в процессе integrator. Контракт и коды ответов: `apps/webapp/INTEGRATOR_CONTRACT.md`, этап: `docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`.
 
+## Журнал воронки регистрации (product analytics)
+
+Серверная фиксация **attempt → success / failure** для публичных auth-потоков (без уведомлений пользователю). Запись best-effort через `recordAuthRegistration` (`app-layer/product-analytics/recordAuthRegistration.ts`); сбой аналитики не ломает auth.
+
+**Event types** в `product_analytics_events_recent`: `auth_register_attempt`, `auth_register_success`, `auth_register_failure`.
+
+**Metadata (jsonb, без сырого PII):** `attemptId`, `authMethod`, `stage`, `contactType`, `contactHint` (маска email/телефона или имя OAuth-провайдера), опционально `errorCode`, `errorClass` (`user` | `system`), `isNewAccount`, `challengeId`.
+
+**`authMethod`:** `email_password`, `oauth_yandex`, `oauth_google`, `oauth_apple`, `phone_otp`, `messenger_bind`, `telegram_init`, `max_init`, `integrator_exchange`.
+
+**Корреляция `attemptId`:** email register возвращает `{ attemptId }` в JSON; клиент передаёт в `register/confirm`. OAuth — поле `n` подписанного `state`. Phone OTP — в challenge metadata + опционально в ответе `phone/start`. Messenger bind — `setupToken` (`auth_*`).
+
+**Success только для регистрации:** OAuth/phone/exchange/mini-app — когда создан новый аккаунт (`accountOutcome=created` / `wasCreated`); обычный login не пишет `auth_register_success`.
+
+**System failures** (`errorClass=system`) дублируются в `admin_audit_log` (`action=auth_register_failure`, `status=error`). User-ошибки (`invalid_code`, `duplicate_email`, …) — только product analytics.
+
+**Просмотр:** `GET /api/admin/auth-registration-events` (admin mode); UI — секция «Ошибки регистрации» на `/app/doctor/audit-log`.
+
+Утилиты: `maskContactHint.ts`, `registrationErrorClass.ts`.
+
 ## Операционные логи OTP
 
 При отправке кода через `createIntegratorSmsAdapter` пишется структурированная строка `phone_otp_delivery` (JSON в stdout) с маской номера и каналом — для мониторинга объёма SMS без утечки секретов и полного номера.

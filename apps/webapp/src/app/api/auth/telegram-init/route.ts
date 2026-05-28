@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  newRegistrationAttemptId,
+  recordAuthRegistrationAttempt,
+  recordAuthRegistrationFailure,
+  recordAuthRegistrationSuccess,
+} from "@/app-layer/product-analytics/recordAuthRegistration";
 import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
 import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuthVerboseServerLog";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
@@ -22,6 +28,15 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
+    await recordAuthRegistrationFailure({
+      attemptId: newRegistrationAttemptId(),
+      authMethod: "telegram_init",
+      stage: "start",
+      entryChannel: "telegram",
+      contactType: "oauth_provider",
+      contactValue: "telegram",
+      errorCode: "invalid_body",
+    });
     logger.warn(
       {
         route: ROUTE,
@@ -44,6 +59,15 @@ export async function POST(request: Request) {
     return res;
   }
   const { initData } = parsed.data;
+  const attemptId = newRegistrationAttemptId();
+  await recordAuthRegistrationAttempt({
+    attemptId,
+    authMethod: "telegram_init",
+    stage: "start",
+    entryChannel: "telegram",
+    contactType: "oauth_provider",
+    contactValue: "telegram",
+  });
 
   const deps = buildAppDeps();
   const verboseServerLog = await isMiniappAuthVerboseServerLogEnabled(deps);
@@ -65,6 +89,15 @@ export async function POST(request: Request) {
 
   const result = await deps.auth.exchangeTelegramInitData(initData);
   if (!result) {
+    await recordAuthRegistrationFailure({
+      attemptId,
+      authMethod: "telegram_init",
+      stage: "session_set",
+      entryChannel: "telegram",
+      contactType: "oauth_provider",
+      contactValue: "telegram",
+      errorCode: "access_denied",
+    });
     logger.warn(
       {
         route: ROUTE,
@@ -93,6 +126,18 @@ export async function POST(request: Request) {
     entryChannel: "telegram",
     authMethod: "telegram_initData",
   });
+  if (result.accountOutcome === "created") {
+    await recordAuthRegistrationSuccess({
+      attemptId,
+      authMethod: "telegram_init",
+      stage: "session_set",
+      entryChannel: "telegram",
+      contactType: "oauth_provider",
+      contactValue: "telegram",
+      userId: u.userId,
+      isNewAccount: true,
+    });
+  }
   logger.info(
     {
       route: ROUTE,

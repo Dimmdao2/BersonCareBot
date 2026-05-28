@@ -3,13 +3,14 @@ import { getPool } from "@/infra/db/client";
 import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { OAuthBindingsPort } from "@/modules/auth/oauthBindingsPort";
+import type { AccountOutcome } from "@/modules/auth/oauthYandexResolve";
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from "@/modules/platform-access/trustedPhonePolicy";
 import type { Pool } from "pg";
 
-export type WebOAuthProvider = "google" | "apple";
+export type { AccountOutcome };
 
 async function applyVerifiedEmailFromWebOAuth(
   pool: Pool,
@@ -29,6 +30,8 @@ async function applyVerifiedEmailFromWebOAuth(
   );
 }
 
+export type WebOAuthProvider = "google" | "apple";
+
 export type WebOAuthResolveFailure = "no_identity" | "email_ambiguous" | "db_error";
 
 /**
@@ -46,7 +49,9 @@ export async function resolveUserIdForWebOAuthLogin(
     displayName: string | null;
     phone: string | null;
   },
-): Promise<{ ok: true; userId: string } | { ok: false; reason: WebOAuthResolveFailure }> {
+): Promise<
+  { ok: true; userId: string; accountOutcome: AccountOutcome } | { ok: false; reason: WebOAuthResolveFailure }
+> {
   const emailRaw = input.email?.trim() || null;
   const emailTrusted = Boolean(emailRaw && input.emailVerified);
   const emailNorm = emailTrusted && emailRaw ? emailRaw.toLowerCase() : null;
@@ -60,13 +65,13 @@ export async function resolveUserIdForWebOAuthLogin(
   const byOAuth = await oauthPort.findUserByOAuthId(input.provider, sub);
   if (byOAuth) {
     if (!env.DATABASE_URL?.trim()) {
-      return { ok: true, userId: byOAuth.userId };
+      return { ok: true, userId: byOAuth.userId, accountOutcome: "linked_existing" };
     }
     const poolEarly = getPool();
     const canonicalEarly = await resolveCanonicalUserId(poolEarly, byOAuth.userId);
     const uidEarly = canonicalEarly ?? byOAuth.userId;
     await applyVerifiedEmailFromWebOAuth(poolEarly, uidEarly, emailRaw, emailTrusted);
-    return { ok: true, userId: uidEarly };
+    return { ok: true, userId: uidEarly, accountOutcome: "linked_existing" };
   }
 
   if (!env.DATABASE_URL?.trim()) {
@@ -77,6 +82,7 @@ export async function resolveUserIdForWebOAuthLogin(
 
   try {
     let userId: string | null = null;
+    let accountOutcome: AccountOutcome = "linked_existing";
 
     if (phoneNorm) {
       userId = await findCanonicalUserIdByPhone(pool, phoneNorm);
@@ -103,6 +109,7 @@ export async function resolveUserIdForWebOAuthLogin(
     }
 
     if (!userId) {
+      accountOutcome = "created";
       const display = (input.displayName?.trim() || emailRaw || phoneNorm || sub).slice(0, 500);
       const emailVerifiedAt = emailTrusted ? new Date() : null;
       const ins = await pool.query<{ id: string }>(
@@ -148,14 +155,14 @@ export async function resolveUserIdForWebOAuthLogin(
         const canonical = await resolveCanonicalUserId(pool, ownerId);
         const uid = canonical ?? ownerId;
         await applyVerifiedEmailFromWebOAuth(pool, uid, emailRaw, emailTrusted);
-        return { ok: true, userId: uid };
+        return { ok: true, userId: uid, accountOutcome: "linked_existing" };
       }
     }
 
     const canonical = await resolveCanonicalUserId(pool, userId);
     const uid = canonical ?? userId;
     await applyVerifiedEmailFromWebOAuth(pool, uid, emailRaw, emailTrusted);
-    return { ok: true, userId: uid };
+    return { ok: true, userId: uid, accountOutcome };
   } catch {
     return { ok: false, reason: "db_error" };
   }

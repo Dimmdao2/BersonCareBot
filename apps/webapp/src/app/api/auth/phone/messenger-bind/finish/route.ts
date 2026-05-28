@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
+  recordAuthRegistrationFailure,
+  recordAuthRegistrationSuccess,
+} from "@/app-layer/product-analytics/recordAuthRegistration";
+import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
 } from "@/modules/auth/otpConstants";
@@ -29,8 +33,11 @@ export async function POST(request: Request) {
     );
   }
 
+  const setupToken = parsed.data.setupToken.trim();
+  const attemptId = setupToken;
+
   const deps = buildAppDeps();
-  const resolved = await deps.phoneMessengerBind.resolveLoginChallenge(parsed.data.setupToken);
+  const resolved = await deps.phoneMessengerBind.resolveLoginChallenge(setupToken);
 
   if (!resolved.ok) {
     if (resolved.code === "already_consumed") {
@@ -54,8 +61,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: resolved.code }, { status });
   }
 
+  const challenge = await deps.auth.getPhoneChallenge(resolved.challengeId);
+  const isRegistrationIntent = challenge?.isRegistrationIntent === true;
+
   const result = await deps.auth.confirmPhoneAuth(resolved.challengeId, resolved.code);
   if (!result.ok) {
+    if (isRegistrationIntent) {
+      await recordAuthRegistrationFailure({
+        attemptId,
+        authMethod: "messenger_bind",
+        stage: "confirm",
+        entryChannel: "browser",
+        contactType: "phone",
+        contactValue: challenge?.phone ?? null,
+        challengeId: resolved.challengeId,
+        errorCode: result.code,
+      });
+    }
     const status =
       result.code === "too_many_attempts" || result.code === "rate_limited" ? 429 : 400;
     return NextResponse.json(
@@ -83,6 +105,20 @@ export async function POST(request: Request) {
     await deps.patientCalendarTimezone.trySetInitialIfEmpty(result.user.userId, tz);
   }
 
+  if (isRegistrationIntent) {
+    await recordAuthRegistrationSuccess({
+      attemptId,
+      authMethod: "messenger_bind",
+      stage: "session_set",
+      entryChannel: "browser",
+      contactType: "phone",
+      contactValue: result.user.phone ?? challenge?.phone ?? null,
+      userId: result.user.userId,
+      challengeId: resolved.challengeId,
+      isNewAccount: true,
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     redirectTo: result.redirectTo,
@@ -102,8 +138,6 @@ function errorMessage(code: string, retryAfterSeconds?: number): string {
       return retryAfterSeconds != null
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
         : "Слишком много запросов. Попробуйте позже.";
-    case "server_error":
-      return "Не удалось завершить вход. Попробуйте снова.";
     default:
       return "Ошибка подтверждения.";
   }

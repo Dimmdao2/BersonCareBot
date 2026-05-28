@@ -778,6 +778,7 @@ function _buildAppDeps() {
       setSessionFromUser,
       startPhoneAuth: (phone: string, context: ChannelContext, opts?: StartPhoneAuthOptions) =>
         startPhoneAuthFlow(phone, context, phoneAuthDeps, opts),
+      getPhoneChallenge: (challengeId: string) => challengeStore.get(challengeId),
       confirmPhoneAuth: async (challengeId: string, code: string) => {
         const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
         if (!result.ok) return result;
@@ -802,6 +803,8 @@ function _buildAppDeps() {
           user,
           redirectTo: getRedirectPathForRole(envRole),
           deliveryChannel: result.deliveryChannel,
+          wasCreated: result.wasCreated,
+          registrationAttemptId: result.registrationAttemptId,
         };
       },
     },

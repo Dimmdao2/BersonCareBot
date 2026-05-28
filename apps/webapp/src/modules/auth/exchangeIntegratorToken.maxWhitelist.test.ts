@@ -76,11 +76,14 @@ describe("exchangeIntegratorToken — whitelist via existing binding", () => {
         bindings: { maxId: "555123" },
       })),
       findOrCreateByChannelBinding: vi.fn(async () => ({
-        userId: "platform-user-admin",
-        role: "client" as const,
-        displayName: "Existing Admin",
-        phone: "+79990000003",
-        bindings: { maxId: "555123" },
+        user: {
+          userId: "platform-user-admin",
+          role: "client" as const,
+          displayName: "Existing Admin",
+          phone: "+79990000003",
+          bindings: { maxId: "555123" },
+        },
+        accountOutcome: "linked_existing" as const,
       })),
     };
 

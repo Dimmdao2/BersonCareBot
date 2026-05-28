@@ -226,6 +226,7 @@ export function AuthFlowV2({
   const [emailRegPassword, setEmailRegPassword] = useState("");
   const [emailAuthMode, setEmailAuthMode] = useState<"login" | "register" | "verify">("login");
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
+  const [emailRegAttemptId, setEmailRegAttemptId] = useState<string | null>(null);
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
   const [emailPasswordReturn, setEmailPasswordReturn] =
     useState<"oauth_first" | "phone" | "email_password">("oauth_first");
@@ -274,6 +275,7 @@ export function AuthFlowV2({
       setEmailLoginEmail(p.email);
       setEmailRegDisplayName(p.displayName);
       setEmailRegChallengeId(p.challengeId);
+      setEmailRegAttemptId(p.attemptId ?? null);
       setEmailAuthMode("verify");
       setEmailRegRetrySec(p.retryAfterSeconds);
     } else if (p.mode === "password_reset") {
@@ -461,6 +463,7 @@ export function AuthFlowV2({
         const registerResult = await fetchJsonSafe<{
           ok?: boolean;
           challengeId?: string;
+          attemptId?: string;
           retryAfterSeconds?: number;
           message?: string;
           error?: string;
@@ -478,12 +481,14 @@ export function AuthFlowV2({
           saveRegisterVerifyPending({
             email,
             challengeId: regData.challengeId,
+            attemptId: regData.attemptId,
             retryAfterSeconds: regData.retryAfterSeconds ?? 60,
             displayName: dn,
           });
           setEmailRegDisplayName("");
           setEmailRegPassword(emailLoginPassword);
           setEmailRegChallengeId(regData.challengeId);
+          setEmailRegAttemptId(regData.attemptId ?? null);
           setEmailRegRetrySec(regData.retryAfterSeconds ?? 60);
           setEmailAuthMode("verify");
           toast.success("Подтвердите email — отправили код.");
@@ -551,6 +556,7 @@ export function AuthFlowV2({
       const registerResult = await fetchJsonSafe<{
         ok?: boolean;
         challengeId?: string;
+        attemptId?: string;
         retryAfterSeconds?: number;
         error?: string;
         message?: string;
@@ -581,10 +587,12 @@ export function AuthFlowV2({
         saveRegisterVerifyPending({
           email,
           challengeId: data.challengeId,
+          attemptId: data.attemptId,
           retryAfterSeconds: data.retryAfterSeconds ?? 60,
           displayName,
         });
         setEmailRegChallengeId(data.challengeId);
+        setEmailRegAttemptId(data.attemptId ?? null);
         setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
         setEmailAuthMode("verify");
         return;
@@ -1155,7 +1163,11 @@ export function AuthFlowV2({
                 }>("/api/auth/email-password/register/confirm", {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ challengeId: emailRegChallengeId, code }),
+                  body: JSON.stringify({
+                    challengeId: emailRegChallengeId,
+                    code,
+                    ...(emailRegAttemptId ? { attemptId: emailRegAttemptId } : {}),
+                  }),
                 });
                 if (!confirmEmailResult.ok) {
                   return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };

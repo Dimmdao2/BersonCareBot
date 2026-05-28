@@ -57,12 +57,15 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
   });
 
   it("writes phone + patient_phone_trust_at for dev:client (patient tier)", async () => {
-    const findOrCreateByChannelBinding = vi.fn(async (): Promise<SessionUser> => ({
-      userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
-      role: "client",
-      displayName: "Demo Client",
-      phone: undefined,
-      bindings: { telegramId: "111111111" },
+    const findOrCreateByChannelBinding = vi.fn(async () => ({
+      user: {
+        userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+        role: "client" as const,
+        displayName: "Demo Client",
+        phone: undefined,
+        bindings: { telegramId: "111111111" },
+      },
+      accountOutcome: "linked_existing" as const,
     }));
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),
@@ -87,12 +90,15 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       bindings: { telegramId: "333333333" },
     } satisfies SessionUser);
 
-    const findOrCreateByChannelBinding = vi.fn(async (): Promise<SessionUser> => ({
-      userId: "bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee",
-      role: "admin",
-      displayName: "Demo Admin",
-      phone: undefined,
-      bindings: { telegramId: "333333333" },
+    const findOrCreateByChannelBinding = vi.fn(async () => ({
+      user: {
+        userId: "bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee",
+        role: "admin" as const,
+        displayName: "Demo Admin",
+        phone: undefined,
+        bindings: { telegramId: "333333333" },
+      },
+      accountOutcome: "linked_existing" as const,
     }));
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),
@@ -117,12 +123,15 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       bindings: { telegramId: "333333333" },
     } satisfies SessionUser);
 
-    const findOrCreateByChannelBinding = vi.fn(async (): Promise<SessionUser> => ({
-      userId: "cccccccc-bbbb-4ccc-dddd-eeeeeeeeeeee",
-      role: "client",
-      displayName: "Demo Admin",
-      phone: undefined,
-      bindings: { telegramId: "333333333" },
+    const findOrCreateByChannelBinding = vi.fn(async () => ({
+      user: {
+        userId: "cccccccc-bbbb-4ccc-dddd-eeeeeeeeeeee",
+        role: "client" as const,
+        displayName: "Demo Admin",
+        phone: undefined,
+        bindings: { telegramId: "333333333" },
+      },
+      accountOutcome: "linked_existing" as const,
     }));
     const identityResolutionPort: IdentityResolutionPort = {
       findByChannelBinding: vi.fn(async () => null),

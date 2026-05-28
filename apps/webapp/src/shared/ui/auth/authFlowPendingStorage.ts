@@ -11,6 +11,7 @@ export type AuthFlowPendingStored =
       mode: "register_verify";
       email: string;
       challengeId: string;
+      attemptId?: string;
       retryAfterSeconds: number;
       savedAt: number;
       /** Отображение и resend через API */

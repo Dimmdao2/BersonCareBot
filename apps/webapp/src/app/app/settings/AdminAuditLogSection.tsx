@@ -42,6 +42,7 @@ const ACTION_FILTER_SYSTEM_HEALTH = "__system_health__";
 const ACTION_FILTER_OPTIONS = [
   { value: ACTION_FILTER_ALL, label: "Все действия" },
   { value: ACTION_FILTER_SYSTEM_HEALTH, label: "Системные снимки" },
+  { value: "auth_register_failure", label: "auth_register_failure" },
   { value: "auto_merge_conflict", label: "auto_merge_conflict" },
   { value: "auto_merge_conflict_anomaly", label: "auto_merge_conflict_anomaly" },
   { value: "user_purge", label: "user_purge" },

@@ -2,6 +2,19 @@
 
 Канонический журнал инициативы. План: [`.cursor/plans/archive/product_analytics.plan.md`](../../.cursor/plans/archive/product_analytics.plan.md).
 
+## 2026-05-28 — Registration funnel events (auth error logging)
+
+### Сделано
+
+- Event types: `auth_register_attempt`, `auth_register_success`, `auth_register_failure` в `product_analytics_events_recent` (+ hourly rollup).
+- Helper `recordAuthRegistration`; system failures дублируются в `admin_audit_log`.
+- Admin read API `GET /api/admin/auth-registration-events` + UI на `/app/doctor/audit-log`.
+
+### Проверка
+
+- `pnpm --dir apps/webapp run typecheck`
+- vitest: `recordAuthRegistration`, `maskContactHint`, `registrationErrorClass`, auth registration routes
+
 ## 2026-05-27 — Block 1 (data foundation)
 
 ### Сделано

@@ -6,6 +6,7 @@ import { normalizePageKey } from "@/modules/product-analytics/normalizePageKey";
 import type { ProductAnalyticsPort } from "@/modules/product-analytics/ports";
 import { clampProductAnalyticsWindowHours } from "@/modules/product-analytics/timeRange";
 import type {
+  ListRegistrationEventsParams,
   ProductAnalyticsIngestEvent,
   RecordPushOpenInput,
 } from "@/modules/product-analytics/types";
@@ -74,6 +75,10 @@ export function createProductAnalyticsService(port: ProductAnalyticsPort) {
 
     async runRetention(params?: ProductAnalyticsRetentionParams) {
       return runProductAnalyticsRetention(port, params);
+    },
+
+    async listRegistrationEvents(params: ListRegistrationEventsParams) {
+      return port.listRegistrationEvents(params);
     },
   };
 }

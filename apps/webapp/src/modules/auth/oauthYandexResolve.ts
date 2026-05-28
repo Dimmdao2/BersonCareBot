@@ -23,8 +23,10 @@ async function applyVerifiedEmailFromYandex(pool: Pool, userId: string, emailRaw
   );
 }
 
+export type AccountOutcome = "created" | "linked_existing";
+
 export type YandexOAuthResolveFailure =
-  | "no_identity"      // Яндекс не вернул ни телефон, ни email
+  | "no_identity"
   | "email_ambiguous"
   | "db_error";
 
@@ -39,7 +41,9 @@ export type YandexOAuthResolveFailure =
 export async function resolveUserIdForYandexOAuth(
   oauthPort: OAuthBindingsPort,
   input: { yandexId: string; email: string | null; displayName: string | null; phone: string | null },
-): Promise<{ ok: true; userId: string } | { ok: false; reason: YandexOAuthResolveFailure }> {
+): Promise<
+  { ok: true; userId: string; accountOutcome: AccountOutcome } | { ok: false; reason: YandexOAuthResolveFailure }
+> {
   const emailRaw = input.email?.trim() || null;
   const emailNorm = emailRaw ? emailRaw.toLowerCase() : null;
   const phoneRaw = input.phone?.trim() || null;
@@ -52,13 +56,13 @@ export async function resolveUserIdForYandexOAuth(
   const byOAuth = await oauthPort.findUserByOAuthId("yandex", input.yandexId);
   if (byOAuth) {
     if (!env.DATABASE_URL?.trim()) {
-      return { ok: true, userId: byOAuth.userId };
+      return { ok: true, userId: byOAuth.userId, accountOutcome: "linked_existing" };
     }
     const poolEarly = getPool();
     const canonicalEarly = await resolveCanonicalUserId(poolEarly, byOAuth.userId);
     const uidEarly = canonicalEarly ?? byOAuth.userId;
     await applyVerifiedEmailFromYandex(poolEarly, uidEarly, emailRaw);
-    return { ok: true, userId: uidEarly };
+    return { ok: true, userId: uidEarly, accountOutcome: "linked_existing" };
   }
 
   if (!env.DATABASE_URL?.trim()) {
@@ -69,13 +73,12 @@ export async function resolveUserIdForYandexOAuth(
 
   try {
     let userId: string | null = null;
+    let accountOutcome: AccountOutcome = "linked_existing";
 
-    // Merge по phone_normalized (приоритет)
     if (phoneNorm) {
       userId = await findCanonicalUserIdByPhone(pool, phoneNorm);
     }
 
-    // Fallback: merge по verified email
     if (!userId && emailNorm) {
       const byEmail = await pool.query<{ id: string }>(
         `SELECT id FROM platform_users
@@ -96,8 +99,8 @@ export async function resolveUserIdForYandexOAuth(
       }
     }
 
-    // Создание нового пользователя
     if (!userId) {
+      accountOutcome = "created";
       const display = (input.displayName?.trim() || emailRaw || phoneNorm || "").slice(0, 500);
       const emailVerifiedAt = emailRaw ? new Date() : null;
       const ins = await pool.query<{ id: string }>(
@@ -143,14 +146,14 @@ export async function resolveUserIdForYandexOAuth(
         const canonical = await resolveCanonicalUserId(pool, ownerId);
         const uid = canonical ?? ownerId;
         await applyVerifiedEmailFromYandex(pool, uid, emailRaw);
-        return { ok: true, userId: uid };
+        return { ok: true, userId: uid, accountOutcome: "linked_existing" };
       }
     }
 
     const canonical = await resolveCanonicalUserId(pool, userId!);
     const uid = canonical ?? userId!;
     await applyVerifiedEmailFromYandex(pool, uid, emailRaw);
-    return { ok: true, userId: uid };
+    return { ok: true, userId: uid, accountOutcome };
   } catch {
     return { ok: false, reason: "db_error" };
   }

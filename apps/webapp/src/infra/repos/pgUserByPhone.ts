@@ -2,7 +2,7 @@ import { getPool } from "@/infra/db/client";
 import type { Pool } from "pg";
 import type { ChannelBindings, SessionUser } from "@/shared/types/session";
 import type { ChannelContext } from "@/modules/auth/channelContext";
-import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
+import type { UserByPhonePort, CreateOrBindResult } from "@/modules/auth/userByPhonePort";
 import { channelToBindingKey } from "@/modules/auth/channelContext";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
@@ -142,7 +142,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
     return loadSessionUser(pool, canonicalId);
   },
 
-  async createOrBind(phone: string, context: ChannelContext): Promise<SessionUser> {
+  async createOrBind(phone: string, context: ChannelContext): Promise<CreateOrBindResult> {
     const normalized = normalizeRuPhoneE164(phone);
     const pool = getPool();
     const key = channelToBindingKey(context.channel);
@@ -175,7 +175,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
           [userId],
         );
         await client.query("COMMIT");
-        return loadSessionUser(pool, userId);
+        return { user: await loadSessionUser(pool, userId), wasCreated: false };
       }
 
       const phoneRow = await client.query<{ id: string; display_name: string; role: string }>(
@@ -187,6 +187,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
       let userId: string;
       let displayName: string;
+      let wasCreated = false;
 
       if (phoneRow.rows.length > 0) {
         const u = phoneRow.rows[0]!;
@@ -197,6 +198,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
           userId,
         ]);
       } else {
+        wasCreated = true;
         const insert = await client.query<{ id: string; display_name: string }>(
           `INSERT INTO platform_users (phone_normalized, display_name, role)
            VALUES ($1, $2, 'client') RETURNING id, display_name`,
@@ -253,7 +255,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
         [userId],
       );
       await client.query("COMMIT");
-      return loadSessionUser(pool, userId);
+      return { user: await loadSessionUser(pool, userId), wasCreated };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;

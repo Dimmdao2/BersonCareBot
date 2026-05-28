@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  newRegistrationAttemptId,
+  recordAuthRegistrationAttempt,
+  recordAuthRegistrationFailure,
+  recordAuthRegistrationSuccess,
+} from "@/app-layer/product-analytics/recordAuthRegistration";
 import { formatOtpRetryAfterMessage } from "@/modules/auth/otpConstants";
 import {
   isPhoneMessengerBindStartRateLimited,
@@ -65,12 +71,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const deps = buildAppDeps();
+  const isRegistrationIntent =
+    parsed.data.purpose === "login" && !(await deps.userByPhone.findByPhone(phone));
+
   const [botUsername, maxBotNickname] = await Promise.all([
     getTelegramLoginBotUsername(),
     getMaxLoginBotNickname(),
   ]);
 
-  const result = await buildAppDeps().phoneMessengerBind.start({
+  const result = await deps.phoneMessengerBind.start({
     phone,
     channelCode: parsed.data.channelCode,
     purpose: parsed.data.purpose,
@@ -80,10 +90,41 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
+    if (isRegistrationIntent) {
+      await recordAuthRegistrationFailure({
+        attemptId: newRegistrationAttemptId(),
+        authMethod: "messenger_bind",
+        stage: "start",
+        entryChannel: "browser",
+        contactType: "phone",
+        contactValue: phone,
+        errorCode: result.code,
+      });
+    }
     return NextResponse.json(
       { ok: false, error: result.code, message: "Не удалось начать привязку" },
       { status: 400 },
     );
+  }
+
+  if (isRegistrationIntent) {
+    await recordAuthRegistrationAttempt({
+      attemptId: result.setupToken,
+      authMethod: "messenger_bind",
+      stage: "start",
+      entryChannel: "browser",
+      contactType: "phone",
+      contactValue: phone,
+    });
+    await recordAuthRegistrationSuccess({
+      attemptId: result.setupToken,
+      authMethod: "messenger_bind",
+      stage: "challenge_sent",
+      entryChannel: "browser",
+      contactType: "phone",
+      contactValue: phone,
+      isNewAccount: true,
+    });
   }
 
   return NextResponse.json({

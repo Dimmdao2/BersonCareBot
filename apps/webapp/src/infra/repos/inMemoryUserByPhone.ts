@@ -1,6 +1,6 @@
 import type { ChannelBindings, SessionUser } from "@/shared/types/session";
 import type { ChannelContext } from "@/modules/auth/channelContext";
-import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
+import type { UserByPhonePort, CreateOrBindResult } from "@/modules/auth/userByPhonePort";
 import { channelToBindingKey } from "@/modules/auth/channelContext";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 
@@ -43,7 +43,7 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
     return usersByPhone.get(normalizedPhone) ?? null;
   },
 
-  async createOrBind(phone: string, context: ChannelContext): Promise<SessionUser> {
+  async createOrBind(phone: string, context: ChannelContext): Promise<CreateOrBindResult> {
     const normalized = normalizePhone(phone);
     const existing = usersByPhone.get(normalized);
     if (existing) {
@@ -53,7 +53,7 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
         displayName: context.displayName ?? existing.displayName,
       };
       usersByPhone.set(normalized, updated);
-      return updated;
+      return { user: updated, wasCreated: false };
     }
     const key = channelToBindingKey(context.channel);
     const bindings: ChannelBindings = {};
@@ -68,6 +68,6 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
       bindings,
     };
     usersByPhone.set(normalized, user);
-    return user;
+    return { user, wasCreated: true };
   },
 };

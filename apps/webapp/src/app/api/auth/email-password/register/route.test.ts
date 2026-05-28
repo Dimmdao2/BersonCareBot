@@ -6,6 +6,17 @@ const tryResend = vi.fn();
 const resolveAuthState = vi.fn();
 const requestContactEmailSetup = vi.fn();
 
+const recordAuthRegistrationAttemptMock = vi.fn(async () => undefined);
+const recordAuthRegistrationFailureMock = vi.fn(async () => undefined);
+const recordAuthRegistrationSuccessMock = vi.fn(async () => undefined);
+
+vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
+  newRegistrationAttemptId: () => "11111111-1111-4111-8111-111111111111",
+  recordAuthRegistrationAttempt: (...args: unknown[]) => recordAuthRegistrationAttemptMock(...args),
+  recordAuthRegistrationFailure: (...args: unknown[]) => recordAuthRegistrationFailureMock(...args),
+  recordAuthRegistrationSuccess: (...args: unknown[]) => recordAuthRegistrationSuccessMock(...args),
+}));
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {
@@ -46,6 +57,36 @@ describe("POST /api/auth/email-password/register", () => {
     tryResend.mockReset();
     resolveAuthState.mockReset();
     requestContactEmailSetup.mockReset();
+    recordAuthRegistrationAttemptMock.mockReset();
+    recordAuthRegistrationFailureMock.mockReset();
+    recordAuthRegistrationSuccessMock.mockReset();
+  });
+
+  it("records registration attempt and success when challenge is sent", async () => {
+    registerPending.mockResolvedValueOnce({ ok: true, userId: "11111111-1111-1111-1111-111111111111" });
+    startEmailChallenge.mockResolvedValueOnce({
+      ok: true,
+      challengeId: "chal-1",
+      retryAfterSeconds: 60,
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-password/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "new@example.com", password: "password12", displayName: "New" }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(recordAuthRegistrationAttemptMock).toHaveBeenCalledWith(
+      expect.objectContaining({ authMethod: "email_password", stage: "start" }),
+    );
+    expect(recordAuthRegistrationSuccessMock).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: "challenge_sent", challengeId: "chal-1" }),
+    );
+    const body = (await res.json()) as { attemptId?: string };
+    expect(body.attemptId).toBe("11111111-1111-4111-8111-111111111111");
   });
 
   it("deletes unverified user when email challenge fails so retry is possible", async () => {
@@ -89,11 +130,14 @@ describe("POST /api/auth/email-password/register", () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok?: boolean; error?: string; setupLinkSent?: boolean };
-    expect(body).toEqual({
-      ok: true,
-      error: "existing_account_needs_email_setup",
-      setupLinkSent: true,
-    });
+    expect(body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        error: "existing_account_needs_email_setup",
+        setupLinkSent: true,
+        attemptId: expect.any(String),
+      }),
+    );
     expect(requestContactEmailSetup).toHaveBeenCalledWith({
       userId: "22222222-2222-2222-2222-222222222222",
       emailNormalized: "patient@example.com",

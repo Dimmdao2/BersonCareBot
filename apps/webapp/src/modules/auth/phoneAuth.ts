@@ -35,11 +35,15 @@ export type ConfirmPhoneAuthResult =
       user: SessionUser;
       redirectTo: string;
       deliveryChannel?: "sms" | "telegram" | "max" | "email";
+      wasCreated: boolean;
+      registrationAttemptId?: string;
     }
   | { ok: false; code: string; retryAfterSeconds?: number };
 
 export type StartPhoneAuthOptions = {
   delivery?: PhoneOtpDelivery;
+  registrationAttemptId?: string;
+  isRegistrationIntent?: boolean;
 };
 
 function generateChallengeId(): string {
@@ -51,6 +55,7 @@ export async function createPhoneOtpChallenge(
   phone: string,
   context: ChannelContext,
   deps: PhoneAuthDeps,
+  options?: Pick<StartPhoneAuthOptions, "registrationAttemptId" | "isRegistrationIntent">,
 ): Promise<
   | { ok: true; challengeId: string; code: string; retryAfterSeconds?: number }
   | { ok: false; code: string; retryAfterSeconds?: number }
@@ -83,6 +88,10 @@ export async function createPhoneOtpChallenge(
     deliveryChannel:
       context.channel === "telegram" || context.channel === "max" ? context.channel : "telegram",
     channelContext: context,
+    ...(options?.registrationAttemptId?.trim()
+      ? { registrationAttemptId: options.registrationAttemptId.trim() }
+      : {}),
+    ...(options?.isRegistrationIntent === true ? { isRegistrationIntent: true } : {}),
   });
 
   return { ok: true, challengeId, code, retryAfterSeconds: 60 };
@@ -113,6 +122,10 @@ export async function startPhoneAuth(
     await deps.challengeStore.set(sendResult.challengeId, {
       ...existing,
       channelContext: context,
+      ...(options?.registrationAttemptId?.trim()
+        ? { registrationAttemptId: options.registrationAttemptId.trim() }
+        : {}),
+      ...(options?.isRegistrationIntent === true ? { isRegistrationIntent: true } : {}),
     });
   }
 
@@ -149,12 +162,14 @@ export async function confirmPhoneAuth(
   }
 
   const context = challenge.channelContext ?? defaultWebContext();
-  const user = await deps.userByPhonePort.createOrBind(challenge.phone, context);
+  const bindResult = await deps.userByPhonePort.createOrBind(challenge.phone, context);
   return {
     ok: true,
-    user,
-    redirectTo: getRedirectPathForRole(user.role),
+    user: bindResult.user,
+    redirectTo: getRedirectPathForRole(bindResult.user.role),
     deliveryChannel,
+    wasCreated: bindResult.wasCreated,
+    registrationAttemptId: challenge.registrationAttemptId,
   };
 }
 

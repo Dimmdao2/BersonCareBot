@@ -1,5 +1,7 @@
 import type {
   CreatePushNotificationInput,
+  ListRegistrationEventsParams,
+  ListRegistrationEventsResult,
   ProductAnalyticsAdminDashboard,
   ProductAnalyticsIngestEvent,
   RecordPushOpenInput,
@@ -21,4 +23,5 @@ export type ProductAnalyticsPort = {
     days: number,
     options?: ProductAnalyticsPurgeOptions,
   ): Promise<{ deleted: number }>;
+  listRegistrationEvents(params: ListRegistrationEventsParams): Promise<ListRegistrationEventsResult>;
 };

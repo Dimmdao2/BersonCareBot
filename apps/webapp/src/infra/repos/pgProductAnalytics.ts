@@ -13,7 +13,14 @@ import {
   userHourlyPageKeyForEvent,
 } from "@/modules/product-analytics/aggregateKeys";
 import type { ProductAnalyticsPort, ProductAnalyticsPurgeOptions } from "@/modules/product-analytics/ports";
-import type { ProductAnalyticsIngestEvent, RecordPushOpenInput } from "@/modules/product-analytics/types";
+import type {
+  CreatePushNotificationInput,
+  ListRegistrationEventsParams,
+  ListRegistrationEventsResult,
+  ProductAnalyticsIngestEvent,
+  RecordPushOpenInput,
+} from "@/modules/product-analytics/types";
+import { AUTH_REGISTRATION_EVENT_TYPES } from "@/modules/product-analytics/types";
 import { PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
 import {
   productAnalyticsEventsRecent,
@@ -22,7 +29,6 @@ import {
   productPushNotifications,
 } from "../../../db/schema/productAnalytics";
 import { platformUsers } from "../../../db/schema/schema";
-import type { CreatePushNotificationInput } from "@/modules/product-analytics/types";
 
 function pgErrCode(e: unknown): string | undefined {
   if (typeof e === "object" && e !== null && "code" in e) {
@@ -365,6 +371,61 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         .where(lt(productPushNotifications.createdAt, cutoff))
         .returning({ id: productPushNotifications.id });
       return { deleted: deleted.length };
+    },
+
+    async listRegistrationEvents(params: ListRegistrationEventsParams): Promise<ListRegistrationEventsResult> {
+      const db = getDrizzle();
+      const conditions = [
+        gte(productAnalyticsEventsRecent.occurredAt, params.startIso),
+        lt(productAnalyticsEventsRecent.occurredAt, params.endExclusiveIso),
+        inArray(productAnalyticsEventsRecent.eventType, [...AUTH_REGISTRATION_EVENT_TYPES]),
+      ];
+      if (params.eventType) {
+        conditions.push(eq(productAnalyticsEventsRecent.eventType, params.eventType));
+      }
+      if (params.authMethod?.trim()) {
+        conditions.push(sql`${productAnalyticsEventsRecent.metadata}->>'authMethod' = ${params.authMethod.trim()}`);
+      }
+      if (params.errorClass) {
+        conditions.push(sql`${productAnalyticsEventsRecent.metadata}->>'errorClass' = ${params.errorClass}`);
+      }
+      const whereClause = and(...conditions);
+      const offset = (params.page - 1) * params.limit;
+
+      const [countRow] = await db
+        .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+        .from(productAnalyticsEventsRecent)
+        .where(whereClause);
+      const total = Number.parseInt(countRow?.c ?? "0", 10) || 0;
+
+      const rows = await db
+        .select({
+          id: productAnalyticsEventsRecent.id,
+          occurredAt: productAnalyticsEventsRecent.occurredAt,
+          eventType: productAnalyticsEventsRecent.eventType,
+          entryChannel: productAnalyticsEventsRecent.entryChannel,
+          userId: productAnalyticsEventsRecent.userId,
+          metadata: productAnalyticsEventsRecent.metadata,
+        })
+        .from(productAnalyticsEventsRecent)
+        .where(whereClause)
+        .orderBy(sql`${productAnalyticsEventsRecent.occurredAt} DESC`)
+        .limit(params.limit)
+        .offset(offset);
+
+      return {
+        items: rows.map((row) => ({
+          id: row.id,
+          occurredAt: row.occurredAt,
+          eventType: row.eventType as ListRegistrationEventsResult["items"][number]["eventType"],
+          entryChannel: row.entryChannel as ListRegistrationEventsResult["items"][number]["entryChannel"],
+          userId: row.userId,
+          metadata: (row.metadata ?? {}) as Record<string, unknown>,
+        })),
+        total,
+        page: params.page,
+        limit: params.limit,
+      };
     },
   };
 }

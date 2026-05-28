@@ -1,4 +1,10 @@
 import type { SessionUser } from "@/shared/types/session";
+import type { AccountOutcome } from "@/modules/auth/oauthYandexResolve";
+
+export type FindOrCreateByChannelBindingResult = {
+  user: SessionUser;
+  accountOutcome: AccountOutcome;
+};
 
 /**
  * Optional hints from a signed integrator webapp-entry token (`?t=`), Mini App `start_param`, or Login Widget `webappEntryToken`.
@@ -25,8 +31,7 @@ export type IdentityResolutionPort = {
     displayName?: string;
     role?: SessionUser["role"];
     resolutionHints?: MessengerIdentityResolutionHints;
-  }): Promise<SessionUser>;
-  /** Find existing user by channel binding only; returns null if not found. Used for delivery-targets lookup. */
+  }): Promise<FindOrCreateByChannelBindingResult>;
   findByChannelBinding(params: {
     channelCode: "telegram" | "max" | "vk";
     externalId: string;

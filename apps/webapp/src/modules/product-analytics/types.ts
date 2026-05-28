@@ -3,12 +3,49 @@ export const PRODUCT_ANALYTICS_DIM_ALL = "__all__";
 
 export const PRODUCT_ANALYTICS_EVENT_TYPES = [
   "auth_login",
+  "auth_register_attempt",
+  "auth_register_success",
+  "auth_register_failure",
   "app_open",
   "page_view",
   "push_open",
   "heartbeat",
   "push_sent",
 ] as const;
+
+export const AUTH_REGISTRATION_EVENT_TYPES = [
+  "auth_register_attempt",
+  "auth_register_success",
+  "auth_register_failure",
+] as const;
+
+export type AuthRegistrationEventType = (typeof AUTH_REGISTRATION_EVENT_TYPES)[number];
+
+export type AuthRegistrationEventListRow = {
+  id: string;
+  occurredAt: string;
+  eventType: AuthRegistrationEventType;
+  entryChannel: ProductAnalyticsEntryChannel;
+  userId: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ListRegistrationEventsParams = {
+  startIso: string;
+  endExclusiveIso: string;
+  eventType?: AuthRegistrationEventType;
+  errorClass?: "user" | "system";
+  authMethod?: string;
+  page: number;
+  limit: number;
+};
+
+export type ListRegistrationEventsResult = {
+  items: AuthRegistrationEventListRow[];
+  total: number;
+  page: number;
+  limit: number;
+};
 
 export type ProductAnalyticsEventType = (typeof PRODUCT_ANALYTICS_EVENT_TYPES)[number];
 

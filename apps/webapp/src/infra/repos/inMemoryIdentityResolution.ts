@@ -13,19 +13,23 @@ function toBindingKey(channelCode: "telegram" | "max" | "vk"): keyof SessionUser
  * for client tier policy (same class as legacy `tg:…`); see `sessionCanonicalUserIdPolicy.ts`.
  */
 export const inMemoryIdentityResolutionPort: IdentityResolutionPort = {
-  async findOrCreateByChannelBinding(params): Promise<SessionUser> {
+  async findOrCreateByChannelBinding(params) {
     const key = toBindingKey(params.channelCode);
     const bindings: SessionUser["bindings"] = {};
     (bindings as Record<string, string>)[key] = params.externalId;
     return {
-      userId: `${params.channelCode}:${params.externalId}`,
-      role: params.role ?? "client",
-      displayName: params.displayName ?? params.externalId,
-      bindings,
+      user: {
+        userId: `${params.channelCode}:${params.externalId}`,
+        role: params.role ?? "client",
+        displayName: params.displayName ?? params.externalId,
+        bindings,
+      },
+      accountOutcome: "created",
     };
   },
 
   async findByChannelBinding(params): Promise<SessionUser | null> {
-    return this.findOrCreateByChannelBinding(params);
+    const r = await this.findOrCreateByChannelBinding(params);
+    return r.user;
   },
 };
