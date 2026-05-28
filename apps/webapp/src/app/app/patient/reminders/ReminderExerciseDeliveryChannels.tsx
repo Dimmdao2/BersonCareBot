@@ -54,11 +54,13 @@ export function ReminderExerciseDeliveryChannels({ deliveryChannelLabels }: Prop
     pushState.uiStatus === "pending_permission" ||
     pushState.uiStatus === "granted_no_subscription" ||
     pushState.uiStatus === "denied_system";
+  const pushStateMounted = pushState.mounted;
+  const refreshPushState = pushState.refresh;
 
   useEffect(() => {
-    if (!pushState.mounted) return;
-    void pushState.refresh();
-  }, [pushState.mounted, pushState.refresh]);
+    if (!pushStateMounted) return;
+    void refreshPushState();
+  }, [pushStateMounted, refreshPushState]);
 
   return (
     <div className="space-y-2">

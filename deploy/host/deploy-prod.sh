@@ -122,6 +122,7 @@ set +a
 sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
 pnpm migrate
+pnpm --dir apps/webapp run migrate
 
 # Guardrail: fail before service restart if critical public columns are missing (shared list).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"

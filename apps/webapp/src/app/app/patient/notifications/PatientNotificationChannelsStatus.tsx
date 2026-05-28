@@ -76,11 +76,13 @@ function PushChannelRow() {
       setBusy(false);
     }
   }, [state, router]);
+  const stateMounted = state.mounted;
+  const refreshState = state.refresh;
 
   useEffect(() => {
-    if (!state.mounted) return;
-    void state.refresh();
-  }, [state.mounted, state.refresh]);
+    if (!stateMounted) return;
+    void refreshState();
+  }, [stateMounted, refreshState]);
 
   if (!state.mounted) return null;
 

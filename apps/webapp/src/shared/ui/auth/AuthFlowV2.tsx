@@ -5,7 +5,7 @@
  * Apple — только если нет Яндекса/Google. Телефон и OTP только в Telegram/MAX Mini App (отдельный шаг phone).
  */
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -202,9 +202,9 @@ export function AuthFlowV2({
   onInteractiveLoginEngaged,
 }: AuthFlowV2Props) {
   const router = useRouter();
-  const engageInteractive = () => {
+  const engageInteractive = useCallback(() => {
     onInteractiveLoginEngaged?.();
-  };
+  }, [onInteractiveLoginEngaged]);
   const [step, setStep] = useState<AuthFlowStep>("entry_loading");
   const pendingHydratedRef = useRef(false);
   const [oauthProviders, setOauthProviders] = useState<OauthProviderFlags>({
@@ -284,7 +284,7 @@ export function AuthFlowV2({
       setPwRecoveryPhase("reset_code");
       setPwResetEmail(p.email);
     }
-  }, [step, prefetchedAuthConfig]);
+  }, [step, prefetchedAuthConfig, engageInteractive]);
 
   const startOauth = async (provider: "yandex" | "google" | "apple") => {
     engageInteractive();

@@ -15,6 +15,8 @@
 #   platform_users.calendar_timezone
 # Checked tables:
 #   user_notification_topic_channels
+#   product_analytics_hourly
+#   patient_daily_warmup_video_views
 #
 set -euo pipefail
 
@@ -57,7 +59,9 @@ missing_tables="$(
   psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c "
     WITH required(table_name) AS (
       VALUES
-        ('user_notification_topic_channels')
+        ('user_notification_topic_channels'),
+        ('product_analytics_hourly'),
+        ('patient_daily_warmup_video_views')
     )
     SELECT required.table_name
     FROM required

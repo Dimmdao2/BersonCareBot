@@ -329,6 +329,7 @@ export function TemplateEditor({
   const [warnOpen, setWarnOpen] = useState(false);
   const [archiveUsageAck, setArchiveUsageAck] = useState(false);
   const archiveFormRef = useRef<HTMLFormElement>(null);
+  const templateId = template?.id ?? null;
 
   useEffect(() => {
     setTitle(template?.title ?? "Новый комплекс");
@@ -341,7 +342,7 @@ export function TemplateEditor({
   }, [recordKey]);
 
   useEffect(() => {
-    if (!template) {
+    if (!templateId) {
       setUsage(null);
       setUsageLoadError(null);
       setUsageBusy(false);
@@ -354,7 +355,7 @@ export function TemplateEditor({
     let cancelled = false;
     setUsageLoadError(null);
     setUsageBusy(true);
-    void fetchDoctorLfkTemplateUsageSnapshot(template.id)
+    void fetchDoctorLfkTemplateUsageSnapshot(templateId)
       .then((u) => {
         if (!cancelled) setUsage(u);
       })
@@ -370,7 +371,7 @@ export function TemplateEditor({
     return () => {
       cancelled = true;
     };
-  }, [template?.id, externalUsageSnapshot]);
+  }, [templateId, externalUsageSnapshot]);
 
   const [archiveState, archiveFormAction, archivePending] = useActionState(
     archiveDoctorLfkTemplate,

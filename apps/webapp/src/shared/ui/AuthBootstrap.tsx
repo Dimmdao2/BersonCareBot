@@ -914,6 +914,7 @@ export function AuthBootstrap({
     retryKey,
     effectiveEntryClassification,
     isMessengerMiniAppEntry,
+    routeBoundMiniappEntry,
     searchParams,
   ]);
 
