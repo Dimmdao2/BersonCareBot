@@ -7,6 +7,7 @@ import {
   beAppointments,
   beBranches,
   beClinicServices,
+  beExternalEntityMappings,
   beOrganizations,
   bePatientTimelineEvents,
   beRooms,
@@ -692,6 +693,34 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .from(beSpecialistRooms)
         .where(eq(beSpecialistRooms.organizationId, organizationId));
       return rows;
+    },
+
+    async upsertRubitimeAppointmentMapping(input) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      await db
+        .insert(beExternalEntityMappings)
+        .values({
+          organizationId: input.organizationId,
+          entityType: "appointment",
+          canonicalId: input.appointmentId,
+          externalSystem: "rubitime",
+          externalId: input.rubitimeId.trim(),
+          metadata: { patient_booking_sync: true },
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [
+            beExternalEntityMappings.externalSystem,
+            beExternalEntityMappings.entityType,
+            beExternalEntityMappings.externalId,
+          ],
+          set: {
+            canonicalId: input.appointmentId,
+            updatedAt: now,
+          },
+        });
     },
   };
 }

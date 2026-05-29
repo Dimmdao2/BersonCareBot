@@ -25,15 +25,17 @@
 - **SaaS-готовность:** все доменные сущности несут `organization_id` (tenant) с первого этапа, даже если сейчас один арендатор.
 - **Полная событийность (история):** ни одно состояние не хранится «только как текущее» — каждое значимое действие порождает событие в таймлайне (append-only), пригодное для карточки клиента.
 
-## 2. Текущее состояние (база, от которой стартуем)
+## 2. Текущее состояние (после этапов 1–2)
 
-- `patient_bookings` существует, но `createBooking` в webapp всё ещё уходит в integrator → Rubitime и ждёт `rubitimeId` (Rubitime фактически первичен на запись).
-- Кабинет врача читает `appointment_records` — **проекцию Rubitime**, а не канонические локальные записи.
-- Идентичность: live-события Rubitime уже создают/линкуют `platform_users` (PHASE_01 done); историч. backfill (PHASE_07) и mass-email (PHASE_08) — deferred.
-- Платёжных провайдеров в `system_settings.ALLOWED_KEYS` ещё нет; у `courses` есть `priceMinor`/`currency`, но платёжного слоя нет.
-- Публичная запись без сессии (виджет) сейчас невозможна: `/app/patient/booking/new` требует сессию и доверенный телефон.
+- **Write (этап 2, done):** при подключённых `bookingEngine` + `bookingScheduling` в `buildAppDeps` пациентский `createBooking` создаёт `be_appointments` и `patient_bookings` с `canonical_appointment_id`; Rubitime — best-effort при `booking_rubitime_bridge_enabled`. Legacy-путь через integrator остаётся только без канонического DI (in-memory/тесты).
+- **Слоты (этап 2):** собственный движок `booking-scheduling` (`0089`: working_hours, schedule_blocks, exclusion на пересечения); `slotCount` для цепочек слотов.
+- **Поля записи (этап 2):** `be_booking_form_fields` / submissions; admin CRUD; визард отправляет `formAnswers`.
+- **Публичный контракт (этап 2):** `POST /api/booking/public/create` + `resolveOrCreateUserByPhone` (без полного виджета — этап 3).
+- **Read:** кабинет врача по-прежнему в основном через `appointment_records`; при каноническом create — проекция `be:{id}` (`projectCanonicalAppointment.ts`). Полный read на канон — этап 8.
+- Идентичность: live-события Rubitime + публичная запись по телефону; историч. backfill (PHASE_07) — deferred.
+- Платёжных провайдеров в `ALLOWED_KEYS` ещё нет (этап 5).
 
-Вывод: инициатива меняет и **write-модель** (отвязать создание записи от Rubitime-ID), и **read-модель** (перевести кабинет врача/календарь на канонические записи), и добавляет новые слои (оплаты, абонементы, продукты, публичный вход).
+**Следующий gate:** этап 3 (публичный UX/виджет) и этап 4 (переносы/отмены) стартуют после приёмки этапа 2 — см. [`ROADMAP.md`](ROADMAP.md).
 
 ## 3. Архитектурные принципы (обязательны на всех этапах)
 

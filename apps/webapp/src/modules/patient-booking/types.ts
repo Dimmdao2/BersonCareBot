@@ -64,6 +64,8 @@ export type PatientBookingRecord = {
   rubitimeServiceIdSnapshot: string | null;
   /** HTTPS URL to open this record in Rubitime (manage / reschedule); never bot/support fallback. */
   rubitimeManageUrl: string | null;
+  /** Canonical `be_appointments.id` when write path uses booking engine (stage 2+). */
+  canonicalAppointmentId: string | null;
   /** DB `source`: native webapp booking vs Rubitime projection compat row. */
   bookingSource: PatientBookingRowSource;
   /** Set for `rubitime_projection` rows; recomputed on each compat upsert. */
@@ -71,6 +73,8 @@ export type PatientBookingRecord = {
   provenanceCreatedBy: string | null;
   provenanceUpdatedBy: string | null;
 };
+
+export type BookingFormAnswerInput = { fieldKey: string; value: string };
 
 /** API / UI input for creating a booking (discriminated by `type`). */
 export type CreatePatientBookingInput =
@@ -83,6 +87,7 @@ export type CreatePatientBookingInput =
       contactName: string;
       contactPhone: string;
       contactEmail?: string;
+      formAnswers?: BookingFormAnswerInput[];
     }
   | {
       userId: string;
@@ -96,7 +101,13 @@ export type CreatePatientBookingInput =
       contactName: string;
       contactPhone: string;
       contactEmail?: string;
+      formAnswers?: BookingFormAnswerInput[];
     };
+
+/** Public create (no session): phone identifies patient; userId resolved server-side. */
+export type PublicCreateBookingInput = Omit<CreatePatientBookingInput, "userId"> & {
+  userId?: string;
+};
 
 export type CancelPatientBookingInput = {
   userId: string;

@@ -59,6 +59,13 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
       assertValidAppointmentStatusTransition(current.status, input.toStatus);
       return port.transitionAppointmentStatus(input);
     },
+
+    async upsertRubitimeAppointmentMapping(input) {
+      assertUuid(input.organizationId, "organizationId");
+      assertUuid(input.appointmentId, "appointmentId");
+      if (!input.rubitimeId.trim()) throw new Error("rubitime_id_required");
+      return port.upsertRubitimeAppointmentMapping(input);
+    },
   };
 
   return {

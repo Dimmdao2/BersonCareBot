@@ -7,12 +7,15 @@ import type { BookingSlot } from "@/modules/patient-booking/types";
 import { mapBookingCreateErrorCodeToRu } from "./bookingCreateErrorMessages";
 import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
 
+type FormAnswer = { fieldKey: string; value: string };
+
 type CreateBookingInput = {
   selection: BookingSelection;
   slot: BookingSlot;
   contactName: string;
   contactPhone: string;
   contactEmail?: string;
+  formAnswers?: FormAnswer[];
 };
 
 export function useCreateBooking() {
@@ -34,6 +37,7 @@ export function useCreateBooking() {
               contactName: input.contactName,
               contactPhone: input.contactPhone,
               contactEmail: input.contactEmail,
+              formAnswers: input.formAnswers,
             }
           : {
               type: "in_person" as const,
@@ -44,6 +48,7 @@ export function useCreateBooking() {
               contactName: input.contactName,
               contactPhone: input.contactPhone,
               contactEmail: input.contactEmail,
+              formAnswers: input.formAnswers,
             };
 
       const res = await fetch("/api/booking/create", {

@@ -62,4 +62,45 @@
 
 **Git:** вся инициатива — ветка `initiative/own-booking-engine` (зафиксировано в `MASTER_PLAN.md` §Git-ветка). Этап 1 — первый коммит в ветке.
 
+---
+
+## 2026-05-29 — Этап 2: базовая запись пациента
+
+**Сделано:**
+- Миграция `0089_booking_stage2_scheduling_and_forms.sql`: `be_booking_form_*`, `be_working_hours`, `be_availability_rules`, `be_schedule_blocks`, exclusion на `be_appointments`, `patient_bookings.canonical_appointment_id`.
+- Модули `booking-scheduling` (слот-движок), `booking-form` (валидация/CRUD полей).
+- Канонический `createBooking` (`canonicalCreate.ts`): запись без обязательного `rubitimeId`; мост — best-effort.
+- API: `GET /api/booking/form-fields`, `POST /api/booking/public/create`, admin `form-fields`, `appointments/manual`.
+- UI: `BookingFormFieldsSection` на `/app/doctor/admin/booking`.
+- `resolveOrCreateUserByPhone` + `TrustedPatientPhoneSource.PublicBookingByPhone`.
+
+**Проверки:** `pnpm --filter webapp typecheck`; vitest `booking-scheduling`, `booking-form`, `patient-booking/service`.
+
+**Намеренно не делали:** полный публичный виджет/Tilda (этап 3); полный перевод календаря врача на канон (этап 8); двусторонний Rubitime write-sync beyond create mirror.
+
 **Доработка миграций (идемпотентность):** `0087` — маппинг специалистов по `created_at`, `ON CONFLICT` для mappings; `0088` — seed settings (`booking_*` keys), repair mappings; литералы org — `::uuid` в SQL, значение org в JSON — строка (для `readSettingString`).
+
+---
+
+## 2026-05-29 — Этап 2: доведение до полной реализации (после аудита)
+
+**Сделано:**
+- Пациентский визард: `slotCount` на шаге слота, `durationMinutes` в URL, динамические поля на подтверждении (`formAnswers` → API).
+- Admin: полный CRUD полей (`BookingFormFieldsSection`); блокировки расписания (`schedule-blocks` API + `BookingScheduleBlocksSection`).
+- Тесты: `canonicalCreate.test.ts`, канонический путь в `service.test.ts`; `canonicalAppointmentId` в типах и мапперах.
+- Исправления: `0089` в drizzle journal; `AppointmentProjectionPort` в `patient-booking/ports`; mapping Rubitime после sync; ESLint-изоляция модулей.
+
+**Проверки:** `pnpm --filter webapp typecheck`; vitest `patient-booking`, `booking-scheduling`, `booking-form`, `SlotStepClient`.
+
+**Намеренно не делали:** публичный виджет/Tilda (этап 3); полный календарь врача на каноне (этап 8).
+
+---
+
+## 2026-05-29 — Документация и закрытие плана этапа 2
+
+**Сделано:**
+- План перенесён в `.cursor/plans/archive/own_booking_stage2_patient_booking.plan.md` (`status: completed`).
+- Обновлены `README.md`, `ROADMAP.md`, `MASTER_PLAN.md` §2, `DB_STRUCTURE.md`, `RUBITIME_BOOKING_PIPELINE.md`.
+- Модульные README: `patient-booking.md`, `booking-scheduling.md`, `booking-form.md`; `api.md` (ранее).
+
+**Проверки:** `pnpm --filter webapp typecheck`, `lint` (перед коммитом в `initiative/own-booking-engine`).

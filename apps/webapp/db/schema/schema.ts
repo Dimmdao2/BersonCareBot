@@ -1516,6 +1516,7 @@ export const patientBookings = pgTable("patient_bookings", {
 	provenanceCreatedBy: text("provenance_created_by"),
 	provenanceUpdatedBy: text("provenance_updated_by"),
 	rubitimeManageUrl: text("rubitime_manage_url"),
+	canonicalAppointmentId: uuid("canonical_appointment_id"),
 }, (table) => [
 	index("idx_patient_bookings_branch_id").using("btree", table.branchId.asc().nullsLast().op("uuid_ops")),
 	index("idx_patient_bookings_branch_service_id").using("btree", table.branchServiceId.asc().nullsLast().op("uuid_ops")),

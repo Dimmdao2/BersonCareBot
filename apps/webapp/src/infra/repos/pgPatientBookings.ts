@@ -42,6 +42,7 @@ type Row = {
   provenance_created_by?: string | null;
   provenance_updated_by?: string | null;
   rubitime_manage_url?: string | null;
+  canonical_appointment_id?: string | null;
 };
 
 function mapRow(row: Row): PatientBookingRecord {
@@ -77,6 +78,7 @@ function mapRow(row: Row): PatientBookingRecord {
     rubitimeCooperatorIdSnapshot: row.rubitime_cooperator_id_snapshot ?? null,
     rubitimeServiceIdSnapshot: row.rubitime_service_id_snapshot ?? null,
     rubitimeManageUrl: row.rubitime_manage_url ?? null,
+    canonicalAppointmentId: row.canonical_appointment_id ?? null,
     bookingSource: (row.source as PatientBookingRecord["bookingSource"]) ?? "native",
     compatQuality: (row.compat_quality as PatientBookingRecord["compatQuality"]) ?? null,
     provenanceCreatedBy: row.provenance_created_by ?? null,
@@ -151,15 +153,17 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   async markConfirmed(bookingId, rubitimeId, options) {
     const pool = getPool();
     const manageUrl = options?.rubitimeManageUrl?.trim() || null;
+    const canonicalId = options?.canonicalAppointmentId?.trim() || null;
     const result = await pool.query<Row>(
       `UPDATE patient_bookings
        SET status = 'confirmed',
            rubitime_id = COALESCE($2, rubitime_id),
            rubitime_manage_url = COALESCE($3::text, rubitime_manage_url),
+           canonical_appointment_id = COALESCE($4::uuid, canonical_appointment_id),
            updated_at = now()
        WHERE id = $1
        RETURNING *`,
-      [bookingId, rubitimeId, manageUrl],
+      [bookingId, rubitimeId, manageUrl, canonicalId],
     );
     const row = result.rows[0];
     return row ? mapRow(row) : null;

@@ -624,6 +624,13 @@
       "when": 1783100000000,
       "tag": "0088_booking_engine_settings_and_mapping_repair",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1783200000000,
+      "tag": "0089_booking_stage2_scheduling_and_forms",
+      "breakpoints": true
     }
   ]
 }

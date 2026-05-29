@@ -12,7 +12,7 @@
 |---|------|--------|-----------|---------------------|------|
 | 0 | Инфраструктура инициативы (docs) | `done` | — | — | — |
 | 1 | Каноническая модель данных | `done` | 0 | — (фундамент) | [`stage1`](../../.cursor/plans/archive/own_booking_stage1_canonical_model.plan.md) |
-| 2 | Базовая запись пациента | `pending` | 1 | — | [`stage2`](../../.cursor/plans/own_booking_stage2_patient_booking.plan.md) |
+| 2 | Базовая запись пациента | `done` | 1 | — | [`stage2`](../../.cursor/plans/archive/own_booking_stage2_patient_booking.plan.md) |
 | 3 | Публичный виджет / страница записи | `pending` | 2 | 4 (после общего ядра записи) | [`stage3`](../../.cursor/plans/own_booking_stage3_public_widget.plan.md) |
 | 4 | Переносы и отмены | `pending` | 2 | 3 | [`stage4`](../../.cursor/plans/own_booking_stage4_reschedule_cancel.plan.md) |
 | 5 | Предоплата и базовые оплаты | `pending` | 1, 2 | 6 (модель), но активация после 5 | [`stage5`](../../.cursor/plans/own_booking_stage5_prepayment_payments.plan.md) |

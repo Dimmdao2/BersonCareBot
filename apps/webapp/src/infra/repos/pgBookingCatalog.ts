@@ -249,6 +249,19 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
            AND bbs.is_active = TRUE
            AND svc.is_active = TRUE
            AND sp.is_active = TRUE
+           AND EXISTS (
+             SELECT 1
+               FROM be_external_entity_mappings m
+               JOIN be_specialist_service_availability ssa ON ssa.id = m.canonical_id
+               JOIN be_clinic_services cs ON cs.id = ssa.service_id
+              WHERE m.entity_type = 'availability'
+                AND m.external_system = 'rubitime'
+                AND m.metadata->>'legacy_branch_service_id' = bbs.id::text
+                AND ssa.is_active = TRUE
+                AND cs.is_active = TRUE
+                AND cs.public_widget_visible = TRUE
+                AND cs.admin_manual_only = FALSE
+           )
          ORDER BY bbs.sort_order ASC, svc.title ASC`,
         [cityCode],
       );

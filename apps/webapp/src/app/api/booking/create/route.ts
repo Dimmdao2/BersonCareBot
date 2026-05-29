@@ -4,6 +4,11 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientBookingTrustedPhoneAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 
+const formAnswerSchema = z.object({
+  fieldKey: z.string().min(1),
+  value: z.string(),
+});
+
 const onlineBody = z.object({
   type: z.literal("online"),
   category: z.enum(["rehab_lfk", "nutrition", "general"]),
@@ -13,6 +18,7 @@ const onlineBody = z.object({
   contactName: z.string().min(1),
   contactPhone: z.string().min(1),
   contactEmail: z.string().email().optional(),
+  formAnswers: z.array(formAnswerSchema).optional(),
 });
 
 const inPersonBody = z.object({
@@ -24,6 +30,7 @@ const inPersonBody = z.object({
   contactName: z.string().min(1),
   contactPhone: z.string().min(1),
   contactEmail: z.string().email().optional(),
+  formAnswers: z.array(formAnswerSchema).optional(),
 });
 
 const bodySchema = z.discriminatedUnion("type", [onlineBody, inPersonBody]);
@@ -53,6 +60,7 @@ export async function POST(request: Request) {
             contactName: body.contactName,
             contactPhone: body.contactPhone,
             contactEmail: body.contactEmail,
+            formAnswers: body.formAnswers,
           })
         : await deps.patientBooking.createBooking({
             userId: session.user.userId,
@@ -64,6 +72,7 @@ export async function POST(request: Request) {
             contactName: body.contactName,
             contactPhone: body.contactPhone,
             contactEmail: body.contactEmail,
+            formAnswers: body.formAnswers,
           });
     return NextResponse.json({ ok: true, booking }, { status: 200 });
   } catch (error) {
@@ -88,6 +97,12 @@ export async function POST(request: Request) {
     }
     if (message === "city_mismatch") {
       return NextResponse.json({ ok: false, error: "city_mismatch" }, { status: 400 });
+    }
+    if (message === "required_field_missing" || message === "invalid_email" || message === "invalid_phone") {
+      return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    }
+    if (message === "canonical_booking_unavailable") {
+      return NextResponse.json({ ok: false, error: message }, { status: 503 });
     }
     if (
       message === "invalid_branch_service_id" ||

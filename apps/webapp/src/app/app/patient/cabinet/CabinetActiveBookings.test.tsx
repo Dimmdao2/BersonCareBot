@@ -45,6 +45,7 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
     rubitimeCooperatorIdSnapshot: "20",
     rubitimeServiceIdSnapshot: "30",
     rubitimeManageUrl: null,
+    canonicalAppointmentId: null,
     bookingSource: "native",
     compatQuality: null,
     provenanceCreatedBy: null,

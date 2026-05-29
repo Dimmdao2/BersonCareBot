@@ -255,6 +255,10 @@ import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
 import { createPgBookingRubitimeBridgePort } from "@/infra/repos/pgBookingRubitimeBridge";
 import { createBookingCatalogService } from "@/modules/booking-catalog/service";
 import { createBookingEngineService } from "@/modules/booking-engine/service";
+import { createPgBookingSchedulingPort } from "@/infra/repos/pgBookingScheduling";
+import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
+import { createPgBookingFormPort } from "@/infra/repos/pgBookingForm";
+import { createBookingFormService } from "@/modules/booking-form/service";
 import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
 import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHomeLegacyContent";
@@ -379,10 +383,26 @@ const bookingEnginePort =
 const bookingEngineService = bookingEnginePort
   ? createBookingEngineService(bookingEnginePort)
   : null;
+const bookingSchedulingPort =
+  bookingEngineCorePort && !inMemoryRepos
+    ? createPgBookingSchedulingPort(() => bookingEngineCorePort.getDefaultOrganizationId())
+    : null;
+const bookingSchedulingService = bookingSchedulingPort
+  ? createBookingSchedulingService(bookingSchedulingPort)
+  : null;
+const bookingFormPort = !inMemoryRepos ? createPgBookingFormPort() : null;
+const bookingFormService = bookingFormPort ? createBookingFormService(bookingFormPort) : null;
 const patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
   bookingCatalog: bookingCatalogService,
+  bookingEngine: bookingEngineService,
+  bookingScheduling: bookingSchedulingService,
+  bookingForm: bookingFormService,
+  appointmentProjection: appointmentProjectionPort,
+  isRubitimeBridgeEnabled: bookingRubitimeBridgePort
+    ? () => bookingRubitimeBridgePort.isBridgeEnabled()
+    : undefined,
 });
 const branchesProjectionPort = !inMemoryRepos ? createPgBranchesProjectionPort() : null;
 const subscriptionMailingProjectionPort = !inMemoryRepos
@@ -1093,6 +1113,8 @@ function _buildAppDeps() {
     bookingEngine: bookingEngineService,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
     bookingEnginePort,
+    bookingScheduling: bookingSchedulingService,
+    bookingForm: bookingFormService,
   };
 }
 

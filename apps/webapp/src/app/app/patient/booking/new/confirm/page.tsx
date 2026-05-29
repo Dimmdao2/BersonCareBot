@@ -28,6 +28,8 @@ function buildSlotBackQuery(raw: Record<string, string | string[] | undefined>):
     if (cityTitle != null) q.set("cityTitle", cityTitle);
     if (branchServiceId) q.set("branchServiceId", branchServiceId);
     if (serviceTitle != null) q.set("serviceTitle", serviceTitle);
+    const durationMinutes = first(raw.durationMinutes);
+    if (durationMinutes) q.set("durationMinutes", durationMinutes);
   } else if (type === "online") {
     const category = first(raw.category);
     if (category) q.set("category", category);

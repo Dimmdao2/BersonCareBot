@@ -76,7 +76,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 - **Мост:** `system_settings.booking_rubitime_bridge_enabled` (admin). При включении админ может запустить проекцию (`POST /api/admin/booking-engine/bridge`) — idempotent upsert в `be_appointments` + `be_external_entity_mappings` по `integrator_record_id` / `rubitime_record_id`.
 - **Код:** модуль `apps/webapp/src/modules/booking-engine/`, репозитории `pgBookingEngine.ts`, `pgBookingRubitimeBridge.ts`; вебхук integrator **не меняется**.
-- **Write-путь** создания записи в каноне без Rubitime — этап 2; до переключения пациентский/врачебный UI читает `patient_bookings` / `appointment_records` как раньше.
+- **Write-путь (этап 2, done):** пациентский create при каноническом DI пишет в `be_appointments`; Rubitime create — best-effort + mapping в `be_external_entity_mappings`. Read UI врача — по-прежнему `appointment_records` (+ проекция `be:{id}` при create).
 
 Подробнее: [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md).
 

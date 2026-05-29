@@ -14,12 +14,28 @@ export type BookingSlotsQuery =
       type: "online";
       category: BookingCategory;
       date?: string;
+      slotCount?: number;
     }
   | {
       type: "in_person";
       branchServiceId: string;
       date?: string;
+      slotCount?: number;
     };
+
+/** Doctor cabinet projection (`appointment_records`). */
+export type AppointmentProjectionPort = {
+  upsertRecordFromProjection(params: {
+    integratorRecordId: string;
+    phoneNormalized: string | null;
+    recordAt: string | null;
+    status: string;
+    payloadJson: Record<string, unknown>;
+    lastEvent: string;
+    updatedAt: string;
+    branchId?: string | null;
+  }): Promise<void>;
+};
 
 /**
  * Payload to integrator `/rubitime/slots`.
@@ -124,7 +140,7 @@ export type PatientBookingsPort = {
   markConfirmed(
     bookingId: string,
     rubitimeId: string | null,
-    options?: { rubitimeManageUrl?: string | null },
+    options?: { rubitimeManageUrl?: string | null; canonicalAppointmentId?: string | null },
   ): Promise<PatientBookingRecord | null>;
   markFailedSync(bookingId: string): Promise<void>;
   markCancelling(bookingId: string): Promise<PatientBookingRecord | null>;

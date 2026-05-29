@@ -126,6 +126,7 @@ function sampleRow(over: Partial<PatientBookingRecord> = {}): PatientBookingReco
     rubitimeCooperatorIdSnapshot: null,
     rubitimeServiceIdSnapshot: null,
     rubitimeManageUrl: null,
+    canonicalAppointmentId: null,
     bookingSource: "native",
     compatQuality: null,
     provenanceCreatedBy: null,
@@ -623,6 +624,54 @@ describe("createPatientBookingService", () => {
 
     await svc.getSlots({ type: "online", category: "general" });
     expect(syncPort.fetchSlots).toHaveBeenCalledTimes(2);
+  });
+
+  it("createBooking: uses canonical path when bookingEngine and scheduling are wired", async () => {
+    const pending = sampleRow({ id: "p-can", status: "creating", rubitimeId: null });
+    const confirmed = { ...pending, status: "confirmed" as const, canonicalAppointmentId: "appt-1" };
+    bookingsPort.createPending.mockResolvedValue(pending);
+    bookingsPort.markConfirmed.mockResolvedValue(confirmed);
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      createAppointment: vi.fn().mockResolvedValue({ id: "appt-1" }),
+      upsertRubitimeAppointmentMapping: vi.fn(),
+    };
+    const bookingScheduling = {
+      assertSlotAvailable: vi.fn().mockResolvedValue(undefined),
+      resolveInPersonContext: vi.fn(),
+      getOnlineSlots: vi.fn(),
+      getInPersonSlots: vi.fn(),
+    };
+    const bookingForm = {
+      validateAnswers: vi.fn().mockResolvedValue({ ok: true }),
+      saveForAppointment: vi.fn(),
+    };
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      bookingScheduling: bookingScheduling as never,
+      bookingForm: bookingForm as never,
+      isRubitimeBridgeEnabled: async () => false,
+    });
+
+    const result = await svc.createBooking({
+      userId: pending.userId!,
+      type: "online",
+      category: "general",
+      slotStart: pending.slotStart,
+      slotEnd: pending.slotEnd,
+      contactName: pending.contactName,
+      contactPhone: pending.contactPhone,
+    });
+
+    expect(bookingEngine.createAppointment).toHaveBeenCalled();
+    expect(syncPort.createRecord).not.toHaveBeenCalled();
+    expect(result.canonicalAppointmentId).toBe("appt-1");
   });
 
   it("createBooking: concurrent same slot second call throws slot_overlap before second createPending", async () => {

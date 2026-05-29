@@ -7,8 +7,17 @@ import type {
 } from "./ports";
 import type { CreatePatientBookingInput } from "./types";
 import type { BookingCatalogService } from "@/modules/booking-catalog/service";
+import type { createBookingEngineService } from "@/modules/booking-engine/service";
+import type { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
+import type { createBookingFormService } from "@/modules/booking-form/service";
+
+type BookingEngineService = ReturnType<typeof createBookingEngineService>;
+type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
+type BookingFormService = ReturnType<typeof createBookingFormService>;
+import type { AppointmentProjectionPort } from "./ports";
 import { validateCreatePatientBookingInput } from "./createInputValidation";
 import { extractRubitimeManageUrlFromIntegratorCreateRaw } from "./rubitimeManageUrl";
+import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from "./canonicalCreate";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
@@ -16,9 +25,19 @@ function isPostgresExclusionViolation(err: unknown): boolean {
 
 function cacheKey(query: BookingSlotsQuery): string {
   if (query.type === "online") {
-    return JSON.stringify({ type: query.type, category: query.category, date: query.date ?? "" });
+    return JSON.stringify({
+      type: query.type,
+      category: query.category,
+      date: query.date ?? "",
+      slotCount: query.slotCount ?? 1,
+    });
   }
-  return JSON.stringify({ type: query.type, branchServiceId: query.branchServiceId, date: query.date ?? "" });
+  return JSON.stringify({
+    type: query.type,
+    branchServiceId: query.branchServiceId,
+    date: query.date ?? "",
+    slotCount: query.slotCount ?? 1,
+  });
 }
 
 function toPendingRowOnline(input: CreatePatientBookingInput & { type: "online" }): CreatePendingPatientBookingInput {
@@ -79,6 +98,11 @@ export function createPatientBookingService(input: {
   bookingsPort: PatientBookingsPort;
   syncPort: BookingSyncPort;
   bookingCatalog: BookingCatalogService | null;
+  bookingEngine?: BookingEngineService | null;
+  bookingScheduling?: BookingSchedulingService | null;
+  bookingForm?: BookingFormService | null;
+  appointmentProjection?: AppointmentProjectionPort | null;
+  isRubitimeBridgeEnabled?: () => Promise<boolean>;
   slotsTtlMs?: number;
 }): PatientBookingService {
   const slotsTtlMs = input.slotsTtlMs ?? 60 * 1000;
@@ -94,6 +118,20 @@ export function createPatientBookingService(input: {
     slotsCache.clear();
   }
 
+  const canonicalDeps: CanonicalBookingDeps | null =
+    input.bookingEngine && input.bookingScheduling
+      ? {
+          bookingsPort: input.bookingsPort,
+          syncPort: input.syncPort,
+          bookingCatalog: input.bookingCatalog,
+          bookingEngine: input.bookingEngine,
+          bookingScheduling: input.bookingScheduling,
+          bookingForm: input.bookingForm ?? null,
+          appointmentProjection: input.appointmentProjection ?? null,
+          isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
+        }
+      : null;
+
   return {
     async getSlots(query) {
       const key = cacheKey(query);
@@ -104,7 +142,23 @@ export function createPatientBookingService(input: {
       }
 
       let value: Awaited<ReturnType<BookingSyncPort["fetchSlots"]>>;
-      if (query.type === "online") {
+      if (input.bookingScheduling && input.bookingEngine) {
+        if (query.type === "online") {
+          const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+          value = await input.bookingScheduling.getOnlineSlots({
+            organizationId: orgId,
+            category: query.category,
+            date: query.date,
+            slotCount: query.slotCount,
+          });
+        } else {
+          value = await input.bookingScheduling.getInPersonSlots({
+            branchServiceId: query.branchServiceId,
+            date: query.date,
+            slotCount: query.slotCount,
+          });
+        }
+      } else if (query.type === "online") {
         value = await input.syncPort.fetchSlots({
           type: "online",
           category: query.category,
@@ -132,6 +186,12 @@ export function createPatientBookingService(input: {
 
     async createBooking(rawInput) {
       const createInput = validateCreatePatientBookingInput(rawInput);
+      const formAnswers = rawInput.formAnswers ?? [];
+
+      if (canonicalDeps) {
+        return createBookingOnCanonicalEngine(canonicalDeps, createInput, formAnswers);
+      }
+
       const slotLockKey =
         createInput.type === "in_person"
           ? `${createInput.branchServiceId}|${createInput.slotStart}|${createInput.slotEnd}`

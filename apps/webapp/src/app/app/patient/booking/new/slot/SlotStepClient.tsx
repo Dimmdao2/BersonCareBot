@@ -3,6 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { routePaths } from "@/app-layer/routes/paths";
 import { patientButtonPrimaryClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import type { BookingCategory, BookingSlot } from "@/modules/patient-booking/types";
@@ -17,6 +24,7 @@ type InPersonProps = {
   cityCode: string;
   cityTitle: string;
   serviceTitle: string;
+  durationMinutes: number;
   appDisplayTimeZone: string;
 };
 
@@ -43,6 +51,12 @@ function buildConfirmQuery(
     q.set("cityTitle", props.cityTitle);
     q.set("branchServiceId", props.branchServiceId);
     q.set("serviceTitle", props.serviceTitle);
+    q.set("durationMinutes", String(props.durationMinutes));
+    const count = Math.max(
+      1,
+      Math.round((new Date(slot.endAt).getTime() - new Date(slot.startAt).getTime()) / 60_000 / props.durationMinutes),
+    );
+    if (count > 1) q.set("slotCount", String(count));
   } else {
     q.set("category", props.category);
   }
@@ -51,6 +65,7 @@ function buildConfirmQuery(
 
 export function SlotStepClient(props: Props) {
   const router = useRouter();
+  const [slotCount, setSlotCount] = useState(1);
 
   const selection: BookingSelection = useMemo(() => {
     if (props.type === "in_person") {
@@ -68,16 +83,39 @@ export function SlotStepClient(props: Props) {
     };
   }, [props]);
 
-  const slotsState = useBookingSlots(selection);
+  const slotsState = useBookingSlots(selection, slotCount);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
 
   const effectiveDate = selectedDate ?? slotsState.availableDates[0] ?? null;
-
   const canContinue = Boolean(effectiveDate && selectedSlot);
 
   return (
     <div className="flex flex-col gap-4">
+      {props.type === "in_person" ? (
+        <div className="flex items-center gap-3">
+          <span className={patientMutedTextClass}>Длительность</span>
+          <Select
+            value={String(slotCount)}
+            onValueChange={(v) => {
+              setSlotCount(Number(v));
+              setSelectedSlot(null);
+            }}
+          >
+            <SelectTrigger className="w-[10rem]" displayLabel={`${slotCount} × ${props.durationMinutes} мин`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[1, 2, 3, 4].map((n) => (
+                <SelectItem key={n} value={String(n)} label={`${n} × ${props.durationMinutes} мин`}>
+                  {n} × {props.durationMinutes} мин
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+
       <BookingCalendar
         availableDates={slotsState.availableDates}
         selectedDate={effectiveDate}

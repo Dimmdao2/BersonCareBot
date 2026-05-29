@@ -127,6 +127,11 @@ export type BookingEnginePort = {
   getAppointment(id: string): Promise<BeAppointment | null>;
   createAppointment(input: CreateAppointmentInput): Promise<BeAppointment>;
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<BeAppointment>;
+  upsertRubitimeAppointmentMapping(input: {
+    organizationId: string;
+    appointmentId: string;
+    rubitimeId: string;
+  }): Promise<void>;
 };
 
 export type BookingEngineCorePort = OrganizationPort &

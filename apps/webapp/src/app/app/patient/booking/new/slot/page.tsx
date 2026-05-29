@@ -43,6 +43,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
     const cityCode = first(raw.cityCode) ?? "";
     const cityTitle = first(raw.cityTitle) ?? "";
     const serviceTitle = first(raw.serviceTitle) ?? "";
+    const durationMinutes = Number(first(raw.durationMinutes) ?? "60") || 60;
     const backHref =
       `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(cityCode)}&cityTitle=${encodeURIComponent(cityTitle)}`;
 
@@ -60,6 +61,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
           cityCode={cityCode}
           cityTitle={cityTitle}
           serviceTitle={serviceTitle}
+          durationMinutes={durationMinutes}
           appDisplayTimeZone={appDisplayTimeZone}
         />
       </BookingWizardShell>

@@ -67,6 +67,7 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
       availabilities: 0,
       appointments: 0,
     }),
+    upsertRubitimeAppointmentMapping: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

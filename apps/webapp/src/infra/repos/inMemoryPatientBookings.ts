@@ -139,6 +139,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorIdSnapshot,
       rubitimeServiceIdSnapshot: input.rubitimeServiceIdSnapshot,
       rubitimeManageUrl: null,
+      canonicalAppointmentId: null,
       bookingSource: "native",
       compatQuality: null,
       provenanceCreatedBy: null,
@@ -163,11 +164,13 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       throw new Error("slot_overlap");
     }
     const manage = options?.rubitimeManageUrl?.trim() || null;
+    const canonicalId = options?.canonicalAppointmentId?.trim() || row.canonicalAppointmentId;
     const next = {
       ...row,
       status: "confirmed" as const,
       rubitimeId: rubitimeId ?? row.rubitimeId,
       rubitimeManageUrl: manage ?? row.rubitimeManageUrl,
+      canonicalAppointmentId: canonicalId,
       updatedAt: new Date().toISOString(),
     };
     byId.set(bookingId, next);
@@ -315,6 +318,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? null,
       rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? null,
       rubitimeManageUrl: input.rubitimeManageUrl?.trim() || null,
+      canonicalAppointmentId: null,
       bookingSource: "rubitime_projection",
       compatQuality,
       provenanceCreatedBy: "rubitime_external",

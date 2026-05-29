@@ -1,6 +1,8 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { BookingCatalogHelp } from "@/app/app/settings/BookingCatalogHelp";
 import { BookingEngineSection } from "@/app/app/settings/BookingEngineSection";
+import { BookingFormFieldsSection } from "@/app/app/settings/BookingFormFieldsSection";
+import { BookingScheduleBlocksSection } from "@/app/app/settings/BookingScheduleBlocksSection";
 import { RubitimeSection } from "@/app/app/settings/RubitimeSection";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
@@ -13,6 +15,8 @@ export default async function DoctorAdminBookingPage() {
       <div className="space-y-6">
         <BookingCatalogHelp />
         <BookingEngineSection />
+        <BookingFormFieldsSection />
+        <BookingScheduleBlocksSection />
         <RubitimeSection />
       </div>
     </div>

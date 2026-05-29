@@ -5,17 +5,21 @@ import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole"
 import { routePaths } from "@/app-layer/routes/paths";
 import { logger } from "@/app-layer/logging/logger";
 
+const slotCountSchema = z.coerce.number().int().min(1).max(8).optional();
+
 const onlineQuery = z.object({
   type: z.literal("online"),
   category: z.enum(["rehab_lfk", "nutrition", "general"]),
   city: z.string().trim().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  slotCount: slotCountSchema,
 });
 
 const inPersonQuery = z.object({
   type: z.literal("in_person"),
   branchServiceId: z.string().uuid(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  slotCount: slotCountSchema,
 });
 
 const querySchema = z.discriminatedUnion("type", [onlineQuery, inPersonQuery]);
@@ -31,6 +35,7 @@ export async function GET(request: Request) {
     city: url.searchParams.get("city") ?? undefined,
     branchServiceId: url.searchParams.get("branchServiceId") ?? undefined,
     date: url.searchParams.get("date") ?? undefined,
+    slotCount: url.searchParams.get("slotCount") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });

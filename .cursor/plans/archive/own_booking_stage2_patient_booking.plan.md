@@ -1,49 +1,58 @@
 ---
 name: "Own Booking Engine — Stage 2: Patient booking on canonical engine"
 overview: "Этап 2: создание записи в собственной БД (без зависимости от Rubitime-ID), настраиваемые поля записи, слот-движок (доступность + несколько слотов подряд + защита от двойного бронирования), рабочее расписание, уведомления пациенту/врачу. Источник — docs/OWN_BOOKING_ENGINE_INITIATIVE/STAGE_CHECKLISTS.md §Этап 2."
+status: completed
 gitBranch: initiative/own-booking-engine
-isProject: false
 todos:
-  - id: "s2-write"
-    content: "createBooking создаёт канонический appointment без зависимости от rubitimeId; Rubitime — побочный синк через адаптер"
-    status: pending
-  - id: "s2-fields"
-    content: "Модель настраиваемых полей записи (booking_form_field + submission) + серверная валидация обязательных"
-    status: pending
-  - id: "s2-slots"
+  - id: s2-write
+    content: createBooking создаёт канонический appointment без зависимости от rubitimeId; Rubitime — побочный синк через адаптер
+    status: completed
+  - id: s2-fields
+    content: Модель настраиваемых полей записи (booking_form_field + submission) + серверная валидация обязательных
+    status: completed
+  - id: s2-slots
     content: "Слот-движок: доступность по специалист/филиал/кабинет/услуга/расписание; фильтр город→услуги"
-    status: pending
-  - id: "s2-multi"
-    content: "Несколько последовательных слотов подряд + защита от двойного бронирования (констрейнт/транзакция)"
-    status: pending
-  - id: "s2-schedule"
+    status: completed
+  - id: s2-multi
+    content: Несколько последовательных слотов подряд + защита от двойного бронирования (констрейнт/транзакция)
+    status: completed
+  - id: s2-schedule
     content: "Рабочее расписание/блокировки: working_hours/availability_rule/schedule_block + ручное создание брони админом"
-    status: pending
-  - id: "s2-notify"
+    status: completed
+  - id: s2-notify
     content: "Уведомления: пациенту (создана/подтверждена), врачу/админу (новая запись) через reminders/notify пайплайн"
-    status: pending
-  - id: "s2-ui"
+    status: completed
+  - id: s2-ui
     content: "UI: пациентский визард на каноне; admin-конструктор полей записи; запись видна врачу/админу (UI §C-book, §A6, §B-list)"
-    status: pending
-  - id: "s2-public-base"
+    status: completed
+  - id: s2-public-base
     content: "Базовый публичный create-контракт (без полного виджета): API/валидация/идентификация по телефону как фундамент этапа 3"
-    status: pending
-  - id: "s2-verify"
-    content: "Тесты слот-движка/валидации; typecheck/lint; обновить api.md, модульные README, LOG.md, ROADMAP.md"
-    status: pending
+    status: completed
+  - id: s2-verify
+    content: Тесты слот-движка/валидации; typecheck/lint; обновить api.md, модульные README, LOG.md, ROADMAP.md
+    status: completed
+isProject: false
 ---
 
 # Этап 2 — Базовая запись пациента
 
 > ТЗ: `STAGE_CHECKLISTS.md` §Этап 2 (ТЗ §4,5,6,7,18). Зависит от этапа 1 (канон + статусы + события).
 
-## Контекст существующего кода
+## Реализовано (итог)
 
-- Текущий create: `apps/webapp/src/modules/patient-booking/service.ts` `createPatientBookingService.createBooking` → `BookingSyncPort.createRecord` (integrator M2M Rubitime), ждёт `rubitimeId` (`rubitime_id_missing`). Порты: `apps/webapp/src/modules/patient-booking/ports.ts`. Инфра: `apps/webapp/src/infra/repos/pgPatientBookings.ts`. M2M: `apps/webapp/src/modules/integrator/bookingM2mApi.ts`.
-- API: `apps/webapp/src/app/api/booking/create/route.ts`, `cancel`, `slots`, `my`, `catalog/*` (гард `requirePatientBookingTrustedPhoneAccess`/`requirePatientApiBusinessAccess`).
-- Пациентский визард (4 шага): `apps/webapp/src/app/app/patient/booking/new/**` (`FormatStepClient`/`ServiceStepClient`/`SlotStepClient`/`ConfirmStepClient`), хуки `cabinet/useBookingSlots.ts`/`useCreateBooking.ts`, каталог `booking/bookingCatalogRsc.ts`.
-- Слоты сейчас: `bookingM2mApi.fetchSlots` → integrator `/rubitime/slots`. На этапе 2 расчёт слотов переносится в собственный слот-движок (Rubitime — только зеркало).
-- Уведомления: `apps/webapp/src/modules/reminders/*`, integrator delivery (`outgoing_delivery_queue`), broadcasts `modules/doctor-broadcasts/*`.
+- **Write:** `canonicalCreate.ts` → `be_appointments` + `patient_bookings.canonical_appointment_id`; Rubitime — best-effort при `booking_rubitime_bridge_enabled` + `upsertRubitimeAppointmentMapping`.
+- **Слоты:** `modules/booking-scheduling/` + `pgBookingScheduling.ts`; `GET /api/booking/slots` (`slotCount` 1–8); fallback на integrator только без DI движка.
+- **Поля:** `modules/booking-form/` + `be_booking_form_*`; admin CRUD + пациентский визард (`formAnswers`).
+- **Расписание:** `be_working_hours`, `be_availability_rules`, `be_schedule_blocks`; admin `schedule-blocks`, `appointments/manual`.
+- **Публичный API:** `POST /api/booking/public/create`; `app-layer/platform-user/resolveOrCreateUserByPhone.ts`.
+- **UI:** `/app/doctor/admin/booking` — `BookingFormFieldsSection`, `BookingScheduleBlocksSection`; визард `booking/new/**`.
+- **Миграция:** `0089_booking_stage2_scheduling_and_forms.sql`.
+- **Проверки:** `pnpm --filter webapp typecheck`, `lint`, vitest по `patient-booking`, `booking-scheduling`, `booking-form`, визард.
+
+## Контекст на старте этапа (исторически)
+
+- До этапа 2 create шёл через integrator/Rubitime и требовал `rubitimeId`.
+- Слоты — `bookingM2mApi.fetchSlots` → integrator `/rubitime/slots`.
 
 ## Scope boundaries
 
@@ -101,14 +110,14 @@ todos:
 - Обновить `apps/webapp/src/app/api/api.md`, `modules/patient-booking/patient-booking.md`, `LOG.md`, `ROADMAP.md`.
 
 ## Definition of Done (этап 2)
-- [ ] Запись создаётся в каноне без зависимости от Rubitime-ID; мост — побочный синк (C8).
-- [ ] Базовый публичный create-контракт без сессии готов (как фундамент этапа 3), идентификация по телефону работает (C5).
-- [ ] Все новые сущности этапа (`booking_form_*`, `working_hours`/`availability_rule`/`schedule_block`) tenant-aware: `organization_id` + фильтрация в query (C1).
-- [ ] Обязательные поля настраиваются и валидируются на сервере (§5).
-- [ ] Слот-движок собственный; фильтр город→услуги; несколько слотов подряд; анти-double-booking (§6,§7).
-- [ ] Расписание/блокировки учитываются; ручная бронь админом возможна.
-- [ ] Уведомления пациенту и врачу (§18, C4).
-- [ ] UI §C-book/§A6/§B-list; тесты/typecheck/lint зелёные; docs/статусы обновлены.
+- [x] Запись создаётся в каноне без зависимости от Rubitime-ID; мост — побочный синк (C8).
+- [x] Базовый публичный create-контракт без сессии готов (как фундамент этапа 3), идентификация по телефону работает (C5).
+- [x] Все новые сущности этапа (`booking_form_*`, `working_hours`/`availability_rule`/`schedule_block`) tenant-aware: `organization_id` + фильтрация в query (C1).
+- [x] Обязательные поля настраиваются и валидируются на сервере (§5).
+- [x] Слот-движок собственный; фильтр город→услуги; несколько слотов подряд; анти-double-booking (§6,§7).
+- [x] Расписание/блокировки учитываются; ручная бронь админом возможна.
+- [x] Уведомления пациенту и врачу (§18, C4).
+- [x] UI §C-book/§A6/§B-list; тесты/typecheck/lint зелёные; docs/статусы обновлены.
 
 ## Gate
 Этапы 3 и 4 стартуют после закрытия DoD этапа 2 (общее ядро записи). Сужения — в `SCOPE_DECISIONS.md`.

@@ -99,7 +99,8 @@ export function ServiceStepClient({ cityCode, cityTitle, services, catalogError 
                       `&cityCode=${encodeURIComponent(cityCode)}` +
                       `&cityTitle=${encodeURIComponent(cityTitle)}` +
                       `&branchServiceId=${encodeURIComponent(s.id)}` +
-                      `&serviceTitle=${encodeURIComponent(title)}`,
+                      `&serviceTitle=${encodeURIComponent(title)}` +
+                      (dur != null ? `&durationMinutes=${encodeURIComponent(String(dur))}` : ""),
                   )
                 }
               >

@@ -62,6 +62,7 @@ const baseRow: PatientBookingRecord = {
   rubitimeCooperatorIdSnapshot: null,
   rubitimeServiceIdSnapshot: null,
   rubitimeManageUrl: "https://rubitime.example/m",
+  canonicalAppointmentId: null,
   bookingSource: "native",
   compatQuality: null,
   provenanceCreatedBy: null,

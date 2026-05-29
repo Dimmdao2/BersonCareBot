@@ -13,7 +13,7 @@ type State = {
   data: BookingSlotsByDate[];
 };
 
-function buildQuery(selection: BookingSelection, date?: string): string {
+function buildQuery(selection: BookingSelection, date?: string, slotCount?: number): string {
   const params = new URLSearchParams();
   if (selection.type === "online") {
     params.set("type", "online");
@@ -23,10 +23,11 @@ function buildQuery(selection: BookingSelection, date?: string): string {
     params.set("branchServiceId", selection.branchServiceId);
   }
   if (date) params.set("date", date);
+  if (slotCount != null && slotCount > 1) params.set("slotCount", String(slotCount));
   return params.toString();
 }
 
-export function useBookingSlots(selection: BookingSelection | null) {
+export function useBookingSlots(selection: BookingSelection | null, slotCount = 1) {
   const router = useRouter();
   const [state, setState] = useState<State>({
     loading: false,
@@ -36,8 +37,8 @@ export function useBookingSlots(selection: BookingSelection | null) {
 
   const query = useMemo(() => {
     if (!selection) return null;
-    return buildQuery(selection, undefined);
-  }, [selection]);
+    return buildQuery(selection, undefined, slotCount);
+  }, [selection, slotCount]);
 
   const load = useCallback(async () => {
     if (!query) {
