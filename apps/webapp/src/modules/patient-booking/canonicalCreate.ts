@@ -415,6 +415,7 @@ export async function createBookingOnCanonicalEngine(
         branchServiceId: pendingRow.branchServiceId,
         cityCodeSnapshot: pendingRow.cityCodeSnapshot,
         serviceTitleSnapshot: pendingRow.serviceTitleSnapshot,
+        canonicalAppointmentId: appointment.id,
       },
     });
   } catch {

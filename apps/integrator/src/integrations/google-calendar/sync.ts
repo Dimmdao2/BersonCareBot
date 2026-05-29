@@ -155,3 +155,42 @@ export async function syncAppointmentToCalendar(
   await upsertBookingCalendarMap(db, { rubitimeRecordId: input.rubRecordId, gcalEventId: upsertedId });
   return upsertedId;
 }
+
+export type CanonicalCalendarSyncEvent = {
+  action: 'created' | 'updated' | 'canceled';
+  appointmentId: string;
+  startAt: string;
+  endAt: string;
+  clientName?: string;
+  serviceTitle?: string | null;
+  description?: string;
+};
+
+export function canonicalCalendarMapKey(appointmentId: string): string {
+  return `be:${appointmentId}`;
+}
+
+export async function syncCanonicalAppointmentToCalendar(
+  input: CanonicalCalendarSyncEvent,
+  deps: SyncDeps = {},
+): Promise<string | null> {
+  const mapKey = canonicalCalendarMapKey(input.appointmentId);
+  const summary = `${input.clientName ?? 'Клиент'}${input.serviceTitle ? ` — ${input.serviceTitle}` : ''}`;
+  return syncAppointmentToCalendar(
+    {
+      action: input.action === 'created' ? 'created' : input.action === 'canceled' ? 'canceled' : 'updated',
+      rubRecordId: mapKey,
+      recordAt: input.startAt,
+      record: {
+        duration_minutes: Math.max(
+          1,
+          Math.round((new Date(input.endAt).getTime() - new Date(input.startAt).getTime()) / 60_000),
+        ),
+        service_title: input.serviceTitle ?? undefined,
+        comment: input.description,
+      },
+      clientName: input.clientName,
+    },
+    deps,
+  );
+}

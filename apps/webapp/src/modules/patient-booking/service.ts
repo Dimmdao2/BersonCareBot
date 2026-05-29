@@ -370,6 +370,7 @@ export function createPatientBookingService(input: {
               branchServiceId: finalized.branchServiceId,
               cityCodeSnapshot: finalized.cityCodeSnapshot,
               serviceTitleSnapshot: finalized.serviceTitleSnapshot,
+              canonicalAppointmentId: finalized.canonicalAppointmentId ?? undefined,
             },
           });
         } catch {
@@ -573,6 +574,7 @@ export function createPatientBookingService(input: {
             branchServiceId: row.branchServiceId,
             cityCodeSnapshot: row.cityCodeSnapshot,
             serviceTitleSnapshot: row.serviceTitleSnapshot,
+            canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
           },
         });
         integratorStatus = "sent";
@@ -728,6 +730,7 @@ export function createPatientBookingService(input: {
               branchServiceId: row.branchServiceId,
               cityCodeSnapshot: row.cityCodeSnapshot,
               serviceTitleSnapshot: row.serviceTitleSnapshot,
+              canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
             },
           });
           integratorStatus = "sent";

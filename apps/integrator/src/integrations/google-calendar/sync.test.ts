@@ -145,3 +145,10 @@ describe('google calendar sync', () => {
     expect(client.deleteEvent).not.toHaveBeenCalled();
   });
 });
+
+describe("syncCanonicalAppointmentToCalendar", () => {
+  it("uses be: map key", async () => {
+    const { canonicalCalendarMapKey } = await import("./sync.js");
+    expect(canonicalCalendarMapKey("appt-1")).toBe("be:appt-1");
+  });
+});

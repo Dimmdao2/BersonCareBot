@@ -1,32 +1,27 @@
 # Метрики дашборда специалиста (webapp)
 
 **Назначение:** единые определения метрик кабинета специалиста: KPI на **`/app/doctor` («Сегодня»)**, плитки на **`/app/doctor/analytics/clients`**, SQL/списки.  
-**Код:** `apps/webapp/src/infra/repos/pgDoctorAppointments.ts`, `pgDoctorClients.ts`, типы в `modules/doctor-appointments/ports.ts` и `modules/doctor-clients/ports.ts`; админские графики регистраций — `modules/admin-platform-stats/`, `pgAdminPlatformUserStats.ts`.  
+**Код (записи на приём, этап 8+):** при наличии booking engine — `apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts` (`be_appointments`); legacy fallback — `pgDoctorAppointments.ts` (`appointment_records`). Типы: `modules/doctor-appointments/ports.ts`. Календарь: `modules/booking-calendar/`, `pgBookingCalendar.ts`. Админские графики регистраций — `modules/admin-platform-stats/`, `pgAdminPlatformUserStats.ts`.  
 **Навигация:** [`DOCTOR_CABINET_NAVIGATION.md`](DOCTOR_CABINET_NAVIGATION.md).
 
 ---
 
 ## Время и часовой пояс
 
-- Окна «сегодня / завтра / неделя» в `getAppointmentStats` и списке `view` по умолчанию считаются от **UTC-полуночи** текущего дня (`getDateBounds` в `pgDoctorAppointments.ts`).
+- Окна «сегодня / завтра / неделя» в `getAppointmentStats` и списке `view` по умолчанию — **`localDayRangeBoundsIso`** от **`app_display_timezone`** (`pgDoctorCanonicalAppointments`; legacy `pgDoctorAppointments` — UTC-полуночь через `getDateBounds`).
 - Месячные метрики используют **`date_trunc('month', NOW())`** в часовом поясе сессии БД (обычно UTC на проде — уточнять на хосте).
 
 ### Отображение времени слота в UI (подписи к записям)
 
-Метрики выше считают в SQL по **`record_at`** (timestamptz). **Текст времени** на экранах («Ближайший приём» на `/app/doctor`, список записей врача, карточка клиента, кабинет пациента по проекции) должен браться из **одной** бизнес-таймзоны: ключ **`app_display_timezone`** в `system_settings` (чтение **`getAppDisplayTimeZone()`**), форматирование через **`formatBusinessDateTime.ts`** (`formatDoctorAppointmentRecordAt`, `formatAppointmentDateNumericRu`, `formatAppointmentTimeShortRu`, `formatBookingDateTimeMediumRu` и т.д.).
-
-Источник в коде: **`createDoctorAppointmentsService`** (поле `time` у строки записи), **`buildAppDeps.ts`** — `getUpcomingAppointments`, `getPastAppointments`, `listAppointmentHistoryForPhone`. Не использовать для слотов из БД **`toLocaleString` / `toLocaleTimeString` без `timeZone`**: это привязывает вывод к TZ процесса Node и расходится с дашбордом, если **`app_display_timezone`** ≠ TZ сервера.
+Метрики считают по **`start_at`** канонической записи (`be_appointments`). **Текст времени** на экранах — **`app_display_timezone`** + **`formatBusinessDateTime.ts`** (`createDoctorAppointmentsService` заполняет поле `time` из `recordAtIso` = `start_at`).
 
 ---
 
 ## Будущая активная запись
 
-**Предикат (алиас `ar`):** `AR_ACTIVE_UPCOMING_SQL` в `pgDoctorAppointments.ts`.
+**Канон (этап 8):** `pgDoctorCanonicalAppointments` — статусы `created`, `awaiting_payment`, `paid`, `confirmed`, `rescheduled`, `manual_review_required`; **`start_at >= NOW()`**.
 
-- `deleted_at IS NULL`
-- `status IN ('created', 'updated')`
-- `record_at IS NOT NULL`
-- **`record_at >= NOW()`** — согласовано с кабинетом пациента (`appointment_records` / `listActiveByPhoneNormalized`).
+**Legacy (`appointment_records`):** `AR_ACTIVE_UPCOMING_SQL` в `pgDoctorAppointments.ts` — `status IN ('created', 'updated')`, `record_at >= NOW()`.
 
 Используется для: плитки «Активные (будущие)», режима списка `?view=future`.
 
@@ -48,13 +43,13 @@
 
 | Плитка | Метрика | Определение |
 |--------|---------|-------------|
-| Активные (будущие) | `futureActiveCount` | `COUNT` по `AR_ACTIVE_UPCOMING_SQL`. |
-| Всего за месяц | `recordsInCalendarMonthTotal` | Все **не удалённые** строки, `record_at` в текущем UTC-месяце (**любой статус**, в т.ч. отменённые). |
-| Отмен за месяц | `cancellationsInCalendarMonth` | `status = 'canceled'`, исключение по `last_event` (`AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL`), интервал по **`updated_at`** в текущем месяце («когда отмена зафиксирована»). |
+| Активные (будущие) | `futureActiveCount` | Канон: активные статусы + `start_at >= NOW()`. |
+| Всего за месяц | `recordsInCalendarMonthTotal` | Канон: `start_at` в текущем UTC-месяце (любой статус). |
+| Отмен за месяц | `cancellationsInCalendarMonth` | Канон: terminal cancel-статусы; интервал по **`updated_at`** в текущем месяце. |
 
-**Списки:** `/app/doctor/appointments?view=future|month|cancellationsMonth`.
+**Списки:** `/app/doctor/appointments?view=future|month|cancellationsMonth` (read `be_appointments`).
 
-**Подпись клиента (Rubitime vs профиль):** в списке записей и на `/app/doctor` («Сегодня») основная строка имени — джойн к `platform_users` (как в `LIST_SELECT` → `clientLabel` в `pgDoctorAppointments.ts`). Если `payload_json.name` из проекции Rubitime после нормализации отличается от этой подписи, под основной строкой показывается краткая подсказка «В Rubitime: …». Логика сравнения без БД: `apps/webapp/src/shared/lib/appointmentRubitimeNameMismatch.ts`. Подробнее поток данных — [`RUBITIME_BOOKING_PIPELINE.md`](RUBITIME_BOOKING_PIPELINE.md).
+**Подпись клиента:** из `platform_users` / attribution; подсказка «В Rubitime» — только для legacy-проекции (`pgDoctorAppointments`), в каноническом списке не используется.
 
 ---
 
@@ -64,9 +59,9 @@
 
 | Плитка | Источник |
 |--------|----------|
-| Записи сегодня | Число записей на текущий UTC-день (данные дашборда «Сегодня») |
-| Записи на неделю | `getAppointmentStats({ range: 'week' }).total` — все не удалённые строки с `record_at` в окне недели (**включая отменённые**) |
-| Отмены за 30 дн. | `getAppointmentStats` → `cancellations30d` (по `updated_at`, см. ниже) |
+| Записи сегодня | Число записей на текущий день (`start_at` в окне «сегодня», `app_display_timezone`) |
+| Записи на неделю | `getAppointmentStats({ range: 'week' }).total` — все строки с `start_at` в окне недели |
+| Отмены за 30 дн. | `getAppointmentStats` → `cancellations30d` (канон: cancel-статусы, `updated_at` за 30 дней) |
 | Новые клиенты за 7 дн. без каналов связи | `countRecentClientsWithoutMessagingChannels(7)` — `platform_users` с `created_at` ≥ now−7d, без привязок telegram/max |
 
 Ссылка «Аналитика по клиентам» (admin) → `/app/doctor/analytics/clients`.

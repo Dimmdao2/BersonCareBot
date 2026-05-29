@@ -3,10 +3,9 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { emitStaffCanonicalBookingEvent } from "@/app-layer/booking/staffBookingIntegratorEvent";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
-import { requireAdminBookingEngine } from "../../_requireAdminBookingEngine";
+import { requireDoctorBookingEngine } from "../../_requireDoctorBookingEngine";
 
 const bodySchema = z.object({
-  organizationId: z.string().uuid().optional(),
   branchId: z.string().uuid().nullable().optional(),
   roomId: z.string().uuid().nullable().optional(),
   specialistId: z.string().uuid().nullable().optional(),
@@ -16,23 +15,21 @@ const bodySchema = z.object({
   startAt: z.string().min(1),
   endAt: z.string().min(1),
   durationMinutes: z.number().int().positive(),
-  title: z.string().optional(),
 });
 
 export async function POST(request: Request) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
   const { ctx } = gate;
-  const orgId = parsed.data.organizationId ?? ctx.organizationId;
   const deps = buildAppDeps();
   try {
     if (deps.bookingScheduling) {
       await deps.bookingScheduling.assertSlotAvailable({
-        organizationId: orgId,
+        organizationId: ctx.organizationId,
         specialistId: parsed.data.specialistId ?? null,
         roomId: parsed.data.roomId ?? null,
         slotStart: parsed.data.startAt,
@@ -41,7 +38,7 @@ export async function POST(request: Request) {
       });
     }
     const appointment = await ctx.service.createAppointment({
-      organizationId: orgId,
+      organizationId: ctx.organizationId,
       branchId: parsed.data.branchId ?? null,
       roomId: parsed.data.roomId ?? null,
       specialistId: parsed.data.specialistId ?? null,

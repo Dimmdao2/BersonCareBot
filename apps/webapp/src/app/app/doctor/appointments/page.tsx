@@ -54,7 +54,7 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
         <ul id="doctor-appointments-stats-list" className="m-0 list-none space-y-3 p-0">
           <li id="doctor-appointments-stats-total">Записей (сегодня, все статусы кроме soft-delete): {stats.total}</li>
           <li id="doctor-appointments-stats-cancellations-30d">Отмен за 30 дн.: {stats.cancellations30d}</li>
-          <li id="doctor-appointments-stats-reschedules">Переносов (статус updated, сегодня): {stats.reschedules}</li>
+          <li id="doctor-appointments-stats-reschedules">Переносов (с reschedule_count &gt; 0, сегодня): {stats.reschedules}</li>
         </ul>
       </section>
       <section id="doctor-appointments-upcoming-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">

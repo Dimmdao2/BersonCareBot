@@ -41,7 +41,9 @@ export async function upsertBookingCalendarMap(
     sql`UPDATE public.patient_bookings
         SET gcal_event_id = ${input.gcalEventId},
             updated_at = now()
-      WHERE rubitime_id = ${input.rubitimeRecordId}`,
+      WHERE rubitime_id = ${input.rubitimeRecordId}
+         OR (canonical_appointment_id IS NOT NULL AND ${input.rubitimeRecordId} LIKE 'be:%'
+             AND canonical_appointment_id::text = substring(${input.rubitimeRecordId} from 4))`,
   );
 }
 
@@ -53,6 +55,8 @@ export async function deleteBookingCalendarMap(db: DbPort, rubitimeRecordId: str
     sql`UPDATE public.patient_bookings
         SET gcal_event_id = NULL,
             updated_at = now()
-      WHERE rubitime_id = ${rubitimeRecordId}`,
+      WHERE rubitime_id = ${rubitimeRecordId}
+         OR (canonical_appointment_id IS NOT NULL AND ${rubitimeRecordId} LIKE 'be:%'
+             AND canonical_appointment_id::text = substring(${rubitimeRecordId} from 4))`,
   );
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { applyStaffRescheduleSideEffects } from "@/app-layer/booking/staffAppointmentLifecycleEffects";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
 
 const bodySchema = z.object({
@@ -54,6 +55,10 @@ export async function POST(request: Request, context: RouteContext) {
     organizationId: gate.ctx.organizationId,
     appointment: result.appointment,
     reschedulePolicy: result.reschedulePolicy,
+    syncPort: createBookingSyncPort(),
+    bookingRow: deps.patientBooking
+      ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
+      : null,
   });
   if (deps.payments) {
     await deps.payments.recordReschedulePaymentCarryOver({

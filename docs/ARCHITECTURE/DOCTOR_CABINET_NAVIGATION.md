@@ -16,7 +16,7 @@
 | Кластер | Пункты (кратко) |
 |---------|------------------|
 | *(standalone)* | Сегодня → `/app/doctor` |
-| Работа с пациентами | Пациенты, Записи |
+| Работа с пациентами | Пациенты, Записи, Календарь |
 | Коммуникации | Онлайн-заявки, Сообщения, Рассылки |
 | Каталог ЛФК | Упражнения, комплексы, тесты, шаблоны программ, курсы, справочники, … |
 | Контент | Главная пациента, материалы, библиотека файлов |
@@ -31,6 +31,8 @@
 | Назначение | URL | Примечание |
 |------------|-----|------------|
 | Сегодня (рабочий inbox) | `/app/doctor` | KPI + очереди; см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md) |
+| Календарь записей | `/app/doctor/calendar` | Канон `be_appointments`; API `/api/doctor/booking-engine/calendar` (этап 8) |
+| Список записей | `/app/doctor/appointments` | Канон `be_appointments` (`pgDoctorCanonicalAppointments`); `?view=future\|month\|cancellationsMonth` |
 | Аналитика по клиентам | `/app/doctor/analytics/clients` | Бывш. `/app/doctor/stats`; графики регистраций/подписчиков |
 | Статистика (legacy URL) | `/app/doctor/stats` | **Редирект** → `analytics/clients` |
 | По контенту | `/app/doctor/material-ratings` | Оценки материалов |

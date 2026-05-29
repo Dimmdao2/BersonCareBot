@@ -2,7 +2,9 @@ import type { createBookingAppointmentLifecycleService } from "@/modules/booking
 import type { CancellationPolicy, ReschedulePolicy } from "@/modules/booking-policies/types";
 import type { BeAppointment } from "@/modules/booking-engine/types";
 import { buildBookingNotificationsSent } from "@/modules/patient-booking/bookingLifecycleNotifications";
-import type { AppointmentProjectionPort } from "@/modules/patient-booking/ports";
+import type { AppointmentProjectionPort, BookingSyncPort } from "@/modules/patient-booking/ports";
+import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import { emitStaffCanonicalBookingEvent } from "@/app-layer/booking/staffBookingIntegratorEvent";
 import {
   projectCanonicalAppointmentCancelled,
   projectCanonicalAppointmentRescheduled,
@@ -38,6 +40,8 @@ export async function applyStaffCancelSideEffects(opts: {
   organizationId: string;
   appointment: BeAppointment;
   cancelPolicy: CancellationPolicy;
+  syncPort?: BookingSyncPort | null;
+  bookingRow?: PatientBookingRecord | null;
 }): Promise<void> {
   if (opts.projection) {
     await projectCanonicalAppointmentCancelled(
@@ -46,6 +50,12 @@ export async function applyStaffCancelSideEffects(opts: {
       projectionFromAppointment(opts.appointment),
     );
   }
+  const integratorStatus = await emitStaffCanonicalBookingEvent({
+    syncPort: opts.syncPort,
+    eventType: "booking.cancelled",
+    appointment: opts.appointment,
+    bookingRow: opts.bookingRow,
+  });
   await opts.lifecycle.patchLatestCancellationNotifications(
     opts.appointment.id,
     opts.organizationId,
@@ -54,7 +64,7 @@ export async function applyStaffCancelSideEffects(opts: {
       idempotencyKey: `staff.cancelled:${opts.appointment.id}`,
       notifyPatient: opts.cancelPolicy.notifyPatient,
       notifyStaff: opts.cancelPolicy.notifyStaff,
-      integratorStatus: "skipped",
+      integratorStatus,
     }),
   );
 }
@@ -65,6 +75,8 @@ export async function applyStaffRescheduleSideEffects(opts: {
   organizationId: string;
   appointment: BeAppointment;
   reschedulePolicy: ReschedulePolicy;
+  syncPort?: BookingSyncPort | null;
+  bookingRow?: PatientBookingRecord | null;
 }): Promise<void> {
   if (opts.projection) {
     await projectCanonicalAppointmentRescheduled(
@@ -73,6 +85,12 @@ export async function applyStaffRescheduleSideEffects(opts: {
       projectionFromAppointment(opts.appointment),
     );
   }
+  const integratorStatus = await emitStaffCanonicalBookingEvent({
+    syncPort: opts.syncPort,
+    eventType: "booking.rescheduled",
+    appointment: opts.appointment,
+    bookingRow: opts.bookingRow,
+  });
   await opts.lifecycle.patchLatestRescheduleNotifications(
     opts.appointment.id,
     opts.organizationId,
@@ -81,7 +99,7 @@ export async function applyStaffRescheduleSideEffects(opts: {
       idempotencyKey: `staff.rescheduled:${opts.appointment.id}:${opts.appointment.startAt}`,
       notifyPatient: opts.reschedulePolicy.notifyPatient,
       notifyStaff: opts.reschedulePolicy.notifyStaff,
-      integratorStatus: "skipped",
+      integratorStatus,
     }),
   );
 }

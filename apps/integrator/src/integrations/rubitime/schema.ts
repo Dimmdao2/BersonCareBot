@@ -147,6 +147,7 @@ const BookingLifecyclePayloadSchema = z.object({
   branchServiceId: z.string().uuid().nullable().optional(),
   cityCodeSnapshot: z.string().nullable().optional(),
   serviceTitleSnapshot: z.string().nullable().optional(),
+  canonicalAppointmentId: z.string().uuid().optional(),
 });
 
 export const BookingLifecycleEventSchema = z.object({

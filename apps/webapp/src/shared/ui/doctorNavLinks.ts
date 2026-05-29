@@ -54,6 +54,7 @@ const CLUSTER_PATIENTS_WORK: DoctorMenuCluster = {
       href: "/app/doctor/clients?scope=appointments",
     },
     { id: "appointments", label: "Записи", href: "/app/doctor/appointments" },
+    { id: "calendar", label: "Календарь", href: "/app/doctor/calendar" },
     {
       id: "booking-merge",
       label: "Мердж пациентов",

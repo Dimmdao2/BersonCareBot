@@ -2,14 +2,25 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+const API_BASE = "/api/doctor/booking-engine";
 
 type Props = {
   recordId: string;
 };
 
+function isCanonicalAppointmentId(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 export function DoctorAppointmentActions({ recordId }: Props) {
   const [pending, setPending] = useState<"cancel" | "reschedule" | null>(null);
   const [note, setNote] = useState<string>("");
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [newStartLocal, setNewStartLocal] = useState("");
+  const [newEndLocal, setNewEndLocal] = useState("");
 
   async function callApi(path: string, body: Record<string, unknown>) {
     const res = await fetch(path, {
@@ -24,11 +35,17 @@ export function DoctorAppointmentActions({ recordId }: Props) {
   }
 
   async function onCancel() {
+    if (!isCanonicalAppointmentId(recordId)) {
+      setNote("Запись без канонического id — откройте календарь.");
+      return;
+    }
     setPending("cancel");
     setNote("");
     try {
-      await callApi("/api/doctor/appointments/rubitime/cancel", { recordId });
-      setNote("Отправлено в Rubitime: отмена.");
+      await callApi(`${API_BASE}/appointments/${encodeURIComponent(recordId)}/manual-cancel`, {
+        decisionType: "free",
+      });
+      setNote("Отменено.");
     } catch (err) {
       setNote(`Ошибка отмены: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {
@@ -36,13 +53,24 @@ export function DoctorAppointmentActions({ recordId }: Props) {
     }
   }
 
-  async function onReschedule() {
+  async function onRescheduleSubmit() {
+    if (!isCanonicalAppointmentId(recordId) || !newStartLocal || !newEndLocal) return;
     setPending("reschedule");
     setNote("");
     try {
-      // Rubitime status=7: "Перенос записи" (см. USER_TODO_STAGE / Rubitime API).
-      await callApi("/api/doctor/appointments/rubitime/update", { recordId, patch: { status: 7 } });
-      setNote("Отправлено в Rubitime: перевод в статус переноса.");
+      const newStartAt = new Date(newStartLocal).toISOString();
+      const newEndAt = new Date(newEndLocal).toISOString();
+      const durationMinutes = Math.max(
+        1,
+        Math.round((new Date(newEndAt).getTime() - new Date(newStartAt).getTime()) / 60_000),
+      );
+      await callApi(`${API_BASE}/appointments/${encodeURIComponent(recordId)}/manual-reschedule`, {
+        newStartAt,
+        newEndAt,
+        durationMinutes,
+      });
+      setNote("Перенесено.");
+      setRescheduleOpen(false);
     } catch (err) {
       setNote(`Ошибка переноса: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {
@@ -57,7 +85,7 @@ export function DoctorAppointmentActions({ recordId }: Props) {
           type="button"
           variant="outline"
           size="sm"
-          onClick={onReschedule}
+          onClick={() => setRescheduleOpen((v) => !v)}
           disabled={pending !== null}
           aria-label={`doctor-appointment-reschedule-${recordId}`}
         >
@@ -74,6 +102,17 @@ export function DoctorAppointmentActions({ recordId }: Props) {
           Отменить
         </Button>
       </div>
+      {rescheduleOpen ? (
+        <div className="space-y-2 rounded-lg border border-border p-2">
+          <Label>Начало</Label>
+          <Input type="datetime-local" value={newStartLocal} onChange={(e) => setNewStartLocal(e.target.value)} />
+          <Label>Окончание</Label>
+          <Input type="datetime-local" value={newEndLocal} onChange={(e) => setNewEndLocal(e.target.value)} />
+          <Button type="button" size="sm" disabled={pending !== null} onClick={onRescheduleSubmit}>
+            Сохранить перенос
+          </Button>
+        </div>
+      ) : null}
       {note ? (
         <span className="text-xs text-muted-foreground" aria-live="polite">
           {note}

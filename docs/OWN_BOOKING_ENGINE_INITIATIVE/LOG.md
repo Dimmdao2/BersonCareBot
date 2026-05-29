@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-05-30 — Этап 8: календарь специалиста/админа (закрыт)
+
+**Сделано:**
+- `modules/booking-calendar` + `pgBookingCalendar`: read `be_appointments` + `be_schedule_blocks`, dedupe payment intents, package title, prepayment flag.
+- API: `GET /api/doctor|admin/booking-engine/calendar` (`serviceId`, `includeFreeSlots`); manual appointments с `assertSlotAvailable`.
+- UI: `/app/doctor/calendar` (luxon+shadcn, day/week/month, фильтры, lifecycle/оплата/абонемент в карточке); free/busy слоты (SSA duration/room).
+- Список `/app/doctor/appointments` → `pgDoctorCanonicalAppointments`; `DoctorAppointmentActions` через booking-engine API.
+- GCal: `syncCanonicalAppointmentToCalendar` (`be:{id}`); integrator `booking.*` + `payment_captured` (action `updated`); `canonicalAppointmentId` на emit.
+- Q3 закрыт в `SCOPE_DECISIONS.md`.
+
+**Проверки:** vitest `booking-calendar`, `parseCalendarQuery`, `pgBookingCalendar`; integrator `recordM2mRoute`, `sync.test`; webapp `tsc`.
+
+**Доки:** `MASTER_PLAN`, `README`, `ROADMAP`, `STAGE_CHECKLISTS`, `UI_SURFACES`, `DOCTOR_CABINET_NAVIGATION`, `DOCTOR_DASHBOARD_METRICS`, `api.md`; план `.cursor/plans/archive/own_booking_stage8_calendar.plan.md` — `status: completed`.
+
+---
+
 ## 2026-05-29 — Создана инфраструктура инициативы (этап 0)
 
 **Сделано:**

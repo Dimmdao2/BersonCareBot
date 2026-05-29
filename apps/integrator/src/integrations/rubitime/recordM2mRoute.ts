@@ -38,6 +38,8 @@ import { telegramConfig } from '../telegram/config.js';
 import { maxConfig } from '../max/config.js';
 import { ERR_LEGACY_RESOLVE_DISABLED } from './internalContract.js';
 import { runPostCreateProjection } from './postCreateProjection.js';
+import { syncCanonicalAppointmentToCalendar } from '../google-calendar/sync.js';
+import type { BookingLifecyclePayloadValidated } from './schema.js';
 
 /** Rubitime API2 `create-record` requires `status` (numeric status id; 0 matches get-record/update-record tests). */
 const RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0;
@@ -345,6 +347,36 @@ async function sendBookingWebPush(input: {
   }
 }
 
+async function trySyncCanonicalBookingToGoogleCalendar(
+  eventType: BookingLifecycleEventValidated['eventType'],
+  payload: BookingLifecyclePayloadValidated,
+  dispatchPort: DispatchPort,
+): Promise<void> {
+  const appointmentId = payload.canonicalAppointmentId;
+  if (!appointmentId) return;
+  const action =
+    eventType === 'booking.cancelled'
+      ? 'canceled'
+      : eventType === 'booking.rescheduled' || eventType === 'booking.payment_captured'
+        ? 'updated'
+        : 'created';
+  try {
+    await syncCanonicalAppointmentToCalendar(
+      {
+        action,
+        appointmentId,
+        startAt: payload.slotStart,
+        endAt: payload.slotEnd,
+        clientName: payload.contactName,
+        serviceTitle: payload.serviceTitleSnapshot ?? null,
+      },
+      { dispatchPort, db: createDbPort() },
+    );
+  } catch (err) {
+    logger.warn({ err, appointmentId, eventType }, 'canonical GCal sync failed');
+  }
+}
+
 async function handleBookingLifecycleEvent(
   body: BookingLifecycleEventValidated,
   dispatchPort: DispatchPort,
@@ -386,6 +418,7 @@ async function handleBookingLifecycleEvent(
       timeZone,
       ...(webappEventsPort ? { webappEventsPort } : {}),
     });
+    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
     rememberBookingEventKey(dedupKey);
     return;
   }
@@ -408,6 +441,7 @@ async function handleBookingLifecycleEvent(
       slotStartIso: payload.slotStart,
       stableKey: `booking-cancelled:${bookingId}`,
     });
+    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
     rememberBookingEventKey(dedupKey);
     return;
   }
@@ -438,6 +472,7 @@ async function handleBookingLifecycleEvent(
       timeZone,
       ...(webappEventsPort ? { webappEventsPort } : {}),
     });
+    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
     rememberBookingEventKey(dedupKey);
     return;
   }
@@ -463,6 +498,7 @@ async function handleBookingLifecycleEvent(
       timeZone,
       ...(webappEventsPort ? { webappEventsPort } : {}),
     });
+    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
     rememberBookingEventKey(dedupKey);
     return;
   }

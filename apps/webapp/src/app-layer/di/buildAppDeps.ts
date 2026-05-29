@@ -82,6 +82,7 @@ import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
 import { createPgAdminPlatformUserStatsPort } from "@/infra/repos/pgAdminPlatformUserStats";
 import { createInMemoryAdminPlatformUserStatsPort } from "@/infra/repos/inMemoryAdminPlatformUserStats";
+import { createPgDoctorCanonicalAppointmentsPort } from "@/infra/repos/pgDoctorCanonicalAppointments";
 import { createPgDoctorAppointmentsPort } from "@/infra/repos/pgDoctorAppointments";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import {
@@ -257,6 +258,8 @@ import { createBookingCatalogService } from "@/modules/booking-catalog/service";
 import { createBookingEngineService } from "@/modules/booking-engine/service";
 import { createPgBookingSchedulingPort } from "@/infra/repos/pgBookingScheduling";
 import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
+import { createBookingCalendarService } from "@/modules/booking-calendar/service";
+import { createPgBookingCalendarPort } from "@/infra/repos/pgBookingCalendar";
 import { createPgBookingFormPort } from "@/infra/repos/pgBookingForm";
 import { createBookingFormService } from "@/modules/booking-form/service";
 import { createPgPatientMergeCandidatePort } from "@/infra/repos/pgPatientMergeCandidate";
@@ -346,8 +349,6 @@ const oauthBindingsPort = !inMemoryRepos ? pgOAuthBindingsPort : inMemoryOAuthBi
 const loginTokensPort = !inMemoryRepos ? pgLoginTokensPort : inMemoryLoginTokensPort;
 const identityResolutionPort = !inMemoryRepos ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
 const doctorClientsPort = !inMemoryRepos ? createPgDoctorClientsPort() : inMemoryDoctorClientsPort;
-// Stage 9: appointment_records lives in webapp DB (projection from integrator).
-const doctorAppointmentsPort = !inMemoryRepos ? createPgDoctorAppointmentsPort() : inMemoryDoctorAppointmentsPort;
 const challengeStore = !inMemoryRepos ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
 const phoneMessengerBindPort = !inMemoryRepos ? createPgPhoneMessengerBindPort() : undefined;
 registerPhoneMessengerBindPort(phoneMessengerBindPort ?? null);
@@ -391,6 +392,12 @@ const bookingCatalogService = bookingCatalogPort
   ? createBookingCatalogService(bookingCatalogPort)
   : null;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
+const doctorAppointmentsPort =
+  !inMemoryRepos && bookingEngineCorePort
+    ? createPgDoctorCanonicalAppointmentsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
+    : !inMemoryRepos
+      ? createPgDoctorAppointmentsPort()
+      : inMemoryDoctorAppointmentsPort;
 const bookingRubitimeBridgePort = !inMemoryRepos ? createPgBookingRubitimeBridgePort() : null;
 const bookingEnginePort =
   bookingEngineCorePort && bookingRubitimeBridgePort
@@ -406,6 +413,15 @@ const bookingSchedulingPort =
 const bookingSchedulingService = bookingSchedulingPort
   ? createBookingSchedulingService(bookingSchedulingPort)
   : null;
+const bookingCalendarPort = !inMemoryRepos ? createPgBookingCalendarPort() : null;
+const bookingCalendarService =
+  bookingCalendarPort && bookingSchedulingPort
+    ? createBookingCalendarService({
+        calendarPort: bookingCalendarPort,
+        listScheduleBlocks: (input) => bookingSchedulingPort.listScheduleBlocks(input),
+        schedulingPort: bookingSchedulingPort,
+      })
+    : null;
 const bookingFormPort = !inMemoryRepos ? createPgBookingFormPort() : null;
 const bookingFormService = bookingFormPort ? createBookingFormService(bookingFormPort) : null;
 const patientMergeCandidatePort = !inMemoryRepos ? createPgPatientMergeCandidatePort() : null;
@@ -515,6 +531,7 @@ const paymentsService =
                 branchServiceId: row.branchServiceId,
                 cityCodeSnapshot: row.cityCodeSnapshot,
                 serviceTitleSnapshot: row.serviceTitleSnapshot,
+                canonicalAppointmentId: appointmentId,
               },
             });
           } catch {
@@ -1279,6 +1296,7 @@ function _buildAppDeps() {
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
     bookingEnginePort,
     bookingScheduling: bookingSchedulingService,
+    bookingCalendar: bookingCalendarService,
     bookingForm: bookingFormService,
     bookingPolicies: bookingPoliciesService,
     bookingAppointmentLifecycle: bookingAppointmentLifecycleService,

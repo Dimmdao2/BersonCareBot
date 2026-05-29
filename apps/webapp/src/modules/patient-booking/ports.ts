@@ -132,6 +132,7 @@ export type BookingSyncPort = {
       branchServiceId?: string | null;
       cityCodeSnapshot?: string | null;
       serviceTitleSnapshot?: string | null;
+      canonicalAppointmentId?: string;
     };
   }): Promise<void>;
 };

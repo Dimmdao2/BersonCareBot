@@ -1,0 +1,280 @@
+import { and, asc, count, eq, gt, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { getDrizzle } from "@/app-layer/db/drizzle";
+import {
+  beAppointments,
+  beBranches,
+  beClinicServices,
+} from "../../../db/schema/bookingEngine";
+import { platformUsers } from "../../../db/schema/schema";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
+import { appointmentStatusLabel } from "@/modules/booking-calendar/appointmentStatusLabels";
+import type { AppointmentStatus } from "@/modules/booking-engine/types";
+import type {
+  AppointmentRow,
+  AppointmentStats,
+  DoctorAppointmentStatsFilter,
+  DoctorAppointmentsListFilter,
+  DoctorAppointmentsPort,
+  DoctorDashboardAppointmentMetrics,
+} from "@/modules/doctor-appointments/ports";
+
+const CANCELLED_STATUSES = [
+  "cancelled_by_patient",
+  "cancelled_by_specialist",
+  "late_cancellation",
+  "no_show",
+] as const;
+
+const ACTIVE_UPCOMING_STATUSES = [
+  "created",
+  "awaiting_payment",
+  "paid",
+  "confirmed",
+  "rescheduled",
+  "manual_review_required",
+] as const;
+
+function patientDisplayName(row: {
+  displayName: string;
+  firstName: string | null;
+  lastName: string | null;
+}): string {
+  const fromParts = [row.firstName, row.lastName].filter(Boolean).join(" ").trim();
+  if (fromParts) return fromParts;
+  const dn = row.displayName.trim();
+  return dn || "Неизвестный клиент";
+}
+
+function contactNameFromAttribution(attr: Record<string, unknown> | null | undefined): string | null {
+  if (!attr) return null;
+  const v =
+    typeof attr.contact_name === "string"
+      ? attr.contact_name
+      : typeof attr.contactName === "string"
+        ? attr.contactName
+        : null;
+  return v?.trim() || null;
+}
+
+type ListRow = {
+  id: string;
+  startAt: string;
+  status: string;
+  phoneNormalized: string | null;
+  attributionJson: unknown;
+  platformUserId: string | null;
+  displayName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  serviceTitle: string | null;
+  branchTitle: string | null;
+};
+
+function mapListRow(row: ListRow): AppointmentRow {
+  const attr = (row.attributionJson ?? {}) as Record<string, unknown>;
+  const attrName = contactNameFromAttribution(attr);
+  const linkedName =
+    row.displayName != null
+      ? patientDisplayName({
+          displayName: row.displayName,
+          firstName: row.firstName,
+          lastName: row.lastName,
+        })
+      : null;
+  const phoneLabel = row.phoneNormalized?.trim() || null;
+  const clientLabel = linkedName ?? attrName ?? phoneLabel ?? "Неизвестный клиент";
+  return {
+    id: row.id,
+    clientUserId: row.platformUserId ?? "",
+    clientLabel,
+    rubitimeNameIfDifferent: null,
+    time: "",
+    recordAtIso: row.startAt,
+    type: row.serviceTitle?.trim() || "Запись",
+    status: appointmentStatusLabel(row.status as AppointmentStatus),
+    link: null,
+    cancellationCountForClient: 0,
+    branchName: row.branchTitle ?? null,
+  };
+}
+
+const listSelect = {
+  id: beAppointments.id,
+  startAt: beAppointments.startAt,
+  status: beAppointments.status,
+  phoneNormalized: beAppointments.phoneNormalized,
+  attributionJson: beAppointments.attributionJson,
+  platformUserId: beAppointments.platformUserId,
+  displayName: platformUsers.displayName,
+  firstName: platformUsers.firstName,
+  lastName: platformUsers.lastName,
+  serviceTitle: beClinicServices.title,
+  branchTitle: beBranches.title,
+};
+
+export function createPgDoctorCanonicalAppointmentsPort(
+  getDefaultOrganizationId: () => Promise<string>,
+): DoctorAppointmentsPort {
+  return {
+    async listAppointmentsForSpecialist(filter: DoctorAppointmentsListFilter): Promise<AppointmentRow[]> {
+      const db = getDrizzle();
+      const organizationId = await getDefaultOrganizationId();
+      const base = and(eq(beAppointments.organizationId, organizationId), isNotNull(beAppointments.startAt));
+
+      let rows: ListRow[] = [];
+
+      if (filter.kind === "range") {
+        const iana = await getAppDisplayTimeZone();
+        const { from, to } = localDayRangeBoundsIso(filter.range, iana);
+        rows = await db
+          .select(listSelect)
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+          .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .where(and(base, gte(beAppointments.startAt, from), lte(beAppointments.startAt, to)))
+          .orderBy(asc(beAppointments.startAt));
+      } else if (filter.kind === "futureActive") {
+        const nowIso = new Date().toISOString();
+        rows = await db
+          .select(listSelect)
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+          .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .where(
+            and(
+              base,
+              gte(beAppointments.startAt, nowIso),
+              inArray(beAppointments.status, [...ACTIVE_UPCOMING_STATUSES]),
+            ),
+          )
+          .orderBy(asc(beAppointments.startAt));
+      } else if (filter.kind === "recordsInCalendarMonth") {
+        rows = await db
+          .select(listSelect)
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+          .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .where(
+            and(
+              base,
+              gte(beAppointments.startAt, sql`date_trunc('month', NOW())`),
+              lte(beAppointments.startAt, sql`date_trunc('month', NOW()) + interval '1 month'`),
+            ),
+          )
+          .orderBy(asc(beAppointments.startAt));
+      } else {
+        rows = await db
+          .select(listSelect)
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+          .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .where(
+            and(
+              eq(beAppointments.organizationId, organizationId),
+              inArray(beAppointments.status, [...CANCELLED_STATUSES]),
+              gte(beAppointments.updatedAt, sql`date_trunc('month', NOW())`),
+              lte(beAppointments.updatedAt, sql`date_trunc('month', NOW()) + interval '1 month'`),
+            ),
+          )
+          .orderBy(sql`${beAppointments.updatedAt} DESC`);
+      }
+
+      return rows.map(mapListRow);
+    },
+
+    async getAppointmentStats(filter: DoctorAppointmentStatsFilter): Promise<AppointmentStats> {
+      const db = getDrizzle();
+      const organizationId = await getDefaultOrganizationId();
+      const iana = await getAppDisplayTimeZone();
+      const { from, to } = localDayRangeBoundsIso(filter.range, iana);
+      const rangeCond = and(
+        eq(beAppointments.organizationId, organizationId),
+        gte(beAppointments.startAt, from),
+        lte(beAppointments.startAt, to),
+      );
+
+      const [totalRow, cancellationsRow, reschedulesRow, cancel30Row] = await Promise.all([
+        db.select({ count: count() }).from(beAppointments).where(rangeCond),
+        db
+          .select({ count: count() })
+          .from(beAppointments)
+          .where(and(rangeCond, inArray(beAppointments.status, [...CANCELLED_STATUSES]))),
+        db
+          .select({ count: count() })
+          .from(beAppointments)
+          .where(and(rangeCond, gt(beAppointments.rescheduleCount, 0))),
+        db
+          .select({ count: count() })
+          .from(beAppointments)
+          .where(
+            and(
+              eq(beAppointments.organizationId, organizationId),
+              inArray(beAppointments.status, [...CANCELLED_STATUSES]),
+              gte(beAppointments.updatedAt, sql`NOW() - interval '30 days'`),
+            ),
+          ),
+      ]);
+
+      return {
+        total: totalRow[0]?.count ?? 0,
+        cancellations: cancellationsRow[0]?.count ?? 0,
+        cancellations30d: cancel30Row[0]?.count ?? 0,
+        reschedules: reschedulesRow[0]?.count ?? 0,
+      };
+    },
+
+    async getDashboardAppointmentMetrics(): Promise<DoctorDashboardAppointmentMetrics> {
+      const db = getDrizzle();
+      const organizationId = await getDefaultOrganizationId();
+      const orgCond = eq(beAppointments.organizationId, organizationId);
+      const nowIso = new Date().toISOString();
+
+      const [futureR, monthR, cancelR] = await Promise.all([
+        db
+          .select({ c: count() })
+          .from(beAppointments)
+          .where(
+            and(
+              orgCond,
+              isNotNull(beAppointments.startAt),
+              gte(beAppointments.startAt, nowIso),
+              inArray(beAppointments.status, [...ACTIVE_UPCOMING_STATUSES]),
+            ),
+          ),
+        db
+          .select({ c: count() })
+          .from(beAppointments)
+          .where(
+            and(
+              orgCond,
+              isNotNull(beAppointments.startAt),
+              gte(beAppointments.startAt, sql`date_trunc('month', NOW())`),
+              lte(beAppointments.startAt, sql`date_trunc('month', NOW()) + interval '1 month'`),
+            ),
+          ),
+        db
+          .select({ c: count() })
+          .from(beAppointments)
+          .where(
+            and(
+              orgCond,
+              inArray(beAppointments.status, [...CANCELLED_STATUSES]),
+              gte(beAppointments.updatedAt, sql`date_trunc('month', NOW())`),
+              lte(beAppointments.updatedAt, sql`date_trunc('month', NOW()) + interval '1 month'`),
+            ),
+          ),
+      ]);
+
+      return {
+        futureActiveCount: futureR[0]?.c ?? 0,
+        recordsInCalendarMonthTotal: monthR[0]?.c ?? 0,
+        cancellationsInCalendarMonth: cancelR[0]?.c ?? 0,
+      };
+    },
+  };
+}
