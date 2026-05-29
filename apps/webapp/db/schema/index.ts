@@ -23,6 +23,7 @@ export * from "./userEmailSetupTokens";
 export * from "./broadcastAuditRecipients";
 export * from "./productAnalytics";
 export * from "./bookingEngine";
+export * from "./bookingPolicies";
 export * from "./bookingScheduling";
 export * from "./patientMergeCandidate";
 export * from "./relations";

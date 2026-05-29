@@ -82,6 +82,7 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         roomId,
         rangeStart: input.slotStart,
         rangeEnd: input.slotEnd,
+        excludeAppointmentId: input.excludeAppointmentId,
       });
       if (
         !isChainFree(

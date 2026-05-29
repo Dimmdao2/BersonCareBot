@@ -8,6 +8,7 @@ import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMessenger";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
+import { CabinetBookingActions } from "./CabinetBookingActions";
 import { cn } from "@/lib/utils";
 import { patientCardClass, patientInlineLinkClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
@@ -90,6 +91,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <Badge variant={statusToBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>
+                {row.canonicalAppointmentId ? <CabinetBookingActions row={row} /> : null}
                 {canEdit && manageHref ? (
                   <Button
                     type="button"

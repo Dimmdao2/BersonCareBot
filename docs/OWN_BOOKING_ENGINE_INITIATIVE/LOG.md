@@ -148,3 +148,32 @@
 - Модульные README: `patient-booking.md`, `booking-scheduling.md`, `booking-form.md`; `api.md` (ранее).
 
 **Проверки:** `pnpm --filter webapp typecheck`, `lint` (перед коммитом в `initiative/own-booking-engine`).
+
+---
+
+## 2026-05-29 — Этап 4: переносы и отмены
+
+**Сделано:**
+- Миграция `0091_booking_stage4_policies_lifecycle.sql`: `be_cancellation_policies`, `be_reschedule_policies`, `be_appointment_reschedules`, `be_appointment_cancellations`; seed org-политик.
+- Модули `booking-policies` (резолвер приоритета, §8.4 anti-bypass), `booking-appointment-lifecycle` (patient/staff cancel & reschedule).
+- API: `GET /api/booking/actions`, `POST /api/booking/reschedule`, `POST /api/booking/cancel` (канон); admin `.../policies`, `.../manual-cancel|manual-reschedule`, `GET .../lifecycle`; doctor `/api/doctor/booking-engine/...` (те же ручные действия + lifecycle).
+- Пациент: кнопки переноса/отмены в кабинете; визард в режиме переноса (`rescheduleBookingId`); политики и ручные действия в `/app/doctor/admin/booking`.
+- Интегратор: `updateRecord` для Rubitime; событие `booking.rescheduled`.
+
+**Проверки:** `pnpm --filter webapp typecheck`; vitest `booking-policies/policyResolver`, `patient-booking/service`.
+
+**Намеренно не делали:** фактические возвраты/списания абонемента (этапы 5/6); политики на уровне specialist/service/product в admin UI (только org-default + API).
+
+### 2026-05-29 — Аудит этапа 4 (доработки)
+
+**Сделано:**
+- Integrator: `booking.rescheduled` в Zod + `handleBookingLifecycleEvent` (напоминания, patient/doctor, web push); тест.
+- Порядок отмены: Rubitime до канона; `notifications_sent` + `patchLatest*Notifications` после emit.
+- Проекция врача при переносе/отмене (`projectCanonicalAppointmentRescheduled` / `Cancelled`).
+- Staff side effects на admin/doctor manual routes; doctor API `/api/doctor/booking-engine/...`.
+- `GET /api/admin/booking-engine/appointments/[id]/lifecycle`; route-тесты `reschedule`/`actions`; `booking-appointment-lifecycle/service.test.ts`.
+- `DB_STRUCTURE.md`, `patient-booking.md`.
+
+**Проверки:** `pnpm --filter webapp typecheck`; vitest (lifecycle, routes, integrator booking-event).
+
+**Доработка (верификация):** при сбое канона после успешного Rubitime — `patient_bookings` → `cancel_failed` (`lifecycle_failed`), не зависание в `cancelling`; `GET /api/doctor/booking-engine/appointments/[id]/lifecycle`; policy flags в `notifications_sent` при insert; `api.md` обновлён.

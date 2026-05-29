@@ -33,7 +33,13 @@ export async function POST(request: Request) {
     if (result.error === "already_cancelled") {
       return NextResponse.json({ ok: false, error: "already_cancelled" }, { status: 409 });
     }
-    return NextResponse.json({ ok: false, error: "sync_failed" }, { status: 502 });
+    if (result.error === "not_allowed" || result.error === "staff_confirmation_required") {
+      return NextResponse.json({ ok: false, error: result.error }, { status: 403 });
+    }
+    if (result.error === "lifecycle_failed" || result.error === "sync_failed") {
+      return NextResponse.json({ ok: false, error: result.error }, { status: 502 });
+    }
+    return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
   }
   return NextResponse.json({ ok: true }, { status: 200 });
 }

@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte, or, sql, isNull } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   beAppointments,
@@ -98,20 +98,22 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       return buildSlotsForContext(this, context);
     },
 
-    async listBusyIntervals({ organizationId, specialistId, roomId, rangeStart, rangeEnd }) {
+    async listBusyIntervals({ organizationId, specialistId, roomId, rangeStart, rangeEnd, excludeAppointmentId }) {
       const db = getDrizzle();
+      const apptConds = [
+        eq(beAppointments.organizationId, organizationId),
+        specialistId ? eq(beAppointments.specialistId, specialistId) : sql`true`,
+        gte(beAppointments.endAt, rangeStart),
+        lte(beAppointments.startAt, rangeEnd),
+        inArray(beAppointments.status, ACTIVE_APPOINTMENT_STATUSES),
+      ];
+      if (excludeAppointmentId) {
+        apptConds.push(ne(beAppointments.id, excludeAppointmentId));
+      }
       const apptRows = await db
         .select({ startAt: beAppointments.startAt, endAt: beAppointments.endAt })
         .from(beAppointments)
-        .where(
-          and(
-            eq(beAppointments.organizationId, organizationId),
-            specialistId ? eq(beAppointments.specialistId, specialistId) : sql`true`,
-            gte(beAppointments.endAt, rangeStart),
-            lte(beAppointments.startAt, rangeEnd),
-            inArray(beAppointments.status, ACTIVE_APPOINTMENT_STATUSES),
-          ),
-        );
+        .where(and(...apptConds));
 
       const blockConds = [
         eq(beSb.organizationId, organizationId),

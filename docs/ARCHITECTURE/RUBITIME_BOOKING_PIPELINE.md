@@ -76,9 +76,19 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 - **Мост:** `system_settings.booking_rubitime_bridge_enabled` (admin). При включении админ может запустить проекцию (`POST /api/admin/booking-engine/bridge`) — idempotent upsert в `be_appointments` + `be_external_entity_mappings` по `integrator_record_id` / `rubitime_record_id`.
 - **Код:** модуль `apps/webapp/src/modules/booking-engine/`, репозитории `pgBookingEngine.ts`, `pgBookingRubitimeBridge.ts`; вебхук integrator **не меняется**.
-- **Write-путь (этап 2, done):** пациентский create при каноническом DI пишет в `be_appointments`; Rubitime create — best-effort + mapping в `be_external_entity_mappings`. Read UI врача — по-прежнему `appointment_records` (+ проекция `be:{id}` при create).
+- **Write-путь (этап 2, done):** пациентский create при каноническом DI пишет в `be_appointments`; Rubitime create — best-effort + mapping в `be_external_entity_mappings`. Read UI врача — `appointment_records` (+ проекция `be:{id}` при create).
 
-Подробнее: [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md).
+### Перенос и отмена (этап 4, native)
+
+При записи с `canonical_appointment_id` в `patient_bookings`:
+
+1. **Отмена:** webapp сначала вызывает integrator `remove-record` (если есть `rubitimeId`), затем отменяет канон (`booking-appointment-lifecycle`). После успеха — `POST /api/bersoncare/rubitime/booking-event` с `eventType: booking.cancelled` (напоминания, patient/doctor TG, web push).
+2. **Перенос:** канон и `patient_bookings` обновляются в webapp; Rubitime — `update-record` (best-effort); затем `booking.rescheduled` (отмена старых slot-напоминаний + планирование на новый `slotStart`).
+3. **Проекция врача:** `appointment_records` с `integrator_record_id = be:{appointmentId}` обновляется из webapp (`native.rescheduled` / `native.cancelled`), не только через Rubitime webhook.
+
+Код: `modules/patient-booking/service.ts`, `modules/integrator/bookingM2mApi.ts`, integrator `recordM2mRoute.ts` (`booking.rescheduled` в Zod с этапа 4).
+
+Подробнее: [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md), [`patient-booking.md`](../../apps/webapp/src/modules/patient-booking/patient-booking.md).
 
 ## Одноразовое восстановление данных (ops)
 

@@ -112,8 +112,9 @@ export type BookingSyncPort = {
   fetchSlots(query: BookingSlotsIntegratorQuery): Promise<BookingSlotsByDate[]>;
   createRecord(input: CreateBookingSyncInput): Promise<{ rubitimeId: string | null; raw: Record<string, unknown> }>;
   cancelRecord(rubitimeId: string): Promise<void>;
+  updateRecord?(input: { rubitimeId: string; slotStart: string; slotEnd?: string }): Promise<void>;
   emitBookingEvent(input: {
-    eventType: "booking.created" | "booking.cancelled";
+    eventType: "booking.created" | "booking.cancelled" | "booking.rescheduled";
     idempotencyKey: string;
     payload: {
       bookingId: string;
@@ -171,14 +172,58 @@ export type PatientBookingsPort = {
   }): Promise<void>;
   listUpcomingByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
   listHistoryByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
+  updateSlotsAfterReschedule(input: {
+    bookingId: string;
+    slotStart: string;
+    slotEnd: string;
+    status?: PatientBookingStatus;
+  }): Promise<PatientBookingRecord | null>;
 };
 
 export type PatientBookingService = {
   getSlots(query: BookingSlotsQuery): Promise<BookingSlotsByDate[]>;
   createBooking(input: CreatePatientBookingInput): Promise<PatientBookingRecord>;
   cancelBooking(input: CancelPatientBookingInput): Promise<
-    | { ok: true }
-    | { ok: false; error: "not_found" | "sync_failed" | "already_cancelled" }
+    | { ok: true; lateCancellation?: boolean }
+    | {
+        ok: false;
+        error:
+          | "not_found"
+          | "sync_failed"
+          | "lifecycle_failed"
+          | "already_cancelled"
+          | "not_allowed"
+          | "staff_confirmation_required";
+      }
+  >;
+  previewCancel(input: { userId: string; bookingId: string }): Promise<
+    | { ok: true; isFree: boolean; allowed: boolean; messageKey: string }
+    | { ok: false; error: "not_found" | "no_canonical" }
+  >;
+  rescheduleBooking(input: {
+    userId: string;
+    bookingId: string;
+    slotStart: string;
+    slotEnd: string;
+    reason?: string;
+  }): Promise<
+    | { ok: true; booking: PatientBookingRecord }
+    | {
+        ok: false;
+        error:
+          | "not_found"
+          | "no_canonical"
+          | "too_late"
+          | "limit_exceeded"
+          | "change_not_allowed"
+          | "staff_confirmation_required"
+          | "slot_overlap"
+          | "sync_failed";
+      }
+  >;
+  previewReschedule(input: { userId: string; bookingId: string }): Promise<
+    | { ok: true; allowed: boolean; messageKey: string; remainingSelfReschedules: number }
+    | { ok: false; error: "not_found" | "no_canonical" }
   >;
   listMyBookings(userId: string): Promise<{
     upcoming: PatientBookingRecord[];

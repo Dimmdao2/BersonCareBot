@@ -150,7 +150,7 @@ const BookingLifecyclePayloadSchema = z.object({
 });
 
 export const BookingLifecycleEventSchema = z.object({
-  eventType: z.enum(['booking.created', 'booking.cancelled']),
+  eventType: z.enum(['booking.created', 'booking.cancelled', 'booking.rescheduled']),
   idempotencyKey: z.string().optional(),
   payload: BookingLifecyclePayloadSchema,
 });

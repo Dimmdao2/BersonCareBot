@@ -638,6 +638,13 @@
       "when": 1783300000000,
       "tag": "0090_booking_stage3_public_widget",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1783400000000,
+      "tag": "0091_booking_stage4_policies_lifecycle",
+      "breakpoints": true
     }
   ]
 }

@@ -257,6 +257,18 @@ export function createBookingSyncPort(): BookingSyncPort {
       }
     },
 
+    async updateRecord(input: { rubitimeId: string; slotStart: string; slotEnd?: string }): Promise<void> {
+      const patch: Record<string, unknown> = { slotStart: input.slotStart };
+      if (input.slotEnd) patch.slotEnd = input.slotEnd;
+      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/update-record", {
+        recordId: input.rubitimeId,
+        patch,
+      });
+      if (status >= 400 || json.ok !== true) {
+        throw new Error("rubitime_update_failed");
+      }
+    },
+
     async emitBookingEvent(input): Promise<void> {
       const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/booking-event", {
         eventType: input.eventType,

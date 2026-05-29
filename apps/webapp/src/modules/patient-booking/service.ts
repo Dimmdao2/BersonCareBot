@@ -10,17 +10,35 @@ import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import type { createBookingEngineService } from "@/modules/booking-engine/service";
 import type { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
 import type { createBookingFormService } from "@/modules/booking-form/service";
+import type { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
 type BookingFormService = ReturnType<typeof createBookingFormService>;
+type BookingAppointmentLifecycleService = ReturnType<typeof createBookingAppointmentLifecycleService>;
 import type { AppointmentProjectionPort } from "./ports";
 import { validateCreatePatientBookingInput } from "./createInputValidation";
 import { extractRubitimeManageUrlFromIntegratorCreateRaw } from "./rubitimeManageUrl";
 import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from "./canonicalCreate";
+import { buildBookingNotificationsSent } from "./bookingLifecycleNotifications";
+import {
+  projectCanonicalAppointmentCancelled,
+  projectCanonicalAppointmentRescheduled,
+} from "./projectCanonicalAppointment";
+import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+import type { PatientBookingRecord } from "./types";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
+}
+
+function rowToProjectionInput(row: PatientBookingRecord) {
+  return {
+    phoneNormalized: normalizeRuPhoneE164(row.contactPhone) ?? (row.contactPhone.trim() || null),
+    contactName: row.contactName,
+    serviceTitle: row.serviceTitleSnapshot,
+    branchTitle: row.branchTitleSnapshot,
+  };
 }
 
 function cacheKey(query: BookingSlotsQuery): string {
@@ -102,6 +120,7 @@ export function createPatientBookingService(input: {
   bookingScheduling?: BookingSchedulingService | null;
   bookingForm?: BookingFormService | null;
   appointmentProjection?: AppointmentProjectionPort | null;
+  appointmentLifecycle?: BookingAppointmentLifecycleService | null;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   slotsTtlMs?: number;
 }): PatientBookingService {
@@ -328,12 +347,295 @@ export function createPatientBookingService(input: {
       }
     },
 
+    async previewCancel(previewInput) {
+      const row = await input.bookingsPort.getByIdForUser(previewInput.bookingId, previewInput.userId);
+      if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {
+        return { ok: false, error: "no_canonical" };
+      }
+      const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+      const preview = await input.appointmentLifecycle.previewPatientCancel(row.canonicalAppointmentId, orgId);
+      if (!preview.ok) return { ok: false, error: "not_found" };
+      return {
+        ok: true,
+        allowed: preview.allowed,
+        isFree: preview.isFree,
+        messageKey: preview.messageKey,
+      };
+    },
+
+    async previewReschedule(previewInput) {
+      const row = await input.bookingsPort.getByIdForUser(previewInput.bookingId, previewInput.userId);
+      if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {
+        return { ok: false, error: "no_canonical" };
+      }
+      const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+      const preview = await input.appointmentLifecycle.previewPatientReschedule(
+        row.canonicalAppointmentId,
+        orgId,
+      );
+      if (!preview.ok) return { ok: false, error: "not_found" };
+      return {
+        ok: true,
+        allowed: preview.allowed,
+        messageKey: preview.messageKey,
+        remainingSelfReschedules: preview.remainingSelfReschedules,
+      };
+    },
+
+    async rescheduleBooking(rescheduleInput) {
+      const row = await input.bookingsPort.getByIdForUser(rescheduleInput.bookingId, rescheduleInput.userId);
+      if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.bookingScheduling || !input.appointmentLifecycle) {
+        return { ok: false, error: "no_canonical" };
+      }
+      if (row.status === "cancelled" || row.status === "cancelling") {
+        return { ok: false, error: "not_found" };
+      }
+
+      const durationMinutes = Math.max(
+        1,
+        Math.round(
+          (new Date(rescheduleInput.slotEnd).getTime() - new Date(rescheduleInput.slotStart).getTime()) / 60_000,
+        ),
+      );
+
+      try {
+        if (row.bookingType === "in_person" && row.branchServiceId) {
+          await input.bookingScheduling.assertSlotAvailable({
+            branchServiceId: row.branchServiceId,
+            slotStart: rescheduleInput.slotStart,
+            slotEnd: rescheduleInput.slotEnd,
+            durationMinutes,
+            excludeAppointmentId: row.canonicalAppointmentId,
+          });
+        } else {
+          const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+          await input.bookingScheduling.assertSlotAvailable({
+            organizationId: orgId,
+            specialistId: null,
+            roomId: null,
+            slotStart: rescheduleInput.slotStart,
+            slotEnd: rescheduleInput.slotEnd,
+            durationMinutes,
+            excludeAppointmentId: row.canonicalAppointmentId,
+          });
+        }
+      } catch (err) {
+        if (isPostgresExclusionViolation(err) || (err instanceof Error && err.message === "slot_overlap")) {
+          return { ok: false, error: "slot_overlap" };
+        }
+        throw err;
+      }
+
+      const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+      const result = await input.appointmentLifecycle.patientReschedule({
+        appointmentId: row.canonicalAppointmentId,
+        organizationId: orgId,
+        userId: rescheduleInput.userId,
+        newStartAt: rescheduleInput.slotStart,
+        newEndAt: rescheduleInput.slotEnd,
+        durationMinutes,
+        reason: rescheduleInput.reason,
+      });
+      if (!result.ok) {
+        const err = result.error;
+        if (
+          err === "not_found" ||
+          err === "too_late" ||
+          err === "limit_exceeded" ||
+          err === "change_not_allowed" ||
+          err === "staff_confirmation_required"
+        ) {
+          return { ok: false, error: err };
+        }
+        return { ok: false, error: "not_found" };
+      }
+
+      if (row.rubitimeId && input.syncPort.updateRecord) {
+        try {
+          await input.syncPort.updateRecord({
+            rubitimeId: row.rubitimeId,
+            slotStart: rescheduleInput.slotStart,
+            slotEnd: rescheduleInput.slotEnd,
+          });
+        } catch {
+          // Canonical reschedule is primary; Rubitime mirror is best-effort.
+        }
+      }
+
+      const updatedRow = await input.bookingsPort.updateSlotsAfterReschedule({
+        bookingId: row.id,
+        slotStart: rescheduleInput.slotStart,
+        slotEnd: rescheduleInput.slotEnd,
+        status: "confirmed",
+      });
+      invalidateSlotsCache();
+
+      if (input.appointmentProjection) {
+        await projectCanonicalAppointmentRescheduled(
+          input.appointmentProjection,
+          result.appointment,
+          rowToProjectionInput(row),
+        );
+      }
+
+      const idempotencyKey = `booking.rescheduled:${row.id}:${rescheduleInput.slotStart}`;
+      let integratorStatus: "sent" | "failed" = "failed";
+      try {
+        await input.syncPort.emitBookingEvent({
+          eventType: "booking.rescheduled",
+          idempotencyKey,
+          payload: {
+            bookingId: row.id,
+            userId: row.userId as string,
+            rubitimeId: row.rubitimeId,
+            bookingType: row.bookingType,
+            city: row.city ?? undefined,
+            category: row.category,
+            slotStart: rescheduleInput.slotStart,
+            slotEnd: rescheduleInput.slotEnd,
+            contactName: row.contactName,
+            contactPhone: row.contactPhone,
+            contactEmail: row.contactEmail ?? undefined,
+            branchServiceId: row.branchServiceId,
+            cityCodeSnapshot: row.cityCodeSnapshot,
+            serviceTitleSnapshot: row.serviceTitleSnapshot,
+          },
+        });
+        integratorStatus = "sent";
+      } catch {
+        // Best-effort notifications.
+      }
+
+      await input.appointmentLifecycle.patchLatestRescheduleNotifications(
+        row.canonicalAppointmentId,
+        orgId,
+        buildBookingNotificationsSent({
+          eventType: "booking.rescheduled",
+          idempotencyKey,
+          notifyPatient: result.reschedulePolicy.notifyPatient,
+          notifyStaff: result.reschedulePolicy.notifyStaff,
+          integratorStatus,
+        }),
+      );
+
+      return { ok: true, booking: updatedRow ?? row };
+    },
+
     async cancelBooking(cancelInput) {
       const row = await input.bookingsPort.getByIdForUser(cancelInput.bookingId, cancelInput.userId);
       if (!row) return { ok: false, error: "not_found" };
       if (row.status === "cancelled" || row.status === "cancelling") {
         return { ok: false, error: "already_cancelled" };
       }
+
+      if (row.canonicalAppointmentId && input.bookingEngine && input.appointmentLifecycle) {
+        const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+        const preview = await input.appointmentLifecycle.previewPatientCancel(row.canonicalAppointmentId, orgId);
+        if (!preview.ok) return { ok: false, error: "not_found" };
+        if (!preview.allowed) return { ok: false, error: "not_allowed" };
+        if (preview.requiresStaffConfirmation) {
+          return { ok: false, error: "staff_confirmation_required" };
+        }
+
+        await input.bookingsPort.markCancelling(row.id);
+        if (row.rubitimeId) {
+          try {
+            await input.syncPort.cancelRecord(row.rubitimeId);
+          } catch {
+            await input.bookingsPort.markCancelled({
+              bookingId: row.id,
+              reason: "cancel_sync_failed",
+              status: "cancel_failed",
+            });
+            invalidateSlotsCache();
+            return { ok: false, error: "sync_failed" };
+          }
+        }
+
+        const lifecycleResult = await input.appointmentLifecycle.patientCancel({
+          appointmentId: row.canonicalAppointmentId,
+          organizationId: orgId,
+          userId: cancelInput.userId,
+          reason: cancelInput.reason,
+        });
+        if (!lifecycleResult.ok) {
+          await input.bookingsPort.markCancelled({
+            bookingId: row.id,
+            reason: "cancel_lifecycle_failed",
+            status: "cancel_failed",
+          });
+          invalidateSlotsCache();
+          if (lifecycleResult.error === "not_allowed") return { ok: false, error: "not_allowed" };
+          if (lifecycleResult.error === "staff_confirmation_required") {
+            return { ok: false, error: "staff_confirmation_required" };
+          }
+          return { ok: false, error: "lifecycle_failed" };
+        }
+
+        await input.bookingsPort.markCancelled({
+          bookingId: row.id,
+          reason: cancelInput.reason,
+          status: "cancelled",
+        });
+        invalidateSlotsCache();
+
+        if (input.appointmentProjection) {
+          await projectCanonicalAppointmentCancelled(
+            input.appointmentProjection,
+            lifecycleResult.appointment,
+            rowToProjectionInput(row),
+          );
+        }
+
+        const idempotencyKey = `booking.cancelled:${row.id}`;
+        let integratorStatus: "sent" | "failed" = "failed";
+        try {
+          await input.syncPort.emitBookingEvent({
+            eventType: "booking.cancelled",
+            idempotencyKey,
+            payload: {
+              bookingId: row.id,
+              userId: row.userId as string,
+              rubitimeId: row.rubitimeId,
+              bookingType: row.bookingType,
+              city: row.city ?? undefined,
+              category: row.category,
+              slotStart: row.slotStart,
+              slotEnd: row.slotEnd,
+              contactName: row.contactName,
+              contactPhone: row.contactPhone,
+              contactEmail: row.contactEmail ?? undefined,
+              reason: cancelInput.reason,
+              branchServiceId: row.branchServiceId,
+              cityCodeSnapshot: row.cityCodeSnapshot,
+              serviceTitleSnapshot: row.serviceTitleSnapshot,
+            },
+          });
+          integratorStatus = "sent";
+        } catch {
+          // Best-effort.
+        }
+
+        await input.appointmentLifecycle.patchLatestCancellationNotifications(
+          row.canonicalAppointmentId,
+          orgId,
+          buildBookingNotificationsSent({
+            eventType: "booking.cancelled",
+            idempotencyKey,
+            notifyPatient: lifecycleResult.cancelPolicy.notifyPatient,
+            notifyStaff: lifecycleResult.cancelPolicy.notifyStaff,
+            integratorStatus,
+          }),
+        );
+
+        return {
+          ok: true,
+          lateCancellation:
+            lifecycleResult.eligibility.reasonCode === "late" ||
+            lifecycleResult.eligibility.reasonCode === "forfeited_by_reschedule",
+        };
+      }
+
       await input.bookingsPort.markCancelling(row.id);
       if (row.rubitimeId) {
         try {

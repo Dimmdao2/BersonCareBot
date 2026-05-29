@@ -35,6 +35,7 @@ export type BookingSchedulingPort = {
     roomId: string | null;
     rangeStart: string;
     rangeEnd: string;
+    excludeAppointmentId?: string;
   }): Promise<{ startAt: string; endAt: string }[]>;
   listWorkingHours(input: {
     organizationId: string;
@@ -98,6 +99,7 @@ export type BookingSchedulingService = {
     slotStart: string;
     slotEnd: string;
     durationMinutes: number;
+    excludeAppointmentId?: string;
   }): Promise<void>;
   listScheduleBlocks(input: {
     organizationId: string;

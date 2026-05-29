@@ -37,6 +37,7 @@ type OnlineProps = {
 type SlotStepOptions = {
   confirmBasePath?: string;
   slotsApiPath?: string;
+  rescheduleBookingId?: string;
 };
 
 type Props = (InPersonProps | OnlineProps) & SlotStepOptions;
@@ -64,6 +65,9 @@ function buildConfirmQuery(
     if (count > 1) q.set("slotCount", String(count));
   } else {
     q.set("category", props.category);
+  }
+  if (props.rescheduleBookingId) {
+    q.set("rescheduleBookingId", props.rescheduleBookingId);
   }
   return q.toString();
 }

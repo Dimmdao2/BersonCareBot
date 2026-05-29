@@ -6,6 +6,8 @@ import { BookingMergeCandidatesSection } from "@/app/app/settings/BookingMergeCa
 import { BookingPublicAttributionSection } from "@/app/app/settings/BookingPublicAttributionSection";
 import { BookingPublicWidgetSection } from "@/app/app/settings/BookingPublicWidgetSection";
 import { BookingScheduleBlocksSection } from "@/app/app/settings/BookingScheduleBlocksSection";
+import { BookingPoliciesSection } from "@/app/app/settings/BookingPoliciesSection";
+import { BookingManualLifecycleSection } from "@/app/app/settings/BookingManualLifecycleSection";
 import { RubitimeSection } from "@/app/app/settings/RubitimeSection";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
@@ -19,6 +21,8 @@ export default async function DoctorAdminBookingPage() {
         <BookingCatalogHelp />
         <BookingEngineSection />
         <BookingFormFieldsSection />
+        <BookingPoliciesSection />
+        <BookingManualLifecycleSection apiBase="/api/doctor/booking-engine" />
         <BookingPublicWidgetSection />
         <BookingPublicAttributionSection />
         <BookingMergeCandidatesSection />

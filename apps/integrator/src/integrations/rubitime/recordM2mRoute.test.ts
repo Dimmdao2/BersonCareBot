@@ -343,6 +343,42 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     expect(enqueueMessageRetryJob).not.toHaveBeenCalled();
   });
 
+  it('booking.rescheduled cancels pending reminders and schedules new ones', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    getTargetsByPhone
+      .mockResolvedValueOnce({ channelBindings: { telegramId: 'tg-immediate', maxId: null } })
+      .mockResolvedValueOnce({ channelBindings: { telegramId: 'tg-reminders', maxId: null } });
+    const app = await buildApp(dispatchOutgoing);
+    const slotStart = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+    const slotEnd = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000).toISOString();
+    const raw = JSON.stringify({
+      eventType: 'booking.rescheduled',
+      idempotencyKey: `reschedule-${Date.now()}`,
+      payload: {
+        bookingId: '9f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+        userId: '3f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+        bookingType: 'online',
+        category: 'general',
+        slotStart,
+        slotEnd,
+        contactName: 'Ivan',
+        contactPhone: '+79990001122',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(cancelPendingBookingReminderJobsByBookingId).toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.any(Function) }),
+      '9f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+    );
+    expect(enqueueMessageRetryJob).toHaveBeenCalled();
+  });
+
   it('sends doctor telegram when admin id is configured', async () => {
     const { telegramConfig } = await import('../telegram/config.js');
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);

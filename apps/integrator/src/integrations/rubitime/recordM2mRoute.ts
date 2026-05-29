@@ -133,6 +133,19 @@ function doctorCancelledText(payload: BookingLifecyclePayloadValidated, timeZone
   return `Отмена записи: ${name}\nДата: ${dateLabel}`;
 }
 
+function patientRescheduledText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
+  const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
+  const typeLabel = payload.bookingType === 'online' ? 'Онлайн' : 'Очный приём';
+  return `Запись перенесена на ${dateLabel}\n${typeLabel}`;
+}
+
+function doctorRescheduledText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
+  const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
+  const name = asNonEmptyString(payload.contactName) ?? 'Пациент';
+  const phone = asNonEmptyString(payload.contactPhone) ?? 'без телефона';
+  return `Перенос записи: ${name}, ${phone}\nНовая дата: ${dateLabel}`;
+}
+
 async function sendLinkedChannelMessage(input: {
   dispatchPort: DispatchPort;
   phoneNormalized: string | null;
@@ -394,6 +407,36 @@ async function handleBookingLifecycleEvent(
       variant: 'cancelled',
       slotStartIso: payload.slotStart,
       stableKey: `booking-cancelled:${bookingId}`,
+    });
+    rememberBookingEventKey(dedupKey);
+    return;
+  }
+
+  if (eventType === 'booking.rescheduled') {
+    await cancelPendingBookingReminders(bookingId);
+    const patientText = patientRescheduledText(payload, timeZone);
+    await sendLinkedChannelMessage({
+      dispatchPort,
+      phoneNormalized: contactPhone,
+      text: patientText,
+      eventId: `booking-rescheduled:${bookingId}`,
+    });
+    await sendDoctorMessage(dispatchPort, doctorRescheduledText(payload, timeZone), `booking-rescheduled:${bookingId}`);
+    await sendBookingWebPush({
+      ...(webappEventsPort ? { webappEventsPort } : {}),
+      phoneNormalized: contactPhone,
+      intentType: 'appointment_lifecycle',
+      variant: 'rescheduled',
+      slotStartIso: payload.slotStart,
+      stableKey: `booking-rescheduled:${bookingId}`,
+    });
+    await scheduleBookingReminders({
+      bookingId,
+      slotStartIso: payload.slotStart,
+      phoneNormalized: contactPhone,
+      patientName,
+      timeZone,
+      ...(webappEventsPort ? { webappEventsPort } : {}),
     });
     rememberBookingEventKey(dedupKey);
     return;

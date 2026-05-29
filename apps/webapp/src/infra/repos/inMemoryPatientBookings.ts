@@ -205,6 +205,20 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     return next;
   },
 
+  async updateSlotsAfterReschedule(input) {
+    const row = byId.get(input.bookingId);
+    if (!row) return null;
+    const next = {
+      ...row,
+      slotStart: input.slotStart,
+      slotEnd: input.slotEnd,
+      status: input.status ?? row.status,
+      updatedAt: new Date().toISOString(),
+    };
+    byId.set(input.bookingId, next);
+    return next;
+  },
+
   async getByIdForUser(bookingId, userId) {
     const row = byId.get(bookingId);
     if (!row || row.userId !== userId) return null;

@@ -22,11 +22,12 @@
 - **service_location_availability** — услуга×локация (фильтр «город → услуги»).
 
 ## Записи и расписание (этапы 1, 2, 4, 8)
-- **appointment** — каноническая запись (organization, branch, room, specialist, service, patient, start_at, end_at, duration, source, status, original_start_at, reschedule_count, payment_ref?, package_usage_ref?).
-- **appointment_status** — enum (ТЗ §17).
-- **appointment_event** — append-only история записи.
-- **appointment_reschedule** — событие переноса (исходная/новая дата, актор, в бесплатном периоде?, применённые правила).
-- **appointment_cancellation** — событие отмены (тип, актор, причина, бесплатная/штрафная, списание, удержание, возврат, комментарий, уведомления).
+- **appointment** → `be_appointments` — каноническая запись (organization, branch, room, specialist, service, patient, start_at, end_at, duration, source, status, original_start_at, reschedule_count, payment_ref?, package_usage_ref?).
+- **appointment_status** — enum (ТЗ §17); переходы — `appointmentStatusFsm.ts`.
+- **appointment_event** → `be_appointment_events`, `be_appointment_history_events` — append-only история записи.
+- **appointment_reschedule** → `be_appointment_reschedules` (этап 4, миграция `0091`) — from/to, актор, free-window flags, `applied_policy_snapshot`, `notifications_sent` (JSON), `manual_override`.
+- **appointment_cancellation** → `be_appointment_cancellations` — тип отмены, штраф/возврат/списание (флаги; фактические деньги — этап 5), `notifications_sent`, staff_comment.
+- **cancellation_policy** → `be_cancellation_policies`; **reschedule_policy** → `be_reschedule_policies` — `scope_level` organization | specialist | service | product; резолвер — `modules/booking-policies/policyResolver.ts`.
 - **working_hours** — рабочее время специалиста (по филиалу/кабинету).
 - **availability_rule** — правила доступности.
 - **schedule_block** — блокировки/отсутствия/отпуска.

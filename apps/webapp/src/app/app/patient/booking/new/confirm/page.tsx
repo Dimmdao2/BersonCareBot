@@ -19,6 +19,10 @@ function buildSlotBackQuery(raw: Record<string, string | string[] | undefined>):
   const q = new URLSearchParams();
   const type = first(raw.type)?.trim();
   if (type) q.set("type", type);
+  const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
+  if (rescheduleBookingId) {
+    q.set("rescheduleBookingId", rescheduleBookingId);
+  }
   if (type === "in_person") {
     const cityCode = first(raw.cityCode);
     const cityTitle = first(raw.cityTitle);
@@ -71,9 +75,11 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
   const backHref = `${routePaths.bookingNewSlot}?${buildSlotBackQuery(raw)}`;
   const appDisplayTimeZone = await getAppDisplayTimeZone();
 
+  const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
+
   return (
     <BookingWizardShell
-      title="Подтверждение записи"
+      title={rescheduleBookingId ? "Подтверждение переноса" : "Подтверждение записи"}
       step={4}
       totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
       backHref={backHref}
@@ -91,6 +97,7 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
         defaultName={session.user.displayName}
         defaultPhone={session.user.phone ?? ""}
         appDisplayTimeZone={appDisplayTimeZone}
+        rescheduleBookingId={rescheduleBookingId}
       />
     </BookingWizardShell>
   );

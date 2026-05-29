@@ -261,6 +261,10 @@ import { createPgBookingFormPort } from "@/infra/repos/pgBookingForm";
 import { createBookingFormService } from "@/modules/booking-form/service";
 import { createPgPatientMergeCandidatePort } from "@/infra/repos/pgPatientMergeCandidate";
 import { createPatientMergeCandidateService } from "@/modules/patient-merge-candidate/service";
+import { createPgBookingPoliciesPort } from "@/infra/repos/pgBookingPolicies";
+import { createBookingPoliciesService } from "@/modules/booking-policies/service";
+import { createPgBookingAppointmentLifecyclePort } from "@/infra/repos/pgBookingAppointmentLifecycle";
+import { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
 import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
 import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHomeLegacyContent";
@@ -398,6 +402,16 @@ const patientMergeCandidatePort = !inMemoryRepos ? createPgPatientMergeCandidate
 const patientMergeCandidateService = patientMergeCandidatePort
   ? createPatientMergeCandidateService(patientMergeCandidatePort)
   : null;
+const bookingPoliciesPort = !inMemoryRepos ? createPgBookingPoliciesPort() : null;
+const bookingPoliciesService = bookingPoliciesPort ? createBookingPoliciesService(bookingPoliciesPort) : null;
+const bookingAppointmentLifecyclePort = !inMemoryRepos ? createPgBookingAppointmentLifecyclePort() : null;
+const bookingAppointmentLifecycleService =
+  bookingAppointmentLifecyclePort && bookingPoliciesService
+    ? createBookingAppointmentLifecycleService({
+        lifecyclePort: bookingAppointmentLifecyclePort,
+        policies: bookingPoliciesService,
+      })
+    : null;
 const patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
@@ -406,6 +420,7 @@ const patientBookingService = createPatientBookingService({
   bookingScheduling: bookingSchedulingService,
   bookingForm: bookingFormService,
   appointmentProjection: appointmentProjectionPort,
+  appointmentLifecycle: bookingAppointmentLifecycleService,
   isRubitimeBridgeEnabled: bookingRubitimeBridgePort
     ? () => bookingRubitimeBridgePort.isBridgeEnabled()
     : undefined,
@@ -1121,6 +1136,8 @@ function _buildAppDeps() {
     bookingEnginePort,
     bookingScheduling: bookingSchedulingService,
     bookingForm: bookingFormService,
+    bookingPolicies: bookingPoliciesService,
+    bookingAppointmentLifecycle: bookingAppointmentLifecycleService,
     patientMergeCandidate: patientMergeCandidateService,
   };
 }

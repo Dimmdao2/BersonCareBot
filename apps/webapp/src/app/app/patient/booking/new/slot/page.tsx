@@ -44,12 +44,13 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
     const cityTitle = first(raw.cityTitle) ?? "";
     const serviceTitle = first(raw.serviceTitle) ?? "";
     const durationMinutes = Number(first(raw.durationMinutes) ?? "60") || 60;
+    const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
     const backHref =
       `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(cityCode)}&cityTitle=${encodeURIComponent(cityTitle)}`;
 
     return (
       <BookingWizardShell
-        title="Выберите дату и время"
+        title={rescheduleBookingId ? "Новое время приёма" : "Выберите дату и время"}
         step={3}
         totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
         backHref={backHref}
@@ -63,6 +64,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
           serviceTitle={serviceTitle}
           durationMinutes={durationMinutes}
           appDisplayTimeZone={appDisplayTimeZone}
+          rescheduleBookingId={rescheduleBookingId}
         />
       </BookingWizardShell>
     );
@@ -73,16 +75,22 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
     redirect(routePaths.bookingNew);
   }
   const category = categoryRaw;
+  const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
 
   return (
     <BookingWizardShell
-      title="Выберите дату и время"
+      title={rescheduleBookingId ? "Новое время приёма" : "Выберите дату и время"}
       step={3}
       totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
       backHref={routePaths.bookingNew}
       user={session.user}
     >
-      <SlotStepClient type="online" category={category} appDisplayTimeZone={appDisplayTimeZone} />
+      <SlotStepClient
+        type="online"
+        category={category}
+        appDisplayTimeZone={appDisplayTimeZone}
+        rescheduleBookingId={rescheduleBookingId}
+      />
     </BookingWizardShell>
   );
 }

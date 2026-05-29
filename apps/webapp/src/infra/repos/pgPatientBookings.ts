@@ -209,6 +209,23 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     return row ? mapRow(row) : null;
   },
 
+  async updateSlotsAfterReschedule(input) {
+    const pool = getPool();
+    const status = input.status ?? "confirmed";
+    const result = await pool.query<Row>(
+      `UPDATE patient_bookings
+       SET slot_start = $2::timestamptz,
+           slot_end = $3::timestamptz,
+           status = $4,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [input.bookingId, input.slotStart, input.slotEnd, status],
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
   async getByIdForUser(bookingId, userId) {
     const pool = getPool();
     const result = await pool.query<Row>(

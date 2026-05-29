@@ -9,6 +9,7 @@ import type { BookingCategory } from "@/modules/patient-booking/types";
 import type { BookingSlot } from "@/modules/patient-booking/types";
 import type { BookingSelection } from "../../../cabinet/useBookingSelection";
 import { useCreateBooking } from "../../../cabinet/useCreateBooking";
+import { useRescheduleBooking } from "../../../cabinet/useRescheduleBooking";
 import {
   formatBookingDateLongRu,
   formatBookingTimeShortRu,
@@ -53,6 +54,7 @@ type ConfirmStepOptions = {
   formFieldsApiPath?: string;
   successRedirectPath?: string;
   useCreateBookingHook?: typeof useCreateBooking;
+  useRescheduleBookingHook?: typeof useRescheduleBooking;
 };
 
 type Props = ConfirmStepOptions & {
@@ -84,7 +86,9 @@ export function ConfirmStepClient({
   formFieldsApiPath = "/api/booking/form-fields",
   successRedirectPath = routePaths.bookingNew,
   useCreateBookingHook = useCreateBooking,
-}: Props) {
+  useRescheduleBookingHook = useRescheduleBooking,
+  rescheduleBookingId,
+}: Props & { rescheduleBookingId?: string }) {
   const router = useRouter();
   const [name, setName] = useState(defaultName);
   const [phone, setPhone] = useState(defaultPhone);
@@ -93,7 +97,11 @@ export function ConfirmStepClient({
   const [extraValues, setExtraValues] = useState<Record<string, string>>({});
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [, startFieldsLoad] = useTransition();
-  const { submitting, error, createBooking } = useCreateBookingHook();
+  const createState = useCreateBookingHook();
+  const rescheduleState = useRescheduleBookingHook();
+  const isReschedule = Boolean(rescheduleBookingId);
+  const submitting = isReschedule ? rescheduleState.submitting : createState.submitting;
+  const error = isReschedule ? rescheduleState.error : createState.error;
 
   useEffect(() => {
     let cancelled = false;
@@ -174,19 +182,36 @@ export function ConfirmStepClient({
             fieldKey: f.fieldKey,
             value: (extraValues[f.fieldKey] ?? "").trim(),
           }));
-          void createBooking({
-            selection,
-            slot,
-            contactName: name.trim(),
-            contactPhone: phone.trim(),
-            contactEmail: email.trim() || undefined,
-            formAnswers: formAnswers.length > 0 ? formAnswers : undefined,
-          }).then((ok) => {
-            if (ok) {
-              toast.success("Запись подтверждена");
-              router.push(successRedirectPath);
-            }
-          });
+          if (isReschedule && rescheduleBookingId) {
+            void rescheduleState
+              .rescheduleBooking({
+                bookingId: rescheduleBookingId,
+                slotStart: slot.startAt,
+                slotEnd: slot.endAt,
+              })
+              .then((ok) => {
+                if (ok) {
+                  toast.success("Запись перенесена");
+                  router.push(rescheduleState.successRedirectPath);
+                }
+              });
+            return;
+          }
+          void createState
+            .createBooking({
+              selection,
+              slot,
+              contactName: name.trim(),
+              contactPhone: phone.trim(),
+              contactEmail: email.trim() || undefined,
+              formAnswers: formAnswers.length > 0 ? formAnswers : undefined,
+            })
+            .then((ok) => {
+              if (ok) {
+                toast.success("Запись подтверждена");
+                router.push(successRedirectPath);
+              }
+            });
         }}
       >
         <h2 className={patientSectionTitleClass}>Контакты</h2>
