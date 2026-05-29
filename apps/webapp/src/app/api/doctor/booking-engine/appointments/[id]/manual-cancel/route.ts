@@ -62,5 +62,18 @@ export async function POST(request: Request, context: RouteContext) {
       reason: parsed.data.reason,
     });
   }
+  if (deps.memberships) {
+    try {
+      await deps.memberships.applyCancelPackageOutcome({
+        appointmentId,
+        organizationId: gate.ctx.organizationId,
+        packageLessonDeducted: parsed.data.decisionType === "package_charged",
+        createdByPlatformUserId: gate.ctx.session.user.userId,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "package_outcome_failed";
+      return NextResponse.json({ ok: false, error: message }, { status: 409 });
+    }
+  }
   return NextResponse.json({ ok: true, appointment: result.appointment });
 }

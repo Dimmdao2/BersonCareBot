@@ -43,6 +43,7 @@ export type PaymentIntentRecord = {
   providerId: string;
   appointmentId: string | null;
   platformUserId: string | null;
+  productRef: string | null;
   amountMinor: number;
   currency: string;
   status: string;

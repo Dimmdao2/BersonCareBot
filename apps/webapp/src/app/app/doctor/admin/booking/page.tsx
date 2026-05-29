@@ -12,6 +12,8 @@ import { BookingPublicWidgetSection } from "@/app/app/settings/BookingPublicWidg
 import { BookingScheduleBlocksSection } from "@/app/app/settings/BookingScheduleBlocksSection";
 import { BookingPoliciesSection } from "@/app/app/settings/BookingPoliciesSection";
 import { BookingManualLifecycleSection } from "@/app/app/settings/BookingManualLifecycleSection";
+import { BookingCatalogPackagesSection } from "@/app/app/settings/BookingCatalogPackagesSection";
+import { BookingPatientPackagesSection } from "@/app/app/settings/BookingPatientPackagesSection";
 import { RubitimeSection } from "@/app/app/settings/RubitimeSection";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
@@ -37,6 +39,12 @@ export default async function DoctorAdminBookingPage() {
         <BookingPoliciesSection />
         <BookingPaymentsSection paymentEnabled={paymentEnabled} providersJson={providersJson} />
         <BookingPrepaymentSection />
+        <BookingCatalogPackagesSection apiBase="/api/doctor/booking-engine/packages" />
+        <BookingPatientPackagesSection
+          apiBase="/api/doctor/booking-engine/patient-packages"
+          packagesApi="/api/doctor/booking-engine/packages"
+          servicesApi="/api/doctor/booking-engine/services"
+        />
         <BookingManualLifecycleSection apiBase="/api/doctor/booking-engine" />
         <BookingPublicWidgetSection />
         <BookingPublicAttributionSection />

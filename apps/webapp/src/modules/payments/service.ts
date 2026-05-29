@@ -7,6 +7,7 @@ import type { PaymentsConfigReader, PaymentsPort } from "./ports";
 import type { AppointmentPaymentSummary, BookingPaymentSettings, PrepaymentQuote } from "./types";
 import type { ResolvePrepaymentParams } from "./ports";
 import type { PrepaymentResolveContext } from "./prepaymentContextFromBooking";
+import { parsePatientPackageProductRef } from "@/modules/memberships/patientPackageProductRef";
 
 export function createPaymentsService(deps: {
   port: PaymentsPort;
@@ -16,6 +17,12 @@ export function createPaymentsService(deps: {
     appointmentId: string;
     paymentId: string;
     platformUserId: string | null;
+  }) => Promise<void>;
+  onPackagePaymentCaptured?: (input: {
+    patientPackageId: string;
+    paymentId: string;
+    platformUserId: string | null;
+    organizationId: string;
   }) => Promise<void>;
   syncServicePrepaymentApplicable?: (serviceId: string, applicable: boolean) => Promise<void>;
 }) {
@@ -148,6 +155,61 @@ export function createPaymentsService(deps: {
       return intent;
     },
 
+    async createPackagePaymentIntent(input: {
+      organizationId: string;
+      platformUserId: string;
+      patientPackageId: string;
+      amountMinor: number;
+      currency: string;
+      idempotencyKey: string;
+      providerId?: string;
+    }) {
+      const settings = await loadSettings();
+      if (!settings.enabled) throw new Error("payments_disabled");
+      const provider = resolveActiveProvider(settings, input.providerId);
+      const adapter = getPaymentProviderAdapter(provider.id);
+      const existing = await deps.port.findIntentByIdempotency(
+        input.organizationId,
+        input.idempotencyKey,
+      );
+      if (existing) return existing;
+
+      const productRef = `patient_package:${input.patientPackageId}`;
+      const created = await adapter.createIntent({
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        idempotencyKey: input.idempotencyKey,
+        metadata: { patientPackageId: input.patientPackageId },
+      });
+
+      const intent = await deps.port.createPaymentIntent({
+        organizationId: input.organizationId,
+        idempotencyKey: input.idempotencyKey,
+        providerId: provider.id,
+        platformUserId: input.platformUserId,
+        productRef,
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        purpose: "package_purchase",
+        providerIntentRef: created.providerIntentRef,
+        metadataJson: { patientPackageId: input.patientPackageId },
+      });
+
+      await deps.port.appendHistoryEvent({
+        organizationId: input.organizationId,
+        platformUserId: input.platformUserId,
+        eventType: "package_intent_created",
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        providerId: provider.id,
+        status: intent.status,
+        purpose: intent.purpose,
+        payloadJson: { patientPackageId: input.patientPackageId, productRef },
+      });
+
+      return intent;
+    },
+
     async captureIntentForPatient(intentId: string, organizationId: string, platformUserId: string) {
       const intent = await deps.port.findIntentById(intentId);
       if (!intent || intent.organizationId !== organizationId) throw new Error("intent_not_found");
@@ -225,6 +287,16 @@ export function createPaymentsService(deps: {
             platformUserId: intent.platformUserId,
           });
         }
+      }
+
+      const patientPackageId = parsePatientPackageProductRef(intent.productRef);
+      if (patientPackageId && deps.onPackagePaymentCaptured) {
+        await deps.onPackagePaymentCaptured({
+          patientPackageId,
+          paymentId: payment.id,
+          platformUserId: intent.platformUserId,
+          organizationId,
+        });
       }
 
       return { intent, payment, alreadyProcessed: false as const };

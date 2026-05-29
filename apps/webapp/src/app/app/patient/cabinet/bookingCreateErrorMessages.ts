@@ -16,6 +16,12 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
   if (code === "catalog_unavailable") {
     return "Каталог записи временно недоступен. Попробуйте позже.";
   }
+  if (code === "package_reserve_failed" || code === "package_no_balance" || code === "package_expired") {
+    return "Не удалось применить абонемент к записи. Выберите другое время или запись без абонемента.";
+  }
+  if (code === "package_not_found" || code === "package_not_active") {
+    return "Выбранный абонемент недоступен.";
+  }
   if (code === "patient_activation_required") {
     return "Нужен подтверждённый номер телефона. Сейчас откроется экран привязки.";
   }

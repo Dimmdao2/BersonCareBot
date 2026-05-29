@@ -9,6 +9,7 @@ type BookingFormService = ReturnType<typeof createBookingFormService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
 import type { AppointmentProjectionPort } from "./ports";
 import type { PaymentsService } from "@/modules/payments/service";
+import type { MembershipsService } from "@/modules/memberships/service";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type {
   BookingSyncPort,
@@ -32,6 +33,7 @@ export type CanonicalBookingDeps = {
   bookingForm: BookingFormService | null;
   appointmentProjection: AppointmentProjectionPort | null;
   payments: PaymentsService | null;
+  memberships: MembershipsService | null;
   isRubitimeBridgeEnabled: () => Promise<boolean>;
 };
 
@@ -164,6 +166,24 @@ export async function createBookingOnCanonicalEngine(
 
   const pending = await deps.bookingsPort.createPending(pendingRow);
 
+  let packageCoversVisit = false;
+  const patientPackageId =
+    createInput.type === "in_person" ? createInput.patientPackageId?.trim() : undefined;
+  if (patientPackageId) {
+    if (!canonicalServiceId || !deps.memberships) {
+      throw new Error("package_not_found");
+    }
+    const eligible = await deps.memberships.listActivePackagesForBooking(
+      createInput.userId,
+      orgId,
+      canonicalServiceId,
+    );
+    if (!eligible.some((p) => p.id === patientPackageId)) {
+      throw new Error("package_not_found");
+    }
+    packageCoversVisit = true;
+  }
+
   const prepayQuote = deps.payments
     ? await deps.payments.resolvePrepayment({
         organizationId: orgId,
@@ -173,7 +193,8 @@ export async function createBookingOnCanonicalEngine(
         currency: "RUB",
       })
     : null;
-  const needsPrepayment = prepayQuote?.required === true && (prepayQuote.amountMinor ?? 0) > 0;
+  const needsPrepayment =
+    !packageCoversVisit && prepayQuote?.required === true && (prepayQuote.amountMinor ?? 0) > 0;
   const initialAppointmentStatus = needsPrepayment ? "awaiting_payment" : "confirmed";
 
   const phoneNormalized = normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();
@@ -262,6 +283,38 @@ export async function createBookingOnCanonicalEngine(
     });
     const awaiting = await deps.bookingsPort.markAwaitingPayment(pending.id, appointment.id);
     return awaiting ?? pending;
+  }
+
+  if (packageCoversVisit && patientPackageId && canonicalServiceId && deps.memberships) {
+    try {
+      await deps.memberships.reserveForAppointment({
+        organizationId: orgId,
+        patientPackageId,
+        serviceId: canonicalServiceId,
+        appointmentId: appointment.id,
+        platformUserId: createInput.userId,
+      });
+    } catch (reserveErr) {
+      await deps.bookingsPort.markFailedSync(pending.id);
+      try {
+        await deps.bookingEngine.transitionAppointmentStatus({
+          appointmentId: appointment.id,
+          toStatus: "cancelled_by_specialist",
+          payload: { source: "package_reserve_failed" },
+        });
+      } catch {
+        // Best-effort rollback of orphan appointment.
+      }
+      const code =
+        reserveErr instanceof Error &&
+        (reserveErr.message === "package_not_found" ||
+          reserveErr.message === "package_no_balance" ||
+          reserveErr.message === "package_expired" ||
+          reserveErr.message === "package_not_active")
+          ? reserveErr.message
+          : "package_reserve_failed";
+      throw new Error(code);
+    }
   }
 
   const confirmed = await deps.bookingsPort.markConfirmed(pending.id, rubitimeId, {

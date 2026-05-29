@@ -98,7 +98,12 @@ export function ConfirmStepClient({
   const [extraFields, setExtraFields] = useState<FormField[]>([]);
   const [extraValues, setExtraValues] = useState<Record<string, string>>({});
   const [fieldsLoading, setFieldsLoading] = useState(true);
+  const [packageOptions, setPackageOptions] = useState<
+    Array<{ id: string; title: string; balance: { items: Array<{ remaining: number; quantityInitial: number }> } }>
+  >([]);
+  const [patientPackageId, setPatientPackageId] = useState("");
   const [, startFieldsLoad] = useTransition();
+  const [, startPackagesLoad] = useTransition();
   const createState = useCreateBookingHook();
   const rescheduleState = useRescheduleBookingHook();
   const isReschedule = Boolean(rescheduleBookingId);
@@ -124,6 +129,32 @@ export function ConfirmStepClient({
       cancelled = true;
     };
   }, [formFieldsApiPath]);
+
+  useEffect(() => {
+    if (type !== "in_person" || !branchServiceId || isReschedule) return;
+    let cancelled = false;
+    startPackagesLoad(() => {
+      void (async () => {
+        const q = new URLSearchParams({ branchServiceId });
+        const res = await fetch(`/api/booking/memberships/available?${q.toString()}`);
+        const json = (await res.json()) as {
+          ok?: boolean;
+          packages?: Array<{
+            id: string;
+            title: string;
+            balance: { items: Array<{ remaining: number; quantityInitial: number }> };
+          }>;
+        };
+        if (!cancelled && json.ok && json.packages) {
+          setPackageOptions(json.packages);
+          if (json.packages.length === 1) setPatientPackageId(json.packages[0]!.id);
+        }
+      })();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [type, branchServiceId, isReschedule, startPackagesLoad]);
 
   const selection: BookingSelection | null = useMemo(() => {
     if (type === "in_person" && cityCode && cityTitle && branchServiceId && serviceTitle) {
@@ -207,6 +238,7 @@ export function ConfirmStepClient({
               contactPhone: phone.trim(),
               contactEmail: email.trim() || undefined,
               formAnswers: formAnswers.length > 0 ? formAnswers : undefined,
+              patientPackageId: patientPackageId.trim() || undefined,
             })
             .then((booking) => {
               if (!booking) return;
@@ -237,6 +269,25 @@ export function ConfirmStepClient({
           <span className={cn(patientMutedTextClass, "text-xs")}>Email</span>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
+
+        {type === "in_person" && !isReschedule && packageOptions.length > 0 ? (
+          <label className="flex flex-col gap-1">
+            <span className={cn(patientMutedTextClass, "text-xs")}>Абонемент</span>
+            <select
+              className="rounded-md border bg-background px-2 py-2 text-sm"
+              value={patientPackageId}
+              onChange={(e) => setPatientPackageId(e.target.value)}
+            >
+              <option value="">Без абонемента</option>
+              {packageOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title} (
+                  {p.balance.items.map((it) => `${it.remaining}/${it.quantityInitial}`).join(", ")})
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         {fieldsLoading ? null : extraFields.length > 0 ? (
           <>

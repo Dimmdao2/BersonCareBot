@@ -45,7 +45,7 @@
 ## Абонементы и продукты (этапы 6, 7)
 - **product / product_type** — универсальный продукт.
 - **package (subscription_package) / package_item** — составной абонемент (произвольные услуги×количества).
-- **patient_package / patient_package_balance / package_usage** — экземпляр у пациента, остатки, списания (append-only).
+- **patient_package / package_usage** — экземпляр у пациента и append-only списания; остаток по позициям — **производный** от `be_package_usages` (reserve/consume/release/penalty), отдельной таблицы `patient_package_balance` нет.
 - **promo_product / gift_certificate** — акции/подарки.
 - **entitlement / content_access_grant** — выдача доступа после покупки (переиспользовать существующие `content_access_grants`).
 

@@ -227,3 +227,45 @@
 **Проверки:** `pnpm --filter webapp typecheck`; vitest (lifecycle, routes, integrator booking-event).
 
 **Доработка (верификация):** при сбое канона после успешного Rubitime — `patient_bookings` → `cancel_failed` (`lifecycle_failed`), не зависание в `cancelling`; `GET /api/doctor/booking-engine/appointments/[id]/lifecycle`; policy flags в `notifications_sent` при insert; `api.md` обновлён.
+
+---
+
+## 2026-05-29 — Этап 6: абонементы
+
+**Сделано:**
+- Миграция `0094_booking_stage6_memberships.sql`: `be_subscription_packages`, `be_package_items`, `be_patient_packages`, `be_patient_package_items`, `be_package_usages`, `be_package_history_events`.
+- Модуль `modules/memberships` (balanceCalculator, service, `pgMemberships`); оплата через `payments` (`package_purchase`, `productRef=patient_package:{id}`).
+- API: admin/doctor `packages`, `patient-packages` (+ consume); patient `GET /api/booking/memberships`, `available`, payment-status, mock-complete; `POST /api/booking/create` + `patientPackageId`.
+- Интеграция записи: reserve при create; cancel → release/penalty; `charged_to_package` при consume; `onVisitConfirmed` для auto deduction.
+- UI: `BookingCatalogPackagesSection`, `BookingPatientPackagesSection`, `PatientMembershipsSection`, `/app/patient/memberships/pay`.
+
+**Проверки:** `pnpm --filter webapp typecheck`; vitest `memberships/balanceCalculator`, `memberships/service`.
+
+## 2026-05-29 — Этап 6: закрытие хвостов (аудит)
+
+**Сделано:**
+- `wrapBookingEngineMembershipHooks`: `onVisitConfirmed` при переходе в `visit_confirmed` / `completed`.
+- Штраф при отмене без резерва (`penaltyDeductForAppointment`); patient cancel учитывает `package_charged` и `chargePackageSessionOnLate`.
+- Резерв **до** `markConfirmed`; ошибка резерва → откат записи + `package_reserve_failed`.
+- Срок действия: `packageValidity`, авто-`expired`, фильтр в booking/available.
+- Бесплатный manual (price 0) активируется без payment offer.
+- Wizard: `ConfirmStepClient` + `patientPackageId`; `available?branchServiceId=`.
+- Patient: `GET catalog`, `POST purchase`, `GET memberships/[id]`, страница `/app/patient/memberships/[id]`.
+- Staff: список абонементов пациента в `BookingPatientPackagesSection`.
+- Подписи услуг в балансе (`resolveServiceTitle`); тесты routes/validity/hooks.
+
+**Проверки:** vitest memberships + booking membership routes; `pnpm --filter webapp typecheck`.
+
+## 2026-05-29 — Этап 6: ревью качества
+
+**Исправлено:**
+- `chargePackageSessionOnLate` учитывается в `policyResolver` (раньше флаг в БД не влиял на `decisionType`).
+- Штраф при отмене (`asPenalty`) больше не переводит запись в `charged_to_package` (недопустимый FSM после `late_cancellation`).
+- Ранняя валидация `patientPackageId` до создания `Appointment`.
+- Штраф без резерва: приоритет пакета из usages записи, не «первый попавшийся».
+- `packageSessionCharged` в lifecycle при patient cancel; ошибки `applyCancelPackageOutcome` → **409** на staff manual-cancel.
+- UI: отдельный transition для загрузки абонементов; страница детали — состояние «не найден».
+
+## 2026-05-29 — Документация этапа 6 (синхронизация)
+
+**Сделано:** `MASTER_PLAN` §2, `STAGE_CHECKLISTS` §6, `UI_SURFACES_CHECKLIST`, `ROADMAP` (ссылка на plan в `archive/`), `README` инициативы и `docs/README.md`, `SCOPE_DECISIONS`, `memberships.md`, frontmatter и тело [`.cursor/plans/archive/own_booking_stage6_memberships.plan.md`](../../.cursor/plans/archive/own_booking_stage6_memberships.plan.md) (`todos` + DoD + API/проверки/вне scope).

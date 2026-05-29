@@ -59,6 +59,7 @@ export function evaluateCancellationEligibility(input: {
     | "freeCancelHoursBefore"
     | "requiresStaffConfirmation"
     | "lateCancellationBehavior"
+    | "chargePackageSessionOnLate"
   >;
   rescheduleHistory: RescheduleHistoryEntry[];
   now?: Date;
@@ -99,7 +100,7 @@ export function evaluateCancellationEligibility(input: {
         allowed: true,
         isFree: false,
         requiresStaffConfirmation: input.policy.requiresStaffConfirmation,
-        decisionType: mapLateBehaviorToDecision(input.policy.lateCancellationBehavior),
+        decisionType: resolveLateCancellationDecisionType(input.policy),
         reasonCode: "forfeited_by_reschedule",
         referenceStartAt,
         hoursUntilReference: hours,
@@ -123,7 +124,7 @@ export function evaluateCancellationEligibility(input: {
     allowed: true,
     isFree: false,
     requiresStaffConfirmation: input.policy.requiresStaffConfirmation,
-    decisionType: mapLateBehaviorToDecision(input.policy.lateCancellationBehavior),
+    decisionType: resolveLateCancellationDecisionType(input.policy),
     reasonCode: "late",
     referenceStartAt,
     hoursUntilReference: hours,
@@ -138,6 +139,13 @@ function mapLateBehaviorToDecision(
   if (behavior === "refund_prepayment") return "refund_prepayment";
   if (behavior === "penalty") return "penalized";
   return "penalized";
+}
+
+function resolveLateCancellationDecisionType(
+  policy: Pick<CancellationPolicy, "lateCancellationBehavior" | "chargePackageSessionOnLate">,
+): CancellationDecisionType {
+  if (policy.chargePackageSessionOnLate) return "package_charged";
+  return mapLateBehaviorToDecision(policy.lateCancellationBehavior);
 }
 
 export function evaluateRescheduleEligibility(input: {

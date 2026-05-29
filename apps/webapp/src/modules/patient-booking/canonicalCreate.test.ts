@@ -89,6 +89,7 @@ function deps(bridge: boolean): CanonicalBookingDeps {
     bookingForm: bookingForm as never,
     appointmentProjection: null,
     payments: null,
+  memberships: null,
     isRubitimeBridgeEnabled: async () => bridge,
   };
 }

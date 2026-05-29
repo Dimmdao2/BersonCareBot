@@ -267,6 +267,9 @@ import { createPgBookingAppointmentLifecyclePort } from "@/infra/repos/pgBooking
 import { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
 import { createPgPaymentsPort } from "@/infra/repos/pgPayments";
 import { createPaymentsService, createPaymentsConfigReader } from "@/modules/payments/service";
+import { createPgMembershipsPort } from "@/infra/repos/pgMemberships";
+import { createMembershipsService } from "@/modules/memberships/service";
+import { wrapBookingEngineMembershipHooks } from "@/app-layer/booking/wrapBookingEngineMembershipHooks";
 import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
 import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHomeLegacyContent";
@@ -436,6 +439,25 @@ const doctorNotesService = createDoctorNotesService(doctorNotesPort);
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
+const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;
+const resolveMembershipServiceTitle =
+  bookingEngineService
+    ? async (serviceId: string) => {
+        const svc = await bookingEngineService.services.getService(serviceId);
+        return svc?.title ?? null;
+      }
+    : undefined;
+
+const membershipsService =
+  membershipsPort && bookingEngineService
+    ? createMembershipsService({
+        port: membershipsPort,
+        payments: null,
+        bookingEngine: bookingEngineService,
+        resolveServiceTitle: resolveMembershipServiceTitle,
+      })
+    : null;
+
 const paymentsPort = !inMemoryRepos ? createPgPaymentsPort() : null;
 const bookingSyncPortForPayments = createBookingSyncPort();
 const paymentsService =
@@ -444,6 +466,15 @@ const paymentsService =
         port: paymentsPort,
         config: createPaymentsConfigReader((key) => systemSettingsService.getSetting(key, "admin")),
         bookingEngine: bookingEngineService,
+        onPackagePaymentCaptured: membershipsService
+          ? async ({ patientPackageId, paymentId, organizationId }) => {
+              await membershipsService.activatePatientPackage(
+                patientPackageId,
+                organizationId,
+                paymentId,
+              );
+            }
+          : undefined,
         onAppointmentPaymentConfirmed: async ({ appointmentId, paymentId, platformUserId }) => {
           const row = await patientBookingsPort.markConfirmedByCanonicalAppointment(appointmentId, null);
           if (!row) return;
@@ -494,6 +525,20 @@ const paymentsService =
       })
     : null;
 
+const membershipsServiceResolved =
+  membershipsPort && bookingEngineService && paymentsService
+    ? createMembershipsService({
+        port: membershipsPort,
+        payments: paymentsService,
+        bookingEngine: bookingEngineService,
+        resolveServiceTitle: resolveMembershipServiceTitle,
+      })
+    : membershipsService;
+
+if (bookingEngineService && membershipsServiceResolved) {
+  wrapBookingEngineMembershipHooks(bookingEngineService, membershipsServiceResolved);
+}
+
 const patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
@@ -504,6 +549,7 @@ const patientBookingService = createPatientBookingService({
   appointmentProjection: appointmentProjectionPort,
   appointmentLifecycle: bookingAppointmentLifecycleService,
   payments: paymentsService,
+  memberships: membershipsServiceResolved,
   isRubitimeBridgeEnabled: bookingRubitimeBridgePort
     ? () => bookingRubitimeBridgePort.isBridgeEnabled()
     : undefined,
@@ -1200,6 +1246,7 @@ function _buildAppDeps() {
     bookingPolicies: bookingPoliciesService,
     bookingAppointmentLifecycle: bookingAppointmentLifecycleService,
     payments: paymentsService,
+    memberships: membershipsServiceResolved,
     patientMergeCandidate: patientMergeCandidateService,
   };
 }

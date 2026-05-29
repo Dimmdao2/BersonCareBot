@@ -12,6 +12,7 @@ import type { createBookingSchedulingService } from "@/modules/booking-schedulin
 import type { createBookingFormService } from "@/modules/booking-form/service";
 import type { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
 import type { PaymentsService } from "@/modules/payments/service";
+import type { MembershipsService } from "@/modules/memberships/service";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
@@ -149,6 +150,7 @@ export function createPatientBookingService(input: {
   appointmentProjection?: AppointmentProjectionPort | null;
   appointmentLifecycle?: BookingAppointmentLifecycleService | null;
   payments?: PaymentsService | null;
+  memberships?: MembershipsService | null;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   slotsTtlMs?: number;
 }): PatientBookingService {
@@ -176,6 +178,7 @@ export function createPatientBookingService(input: {
           bookingForm: input.bookingForm ?? null,
           appointmentProjection: input.appointmentProjection ?? null,
           payments: input.payments ?? null,
+          memberships: input.memberships ?? null,
           isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
         }
       : null;
@@ -653,6 +656,17 @@ export function createPatientBookingService(input: {
                 lifecycleResult.cancelPolicy.lateCancellationBehavior === "refund_prepayment"
               : false,
             reason: cancelInput.reason,
+          });
+        }
+
+        if (input.memberships && lifecycleResult.eligibility) {
+          const { eligibility } = lifecycleResult;
+          const packageLessonDeducted =
+            !eligibility.isFree && eligibility.decisionType === "package_charged";
+          await input.memberships.applyCancelPackageOutcome({
+            organizationId: orgId,
+            appointmentId: row.canonicalAppointmentId,
+            packageLessonDeducted,
           });
         }
 

@@ -16,6 +16,7 @@ type CreateBookingInput = {
   contactPhone: string;
   contactEmail?: string;
   formAnswers?: FormAnswer[];
+  patientPackageId?: string;
 };
 
 export function useCreateBooking() {
@@ -49,6 +50,7 @@ export function useCreateBooking() {
               contactPhone: input.contactPhone,
               contactEmail: input.contactEmail,
               formAnswers: input.formAnswers,
+              ...(input.patientPackageId ? { patientPackageId: input.patientPackageId } : {}),
             };
 
       const res = await fetch("/api/booking/create", {

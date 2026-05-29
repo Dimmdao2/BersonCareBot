@@ -59,6 +59,23 @@ describe("evaluateCancellationEligibility §8.4 anti-bypass", () => {
     expect(result.reasonCode).toBe("free");
   });
 
+  it("maps late cancel to package_charged when chargePackageSessionOnLate is set", () => {
+    const now = new Date("2026-06-09T10:00:00.000Z");
+    const result = evaluateCancellationEligibility({
+      referenceStartAt: referenceStart,
+      policy: cancelPolicy({
+        id: "p2",
+        scopeLevel: "organization",
+        lateCancellationBehavior: "penalty",
+        chargePackageSessionOnLate: true,
+      }),
+      rescheduleHistory: [],
+      now,
+    });
+    expect(result.isFree).toBe(false);
+    expect(result.decisionType).toBe("package_charged");
+  });
+
   it("denies free cancel after reschedule when original was already inside late window", () => {
     const rescheduleAt = "2026-06-09T10:00:00.000Z";
     const now = new Date("2026-06-15T10:00:00.000Z");

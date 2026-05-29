@@ -23,8 +23,9 @@ export type CreatePaymentIntentInput = {
   organizationId: string;
   idempotencyKey: string;
   providerId: string;
-  appointmentId: string;
+  appointmentId?: string | null;
   platformUserId: string;
+  productRef?: string | null;
   amountMinor: number;
   currency: string;
   purpose?: string;

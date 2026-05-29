@@ -156,7 +156,7 @@
 
 #### Каноническая модель записи (OWN_BOOKING_ENGINE, этап 1)
 
-Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, `bookingScheduling.ts`, `bookingPolicies.ts`, `bookingPayments.ts`, `patientMergeCandidate.ts`; миграции `0086`–`0093` (`0089` — поля формы, рабочие часы, блокировки, exclusion, `canonical_appointment_id`; `0090` — `be_appointments.attribution_json`, `patient_merge_candidates`; `0091` — политики отмены/переноса; `0092`–`0093` — платёжный слой и предоплата, `patient_bookings.status` + `awaiting_payment`).
+Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, `bookingScheduling.ts`, `bookingPolicies.ts`, `bookingPayments.ts`, `bookingMemberships.ts`, `patientMergeCandidate.ts`; миграции `0086`–`0094` (`0089` — поля формы, рабочие часы, блокировки, exclusion, `canonical_appointment_id`; `0090` — `be_appointments.attribution_json`, `patient_merge_candidates`; `0091` — политики отмены/переноса; `0092`–`0093` — платёжный слой и предоплата, `patient_bookings.status` + `awaiting_payment`; `0094` — абонементы: `be_subscription_packages`, `be_patient_packages`, `be_package_usages`, `be_package_history_events`; остаток по позициям — производный от usages, отдельной таблицы баланса нет).
 
 Таблицы (префикс `be_*`, tenant `organization_id`):
 

@@ -14,6 +14,7 @@ import { BOOKING_WIZARD_TOTAL_STEPS } from "../constants";
 import { BookingPastHistorySection } from "./BookingPastHistorySection";
 import { BookingUpcomingSection } from "./BookingUpcomingSection";
 import { PatientBookingPaymentHistorySection } from "./PatientBookingPaymentHistorySection";
+import { PatientMembershipsSection } from "../PatientMembershipsSection";
 import { BookingWizardShell } from "./BookingWizardShell";
 import { FormatStepClient } from "./FormatStepClient";
 
@@ -76,6 +77,7 @@ export default async function BookingNewFormatPage() {
       <div className={patientInnerPageStackClass}>
         <BookingUpcomingSection bookings={records.upcoming} appDisplayTimeZone={appDisplayTimeZone} />
         <PatientBookingPaymentHistorySection />
+        <PatientMembershipsSection />
         <FormatStepClient cities={catalogCities} catalogError={catalogCitiesError} />
         <div className="mt-10 mb-10 flex justify-center">
           <Link

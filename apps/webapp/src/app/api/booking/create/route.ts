@@ -31,6 +31,7 @@ const inPersonBody = z.object({
   contactPhone: z.string().min(1),
   contactEmail: z.string().email().optional(),
   formAnswers: z.array(formAnswerSchema).optional(),
+  patientPackageId: z.string().uuid().optional(),
 });
 
 const bodySchema = z.discriminatedUnion("type", [onlineBody, inPersonBody]);
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
             contactPhone: body.contactPhone,
             contactEmail: body.contactEmail,
             formAnswers: body.formAnswers,
+            patientPackageId: body.patientPackageId,
           });
     return NextResponse.json({ ok: true, booking }, { status: 200 });
   } catch (error) {
@@ -97,6 +99,15 @@ export async function POST(request: Request) {
     }
     if (message === "city_mismatch") {
       return NextResponse.json({ ok: false, error: "city_mismatch" }, { status: 400 });
+    }
+    if (message === "package_not_found" || message === "package_expired" || message === "package_not_active") {
+      return NextResponse.json({ ok: false, error: message }, { status: 409 });
+    }
+    if (
+      message === "package_reserve_failed" ||
+      message === "package_no_balance"
+    ) {
+      return NextResponse.json({ ok: false, error: message }, { status: 409 });
     }
     if (message === "required_field_missing" || message === "invalid_email" || message === "invalid_phone") {
       return NextResponse.json({ ok: false, error: message }, { status: 400 });

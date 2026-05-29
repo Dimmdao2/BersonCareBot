@@ -110,6 +110,8 @@ export type CreatePatientBookingInput =
       contactPhone: string;
       contactEmail?: string;
       formAnswers?: BookingFormAnswerInput[];
+      /** Active patient package to reserve a visit against (in-person). */
+      patientPackageId?: string;
     });
 
 /** Public create (no session): phone identifies patient; userId resolved server-side. */

@@ -215,7 +215,7 @@ export function createBookingAppointmentLifecycleService(deps: {
         wasPenalized: !eligibility.isFree,
         decisionType: eligibility.decisionType,
         targetStatus,
-        packageSessionCharged: false,
+        packageSessionCharged: !eligibility.isFree && eligibility.decisionType === "package_charged",
         prepaymentRetained: !eligibility.isFree && cancelPolicy.lateCancellationBehavior === "retain_prepayment",
         prepaymentRefunded: !eligibility.isFree && cancelPolicy.lateCancellationBehavior === "refund_prepayment",
         notificationsSent: input.notificationsSent ?? {
