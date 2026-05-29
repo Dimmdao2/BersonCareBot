@@ -269,6 +269,11 @@ import { createPgPaymentsPort } from "@/infra/repos/pgPayments";
 import { createPaymentsService, createPaymentsConfigReader } from "@/modules/payments/service";
 import { createPgMembershipsPort } from "@/infra/repos/pgMemberships";
 import { createMembershipsService } from "@/modules/memberships/service";
+import { createPgProductsPort } from "@/infra/repos/pgProducts";
+import { createProductsService } from "@/modules/products/service";
+import type { ProductsService } from "@/modules/products/service";
+import { createPgEntitlementsPort } from "@/infra/repos/pgEntitlements";
+import { createEntitlementsService } from "@/modules/entitlements/service";
 import { wrapBookingEngineMembershipHooks } from "@/app-layer/booking/wrapBookingEngineMembershipHooks";
 import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
@@ -440,6 +445,10 @@ const doctorNotesService = createDoctorNotesService(doctorNotesPort);
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
 const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;
+const productsPort = !inMemoryRepos ? createPgProductsPort() : null;
+const entitlementsPort = !inMemoryRepos ? createPgEntitlementsPort() : null;
+const entitlementsService = entitlementsPort ? createEntitlementsService({ port: entitlementsPort }) : null;
+let productsServiceResolved: ProductsService | null = null;
 const resolveMembershipServiceTitle =
   bookingEngineService
     ? async (serviceId: string) => {
@@ -475,6 +484,15 @@ const paymentsService =
               );
             }
           : undefined,
+        onProductPaymentCaptured: async ({ productPurchaseId, paymentId, organizationId }) => {
+          if (productsServiceResolved) {
+            await productsServiceResolved.activatePurchase(
+              productPurchaseId,
+              organizationId,
+              paymentId,
+            );
+          }
+        },
         onAppointmentPaymentConfirmed: async ({ appointmentId, paymentId, platformUserId }) => {
           const row = await patientBookingsPort.markConfirmedByCanonicalAppointment(appointmentId, null);
           if (!row) return;
@@ -539,21 +557,7 @@ if (bookingEngineService && membershipsServiceResolved) {
   wrapBookingEngineMembershipHooks(bookingEngineService, membershipsServiceResolved);
 }
 
-const patientBookingService = createPatientBookingService({
-  bookingsPort: patientBookingsPort,
-  syncPort: createBookingSyncPort(),
-  bookingCatalog: bookingCatalogService,
-  bookingEngine: bookingEngineService,
-  bookingScheduling: bookingSchedulingService,
-  bookingForm: bookingFormService,
-  appointmentProjection: appointmentProjectionPort,
-  appointmentLifecycle: bookingAppointmentLifecycleService,
-  payments: paymentsService,
-  memberships: membershipsServiceResolved,
-  isRubitimeBridgeEnabled: bookingRubitimeBridgePort
-    ? () => bookingRubitimeBridgePort.isBridgeEnabled()
-    : undefined,
-});
+let patientBookingService: ReturnType<typeof createPatientBookingService>;
 
 const lfkExercisesPort = !inMemoryRepos ? pgLfkExercisesPort : inMemoryLfkExercisesPort;
 const lfkExercisesService = createLfkExercisesService(lfkExercisesPort);
@@ -699,6 +703,39 @@ const coursesService = createCoursesService({
   introPages: contentPagesPort,
   assignTemplateToPatient: (input) => treatmentProgramInstanceService.assignTemplateToPatient(input),
 });
+
+productsServiceResolved =
+  productsPort && paymentsService
+    ? createProductsService({
+        port: productsPort,
+        payments: paymentsService,
+        entitlements: entitlementsService,
+        memberships: membershipsServiceResolved,
+        courses: coursesService,
+        resolvePlatformUserByPhone: (phone, name) =>
+          import("@/app-layer/platform-user/resolveOrCreateUserByPhone").then((m) =>
+            m.resolveOrCreateUserByPhone(phone, name),
+          ),
+      })
+    : null;
+
+patientBookingService = createPatientBookingService({
+  bookingsPort: patientBookingsPort,
+  syncPort: createBookingSyncPort(),
+  bookingCatalog: bookingCatalogService,
+  bookingEngine: bookingEngineService,
+  bookingScheduling: bookingSchedulingService,
+  bookingForm: bookingFormService,
+  appointmentProjection: appointmentProjectionPort,
+  appointmentLifecycle: bookingAppointmentLifecycleService,
+  payments: paymentsService,
+  memberships: membershipsServiceResolved,
+  products: productsServiceResolved,
+  isRubitimeBridgeEnabled: bookingRubitimeBridgePort
+    ? () => bookingRubitimeBridgePort.isBridgeEnabled()
+    : undefined,
+});
+
 const patientHomeBlocksService = createPatientHomeBlocksService({
   port: patientHomeBlocksPort,
   contentPages: contentPagesPort,
@@ -1247,6 +1284,8 @@ function _buildAppDeps() {
     bookingAppointmentLifecycle: bookingAppointmentLifecycleService,
     payments: paymentsService,
     memberships: membershipsServiceResolved,
+    products: productsServiceResolved,
+    entitlements: entitlementsService,
     patientMergeCandidate: patientMergeCandidateService,
   };
 }

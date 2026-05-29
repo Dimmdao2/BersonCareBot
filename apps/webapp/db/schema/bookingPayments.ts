@@ -35,6 +35,7 @@ export const PAYMENT_PURPOSES = [
   "appointment_full",
   "appointment_refund",
   "package_purchase",
+  "product_purchase",
   "manual",
 ] as const;
 

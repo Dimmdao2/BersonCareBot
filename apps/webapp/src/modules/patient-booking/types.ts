@@ -112,6 +112,8 @@ export type CreatePatientBookingInput =
       formAnswers?: BookingFormAnswerInput[];
       /** Active patient package to reserve a visit against (in-person). */
       patientPackageId?: string;
+      /** Active product purchase (promo / gift / single visit) to apply at booking (in-person). */
+      productPurchaseId?: string;
     });
 
 /** Public create (no session): phone identifies patient; userId resolved server-side. */

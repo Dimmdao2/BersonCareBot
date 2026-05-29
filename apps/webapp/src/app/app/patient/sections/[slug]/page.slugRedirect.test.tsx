@@ -26,6 +26,8 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/modules/platform-access", () => ({
   resolvePatientCanViewAuthOnlyContent: vi.fn(async () => false),
+  canViewPatientAuthOnlySection: vi.fn(async () => true),
+  filterPatientSectionPages: vi.fn(async (_session: unknown, pages: unknown[]) => pages),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -40,6 +42,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     patientHomeBlocks: {
       listBlocksWithItems: listBlocksWithItemsMock,
     },
+    entitlements: null,
+    courses: { getCourseForDoctor: vi.fn() },
     reminders: {
       listRulesByUser: vi.fn(async () => []),
     },
@@ -91,7 +95,7 @@ describe("PatientSectionPage slug redirect", () => {
     await PatientSectionPage({ params: Promise.resolve({ slug: "canonical" }) });
 
     expect(permanentRedirectMock).not.toHaveBeenCalled();
-    expect(listBySectionMock).toHaveBeenCalledWith("canonical", { viewAuthOnlyPages: false });
+    expect(listBySectionMock).toHaveBeenCalledWith("canonical", { viewAuthOnlyPages: true });
     expect(listBlocksWithItemsMock).toHaveBeenCalled();
   });
 });

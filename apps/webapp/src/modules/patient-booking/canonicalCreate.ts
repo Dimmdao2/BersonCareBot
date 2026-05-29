@@ -10,6 +10,7 @@ type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService
 import type { AppointmentProjectionPort } from "./ports";
 import type { PaymentsService } from "@/modules/payments/service";
 import type { MembershipsService } from "@/modules/memberships/service";
+import type { ProductsService } from "@/modules/products/service";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type {
   BookingSyncPort,
@@ -34,6 +35,7 @@ export type CanonicalBookingDeps = {
   appointmentProjection: AppointmentProjectionPort | null;
   payments: PaymentsService | null;
   memberships: MembershipsService | null;
+  products: ProductsService | null;
   isRubitimeBridgeEnabled: () => Promise<boolean>;
 };
 
@@ -167,8 +169,14 @@ export async function createBookingOnCanonicalEngine(
   const pending = await deps.bookingsPort.createPending(pendingRow);
 
   let packageCoversVisit = false;
+  let productCoversVisit = false;
   const patientPackageId =
     createInput.type === "in_person" ? createInput.patientPackageId?.trim() : undefined;
+  const productPurchaseId =
+    createInput.type === "in_person" ? createInput.productPurchaseId?.trim() : undefined;
+  if (patientPackageId && productPurchaseId) {
+    throw new Error("payment_option_conflict");
+  }
   if (patientPackageId) {
     if (!canonicalServiceId || !deps.memberships) {
       throw new Error("package_not_found");
@@ -183,6 +191,20 @@ export async function createBookingOnCanonicalEngine(
     }
     packageCoversVisit = true;
   }
+  if (productPurchaseId) {
+    if (!canonicalServiceId || !deps.products) {
+      throw new Error("product_purchase_not_found");
+    }
+    const eligible = await deps.products.listActivePurchasesForBooking(
+      createInput.userId,
+      orgId,
+      canonicalServiceId,
+    );
+    if (!eligible.some((p) => p.id === productPurchaseId)) {
+      throw new Error("product_purchase_not_found");
+    }
+    productCoversVisit = true;
+  }
 
   const prepayQuote = deps.payments
     ? await deps.payments.resolvePrepayment({
@@ -194,7 +216,10 @@ export async function createBookingOnCanonicalEngine(
       })
     : null;
   const needsPrepayment =
-    !packageCoversVisit && prepayQuote?.required === true && (prepayQuote.amountMinor ?? 0) > 0;
+    !packageCoversVisit &&
+    !productCoversVisit &&
+    prepayQuote?.required === true &&
+    (prepayQuote.amountMinor ?? 0) > 0;
   const initialAppointmentStatus = needsPrepayment ? "awaiting_payment" : "confirmed";
 
   const phoneNormalized = normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();
@@ -214,7 +239,10 @@ export async function createBookingOnCanonicalEngine(
       status: initialAppointmentStatus,
       phoneNormalized,
       actorId: createInput.userId,
-      attributionJson: createInput.attribution ?? {},
+      attributionJson: {
+        ...(createInput.attribution ?? {}),
+        ...(productPurchaseId ? { productPurchaseId } : {}),
+      },
     });
   } catch (err) {
     await deps.bookingsPort.markFailedSync(pending.id);
@@ -313,6 +341,39 @@ export async function createBookingOnCanonicalEngine(
           reserveErr.message === "package_not_active")
           ? reserveErr.message
           : "package_reserve_failed";
+      throw new Error(code);
+    }
+  }
+
+  if (productCoversVisit && productPurchaseId && canonicalServiceId && deps.products) {
+    try {
+      await deps.products.consumeVisitForAppointment({
+        organizationId: orgId,
+        productPurchaseId,
+        platformUserId: createInput.userId,
+        appointmentId: appointment.id,
+        serviceId: canonicalServiceId,
+      });
+    } catch (consumeErr) {
+      await deps.bookingsPort.markFailedSync(pending.id);
+      try {
+        await deps.bookingEngine.transitionAppointmentStatus({
+          appointmentId: appointment.id,
+          toStatus: "cancelled_by_specialist",
+          payload: { source: "product_consume_failed" },
+        });
+      } catch {
+        // Best-effort rollback of orphan appointment.
+      }
+      const code =
+        consumeErr instanceof Error &&
+        (consumeErr.message === "product_purchase_not_found" ||
+          consumeErr.message === "product_no_visits" ||
+          consumeErr.message === "product_expired" ||
+          consumeErr.message === "product_not_active" ||
+          consumeErr.message === "product_service_mismatch")
+          ? consumeErr.message
+          : "product_consume_failed";
       throw new Error(code);
     }
   }

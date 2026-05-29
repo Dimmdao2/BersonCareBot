@@ -10,7 +10,10 @@ import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
-import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import {
+  canViewPatientAuthOnlySection,
+  filterPatientSectionPages,
+} from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { PatientSectionPageBody } from "./PatientSectionPageBody";
 
@@ -49,13 +52,19 @@ export default async function PatientSectionPage({ params }: Props) {
     redirect(routePaths.patientGoDailyWarmup);
   }
 
-  const canViewAuth = await resolvePatientCanViewAuthOnlyContent(session);
-  if (section.requiresAuth && !canViewAuth) notFound();
+  const allSectionPages = await deps.contentPages.listBySection(canonicalSlug, { viewAuthOnlyPages: true });
+  const canViewSection = await canViewPatientAuthOnlySection(
+    session,
+    section.requiresAuth,
+    allSectionPages.map((p) => ({ slug: p.slug, requiresAuth: p.requiresAuth })),
+    deps.entitlements,
+  );
+  if (!canViewSection) notFound();
 
   const homeBlocks = await deps.patientHomeBlocks.listBlocksWithItems();
   const subscriptionSectionPresentation = getSubscriptionCarouselSectionPresentation(homeBlocks, canonicalSlug);
 
-  const pages = await deps.contentPages.listBySection(canonicalSlug, { viewAuthOnlyPages: canViewAuth });
+  const pages = await filterPatientSectionPages(session, allSectionPages, deps.entitlements);
 
   const linkedCourseIds = [
     ...new Set(

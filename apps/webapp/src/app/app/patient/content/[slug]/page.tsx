@@ -9,7 +9,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { listDailyWarmupPagesForHome, type DailyWarmupListEntry } from "@/modules/patient-home/todayConfig";
 import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { resolvePatientCanViewContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { PatientBackToSectionShellRow } from "@/shared/ui/patient/PatientBackToSectionShellRow";
 import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
@@ -31,7 +31,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
   const deps = buildAppDeps();
   const dbRow = await deps.contentPages.getBySlug(slug);
   if (dbRow?.requiresAuth) {
-    const canView = await resolvePatientCanViewAuthOnlyContent(session);
+    const canView = await resolvePatientCanViewContent(session, slug, deps.entitlements);
     if (!canView) notFound();
   }
   const item = await deps.contentCatalog.getBySlug(slug);

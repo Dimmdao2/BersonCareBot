@@ -22,6 +22,19 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
   if (code === "package_not_found" || code === "package_not_active") {
     return "Выбранный абонемент недоступен.";
   }
+  if (code === "payment_option_conflict") {
+    return "Нельзя одновременно выбрать абонемент и покупку.";
+  }
+  if (
+    code === "product_purchase_not_found" ||
+    code === "product_not_active" ||
+    code === "product_expired"
+  ) {
+    return "Выбранная покупка недоступна.";
+  }
+  if (code === "product_no_visits" || code === "product_consume_failed") {
+    return "Не удалось применить покупку к записи.";
+  }
   if (code === "patient_activation_required") {
     return "Нужен подтверждённый номер телефона. Сейчас откроется экран привязки.";
   }

@@ -13,6 +13,7 @@ import type { createBookingFormService } from "@/modules/booking-form/service";
 import type { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
 import type { PaymentsService } from "@/modules/payments/service";
 import type { MembershipsService } from "@/modules/memberships/service";
+import type { ProductsService } from "@/modules/products/service";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
@@ -151,6 +152,7 @@ export function createPatientBookingService(input: {
   appointmentLifecycle?: BookingAppointmentLifecycleService | null;
   payments?: PaymentsService | null;
   memberships?: MembershipsService | null;
+  products?: ProductsService | null;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   slotsTtlMs?: number;
 }): PatientBookingService {
@@ -179,6 +181,7 @@ export function createPatientBookingService(input: {
           appointmentProjection: input.appointmentProjection ?? null,
           payments: input.payments ?? null,
           memberships: input.memberships ?? null,
+          products: input.products ?? null,
           isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
         }
       : null;
@@ -668,6 +671,24 @@ export function createPatientBookingService(input: {
             appointmentId: row.canonicalAppointmentId,
             packageLessonDeducted,
           });
+        }
+
+        if (input.products && input.bookingEngine) {
+          const appt = await input.bookingEngine.getAppointment(row.canonicalAppointmentId);
+          const rawProductId = appt?.attributionJson?.productPurchaseId;
+          const productPurchaseId =
+            typeof rawProductId === "string" && rawProductId.trim() ? rawProductId.trim() : null;
+          if (productPurchaseId && lifecycleResult.eligibility) {
+            const visitDeducted =
+              !lifecycleResult.eligibility.isFree &&
+              lifecycleResult.eligibility.decisionType === "package_charged";
+            await input.products.applyCancelVisitOutcome({
+              organizationId: orgId,
+              productPurchaseId,
+              appointmentId: row.canonicalAppointmentId,
+              visitDeducted,
+            });
+          }
         }
 
         await input.bookingsPort.markCancelled({

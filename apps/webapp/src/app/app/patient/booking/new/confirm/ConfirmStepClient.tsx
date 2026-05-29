@@ -102,8 +102,13 @@ export function ConfirmStepClient({
     Array<{ id: string; title: string; balance: { items: Array<{ remaining: number; quantityInitial: number }> } }>
   >([]);
   const [patientPackageId, setPatientPackageId] = useState("");
+  const [productOptions, setProductOptions] = useState<
+    Array<{ id: string; title: string; visitsRemaining: number }>
+  >([]);
+  const [productPurchaseId, setProductPurchaseId] = useState("");
   const [, startFieldsLoad] = useTransition();
   const [, startPackagesLoad] = useTransition();
+  const [, startProductsLoad] = useTransition();
   const createState = useCreateBookingHook();
   const rescheduleState = useRescheduleBookingHook();
   const isReschedule = Boolean(rescheduleBookingId);
@@ -155,6 +160,28 @@ export function ConfirmStepClient({
       cancelled = true;
     };
   }, [type, branchServiceId, isReschedule, startPackagesLoad]);
+
+  useEffect(() => {
+    if (type !== "in_person" || !branchServiceId || isReschedule) return;
+    let cancelled = false;
+    startProductsLoad(() => {
+      void (async () => {
+        const q = new URLSearchParams({ branchServiceId });
+        const res = await fetch(`/api/booking/products/available?${q.toString()}`);
+        const json = (await res.json()) as {
+          ok?: boolean;
+          purchases?: Array<{ id: string; title: string; visitsRemaining: number }>;
+        };
+        if (!cancelled && json.ok && json.purchases) {
+          setProductOptions(json.purchases);
+          if (json.purchases.length === 1) setProductPurchaseId(json.purchases[0]!.id);
+        }
+      })();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [type, branchServiceId, isReschedule, startProductsLoad]);
 
   const selection: BookingSelection | null = useMemo(() => {
     if (type === "in_person" && cityCode && cityTitle && branchServiceId && serviceTitle) {
@@ -239,6 +266,7 @@ export function ConfirmStepClient({
               contactEmail: email.trim() || undefined,
               formAnswers: formAnswers.length > 0 ? formAnswers : undefined,
               patientPackageId: patientPackageId.trim() || undefined,
+              productPurchaseId: productPurchaseId.trim() || undefined,
             })
             .then((booking) => {
               if (!booking) return;
@@ -276,13 +304,37 @@ export function ConfirmStepClient({
             <select
               className="rounded-md border bg-background px-2 py-2 text-sm"
               value={patientPackageId}
-              onChange={(e) => setPatientPackageId(e.target.value)}
+              onChange={(e) => {
+                setPatientPackageId(e.target.value);
+                if (e.target.value) setProductPurchaseId("");
+              }}
             >
               <option value="">Без абонемента</option>
               {packageOptions.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title} (
                   {p.balance.items.map((it) => `${it.remaining}/${it.quantityInitial}`).join(", ")})
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {type === "in_person" && !isReschedule && productOptions.length > 0 ? (
+          <label className="flex flex-col gap-1">
+            <span className={cn(patientMutedTextClass, "text-xs")}>Покупка</span>
+            <select
+              className="rounded-md border bg-background px-2 py-2 text-sm"
+              value={productPurchaseId}
+              onChange={(e) => {
+                setProductPurchaseId(e.target.value);
+                if (e.target.value) setPatientPackageId("");
+              }}
+            >
+              <option value="">Без покупки</option>
+              {productOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title} ({p.visitsRemaining})
                 </option>
               ))}
             </select>

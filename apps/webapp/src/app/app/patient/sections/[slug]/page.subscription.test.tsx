@@ -35,6 +35,8 @@ vi.mock("@/shared/ui/AppShell", () => ({
 
 vi.mock("@/modules/platform-access", () => ({
   resolvePatientCanViewAuthOnlyContent: vi.fn(async () => true),
+  canViewPatientAuthOnlySection: vi.fn(async () => true),
+  filterPatientSectionPages: vi.fn(async (_session: unknown, pages: unknown[]) => pages),
 }));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
@@ -104,6 +106,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     courses: {
       getCourseForDoctor: getCourseForDoctorMock,
     },
+    entitlements: null,
   }),
 }));
 

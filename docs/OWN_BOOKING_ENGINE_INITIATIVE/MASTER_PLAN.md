@@ -25,7 +25,7 @@
 - **SaaS-готовность:** все доменные сущности несут `organization_id` (tenant) с первого этапа, даже если сейчас один арендатор.
 - **Полная событийность (история):** ни одно состояние не хранится «только как текущее» — каждое значимое действие порождает событие в таймлайне (append-only), пригодное для карточки клиента.
 
-## 2. Текущее состояние (после этапов 1–6)
+## 2. Текущее состояние (после этапов 1–7)
 
 - **Write (этап 2–3, done):** при подключённых `bookingEngine` + `bookingScheduling` в `buildAppDeps` пациентский и публичный `createBooking` создают `be_appointments` и `patient_bookings` с `canonical_appointment_id`; Rubitime — best-effort при `booking_rubitime_bridge_enabled`. Legacy-путь через integrator остаётся только без канонического DI (in-memory/тесты).
 - **Слоты (этап 2):** собственный движок `booking-scheduling` (`0089`: working_hours, schedule_blocks, exclusion на пересечения); `slotCount` для цепочек слотов.
@@ -35,9 +35,10 @@
 - **Read:** кабинет врача — `appointment_records` (create/перенос/отмена канона обновляют `be:{appointmentId}`); полный read на канон — этап 8.
 - Идентичность: live-события Rubitime + публичная запись по телефону; кандидаты мерджа при коллизии имён; историч. backfill (PHASE_07) — deferred.
 - **Оплаты (этап 5, done):** `0092`–`0093`; `modules/payments`, mock-провайдер; предоплата по услуге и онлайн-категории; `awaiting_payment` → capture → `confirmed`; refund/retain; перенос → history; `booking.payment_captured` в integrator. UI: admin/doctor провайдеры и политики, B-pay; пациент `/app/patient/booking/pay` + история; публичный `/book/pay`. Реальный эквайринг (YooKassa) — отдельный адаптер при продуктовом решении (Q1).
-- **Абонементы (этап 6, done):** миграция `0094`, `modules/memberships` + `pgMemberships`; баланс из append-only `be_package_usages`; оплата `package_purchase` / `productRef=patient_package:{id}`; reserve до confirm при `POST /api/booking/create` + `patientPackageId`; auto-consume через `wrapBookingEngineMembershipHooks` (`visit_confirmed` / `completed`); отмена — `release` / `penalty` (C6, `chargePackageSessionOnLate` в `policyResolver`); patient API (`memberships`, `available`, `catalog`, `purchase`, `[id]`); staff `packages` / `patient-packages` / `consume`; UI §A11/§B-package/§C-package + wizard `ConfirmStepClient` + `/app/patient/memberships/[id]`. План: [`.cursor/plans/archive/own_booking_stage6_memberships.plan.md`](../../.cursor/plans/archive/own_booking_stage6_memberships.plan.md). Gate этапа 7 — универсальная модель продукта.
+- **Абонементы (этап 6, done):** миграция `0094`, `modules/memberships` + `pgMemberships`; баланс из append-only `be_package_usages`; оплата `package_purchase` / `productRef=patient_package:{id}`; reserve до confirm при `POST /api/booking/create` + `patientPackageId`; auto-consume через `wrapBookingEngineMembershipHooks` (`visit_confirmed` / `completed`); отмена — `release` / `penalty` (C6, `chargePackageSessionOnLate` в `policyResolver`); patient API (`memberships`, `available`, `catalog`, `purchase`, `[id]`); staff `packages` / `patient-packages` / `consume`; UI §A11/§B-package/§C-package + wizard `ConfirmStepClient` + `/app/patient/memberships/[id]`. План: [`.cursor/plans/archive/own_booking_stage6_memberships.plan.md`](../../.cursor/plans/archive/own_booking_stage6_memberships.plan.md).
+- **Продукты (этап 7, done):** миграция `0095` + journal; `modules/products` + `modules/entitlements`; `be_products` / `be_product_purchases` / `be_product_pay_links` (`product_type`: promo, gift, course, subscription, …); оплата `product_purchase`; fulfillment после capture; связь по телефону; запись с **`productPurchaseId`**; grants на `content/[slug]` и разделы; публично `/book/product/{token}`; staff `BookingPatientProductsSection` + consume API; UI каталог/покупки/confirm wizard. План: [`.cursor/plans/archive/own_booking_stage7_products_courses.plan.md`](../../.cursor/plans/archive/own_booking_stage7_products_courses.plan.md).
 
-**Следующий gate:** этап 7 (продукты, акции, подписки, курсы) — см. [`ROADMAP.md`](ROADMAP.md).
+**Следующий gate:** этап 8 (календарь) — см. [`ROADMAP.md`](ROADMAP.md).
 
 ## 3. Архитектурные принципы (обязательны на всех этапах)
 

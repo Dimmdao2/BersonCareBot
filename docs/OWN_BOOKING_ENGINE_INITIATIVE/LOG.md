@@ -269,3 +269,41 @@
 ## 2026-05-29 — Документация этапа 6 (синхронизация)
 
 **Сделано:** `MASTER_PLAN` §2, `STAGE_CHECKLISTS` §6, `UI_SURFACES_CHECKLIST`, `ROADMAP` (ссылка на plan в `archive/`), `README` инициативы и `docs/README.md`, `SCOPE_DECISIONS`, `memberships.md`, frontmatter и тело [`.cursor/plans/archive/own_booking_stage6_memberships.plan.md`](../../.cursor/plans/archive/own_booking_stage6_memberships.plan.md) (`todos` + DoD + API/проверки/вне scope).
+
+## 2026-05-30 — Этап 7: продукты, акции, подписки, курсы
+
+**Сделано:**
+- Миграция `0095_booking_stage7_products.sql`: `be_products`, `be_product_purchases`, `be_product_pay_links`, `be_product_history_events`.
+- Модули `modules/products`, `modules/entitlements`; `pgProducts`, `pgEntitlements` (grants в `content_access_grants_webapp`).
+- Платежи: `product_purchase`, `productRef=product_purchase:{id}`, `createProductPaymentIntent`, `onProductPaymentCaptured` → `activatePurchase`.
+- Fulfillment: курс — `courses.enrollPatient`; абонемент — `memberships.grantPrepaidCatalogPackage`; контент/подписка — grants.
+- Связь по телефону: `buyer_phone_normalized`, `linkPurchasesByPhone` при API пациента.
+- API: admin/doctor `products`, `patient-products`, pay-link; patient `booking/products/*`; public `booking/public/products/*`.
+- UI: `BookingCatalogProductsSection`, `/app/patient/purchases` + pay, doctor booking admin.
+
+**Проверки:** `pnpm --filter webapp typecheck`; vitest `modules/products/service.test.ts`.
+
+**Намеренно не делали:** отдельная страница `/book/product/[token]` (резолв через public API); полное списание визитов promo при записи (остаток в `fulfillment_json` + API врача).
+
+## 2026-05-30 — Этап 7: закрытие хвостов по аудиту
+
+**Сделано:**
+- `_journal.json`: запись `0095_booking_stage7_products`.
+- Запись с продуктом: `productPurchaseId` в create, `GET /api/booking/products/available`, списание/возврат визита (`consumeVisitForAppointment`, `applyCancelVisitOutcome`), UI подтверждения записи.
+- Доступ к материалам: `resolvePatientCanViewContent` + grants на `content/[slug]`.
+- Публичная покупка: `/book/product/{token}` (+ pay), гость через `resolveOrCreateUserByPhone`, public payment-status/mock-complete.
+- Staff: `BookingPatientProductsSection`, consume API; каталог продуктов — редактирование, срок, slug услуг/материалов.
+- Исправлен grant `validUntil` при активации; fulfillment `single_visit` / `individual_offer`.
+
+**Проверки:** `pnpm --filter webapp typecheck`, `lint`, vitest products/platform-access/products-available/canonicalCreate.
+
+## 2026-05-30 — Этап 7: ревизия правок по аудиту
+
+**Исправлено после проверки:**
+- Бесплатная покупка по ссылке/телефону: `ensurePurchasePlatformUser` перед `activatePurchase` (fulfillment без сессии).
+- `GET /api/booking/public/products/payment-status` — без побочного создания пользователя; только сверка телефона.
+- `BookingPatientProductsSection` — корректное обновление списка после списания визита.
+- Разделы контента: доступ и список страниц с учётом product-grants (`canViewPatientAuthOnlySection`, `filterPatientSectionPages`).
+- Редактирование продукта в каталоге — подгрузка validity, serviceIds, contentIds при «Изменить».
+
+**Проверки:** vitest (products, platform-access, sections slug, canonicalCreate); `typecheck`.

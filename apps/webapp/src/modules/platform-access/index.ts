@@ -22,3 +22,8 @@ export {
 } from "./patientRouteApiPolicy";
 export { patientOnboardingServerActionSurfaceOk } from "./onboardingServerActionSurface";
 export { resolvePatientCanViewAuthOnlyContent } from "./resolvePatientCanViewAuthOnlyContent";
+export { resolvePatientCanViewContent } from "./resolvePatientCanViewContent";
+export {
+  canViewPatientAuthOnlySection,
+  filterPatientSectionPages,
+} from "./resolvePatientSectionContentAccess";

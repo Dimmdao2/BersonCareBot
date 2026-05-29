@@ -223,6 +223,26 @@ export function createMembershipsService(deps: {
       });
     },
 
+    /** Catalog package already paid via product layer — activate without second payment intent. */
+    async grantPrepaidCatalogPackage(input: {
+      organizationId: string;
+      platformUserId: string;
+      subscriptionPackageId: string;
+      paymentRef?: string;
+    }) {
+      const pkg = await deps.port.offerCatalogPackageToPatient({
+        organizationId: input.organizationId,
+        platformUserId: input.platformUserId,
+        subscriptionPackageId: input.subscriptionPackageId,
+      });
+      const activated = await this.activatePatientPackage(
+        pkg.id,
+        input.organizationId,
+        input.paymentRef,
+      );
+      return activated ?? (await withBalance(pkg));
+    },
+
     async reserveForAppointment(input: {
       organizationId: string;
       patientPackageId: string;

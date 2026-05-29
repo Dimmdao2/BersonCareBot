@@ -5,6 +5,8 @@ export const publicBookPaths = {
   newSlot: "/book/new/slot",
   newConfirm: "/book/new/confirm",
   pay: "/book/pay",
+  product: (token: string) => `/book/product/${encodeURIComponent(token)}`,
+  productPay: (token: string) => `/book/product/${encodeURIComponent(token)}/pay`,
   done: "/book/done",
   embedScript: "/book/embed.js",
 } as const;
