@@ -49,7 +49,13 @@ function isExtraFormField(field: FormField): boolean {
   return true;
 }
 
-type Props = {
+type ConfirmStepOptions = {
+  formFieldsApiPath?: string;
+  successRedirectPath?: string;
+  useCreateBookingHook?: typeof useCreateBooking;
+};
+
+type Props = ConfirmStepOptions & {
   type: "in_person" | "online";
   cityCode?: string;
   cityTitle?: string;
@@ -75,6 +81,9 @@ export function ConfirmStepClient({
   defaultName,
   defaultPhone,
   appDisplayTimeZone,
+  formFieldsApiPath = "/api/booking/form-fields",
+  successRedirectPath = routePaths.bookingNew,
+  useCreateBookingHook = useCreateBooking,
 }: Props) {
   const router = useRouter();
   const [name, setName] = useState(defaultName);
@@ -84,14 +93,14 @@ export function ConfirmStepClient({
   const [extraValues, setExtraValues] = useState<Record<string, string>>({});
   const [fieldsLoading, setFieldsLoading] = useState(true);
   const [, startFieldsLoad] = useTransition();
-  const { submitting, error, createBooking } = useCreateBooking();
+  const { submitting, error, createBooking } = useCreateBookingHook();
 
   useEffect(() => {
     let cancelled = false;
     startFieldsLoad(() => {
       void (async () => {
         try {
-          const res = await fetch("/api/booking/form-fields");
+          const res = await fetch(formFieldsApiPath);
           const json = (await res.json()) as { ok?: boolean; fields?: FormField[] };
           if (!cancelled && json.ok && json.fields) {
             setExtraFields(json.fields.filter(isExtraFormField));
@@ -104,7 +113,7 @@ export function ConfirmStepClient({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [formFieldsApiPath]);
 
   const selection: BookingSelection | null = useMemo(() => {
     if (type === "in_person" && cityCode && cityTitle && branchServiceId && serviceTitle) {
@@ -175,7 +184,7 @@ export function ConfirmStepClient({
           }).then((ok) => {
             if (ok) {
               toast.success("Запись подтверждена");
-              router.push(routePaths.bookingNew);
+              router.push(successRedirectPath);
             }
           });
         }}

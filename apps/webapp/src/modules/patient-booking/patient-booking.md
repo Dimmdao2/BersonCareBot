@@ -25,7 +25,7 @@
 
 ## Публичный вход
 
-`POST /api/booking/public/create` — без сессии; пользователь через `app-layer/platform-user/resolveOrCreateUserByPhone.ts` (`TrustedPatientPhoneSource.PublicBookingByPhone`).
+**Публичный канал (этап 3):** UI `/book/new` (очный + онлайн), embed `/book/embed.js`; read-API `GET /api/booking/public/catalog/*`, `slots`, `form-fields`; `POST /api/booking/public/create` — без сессии, rate-limit (`booking.public_create`), UTM → `be_appointments.attribution_json`, `bookingChannel: public_widget`; пользователь через `resolveOrCreateUserByPhone` (`TrustedPatientPhoneSource.PublicBookingByPhone`); кандидаты мерджа — `patient_merge_candidates` + admin `/api/admin/booking-engine/merge-candidates`, UI `/app/doctor/admin/booking`, `/app/doctor/booking-merge`.
 
 ## Admin
 

@@ -22,6 +22,7 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
     paymentRef: null,
     packageUsageRef: null,
     phoneNormalized: null,
+    attributionJson: {},
   };
   return {
     getDefaultOrganizationId: vi.fn().mockResolvedValue("a0000000-0000-4000-8000-000000000001"),

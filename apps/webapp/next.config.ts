@@ -23,6 +23,24 @@ const nextConfig: NextConfig = {
   allowedDevOrigins,
   output: "standalone",
   outputFileTracingRoot,
+  async headers() {
+    const frameAncestors = [
+      "'self'",
+      "https://dmitryberson.ru",
+      "https://www.dmitryberson.ru",
+      "https://*.tilda.ws",
+      "https://tilda.ws",
+      "https://*.tilda.cc",
+      "https://tilda.cc",
+      "https://*.tildacdn.com",
+    ].join(" ");
+    return [
+      {
+        source: "/book/:path*",
+        headers: [{ key: "Content-Security-Policy", value: `frame-ancestors ${frameAncestors}` }],
+      },
+    ];
+  },
   async redirects() {
     const diarySymptomsDest = "/app/patient/diary?tab=symptoms";
     const diaryLfkDest = "/app/patient/diary?tab=lfk";

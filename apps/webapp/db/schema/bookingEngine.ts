@@ -342,6 +342,7 @@ export const beAppointments = pgTable(
     paymentRef: text("payment_ref"),
     packageUsageRef: text("package_usage_ref"),
     phoneNormalized: text("phone_normalized"),
+    attributionJson: jsonb("attribution_json").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },

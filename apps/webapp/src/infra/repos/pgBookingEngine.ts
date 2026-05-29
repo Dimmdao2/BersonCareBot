@@ -112,6 +112,7 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     paymentRef: row.paymentRef ?? null,
     packageUsageRef: row.packageUsageRef ?? null,
     phoneNormalized: row.phoneNormalized ?? null,
+    attributionJson: (row.attributionJson ?? {}) as Record<string, unknown>,
   };
 }
 
@@ -587,6 +588,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             originalStartAt: input.startAt,
             rescheduleCount: 0,
             phoneNormalized: input.phoneNormalized ?? null,
+            attributionJson: input.attributionJson ?? {},
             createdAt: now,
             updatedAt: now,
           })

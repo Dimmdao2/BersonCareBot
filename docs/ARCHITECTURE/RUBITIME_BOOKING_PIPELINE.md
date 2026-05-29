@@ -29,7 +29,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
 При создании записи из webapp (не через Rubitime iframe/сайт) данные проходят два параллельных пути:
 
 **Patient path (webapp):**
-1. `POST /api/booking/create` → `patient_bookings` (confirmed) → `emitBookingEvent('booking.created')` → TG/MAX уведомления + напоминания.
+1. `POST /api/booking/create` (сессия) или `POST /api/booking/public/create` (гость, этап 3) → канон `be_appointments` при включённом booking-engine DI → `patient_bookings` (confirmed) → `emitBookingEvent('booking.created')` → TG/MAX уведомления + напоминания.
 2. Integrator → M2M **`POST /api/integrator/patient-notifications/web-push`** (`intentType: appointment_lifecycle`) → текст в **PWA-чат** (`/app/patient/messages`) + Web Push с тем же `openUrl`. См. [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md). Slot-напоминания (`appointment_reminder`) в чат **не** пишутся.
 
 **Doctor projection + GCal path (integrator):**

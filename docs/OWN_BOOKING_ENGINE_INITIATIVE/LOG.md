@@ -96,6 +96,50 @@
 
 ---
 
+## 2026-05-29 — Этап 3: публичный виджет / страница записи
+
+**Сделано:**
+- Миграция `0090_booking_stage3_public_widget.sql`: `be_appointments.attribution_json`, `patient_merge_candidates`.
+- Публичная воронка `/book/new` (без сессии), скрипт `/book/embed.js` (iframe/popup/ссылка), CSP `frame-ancestors` для Tilda и `dmitryberson.ru`.
+- API без auth: `GET /api/booking/public/catalog/*`, `slots`, `form-fields`; `POST /api/booking/public/create` (rate-limit, UTM/атрибуция, `bookingChannel: public_widget`).
+- Кандидаты мерджа при коллизии «телефон + аккаунт без телефона с тем же именем»; admin: `BookingMergeCandidatesSection`, код вставки `BookingPublicWidgetSection`.
+- Исправлен `source` канонической записи: `public_widget` по `bookingChannel`, не по наличию `userId`.
+
+**Проверки:** `pnpm --filter webapp typecheck`; vitest `parseBookingAttribution`, `booking/public/create/route`.
+
+**Намеренно не делали:** публичная оплата (этап 5).
+
+---
+
+## 2026-05-29 — Этап 3: закрытие хвостов после аудита
+
+**Сделано:**
+- `0090` в `drizzle-migrations/meta/_journal.json`; ESLint: admin merge API через `buildAppDeps().patientMergeCandidate`, rate-limit в allowlist.
+- Онлайн-ветка в `/book/new` (rehab_lfk, nutrition); deep-link `branchServiceId`, preset city/online `type`+`category`.
+- Admin: `BookingPublicAttributionSection`, конструктор UTM/ссылок в `BookingPublicWidgetSection`; `GET .../public-appointments`.
+- Мердж: `patient-merge-candidate` service, `markResolvedForUserPair` после `POST /api/doctor/clients/merge`; `/app/doctor/booking-merge` + пункт меню; `AdminMergeAccountsPanel` в списке кандидатов.
+- Тесты: `recordPublicBookingMergeCandidates.test.ts`; smoke `/book` в `smoke-app-router-rsc-pages-inprocess.test.ts`.
+- Документы: `STAGE_CHECKLISTS.md` §3, `UI_SURFACES_CHECKLIST.md` (A7, B-merge, P-page, P-widget).
+
+**Проверки:** `pnpm --filter webapp lint`, `typecheck`, `bash scripts/check-drizzle-journal-sync.sh`; vitest merge + public create + smoke.
+
+---
+
+## 2026-05-29 — Этап 3: ревью качества (после аудита)
+
+**Исправлено:**
+- `AdminMergeAccountsPanel`: проп `initialSecondUserId`, сброс при смене строки; `key={row.id}` в списке кандидатов.
+- Раскрытие кандидата по `row.id` (не по `anchorUserId` при нескольких кандидатах на один якорь).
+- Валидация онлайн-категории на confirm/slot (`isPublicOnlineBookingCategory`).
+- `/app/doctor/booking-merge`: `requireAdminDoctorPage`; пункт меню только для `role=admin`.
+- Сообщение 403 при загрузке кандидатов без admin mode.
+
+**Проверки:** `tsc --noEmit`, eslint на критичных файлах, vitest merge + smoke.
+
+**Документация и план:** план перенесён в `.cursor/plans/archive/own_booking_stage3_public_widget.plan.md` (`status: completed`); обновлены `README.md`, `ROADMAP.md`, `DB_STRUCTURE.md`, `docs/README.md`.
+
+---
+
 ## 2026-05-29 — Документация и закрытие плана этапа 2
 
 **Сделано:**

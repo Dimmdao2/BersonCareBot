@@ -27,7 +27,11 @@ function buildQuery(selection: BookingSelection, date?: string, slotCount?: numb
   return params.toString();
 }
 
-export function useBookingSlots(selection: BookingSelection | null, slotCount = 1) {
+export function useBookingSlots(
+  selection: BookingSelection | null,
+  slotCount = 1,
+  slotsApiPath = "/api/booking/slots",
+) {
   const router = useRouter();
   const [state, setState] = useState<State>({
     loading: false,
@@ -47,7 +51,7 @@ export function useBookingSlots(selection: BookingSelection | null, slotCount = 
     }
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const res = await fetch(`/api/booking/slots?${query}`, { cache: "no-store" });
+      const res = await fetch(`${slotsApiPath}?${query}`, { cache: "no-store" });
       const json = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         slots?: BookingSlotsByDate[];
@@ -70,7 +74,7 @@ export function useBookingSlots(selection: BookingSelection | null, slotCount = 
     } catch {
       setState({ loading: false, error: "Ошибка сети при загрузке расписания.", data: [] });
     }
-  }, [query, router]);
+  }, [query, router, slotsApiPath]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

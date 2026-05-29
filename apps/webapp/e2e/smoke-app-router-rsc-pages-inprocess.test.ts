@@ -32,6 +32,8 @@ const LOADERS = {
   appTgEntry: () => import("@/app/app/tg/page") as Promise<PageMod>,
   appMaxEntry: () => import("@/app/app/max/page") as Promise<PageMod>,
   homeRoot: () => import("@/app/page") as Promise<PageMod>,
+  publicBookNew: () => import("@/app/book/new/page") as Promise<PageMod>,
+  publicBookLayout: () => import("@/app/book/layout") as Promise<PageMod>,
 };
 
 type PageKey = keyof typeof LOADERS;
@@ -108,5 +110,10 @@ describe("app router RSC pages smoke (in-process)", () => {
 
   it("marketing home / exports async RSC default", () => {
     expectAsyncRscPage(mod("homeRoot"), "/");
+  });
+
+  it("public book routes load without /app session guard", () => {
+    expect(typeof mod("publicBookLayout").default).toBe("function");
+    expectAsyncRscPage(mod("publicBookNew"), "book/new");
   });
 });

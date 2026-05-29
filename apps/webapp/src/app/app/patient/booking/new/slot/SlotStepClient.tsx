@@ -34,7 +34,12 @@ type OnlineProps = {
   appDisplayTimeZone: string;
 };
 
-type Props = InPersonProps | OnlineProps;
+type SlotStepOptions = {
+  confirmBasePath?: string;
+  slotsApiPath?: string;
+};
+
+type Props = (InPersonProps | OnlineProps) & SlotStepOptions;
 
 function buildConfirmQuery(
   props: Props,
@@ -83,7 +88,8 @@ export function SlotStepClient(props: Props) {
     };
   }, [props]);
 
-  const slotsState = useBookingSlots(selection, slotCount);
+  const confirmBase = props.confirmBasePath ?? routePaths.bookingNewConfirm;
+  const slotsState = useBookingSlots(selection, slotCount, props.slotsApiPath);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
 
@@ -151,7 +157,7 @@ export function SlotStepClient(props: Props) {
         onClick={() => {
           if (!effectiveDate || !selectedSlot) return;
           const qs = buildConfirmQuery(props, effectiveDate, selectedSlot);
-          router.push(`${routePaths.bookingNewConfirm}?${qs}`);
+          router.push(`${confirmBase}?${qs}`);
         }}
       >
         Продолжить

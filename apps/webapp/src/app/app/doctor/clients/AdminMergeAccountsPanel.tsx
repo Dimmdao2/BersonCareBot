@@ -41,6 +41,8 @@ type MergeSearchRow = {
 
 type Props = {
   anchorUserId: string;
+  /** Предвыбор второго профиля (например кандидат из booking merge). */
+  initialSecondUserId?: string;
   /** Admin + admin mode — same guard as merge API */
   enabled: boolean;
   /** When true, do not fetch merge-candidates until expanded (e.g. accordion). */
@@ -65,14 +67,19 @@ function FieldCell({ v }: { v: string | null }) {
   return <span className="break-all font-mono text-xs">{v ?? "—"}</span>;
 }
 
-export function AdminMergeAccountsPanel({ anchorUserId, enabled, suspendHeavyFetch = false }: Props) {
+export function AdminMergeAccountsPanel({
+  anchorUserId,
+  initialSecondUserId,
+  enabled,
+  suspendHeavyFetch = false,
+}: Props) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [candidates, setCandidates] = useState<CandidateRow[] | null>(null);
   const [candLoading, setCandLoading] = useState(false);
   const [candError, setCandError] = useState<string | null>(null);
 
-  const [secondUserId, setSecondUserId] = useState<string>("");
+  const [secondUserId, setSecondUserId] = useState<string>(initialSecondUserId ?? "");
   const [canonicalIsAnchor, setCanonicalIsAnchor] = useState(true);
   const [alignToRecommendation, setAlignToRecommendation] = useState(true);
   const [mergeSearchQ, setMergeSearchQ] = useState("");
@@ -131,6 +138,13 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled, suspendHeavyFet
       }
     }
   }, [anchorUserId, q]);
+
+  useEffect(() => {
+    setSecondUserId(initialSecondUserId ?? "");
+    setPreview(null);
+    setResolution(null);
+    setPreviewError(null);
+  }, [anchorUserId, initialSecondUserId]);
 
   useEffect(() => {
     if (!enabled || suspendHeavyFetch) return;

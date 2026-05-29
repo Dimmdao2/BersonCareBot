@@ -259,6 +259,8 @@ import { createPgBookingSchedulingPort } from "@/infra/repos/pgBookingScheduling
 import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
 import { createPgBookingFormPort } from "@/infra/repos/pgBookingForm";
 import { createBookingFormService } from "@/modules/booking-form/service";
+import { createPgPatientMergeCandidatePort } from "@/infra/repos/pgPatientMergeCandidate";
+import { createPatientMergeCandidateService } from "@/modules/patient-merge-candidate/service";
 import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
 import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHomeLegacyContent";
@@ -392,6 +394,10 @@ const bookingSchedulingService = bookingSchedulingPort
   : null;
 const bookingFormPort = !inMemoryRepos ? createPgBookingFormPort() : null;
 const bookingFormService = bookingFormPort ? createBookingFormService(bookingFormPort) : null;
+const patientMergeCandidatePort = !inMemoryRepos ? createPgPatientMergeCandidatePort() : null;
+const patientMergeCandidateService = patientMergeCandidatePort
+  ? createPatientMergeCandidateService(patientMergeCandidatePort)
+  : null;
 const patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
@@ -1115,6 +1121,7 @@ function _buildAppDeps() {
     bookingEnginePort,
     bookingScheduling: bookingSchedulingService,
     bookingForm: bookingFormService,
+    patientMergeCandidate: patientMergeCandidateService,
   };
 }
 

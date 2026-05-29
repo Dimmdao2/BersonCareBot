@@ -108,6 +108,7 @@ export type BeAppointment = {
   paymentRef: string | null;
   packageUsageRef: string | null;
   phoneNormalized: string | null;
+  attributionJson: Record<string, unknown>;
 };
 
 export type CreateAppointmentInput = {
@@ -124,6 +125,7 @@ export type CreateAppointmentInput = {
   status?: AppointmentStatus;
   phoneNormalized?: string | null;
   actorId?: string | null;
+  attributionJson?: Record<string, unknown>;
 };
 
 export type TransitionAppointmentStatusInput = {

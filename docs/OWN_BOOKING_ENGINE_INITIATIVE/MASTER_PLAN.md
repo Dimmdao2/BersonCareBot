@@ -25,17 +25,17 @@
 - **SaaS-готовность:** все доменные сущности несут `organization_id` (tenant) с первого этапа, даже если сейчас один арендатор.
 - **Полная событийность (история):** ни одно состояние не хранится «только как текущее» — каждое значимое действие порождает событие в таймлайне (append-only), пригодное для карточки клиента.
 
-## 2. Текущее состояние (после этапов 1–2)
+## 2. Текущее состояние (после этапов 1–3)
 
-- **Write (этап 2, done):** при подключённых `bookingEngine` + `bookingScheduling` в `buildAppDeps` пациентский `createBooking` создаёт `be_appointments` и `patient_bookings` с `canonical_appointment_id`; Rubitime — best-effort при `booking_rubitime_bridge_enabled`. Legacy-путь через integrator остаётся только без канонического DI (in-memory/тесты).
+- **Write (этап 2–3, done):** при подключённых `bookingEngine` + `bookingScheduling` в `buildAppDeps` пациентский и публичный `createBooking` создают `be_appointments` и `patient_bookings` с `canonical_appointment_id`; Rubitime — best-effort при `booking_rubitime_bridge_enabled`. Legacy-путь через integrator остаётся только без канонического DI (in-memory/тесты).
 - **Слоты (этап 2):** собственный движок `booking-scheduling` (`0089`: working_hours, schedule_blocks, exclusion на пересечения); `slotCount` для цепочек слотов.
 - **Поля записи (этап 2):** `be_booking_form_fields` / submissions; admin CRUD; визард отправляет `formAnswers`.
-- **Публичный контракт (этап 2):** `POST /api/booking/public/create` + `resolveOrCreateUserByPhone` (без полного виджета — этап 3).
+- **Публичный канал (этап 3, done):** `/book/new` без сессии (очный + онлайн), embed `/book/embed.js`, CSP для Tilda/`dmitryberson.ru`, публичные read-API каталога/слотов/полей, `POST /api/booking/public/create` (rate-limit, UTM в `attribution_json`, `patient_merge_candidates`, admin merge UI).
 - **Read:** кабинет врача по-прежнему в основном через `appointment_records`; при каноническом create — проекция `be:{id}` (`projectCanonicalAppointment.ts`). Полный read на канон — этап 8.
-- Идентичность: live-события Rubitime + публичная запись по телефону; историч. backfill (PHASE_07) — deferred.
+- Идентичность: live-события Rubitime + публичная запись по телефону; кандидаты мерджа при коллизии имён; историч. backfill (PHASE_07) — deferred.
 - Платёжных провайдеров в `ALLOWED_KEYS` ещё нет (этап 5).
 
-**Следующий gate:** этап 3 (публичный UX/виджет) и этап 4 (переносы/отмены) стартуют после приёмки этапа 2 — см. [`ROADMAP.md`](ROADMAP.md).
+**Следующий gate:** этап 4 (переносы/отмены) — см. [`ROADMAP.md`](ROADMAP.md).
 
 ## 3. Архитектурные принципы (обязательны на всех этапах)
 

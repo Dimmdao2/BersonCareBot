@@ -1,30 +1,31 @@
 ---
 name: "Own Booking Engine — Stage 3: Public booking page & embeddable widget"
 overview: "Этап 3: публичная страница записи вне /app (без сессии), форматы встраивания (JS-виджет/iframe/popup/ссылка) под Tilda, параметры/UTM, гостевая идентификация по телефону + кандидаты на мердж. Источник — docs/OWN_BOOKING_ENGINE_INITIATIVE/STAGE_CHECKLISTS.md §Этап 3."
+status: completed
 gitBranch: initiative/own-booking-engine
 isProject: false
 todos:
   - id: "s3-public-route"
     content: "Публичная страница записи вне /app без обязательной сессии (новый route + слой без auth-guard)"
-    status: pending
+    status: completed
   - id: "s3-embed"
     content: "Форматы встраивания: JS-виджет, iframe, popup, публичная ссылка; CSP/embedding под Tilda и dmitryberson.ru"
-    status: pending
+    status: completed
   - id: "s3-params"
     content: "Параметры виджета (клиника/филиал/специалист/услуга/акция/город/услуга) + UTM; сохранение источника в записи"
-    status: pending
+    status: completed
   - id: "s3-guest"
     content: "Гостевая идентификация по телефону + создание/линковка platform_user; rate-limit/антибот"
-    status: pending
+    status: completed
   - id: "s3-merge"
     content: "PatientMergeCandidate + admin-поверхность ручного/полуавтоматического мерджа"
-    status: pending
+    status: completed
   - id: "s3-flow"
     content: "Созданная запись попадает в канон/кабинеты/уведомления/историю (переиспользовать ядро этапа 2)"
-    status: pending
+    status: completed
   - id: "s3-verify"
     content: "Тесты публичного flow/rate-limit/merge; typecheck/lint; api.md, LOG.md, ROADMAP.md, SCOPE_DECISIONS (Q4 CSP)"
-    status: pending
+    status: completed
 ---
 
 # Этап 3 — Публичный виджет / страница записи
@@ -78,12 +79,12 @@ todos:
 - Обновить `api.md`, `LOG.md`, `ROADMAP.md`; зафиксировать ответ Q4 (CSP/домены) в `SCOPE_DECISIONS.md`.
 
 ## Definition of Done (этап 3)
-- [ ] Запись создаётся с внешнего сайта (демо как на Tilda) без входа в приложение (§19).
-- [ ] JS-виджет/iframe/popup/ссылка работают; CSP/embedding настроены для целевых доменов.
-- [ ] Параметры/UTM долетают и сохраняются; запись видна в каноне/кабинетах.
-- [ ] Гость идентифицируется по телефону; кандидаты на мердж формируются; admin-мердж работает (C5).
-- [ ] Tenant-scoping сохраняется для публичного канала: запись всегда создаётся в корректной `organization_id` и не протекает между клиниками (C1).
-- [ ] UI §A7, §B-merge, §P-page/§P-widget; тесты/typecheck/lint зелёные; docs/статусы обновлены.
+- [x] Запись создаётся с внешнего сайта (демо как на Tilda) без входа в приложение (§19).
+- [x] JS-виджет/iframe/popup/ссылка работают; CSP/embedding настроены для целевых доменов.
+- [x] Параметры/UTM долетают и сохраняются; запись видна в каноне/кабинетах.
+- [x] Гость идентифицируется по телефону; кандидаты на мердж формируются; admin-мердж работает (C5).
+- [x] Tenant-scoping сохраняется для публичного канала: запись всегда создаётся в корректной `organization_id` и не протекает между клиниками (C1).
+- [x] UI §A7, §B-merge, §P-page/§P-widget; тесты/typecheck/lint зелёные; docs/статусы обновлены.
 
 ## Gate
 Сужения и решение по CSP/доменам — в `SCOPE_DECISIONS.md`. Публичная оплата (§P-pay) подключается на этапе 5.

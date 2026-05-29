@@ -1,41 +1,32 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { getPool } from "@/app-layer/db/client";
 import { resolveOrCreateUserByPhone } from "@/app-layer/platform-user/resolveOrCreateUserByPhone";
-
-const formAnswerSchema = z.object({
-  fieldKey: z.string().min(1),
-  value: z.string(),
-});
-
-const onlineBody = z.object({
-  type: z.literal("online"),
-  category: z.enum(["rehab_lfk", "nutrition", "general"]),
-  slotStart: z.string().min(1),
-  slotEnd: z.string().min(1),
-  contactName: z.string().min(1),
-  contactPhone: z.string().min(1),
-  contactEmail: z.string().email().optional(),
-  formAnswers: z.array(formAnswerSchema).optional(),
-});
-
-const inPersonBody = z.object({
-  type: z.literal("in_person"),
-  branchServiceId: z.string().uuid(),
-  cityCode: z.string().trim().min(1),
-  slotStart: z.string().min(1),
-  slotEnd: z.string().min(1),
-  contactName: z.string().min(1),
-  contactPhone: z.string().min(1),
-  contactEmail: z.string().email().optional(),
-  formAnswers: z.array(formAnswerSchema).optional(),
-});
-
-const bodySchema = z.discriminatedUnion("type", [onlineBody, inPersonBody]);
+import { recordPublicBookingMergeCandidates } from "@/app-layer/platform-user/recordPublicBookingMergeCandidates";
+import {
+  isPublicBookingCreateRateLimited,
+  PUBLIC_BOOKING_RATE_LIMIT_SEC,
+  resolvePublicBookingRateLimitClientKey,
+} from "@/modules/public-booking/publicBookingRateLimit";
+import { publicBookingCreateBodySchema } from "../bookingPublicBodySchema";
 
 export async function POST(request: Request) {
+  const rateKey = resolvePublicBookingRateLimitClientKey(request);
+  if (!rateKey.ok) {
+    return NextResponse.json(
+      { ok: false, error: "proxy_configuration", message: "Запрос должен проходить через reverse proxy с заголовком X-Real-IP." },
+      { status: 503 },
+    );
+  }
+  if (await isPublicBookingCreateRateLimited(rateKey.key)) {
+    return NextResponse.json(
+      { ok: false, error: "rate_limited", retryAfterSeconds: PUBLIC_BOOKING_RATE_LIMIT_SEC },
+      { status: 429 },
+    );
+  }
+
   const raw = (await request.json().catch(() => null)) as unknown;
-  const parsed = bodySchema.safeParse(raw);
+  const parsed = publicBookingCreateBodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
@@ -47,11 +38,16 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const bookingChannel = "public_widget" as const;
+  const attribution = body.attribution;
+
   try {
     const booking =
       body.type === "online"
         ? await deps.patientBooking.createBooking({
             userId: user.userId,
+            bookingChannel,
+            attribution,
             type: "online",
             category: body.category,
             slotStart: body.slotStart,
@@ -63,6 +59,8 @@ export async function POST(request: Request) {
           })
         : await deps.patientBooking.createBooking({
             userId: user.userId,
+            bookingChannel,
+            attribution,
             type: "in_person",
             branchServiceId: body.branchServiceId,
             cityCode: body.cityCode,
@@ -73,6 +71,18 @@ export async function POST(request: Request) {
             contactEmail: body.contactEmail,
             formAnswers: body.formAnswers,
           });
+
+    if (booking.canonicalAppointmentId && deps.bookingEngine) {
+      const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+      await recordPublicBookingMergeCandidates({
+        pool: getPool(),
+        organizationId: orgId,
+        anchorUserId: user.userId,
+        contactName: body.contactName,
+        triggerAppointmentId: booking.canonicalAppointmentId,
+      });
+    }
+
     return NextResponse.json({ ok: true, booking, userId: user.userId }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "create_failed";

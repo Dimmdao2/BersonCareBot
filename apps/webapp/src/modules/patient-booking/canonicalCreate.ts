@@ -175,10 +175,11 @@ export async function createBookingOnCanonicalEngine(
       startAt: createInput.slotStart,
       endAt: createInput.slotEnd,
       durationMinutes: slotDurationMinutes,
-      source: createInput.userId ? "native" : "public_widget",
+      source: createInput.bookingChannel === "public_widget" ? "public_widget" : "native",
       status: "confirmed",
       phoneNormalized,
       actorId: createInput.userId,
+      attributionJson: createInput.attribution ?? {},
     });
   } catch (err) {
     await deps.bookingsPort.markFailedSync(pending.id);

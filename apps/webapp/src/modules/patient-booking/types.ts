@@ -1,4 +1,7 @@
+import type { BookingAttribution } from "@/modules/booking-attribution/types";
 import type { CompatSyncQuality } from "./compatSyncQuality";
+
+export type PatientBookingChannel = "app" | "public_widget";
 
 export type BookingType = "in_person" | "online";
 export type BookingCategory = "rehab_lfk" | "nutrition" | "general";
@@ -76,10 +79,15 @@ export type PatientBookingRecord = {
 
 export type BookingFormAnswerInput = { fieldKey: string; value: string };
 
+type CreatePatientBookingCommon = {
+  userId: string;
+  bookingChannel?: PatientBookingChannel;
+  attribution?: BookingAttribution;
+};
+
 /** API / UI input for creating a booking (discriminated by `type`). */
 export type CreatePatientBookingInput =
-  | {
-      userId: string;
+  | (CreatePatientBookingCommon & {
       type: "online";
       category: BookingCategory;
       slotStart: string;
@@ -88,9 +96,8 @@ export type CreatePatientBookingInput =
       contactPhone: string;
       contactEmail?: string;
       formAnswers?: BookingFormAnswerInput[];
-    }
-  | {
-      userId: string;
+    })
+  | (CreatePatientBookingCommon & {
       type: "in_person";
       /** Catalog row `booking_branch_services.id` */
       branchServiceId: string;
@@ -102,7 +109,7 @@ export type CreatePatientBookingInput =
       contactPhone: string;
       contactEmail?: string;
       formAnswers?: BookingFormAnswerInput[];
-    };
+    });
 
 /** Public create (no session): phone identifies patient; userId resolved server-side. */
 export type PublicCreateBookingInput = Omit<CreatePatientBookingInput, "userId"> & {

@@ -24,4 +24,5 @@ export * from "./broadcastAuditRecipients";
 export * from "./productAnalytics";
 export * from "./bookingEngine";
 export * from "./bookingScheduling";
+export * from "./patientMergeCandidate";
 export * from "./relations";

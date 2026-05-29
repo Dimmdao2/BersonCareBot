@@ -61,9 +61,16 @@ export type ServiceStepClientProps = {
   cityTitle: string;
   services: BookingBranchService[];
   catalogError: string | null;
+  slotBasePath?: string;
 };
 
-export function ServiceStepClient({ cityCode, cityTitle, services, catalogError }: ServiceStepClientProps) {
+export function ServiceStepClient({
+  cityCode,
+  cityTitle,
+  services,
+  catalogError,
+  slotBasePath = routePaths.bookingNewSlot,
+}: ServiceStepClientProps) {
   const router = useRouter();
 
   return (
@@ -95,7 +102,7 @@ export function ServiceStepClient({ cityCode, cityTitle, services, catalogError 
                 )}
                 onClick={() =>
                   router.push(
-                    `${routePaths.bookingNewSlot}?type=in_person` +
+                    `${slotBasePath}?type=in_person` +
                       `&cityCode=${encodeURIComponent(cityCode)}` +
                       `&cityTitle=${encodeURIComponent(cityTitle)}` +
                       `&branchServiceId=${encodeURIComponent(s.id)}` +

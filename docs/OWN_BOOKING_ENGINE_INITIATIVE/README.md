@@ -1,6 +1,6 @@
 # OWN_BOOKING_ENGINE_INITIATIVE — собственный движок записи пациентов
 
-**Статус:** этапы 1–2 — `done`; этап 3+ — `pending`. Реализация в git-ветке **`initiative/own-booking-engine`** (см. [`MASTER_PLAN.md`](MASTER_PLAN.md) §Git-ветка).
+**Статус:** этапы 1–3 — `done`; этап 4+ — `pending`. Реализация в git-ветке **`initiative/own-booking-engine`** (см. [`MASTER_PLAN.md`](MASTER_PLAN.md) §Git-ветка).
 **Дата старта:** 2026-05-29.
 **Владелец постановки:** Дмитрий Берсон.
 
@@ -28,7 +28,7 @@
 
 - Этап 1 (закрыт): [`.cursor/plans/archive/own_booking_stage1_canonical_model.plan.md`](../../.cursor/plans/archive/own_booking_stage1_canonical_model.plan.md)
 - Этап 2 (закрыт): [`.cursor/plans/archive/own_booking_stage2_patient_booking.plan.md`](../../.cursor/plans/archive/own_booking_stage2_patient_booking.plan.md)
-- Этап 3: [`own_booking_stage3_public_widget.plan.md`](../../.cursor/plans/own_booking_stage3_public_widget.plan.md)
+- Этап 3 (закрыт): [`.cursor/plans/archive/own_booking_stage3_public_widget.plan.md`](../../.cursor/plans/archive/own_booking_stage3_public_widget.plan.md)
 - Этап 4: [`own_booking_stage4_reschedule_cancel.plan.md`](../../.cursor/plans/own_booking_stage4_reschedule_cancel.plan.md)
 - Этап 5: [`own_booking_stage5_prepayment_payments.plan.md`](../../.cursor/plans/own_booking_stage5_prepayment_payments.plan.md)
 - Этап 6: [`own_booking_stage6_memberships.plan.md`](../../.cursor/plans/own_booking_stage6_memberships.plan.md)

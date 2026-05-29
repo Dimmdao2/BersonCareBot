@@ -156,13 +156,14 @@
 
 #### Каноническая модель записи (OWN_BOOKING_ENGINE, этап 1)
 
-Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, `bookingScheduling.ts`; миграции `0086`–`0089` (`0089_booking_stage2_scheduling_and_forms.sql` — поля формы, рабочие часы, блокировки, exclusion на `be_appointments`, `patient_bookings.canonical_appointment_id`).
+Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, `bookingScheduling.ts`, `patientMergeCandidate.ts`; миграции `0086`–`0090` (`0089` — поля формы, рабочие часы, блокировки, exclusion, `canonical_appointment_id`; `0090_booking_stage3_public_widget.sql` — `be_appointments.attribution_json`, `patient_merge_candidates`).
 
 Таблицы (префикс `be_*`, tenant `organization_id`):
 
 - `be_organizations`, `be_branches`, `be_rooms`, `be_specialists`, `be_specialist_locations`, `be_specialist_rooms`
 - `be_clinic_services`, `be_specialist_service_availability`, `be_service_location_availability`
-- `be_appointments`, `be_appointment_events` (append-only); exclusion constraint на пересечение активных записей по специалисту (этап 2)
+- `be_appointments` (`source` включает `public_widget`, `attribution_json` — этап 3), `be_appointment_events` (append-only); exclusion constraint на пересечение активных записей по специалисту (этап 2)
+- `patient_merge_candidates` — кандидаты ручного мерджа после публичной записи (этап 3)
 - `be_booking_form_fields`, `be_booking_form_submissions`; `be_working_hours`, `be_availability_rules`, `be_schedule_blocks` (этап 2)
 - `be_patient_timeline_events`, `be_appointment_history_events`
 - `be_external_entity_mappings` (внешние id Rubitime, не в канонических колонках)

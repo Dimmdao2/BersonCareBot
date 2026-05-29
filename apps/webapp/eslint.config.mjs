@@ -65,6 +65,7 @@ export default [
       "src/modules/auth/messengerStartRateLimit.ts",
       "src/modules/auth/phoneMessengerBindStartRateLimit.ts",
       "src/modules/auth/oauthStartRateLimit.ts",
+      "src/modules/public-booking/publicBookingRateLimit.ts",
       "src/modules/auth/oauthWebLoginResolve.ts",
       "src/modules/auth/oauthWebSession.ts",
       "src/modules/auth/oauthYandexResolve.ts",

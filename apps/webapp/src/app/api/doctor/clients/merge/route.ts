@@ -4,6 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPool } from "@/app-layer/db/client";
 import { runManualPlatformUserMerge } from "@/app-layer/merge/manualPlatformUserMerge";
 import { verifyManualMergeIntegratorIntegratorGate } from "@/app-layer/merge/manualMergeIntegratorGate";
@@ -62,6 +63,15 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "merge_failed", code: result.code, message: result.error },
       { status: 409 },
+    );
+  }
+
+  const mergeCandidates = buildAppDeps().patientMergeCandidate;
+  if (mergeCandidates) {
+    await mergeCandidates.markResolvedForUserPair(
+      resolution.targetId,
+      resolution.duplicateId,
+      adminGate.session.user.userId,
     );
   }
 
