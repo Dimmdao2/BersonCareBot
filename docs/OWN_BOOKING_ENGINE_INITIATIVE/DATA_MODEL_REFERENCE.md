@@ -49,12 +49,12 @@
 - **promo_product / gift_certificate** — акции/подарки.
 - **entitlement / content_access_grant** — выдача доступа после покупки (переиспользовать существующие `content_access_grants`).
 
-## Оплаты (этап 5)
-- **payment_provider / payment_provider_config** — провайдеры; **конфиг/ключи в `system_settings`**, таблица хранит метаданные/выбор, не секреты.
-- **payment_method** — способ оплаты.
-- **payment / payment_intent / refund** — оплаты, интенты, возвраты (идемпотентность по ключам).
-- **prepayment_policy / cancellation_policy / reschedule_policy** — политики как данные, привязка по уровням (клиника/специалист/услуга/продукт).
-- **payment_provider_event** — входящие вебхуки провайдеров (идемпотентная обработка).
+## Оплаты (этап 5, реализовано: `0092`, `0093`)
+- **payment_provider / payment_provider_config** — `system_settings.booking_payment_providers` + `booking_payment_enabled`; секреты только в БД (scope `admin`), не ENV.
+- **payment_method** — логически `provider_id` на `be_payment_intents` / `be_payments` + подпись провайдера в `system_settings` (отдельная таблица не требуется для booking-prepayment).
+- **payment / payment_intent / refund** → `be_payments`, `be_payment_intents`, `be_refunds`; `be_appointments.payment_ref` при capture.
+- **prepayment_policy** → `be_prepayment_policies` (очная услуга **или** онлайн-категория `rehab_lfk` | `nutrition` | `general`).
+- **payment_history_event** → `be_payment_history_events`; **payment_provider_event** → `be_payment_provider_events`.
 
 ## История/таймлайн (этапы 1, 9)
 - **patient_timeline_event** — агрегатор событий пациента (для карточки).

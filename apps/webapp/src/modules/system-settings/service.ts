@@ -13,6 +13,7 @@ import {
   sessionMatchesTestAccountIdentifiers,
   type TestAccountIdentifiers,
 } from "./testAccounts";
+import { mergeBookingPaymentProvidersSecretsRetain } from "@/modules/payments/bookingPaymentSettings";
 
 async function mergeWebPushVapidPrivateRetain(port: SystemSettingsPort, incoming: unknown): Promise<{ value: unknown }> {
   const env = normalizeValueJson(incoming);
@@ -127,7 +128,12 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
           ? await mergeSmtpOutboundPasswordRetain(port, value)
           : key === "web_push_vapid" && scope === "admin"
             ? await mergeWebPushVapidPrivateRetain(port, value)
-            : value;
+            : key === "booking_payment_providers" && scope === "admin"
+              ? await mergeBookingPaymentProvidersSecretsRetain(
+                  () => port.getByKey("booking_payment_providers", "admin").then((r) => r?.valueJson ?? null),
+                  value,
+                )
+              : value;
       const result = await port.upsert(key, scope, valueToStore, updatedBy);
       void syncSettingToIntegrator({
         key,

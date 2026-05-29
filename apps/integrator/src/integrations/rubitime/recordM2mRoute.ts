@@ -442,6 +442,31 @@ async function handleBookingLifecycleEvent(
     return;
   }
 
+  if (eventType === 'booking.payment_captured') {
+    const patientText = `Оплата записи подтверждена. ${formatBookingRuDateTime(payload.slotStart, timeZone)}`;
+    await sendLinkedChannelMessage({
+      dispatchPort,
+      phoneNormalized: contactPhone,
+      text: patientText,
+      eventId: `booking-payment:${bookingId}`,
+    });
+    await sendDoctorMessage(
+      dispatchPort,
+      `Оплата записи: ${patientName ?? 'пациент'}, ${formatBookingRuDateTime(payload.slotStart, timeZone)}`,
+      `booking-payment:${bookingId}`,
+    );
+    await scheduleBookingReminders({
+      bookingId,
+      slotStartIso: payload.slotStart,
+      phoneNormalized: contactPhone,
+      patientName,
+      timeZone,
+      ...(webappEventsPort ? { webappEventsPort } : {}),
+    });
+    rememberBookingEventKey(dedupKey);
+    return;
+  }
+
   throw new Error('unsupported_booking_event_type');
 }
 

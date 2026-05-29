@@ -156,7 +156,7 @@
 
 #### Каноническая модель записи (OWN_BOOKING_ENGINE, этап 1)
 
-Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, `bookingScheduling.ts`, `bookingPolicies.ts`, `patientMergeCandidate.ts`; миграции `0086`–`0091` (`0089` — поля формы, рабочие часы, блокировки, exclusion, `canonical_appointment_id`; `0090` — `be_appointments.attribution_json`, `patient_merge_candidates`; `0091` — политики отмены/переноса и append-only история).
+Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, `bookingScheduling.ts`, `bookingPolicies.ts`, `bookingPayments.ts`, `patientMergeCandidate.ts`; миграции `0086`–`0093` (`0089` — поля формы, рабочие часы, блокировки, exclusion, `canonical_appointment_id`; `0090` — `be_appointments.attribution_json`, `patient_merge_candidates`; `0091` — политики отмены/переноса; `0092`–`0093` — платёжный слой и предоплата, `patient_bookings.status` + `awaiting_payment`).
 
 Таблицы (префикс `be_*`, tenant `organization_id`):
 
@@ -168,7 +168,11 @@ Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, `bookingScheduling.ts`, `book
 - `be_patient_timeline_events`, `be_appointment_history_events`
 - `be_cancellation_policies`, `be_reschedule_policies` (уровни organization / specialist / service / product; этап 4)
 - `be_appointment_reschedules`, `be_appointment_cancellations` (append-only история переносов и отмен, поле `notifications_sent`; этап 4)
+- `be_prepayment_policies` (очная услуга **или** `online_category`: rehab_lfk | nutrition | general; этап 5)
+- `be_payment_intents`, `be_payments`, `be_refunds`, `be_payment_provider_events`, `be_payment_history_events` (этап 5; `be_appointments.payment_ref`)
 - `be_external_entity_mappings` (внешние id Rubitime, не в канонических колонках)
+
+`patient_bookings.status` включает `awaiting_payment` (check синхронизирован с миграцией `0092` и Drizzle `schema.ts`).
 
 Legacy `booking_*` / `patient_bookings` / `appointment_records` **не удалены**; backfill копирует каталог в `be_*`. Read-bridge проецирует `appointment_records` и `rubitime_records` в `be_appointments` при `booking_rubitime_bridge_enabled` (admin `system_settings`). См. [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md).
 

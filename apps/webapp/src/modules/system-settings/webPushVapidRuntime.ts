@@ -51,6 +51,31 @@ export function redactWebPushVapidSettingForClient(row: SystemSetting): SystemSe
   };
 }
 
+function redactBookingPaymentProvidersSettingForClient(row: SystemSetting): SystemSetting {
+  if (row.key !== "booking_payment_providers") return row;
+  const vj = row.valueJson;
+  if (vj === null || typeof vj !== "object" || !("value" in (vj as Record<string, unknown>))) return row;
+  const inner = (vj as Record<string, unknown>).value;
+  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return row;
+  const o = inner as Record<string, unknown>;
+  const providers = Array.isArray(o.providers) ? o.providers : [];
+  const redacted = providers.map((item) => {
+    if (item === null || typeof item !== "object") return item;
+    const p = { ...(item as Record<string, unknown>) };
+    if (typeof p.webhookSecret === "string" && p.webhookSecret.trim()) p.webhookSecret = "[REDACTED]";
+    if (typeof p.apiKey === "string" && p.apiKey.trim()) p.apiKey = "[REDACTED]";
+    return p;
+  });
+  return {
+    ...row,
+    valueJson: { value: { ...o, providers: redacted } },
+  };
+}
+
 export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemSetting[] {
-  return settings.map((s) => (s.key === "web_push_vapid" ? redactWebPushVapidSettingForClient(s) : s));
+  return settings.map((s) => {
+    if (s.key === "web_push_vapid") return redactWebPushVapidSettingForClient(s);
+    if (s.key === "booking_payment_providers") return redactBookingPaymentProvidersSettingForClient(s);
+    return s;
+  });
 }

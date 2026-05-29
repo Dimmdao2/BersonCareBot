@@ -55,5 +55,13 @@ export async function POST(request: Request, context: RouteContext) {
     appointment: result.appointment,
     reschedulePolicy: result.reschedulePolicy,
   });
+  if (deps.payments) {
+    await deps.payments.recordReschedulePaymentCarryOver({
+      appointmentId,
+      organizationId: gate.ctx.organizationId,
+      platformUserId: result.appointment.platformUserId,
+      newStartAt: parsed.data.newStartAt,
+    });
+  }
   return NextResponse.json({ ok: true, appointment: result.appointment });
 }

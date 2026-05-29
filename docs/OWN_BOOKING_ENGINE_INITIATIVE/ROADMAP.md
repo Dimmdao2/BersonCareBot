@@ -15,7 +15,7 @@
 | 2 | Базовая запись пациента | `done` | 1 | — | [`stage2`](../../.cursor/plans/archive/own_booking_stage2_patient_booking.plan.md) |
 | 3 | Публичный виджет / страница записи | `done` | 2 | 4 (после общего ядра записи) | [`stage3`](../../.cursor/plans/archive/own_booking_stage3_public_widget.plan.md) |
 | 4 | Переносы и отмены | `done` | 2 | 3 | [`stage4`](../../.cursor/plans/archive/own_booking_stage4_reschedule_cancel.plan.md) |
-| 5 | Предоплата и базовые оплаты | `pending` | 1, 2 | 6 (модель), но активация после 5 | [`stage5`](../../.cursor/plans/own_booking_stage5_prepayment_payments.plan.md) |
+| 5 | Предоплата и базовые оплаты | `done` | 1, 2 | 6 (модель), но активация после 5 | [`stage5`](../../.cursor/plans/archive/own_booking_stage5_prepayment_payments.plan.md) |
 | 6 | Абонементы | `pending` | 1, 2, 5 | 7 (модель продуктов) | [`stage6`](../../.cursor/plans/own_booking_stage6_memberships.plan.md) |
 | 7 | Продукты, акции, подписки, курсы | `pending` | 5, 6 | — | [`stage7`](../../.cursor/plans/own_booking_stage7_products_courses.plan.md) |
 | 8 | Календарь | `pending` | 1, 2, 4 | 5–7 (отображение статусов/оплат добавляется по мере готовности) | [`stage8`](../../.cursor/plans/own_booking_stage8_calendar.plan.md) |

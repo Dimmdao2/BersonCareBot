@@ -1553,7 +1553,7 @@ export const patientBookings = pgTable("patient_bookings", {
 	check("patient_bookings_compat_quality_check", sql`compat_quality = ANY (ARRAY['full'::text, 'partial'::text, 'minimal'::text])`),
 	check("patient_bookings_platform_user_native_required", sql`(source <> 'native'::text) OR (platform_user_id IS NOT NULL)`),
 	check("patient_bookings_source_check", sql`source = ANY (ARRAY['native'::text, 'rubitime_projection'::text])`),
-	check("patient_bookings_status_check", sql`status = ANY (ARRAY['creating'::text, 'confirmed'::text, 'cancelling'::text, 'cancel_failed'::text, 'cancelled'::text, 'rescheduled'::text, 'completed'::text, 'no_show'::text, 'failed_sync'::text])`),
+	check("patient_bookings_status_check", sql`status = ANY (ARRAY['creating'::text, 'awaiting_payment'::text, 'confirmed'::text, 'cancelling'::text, 'cancel_failed'::text, 'cancelled'::text, 'rescheduled'::text, 'completed'::text, 'no_show'::text, 'failed_sync'::text])`),
 ]);
 
 export const onlineIntakeAnswers = pgTable("online_intake_answers", {

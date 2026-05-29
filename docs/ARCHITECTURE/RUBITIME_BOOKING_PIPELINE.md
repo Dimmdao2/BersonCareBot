@@ -29,7 +29,9 @@ Rubitime передаёт `name` как полную строку (часто Ф
 При создании записи из webapp (не через Rubitime iframe/сайт) данные проходят два параллельных пути:
 
 **Patient path (webapp):**
-1. `POST /api/booking/create` (сессия) или `POST /api/booking/public/create` (гость, этап 3) → канон `be_appointments` при включённом booking-engine DI → `patient_bookings` (confirmed) → `emitBookingEvent('booking.created')` → TG/MAX уведомления + напоминания.
+1. `POST /api/booking/create` (сессия) или `POST /api/booking/public/create` (гость, этап 3) → канон `be_appointments` при включённом booking-engine DI.
+   - **Без предоплаты:** `patient_bookings` (confirmed) → `emitBookingEvent('booking.created')` → TG/MAX + напоминания.
+   - **С предоплатой (этап 5):** `awaiting_payment` + payment intent → оплата (`/app/patient/booking/pay` или `/book/pay`) → capture → `booking.payment_captured` → напоминания (событие `booking.created` до оплаты **не** шлётся).
 2. Integrator → M2M **`POST /api/integrator/patient-notifications/web-push`** (`intentType: appointment_lifecycle`) → текст в **PWA-чат** (`/app/patient/messages`) + Web Push с тем же `openUrl`. См. [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md). Slot-напоминания (`appointment_reminder`) в чат **не** пишутся.
 
 **Doctor projection + GCal path (integrator):**
@@ -86,7 +88,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
 2. **Перенос:** канон и `patient_bookings` обновляются в webapp; Rubitime — `update-record` (best-effort); затем `booking.rescheduled` (отмена старых slot-напоминаний + планирование на новый `slotStart`).
 3. **Проекция врача:** `appointment_records` с `integrator_record_id = be:{appointmentId}` обновляется из webapp (`native.rescheduled` / `native.cancelled`), не только через Rubitime webhook.
 
-Код: `modules/patient-booking/service.ts`, `modules/integrator/bookingM2mApi.ts`, integrator `recordM2mRoute.ts` (`booking.rescheduled` в Zod с этапа 4).
+Код: `modules/patient-booking/service.ts`, `modules/payments/service.ts`, `modules/integrator/bookingM2mApi.ts`, integrator `recordM2mRoute.ts` (`booking.rescheduled`, `booking.payment_captured` в Zod с этапов 4–5).
 
 Подробнее: [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md), [`patient-booking.md`](../../apps/webapp/src/modules/patient-booking/patient-booking.md).
 

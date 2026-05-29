@@ -53,5 +53,14 @@ export async function POST(request: Request, context: RouteContext) {
     appointment: result.appointment,
     cancelPolicy: result.cancelPolicy,
   });
+  if (deps.payments) {
+    await deps.payments.applyCancelPaymentOutcome({
+      appointmentId,
+      organizationId: gate.ctx.organizationId,
+      prepaymentRetained: parsed.data.decisionType === "retain_prepayment",
+      prepaymentRefunded: parsed.data.decisionType === "refund_prepayment",
+      reason: parsed.data.reason,
+    });
+  }
   return NextResponse.json({ ok: true, appointment: result.appointment });
 }

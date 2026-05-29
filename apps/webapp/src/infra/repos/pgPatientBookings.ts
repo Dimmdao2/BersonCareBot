@@ -94,7 +94,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       `WITH overlap AS (
          SELECT 1
            FROM patient_bookings
-          WHERE status IN ('creating', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
+          WHERE status IN ('creating', 'awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
             AND tstzrange(slot_start, slot_end, '[)') && tstzrange($6::timestamptz, $7::timestamptz, '[)')
              AND (
                ($20::text IS NOT NULL AND rubitime_cooperator_id_snapshot = $20::text)
@@ -148,6 +148,37 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       throw new Error("slot_overlap");
     }
     return mapRow(row);
+  },
+
+  async markAwaitingPayment(bookingId, canonicalAppointmentId) {
+    const pool = getPool();
+    const result = await pool.query<Row>(
+      `UPDATE patient_bookings
+       SET status = 'awaiting_payment',
+           canonical_appointment_id = $2::uuid,
+           updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [bookingId, canonicalAppointmentId],
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
+  async markConfirmedByCanonicalAppointment(canonicalAppointmentId, rubitimeId = null) {
+    const pool = getPool();
+    const result = await pool.query<Row>(
+      `UPDATE patient_bookings
+       SET status = 'confirmed',
+           rubitime_id = COALESCE($2, rubitime_id),
+           updated_at = now()
+       WHERE canonical_appointment_id = $1::uuid
+         AND status = 'awaiting_payment'
+       RETURNING *`,
+      [canonicalAppointmentId, rubitimeId],
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
   },
 
   async markConfirmed(bookingId, rubitimeId, options) {
@@ -427,12 +458,29 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     );
   },
 
+  async getById(bookingId) {
+    const pool = getPool();
+    const result = await pool.query<Row>(`SELECT * FROM patient_bookings WHERE id = $1`, [bookingId]);
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
+  async getByCanonicalAppointmentId(canonicalAppointmentId) {
+    const pool = getPool();
+    const result = await pool.query<Row>(
+      `SELECT * FROM patient_bookings WHERE canonical_appointment_id = $1::uuid LIMIT 1`,
+      [canonicalAppointmentId],
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
   async listUpcomingByUser(userId, nowIso) {
     const pool = getPool();
     const result = await pool.query<Row>(
       `SELECT * FROM patient_bookings
        WHERE platform_user_id = $1
-         AND status IN ('creating', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
+         AND status IN ('creating', 'awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
          AND slot_start >= $2::timestamptz
        ORDER BY slot_start ASC`,
       [userId, nowIso],

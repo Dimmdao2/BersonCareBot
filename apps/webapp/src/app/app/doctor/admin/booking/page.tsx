@@ -1,4 +1,8 @@
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { parseBookingPaymentSettingsValue } from "@/modules/payments/bookingPaymentSettings";
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
+import { BookingPaymentsSection } from "@/app/app/settings/BookingPaymentsSection";
+import { BookingPrepaymentSection } from "@/app/app/settings/BookingPrepaymentSection";
 import { BookingCatalogHelp } from "@/app/app/settings/BookingCatalogHelp";
 import { BookingEngineSection } from "@/app/app/settings/BookingEngineSection";
 import { BookingFormFieldsSection } from "@/app/app/settings/BookingFormFieldsSection";
@@ -13,6 +17,15 @@ import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
 export default async function DoctorAdminBookingPage() {
   await requireAdminDoctorPage();
+  const deps = buildAppDeps();
+  const paymentEnabledRow = await deps.systemSettings.getSetting("booking_payment_enabled", "admin");
+  const paymentEnabled =
+    paymentEnabledRow != null &&
+    paymentEnabledRow.valueJson !== null &&
+    typeof paymentEnabledRow.valueJson === "object" &&
+    (paymentEnabledRow.valueJson as Record<string, unknown>).value === true;
+  const providersRow = await deps.systemSettings.getSetting("booking_payment_providers", "admin");
+  const providersJson = parseBookingPaymentSettingsValue(providersRow?.valueJson ?? null);
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
@@ -22,6 +35,8 @@ export default async function DoctorAdminBookingPage() {
         <BookingEngineSection />
         <BookingFormFieldsSection />
         <BookingPoliciesSection />
+        <BookingPaymentsSection paymentEnabled={paymentEnabled} providersJson={providersJson} />
+        <BookingPrepaymentSection />
         <BookingManualLifecycleSection apiBase="/api/doctor/booking-engine" />
         <BookingPublicWidgetSection />
         <BookingPublicAttributionSection />

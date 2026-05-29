@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { BookingSelection } from "./useBookingSelection";
-import type { BookingSlot } from "@/modules/patient-booking/types";
+import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
 import { mapBookingCreateErrorCodeToRu } from "./bookingCreateErrorMessages";
 import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
 
@@ -23,7 +23,7 @@ export function useCreateBooking() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function createBooking(input: CreateBookingInput): Promise<boolean> {
+  async function createBooking(input: CreateBookingInput): Promise<PatientBookingRecord | false> {
     setSubmitting(true);
     setError(null);
     try {
@@ -60,8 +60,9 @@ export function useCreateBooking() {
         ok?: boolean;
         error?: string;
         redirectTo?: string;
+        booking?: PatientBookingRecord;
       };
-      if (!res.ok || json.ok !== true) {
+      if (!res.ok || json.ok !== true || !json.booking) {
         if (redirectIfPatientActivationRequired(json, router)) {
           setError(null);
           return false;
@@ -69,7 +70,7 @@ export function useCreateBooking() {
         setError(mapBookingCreateErrorCodeToRu(json.error));
         return false;
       }
-      return true;
+      return json.booking;
     } catch {
       setError("Ошибка сети при создании записи");
       return false;

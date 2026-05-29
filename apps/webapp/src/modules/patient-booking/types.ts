@@ -10,6 +10,7 @@ export type PatientBookingRowSource = "native" | "rubitime_projection";
 
 export type PatientBookingStatus =
   | "creating"
+  | "awaiting_payment"
   | "confirmed"
   | "cancelling"
   | "cancel_failed"

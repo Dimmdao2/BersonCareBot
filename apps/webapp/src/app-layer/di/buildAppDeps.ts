@@ -265,6 +265,8 @@ import { createPgBookingPoliciesPort } from "@/infra/repos/pgBookingPolicies";
 import { createBookingPoliciesService } from "@/modules/booking-policies/service";
 import { createPgBookingAppointmentLifecyclePort } from "@/infra/repos/pgBookingAppointmentLifecycle";
 import { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
+import { createPgPaymentsPort } from "@/infra/repos/pgPayments";
+import { createPaymentsService, createPaymentsConfigReader } from "@/modules/payments/service";
 import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
 import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHomeLegacyContent";
@@ -412,19 +414,6 @@ const bookingAppointmentLifecycleService =
         policies: bookingPoliciesService,
       })
     : null;
-const patientBookingService = createPatientBookingService({
-  bookingsPort: patientBookingsPort,
-  syncPort: createBookingSyncPort(),
-  bookingCatalog: bookingCatalogService,
-  bookingEngine: bookingEngineService,
-  bookingScheduling: bookingSchedulingService,
-  bookingForm: bookingFormService,
-  appointmentProjection: appointmentProjectionPort,
-  appointmentLifecycle: bookingAppointmentLifecycleService,
-  isRubitimeBridgeEnabled: bookingRubitimeBridgePort
-    ? () => bookingRubitimeBridgePort.isBridgeEnabled()
-    : undefined,
-});
 const branchesProjectionPort = !inMemoryRepos ? createPgBranchesProjectionPort() : null;
 const subscriptionMailingProjectionPort = !inMemoryRepos
   ? createPgSubscriptionMailingProjectionPort()
@@ -447,6 +436,78 @@ const doctorNotesService = createDoctorNotesService(doctorNotesPort);
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
+const paymentsPort = !inMemoryRepos ? createPgPaymentsPort() : null;
+const bookingSyncPortForPayments = createBookingSyncPort();
+const paymentsService =
+  paymentsPort && bookingEngineService
+    ? createPaymentsService({
+        port: paymentsPort,
+        config: createPaymentsConfigReader((key) => systemSettingsService.getSetting(key, "admin")),
+        bookingEngine: bookingEngineService,
+        onAppointmentPaymentConfirmed: async ({ appointmentId, paymentId, platformUserId }) => {
+          const row = await patientBookingsPort.markConfirmedByCanonicalAppointment(appointmentId, null);
+          if (!row) return;
+          try {
+            await bookingSyncPortForPayments.emitBookingEvent({
+              eventType: "booking.payment_captured",
+              idempotencyKey: `booking.payment_captured:${paymentId}`,
+              payload: {
+                bookingId: row.id,
+                userId: platformUserId ?? row.userId ?? row.id,
+                rubitimeId: row.rubitimeId,
+                bookingType: row.bookingType,
+                city: row.city ?? undefined,
+                category: row.category,
+                slotStart: row.slotStart,
+                slotEnd: row.slotEnd,
+                contactName: row.contactName,
+                contactPhone: row.contactPhone,
+                contactEmail: row.contactEmail ?? undefined,
+                branchServiceId: row.branchServiceId,
+                cityCodeSnapshot: row.cityCodeSnapshot,
+                serviceTitleSnapshot: row.serviceTitleSnapshot,
+              },
+            });
+          } catch {
+            // Notifications are best-effort.
+          }
+        },
+        syncServicePrepaymentApplicable: async (serviceId, applicable) => {
+          const svc = await bookingEngineService.services.getService(serviceId);
+          if (!svc) return;
+          await bookingEngineService.services.upsertService({
+            organizationId: svc.organizationId,
+            id: svc.id,
+            title: svc.title,
+            description: svc.description,
+            durationMinutes: svc.durationMinutes,
+            priceMinor: svc.priceMinor,
+            isActive: svc.isActive,
+            prepaymentApplicable: applicable,
+            usableInPackages: svc.usableInPackages,
+            onlinePaymentApplicable: svc.onlinePaymentApplicable,
+            publicWidgetVisible: svc.publicWidgetVisible,
+            adminManualOnly: svc.adminManualOnly,
+            sortOrder: svc.sortOrder,
+          });
+        },
+      })
+    : null;
+
+const patientBookingService = createPatientBookingService({
+  bookingsPort: patientBookingsPort,
+  syncPort: createBookingSyncPort(),
+  bookingCatalog: bookingCatalogService,
+  bookingEngine: bookingEngineService,
+  bookingScheduling: bookingSchedulingService,
+  bookingForm: bookingFormService,
+  appointmentProjection: appointmentProjectionPort,
+  appointmentLifecycle: bookingAppointmentLifecycleService,
+  payments: paymentsService,
+  isRubitimeBridgeEnabled: bookingRubitimeBridgePort
+    ? () => bookingRubitimeBridgePort.isBridgeEnabled()
+    : undefined,
+});
 
 const lfkExercisesPort = !inMemoryRepos ? pgLfkExercisesPort : inMemoryLfkExercisesPort;
 const lfkExercisesService = createLfkExercisesService(lfkExercisesPort);
@@ -1138,6 +1199,7 @@ function _buildAppDeps() {
     bookingForm: bookingFormService,
     bookingPolicies: bookingPoliciesService,
     bookingAppointmentLifecycle: bookingAppointmentLifecycleService,
+    payments: paymentsService,
     patientMergeCandidate: patientMergeCandidateService,
   };
 }

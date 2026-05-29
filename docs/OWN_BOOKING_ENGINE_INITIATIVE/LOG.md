@@ -111,6 +111,56 @@
 
 ---
 
+## 2026-05-29 — Этап 5: предоплата и платёжный слой
+
+**Сделано:**
+- Миграция `0092_booking_stage5_payments.sql`: `be_prepayment_policies`, `be_payment_intents`, `be_payments`, `be_refunds`, `be_payment_provider_events`, `be_payment_history_events`; `patient_bookings.status` + `awaiting_payment`.
+- Модуль `modules/payments` (порт, сервис, mock-провайдер, калькулятор предоплаты); `infra/repos/pgPayments.ts`.
+- `system_settings`: `booking_payment_enabled`, `booking_payment_providers` (merge/redaction секретов).
+- Интеграция: каноническое создание → `awaiting_payment` + intent; capture → `paid` → `confirmed`; отмена staff/patient → refund/retain.
+- API: вебхук `/api/payments/webhook/[provider]`, `POST /api/booking/payments/mock-complete`, `GET /api/booking/payment-status`, admin prepayment policies + appointment payment summary.
+- UI: `BookingPaymentsSection`, `BookingPrepaymentSection` (admin booking); пациент `/app/patient/booking/pay`.
+
+**Проверки:** `pnpm --filter webapp typecheck`; vitest `prepaymentCalculator`, `payments/service`, `canonicalCreate`.
+
+**Намеренно не делали:** YooKassa/реальный эквайринг (Q1); баланс пациента (Q2); §A13 расширенные уведомления об оплате.
+
+---
+
+## 2026-05-29 — Этап 5: закрытие хвостов после аудита
+
+**Сделано:**
+- `0093`: предоплата по `online_category`; `payment_ref` на capture; carry-over при staff/patient reschedule.
+- API: doctor `GET .../payment`; public `payment-status`, `mock-complete`; `GET /api/booking/payment-history`.
+- UI: A9 (список провайдеров), A10 (очно + онлайн), B-pay panel, C-pay (история + upcoming), P-pay `/book/pay`.
+- Integrator: `booking.payment_captured` (schema + handler).
+- Тесты: `payment-routes.test.ts`; правки `service.test`, `prepaymentCalculator.test`.
+- Документы: `STAGE_CHECKLISTS` §5, `UI_SURFACES` A9/A10/B-pay/C-pay/P-pay, `DATA_MODEL_REFERENCE` §оплаты.
+
+**Проверки:** `pnpm --filter webapp typecheck`; vitest payment + payments module.
+
+---
+
+## 2026-05-29 — Этап 5: ревью качества (post-audit)
+
+**Исправлено:**
+- Drizzle `patient_bookings_status_check`: добавлен `awaiting_payment` (синхрон с миграцией `0092`).
+- `getAppointmentPaymentSummary`: котировка предоплаты для **онлайн** через `prepaymentContextFromBooking`; staff API подтягивает `patient_bookings` по `canonical_appointment_id`.
+- `getByCanonicalAppointmentId` на порте бронирований; `loadStaffAppointmentPaymentSummary` для admin/doctor.
+- UI: переключение scope в `BookingPrepaymentSection`; стабильные ключи истории в B-pay.
+
+**Проверки:** typecheck; vitest `payments/*`, `canonicalCreate`, `payment-routes` (15 тестов).
+
+---
+
+## 2026-05-29 — Этап 5: синхронизация документации и плана
+
+**Сделано:**
+- План: `.cursor/plans/archive/own_booking_stage5_prepayment_payments.plan.md` — `status: completed`, todos (включая 0093, audit, notify), DoD и карта кода.
+- `README.md` (ссылка на archive), `api.md`, `patient-booking.md`, `modules/payments/payments.md`, `DB_STRUCTURE.md`, `RUBITIME_BOOKING_PIPELINE.md`.
+
+---
+
 ## 2026-05-29 — Этап 3: закрытие хвостов после аудита
 
 **Сделано:**

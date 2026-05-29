@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { BookingSelection } from "@/app/app/patient/cabinet/useBookingSelection";
-import type { BookingSlot } from "@/modules/patient-booking/types";
+import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
 import type { BookingAttribution } from "@/modules/booking-attribution/types";
 import { mapBookingCreateErrorCodeToRu } from "@/app/app/patient/cabinet/bookingCreateErrorMessages";
 import { readStoredPublicBookingAttribution } from "./attributionStorage";
@@ -22,7 +22,7 @@ export function usePublicCreateBooking() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function createBooking(input: CreateBookingInput): Promise<boolean> {
+  async function createBooking(input: CreateBookingInput): Promise<PatientBookingRecord | false> {
     setSubmitting(true);
     setError(null);
     try {
@@ -62,8 +62,9 @@ export function usePublicCreateBooking() {
         ok?: boolean;
         error?: string;
         retryAfterSeconds?: number;
+        booking?: PatientBookingRecord;
       };
-      if (!res.ok || json.ok !== true) {
+      if (!res.ok || json.ok !== true || !json.booking) {
         if (json.error === "rate_limited") {
           setError("Слишком много попыток. Попробуйте позже.");
         } else {
@@ -71,7 +72,7 @@ export function usePublicCreateBooking() {
         }
         return false;
       }
-      return true;
+      return json.booking;
     } catch {
       setError("Ошибка сети при создании записи");
       return false;

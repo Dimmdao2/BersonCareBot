@@ -11,6 +11,7 @@ import type { createBookingEngineService } from "@/modules/booking-engine/servic
 import type { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
 import type { createBookingFormService } from "@/modules/booking-form/service";
 import type { createBookingAppointmentLifecycleService } from "@/modules/booking-appointment-lifecycle/service";
+import type { PaymentsService } from "@/modules/payments/service";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
@@ -27,9 +28,35 @@ import {
 } from "./projectCanonicalAppointment";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { PatientBookingRecord } from "./types";
+import { prepaymentContextFromBooking } from "@/modules/payments/prepaymentContextFromBooking";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
+}
+
+async function loadBookingPaymentStatus(
+  row: PatientBookingRecord | null,
+  input: {
+    bookingEngine: BookingEngineService | null | undefined;
+    payments: PaymentsService | null | undefined;
+  },
+) {
+  if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.payments) {
+    return { ok: false as const, error: "not_found" as const };
+  }
+  const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+  const summary = await input.payments.getAppointmentPaymentSummary(
+    row.canonicalAppointmentId,
+    orgId,
+    undefined,
+    prepaymentContextFromBooking(row),
+  );
+  return {
+    ok: true as const,
+    booking: row,
+    summary,
+    intentId: summary?.intent?.id ?? null,
+  };
 }
 
 function rowToProjectionInput(row: PatientBookingRecord) {
@@ -121,6 +148,7 @@ export function createPatientBookingService(input: {
   bookingForm?: BookingFormService | null;
   appointmentProjection?: AppointmentProjectionPort | null;
   appointmentLifecycle?: BookingAppointmentLifecycleService | null;
+  payments?: PaymentsService | null;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   slotsTtlMs?: number;
 }): PatientBookingService {
@@ -147,6 +175,7 @@ export function createPatientBookingService(input: {
           bookingScheduling: input.bookingScheduling,
           bookingForm: input.bookingForm ?? null,
           appointmentProjection: input.appointmentProjection ?? null,
+          payments: input.payments ?? null,
           isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
         }
       : null;
@@ -347,6 +376,36 @@ export function createPatientBookingService(input: {
       }
     },
 
+    async getBookingPaymentStatus(bookingId: string, userId: string) {
+      const row = await input.bookingsPort.getByIdForUser(bookingId, userId);
+      return loadBookingPaymentStatus(row, {
+        bookingEngine: input.bookingEngine ?? null,
+        payments: input.payments ?? null,
+      });
+    },
+
+    async getBookingPaymentStatusForContact(bookingId: string, contactPhone: string) {
+      const row = await input.bookingsPort.getById(bookingId);
+      if (!row) return { ok: false as const, error: "not_found" as const };
+      const normalized = normalizeRuPhoneE164(contactPhone) ?? contactPhone.trim();
+      const rowPhone = normalizeRuPhoneE164(row.contactPhone) ?? row.contactPhone.trim();
+      if (normalized !== rowPhone) return { ok: false as const, error: "forbidden" as const };
+      return loadBookingPaymentStatus(row, {
+        bookingEngine: input.bookingEngine ?? null,
+        payments: input.payments ?? null,
+      });
+    },
+
+    async listPaymentHistory(userId: string) {
+      if (!input.bookingEngine || !input.payments) return [];
+      const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+      return input.payments.listPaymentHistoryForUser(userId, orgId);
+    },
+
+    async getBookingByCanonicalAppointment(canonicalAppointmentId: string) {
+      return input.bookingsPort.getByCanonicalAppointmentId(canonicalAppointmentId);
+    },
+
     async previewCancel(previewInput) {
       const row = await input.bookingsPort.getByIdForUser(previewInput.bookingId, previewInput.userId);
       if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {
@@ -466,9 +525,18 @@ export function createPatientBookingService(input: {
         bookingId: row.id,
         slotStart: rescheduleInput.slotStart,
         slotEnd: rescheduleInput.slotEnd,
-        status: "confirmed",
+        status: row.status === "awaiting_payment" ? "awaiting_payment" : "confirmed",
       });
       invalidateSlotsCache();
+
+      if (input.payments && row.canonicalAppointmentId) {
+        await input.payments.recordReschedulePaymentCarryOver({
+          appointmentId: row.canonicalAppointmentId,
+          organizationId: orgId,
+          platformUserId: rescheduleInput.userId,
+          newStartAt: rescheduleInput.slotStart,
+        });
+      }
 
       if (input.appointmentProjection) {
         await projectCanonicalAppointmentRescheduled(
@@ -570,6 +638,22 @@ export function createPatientBookingService(input: {
             return { ok: false, error: "staff_confirmation_required" };
           }
           return { ok: false, error: "lifecycle_failed" };
+        }
+
+        if (input.payments) {
+          await input.payments.applyCancelPaymentOutcome({
+            appointmentId: row.canonicalAppointmentId,
+            organizationId: orgId,
+            prepaymentRetained: lifecycleResult.eligibility
+              ? !lifecycleResult.eligibility.isFree &&
+                lifecycleResult.cancelPolicy.lateCancellationBehavior === "retain_prepayment"
+              : false,
+            prepaymentRefunded: lifecycleResult.eligibility
+              ? !lifecycleResult.eligibility.isFree &&
+                lifecycleResult.cancelPolicy.lateCancellationBehavior === "refund_prepayment"
+              : false,
+            reason: cancelInput.reason,
+          });
         }
 
         await input.bookingsPort.markCancelled({

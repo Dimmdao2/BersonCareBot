@@ -36,6 +36,7 @@ import { normalizePatientDefaultPromoTreatmentProgramTemplatePatch } from "@/mod
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
+  "booking_payment_enabled",
   "video_watermark_enabled",
   "video_playback_api_enabled",
   "video_hls_pipeline_enabled",
@@ -74,6 +75,8 @@ const ADMIN_SCOPE_KEYS = [
   "patient_booking_url",
   "booking_default_organization_id",
   "booking_rubitime_bridge_enabled",
+  "booking_payment_enabled",
+  "booking_payment_providers",
   "patient_default_promo_treatment_program_template_id",
   "patient_home_daily_practice_target",
   "patient_home_morning_ping_enabled",
@@ -169,6 +172,25 @@ function auditValueForLog(key: string, value: unknown): unknown {
   if (SECRET_LIKE_KEYS.has(key)) return "[REDACTED]";
   if (key === "smtp_outbound") return redactSmtpOutboundForAudit(value);
   if (key === "web_push_vapid") return redactWebPushVapidForAudit(value);
+  if (key === "booking_payment_providers") {
+    const parsed = value;
+    if (parsed !== null && typeof parsed === "object" && "value" in (parsed as object)) {
+      const inner = (parsed as Record<string, unknown>).value;
+      if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
+        const o = { ...(inner as Record<string, unknown>) };
+        if (Array.isArray(o.providers)) {
+          o.providers = (o.providers as unknown[]).map((item) => {
+            if (item === null || typeof item !== "object") return item;
+            const p = { ...(item as Record<string, unknown>) };
+            if (typeof p.webhookSecret === "string" && p.webhookSecret.trim()) p.webhookSecret = "[REDACTED]";
+            if (typeof p.apiKey === "string" && p.apiKey.trim()) p.apiKey = "[REDACTED]";
+            return p;
+          });
+        }
+        return { value: o };
+      }
+    }
+  }
   return value;
 }
 
@@ -473,6 +495,10 @@ export async function PATCH(request: Request) {
   invalidateConfigKey(parsed.data.key);
 
   const clientSetting =
-    setting.key === "web_push_vapid" ? redactWebPushVapidSettingForClient(setting) : setting;
+    setting.key === "web_push_vapid"
+      ? redactWebPushVapidSettingForClient(setting)
+      : setting.key === "booking_payment_providers"
+        ? redactAdminSettingsForClient([setting])[0]!
+        : setting;
   return NextResponse.json({ ok: true, setting: clientSetting });
 }

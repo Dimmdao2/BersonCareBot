@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BookingStaffPaymentPanel } from "./BookingStaffPaymentPanel";
 
 const CANCEL_TYPES = [
   { value: "free", label: "Бесплатная" },
@@ -121,6 +122,7 @@ export function BookingManualLifecycleSection({
             </Button>
           </div>
         </div>
+        <BookingStaffPaymentPanel apiBase={apiBase} appointmentId={appointmentId} />
         {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
       </CardContent>
     </Card>

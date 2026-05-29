@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCategory } from "@/modules/patient-booking/types";
-import type { BookingSlot } from "@/modules/patient-booking/types";
+import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
 import type { BookingSelection } from "../../../cabinet/useBookingSelection";
 import { useCreateBooking } from "../../../cabinet/useCreateBooking";
 import { useRescheduleBooking } from "../../../cabinet/useRescheduleBooking";
@@ -53,6 +53,7 @@ function isExtraFormField(field: FormField): boolean {
 type ConfirmStepOptions = {
   formFieldsApiPath?: string;
   successRedirectPath?: string;
+  buildAwaitingPaymentHref?: (booking: PatientBookingRecord, contactPhone: string) => string;
   useCreateBookingHook?: typeof useCreateBooking;
   useRescheduleBookingHook?: typeof useRescheduleBooking;
 };
@@ -85,6 +86,7 @@ export function ConfirmStepClient({
   appDisplayTimeZone,
   formFieldsApiPath = "/api/booking/form-fields",
   successRedirectPath = routePaths.bookingNew,
+  buildAwaitingPaymentHref,
   useCreateBookingHook = useCreateBooking,
   useRescheduleBookingHook = useRescheduleBooking,
   rescheduleBookingId,
@@ -206,11 +208,18 @@ export function ConfirmStepClient({
               contactEmail: email.trim() || undefined,
               formAnswers: formAnswers.length > 0 ? formAnswers : undefined,
             })
-            .then((ok) => {
-              if (ok) {
-                toast.success("Запись подтверждена");
-                router.push(successRedirectPath);
+            .then((booking) => {
+              if (!booking) return;
+              if (booking.status === "awaiting_payment") {
+                toast.success("Требуется оплата");
+                const payPath = buildAwaitingPaymentHref
+                  ? buildAwaitingPaymentHref(booking, phone.trim())
+                  : `/app/patient/booking/pay?bookingId=${encodeURIComponent(booking.id)}`;
+                router.push(payPath);
+                return;
               }
+              toast.success("Запись подтверждена");
+              router.push(successRedirectPath);
             });
         }}
       >

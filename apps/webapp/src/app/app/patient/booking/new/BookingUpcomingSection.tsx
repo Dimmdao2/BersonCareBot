@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
@@ -31,12 +32,13 @@ type Props = {
 
 function statusToBadgeVariant(status: PatientBookingRecord["status"]): "default" | "secondary" | "destructive" | "outline" {
   if (status === "cancelled" || status === "failed_sync" || status === "cancel_failed") return "destructive";
-  if (status === "rescheduled" || status === "cancelling") return "secondary";
+  if (status === "awaiting_payment" || status === "rescheduled" || status === "cancelling") return "secondary";
   return "outline";
 }
 
 function statusLabel(status: PatientBookingRecord["status"]): string {
   if (status === "creating") return "Создается";
+  if (status === "awaiting_payment") return "Ожидает оплаты";
   if (status === "confirmed") return "Подтверждена";
   if (status === "cancelled") return "Отменена";
   if (status === "cancelling") return "Отмена…";
@@ -54,6 +56,10 @@ function showManageLink(status: PatientBookingRecord["status"]): boolean {
     status === "creating" ||
     status === "cancel_failed"
   );
+}
+
+function payHref(bookingId: string): string {
+  return `/app/patient/booking/pay?bookingId=${encodeURIComponent(bookingId)}`;
 }
 
 export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) {
@@ -92,6 +98,11 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <Badge variant={statusToBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>
+                {row.status === "awaiting_payment" ? (
+                  <Link href={payHref(row.id)} className={bookingReminderManageCtaClass}>
+                    Оплатить
+                  </Link>
+                ) : null}
                 {canManage ? (
                   <button type="button" className={bookingReminderManageCtaClass} onClick={openRubitime}>
                     Управлять

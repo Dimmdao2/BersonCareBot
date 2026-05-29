@@ -1,4 +1,8 @@
-export type IntegratorBookingEventType = "booking.created" | "booking.cancelled" | "booking.rescheduled";
+export type IntegratorBookingEventType =
+  | "booking.created"
+  | "booking.cancelled"
+  | "booking.rescheduled"
+  | "booking.payment_captured";
 
 export function buildBookingNotificationsSent(input: {
   eventType: IntegratorBookingEventType;

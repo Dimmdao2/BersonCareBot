@@ -12,7 +12,14 @@ export function resetInMemoryPatientBookingsStore(): void {
   byId.clear();
 }
 
-const BLOCKING_STATUSES = ["creating", "confirmed", "rescheduled", "cancelling", "cancel_failed"] as const;
+const BLOCKING_STATUSES = [
+  "creating",
+  "awaiting_payment",
+  "confirmed",
+  "rescheduled",
+  "cancelling",
+  "cancel_failed",
+] as const;
 
 /** Matches pgPatientBookings `upsertFromRubitime` fallback filter. */
 const FALLBACK_NATIVE_STATUSES: readonly PatientBookingStatus[] = ["creating", "confirmed", "failed_sync"];
@@ -149,6 +156,28 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     return row;
   },
 
+  async markAwaitingPayment(bookingId, canonicalAppointmentId) {
+    const row = byId.get(bookingId);
+    if (!row) return null;
+    const next = {
+      ...row,
+      status: "awaiting_payment" as const,
+      canonicalAppointmentId,
+      updatedAt: new Date().toISOString(),
+    };
+    byId.set(bookingId, next);
+    return next;
+  },
+
+  async markConfirmedByCanonicalAppointment(canonicalAppointmentId, rubitimeId = null) {
+    for (const [id, row] of byId) {
+      if (row.canonicalAppointmentId === canonicalAppointmentId && row.status === "awaiting_payment") {
+        return this.markConfirmed(id, rubitimeId, { canonicalAppointmentId });
+      }
+    }
+    return null;
+  },
+
   async markConfirmed(bookingId, rubitimeId, options) {
     const row = byId.get(bookingId);
     if (!row) return null;
@@ -217,6 +246,17 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     };
     byId.set(input.bookingId, next);
     return next;
+  },
+
+  async getById(bookingId) {
+    return byId.get(bookingId) ?? null;
+  },
+
+  async getByCanonicalAppointmentId(canonicalAppointmentId) {
+    for (const row of byId.values()) {
+      if (row.canonicalAppointmentId === canonicalAppointmentId) return row;
+    }
+    return null;
   },
 
   async getByIdForUser(bookingId, userId) {
@@ -345,7 +385,11 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     const nowMs = new Date(nowIso).getTime();
     return [...byId.values()]
       .filter((row) => row.userId === userId)
-      .filter((row) => ["creating", "confirmed", "rescheduled", "cancelling", "cancel_failed"].includes(row.status))
+      .filter((row) =>
+        ["creating", "awaiting_payment", "confirmed", "rescheduled", "cancelling", "cancel_failed"].includes(
+          row.status,
+        ),
+      )
       .filter((row) => new Date(row.slotStart).getTime() >= nowMs)
       .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
   },

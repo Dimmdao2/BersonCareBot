@@ -114,7 +114,7 @@ export type BookingSyncPort = {
   cancelRecord(rubitimeId: string): Promise<void>;
   updateRecord?(input: { rubitimeId: string; slotStart: string; slotEnd?: string }): Promise<void>;
   emitBookingEvent(input: {
-    eventType: "booking.created" | "booking.cancelled" | "booking.rescheduled";
+    eventType: "booking.created" | "booking.cancelled" | "booking.rescheduled" | "booking.payment_captured";
     idempotencyKey: string;
     payload: {
       bookingId: string;
@@ -143,6 +143,14 @@ export type PatientBookingsPort = {
     rubitimeId: string | null,
     options?: { rubitimeManageUrl?: string | null; canonicalAppointmentId?: string | null },
   ): Promise<PatientBookingRecord | null>;
+  markAwaitingPayment(
+    bookingId: string,
+    canonicalAppointmentId: string,
+  ): Promise<PatientBookingRecord | null>;
+  markConfirmedByCanonicalAppointment(
+    canonicalAppointmentId: string,
+    rubitimeId?: string | null,
+  ): Promise<PatientBookingRecord | null>;
   markFailedSync(bookingId: string): Promise<void>;
   markCancelling(bookingId: string): Promise<PatientBookingRecord | null>;
   markCancelled(input: {
@@ -170,6 +178,8 @@ export type PatientBookingsPort = {
     /** Exact Rubitime HTTPS URL for the record (webhook / projection). */
     rubitimeManageUrl?: string | null;
   }): Promise<void>;
+  getById(bookingId: string): Promise<PatientBookingRecord | null>;
+  getByCanonicalAppointmentId(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
   listUpcomingByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
   listHistoryByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
   updateSlotsAfterReschedule(input: {
@@ -183,6 +193,34 @@ export type PatientBookingsPort = {
 export type PatientBookingService = {
   getSlots(query: BookingSlotsQuery): Promise<BookingSlotsByDate[]>;
   createBooking(input: CreatePatientBookingInput): Promise<PatientBookingRecord>;
+  getBookingPaymentStatus(
+    bookingId: string,
+    userId: string,
+  ): Promise<
+    | {
+        ok: true;
+        booking: PatientBookingRecord;
+        summary: import("@/modules/payments/types").AppointmentPaymentSummary | null;
+        intentId: string | null;
+      }
+    | { ok: false; error: "not_found" }
+  >;
+  getBookingPaymentStatusForContact(
+    bookingId: string,
+    contactPhone: string,
+  ): Promise<
+    | {
+        ok: true;
+        booking: PatientBookingRecord;
+        summary: import("@/modules/payments/types").AppointmentPaymentSummary | null;
+        intentId: string | null;
+      }
+    | { ok: false; error: "not_found" | "forbidden" }
+  >;
+  listPaymentHistory(userId: string): Promise<
+    import("@/modules/payments/types").PaymentHistoryEventRecord[]
+  >;
+  getBookingByCanonicalAppointment(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
   cancelBooking(input: CancelPatientBookingInput): Promise<
     | { ok: true; lateCancellation?: boolean }
     | {

@@ -8,6 +8,7 @@ import type { createBookingSchedulingService } from "@/modules/booking-schedulin
 type BookingFormService = ReturnType<typeof createBookingFormService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
 import type { AppointmentProjectionPort } from "./ports";
+import type { PaymentsService } from "@/modules/payments/service";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type {
   BookingSyncPort,
@@ -30,6 +31,7 @@ export type CanonicalBookingDeps = {
   bookingScheduling: BookingSchedulingService | null;
   bookingForm: BookingFormService | null;
   appointmentProjection: AppointmentProjectionPort | null;
+  payments: PaymentsService | null;
   isRubitimeBridgeEnabled: () => Promise<boolean>;
 };
 
@@ -162,6 +164,18 @@ export async function createBookingOnCanonicalEngine(
 
   const pending = await deps.bookingsPort.createPending(pendingRow);
 
+  const prepayQuote = deps.payments
+    ? await deps.payments.resolvePrepayment({
+        organizationId: orgId,
+        serviceId: canonicalServiceId,
+        onlineCategory: createInput.type === "online" ? createInput.category : null,
+        servicePriceMinor: pendingRow.priceMinorSnapshot,
+        currency: "RUB",
+      })
+    : null;
+  const needsPrepayment = prepayQuote?.required === true && (prepayQuote.amountMinor ?? 0) > 0;
+  const initialAppointmentStatus = needsPrepayment ? "awaiting_payment" : "confirmed";
+
   const phoneNormalized = normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();
   let appointment;
   try {
@@ -176,7 +190,7 @@ export async function createBookingOnCanonicalEngine(
       endAt: createInput.slotEnd,
       durationMinutes: slotDurationMinutes,
       source: createInput.bookingChannel === "public_widget" ? "public_widget" : "native",
-      status: "confirmed",
+      status: initialAppointmentStatus,
       phoneNormalized,
       actorId: createInput.userId,
       attributionJson: createInput.attribution ?? {},
@@ -235,6 +249,19 @@ export async function createBookingOnCanonicalEngine(
     } catch {
       // Rubitime sync is best-effort; canonical appointment remains primary.
     }
+  }
+
+  if (needsPrepayment && deps.payments && prepayQuote) {
+    await deps.payments.createAppointmentPaymentIntent({
+      organizationId: orgId,
+      appointmentId: appointment.id,
+      platformUserId: createInput.userId,
+      amountMinor: prepayQuote.amountMinor,
+      currency: prepayQuote.currency,
+      idempotencyKey: `appointment_prepay:${appointment.id}`,
+    });
+    const awaiting = await deps.bookingsPort.markAwaitingPayment(pending.id, appointment.id);
+    return awaiting ?? pending;
   }
 
   const confirmed = await deps.bookingsPort.markConfirmed(pending.id, rubitimeId, {

@@ -5,7 +5,7 @@
 ## Поток создания (этап 2)
 
 1. Валидация слота (`booking-scheduling`) и обязательных полей (`booking-form`).
-2. `be_appointments` со статусом `confirmed` (exclusion constraint на специалиста).
+2. `be_appointments` со статусом `confirmed` или `awaiting_payment` при обязательной предоплате (exclusion constraint на специалиста).
 3. `patient_bookings` (pending → confirmed), связь `canonical_appointment_id`.
 4. Rubitime — только при включённом мосте, без блокировки ядра; mapping `appointment` ↔ rubitime.
 5. Проекция в `appointment_records` (`integrator_record_id` = `be:{appointmentId}`) для кабинета врача.
@@ -39,11 +39,24 @@
 
 Ручные решения: admin `.../manual-cancel|manual-reschedule`; doctor `/api/doctor/booking-engine/appointments/[id]/...` (`canAccessDoctor`); история `GET .../appointments/[id]/lifecycle` (admin).
 
+## Предоплата и оплата (этап 5)
+
+При политике предоплаты и `booking_payment_enabled`:
+
+1. `canonicalCreate` → `awaiting_payment` + `be_payment_intents`; `patient_bookings.awaiting_payment`; **`booking.created` не отправляется** до capture.
+2. Оплата: пациент **`GET/POST /api/booking/payment-*`** → UI `/app/patient/booking/pay`; публично **`/api/booking/public/payment-*`** → `/book/pay` (верификация телефона).
+3. Capture → `be_appointments.payment_ref`, переход `paid` → `confirmed`, `patient_bookings.confirmed`, `emitBookingEvent('booking.payment_captured')` (напоминания).
+4. Отмена с типами retain/refund prepayment → `modules/payments` `applyCancelPaymentOutcome`.
+5. Перенос → `prepayment_carried_on_reschedule` в `be_payment_history_events`.
+
+Модуль: `modules/payments/`. Admin: `BookingPaymentsSection`, `BookingPrepaymentSection`; staff B-pay — `BookingStaffPaymentPanel`.
+
 ## Admin
 
 - `POST /api/admin/booking-engine/appointments/manual` — ручная бронь.
 - `GET`/`POST`/`DELETE /api/admin/booking-engine/schedule-blocks` — блокировки расписания.
 - `GET`/`POST /api/admin/booking-engine/policies` — политики отмены/переноса (org-level в UI).
+- `GET`/`PUT /api/admin/booking-engine/prepayment-policies` — предоплата по услуге или онлайн-категории.
 
 ## Модули и инфра
 
@@ -58,4 +71,4 @@
 
 ## Тесты
 
-`service.test.ts`, `canonicalCreate.test.ts`, `slotOverlap.test.ts`, `createInputValidation.test.ts`.
+`service.test.ts`, `canonicalCreate.test.ts`, `slotOverlap.test.ts`, `createInputValidation.test.ts`; payments — `modules/payments/*.test.ts`, `app/api/booking/payment-routes.test.ts`.
