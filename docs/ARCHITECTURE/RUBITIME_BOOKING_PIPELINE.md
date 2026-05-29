@@ -70,6 +70,16 @@ Rubitime передаёт `name` как полную строку (часто Ф
 |------|-----------|
 | 2026-05-02 | Описание события GCal: комментарии клиента/админа вместо одного только id; merge полей комментариев из тела вебхука; unit-тесты. |
 
+## Каноническая модель и read-bridge (этап 1, OWN_BOOKING_ENGINE)
+
+Параллельно legacy-пайплайну выше существует **канон** в webapp (`be_appointments`, организационная модель `be_*`). Источник истины на этапе 1 для новых контрактов — канон; Rubitime и `appointment_records` остаются для текущего UI и вебхуков.
+
+- **Мост:** `system_settings.booking_rubitime_bridge_enabled` (admin). При включении админ может запустить проекцию (`POST /api/admin/booking-engine/bridge`) — idempotent upsert в `be_appointments` + `be_external_entity_mappings` по `integrator_record_id` / `rubitime_record_id`.
+- **Код:** модуль `apps/webapp/src/modules/booking-engine/`, репозитории `pgBookingEngine.ts`, `pgBookingRubitimeBridge.ts`; вебхук integrator **не меняется**.
+- **Write-путь** создания записи в каноне без Rubitime — этап 2; до переключения пациентский/врачебный UI читает `patient_bookings` / `appointment_records` как раньше.
+
+Подробнее: [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md).
+
 ## Одноразовое восстановление данных (ops)
 
 Если у записи есть телефон в `appointment_records`, но нет строки в `platform_users` с тем же `phone_normalized`, в UI врача может отображаться «Неизвестный клиент». Исправление — создать или связать профиль по согласованным с продуктом правилам.

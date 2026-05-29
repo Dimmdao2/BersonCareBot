@@ -154,6 +154,20 @@
 
 Источник в integrator: `rubitime_records`. Связь по `integrator_record_id`.
 
+#### Каноническая модель записи (OWN_BOOKING_ENGINE, этап 1)
+
+Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, миграции `0086_booking_engine_canonical.sql`, `0087_booking_engine_backfill_legacy.sql`, `0088_booking_engine_settings_and_mapping_repair.sql`.
+
+Таблицы (префикс `be_*`, tenant `organization_id`):
+
+- `be_organizations`, `be_branches`, `be_rooms`, `be_specialists`, `be_specialist_locations`, `be_specialist_rooms`
+- `be_clinic_services`, `be_specialist_service_availability`, `be_service_location_availability`
+- `be_appointments`, `be_appointment_events` (append-only)
+- `be_patient_timeline_events`, `be_appointment_history_events`
+- `be_external_entity_mappings` (внешние id Rubitime, не в канонических колонках)
+
+Legacy `booking_*` / `patient_bookings` / `appointment_records` **не удалены**; backfill копирует каталог в `be_*`. Read-bridge проецирует `appointment_records` и `rubitime_records` в `be_appointments` при `booking_rubitime_bridge_enabled` (admin `system_settings`). См. [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md).
+
 ### 2.7 Subscription / mailing (проекция из integrator)
 
 Таблицы (миграции 012, backfill-subscription-mailing-domain):

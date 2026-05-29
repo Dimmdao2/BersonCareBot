@@ -72,6 +72,8 @@ const ADMIN_SCOPE_KEYS = [
   "video_presign_ttl_seconds",
   "video_watermark_enabled",
   "patient_booking_url",
+  "booking_default_organization_id",
+  "booking_rubitime_bridge_enabled",
   "patient_default_promo_treatment_program_template_id",
   "patient_home_daily_practice_target",
   "patient_home_morning_ping_enabled",

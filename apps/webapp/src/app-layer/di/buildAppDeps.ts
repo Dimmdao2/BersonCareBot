@@ -251,7 +251,10 @@ import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
 import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
 import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
+import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
+import { createPgBookingRubitimeBridgePort } from "@/infra/repos/pgBookingRubitimeBridge";
 import { createBookingCatalogService } from "@/modules/booking-catalog/service";
+import { createBookingEngineService } from "@/modules/booking-engine/service";
 import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
 import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHomeLegacyContent";
@@ -366,6 +369,15 @@ const patientBookingsPort = !inMemoryRepos
 const bookingCatalogPort = !inMemoryRepos ? createPgBookingCatalogPort() : null;
 const bookingCatalogService = bookingCatalogPort
   ? createBookingCatalogService(bookingCatalogPort)
+  : null;
+const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
+const bookingRubitimeBridgePort = !inMemoryRepos ? createPgBookingRubitimeBridgePort() : null;
+const bookingEnginePort =
+  bookingEngineCorePort && bookingRubitimeBridgePort
+    ? { ...bookingEngineCorePort, ...bookingRubitimeBridgePort }
+    : null;
+const bookingEngineService = bookingEnginePort
+  ? createBookingEngineService(bookingEnginePort)
   : null;
 const patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
@@ -1078,6 +1090,9 @@ function _buildAppDeps() {
     bookingCatalog: bookingCatalogService,
     /** Raw PG port for admin booking-catalog API (null only in Vitest without DB). */
     bookingCatalogPort,
+    bookingEngine: bookingEngineService,
+    /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
+    bookingEnginePort,
   };
 }
 

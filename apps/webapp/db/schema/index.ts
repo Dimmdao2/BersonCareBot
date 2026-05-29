@@ -22,4 +22,5 @@ export * from "./webappReminderOccurrences";
 export * from "./userEmailSetupTokens";
 export * from "./broadcastAuditRecipients";
 export * from "./productAnalytics";
+export * from "./bookingEngine";
 export * from "./relations";

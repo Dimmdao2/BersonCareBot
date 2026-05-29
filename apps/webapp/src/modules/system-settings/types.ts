@@ -65,6 +65,10 @@ export const ALLOWED_KEYS = [
   "video_watermark_enabled",
   /** Публичная ссылка записи на приём (Rubitime и т.п.), редактируется в админке. */
   "patient_booking_url",
+  /** UUID дефолтной организации (tenant) для канонической модели записи. */
+  "booking_default_organization_id",
+  /** Вкл/выкл read-bridge и синхронизации Rubitime ↔ канон (этап 1 — проекция). */
+  "booking_rubitime_bridge_enabled",
   /** Пауза (мин) перед повторной отметкой той же разминки дня (`daily_warmup`) на главной; default 60, clamp 5–180. */
   "patient_home_daily_warmup_repeat_cooldown_minutes",
   /** Пауза (мин) перед повторным «Выполнено» у простого пункта программы реабилитации; default 60, clamp 5–180. */

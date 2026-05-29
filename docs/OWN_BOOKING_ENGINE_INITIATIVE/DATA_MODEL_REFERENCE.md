@@ -1,0 +1,67 @@
+# DATA_MODEL_REFERENCE — справочник канонических сущностей (ориентир)
+
+Это **ориентир** для проектирования, а не финальный DDL. Финальные таблицы/колонки/индексы проектирует агент-исполнитель этапа в Drizzle (`apps/webapp/db/schema/*.ts`) с миграциями. Источник требований — [`SOURCE_SPEC.md`](SOURCE_SPEC.md) §21. Архитектурные правила — [`MASTER_PLAN.md`](MASTER_PLAN.md) §3.
+
+## Общие соглашения
+- **Tenant:** каждая доменная таблица несёт `organization_id` (C1). Запросы фильтруются по tenant.
+- **Деньги:** `amountMinor: integer` + `currency: text` (как в `courses`).
+- **Время:** UTC в БД; бизнес-таймзона — из `system_settings` (IANA).
+- **Полиморфные ссылки:** без FK в БД (валидация в service) — напр. `linked_object_type`/`linked_object_id`, `item_ref_id`.
+- **История:** append-only `*_event`-таблицы; текущее состояние допустимо денормализовать как кэш, но истина — события.
+- **Внешние ID (Rubitime/GCal):** в отдельных bridge-колонках/таблицах, не в каноне.
+
+## Организационные (этап 1)
+- **organization** (clinic) — tenant-контейнер.
+- **branch** (location) — город/адрес/точка; принадлежит организации; **не** держит услуги.
+- **room** — кабинет в филиале.
+- **specialist** — специалист организации.
+- **specialist_location** — связь специалист×филиал.
+- **specialist_room** — связь специалист×кабинет.
+- **service** — общая услуга клиники (длительность, цена, описание, активность, флаги: prepayment_applicable, usable_in_packages, online_payment_applicable, public_widget_visible).
+- **specialist_service_availability** — доступность услуги: уровни специалист / +филиал / +кабинет / +город.
+- **service_location_availability** — услуга×локация (фильтр «город → услуги»).
+
+## Записи и расписание (этапы 1, 2, 4, 8)
+- **appointment** — каноническая запись (organization, branch, room, specialist, service, patient, start_at, end_at, duration, source, status, original_start_at, reschedule_count, payment_ref?, package_usage_ref?).
+- **appointment_status** — enum (ТЗ §17).
+- **appointment_event** — append-only история записи.
+- **appointment_reschedule** — событие переноса (исходная/новая дата, актор, в бесплатном периоде?, применённые правила).
+- **appointment_cancellation** — событие отмены (тип, актор, причина, бесплатная/штрафная, списание, удержание, возврат, комментарий, уведомления).
+- **working_hours** — рабочее время специалиста (по филиалу/кабинету).
+- **availability_rule** — правила доступности.
+- **schedule_block** — блокировки/отсутствия/отпуска.
+- **time_slot** — (производное) вычисляемые слоты; может быть вычислением, не таблицей.
+- **calendar_event** — представление для календаря (может быть проекцией над appointment + block).
+
+## Пациенты и формы (этапы 2, 3, 9)
+- **patient** — переиспользовать `platform_users` (не плодить дубль identity); booking-специфичные поля выносить в смежные таблицы.
+- **patient_contact** — контакты (телефон/email), `phone_normalized`.
+- **patient_merge_candidate** — кандидаты на объединение профилей (C5).
+- **patient_profile_field / booking_form_field** — конфигурация полей записи.
+- **booking_form_submission** — ответы пациента по записи.
+- **booking-репутация** (этап 9) — флаги «проблемный» / booking-блок, **отдельно** от `is_blocked`/`is_archived` (мессенджинг/видимость).
+
+## Абонементы и продукты (этапы 6, 7)
+- **product / product_type** — универсальный продукт.
+- **package (subscription_package) / package_item** — составной абонемент (произвольные услуги×количества).
+- **patient_package / patient_package_balance / package_usage** — экземпляр у пациента, остатки, списания (append-only).
+- **promo_product / gift_certificate** — акции/подарки.
+- **entitlement / content_access_grant** — выдача доступа после покупки (переиспользовать существующие `content_access_grants`).
+
+## Оплаты (этап 5)
+- **payment_provider / payment_provider_config** — провайдеры; **конфиг/ключи в `system_settings`**, таблица хранит метаданные/выбор, не секреты.
+- **payment_method** — способ оплаты.
+- **payment / payment_intent / refund** — оплаты, интенты, возвраты (идемпотентность по ключам).
+- **prepayment_policy / cancellation_policy / reschedule_policy** — политики как данные, привязка по уровням (клиника/специалист/услуга/продукт).
+- **payment_provider_event** — входящие вебхуки провайдеров (идемпотентная обработка).
+
+## История/таймлайн (этапы 1, 9)
+- **patient_timeline_event** — агрегатор событий пациента (для карточки).
+- **appointment_history_event / payment_history_event / package_history_event** — доменные истории (могут быть представлениями над `*_event`).
+
+## Связь с существующими таблицами (не дублировать)
+- Идентичность: `platform_users`, `user_channel_bindings`, `phone_normalized`, `integrator_user_id` — переиспользовать.
+- Текущая запись: `patient_bookings`, `appointment_records` (проекция Rubitime), `rubitime_records` — мигрировать/проецировать в канон, не оставлять второй источник истины.
+- Текущий booking-каталог: `booking_branches/booking_cities/booking_specialists/booking_services/booking_branch_services`, `rubitime_booking_profiles` — переосмыслить под новую модель доступности (миграция, не параллельная модель).
+- Курсы: `courses` (+`priceMinor`/`currency`), `content_pages`, `content_access_grants` — потребители продуктового/платёжного слоя.
+- Конфиг: `system_settings` (+`ALLOWED_KEYS`) — единственное место для платёжных ключей.
