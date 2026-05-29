@@ -91,6 +91,7 @@ function deps(bridge: boolean): CanonicalBookingDeps {
     payments: null,
     memberships: null,
     products: null,
+    clientHistory: null,
     isRubitimeBridgeEnabled: async () => bridge,
   };
 }
@@ -105,6 +106,26 @@ describe("createBookingOnCanonicalEngine", () => {
       startAt: "2026-06-01T10:00:00.000Z",
       endAt: "2026-06-01T11:00:00.000Z",
     });
+  });
+
+  it("rejects self-service booking when client is booking-blocked", async () => {
+    const clientHistory = {
+      assertSelfServiceBookingAllowed: vi.fn().mockRejectedValue(new Error("booking_blocked")),
+    };
+    await expect(
+      createBookingOnCanonicalEngine(
+        { ...deps(false), clientHistory: clientHistory as never },
+        {
+          userId: "user-1",
+          type: "online",
+          category: "general",
+          slotStart: "2026-06-01T10:00:00.000Z",
+          slotEnd: "2026-06-01T11:00:00.000Z",
+          contactName: "Иван",
+          contactPhone: "+79001234567",
+        },
+      ),
+    ).rejects.toThrow("booking_blocked");
   });
 
   it("creates canonical appointment without rubitime when bridge is off", async () => {

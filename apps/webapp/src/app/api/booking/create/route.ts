@@ -130,6 +130,9 @@ export async function POST(request: Request) {
     if (message === "canonical_booking_unavailable") {
       return NextResponse.json({ ok: false, error: message }, { status: 503 });
     }
+    if (message === "booking_blocked") {
+      return NextResponse.json({ ok: false, error: message }, { status: 403 });
+    }
     if (
       message === "invalid_branch_service_id" ||
       message === "invalid_city_code" ||

@@ -28,13 +28,13 @@
 ## B. Врач / специалист (рабочее место)
 
 - [x] **B-list. Список записей** — read `be_appointments` (канон), фильтры дашборда, действия через booking-engine lifecycle API (этап 8).
-- [x] **B-calendar. Календарь** — luxon+shadcn grid: записи/free slots/статусы/филиалы/кабинеты/специалисты/услуги; фильтры; создание/перенос/отмена; lifecycle/оплата/абонемент/комментарии (этап 8).
+- [x] **B-calendar. Календарь** — luxon+shadcn grid: записи/free slots/статусы/филиалы/кабинеты/специалисты/услуги; фильтры; создание/перенос/отмена; lifecycle/оплата/абонемент; `AppointmentStaffCommentsSection` (этап 8 + 9).
 - [x] **B-actions. Ручные решения** — отмена с выбором типа (бесплатная/штраф/списать/не списывать/удержать/вернуть предоплату/индивидуально); ручной перенос; override автоматики (этап 4).
 - [x] **B-pay. Оплаты записи** — `BookingStaffPaymentPanel` в ручном lifecycle (admin/doctor); API `GET .../appointments/[id]/payment`.
 - [x] **B-package. Абонементы пациента** — назначение каталога/индивидуального, список по `platformUserId`, consume API, ссылка на оплату (`BookingPatientPackagesSection`, этап 6; полная карточка — этап 9).
 - [x] **B-products. Продукты пациента** — `BookingPatientProductsSection`: список по `platformUserId`, ручное списание визита; при записи — выбор покупки в wizard пациента (этап 7).
 - [x] **B-merge. Мердж пациентов** — `/app/doctor/booking-merge` + `AdminMergeAccountsPanel` в списке booking-кандидатов (этап 3).
-- [ ] **B-card. Карточка клиента** — полная история (записи/посещения/отмены/переносы/оплаты/предоплаты/возвраты/абонементы/списания/продукты/акции/комментарии); комментарии в карточке и к записи; пометка «проблемный»; booking-блокировка (этап 9).
+- [x] **B-card. Карточка клиента** — `ClientBookingHistoryPanel`: таймлайн/оплаты/визиты; booking-репутация; `AppointmentStaffCommentsSection` на вкладке визитов; `DoctorNotesPanel` (этап 9).
 
 ## C. Пациент (личный кабинет, `/app/patient/**`)
 
@@ -43,7 +43,7 @@
 - [x] **C-pay. Оплата/предоплата** — `/app/patient/booking/pay`, «Оплатить» в предстоящих, `PatientBookingPaymentHistorySection`.
 - [x] **C-package. Абонементы** — список, остаток по позициям (с названиями услуг), оплата `/app/patient/memberships/pay`, деталь `/app/patient/memberships/[id]`; покупка каталога через API `catalog` + `purchase` (этап 6; расширенная история — этап 9).
 - [x] **C-products. Продукты/покупки** — `/app/patient/purchases`, каталог API, оплата `/app/patient/purchases/pay`; доступ к материалам по grants (этап 7).
-- [ ] **C-history. История** — свои визиты/записи/оплаты (срез карточки для пациента) (этап 9).
+- [x] **C-history. История** — `PatientBookingHistorySection` в профиле и оплаты на `/app/patient/purchases`; API `GET /api/booking/history` (этап 9).
 
 ## P. Публичный вход (вне `/app`, для Tilda)
 

@@ -11,6 +11,7 @@ import type { AppointmentProjectionPort } from "./ports";
 import type { PaymentsService } from "@/modules/payments/service";
 import type { MembershipsService } from "@/modules/memberships/service";
 import type { ProductsService } from "@/modules/products/service";
+import type { ClientHistoryService } from "@/modules/client-history/service";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type {
   BookingSyncPort,
@@ -36,6 +37,7 @@ export type CanonicalBookingDeps = {
   payments: PaymentsService | null;
   memberships: MembershipsService | null;
   products: ProductsService | null;
+  clientHistory: ClientHistoryService | null;
   isRubitimeBridgeEnabled: () => Promise<boolean>;
 };
 
@@ -105,6 +107,9 @@ export async function createBookingOnCanonicalEngine(
   }
 
   const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  if (deps.clientHistory) {
+    await deps.clientHistory.assertSelfServiceBookingAllowed(orgId, createInput.userId);
+  }
   const profilePrefill: Record<string, string> = {
     contact_name: createInput.contactName,
     contact_phone: createInput.contactPhone,

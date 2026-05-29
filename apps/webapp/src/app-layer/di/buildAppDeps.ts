@@ -260,6 +260,9 @@ import { createPgBookingSchedulingPort } from "@/infra/repos/pgBookingScheduling
 import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
 import { createBookingCalendarService } from "@/modules/booking-calendar/service";
 import { createPgBookingCalendarPort } from "@/infra/repos/pgBookingCalendar";
+import { createClientHistoryService } from "@/modules/client-history/service";
+import { createPgClientHistoryPort } from "@/infra/repos/pgClientHistory";
+import { inMemoryClientHistoryPort } from "@/infra/repos/inMemoryClientHistory";
 import { createPgBookingFormPort } from "@/infra/repos/pgBookingForm";
 import { createBookingFormService } from "@/modules/booking-form/service";
 import { createPgPatientMergeCandidatePort } from "@/infra/repos/pgPatientMergeCandidate";
@@ -422,6 +425,8 @@ const bookingCalendarService =
         schedulingPort: bookingSchedulingPort,
       })
     : null;
+const clientHistoryPort = !inMemoryRepos ? createPgClientHistoryPort() : inMemoryClientHistoryPort;
+const clientHistoryService = createClientHistoryService(clientHistoryPort);
 const bookingFormPort = !inMemoryRepos ? createPgBookingFormPort() : null;
 const bookingFormService = bookingFormPort ? createBookingFormService(bookingFormPort) : null;
 const patientMergeCandidatePort = !inMemoryRepos ? createPgPatientMergeCandidatePort() : null;
@@ -748,6 +753,7 @@ patientBookingService = createPatientBookingService({
   payments: paymentsService,
   memberships: membershipsServiceResolved,
   products: productsServiceResolved,
+  clientHistory: clientHistoryService,
   isRubitimeBridgeEnabled: bookingRubitimeBridgePort
     ? () => bookingRubitimeBridgePort.isBridgeEnabled()
     : undefined,
@@ -1297,6 +1303,7 @@ function _buildAppDeps() {
     bookingEnginePort,
     bookingScheduling: bookingSchedulingService,
     bookingCalendar: bookingCalendarService,
+    clientHistory: clientHistoryService,
     bookingForm: bookingFormService,
     bookingPolicies: bookingPoliciesService,
     bookingAppointmentLifecycle: bookingAppointmentLifecycleService,

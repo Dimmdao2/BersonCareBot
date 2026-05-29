@@ -28,5 +28,6 @@ export * from "./bookingPayments";
 export * from "./bookingMemberships";
 export * from "./bookingProducts";
 export * from "./bookingScheduling";
+export * from "./bookingClientProfile";
 export * from "./patientMergeCandidate";
 export * from "./relations";

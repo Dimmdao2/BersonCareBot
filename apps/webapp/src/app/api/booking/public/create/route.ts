@@ -98,6 +98,9 @@ export async function POST(request: Request) {
     if (message === "canonical_booking_unavailable" || message === "catalog_unavailable") {
       return NextResponse.json({ ok: false, error: message }, { status: 503 });
     }
+    if (message === "booking_blocked") {
+      return NextResponse.json({ ok: false, error: message }, { status: 403 });
+    }
     return NextResponse.json({ ok: false, error: message }, { status: 503 });
   }
 }

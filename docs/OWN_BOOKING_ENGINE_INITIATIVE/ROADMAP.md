@@ -6,7 +6,7 @@
 
 ## Таблица этапов
 
-Декомпозированные планы для исполнителя (Composer) — в `.cursor/plans/own_booking_stage*.plan.md`.
+Декомпозированные планы для исполнителя (Composer) — в `.cursor/plans/archive/own_booking_stage*.plan.md`.
 
 | # | Этап | Статус | Зависит от | Можно параллелить с | План |
 |---|------|--------|-----------|---------------------|------|
@@ -19,7 +19,7 @@
 | 6 | Абонементы | `done` | 1, 2, 4, 5 | 7 (модель продуктов) | [`stage6`](../../.cursor/plans/archive/own_booking_stage6_memberships.plan.md) |
 | 7 | Продукты, акции, подписки, курсы | `done` | 5, 6 | — | [`stage7`](../../.cursor/plans/archive/own_booking_stage7_products_courses.plan.md) |
 | 8 | Календарь | `done` | 1, 2, 4 | 5–7 (отображение статусов/оплат добавляется по мере готовности) | [`stage8`](../../.cursor/plans/archive/own_booking_stage8_calendar.plan.md) |
-| 9 | Карточка клиента и полная история | `pending` | 1–8 (события) | — (потребитель таймлайна) | [`stage9`](../../.cursor/plans/own_booking_stage9_client_card_history.plan.md) |
+| 9 | Карточка клиента и полная история | `done` | 1–8 (события) | — (потребитель таймлайна) | [`stage9`](../../.cursor/plans/archive/own_booking_stage9_client_card_history.plan.md) |
 
 ## Правила порядка
 

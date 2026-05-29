@@ -20,6 +20,7 @@ import type {
 } from "@/modules/booking-appointment-lifecycle/ports";
 import { appointmentStatusLabel } from "@/modules/booking-calendar/appointmentStatusLabels";
 import { BookingStaffPaymentPanel } from "@/app/app/settings/BookingStaffPaymentPanel";
+import { AppointmentStaffCommentsSection } from "@/app/app/doctor/clients/AppointmentStaffCommentsSection";
 
 const CANCEL_TYPES = [
   { value: "free", label: "Бесплатная" },
@@ -54,7 +55,11 @@ function noneValue() {
   return "__none__";
 }
 
-export function DoctorCalendarEventPanel({ apiBase, selected, timeZone, filterMeta, onClose, onChanged }: Props) {
+export function DoctorCalendarEventPanel(props: Props) {
+  return <DoctorCalendarEventPanelInner key={props.selected?.id ?? "none"} {...props} />;
+}
+
+function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta, onClose, onChanged }: Props) {
   const [mode, setMode] = useState<"view" | "create" | "reschedule">("view");
   const [cancelType, setCancelType] = useState("free");
   const [newStartLocal, setNewStartLocal] = useState("");
@@ -72,15 +77,7 @@ export function DoctorCalendarEventPanel({ apiBase, selected, timeZone, filterMe
   const [createPhone, setCreatePhone] = useState("");
 
   useEffect(() => {
-    setMode("view");
-    setMessage(null);
-  }, [selected?.id]);
-
-  useEffect(() => {
-    if (!selected) {
-      setLifecycle(null);
-      return;
-    }
+    if (!selected) return;
     let cancelled = false;
     void fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/lifecycle`)
       .then((res) => res.json())
@@ -93,7 +90,7 @@ export function DoctorCalendarEventPanel({ apiBase, selected, timeZone, filterMe
     return () => {
       cancelled = true;
     };
-  }, [apiBase, selected]);
+  }, [apiBase, selected?.id]);
 
   if (!selected) {
     return (
@@ -227,6 +224,8 @@ export function DoctorCalendarEventPanel({ apiBase, selected, timeZone, filterMe
       </div>
 
       <BookingStaffPaymentPanel apiBase={apiBase} appointmentId={selected.id} />
+
+      <AppointmentStaffCommentsSection appointmentId={selected.id} onChanged={onChanged} />
 
       {mode === "reschedule" ? (
         <div className="mt-3 space-y-2 border-t border-border pt-3">

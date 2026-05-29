@@ -57,8 +57,13 @@
 - **payment_history_event** → `be_payment_history_events`; **payment_provider_event** → `be_payment_provider_events`.
 
 ## История/таймлайн (этапы 1, 9)
-- **patient_timeline_event** — агрегатор событий пациента (для карточки).
-- **appointment_history_event / payment_history_event / package_history_event** — доменные истории (могут быть представлениями над `*_event`).
+- **patient_timeline_event** → `be_patient_timeline_events` — доменные события пациента (appointment/payment/package).
+- **appointment_history_event / payment_history_event / package_history_event / product_history_event** — доменные истории (`be_*_history_events`, `be_product_history_events`).
+- **Read aggregator (этап 9):** `modules/client-history` + `infra/repos/pgClientHistory.ts` — merge источников без новой записи истины; см. [`client-history.md`](../../apps/webapp/src/modules/client-history/client-history.md).
+- **patient_booking_profile** → `be_patient_booking_profiles` (этап 9, `0096`) — booking-репутация: `is_problematic`, `booking_blocked`, `problematic_note`; **отдельно** от `platform_users.is_blocked`.
+- **appointment_staff_comment** → `be_appointment_staff_comments` — комментарии персонала к записи.
+- **Read API (этап 9):** `GET /api/doctor/clients/:userId/history`, `GET|PATCH .../booking-profile`, `GET|POST /api/doctor/booking-engine/appointments/:id/comments`, `GET /api/booking/history` (пациент).
+- **Guard:** `booking_blocked` на `POST /api/booking/create` и `POST /api/booking/public/create`.
 
 ## Связь с существующими таблицами (не дублировать)
 - Идентичность: `platform_users`, `user_channel_bindings`, `phone_normalized`, `integrator_user_id` — переиспользовать.

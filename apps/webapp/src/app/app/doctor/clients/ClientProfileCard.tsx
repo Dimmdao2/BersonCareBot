@@ -30,6 +30,7 @@ import { AdminClientProfileEditPanel } from "./AdminClientProfileEditPanel";
 import { AdminMergeAccountsPanel } from "./AdminMergeAccountsPanel";
 import { DoctorClientLifecycleActions } from "./DoctorClientLifecycleActions";
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
+import { ClientBookingHistoryPanel } from "./ClientBookingHistoryPanel";
 import { groupPendingProgramTestEvaluations } from "./groupPendingProgramTestEvaluations";
 import { SubscriberBlockPanel } from "./SubscriberBlockPanel";
 
@@ -282,6 +283,12 @@ function ClientProfileCardInner({
                   ) : null}
                 </Button>
                 <Link
+                  href="#doctor-client-section-booking-history"
+                  className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "shrink-0")}
+                >
+                  История
+                </Link>
+                <Link
                   href="#doctor-client-section-notes"
                   className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "shrink-0")}
                 >
@@ -303,6 +310,10 @@ function ClientProfileCardInner({
         <section id="doctor-client-section-notes" className="border-t border-border px-4 pb-4 pt-2">
           <DoctorNotesPanel userId={userId} />
         </section>
+
+        <div className="border-t border-border px-4 pb-4 pt-2">
+          <ClientBookingHistoryPanel userId={userId} />
+        </div>
 
         <section id="doctor-client-section-treatment-programs" className="border-t border-border px-4 pb-4 pt-2">
           <PatientTreatmentProgramsPanel

@@ -9,6 +9,7 @@ import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AdminDangerActions } from "../clients/AdminDangerActions";
 import { DoctorNotesPanel } from "../clients/DoctorNotesPanel";
+import { ClientBookingHistoryPanel } from "../clients/ClientBookingHistoryPanel";
 import { SubscriberBlockPanel } from "../clients/SubscriberBlockPanel";
 
 type Props = {
@@ -117,6 +118,7 @@ export function SubscriberProfileCard({
       </section>
 
       <DoctorNotesPanel userId={userId} />
+      <ClientBookingHistoryPanel userId={userId} />
       <SubscriberBlockPanel
         userId={userId}
         initiallyBlocked={identity.isBlocked}

@@ -25,7 +25,7 @@
 - **SaaS-готовность:** все доменные сущности несут `organization_id` (tenant) с первого этапа, даже если сейчас один арендатор.
 - **Полная событийность (история):** ни одно состояние не хранится «только как текущее» — каждое значимое действие порождает событие в таймлайне (append-only), пригодное для карточки клиента.
 
-## 2. Текущее состояние (после этапов 1–8)
+## 2. Текущее состояние (после этапов 1–9)
 
 - **Write (этап 2–3, done):** при подключённых `bookingEngine` + `bookingScheduling` в `buildAppDeps` пациентский и публичный `createBooking` создают `be_appointments` и `patient_bookings` с `canonical_appointment_id`; Rubitime — best-effort при `booking_rubitime_bridge_enabled`. Legacy-путь через integrator остаётся только без канонического DI (in-memory/тесты).
 - **Слоты (этап 2):** собственный движок `booking-scheduling` (`0089`: working_hours, schedule_blocks, exclusion на пересечения); `slotCount` для цепочек слотов.
@@ -38,8 +38,9 @@
 - **Абонементы (этап 6, done):** миграция `0094`, `modules/memberships` + `pgMemberships`; баланс из append-only `be_package_usages`; оплата `package_purchase` / `productRef=patient_package:{id}`; reserve до confirm при `POST /api/booking/create` + `patientPackageId`; auto-consume через `wrapBookingEngineMembershipHooks` (`visit_confirmed` / `completed`); отмена — `release` / `penalty` (C6, `chargePackageSessionOnLate` в `policyResolver`); patient API (`memberships`, `available`, `catalog`, `purchase`, `[id]`); staff `packages` / `patient-packages` / `consume`; UI §A11/§B-package/§C-package + wizard `ConfirmStepClient` + `/app/patient/memberships/[id]`. План: [`.cursor/plans/archive/own_booking_stage6_memberships.plan.md`](../../.cursor/plans/archive/own_booking_stage6_memberships.plan.md).
 - **Продукты (этап 7, done):** миграция `0095` + journal; `modules/products` + `modules/entitlements`; `be_products` / `be_product_purchases` / `be_product_pay_links` (`product_type`: promo, gift, course, subscription, …); оплата `product_purchase`; fulfillment после capture; связь по телефону; запись с **`productPurchaseId`**; grants на `content/[slug]` и разделы; публично `/book/product/{token}`; staff `BookingPatientProductsSection` + consume API; UI каталог/покупки/confirm wizard. План: [`.cursor/plans/archive/own_booking_stage7_products_courses.plan.md`](../../.cursor/plans/archive/own_booking_stage7_products_courses.plan.md).
 - **Календарь (этап 8, done):** `modules/booking-calendar` + `pgBookingCalendar`; API `GET /api/doctor|admin/booking-engine/calendar` (`serviceId`, `includeFreeSlots`); UI `/app/doctor/calendar` (день/неделя/месяц, фильтры, карточка с lifecycle/оплатой/абонементом); free/busy слоты через `booking-scheduling`; список `/app/doctor/appointments` → `pgDoctorCanonicalAppointments` (`be_appointments`); GCal зеркало `syncCanonicalAppointmentToCalendar` (`be:{id}`), integrator hook на `booking.*` и `payment_captured`. Q3: luxon+shadcn grid. План: [`.cursor/plans/archive/own_booking_stage8_calendar.plan.md`](../../.cursor/plans/archive/own_booking_stage8_calendar.plan.md).
+- **Карточка клиента / история (этап 9, done):** миграция `0096`; `modules/client-history` (`clientHistoryUtils`, `labels`) + `pgClientHistory` — read-агрегатор: `be_patient_timeline_events`, `be_payment_history_events`, `be_package_history_events` / fallback `be_package_usages`, `be_product_history_events` / `be_product_purchases` (phone-fallback), reschedule/cancel, `doctor_notes`, staff comments; dedupe/enrichment оплат; `be_patient_booking_profiles` + `be_appointment_staff_comments`; API doctor `clients/[userId]/history`, `booking-profile`, `appointments/[id]/comments`; patient `GET /api/booking/history`; guard `booking_blocked` на patient/public create; UI `ClientBookingHistoryPanel`, `AppointmentStaffCommentsSection` (карточка визитов + календарь), `PatientBookingHistorySection` (profile + purchases). Q6: ручной режим репутации. Модуль: `apps/webapp/src/modules/client-history/client-history.md`. План: [`.cursor/plans/archive/own_booking_stage9_client_card_history.plan.md`](../../.cursor/plans/archive/own_booking_stage9_client_card_history.plan.md).
 
-**Следующий gate:** этап 9 (карточка клиента) — см. [`ROADMAP.md`](ROADMAP.md).
+**Следующий gate:** инициатива закрыта по этапам 1–9; merge в `main` / отключение Rubitime — отдельное решение ([`ROADMAP.md`](ROADMAP.md)).
 
 ## 3. Архитектурные принципы (обязательны на всех этапах)
 
@@ -87,7 +88,7 @@
 
 ## 6. Definition of Done всей инициативы
 
-- [ ] Собственная БД — канонический источник для всех записей; **кабинет врача** (календарь + список записей) читает канон `be_appointments` (этап 8 ✓); пациентский upcoming/past — проекция до этапа 9.
+- [x] Собственная БД — канонический источник для всех записей; **кабинет врача** (календарь + список записей) и **карточка клиента** читают канон и append-only историю (этапы 8–9 ✓).
 - [ ] Создание/перенос/отмена записи не зависят от наличия Rubitime-ID; Rubitime-мост можно отключить настройкой без потери функциональности ядра.
 - [ ] Услуги не дублируются под комбинации; доступность задаётся связями.
 - [ ] Запись доступна из приложения и с внешнего сайта (виджет/страница), пригодна для Tilda.
@@ -95,9 +96,9 @@
 - [ ] Составные абонементы покупаются/назначаются, занятия списываются (авто/вручную), остатки видны пациенту и специалисту.
 - [ ] Продукты/акции/подписки/курсы продаются через единый платёжный слой; доступы выдаются после оплаты; связь по телефону работает.
 - [x] Календарь специалиста/админа покрывает просмотр/создание/перенос/отмену и фильтры; GCal — только зеркало (этап 8).
-- [ ] Карточка клиента показывает полную историю взаимодействия (append-only события).
+- [x] Карточка клиента показывает полную историю взаимодействия (append-only события) (этап 9).
 - [ ] Все сквозные требования C1–C10 закрыты на применимых этапах; multi-tenant заложен.
-- [ ] Зелёный `pnpm run ci` перед каждым merge затрагивающего этапа; финальный полный прогон перед сдачей инициативы.
+- [x] Зелёный `pnpm run ci` на ветке `initiative/own-booking-engine` (этапы 1–9, включая закрытие аудита этапа 9 — 2026-05-30).
 
 ## 7. Что НЕ делает этот документ
 

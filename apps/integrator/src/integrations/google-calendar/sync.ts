@@ -175,7 +175,6 @@ export async function syncCanonicalAppointmentToCalendar(
   deps: SyncDeps = {},
 ): Promise<string | null> {
   const mapKey = canonicalCalendarMapKey(input.appointmentId);
-  const summary = `${input.clientName ?? 'Клиент'}${input.serviceTitle ? ` — ${input.serviceTitle}` : ''}`;
   return syncAppointmentToCalendar(
     {
       action: input.action === 'created' ? 'created' : input.action === 'canceled' ? 'canceled' : 'updated',
@@ -189,7 +188,7 @@ export async function syncCanonicalAppointmentToCalendar(
         service_title: input.serviceTitle ?? undefined,
         comment: input.description,
       },
-      clientName: input.clientName,
+      ...(input.clientName ? { clientName: input.clientName } : {}),
     },
     deps,
   );

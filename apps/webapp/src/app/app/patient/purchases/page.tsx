@@ -11,6 +11,7 @@ import { PurchasesGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { cn } from "@/lib/utils";
 import { patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 import { PatientPurchasesClient } from "./PatientPurchasesClient";
+import { PatientBookingHistorySection } from "../profile/PatientBookingHistorySection";
 
 /** Рендерит страницу покупок: hero с описанием и блок «Курсы, доступы и подписки» с empty-state. */
 export default async function PurchasesPage() {
@@ -35,6 +36,7 @@ export default async function PurchasesPage() {
       <section id="patient-purchases-items-section" className={cn(patientSectionSurfaceClass, "!gap-6")}>
         <PatientPurchasesClient />
       </section>
+      <PatientBookingHistorySection mode="payments" />
     </AppShell>
   );
 }

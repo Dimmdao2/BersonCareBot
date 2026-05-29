@@ -323,3 +323,40 @@
 - Редактирование продукта в каталоге — подгрузка validity, serviceIds, contentIds при «Изменить».
 
 **Проверки:** vitest (products, platform-access, sections slug, canonicalCreate); `typecheck`.
+
+## 2026-05-30 — Этап 9: карточка клиента и полная история
+
+**Сделано:**
+- Миграция `0096`: `be_patient_booking_profiles`, `be_appointment_staff_comments`.
+- Модуль `client-history` (`types`, `ports`, `service`, `labels`); репо `pgClientHistory` — read-агрегатор timeline/payments/visits из событий этапов 1–8.
+- API: `GET /api/doctor/clients/[userId]/history`, `GET|PATCH .../booking-profile`, `GET|POST /api/doctor/booking-engine/appointments/[id]/comments`, `GET /api/booking/history`.
+- Guard `booking_blocked` на patient/public `createBooking` (`canonicalCreate.assertSelfServiceBookingAllowed`).
+- UI: `ClientBookingHistoryPanel` в карточке клиента; `PatientBookingHistorySection` в профиле пациента.
+- Q6: ручной режим «проблемный»/booking-блок (без авто-порогов).
+
+**Проверки:** vitest `client-history/*`, `booking-profile/route.test.ts`, `canonicalCreate.test.ts`; `pnpm run ci`.
+
+## 2026-05-30 — Этап 9: закрытие хвостов по аудиту
+
+**Сделано:**
+- `pgClientHistory`: `be_product_history_events`, fallback `be_package_usages`, dedupe timeline (reschedule/cancel/product), enrichment оплат (package/product title, payment method), phone-fallback для покупок и orphan-платежей.
+- `clientHistoryUtils`: dedupe, payment classification, enrich helpers + unit-тесты.
+- UI: русские подписи оплат; комментарии к записи — `AppointmentStaffCommentsSection` (визиты + календарь); `endAt` в визитах; оплаты в patient profile и `/app/patient/purchases`.
+- Тесты: `history/route.test.ts`, расширены `labels.test.ts` / `clientHistoryUtils.test.ts`.
+- Документы: `DATA_MODEL_REFERENCE` §история, `MASTER_PLAN` §6 ci.
+
+**Проверки:** vitest (client-history, history route); `pnpm run ci`.
+
+## 2026-05-30 — Этап 9: ревизия после аудита (второй проход)
+
+**Исправлено:**
+- `isFinalPaymentEventType`: не путает `prepayment_captured` и refund-события с финальной оплатой.
+- `dedupeTimelineItems`: dedupe fallback `package_usage` и зеркал `payment_history_event` из timeline.
+- `listTimeline`: phone-fallback orphan-платежей (как в `listPaymentHistory`); в визитах — валюта из события, не hardcoded RUB.
+- UI: возвраты в оплатах; «был по абонементу» без summary; e2e smoke для history-компонентов.
+
+**Проверки:** vitest `clientHistoryUtils`; `pnpm --filter webapp typecheck`.
+
+## 2026-05-30 — Документация: синхронизация этапа 9
+
+**Обновлено:** `MASTER_PLAN` §2/§6, `README`, `ROADMAP`, `STAGE_CHECKLISTS` §9, `DATA_MODEL_REFERENCE`, `UI_SURFACES_CHECKLIST`; YAML плана (todos audit + `completedAt`); модуль [`client-history.md`](../../apps/webapp/src/modules/client-history/client-history.md).

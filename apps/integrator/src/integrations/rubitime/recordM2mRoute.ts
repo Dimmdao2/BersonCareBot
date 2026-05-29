@@ -39,7 +39,6 @@ import { maxConfig } from '../max/config.js';
 import { ERR_LEGACY_RESOLVE_DISABLED } from './internalContract.js';
 import { runPostCreateProjection } from './postCreateProjection.js';
 import { syncCanonicalAppointmentToCalendar } from '../google-calendar/sync.js';
-import type { BookingLifecyclePayloadValidated } from './schema.js';
 
 /** Rubitime API2 `create-record` requires `status` (numeric status id; 0 matches get-record/update-record tests). */
 const RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0;

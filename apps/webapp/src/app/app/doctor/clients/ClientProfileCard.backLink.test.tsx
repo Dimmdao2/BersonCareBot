@@ -24,6 +24,7 @@ vi.mock("./PatientTreatmentProgramsPanel", () => ({ PatientTreatmentProgramsPane
 vi.mock("./AdminDangerActions", () => ({ AdminDangerActions: () => null }));
 vi.mock("./DoctorClientLifecycleActions", () => ({ DoctorClientLifecycleActions: () => null }));
 vi.mock("./DoctorNotesPanel", () => ({ DoctorNotesPanel: () => null }));
+vi.mock("./ClientBookingHistoryPanel", () => ({ ClientBookingHistoryPanel: () => null }));
 vi.mock("./SubscriberBlockPanel", () => ({ SubscriberBlockPanel: () => null }));
 
 const minimalProfile: ClientProfile = {

@@ -14,6 +14,7 @@ import type { createBookingAppointmentLifecycleService } from "@/modules/booking
 import type { PaymentsService } from "@/modules/payments/service";
 import type { MembershipsService } from "@/modules/memberships/service";
 import type { ProductsService } from "@/modules/products/service";
+import type { ClientHistoryService } from "@/modules/client-history/service";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
@@ -153,6 +154,7 @@ export function createPatientBookingService(input: {
   payments?: PaymentsService | null;
   memberships?: MembershipsService | null;
   products?: ProductsService | null;
+  clientHistory?: ClientHistoryService | null;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   slotsTtlMs?: number;
 }): PatientBookingService {
@@ -182,6 +184,7 @@ export function createPatientBookingService(input: {
           payments: input.payments ?? null,
           memberships: input.memberships ?? null,
           products: input.products ?? null,
+          clientHistory: input.clientHistory ?? null,
           isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
         }
       : null;

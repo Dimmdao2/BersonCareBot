@@ -673,6 +673,13 @@
       "when": 1783800000000,
       "tag": "0095_booking_stage7_products",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1783900000000,
+      "tag": "0096_booking_stage9_client_history",
+      "breakpoints": true
     }
   ]
 }
