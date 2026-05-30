@@ -498,6 +498,18 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return n;
   },
 
+  async listUnreadInboundAdminMessagesForUser(platformUserId) {
+    const convIds = new Set(
+      Array.from(conversations.values())
+        .filter((c) => c.platformUserId === platformUserId)
+        .map((c) => c.id),
+    );
+    return [...messages.values()]
+      .filter((m) => convIds.has(m.conversationId) && m.senderRole !== "user" && m.readAt == null)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+      .map((m) => ({ id: m.id, text: m.text }));
+  },
+
   async countUnreadUserMessagesForAdmin() {
     let n = 0;
     for (const m of messages.values()) {

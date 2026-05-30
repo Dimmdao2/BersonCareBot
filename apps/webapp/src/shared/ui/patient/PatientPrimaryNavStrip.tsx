@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
+import { PatientNavCountBadge } from "@/shared/ui/patient/PatientNavCountBadge";
 
 const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof Home> = {
   today: Home,
@@ -27,8 +28,9 @@ const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof Home> = {
   messages: MessageCircle,
 };
 
-function navLinkAriaLabel(label: string, showChatDot: boolean): string {
-  return showChatDot ? `${label}, есть новые сообщения` : label;
+function navLinkAriaLabel(label: string, chatUnread: number, isMessages: boolean): string {
+  if (isMessages && chatUnread > 0) return `${label}, ${chatUnread} новых`;
+  return label;
 }
 
 type Props = {
@@ -46,8 +48,8 @@ export function PatientPrimaryNavStrip({ className, variant = "bottom" }: Props)
   const renderNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = NAV_ICONS[item.id];
     const isActive = activeId === item.id;
-    const showChatDot = item.id === "messages" && chatUnread > 0;
-    const ariaLabel = navLinkAriaLabel(item.label, showChatDot);
+    const showChatBadge = item.id === "messages" && chatUnread > 0;
+    const ariaLabel = navLinkAriaLabel(item.label, chatUnread, item.id === "messages");
 
     if (variant === "inline") {
       return (
@@ -66,12 +68,7 @@ export function PatientPrimaryNavStrip({ className, variant = "bottom" }: Props)
         >
           <span className="relative inline-flex shrink-0">
             <Icon className="size-[18px] shrink-0" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-            {showChatDot ? (
-              <span
-                className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[#c0392b] ring-2 ring-white"
-                aria-hidden
-              />
-            ) : null}
+            {showChatBadge ? <PatientNavCountBadge count={chatUnread} /> : null}
           </span>
           <span className="truncate">{item.label}</span>
         </Link>
@@ -103,12 +100,7 @@ export function PatientPrimaryNavStrip({ className, variant = "bottom" }: Props)
             strokeWidth={NAV_STRIP_ICON_STROKE}
             aria-hidden
           />
-          {showChatDot ? (
-            <span
-              className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[#c0392b] ring-2 ring-white"
-              aria-hidden
-            />
-          ) : null}
+          {showChatBadge ? <PatientNavCountBadge count={chatUnread} /> : null}
         </span>
         <span className="w-full truncate text-center text-[10px] leading-3">{item.label}</span>
       </Link>

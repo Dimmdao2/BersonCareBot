@@ -124,6 +124,7 @@ export async function GET(
         deps.programItemDiscussion.getUnreadCount({
           patientUserId: gate.session.user.userId,
           stageItemId: itemId,
+          exerciseTitle: exerciseTitleFromSnapshot(item.snapshot),
         }),
       ]);
       const supportIds = messages

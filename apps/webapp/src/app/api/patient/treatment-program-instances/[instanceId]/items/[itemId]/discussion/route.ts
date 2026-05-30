@@ -261,6 +261,7 @@ export async function GET(
     itemContext.deps.programItemDiscussion.getUnreadCount({
       patientUserId: gate.session.user.userId,
       stageItemId: itemId,
+      exerciseTitle: itemContext.exerciseTitle,
     }),
     itemContext.deps.programActionLog.listForInstance({ instanceId, limit: 500 }),
   ]);

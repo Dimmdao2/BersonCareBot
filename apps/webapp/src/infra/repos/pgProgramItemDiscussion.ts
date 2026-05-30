@@ -5,10 +5,16 @@ import {
   programItemDiscussionReads,
 } from "../../../db/schema/programItemDiscussion";
 import { supportConversationMessages, supportConversations } from "../../../db/schema/schema";
+import {
+  treatmentProgramInstanceStageItems,
+  treatmentProgramInstanceStages,
+  treatmentProgramInstances,
+} from "../../../db/schema/treatmentProgramInstances";
 import { extractPatientExerciseCommentReplyBody } from "@/modules/messaging/programNoteReplyContext";
 import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import type {
   ProgramItemDiscussionLegacyMergeInput,
+  ProgramItemDiscussionLegacyUnreadInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
   ProgramItemDiscussionOrigin,
@@ -192,6 +198,125 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
           ),
         );
       return Number(row?.count ?? 0);
+    },
+
+    async getLastReadAt(params: { patientUserId: string; stageItemId: string }): Promise<string | null> {
+      const db = getDrizzle();
+      const [row] = await db
+        .select({ lastReadAt: programItemDiscussionReads.lastReadAt })
+        .from(programItemDiscussionReads)
+        .where(
+          and(
+            eq(programItemDiscussionReads.patientUserId, params.patientUserId),
+            eq(programItemDiscussionReads.instanceStageItemId, params.stageItemId),
+          ),
+        )
+        .limit(1);
+      return row?.lastReadAt ?? null;
+    },
+
+    async listLinkedSupportMessageIdsForStageItem(stageItemId: string): Promise<string[]> {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ supportMessageId: programItemDiscussionMessages.supportMessageId })
+        .from(programItemDiscussionMessages)
+        .where(
+          and(
+            eq(programItemDiscussionMessages.instanceStageItemId, stageItemId),
+            sql`${programItemDiscussionMessages.supportMessageId} IS NOT NULL`,
+          ),
+        );
+      return rows
+        .map((row) => row.supportMessageId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0);
+    },
+
+    async countLegacyUnreadAdminReplies(input: ProgramItemDiscussionLegacyUnreadInput): Promise<number> {
+      const db = getDrizzle();
+      const exerciseTitle = input.exerciseTitle.trim();
+      if (!exerciseTitle) return 0;
+      const seenSupportMessageIds = new Set(input.excludeSupportMessageIds ?? []);
+      const lastReadAt = input.lastReadAt;
+      const fetchChunk = 500;
+      let rawOffset = 0;
+      let unread = 0;
+      while (true) {
+        const rows = await db
+          .select({
+            id: supportConversationMessages.id,
+            text: supportConversationMessages.text,
+            createdAt: supportConversationMessages.createdAt,
+          })
+          .from(supportConversationMessages)
+          .innerJoin(
+            supportConversations,
+            eq(supportConversationMessages.conversationId, supportConversations.id),
+          )
+          .where(
+            and(
+              eq(supportConversations.platformUserId, input.patientUserId),
+              eq(supportConversationMessages.senderRole, "admin"),
+            ),
+          )
+          .orderBy(asc(supportConversationMessages.createdAt), asc(supportConversationMessages.id))
+          .limit(fetchChunk)
+          .offset(rawOffset);
+
+        if (rows.length === 0) break;
+        rawOffset += rows.length;
+
+        for (const row of rows) {
+          if (seenSupportMessageIds.has(row.id)) continue;
+          const body = extractPatientExerciseCommentReplyBody({
+            exerciseTitle,
+            messageText: row.text,
+          });
+          if (!body) continue;
+          seenSupportMessageIds.add(row.id);
+          if (lastReadAt != null && row.createdAt <= lastReadAt) continue;
+          unread += 1;
+        }
+        if (rows.length < fetchChunk) break;
+      }
+      return unread;
+    },
+
+    async findStageItemIdBySupportMessageId(supportMessageId: string): Promise<string | null> {
+      const db = getDrizzle();
+      const [row] = await db
+        .select({ instanceStageItemId: programItemDiscussionMessages.instanceStageItemId })
+        .from(programItemDiscussionMessages)
+        .where(eq(programItemDiscussionMessages.supportMessageId, supportMessageId))
+        .limit(1);
+      return row?.instanceStageItemId ?? null;
+    },
+
+    async listStageItemIdsByExerciseTitleForPatient(
+      patientUserId: string,
+      exerciseTitle: string,
+    ): Promise<string[]> {
+      const title = exerciseTitle.trim();
+      if (!title) return [];
+      const db = getDrizzle();
+      const rows = await db
+        .select({ id: treatmentProgramInstanceStageItems.id })
+        .from(treatmentProgramInstanceStageItems)
+        .innerJoin(
+          treatmentProgramInstanceStages,
+          eq(treatmentProgramInstanceStageItems.stageId, treatmentProgramInstanceStages.id),
+        )
+        .innerJoin(
+          treatmentProgramInstances,
+          eq(treatmentProgramInstanceStages.instanceId, treatmentProgramInstances.id),
+        )
+        .where(
+          and(
+            eq(treatmentProgramInstances.patientUserId, patientUserId),
+            eq(treatmentProgramInstances.assignmentSource, "doctor"),
+            sql`trim(${treatmentProgramInstanceStageItems.snapshot}->>'title') = ${title}`,
+          ),
+        );
+      return rows.map((row) => row.id);
     },
   };
 }

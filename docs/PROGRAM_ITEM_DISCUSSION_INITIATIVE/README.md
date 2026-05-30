@@ -14,6 +14,7 @@
 - Этап 2 (patient discussion API + dual-write observation + batch summary endpoint) выполнен.
 - Этап 3 (patient UI плитки: комментарии/badge/dot + camera + wire dialog) выполнен.
 - Этап 4 (item page: complete modal + discussion preview + payload complete API) выполнен.
+- Этап 5 (unread indicators: per-item badge, chat count badge, mark-read sync) выполнен.
 
 ## План исполнения
 

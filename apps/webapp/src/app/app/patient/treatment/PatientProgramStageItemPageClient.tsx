@@ -100,6 +100,7 @@ type ItemDiscussionLastDoneSummary = {
 
 type ItemDiscussionPreview = {
   totalCount: number;
+  unreadCount: number;
   lastMessage: ProgramItemDiscussionMessage | null;
   lastDoneSummary: ItemDiscussionLastDoneSummary | null;
 };
@@ -324,6 +325,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [discussionPreview, setDiscussionPreview] = useState<ItemDiscussionPreview>({
     totalCount: 0,
+    unreadCount: 0,
     lastMessage: null,
     lastDoneSummary: null,
   });
@@ -471,7 +473,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
   const loadDiscussionPreview = useCallback(async () => {
     if (!allowPatientObservationComment || !item || contentBlocked) {
-      setDiscussionPreview({ totalCount: 0, lastMessage: null, lastDoneSummary: null });
+      setDiscussionPreview({ totalCount: 0, unreadCount: 0, lastMessage: null, lastDoneSummary: null });
       return;
     }
     try {
@@ -486,12 +488,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         | {
             ok?: boolean;
             totalCount?: number;
+            unreadCount?: number;
             lastMessage?: ProgramItemDiscussionMessage | null;
             lastDoneSummary?: ItemDiscussionLastDoneSummary | null;
           }
         | null;
       if (!res.ok || !data?.ok) {
-        setDiscussionPreview({ totalCount: 0, lastMessage: null, lastDoneSummary: null });
+        setDiscussionPreview({ totalCount: 0, unreadCount: 0, lastMessage: null, lastDoneSummary: null });
         return;
       }
       setDiscussionPreview({
@@ -499,13 +502,31 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           typeof data.totalCount === "number" && Number.isFinite(data.totalCount) && data.totalCount > 0
             ? Math.floor(data.totalCount)
             : 0,
+        unreadCount:
+          typeof data.unreadCount === "number" && Number.isFinite(data.unreadCount) && data.unreadCount > 0
+            ? Math.floor(data.unreadCount)
+            : 0,
         lastMessage: data.lastMessage ?? null,
         lastDoneSummary: data.lastDoneSummary ?? null,
       });
     } catch {
-      setDiscussionPreview({ totalCount: 0, lastMessage: null, lastDoneSummary: null });
+      setDiscussionPreview({ totalCount: 0, unreadCount: 0, lastMessage: null, lastDoneSummary: null });
     }
   }, [allowPatientObservationComment, contentBlocked, instanceId, item]);
+
+  const markDiscussionRead = useCallback(async () => {
+    if (!allowPatientObservationComment || !item || contentBlocked) return;
+    await fetch(
+      `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/discussion/read`,
+      { method: "POST" },
+    );
+    await loadDiscussionPreview();
+  }, [allowPatientObservationComment, contentBlocked, instanceId, item, loadDiscussionPreview]);
+
+  const openDiscussionDialog = useCallback(async () => {
+    await markDiscussionRead();
+    setDiscussionDialogOpen(true);
+  }, [markDiscussionRead]);
 
   useEffect(() => {
     void loadDiscussionPreview();
@@ -800,7 +821,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                           )}
                           disabled={busy !== null}
                           aria-label="Камера"
-                          onClick={() => setDiscussionDialogOpen(true)}
+                          onClick={() => void openDiscussionDialog()}
                         >
                           <Camera className="size-4" aria-hidden />
                         </button>
@@ -878,6 +899,11 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
           {allowPatientObservationComment ? (
             <div className="my-4 flex flex-col gap-2 rounded-lg border border-[var(--patient-border)]/60 bg-muted/10 px-3 py-2.5">
+              {discussionPreview.unreadCount > 0 ? (
+                <span className={cn(patientMutedTextClass, "text-xs font-medium text-[#c0392b]")}>
+                  новых: {discussionPreview.unreadCount}
+                </span>
+              ) : null}
               {discussionPreview.lastMessage ? (
                 <p className={cn(patientBodyTextClass, "m-0 whitespace-pre-wrap text-sm leading-relaxed")}>
                   <span className={cn(patientMutedTextClass, "mr-1 text-xs")}>
@@ -892,7 +918,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                   "inline-flex w-full cursor-pointer items-center justify-start rounded-md px-1 py-1 text-left text-sm font-medium text-[var(--patient-color-primary,#284da0)] underline-offset-2 transition-colors hover:underline",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
                 )}
-                onClick={() => setDiscussionDialogOpen(true)}
+                onClick={() => void openDiscussionDialog()}
               >
                 {discussionPreview.lastMessage ? "Открыть комментарии" : "Оставить комментарий к выполнению"}
               </button>

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildProgramNoteReplyState,
   formatPatientExerciseCommentReplyText,
+  parseExerciseTitleFromProgramNoteReplyMessage,
 } from "./programNoteReplyContext";
 
 describe("programNoteReplyContext", () => {
@@ -26,5 +27,14 @@ describe("programNoteReplyContext", () => {
       doctorText: "Ок",
     });
     expect(text).toContain("«Пункт программы»");
+  });
+
+  it("parseExerciseTitleFromProgramNoteReplyMessage extracts title from prefixed message", () => {
+    const text = formatPatientExerciseCommentReplyText({
+      exerciseTitle: "Присед",
+      doctorText: "Ок",
+    });
+    expect(parseExerciseTitleFromProgramNoteReplyMessage(text)).toBe("Присед");
+    expect(parseExerciseTitleFromProgramNoteReplyMessage("обычное сообщение")).toBeNull();
   });
 });

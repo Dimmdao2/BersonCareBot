@@ -35,3 +35,10 @@ export type ProgramItemDiscussionLegacyMergeInput = {
   limit?: number;
   offset?: number;
 };
+
+export type ProgramItemDiscussionLegacyUnreadInput = {
+  patientUserId: string;
+  exerciseTitle: string;
+  excludeSupportMessageIds?: string[];
+  lastReadAt: string | null;
+};

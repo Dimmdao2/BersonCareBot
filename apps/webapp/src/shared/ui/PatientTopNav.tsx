@@ -26,6 +26,7 @@ import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 import { usePatientShellScrollCompact } from "@/shared/hooks/usePatientShellScrollCompact";
+import { PatientNavCountBadge } from "@/shared/ui/patient/PatientNavCountBadge";
 import {
   PATIENT_DESKTOP_INNER_MAX_CLASS,
   PATIENT_TOP_NAV_FIXED_MOBILE_CLASS,
@@ -95,13 +96,13 @@ export function PatientTopNav(_props: PatientTopNavProps) {
   const renderMobileNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = NAV_ICONS[item.id];
     const isActive = activeId === item.id;
-    const showChatDot = item.id === "messages" && chatUnread > 0;
+    const showChatBadge = item.id === "messages" && chatUnread > 0;
     return (
       <Link
         key={item.id}
         href={item.href}
         prefetch={false}
-        aria-label={item.label}
+        aria-label={showChatBadge ? `${item.label}, ${chatUnread} новых` : item.label}
         aria-current={isActive ? "page" : undefined}
         className={cn(
           "group flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center px-0.5",
@@ -124,12 +125,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             strokeWidth={NAV_STRIP_ICON_STROKE}
             aria-hidden
           />
-          {showChatDot ? (
-            <span
-              className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[#c0392b] ring-2 ring-white"
-              aria-hidden
-            />
-          ) : null}
+          {showChatBadge ? <PatientNavCountBadge count={chatUnread} /> : null}
         </span>
         <span
           className={cn(
@@ -149,13 +145,13 @@ export function PatientTopNav(_props: PatientTopNavProps) {
   const renderDesktopNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = DESKTOP_NAV_ICONS[item.id];
     const isActive = activeId === item.id;
-    const showChatDot = item.id === "messages" && chatUnread > 0;
+    const showChatBadge = item.id === "messages" && chatUnread > 0;
     return (
       <Link
         key={item.id}
         href={item.href}
         prefetch={false}
-        aria-label={item.label}
+        aria-label={showChatBadge ? `${item.label}, ${chatUnread} новых` : item.label}
         aria-current={isActive ? "page" : undefined}
         className={cn(
           "inline-flex min-h-0 items-center gap-1.5 rounded-lg px-2.5 font-normal text-sm",
@@ -169,12 +165,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
       >
         <span className="relative inline-flex shrink-0">
           <Icon className="size-[18px] shrink-0" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-          {showChatDot ? (
-            <span
-              className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[#c0392b] ring-2 ring-white"
-              aria-hidden
-            />
-          ) : null}
+          {showChatBadge ? <PatientNavCountBadge count={chatUnread} /> : null}
         </span>
         <span
           className={cn(
@@ -284,12 +275,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             className={cn(TOP_ICON_BTN, "relative")}
           >
             <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-            {chatUnread > 0 ? (
-              <span
-                className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[#c0392b] ring-2 ring-[rgba(255,255,255,0.96)]"
-                aria-hidden
-              />
-            ) : null}
+            {chatUnread > 0 ? <PatientNavCountBadge count={chatUnread} className="ring-2 ring-[rgba(255,255,255,0.96)]" /> : null}
           </Link>
         </div>
         </div>

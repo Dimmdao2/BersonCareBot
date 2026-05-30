@@ -1,6 +1,7 @@
 import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import type {
   ProgramItemDiscussionLegacyMergeInput,
+  ProgramItemDiscussionLegacyUnreadInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
 } from "@/modules/program-item-discussion/types";
@@ -82,6 +83,31 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
           x.senderRole === "admin" &&
           (lastReadAt === "" || x.createdAt > lastReadAt),
       ).length;
+    },
+
+    async getLastReadAt(params: { patientUserId: string; stageItemId: string }): Promise<string | null> {
+      return reads.get(readKey(params.patientUserId, params.stageItemId)) ?? null;
+    },
+
+    async listLinkedSupportMessageIdsForStageItem(stageItemId: string): Promise<string[]> {
+      return [...rows.values()]
+        .filter((x) => x.instanceStageItemId === stageItemId && x.supportMessageId)
+        .map((x) => x.supportMessageId!)
+        .filter((id) => id.length > 0);
+    },
+
+    async countLegacyUnreadAdminReplies(_input: ProgramItemDiscussionLegacyUnreadInput): Promise<number> {
+      return 0;
+    },
+
+    async findStageItemIdBySupportMessageId(supportMessageId: string): Promise<string | null> {
+      const existingId = bySupportMessageId.get(supportMessageId);
+      if (!existingId) return null;
+      return rows.get(existingId)?.instanceStageItemId ?? null;
+    },
+
+    async listStageItemIdsByExerciseTitleForPatient(_patientUserId: string, _exerciseTitle: string): Promise<string[]> {
+      return [];
     },
   };
 }

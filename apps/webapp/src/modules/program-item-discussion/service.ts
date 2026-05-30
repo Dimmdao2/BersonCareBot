@@ -8,6 +8,7 @@ import {
   PROGRAM_ITEM_DISCUSSION_ORIGINS,
   PROGRAM_ITEM_DISCUSSION_SENDER_ROLES,
 } from "./types";
+import { syncDiscussionReadFromSupportInboundMessages } from "./syncDiscussionReadFromSupportInbound";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BODY_LEN = 4000;
@@ -132,10 +133,34 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
       });
     },
 
-    async getUnreadCount(input: { patientUserId: string; stageItemId: string }): Promise<number> {
-      return port.getUnreadCount({
+    async getUnreadCount(input: { patientUserId: string; stageItemId: string; exerciseTitle?: string }): Promise<number> {
+      const patientUserId = assertUuid(input.patientUserId, "patient_user_id");
+      const stageItemId = assertUuid(input.stageItemId, "stage_item_id");
+      const tableUnread = await port.getUnreadCount({ patientUserId, stageItemId });
+      const exerciseTitle = input.exerciseTitle?.trim();
+      if (!exerciseTitle) return tableUnread;
+
+      const [lastReadAt, excludeSupportMessageIds] = await Promise.all([
+        port.getLastReadAt({ patientUserId, stageItemId }),
+        port.listLinkedSupportMessageIdsForStageItem(stageItemId),
+      ]);
+      const legacyUnread = await port.countLegacyUnreadAdminReplies({
+        patientUserId,
+        exerciseTitle,
+        excludeSupportMessageIds,
+        lastReadAt,
+      });
+      return tableUnread + legacyUnread;
+    },
+
+    async syncDiscussionReadFromSupportInboundMessages(input: {
+      patientUserId: string;
+      inboundAdminMessages: Array<{ id: string; text: string }>;
+    }): Promise<{ markedStageItemIds: string[]; skippedAmbiguous: number }> {
+      return syncDiscussionReadFromSupportInboundMessages({
+        port,
         patientUserId: assertUuid(input.patientUserId, "patient_user_id"),
-        stageItemId: assertUuid(input.stageItemId, "stage_item_id"),
+        inboundAdminMessages: input.inboundAdminMessages,
       });
     },
   };

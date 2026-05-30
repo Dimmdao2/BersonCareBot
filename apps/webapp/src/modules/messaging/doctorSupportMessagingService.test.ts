@@ -56,6 +56,7 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     markInboundReadForUser: async () => undefined,
     markUserMessagesReadByAdmin: async () => undefined,
     countUnreadForUser: async () => 0,
+    listUnreadInboundAdminMessagesForUser: async () => [],
     countUnreadUserMessagesForAdmin: async () => 0,
     countUnreadUserMessagesForAdminByConversation: async () => 0,
     countUnreadUserMessagesForAdminByPatient: async () => 0,

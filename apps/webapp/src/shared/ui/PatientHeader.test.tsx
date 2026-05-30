@@ -18,8 +18,28 @@ vi.mock("@/shared/hooks/usePlatform", () => ({
   usePlatform: () => "mobile" as const,
 }));
 
+vi.mock("@/app-layer/routes/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app-layer/routes/navigation")>();
+  return {
+    ...actual,
+    patientNavByPlatform: {
+      ...actual.patientNavByPlatform,
+      mobile: {
+        ...actual.patientNavByPlatform.mobile,
+        headerRightIcons: ["messages", "profile"],
+      },
+    },
+  };
+});
+
 vi.mock("@/shared/hooks/useReminderUnread", () => ({
   useReminderUnreadCount: () => 0,
+}));
+
+const chatUnreadState = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", () => ({
+  usePatientSupportUnreadCount: () => chatUnreadState.count,
 }));
 
 describe("PatientHeader", () => {
@@ -63,5 +83,13 @@ describe("PatientHeader", () => {
   it("renders optional titleBadge", () => {
     render(<PatientHeader pageTitle="Раздел" titleBadge="Клуб" />);
     expect(screen.getByTestId("patient-header-title-badge")).toHaveTextContent("Клуб");
+  });
+
+  it("shows chat unread count badge on messages link", () => {
+    chatUnreadState.count = 4;
+    render(<PatientHeader pageTitle="Тест" />);
+    const messagesLink = screen.getByRole("link", { name: /Сообщения, 4 новых/i });
+    expect(messagesLink).toHaveTextContent("4");
+    chatUnreadState.count = 0;
   });
 });

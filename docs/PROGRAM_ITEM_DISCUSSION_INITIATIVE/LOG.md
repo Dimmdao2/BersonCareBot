@@ -296,3 +296,31 @@
 - Проверки после исправления:
   - `pnpm --dir apps/webapp exec vitest --run src/app/app/patient/treatment/PatientProgramStageItemPageClient.test.tsx`
   - `ReadLints` по изменённым файлам (ошибок нет).
+
+---
+
+## 2026-05-30 — Этап 5 (unread indicators)
+
+### Что сделано
+
+- **Per-item unread на item page:** preview-блок показывает `новых: n` при `unreadCount > 0` (данные из `GET .../discussion`).
+- **Chat badge upgrade (P11):** точка заменена на красный кружок с цифрой (как у напоминаний) в `PatientTopNav`, `PatientHeader`, `PatientPrimaryNavStrip` через shared `PatientNavCountBadge`.
+- **Mark-read sync (P10):** при `POST /api/patient/messages/read` — до `markInboundRead` вызывается `syncDiscussionReadFromSupportInboundMessages`:
+  - по `support_message_id` → `program_item_discussion_messages`;
+  - legacy fallback — parse title из prefixed admin message + match stage item (ambiguous → skip + warn).
+- Discussion modal / `POST .../discussion/read` — mark-read уже был в этапах 2–4.
+
+### Тесты и проверки
+
+- `src/modules/program-item-discussion/syncDiscussionReadFromSupportInbound.test.ts`
+- `src/app/api/patient/messages/read/route.test.ts`
+- `src/modules/messaging/programNoteReplyContext.test.ts` (parse title)
+- `src/shared/ui/PatientTopNav.test.tsx` (count badge)
+- `src/app/app/patient/treatment/PatientProgramStageItemPageClient.test.tsx` (`новых: n`)
+- Прогон: `pnpm --dir apps/webapp exec vitest --run syncDiscussionReadFromSupportInbound messages/read/route PatientTopNav PatientProgramStageItemPageClient programNoteReplyContext`
+
+### Исправления по аудиту этапа 5 (без хвостов)
+
+- **Legacy unread в per-item счётчике:** `getUnreadCount` в service принимает `exerciseTitle` и добавляет `countLegacyUnreadAdminReplies` (support-only admin replies после `last_read_at`, без double-count по `support_message_id` из discussion).
+- **Mark-read на tap preview (P10):** `openDiscussionDialog` на item page вызывает `POST .../discussion/read` до открытия модалки.
+- **RTL-тесты:** `PatientHeader.test.tsx` (chat badge), `PatientPrimaryNavStrip.test.tsx`, `service.unread.test.ts`, preview mark-read в `PatientProgramStageItemPageClient.test.tsx`.

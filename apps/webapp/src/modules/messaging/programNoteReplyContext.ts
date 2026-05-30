@@ -97,3 +97,12 @@ export function extractPatientExerciseCommentReplyBody(input: {
   if (body.length === 0) return null;
   return body;
 }
+
+const PROGRAM_NOTE_REPLY_TITLE_RE = /^Ответ на ваш комментарий к упражнению «([^»]+)»:/;
+
+/** Legacy support-chat reply: extract exercise title from prefixed admin message. */
+export function parseExerciseTitleFromProgramNoteReplyMessage(messageText: string): string | null {
+  const match = messageText.match(PROGRAM_NOTE_REPLY_TITLE_RE);
+  const title = match?.[1]?.trim();
+  return title && title.length > 0 ? title : null;
+}

@@ -142,6 +142,124 @@ describe("PatientProgramStageItemPageClient", () => {
     expect(within(dialog).getByText("Отметить выполнение")).toBeInTheDocument();
   });
 
+  it("shows unread count on discussion preview block", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/checklist-today")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            doneItemIds: [],
+            doneTodayCountByItemId: {},
+            lastDoneAtIsoByItemId: {},
+            doneTodayCountByActivityKey: {},
+            lastDoneAtIsoByActivityKey: {},
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/discussion")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [],
+            pageInfo: { direction: "backward", limit: 1, nextCursor: null, hasMore: false },
+            totalCount: 2,
+            unreadCount: 3,
+            lastMessage: {
+              id: "msg-1",
+              instanceStageItemId: itemId,
+              patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              senderRole: "admin",
+              origin: "support_admin_reply",
+              body: "Ответ специалиста",
+              mediaFileId: null,
+              supportMessageId: null,
+              createdAt: now,
+            },
+            lastDoneSummary: null,
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PatientProgramStageItemPageClient
+        instanceId={instanceId}
+        itemId={itemId}
+        navMode="exec"
+        backHref="/app/patient/treatment"
+        initialDetail={makeDetail()}
+        appDisplayTimeZone="Europe/Moscow"
+        itemLinksPlanTab="program"
+        planItemDoneRepeatCooldownMinutes={60}
+        patientProgramDiscussionUiEnabled
+      />,
+    );
+
+    expect(await screen.findByText("новых: 3")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Открыть комментарии/i })).toBeInTheDocument();
+  });
+
+  it("marks discussion read when opening preview CTA", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/checklist-today")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            doneItemIds: [],
+            doneTodayCountByItemId: {},
+            lastDoneAtIsoByItemId: {},
+            doneTodayCountByActivityKey: {},
+            lastDoneAtIsoByActivityKey: {},
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/discussion/read")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+      if (url.includes("/discussion")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [],
+            pageInfo: { direction: "backward", limit: 1, nextCursor: null, hasMore: false },
+            totalCount: 0,
+            unreadCount: 0,
+            lastMessage: null,
+            lastDoneSummary: null,
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PatientProgramStageItemPageClient
+        instanceId={instanceId}
+        itemId={itemId}
+        navMode="exec"
+        backHref="/app/patient/treatment"
+        initialDetail={makeDetail()}
+        appDisplayTimeZone="Europe/Moscow"
+        itemLinksPlanTab="program"
+        planItemDoneRepeatCooldownMinutes={60}
+        patientProgramDiscussionUiEnabled
+      />,
+    );
+
+    const cta = await screen.findByRole("button", { name: /Оставить комментарий к выполнению/i });
+    fireEvent.click(cta);
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion/read"))).toBe(true);
+  });
+
   it("hides discussion controls when patientProgramDiscussionUiEnabled is false", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
