@@ -53,6 +53,7 @@ import { registerMaxWebhookRoutes } from '../integrations/max/webhook.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
+import type { ResolveMessengerStaffAdmin } from '../kernel/contracts/index.js';
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 import { defaultSupportRelayPolicy } from '../integrations/telegram/supportRelayPolicy.js';
 import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js';
@@ -75,6 +76,8 @@ export type MessengerWebappEntryIdentityDeps = {
   ) => Promise<string | undefined>;
   /** Публичный origin вебаппа (`system_settings.app_base_url` / env). */
   getAppBaseUrl?: () => Promise<string>;
+  /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
+  resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
 };
 
 export type TelegramRoutesRegistrar = (

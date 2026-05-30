@@ -197,6 +197,24 @@ export function PhoneMessengerAuthFlow({
 
   useEffect(() => () => clearPoll(), [clearPoll]);
 
+  useEffect(() => {
+    if (step !== "code" || !setupToken || !bindChannel) return;
+    const onResume = () => {
+      if (document.visibilityState === "visible") {
+        void pollBindStatus(setupToken, bindChannel);
+      }
+    };
+    const onFocus = () => {
+      void pollBindStatus(setupToken, bindChannel);
+    };
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [step, setupToken, bindChannel, pollBindStatus]);
+
   const startPhoneOtp = async (
     normalized: string,
     deliveryChannel: "telegram" | "max",

@@ -58,7 +58,7 @@
 
 ## Админ-бот: команды и подсказки
 
-- **`isAdmin` в integrator** — только чат/user id из env (`TELEGRAM_ADMIN_ID` / MAX admin), **не** список `doctor_telegram_ids`. Врач из `doctor_telegram_ids` **получает** уведомления, но **admin-сценарии** в боте работают только если его id совпадает с admin env или добавлен в `admin_telegram_ids`.
+- **`isAdmin` в integrator** — env-admin (`TELEGRAM_ADMIN_ID` / MAX admin) **∪** `admin_*_ids` **∪** `doctor_*_ids` из `system_settings` (scope `admin`). Врач из `doctor_telegram_ids` / `doctor_max_ids` получает уведомления и может пользоваться admin-сценариями (в т.ч. «Ответить» на комментарий к упражнению).
 - Удалён dev catch-all **`admin.test.commandReceived`** («Тест: команда получена»).
 - Свободный текст без режима ответа: сценарии **`telegram.admin.message.unmatched`** / **`max.admin.message.unmatched`** (priority 2) — шаблон `admin.reply.hintUnmatched` (команды `/dialogs`, `/admin_bookings`, … и напоминание про «Ответить»).
 

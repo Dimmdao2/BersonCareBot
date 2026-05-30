@@ -151,6 +151,46 @@ describe("PhoneMessengerAuthFlow", () => {
     expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
   });
 
+  it("refetches bind status on visibilitychange when on code step", async () => {
+    const user = userEvent.setup();
+    let statusCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/auth/check-phone")) {
+          return jsonRes({ ok: true, exists: false, methods: { sms: false } });
+        }
+        if (url.includes("/api/auth/phone/messenger-bind/start")) {
+          return jsonRes({
+            ok: true,
+            setupToken: "auth_vis",
+            url: "https://t.me/bot?start=auth_vis",
+          });
+        }
+        if (url.includes("/api/auth/phone/messenger-bind/status")) {
+          statusCalls += 1;
+          return jsonRes({ ok: true, status: "pending" });
+        }
+        throw new Error(`unexpected: ${url}`);
+      }),
+    );
+
+    render(<PhoneMessengerAuthFlow purpose="login" onBack={() => {}} />);
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.click(await screen.findByRole("button", { name: "Telegram" }));
+
+    await waitFor(() => expect(statusCalls).toBeGreaterThanOrEqual(1));
+    const before = statusCalls;
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => expect(statusCalls).toBeGreaterThan(before));
+  });
+
   it("shows finishing text while messenger-bind finish is in flight", async () => {
     const user = userEvent.setup();
     let resolveFinish: (value: unknown) => void = () => {};

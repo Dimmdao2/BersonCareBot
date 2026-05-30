@@ -168,6 +168,19 @@ function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
     return typeof actual === 'string' && actual.startsWith(startsWith);
   }
 
+  const notStartsWith = expected.$notStartsWith;
+  if (Object.keys(expected).length === 1) {
+    if (typeof notStartsWith === 'string') {
+      return typeof actual !== 'string' || !actual.startsWith(notStartsWith);
+    }
+    if (Array.isArray(notStartsWith)) {
+      if (typeof actual !== 'string') return true;
+      return !notStartsWith.some(
+        (prefix) => typeof prefix === 'string' && actual.startsWith(prefix),
+      );
+    }
+  }
+
   const actualRecord = asRecord(actual) ?? {};
   for (const [key, value] of Object.entries(expected)) {
     if (key === 'textPresent') {

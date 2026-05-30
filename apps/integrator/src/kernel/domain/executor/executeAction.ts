@@ -199,6 +199,50 @@ function phoneMessengerBindPhoneLinkSyncFailureTemplateKey(
   return `${source}:phoneAuthFailed`;
 }
 
+function pushCallbackAnswerFromIncoming(
+  intents: OutgoingIntent[],
+  action: Action,
+  ctx: DomainContext,
+  suffix: string,
+): void {
+  const callbackQueryId = asString(readIncoming(ctx).callbackQueryId);
+  if (!callbackQueryId) return;
+  intents.push({
+    type: 'callback.answer',
+    meta: buildIntentMeta({ ...action, id: `${action.id}:${suffix}` }, ctx),
+    payload: { callbackQueryId },
+  });
+}
+
+async function buildPhoneAuthLoginUrlIntents(
+  action: Action,
+  ctx: DomainContext,
+  fullDeps: ExecutorDeps,
+  opts: { source: 'telegram' | 'max'; externalId: string },
+): Promise<OutgoingIntent[]> {
+  if (!readWebappHomeUrlFromFacts(ctx) || !fullDeps.templatePort) return [];
+  const chatId = resolveChannelLinkFailureChatId(ctx, opts.externalId);
+  if (chatId === null) return [];
+  const inlineAction: Action = {
+    id: `${action.id}:phone-auth-open-app-url`,
+    type: 'message.inlineKeyboard.show',
+    mode: 'async',
+    params: {
+      chatId,
+      templateKey: `${opts.source}:phoneAuthOpenAppPrompt`,
+      inlineKeyboard: [[
+        {
+          textTemplateKey: `${opts.source}:phoneAuthOpenAppButton`,
+          urlFact: 'links.webappHomeUrl',
+        },
+      ]],
+      delivery: { channels: [opts.source], maxAttempts: 1 },
+    },
+  };
+  const inlineResult = await executeAction(inlineAction, ctx, fullDeps);
+  return inlineResult.intents ?? [];
+}
+
 async function buildPhoneMessengerBindMainMenuIntents(
   action: Action,
   ctx: DomainContext,
@@ -209,10 +253,19 @@ async function buildPhoneMessengerBindMainMenuIntents(
     templateKey: string;
     actionIdSuffix: string;
     menuOnly?: boolean;
+    showLoginUrlButton?: boolean;
   },
 ): Promise<OutgoingIntent[]> {
   const tplPort = fullDeps.templatePort;
   if (!tplPort) return [];
+
+  const loginUrlIntents =
+    opts.showLoginUrlButton && !opts.menuOnly
+      ? await buildPhoneAuthLoginUrlIntents(action, ctx, fullDeps, {
+          source: opts.source,
+          externalId: opts.externalId,
+        })
+      : [];
 
   if (opts.source === 'telegram') {
     const rawChat = readIncomingChatId(ctx);
@@ -236,7 +289,7 @@ async function buildPhoneMessengerBindMainMenuIntents(
       },
     };
     const menuResult = await executeAction(menuAction, ctx, fullDeps);
-    return menuResult.intents ?? [];
+    return [...(menuResult.intents ?? []), ...loginUrlIntents];
   }
 
   const chatIdResolved = resolveChannelLinkFailureChatId(ctx, opts.externalId);
@@ -253,7 +306,7 @@ async function buildPhoneMessengerBindMainMenuIntents(
     },
   };
   const inlineResult = await executeAction(inlineAction, ctx, fullDeps);
-  return inlineResult.intents ?? [];
+  return [...(inlineResult.intents ?? []), ...loginUrlIntents];
 }
 
 /** Inline-кнопка открытия webapp при `no_channel_binding`, если в контексте есть URL (Telegram `web_app`; MAX → `open_app` в deliveryAdapter). */
@@ -400,6 +453,17 @@ export async function executeAction(
               },
             });
           }
+          if (source === 'telegram' || source === 'max') {
+            failureIntents.push(
+              ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
+                source,
+                externalId,
+                templateKey: `${source}:chooseMenu`,
+                actionIdSuffix: 'phone-auth-failed-menu',
+                menuOnly: true,
+              })),
+            );
+          }
         }
         return {
           actionId: action.id,
@@ -501,6 +565,17 @@ export async function executeAction(
               },
             });
           }
+          if (source === 'telegram' || source === 'max') {
+            failureIntents.push(
+              ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
+                source,
+                externalId,
+                templateKey: `${source}:chooseMenu`,
+                actionIdSuffix: 'phone-auth-sync-failed-menu',
+                menuOnly: true,
+              })),
+            );
+          }
         }
         return {
           actionId: action.id,
@@ -539,6 +614,7 @@ export async function executeAction(
               externalId,
               templateKey: `${source}:phoneAuthReturnToApp`,
               actionIdSuffix: 'phone-auth-return',
+              showLoginUrlButton: bindPurpose === 'login',
             })),
           );
         } else {
@@ -606,6 +682,7 @@ export async function executeAction(
               delivery: { channels: [source], maxAttempts: 1 },
             },
           });
+          pushCallbackAnswerFromIncoming(intents, action, ctx, 'reply-begin-port-missing-ack');
         }
         return {
           actionId: action.id,
@@ -633,6 +710,7 @@ export async function executeAction(
               delivery: { channels: [source], maxAttempts: 1 },
             },
           });
+          pushCallbackAnswerFromIncoming(intents, action, ctx, 'reply-begin-failed-ack');
         }
         return {
           actionId: action.id,

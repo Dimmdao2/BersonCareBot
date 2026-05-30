@@ -3,7 +3,13 @@
 		"id": "max.contact.phone.link",
 		"source": "max",
 		"event": "message.received",
+		"priority": 10,
 		"match": {
+			"context": {
+				"conversationState": {
+					"$notStartsWith": ["await_phoneauth:", "await_contact:"]
+				}
+			},
 			"input": {
 				"phonePresent": true
 			}

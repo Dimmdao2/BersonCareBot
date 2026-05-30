@@ -1334,7 +1334,11 @@ describe('orchestrator buildPlan', () => {
           id: 'max.contact.phone.link',
           source: 'max',
           event: 'message.received',
-          match: { input: { phonePresent: true } },
+          priority: 10,
+          match: {
+            context: { conversationState: { $notStartsWith: ['await_phoneauth:', 'await_contact:'] } },
+            input: { phonePresent: true },
+          },
           steps: [{ action: 'user.phone.link', mode: 'sync', params: {} }],
         },
         {

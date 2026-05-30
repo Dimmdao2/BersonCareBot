@@ -415,14 +415,23 @@ export async function buildReplyMarkup(input: {
         const webAppUrl = webAppUrlFact
           ? (getFactByPath(facts, webAppUrlFact) as string | undefined)
           : undefined;
-        const urlStr = typeof webAppUrl === 'string' && webAppUrl.trim().length > 0 ? webAppUrl.trim() : null;
-        if (urlStr) {
-          return { text, web_app: { url: urlStr } };
+        const webAppUrlStr =
+          typeof webAppUrl === 'string' && webAppUrl.trim().length > 0 ? webAppUrl.trim() : null;
+        if (webAppUrlStr) {
+          return { text, web_app: { url: webAppUrlStr } };
         }
+        const urlFact = asString(button.urlFact);
+        const urlFromFact = urlFact
+          ? (getFactByPath(facts, urlFact) as string | undefined)
+          : undefined;
+        const urlStr =
+          typeof urlFromFact === 'string' && urlFromFact.trim().length > 0
+            ? urlFromFact.trim()
+            : asString(button.url)?.trim() || null;
         return {
           text,
           ...(asString(button.callbackData) ? { callback_data: asString(button.callbackData) } : {}),
-          ...(asString(button.url) ? { url: asString(button.url) } : {}),
+          ...(urlStr ? { url: urlStr } : {}),
         };
       }));
     }));

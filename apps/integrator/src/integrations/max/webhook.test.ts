@@ -1,8 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
-import { registerMaxWebhookRoutes } from './webhook.js';
+import { buildMaxFacts, registerMaxWebhookRoutes } from './webhook.js';
+import type { MaxUpdateValidated } from './schema.js';
 
-vi.mock('./config.js', () => ({ maxConfig: { webhookSecret: '' } }));
+vi.mock('./config.js', () => ({
+  maxConfig: { enabled: true, webhookSecret: '', adminUserId: 888001 },
+}));
+
+describe('buildMaxFacts', () => {
+  const messageUpdate = (senderUserId: number): MaxUpdateValidated => ({
+    update_type: 'message_created',
+    timestamp: 1,
+    message: {
+      recipient: { chat_id: 100, user_id: senderUserId },
+      body: { text: 'Hi' },
+      sender: { user_id: senderUserId },
+    },
+  });
+
+  it('isAdmin true for env admin user id', async () => {
+    const facts = await buildMaxFacts(messageUpdate(888001), undefined, undefined);
+    expect(facts.isAdmin).toBe(true);
+  });
+
+  it('isAdmin true when sender id is in doctor list from resolver', async () => {
+    const resolve = vi.fn(async () => true);
+    const facts = await buildMaxFacts(messageUpdate(777666), undefined, undefined, resolve);
+    expect(facts.isAdmin).toBe(true);
+    expect(resolve).toHaveBeenCalledWith('max', '777666');
+  });
+});
 
 /** Real MAX payload: message.body.text, recipient, sender. */
 describe('max webhook', () => {

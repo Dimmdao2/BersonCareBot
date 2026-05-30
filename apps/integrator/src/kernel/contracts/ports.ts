@@ -124,7 +124,9 @@ export type PhoneLinkFailureReason =
   | 'merge_blocked_lfk_conflict'
   | 'merge_blocked_ambiguous_candidates'
   | 'legacy_contacts_conflict'
-  | 'merge_blocked_integrator_conflict';
+  | 'merge_blocked_integrator_conflict'
+  | 'merge_blocked_treatment_program_conflict'
+  | 'merge_blocked_open_test_attempt_conflict';
 
 /** Метаданные отдельных мутаций `writeDb` (остальные кейсы возвращают `undefined`). */
 export type DbWriteDbResult = {

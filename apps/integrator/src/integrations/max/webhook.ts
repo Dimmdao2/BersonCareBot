@@ -9,6 +9,7 @@ import { parseMaxUpdate } from './schema.js';
 import { getMaxWebhookSecret } from './runtimeConfig.js';
 import { setupMaxCommands } from './setupCommands.js';
 import type { MaxUpdateValidated } from './schema.js';
+import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js';
 
 export type MaxWebhookDeps = {
   eventGateway: EventGateway;
@@ -17,6 +18,7 @@ export type MaxWebhookDeps = {
     resource: 'telegram' | 'max',
   ) => Promise<string | undefined>;
   getAppBaseUrl?: () => Promise<string>;
+  resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
 };
 
 /** Экспорт для тестов контракта URL miniapp (`/app/max`, `next=`). */
@@ -64,24 +66,43 @@ export async function buildMaxLinks(
   };
 }
 
-async function buildMaxFacts(
+/** Exported for tests. */
+export async function buildMaxFacts(
   data: MaxUpdateValidated,
   resolveIntegratorUserIdForMessenger: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'] | undefined,
   getAppBaseUrl: MaxWebhookDeps['getAppBaseUrl'],
+  resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
 ): Promise<Record<string, unknown>> {
   const appBaseUrl = getAppBaseUrl ? await getAppBaseUrl() : undefined;
   const adminChatId = maxConfig.adminChatId;
   const adminUserId = maxConfig.adminUserId;
   const chatId = data.message?.recipient?.chat_id ?? data.chat_id;
-  const senderUserId = data.callback?.user?.user_id ?? data.message?.sender?.user_id ?? data.user?.user_id;
-  const isAdmin =
-    (typeof adminUserId === 'number' && typeof senderUserId === 'number' && adminUserId === senderUserId)
-    || (typeof adminUserId !== 'number' && typeof adminChatId === 'number' && typeof chatId === 'number' && adminChatId === chatId);
+  const senderUserId =
+    data.callback?.user?.user_id ?? data.message?.sender?.user_id ?? data.user?.user_id;
+  const actorId =
+    senderUserId != null
+      ? String(senderUserId)
+      : chatId != null
+        ? String(chatId)
+        : '';
+  const envAdmin =
+    (typeof adminUserId === 'number' &&
+      typeof senderUserId === 'number' &&
+      adminUserId === senderUserId) ||
+    (typeof adminUserId !== 'number' &&
+      typeof adminChatId === 'number' &&
+      typeof chatId === 'number' &&
+      adminChatId === chatId);
+  let dbAdmin = false;
+  if (actorId && resolveMessengerStaffAdmin) {
+    dbAdmin = await resolveMessengerStaffAdmin('max', actorId);
+  }
+  const isAdmin = envAdmin || dbAdmin;
   return {
     ...(await buildMaxLinks(data, resolveIntegratorUserIdForMessenger, appBaseUrl)),
     ...(typeof adminChatId === 'number' ? { adminChatId } : {}),
     ...(typeof adminUserId === 'number' ? { adminUserId } : {}),
-    ...((typeof chatId === 'number' || typeof senderUserId === 'number') ? { isAdmin } : {}),
+    ...(actorId ? { isAdmin } : {}),
   };
 }
 
@@ -97,6 +118,7 @@ export async function registerMaxWebhookRoutes(
   await setupMaxCommands();
   const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
   const getAppBaseUrl = deps.getAppBaseUrl;
+  const resolveMessengerStaffAdmin = deps.resolveMessengerStaffAdmin;
 
   app.post('/webhook/max', async (request, reply) => {
     const correlationId = request.id;
@@ -162,7 +184,12 @@ export async function registerMaxWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: await buildMaxFacts(parseResult.data, resolveIntegratorUserIdForMessenger, getAppBaseUrl),
+        facts: await buildMaxFacts(
+          parseResult.data,
+          resolveIntegratorUserIdForMessenger,
+          getAppBaseUrl,
+          resolveMessengerStaffAdmin,
+        ),
       });
       const result = await deps.eventGateway.handleIncomingEvent(event);
       if (result.status === 'rejected') {

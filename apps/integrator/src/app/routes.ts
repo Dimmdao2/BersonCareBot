@@ -9,6 +9,7 @@ import { registerBersoncareSettingsSyncRoute } from '../integrations/bersoncare/
 import { registerBersoncareUserMergeM2mRoutes } from '../integrations/bersoncare/userMergeM2mRoute.js';
 import { registerOperatorHealthProbeRoute } from '../integrations/bersoncare/operatorHealthProbeRoute.js';
 import { createDbPort } from '../infra/db/client.js';
+import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
 import { getLinkDataByIdentity } from '../infra/db/repos/channelUsers.js';
 import { registerRubitimeRecordM2mRoutes } from '../integrations/rubitime/recordM2mRoute.js';
 import { registerRubitimeAdminM2mRoutes } from '../integrations/rubitime/adminM2mRoute.js';
@@ -129,6 +130,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   });
 
   const webhookRouteDb = createDbPort();
+  const resolveMessengerStaffAdmin = createMessengerStaffIdsResolver(webhookRouteDb);
   const getAppBaseUrlForWebhooks = (): Promise<string> => getAppBaseUrl(webhookRouteDb);
 
   if (deps.registerTelegramWebhookRoutes) {
@@ -137,6 +139,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         eventGateway: deps.eventGateway,
         resolveIntegratorUserIdForMessenger,
         getAppBaseUrl: getAppBaseUrlForWebhooks,
+        resolveMessengerStaffAdmin,
       });
     });
   }
@@ -157,6 +160,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         eventGateway: deps.eventGateway,
         resolveIntegratorUserIdForMessenger,
         getAppBaseUrl: getAppBaseUrlForWebhooks,
+        resolveMessengerStaffAdmin,
       });
     });
   }

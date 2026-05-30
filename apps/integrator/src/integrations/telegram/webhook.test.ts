@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import * as loggerMod from '../../infra/observability/logger.js';
-import { mapBodyToIncoming, registerTelegramWebhookRoutes } from './webhook.js';
+import { buildAdminFacts, mapBodyToIncoming, registerTelegramWebhookRoutes } from './webhook.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
 vi.mock('./setupMenuButton.js', () => ({
   setupTelegramMenuButton: vi.fn(async () => undefined),
   ensureNoMenuButtonForUser: vi.fn(async () => undefined),
+}));
+
+vi.mock('./config.js', () => ({
+  telegramConfig: { adminTelegramId: 999001, botToken: 'test', sendMenuOnButtonPress: true },
 }));
 
 describe('mapBodyToIncoming', () => {
@@ -171,6 +175,34 @@ describe('mapBodyToIncoming', () => {
       expect(incoming.action).toBe('admin_reply');
       expect(incoming.conversationId).toBe('conv-123');
     }
+  });
+});
+
+describe('buildAdminFacts', () => {
+  const body = (chatId: number): TelegramWebhookBodyValidated => ({
+    message: {
+      from: { id: chatId, is_bot: false, first_name: 'U' },
+      chat: { id: chatId },
+      text: 'hi',
+    },
+  });
+
+  it('isAdmin true for env admin chat without DB resolver', async () => {
+    const facts = await buildAdminFacts(body(999001));
+    expect(facts.isAdmin).toBe(true);
+  });
+
+  it('isAdmin true when chat id is in doctor list from resolver', async () => {
+    const resolve = vi.fn(async () => true);
+    const facts = await buildAdminFacts(body(555777), resolve);
+    expect(facts.isAdmin).toBe(true);
+    expect(resolve).toHaveBeenCalledWith('telegram', '555777');
+  });
+
+  it('isAdmin false for ordinary chat not in env or lists', async () => {
+    const resolve = vi.fn(async () => false);
+    const facts = await buildAdminFacts(body(111222), resolve);
+    expect(facts.isAdmin).toBe(false);
   });
 });
 

@@ -149,6 +149,8 @@ export type {
   SubscriptionMailingProjectionEventType,
 } from './projectionEventTypes.js';
 
+export type { MessengerStaffChannel, ResolveMessengerStaffAdmin } from './messengerStaff.js';
+
 export {
   actionResultSchema,
   actionSchema,

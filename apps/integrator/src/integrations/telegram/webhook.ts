@@ -12,6 +12,7 @@ import { getMessageTypeFromTelegramMessage } from './supportRelayTypes.js';
 import { ensureNoMenuButtonForUser, setupTelegramMenuButton } from './setupMenuButton.js';
 import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
+import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js';
 
 function joinDisplayName(input: { first_name?: string | undefined; last_name?: string | undefined }): string | undefined {
   const parts = [input.first_name, input.last_name]
@@ -72,14 +73,23 @@ export async function buildLinksFromBody(
   return Object.keys(links).length > 0 ? { links } : {};
 }
 
-function buildAdminFacts(body: TelegramWebhookBodyValidated): Record<string, unknown> {
+/** Exported for tests. */
+export async function buildAdminFacts(
+  body: TelegramWebhookBodyValidated,
+  resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
+): Promise<Record<string, unknown>> {
   const adminTelegramId = telegramConfig.adminTelegramId;
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
-  const isAdmin =
+  const envAdmin =
     typeof adminTelegramId === 'number' &&
     typeof chatId === 'number' &&
     chatId === adminTelegramId;
-  const result: Record<string, unknown> = typeof isAdmin === 'boolean' ? { isAdmin } : {};
+  let dbAdmin = false;
+  if (typeof chatId === 'number' && resolveMessengerStaffAdmin) {
+    dbAdmin = await resolveMessengerStaffAdmin('telegram', String(chatId));
+  }
+  const isAdmin = envAdmin || dbAdmin;
+  const result: Record<string, unknown> = { isAdmin };
   if (typeof adminTelegramId === 'number') result.adminChatId = adminTelegramId;
   return result;
 }
@@ -88,11 +98,12 @@ async function buildTelegramFacts(
   body: TelegramWebhookBodyValidated,
   resolveIntegratorUserIdForMessenger: TelegramWebhookDeps['resolveIntegratorUserIdForMessenger'] | undefined,
   getAppBaseUrl: TelegramWebhookDeps['getAppBaseUrl'],
+  resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
 ): Promise<Record<string, unknown>> {
   return {
     ...buildActorFromBody(body),
     ...(await buildLinksFromBody(body, resolveIntegratorUserIdForMessenger, getAppBaseUrl)),
-    ...buildAdminFacts(body),
+    ...(await buildAdminFacts(body, resolveMessengerStaffAdmin)),
   };
 }
 
@@ -105,6 +116,8 @@ export type TelegramWebhookDeps = {
   ) => Promise<string | undefined>;
   /** Публичный origin вебаппа (admin `app_base_url` / env); для ссылок в кнопках WebApp. */
   getAppBaseUrl?: () => Promise<string>;
+  /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
+  resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
 };
 
 /** Exported for tests (contact ownership, setphone deep link). */
@@ -176,6 +189,7 @@ export async function registerTelegramWebhookRoutes(
 ): Promise<void> {
   const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
   const getAppBaseUrl = deps.getAppBaseUrl;
+  const resolveMessengerStaffAdmin = deps.resolveMessengerStaffAdmin;
   await setupTelegramMenuButton();
 
   app.post('/webhook/telegram', async (request, reply) => {
@@ -250,7 +264,12 @@ export async function registerTelegramWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: await buildTelegramFacts(body, resolveIntegratorUserIdForMessenger, getAppBaseUrl),
+        facts: await buildTelegramFacts(
+          body,
+          resolveIntegratorUserIdForMessenger,
+          getAppBaseUrl,
+          resolveMessengerStaffAdmin,
+        ),
         ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
       });
       const result = await deps.eventGateway.handleIncomingEvent(event);
