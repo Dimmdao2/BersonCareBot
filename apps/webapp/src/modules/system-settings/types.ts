@@ -75,6 +75,11 @@ export const ALLOWED_KEYS = [
   "booking_default_organization_id",
   /** Вкл/выкл read-bridge и синхронизации Rubitime ↔ канон (этап 1 — проекция). */
   "booking_rubitime_bridge_enabled",
+  /**
+   * Источник списка записей врача: `rubitime_legacy` (appointment_records, default) | `canonical` (be_appointments).
+   * Переключать на `canonical` только после паритета и backfill mappings.
+   */
+  "booking_doctor_appointments_read_source",
   /** Вкл/выкл платёжный слой записи (предоплата, intents). */
   "booking_payment_enabled",
   /** Провайдеры оплаты записи: `{ value: { enabled, defaultProviderId, providers[] } }`; секреты merge при PATCH. */

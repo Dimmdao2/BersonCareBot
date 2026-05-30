@@ -47,6 +47,7 @@
 - [x] Проекция текущих `appointment_records`/`rubitime_records` на канонические `Appointment` (read-bridge) — чтобы данные не потерялись на переходе.
 - [x] Решение по направлению истины на этапе 1: ядро — канон; read-bridge и маппинги; мост включается/отключается `booking_rubitime_bridge_enabled`. **Двусторонняя** синхронизация — этапы 2–4.
 - [x] Не ломать текущий Rubitime-вебхук-пайплайн (`RUBITIME_BOOKING_PIPELINE.md`); добавить, а не заменить, пока этап 2 не переключит запись на канон.
+- [x] **Переходный read (2026-05-30):** `/app/doctor/appointments` и метрики дашборда по умолчанию из `appointment_records` (`booking_doctor_appointments_read_source=rubitime_legacy`); cutover на `canonical` только после parity и backfill `be_external_entity_mappings` (см. `LOG.md` §transitional read).
 
 ### 1.6 Миграции и архитектура
 - [x] Все новые таблицы — Drizzle schema + SQL-миграции `db/drizzle-migrations` (`bookingEngine.ts`); без `pool.query` в приложении.

@@ -32,8 +32,33 @@ function clickPatientTreatmentTab(which: "program" | "recommendations" | "progre
 }
 
 beforeEach(() => {
+  Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  });
   global.fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("/discussion/summary")) {
+      return new Response(JSON.stringify({ ok: true, summaryByItemId: {} }), { status: 200 });
+    }
+    if (url.includes("/discussion/read")) {
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+    if (url.includes("/discussion")) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          messages: [],
+          pageInfo: { direction: "backward", limit: 50, nextCursor: null, hasMore: false },
+          totalCount: 0,
+          unreadCount: 0,
+          lastMessage: null,
+          lastDoneSummary: null,
+          message: null,
+        }),
+        { status: 200 },
+      );
+    }
     if (url.includes("/passage-stats")) {
       return new Response(
         JSON.stringify({
@@ -958,5 +983,106 @@ describe("PatientTreatmentProgramDetailClient", () => {
     const recInBlockRow = within(programPanel).getByText("Рекомендация в блоке").closest("li");
     expect(recInBlockRow?.querySelector("img")).toBeFalsy();
     expect(recInBlockRow?.querySelector("svg")).toBeTruthy();
+  });
+
+  it("program tile shows comments badge/unread dot, camera button, and opens discussion dialog", async () => {
+    const itemId = "aaaaaaaa-1111-4111-8111-111111111111";
+    const fetchMock = vi.mocked(global.fetch);
+    const baseImpl = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/discussion/summary")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            summaryByItemId: {
+              [itemId]: { totalCount: 3, unreadCount: 1 },
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (baseImpl) return baseImpl(input);
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({
+          stages: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Рекомендации",
+              description: null,
+              sortOrder: 0,
+              localComment: null,
+              skipReason: null,
+              status: "available",
+              startedAt: null,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+            {
+              id: "33333333-3333-4333-8333-333333333333",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Этап 1",
+              description: null,
+              sortOrder: 1,
+              localComment: null,
+              skipReason: null,
+              status: "in_progress",
+              startedAt: now,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [
+                {
+                  id: itemId,
+                  stageId: "33333333-3333-4333-8333-333333333333",
+                  itemType: "exercise",
+                  itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                  sortOrder: 0,
+                  comment: null,
+                  localComment: null,
+                  settings: null,
+                  snapshot: { title: "Упражнение", media: [] },
+                  completedAt: null,
+                  isActionable: true,
+                  status: "active",
+                  groupId: null,
+                  createdAt: now,
+                  lastViewedAt: now,
+                  effectiveComment: null,
+                },
+              ],
+            },
+          ],
+        })}
+        initialTestResults={[]}
+        {...detailShellProps}
+      />,
+    );
+
+    clickPatientTreatmentTab("program");
+    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
+    expect(within(programPanel).queryByRole("button", { name: /Добавить комментарий/i })).not.toBeInTheDocument();
+
+    const commentsButton = await within(programPanel).findByRole("button", { name: /Комментарии/i });
+    expect(within(commentsButton).getByText("3")).toBeInTheDocument();
+    expect(within(commentsButton).getByLabelText("Есть непрочитанные комментарии")).toBeInTheDocument();
+    expect(within(programPanel).getByRole("button", { name: "Камера" })).toBeInTheDocument();
+
+    fireEvent.click(commentsButton);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Комментарии")).toBeInTheDocument();
   });
 });

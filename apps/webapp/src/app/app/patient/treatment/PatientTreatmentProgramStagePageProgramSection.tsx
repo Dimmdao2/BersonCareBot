@@ -2,11 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, Info, NotebookText, PlayCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AlertTriangle, Camera, Info, MessageCircle, NotebookText, PlayCircle } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
@@ -27,10 +23,8 @@ import {
 } from "@/modules/treatment-program/itemDoneCooldown";
 import {
   patientBodyTextClass,
-  patientButtonPrimaryClass,
   patientCardClass,
   patientCompactActionClass,
-  patientFormSurfaceClass,
   patientMutedTextClass,
   patientSecondaryActionClass,
   patientSectionTitleClass,
@@ -44,6 +38,7 @@ import {
   isProgramCompositionItem,
   sortProgramCompositionItemsByOrderThenId,
 } from "@/app/app/patient/treatment/programCompositionOrder";
+import { ProgramItemDiscussionDialog } from "./ProgramItemDiscussionDialog";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];
 
@@ -142,6 +137,11 @@ function ProgramTileHintButton(props: { ariaLabel: string; icon: ReactNode; chil
 /** Как в модалке «Состав этапа» (`PatientTreatmentProgramDetailClient` — `MAX_COMPOSITION_TODAY_DOTS`). */
 const MAX_TODAY_DOTS = 24;
 
+type ItemDiscussionSummary = {
+  totalCount: number;
+  unreadCount: number;
+};
+
 function PatientProgramTileSimpleCompleteButton(props: {
   itemId: string;
   completedAt: string | null;
@@ -152,9 +152,20 @@ function PatientProgramTileSimpleCompleteButton(props: {
   setBusy: (v: string | null) => void;
   setError: (v: string | null) => void;
   planItemDoneRepeatCooldownMs: number;
+  containerClassName?: string;
 }) {
-  const { itemId, completedAt, lastDoneAtIso, busy, base, refresh, setBusy, setError, planItemDoneRepeatCooldownMs } =
-    props;
+  const {
+    itemId,
+    completedAt,
+    lastDoneAtIso,
+    busy,
+    base,
+    refresh,
+    setBusy,
+    setError,
+    planItemDoneRepeatCooldownMs,
+    containerClassName,
+  } = props;
   const merged = mergeLastActivityDisplayedIso(lastDoneAtIso, completedAt);
   const doneFrozen = isItemDoneCooldownActive(merged, planItemDoneRepeatCooldownMs);
   /* Скрыто: подпись cooldown — при возврате раскомментировать и импорт formatPlanItemDoneCooldownCaption + itemDoneCooldownMinutesRemaining.
@@ -162,7 +173,7 @@ function PatientProgramTileSimpleCompleteButton(props: {
   */
 
   return (
-    <div className="flex min-w-0 flex-1 basis-0 flex-col gap-0.5">
+    <div className={cn("flex min-w-0 flex-1 basis-0 flex-col gap-0.5", containerClassName)}>
       <button
         type="button"
         className={cn(
@@ -279,45 +290,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     [planItemDoneRepeatCooldownMinutes],
   );
 
-  const [commentModalItemId, setCommentModalItemId] = useState<string | null>(null);
-  const [observationDraft, setObservationDraft] = useState("");
-  const [observationSaving, setObservationSaving] = useState(false);
-  const commentModalItem = useMemo(() => {
-    if (!commentModalItemId) return null;
-    return stage.items.find((it) => it.id === commentModalItemId) ?? null;
-  }, [commentModalItemId, stage.items]);
-
-  useEffect(() => {
-    if (!commentModalItemId) return;
-    setObservationDraft("");
-  }, [commentModalItemId]);
-
-  const submitObservationFromPlanModal = useCallback(async () => {
-    if (!commentModalItem) return;
-    const noteTrim = observationDraft.trim();
-    if (noteTrim === "") {
-      setError("Введите текст наблюдения");
-      return;
-    }
-    setObservationSaving(true);
-    setError(null);
-    try {
-      const res = await fetch(`${base}/${encodeURIComponent(commentModalItem.id)}/progress/observation-note`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: noteTrim }),
-      });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setError(data.error ?? "Ошибка сохранения");
-        return;
-      }
-      setCommentModalItemId(null);
-      await refresh();
-    } finally {
-      setObservationSaving(false);
-    }
-  }, [commentModalItem, observationDraft, base, setError, refresh]);
+  const [discussionDialogItemId, setDiscussionDialogItemId] = useState<string | null>(null);
+  const [discussionSummaryByItemId, setDiscussionSummaryByItemId] = useState<Record<string, ItemDiscussionSummary>>(
+    {},
+  );
 
   const readOnly = itemInteraction === "readOnly";
   const visibleProgramItems = useMemo(
@@ -329,6 +305,54 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     () => buildProgramCompositionSegments(stage, visibleProgramItems),
     [stage, visibleProgramItems],
   );
+
+  const loadDiscussionSummary = useCallback(async () => {
+    if (!allowPatientObservationComment) {
+      setDiscussionSummaryByItemId({});
+      return;
+    }
+    const itemIds = visibleProgramItems.map((item) => item.id);
+    if (itemIds.length === 0) {
+      setDiscussionSummaryByItemId({});
+      return;
+    }
+    try {
+      const url = new URL(
+        `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/discussion/summary`,
+        window.location.origin,
+      );
+      url.searchParams.set("itemIds", itemIds.join(","));
+      const res = await fetch(url.toString());
+      const data = (await res.json().catch(() => null)) as
+        | { ok?: boolean; summaryByItemId?: Record<string, unknown> }
+        | null;
+      if (!res.ok || !data?.ok || !data.summaryByItemId || typeof data.summaryByItemId !== "object") {
+        return;
+      }
+      const next: Record<string, ItemDiscussionSummary> = {};
+      for (const itemId of itemIds) {
+        const raw = data.summaryByItemId[itemId];
+        if (!raw || typeof raw !== "object") continue;
+        const row = raw as Record<string, unknown>;
+        const totalCount =
+          typeof row.totalCount === "number" && Number.isFinite(row.totalCount) && row.totalCount > 0
+            ? Math.floor(row.totalCount)
+            : 0;
+        const unreadCount =
+          typeof row.unreadCount === "number" && Number.isFinite(row.unreadCount) && row.unreadCount > 0
+            ? Math.floor(row.unreadCount)
+            : 0;
+        next[itemId] = { totalCount, unreadCount };
+      }
+      setDiscussionSummaryByItemId(next);
+    } catch {
+      // summary prefetch is best-effort; tile stays usable without counters.
+    }
+  }, [allowPatientObservationComment, instanceId, visibleProgramItems]);
+
+  useEffect(() => {
+    void loadDiscussionSummary();
+  }, [loadDiscussionSummary]);
 
   if (visibleProgramItems.length === 0) return null;
 
@@ -349,6 +373,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     const doctorComment = item.effectiveComment?.trim() ?? "";
     const hasHintRow = hasDescription || Boolean(contrText) || Boolean(doctorComment);
     const repsSetsBadge = programTileRepsSetsBadgeLabel(item);
+    const discussionSummary = discussionSummaryByItemId[item.id];
+    const discussionCount = discussionSummary?.totalCount ?? 0;
+    const discussionUnreadCount = discussionSummary?.unreadCount ?? 0;
+    const hasDiscussionDot = discussionUnreadCount > 0;
 
     return (
       <li
@@ -461,21 +489,46 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           {!readOnlyTile ? (
             <div className="mt-1.5 flex w-full min-w-0 gap-2 border-t border-[var(--patient-border)] pt-2">
               {allowPatientObservationComment ? (
-                <button
-                  type="button"
-                  className={cn(
-                    patientSecondaryActionClass,
-                    "!w-auto min-h-9 min-w-0 flex-1 basis-0 px-2 py-2.5 text-center text-xs font-medium leading-tight",
-                    "inline-flex cursor-pointer items-center justify-center gap-1.5",
-                  )}
-                  disabled={busy !== null || (observationSaving && commentModalItemId === item.id)}
-                  onClick={() => {
-                    setError(null);
-                    setCommentModalItemId(item.id);
-                  }}
-                >
-                  <span className="w-full text-center leading-tight">Добавить комментарий</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className={cn(
+                      patientSecondaryActionClass,
+                      "inline-flex size-9 min-h-9 min-w-9 shrink-0 cursor-pointer items-center justify-center p-0",
+                    )}
+                    disabled={busy !== null}
+                    aria-label="Камера"
+                    onClick={() => {
+                      setError(null);
+                      setDiscussionDialogItemId(item.id);
+                    }}
+                  >
+                    <Camera className="size-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      patientSecondaryActionClass,
+                      "inline-flex min-h-9 min-w-[7.5rem] shrink-0 cursor-pointer items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs font-medium leading-tight",
+                    )}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setError(null);
+                      setDiscussionDialogItemId(item.id);
+                    }}
+                  >
+                    <MessageCircle className="size-3.5 shrink-0" aria-hidden />
+                    <span className="leading-tight">Комментарии</span>
+                    {discussionCount > 0 ? (
+                      <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
+                        {discussionCount}
+                      </span>
+                    ) : null}
+                    {hasDiscussionDot ? (
+                      <span className="size-1.5 shrink-0 rounded-full bg-[#ef4444]" aria-label="Есть непрочитанные комментарии" />
+                    ) : null}
+                  </button>
+                </>
               ) : null}
               {showSimpleCompleteFooter ? (
                 <PatientProgramTileSimpleCompleteButton
@@ -488,6 +541,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                   setBusy={setBusy}
                   setError={setError}
                   planItemDoneRepeatCooldownMs={planItemDoneRepeatCooldownMs}
+                  containerClassName={allowPatientObservationComment ? "flex-[1.45]" : undefined}
                 />
               ) : null}
             </div>
@@ -533,52 +587,19 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
         )}
       </ul>
 
-      {commentModalItem ? (
-        <Dialog
+      {discussionDialogItemId ? (
+        <ProgramItemDiscussionDialog
+          instanceId={instanceId}
+          itemId={discussionDialogItemId}
           open
           onOpenChange={(open) => {
-            if (!open) setCommentModalItemId(null);
+            if (!open) {
+              setDiscussionDialogItemId(null);
+              void loadDiscussionSummary();
+            }
           }}
-        >
-          <DialogContent
-            className="rounded-lg border border-[var(--patient-border)] shadow-md sm:max-w-md"
-            initialFocus={() => {
-              const el = document.getElementById(`patient-plan-observation-note-${commentModalItem.id}`);
-              return el instanceof HTMLTextAreaElement ? el : true;
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>Наблюдение</DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <Label
-                  htmlFor={`patient-plan-observation-note-${commentModalItem.id}`}
-                  className={cn(patientMutedTextClass, "text-xs")}
-                >
-                  Ваше наблюдение
-                </Label>
-                <Textarea
-                  id={`patient-plan-observation-note-${commentModalItem.id}`}
-                  value={observationDraft}
-                  onChange={(e) => setObservationDraft(e.target.value)}
-                  disabled={observationSaving}
-                  rows={5}
-                  maxLength={4000}
-                  className={cn(patientFormSurfaceClass, "min-h-[120px] resize-y text-sm")}
-                />
-              </div>
-              <Button
-                type="button"
-                className={cn(patientButtonPrimaryClass, "w-full sm:w-auto")}
-                disabled={observationSaving}
-                onClick={() => void submitObservationFromPlanModal()}
-              >
-                {observationSaving ? "Отправляю…" : "Отправить"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+          onRead={loadDiscussionSummary}
+        />
       ) : null}
     </section>
   );

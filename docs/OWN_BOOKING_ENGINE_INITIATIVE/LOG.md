@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-05-30 — Rubitime transitional read + idempotent projection (incident recovery)
+
+**Инцидент:** после деплоя собственного движка кабинет врача перестал показывать будущие записи; кнопка «Проецировать записи» падала с `be_appointments_specialist_no_overlap` (дубль `rubitime_projection` без `be_external_entity_mappings`).
+
+**Root cause:**
+- `buildAppDeps` автоматически переключал `doctorAppointmentsPort` на `pgDoctorCanonicalAppointments` при наличии booking engine.
+- `pgBookingRubitimeBridge` проверял только mapping по external id и пытался повторно insert в `be_appointments`.
+
+**Сделано:**
+- `doctorAppointmentsReadSwitch`: default read = `appointment_records`; cutover через `system_settings.booking_doctor_appointments_read_source` (`rubitime_legacy` | `canonical`).
+- `pgBookingRubitimeBridge`: recovery существующей `rubitime_projection` → upsert mapping + history `rubitime_projection_mapping_recovered`, без duplicate insert.
+- Ops SQL: `apps/webapp/scripts/rubitime-appointment-mapping-audit.sql`, `backfill-rubitime-appointment-mappings.sql`.
+- Ключ `booking_doctor_appointments_read_source` в `ALLOWED_KEYS` и admin settings route.
+- Тесты: `doctorAppointmentsReadSwitch.test.ts`, `pgBookingRubitimeBridge.test.ts`.
+
+**Двусторонняя синхронизация (без изменений кода):** `patient-booking/service` по-прежнему вызывает `syncPort.createRecord` / `cancelRecord` / `updateRecord` в legacy- и canonical-путях; integrator продолжает писать `appointment_records` / `rubitime_records`.
+
+**Проверки (локально):** vitest по новым/затронутым файлам; `buildAppDeps.test.ts`.
+
+**Production (оператор):**
+1. Задеплоить webapp.
+2. Убедиться, что `booking_doctor_appointments_read_source` не установлен в `canonical` (или явно `rubitime_legacy`).
+3. `rubitime-appointment-mapping-audit.sql` → при необходимости `backfill-rubitime-appointment-mappings.sql`.
+4. Повторить «Проецировать записи» только после backfill.
+
+**Намеренно не делали:** массовое удаление дублей в `be_appointments`; принудительный cutover read на канон.
+
+---
+
 ## 2026-05-30 — Prod-hardening: закрытие оставшихся хвостов
 
 **Сделано:**

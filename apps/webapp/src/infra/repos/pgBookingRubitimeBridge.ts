@@ -84,6 +84,64 @@ async function upsertProjectedAppointment(
   const refs = resolveAppointmentCanonicalRefs(lookup, legacy);
   const status = mapLegacyStatusToCanonical(params.legacyStatus, params.lastEvent);
   const now = new Date().toISOString();
+  const eventPayload = {
+    externalId: params.externalId,
+    legacyStatus: params.legacyStatus,
+    ...refs,
+  };
+
+  const recoverable = await db.execute<{ id: string }>(sql`
+    SELECT id
+    FROM be_appointments
+    WHERE organization_id = ${params.organizationId}::uuid
+      AND source = 'rubitime_projection'
+      AND specialist_id IS NOT DISTINCT FROM ${refs.specialistId}::uuid
+      AND start_at = ${params.startAt}::timestamptz
+      AND end_at = ${legacy.endAtIso}::timestamptz
+      AND (
+        ${params.phoneNormalized}::text IS NULL
+        OR phone_normalized IS NOT DISTINCT FROM ${params.phoneNormalized}::text
+      )
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `);
+  if (recoverable.rows[0]) {
+    const appointmentId = recoverable.rows[0]!.id;
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(beExternalEntityMappings)
+        .values({
+          organizationId: params.organizationId,
+          entityType: "appointment",
+          canonicalId: appointmentId,
+          externalSystem: "rubitime",
+          externalId: params.externalId,
+          metadata: { projectedFrom: "read_bridge", recoveredExistingAppointment: true },
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [
+            beExternalEntityMappings.externalSystem,
+            beExternalEntityMappings.entityType,
+            beExternalEntityMappings.externalId,
+          ],
+          set: {
+            canonicalId: appointmentId,
+            metadata: { projectedFrom: "read_bridge", recoveredExistingAppointment: true },
+            updatedAt: now,
+          },
+        });
+      await tx.insert(beAppointmentHistoryEvents).values({
+        organizationId: params.organizationId,
+        appointmentId,
+        eventType: "rubitime_projection_mapping_recovered",
+        payload: eventPayload,
+        occurredAt: now,
+      });
+    });
+    return "skipped";
+  }
 
   return db.transaction(async (tx) => {
     const inserted = await tx
@@ -107,11 +165,6 @@ async function upsertProjectedAppointment(
       })
       .returning({ id: beAppointments.id });
     const appointmentId = inserted[0]!.id;
-    const eventPayload = {
-      externalId: params.externalId,
-      legacyStatus: params.legacyStatus,
-      ...refs,
-    };
     await tx.insert(beExternalEntityMappings).values({
       organizationId: params.organizationId,
       entityType: "appointment",

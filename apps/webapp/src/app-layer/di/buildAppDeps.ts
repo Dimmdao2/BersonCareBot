@@ -82,6 +82,10 @@ import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
 import { createPgAdminPlatformUserStatsPort } from "@/infra/repos/pgAdminPlatformUserStats";
 import { createInMemoryAdminPlatformUserStatsPort } from "@/infra/repos/inMemoryAdminPlatformUserStats";
+import {
+  createDoctorAppointmentsReadSwitchPort,
+  parseDoctorAppointmentsReadSource,
+} from "@/infra/repos/doctorAppointmentsReadSwitch";
 import { createPgDoctorCanonicalAppointmentsPort } from "@/infra/repos/pgDoctorCanonicalAppointments";
 import { createPgDoctorAppointmentsPort } from "@/infra/repos/pgDoctorAppointments";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
@@ -403,12 +407,13 @@ const bookingCatalogService = bookingCatalogPort
   ? createBookingCatalogService(bookingCatalogPort)
   : null;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
-const doctorAppointmentsPort =
+const doctorAppointmentsLegacyPort = !inMemoryRepos
+  ? createPgDoctorAppointmentsPort()
+  : inMemoryDoctorAppointmentsPort;
+const doctorAppointmentsCanonicalPort =
   !inMemoryRepos && bookingEngineCorePort
     ? createPgDoctorCanonicalAppointmentsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
-    : !inMemoryRepos
-      ? createPgDoctorAppointmentsPort()
-      : inMemoryDoctorAppointmentsPort;
+    : null;
 const bookingRubitimeBridgePort = !inMemoryRepos ? createPgBookingRubitimeBridgePort() : null;
 const bookingEnginePort =
   bookingEngineCorePort && bookingRubitimeBridgePort
@@ -477,6 +482,15 @@ const doctorNotesService = createDoctorNotesService(doctorNotesPort);
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
+const doctorAppointmentsPort = createDoctorAppointmentsReadSwitchPort({
+  legacyPort: doctorAppointmentsLegacyPort,
+  canonicalPort: doctorAppointmentsCanonicalPort,
+  resolveReadSource: async () => {
+    if (inMemoryRepos) return "rubitime_legacy";
+    const row = await systemSettingsService.getSetting("booking_doctor_appointments_read_source", "admin");
+    return parseDoctorAppointmentsReadSource(row?.value);
+  },
+});
 const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;
 const productsPort = !inMemoryRepos ? createPgProductsPort() : null;
 const entitlementsPort = !inMemoryRepos ? createPgEntitlementsPort() : null;

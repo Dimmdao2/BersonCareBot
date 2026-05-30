@@ -81,6 +81,7 @@ const ADMIN_SCOPE_KEYS = [
   "patient_booking_url",
   "booking_default_organization_id",
   "booking_rubitime_bridge_enabled",
+  "booking_doctor_appointments_read_source",
   "booking_payment_enabled",
   "booking_payment_providers",
   "booking_lifecycle_notifications",
