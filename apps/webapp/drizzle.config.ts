@@ -39,6 +39,7 @@ export default defineConfig({
     "./db/schema/userEmailSetupTokens.ts",
     "./db/schema/productAnalytics.ts",
     "./db/schema/bookingEngine.ts",
+    "./db/schema/platformUserContacts.ts",
   ],
   out: "./db/drizzle-migrations",
   dbCredentials: {

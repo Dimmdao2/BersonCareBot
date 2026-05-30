@@ -1,6 +1,7 @@
 import type { AppointmentSummary } from "@/modules/appointments/service";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
 import type { LfkComplex, LfkSession, SymptomEntry, SymptomTracking } from "@/modules/diaries/types";
+import type { DoctorSupplementaryContact } from "@/modules/platform-user-contacts/bookingContactUpsert";
 import type { DoctorClientsFilters, DoctorClientsPort } from "./ports";
 import type { ClientIdentity, ClientListItem } from "./ports";
 import { countCancellations30d, lastVisitLabelFromHistory } from "./appointmentStatsFromHistory";
@@ -19,6 +20,7 @@ export type ClientAppointmentHistoryItem = {
 
 export type ClientProfile = {
   identity: ClientIdentity;
+  supplementaryContacts: DoctorSupplementaryContact[];
   channelCards: ChannelCard[];
   upcomingAppointments: AppointmentSummary[];
   /** История по телефону клиента (не удалённые записи). */
@@ -49,6 +51,10 @@ export type DoctorClientsServiceDeps = {
     bindings: ClientIdentity["bindings"],
     delivery?: { phone?: string | null; emailVerified?: boolean }
   ) => Promise<ChannelCard[]>;
+  listSupplementaryContacts: (
+    userId: string,
+    identity: ClientIdentity,
+  ) => Promise<DoctorSupplementaryContact[]>;
 };
 
 export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
@@ -63,6 +69,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
 
       const [
         channelCards,
+        supplementaryContacts,
         upcomingAppointments,
         appointmentHistory,
         symptomTrackings,
@@ -74,6 +81,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
           phone: identity.phone,
           emailVerified: false,
         }),
+        deps.listSupplementaryContacts(userId, identity),
         Promise.resolve(deps.getUpcomingAppointments(userId)),
         deps.listAppointmentHistoryForPhone(identity.phone),
         deps.listSymptomTrackings(userId, true),
@@ -88,6 +96,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
 
       return {
         identity,
+        supplementaryContacts,
         channelCards,
         upcomingAppointments: appointments,
         appointmentHistory,

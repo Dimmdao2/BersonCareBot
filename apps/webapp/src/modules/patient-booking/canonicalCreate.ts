@@ -12,6 +12,8 @@ import type { PaymentsService } from "@/modules/payments/service";
 import type { MembershipsService } from "@/modules/memberships/service";
 import type { ProductsService } from "@/modules/products/service";
 import type { ClientHistoryService } from "@/modules/client-history/service";
+import type { PlatformUserContactsService } from "@/modules/platform-user-contacts/service";
+import { upsertBookingFormContactsBestEffort } from "@/modules/platform-user-contacts/bookingContactUpsert";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type {
   BookingSyncPort,
@@ -30,6 +32,14 @@ function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
 }
 
+async function persistBookingFormContacts(deps: CanonicalBookingDeps, createInput: CreatePatientBookingInput) {
+  await upsertBookingFormContactsBestEffort(deps.platformUserContacts, {
+    platformUserId: createInput.userId,
+    contactPhone: createInput.contactPhone,
+    contactEmail: createInput.contactEmail,
+  });
+}
+
 export type CanonicalBookingDeps = {
   bookingsPort: PatientBookingsPort;
   syncPort: BookingSyncPort;
@@ -42,6 +52,7 @@ export type CanonicalBookingDeps = {
   memberships: MembershipsService | null;
   products: ProductsService | null;
   clientHistory: ClientHistoryService | null;
+  platformUserContacts?: PlatformUserContactsService | null;
   isRubitimeBridgeEnabled: () => Promise<boolean>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
 };
@@ -320,6 +331,7 @@ export async function createBookingOnCanonicalEngine(
       idempotencyKey: `appointment_prepay:${appointment.id}`,
     });
     const awaiting = await deps.bookingsPort.markAwaitingPayment(pending.id, appointment.id);
+    await persistBookingFormContacts(deps, createInput);
     return awaiting ?? pending;
   }
 
@@ -439,5 +451,6 @@ export async function createBookingOnCanonicalEngine(
     // Notifications are best-effort.
   }
 
+  await persistBookingFormContacts(deps, createInput);
   return confirmed ?? pending;
 }

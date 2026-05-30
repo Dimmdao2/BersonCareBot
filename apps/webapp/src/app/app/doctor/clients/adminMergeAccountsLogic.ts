@@ -53,6 +53,12 @@ export type MergePreviewDependentCounts = {
   lfkComplexes: number;
   mediaFilesUploadedBy: number;
   onlineIntakeRequests: number;
+  materialRatings: number;
+  patientContentRatingFeedback: number;
+  patientPracticeCompletions: number;
+  treatmentProgramInstances: number;
+  programActionLog: number;
+  beAppointments: number;
 };
 
 export type MergePreviewApiBinding = {
@@ -267,6 +273,14 @@ const BLOCKER_RU: Record<
   active_lfk_template_conflict: {
     title: "Конфликт активных назначений ЛФК",
     detail: "На обоих пользователях есть активные patient_lfk_assignments с одним и тем же template_id.",
+  },
+  active_treatment_program_conflict: {
+    title: "Конфликт активных программ лечения",
+    detail: "На обоих пользователях есть активная treatment_program_instances (допускается только одна active на пациента).",
+  },
+  open_test_attempt_conflict: {
+    title: "Конфликт открытых попыток тестирования",
+    detail: "На обоих пользователях есть незавершённая test_attempts по одному и тому же пункту программы.",
   },
   shared_phone_both_have_meaningful_data: {
     title: "Один телефон, у обоих есть значимые данные",

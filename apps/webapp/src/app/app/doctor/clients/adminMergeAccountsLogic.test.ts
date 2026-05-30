@@ -53,6 +53,12 @@ function basePreview(over: Partial<MergePreviewApiOk> = {}): MergePreviewApiOk {
         lfkComplexes: 0,
         mediaFilesUploadedBy: 0,
         onlineIntakeRequests: 0,
+        materialRatings: 0,
+        patientContentRatingFeedback: 0,
+        patientPracticeCompletions: 0,
+        treatmentProgramInstances: 0,
+        programActionLog: 0,
+        beAppointments: 0,
       },
       duplicate: {
         patientBookings: 0,
@@ -62,6 +68,12 @@ function basePreview(over: Partial<MergePreviewApiOk> = {}): MergePreviewApiOk {
         lfkComplexes: 0,
         mediaFilesUploadedBy: 0,
         onlineIntakeRequests: 0,
+        materialRatings: 0,
+        patientContentRatingFeedback: 0,
+        patientPracticeCompletions: 0,
+        treatmentProgramInstances: 0,
+        programActionLog: 0,
+        beAppointments: 0,
       },
     },
     scalarConflicts: [],
@@ -200,6 +212,16 @@ describe("hardBlockerUi", () => {
     const u = hardBlockerUi("different_non_null_integrator_user_id");
     expect(u.title).toContain("integrator");
     expect(u.detail.length).toBeGreaterThan(10);
+  });
+
+  it("returns Russian copy for treatment program blocker", () => {
+    const u = hardBlockerUi("active_treatment_program_conflict");
+    expect(u.title).toContain("программ");
+  });
+
+  it("returns Russian copy for open test attempt blocker", () => {
+    const u = hardBlockerUi("open_test_attempt_conflict");
+    expect(u.title).toContain("тест");
   });
 });
 

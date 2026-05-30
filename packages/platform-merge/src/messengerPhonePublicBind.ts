@@ -23,6 +23,8 @@ export type MessengerPhoneLinkFailureCode =
   | "merge_blocked_booking_overlap"
   | "merge_blocked_distinct_real_users"
   | "merge_blocked_lfk_conflict"
+  | "merge_blocked_treatment_program_conflict"
+  | "merge_blocked_open_test_attempt_conflict"
   | "merge_blocked_ambiguous_candidates"
   | "legacy_contacts_conflict"
   | "merge_blocked_integrator_conflict"

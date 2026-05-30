@@ -55,6 +55,12 @@ export type MergePreviewDependentCounts = {
   lfkComplexes: number;
   mediaFilesUploadedBy: number;
   onlineIntakeRequests: number;
+  materialRatings: number;
+  patientContentRatingFeedback: number;
+  patientPracticeCompletions: number;
+  treatmentProgramInstances: number;
+  programActionLog: number;
+  beAppointments: number;
 };
 
 export type MergePreviewHardBlockerCode =
@@ -65,6 +71,8 @@ export type MergePreviewHardBlockerCode =
   | "integrator_merge_status_unavailable"
   | "active_bookings_time_overlap"
   | "active_lfk_template_conflict"
+  | "active_treatment_program_conflict"
+  | "open_test_attempt_conflict"
   | "shared_phone_both_have_meaningful_data";
 
 /** How to treat two different non-null integrator_user_id values in preview (v1 hard block vs v2 gate). */
@@ -283,6 +291,8 @@ export function analyzeMergePreviewModel(
     dependentCounts: { target: MergePreviewDependentCounts; duplicate: MergePreviewDependentCounts };
     activeBookingOverlapCount: number;
     activeLfkTemplateConflictCount: number;
+    activeTreatmentProgramConflictCount: number;
+    openTestAttemptConflictCount: number;
     meaningfulDataScoreTarget: number;
     meaningfulDataScoreDuplicate: number;
     /** When omitted, inferred from rows (v1 blocker if both integrator ids differ). */
@@ -356,6 +366,22 @@ export function analyzeMergePreviewModel(
       code: "active_lfk_template_conflict",
       message: "Active patient_lfk_assignments share the same template on both users.",
       details: { conflictingTemplateRows: opts.activeLfkTemplateConflictCount },
+    });
+  }
+
+  if (opts.activeTreatmentProgramConflictCount > 0) {
+    hardBlockers.push({
+      code: "active_treatment_program_conflict",
+      message: "Both users have an active treatment_program_instances row (one active per patient invariant).",
+      details: { conflictingActiveProgramRows: opts.activeTreatmentProgramConflictCount },
+    });
+  }
+
+  if (opts.openTestAttemptConflictCount > 0) {
+    hardBlockers.push({
+      code: "open_test_attempt_conflict",
+      message: "Both users have an open test_attempt on the same program stage item.",
+      details: { conflictingOpenAttemptRows: opts.openTestAttemptConflictCount },
     });
   }
 
@@ -568,6 +594,12 @@ async function countDependents(pool: Pool, userId: string): Promise<MergePreview
     lfk,
     mf,
     oi,
+    mr,
+    pcrf,
+    ppc,
+    tpi,
+    pal,
+    beAppt,
   ] = await Promise.all([
     pool.query<{ c: number }>(
       `SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`,
@@ -597,6 +629,27 @@ async function countDependents(pool: Pool, userId: string): Promise<MergePreview
       `SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = $1::uuid`,
       [userId],
     ),
+    pool.query<{ c: number }>(`SELECT COUNT(*)::int AS c FROM material_ratings WHERE user_id = $1::uuid`, [userId]),
+    pool.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM patient_content_rating_feedback WHERE user_id = $1::uuid`,
+      [userId],
+    ),
+    pool.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM patient_practice_completions WHERE user_id = $1::uuid`,
+      [userId],
+    ),
+    pool.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM treatment_program_instances WHERE patient_user_id = $1::uuid`,
+      [userId],
+    ),
+    pool.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM program_action_log WHERE patient_user_id = $1::uuid`,
+      [userId],
+    ),
+    pool.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM be_appointments WHERE platform_user_id = $1::uuid`,
+      [userId],
+    ),
   ]);
   return {
     patientBookings: pb.rows[0]?.c ?? 0,
@@ -606,6 +659,12 @@ async function countDependents(pool: Pool, userId: string): Promise<MergePreview
     lfkComplexes: lfk.rows[0]?.c ?? 0,
     mediaFilesUploadedBy: mf.rows[0]?.c ?? 0,
     onlineIntakeRequests: oi.rows[0]?.c ?? 0,
+    materialRatings: mr.rows[0]?.c ?? 0,
+    patientContentRatingFeedback: pcrf.rows[0]?.c ?? 0,
+    patientPracticeCompletions: ppc.rows[0]?.c ?? 0,
+    treatmentProgramInstances: tpi.rows[0]?.c ?? 0,
+    programActionLog: pal.rows[0]?.c ?? 0,
+    beAppointments: beAppt.rows[0]?.c ?? 0,
   };
 }
 
@@ -644,6 +703,35 @@ async function countActiveLfkTemplateConflict(pool: Pool, targetId: string, dupl
   return parseInt(r.rows[0]?.c ?? "0", 10);
 }
 
+async function countActiveTreatmentProgramConflict(pool: Pool, targetId: string, duplicateId: string): Promise<number> {
+  const r = await pool.query<{ c: string }>(
+    `SELECT COUNT(*)::text AS c
+     FROM treatment_program_instances t
+     INNER JOIN treatment_program_instances d
+       ON t.patient_user_id = $1::uuid
+      AND d.patient_user_id = $2::uuid
+      AND t.status = 'active'
+      AND d.status = 'active'`,
+    [targetId, duplicateId],
+  );
+  return parseInt(r.rows[0]?.c ?? "0", 10);
+}
+
+async function countOpenTestAttemptConflict(pool: Pool, targetId: string, duplicateId: string): Promise<number> {
+  const r = await pool.query<{ c: string }>(
+    `SELECT COUNT(*)::text AS c
+     FROM test_attempts t
+     INNER JOIN test_attempts d
+       ON t.patient_user_id = $1::uuid
+      AND d.patient_user_id = $2::uuid
+      AND t.submitted_at IS NULL
+      AND d.submitted_at IS NULL
+      AND t.instance_stage_item_id = d.instance_stage_item_id`,
+    [targetId, duplicateId],
+  );
+  return parseInt(r.rows[0]?.c ?? "0", 10);
+}
+
 export async function buildMergePreview(pool: Pool, targetId: string, duplicateId: string): Promise<MergePreviewResult> {
   if (targetId === duplicateId) {
     return { ok: false, error: "same_id", message: "targetId and duplicateId must differ" };
@@ -668,6 +756,8 @@ export async function buildMergePreview(pool: Pool, targetId: string, duplicateI
     meaningfulDataScoreDuplicate,
     activeBookingOverlapCount,
     activeLfkTemplateConflictCount,
+    activeTreatmentProgramConflictCount,
+    openTestAttemptConflictCount,
     depTarget,
     depDup,
   ] = await Promise.all([
@@ -679,6 +769,8 @@ export async function buildMergePreview(pool: Pool, targetId: string, duplicateI
     countMeaningfulData(pool, duplicateId),
     countActiveBookingOverlap(pool, targetId, duplicateId),
     countActiveLfkTemplateConflict(pool, targetId, duplicateId),
+    countActiveTreatmentProgramConflict(pool, targetId, duplicateId),
+    countOpenTestAttemptConflict(pool, targetId, duplicateId),
     countDependents(pool, targetId),
     countDependents(pool, duplicateId),
   ]);
@@ -707,6 +799,8 @@ export async function buildMergePreview(pool: Pool, targetId: string, duplicateI
     dependentCounts: { target: depTarget, duplicate: depDup },
     activeBookingOverlapCount,
     activeLfkTemplateConflictCount,
+    activeTreatmentProgramConflictCount,
+    openTestAttemptConflictCount,
     meaningfulDataScoreTarget,
     meaningfulDataScoreDuplicate,
     integratorPairPreview,

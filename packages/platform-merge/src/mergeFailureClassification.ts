@@ -10,6 +10,8 @@ export type MergeFailureClassificationCode =
   | "merge_blocked_booking_overlap"
   | "merge_blocked_distinct_real_users"
   | "merge_blocked_lfk_conflict"
+  | "merge_blocked_treatment_program_conflict"
+  | "merge_blocked_open_test_attempt_conflict"
   | "merge_blocked_ambiguous_candidates"
   | "merge_blocked_integrator_conflict"
   | "db_transient_failure";
@@ -35,6 +37,12 @@ export function classifyMergeFailure(err: unknown, fallbackIds: string[]): Merge
     }
     if (msg.includes("patient_lfk_assignments")) {
       return { code: "merge_blocked_lfk_conflict", candidateIds: idsFromErr };
+    }
+    if (msg.includes("treatment_program_instances")) {
+      return { code: "merge_blocked_treatment_program_conflict", candidateIds: idsFromErr };
+    }
+    if (msg.includes("test_attempts")) {
+      return { code: "merge_blocked_open_test_attempt_conflict", candidateIds: idsFromErr };
     }
     if (msg.includes("shared-phone guard")) {
       return { code: "merge_blocked_distinct_real_users", candidateIds: idsFromErr };

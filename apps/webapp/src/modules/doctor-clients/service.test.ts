@@ -74,6 +74,7 @@ describe("doctor-clients service", () => {
         isEnabledForNotifications: true,
       },
     ],
+    listSupplementaryContacts: async (_userId, _identity) => [],
   });
 
   it("listClients returns port result", async () => {
@@ -105,6 +106,7 @@ describe("doctor-clients service", () => {
     expect(profile!.lfkComplexes).toEqual([]);
     expect(profile!.recentLfkSessions).toEqual([]);
     expect(profile!.appointmentHistory).toEqual([]);
+    expect(profile!.supplementaryContacts).toEqual([]);
   });
 });
 
@@ -183,6 +185,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
       listLfkComplexes: async () => [],
       listLfkSessions: async () => [],
       getChannelCards: async () => [],
+      listSupplementaryContacts: async (_userId, _identity) => [],
     });
 
     const profile = await service.getClientProfile("user-1");

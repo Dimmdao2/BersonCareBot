@@ -13,6 +13,12 @@ const emptyCounts = (): MergePreviewDependentCounts => ({
   lfkComplexes: 0,
   mediaFilesUploadedBy: 0,
   onlineIntakeRequests: 0,
+  materialRatings: 0,
+  patientContentRatingFeedback: 0,
+  patientPracticeCompletions: 0,
+  treatmentProgramInstances: 0,
+  programActionLog: 0,
+  beAppointments: 0,
 });
 
 function row(p: Partial<MergePreviewPlatformUserRow> & { id: string }): MergePreviewPlatformUserRow {
@@ -45,6 +51,8 @@ const baseOpts = (over: Partial<Parameters<typeof analyzeMergePreviewModel>[2]>)
   dependentCounts: { target: emptyCounts(), duplicate: emptyCounts() },
   activeBookingOverlapCount: 0,
   activeLfkTemplateConflictCount: 0,
+  activeTreatmentProgramConflictCount: 0,
+  openTestAttemptConflictCount: 0,
   meaningfulDataScoreTarget: 0,
   meaningfulDataScoreDuplicate: 0,
   ...over,
@@ -167,6 +175,30 @@ describe("analyzeMergePreviewModel", () => {
       baseOpts({ activeLfkTemplateConflictCount: 1 }),
     );
     expect(m.hardBlockers.some((b) => b.code === "active_lfk_template_conflict")).toBe(true);
+    expect(m.mergeAllowed).toBe(false);
+  });
+
+  it("hard blocker: active treatment program on both", () => {
+    const target = row({ id: "00000000-0000-4000-8000-000000000001" });
+    const duplicate = row({ id: "00000000-0000-4000-8000-000000000002" });
+    const m = analyzeMergePreviewModel(
+      target,
+      duplicate,
+      baseOpts({ activeTreatmentProgramConflictCount: 1 }),
+    );
+    expect(m.hardBlockers.some((b) => b.code === "active_treatment_program_conflict")).toBe(true);
+    expect(m.mergeAllowed).toBe(false);
+  });
+
+  it("hard blocker: open test attempt on same stage item", () => {
+    const target = row({ id: "00000000-0000-4000-8000-000000000001" });
+    const duplicate = row({ id: "00000000-0000-4000-8000-000000000002" });
+    const m = analyzeMergePreviewModel(
+      target,
+      duplicate,
+      baseOpts({ openTestAttemptConflictCount: 1 }),
+    );
+    expect(m.hardBlockers.some((b) => b.code === "open_test_attempt_conflict")).toBe(true);
     expect(m.mergeAllowed).toBe(false);
   });
 

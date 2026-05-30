@@ -267,6 +267,10 @@ import { createPgBookingFormPort } from "@/infra/repos/pgBookingForm";
 import { createBookingFormService } from "@/modules/booking-form/service";
 import { createPgPatientMergeCandidatePort } from "@/infra/repos/pgPatientMergeCandidate";
 import { createPatientMergeCandidateService } from "@/modules/patient-merge-candidate/service";
+import { createPgPlatformUserContactsPort } from "@/infra/repos/pgPlatformUserContacts";
+import { createInMemoryPlatformUserContactsPort } from "@/infra/repos/inMemoryPlatformUserContacts";
+import { createPlatformUserContactsService } from "@/modules/platform-user-contacts/service";
+import { toDoctorSupplementaryContacts } from "@/modules/platform-user-contacts/bookingContactUpsert";
 import { createPgBookingPoliciesPort } from "@/infra/repos/pgBookingPolicies";
 import { createBookingPoliciesService } from "@/modules/booking-policies/service";
 import { createPgBookingAppointmentLifecyclePort } from "@/infra/repos/pgBookingAppointmentLifecycle";
@@ -433,6 +437,10 @@ const patientMergeCandidatePort = !inMemoryRepos ? createPgPatientMergeCandidate
 const patientMergeCandidateService = patientMergeCandidatePort
   ? createPatientMergeCandidateService(patientMergeCandidatePort)
   : null;
+const platformUserContactsPort = !inMemoryRepos
+  ? createPgPlatformUserContactsPort()
+  : createInMemoryPlatformUserContactsPort();
+const platformUserContactsService = createPlatformUserContactsService(platformUserContactsPort);
 const bookingPoliciesPort = !inMemoryRepos ? createPgBookingPoliciesPort() : null;
 const bookingPoliciesService = bookingPoliciesPort ? createBookingPoliciesService(bookingPoliciesPort) : null;
 const bookingAppointmentLifecyclePort = !inMemoryRepos ? createPgBookingAppointmentLifecyclePort() : null;
@@ -767,6 +775,7 @@ patientBookingService = createPatientBookingService({
   memberships: membershipsServiceResolved,
   products: productsServiceResolved,
   clientHistory: clientHistoryService,
+  platformUserContacts: platformUserContactsService,
   isRubitimeBridgeEnabled: bookingRubitimeBridgePort
     ? () => bookingRubitimeBridgePort.isBridgeEnabled()
     : undefined,
@@ -992,6 +1001,11 @@ function _buildAppDeps() {
     listLfkSessions: lfkDiaryService.listLfkSessions,
     getChannelCards: (userId, bindings, delivery) =>
       channelPreferencesService.getChannelCards(userId, bindings, delivery),
+    listSupplementaryContacts: async (userId, identity) =>
+      toDoctorSupplementaryContacts(await platformUserContactsService.listForPlatformUser(userId), {
+        phone: identity.phone,
+        email: identity.email ?? null,
+      }),
   });
   const integratorDeliveryTargetsDeps = {
     userByPhonePort,
@@ -1332,6 +1346,7 @@ function _buildAppDeps() {
     products: productsServiceResolved,
     entitlements: entitlementsService,
     patientMergeCandidate: patientMergeCandidateService,
+    platformUserContacts: platformUserContactsService,
   };
 }
 

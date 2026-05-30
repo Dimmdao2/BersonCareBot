@@ -385,6 +385,17 @@
 
 **Проверки:** targeted vitest по затронутым модулям; `pnpm --filter @bersoncare/webapp typecheck`.
 
+## 2026-05-30 — Merge+Contacts wave: supplementary contacts + booking upsert
+
+**Сделано:**
+- Таблица `platform_user_contacts` + модуль `platform-user-contacts` (этап 2).
+- Merge fallback: непобеждающие phone/email → `platform_user_contacts` (`source=merge`), audit `mergeContactsSaved` (этап 3).
+- Booking create (canonical + legacy): best-effort upsert phone/email из формы (`source=booking`); doctor card показывает supplementary contacts отдельно от identity.
+
+**Не менялось:** login/tier/trusted-phone; identity phone/email только в `platform_users`.
+
+**Проверки:** `platform-user-contacts/*`, `mergeContactFallback`, `pgPlatformUserMerge`, `patient-booking/service`, `doctor-clients/service`.
+
 ## 2026-05-30 — Документация: синхронизация этапа 9
 
 **Обновлено:** `MASTER_PLAN` §2/§6, `README`, `ROADMAP`, `STAGE_CHECKLISTS` §9, `DATA_MODEL_REFERENCE`, `UI_SURFACES_CHECKLIST`; YAML плана (todos audit + `completedAt`); модуль [`client-history.md`](../../apps/webapp/src/modules/client-history/client-history.md).

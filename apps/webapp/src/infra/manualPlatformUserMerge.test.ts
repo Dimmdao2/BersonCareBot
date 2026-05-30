@@ -55,7 +55,7 @@ describe("runManualPlatformUserMerge", () => {
       duplicateDisplayName: "Duplicate Name",
     });
     writeAuditLogMock.mockResolvedValue(undefined);
-    mergeTxMock.mockResolvedValue(undefined);
+    mergeTxMock.mockResolvedValue({ targetId: t1, duplicateId: t2, mergeContactsSaved: [] });
     withTwoLocksMock.mockImplementation(
       async (_pool: unknown, a: string, b: string, fn: (c: unknown) => Promise<void>) => {
         expect([a, b].sort()).toEqual([t1, t2]);
@@ -88,6 +88,7 @@ describe("runManualPlatformUserMerge", () => {
     const order: string[] = [];
     mergeTxMock.mockImplementation(async () => {
       order.push("merge");
+      return { targetId: t1, duplicateId: t2, mergeContactsSaved: [] };
     });
     writeAuditLogMock.mockImplementation(async () => {
       order.push("audit");
@@ -115,6 +116,27 @@ describe("runManualPlatformUserMerge", () => {
             mediaFilesUploadedByRepointedInMergeTx: true,
             mediaUploadSessionsOwnerRepointedInMergeTx: true,
           },
+          mergeContactsSaved: [],
+        }),
+      }),
+    );
+  });
+
+  it("writes mergeContactsSaved from merge transaction into ok audit details", async () => {
+    mergeTxMock.mockResolvedValue({
+      targetId: t1,
+      duplicateId: t2,
+      mergeContactsSaved: [{ contactType: "phone", valueNormalized: "+79004445566" }],
+    });
+
+    const { runManualPlatformUserMerge } = await import("@/infra/manualPlatformUserMerge");
+    await runManualPlatformUserMerge(pool, null, baseResolution);
+
+    expect(writeAuditLogMock).toHaveBeenCalledWith(
+      pool,
+      expect.objectContaining({
+        details: expect.objectContaining({
+          mergeContactsSaved: [{ contactType: "phone", valueNormalized: "+79004445566" }],
         }),
       }),
     );

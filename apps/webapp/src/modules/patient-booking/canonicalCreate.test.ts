@@ -129,15 +129,20 @@ describe("createBookingOnCanonicalEngine", () => {
   });
 
   it("creates canonical appointment without rubitime when bridge is off", async () => {
-    const result = await createBookingOnCanonicalEngine(deps(false), {
-      userId: "user-1",
-      type: "online",
-      category: "general",
-      slotStart: "2026-06-01T10:00:00.000Z",
-      slotEnd: "2026-06-01T11:00:00.000Z",
-      contactName: "Иван",
-      contactPhone: "+79001234567",
-    });
+    const upsert = vi.fn();
+    const result = await createBookingOnCanonicalEngine(
+      { ...deps(false), platformUserContacts: { upsert } as never },
+      {
+        userId: "user-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+        contactEmail: "alt@example.com",
+      },
+    );
 
     expect(bookingEngine.createAppointment).toHaveBeenCalled();
     expect(syncPort.createRecord).not.toHaveBeenCalled();
@@ -145,6 +150,12 @@ describe("createBookingOnCanonicalEngine", () => {
       "pb-1",
       null,
       expect.objectContaining({ canonicalAppointmentId: "appt-1" }),
+    );
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ contactType: "phone", source: "booking" }),
+    );
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ contactType: "email", source: "booking" }),
     );
     expect(result.status).toBe("confirmed");
   });

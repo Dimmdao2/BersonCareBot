@@ -396,6 +396,39 @@ describe("createPatientBookingService", () => {
     expect(bookingsPort.markConfirmed).toHaveBeenCalledWith("p-ok-rid", "123", { rubitimeManageUrl: null });
   });
 
+  it("createBooking: best-effort upserts supplementary contacts and ignores upsert failures", async () => {
+    const pending = sampleRow({
+      id: "p-contacts",
+      status: "creating",
+      rubitimeId: null,
+      contactEmail: "alt@example.com",
+    });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "123", raw: {} });
+    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "123" });
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+    const upsert = vi.fn().mockRejectedValue(new Error("contacts db down"));
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      platformUserContacts: { upsert } as never,
+    });
+    const row = await svc.createBooking({
+      userId: pending.userId!,
+      type: "online",
+      category: "general",
+      slotStart: pending.slotStart,
+      slotEnd: pending.slotEnd,
+      contactName: pending.contactName,
+      contactPhone: pending.contactPhone,
+      contactEmail: pending.contactEmail ?? undefined,
+    });
+    expect(row.status).toBe("confirmed");
+    expect(upsert).toHaveBeenCalled();
+  });
+
   it("createBooking: createRecord failure calls markFailedSync", async () => {
     const pending = sampleRow({ id: "p1", status: "creating", rubitimeId: null });
     bookingsPort.createPending.mockResolvedValue(pending);

@@ -36,7 +36,7 @@
 
 ## Пациенты и формы (этапы 2, 3, 9)
 - **patient** — переиспользовать `platform_users` (не плодить дубль identity); booking-специфичные поля выносить в смежные таблицы.
-- **patient_contact** — контакты (телефон/email), `phone_normalized`.
+- **patient_contact** — дополнительные контакты врача (телефон/email и др.) в `platform_user_contacts` (`source`: `booking` | `merge` | `doctor` | `admin`); identity остаётся в `platform_users.phone_normalized` / `email`.
 - **patient_merge_candidate** — кандидаты на объединение профилей (C5).
 - **patient_profile_field / booking_form_field** — конфигурация полей записи.
 - **booking_form_submission** — ответы пациента по записи.

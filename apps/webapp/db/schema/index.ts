@@ -30,4 +30,5 @@ export * from "./bookingProducts";
 export * from "./bookingScheduling";
 export * from "./bookingClientProfile";
 export * from "./patientMergeCandidate";
+export * from "./platformUserContacts";
 export * from "./relations";

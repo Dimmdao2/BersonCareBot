@@ -137,6 +137,14 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 **Post-commit integrator cleanup:** `deleteIntegratorPhoneData` вызывается через `getIntegratorPoolForPurge()` — при **одной БД** допускается fallback на `DATABASE_URL` с `search_path=integrator,public` (см. `platformUserFullPurge.ts`). Если очистка integrator **нужна**, но пула нет, strict purge даёт **`needs_retry`**, а не «зелёный» `completed` (`strictPlatformUserPurge.ts`).
 
+## Supplementary contacts (`platform_user_contacts`)
+
+Дополнительные телефоны и email для карточки врача хранятся в `platform_user_contacts` и **не** участвуют в login/identity.
+
+- **Merge:** непобеждающие phone/email из пары merge → upsert на канон с `source=merge` (`packages/platform-merge/src/mergeContactFallback.ts`); audit `mergeContactsSaved`.
+- **Booking:** phone/email из формы записи → best-effort upsert с `source=booking` после успешного create (canonical + legacy); ошибка contacts не откатывает запись.
+- **Doctor UI:** `ClientProfile.supplementaryContacts` — строки, не совпадающие с identity phone/email на `platform_users`.
+
 ## Что явно не входит в текущую фазу
 
 - physical delete/archiving merged alias rows;

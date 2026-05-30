@@ -2,6 +2,13 @@ import type { QueryResultRow } from "pg";
 import { mergeLogger as logger } from "./mergeLogger.js";
 import type { ManualMergeResolution } from "./manualMergeResolution.js";
 import { assertManualMergeResolutionIds } from "./manualMergeResolution.js";
+import {
+  collectMergeLosingContacts,
+  persistMergeLosingContacts,
+  pruneIdentityPlatformUserContactsAfterMerge,
+  repointPlatformUserContactsForMerge,
+  type MergeContactsSaved,
+} from "./mergeContactFallback.js";
 import { MergeConflictError, MergeDependentConflictError } from "./platformUserMergeErrors.js";
 import { TrustedPatientPhoneSource, trustedPatientPhoneWriteAnchor } from "./trustedPhoneAnchor.js";
 
@@ -17,7 +24,7 @@ export type PlatformMergeDbClient = {
 
 export type MergePlatformUsersReason = "projection" | "phone_bind" | "manual";
 
-export type { ManualMergeResolution } from "./manualMergeResolution.js";
+export type { MergeContactsSaved } from "./mergeContactFallback.js";
 
 export type VerifiedDistinctIntegratorUserIds = {
   targetIntegratorUserId: string;
@@ -158,7 +165,7 @@ export async function mergePlatformUsersInTransaction(
     allowDistinctIntegratorUserIds?: boolean;
     verifiedDistinctIntegratorUserIds?: VerifiedDistinctIntegratorUserIds;
   },
-): Promise<{ targetId: string; duplicateId: string }> {
+): Promise<{ targetId: string; duplicateId: string; mergeContactsSaved: MergeContactsSaved[] }> {
   if (targetId === duplicateId) {
     throw new MergeConflictError("merge: target and duplicate are the same id", [targetId]);
   }
@@ -263,6 +270,8 @@ export async function mergePlatformUsersInTransaction(
   await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
   await assertPatientBookingsSafeToMerge(client, targetId, duplicateId);
   await assertPatientLfkAssignmentsSafe(client, targetId, duplicateId);
+  await assertActiveTreatmentProgramInstancesSafe(client, targetId, duplicateId);
+  await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
 
   if (manualResolution) {
     await mergeChannelBindingsManual(client, targetId, duplicateId, manualResolution);
@@ -420,6 +429,8 @@ export async function mergePlatformUsersInTransaction(
     duplicateId,
   ]);
 
+  await mergeExtendedUserOwnedData(client, targetId, duplicateId);
+
   if (manualResolution) {
     const f = manualResolution.fields;
     const chosenEmailSql = `CASE WHEN $7::text = 'target' THEN pu.email ELSE dup.email END`;
@@ -546,6 +557,8 @@ export async function mergePlatformUsersInTransaction(
     );
   }
 
+  await clearDuplicateEmailBeforeTargetNormalization(client, duplicateId);
+
   await client.query(
     `UPDATE platform_users SET email_normalized = CASE
        WHEN email IS NOT NULL AND btrim(email) <> '' THEN lower(btrim(email))
@@ -553,6 +566,13 @@ export async function mergePlatformUsersInTransaction(
      END WHERE id = $1::uuid`,
     [targetId],
   );
+
+  const mergeContactsSaved = await persistMergeLosingContacts(
+    client,
+    targetId,
+    collectMergeLosingContacts(a, b, manualResolution),
+  );
+  await pruneIdentityPlatformUserContactsAfterMerge(client, targetId);
 
   await client.query(
     `UPDATE platform_users SET
@@ -565,9 +585,9 @@ export async function mergePlatformUsersInTransaction(
     [targetId, duplicateId],
   );
 
-  logger.info({ targetId, duplicateId, reason }, "[merge] merged duplicate into target");
+  logger.info({ targetId, duplicateId, reason, mergeContactsSaved }, "[merge] merged duplicate into target");
   trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PlatformUserMerge);
-  return { targetId, duplicateId };
+  return { targetId, duplicateId, mergeContactsSaved };
 }
 
 /**
@@ -874,6 +894,250 @@ async function assertPatientLfkAssignmentsSafe(
   if (n > 0) {
     throw new MergeDependentConflictError("patient_lfk_assignments: active template conflict", [targetId, duplicateId]);
   }
+}
+
+async function assertActiveTreatmentProgramInstancesSafe(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
+  const r = await client.query<{ c: string }>(
+    `SELECT COUNT(*)::text AS c
+     FROM treatment_program_instances t
+     INNER JOIN treatment_program_instances d
+       ON t.patient_user_id = $1::uuid
+      AND d.patient_user_id = $2::uuid
+      AND t.status = 'active'
+      AND d.status = 'active'`,
+    [targetId, duplicateId],
+  );
+  const n = parseInt(r.rows[0]?.c ?? "0", 10);
+  if (n > 0) {
+    throw new MergeDependentConflictError("treatment_program_instances: active program on both merge candidates", [
+      targetId,
+      duplicateId,
+    ]);
+  }
+}
+
+async function assertOpenTestAttemptsSafe(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
+  const r = await client.query<{ c: string }>(
+    `SELECT COUNT(*)::text AS c
+     FROM test_attempts t
+     INNER JOIN test_attempts d
+       ON t.patient_user_id = $1::uuid
+      AND d.patient_user_id = $2::uuid
+      AND t.submitted_at IS NULL
+      AND d.submitted_at IS NULL
+      AND t.instance_stage_item_id = d.instance_stage_item_id`,
+    [targetId, duplicateId],
+  );
+  const n = parseInt(r.rows[0]?.c ?? "0", 10);
+  if (n > 0) {
+    throw new MergeDependentConflictError("test_attempts: open attempt conflict on same stage item", [
+      targetId,
+      duplicateId,
+    ]);
+  }
+}
+
+/**
+ * Clears duplicate email before target `email_normalized` recompute so two canonical rows
+ * cannot temporarily share `uq_platform_users_email_normalized_active`.
+ */
+async function clearDuplicateEmailBeforeTargetNormalization(
+  client: PlatformMergeDbClient,
+  duplicateId: string,
+): Promise<void> {
+  await client.query(
+    `UPDATE platform_users SET email = NULL, email_normalized = NULL, updated_at = now() WHERE id = $1::uuid`,
+    [duplicateId],
+  );
+}
+
+/**
+ * Repoint / upsert user-owned tables added in merge hardening (ratings, programs, booking-engine, analytics).
+ */
+async function mergeExtendedUserOwnedData(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO material_ratings (user_id, target_kind, target_id, stars, updated_at)
+     SELECT $1::uuid, target_kind, target_id, stars, updated_at
+     FROM material_ratings WHERE user_id = $2::uuid
+     ON CONFLICT ON CONSTRAINT material_ratings_user_target_unique DO UPDATE SET
+       stars = CASE
+         WHEN EXCLUDED.updated_at >= material_ratings.updated_at THEN EXCLUDED.stars
+         ELSE material_ratings.stars
+       END,
+       updated_at = GREATEST(material_ratings.updated_at, EXCLUDED.updated_at)`,
+    [targetId, duplicateId],
+  );
+  await client.query(`DELETE FROM material_ratings WHERE user_id = $1::uuid`, [duplicateId]);
+
+  await client.query(
+    `INSERT INTO patient_daily_warmup_presentations (user_id, content_page_id, updated_at)
+     SELECT $1::uuid, content_page_id, updated_at
+     FROM patient_daily_warmup_presentations WHERE user_id = $2::uuid
+     ON CONFLICT (user_id) DO UPDATE SET
+       content_page_id = CASE
+         WHEN EXCLUDED.updated_at >= patient_daily_warmup_presentations.updated_at
+         THEN EXCLUDED.content_page_id
+         ELSE patient_daily_warmup_presentations.content_page_id
+       END,
+       updated_at = GREATEST(patient_daily_warmup_presentations.updated_at, EXCLUDED.updated_at)`,
+    [targetId, duplicateId],
+  );
+  await client.query(`DELETE FROM patient_daily_warmup_presentations WHERE user_id = $1::uuid`, [duplicateId]);
+
+  await client.query(
+    `INSERT INTO be_patient_booking_profiles (
+       organization_id, platform_user_id, is_problematic, booking_blocked, problematic_note, updated_at, updated_by
+     )
+     SELECT organization_id, $1::uuid, is_problematic, booking_blocked, problematic_note, updated_at, updated_by
+     FROM be_patient_booking_profiles WHERE platform_user_id = $2::uuid
+     ON CONFLICT (organization_id, platform_user_id) DO UPDATE SET
+       is_problematic = CASE
+         WHEN EXCLUDED.updated_at >= be_patient_booking_profiles.updated_at THEN EXCLUDED.is_problematic
+         ELSE be_patient_booking_profiles.is_problematic
+       END,
+       booking_blocked = CASE
+         WHEN EXCLUDED.updated_at >= be_patient_booking_profiles.updated_at THEN EXCLUDED.booking_blocked
+         ELSE be_patient_booking_profiles.booking_blocked
+       END,
+       problematic_note = COALESCE(be_patient_booking_profiles.problematic_note, EXCLUDED.problematic_note),
+       updated_at = GREATEST(be_patient_booking_profiles.updated_at, EXCLUDED.updated_at),
+       updated_by = COALESCE(be_patient_booking_profiles.updated_by, EXCLUDED.updated_by)`,
+    [targetId, duplicateId],
+  );
+  await client.query(`DELETE FROM be_patient_booking_profiles WHERE platform_user_id = $1::uuid`, [duplicateId]);
+
+  await client.query(
+    `INSERT INTO product_analytics_user_hourly (
+       bucket_hour, user_id, entry_channel, page_key,
+       app_opens, page_views, push_opens, active_minutes, last_seen_at, updated_at
+     )
+     SELECT bucket_hour, $1::uuid, entry_channel, page_key,
+            app_opens, page_views, push_opens, active_minutes, last_seen_at, updated_at
+     FROM product_analytics_user_hourly WHERE user_id = $2::uuid
+     ON CONFLICT ON CONSTRAINT product_analytics_user_hourly_pkey DO UPDATE SET
+       app_opens = product_analytics_user_hourly.app_opens + EXCLUDED.app_opens,
+       page_views = product_analytics_user_hourly.page_views + EXCLUDED.page_views,
+       push_opens = product_analytics_user_hourly.push_opens + EXCLUDED.push_opens,
+       active_minutes = product_analytics_user_hourly.active_minutes + EXCLUDED.active_minutes,
+       last_seen_at = GREATEST(product_analytics_user_hourly.last_seen_at, EXCLUDED.last_seen_at),
+       updated_at = GREATEST(product_analytics_user_hourly.updated_at, EXCLUDED.updated_at)`,
+    [targetId, duplicateId],
+  );
+  await client.query(`DELETE FROM product_analytics_user_hourly WHERE user_id = $1::uuid`, [duplicateId]);
+
+  await client.query(
+    `DELETE FROM patient_diary_day_snapshots d
+     WHERE d.platform_user_id = $2::uuid
+       AND EXISTS (
+         SELECT 1 FROM patient_diary_day_snapshots t
+         WHERE t.platform_user_id = $1::uuid AND t.local_date = d.local_date
+       )`,
+    [targetId, duplicateId],
+  );
+  await client.query(
+    `UPDATE patient_diary_day_snapshots SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+    [targetId, duplicateId],
+  );
+
+  await client.query(
+    `DELETE FROM webapp_reminder_occurrences d
+     WHERE d.platform_user_id = $2::uuid
+       AND EXISTS (
+         SELECT 1 FROM webapp_reminder_occurrences t
+         WHERE t.platform_user_id = $1::uuid
+          AND t.integrator_rule_id = d.integrator_rule_id
+          AND t.occurrence_key = d.occurrence_key
+       )`,
+    [targetId, duplicateId],
+  );
+  await client.query(
+    `UPDATE webapp_reminder_occurrences SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+    [targetId, duplicateId],
+  );
+
+  await client.query(
+    `DELETE FROM user_web_push_subscriptions d
+     WHERE d.user_id = $2::uuid
+       AND EXISTS (
+         SELECT 1 FROM user_web_push_subscriptions t
+         WHERE t.user_id = $1::uuid AND t.endpoint = d.endpoint
+       )`,
+    [targetId, duplicateId],
+  );
+  await client.query(`UPDATE user_web_push_subscriptions SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
+    targetId,
+    duplicateId,
+  ]);
+
+  await client.query(
+    `DELETE FROM broadcast_audit_recipients
+     WHERE platform_user_id = $2::uuid
+       AND audit_id IN (
+         SELECT audit_id FROM broadcast_audit_recipients WHERE platform_user_id = $1::uuid
+       )`,
+    [targetId, duplicateId],
+  );
+  await client.query(
+    `UPDATE broadcast_audit_recipients SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+    [targetId, duplicateId],
+  );
+
+  const simpleRepoints: Array<[string, [string, string]]> = [
+    [
+      `UPDATE patient_content_rating_feedback SET user_id = $1::uuid WHERE user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [`UPDATE patient_practice_completions SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]],
+    [
+      `UPDATE patient_daily_warmup_video_views SET user_id = $1::uuid WHERE user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [`UPDATE program_action_log SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`, [targetId, duplicateId]],
+    [`UPDATE test_attempts SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`, [targetId, duplicateId]],
+    [
+      `UPDATE treatment_program_instances SET patient_user_id = $1::uuid WHERE patient_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [`UPDATE be_appointments SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`, [targetId, duplicateId]],
+    [
+      `UPDATE be_patient_timeline_events SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [
+      `UPDATE be_appointment_staff_comments SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [`UPDATE be_payment_intents SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`, [targetId, duplicateId]],
+    [`UPDATE be_payments SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`, [targetId, duplicateId]],
+    [
+      `UPDATE be_payment_history_events SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [
+      `UPDATE be_product_purchases SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+      [targetId, duplicateId],
+    ],
+    [`UPDATE be_patient_packages SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`, [targetId, duplicateId]],
+    [`UPDATE product_push_notifications SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]],
+    [`UPDATE product_analytics_events_recent SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]],
+  ];
+  for (const [sql, params] of simpleRepoints) {
+    await client.query(sql, params);
+  }
+
+  await repointPlatformUserContactsForMerge(client, targetId, duplicateId);
 }
 
 /**

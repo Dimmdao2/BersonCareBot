@@ -15,6 +15,8 @@ import type { PaymentsService } from "@/modules/payments/service";
 import type { MembershipsService } from "@/modules/memberships/service";
 import type { ProductsService } from "@/modules/products/service";
 import type { ClientHistoryService } from "@/modules/client-history/service";
+import type { PlatformUserContactsService } from "@/modules/platform-user-contacts/service";
+import { upsertBookingFormContactsBestEffort } from "@/modules/platform-user-contacts/bookingContactUpsert";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
@@ -160,6 +162,7 @@ export function createPatientBookingService(input: {
   memberships?: MembershipsService | null;
   products?: ProductsService | null;
   clientHistory?: ClientHistoryService | null;
+  platformUserContacts?: PlatformUserContactsService | null;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   slotsTtlMs?: number;
@@ -191,6 +194,7 @@ export function createPatientBookingService(input: {
           memberships: input.memberships ?? null,
           products: input.products ?? null,
           clientHistory: input.clientHistory ?? null,
+          platformUserContacts: input.platformUserContacts ?? null,
           isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
@@ -394,6 +398,11 @@ export function createPatientBookingService(input: {
         } catch {
           // Integration notifications/reminders are best-effort and must not fail booking confirmation.
         }
+        await upsertBookingFormContactsBestEffort(input.platformUserContacts, {
+          platformUserId: createInput.userId,
+          contactPhone: createInput.contactPhone,
+          contactEmail: createInput.contactEmail,
+        });
         if (confirmed) return confirmed;
         return pending;
       } finally {

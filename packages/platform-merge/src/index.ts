@@ -11,6 +11,7 @@ export type {
   PickMergeTargetCandidate,
   PlatformMergeDbClient,
   VerifiedDistinctIntegratorUserIds,
+  MergeContactsSaved,
 } from "./pgPlatformUserMerge.js";
 
 export {
@@ -18,6 +19,11 @@ export {
   pickMergeTargetId,
   enrichPickMergeCandidatesWithBookingCounts,
 } from "./pgPlatformUserMerge.js";
+
+export {
+  collectMergeLosingContacts,
+  type MergeContactFallbackCandidate,
+} from "./mergeContactFallback.js";
 
 export type {
   MessengerPhoneBindDb,

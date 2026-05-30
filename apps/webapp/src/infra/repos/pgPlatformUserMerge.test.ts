@@ -98,6 +98,25 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
     expect(upd).toBeTruthy();
   });
 
+  it("persists losing phone/email to platform_user_contacts and repoints duplicate rows", async () => {
+    const sqlLog: string[] = [];
+    const client = makeClient(sqlLog);
+    const result = await mergePlatformUsersInTransaction(client, T, D, "manual", { resolution: baseResolution() });
+    expect(result.mergeContactsSaved).toEqual([
+      { contactType: "phone", valueNormalized: "+79000000001" },
+      { contactType: "email", valueNormalized: "b@b.co" },
+    ]);
+    expect(
+      sqlLog.some((s) => s.includes("INSERT INTO platform_user_contacts") && s.includes("source = 'merge'")),
+    ).toBe(true);
+    expect(
+      sqlLog.some(
+        (s) => s.includes("FROM platform_user_contacts") && s.includes("WHERE platform_user_id = $2::uuid"),
+      ),
+    ).toBe(true);
+    expect(sqlLog.some((s) => s.includes("DELETE FROM platform_user_contacts AS p"))).toBe(true);
+  });
+
   it("repoints appointments and diary/warmup domains to canonical user (MAIN PLAN §7)", async () => {
     const sqlLog: string[] = [];
     const client = makeClient(sqlLog);
@@ -593,6 +612,161 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
           q.includes("INSERT INTO user_oauth_bindings") && q.includes("ON CONFLICT (provider, provider_user_id)"),
       ),
     ).toHaveLength(0);
+  });
+
+  it("repoints extended user-owned tables (ratings, programs, booking-engine)", async () => {
+    const sqlLog: string[] = [];
+    const client = makeClient(sqlLog);
+    await mergePlatformUsersInTransaction(client, T, D, "manual", { resolution: baseResolution() });
+
+    expect(sqlLog.some((q) => q.includes("INSERT INTO material_ratings") && q.includes("ON CONFLICT"))).toBe(true);
+    expect(sqlLog.some((q) => q.includes("UPDATE treatment_program_instances SET patient_user_id"))).toBe(true);
+    expect(sqlLog.some((q) => q.includes("UPDATE program_action_log SET patient_user_id"))).toBe(true);
+    expect(sqlLog.some((q) => q.includes("UPDATE be_appointments SET platform_user_id"))).toBe(true);
+    expect(sqlLog.some((q) => q.includes("UPDATE test_attempts SET patient_user_id"))).toBe(true);
+    expect(sqlLog.some((q) => q.includes("UPDATE patient_content_rating_feedback SET user_id"))).toBe(true);
+    expect(
+      sqlLog.some(
+        (q) =>
+          q.includes("INSERT INTO be_patient_booking_profiles") &&
+          q.includes("ON CONFLICT (organization_id, platform_user_id)"),
+      ),
+    ).toBe(true);
+  });
+
+  it("clears duplicate email before target email_normalized recompute", async () => {
+    const sqlLog: string[] = [];
+    const client = makeClient(sqlLog);
+    await mergePlatformUsersInTransaction(client, T, D, "manual", { resolution: baseResolution() });
+
+    const clearDupEmailIdx = sqlLog.findIndex(
+      (q) =>
+        q.includes("UPDATE platform_users SET email = NULL, email_normalized = NULL") &&
+        q.includes("WHERE id = $1::uuid"),
+    );
+    const normTargetIdx = sqlLog.findIndex(
+      (q) => q.includes("UPDATE platform_users SET email_normalized = CASE") && q.includes("WHERE id = $1::uuid"),
+    );
+    expect(clearDupEmailIdx).toBeGreaterThan(-1);
+    expect(normTargetIdx).toBeGreaterThan(clearDupEmailIdx);
+  });
+
+  it("MergeDependentConflictError for active treatment program on both users", async () => {
+    const query = vi.fn(async (sql: string) => {
+      const s = String(sql);
+      if (s.includes("FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: T,
+              phone_normalized: "+79000000000",
+              integrator_user_id: "100",
+              merged_into_id: null,
+              display_name: "A",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+            {
+              id: D,
+              phone_normalized: "+79000000000",
+              integrator_user_id: null,
+              merged_into_id: null,
+              display_name: "B",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+          ],
+        };
+      }
+      if (s.includes("FROM treatment_program_instances t")) {
+        return { rows: [{ c: "1" }] };
+      }
+      if (s.includes("patient_bookings pb1") || s.includes("patient_lfk_assignments a")) {
+        return { rows: [{ c: "0" }] };
+      }
+      if (s.includes("FROM user_pins") || s.includes("user_oauth_bindings")) {
+        return { rows: [] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    try {
+      await mergePlatformUsersInTransaction({ query } as unknown as PoolClient, T, D, "manual", {
+        resolution: baseResolution(),
+      });
+      expect.fail("expected MergeDependentConflictError");
+    } catch (e) {
+      expect(e).toBeInstanceOf(MergeDependentConflictError);
+      expect((e as MergeDependentConflictError).message).toContain("treatment_program_instances");
+    }
+  });
+
+  it("MergeDependentConflictError for open test attempts on same stage item", async () => {
+    const query = vi.fn(async (sql: string) => {
+      const s = String(sql);
+      if (s.includes("FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: T,
+              phone_normalized: "+79000000000",
+              integrator_user_id: "100",
+              merged_into_id: null,
+              display_name: "A",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+            {
+              id: D,
+              phone_normalized: "+79000000000",
+              integrator_user_id: null,
+              merged_into_id: null,
+              display_name: "B",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+          ],
+        };
+      }
+      if (s.includes("FROM test_attempts t")) {
+        return { rows: [{ c: "1" }] };
+      }
+      if (
+        s.includes("FROM treatment_program_instances t") ||
+        s.includes("patient_bookings pb1") ||
+        s.includes("patient_lfk_assignments a")
+      ) {
+        return { rows: [{ c: "0" }] };
+      }
+      if (s.includes("FROM user_pins") || s.includes("user_oauth_bindings")) {
+        return { rows: [] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    try {
+      await mergePlatformUsersInTransaction({ query } as unknown as PoolClient, T, D, "manual", {
+        resolution: baseResolution(),
+      });
+      expect.fail("expected MergeDependentConflictError");
+    } catch (e) {
+      expect(e).toBeInstanceOf(MergeDependentConflictError);
+      expect((e as MergeDependentConflictError).message).toContain("test_attempts");
+    }
   });
 
   it("phone_bind clears duplicate integrator_user_id when target has phone and stub has conflicting id", async () => {

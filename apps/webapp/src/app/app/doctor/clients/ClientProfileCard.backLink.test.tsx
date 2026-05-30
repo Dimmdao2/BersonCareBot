@@ -39,6 +39,7 @@ const minimalProfile: ClientProfile = {
     isArchived: false,
     channelBindingDates: {},
   },
+  supplementaryContacts: [],
   channelCards: [],
   upcomingAppointments: [],
   appointmentHistory: [],

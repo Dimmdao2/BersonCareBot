@@ -34,13 +34,15 @@ export async function runManualPlatformUserMerge(
 ): Promise<ManualMergeOk | ManualMergeFail> {
   const { targetId, duplicateId } = resolution;
   const partyLabels = await fetchMergePartyDisplayLabels(pool, targetId, duplicateId);
+  let mergeContactsSaved: { contactType: "phone" | "email"; valueNormalized: string }[] = [];
   try {
     await withTwoUserLifecycleLocksExclusive(pool, targetId, duplicateId, async (client) => {
-      await mergePlatformUsersInTransaction(client, targetId, duplicateId, "manual", {
+      const mergeResult = await mergePlatformUsersInTransaction(client, targetId, duplicateId, "manual", {
         resolution,
         allowDistinctIntegratorUserIds: options?.allowDistinctIntegratorUserIds,
         verifiedDistinctIntegratorUserIds: options?.verifiedDistinctIntegratorUserIds,
       });
+      mergeContactsSaved = mergeResult.mergeContactsSaved;
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -82,6 +84,7 @@ export async function runManualPlatformUserMerge(
         mediaFilesUploadedByRepointedInMergeTx: true,
         mediaUploadSessionsOwnerRepointedInMergeTx: true,
       },
+      mergeContactsSaved,
     },
     status: "ok",
   });
