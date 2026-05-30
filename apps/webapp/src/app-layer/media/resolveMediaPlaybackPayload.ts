@@ -18,6 +18,7 @@ import { recordPlaybackResolutionStat } from "@/app-layer/media/playbackStatsHou
 import { recordPlaybackUserVideoFirstResolve } from "@/app-layer/media/playbackUserVideoFirstResolve";
 import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 import { getConfigBool, getConfigValue } from "@/modules/system-settings/configAdapter";
+import { canAccessProgramSubmissionMedia } from "@/modules/media/programSubmissionPlaybackAccess";
 import type { AppSession } from "@/shared/types/session";
 import { isTrustedHlsArtifactS3Key, isTrustedPosterS3Key } from "@/shared/lib/hlsStorageLayout";
 
@@ -58,6 +59,16 @@ export async function resolveMediaPlaybackPayload(input: {
     return { ok: false, status: 404, error: "not found" };
   }
 
+  if (
+    !canAccessProgramSubmissionMedia(input.session, {
+      usagePurpose: row.usage_purpose,
+      uploadedBy: row.uploaded_by,
+    })
+  ) {
+    return { ok: false, status: 403, error: "forbidden" };
+  }
+
+  const skipPlaybackStats = row.usage_purpose === "program_item_submission";
   const mimeType = row.mime_type ?? "";
   const isVideo = mimeType.toLowerCase().startsWith("video/");
 
@@ -79,7 +90,9 @@ export async function resolveMediaPlaybackPayload(input: {
       },
       "playback_resolved",
     );
-    await recordPlaybackResolutionStat({ delivery: "file", fallbackUsed: false });
+    if (!skipPlaybackStats) {
+      await recordPlaybackResolutionStat({ delivery: "file", fallbackUsed: false });
+    }
     return {
       ok: true,
       data: {
@@ -146,13 +159,15 @@ export async function resolveMediaPlaybackPayload(input: {
     "playback_resolved",
   );
 
-  await recordPlaybackResolutionStat({ delivery, fallbackUsed });
+  if (!skipPlaybackStats) {
+    await recordPlaybackResolutionStat({ delivery, fallbackUsed });
 
-  if (delivery === "hls" || delivery === "mp4") {
-    await recordPlaybackUserVideoFirstResolve({
-      userId: input.session.user.userId,
-      mediaId: id,
-    });
+    if (delivery === "hls" || delivery === "mp4") {
+      await recordPlaybackUserVideoFirstResolve({
+        userId: input.session.user.userId,
+        mediaId: id,
+      });
+    }
   }
 
   return {

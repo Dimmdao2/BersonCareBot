@@ -17,6 +17,7 @@ vi.mock("@/app-layer/logging/logger", () => ({
 const getSessionMock = vi.fn();
 const getConfigBoolMock = vi.fn();
 const handleMock = vi.fn();
+const getAccessRowMock = vi.fn();
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => getSessionMock(),
@@ -24,6 +25,10 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigBool: (...a: unknown[]) => getConfigBoolMock(...a),
+}));
+
+vi.mock("@/app-layer/media/s3MediaStorage", () => ({
+  getMediaAccessRow: (...a: unknown[]) => getAccessRowMock(...a),
 }));
 
 vi.mock("@/app-layer/media/hlsDeliveryProxy", () => ({
@@ -40,9 +45,15 @@ describe("GET /api/media/[id]/hls/[[...path]]", () => {
     getSessionMock.mockReset();
     getConfigBoolMock.mockReset();
     handleMock.mockReset();
+    getAccessRowMock.mockReset();
     routeLoggerHoisted.loggerWarn.mockReset();
     getSessionMock.mockResolvedValue(patientSession);
     getConfigBoolMock.mockResolvedValue(true);
+    getAccessRowMock.mockResolvedValue({
+      usage_purpose: null,
+      uploaded_by: "u1",
+      mime_type: "video/mp4",
+    });
     handleMock.mockResolvedValue(new Response("ok", { status: 200 }));
   });
 

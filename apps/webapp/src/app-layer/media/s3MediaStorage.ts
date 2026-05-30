@@ -1,11 +1,15 @@
 export {
   confirmMediaFileReady,
+  confirmProgramSubmissionMediaFileReady,
   deletePendingMediaFileById,
+  getMediaAccessRow,
   getMediaRowForPlayback,
   getMediaPreviewS3KeyForRedirect,
   getMediaRowForConfirm,
+  getMediaRowForProgramSubmissionAttach,
   getMediaS3KeyForRedirect,
   insertPendingMediaFileTx,
+  insertPendingProgramSubmissionMediaFileTx,
   listMediaDeleteErrors,
   purgePendingMediaDeleteBatch,
 } from "@/infra/repos/s3MediaStorage";

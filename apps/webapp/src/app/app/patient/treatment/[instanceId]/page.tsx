@@ -74,6 +74,7 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
     rules,
     planItemCooldownSetting,
     discussionUiEnabledSetting,
+    mediaSubmissionEnabledSetting,
   ] =
     await Promise.all([
       deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
@@ -82,12 +83,16 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
       deps.reminders.listRulesByUser(session.user.userId),
       deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
       deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin"),
+      deps.systemSettings.getSetting("patient_program_discussion_media_submission_enabled", "admin"),
     ]);
 
   const planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(
     planItemCooldownSetting?.valueJson ?? null,
   );
   const patientProgramDiscussionUiEnabled = parseDiscussionUiEnabled(discussionUiEnabledSetting?.valueJson ?? null);
+  const patientProgramDiscussionMediaSubmissionEnabled = parseDiscussionUiEnabled(
+    mediaSubmissionEnabledSetting?.valueJson ?? null,
+  );
 
   let programDescription: string | null = null;
   if (detail.templateId) {
@@ -144,6 +149,7 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
         planReminderStrip={planReminderStrip}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
         patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
+        patientProgramDiscussionMediaSubmissionEnabled={patientProgramDiscussionMediaSubmissionEnabled}
       />
     </AppShell>
   );

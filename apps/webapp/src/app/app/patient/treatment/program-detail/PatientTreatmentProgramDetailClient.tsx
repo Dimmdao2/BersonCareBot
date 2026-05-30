@@ -57,6 +57,7 @@ export function PatientTreatmentProgramDetailClient(props: {
   planItemDoneRepeatCooldownMinutes: number;
   /** Rollout-гейт UI обсуждений в пациентской программе. */
   patientProgramDiscussionUiEnabled?: boolean;
+  patientProgramDiscussionMediaSubmissionEnabled?: boolean;
 }) {
   const {
     appDisplayTimeZone,
@@ -67,6 +68,7 @@ export function PatientTreatmentProgramDetailClient(props: {
     planReminderStrip = null,
     planItemDoneRepeatCooldownMinutes,
     patientProgramDiscussionUiEnabled = false,
+    patientProgramDiscussionMediaSubmissionEnabled = false,
   } = props;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -354,6 +356,7 @@ export function PatientTreatmentProgramDetailClient(props: {
         statsRefreshToken={statsRefreshToken}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
         patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
+        patientProgramDiscussionMediaSubmissionEnabled={patientProgramDiscussionMediaSubmissionEnabled}
       />
 
       {patientPersonalProgramCtaShouldRenderOnPlanScreen(detail) ? (

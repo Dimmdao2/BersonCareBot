@@ -73,11 +73,13 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   let detail;
   let planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(null);
   let patientProgramDiscussionUiEnabled = false;
+  let patientProgramDiscussionMediaSubmissionEnabled = false;
   try {
-    const [rawDetail, planItemCooldownSetting, discussionUiEnabledSetting] = await Promise.all([
+    const [rawDetail, planItemCooldownSetting, discussionUiEnabledSetting, mediaSubmissionSetting] = await Promise.all([
       deps.treatmentProgramInstance.getInstanceForPatient(session.user.userId, instanceId),
       deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
       deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin"),
+      deps.systemSettings.getSetting("patient_program_discussion_media_submission_enabled", "admin"),
     ]);
     if (!rawDetail) notFound();
     detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
@@ -85,6 +87,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
       planItemCooldownSetting?.valueJson ?? null,
     );
     patientProgramDiscussionUiEnabled = parseDiscussionUiEnabled(discussionUiEnabledSetting?.valueJson ?? null);
+    patientProgramDiscussionMediaSubmissionEnabled = parseDiscussionUiEnabled(mediaSubmissionSetting?.valueJson ?? null);
   } catch {
     notFound();
   }
@@ -160,6 +163,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
         resolvedTestId={resolvedTestIdForResolve}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
         patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
+        patientProgramDiscussionMediaSubmissionEnabled={patientProgramDiscussionMediaSubmissionEnabled}
       />
     </AppShell>
   );

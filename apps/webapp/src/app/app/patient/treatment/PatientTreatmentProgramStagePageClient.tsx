@@ -168,6 +168,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
   planItemDoneRepeatCooldownMinutes: number;
   assignmentSource: TreatmentProgramInstanceDetail["assignmentSource"];
   patientProgramDiscussionUiEnabled: boolean;
+  patientProgramDiscussionMediaSubmissionEnabled: boolean;
 }) {
   const {
     instanceId,
@@ -182,6 +183,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
     planItemDoneRepeatCooldownMinutes,
     assignmentSource,
     patientProgramDiscussionUiEnabled,
+    patientProgramDiscussionMediaSubmissionEnabled,
   } = props;
   const [detachedStage, setDetachedStage] = useState<Stage>(props.stage);
   const stageForUi = embedded ? props.stage : detachedStage;
@@ -539,6 +541,11 @@ export function PatientTreatmentProgramStagePageClient(props: {
         itemLinksPlanTab={itemLinksPlanTab ?? null}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
         allowPatientObservationComment={assignmentSource === "doctor" && patientProgramDiscussionUiEnabled}
+        mediaSubmissionEnabled={
+          assignmentSource === "doctor" &&
+          patientProgramDiscussionUiEnabled &&
+          patientProgramDiscussionMediaSubmissionEnabled
+        }
       />
     </div>
   );

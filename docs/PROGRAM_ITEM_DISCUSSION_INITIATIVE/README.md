@@ -15,6 +15,7 @@
 - Этап 3 (patient UI плитки: комментарии/badge/dot + camera + wire dialog) выполнен.
 - Этап 4 (item page: complete modal + discussion preview + payload complete API) выполнен.
 - Этап 5 (unread indicators: per-item badge, chat count badge, mark-read sync) выполнен.
+- Этап 6 (patient media submission: upload API, discussion media, playback ACL, doctor preview) выполнен.
 
 ## План исполнения
 

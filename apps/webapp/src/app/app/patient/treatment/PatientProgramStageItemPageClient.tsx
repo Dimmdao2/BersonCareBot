@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Camera, ChevronLeft, ChevronRight } from "lucide-react";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
@@ -62,6 +62,10 @@ import { PatientStageCompositionList } from "@/app/app/patient/treatment/Patient
 import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import { ProgramItemDiscussionDialog } from "@/app/app/patient/treatment/ProgramItemDiscussionDialog";
+import {
+  ProgramItemDiscussionMediaPicker,
+  type ProgramItemDiscussionMediaPickerHandle,
+} from "@/app/app/patient/treatment/ProgramItemDiscussionMediaPicker";
 import {
   ProgramItemCompleteDialog,
   type ProgramItemCompleteDialogPayload,
@@ -322,6 +326,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [doneTodayCountByActivityKey, setDoneTodayCountByActivityKey] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
   const [discussionDialogOpen, setDiscussionDialogOpen] = useState(false);
+  const mediaPickerRef = useRef<ProgramItemDiscussionMediaPickerHandle>(null);
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [discussionPreview, setDiscussionPreview] = useState<ItemDiscussionPreview>({
     totalCount: 0,
@@ -821,7 +826,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                           )}
                           disabled={busy !== null}
                           aria-label="Камера"
-                          onClick={() => void openDiscussionDialog()}
+                          onClick={() => {
+                            if (mediaSubmissionEnabled) {
+                              queueMicrotask(() => mediaPickerRef.current?.openPicker());
+                              return;
+                            }
+                            void openDiscussionDialog();
+                          }}
                         >
                           <Camera className="size-4" aria-hidden />
                         </button>
@@ -960,7 +971,21 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               if (!open) void loadDiscussionPreview();
             }}
             onRead={loadDiscussionPreview}
+            mediaSubmissionEnabled={mediaSubmissionEnabled}
           />
+          {mediaSubmissionEnabled ? (
+            <ProgramItemDiscussionMediaPicker
+              ref={mediaPickerRef}
+              variant="hidden"
+              instanceId={instanceId}
+              itemId={item.id}
+              disabled={busy !== null}
+              onUploaded={() => {
+                void loadDiscussionPreview();
+              }}
+              onError={() => setError("Не удалось загрузить файл")}
+            />
+          ) : null}
           <ProgramItemCompleteDialog
             key={completeDialogOpen ? "complete-dialog-open" : "complete-dialog-closed"}
             open={completeDialogOpen}

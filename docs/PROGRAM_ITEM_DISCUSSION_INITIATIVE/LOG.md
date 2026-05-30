@@ -324,3 +324,29 @@
 - **Legacy unread в per-item счётчике:** `getUnreadCount` в service принимает `exerciseTitle` и добавляет `countLegacyUnreadAdminReplies` (support-only admin replies после `last_read_at`, без double-count по `support_message_id` из discussion).
 - **Mark-read на tap preview (P10):** `openDiscussionDialog` на item page вызывает `POST .../discussion/read` до открытия модалки.
 - **RTL-тесты:** `PatientHeader.test.tsx` (chat badge), `PatientPrimaryNavStrip.test.tsx`, `service.unread.test.ts`, preview mark-read в `PatientProgramStageItemPageClient.test.tsx`.
+
+---
+
+## 2026-05-30 — Этап 6 (patient media submission)
+
+### Что сделано
+
+- Patient upload API:
+  - `POST /api/patient/media/program-submission/presign`
+  - `POST /api/patient/media/program-submission/confirm`
+  - `GET /api/patient/media/program-submission/{mediaId}/status`
+  - `usage_purpose=program_item_submission`, лимит 100 MiB, image/video MIME subset.
+- Discussion media attach:
+  - `POST .../items/{itemId}/discussion/media` (`{ mediaFileId }`)
+  - `patientAppendDiscussionMedia` (discussion + `program_action_log` с `source=patient_media`).
+- media-worker: ветка `program_item_submission` — 480p progressive MP4, удаление исходника, без HLS.
+- Playback ACL (P14): `canAccessProgramSubmissionMedia` — uploader + doctor/admin; stats skip для submission.
+- Patient UI: `ProgramItemDiscussionMediaPicker`, media bubbles в `ProgramItemDiscussionDialog`, rollout `patient_program_discussion_media_submission_enabled`.
+- Doctor UI: превью медиа в журнале выполнения для `patient_media`.
+
+### Тесты и проверки
+
+- `src/modules/media/programSubmissionPlaybackAccess.test.ts`
+- `src/app/api/patient/media/program-submission/presign/route.test.ts`
+- Прогон: `pnpm --dir apps/webapp test -- program-submission media`
+- `pnpm --dir apps/media-worker test` (worker branch)

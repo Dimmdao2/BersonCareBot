@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import { getStoredMediaBody } from "@/app-layer/media/mockMediaStorage";
-import { getMediaS3KeyForRedirect } from "@/app-layer/media/s3MediaStorage";
+import { getMediaS3KeyForRedirect, getMediaAccessRow } from "@/app-layer/media/s3MediaStorage";
 import { serializePresignFailureForLog } from "@/app-layer/media/presignLogRedaction";
 import { presignGetUrl } from "@/app-layer/media/s3Client";
 import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 import { getCurrentSession } from "@/modules/auth/service";
+import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -44,6 +45,18 @@ export async function GET(
 
   /** UUID in DB → bytes live in MinIO/S3; presigned GET only (never in-process mock). */
   if (dbUrl && isUuid) {
+    const accessRow = await getMediaAccessRow(id);
+    if (!accessRow) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
+    if (
+      !assertMediaPlaybackAccess(session, {
+        usagePurpose: accessRow.usage_purpose,
+        uploadedBy: accessRow.uploaded_by,
+      })
+    ) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
     const s3Key = await getMediaS3KeyForRedirect(id);
     if (s3Key) {
       return redirectPresignedOr503(s3Key);

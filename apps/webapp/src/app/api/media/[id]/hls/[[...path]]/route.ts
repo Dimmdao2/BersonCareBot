@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/app-layer/logging/logger";
 import { handleHlsDeliveryProxyRequest } from "@/app-layer/media/hlsDeliveryProxy";
+import { getMediaAccessRow } from "@/app-layer/media/s3MediaStorage";
 import { getCurrentSession } from "@/modules/auth/service";
 import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
@@ -18,7 +19,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const session = await getCurrentSession();
-  if (!assertMediaPlaybackAccess(session)) {
+  const accessRow = await getMediaAccessRow(id);
+  if (!accessRow) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+  if (
+    !assertMediaPlaybackAccess(session, {
+      usagePurpose: accessRow.usage_purpose,
+      uploadedBy: accessRow.uploaded_by,
+    })
+  ) {
     logger.warn({ mediaId: id, reasonCode: "session_unauthorized", httpStatus: 401 }, "hls_proxy_error");
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

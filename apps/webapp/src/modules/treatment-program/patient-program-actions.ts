@@ -468,6 +468,72 @@ export function createTreatmentProgramPatientActionService(deps: {
         });
       }
     },
+
+    /** Медиа пациента по пункту программы (discussion message + журнал). */
+    async patientAppendDiscussionMedia(input: {
+      patientUserId: string;
+      instanceId: string;
+      stageItemId: string;
+      mediaFileId: string;
+    }): Promise<void> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      assertUuid(input.stageItemId);
+      assertUuid(input.mediaFileId);
+      const detail = await deps.instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+      if (!detail) throw new Error("Программа не найдена");
+      const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
+      if (!item) throw new Error("Элемент не найден");
+      const stage = detail.stages.find((s) => s.id === item.stageId);
+      if (!stage) throw new Error("Этап не найден");
+      if (!isStageZero(stage) && (stage.status === "locked" || stage.status === "skipped")) {
+        throw new Error("Этап недоступен");
+      }
+      if (!isInstanceStageItemActiveForPatient(item)) {
+        throw new Error("Элемент отключён");
+      }
+      if (detail.assignmentSource === "promo") {
+        throw new Error("Комментарии недоступны для промо-программы");
+      }
+      if (detail.assignmentSource === "course") {
+        throw new Error("Комментарии недоступны для программы курса");
+      }
+      if (item.itemType === "clinical_test") {
+        throw new Error("Для клинического теста используйте запись результатов");
+      }
+      await deps.actionLog.insertAction({
+        instanceId: input.instanceId,
+        instanceStageItemId: input.stageItemId,
+        patientUserId: input.patientUserId,
+        actionType: "note",
+        sessionId: null,
+        payload: { source: "patient_media", mediaFileId: input.mediaFileId },
+        note: null,
+      });
+      if (detail.assignmentSource === "doctor" && deps.discussion) {
+        await deps.discussion.appendMessage({
+          instanceStageItemId: input.stageItemId,
+          patientUserId: input.patientUserId,
+          senderRole: "patient",
+          origin: "patient_observation",
+          mediaFileId: input.mediaFileId,
+        });
+      }
+      if (detail.assignmentSource === "doctor" && deps.notifyDoctorOfProgramNote && deps.resolvePatientLabel) {
+        const snap = item.snapshot as Record<string, unknown>;
+        const title =
+          typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "Пункт программы";
+        const patientLabel = await deps.resolvePatientLabel(input.patientUserId);
+        await deps.notifyDoctorOfProgramNote({
+          patientUserId: input.patientUserId,
+          instanceId: input.instanceId,
+          stageItemId: input.stageItemId,
+          patientLabel,
+          exerciseTitle: title,
+          noteText: "Медиафайл",
+        });
+      }
+    },
   };
 }
 

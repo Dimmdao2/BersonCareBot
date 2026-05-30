@@ -6,6 +6,7 @@ const getSessionMock = vi.fn();
 const getConfigBoolMock = vi.fn();
 const getConfigValueMock = vi.fn();
 const getRowMock = vi.fn();
+const getAccessRowMock = vi.fn();
 const presignMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
@@ -27,6 +28,7 @@ vi.mock("@/app-layer/media/videoPresignTtl", () => ({
 
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaRowForPlayback: (...a: unknown[]) => getRowMock(...a),
+  getMediaAccessRow: (...a: unknown[]) => getAccessRowMock(...a),
 }));
 
 vi.mock("@/app-layer/media/s3Client", () => ({
@@ -59,6 +61,8 @@ function videoRow(over: Partial<Record<string, unknown>> = {}) {
     video_duration_seconds: 60,
     available_qualities_json: [{ label: "720p", height: 720, path: "720p/index.m3u8", bandwidth: 2800000 }],
     video_delivery_override: null,
+    usage_purpose: null,
+    uploaded_by: "u1",
     ...over,
   };
 }
@@ -69,8 +73,14 @@ describe("GET /api/media/[id]/playback", () => {
     getConfigBoolMock.mockReset();
     getConfigValueMock.mockReset();
     getRowMock.mockReset();
+    getAccessRowMock.mockReset();
     presignMock.mockReset();
     getSessionMock.mockResolvedValue(patientSession);
+    getAccessRowMock.mockResolvedValue({
+      usage_purpose: null,
+      uploaded_by: "u1",
+      mime_type: "video/mp4",
+    });
     getConfigBoolMock.mockResolvedValue(true);
     getConfigValueMock.mockResolvedValue("mp4");
     presignMock.mockResolvedValue("https://signed.example/master");
@@ -79,6 +89,11 @@ describe("GET /api/media/[id]/playback", () => {
 
   it("returns 401 when unauthenticated", async () => {
     getSessionMock.mockResolvedValue(null);
+    getAccessRowMock.mockResolvedValue({
+      usage_purpose: null,
+      uploaded_by: "u1",
+      mime_type: "video/mp4",
+    });
     const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
       params: Promise.resolve({ id: mid }),
     });
@@ -96,11 +111,24 @@ describe("GET /api/media/[id]/playback", () => {
   });
 
   it("returns 404 when media row missing", async () => {
-    getRowMock.mockResolvedValue(null);
+    getAccessRowMock.mockResolvedValue(null);
     const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
       params: Promise.resolve({ id: mid }),
     });
     expect(res.status).toBe(404);
+  });
+
+  it("returns 403 for submission media owned by another patient", async () => {
+    getAccessRowMock.mockResolvedValue({
+      usage_purpose: "program_item_submission",
+      uploaded_by: "other-patient",
+      mime_type: "video/mp4",
+    });
+    const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
+      params: Promise.resolve({ id: mid }),
+    });
+    expect(res.status).toBe(401);
+    expect(getRowMock).not.toHaveBeenCalled();
   });
 
   it("non-video → delivery file, no presign", async () => {

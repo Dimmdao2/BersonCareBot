@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getS3KeyMock = vi.fn();
+const getAccessRowMock = vi.fn();
 const getStoredMock = vi.fn();
 const presignGetUrlMock = vi.fn();
 const getSessionMock = vi.fn();
@@ -14,6 +15,7 @@ vi.mock("@/config/env", () => ({
 
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaS3KeyForRedirect: (...args: unknown[]) => getS3KeyMock(...args),
+  getMediaAccessRow: (...args: unknown[]) => getAccessRowMock(...args),
 }));
 
 vi.mock("@/app-layer/media/mockMediaStorage", () => ({
@@ -40,12 +42,18 @@ const testUuid = "00000000-0000-4000-8000-000000000099";
 describe("GET /api/media/[id]", () => {
   beforeEach(() => {
     getS3KeyMock.mockReset();
+    getAccessRowMock.mockReset();
     getStoredMock.mockReset();
     presignGetUrlMock.mockReset();
     getSessionMock.mockReset();
     getTtlMock.mockReset();
     getTtlMock.mockResolvedValue(3600);
-    getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "patient" } });
+    getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client", displayName: "U", bindings: {} } });
+    getAccessRowMock.mockResolvedValue({
+      usage_purpose: null,
+      uploaded_by: "u1",
+      mime_type: "image/png",
+    });
   });
 
   it("returns 401 when there is no session", async () => {
@@ -88,6 +96,11 @@ describe("GET /api/media/[id]", () => {
   });
 
   it("returns 404 when S3 key is missing in DB mode", async () => {
+    getAccessRowMock.mockResolvedValue({
+      usage_purpose: null,
+      uploaded_by: "u1",
+      mime_type: "image/png",
+    });
     getS3KeyMock.mockResolvedValue(null);
 
     const res = await GET(new Request("http://localhost/api/media/x"), {

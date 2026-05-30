@@ -24,6 +24,7 @@ const detailShellProps = {
   patientCalendarDayIana: "Europe/Moscow",
   planItemDoneRepeatCooldownMinutes: 60,
   patientProgramDiscussionUiEnabled: true,
+  patientProgramDiscussionMediaSubmissionEnabled: false,
 };
 
 function clickPatientTreatmentTab(which: "program" | "recommendations" | "progress") {

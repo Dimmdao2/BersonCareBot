@@ -500,6 +500,38 @@ export async function insertPendingMediaFileTx(
   );
 }
 
+/** Patient program-item submission upload (usage_purpose + mp4 override for video). */
+export async function insertPendingProgramSubmissionMediaFileTx(
+  client: PoolClient,
+  params: {
+    id: string;
+    filename: string;
+    key: string;
+    mimeType: string;
+    sizeBytes: number;
+    userId: string;
+  },
+): Promise<void> {
+  const isVideo = params.mimeType.toLowerCase().startsWith("video/");
+  await client.query(
+    `INSERT INTO media_files (
+       id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by,
+       usage_purpose, video_delivery_override
+     )
+     VALUES ($1::uuid, $2, $3, $4, $5, $6, 'pending', $7::uuid, 'program_item_submission', $8)`,
+    [
+      params.id,
+      params.filename,
+      params.key,
+      params.key,
+      params.mimeType,
+      params.sizeBytes,
+      params.userId,
+      isVideo ? "mp4" : null,
+    ],
+  );
+}
+
 /** Insert pending row + return presign target (presign route). */
 export async function insertPendingMediaFile(params: {
   id: string;
@@ -531,10 +563,15 @@ export async function insertPendingMediaFile(params: {
 export async function getMediaRowForConfirm(
   mediaId: string,
   userId: string,
-): Promise<{ s3_key: string | null; status: string } | null> {
+): Promise<{ s3_key: string | null; status: string; mime_type: string; usage_purpose: string | null } | null> {
   const pool = getPool();
-  const res = await pool.query<{ s3_key: string | null; status: string }>(
-    `SELECT s3_key, status FROM media_files WHERE id = $1::uuid AND uploaded_by = $2::uuid`,
+  const res = await pool.query<{
+    s3_key: string | null;
+    status: string;
+    mime_type: string;
+    usage_purpose: string | null;
+  }>(
+    `SELECT s3_key, status, mime_type, usage_purpose FROM media_files WHERE id = $1::uuid AND uploaded_by = $2::uuid`,
     [mediaId, userId],
   );
   return res.rows[0] ?? null;
@@ -546,6 +583,64 @@ export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
     mediaId,
   ]);
   return (res.rowCount ?? 0) > 0;
+}
+
+/** Confirm patient program submission upload (must have usage_purpose set at presign). */
+export async function confirmProgramSubmissionMediaFileReady(mediaId: string): Promise<boolean> {
+  const pool = getPool();
+  const res = await pool.query(
+    `UPDATE media_files SET status = 'ready'
+     WHERE id = $1::uuid AND status = 'pending' AND usage_purpose = 'program_item_submission'`,
+    [mediaId],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+export type ProgramSubmissionMediaAttachRow = {
+  id: string;
+  mime_type: string;
+  status: string;
+  video_processing_status: string | null;
+};
+
+/** Row eligible for attach to discussion thread (owner + purpose + ready + video processed if applicable). */
+export async function getMediaRowForProgramSubmissionAttach(
+  mediaId: string,
+  patientUserId: string,
+): Promise<ProgramSubmissionMediaAttachRow | null> {
+  const pool = getPool();
+  const res = await pool.query<ProgramSubmissionMediaAttachRow>(
+    `SELECT id::text, mime_type, status, video_processing_status
+     FROM media_files
+     WHERE id = $1::uuid
+       AND uploaded_by = $2::uuid
+       AND usage_purpose = 'program_item_submission'
+       AND status = 'ready'
+       AND (
+         mime_type NOT LIKE 'video/%'
+         OR video_processing_status IS NULL
+         OR video_processing_status = 'ready'
+       )`,
+    [mediaId, patientUserId],
+  );
+  return res.rows[0] ?? null;
+}
+
+export type MediaAccessRow = {
+  usage_purpose: string | null;
+  uploaded_by: string;
+  mime_type: string;
+};
+
+export async function getMediaAccessRow(id: string): Promise<MediaAccessRow | null> {
+  const pool = getPool();
+  const res = await pool.query<MediaAccessRow>(
+    `SELECT usage_purpose, uploaded_by::text, mime_type
+     FROM media_files
+     WHERE id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL}`,
+    [id],
+  );
+  return res.rows[0] ?? null;
 }
 
 /** Roll back presign INSERT when presigned URL generation fails. */
@@ -595,6 +690,8 @@ export type MediaPlaybackRow = {
   video_duration_seconds: number | null;
   available_qualities_json: unknown;
   video_delivery_override: string | null;
+  usage_purpose: string | null;
+  uploaded_by: string;
 };
 
 export async function getMediaRowForPlayback(id: string): Promise<MediaPlaybackRow | null> {
@@ -602,7 +699,8 @@ export async function getMediaRowForPlayback(id: string): Promise<MediaPlaybackR
   const res = await pool.query<MediaPlaybackRow>(
     `SELECT id::text, mime_type, s3_key,
             video_processing_status, hls_master_playlist_s3_key, poster_s3_key,
-            video_duration_seconds, available_qualities_json, video_delivery_override
+            video_duration_seconds, available_qualities_json, video_delivery_override,
+            usage_purpose, uploaded_by::text
      FROM media_files
      WHERE id = $1::uuid AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0 AND ${MEDIA_READABLE_STATUS_SQL}`,
     [id],

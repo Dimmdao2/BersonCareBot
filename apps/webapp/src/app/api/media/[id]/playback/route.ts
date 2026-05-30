@@ -3,6 +3,7 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
 import type { PlaybackDeliveryStrategy } from "@/modules/media/playbackResolveDelivery";
 import { resolveMediaPlaybackPayload } from "@/app-layer/media/resolveMediaPlaybackPayload";
+import { getMediaAccessRow } from "@/app-layer/media/s3MediaStorage";
 
 function parsePreferParam(raw: string | null): PlaybackDeliveryStrategy | null {
   if (!raw) return null;
@@ -22,7 +23,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const session = await getCurrentSession();
-  if (!assertMediaPlaybackAccess(session)) {
+  const accessRow = await getMediaAccessRow(id);
+  if (!accessRow) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+  if (
+    !assertMediaPlaybackAccess(session, {
+      usagePurpose: accessRow.usage_purpose,
+      uploadedBy: accessRow.uploaded_by,
+    })
+  ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

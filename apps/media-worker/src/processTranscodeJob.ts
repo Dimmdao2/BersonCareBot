@@ -26,6 +26,7 @@ import {
 } from "./s3.js";
 import { readVideoWatermarkEnabled } from "./watermarkEnabled.js";
 import { resolveWatermarkFontPath } from "./watermarkFont.js";
+import { processProgramSubmissionTranscodeJob } from "./processProgramSubmissionTranscode.js";
 
 /** Short token for structured logs (no multi-line FFmpeg stderr / URLs). */
 function compactTranscodeLogErrorCode(message: string): string {
@@ -54,6 +55,7 @@ type MediaRow = {
   s3_key: string | null;
   hls_master_playlist_s3_key: string | null;
   video_processing_status: string | null;
+  usage_purpose: string | null;
 };
 
 async function fetchTerminalJobDurationMs(pool: Pool, jobId: string): Promise<number | null> {
@@ -71,7 +73,7 @@ async function fetchTerminalJobDurationMs(pool: Pool, jobId: string): Promise<nu
 
 async function loadMedia(pool: Pool, mediaId: string): Promise<MediaRow | null> {
   const r = await pool.query<MediaRow>(
-    `SELECT id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status
+    `SELECT id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status, usage_purpose
      FROM media_files WHERE id = $1::uuid`,
     [mediaId],
   );
@@ -216,6 +218,15 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
   }
   if (!media.mime_type.toLowerCase().startsWith("video/")) {
     await permanentFail(ctx, job.id, job.mediaId, "not_video");
+    return;
+  }
+
+  if (media.usage_purpose === "program_item_submission" && media.s3_key?.trim()) {
+    await processProgramSubmissionTranscodeJob(ctx, job, {
+      id: media.id,
+      mime_type: media.mime_type,
+      s3_key: media.s3_key,
+    });
     return;
   }
 

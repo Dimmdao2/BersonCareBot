@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, Camera, Info, MessageCircle, NotebookText, PlayCircle } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
@@ -39,6 +39,10 @@ import {
   sortProgramCompositionItemsByOrderThenId,
 } from "@/app/app/patient/treatment/programCompositionOrder";
 import { ProgramItemDiscussionDialog } from "./ProgramItemDiscussionDialog";
+import {
+  ProgramItemDiscussionMediaPicker,
+  type ProgramItemDiscussionMediaPickerHandle,
+} from "./ProgramItemDiscussionMediaPicker";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];
 
@@ -291,6 +295,8 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   );
 
   const [discussionDialogItemId, setDiscussionDialogItemId] = useState<string | null>(null);
+  const [mediaPickItemId, setMediaPickItemId] = useState<string | null>(null);
+  const mediaPickerRef = useRef<ProgramItemDiscussionMediaPickerHandle>(null);
   const [discussionSummaryByItemId, setDiscussionSummaryByItemId] = useState<Record<string, ItemDiscussionSummary>>(
     {},
   );
@@ -503,6 +509,11 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                     aria-label="Камера"
                     onClick={() => {
                       setError(null);
+                      if (mediaSubmissionEnabled) {
+                        setMediaPickItemId(item.id);
+                        queueMicrotask(() => mediaPickerRef.current?.openPicker());
+                        return;
+                      }
                       setDiscussionDialogItemId(item.id);
                     }}
                   >
@@ -589,6 +600,21 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           ),
         )}
       </ul>
+
+      {mediaSubmissionEnabled && mediaPickItemId ? (
+        <ProgramItemDiscussionMediaPicker
+          ref={mediaPickerRef}
+          variant="hidden"
+          instanceId={instanceId}
+          itemId={mediaPickItemId}
+          disabled={busy !== null}
+          onUploaded={() => {
+            setMediaPickItemId(null);
+            void loadDiscussionSummary();
+          }}
+          onError={(msg) => setError(msg === "network_error" ? "Ошибка сети" : "Не удалось загрузить файл")}
+        />
+      ) : null}
 
       {discussionDialogItemId ? (
         <ProgramItemDiscussionDialog

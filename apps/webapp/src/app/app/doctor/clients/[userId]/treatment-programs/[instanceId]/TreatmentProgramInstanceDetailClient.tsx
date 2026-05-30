@@ -27,6 +27,7 @@ import type {
 import type { TreatmentProgramTestResultDetailRow } from "@/modules/treatment-program/types";
 import type { TreatmentProgramEventRow } from "@/modules/treatment-program/types";
 import type { ProgramActionLogListRow } from "@/modules/treatment-program/types";
+import { DoctorProgramActionLogMediaPreview } from "./DoctorProgramActionLogMediaPreview";
 import {
   formatNormalizedTestDecisionRu,
   formatTreatmentProgramStageStatusRu,
@@ -125,9 +126,20 @@ function doctorTimelineWhoRu(actorId: string | null, opts: { currentUserId: stri
 
 function isPatientObservationActionRow(row: ProgramActionLogListRow): boolean {
   if (row.actionType !== "note") return false;
-  if (!row.note?.trim()) return false;
   const source = row.payload && typeof row.payload.source === "string" ? row.payload.source : null;
+  if (source === "patient_media") return true;
+  if (!row.note?.trim()) return false;
   return source === "patient_observation";
+}
+
+function patientMediaFileIdFromActionRow(row: ProgramActionLogListRow): string | null {
+  if (row.actionType !== "note") return null;
+  const payload = row.payload;
+  if (!payload || typeof payload !== "object") return null;
+  const source = typeof payload.source === "string" ? payload.source : null;
+  if (source !== "patient_media") return null;
+  const id = typeof payload.mediaFileId === "string" ? payload.mediaFileId.trim() : "";
+  return id || null;
 }
 
 /** Строки тестов из снимка элемента этапа (`tests[]` в JSON снимка). */
@@ -1091,6 +1103,9 @@ export function TreatmentProgramInstanceDetailClient(props: {
                       ) : null}
                       {row.note?.trim() ? (
                         <span className="mt-0.5 block text-xs text-foreground/90">Заметка пациента: {row.note}</span>
+                      ) : null}
+                      {patientMediaFileIdFromActionRow(row) ? (
+                        <DoctorProgramActionLogMediaPreview mediaFileId={patientMediaFileIdFromActionRow(row)!} />
                       ) : null}
                     </li>
                   );

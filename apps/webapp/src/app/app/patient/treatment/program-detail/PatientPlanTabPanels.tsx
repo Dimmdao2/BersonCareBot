@@ -46,6 +46,7 @@ export function PatientPlanTabPanels(props: {
   statsRefreshToken: number;
   planItemDoneRepeatCooldownMinutes: number;
   patientProgramDiscussionUiEnabled: boolean;
+  patientProgramDiscussionMediaSubmissionEnabled: boolean;
 }) {
   const {
     activeTab,
@@ -68,6 +69,7 @@ export function PatientPlanTabPanels(props: {
     statsRefreshToken,
     planItemDoneRepeatCooldownMinutes,
     patientProgramDiscussionUiEnabled,
+    patientProgramDiscussionMediaSubmissionEnabled,
   } = props;
 
   return (
@@ -87,6 +89,7 @@ export function PatientPlanTabPanels(props: {
             planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
             assignmentSource={detail.assignmentSource}
             patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
+            patientProgramDiscussionMediaSubmissionEnabled={patientProgramDiscussionMediaSubmissionEnabled}
           />
         </Suspense>
       </div>
