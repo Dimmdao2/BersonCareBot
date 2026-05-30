@@ -67,4 +67,9 @@ describe("getDoctorScreenTitle", () => {
   it("returns fallback for unknown doctor path", () => {
     expect(getDoctorScreenTitle("/app/doctor/unknown-section")).toBe("Кабинет");
   });
+  it("returns booking admin titles for subpaths", () => {
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking")).toBe("Запись");
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking/catalog")).toBe("Запись — Каталог");
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking/operations")).toBe("Запись — Операции");
+  });
 });

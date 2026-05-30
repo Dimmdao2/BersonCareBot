@@ -45,12 +45,24 @@ const LIMIT_OPTIONS: { value: RescheduleLimitBehavior; label: string }[] = [
 
 type PolicyKind = "cancellation" | "reschedule";
 
-export function BookingPoliciesSection() {
+const OVERVIEW = "/api/admin/booking-engine/overview";
+const PRODUCTS = "/api/admin/booking-engine/products";
+
+type Props = {
+  defaultKind?: PolicyKind;
+  /** Скрыть переключатель «тип политики» (вкладки правил). */
+  lockKind?: boolean;
+};
+
+export function BookingPoliciesSection({ defaultKind = "cancellation", lockKind = false }: Props) {
   const [cancellationPolicies, setCancellationPolicies] = useState<CancellationPolicy[]>([]);
   const [reschedulePolicies, setReschedulePolicies] = useState<ReschedulePolicy[]>([]);
   const [scopeLevel, setScopeLevel] = useState<PolicyScopeLevel>("organization");
   const [scopeEntityId, setScopeEntityId] = useState("");
-  const [kind, setKind] = useState<PolicyKind>("cancellation");
+  const [kind, setKind] = useState<PolicyKind>(defaultKind);
+  const [specialists, setSpecialists] = useState<Array<{ id: string; fullName: string }>>([]);
+  const [services, setServices] = useState<Array<{ id: string; title: string }>>([]);
+  const [products, setProducts] = useState<Array<{ id: string; title: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -76,6 +88,30 @@ export function BookingPoliciesSection() {
       void load();
     });
   }, [load]);
+
+  useEffect(() => {
+    setKind(defaultKind);
+  }, [defaultKind]);
+
+  useEffect(() => {
+    void (async () => {
+      const [ovRes, prodRes] = await Promise.all([fetch(OVERVIEW), fetch(PRODUCTS)]);
+      const ov = (await ovRes.json()) as {
+        ok?: boolean;
+        specialists?: Array<{ id: string; fullName: string }>;
+        services?: Array<{ id: string; title: string }>;
+      };
+      const prod = (await prodRes.json()) as {
+        ok?: boolean;
+        products?: Array<{ id: string; title: string }>;
+      };
+      if (ov.ok) {
+        setSpecialists(ov.specialists ?? []);
+        setServices(ov.services ?? []);
+      }
+      if (prod.ok && prod.products) setProducts(prod.products);
+    })();
+  }, []);
 
   const cancelPolicy =
     cancellationPolicies.find(
@@ -173,26 +209,76 @@ export function BookingPoliciesSection() {
               </SelectContent>
             </Select>
           </div>
-          {scopeLevel !== "organization" ? (
+          {scopeLevel === "specialist" ? (
             <div className="space-y-2">
-              <Label>ID сущности</Label>
-              <Input value={scopeEntityId} onChange={(e) => setScopeEntityId(e.target.value)} />
+              <Label>Специалист</Label>
+              <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
+                <SelectTrigger
+                  displayLabel={specialists.find((s) => s.id === scopeEntityId)?.fullName}
+                  className="w-full max-w-md"
+                />
+                <SelectContent>
+                  {specialists.map((s) => (
+                    <SelectItem key={s.id} value={s.id} label={s.fullName}>
+                      {s.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : null}
-          <div className="space-y-2">
-            <Label>Тип политики</Label>
-            <Select value={kind} onValueChange={(v) => v && setKind(v as PolicyKind)}>
-              <SelectTrigger displayLabel={kindLabel} className="w-full" />
-              <SelectContent>
-                <SelectItem value="cancellation" label="Отмена">
-                  Отмена
-                </SelectItem>
-                <SelectItem value="reschedule" label="Перенос">
-                  Перенос
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {scopeLevel === "service" ? (
+            <div className="space-y-2">
+              <Label>Услуга</Label>
+              <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
+                <SelectTrigger
+                  displayLabel={services.find((s) => s.id === scopeEntityId)?.title}
+                  className="w-full max-w-md"
+                />
+                <SelectContent>
+                  {services.map((s) => (
+                    <SelectItem key={s.id} value={s.id} label={s.title}>
+                      {s.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {scopeLevel === "product" ? (
+            <div className="space-y-2">
+              <Label>Продукт</Label>
+              <Select value={scopeEntityId} onValueChange={(v) => v && setScopeEntityId(v)}>
+                <SelectTrigger
+                  displayLabel={products.find((p) => p.id === scopeEntityId)?.title}
+                  className="w-full max-w-md"
+                />
+                <SelectContent>
+                  {products.map((p) => (
+                    <SelectItem key={p.id} value={p.id} label={p.title}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {!lockKind ? (
+            <div className="space-y-2">
+              <Label>Тип политики</Label>
+              <Select value={kind} onValueChange={(v) => v && setKind(v as PolicyKind)}>
+                <SelectTrigger displayLabel={kindLabel} className="w-full max-w-md" />
+                <SelectContent>
+                  <SelectItem value="cancellation" label="Отмена">
+                    Отмена
+                  </SelectItem>
+                  <SelectItem value="reschedule" label="Перенос">
+                    Перенос
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
         </div>
 
         {kind === "cancellation" && cancelPolicy ? (

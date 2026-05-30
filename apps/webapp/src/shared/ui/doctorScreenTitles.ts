@@ -1,3 +1,5 @@
+import { BOOKING_ADMIN_BASE, BOOKING_ADMIN_TABS } from "@/app/app/doctor/admin/booking/bookingAdminTabs";
+
 /**
  * Заголовки экранов кабинета врача по pathname (сервер и клиент).
  */
@@ -15,7 +17,7 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/admin/app-settings": "Настройки приложения",
     "/app/doctor/admin/auth": "Авторизация",
     "/app/doctor/admin/integrations": "Интеграции",
-    "/app/doctor/admin/booking": "Запись / Rubitime",
+    "/app/doctor/admin/booking": "Запись",
     "/app/doctor/admin/technical": "Технические режимы",
     "/app/doctor/clients": "Клиенты",
     "/app/doctor/appointments": "Записи",
@@ -50,6 +52,14 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/references": "Справочники",
   };
   if (exact[p]) return exact[p]!;
+
+  if (p === BOOKING_ADMIN_BASE || p.startsWith(`${BOOKING_ADMIN_BASE}/`)) {
+    const tab = BOOKING_ADMIN_TABS.find(
+      (t) => p === t.href || (t.id !== "overview" && p.startsWith(`${t.href}/`)),
+    );
+    if (tab && tab.id !== "overview") return `Запись — ${tab.label}`;
+    return "Запись";
+  }
 
   if (p === "/app/doctor/subscribers") return "Клиенты";
   if (p.startsWith("/app/doctor/subscribers/")) return "Клиент";

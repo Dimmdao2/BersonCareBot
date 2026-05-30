@@ -10,6 +10,8 @@ type Props = {
   apiBase?: string;
   packagesApi?: string;
   servicesApi?: string;
+  /** Если задан снаружи (поиск пациента), поле UUID не показываем. */
+  platformUserId?: string;
 };
 
 const PACKAGE_STATUS_LABELS: Record<string, string> = {
@@ -34,8 +36,11 @@ export function BookingPatientPackagesSection({
   apiBase = "/api/admin/booking-engine/patient-packages",
   packagesApi = "/api/admin/booking-engine/packages",
   servicesApi = "/api/admin/booking-engine/services",
+  platformUserId: platformUserIdProp = "",
 }: Props) {
-  const [platformUserId, setPlatformUserId] = useState("");
+  const [platformUserIdLocal, setPlatformUserIdLocal] = useState("");
+  const platformUserId = platformUserIdProp.trim() || platformUserIdLocal;
+  const hidePatientIdField = Boolean(platformUserIdProp.trim());
   const [catalogId, setCatalogId] = useState("");
   const [title, setTitle] = useState("");
   const [priceRub, setPriceRub] = useState("");
@@ -152,8 +157,16 @@ export function BookingPatientPackagesSection({
         <Button type="button" variant="outline" size="sm" onClick={loadRefs}>
           Загрузить справочники
         </Button>
-        <Label htmlFor="pp-user">ID пациента</Label>
-        <Input id="pp-user" value={platformUserId} onChange={(e) => setPlatformUserId(e.target.value)} />
+        {!hidePatientIdField ? (
+          <>
+            <Label htmlFor="pp-user">ID пациента</Label>
+            <Input
+              id="pp-user"
+              value={platformUserIdLocal}
+              onChange={(e) => setPlatformUserIdLocal(e.target.value)}
+            />
+          </>
+        ) : null}
         <Button type="button" variant="outline" size="sm" disabled={pending} onClick={loadPatientPackages}>
           Абонементы пациента
         </Button>

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 type Props = {
   apiBase?: string;
   servicesApi?: string;
+  platformUserId?: string;
 };
 
 type PurchaseRow = {
@@ -50,8 +51,11 @@ function errorLabel(code: string | null): string | null {
 export function BookingPatientProductsSection({
   apiBase = "/api/admin/booking-engine/patient-products",
   servicesApi = "/api/admin/booking-engine/services",
+  platformUserId: platformUserIdProp = "",
 }: Props) {
-  const [platformUserId, setPlatformUserId] = useState("");
+  const [platformUserIdLocal, setPlatformUserIdLocal] = useState("");
+  const platformUserId = platformUserIdProp.trim() || platformUserIdLocal;
+  const hidePatientIdField = Boolean(platformUserIdProp.trim());
   const [serviceId, setServiceId] = useState("");
   const [services, setServices] = useState<Array<{ id: string; title: string }>>([]);
   const [listed, setListed] = useState<PurchaseRow[]>([]);
@@ -122,8 +126,16 @@ export function BookingPatientProductsSection({
         <Button type="button" variant="outline" size="sm" onClick={loadServices}>
           Загрузить услуги
         </Button>
-        <Label htmlFor="pp-user">ID пациента</Label>
-        <Input id="pp-user" value={platformUserId} onChange={(e) => setPlatformUserId(e.target.value)} />
+        {!hidePatientIdField ? (
+          <>
+            <Label htmlFor="pp-user">ID пациента</Label>
+            <Input
+              id="pp-user"
+              value={platformUserIdLocal}
+              onChange={(e) => setPlatformUserIdLocal(e.target.value)}
+            />
+          </>
+        ) : null}
         <Label htmlFor="pp-svc">Услуга для списания</Label>
         <select
           id="pp-svc"

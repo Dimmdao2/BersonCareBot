@@ -56,6 +56,8 @@ describe("BookingPoliciesSection", () => {
     fetchMock.mockReset();
     fetchMock
       .mockResolvedValueOnce({ json: async () => policiesResponse })
+      .mockResolvedValueOnce({ json: async () => ({ ok: true, specialists: [], services: [] }) })
+      .mockResolvedValueOnce({ json: async () => ({ ok: true, products: [] }) })
       .mockResolvedValue({ json: async () => ({ ok: true }) });
     vi.stubGlobal("fetch", fetchMock);
   });
@@ -66,8 +68,15 @@ describe("BookingPoliciesSection", () => {
     const saveButton = await screen.findByRole("button", { name: "Сохранить отмену" });
     await user.click(saveButton);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    const saveCall = fetchMock.mock.calls[1];
+    await waitFor(() => {
+      const saveCall = fetchMock.mock.calls.find(
+        (c) => c[0] === "/api/admin/booking-engine/policies" && (c[1] as RequestInit)?.method === "POST",
+      );
+      expect(saveCall).toBeDefined();
+    });
+    const saveCall = fetchMock.mock.calls.find(
+      (c) => c[0] === "/api/admin/booking-engine/policies" && (c[1] as RequestInit)?.method === "POST",
+    );
     const body = JSON.parse(String(saveCall?.[1]?.body ?? "{}")) as Record<string, unknown>;
     expect(body.kind).toBe("cancellation");
     expect(body.lateCancellationBehavior).toBe("retain_prepayment");
@@ -86,8 +95,21 @@ describe("BookingPoliciesSection", () => {
     await user.click(screen.getByRole("option", { name: "Перенос" }));
     await user.click(await screen.findByRole("button", { name: "Сохранить перенос" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    const saveCall = fetchMock.mock.calls[1];
+    await waitFor(() => {
+      const saveCall = fetchMock.mock.calls.find(
+        (c) =>
+          c[0] === "/api/admin/booking-engine/policies" &&
+          (c[1] as RequestInit)?.method === "POST" &&
+          String((c[1] as RequestInit)?.body ?? "").includes("reschedule"),
+      );
+      expect(saveCall).toBeDefined();
+    });
+    const saveCall = fetchMock.mock.calls.find(
+      (c) =>
+        c[0] === "/api/admin/booking-engine/policies" &&
+        (c[1] as RequestInit)?.method === "POST" &&
+        String((c[1] as RequestInit)?.body ?? "").includes("reschedule"),
+    );
     const body = JSON.parse(String(saveCall?.[1]?.body ?? "{}")) as Record<string, unknown>;
     expect(body.kind).toBe("reschedule");
     expect(body.allowDifferentBranch).toBe(true);

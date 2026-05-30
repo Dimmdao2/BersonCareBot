@@ -66,3 +66,12 @@ export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS =
  */
 export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_WITH_FILTERS_CLASS =
   "lg:min-h-0 lg:max-h-[calc(100dvh-13.5rem-env(safe-area-inset-top,0px))] lg:overflow-hidden";
+
+/** Админ «Запись»: компактные карточки настроек (2 колонки md, 3 xl). */
+export const BOOKING_CARD_GRID_CLASS = "grid gap-4 md:grid-cols-2 xl:grid-cols-3";
+
+/** Админ «Запись»: формы средней ширины в две колонки на lg+. */
+export const BOOKING_CARD_GRID_WIDE_CLASS = "grid gap-4 lg:grid-cols-2";
+
+/** Ограничение ширины одиночных полей ввода в админке записи. */
+export const BOOKING_FORM_MAX_WIDTH_CLASS = "max-w-lg";

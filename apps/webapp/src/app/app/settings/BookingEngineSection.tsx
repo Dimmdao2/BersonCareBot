@@ -19,6 +19,8 @@ import {
   BookingEngineServiceList,
   BookingEngineSpecialistList,
 } from "./BookingEngineCatalogLists";
+import { BookingAvailabilityMatrixTable } from "./BookingAvailabilityMatrixTable";
+import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
 const BASE = "/api/admin/booking-engine";
 
@@ -90,7 +92,15 @@ const SLOTS_READ_SOURCE_ITEMS: { value: BookingSlotsReadSource; label: string }[
   { value: "canonical", label: "Канон" },
 ];
 
-export function BookingEngineSection() {
+export type BookingEngineSectionMode = "catalog" | "availability" | "integrations";
+
+const MODE_TITLES: Record<BookingEngineSectionMode, string> = {
+  catalog: "Каталог записи",
+  availability: "Доступность",
+  integrations: "Режим и интеграция",
+};
+
+export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngineSectionMode }) {
   const [data, setData] = useState<Overview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -187,7 +197,7 @@ export function BookingEngineSection() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Каноническая модель записи</CardTitle>
+          <CardTitle>{MODE_TITLES[mode]}</CardTitle>
         </CardHeader>
         <CardContent>Недоступно без подключения к БД.</CardContent>
       </Card>
@@ -197,7 +207,7 @@ export function BookingEngineSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Каноническая модель записи</CardTitle>
+        <CardTitle>{MODE_TITLES[mode]}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {loadError && <p className="text-sm text-destructive">{loadError}</p>}
@@ -205,6 +215,7 @@ export function BookingEngineSection() {
 
         {data && (
           <>
+            {mode === "integrations" ? (
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-1">
                 <Label>Список записей врача</Label>
@@ -322,8 +333,10 @@ export function BookingEngineSection() {
                 {data.mapping.appointments}
               </span>
             </div>
+            ) : null}
 
-            <div className="grid gap-4 md:grid-cols-2">
+            {mode === "catalog" ? (
+            <div className={BOOKING_CARD_GRID_CLASS}>
               <div className="space-y-2">
                 <Label>Организация</Label>
                 <div className="flex gap-2">
@@ -387,6 +400,7 @@ export function BookingEngineSection() {
                   isPending={isPending}
                   onChanged={catalogReload}
                   onError={setActionError}
+                  layout="table"
                 />
               </div>
 
@@ -434,6 +448,7 @@ export function BookingEngineSection() {
                   isPending={isPending}
                   onChanged={catalogReload}
                   onError={setActionError}
+                  layout="table"
                 />
               </div>
 
@@ -484,6 +499,7 @@ export function BookingEngineSection() {
                   isPending={isPending}
                   onChanged={catalogReload}
                   onError={setActionError}
+                  layout="table"
                 />
               </div>
 
@@ -545,9 +561,14 @@ export function BookingEngineSection() {
                   isPending={isPending}
                   onChanged={catalogReload}
                   onError={setActionError}
+                  layout="table"
                 />
               </div>
+            </div>
+            ) : null}
 
+            {mode === "availability" ? (
+            <div className="space-y-6">
               <div className="space-y-2 md:col-span-2">
                 <Label>Специалист × кабинет</Label>
                 <div className="flex flex-wrap gap-2">
@@ -761,7 +782,9 @@ export function BookingEngineSection() {
                   {data.locationAvailability.length} услуга×филиал
                 </p>
               </div>
+              <BookingAvailabilityMatrixTable data={data} />
             </div>
+            ) : null}
           </>
         )}
       </CardContent>

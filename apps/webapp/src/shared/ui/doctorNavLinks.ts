@@ -199,7 +199,7 @@ const CLUSTER_ADMINISTRATION: DoctorMenuCluster = {
     },
     {
       id: "admin-booking",
-      label: "Запись / Rubitime",
+      label: "Запись",
       href: "/app/doctor/admin/booking",
       requiresAdminMode: true,
     },

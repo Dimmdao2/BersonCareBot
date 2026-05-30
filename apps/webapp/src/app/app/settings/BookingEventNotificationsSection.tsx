@@ -19,7 +19,7 @@ const EVENT_LABELS: Record<BookingLifecycleNotificationEventKey, string> = {
   "booking.payment_captured": "Оплата",
 };
 
-export function BookingEventNotificationsSection() {
+export function BookingEventNotificationsSection({ layout = "cards" }: { layout?: "cards" | "compact" }) {
   const [settings, setSettings] = useState<BookingLifecycleNotificationsSettings>(
     defaultBookingLifecycleNotificationsSettings(),
   );
@@ -81,34 +81,76 @@ export function BookingEventNotificationsSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {(Object.keys(EVENT_LABELS) as BookingLifecycleNotificationEventKey[]).map((key) => {
-          const row = settings.events[key];
-          return (
-            <div key={key} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2">
-              <p className="text-sm font-medium sm:col-span-2">{EVENT_LABELS[key]}</p>
-              <div className="flex items-center gap-2">
-                <Switch checked={row.enabled} onCheckedChange={(v) => updateEvent(key, { enabled: v })} />
-                <Label>Включено</Label>
+        {layout === "compact" ? (
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left">
+                  <th className="px-3 py-2 font-medium">Событие</th>
+                  <th className="px-3 py-2 font-medium">Вкл.</th>
+                  <th className="px-3 py-2 font-medium">Пациент</th>
+                  <th className="px-3 py-2 font-medium">Персонал</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(Object.keys(EVENT_LABELS) as BookingLifecycleNotificationEventKey[]).map((key) => {
+                  const row = settings.events[key];
+                  return (
+                    <tr key={key} className="border-b border-border/60 last:border-0">
+                      <td className="px-3 py-2 font-medium">{EVENT_LABELS[key]}</td>
+                      <td className="px-3 py-2">
+                        <Switch checked={row.enabled} onCheckedChange={(v) => updateEvent(key, { enabled: v })} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Switch
+                          checked={row.notifyPatient}
+                          disabled={!row.enabled}
+                          onCheckedChange={(v) => updateEvent(key, { notifyPatient: v })}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Switch
+                          checked={row.notifyStaff}
+                          disabled={!row.enabled}
+                          onCheckedChange={(v) => updateEvent(key, { notifyStaff: v })}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          (Object.keys(EVENT_LABELS) as BookingLifecycleNotificationEventKey[]).map((key) => {
+            const row = settings.events[key];
+            return (
+              <div key={key} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2">
+                <p className="text-sm font-medium sm:col-span-2">{EVENT_LABELS[key]}</p>
+                <div className="flex items-center gap-2">
+                  <Switch checked={row.enabled} onCheckedChange={(v) => updateEvent(key, { enabled: v })} />
+                  <Label>Включено</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={row.notifyPatient}
+                    disabled={!row.enabled}
+                    onCheckedChange={(v) => updateEvent(key, { notifyPatient: v })}
+                  />
+                  <Label>Пациент</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={row.notifyStaff}
+                    disabled={!row.enabled}
+                    onCheckedChange={(v) => updateEvent(key, { notifyStaff: v })}
+                  />
+                  <Label>Персонал</Label>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={row.notifyPatient}
-                  disabled={!row.enabled}
-                  onCheckedChange={(v) => updateEvent(key, { notifyPatient: v })}
-                />
-                <Label>Пациент</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={row.notifyStaff}
-                  disabled={!row.enabled}
-                  onCheckedChange={(v) => updateEvent(key, { notifyStaff: v })}
-                />
-                <Label>Персонал</Label>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
         <Button type="button" disabled={pending} onClick={save}>
           Сохранить
         </Button>

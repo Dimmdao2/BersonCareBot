@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,20 +24,85 @@ const CANCEL_TYPES = [
   { value: "custom", label: "Индивидуально" },
 ] as const;
 
+type AppointmentOption = { id: string; label: string };
+
 type BookingManualLifecycleSectionProps = {
   /** API prefix for manual lifecycle (admin default; doctor cabinet uses `/api/doctor/booking-engine`). */
   apiBase?: string;
+  useDateTimePickers?: boolean;
+  /** При заданном ID — подгрузка записей из истории пациента вместо ручного UUID. */
+  platformUserId?: string;
 };
+
+function isoToLocalInput(iso: string): string {
+  if (!iso.trim()) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToIso(local: string): string {
+  if (!local.trim()) return "";
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return local;
+  return d.toISOString();
+}
 
 export function BookingManualLifecycleSection({
   apiBase = "/api/admin/booking-engine",
+  useDateTimePickers = false,
+  platformUserId,
 }: BookingManualLifecycleSectionProps) {
   const [appointmentId, setAppointmentId] = useState("");
+  const [appointmentOptions, setAppointmentOptions] = useState<AppointmentOption[]>([]);
   const [cancelType, setCancelType] = useState<string>("free");
   const [newStartAt, setNewStartAt] = useState("");
   const [newEndAt, setNewEndAt] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    startTransition(async () => {
+      if (!platformUserId) {
+        setAppointmentOptions([]);
+        return;
+      }
+      const res = await fetch(`/api/doctor/clients/${encodeURIComponent(platformUserId)}/history`);
+      const json = (await res.json()) as {
+        ok?: boolean;
+        timeline?: Array<{
+          appointmentId: string | null;
+          title: string;
+          occurredAt: string;
+          category: string;
+        }>;
+      };
+      if (!json.ok || !json.timeline) {
+        setAppointmentOptions([]);
+        return;
+      }
+      const byId = new Map<string, AppointmentOption>();
+      for (const item of json.timeline) {
+        if (!item.appointmentId) continue;
+        if (item.category !== "appointment" && item.category !== "reschedule") continue;
+        const at = new Date(item.occurredAt);
+        const when = Number.isNaN(at.getTime())
+          ? item.occurredAt
+          : at.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+        byId.set(item.appointmentId, {
+          id: item.appointmentId,
+          label: `${item.title} · ${when}`,
+        });
+      }
+      setAppointmentOptions([...byId.values()]);
+    });
+  }, [platformUserId]);
+
+  const appointmentLabel = useMemo(
+    () => appointmentOptions.find((o) => o.id === appointmentId)?.label,
+    [appointmentOptions, appointmentId],
+  );
 
   return (
     <Card>
@@ -46,8 +111,26 @@ export function BookingManualLifecycleSection({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label>ID канонической записи (be_appointments)</Label>
-          <Input value={appointmentId} onChange={(e) => setAppointmentId(e.target.value.trim())} />
+          <Label>Запись</Label>
+          {platformUserId && appointmentOptions.length > 0 ? (
+            <Select value={appointmentId} onValueChange={(v) => v && setAppointmentId(v)}>
+              <SelectTrigger displayLabel={appointmentLabel} className="w-full max-w-lg" />
+              <SelectContent>
+                {appointmentOptions.map((o) => (
+                  <SelectItem key={o.id} value={o.id} label={o.label}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              placeholder={platformUserId ? "Нет записей в истории" : "ID канонической записи"}
+              value={appointmentId}
+              onChange={(e) => setAppointmentId(e.target.value.trim())}
+              className="max-w-lg"
+            />
+          )}
         </div>
         <div className="flex flex-wrap gap-4">
           <div className="space-y-2">
@@ -87,10 +170,24 @@ export function BookingManualLifecycleSection({
             </Button>
           </div>
           <div className="space-y-2">
-            <Label>Новое начало (ISO)</Label>
-            <Input value={newStartAt} onChange={(e) => setNewStartAt(e.target.value)} />
-            <Label>Новое окончание (ISO)</Label>
-            <Input value={newEndAt} onChange={(e) => setNewEndAt(e.target.value)} />
+            <Label>{useDateTimePickers ? "Новое начало" : "Новое начало (ISO)"}</Label>
+            <Input
+              type={useDateTimePickers ? "datetime-local" : "text"}
+              value={useDateTimePickers ? isoToLocalInput(newStartAt) : newStartAt}
+              onChange={(e) =>
+                setNewStartAt(useDateTimePickers ? localInputToIso(e.target.value) : e.target.value)
+              }
+              className="max-w-xs"
+            />
+            <Label>{useDateTimePickers ? "Новое окончание" : "Новое окончание (ISO)"}</Label>
+            <Input
+              type={useDateTimePickers ? "datetime-local" : "text"}
+              value={useDateTimePickers ? isoToLocalInput(newEndAt) : newEndAt}
+              onChange={(e) =>
+                setNewEndAt(useDateTimePickers ? localInputToIso(e.target.value) : e.target.value)
+              }
+              className="max-w-xs"
+            />
             <Button
               type="button"
               variant="outline"
