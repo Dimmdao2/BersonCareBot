@@ -84,6 +84,13 @@ describe("booking-calendar service", () => {
     schedulingPort,
   });
 
+  const rubitimeService = createBookingCalendarService({
+    calendarPort: mockPort,
+    listScheduleBlocks,
+    schedulingPort,
+    resolveCalendarReadSource: async () => "rubitime_legacy",
+  });
+
   it("merges appointments and filtered schedule blocks", async () => {
     const result = await service.getCalendar({
       organizationId: "org1",
@@ -95,6 +102,8 @@ describe("booking-calendar service", () => {
     expect(result.events.some((e) => e.kind === "appointment")).toBe(true);
     expect(result.events.some((e) => e.kind === "block")).toBe(true);
     expect(result.filters.services).toHaveLength(1);
+    expect(result.readSource).toBe("canonical");
+    expect(result.freeSlotsEnabled).toBe(true);
   });
 
   it("filters blocks by branch", async () => {
@@ -132,5 +141,21 @@ describe("booking-calendar service", () => {
     });
     expect(result.events.some((e) => e.kind === "freeSlot")).toBe(true);
     expect(schedulingPort.getSlots).toHaveBeenCalled();
+  });
+
+  it("skips free slots when read source is rubitime_legacy", async () => {
+    const result = await rubitimeService.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      specialistId: "s1",
+      branchId: "b1",
+      serviceId: "svc1",
+      includeFreeSlots: true,
+    });
+    expect(result.events.some((e) => e.kind === "freeSlot")).toBe(false);
+    expect(result.freeSlotsEnabled).toBe(false);
+    expect(result.readSource).toBe("rubitime_legacy");
+    expect(schedulingPort.getSlots).not.toHaveBeenCalled();
   });
 });

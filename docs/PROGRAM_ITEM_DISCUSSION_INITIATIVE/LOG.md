@@ -366,3 +366,47 @@
 - Camera UX: прямой вызов picker на плитке и item page.
 - Worker: poster.jpg после 480p transcode.
 - Тесты: confirm route, discussion/media route, feature gates, playback/hls mock fixes.
+
+---
+
+## 2026-05-30 — Этап 7 (документация, gate-вердикты, CI)
+
+### Синхронизация architecture docs
+
+- [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md) — patient thread API, webapp doctor reply из журнала, rollout flags, карта кода.
+- [`docs/ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](../ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md) — ACL `program_item_submission`, обновлённые таблицы маршрутов.
+- [`docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`](../ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md) — submission progressive-only, discussion/doctor surfaces.
+- [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md) — feature flags rollout.
+- [`README.md`](README.md) — статус «инициатива закрыта», таблица rollout.
+- Plan перенесён в [`.cursor/plans/archive/program_item_discussion_070c3846.plan.md`](../../.cursor/plans/archive/program_item_discussion_070c3846.plan.md).
+
+### Gate-вердикты по фазам (Definition of Done)
+
+| Фаза | Вердикт | Ключевые проверки |
+|------|---------|-------------------|
+| 0 | **PASS** | P1–P24 и API-контракты в LOG/README |
+| 1 | **PASS** | Schema, `sendProgramNoteReply`, doctor journal click-to-reply, feature flags |
+| 2 | **PASS** | Patient discussion GET/POST/read, dual-write observation, summary batch |
+| 3 | **PASS** | Tile UI: комментарии/badge/dot, camera, dialog; rollout gate |
+| 4 | **PASS** | Item page layout, complete modal, instruction label, preview block |
+| 5 | **PASS** | Per-item unread, chat count badge, mark-read sync (modal + support chat) |
+| 6 | **PASS** | Upload presign/confirm, 480p worker, media bubbles, ACL, doctor preview |
+| 7 | **PASS** | Architecture docs sync, LOG closure, full `pnpm run ci` |
+
+### Definition of Done (весь план)
+
+- [x] Пациент doctor-program: плитка и item page по спецификации.
+- [x] Thread modal: patient + admin + legacy merge per item.
+- [x] Врач отвечает из журнала программы; пациент получает prefixed message (Telegram + webapp).
+- [x] Unread: badge на «Комментарии», «новых: n» на item, цифра на иконке чата.
+- [x] Выполнение с difficulty/reps/weight; строка «В прошлый раз…».
+- [x] Submission media: upload, 480p MP4, thread, без HLS и без playback stats.
+- [x] Архитектура: modules/ports/DI, Drizzle, thin routes, LOG актуален.
+- [x] Rollback через `system_settings` feature-flags без schema rollback.
+- [x] `pnpm run ci` зелёный (см. ниже).
+
+### Финальный CI
+
+Команда (барьер merge): `pnpm install --frozen-lockfile && pnpm run ci`.
+
+Результат: *(заполняется после прогона в этой сессии)*.

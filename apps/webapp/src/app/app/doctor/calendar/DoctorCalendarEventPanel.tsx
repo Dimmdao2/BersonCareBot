@@ -55,6 +55,7 @@ type Props = {
   activeFilters: CalendarCreateActiveFilters;
   onClose: () => void;
   onChanged: () => void;
+  legacyReadOnly?: boolean;
 };
 
 type LifecycleResponse = {
@@ -83,6 +84,7 @@ function DoctorCalendarEventPanelInner({
   activeFilters,
   onClose,
   onChanged,
+  legacyReadOnly = false,
 }: Props) {
   const [mode, setMode] = useState<"view" | "create" | "reschedule">("view");
   const [cancelType, setCancelType] = useState("free");
@@ -100,8 +102,13 @@ function DoctorCalendarEventPanelInner({
   const [createPatient, setCreatePatient] = useState<CalendarPatientOption | null>(null);
   const selectedId = selected?.id ?? null;
 
+  const isLegacyEvent = legacyReadOnly || selected?.source === "rubitime_legacy";
+
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || isLegacyEvent) {
+      setLifecycle(null);
+      return;
+    }
     let cancelled = false;
     void fetch(`${apiBase}/appointments/${encodeURIComponent(selectedId)}/lifecycle`)
       .then((res) => res.json())
@@ -114,7 +121,7 @@ function DoctorCalendarEventPanelInner({
     return () => {
       cancelled = true;
     };
-  }, [apiBase, selectedId]);
+  }, [apiBase, isLegacyEvent, selectedId]);
 
   const createDurationMinutes = useMemo(() => {
     if (!createServiceId) return null;
@@ -278,11 +285,13 @@ function DoctorCalendarEventPanelInner({
         ) : null}
       </div>
 
-      <BookingStaffPaymentPanel apiBase={apiBase} appointmentId={selected.id} />
+      {isLegacyEvent ? null : <BookingStaffPaymentPanel apiBase={apiBase} appointmentId={selected.id} />}
 
-      <AppointmentStaffCommentsSection appointmentId={selected.id} onChanged={onChanged} />
+      {isLegacyEvent ? null : (
+        <AppointmentStaffCommentsSection appointmentId={selected.id} onChanged={onChanged} />
+      )}
 
-      {mode === "reschedule" ? (
+      {mode === "reschedule" && !isLegacyEvent ? (
         <div className="mt-3 space-y-2 border-t border-border pt-3">
           <Label>Начало</Label>
           <Input type="datetime-local" value={newStartLocal} onChange={(e) => setNewStartLocal(e.target.value)} />
@@ -291,6 +300,7 @@ function DoctorCalendarEventPanelInner({
         </div>
       ) : null}
 
+      {isLegacyEvent ? null : (
       <div className="mt-4 flex flex-wrap gap-2">
         {mode !== "reschedule" ? (
           <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("reschedule")}>
@@ -357,6 +367,7 @@ function DoctorCalendarEventPanelInner({
           Отменить
         </Button>
       </div>
+      )}
       {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
     </div>
   );

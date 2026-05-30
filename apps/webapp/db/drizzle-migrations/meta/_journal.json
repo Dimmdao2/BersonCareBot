@@ -701,6 +701,13 @@
       "when": 1784200000000,
       "tag": "0099_booking_doctor_appointments_read_source",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1784300000000,
+      "tag": "0100_booking_slots_read_source",
+      "breakpoints": true
     }
   ]
 }

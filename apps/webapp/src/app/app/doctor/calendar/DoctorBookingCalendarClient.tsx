@@ -28,6 +28,8 @@ type CalendarResponse = {
   timeZone: string;
   events: CalendarEvent[];
   filters: CalendarFilterMeta;
+  readSource?: "rubitime_legacy" | "canonical";
+  freeSlotsEnabled?: boolean;
   error?: string;
 };
 
@@ -94,6 +96,8 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const [freeSlotsEnabled, setFreeSlotsEnabled] = useState(true);
+
   const load = useCallback(() => {
     startTransition(async () => {
       const qs = buildQuery({
@@ -103,7 +107,8 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
         branchId,
         roomId,
         serviceId,
-        includeFreeSlots: specialistId && branchId && serviceId ? "1" : undefined,
+        includeFreeSlots:
+          freeSlotsEnabled && specialistId && branchId && serviceId ? "1" : undefined,
       });
       const res = await fetch(`${API_BASE}/calendar?${qs}`);
       const json = (await res.json()) as CalendarResponse;
@@ -113,6 +118,7 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
       }
       setData(json);
       setError(null);
+      setFreeSlotsEnabled(json.freeSlotsEnabled !== false);
       setSpecialistId((prev) =>
         resolveCalendarCreateFieldValue(json.filters.specialists, null, prev),
       );
@@ -120,7 +126,7 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
       setRoomId((prev) => resolveCalendarCreateFieldValue(json.filters.rooms, null, prev));
       setServiceId((prev) => resolveCalendarCreateFieldValue(json.filters.services, null, prev));
     });
-  }, [anchorDate, branchId, roomId, serviceId, specialistId, view]);
+  }, [anchorDate, branchId, freeSlotsEnabled, roomId, serviceId, specialistId, view]);
 
   useEffect(() => {
     load();
@@ -369,6 +375,7 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
           timeZone={data?.timeZone ?? timeZone}
           filterMeta={filters}
           activeFilters={activeFilters}
+          legacyReadOnly={data?.readSource === "rubitime_legacy"}
           onClose={() => setSelected(null)}
           onChanged={() => {
             setSelected(null);

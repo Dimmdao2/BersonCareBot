@@ -1,5 +1,6 @@
 import type { BookingSchedulingPort } from "@/modules/booking-scheduling/ports";
 import { localDateKey } from "@/modules/booking-scheduling/computeSlots";
+import type { CalendarReadSource } from "@/infra/repos/bookingCalendarReadSwitch";
 import type { BookingCalendarPort, BookingCalendarService } from "./ports";
 import type { ScheduleBlockRecord } from "@/modules/booking-scheduling/ports";
 import type {
@@ -17,6 +18,7 @@ type Deps = {
     rangeEnd: string;
   }) => Promise<ScheduleBlockRecord[]>;
   schedulingPort?: BookingSchedulingPort;
+  resolveCalendarReadSource?: () => Promise<CalendarReadSource>;
 };
 
 function mapBlock(block: ScheduleBlockRecord): CalendarBlockEvent {
@@ -88,16 +90,25 @@ async function listFreeSlotEvents(
 export function createBookingCalendarService(deps: Deps): BookingCalendarService {
   return {
     async getCalendar(filters: CalendarFilters): Promise<CalendarAggregate> {
+      const readSource = deps.resolveCalendarReadSource
+        ? await deps.resolveCalendarReadSource()
+        : "canonical";
+      const freeSlotsEnabled = readSource === "canonical";
+      const effectiveFilters: CalendarFilters = {
+        ...filters,
+        includeFreeSlots: freeSlotsEnabled && filters.includeFreeSlots,
+      };
+
       const [appointmentEvents, blocks, filterMeta, freeSlots] = await Promise.all([
-        deps.calendarPort.listAppointmentsInRange(filters),
+        deps.calendarPort.listAppointmentsInRange(effectiveFilters),
         deps.listScheduleBlocks({
           organizationId: filters.organizationId,
           rangeStart: filters.rangeStart,
           rangeEnd: filters.rangeEnd,
         }),
         deps.calendarPort.listFilterMeta(filters.organizationId),
-        deps.schedulingPort
-          ? listFreeSlotEvents(filters, deps.calendarPort, deps.schedulingPort)
+        deps.schedulingPort && effectiveFilters.includeFreeSlots
+          ? listFreeSlotEvents(effectiveFilters, deps.calendarPort, deps.schedulingPort)
           : Promise.resolve([]),
       ]);
 
@@ -113,6 +124,8 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
       return {
         events: [...appointmentEvents, ...blockEvents, ...freeSlots],
         filters: filterMeta,
+        readSource,
+        freeSlotsEnabled,
       };
     },
   };

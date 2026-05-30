@@ -51,11 +51,18 @@ Master и сегменты запрашиваются с **того же origin*
 - Страница контента пациента (`PatientContentAdaptiveVideo` — реэкспорт) — блок «Видео» страницы (отдельное поле каталога): файл из медиатеки или iframe **YouTube / RuTube** по URL поля видео ([`hostingEmbedUrls.ts`](../../apps/webapp/src/shared/lib/hostingEmbedUrls.ts)).
 - **Тело статьи (`body_md`):** при отображении Markdown компонент [`MarkdownEmbeddedLink`](../../apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx) подставляет **`PatientMediaPlaybackVideo`** для ссылок на **`/api/media/{uuid}`** с MIME `video/*` после успешного playback JSON (те же правила сессии и флага `video_playback_api_enabled`, что у прямого запроса к API).
 - Модалка пункта этапа программы лечения (`PatientProgramStageItemModal` / `ModalMediaBlock`).
+- **Обсуждение по пункту программы** (`ProgramItemDiscussionDialog`, `ProgramItemDiscussionMessageBody`): submission-видео — progressive-only playback JSON; в списке bubble — static thumb ([`PatientCatalogMediaStaticThumb`](../../apps/webapp/src/shared/ui/patient/PatientCatalogMediaStaticThumb.tsx)), воспроизведение в player view.
+- **Журнал врача:** превью `patient_media` — [`DoctorProgramActionLogMediaPreview`](../../apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramActionLogMediaPreview.tsx).
 - **Быстрый превью видео** в медиа-пикере (`MediaPickerQuickPreviewDialog`): тот же компонент, чтобы врач/админ и будущий пациентский сценарий с пикером не расходились с кабинетом пациента.
+
+### Submission media (`usage_purpose=program_item_submission`)
+
+- Сервер выставляет `delivery: mp4` / `video_delivery_override=mp4`; HLS **не** генерируется.
+- ACL: uploader + doctor/admin — см. [`MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](MEDIA_HTTP_ACCESS_AUTHORIZATION.md).
 
 ## Авторизация и права на байты (не плеер)
 
-Модель доступа к `GET /api/media/*` и playback JSON (**сессия + читаемая строка в БД**, без привязки к пациенту/программе/контенту) описана отдельно: [`MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](MEDIA_HTTP_ACCESS_AUTHORIZATION.md).
+Модель доступа к `GET /api/media/*` и playback JSON описана отдельно: [`MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](MEDIA_HTTP_ACCESS_AUTHORIZATION.md) (CMS — сессия; **`program_item_submission`** — uploader + doctor/admin).
 
 ## Вне области компонента
 

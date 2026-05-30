@@ -79,4 +79,6 @@ export type CalendarEvent = CalendarAppointmentEvent | CalendarBlockEvent | Cale
 export type CalendarAggregate = {
   events: CalendarEvent[];
   filters: CalendarFilterMeta;
+  readSource: "rubitime_legacy" | "canonical";
+  freeSlotsEnabled: boolean;
 };

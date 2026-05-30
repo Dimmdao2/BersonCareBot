@@ -1,27 +1,36 @@
 # HTTP-доступ к файлам медиатеки: сессия, превью и отсутствие per-patient ACL
 
-**Статус:** зафиксированный аудит кода (2026-05-06). Описывает текущее поведение webapp, без предписания целевой модели прав.
+**Статус:** зафиксированный аудит кода (2026-05-06, доп. 2026-05-30 — submission ACL). Описывает текущее поведение webapp.
 
 ## Маршруты, которые отдают байты или presigned URL
 
 | Маршрут | Минимальная проверка | Дополнительно |
 |--------|----------------------|---------------|
-| `GET /api/media/[id]` | Любая валидная сессия (`getCurrentSession`) | Строка `media_files` должна быть пригодна к чтению и иметь S3-ключ (`getMediaS3KeyForRedirect` и связанные правила статуса). |
-| `GET /api/media/[id]/playback` | `assertMediaPlaybackAccess` — по сути **только непустая сессия** | Флаг `video_playback_api_enabled`; `resolveMediaPlaybackPayload` загружает строку и строит дескриптор (HLS / MP4 и т.д.). |
-| `GET /api/media/[id]/hls/[[...path]]` | Та же сессия + тот же флаг `video_playback_api_enabled` | Потоковая отдача master/variant/сегментов из private bucket через webapp; `getMediaRowForPlayback` + `isTrustedHlsArtifactS3Key`. Сегменты с **`Range`** (206). Ошибки ответов прокси — в `media_hls_proxy_error_events` (не на каждый успешный байт). Без сессии — **401** + structured **`warn`** `hls_proxy_error` (`reasonCode: session_unauthorized`); без включённого playback API — **503** — эти два случая в таблицу телеметрии **не** пишутся (политика объёма). |
+| `GET /api/media/[id]` | Валидная сессия + `assertMediaPlaybackAccess` с `getMediaAccessRow` | Для `usage_purpose=program_item_submission` — только uploader (patient) или doctor/admin ([`programSubmissionPlaybackAccess.ts`](../../apps/webapp/src/modules/media/programSubmissionPlaybackAccess.ts)). |
+| `GET /api/media/[id]/playback` | `assertMediaPlaybackAccess` + access row | Флаг `video_playback_api_enabled`; для submission — progressive MP4 only (без HLS). Stats skip для submission. |
+| `GET /api/media/[id]/hls/[[...path]]` | Сессия + `assertMediaPlaybackAccess` + access row + `video_playback_api_enabled` | Потоковая отдача master/variant/сегментов из private bucket через webapp; `getMediaRowForPlayback` + `isTrustedHlsArtifactS3Key`. Сегменты с **`Range`** (206). Ошибки ответов прокси — в `media_hls_proxy_error_events` (не на каждый успешный байт). Без сессии — **401** + structured **`warn`** `hls_proxy_error` (`reasonCode: session_unauthorized`); без включённого playback API — **503** — эти два случая в таблицу телеметрии **не** пишутся (политика объёма). |
 | `GET /api/media/[id]/preview/[size]` | Сессия | Превью по ключу (`getMediaPreviewS3KeyForRedirect`); при отсутствии превью — редирект на `GET /api/media/[id]`. |
 | `POST /api/media/presign` | Роль с доступом врача/кабинета врача (`canAccessDoctor`) | Создание pending-записи для загрузки, не потоковое чтение. |
 
 `/api/media/*` **не** входит в `patientRouteApiPolicy` / `PATIENT_BUSINESS_API_PREFIXES`: это общие маршруты Next, не поверхность `/api/patient/*`.
 
-## Что не проверяется на уровне этих handlers
+## Что не проверяется на уровне этих handlers (CMS / каталог)
 
-- Нет сопоставления `media_files.id` с пациентом, инстансом программы лечения, slug контента или назначением.
-- Любой **аутентифицированный** пользователь с известным UUID может запросить те же endpoints, если строка в БД в «читаемом» состоянии: для MP4/poster — объект доступен по выданному presigned URL; для HLS master/сегментов — по **сессии webapp** и прокси **`/api/media/{id}/hls/...`** (без наследования presign query в относительных URI плейлистов).
+- Для строк с **`usage_purpose` null** (CMS): нет сопоставления `media_files.id` с пациентом, инстансом программы лечения, slug контента или назначением.
+- Любой **аутентифицированный** пользователь с известным UUID CMS-файла может запросить те же endpoints, если строка в БД в «читаемом» состоянии.
 
-Канонический комментарий в коде (точка расширения без размазывания проверок по роутам):
+## Исключение: `program_item_submission` (контрольные фото/видео пациента)
 
-- `apps/webapp/src/modules/media/assertMediaPlaybackAccess.ts` — явно указано: та же планка, что у `GET /api/media/[id]`; «любая сессия»; зарезервировано для будущих scope (patient/doctor/content).
+- Колонка `media_files.usage_purpose = 'program_item_submission'`.
+- Patient upload: scoped API `/api/patient/media/program-submission/*` (не `/api/media/upload`).
+- Playback / redirect / HLS proxy: [`canAccessProgramSubmissionMedia`](../../apps/webapp/src/modules/media/programSubmissionPlaybackAccess.ts) — **uploader** (patient) или **doctor/admin**; чужой patient session → **401**.
+- Transcode: 480p progressive MP4, poster.jpg, без HLS; исходник удаляется после успеха.
+- Не учитывается в `recordPlaybackResolutionStat` / material-ratings.
+- Инициатива: [`docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md).
+
+Канонический комментарий в коде:
+
+- `apps/webapp/src/modules/media/assertMediaPlaybackAccess.ts` — session + optional access row; submission ACL через `canAccessProgramSubmissionMedia`.
 
 ## HLS: почему master нельзя отдавать одним presigned URL
 

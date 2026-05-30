@@ -8,18 +8,29 @@
 
 ## Статус
 
-- Активная инициатива.
-- Этап 0 (документация и контракты) выполнен.
-- Этап 1 (schema + doctor reply interim) выполнен.
-- Этап 2 (patient discussion API + dual-write observation + batch summary endpoint) выполнен.
-- Этап 3 (patient UI плитки: комментарии/badge/dot + camera + wire dialog) выполнен.
-- Этап 4 (item page: complete modal + discussion preview + payload complete API) выполнен.
-- Этап 5 (unread indicators: per-item badge, chat count badge, mark-read sync) выполнен.
-- Этап 6 (patient media submission: upload API, discussion media, playback ACL, doctor preview) выполнен.
+- **Инициатива закрыта (2026-05-30).** Этапы 0–7 выполнены; финальный CI — см. [`LOG.md`](LOG.md) §Этап 7.
+- Этап 0 (документация и контракты) — выполнен.
+- Этап 1 (schema + doctor reply interim) — выполнен.
+- Этап 2 (patient discussion API + dual-write observation + batch summary endpoint) — выполнен.
+- Этап 3 (patient UI плитки) — выполнен.
+- Этап 4 (item page: complete modal + discussion preview + payload complete API) — выполнен.
+- Этап 5 (unread indicators) — выполнен.
+- Этап 6 (patient media submission) — выполнен.
+- Этап 7 (синхронизация architecture docs + закрытие LOG + CI) — выполнен.
+
+## Rollout (`system_settings`, scope `admin`)
+
+| Ключ | Фаза | Назначение |
+|------|------|------------|
+| `patient_program_discussion_doctor_reply_from_log_enabled` | 1 | Ответ врача из журнала программы (webapp) |
+| `patient_program_discussion_ui_enabled` | 2–5 | Thread UI, discussion API, unread |
+| `patient_program_discussion_media_submission_enabled` | 6 | Камера + upload + media bubbles (требует UI-флаг) |
+
+Default: **off** до smoke на stage. Rollback — отключение флага без отката миграций.
 
 ## План исполнения
 
-- Рабочий plan-файл Cursor (локальный путь): `/home/dev/.cursor/plans/program_item_discussion_070c3846.plan.md`
+- Архив plan-файла: [`.cursor/plans/archive/program_item_discussion_070c3846.plan.md`](../../.cursor/plans/archive/program_item_discussion_070c3846.plan.md)
 
 ## Зафиксированные решения (P1-P24)
 

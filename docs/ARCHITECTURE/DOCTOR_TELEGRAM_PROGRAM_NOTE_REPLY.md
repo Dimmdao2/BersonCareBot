@@ -4,11 +4,26 @@
 
 Связанные документы: [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md), [`CONFIGURATION_ENV_VS_DATABASE.md`](CONFIGURATION_ENV_VS_DATABASE.md) (`doctor_telegram_ids`, `admin_telegram_ids`), [`apps/webapp/INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §Support chat M2M.
 
-## Пациент: наблюдение
+## Пациент: наблюдение и thread по пункту программы
 
-- UI: кнопка «Добавить комментарий» на вкладке «Программа» (`assignment_source === doctor` только) — см. [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md).
-- API: **`POST /api/patient/treatment-program-instances/{instanceId}/items/{itemId}/progress/observation-note`** — тело `{ note }`, запись в `program_action_log` (`action_type: note`, `payload.source: patient_observation`).
-- Для **`promo`** / **`course`** — **`400`**; для **`clinical_test`** — **`400`** (использовать `test-result`).
+- UI (doctor-program, `assignment_source === doctor`): вкладка «Программа» и страница пункта — см. [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md).
+- Rollout: `patient_program_discussion_ui_enabled` (thread UI), `patient_program_discussion_media_submission_enabled` (камера + upload) — оба scope `admin`, default off. Инициатива: [`docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md).
+- **Текстовый комментарий:** `POST /api/patient/treatment-program-instances/{instanceId}/items/{itemId}/discussion` — тело `{ body }`; dual-write в `program_action_log` (`action_type: note`, `payload.source: patient_observation`) и в `program_item_discussion_messages`.
+- **Legacy path** (сохранён для совместимости): `POST .../progress/observation-note` — тот же dual-write через `patientAppendObservationNote`.
+- **Медиа пациента:** presign/confirm → `POST .../discussion/media` с `{ mediaFileId }`; журнал врача — `payload.source: patient_media`.
+- Для **`promo`** / **`course`** — guards как раньше; **`clinical_test`** — отдельный flow (`test-result`).
+
+## Webapp: ответ врача из журнала программы (interim)
+
+Помимо Telegram/MAX (`program_reply`), врач может ответить из webapp:
+
+- UI: страница инстанса программы клиента — «Журнал выполнения» → клик по строке `patient_observation` → модалка → «Отправить».
+- API: **`POST /api/doctor/treatment-program-instances/{instanceId}/items/{itemId}/program-note-reply`** — тело `{ text }`.
+- Rollout: `patient_program_discussion_doctor_reply_from_log_enabled` (scope `admin`).
+- Сервис: [`sendProgramNoteReply`](../../apps/webapp/src/modules/messaging/sendProgramNoteReply.ts) — dual-write в support-чат (префикс) **и** в `program_item_discussion_messages`; idempotent по `support_message_id`.
+- Integrator route [`integratorSupportBridge.applyAdminReply`](../../apps/webapp/src/modules/messaging/integratorSupportBridge.ts) делегирует в тот же сервис при `programNoteStageItemId`.
+
+Доставка пациенту — та же, что для Telegram-ответа (PWA-чат + push по каналам).
 
 ## Уведомление врачу
 
@@ -76,13 +91,16 @@
 
 - **`/api/doctor/comments`** (CommentBlock на карточке клиента) — **не** пишет в patient messages; отдельная модель `entity_comments`.
 - Ответ врача из **`/app/doctor/messages`** без `programNoteStageItemId` — **без** префикса про упражнение (нет привязки UI к `stageItemId`).
-- Ответ врача **без** нажатия «Ответить» под уведомлением — не попадает в program-note flow (сработает подсказка unmatched или тишина для других матчей).
+- Ответ врача **без** нажатия «Ответить» под уведомлением в боте — не попадает в program-note flow (сработает подсказка unmatched или тишина для других матчей).
+- Полноценная переработка **`/app/doctor/messages`** как inbox по пунктам программы — **вне scope** v1 (interim — журнал программы + Telegram).
 
 ## Код (краткая карта)
 
 | Слой | Файлы |
 |------|--------|
-| Webapp notify / prefix | `notifyDoctorPatientProgramNote.ts`, `programNoteReplyContext.ts`, `integratorSupportBridge.ts` |
+| Webapp notify / prefix | `notifyDoctorPatientProgramNote.ts`, `programNoteReplyContext.ts`, `integratorSupportBridge.ts`, `sendProgramNoteReply.ts` |
+| Webapp patient discussion | `modules/program-item-discussion/**`, `ProgramItemDiscussionDialog.tsx`, patient discussion API routes |
+| Webapp doctor reply UI | `TreatmentProgramInstanceDetailClient.tsx`, `POST .../program-note-reply/route.ts` |
 | Webapp API | `api/integrator/program-note/reply-begin/route.ts`, `api/integrator/support/admin-reply/route.ts` |
 | Integrator scripts | `content/telegram/admin/scripts.json`, `content/max/admin/scripts.json` |
 | Integrator executor | `executeAction.ts` (`webapp.programNote.replyBegin`), `handlers/supportRelay.ts` |
