@@ -3,7 +3,19 @@ import type { DoctorAppointmentsPort } from "@/modules/doctor-appointments/ports
 /** Источник списка записей врача на переходном этапе (см. `booking_doctor_appointments_read_source`). */
 export type DoctorAppointmentsReadSource = "rubitime_legacy" | "canonical";
 
-export function parseDoctorAppointmentsReadSource(value: unknown): DoctorAppointmentsReadSource {
+function unwrapSettingValue(valueJson: unknown): unknown {
+  if (
+    valueJson !== null &&
+    typeof valueJson === "object" &&
+    "value" in (valueJson as Record<string, unknown>)
+  ) {
+    return (valueJson as { value: unknown }).value;
+  }
+  return valueJson;
+}
+
+export function parseDoctorAppointmentsReadSource(valueJson: unknown): DoctorAppointmentsReadSource {
+  const value = unwrapSettingValue(valueJson);
   if (value === "canonical") return "canonical";
   return "rubitime_legacy";
 }

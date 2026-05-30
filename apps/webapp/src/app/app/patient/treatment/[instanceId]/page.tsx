@@ -22,6 +22,14 @@ type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ 
 
 export const dynamic = "force-dynamic";
 
+function parseDiscussionUiEnabled(valueJson: unknown): boolean {
+  return (
+    valueJson !== null &&
+    typeof valueJson === "object" &&
+    (valueJson as Record<string, unknown>).value === true
+  );
+}
+
 export default async function PatientTreatmentProgramDetailPage({ params, searchParams }: Props) {
   const session = await getOptionalPatientSession();
   if (!session) {
@@ -59,18 +67,27 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
 
   const appTz = await getAppDisplayTimeZone();
 
-  const [initialTestResults, initialProgramEvents, patientIana, rules, planItemCooldownSetting] =
+  const [
+    initialTestResults,
+    initialProgramEvents,
+    patientIana,
+    rules,
+    planItemCooldownSetting,
+    discussionUiEnabledSetting,
+  ] =
     await Promise.all([
       deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
       deps.treatmentProgramInstance.listProgramEvents(instanceId),
       deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
       deps.reminders.listRulesByUser(session.user.userId),
       deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
+      deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin"),
     ]);
 
   const planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(
     planItemCooldownSetting?.valueJson ?? null,
   );
+  const patientProgramDiscussionUiEnabled = parseDiscussionUiEnabled(discussionUiEnabledSetting?.valueJson ?? null);
 
   let programDescription: string | null = null;
   if (detail.templateId) {
@@ -126,6 +143,7 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
         initialPlanTab={initialPlanTab}
         planReminderStrip={planReminderStrip}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
+        patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
       />
     </AppShell>
   );

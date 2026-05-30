@@ -238,3 +238,14 @@
   - `pnpm --dir apps/webapp test -- PatientTreatmentProgramDetailClient`
 - IDE lint diagnostics по изменённым файлам: ошибок нет.
 - `pnpm --dir apps/webapp typecheck` сейчас падает на существующей несвязанной ошибке в `src/app-layer/di/buildAppDeps.ts` (`SystemSetting.value`), вне scope этапа 3.
+
+### Исправления по аудиту этапа 3 (без хвостов)
+
+- Устранён rollout-разрыв между UI и API:
+  - `patient_program_discussion_ui_enabled` теперь читается в server page loader и прокидывается до `PatientTreatmentProgramStagePageProgramSection`.
+  - controls `Камера/Комментарии` на плитке рендерятся только при `assignment_source === doctor` **и** включённом feature-flag.
+- Добавлен негативный RTL-кейс в существующий treatment test file:
+  - при `patientProgramDiscussionUiEnabled=false` кнопки обсуждения скрыты и `GET .../discussion/summary` не вызывается.
+- Проверки после исправления:
+  - `pnpm --dir apps/webapp exec vitest --run src/app/app/patient/treatment/PatientTreatmentProgramDetailClient.test.tsx src/app/api/patient/treatment-program-instances/[instanceId]/discussion/summary/route.test.ts`
+  - `ReadLints` по изменённым файлам (ошибок нет).

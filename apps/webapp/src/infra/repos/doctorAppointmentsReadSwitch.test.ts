@@ -25,6 +25,7 @@ describe("parseDoctorAppointmentsReadSource", () => {
 
   it("accepts canonical", () => {
     expect(parseDoctorAppointmentsReadSource("canonical")).toBe("canonical");
+    expect(parseDoctorAppointmentsReadSource({ value: "canonical" })).toBe("canonical");
   });
 });
 

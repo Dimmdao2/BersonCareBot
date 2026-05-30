@@ -114,13 +114,21 @@ export function BookingEngineSection() {
   const load = useCallback(async () => {
     setLoadError(null);
     setUnavailable(false);
-    const res = await apiJson<{ ok: boolean; error?: string } & Partial<Overview>>(`${BASE}/overview`);
-    if (!res.ok && res.error === "booking_engine_unavailable") {
-      setUnavailable(true);
+    const httpRes = await fetch(`${BASE}/overview`);
+    const text = await httpRes.text();
+    let res: { ok?: boolean; error?: string; message?: string } & Partial<Overview>;
+    try {
+      res = JSON.parse(text) as typeof res;
+    } catch {
+      setLoadError(httpRes.ok ? "invalid_json" : `http_${httpRes.status}`);
       return;
     }
-    if (!res.ok) {
-      setLoadError(res.error ?? "load_failed");
+    if (!httpRes.ok || res.ok === false) {
+      if (res.error === "booking_engine_unavailable") {
+        setUnavailable(true);
+        return;
+      }
+      setLoadError(res.error ?? res.message ?? `http_${httpRes.status}`);
       return;
     }
     setData({

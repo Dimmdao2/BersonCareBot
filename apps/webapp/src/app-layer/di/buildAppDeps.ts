@@ -488,7 +488,7 @@ const doctorAppointmentsPort = createDoctorAppointmentsReadSwitchPort({
   resolveReadSource: async () => {
     if (inMemoryRepos) return "rubitime_legacy";
     const row = await systemSettingsService.getSetting("booking_doctor_appointments_read_source", "admin");
-    return parseDoctorAppointmentsReadSource(row?.value);
+    return parseDoctorAppointmentsReadSource(row?.valueJson ?? null);
   },
 });
 const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;

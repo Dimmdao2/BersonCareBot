@@ -33,7 +33,7 @@ export async function GET() {
     "booking_doctor_appointments_read_source",
     "admin",
   );
-  const doctorAppointmentsReadSource = parseDoctorAppointmentsReadSource(readSourceRow?.value);
+  const doctorAppointmentsReadSource = parseDoctorAppointmentsReadSource(readSourceRow?.valueJson ?? null);
   return NextResponse.json({
     ok: true,
     organizationId,

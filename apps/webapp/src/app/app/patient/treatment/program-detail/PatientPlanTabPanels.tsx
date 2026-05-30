@@ -45,6 +45,7 @@ export function PatientPlanTabPanels(props: {
   patientCalendarDayIana: string;
   statsRefreshToken: number;
   planItemDoneRepeatCooldownMinutes: number;
+  patientProgramDiscussionUiEnabled: boolean;
 }) {
   const {
     activeTab,
@@ -66,6 +67,7 @@ export function PatientPlanTabPanels(props: {
     patientCalendarDayIana,
     statsRefreshToken,
     planItemDoneRepeatCooldownMinutes,
+    patientProgramDiscussionUiEnabled,
   } = props;
 
   return (
@@ -84,6 +86,7 @@ export function PatientPlanTabPanels(props: {
             itemLinksPlanTab="program"
             planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
             assignmentSource={detail.assignmentSource}
+            patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
           />
         </Suspense>
       </div>

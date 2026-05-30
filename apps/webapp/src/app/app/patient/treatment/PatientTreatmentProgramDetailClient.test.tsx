@@ -23,6 +23,7 @@ const detailShellProps = {
   appDisplayTimeZone: "Europe/Moscow",
   patientCalendarDayIana: "Europe/Moscow",
   planItemDoneRepeatCooldownMinutes: 60,
+  patientProgramDiscussionUiEnabled: true,
 };
 
 function clickPatientTreatmentTab(which: "program" | "recommendations" | "progress") {
@@ -1084,5 +1085,83 @@ describe("PatientTreatmentProgramDetailClient", () => {
     fireEvent.click(commentsButton);
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Комментарии")).toBeInTheDocument();
+  });
+
+  it("hides discussion controls on program tile when discussion UI feature is disabled", async () => {
+    const itemId = "aaaaaaaa-1111-4111-8111-111111111111";
+    const fetchMock = vi.mocked(global.fetch);
+
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({
+          stages: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Рекомендации",
+              description: null,
+              sortOrder: 0,
+              localComment: null,
+              skipReason: null,
+              status: "available",
+              startedAt: null,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+            {
+              id: "33333333-3333-4333-8333-333333333333",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Этап 1",
+              description: null,
+              sortOrder: 1,
+              localComment: null,
+              skipReason: null,
+              status: "in_progress",
+              startedAt: now,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [
+                {
+                  id: itemId,
+                  stageId: "33333333-3333-4333-8333-333333333333",
+                  itemType: "exercise",
+                  itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                  sortOrder: 0,
+                  comment: null,
+                  localComment: null,
+                  settings: null,
+                  snapshot: { title: "Упражнение", media: [] },
+                  completedAt: null,
+                  isActionable: true,
+                  status: "active",
+                  groupId: null,
+                  createdAt: now,
+                  lastViewedAt: now,
+                  effectiveComment: null,
+                },
+              ],
+            },
+          ],
+        })}
+        initialTestResults={[]}
+        {...detailShellProps}
+        patientProgramDiscussionUiEnabled={false}
+      />,
+    );
+
+    clickPatientTreatmentTab("program");
+    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
+    expect(within(programPanel).queryByRole("button", { name: /Комментарии/i })).not.toBeInTheDocument();
+    expect(within(programPanel).queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion/summary"))).toBe(false);
   });
 });
