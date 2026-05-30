@@ -80,4 +80,14 @@ describe("collectMergeLosingContacts", () => {
       ),
     ).toEqual([]);
   });
+
+  it("normalizes non-E164 duplicate phone via shared normalizer", () => {
+    const losing = collectMergeLosingContacts(
+      { phone_normalized: "+79001112233", email: null },
+      { phone_normalized: "89004445566", email: null },
+    );
+    expect(losing).toEqual([
+      { contactType: "phone", value: "+79004445566", valueNormalized: "+79004445566" },
+    ]);
+  });
 });

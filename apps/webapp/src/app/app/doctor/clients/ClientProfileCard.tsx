@@ -33,6 +33,7 @@ import { DoctorNotesPanel } from "./DoctorNotesPanel";
 import { ClientBookingHistoryPanel } from "./ClientBookingHistoryPanel";
 import { groupPendingProgramTestEvaluations } from "./groupPendingProgramTestEvaluations";
 import { SubscriberBlockPanel } from "./SubscriberBlockPanel";
+import { DoctorSupplementaryContactsPanel } from "./DoctorSupplementaryContactsPanel";
 
 type ClientProfileCardProps = {
   profile: ClientProfile;
@@ -557,30 +558,17 @@ function ClientProfileCardInner({
               )
             ) : null}
             {!contactsEditing && !identity.phone ? <p>Телефон не указан</p> : null}
-            {!contactsEditing && supplementaryContacts.length > 0 ? (
-              <ul id="doctor-client-supplementary-contacts-list" className="m-0 list-none space-y-1 p-0">
-                {supplementaryContacts.map((contact) => {
-                  const telHref =
-                    contact.contactType === "phone" || contact.contactType === "whatsapp"
-                      ? phoneToTelHref(contact.value)
-                      : null;
-                  return (
-                    <li key={contact.id}>
-                      {contact.contactType === "email" ? (
-                        <a href={`mailto:${contact.value}`} className="font-medium text-primary underline">
-                          {contact.value}
-                        </a>
-                      ) : telHref ? (
-                        <a href={telHref} className="font-medium text-primary underline">
-                          {contact.value}
-                        </a>
-                      ) : (
-                        contact.value
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+            {!contactsEditing && identity.email ? (
+              <p>
+                Email:{" "}
+                <a href={`mailto:${identity.email}`} className="font-medium text-primary underline">
+                  {identity.email}
+                </a>
+              </p>
+            ) : null}
+            {!contactsEditing && !identity.email ? <p>Email не указан</p> : null}
+            {!contactsEditing ? (
+              <DoctorSupplementaryContactsPanel userId={userId} initialContacts={supplementaryContacts} />
             ) : null}
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Каналы</p>
             <ul id="doctor-client-channels-list" className="m-0 list-none p-0">

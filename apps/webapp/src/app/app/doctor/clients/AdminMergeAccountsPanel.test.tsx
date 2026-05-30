@@ -87,6 +87,7 @@ describe("AdminMergeAccountsPanel", () => {
                 treatmentProgramInstances: 0,
                 programActionLog: 0,
                 beAppointments: 0,
+                platformUserContacts: 0,
               },
               duplicate: {
                 patientBookings: 0,
@@ -102,6 +103,7 @@ describe("AdminMergeAccountsPanel", () => {
                 treatmentProgramInstances: 0,
                 programActionLog: 0,
                 beAppointments: 0,
+                platformUserContacts: 0,
               },
             },
             scalarConflicts: [],
@@ -215,6 +217,7 @@ describe("AdminMergeAccountsPanel", () => {
                 treatmentProgramInstances: 0,
                 programActionLog: 0,
                 beAppointments: 0,
+                platformUserContacts: 0,
               },
               duplicate: {
                 patientBookings: 0,
@@ -230,6 +233,7 @@ describe("AdminMergeAccountsPanel", () => {
                 treatmentProgramInstances: 0,
                 programActionLog: 0,
                 beAppointments: 0,
+                platformUserContacts: 0,
               },
             },
             scalarConflicts: [],

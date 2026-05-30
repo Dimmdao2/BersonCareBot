@@ -776,6 +776,11 @@ patientBookingService = createPatientBookingService({
   products: productsServiceResolved,
   clientHistory: clientHistoryService,
   platformUserContacts: platformUserContactsService,
+  getPlatformUserIdentityContacts: async (userId) => {
+    const identity = await doctorClientsPort.getClientIdentity(userId);
+    if (!identity) return null;
+    return { phone: identity.phone, email: identity.email ?? null };
+  },
   isRubitimeBridgeEnabled: bookingRubitimeBridgePort
     ? () => bookingRubitimeBridgePort.isBridgeEnabled()
     : undefined,

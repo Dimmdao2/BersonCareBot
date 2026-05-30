@@ -15,7 +15,13 @@ export const PLATFORM_USER_CONTACT_SOURCES = ["merge", "booking", "doctor", "adm
 export type PlatformUserContactSource = (typeof PLATFORM_USER_CONTACT_SOURCES)[number];
 
 export class PlatformUserContactValidationError extends Error {
-  readonly code: "empty_value" | "invalid_value" | "invalid_type" | "invalid_source";
+  readonly code:
+    | "empty_value"
+    | "invalid_value"
+    | "invalid_type"
+    | "invalid_source"
+    | "matches_identity"
+    | "delete_not_allowed";
 
   constructor(code: PlatformUserContactValidationError["code"]) {
     super(code);

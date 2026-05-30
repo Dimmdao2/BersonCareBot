@@ -391,10 +391,13 @@
 - Таблица `platform_user_contacts` + модуль `platform-user-contacts` (этап 2).
 - Merge fallback: непобеждающие phone/email → `platform_user_contacts` (`source=merge`), audit `mergeContactsSaved` (этап 3).
 - Booking create (canonical + legacy): best-effort upsert phone/email из формы (`source=booking`); doctor card показывает supplementary contacts отдельно от identity.
+- Post-audit: skip upsert при совпадении с identity; doctor CRUD staff-контактов; shared normalize в `@bersoncare/platform-merge`; merge preview `dependentCounts.platformUserContacts`; identity email в read-only карточке.
 
 **Не менялось:** login/tier/trusted-phone; identity phone/email только в `platform_users`.
 
-**Проверки:** `platform-user-contacts/*`, `mergeContactFallback`, `pgPlatformUserMerge`, `patient-booking/service`, `doctor-clients/service`.
+**Документация:** `PLATFORM_USER_MERGE.md` (матрица переносов), `DB_STRUCTURE.md`, `DATA_MODEL_REFERENCE.md`; план — `.cursor/plans/archive/merge+contacts_wave1-4.plan.md`.
+
+**Проверки:** vitest (merge/contacts/booking/doctor/panel RTL); `pnpm --filter @bersoncare/platform-merge build`; `pnpm --filter @bersoncare/webapp typecheck`.
 
 ## 2026-05-30 — Документация: синхронизация этапа 9
 

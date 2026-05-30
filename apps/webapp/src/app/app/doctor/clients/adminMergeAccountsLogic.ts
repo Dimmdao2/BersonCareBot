@@ -59,6 +59,7 @@ export type MergePreviewDependentCounts = {
   treatmentProgramInstances: number;
   programActionLog: number;
   beAppointments: number;
+  platformUserContacts: number;
 };
 
 export type MergePreviewApiBinding = {

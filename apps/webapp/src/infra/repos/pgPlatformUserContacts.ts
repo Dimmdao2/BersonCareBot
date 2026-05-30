@@ -32,6 +32,21 @@ export function createPgPlatformUserContactsPort(): PlatformUserContactsPort {
       return rows.map(mapRow);
     },
 
+    async getById(input) {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(platformUserContacts)
+        .where(
+          and(
+            eq(platformUserContacts.id, input.id),
+            eq(platformUserContacts.platformUserId, input.platformUserId),
+          ),
+        )
+        .limit(1);
+      return rows[0] ? mapRow(rows[0]) : null;
+    },
+
     async upsertContact(input) {
       const db = getDrizzle();
       const now = new Date().toISOString();

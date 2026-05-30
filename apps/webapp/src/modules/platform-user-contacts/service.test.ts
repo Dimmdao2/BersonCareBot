@@ -77,4 +77,46 @@ describe("createPlatformUserContactsService", () => {
     expect(await svc.deleteContact({ id: row.id, platformUserId: USER })).toBe(true);
     expect(await svc.listForPlatformUser(USER)).toHaveLength(0);
   });
+
+  it("rejects upsert when value matches identity", async () => {
+    const svc = createPlatformUserContactsService(createInMemoryPlatformUserContactsPort());
+    await expect(
+      svc.upsertIfNotIdentityDuplicate(
+        {
+          platformUserId: USER,
+          contactType: "phone",
+          value: "+79001112233",
+          source: "doctor",
+        },
+        { phone: "+79001112233", email: null },
+      ),
+    ).rejects.toMatchObject({ code: "matches_identity" });
+  });
+
+  it("deleteStaffManagedContact rejects booking/merge sources", async () => {
+    const port = createInMemoryPlatformUserContactsPort();
+    const svc = createPlatformUserContactsService(port);
+    const row = await svc.upsert({
+      platformUserId: USER,
+      contactType: "email",
+      value: "auto@example.com",
+      source: "booking",
+    });
+    await expect(
+      svc.deleteStaffManagedContact({ id: row.id, platformUserId: USER }),
+    ).rejects.toMatchObject({ code: "delete_not_allowed" });
+    expect(await svc.listForPlatformUser(USER)).toHaveLength(1);
+  });
+
+  it("deleteStaffManagedContact removes doctor source rows", async () => {
+    const svc = createPlatformUserContactsService(createInMemoryPlatformUserContactsPort());
+    const row = await svc.upsert({
+      platformUserId: USER,
+      contactType: "phone",
+      value: "+79004445566",
+      source: "doctor",
+    });
+    expect(await svc.deleteStaffManagedContact({ id: row.id, platformUserId: USER })).toBe(true);
+    expect(await svc.listForPlatformUser(USER)).toHaveLength(0);
+  });
 });

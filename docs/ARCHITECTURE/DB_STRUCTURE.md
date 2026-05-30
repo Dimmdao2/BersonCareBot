@@ -96,6 +96,7 @@
 Таблицы:
 
 - `platform_users` — канон платформы; **`merged_into_id`** — ссылка на канона для alias-строки после merge; **`merged_at`** — момент пометки alias (merge / channel-link claim), для операционной статистики и отличия от прочих обновлений `updated_at` (миграция **`0067_platform_users_merged_at.sql`**).
+- `platform_user_contacts` — supplementary phone/email и др. для UI врача; **не** участвует в login/identity; FK `platform_user_id` → `platform_users` (CASCADE); unique `(platform_user_id, contact_type, value_normalized)`; миграция **`0097_platform_user_contacts.sql`**. См. [`PLATFORM_USER_MERGE.md`](PLATFORM_USER_MERGE.md) §Supplementary contacts.
 - `user_channel_bindings`
 - `user_channel_preferences`
 - `user_notification_topics`

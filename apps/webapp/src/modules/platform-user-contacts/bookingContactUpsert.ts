@@ -1,3 +1,8 @@
+import {
+  type IdentityContactFields,
+  supplementaryContactMatchesIdentity,
+  shouldSkipSupplementaryContactUpsert,
+} from "./identityContactMatch";
 import { normalizeContactValue } from "./normalizeContactValue";
 import type { PlatformUserContactRecord } from "./ports";
 import type { PlatformUserContactsService } from "./service";
@@ -7,6 +12,8 @@ export type BookingContactSnapshotInput = {
   platformUserId: string;
   contactPhone: string;
   contactEmail?: string | null;
+  /** When set, phone/email equal to identity are not written to supplementary contacts. */
+  identity?: IdentityContactFields | null;
 };
 
 /** Best-effort upsert of booking form phone/email into supplementary contacts (does not touch identity). */
@@ -17,7 +24,7 @@ export async function upsertBookingFormContactsBestEffort(
   if (!service) return;
 
   const phone = input.contactPhone.trim();
-  if (phone) {
+  if (phone && !shouldSkipSupplementaryContactUpsert("phone", phone, input.identity)) {
     const valueNormalized = normalizeContactValue("phone", phone);
     if (valueNormalized) {
       try {
@@ -34,7 +41,7 @@ export async function upsertBookingFormContactsBestEffort(
   }
 
   const email = input.contactEmail?.trim();
-  if (email) {
+  if (email && !shouldSkipSupplementaryContactUpsert("email", email, input.identity)) {
     const valueNormalized = normalizeContactValue("email", email);
     if (valueNormalized) {
       try {
@@ -56,34 +63,13 @@ export type DoctorSupplementaryContact = Pick<
   "id" | "contactType" | "value" | "source"
 >;
 
-function normalizeIdentityEmail(email: string | null | undefined): string | null {
-  if (!email?.trim()) return null;
-  return normalizeContactValue("email", email);
-}
-
-function normalizeIdentityPhone(phone: string | null | undefined): string | null {
-  if (!phone?.trim()) return null;
-  return normalizeContactValue("phone", phone);
-}
-
 /** Doctor-facing list: hide rows that duplicate identity phone/email on `platform_users`. */
 export function toDoctorSupplementaryContacts(
   contacts: PlatformUserContactRecord[],
-  identity: { phone?: string | null; email?: string | null },
+  identity: IdentityContactFields,
 ): DoctorSupplementaryContact[] {
-  const identityPhone = normalizeIdentityPhone(identity.phone);
-  const identityEmail = normalizeIdentityEmail(identity.email);
-
   return contacts
-    .filter((row) => {
-      if ((row.contactType === "phone" || row.contactType === "whatsapp") && identityPhone) {
-        return row.valueNormalized !== identityPhone;
-      }
-      if (row.contactType === "email" && identityEmail) {
-        return row.valueNormalized !== identityEmail;
-      }
-      return true;
-    })
+    .filter((row) => !supplementaryContactMatchesIdentity(row.contactType, row.valueNormalized, identity))
     .map((row) => ({
       id: row.id,
       contactType: row.contactType,
@@ -91,3 +77,5 @@ export function toDoctorSupplementaryContacts(
       source: row.source as PlatformUserContactSource,
     }));
 }
+
+export type { IdentityContactFields } from "./identityContactMatch";

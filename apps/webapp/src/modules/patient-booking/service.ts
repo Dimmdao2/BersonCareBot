@@ -16,6 +16,7 @@ import type { MembershipsService } from "@/modules/memberships/service";
 import type { ProductsService } from "@/modules/products/service";
 import type { ClientHistoryService } from "@/modules/client-history/service";
 import type { PlatformUserContactsService } from "@/modules/platform-user-contacts/service";
+import type { IdentityContactFields } from "@/modules/platform-user-contacts/identityContactMatch";
 import { upsertBookingFormContactsBestEffort } from "@/modules/platform-user-contacts/bookingContactUpsert";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
@@ -163,6 +164,7 @@ export function createPatientBookingService(input: {
   products?: ProductsService | null;
   clientHistory?: ClientHistoryService | null;
   platformUserContacts?: PlatformUserContactsService | null;
+  getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   slotsTtlMs?: number;
@@ -195,6 +197,7 @@ export function createPatientBookingService(input: {
           products: input.products ?? null,
           clientHistory: input.clientHistory ?? null,
           platformUserContacts: input.platformUserContacts ?? null,
+          getPlatformUserIdentityContacts: input.getPlatformUserIdentityContacts,
           isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
@@ -398,10 +401,15 @@ export function createPatientBookingService(input: {
         } catch {
           // Integration notifications/reminders are best-effort and must not fail booking confirmation.
         }
+        const identity =
+          input.getPlatformUserIdentityContacts != null
+            ? await input.getPlatformUserIdentityContacts(createInput.userId)
+            : null;
         await upsertBookingFormContactsBestEffort(input.platformUserContacts, {
           platformUserId: createInput.userId,
           contactPhone: createInput.contactPhone,
           contactEmail: createInput.contactEmail,
+          identity,
         });
         if (confirmed) return confirmed;
         return pending;

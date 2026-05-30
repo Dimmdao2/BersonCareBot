@@ -19,6 +19,7 @@ const emptyCounts = (): MergePreviewDependentCounts => ({
   treatmentProgramInstances: 0,
   programActionLog: 0,
   beAppointments: 0,
+  platformUserContacts: 0,
 });
 
 function row(p: Partial<MergePreviewPlatformUserRow> & { id: string }): MergePreviewPlatformUserRow {

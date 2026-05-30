@@ -23,7 +23,7 @@
 - [`ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md) — env vs `system_settings`.
 - [`ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md`](ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md) — tier guest/onboarding/patient: **guest = нет сессии**; PWA с подтверждённым email — **patient**, не guest; trusted phone — для записи на приём.
 - [`ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) — сценарии и привязка к коду (trusted paths, ops-скрипты §8).
-- [`ARCHITECTURE/PLATFORM_USER_MERGE.md`](ARCHITECTURE/PLATFORM_USER_MERGE.md) — canonical user, logical merge, миграции 061-064.
+- [`ARCHITECTURE/PLATFORM_USER_MERGE.md`](ARCHITECTURE/PLATFORM_USER_MERGE.md) — canonical user, logical merge, миграции 061-064, supplementary contacts (`platform_user_contacts`).
 - [`ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md`](ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md) — кабинет специалиста (header, layout, карточка клиента, вкладки settings).
 - [`ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md`](ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md) — PWA-чат пациента (`/app/patient/messages`) как inbox: рассылки врача и lifecycle записи в thread, push → чат, непрочитанные (точка «Сегодня»).
 - [`ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md) — ответ врача на наблюдение пациента по упражнению: `program_reply` в Telegram/MAX, префикс в PWA-чате, M2M `program-note/reply-begin` и `support/admin-reply`.

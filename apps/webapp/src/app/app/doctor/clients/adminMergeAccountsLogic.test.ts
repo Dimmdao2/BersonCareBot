@@ -59,6 +59,7 @@ function basePreview(over: Partial<MergePreviewApiOk> = {}): MergePreviewApiOk {
         treatmentProgramInstances: 0,
         programActionLog: 0,
         beAppointments: 0,
+        platformUserContacts: 0,
       },
       duplicate: {
         patientBookings: 0,
@@ -74,6 +75,7 @@ function basePreview(over: Partial<MergePreviewApiOk> = {}): MergePreviewApiOk {
         treatmentProgramInstances: 0,
         programActionLog: 0,
         beAppointments: 0,
+        platformUserContacts: 0,
       },
     },
     scalarConflicts: [],

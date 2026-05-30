@@ -36,7 +36,14 @@
 
 ## Пациенты и формы (этапы 2, 3, 9)
 - **patient** — переиспользовать `platform_users` (не плодить дубль identity); booking-специфичные поля выносить в смежные таблицы.
-- **patient_contact** — дополнительные контакты врача (телефон/email и др.) в `platform_user_contacts` (`source`: `booking` | `merge` | `doctor` | `admin`); identity остаётся в `platform_users.phone_normalized` / `email`.
+- **patient_contact** → таблица `platform_user_contacts` (миграция **`0097_platform_user_contacts.sql`**): дополнительные контакты для карточки врача, **не** identity/login.
+  - Колонки: `contact_type`, `value`, `value_normalized`, `source` (`booking` | `merge` | `doctor` | `admin`).
+  - Unique: `(platform_user_id, contact_type, value_normalized)`.
+  - Нормализация phone/email: `@bersoncare/platform-merge` → `supplementaryContactNormalize` (общая для merge fallback и webapp).
+  - Запись: merge fallback (`source=merge`), booking create best-effort (`source=booking`, skip если = identity), врач (`source=doctor|admin`).
+  - Read: `ClientProfile.supplementaryContacts` (без дублей identity phone/email).
+  - API: `GET|POST /api/doctor/clients/:userId/supplementary-contacts`, `DELETE .../:contactId` (только staff-источники).
+  - Модуль: `apps/webapp/src/modules/platform-user-contacts/`.
 - **patient_merge_candidate** — кандидаты на объединение профилей (C5).
 - **patient_profile_field / booking_form_field** — конфигурация полей записи.
 - **booking_form_submission** — ответы пациента по записи.

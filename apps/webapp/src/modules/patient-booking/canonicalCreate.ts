@@ -13,6 +13,7 @@ import type { MembershipsService } from "@/modules/memberships/service";
 import type { ProductsService } from "@/modules/products/service";
 import type { ClientHistoryService } from "@/modules/client-history/service";
 import type { PlatformUserContactsService } from "@/modules/platform-user-contacts/service";
+import type { IdentityContactFields } from "@/modules/platform-user-contacts/identityContactMatch";
 import { upsertBookingFormContactsBestEffort } from "@/modules/platform-user-contacts/bookingContactUpsert";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type {
@@ -33,10 +34,15 @@ function isPostgresExclusionViolation(err: unknown): boolean {
 }
 
 async function persistBookingFormContacts(deps: CanonicalBookingDeps, createInput: CreatePatientBookingInput) {
+  const identity =
+    deps.getPlatformUserIdentityContacts != null
+      ? await deps.getPlatformUserIdentityContacts(createInput.userId)
+      : null;
   await upsertBookingFormContactsBestEffort(deps.platformUserContacts, {
     platformUserId: createInput.userId,
     contactPhone: createInput.contactPhone,
     contactEmail: createInput.contactEmail,
+    identity,
   });
 }
 
@@ -53,6 +59,7 @@ export type CanonicalBookingDeps = {
   products: ProductsService | null;
   clientHistory: ClientHistoryService | null;
   platformUserContacts?: PlatformUserContactsService | null;
+  getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
   isRubitimeBridgeEnabled: () => Promise<boolean>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
 };

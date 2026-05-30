@@ -143,6 +143,7 @@ describe("GET /api/doctor/clients/merge-preview", () => {
           treatmentProgramInstances: 0,
           programActionLog: 0,
           beAppointments: 0,
+          platformUserContacts: 0,
         },
         duplicate: {
           patientBookings: 0,
@@ -158,6 +159,7 @@ describe("GET /api/doctor/clients/merge-preview", () => {
           treatmentProgramInstances: 0,
           programActionLog: 0,
           beAppointments: 0,
+          platformUserContacts: 0,
         },
       },
       hardBlockers: [],

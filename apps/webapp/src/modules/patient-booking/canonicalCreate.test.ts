@@ -160,6 +160,33 @@ describe("createBookingOnCanonicalEngine", () => {
     expect(result.status).toBe("confirmed");
   });
 
+  it("does not upsert booking contacts equal to identity", async () => {
+    const upsert = vi.fn();
+    const getPlatformUserIdentityContacts = vi.fn().mockResolvedValue({
+      phone: "+79001234567",
+      email: "identity@example.com",
+    });
+    await createBookingOnCanonicalEngine(
+      {
+        ...deps(false),
+        platformUserContacts: { upsert } as never,
+        getPlatformUserIdentityContacts,
+      },
+      {
+        userId: "user-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+        contactEmail: "identity@example.com",
+      },
+    );
+    expect(getPlatformUserIdentityContacts).toHaveBeenCalledWith("user-1");
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
   it("syncs rubitime mapping when bridge is on", async () => {
     syncPort.createRecord.mockResolvedValue({ rubitimeId: "rt-99", raw: {} });
 

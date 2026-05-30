@@ -429,6 +429,44 @@ describe("createPatientBookingService", () => {
     expect(upsert).toHaveBeenCalled();
   });
 
+  it("legacy createBooking skips contacts equal to identity when resolver is wired", async () => {
+    const pending = sampleRow({
+      id: "p-contacts-skip",
+      status: "creating",
+      rubitimeId: null,
+      contactPhone: "+79990001122",
+      contactEmail: "same@example.com",
+    });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "123", raw: {} });
+    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "123" });
+    const upsert = vi.fn();
+    const getPlatformUserIdentityContacts = vi.fn().mockResolvedValue({
+      phone: "+79990001122",
+      email: "same@example.com",
+    });
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      platformUserContacts: { upsert } as never,
+      getPlatformUserIdentityContacts,
+    });
+    await svc.createBooking({
+      userId: pending.userId!,
+      type: "online",
+      category: "general",
+      slotStart: pending.slotStart,
+      slotEnd: pending.slotEnd,
+      contactName: pending.contactName,
+      contactPhone: pending.contactPhone,
+      contactEmail: pending.contactEmail ?? undefined,
+    });
+    expect(getPlatformUserIdentityContacts).toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
   it("createBooking: createRecord failure calls markFailedSync", async () => {
     const pending = sampleRow({ id: "p1", status: "creating", rubitimeId: null });
     bookingsPort.createPending.mockResolvedValue(pending);

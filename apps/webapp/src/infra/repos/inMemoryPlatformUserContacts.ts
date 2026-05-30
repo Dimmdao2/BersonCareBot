@@ -22,6 +22,10 @@ export function createInMemoryPlatformUserContactsPort(): PlatformUserContactsPo
         });
     },
 
+    async getById(input) {
+      return rows.find((r) => r.id === input.id && r.platformUserId === input.platformUserId) ?? null;
+    },
+
     async upsertContact(input) {
       const now = new Date().toISOString();
       const idx = rows.findIndex(

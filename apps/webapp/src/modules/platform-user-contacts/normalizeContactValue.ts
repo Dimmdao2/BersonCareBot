@@ -1,21 +1,5 @@
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+import { normalizeSupplementaryContactEmail, normalizeSupplementaryContactPhone } from "@bersoncare/platform-merge";
 import type { PlatformUserContactType } from "./types";
-
-function normalizeEmail(value: string): string | null {
-  const normalized = value.trim().toLowerCase();
-  if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-    return null;
-  }
-  return normalized;
-}
-
-function normalizePhoneLike(value: string): string | null {
-  const normalized = normalizeRuPhoneE164(value.trim());
-  if (!/^\+\d{10,15}$/.test(normalized)) {
-    return null;
-  }
-  return normalized;
-}
 
 function normalizeOpaque(value: string): string | null {
   const normalized = value.trim().toLowerCase();
@@ -30,9 +14,9 @@ export function normalizeContactValue(contactType: PlatformUserContactType, valu
   switch (contactType) {
     case "phone":
     case "whatsapp":
-      return normalizePhoneLike(trimmed);
+      return normalizeSupplementaryContactPhone(trimmed);
     case "email":
-      return normalizeEmail(trimmed);
+      return normalizeSupplementaryContactEmail(trimmed);
     case "telegram":
     case "max":
     case "vk":

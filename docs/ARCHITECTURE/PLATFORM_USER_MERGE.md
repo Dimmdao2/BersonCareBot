@@ -137,13 +137,40 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 **Post-commit integrator cleanup:** `deleteIntegratorPhoneData` вызывается через `getIntegratorPoolForPurge()` — при **одной БД** допускается fallback на `DATABASE_URL` с `search_path=integrator,public` (см. `platformUserFullPurge.ts`). Если очистка integrator **нужна**, но пула нет, strict purge даёт **`needs_retry`**, а не «зелёный» `completed` (`strictPlatformUserPurge.ts`).
 
+## Extended user-owned data (`mergeExtendedUserOwnedData`)
+
+При merge duplicate → target переносятся (UPDATE / UPSERT / dedupe) таблицы ниже. Реализация: `packages/platform-merge/src/pgPlatformUserMerge.ts`.
+
+| Таблица / область | Стратегия | Примечание |
+|-------------------|-----------|------------|
+| `material_ratings` | UPSERT ON CONFLICT | dedupe по `(user_id, target_kind, target_id)` |
+| `patient_daily_warmup_presentations` | UPSERT `(user_id)` | одна строка на пользователя |
+| `be_patient_booking_profiles` | UPSERT `(organization_id, platform_user_id)` | booking-репутация |
+| `product_analytics_user_hourly` | UPSERT pkey | агрегаты по часу |
+| `patient_diary_day_snapshots` | UPDATE `platform_user_id` | |
+| `webapp_reminder_occurrences` | UPDATE | |
+| `user_web_push_subscriptions` | UPDATE | |
+| `broadcast_audit_recipients` | UPDATE | |
+| `patient_content_rating_feedback` | UPDATE | |
+| `patient_practice_completions` | UPDATE | |
+| `patient_daily_warmup_video_views` | UPDATE | |
+| `program_action_log` | UPDATE | |
+| `test_attempts` | UPDATE | guard: open attempt conflict |
+| `treatment_program_instances` | UPDATE | guard: one active per patient |
+| `be_appointments`, `be_patient_timeline_events`, … | UPDATE | booking-engine domain |
+| `be_payment_*`, `be_patient_packages`, `be_product_purchases` | UPDATE | payments / memberships |
+| `product_push_notifications`, `product_analytics_events_recent` | UPDATE | analytics |
+| `platform_user_contacts` | repoint duplicate → target + merge fallback | см. ниже |
+
+Базовый перенос (до extended): bookings, diaries, media, reminders, channel/oauth bindings, scalar COALESCE на `platform_users`, email-order fix (`clearDuplicateEmailBeforeTargetNormalization`).
+
 ## Supplementary contacts (`platform_user_contacts`)
 
 Дополнительные телефоны и email для карточки врача хранятся в `platform_user_contacts` и **не** участвуют в login/identity.
 
-- **Merge:** непобеждающие phone/email из пары merge → upsert на канон с `source=merge` (`packages/platform-merge/src/mergeContactFallback.ts`); audit `mergeContactsSaved`.
-- **Booking:** phone/email из формы записи → best-effort upsert с `source=booking` после успешного create (canonical + legacy); ошибка contacts не откатывает запись.
-- **Doctor UI:** `ClientProfile.supplementaryContacts` — строки, не совпадающие с identity phone/email на `platform_users`.
+- **Merge:** непобеждающие phone/email из пары merge → upsert на канон с `source=merge` (`packages/platform-merge/src/mergeContactFallback.ts`); audit `mergeContactsSaved`; после merge — prune строк, совпадающих с identity.
+- **Booking:** phone/email из формы записи → best-effort upsert с `source=booking` после успешного create (canonical + legacy), **пропуск** если нормализованное значение совпадает с identity на `platform_users`; ошибка contacts не откатывает запись.
+- **Doctor UI:** `ClientProfile.supplementaryContacts` — строки, не совпадающие с identity phone/email; врач может добавить/удалить staff-контакты (`source=doctor` | `admin`) через `POST/DELETE .../supplementary-contacts`; строки `booking`/`merge` удалению не подлежат.
 
 ## Что явно не входит в текущую фазу
 

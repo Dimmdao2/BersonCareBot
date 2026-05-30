@@ -25,6 +25,12 @@ export {
   type MergeContactFallbackCandidate,
 } from "./mergeContactFallback.js";
 
+export {
+  normalizeRuPhoneE164,
+  normalizeSupplementaryContactEmail,
+  normalizeSupplementaryContactPhone,
+} from "./supplementaryContactNormalize.js";
+
 export type {
   MessengerPhoneBindDb,
   MessengerPhoneLinkFailureCode,

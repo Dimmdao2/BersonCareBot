@@ -13,6 +13,7 @@ export type PlatformUserContactRecord = {
 
 export type PlatformUserContactsPort = {
   listByPlatformUserId(platformUserId: string): Promise<PlatformUserContactRecord[]>;
+  getById(input: { id: string; platformUserId: string }): Promise<PlatformUserContactRecord | null>;
   upsertContact(input: {
     platformUserId: string;
     contactType: PlatformUserContactType;

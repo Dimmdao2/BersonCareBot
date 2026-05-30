@@ -61,6 +61,7 @@ export type MergePreviewDependentCounts = {
   treatmentProgramInstances: number;
   programActionLog: number;
   beAppointments: number;
+  platformUserContacts: number;
 };
 
 export type MergePreviewHardBlockerCode =
@@ -600,6 +601,7 @@ async function countDependents(pool: Pool, userId: string): Promise<MergePreview
     tpi,
     pal,
     beAppt,
+    puc,
   ] = await Promise.all([
     pool.query<{ c: number }>(
       `SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`,
@@ -650,6 +652,10 @@ async function countDependents(pool: Pool, userId: string): Promise<MergePreview
       `SELECT COUNT(*)::int AS c FROM be_appointments WHERE platform_user_id = $1::uuid`,
       [userId],
     ),
+    pool.query<{ c: number }>(
+      `SELECT COUNT(*)::int AS c FROM platform_user_contacts WHERE platform_user_id = $1::uuid`,
+      [userId],
+    ),
   ]);
   return {
     patientBookings: pb.rows[0]?.c ?? 0,
@@ -665,6 +671,7 @@ async function countDependents(pool: Pool, userId: string): Promise<MergePreview
     treatmentProgramInstances: tpi.rows[0]?.c ?? 0,
     programActionLog: pal.rows[0]?.c ?? 0,
     beAppointments: beAppt.rows[0]?.c ?? 0,
+    platformUserContacts: puc.rows[0]?.c ?? 0,
   };
 }
 

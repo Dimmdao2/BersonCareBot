@@ -62,6 +62,37 @@ describe("upsertBookingFormContactsBestEffort", () => {
 
     expect(upsert).toHaveBeenCalledTimes(2);
   });
+
+  it("skips upsert when contact matches identity phone or email", async () => {
+    const upsert = vi.fn();
+    const service = { upsert } as unknown as PlatformUserContactsService;
+
+    await upsertBookingFormContactsBestEffort(service, {
+      platformUserId: "u1",
+      contactPhone: "+79001112233",
+      contactEmail: "keep@example.com",
+      identity: { phone: "+79001112233", email: "keep@example.com" },
+    });
+
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("upserts only non-identity contact from booking form", async () => {
+    const upsert = vi.fn();
+    const service = { upsert } as unknown as PlatformUserContactsService;
+
+    await upsertBookingFormContactsBestEffort(service, {
+      platformUserId: "u1",
+      contactPhone: "+79001112233",
+      contactEmail: "alt@example.com",
+      identity: { phone: "+79001112233", email: null },
+    });
+
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ contactType: "email", source: "booking" }),
+    );
+  });
 });
 
 describe("toDoctorSupplementaryContacts", () => {

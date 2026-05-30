@@ -1,6 +1,10 @@
 import { mergeLogger as logger } from "./mergeLogger.js";
 import type { ManualMergeResolution } from "./manualMergeResolution.js";
 import type { PlatformMergeDbClient } from "./pgPlatformUserMerge.js";
+import {
+  normalizeSupplementaryContactEmail,
+  normalizeSupplementaryContactPhone,
+} from "./supplementaryContactNormalize.js";
 
 export type MergeContactFallbackCandidate = {
   contactType: "phone" | "email";
@@ -19,17 +23,11 @@ type MergePartyContactFields = {
 };
 
 function normalizeEmailForContacts(email: string | null | undefined): string | null {
-  const trimmed = email?.trim();
-  if (!trimmed) return null;
-  const normalized = trimmed.toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) return null;
-  return normalized;
+  return normalizeSupplementaryContactEmail(email);
 }
 
 function normalizePhoneForContacts(phone: string | null | undefined): string | null {
-  const trimmed = phone?.trim();
-  if (!trimmed || !/^\+\d{10,15}$/.test(trimmed)) return null;
-  return trimmed;
+  return normalizeSupplementaryContactPhone(phone);
 }
 
 function pickIdentityPhoneRaw(
