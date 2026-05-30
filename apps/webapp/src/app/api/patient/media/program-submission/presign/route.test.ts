@@ -80,6 +80,33 @@ describe("POST /api/patient/media/program-submission/presign", () => {
     expect(res.status).toBe(403);
   });
 
+  it("returns 413 when file exceeds 250 MiB", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/patient/media/program-submission/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: "big.mp4",
+          mimeType: "video/mp4",
+          size: 300 * 1024 * 1024,
+        }),
+      }),
+    );
+    expect(res.status).toBe(413);
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 415 for disallowed mime", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/patient/media/program-submission/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: "a.exe", mimeType: "application/x-msdownload", size: 1000 }),
+      }),
+    );
+    expect(res.status).toBe(415);
+  });
+
   it("returns presign payload for allowed mime", async () => {
     const res = await POST(
       new Request("http://localhost/api/patient/media/program-submission/presign", {

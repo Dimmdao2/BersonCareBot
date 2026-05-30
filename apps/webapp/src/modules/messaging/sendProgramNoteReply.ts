@@ -79,7 +79,7 @@ export function createSendProgramNoteReply(deps: {
       createdAt,
     });
 
-    if (deps.notifyPatientOfDoctorReply) {
+    if (supportMessage.created && deps.notifyPatientOfDoctorReply) {
       await deps.notifyPatientOfDoctorReply({
         platformUserId,
         messageId: integratorMessageId,

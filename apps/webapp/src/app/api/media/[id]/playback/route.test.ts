@@ -152,6 +152,7 @@ describe("GET /api/media/[id]/playback", () => {
       videoRow({
         video_processing_status: "processing",
         hls_master_playlist_s3_key: null,
+        poster_s3_key: null,
       }),
     );
     const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
@@ -217,7 +218,7 @@ describe("GET /api/media/[id]/playback", () => {
 
   it("ignores ?prefer= for non-admin", async () => {
     getConfigValueMock.mockResolvedValue("mp4");
-    getRowMock.mockResolvedValue(videoRow());
+    getRowMock.mockResolvedValue(videoRow({ poster_s3_key: null }));
     const res = await GET(
       new Request(`http://localhost/api/media/${mid}/playback?prefer=hls`),
       { params: Promise.resolve({ id: mid }) },

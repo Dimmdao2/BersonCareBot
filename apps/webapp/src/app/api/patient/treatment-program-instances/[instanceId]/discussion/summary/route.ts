@@ -4,7 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { exerciseTitleFromSnapshot } from "@/modules/messaging/programNoteReplyContext";
-import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
+import { getDiscussionSummaryForItem } from "@/modules/program-item-discussion/listDiscussionPage";
 
 function parseFeatureEnabled(valueJson: unknown): boolean {
   return (
@@ -12,15 +12,6 @@ function parseFeatureEnabled(valueJson: unknown): boolean {
     typeof valueJson === "object" &&
     (valueJson as Record<string, unknown>).value === true
   );
-}
-
-function compareByPosition(
-  a: Pick<ProgramItemDiscussionMessage, "createdAt" | "id">,
-  b: Pick<ProgramItemDiscussionMessage, "createdAt" | "id">,
-): number {
-  const byDate = a.createdAt.localeCompare(b.createdAt);
-  if (byDate !== 0) return byDate;
-  return a.id.localeCompare(b.id);
 }
 
 function parseRequestedItemIds(raw: string | null): string[] | null {
@@ -31,50 +22,6 @@ function parseRequestedItemIds(raw: string | null): string[] | null {
     .filter((x) => x.length > 0);
   if (chunks.length === 0) return null;
   return chunks;
-}
-
-async function listAllDiscussionMessages(
-  deps: ReturnType<typeof buildAppDeps>,
-  stageItemId: string,
-): Promise<ProgramItemDiscussionMessage[]> {
-  const pageSize = 1000;
-  const out: ProgramItemDiscussionMessage[] = [];
-  let offset = 0;
-  while (true) {
-    const batch = await deps.programItemDiscussion.listMessagesForStageItem(stageItemId, pageSize, offset);
-    if (batch.length === 0) break;
-    out.push(...batch);
-    offset += batch.length;
-    if (batch.length < pageSize) break;
-  }
-  return out;
-}
-
-async function listAllLegacyAdminReplies(params: {
-  deps: ReturnType<typeof buildAppDeps>;
-  patientUserId: string;
-  stageItemId: string;
-  exerciseTitle: string;
-  excludeSupportMessageIds: string[];
-}): Promise<ProgramItemDiscussionMessage[]> {
-  const pageSize = 500;
-  const out: ProgramItemDiscussionMessage[] = [];
-  let offset = 0;
-  while (true) {
-    const batch = await params.deps.programItemDiscussion.mergeLegacyAdminReplies({
-      patientUserId: params.patientUserId,
-      stageItemId: params.stageItemId,
-      exerciseTitle: params.exerciseTitle,
-      excludeSupportMessageIds: params.excludeSupportMessageIds,
-      limit: pageSize,
-      offset,
-    });
-    if (batch.length === 0) break;
-    out.push(...batch);
-    offset += batch.length;
-    if (batch.length < pageSize) break;
-  }
-  return out;
 }
 
 export async function GET(
@@ -119,31 +66,26 @@ export async function GET(
   const summaryByItemIdEntries = await Promise.all(
     itemIds.map(async (itemId) => {
       const item = byId.get(itemId)!;
-      const [messages, unreadCount] = await Promise.all([
-        listAllDiscussionMessages(deps, itemId),
+      const exerciseTitle = exerciseTitleFromSnapshot(item.snapshot);
+      const [summary, unreadCount] = await Promise.all([
+        getDiscussionSummaryForItem({
+          discussion: deps.programItemDiscussion,
+          stageItemId: itemId,
+          patientUserId: gate.session.user.userId,
+          exerciseTitle,
+        }),
         deps.programItemDiscussion.getUnreadCount({
           patientUserId: gate.session.user.userId,
           stageItemId: itemId,
-          exerciseTitle: exerciseTitleFromSnapshot(item.snapshot),
+          exerciseTitle,
         }),
       ]);
-      const supportIds = messages
-        .map((x) => x.supportMessageId)
-        .filter((x): x is string => typeof x === "string" && x.length > 0);
-      const legacy = await listAllLegacyAdminReplies({
-        deps,
-        patientUserId: gate.session.user.userId,
-        stageItemId: itemId,
-        exerciseTitle: exerciseTitleFromSnapshot(item.snapshot),
-        excludeSupportMessageIds: supportIds,
-      });
-      const merged = [...messages, ...legacy].sort(compareByPosition);
       return [
         itemId,
         {
-          totalCount: merged.length,
+          totalCount: summary.totalCount,
           unreadCount,
-          lastMessage: merged.length > 0 ? merged[merged.length - 1] : null,
+          lastMessage: summary.lastMessage,
         },
       ] as const;
     }),

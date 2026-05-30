@@ -59,7 +59,7 @@ Default: **off** до smoke на stage. Rollback — отключение фла
 
 ## Нормативные ссылки
 
-- Правила исполнения инициативы: [`../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md)
-- Модульная изоляция и thin routes: [`../../.cursor/rules/clean-architecture-module-isolation.mdc`](../../.cursor/rules/clean-architecture-module-isolation.mdc)
-- Ответ врача на наблюдение пациента: [`../ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md)
-- Patient media playback: [`../ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`](../ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md)
+- Правила исполнения инициативы: [`../../../../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](../../../../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md)
+- Модульная изоляция и thin routes: [`../../../../.cursor/rules/clean-architecture-module-isolation.mdc`](../../../../.cursor/rules/clean-architecture-module-isolation.mdc)
+- Ответ врача на наблюдение пациента: [`../../../../ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md)
+- Patient media playback: [`../../../../ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`](../../../../ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md)

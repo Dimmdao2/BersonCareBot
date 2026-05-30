@@ -6,27 +6,43 @@ const {
   getSettingMock,
   getInstanceForPatientMock,
   listMessagesForStageItemMock,
+  listMessagesPageMock,
   mergeLegacyAdminRepliesMock,
+  countMessagesForItemMock,
+  countLegacyAdminRepliesMock,
+  listLinkedSupportMessageIdsMock,
   getUnreadCountMock,
 } = vi.hoisted(() => {
   const getSettingMockInner = vi.fn();
   const getInstanceForPatientMockInner = vi.fn();
   const listMessagesForStageItemMockInner = vi.fn();
+  const listMessagesPageMockInner = vi.fn();
   const mergeLegacyAdminRepliesMockInner = vi.fn();
+  const countMessagesForItemMockInner = vi.fn();
+  const countLegacyAdminRepliesMockInner = vi.fn();
+  const listLinkedSupportMessageIdsMockInner = vi.fn();
   const getUnreadCountMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
     getSettingMock: getSettingMockInner,
     getInstanceForPatientMock: getInstanceForPatientMockInner,
     listMessagesForStageItemMock: listMessagesForStageItemMockInner,
+    listMessagesPageMock: listMessagesPageMockInner,
     mergeLegacyAdminRepliesMock: mergeLegacyAdminRepliesMockInner,
+    countMessagesForItemMock: countMessagesForItemMockInner,
+    countLegacyAdminRepliesMock: countLegacyAdminRepliesMockInner,
+    listLinkedSupportMessageIdsMock: listLinkedSupportMessageIdsMockInner,
     getUnreadCountMock: getUnreadCountMockInner,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: { getSetting: getSettingMockInner },
       treatmentProgramInstance: { getInstanceForPatient: getInstanceForPatientMockInner },
       programItemDiscussion: {
         listMessagesForStageItem: listMessagesForStageItemMockInner,
+        listMessagesPage: listMessagesPageMockInner,
         mergeLegacyAdminReplies: mergeLegacyAdminRepliesMockInner,
+        countMessagesForItem: countMessagesForItemMockInner,
+        countLegacyAdminRepliesForStageItem: countLegacyAdminRepliesMockInner,
+        listLinkedSupportMessageIdsForStageItem: listLinkedSupportMessageIdsMockInner,
         getUnreadCount: getUnreadCountMockInner,
       },
     })),
@@ -52,7 +68,11 @@ describe("GET discussion summary", () => {
     getSettingMock.mockReset();
     getInstanceForPatientMock.mockReset();
     listMessagesForStageItemMock.mockReset();
+    listMessagesPageMock.mockReset();
     mergeLegacyAdminRepliesMock.mockReset();
+    countMessagesForItemMock.mockReset();
+    countLegacyAdminRepliesMock.mockReset();
+    listLinkedSupportMessageIdsMock.mockReset();
     getUnreadCountMock.mockReset();
 
     gateMock.mockResolvedValue({
@@ -97,6 +117,16 @@ describe("GET discussion summary", () => {
           ]
         : [],
     );
+    listMessagesPageMock.mockImplementation(async (input: { stageItemId: string; limit: number }) => {
+      const all = await listMessagesForStageItemMock(input.stageItemId);
+      return all.slice(-input.limit);
+    });
+    countMessagesForItemMock.mockImplementation(async (id: string) => {
+      const all = await listMessagesForStageItemMock(id);
+      return all.length;
+    });
+    countLegacyAdminRepliesMock.mockResolvedValue(0);
+    listLinkedSupportMessageIdsMock.mockResolvedValue([]);
     mergeLegacyAdminRepliesMock.mockResolvedValue([]);
     getUnreadCountMock.mockResolvedValue(0);
   });

@@ -3,14 +3,18 @@ import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
 import {
   confirmProgramSubmissionMediaFileReady,
+  deletePendingMediaFileById,
   getMediaRowForConfirm,
 } from "@/app-layer/media/s3MediaStorage";
 import { enqueueProgramSubmissionTranscodeAfterConfirm } from "@/app-layer/media/programSubmissionTranscodeEnqueue";
-import { s3HeadObject } from "@/app-layer/media/s3Client";
+import { s3HeadObjectDetails } from "@/app-layer/media/s3Client";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { isProgramSubmissionVideoMime } from "@/modules/media/programSubmissionUploadLimits";
+import {
+  isProgramSubmissionVideoMime,
+  validateProgramSubmissionS3Head,
+} from "@/modules/media/programSubmissionUploadLimits";
 import { isPatientProgramDiscussionMediaFlowEnabled } from "@/modules/program-item-discussion/discussionFeatureGates";
 
 const bodySchema = z.object({
@@ -60,6 +64,7 @@ export async function POST(request: Request) {
       ok: true as const,
       url: appUrl,
       mediaId: parsed.data.mediaId,
+      processing: isProgramSubmissionVideoMime(row.mime_type),
     });
   }
 
@@ -67,9 +72,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_status" }, { status: 409 });
   }
 
-  const exists = await s3HeadObject(row.s3_key);
-  if (!exists) {
+  const head = await s3HeadObjectDetails(row.s3_key);
+  if (!head) {
     return NextResponse.json({ ok: false, error: "file_not_found_in_s3" }, { status: 404 });
+  }
+
+  const declaredSize = row.size_bytes ?? head.contentLength;
+  const s3Check = validateProgramSubmissionS3Head({
+    declaredMime: row.mime_type,
+    declaredSizeBytes: declaredSize,
+    contentLength: head.contentLength,
+    contentType: head.contentType,
+  });
+  if (!s3Check.ok) {
+    await deletePendingMediaFileById(parsed.data.mediaId).catch(() => {
+      /* best-effort */
+    });
+    const status = s3Check.error === "file_too_large" ? 413 : 415;
+    return NextResponse.json({ ok: false, error: s3Check.error }, { status });
   }
 
   const updated = await confirmProgramSubmissionMediaFileReady(parsed.data.mediaId);
@@ -80,18 +100,23 @@ export async function POST(request: Request) {
         ok: true as const,
         url: appUrl,
         mediaId: parsed.data.mediaId,
+        processing: isProgramSubmissionVideoMime(again.mime_type),
       });
     }
     return NextResponse.json({ ok: false, error: "confirm_race" }, { status: 409 });
   }
 
-  if (isProgramSubmissionVideoMime(row.mime_type)) {
-    await enqueueProgramSubmissionTranscodeAfterConfirm(parsed.data.mediaId);
+  const isVideo = isProgramSubmissionVideoMime(row.mime_type);
+  let processing = false;
+  if (isVideo) {
+    const enq = await enqueueProgramSubmissionTranscodeAfterConfirm(parsed.data.mediaId);
+    processing = enq.ok;
   }
 
   return NextResponse.json({
     ok: true as const,
     url: appUrl,
     mediaId: parsed.data.mediaId,
+    processing,
   });
 }

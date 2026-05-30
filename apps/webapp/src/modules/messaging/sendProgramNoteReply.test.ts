@@ -26,7 +26,7 @@ describe("createSendProgramNoteReply", () => {
       itemStatus: "active",
     });
     const ensureWebappConversationForUser = vi.fn().mockResolvedValue({ id: "conv-1" });
-    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "support-msg-1" });
+    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "support-msg-1", created: true });
     const notifyPatientOfDoctorReply = vi.fn().mockResolvedValue(undefined);
     const appendDoctorReplyForProgramNote = vi.fn().mockResolvedValue({ id: "discussion-1" });
 
@@ -84,7 +84,8 @@ describe("createSendProgramNoteReply", () => {
       assignmentSource: "doctor",
       itemStatus: "active",
     });
-    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "support-msg-dup" });
+    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "support-msg-dup", created: false });
+    const notifyPatientOfDoctorReply = vi.fn().mockResolvedValue(undefined);
     const sendProgramNoteReply = createSendProgramNoteReply({
       supportCommunication: {
         ensureWebappConversationForUser: vi.fn().mockResolvedValue({ id: "conv-1" }),
@@ -93,6 +94,7 @@ describe("createSendProgramNoteReply", () => {
       discussion: {
         appendDoctorReplyForProgramNote: vi.fn().mockResolvedValue({ id: "discussion-dup" }),
       } as unknown as ProgramItemDiscussionService,
+      notifyPatientOfDoctorReply,
     });
 
     await sendProgramNoteReply({
@@ -105,6 +107,7 @@ describe("createSendProgramNoteReply", () => {
     expect(appendWebappMessage).toHaveBeenCalledWith(
       expect.objectContaining({ integratorMessageId: "webapp-msg:idempotent-1" }),
     );
+    expect(notifyPatientOfDoctorReply).not.toHaveBeenCalled();
   });
 
   it("returns mismatch when stage item belongs another patient", async () => {

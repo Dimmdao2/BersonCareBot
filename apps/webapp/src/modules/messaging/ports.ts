@@ -12,5 +12,5 @@ export type PatientInboundChatPort = {
     text: string;
     source: string;
     createdAt: string;
-  }): Promise<{ id: string }>;
+  }): Promise<{ id: string; created: boolean }>;
 };

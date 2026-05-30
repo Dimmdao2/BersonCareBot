@@ -414,6 +414,29 @@
 
 ---
 
+## 2026-05-30 — Доведение до идеала (post-audit hardening)
+
+### Media submission (P14)
+- Лимит upload: **250 MiB**; confirm сверяет S3 HEAD (size/MIME).
+- Video attach только при `video_processing_status=ready`; enqueue fail → `failed` + блок attach.
+- Status API: `{ ready, state, error? }`.
+
+### P24 / playback
+- Discussion bubble: static thumb без Play-overlay; playback в модалке.
+- Poster presign для mp4-only submission; playback events skip для `program_item_submission`.
+
+### P19 / P20
+- Doctor webapp reply: стабильный `webapp-program-note:{hash}`; notify только при `created: true`.
+- Discussion GET/summary: DB cursor paging + bounded legacy merge; ambiguous title → legacy не мержится.
+
+### UX (P3/P13)
+- Tile aria «Инструкция от специалиста»; «В прошлый раз» — reps и/или weight.
+
+### Тесты
+- presign 413/415, confirm 413, status, program-note-reply idempotency, upload limits, worker layout, discussion route.
+
+---
+
 ## 2026-05-30 — Закрытие независимого аудита (этапы 0–7 → 100% code)
 
 ### Что исправлено

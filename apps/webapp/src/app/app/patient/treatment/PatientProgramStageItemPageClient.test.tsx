@@ -21,13 +21,16 @@ const now = "2026-01-01T00:00:00.000Z";
 const instanceId = "11111111-1111-4111-8111-111111111111";
 const itemId = "33333333-3333-4333-8333-333333333333";
 
-function makeDetail(): TreatmentProgramInstanceDetail {
+function makeDetail(
+  over: Partial<Pick<TreatmentProgramInstanceDetail, "assignmentSource">> = {},
+): TreatmentProgramInstanceDetail {
   return {
     id: instanceId,
     patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     templateId: null,
     assignedBy: null,
     assignmentSource: "doctor",
+    ...over,
     title: "Программа",
     status: "active",
     createdAt: now,
@@ -300,4 +303,49 @@ describe("PatientProgramStageItemPageClient", () => {
     expect(screen.queryByRole("button", { name: /Открыть комментарии/i })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion"))).toBe(false);
   });
+
+  it.each(["promo", "course"] as const)(
+    "hides discussion controls for %s programs when discussion flags are on (P1)",
+    async (assignmentSource) => {
+      const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/checklist-today")) {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              doneItemIds: [],
+              doneTodayCountByItemId: {},
+              lastDoneAtIsoByItemId: {},
+              doneTodayCountByActivityKey: {},
+              lastDoneAtIsoByActivityKey: {},
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ ok: false }), { status: 404 });
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      render(
+        <PatientProgramStageItemPageClient
+          instanceId={instanceId}
+          itemId={itemId}
+          navMode="exec"
+          backHref="/app/patient/treatment"
+          initialDetail={makeDetail({ assignmentSource })}
+          appDisplayTimeZone="Europe/Moscow"
+          itemLinksPlanTab="program"
+          planItemDoneRepeatCooldownMinutes={60}
+          patientProgramDiscussionUiEnabled
+          patientProgramDiscussionMediaSubmissionEnabled
+        />,
+      );
+
+      expect(await screen.findByText("Инструкция от специалиста")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Оставить комментарий к выполнению/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Открыть комментарии/i })).not.toBeInTheDocument();
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion"))).toBe(false);
+    },
+  );
 });

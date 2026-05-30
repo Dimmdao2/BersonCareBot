@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { buildWebappProgramNoteReplyIntegratorMessageId } from "@/modules/messaging/programNoteReplyIdempotency";
 import { webappPlatformConversationId } from "@/modules/messaging/supportConversationIds";
 
 const bodySchema = z.object({
@@ -57,7 +58,12 @@ export async function POST(
 
   const result = await deps.sendProgramNoteReply({
     integratorConversationId: webappPlatformConversationId(instance.patientUserId),
-    integratorMessageId: `webapp-msg:${crypto.randomUUID()}`,
+    integratorMessageId: buildWebappProgramNoteReplyIntegratorMessageId({
+      doctorUserId: session.user.userId,
+      instanceId,
+      stageItemId,
+      text: parsed.data.text,
+    }),
     stageItemId,
     text: parsed.data.text,
     source: "webapp",

@@ -484,7 +484,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                   ) : null}
                   {doctorComment ? (
                     <ProgramTileHintButton
-                      ariaLabel="Комментарий специалиста"
+                      ariaLabel="Инструкция от специалиста"
                       icon={<Info className="size-4 shrink-0 text-[#714c2f]" aria-hidden />}
                     >
                       <p className="m-0 whitespace-pre-wrap text-xs leading-relaxed text-[#714c2f]">

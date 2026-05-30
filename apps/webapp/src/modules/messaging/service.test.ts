@@ -33,7 +33,7 @@ describe("createPatientMessagingService", () => {
         mergedConversationCount: 0,
         movedMessageCount: 0,
       }),
-      appendWebappMessage: vi.fn().mockResolvedValue({ id: "m1" }),
+      appendWebappMessage: vi.fn().mockResolvedValue({ id: "m1", created: true }),
     } as unknown as SupportCommunicationPort;
     const svc = createPatientMessagingService(port, {
       notifyDoctorOfPatientMessage,

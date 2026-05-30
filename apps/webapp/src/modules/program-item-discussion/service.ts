@@ -1,6 +1,7 @@
 import type { ProgramItemDiscussionPort } from "./ports";
 import type {
   ProgramItemDiscussionLegacyMergeInput,
+  ProgramItemDiscussionListPageInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
 } from "./types";
@@ -103,8 +104,39 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
       return port.listMessagesForStageItem(assertUuid(stageItemId, "stage_item_id"), limit, safeOffset);
     },
 
+    async listMessagesPage(input: ProgramItemDiscussionListPageInput): Promise<ProgramItemDiscussionMessage[]> {
+      return port.listMessagesPage({
+        ...input,
+        stageItemId: assertUuid(input.stageItemId, "stage_item_id"),
+        limit: Math.max(1, Math.trunc(input.limit)),
+      });
+    },
+
     async countMessagesForItem(stageItemId: string): Promise<number> {
       return port.countMessagesForItem(assertUuid(stageItemId, "stage_item_id"));
+    },
+
+    async listLinkedSupportMessageIdsForStageItem(stageItemId: string): Promise<string[]> {
+      return port.listLinkedSupportMessageIdsForStageItem(assertUuid(stageItemId, "stage_item_id"));
+    },
+
+    async countLegacyAdminRepliesForStageItem(
+      input: ProgramItemDiscussionLegacyMergeInput,
+    ): Promise<number> {
+      const stageItemId = assertUuid(input.stageItemId, "stage_item_id");
+      const patientUserId = assertUuid(input.patientUserId, "patient_user_id");
+      const exerciseTitle = input.exerciseTitle.trim();
+      if (!exerciseTitle) return 0;
+      const excludeSupportMessageIds = (input.excludeSupportMessageIds ?? []).map((id) =>
+        assertUuid(id, "support_message_id"),
+      );
+      return port.countLegacyAdminRepliesForStageItem({
+        patientUserId,
+        stageItemId,
+        exerciseTitle,
+        excludeSupportMessageIds,
+        requireUniqueStageItemAttribution: input.requireUniqueStageItemAttribution,
+      });
     },
 
     async mergeLegacyAdminReplies(input: ProgramItemDiscussionLegacyMergeInput): Promise<ProgramItemDiscussionMessage[]> {
@@ -122,6 +154,7 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
         excludeSupportMessageIds,
         limit: input.limit,
         offset: input.offset,
+        requireUniqueStageItemAttribution: input.requireUniqueStageItemAttribution,
       });
     },
 

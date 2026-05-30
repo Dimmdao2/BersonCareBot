@@ -66,8 +66,13 @@ export async function waitForProgramSubmissionMediaReady(
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const res = await fetch(`/api/patient/media/program-submission/${encodeURIComponent(mediaId)}/status`);
-    const data = (await res.json().catch(() => null)) as { ok?: boolean; ready?: boolean } | null;
+    const data = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      ready?: boolean;
+      state?: string;
+    } | null;
     if (res.ok && data?.ok && data.ready) return true;
+    if (res.ok && data?.ok && data.state === "failed") return false;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   return false;

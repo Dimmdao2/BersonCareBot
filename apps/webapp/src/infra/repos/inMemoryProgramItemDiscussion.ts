@@ -2,6 +2,7 @@ import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussio
 import type {
   ProgramItemDiscussionLegacyMergeInput,
   ProgramItemDiscussionLegacyUnreadInput,
+  ProgramItemDiscussionListPageInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
 } from "@/modules/program-item-discussion/types";
@@ -61,6 +62,45 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
 
     async countMessagesForItem(stageItemId: string): Promise<number> {
       return [...rows.values()].filter((x) => x.instanceStageItemId === stageItemId).length;
+    },
+
+    async listMessagesPage(input: ProgramItemDiscussionListPageInput): Promise<ProgramItemDiscussionMessage[]> {
+      const sorted = [...rows.values()]
+        .filter((x) => x.instanceStageItemId === input.stageItemId)
+        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id)));
+
+      if (input.direction === "forward") {
+        let start = 0;
+        if (input.cursor) {
+          while (
+            start < sorted.length &&
+            (sorted[start]!.createdAt < input.cursor.createdAt ||
+              (sorted[start]!.createdAt === input.cursor.createdAt && sorted[start]!.id <= input.cursor.id))
+          ) {
+            start += 1;
+          }
+        }
+        return sorted.slice(start, start + input.limit).map((x) => ({ ...x }));
+      }
+
+      let endExclusive = sorted.length;
+      if (input.cursor) {
+        endExclusive = 0;
+        while (
+          endExclusive < sorted.length &&
+          (sorted[endExclusive]!.createdAt < input.cursor.createdAt ||
+            (sorted[endExclusive]!.createdAt === input.cursor.createdAt &&
+              sorted[endExclusive]!.id < input.cursor.id))
+        ) {
+          endExclusive += 1;
+        }
+      }
+      const start = Math.max(0, endExclusive - input.limit);
+      return sorted.slice(start, endExclusive).map((x) => ({ ...x }));
+    },
+
+    async countLegacyAdminRepliesForStageItem(_input: ProgramItemDiscussionLegacyMergeInput): Promise<number> {
+      return 0;
     },
 
     async mergeLegacyAdminReplies(_input: ProgramItemDiscussionLegacyMergeInput): Promise<ProgramItemDiscussionMessage[]> {

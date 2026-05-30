@@ -7,7 +7,9 @@ describe("program item discussion service unread", () => {
     const port: ProgramItemDiscussionPort = {
       insertMessage: vi.fn(),
       listMessagesForStageItem: vi.fn(),
+      listMessagesPage: vi.fn(),
       countMessagesForItem: vi.fn(),
+      countLegacyAdminRepliesForStageItem: vi.fn(),
       mergeLegacyAdminReplies: vi.fn(),
       markRead: vi.fn(),
       getUnreadCount: vi.fn().mockResolvedValue(1),

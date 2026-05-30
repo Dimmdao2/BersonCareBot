@@ -399,7 +399,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
 
   async appendWebappMessage(params) {
     const existing = Array.from(messages.values()).find((m) => m.integratorMessageId === params.integratorMessageId);
-    if (existing) return { id: existing.id };
+    if (existing) return { id: existing.id, created: false };
     const id = nextId("msg", ++messageIdSeq);
     const row: SupportConversationMessageRow = {
       id,
@@ -424,7 +424,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       conv.lastMessageAt = params.createdAt;
       conv.updatedAt = new Date().toISOString();
     }
-    return { id };
+    return { id, created: true };
   },
 
   async listMessagesSince(conversationId, params) {

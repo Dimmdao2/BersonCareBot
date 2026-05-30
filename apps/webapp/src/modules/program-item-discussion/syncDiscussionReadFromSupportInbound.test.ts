@@ -14,7 +14,9 @@ describe("syncDiscussionReadFromSupportInboundMessages", () => {
     port = {
       insertMessage: vi.fn(),
       listMessagesForStageItem: vi.fn(),
+      listMessagesPage: vi.fn(),
       countMessagesForItem: vi.fn(),
+      countLegacyAdminRepliesForStageItem: vi.fn(),
       mergeLegacyAdminReplies: vi.fn(),
       markRead: vi.fn(),
       getUnreadCount: vi.fn(),

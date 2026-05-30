@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/modules/auth/service";
+import { getMediaAccessRow } from "@/app-layer/media/s3MediaStorage";
 import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
 import {
   recordPlaybackClientEvent,
@@ -53,6 +54,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (!eventClass) {
     return NextResponse.json({ error: "invalid_event_class" }, { status: 400 });
+  }
+
+  const accessRow = await getMediaAccessRow(id);
+  if (accessRow?.usage_purpose === "program_item_submission") {
+    return NextResponse.json({ ok: true, skipped: true });
   }
 
   await recordPlaybackClientEvent({

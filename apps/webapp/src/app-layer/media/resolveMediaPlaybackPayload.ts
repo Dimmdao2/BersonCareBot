@@ -133,17 +133,15 @@ export async function resolveMediaPlaybackPayload(input: {
     delivery = "mp4";
   }
 
-  if (delivery === "hls") {
-    const rawPoster = row.poster_s3_key?.trim() ?? "";
-    if (rawPoster && isTrustedPosterS3Key(id, rawPoster)) {
-      try {
-        posterUrl = await presignGetUrl(rawPoster, presignExpiresSec);
-      } catch (e) {
-        logger.error(
-          { err: serializePresignFailureForLog(e), mediaId: id, presignTarget: "poster" },
-          "playback_presign_failed",
-        );
-      }
+  const rawPoster = row.poster_s3_key?.trim() ?? "";
+  if (rawPoster && isTrustedPosterS3Key(id, rawPoster)) {
+    try {
+      posterUrl = await presignGetUrl(rawPoster, presignExpiresSec);
+    } catch (e) {
+      logger.error(
+        { err: serializePresignFailureForLog(e), mediaId: id, presignTarget: "poster" },
+        "playback_presign_failed",
+      );
     }
   }
 

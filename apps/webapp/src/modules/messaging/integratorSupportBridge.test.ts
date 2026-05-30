@@ -5,7 +5,7 @@ import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunicat
 describe("createIntegratorSupportBridge", () => {
   it("applyAdminReply writes admin message for webapp platform conversation", async () => {
     const ensureWebappConversationForUser = vi.fn().mockResolvedValue({ id: "conv-internal" });
-    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "msg-1" });
+    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "msg-1", created: true });
     const notifyPatientOfDoctorReply = vi.fn().mockResolvedValue(undefined);
     const port = {
       ensureWebappConversationForUser,

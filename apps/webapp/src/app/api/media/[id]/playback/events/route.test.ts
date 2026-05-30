@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const recordPlaybackClientEventMock = vi.fn();
+const getMediaAccessRowMock = vi.fn();
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => getSessionMock(),
@@ -11,6 +12,10 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/app-layer/media/playbackClientEvents", () => ({
   recordPlaybackClientEvent: (...args: unknown[]) => recordPlaybackClientEventMock(...args),
+}));
+
+vi.mock("@/app-layer/media/s3MediaStorage", () => ({
+  getMediaAccessRow: (...args: unknown[]) => getMediaAccessRowMock(...args),
 }));
 
 import { POST } from "./route";
@@ -22,8 +27,14 @@ describe("POST /api/media/[id]/playback/events", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     recordPlaybackClientEventMock.mockReset();
+    getMediaAccessRowMock.mockReset();
     getSessionMock.mockResolvedValue(patientSession);
     recordPlaybackClientEventMock.mockResolvedValue(undefined);
+    getMediaAccessRowMock.mockResolvedValue({
+      usage_purpose: "lfk_exercise",
+      uploaded_by: "u1",
+      mime_type: "video/mp4",
+    });
   });
 
   it("returns 401 for anonymous", async () => {
@@ -74,5 +85,25 @@ describe("POST /api/media/[id]/playback/events", () => {
         errorDetail: "network_error",
       }),
     );
+  });
+
+  it("skips telemetry for program_item_submission media", async () => {
+    getMediaAccessRowMock.mockResolvedValue({
+      usage_purpose: "program_item_submission",
+      uploaded_by: "u1",
+      mime_type: "video/mp4",
+    });
+    const res = await POST(
+      new Request(`http://localhost/api/media/${mid}/playback/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventClass: "video_error", delivery: "mp4" }),
+      }),
+      { params: Promise.resolve({ id: mid }) },
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.skipped).toBe(true);
+    expect(recordPlaybackClientEventMock).not.toHaveBeenCalled();
   });
 });

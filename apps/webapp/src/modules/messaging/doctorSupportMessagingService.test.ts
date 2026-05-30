@@ -48,7 +48,7 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     listUnansweredQuestionsForAdmin: async () => [],
     getQuestionByIntegratorConversationId: async () => null,
     ensureWebappConversationForUser: async () => ({ id: "conv-webapp-1" }),
-    appendWebappMessage: async () => ({ id: "msg-webapp-1" }),
+    appendWebappMessage: async () => ({ id: "msg-webapp-1", created: true }),
     listMessagesSince: async () => [],
     conversationExists: async () => false,
     getConversationRelayInfo: async () => null,
@@ -174,7 +174,7 @@ describe("doctorSupportMessagingService", () => {
   });
 
   it("returns not_found for missing conversation in sendAdminReply", async () => {
-    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
     const service = createDoctorSupportMessagingService(
       createPort({ conversationExists: async () => false, appendWebappMessage }),
     );
@@ -186,7 +186,7 @@ describe("doctorSupportMessagingService", () => {
 
   it("notifies patient on all message channels when platform user is linked", async () => {
     const convRow = makeConversationRow({ channelCode: "telegram", channelExternalId: "987654321" });
-    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
     const notifyPatientOfDoctorReply = vi.fn(async () => undefined);
     const service = createDoctorSupportMessagingService(
       createPort({
@@ -213,7 +213,7 @@ describe("doctorSupportMessagingService", () => {
       channelCode: "telegram",
       channelExternalId: "987654321",
     });
-    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
     const service = createDoctorSupportMessagingService(
       createPort({
         getConversationRelayInfo: async () => convRow,
@@ -233,7 +233,7 @@ describe("doctorSupportMessagingService", () => {
 
   it("не шлёт notify и relay без platform user и без channel binding", async () => {
     const convRow = makeConversationRow({ platformUserId: null, channelCode: null, channelExternalId: null });
-    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
     const notifyPatientOfDoctorReply = vi.fn(async () => undefined);
     const service = createDoctorSupportMessagingService(
       createPort({
@@ -254,7 +254,7 @@ describe("doctorSupportMessagingService", () => {
   it("ошибка relay не ломает sendAdminReply", async () => {
     relayMock.mockRejectedValue(new Error("network error"));
     const convRow = makeConversationRow({ channelCode: "telegram", channelExternalId: "111" });
-    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
     const service = createDoctorSupportMessagingService(
       createPort({
         getConversationRelayInfo: async () => convRow,
@@ -269,7 +269,7 @@ describe("doctorSupportMessagingService", () => {
   });
 
   it("relay не вызывается если getConversationRelayInfo возвращает null", async () => {
-    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
     const service = createDoctorSupportMessagingService(
       createPort({
         getConversationRelayInfo: async () => null,
@@ -289,7 +289,7 @@ describe("doctorSupportMessagingService", () => {
       channelExternalId: "222",
       platformUserId: null,
     });
-    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
+    const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
     const shouldDispatchRelay = vi.fn(async () => true);
     const service = createDoctorSupportMessagingService(
       createPort({

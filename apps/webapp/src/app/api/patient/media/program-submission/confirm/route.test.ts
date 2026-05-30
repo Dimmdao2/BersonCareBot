@@ -25,10 +25,11 @@ const getSettingMock = vi.fn();
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaRowForConfirm: (...a: unknown[]) => getRowMock(...a),
   confirmProgramSubmissionMediaFileReady: (...a: unknown[]) => confirmMock(...a),
+  deletePendingMediaFileById: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/app-layer/media/s3Client", () => ({
-  s3HeadObject: (...a: unknown[]) => headMock(...a),
+  s3HeadObjectDetails: (...a: unknown[]) => headMock(...a),
 }));
 
 vi.mock("@/app-layer/media/programSubmissionTranscodeEnqueue", () => ({
@@ -63,7 +64,7 @@ describe("POST /api/patient/media/program-submission/confirm", () => {
       ok: true,
       session: { user: { userId: patientId, role: "patient" } },
     });
-    enqueueMock.mockResolvedValue(undefined);
+    enqueueMock.mockResolvedValue({ ok: true });
   });
 
   it("returns 403 when media flow disabled", async () => {
@@ -94,6 +95,7 @@ describe("POST /api/patient/media/program-submission/confirm", () => {
       s3_key: "media/x/a.jpg",
       mime_type: "image/jpeg",
       usage_purpose: "other",
+      size_bytes: 1000,
     });
     const res2 = await POST(
       new Request("http://localhost/api/patient/media/program-submission/confirm", {
@@ -111,8 +113,13 @@ describe("POST /api/patient/media/program-submission/confirm", () => {
       s3_key: "media/x/a.jpg",
       mime_type: "image/jpeg",
       usage_purpose: "program_item_submission",
+      size_bytes: 1000,
     });
-    headMock.mockResolvedValue(true);
+    headMock.mockResolvedValue({
+      contentLength: 1000,
+      contentType: "image/jpeg",
+      metadata: {},
+    });
     confirmMock.mockResolvedValue(true);
 
     const res = await POST(
@@ -135,8 +142,13 @@ describe("POST /api/patient/media/program-submission/confirm", () => {
       s3_key: "media/x/v.mp4",
       mime_type: "video/mp4",
       usage_purpose: "program_item_submission",
+      size_bytes: 5_000_000,
     });
-    headMock.mockResolvedValue(true);
+    headMock.mockResolvedValue({
+      contentLength: 5_000_000,
+      contentType: "video/mp4",
+      metadata: {},
+    });
     confirmMock.mockResolvedValue(true);
 
     const res = await POST(
@@ -148,5 +160,30 @@ describe("POST /api/patient/media/program-submission/confirm", () => {
     );
     expect(res.status).toBe(200);
     expect(enqueueMock).toHaveBeenCalledWith(mediaId);
+  });
+
+  it("returns 413 when S3 object exceeds size limit", async () => {
+    getRowMock.mockResolvedValue({
+      status: "pending",
+      s3_key: "media/x/big.mp4",
+      mime_type: "video/mp4",
+      usage_purpose: "program_item_submission",
+      size_bytes: 300 * 1024 * 1024,
+    });
+    headMock.mockResolvedValue({
+      contentLength: 300 * 1024 * 1024,
+      contentType: "video/mp4",
+      metadata: {},
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/patient/media/program-submission/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mediaId }),
+      }),
+    );
+    expect(res.status).toBe(413);
+    expect(confirmMock).not.toHaveBeenCalled();
   });
 });

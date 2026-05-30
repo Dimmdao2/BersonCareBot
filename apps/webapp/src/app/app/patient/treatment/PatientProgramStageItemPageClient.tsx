@@ -940,11 +940,16 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               >
                 {discussionPreview.lastMessage ? "Открыть комментарии" : "Оставить комментарий к выполнению"}
               </button>
-              {discussionPreview.lastDoneSummary?.reps != null &&
-              discussionPreview.lastDoneSummary.weightKg != null ? (
+              {discussionPreview.lastDoneSummary &&
+              (discussionPreview.lastDoneSummary.reps != null ||
+                discussionPreview.lastDoneSummary.weightKg != null) ? (
                 <p className={cn(patientMutedTextClass, "m-0 text-xs leading-snug")}>
-                  В прошлый раз сделано {discussionPreview.lastDoneSummary.reps} повторений с весом{" "}
-                  {discussionPreview.lastDoneSummary.weightKg} кг
+                  {discussionPreview.lastDoneSummary.reps != null &&
+                  discussionPreview.lastDoneSummary.weightKg != null
+                    ? `В прошлый раз: ${discussionPreview.lastDoneSummary.reps} повторений, ${discussionPreview.lastDoneSummary.weightKg} кг`
+                    : discussionPreview.lastDoneSummary.reps != null
+                      ? `В прошлый раз: ${discussionPreview.lastDoneSummary.reps} повторений`
+                      : `В прошлый раз: ${discussionPreview.lastDoneSummary.weightKg} кг`}
                 </p>
               ) : null}
             </div>

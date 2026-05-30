@@ -4,7 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { exerciseTitleFromSnapshot } from "@/modules/messaging/programNoteReplyContext";
-import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
+import { listDiscussionPageMerged } from "@/modules/program-item-discussion/listDiscussionPage";
 
 const directionSchema = z.enum(["backward", "forward"]);
 const postBodySchema = z.object({
@@ -27,19 +27,6 @@ function parseFeatureEnabled(valueJson: unknown): boolean {
   );
 }
 
-function compareByPosition(
-  a: Pick<ProgramItemDiscussionMessage, "createdAt" | "id">,
-  b: Pick<ProgramItemDiscussionMessage, "createdAt" | "id">,
-): number {
-  const byDate = a.createdAt.localeCompare(b.createdAt);
-  if (byDate !== 0) return byDate;
-  return a.id.localeCompare(b.id);
-}
-
-function encodeCursor(message: Pick<ProgramItemDiscussionMessage, "createdAt" | "id">): string {
-  return Buffer.from(JSON.stringify({ createdAt: message.createdAt, id: message.id }), "utf8").toString("base64url");
-}
-
 function decodeCursor(raw: string): CursorPayload | null {
   try {
     const decoded = Buffer.from(raw, "base64url").toString("utf8");
@@ -55,56 +42,6 @@ function normalizeLimit(raw: string | null): number | null {
   if (raw == null || raw.trim() === "") return 30;
   if (!/^\d+$/.test(raw.trim())) return null;
   return Math.min(100, Math.max(1, Number.parseInt(raw, 10)));
-}
-
-function paginateMessages(params: {
-  messages: ProgramItemDiscussionMessage[];
-  limit: number;
-  direction: DiscussionDirection;
-  cursor: CursorPayload | null;
-}) {
-  const { messages, limit, direction, cursor } = params;
-  const sorted = [...messages].sort(compareByPosition);
-  if (sorted.length === 0) {
-    return {
-      page: [] as ProgramItemDiscussionMessage[],
-      nextCursor: null as string | null,
-      hasMore: false,
-    };
-  }
-
-  if (direction === "forward") {
-    let start = 0;
-    if (cursor) {
-      while (
-        start < sorted.length &&
-        compareByPosition(sorted[start]!, { createdAt: cursor.createdAt, id: cursor.id }) <= 0
-      ) {
-        start += 1;
-      }
-    }
-    const end = Math.min(sorted.length, start + limit);
-    const page = sorted.slice(start, end);
-    const hasMore = end < sorted.length;
-    const nextCursor = hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : null;
-    return { page, nextCursor, hasMore };
-  }
-
-  let endExclusive = sorted.length;
-  if (cursor) {
-    endExclusive = 0;
-    while (
-      endExclusive < sorted.length &&
-      compareByPosition(sorted[endExclusive]!, { createdAt: cursor.createdAt, id: cursor.id }) < 0
-    ) {
-      endExclusive += 1;
-    }
-  }
-  const start = Math.max(0, endExclusive - limit);
-  const page = sorted.slice(start, endExclusive);
-  const hasMore = start > 0;
-  const nextCursor = hasMore && page.length > 0 ? encodeCursor(page[0]!) : null;
-  return { page, nextCursor, hasMore };
 }
 
 function getLastDoneSummary(params: {
@@ -167,50 +104,6 @@ async function assertDiscussionUiEnabled(deps: ReturnType<typeof buildAppDeps>):
   return parseFeatureEnabled(row?.valueJson ?? null);
 }
 
-async function listAllDiscussionMessages(
-  deps: ReturnType<typeof buildAppDeps>,
-  stageItemId: string,
-): Promise<ProgramItemDiscussionMessage[]> {
-  const pageSize = 1000;
-  const out: ProgramItemDiscussionMessage[] = [];
-  let offset = 0;
-  while (true) {
-    const batch = await deps.programItemDiscussion.listMessagesForStageItem(stageItemId, pageSize, offset);
-    if (batch.length === 0) break;
-    out.push(...batch);
-    offset += batch.length;
-    if (batch.length < pageSize) break;
-  }
-  return out;
-}
-
-async function listAllLegacyAdminReplies(params: {
-  deps: ReturnType<typeof buildAppDeps>;
-  patientUserId: string;
-  stageItemId: string;
-  exerciseTitle: string;
-  excludeSupportMessageIds: string[];
-}): Promise<ProgramItemDiscussionMessage[]> {
-  const pageSize = 500;
-  const out: ProgramItemDiscussionMessage[] = [];
-  let offset = 0;
-  while (true) {
-    const batch = await params.deps.programItemDiscussion.mergeLegacyAdminReplies({
-      patientUserId: params.patientUserId,
-      stageItemId: params.stageItemId,
-      exerciseTitle: params.exerciseTitle,
-      excludeSupportMessageIds: params.excludeSupportMessageIds,
-      limit: pageSize,
-      offset,
-    });
-    if (batch.length === 0) break;
-    out.push(...batch);
-    offset += batch.length;
-    if (batch.length < pageSize) break;
-  }
-  return out;
-}
-
 export async function GET(
   request: Request,
   context: { params: Promise<{ instanceId: string; itemId: string }> },
@@ -256,8 +149,16 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
   }
 
-  const [messages, unreadCount, actionLogRows] = await Promise.all([
-    listAllDiscussionMessages(itemContext.deps, itemId),
+  const [pageResult, unreadCount, actionLogRows] = await Promise.all([
+    listDiscussionPageMerged({
+      discussion: itemContext.deps.programItemDiscussion,
+      stageItemId: itemId,
+      patientUserId: gate.session.user.userId,
+      exerciseTitle: itemContext.exerciseTitle,
+      limit,
+      direction,
+      cursor,
+    }),
     itemContext.deps.programItemDiscussion.getUnreadCount({
       patientUserId: gate.session.user.userId,
       stageItemId: itemId,
@@ -266,25 +167,13 @@ export async function GET(
     itemContext.deps.programActionLog.listForInstance({ instanceId, limit: 500 }),
   ]);
 
-  const supportIds = messages
-    .map((x) => x.supportMessageId)
-    .filter((x): x is string => typeof x === "string" && x.length > 0);
-
-  const legacy = await listAllLegacyAdminReplies({
-    deps: itemContext.deps,
-    patientUserId: gate.session.user.userId,
-    stageItemId: itemId,
-    exerciseTitle: itemContext.exerciseTitle,
-    excludeSupportMessageIds: supportIds,
-  });
-
-  const merged = [...messages, ...legacy].sort(compareByPosition);
-  const { page, nextCursor, hasMore } = paginateMessages({
-    messages: merged,
-    limit,
-    direction,
-    cursor,
-  });
+  const { page, nextCursor, hasMore, totalCount } = pageResult;
+  const lastMessage =
+    page.length > 0
+      ? direction === "backward"
+        ? page[page.length - 1]!
+        : page[page.length - 1]!
+      : null;
 
   return NextResponse.json({
     ok: true,
@@ -295,9 +184,9 @@ export async function GET(
       nextCursor,
       hasMore,
     },
-    totalCount: merged.length,
+    totalCount,
     unreadCount,
-    lastMessage: merged.length > 0 ? merged[merged.length - 1] : null,
+    lastMessage,
     lastDoneSummary: getLastDoneSummary({ actionLogRows, itemId }),
   });
 }
@@ -346,8 +235,13 @@ export async function POST(
       stageItemId: itemId,
       note: parsed.data.body,
     });
-    const latestRows = await listAllDiscussionMessages(itemContext.deps, itemId);
-    const latest = latestRows.sort(compareByPosition).at(-1) ?? null;
+    const latestRows = await itemContext.deps.programItemDiscussion.listMessagesPage({
+      stageItemId: itemId,
+      limit: 1,
+      direction: "backward",
+      cursor: null,
+    });
+    const latest = latestRows.at(-1) ?? null;
     return NextResponse.json({ ok: true, message: latest });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

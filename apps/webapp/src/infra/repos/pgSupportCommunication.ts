@@ -199,7 +199,7 @@ export type SupportCommunicationPort = {
     text: string;
     source: string;
     createdAt: string;
-  }): Promise<{ id: string }>;
+  }): Promise<{ id: string; created: boolean }>;
   listMessagesSince(conversationId: string, params: { sinceCreatedAt?: string | null; limit: number }): Promise<SupportConversationMessageRow[]>;
   conversationExists(conversationId: string): Promise<boolean>;
   getConversationRelayInfo(conversationId: string): Promise<SupportConversationRelayInfo | null>;
@@ -861,13 +861,13 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           `UPDATE support_conversations SET last_message_at = GREATEST(last_message_at, $2::timestamptz), updated_at = now() WHERE id = $1::uuid`,
           [params.conversationId, params.createdAt]
         );
-        return { id: r.rows[0].id };
+        return { id: r.rows[0].id, created: true };
       }
       const ex = await pool.query<{ id: string }>(
         "SELECT id FROM support_conversation_messages WHERE integrator_message_id = $1",
         [params.integratorMessageId]
       );
-      return { id: ex.rows[0]?.id ?? "" };
+      return { id: ex.rows[0]?.id ?? "", created: false };
     },
 
     async listMessagesSince(conversationId, params) {

@@ -27,6 +27,18 @@ export type ProgramItemDiscussionMessageInsert = {
   createdAt?: string;
 };
 
+export type ProgramItemDiscussionMessageCursor = {
+  createdAt: string;
+  id: string;
+};
+
+export type ProgramItemDiscussionListPageInput = {
+  stageItemId: string;
+  limit: number;
+  direction: "backward" | "forward";
+  cursor: ProgramItemDiscussionMessageCursor | null;
+};
+
 export type ProgramItemDiscussionLegacyMergeInput = {
   patientUserId: string;
   stageItemId: string;
@@ -34,6 +46,8 @@ export type ProgramItemDiscussionLegacyMergeInput = {
   excludeSupportMessageIds?: string[];
   limit?: number;
   offset?: number;
+  /** When set, legacy rows are included only if title maps to this stage item uniquely. */
+  requireUniqueStageItemAttribution?: boolean;
 };
 
 export type ProgramItemDiscussionLegacyUnreadInput = {

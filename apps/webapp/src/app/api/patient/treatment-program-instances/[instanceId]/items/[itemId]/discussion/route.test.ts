@@ -1,13 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
+type DiscussionMsg = {
+  id: string;
+  instanceStageItemId: string;
+  patientUserId: string;
+  senderRole: string;
+  origin: string;
+  body: string | null;
+  mediaFileId: string | null;
+  supportMessageId: string | null;
+  createdAt: string;
+};
+
+function compareMsgs(a: Pick<DiscussionMsg, "createdAt" | "id">, b: Pick<DiscussionMsg, "createdAt" | "id">) {
+  const byDate = a.createdAt.localeCompare(b.createdAt);
+  if (byDate !== 0) return byDate;
+  return a.id.localeCompare(b.id);
+}
+
 const {
   gateMock,
   buildAppDepsMock,
   getSettingMock,
   getInstanceForPatientMock,
   listMessagesForStageItemMock,
+  listMessagesPageMock,
   mergeLegacyAdminRepliesMock,
+  countMessagesForItemMock,
+  countLegacyAdminRepliesMock,
+  listLinkedSupportMessageIdsMock,
   getUnreadCountMock,
   listActionLogForInstanceMock,
   appendObservationNoteMock,
@@ -15,7 +37,11 @@ const {
   const getSettingMockInner = vi.fn();
   const getInstanceForPatientMockInner = vi.fn();
   const listMessagesForStageItemMockInner = vi.fn();
+  const listMessagesPageMockInner = vi.fn();
   const mergeLegacyAdminRepliesMockInner = vi.fn();
+  const countMessagesForItemMockInner = vi.fn();
+  const countLegacyAdminRepliesMockInner = vi.fn();
+  const listLinkedSupportMessageIdsMockInner = vi.fn();
   const getUnreadCountMockInner = vi.fn();
   const listActionLogForInstanceMockInner = vi.fn();
   const appendObservationNoteMockInner = vi.fn();
@@ -24,7 +50,11 @@ const {
     getSettingMock: getSettingMockInner,
     getInstanceForPatientMock: getInstanceForPatientMockInner,
     listMessagesForStageItemMock: listMessagesForStageItemMockInner,
+    listMessagesPageMock: listMessagesPageMockInner,
     mergeLegacyAdminRepliesMock: mergeLegacyAdminRepliesMockInner,
+    countMessagesForItemMock: countMessagesForItemMockInner,
+    countLegacyAdminRepliesMock: countLegacyAdminRepliesMockInner,
+    listLinkedSupportMessageIdsMock: listLinkedSupportMessageIdsMockInner,
     getUnreadCountMock: getUnreadCountMockInner,
     listActionLogForInstanceMock: listActionLogForInstanceMockInner,
     appendObservationNoteMock: appendObservationNoteMockInner,
@@ -33,7 +63,11 @@ const {
       treatmentProgramInstance: { getInstanceForPatient: getInstanceForPatientMockInner },
       programItemDiscussion: {
         listMessagesForStageItem: listMessagesForStageItemMockInner,
+        listMessagesPage: listMessagesPageMockInner,
         mergeLegacyAdminReplies: mergeLegacyAdminRepliesMockInner,
+        countMessagesForItem: countMessagesForItemMockInner,
+        countLegacyAdminRepliesForStageItem: countLegacyAdminRepliesMockInner,
+        listLinkedSupportMessageIdsForStageItem: listLinkedSupportMessageIdsMockInner,
         getUnreadCount: getUnreadCountMockInner,
       },
       programActionLog: { listForInstance: listActionLogForInstanceMockInner },
@@ -78,7 +112,11 @@ describe("patient item discussion route", () => {
     getSettingMock.mockReset();
     getInstanceForPatientMock.mockReset();
     listMessagesForStageItemMock.mockReset();
+    listMessagesPageMock.mockReset();
     mergeLegacyAdminRepliesMock.mockReset();
+    countMessagesForItemMock.mockReset();
+    countLegacyAdminRepliesMock.mockReset();
+    listLinkedSupportMessageIdsMock.mockReset();
     getUnreadCountMock.mockReset();
     listActionLogForInstanceMock.mockReset();
     appendObservationNoteMock.mockReset();
@@ -112,7 +150,7 @@ describe("patient item discussion route", () => {
   });
 
   it("GET paginates backward with stable ordering and cursor boundaries", async () => {
-    listMessagesForStageItemMock.mockResolvedValue([
+    const dbMessages: DiscussionMsg[] = [
       {
         id: "00000000-0000-4000-8000-000000000001",
         instanceStageItemId: itemId,
@@ -135,7 +173,34 @@ describe("patient item discussion route", () => {
         supportMessageId: "90000000-0000-4000-8000-000000000003",
         createdAt: "2026-05-30T10:02:00.000Z",
       },
-    ]);
+    ];
+    listMessagesForStageItemMock.mockResolvedValue(dbMessages);
+    listMessagesPageMock.mockImplementation(async (input: {
+      limit: number;
+      direction: "backward" | "forward";
+      cursor: { createdAt: string; id: string } | null;
+    }) => {
+      const sorted = [...dbMessages].sort(compareMsgs);
+      if (input.direction === "forward") {
+        let start = 0;
+        if (input.cursor) {
+          while (start < sorted.length && compareMsgs(sorted[start]!, input.cursor) <= 0) start += 1;
+        }
+        return sorted.slice(start, start + input.limit);
+      }
+      let endExclusive = sorted.length;
+      if (input.cursor) {
+        endExclusive = 0;
+        while (endExclusive < sorted.length && compareMsgs(sorted[endExclusive]!, input.cursor) < 0) {
+          endExclusive += 1;
+        }
+      }
+      const start = Math.max(0, endExclusive - input.limit);
+      return sorted.slice(start, endExclusive);
+    });
+    countMessagesForItemMock.mockResolvedValue(2);
+    countLegacyAdminRepliesMock.mockResolvedValue(1);
+    listLinkedSupportMessageIdsMock.mockResolvedValue(["90000000-0000-4000-8000-000000000003"]);
     mergeLegacyAdminRepliesMock.mockResolvedValue([
       {
         id: "legacy:90000000-0000-4000-8000-000000000002",
@@ -186,6 +251,10 @@ describe("patient item discussion route", () => {
 
   it("GET rejects malformed cursor", async () => {
     listMessagesForStageItemMock.mockResolvedValue([]);
+    listMessagesPageMock.mockResolvedValue([]);
+    countMessagesForItemMock.mockResolvedValue(0);
+    countLegacyAdminRepliesMock.mockResolvedValue(0);
+    listLinkedSupportMessageIdsMock.mockResolvedValue([]);
     mergeLegacyAdminRepliesMock.mockResolvedValue([]);
 
     const res = await GET(
@@ -201,18 +270,20 @@ describe("patient item discussion route", () => {
 
   it("POST proxies comment through observation dual-write path", async () => {
     appendObservationNoteMock.mockResolvedValue(undefined);
+    const posted: DiscussionMsg = {
+      id: "00000000-0000-4000-8000-000000000099",
+      instanceStageItemId: itemId,
+      patientUserId,
+      senderRole: "patient",
+      origin: "patient_observation",
+      body: "Новый комментарий",
+      mediaFileId: null,
+      supportMessageId: null,
+      createdAt: "2026-05-30T10:09:00.000Z",
+    };
+    listMessagesPageMock.mockResolvedValue([posted]);
     listMessagesForStageItemMock.mockResolvedValue([
-      {
-        id: "00000000-0000-4000-8000-000000000099",
-        instanceStageItemId: itemId,
-        patientUserId,
-        senderRole: "patient",
-        origin: "patient_observation",
-        body: "Новый комментарий",
-        mediaFileId: null,
-        supportMessageId: null,
-        createdAt: "2026-05-30T10:09:00.000Z",
-      },
+      posted,
     ]);
 
     const res = await POST(

@@ -13,7 +13,7 @@ function createPort(overrides: Partial<PatientInboundChatPort> = {}): PatientInb
       mergedConversationCount: 0,
       movedMessageCount: 0,
     }),
-    appendWebappMessage: vi.fn().mockResolvedValue({ id: "msg-1" }),
+    appendWebappMessage: vi.fn().mockResolvedValue({ id: "msg-1", created: true }),
     ...overrides,
   } as unknown as PatientInboundChatPort;
 }

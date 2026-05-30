@@ -563,18 +563,35 @@ export async function insertPendingMediaFile(params: {
 export async function getMediaRowForConfirm(
   mediaId: string,
   userId: string,
-): Promise<{ s3_key: string | null; status: string; mime_type: string; usage_purpose: string | null } | null> {
+): Promise<{
+  s3_key: string | null;
+  status: string;
+  mime_type: string;
+  usage_purpose: string | null;
+  size_bytes: number | null;
+} | null> {
   const pool = getPool();
   const res = await pool.query<{
     s3_key: string | null;
     status: string;
     mime_type: string;
     usage_purpose: string | null;
+    size_bytes: string | null;
   }>(
-    `SELECT s3_key, status, mime_type, usage_purpose FROM media_files WHERE id = $1::uuid AND uploaded_by = $2::uuid`,
+    `SELECT s3_key, status, mime_type, usage_purpose, size_bytes::text
+     FROM media_files WHERE id = $1::uuid AND uploaded_by = $2::uuid`,
     [mediaId, userId],
   );
-  return res.rows[0] ?? null;
+  const row = res.rows[0];
+  if (!row) return null;
+  const sizeRaw = row.size_bytes != null ? Number(row.size_bytes) : null;
+  return {
+    s3_key: row.s3_key,
+    status: row.status,
+    mime_type: row.mime_type,
+    usage_purpose: row.usage_purpose,
+    size_bytes: sizeRaw != null && Number.isFinite(sizeRaw) ? sizeRaw : null,
+  };
 }
 
 export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
@@ -603,27 +620,65 @@ export type ProgramSubmissionMediaAttachRow = {
   video_processing_status: string | null;
 };
 
-/** Row eligible for attach to discussion thread (owner + purpose + ready + video processed if applicable). */
+export type ProgramSubmissionMediaStatusRow = {
+  id: string;
+  mime_type: string;
+  status: string;
+  video_processing_status: string | null;
+  video_processing_error: string | null;
+};
+
+/** Owner row for program-submission status polling (attach readiness). */
+export async function getProgramSubmissionMediaStatusRow(
+  mediaId: string,
+  patientUserId: string,
+): Promise<ProgramSubmissionMediaStatusRow | null> {
+  const pool = getPool();
+  const res = await pool.query<ProgramSubmissionMediaStatusRow>(
+    `SELECT id::text, mime_type, status, video_processing_status, video_processing_error
+     FROM media_files
+     WHERE id = $1::uuid
+       AND uploaded_by = $2::uuid
+       AND usage_purpose = 'program_item_submission'`,
+    [mediaId, patientUserId],
+  );
+  return res.rows[0] ?? null;
+}
+
+export function isProgramSubmissionMediaAttachReady(row: ProgramSubmissionMediaStatusRow): boolean {
+  if (row.status !== "ready") return false;
+  if (!row.mime_type.toLowerCase().startsWith("video/")) return true;
+  return row.video_processing_status === "ready";
+}
+
+/** Row eligible for attach: images when file ready; video only after 480p transcode ready. */
 export async function getMediaRowForProgramSubmissionAttach(
   mediaId: string,
   patientUserId: string,
 ): Promise<ProgramSubmissionMediaAttachRow | null> {
+  const row = await getProgramSubmissionMediaStatusRow(mediaId, patientUserId);
+  if (!row || !isProgramSubmissionMediaAttachReady(row)) return null;
+  return {
+    id: row.id,
+    mime_type: row.mime_type,
+    status: row.status,
+    video_processing_status: row.video_processing_status,
+  };
+}
+
+export async function markProgramSubmissionVideoProcessingFailed(
+  mediaId: string,
+  errorMessage: string,
+): Promise<void> {
   const pool = getPool();
-  const res = await pool.query<ProgramSubmissionMediaAttachRow>(
-    `SELECT id::text, mime_type, status, video_processing_status
-     FROM media_files
-     WHERE id = $1::uuid
-       AND uploaded_by = $2::uuid
-       AND usage_purpose = 'program_item_submission'
-       AND status = 'ready'
-       AND (
-         mime_type NOT LIKE 'video/%'
-         OR video_processing_status IS NULL
-         OR video_processing_status = 'ready'
-       )`,
-    [mediaId, patientUserId],
+  const msg = errorMessage.slice(0, 8000);
+  await pool.query(
+    `UPDATE media_files
+     SET video_processing_status = 'failed',
+         video_processing_error = $2
+     WHERE id = $1::uuid AND usage_purpose = 'program_item_submission'`,
+    [mediaId, msg],
   );
-  return res.rows[0] ?? null;
 }
 
 export type MediaAccessRow = {
