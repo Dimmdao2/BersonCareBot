@@ -77,4 +77,19 @@ describe("SlotStepClient", () => {
     expect(url).toContain("type=in_person");
     expect(url).toContain("cityCode=msk");
   });
+
+  it("does not render duration selector", () => {
+    render(
+      <SlotStepClient
+        type="in_person"
+        branchServiceId="11111111-1111-4111-8111-111111111111"
+        cityCode="msk"
+        cityTitle="Москва"
+        serviceTitle="Сеанс"
+        durationMinutes={60}
+        appDisplayTimeZone="Europe/Moscow"
+      />,
+    );
+    expect(screen.queryByText("Длительность")).toBeNull();
+  });
 });

@@ -167,8 +167,9 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
     expect(ALLOWED_KEYS).toContain("web_push_vapid");
   });
 
-  it("includes booking_lifecycle_notifications for webapp whitelist", () => {
-    expect(ALLOWED_KEYS).toContain("booking_lifecycle_notifications");
+  it("includes booking read source keys for webapp whitelist", () => {
+    expect(ALLOWED_KEYS).toContain("booking_doctor_appointments_read_source");
+    expect(ALLOWED_KEYS).toContain("booking_slots_read_source");
   });
 });
 
@@ -268,6 +269,58 @@ describe("PATCH /api/admin/settings", () => {
       expect.any(Object),
       "a1",
     );
+  });
+
+  it("updates booking_slots_read_source", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "booking_slots_read_source",
+      scope: "admin",
+      valueJson: { value: "rubitime" },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "booking_slots_read_source", value: "rubitime" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 400 for invalid booking_slots_read_source", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "booking_slots_read_source", value: "invalid" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("updates booking_doctor_appointments_read_source", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "booking_doctor_appointments_read_source",
+      scope: "admin",
+      valueJson: { value: "canonical" },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "booking_doctor_appointments_read_source", value: "canonical" }),
+      }),
+    );
+    expect(res.status).toBe(200);
   });
 
   it("returns 200 for admin updating max_debug_page_enabled (AdminSettingsSection body)", async () => {

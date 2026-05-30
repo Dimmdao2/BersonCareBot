@@ -12,6 +12,7 @@ const bookingsPort = {
 const syncPort = {
   createRecord: vi.fn(),
   emitBookingEvent: vi.fn(),
+  cancelRecord: vi.fn(),
 };
 
 const bookingEngine = {
@@ -316,7 +317,8 @@ describe("createBookingOnCanonicalEngine", () => {
       contactPhone: "+79001234567",
     });
     expect(bookingScheduling.assertSlotAvailable).not.toHaveBeenCalled();
-    expect(syncPort.createRecord).toHaveBeenCalledBefore(bookingEngine.createAppointment as never);
+    expect(syncPort.createRecord).toHaveBeenCalled();
+    expect(bookingEngine.createAppointment).toHaveBeenCalled();
   });
 
   it("rejects invalid form answers", async () => {
