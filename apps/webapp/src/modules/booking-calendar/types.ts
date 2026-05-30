@@ -2,6 +2,8 @@ import type { AppointmentStatus } from "@/modules/booking-engine/types";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
+export type CalendarReadSource = "canonical" | "rubitime_legacy";
+
 export type CalendarFilters = {
   organizationId: string;
   rangeStart: string;
@@ -79,6 +81,6 @@ export type CalendarEvent = CalendarAppointmentEvent | CalendarBlockEvent | Cale
 export type CalendarAggregate = {
   events: CalendarEvent[];
   filters: CalendarFilterMeta;
-  readSource: "rubitime_legacy" | "canonical";
+  readSource: CalendarReadSource;
   freeSlotsEnabled: boolean;
 };

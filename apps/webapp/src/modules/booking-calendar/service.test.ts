@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createBookingCalendarService } from "./service";
 import type { BookingCalendarPort } from "./ports";
 import type { BookingSchedulingPort } from "@/modules/booking-scheduling/ports";
@@ -76,6 +76,10 @@ describe("booking-calendar service", () => {
     listScheduleBlocks: vi.fn(),
     createScheduleBlock: vi.fn(),
     deleteScheduleBlock: vi.fn(),
+    listWorkingHoursAdmin: vi.fn(),
+    createWorkingHours: vi.fn(),
+    updateWorkingHours: vi.fn(),
+    deactivateWorkingHours: vi.fn(),
   };
 
   const service = createBookingCalendarService({
@@ -84,11 +88,8 @@ describe("booking-calendar service", () => {
     schedulingPort,
   });
 
-  const rubitimeService = createBookingCalendarService({
-    calendarPort: mockPort,
-    listScheduleBlocks,
-    schedulingPort,
-    resolveCalendarReadSource: async () => "rubitime_legacy",
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   it("merges appointments and filtered schedule blocks", async () => {
@@ -144,7 +145,28 @@ describe("booking-calendar service", () => {
   });
 
   it("skips free slots when read source is rubitime_legacy", async () => {
-    const result = await rubitimeService.getCalendar({
+    const isolatedScheduling: BookingSchedulingPort = {
+      resolveCanonicalFromBranchService: vi.fn(),
+      listServicesByCityCode: vi.fn(),
+      getSlots: vi.fn(async () => []),
+      listBusyIntervals: vi.fn(),
+      listWorkingHours: vi.fn(),
+      getBufferMinutes: vi.fn(),
+      listScheduleBlocks: vi.fn(),
+      createScheduleBlock: vi.fn(),
+      deleteScheduleBlock: vi.fn(),
+      listWorkingHoursAdmin: vi.fn(),
+      createWorkingHours: vi.fn(),
+      updateWorkingHours: vi.fn(),
+      deactivateWorkingHours: vi.fn(),
+    };
+    const isolatedRubitimeService = createBookingCalendarService({
+      calendarPort: mockPort,
+      listScheduleBlocks,
+      schedulingPort: isolatedScheduling,
+      resolveCalendarReadSource: async () => "rubitime_legacy",
+    });
+    const result = await isolatedRubitimeService.getCalendar({
       organizationId: "org1",
       rangeStart: "2026-05-30T00:00:00.000Z",
       rangeEnd: "2026-05-31T00:00:00.000Z",
@@ -156,6 +178,6 @@ describe("booking-calendar service", () => {
     expect(result.events.some((e) => e.kind === "freeSlot")).toBe(false);
     expect(result.freeSlotsEnabled).toBe(false);
     expect(result.readSource).toBe("rubitime_legacy");
-    expect(schedulingPort.getSlots).not.toHaveBeenCalled();
+    expect(isolatedScheduling.getSlots).not.toHaveBeenCalled();
   });
 });

@@ -105,10 +105,7 @@ function DoctorCalendarEventPanelInner({
   const isLegacyEvent = legacyReadOnly || selected?.source === "rubitime_legacy";
 
   useEffect(() => {
-    if (!selectedId || isLegacyEvent) {
-      setLifecycle(null);
-      return;
-    }
+    if (!selectedId || isLegacyEvent) return;
     let cancelled = false;
     void fetch(`${apiBase}/appointments/${encodeURIComponent(selectedId)}/lifecycle`)
       .then((res) => res.json())

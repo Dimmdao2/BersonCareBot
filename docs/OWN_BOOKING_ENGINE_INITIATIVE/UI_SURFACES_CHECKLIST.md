@@ -23,12 +23,14 @@
 - [x] **A11. Абонементы-продукты** — конструктор готовых абонементов (состав, цена; `BookingCatalogPackagesSection`, API `packages`) (этап 6).
 - [x] **A12. Продукты/акции/подписки/курсы** — `BookingCatalogProductsSection` (создание/редактирование, pay-link); типы через `product_type`; срок, услуги, slug материалов (этап 7).
 - [x] **A13. Уведомления** — `BookingEventNotificationsSection` + `system_settings.booking_lifecycle_notifications` (события created/cancelled/rescheduled/payment_captured; пациент/персонал).
-- [x] **A14. Rubitime-мост** — переключатель вкл/откл; статус/маппинг; read-bridge проекция (этап 1). API `bridge`, `system_settings.booking_rubitime_bridge_enabled`. Двусторонняя синхронизация — этапы 2–4.
+- [x] **A14. Rubitime-мост** — переключатель вкл/откл; статус/маппинг; read-bridge проекция (этап 1). API `bridge`, `system_settings.booking_rubitime_bridge_enabled`. Двусторонняя синхронизация — этапы 2–4. Селекторы read sources: `booking_doctor_appointments_read_source`, `booking_slots_read_source` (`BookingEngineSection`).
+- [x] **A15. Рабочие часы** — `BookingWorkingHoursSection` + API `GET|POST|PATCH|DELETE /api/admin/booking-engine/working-hours` (scope specialist/branch/room, weekday 1=Пн, fallback indicator). `/app/doctor/admin/booking`.
+- [x] **A16. Блокировки расписания** — scoped `BookingScheduleBlocksSection` + API `schedule-blocks` (GET filters `specialistId`/`branchId`/`roomId`, POST scope). `/app/doctor/admin/booking`.
 
 ## B. Врач / специалист (рабочее место)
 
-- [x] **B-list. Список записей** — read `be_appointments` (канон), фильтры дашборда, действия через booking-engine lifecycle API (этап 8).
-- [x] **B-calendar. Календарь** — luxon+shadcn grid: записи/free slots/статусы/филиалы/кабинеты/специалисты/услуги; фильтры; создание/перенос/отмена; lifecycle/оплата/абонемент; `AppointmentStaffCommentsSection` (этап 8 + 9).
+- [x] **B-list. Список записей** — read switch (`appointment_records` по умолчанию / `be_appointments` при cutover), фильтры дашборда, действия через booking-engine lifecycle API (этап 8).
+- [x] **B-calendar. Календарь** — luxon+shadcn grid: записи/free slots/статусы/филиалы/кабинеты/специалисты/услуги; фильтры; создание/перенос/отмена (canonical mode); legacy events read-only; `freeSlotsEnabled` из API; lifecycle/оплата/абонемент; `AppointmentStaffCommentsSection` (этап 8 + 9).
 - [x] **B-actions. Ручные решения** — отмена с выбором типа (бесплатная/штраф/списать/не списывать/удержать/вернуть предоплату/индивидуально); ручной перенос; override автоматики (этап 4).
 - [x] **B-pay. Оплаты записи** — `BookingStaffPaymentPanel` в ручном lifecycle (admin/doctor); API `GET .../appointments/[id]/payment`.
 - [x] **B-package. Абонементы пациента** — назначение каталога/индивидуального, список по `platformUserId`, consume API, ссылка на оплату (`BookingPatientPackagesSection`, этап 6; полная карточка — этап 9).

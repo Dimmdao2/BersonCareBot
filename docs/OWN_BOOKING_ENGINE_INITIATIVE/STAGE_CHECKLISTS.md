@@ -316,7 +316,7 @@
 - [x] GCal — зеркало/синхронизация, не источник правды; канон — собственная БД; переиспользовать существующую GCal-синхронизацию.
 
 ### Способ реализации (этап 8)
-- Календарь и список `/app/doctor/appointments` читают канон `be_appointments` (`pgBookingCalendar`, `pgDoctorCanonicalAppointments`); блокировки — `be_schedule_blocks`; free/busy — `booking-scheduling.getSlots` при specialist+branch+service (`includeFreeSlots=1`).
+- Календарь и список `/app/doctor/appointments` читают один read switch: **`rubitime_legacy`** → `appointment_records` (`pgBookingCalendarLegacy`, `doctorAppointmentsReadSwitch`); **`canonical`** → `be_appointments` (`pgBookingCalendar`, `pgDoctorCanonicalAppointments`). Блокировки — `be_schedule_blocks`; free/busy — `booking-scheduling.getSlots` при `includeFreeSlots=1` и **`freeSlotsEnabled`** (false в Rubitime read).
 - Действия через service-слой записи/переноса/отмены (этапы 2/4); GCal — зеркало по `be:{appointmentId}`.
 - Admin: calendar API без отдельной UI-страницы (этап 8 — doctor UI).
 

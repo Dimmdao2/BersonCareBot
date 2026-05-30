@@ -31,7 +31,7 @@
 | Назначение | URL | Примечание |
 |------------|-----|------------|
 | Сегодня (рабочий inbox) | `/app/doctor` | KPI + очереди; см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md) |
-| Календарь записей | `/app/doctor/calendar` | Канон `be_appointments`; API `/api/doctor/booking-engine/calendar` (этап 8) |
+| Календарь записей | `/app/doctor/calendar` | Read switch: `appointment_records` (default) или `be_appointments` (`booking_doctor_appointments_read_source`); API `/api/doctor/booking-engine/calendar` (`readSource`, `freeSlotsEnabled`) |
 | Список записей | `/app/doctor/appointments` | Канон `be_appointments` (`pgDoctorCanonicalAppointments`); `?view=future\|month\|cancellationsMonth` |
 | Аналитика по клиентам | `/app/doctor/analytics/clients` | Бывш. `/app/doctor/stats`; графики регистраций/подписчиков |
 | Статистика (legacy URL) | `/app/doctor/stats` | **Редирект** → `analytics/clients` |

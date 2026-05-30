@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-05-30 — Rubitime transition stabilize (П.0–П.8)
+
+**План:** [`.cursor/plans/archive/rubitime_transition_stabilize.plan.md`](../../.cursor/plans/archive/rubitime_transition_stabilize.plan.md)
+
+**Сделано:**
+- **П.0:** миграция `0100_booking_slots_read_source.sql` — seed `booking_slots_read_source=rubitime` (симметрия с `rubitime_legacy` для appointments).
+- **П.1:** `BookingEngineSection` — labels «Список записей врача» / «Свободные слоты пациента», статус календаря, warning при расхождении источников; overview `calendarReadSource`; PATCH tests для read-source keys.
+- **П.2:** `pgBookingCalendarLegacy` + `bookingCalendarReadSwitch`; range overlap на `appointment_records`; `freeSlotsEnabled: false` в Rubitime mode; read-only panel для legacy events; API `readSource`/`freeSlotsEnabled`.
+- **П.3:** Rubitime-first create при `booking_slots_read_source=rubitime` (`canonicalCreate.ts`): skip `assertSlotAvailable`, обязательный `createRecord`, rollback `cancelRecord`, `inFlightCreateBySlot`.
+- **П.4:** убран select «Длительность» в `SlotStepClient` (`slotCount=1`).
+- **П.5:** CRUD `be_working_hours` — port/service/API/UI `BookingWorkingHoursSection`, fallback indicator.
+- **П.6:** scoped schedule blocks — GET filters + POST scope в UI/API.
+- **П.7:** docs — `MASTER_PLAN`, `STAGE_CHECKLISTS`, `UI_SURFACES`, `DOCTOR_CABINET_NAVIGATION`, `api.md`, этот LOG.
+
+**Проверки:** targeted vitest (booking-calendar, canonicalCreate, SlotStepClient, working-hours, admin settings, schedule-blocks route); `pnpm --dir apps/webapp run lint`; `pnpm --dir apps/webapp exec tsc --noEmit`.
+
+**Намеренно не делали:** отдельный setting key для calendar (reuse appointments read source); Rubitime free slots в doctor calendar; integrator SQL mirror в миграции 0100 (как в 0099 — только `public.system_settings`).
+
+---
+
 ## 2026-05-30 — Rubitime transitional read + idempotent projection (incident recovery)
 
 **Инцидент:** после деплоя собственного движка кабинет врача перестал показывать будущие записи; кнопка «Проецировать записи» падала с `be_appointments_specialist_no_overlap` (дубль `rubitime_projection` без `be_external_entity_mappings`).

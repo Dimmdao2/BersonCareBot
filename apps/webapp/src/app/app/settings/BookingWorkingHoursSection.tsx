@@ -166,7 +166,7 @@ export function BookingWorkingHoursSection() {
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="flex flex-col gap-1">
             <Label>Специалист</Label>
-            <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(v === "__none__" ? "" : v)}>
+            <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(!v || v === "__none__" ? "" : v)}>
               <SelectTrigger displayLabel={specialistId ? specialistLabel : "Вся клиника"}>
                 <SelectValue />
               </SelectTrigger>
@@ -184,7 +184,7 @@ export function BookingWorkingHoursSection() {
           </div>
           <div className="flex flex-col gap-1">
             <Label>Филиал</Label>
-            <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(v === "__none__" ? "" : v)}>
+            <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
               <SelectTrigger displayLabel={branchId ? branchLabel : "Все"}>
                 <SelectValue />
               </SelectTrigger>
@@ -202,7 +202,7 @@ export function BookingWorkingHoursSection() {
           </div>
           <div className="flex flex-col gap-1">
             <Label>Кабинет</Label>
-            <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(v === "__none__" ? "" : v)}>
+            <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(!v || v === "__none__" ? "" : v)}>
               <SelectTrigger displayLabel={roomId ? roomLabel : "Все"}>
                 <SelectValue />
               </SelectTrigger>
@@ -222,7 +222,7 @@ export function BookingWorkingHoursSection() {
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
             <Label>День</Label>
-            <Select value={weekday} onValueChange={setWeekday}>
+            <Select value={weekday} onValueChange={(v) => setWeekday(v ?? "1")}>
               <SelectTrigger displayLabel={WEEKDAYS.find((d) => String(d.value) === weekday)?.label}>
                 <SelectValue />
               </SelectTrigger>

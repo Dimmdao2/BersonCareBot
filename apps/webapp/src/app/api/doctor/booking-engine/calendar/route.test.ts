@@ -24,14 +24,26 @@ describe("GET /api/doctor/booking-engine/calendar", () => {
       ok: true,
       ctx: { organizationId: "org-1" },
     });
-    getCalendarMock.mockResolvedValue({ events: [], freeSlots: [] });
+    getCalendarMock.mockResolvedValue({
+      events: [],
+      freeSlots: [],
+      readSource: "rubitime_legacy",
+      freeSlotsEnabled: false,
+    });
 
     const res = await GET(
       new Request("http://localhost/api/doctor/booking-engine/calendar?date=2026-05-01&view=day"),
     );
-    const json = (await res.json()) as { ok?: boolean; events?: unknown[] };
+    const json = (await res.json()) as {
+      ok?: boolean;
+      events?: unknown[];
+      readSource?: string;
+      freeSlotsEnabled?: boolean;
+    };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
+    expect(json.readSource).toBe("rubitime_legacy");
+    expect(json.freeSlotsEnabled).toBe(false);
     expect(getCalendarMock).toHaveBeenCalled();
   });
 

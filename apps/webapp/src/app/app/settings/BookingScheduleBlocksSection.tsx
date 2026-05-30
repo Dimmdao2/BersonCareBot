@@ -163,7 +163,7 @@ export function BookingScheduleBlocksSection() {
             <Label>Фильтр: специалист</Label>
             <Select
               value={filterSpecialistId || "__all__"}
-              onValueChange={(v) => setFilterSpecialistId(v === "__all__" ? "" : v)}
+              onValueChange={(v) => setFilterSpecialistId(!v || v === "__all__" ? "" : v)}
             >
               <SelectTrigger
                 displayLabel={
@@ -188,7 +188,7 @@ export function BookingScheduleBlocksSection() {
           </div>
           <div className="flex flex-col gap-1">
             <Label>Фильтр: филиал</Label>
-            <Select value={filterBranchId || "__all__"} onValueChange={(v) => setFilterBranchId(v === "__all__" ? "" : v)}>
+            <Select value={filterBranchId || "__all__"} onValueChange={(v) => setFilterBranchId(!v || v === "__all__" ? "" : v)}>
               <SelectTrigger
                 displayLabel={
                   filterBranchId ? catalog?.branches.find((b) => b.id === filterBranchId)?.title : "Все"
@@ -210,7 +210,7 @@ export function BookingScheduleBlocksSection() {
           </div>
           <div className="flex flex-col gap-1">
             <Label>Фильтр: кабинет</Label>
-            <Select value={filterRoomId || "__all__"} onValueChange={(v) => setFilterRoomId(v === "__all__" ? "" : v)}>
+            <Select value={filterRoomId || "__all__"} onValueChange={(v) => setFilterRoomId(!v || v === "__all__" ? "" : v)}>
               <SelectTrigger
                 displayLabel={filterRoomId ? catalog?.rooms.find((r) => r.id === filterRoomId)?.title : "Все"}
               >
@@ -260,7 +260,7 @@ export function BookingScheduleBlocksSection() {
           </label>
           <div className="flex flex-col gap-1">
             <Label>Специалист</Label>
-            <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(v === "__none__" ? "" : v)}>
+            <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(!v || v === "__none__" ? "" : v)}>
               <SelectTrigger displayLabel={specialistId ? specialistLabel : "Вся клиника"}>
                 <SelectValue />
               </SelectTrigger>
@@ -278,7 +278,7 @@ export function BookingScheduleBlocksSection() {
           </div>
           <div className="flex flex-col gap-1">
             <Label>Филиал</Label>
-            <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(v === "__none__" ? "" : v)}>
+            <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
               <SelectTrigger displayLabel={branchId ? branchLabel : "Все"}>
                 <SelectValue />
               </SelectTrigger>
@@ -296,7 +296,7 @@ export function BookingScheduleBlocksSection() {
           </div>
           <div className="flex flex-col gap-1">
             <Label>Кабинет</Label>
-            <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(v === "__none__" ? "" : v)}>
+            <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(!v || v === "__none__" ? "" : v)}>
               <SelectTrigger displayLabel={roomId ? roomLabel : "Все"}>
                 <SelectValue />
               </SelectTrigger>

@@ -1,9 +1,5 @@
-import type { DoctorAppointmentsReadSource } from "@/infra/repos/doctorAppointmentsReadSwitch";
-import { parseDoctorAppointmentsReadSource } from "@/infra/repos/doctorAppointmentsReadSwitch";
 import type { BookingCalendarPort } from "@/modules/booking-calendar/ports";
-
-export { parseDoctorAppointmentsReadSource };
-export type CalendarReadSource = DoctorAppointmentsReadSource;
+import type { CalendarReadSource } from "@/modules/booking-calendar/types";
 
 export function createBookingCalendarReadSwitchPort(input: {
   legacyPort: BookingCalendarPort;

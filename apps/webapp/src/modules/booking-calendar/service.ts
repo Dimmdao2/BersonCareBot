@@ -1,6 +1,6 @@
 import type { BookingSchedulingPort } from "@/modules/booking-scheduling/ports";
 import { localDateKey } from "@/modules/booking-scheduling/computeSlots";
-import type { CalendarReadSource } from "@/infra/repos/bookingCalendarReadSwitch";
+import type { CalendarReadSource } from "./types";
 import type { BookingCalendarPort, BookingCalendarService } from "./ports";
 import type { ScheduleBlockRecord } from "@/modules/booking-scheduling/ports";
 import type {
