@@ -290,6 +290,53 @@ describe('reminder_dispatch outgoing delivery row', () => {
       telegramMessageId: '1001',
     });
   });
+
+  it('skips dead-finalize reminder writes when occurrence is already missing', async () => {
+    const dispatchOutgoing = vi.fn().mockRejectedValue(new Error('provider hard-fail'));
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const db = {
+      query: vi
+        .fn()
+        // First read (before send): queued
+        .mockResolvedValueOnce({ rows: [{ status: 'queued' }] })
+        // Second read (finalize dead): occurrence deleted meanwhile
+        .mockResolvedValueOnce({ rows: [] })
+        // markOutgoingDeliveryDead and other writes
+        .mockResolvedValue({ rows: [] }),
+    };
+    await processOutgoingDeliveryRow(
+      baseRow({
+        id: 'q-missing-occ',
+        eventId: 'ev-missing-occ',
+        channel: 'telegram',
+        attemptCount: 1,
+        maxAttempts: 1,
+        payloadJson: {
+          occurrenceId: 'occ-missing',
+          channel: 'telegram',
+          deliveryLogId: 'rdl:occ-missing:telegram',
+          externalId: '501',
+          logText: 'late fail',
+          intent: {
+            type: 'message.send',
+            meta: { eventId: 'e6', occurredAt: '2026-01-01T00:00:00.000Z', source: 'telegram' },
+            payload: {
+              recipient: { chatId: 501 },
+              message: { text: 'Hi' },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: db as never, writePort: { writeDb } as never, dispatchOutgoing },
+    );
+    expect(writeDb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'reminders.delivery.log' }),
+    );
+    expect(writeDb).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'reminders.occurrence.markFailed' }),
+    );
+  });
 });
 
 

@@ -122,6 +122,7 @@ function mapUsefulPostForGuest(post: ResolvedUsefulPostCard | null, anonymousGue
 export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnlyContent }: Props) {
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
+  const serverRenderInstant = new Date();
 
   let appTz = await getAppDisplayTimeZone();
 
@@ -322,6 +323,11 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     return stripApiMediaForAnonymousGuest(resolved, anonymousGuest);
   };
 
+  const wellbeingWeekAnchorNowMs =
+    patientHomeReminderEvaluatedAt?.getTime() ?? serverRenderInstant.getTime();
+  const wellbeingWeekTodayIso =
+    DateTime.fromMillis(wellbeingWeekAnchorNowMs, { zone: moodWeekTz }).startOf("day").toISODate() ?? "";
+
   const renderBlock = (code: PatientHomeBlockCode): ReactNode => {
     switch (code) {
       case "daily_warmup":
@@ -379,6 +385,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             moodWeekAnchorDayBeforeWindowLastScore={moodWeekPreviousSundayLastScore}
             moodWeekLastScoreBeforeWindow={moodWeekLastScoreBeforeWeek}
             wellbeingWeekTimeZone={moodWeekTz}
+            wellbeingWeekAnchorNowMs={wellbeingWeekAnchorNowMs}
+            wellbeingWeekTodayIso={wellbeingWeekTodayIso}
           />
         );
       case "sos":

@@ -31,6 +31,8 @@ export enum TrustedPatientPhoneSource {
   AdminManualProfilePatch = "admin_manual_profile_patch",
   /** Публичная запись по телефону (этап 2 OWN_BOOKING_ENGINE). */
   PublicBookingByPhone = "public_booking_by_phone",
+  /** Создание клиента врачом/админом из кабинета (календарь и т.п.). */
+  DoctorStaffClientCreate = "doctor_staff_client_create",
 }
 
 /** Имя колонки в БД; единственный признак trusted-активации на чтении tier. */

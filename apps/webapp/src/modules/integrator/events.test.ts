@@ -1372,7 +1372,7 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
         payload: {
           integratorRecordId: "rec-int-1",
           phoneNormalized: "+79990001122",
-          integratorUserId: "rubitime-user-99",
+          integratorUserId: "99",
           recordAt: "2025-08-01T12:00:00.000Z",
           status: "created",
           payloadJson: {},
@@ -1383,7 +1383,7 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       deps,
     );
     expect(findByPhone).toHaveBeenCalled();
-    expect(findByIntegratorId).toHaveBeenCalledWith("rubitime-user-99");
+    expect(findByIntegratorId).toHaveBeenCalledWith("99");
     expect(applyRubitimeUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "plat-from-int" }),
     );

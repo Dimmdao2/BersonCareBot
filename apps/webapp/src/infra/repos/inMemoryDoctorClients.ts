@@ -6,21 +6,12 @@ import type {
   DoctorClientsPort,
   DoctorDashboardPatientMetrics,
 } from "@/modules/doctor-clients/ports";
+import { matchesDoctorClientSearch } from "@/modules/doctor-clients/clientSearchMatch";
 
 const STUB_CLIENTS: ClientListItem[] = [];
 
 function matchesSearch(item: ClientListItem, search: string): boolean {
-  const s = search.toLowerCase().trim();
-  if (!s) return true;
-  const name = item.displayName.toLowerCase();
-  const phone = (item.phone ?? "").replace(/\D/g, "");
-  const searchDigits = s.replace(/\D/g, "");
-  return (
-    name.includes(s) ||
-    phone.includes(searchDigits) ||
-    (item.bindings.telegramId ?? "").includes(s) ||
-    (item.bindings.maxId ?? "").includes(s)
-  );
+  return matchesDoctorClientSearch(item, search);
 }
 
 export const inMemoryDoctorClientsPort: DoctorClientsPort = {

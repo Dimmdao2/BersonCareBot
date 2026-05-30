@@ -71,7 +71,11 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           .where(and(eq(beRooms.organizationId, organizationId), eq(beRooms.isActive, true)))
           .orderBy(asc(beRooms.sortOrder), asc(beRooms.title)),
         db
-          .select({ id: beClinicServices.id, label: beClinicServices.title })
+          .select({
+            id: beClinicServices.id,
+            label: beClinicServices.title,
+            durationMinutes: beClinicServices.durationMinutes,
+          })
           .from(beClinicServices)
           .where(and(eq(beClinicServices.organizationId, organizationId), eq(beClinicServices.isActive, true)))
           .orderBy(asc(beClinicServices.sortOrder), asc(beClinicServices.title)),
@@ -80,7 +84,11 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
         specialists: specialists.map((r) => ({ id: r.id, label: r.label })),
         branches: branches.map((r) => ({ id: r.id, label: r.label })),
         rooms: rooms.map((r) => ({ id: r.id, label: r.label })),
-        services: services.map((r) => ({ id: r.id, label: r.label })),
+        services: services.map((r) => ({
+          id: r.id,
+          label: r.label,
+          durationMinutes: r.durationMinutes,
+        })),
       };
     },
 

@@ -4,13 +4,6 @@ import { useCallback, useEffect, useMemo, useState, useTransition, type CSSPrope
 import { DateTime } from "luxon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import type {
   CalendarAppointmentEvent,
@@ -23,6 +16,8 @@ import {
   isCancelledAppointmentStatus,
 } from "@/modules/booking-calendar/appointmentStatusLabels";
 import { DoctorCalendarEventPanel } from "./DoctorCalendarEventPanel";
+import { DoctorCalendarToolbarFilter } from "./DoctorCalendarToolbarFilter";
+import { resolveCalendarCreateFieldValue } from "@/modules/booking-calendar/calendarCreateFieldMode";
 
 const API_BASE = "/api/doctor/booking-engine";
 
@@ -44,10 +39,6 @@ type Props = {
 
 const DEFAULT_HOUR_START = 7;
 const DEFAULT_HOUR_END = 21;
-
-function noneValue() {
-  return "__none__";
-}
 
 function formatDayHeader(isoDate: string, timeZone: string): string {
   return DateTime.fromISO(isoDate, { zone: timeZone }).toFormat("ccc dd.MM");
@@ -122,6 +113,12 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
       }
       setData(json);
       setError(null);
+      setSpecialistId((prev) =>
+        resolveCalendarCreateFieldValue(json.filters.specialists, null, prev),
+      );
+      setBranchId((prev) => resolveCalendarCreateFieldValue(json.filters.branches, null, prev));
+      setRoomId((prev) => resolveCalendarCreateFieldValue(json.filters.rooms, null, prev));
+      setServiceId((prev) => resolveCalendarCreateFieldValue(json.filters.services, null, prev));
     });
   }, [anchorDate, branchId, roomId, serviceId, specialistId, view]);
 
@@ -157,6 +154,16 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
   }
 
   const filters = data?.filters ?? { specialists: [], branches: [], rooms: [], services: [] };
+
+  const activeFilters = useMemo(
+    () => ({
+      specialistId,
+      branchId,
+      roomId,
+      serviceId,
+    }),
+    [branchId, roomId, serviceId, specialistId],
+  );
 
   const { hourStart, hourEnd } = useMemo(() => {
     if (!data || data.view === "month") {
@@ -238,69 +245,30 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
               →
             </Button>
           </div>
-          <Select
-            value={specialistId ?? noneValue()}
-            onValueChange={(v) => setSpecialistId(v === noneValue() ? null : v)}
-          >
-            <SelectTrigger className="w-[10rem]" displayLabel={filters.specialists.find((o) => o.id === specialistId)?.label ?? "Специалист"}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={noneValue()} label="Специалист">
-                Специалист
-              </SelectItem>
-              {filters.specialists.map((o) => (
-                <SelectItem key={o.id} value={o.id} label={o.label}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={branchId ?? noneValue()} onValueChange={(v) => setBranchId(v === noneValue() ? null : v)}>
-            <SelectTrigger className="w-[10rem]" displayLabel={filters.branches.find((o) => o.id === branchId)?.label ?? "Филиал"}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={noneValue()} label="Филиал">
-                Филиал
-              </SelectItem>
-              {filters.branches.map((o) => (
-                <SelectItem key={o.id} value={o.id} label={o.label}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={serviceId ?? noneValue()} onValueChange={(v) => setServiceId(v === noneValue() ? null : v)}>
-            <SelectTrigger className="w-[10rem]" displayLabel={filters.services.find((o) => o.id === serviceId)?.label ?? "Услуга"}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={noneValue()} label="Услуга">
-                Услуга
-              </SelectItem>
-              {filters.services.map((o) => (
-                <SelectItem key={o.id} value={o.id} label={o.label}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={roomId ?? noneValue()} onValueChange={(v) => setRoomId(v === noneValue() ? null : v)}>
-            <SelectTrigger className="w-[10rem]" displayLabel={filters.rooms.find((o) => o.id === roomId)?.label ?? "Кабинет"}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={noneValue()} label="Кабинет">
-                Кабинет
-              </SelectItem>
-              {filters.rooms.map((o) => (
-                <SelectItem key={o.id} value={o.id} label={o.label}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DoctorCalendarToolbarFilter
+            noneLabel="Специалист"
+            options={filters.specialists}
+            value={specialistId}
+            onChange={setSpecialistId}
+          />
+          <DoctorCalendarToolbarFilter
+            noneLabel="Филиал"
+            options={filters.branches}
+            value={branchId}
+            onChange={setBranchId}
+          />
+          <DoctorCalendarToolbarFilter
+            noneLabel="Услуга"
+            options={filters.services}
+            value={serviceId}
+            onChange={setServiceId}
+          />
+          <DoctorCalendarToolbarFilter
+            noneLabel="Кабинет"
+            options={filters.rooms}
+            value={roomId}
+            onChange={setRoomId}
+          />
           <Button type="button" size="sm" variant="outline" disabled={pending} onClick={load}>
             Обновить
           </Button>
@@ -400,6 +368,7 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
           selected={selected}
           timeZone={data?.timeZone ?? timeZone}
           filterMeta={filters}
+          activeFilters={activeFilters}
           onClose={() => setSelected(null)}
           onChanged={() => {
             setSelected(null);

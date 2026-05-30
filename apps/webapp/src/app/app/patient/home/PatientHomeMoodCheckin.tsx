@@ -37,6 +37,8 @@ type Props = {
   moodWeekLastScoreBeforeWindow?: PatientMoodScore | null;
   /** IANA для полосы «Ваша неделя» — те же календарные сутки, что график самочувствия в дневнике. */
   wellbeingWeekTimeZone?: string;
+  wellbeingWeekAnchorNowMs?: number;
+  wellbeingWeekTodayIso?: string;
 };
 
 export function PatientHomeMoodCheckin({
@@ -50,6 +52,8 @@ export function PatientHomeMoodCheckin({
   moodWeekAnchorDayBeforeWindowLastScore = null,
   moodWeekLastScoreBeforeWindow = null,
   wellbeingWeekTimeZone = "UTC",
+  wellbeingWeekAnchorNowMs,
+  wellbeingWeekTodayIso,
 }: Props) {
   const router = useRouter();
   const [selectedScore, setSelectedScore] = useState<number | null>(initialMood?.score ?? null);
@@ -176,13 +180,17 @@ export function PatientHomeMoodCheckin({
                   <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>
                     Ваша неделя
                   </h3>
-                  <PatientHomeWellbeingWeekStrip
-                    marks={moodWeekMarks}
-                    timeZone={wellbeingWeekTimeZone}
-                    anchorDayBeforeWindowHadMarks={moodWeekAnchorDayBeforeWindowHadMarks}
-                    anchorDayBeforeWindowLastScore={moodWeekAnchorDayBeforeWindowLastScore}
-                    lastScoreBeforeWindow={moodWeekLastScoreBeforeWindow}
-                  />
+                  {wellbeingWeekAnchorNowMs != null && wellbeingWeekTodayIso ? (
+                    <PatientHomeWellbeingWeekStrip
+                      marks={moodWeekMarks}
+                      timeZone={wellbeingWeekTimeZone}
+                      anchorNowMs={wellbeingWeekAnchorNowMs}
+                      todayIso={wellbeingWeekTodayIso}
+                      anchorDayBeforeWindowHadMarks={moodWeekAnchorDayBeforeWindowHadMarks}
+                      anchorDayBeforeWindowLastScore={moodWeekAnchorDayBeforeWindowLastScore}
+                      lastScoreBeforeWindow={moodWeekLastScoreBeforeWindow}
+                    />
+                  ) : null}
                 </div>
                 <div
                   className={cn(

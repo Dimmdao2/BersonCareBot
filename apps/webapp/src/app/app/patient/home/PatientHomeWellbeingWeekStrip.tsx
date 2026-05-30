@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { DateTime } from "luxon";
 import type { PatientMoodScore, PatientMoodWeekMark } from "@/modules/patient-mood/types";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
@@ -16,6 +15,10 @@ type Props = {
   marks: readonly PatientMoodWeekMark[];
   /** IANA TZ (как на главной). */
   timeZone: string;
+  /** Снимок «сейчас» с сервера — одинаковый при SSR и гидрации. */
+  anchorNowMs: number;
+  /** Локальная дата «сегодня» в {@link timeZone} (ISO YYYY-MM-DD). */
+  todayIso: string;
   anchorDayBeforeWindowHadMarks?: boolean;
   anchorDayBeforeWindowLastScore?: PatientMoodScore | null;
   /** Последняя оценка до начала окна (для пунктирного lead). */
@@ -49,15 +52,15 @@ function labelForDay(isoDate: string, timeZone: string): string {
 export function PatientHomeWellbeingWeekStrip({
   marks,
   timeZone,
+  anchorNowMs,
+  todayIso,
   anchorDayBeforeWindowHadMarks = false,
   anchorDayBeforeWindowLastScore = null,
   lastScoreBeforeWindow = null,
   className,
 }: Props) {
-  const [nowMs] = useState(() => Date.now());
-  const today = DateTime.now().setZone(timeZone).startOf("day");
-  const todayIso = today.toISODate();
-  if (!todayIso) return null;
+  const today = DateTime.fromISO(todayIso, { zone: timeZone }).startOf("day");
+  if (!today.isValid) return null;
 
   const windowStart = today.minus({ days: HOME_WELLBEING_STRIP_DAY_COUNT - 1 });
   const windowStartIso = windowStart.toISODate();
@@ -77,7 +80,7 @@ export function PatientHomeWellbeingWeekStrip({
     timeZone,
     todayIso,
     windowStartIso,
-    nowMs,
+    nowMs: anchorNowMs,
     anchorDayBeforeWindowHadMarks,
     anchorDayBeforeWindowLastScore,
     lastScoreBeforeWindow,

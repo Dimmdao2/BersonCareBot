@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { DateTime } from "luxon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { CalendarAppointmentEvent, CalendarFilterMeta } from "@/modules/booking-calendar/types";
+import type { CalendarCreateActiveFilters } from "@/modules/booking-calendar/calendarCreateFieldMode";
+import {
+  resolveCalendarCreateFieldMode,
+  resolveCalendarCreateFieldValue,
+} from "@/modules/booking-calendar/calendarCreateFieldMode";
 import type {
   AppointmentCancellationRecord,
   AppointmentRescheduleRecord,
@@ -26,6 +31,11 @@ import {
 } from "@/modules/client-history/labels";
 import { BookingStaffPaymentPanel } from "@/app/app/settings/BookingStaffPaymentPanel";
 import { AppointmentStaffCommentsSection } from "@/app/app/doctor/clients/AppointmentStaffCommentsSection";
+import {
+  DoctorCalendarPatientSearch,
+  type CalendarPatientOption,
+} from "./DoctorCalendarPatientSearch";
+import { DoctorCalendarCreateFormField } from "./DoctorCalendarCreateFormField";
 
 const CANCEL_TYPES = [
   { value: "free", label: "Бесплатная" },
@@ -42,6 +52,7 @@ type Props = {
   selected: CalendarAppointmentEvent | null;
   timeZone: string;
   filterMeta: CalendarFilterMeta;
+  activeFilters: CalendarCreateActiveFilters;
   onClose: () => void;
   onChanged: () => void;
 };
@@ -64,7 +75,15 @@ export function DoctorCalendarEventPanel(props: Props) {
   return <DoctorCalendarEventPanelInner key={props.selected?.id ?? "none"} {...props} />;
 }
 
-function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta, onClose, onChanged }: Props) {
+function DoctorCalendarEventPanelInner({
+  apiBase,
+  selected,
+  timeZone,
+  filterMeta,
+  activeFilters,
+  onClose,
+  onChanged,
+}: Props) {
   const [mode, setMode] = useState<"view" | "create" | "reschedule">("view");
   const [cancelType, setCancelType] = useState("free");
   const [newStartLocal, setNewStartLocal] = useState("");
@@ -74,12 +93,11 @@ function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta
   const [lifecycle, setLifecycle] = useState<LifecycleResponse | null>(null);
 
   const [createStart, setCreateStart] = useState("");
-  const [createEnd, setCreateEnd] = useState("");
   const [createSpecialistId, setCreateSpecialistId] = useState<string | null>(null);
   const [createBranchId, setCreateBranchId] = useState<string | null>(null);
   const [createRoomId, setCreateRoomId] = useState<string | null>(null);
   const [createServiceId, setCreateServiceId] = useState<string | null>(null);
-  const [createPhone, setCreatePhone] = useState("");
+  const [createPatient, setCreatePatient] = useState<CalendarPatientOption | null>(null);
   const selectedId = selected?.id ?? null;
 
   useEffect(() => {
@@ -98,13 +116,35 @@ function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta
     };
   }, [apiBase, selectedId]);
 
+  const createDurationMinutes = useMemo(() => {
+    if (!createServiceId) return null;
+    return filterMeta.services.find((s) => s.id === createServiceId)?.durationMinutes ?? null;
+  }, [createServiceId, filterMeta.services]);
+
+  const openCreateForm = () => {
+    setCreateSpecialistId(
+      resolveCalendarCreateFieldValue(filterMeta.specialists, activeFilters.specialistId, createSpecialistId),
+    );
+    setCreateBranchId(
+      resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, createBranchId),
+    );
+    setCreateRoomId(resolveCalendarCreateFieldValue(filterMeta.rooms, activeFilters.roomId, createRoomId));
+    const nextServiceId = resolveCalendarCreateFieldValue(
+      filterMeta.services,
+      activeFilters.serviceId,
+      createServiceId,
+    );
+    setCreateServiceId(nextServiceId);
+    setMode("create");
+  };
+
   if (!selected) {
     return (
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Запись</h2>
           {mode === "view" ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => setMode("create")}>
+            <Button type="button" size="sm" variant="outline" onClick={openCreateForm}>
               Создать
             </Button>
           ) : (
@@ -118,31 +158,29 @@ function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta
         ) : (
           <CreateForm
             filterMeta={filterMeta}
+            activeFilters={activeFilters}
             createStart={createStart}
-            createEnd={createEnd}
+            createDurationMinutes={createDurationMinutes}
             createSpecialistId={createSpecialistId}
             createBranchId={createBranchId}
             createRoomId={createRoomId}
             createServiceId={createServiceId}
-            createPhone={createPhone}
+            createPatient={createPatient}
             pending={pending}
             message={message}
             onStartChange={setCreateStart}
-            onEndChange={setCreateEnd}
             onSpecialistChange={setCreateSpecialistId}
             onBranchChange={setCreateBranchId}
             onRoomChange={setCreateRoomId}
             onServiceChange={setCreateServiceId}
-            onPhoneChange={setCreatePhone}
+            onPatientChange={setCreatePatient}
             onCancel={() => setMode("view")}
             onSubmit={() => {
-              if (!createStart || !createEnd) return;
+              if (!createStart || !createDurationMinutes) return;
               const startAt = new Date(createStart).toISOString();
-              const endAt = new Date(createEnd).toISOString();
-              const durationMinutes = Math.max(
-                1,
-                Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60_000),
-              );
+              const endAt = new Date(
+                new Date(createStart).getTime() + createDurationMinutes * 60_000,
+              ).toISOString();
               startTransition(async () => {
                 const res = await fetch(`${apiBase}/appointments/manual`, {
                   method: "POST",
@@ -150,12 +188,13 @@ function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta
                   body: JSON.stringify({
                     startAt,
                     endAt,
-                    durationMinutes,
+                    durationMinutes: createDurationMinutes,
                     specialistId: createSpecialistId,
                     branchId: createBranchId,
                     roomId: createRoomId,
                     serviceId: createServiceId,
-                    phoneNormalized: createPhone.trim() || null,
+                    platformUserId: createPatient?.id ?? null,
+                    phoneNormalized: createPatient?.phone?.trim() || null,
                   }),
                 });
                 const json = (await res.json()) as { ok?: boolean; error?: string };
@@ -325,116 +364,81 @@ function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta
 
 type CreateFormProps = {
   filterMeta: CalendarFilterMeta;
+  activeFilters: CalendarCreateActiveFilters;
   createStart: string;
-  createEnd: string;
+  createDurationMinutes: number | null;
   createSpecialistId: string | null;
   createBranchId: string | null;
   createRoomId: string | null;
   createServiceId: string | null;
-  createPhone: string;
+  createPatient: CalendarPatientOption | null;
   pending: boolean;
   message: string | null;
   onStartChange: (v: string) => void;
-  onEndChange: (v: string) => void;
   onSpecialistChange: (v: string | null) => void;
   onBranchChange: (v: string | null) => void;
   onRoomChange: (v: string | null) => void;
   onServiceChange: (v: string | null) => void;
-  onPhoneChange: (v: string) => void;
+  onPatientChange: (v: CalendarPatientOption | null) => void;
   onCancel: () => void;
   onSubmit: () => void;
 };
 
 function CreateForm(props: CreateFormProps) {
+  const durationLabel =
+    props.createDurationMinutes != null ? `${props.createDurationMinutes} мин` : "—";
+
+  const specialistMode = resolveCalendarCreateFieldMode(
+    props.filterMeta.specialists,
+    props.activeFilters.specialistId,
+  );
+  const branchMode = resolveCalendarCreateFieldMode(props.filterMeta.branches, props.activeFilters.branchId);
+  const serviceMode = resolveCalendarCreateFieldMode(props.filterMeta.services, props.activeFilters.serviceId);
+  const roomMode = resolveCalendarCreateFieldMode(props.filterMeta.rooms, props.activeFilters.roomId);
+
   return (
     <div className="mt-3 space-y-2 border-t border-border pt-3">
+      <DoctorCalendarPatientSearch
+        value={props.createPatient}
+        onChange={props.onPatientChange}
+        disabled={props.pending}
+      />
       <Label>Начало</Label>
       <Input type="datetime-local" value={props.createStart} onChange={(e) => props.onStartChange(e.target.value)} />
-      <Label>Окончание</Label>
-      <Input type="datetime-local" value={props.createEnd} onChange={(e) => props.onEndChange(e.target.value)} />
-      <Select
-        value={props.createSpecialistId ?? noneValue()}
-        onValueChange={(v) => props.onSpecialistChange(v === noneValue() ? null : v)}
-      >
-        <SelectTrigger
-          displayLabel={
-            props.filterMeta.specialists.find((o) => o.id === props.createSpecialistId)?.label ?? "Специалист"
-          }
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={noneValue()} label="Специалист">
-            Специалист
-          </SelectItem>
-          {props.filterMeta.specialists.map((o) => (
-            <SelectItem key={o.id} value={o.id} label={o.label}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select
-        value={props.createBranchId ?? noneValue()}
-        onValueChange={(v) => props.onBranchChange(v === noneValue() ? null : v)}
-      >
-        <SelectTrigger
-          displayLabel={props.filterMeta.branches.find((o) => o.id === props.createBranchId)?.label ?? "Филиал"}
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={noneValue()} label="Филиал">
-            Филиал
-          </SelectItem>
-          {props.filterMeta.branches.map((o) => (
-            <SelectItem key={o.id} value={o.id} label={o.label}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select
-        value={props.createServiceId ?? noneValue()}
-        onValueChange={(v) => props.onServiceChange(v === noneValue() ? null : v)}
-      >
-        <SelectTrigger
-          displayLabel={props.filterMeta.services.find((o) => o.id === props.createServiceId)?.label ?? "Услуга"}
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={noneValue()} label="Услуга">
-            Услуга
-          </SelectItem>
-          {props.filterMeta.services.map((o) => (
-            <SelectItem key={o.id} value={o.id} label={o.label}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select
-        value={props.createRoomId ?? noneValue()}
-        onValueChange={(v) => props.onRoomChange(v === noneValue() ? null : v)}
-      >
-        <SelectTrigger
-          displayLabel={props.filterMeta.rooms.find((o) => o.id === props.createRoomId)?.label ?? "Кабинет"}
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={noneValue()} label="Кабинет">
-            Кабинет
-          </SelectItem>
-          {props.filterMeta.rooms.map((o) => (
-            <SelectItem key={o.id} value={o.id} label={o.label}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Input placeholder="Телефон" value={props.createPhone} onChange={(e) => props.onPhoneChange(e.target.value)} />
+      <DoctorCalendarCreateFormField
+        fieldLabel="Специалист"
+        mode={specialistMode}
+        options={props.filterMeta.specialists}
+        value={props.createSpecialistId}
+        noneLabel="Специалист"
+        onChange={props.onSpecialistChange}
+      />
+      <DoctorCalendarCreateFormField
+        fieldLabel="Филиал"
+        mode={branchMode}
+        options={props.filterMeta.branches}
+        value={props.createBranchId}
+        noneLabel="Филиал"
+        onChange={props.onBranchChange}
+      />
+      <DoctorCalendarCreateFormField
+        fieldLabel="Услуга"
+        mode={serviceMode}
+        options={props.filterMeta.services}
+        value={props.createServiceId}
+        noneLabel="Услуга"
+        onChange={props.onServiceChange}
+      />
+      <Label>Длительность</Label>
+      <Input readOnly value={durationLabel} aria-label="Длительность" />
+      <DoctorCalendarCreateFormField
+        fieldLabel="Кабинет"
+        mode={roomMode}
+        options={props.filterMeta.rooms}
+        value={props.createRoomId}
+        noneLabel="Кабинет"
+        onChange={props.onRoomChange}
+      />
       <div className="flex gap-2 pt-2">
         <Button type="button" size="sm" disabled={props.pending} onClick={props.onSubmit}>
           Сохранить

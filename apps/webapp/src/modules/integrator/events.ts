@@ -213,6 +213,14 @@ function coerceToFiniteInt(value: unknown): number | null {
   return null;
 }
 
+/** Bigint-safe numeric string (for ids persisted as BIGINT in DB), otherwise null. */
+function coerceToBigintString(value: unknown): string | null {
+  const s = coerceToString(value);
+  if (!s) return null;
+  const t = s.trim();
+  return /^-?\d+$/.test(t) ? t : null;
+}
+
 function isMergeDomainConflict(err: unknown): err is MergeConflictError | MergeDependentConflictError {
   return err instanceof MergeConflictError || err instanceof MergeDependentConflictError;
 }
@@ -857,64 +865,64 @@ export async function handleIntegratorEvent(
     const integratorBranchId = coerceToString(p.integratorBranchId) ?? null;
     const branchName = coerceToString(p.branchName) ?? null;
 
-    let branchId: string | null = null;
-    if (deps.branches && integratorBranchId) {
-      const { branchId: id } = await deps.branches.upsertFromProjection({
-        integratorBranchId,
-        name: branchName,
-      });
-      branchId = id;
-    }
-
-    const fullNameFromPayload =
-      typeof payloadJson.name === "string" && payloadJson.name.trim().length > 0
-        ? payloadJson.name.trim()
-        : null;
-
-    let ensuredPlatformUserId: string | null = null;
-    let appointmentMergeConflict = false;
     const auditPayload: Record<string, unknown> = { ...p, payloadJson };
-    if (phoneNormalized && deps.users?.ensureClientFromAppointmentProjection) {
-      const integratorUserIdTop =
-        coerceToString(p.integratorUserId) ??
-        coerceToString(payloadJson.integratorUserId) ??
-        coerceToString(payloadJson.integrator_user_id);
-      const displayNameForEnsure =
-        fullNameFromPayload ||
-        [patientLastName, patientFirstName].filter(Boolean).join(" ").trim() ||
-        null;
-      try {
-        const ensured = await deps.users.ensureClientFromAppointmentProjection({
-          phoneNormalized,
-          integratorUserId: integratorUserIdTop,
-          displayName: displayNameForEnsure,
-          firstName: patientFirstName,
-          lastName: patientLastName,
-          email: patientEmail,
+    try {
+      let branchId: string | null = null;
+      if (deps.branches && integratorBranchId) {
+        const { branchId: id } = await deps.branches.upsertFromProjection({
+          integratorBranchId,
+          name: branchName,
         });
-        ensuredPlatformUserId = ensured.platformUserId;
-        if (ensured.contactEmailSetup && deps.emailSetupAccess) {
-          fireAndForgetContactEmailSetup(
-            deps.emailSetupAccess,
-            {
-              userId: ensured.platformUserId,
-              emailNormalized: ensured.contactEmailSetup.emailNormalized,
-              source: "rubitime",
-            },
-            { hook: "appointment.record.upserted" },
-          );
-        }
-      } catch (err) {
-        if (isMergeDomainConflict(err)) {
-          await logMergeClassConflict(deps, err, "appointment.record.upserted", auditPayload);
-          appointmentMergeConflict = true;
-        } else {
-          throw err;
+        branchId = id;
+      }
+
+      const fullNameFromPayload =
+        typeof payloadJson.name === "string" && payloadJson.name.trim().length > 0
+          ? payloadJson.name.trim()
+          : null;
+
+      let ensuredPlatformUserId: string | null = null;
+      let appointmentMergeConflict = false;
+      if (phoneNormalized && deps.users?.ensureClientFromAppointmentProjection) {
+        const integratorUserIdTop =
+          coerceToBigintString(p.integratorUserId) ??
+          coerceToBigintString(payloadJson.integratorUserId) ??
+          coerceToBigintString(payloadJson.integrator_user_id);
+        const displayNameForEnsure =
+          fullNameFromPayload ||
+          [patientLastName, patientFirstName].filter(Boolean).join(" ").trim() ||
+          null;
+        try {
+          const ensured = await deps.users.ensureClientFromAppointmentProjection({
+            phoneNormalized,
+            integratorUserId: integratorUserIdTop,
+            displayName: displayNameForEnsure,
+            firstName: patientFirstName,
+            lastName: patientLastName,
+            email: patientEmail,
+          });
+          ensuredPlatformUserId = ensured.platformUserId;
+          if (ensured.contactEmailSetup && deps.emailSetupAccess) {
+            fireAndForgetContactEmailSetup(
+              deps.emailSetupAccess,
+              {
+                userId: ensured.platformUserId,
+                emailNormalized: ensured.contactEmailSetup.emailNormalized,
+                source: "rubitime",
+              },
+              { hook: "appointment.record.upserted" },
+            );
+          }
+        } catch (err) {
+          if (isMergeDomainConflict(err)) {
+            await logMergeClassConflict(deps, err, "appointment.record.upserted", auditPayload);
+            appointmentMergeConflict = true;
+          } else {
+            throw err;
+          }
         }
       }
-    }
 
-    try {
       await ap.upsertRecordFromProjection({
         integratorRecordId,
         phoneNormalized,
@@ -954,9 +962,9 @@ export async function handleIntegratorEvent(
       }
       if (!appointmentMergeConflict && !resolvedUserId && deps.users) {
         const integratorUserId =
-          coerceToString(p.integratorUserId) ??
-          coerceToString(payloadJson.integratorUserId) ??
-          coerceToString(payloadJson.integrator_user_id);
+          coerceToBigintString(p.integratorUserId) ??
+          coerceToBigintString(payloadJson.integratorUserId) ??
+          coerceToBigintString(payloadJson.integrator_user_id);
         if (integratorUserId) {
           try {
             const foundByIntegratorId = await deps.users.findByIntegratorId(integratorUserId);

@@ -21,6 +21,31 @@ function signGet(timestamp: string, canonicalGet: string, secret: string): strin
   return createHmac('sha256', secret).update(`${timestamp}.${canonicalGet}`).digest('base64url');
 }
 
+const MAX_IDEMPOTENCY_KEY_LENGTH = 256;
+
+function hasNonLatin1Chars(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    if (value.charCodeAt(i) > 0xff) return true;
+  }
+  return false;
+}
+
+/**
+ * HTTP headers are limited to ByteString/Latin-1.
+ * Keep idempotency deterministic while guaranteeing header-safe bytes.
+ */
+function normalizeIdempotencyKeyForHeader(raw: string): string {
+  const trimmed = raw.trim();
+  if (
+    trimmed.length === 0 ||
+    trimmed.length > MAX_IDEMPOTENCY_KEY_LENGTH ||
+    hasNonLatin1Chars(trimmed)
+  ) {
+    return `idem-${createHash('sha256').update(trimmed, 'utf8').digest('hex').slice(0, 48)}`;
+  }
+  return trimmed;
+}
+
 async function fetchSignedGet<T>(input: {
   baseUrl: string;
   path: string;
@@ -67,11 +92,12 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     const url = `${baseUrl.replace(/\/$/, '')}${input.path}`;
     const timestamp = String(Math.floor(Date.now() / 1000));
     const signature = sign(timestamp, input.body, secret);
+    const headerIdempotencyKey = normalizeIdempotencyKeyForHeader(input.idempotencyKey);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Bersoncare-Timestamp': timestamp,
       'X-Bersoncare-Signature': signature,
-      'X-Bersoncare-Idempotency-Key': input.idempotencyKey,
+      'X-Bersoncare-Idempotency-Key': headerIdempotencyKey,
     };
     try {
       const res = await fetch(url, { method: 'POST', headers, body: input.body });
@@ -103,12 +129,14 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/events`;
-      const body = buildIntegratorEventsHttpBody(event);
+      const fallbackBody = buildIntegratorEventsHttpBody(event);
+      const rawIdempotencyKey =
+        event.idempotencyKey ??
+        `evt-fallback:${event.eventType}:${createHash('sha256').update(fallbackBody).digest('hex').slice(0, 24)}`;
+      const idempotencyKey = normalizeIdempotencyKeyForHeader(rawIdempotencyKey);
+      const body = buildIntegratorEventsHttpBody({ ...event, idempotencyKey });
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = sign(timestamp, body, secret);
-      const idempotencyKey =
-        event.idempotencyKey ??
-        `evt-fallback:${event.eventType}:${createHash('sha256').update(body).digest('hex').slice(0, 24)}`;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Bersoncare-Timestamp': timestamp,
@@ -261,11 +289,12 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/program-note/reply-begin`;
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = sign(timestamp, body, secret);
+      const headerIdempotencyKey = normalizeIdempotencyKeyForHeader(input.idempotencyKey);
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Bersoncare-Timestamp': timestamp,
         'X-Bersoncare-Signature': signature,
-        'X-Bersoncare-Idempotency-Key': input.idempotencyKey,
+        'X-Bersoncare-Idempotency-Key': headerIdempotencyKey,
       };
       try {
         const res = await fetch(url, { method: 'POST', headers, body });
@@ -304,11 +333,12 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/patient-reminders/notify-channels`;
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = sign(timestamp, input.body, secret);
+      const headerIdempotencyKey = normalizeIdempotencyKeyForHeader(input.idempotencyKey);
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Bersoncare-Timestamp': timestamp,
         'X-Bersoncare-Signature': signature,
-        'X-Bersoncare-Idempotency-Key': input.idempotencyKey,
+        'X-Bersoncare-Idempotency-Key': headerIdempotencyKey,
       };
       try {
         const res = await fetch(url, {
@@ -372,11 +402,12 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/patient-notifications/web-push`;
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = sign(timestamp, input.body, secret);
+      const headerIdempotencyKey = normalizeIdempotencyKeyForHeader(input.idempotencyKey);
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Bersoncare-Timestamp': timestamp,
         'X-Bersoncare-Signature': signature,
-        'X-Bersoncare-Idempotency-Key': input.idempotencyKey,
+        'X-Bersoncare-Idempotency-Key': headerIdempotencyKey,
       };
       try {
         const res = await fetch(url, {

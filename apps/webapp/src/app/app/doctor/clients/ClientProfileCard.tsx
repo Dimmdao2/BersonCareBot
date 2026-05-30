@@ -636,21 +636,27 @@ function ClientProfileCardInner({
       </p>
 
       <Dialog open={chatOpen} onOpenChange={setChatOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl" showCloseButton={!chatLoading}>
-          <DialogHeader>
+        <DialogContent
+          className="flex max-h-[min(90vh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+          showCloseButton={!chatLoading}
+        >
+          <DialogHeader className="shrink-0 border-b border-border px-4 py-3 pr-12">
             <DialogTitle>Чат с пациентом</DialogTitle>
             <DialogDescription>{displayHeading}</DialogDescription>
           </DialogHeader>
-          {chatLoading ? <p className="text-sm text-muted-foreground">Открываем чат...</p> : null}
-          {chatError ? <p className="text-sm text-destructive">{chatError}</p> : null}
-          {!chatLoading && !chatError && chatConversationId ? (
-            <DoctorChatPanel
-              key={chatConversationId}
-              conversationId={chatConversationId}
-              initialMessages={chatInitialMessages ?? []}
-              onReadStateChanged={() => setChatUnreadCount(0)}
-            />
-          ) : null}
+          <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-3">
+            {chatLoading ? <p className="text-sm text-muted-foreground">Открываем чат...</p> : null}
+            {chatError ? <p className="text-sm text-destructive">{chatError}</p> : null}
+            {!chatLoading && !chatError && chatConversationId ? (
+              <DoctorChatPanel
+                key={chatConversationId}
+                conversationId={chatConversationId}
+                initialMessages={chatInitialMessages ?? []}
+                className="min-h-0 flex-1"
+                onReadStateChanged={() => setChatUnreadCount(0)}
+              />
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

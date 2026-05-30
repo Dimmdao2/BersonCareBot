@@ -26,6 +26,8 @@ describe("PatientHomeWellbeingWeekStrip", () => {
           },
         ]}
         timeZone="Europe/Moscow"
+        anchorNowMs={monday.toMillis()}
+        todayIso={monday.toISODate()!}
       />,
     );
     const dashed = container.querySelector('path[stroke-dasharray="4 3"]');
@@ -47,6 +49,8 @@ describe("PatientHomeWellbeingWeekStrip", () => {
           },
         ]}
         timeZone="Europe/Moscow"
+        anchorNowMs={monday.toMillis()}
+        todayIso={monday.toISODate()!}
         anchorDayBeforeWindowHadMarks
         anchorDayBeforeWindowLastScore={4}
         lastScoreBeforeWindow={4}
@@ -60,7 +64,12 @@ describe("PatientHomeWellbeingWeekStrip", () => {
     const wednesday = DateTime.fromObject({ year: 2026, month: 5, day: 20, hour: 12 }, { zone: "Europe/Moscow" });
     vi.setSystemTime(wednesday.toMillis());
     const { container } = render(
-      <PatientHomeWellbeingWeekStrip marks={[]} timeZone="Europe/Moscow" />,
+      <PatientHomeWellbeingWeekStrip
+        marks={[]}
+        timeZone="Europe/Moscow"
+        anchorNowMs={wednesday.toMillis()}
+        todayIso={wednesday.toISODate()!}
+      />,
     );
     expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(HOME_WELLBEING_STRIP_DAY_COUNT);
   });

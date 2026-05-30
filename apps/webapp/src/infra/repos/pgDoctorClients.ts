@@ -8,6 +8,7 @@ import type {
   DoctorClientsPort,
   DoctorDashboardPatientMetrics,
 } from "@/modules/doctor-clients/ports";
+import { matchesDoctorClientSearch } from "@/modules/doctor-clients/clientSearchMatch";
 
 function rowToBindings(rows: { channel_code: string; external_id: string }[]): ChannelBindings {
   const bindings: ChannelBindings = {};
@@ -125,14 +126,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       );
 
       if (filters.search?.trim()) {
-        const s = filters.search.toLowerCase().trim();
-        list = list.filter(
-          (item) =>
-            item.displayName.toLowerCase().includes(s) ||
-            (item.phone ?? "").includes(s) ||
-            (item.bindings.telegramId ?? "").toLowerCase().includes(s) ||
-            (item.bindings.maxId ?? "").toLowerCase().includes(s)
-        );
+        const s = filters.search.trim();
+        list = list.filter((item) => matchesDoctorClientSearch(item, s));
       }
       if (filters.hasTelegram === true) {
         list = list.filter((item) => Boolean(item.bindings.telegramId?.trim()));

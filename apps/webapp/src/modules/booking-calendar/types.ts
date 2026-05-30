@@ -15,11 +15,13 @@ export type CalendarFilters = {
 
 export type CalendarFilterOption = { id: string; label: string };
 
+export type CalendarServiceFilterOption = CalendarFilterOption & { durationMinutes: number };
+
 export type CalendarFilterMeta = {
   specialists: CalendarFilterOption[];
   branches: CalendarFilterOption[];
   rooms: CalendarFilterOption[];
-  services: CalendarFilterOption[];
+  services: CalendarServiceFilterOption[];
 };
 
 export type CalendarAppointmentEvent = {

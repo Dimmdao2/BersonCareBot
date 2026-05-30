@@ -159,6 +159,29 @@ describe("createWebappEventsPort emit", () => {
       "webapp events emit: empty response body",
     );
   });
+
+  it("normalizes non-Latin idempotency key for header and body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 202,
+      text: async () => JSON.stringify({ ok: true }),
+    });
+    globalThis.fetch = fetchMock;
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
+    const result = await port.emit({
+      eventType: "support.delivery.attempt.logged",
+      idempotencyKey: "support.delivery.attempt.logged:Сделал 7 раз:tg:364943522",
+      occurredAt: new Date().toISOString(),
+      payload: { attempt: 1, channelCode: "telegram", status: "failed" },
+    });
+    expect(result.ok).toBe(true);
+    const call = fetchMock.mock.calls[0];
+    const options = call?.[1] as { headers?: Record<string, string>; body?: string } | undefined;
+    const headerKey = options?.headers?.["X-Bersoncare-Idempotency-Key"] ?? "";
+    expect(headerKey).toMatch(/^idem-[0-9a-f]{48}$/);
+    const parsedBody = JSON.parse(options?.body ?? "{}") as { idempotencyKey?: string };
+    expect(parsedBody.idempotencyKey).toBe(headerKey);
+  });
 });
 
 describe("createWebappEventsPort notifyPatientReminderChannels", () => {

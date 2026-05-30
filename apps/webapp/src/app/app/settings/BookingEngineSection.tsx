@@ -13,6 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  BookingEngineBranchList,
+  BookingEngineRoomList,
+  BookingEngineServiceList,
+  BookingEngineSpecialistList,
+} from "./BookingEngineCatalogLists";
 
 const BASE = "/api/admin/booking-engine";
 
@@ -129,6 +135,10 @@ export function BookingEngineSection() {
       }
     });
   };
+
+  const catalogReload = useCallback(async () => {
+    await load();
+  }, [load]);
 
   if (unavailable) {
     return (
@@ -250,13 +260,12 @@ export function BookingEngineSection() {
                     Добавить
                   </Button>
                 </div>
-                <ul className="text-sm">
-                  {data.branches.map((b) => (
-                    <li key={b.id}>
-                      {b.title} ({b.cityCode}){!b.isActive ? " — выкл." : ""}
-                    </li>
-                  ))}
-                </ul>
+                <BookingEngineBranchList
+                  branches={data.branches}
+                  isPending={isPending}
+                  onChanged={catalogReload}
+                  onError={setActionError}
+                />
               </div>
 
               <div className="space-y-2">
@@ -298,11 +307,12 @@ export function BookingEngineSection() {
                     Добавить
                   </Button>
                 </div>
-                <ul className="text-sm">
-                  {data.rooms.map((r) => (
-                    <li key={r.id}>{r.title}</li>
-                  ))}
-                </ul>
+                <BookingEngineRoomList
+                  rooms={data.rooms}
+                  isPending={isPending}
+                  onChanged={catalogReload}
+                  onError={setActionError}
+                />
               </div>
 
               <div className="space-y-2">
@@ -347,11 +357,12 @@ export function BookingEngineSection() {
                     Добавить
                   </Button>
                 </div>
-                <ul className="text-sm">
-                  {data.specialists.map((s) => (
-                    <li key={s.id}>{s.fullName}</li>
-                  ))}
-                </ul>
+                <BookingEngineSpecialistList
+                  specialists={data.specialists}
+                  isPending={isPending}
+                  onChanged={catalogReload}
+                  onError={setActionError}
+                />
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -407,36 +418,12 @@ export function BookingEngineSection() {
                     Добавить
                   </Button>
                 </div>
-                <ul className="text-sm space-y-1">
-                  {data.services.map((s) => (
-                    <li key={s.id} className="flex flex-wrap items-center gap-2">
-                      <span>
-                        {s.title}, {s.durationMinutes} мин, {(s.priceMinor / 100).toLocaleString("ru-RU")} ₽
-                        {!s.publicWidgetVisible ? " · скрыта" : ""}
-                        {s.adminManualOnly ? " · вручную" : ""}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2"
-                        disabled={isPending}
-                        onClick={() =>
-                          run(async () => {
-                            const res = await apiJson<{ ok: boolean }>(`${BASE}/services/${s.id}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ adminManualOnly: !s.adminManualOnly }),
-                            });
-                            if (!res.ok) throw new Error("service_patch_failed");
-                          })
-                        }
-                      >
-                        {s.adminManualOnly ? "В виджет" : "Только вручную"}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
+                <BookingEngineServiceList
+                  services={data.services}
+                  isPending={isPending}
+                  onChanged={catalogReload}
+                  onError={setActionError}
+                />
               </div>
 
               <div className="space-y-2 md:col-span-2">

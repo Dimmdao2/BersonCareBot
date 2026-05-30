@@ -1,5 +1,5 @@
 /**
- * GET/POST /api/doctor/booking-engine/appointments/:appointmentId/comments
+ * GET/POST /api/doctor/booking-engine/appointments/:id/comments
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -13,7 +13,7 @@ const postBodySchema = z.object({
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ appointmentId: string }> },
+  context: { params: Promise<{ id: string }> },
 ) {
   const session = await getCurrentSession();
   if (!session) {
@@ -23,7 +23,7 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
-  const { appointmentId } = await context.params;
+  const { id: appointmentId } = await context.params;
   if (!z.string().uuid().safeParse(appointmentId).success) {
     return NextResponse.json({ ok: false, error: "invalid_appointment" }, { status: 400 });
   }
@@ -40,7 +40,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  context: { params: Promise<{ appointmentId: string }> },
+  context: { params: Promise<{ id: string }> },
 ) {
   const session = await getCurrentSession();
   if (!session) {
@@ -50,7 +50,7 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
-  const { appointmentId } = await context.params;
+  const { id: appointmentId } = await context.params;
   if (!z.string().uuid().safeParse(appointmentId).success) {
     return NextResponse.json({ ok: false, error: "invalid_appointment" }, { status: 400 });
   }

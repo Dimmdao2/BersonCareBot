@@ -68,6 +68,17 @@ function parseIntentFromPayload(payload: Record<string, unknown>): OutgoingInten
   };
 }
 
+function isMissingReminderOccurrenceFk(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: unknown; cause?: { code?: unknown; constraint?: unknown } };
+  const code = typeof e.code === 'string' ? e.code : typeof e.cause?.code === 'string' ? e.cause.code : '';
+  const constraint =
+    typeof e.cause?.constraint === 'string'
+      ? e.cause.constraint
+      : '';
+  return code === '23503' && constraint === 'user_reminder_delivery_logs_occurrence_id_fkey';
+}
+
 function maskRecipientForDoctorBroadcastLog(channel: string, intent: OutgoingIntent): string {
   const pl = intent.payload;
   const r = pl?.recipient;
@@ -142,21 +153,41 @@ async function finalizeOutgoingDeliveryDead(
     const externalId = typeof p.externalId === 'string' ? p.externalId : '';
     const text = typeof p.logText === 'string' ? p.logText : '';
     if (occurrenceId && channel && deliveryLogId) {
-      await writePort.writeDb({
-        type: 'reminders.delivery.log',
-        params: {
-          id: deliveryLogId,
-          occurrenceId,
-          channel,
-          status: 'failed',
-          errorCode: 'DELIVERY_DEAD',
-          payloadJson: { chatId: externalId, text },
-        },
-      });
-      await writePort.writeDb({
-        type: 'reminders.occurrence.markFailed',
-        params: { occurrenceId, channel, errorCode: 'DELIVERY_DEAD' },
-      });
+      const occStatus = await readReminderOccurrenceStatus(db, occurrenceId);
+      if (!occStatus) {
+        logger.warn(
+          { occurrenceId, rowId: row.id, eventId: row.eventId },
+          'finalize_delivery_dead_skip_missing_occurrence',
+        );
+        return;
+      }
+      try {
+        await writePort.writeDb({
+          type: 'reminders.delivery.log',
+          params: {
+            id: deliveryLogId,
+            occurrenceId,
+            channel,
+            status: 'failed',
+            errorCode: 'DELIVERY_DEAD',
+            payloadJson: { chatId: externalId, text },
+          },
+        });
+        await writePort.writeDb({
+          type: 'reminders.occurrence.markFailed',
+          params: { occurrenceId, channel, errorCode: 'DELIVERY_DEAD' },
+        });
+      } catch (err) {
+        if (isMissingReminderOccurrenceFk(err)) {
+          logger.warn(
+            { occurrenceId, rowId: row.id, eventId: row.eventId },
+            // eslint-disable-next-line no-secrets/no-secrets -- structured log event name, not a credential
+            'finalize_delivery_dead_skip_missing_occurrence_fk',
+          );
+          return;
+        }
+        throw err;
+      }
     }
   }
 }
