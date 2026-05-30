@@ -287,3 +287,12 @@
   - `pnpm --dir apps/webapp test -- progress-service complete route PatientProgramStageItemPageClient`
   - `ReadLints` по изменённым файлам: ошибок нет.
 - `pnpm --dir apps/webapp typecheck` падает на несвязанных ошибках в `src/modules/patient-booking/service.ts` (nullable checks), вне scope этапа 4.
+
+### Исправления по аудиту этапа 4 (без хвостов)
+
+- Обновлён `apps/webapp/src/app/app/patient/treatment/program-detail/README.md`: описание вкладки «Программа» синхронизировано с discussion UI (этапы 3–4), убрано устаревшее «Добавить комментарий» / observation-note modal flow.
+- Добавлен негативный RTL-кейс в `PatientProgramStageItemPageClient.test.tsx`:
+  - при `patientProgramDiscussionUiEnabled=false` скрыты camera/discussion CTA и не вызывается `GET .../discussion`.
+- Проверки после исправления:
+  - `pnpm --dir apps/webapp exec vitest --run src/app/app/patient/treatment/PatientProgramStageItemPageClient.test.tsx`
+  - `ReadLints` по изменённым файлам (ошибок нет).

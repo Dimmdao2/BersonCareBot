@@ -141,4 +141,45 @@ describe("PatientProgramStageItemPageClient", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Отметить выполнение")).toBeInTheDocument();
   });
+
+  it("hides discussion controls when patientProgramDiscussionUiEnabled is false", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/checklist-today")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            doneItemIds: [],
+            doneTodayCountByItemId: {},
+            lastDoneAtIsoByItemId: {},
+            doneTodayCountByActivityKey: {},
+            lastDoneAtIsoByActivityKey: {},
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PatientProgramStageItemPageClient
+        instanceId={instanceId}
+        itemId={itemId}
+        navMode="exec"
+        backHref="/app/patient/treatment"
+        initialDetail={makeDetail()}
+        appDisplayTimeZone="Europe/Moscow"
+        itemLinksPlanTab="program"
+        planItemDoneRepeatCooldownMinutes={60}
+        patientProgramDiscussionUiEnabled={false}
+      />,
+    );
+
+    expect(await screen.findByText("Инструкция от специалиста")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Оставить комментарий к выполнению/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Открыть комментарии/i })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion"))).toBe(false);
+  });
 });
