@@ -4052,6 +4052,8 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     };
     const renderTemplate = vi.fn().mockImplementation(async (input: { templateId?: string }) => {
       if (input.templateId === 'phoneAuthReturnToApp') return { text: 'Вернитесь в приложение.' };
+      if (input.templateId === 'phoneAuthOpenAppPrompt') return { text: 'Откройте приложение.' };
+      if (input.templateId === 'phoneAuthOpenAppButton') return { text: 'Войти' };
       if (input.templateId === 'menu.book') return { text: 'Запись' };
       if (input.templateId === 'menu.app') return { text: 'Приложение' };
       return { text: '' };
@@ -4083,9 +4085,12 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(renderTemplate).toHaveBeenCalledWith(
       expect.objectContaining({ templateId: 'phoneAuthReturnToApp', source: 'max' }),
     );
-    const send = result.intents?.find((i) => i.type === 'message.send');
-    expect(send).toBeDefined();
-    expect((send?.payload as { replyMarkup?: { inline_keyboard?: unknown[] } }).replyMarkup?.inline_keyboard).toBeTruthy();
+    const urlIntent = result.intents?.find((i) => {
+      const markup = (i.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ url?: string }>> } })
+        .replyMarkup;
+      return markup?.inline_keyboard?.[0]?.[0]?.url === 'https://app.example/home';
+    });
+    expect(urlIntent).toBeDefined();
   });
 
   it('webapp.phoneMessengerBind.complete fails when writePort is missing after webapp ok', async () => {
@@ -4123,7 +4128,12 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
         },
       },
     };
-    const renderTemplate = vi.fn();
+    const renderTemplate = vi.fn().mockImplementation(async (input: { templateId?: string }) => {
+      if (input.templateId === 'chooseMenu') return { text: 'Меню' };
+      if (input.templateId === 'menu.book') return { text: 'Запись' };
+      if (input.templateId === 'menu.app') return { text: 'Приложение' };
+      return { text: '' };
+    });
     const result = await executeAction(
       {
         id: 'pa-no-write',
@@ -4138,7 +4148,12 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(result.values).toMatchObject({
       phoneMessengerBind: { ok: false, reason: 'write_port_missing' },
     });
-    expect(renderTemplate).not.toHaveBeenCalled();
+    const menuIntent = result.intents?.find(
+      (i) =>
+        i.type === 'message.send'
+        && (i.payload as { replyMarkup?: { keyboard?: unknown[] } }).replyMarkup?.keyboard,
+    );
+    expect(menuIntent).toBeDefined();
   });
 
   it('webapp.phoneMessengerBind.complete login replay shows menu without duplicate return text', async () => {
@@ -4204,6 +4219,88 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(renderTemplate).not.toHaveBeenCalledWith(
       expect.objectContaining({ templateId: 'phoneAuthReturnToApp' }),
     );
+    expect(renderTemplate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthOpenAppPrompt' }),
+    );
+    const urlIntent = result.intents?.find((i) => {
+      const markup = (i.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ url?: string }>> } })
+        .replyMarkup;
+      return markup?.inline_keyboard?.some((row) => row.some((btn) => typeof btn.url === 'string'));
+    });
+    expect(urlIntent).toBeUndefined();
+  });
+
+  it('webapp.phoneMessengerBind.complete login without webappHomeUrl omits open-app url inline message', async () => {
+    const completePhoneMessengerBind = vi.fn().mockResolvedValue({
+      ok: true,
+      purpose: 'login',
+      accountCreated: false,
+      challengeId: 'ch-no-url',
+    });
+    const webappEventsPort = {
+      completePhoneMessengerBind,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const writeDb = vi.fn().mockImplementation(async (mutation: { type?: string }) => {
+      if (mutation.type === 'user.phone.link') return { userPhoneLinkApplied: true };
+      return undefined;
+    });
+    const tgCtx: DomainContext = {
+      ...ctx,
+      base: {
+        ...ctx.base,
+        conversationState: 'await_phoneauth:auth_nourl',
+      },
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-pa-no-url',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '335',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            chatId: 335,
+            channelId: '335',
+            phone: '+79991234567',
+            userState: 'await_phoneauth:auth_nourl',
+          },
+        },
+      },
+    };
+    const renderTemplate = vi.fn().mockImplementation(async (input: { templateId?: string }) => {
+      if (input.templateId === 'phoneAuthReturnToApp') return { text: 'Готово.' };
+      if (input.templateId === 'menu.book') return { text: 'Запись' };
+      if (input.templateId === 'menu.app') return { text: 'Приложение' };
+      return { text: '' };
+    });
+    const result = await executeAction(
+      {
+        id: 'pa-no-url-login',
+        type: 'webapp.phoneMessengerBind.complete',
+        mode: 'sync',
+        params: { channelCode: 'telegram', externalId: '335' },
+      },
+      tgCtx,
+      { webappEventsPort, templatePort: { renderTemplate }, writePort: { writeDb } },
+    );
+    expect(result.status).toBe('success');
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthReturnToApp', source: 'telegram' }),
+    );
+    expect(renderTemplate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ templateId: 'phoneAuthOpenAppPrompt' }),
+    );
+    const urlIntent = result.intents?.find((i) => {
+      const markup = (i.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ url?: string }>> } })
+        .replyMarkup;
+      return markup?.inline_keyboard?.[0]?.[0]?.url;
+    });
+    expect(urlIntent).toBeUndefined();
   });
 
   it('webapp.phoneMessengerBind.complete fails without success when userPhoneLinkApplied is false', async () => {
@@ -4513,6 +4610,40 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(result.status).toBe('failed');
   });
 
+  it('webapp.programNote.replyBegin without stageItemId aborts plan and answers callback', async () => {
+    const adminCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'callback.received',
+        meta: {
+          eventId: 'evt-pn-miss',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '1',
+        },
+        payload: {
+          incoming: {
+            kind: 'callback',
+            chatId: 1,
+            callbackQueryId: 'cq-pn-miss',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'pn-begin-miss',
+        type: 'webapp.programNote.replyBegin',
+        mode: 'sync',
+        params: {},
+      },
+      adminCtx,
+      {},
+    );
+    expect(result.abortPlan).toBe(true);
+    expect(result.intents?.filter((i) => i.type === 'callback.answer')).toHaveLength(1);
+  });
+
   it('webapp.programNote.replyBegin failure aborts plan and answers callback', async () => {
     const webappEventsPort = {
       beginProgramNoteReply: vi.fn().mockResolvedValue({ ok: false, error: 'forbidden' }),
@@ -4553,6 +4684,60 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(result.abortPlan).toBe(true);
     expect(result.intents?.some((i) => i.type === 'callback.answer')).toBe(true);
     expect(result.intents?.filter((i) => i.type === 'callback.answer')).toHaveLength(1);
+  });
+
+  it('webapp.programNote.replyBegin success returns programNoteReplyState without abortPlan', async () => {
+    const replyState = 'admin_reply:webapp:platform:doc-1#pn:stage-42';
+    const webappEventsPort = {
+      beginProgramNoteReply: vi.fn().mockResolvedValue({
+        ok: true,
+        programNoteReplyState: replyState,
+      }),
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const adminCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'callback.received',
+        meta: {
+          eventId: 'evt-pn-ok',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '1',
+        },
+        payload: {
+          incoming: {
+            kind: 'callback',
+            chatId: 1,
+            callbackQueryId: 'cq-pn-ok',
+            stageItemId: 'stage-42',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'pn-begin-ok',
+        type: 'webapp.programNote.replyBegin',
+        mode: 'sync',
+        params: { stageItemId: 'stage-42' },
+      },
+      adminCtx,
+      { webappEventsPort },
+    );
+    expect(result.status).toBe('success');
+    expect(result.abortPlan).toBeUndefined();
+    expect(result.values).toMatchObject({
+      programNoteReply: { ok: true },
+      programNoteReplyState: replyState,
+    });
+    expect(result.intents?.some((i) => i.type === 'callback.answer')).toBeFalsy();
+    expect(webappEventsPort.beginProgramNoteReply).toHaveBeenCalledWith({
+      stageItemId: 'stage-42',
+      idempotencyKey: 'program-note-reply-begin:stage-42',
+    });
   });
 
   it('webapp.phoneMessengerBind.complete login with webappHomeUrl adds open-app url inline message', async () => {

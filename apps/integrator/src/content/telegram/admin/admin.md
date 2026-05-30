@@ -4,8 +4,9 @@
 
 ## Кто считается admin в боте
 
-- **`isAdmin`** в integrator — только id из env (`TELEGRAM_ADMIN_ID` / MAX admin), **не** список `doctor_telegram_ids` в `system_settings`.
-- Врачи из `doctor_telegram_ids` **получают** уведомления о program note, но сценарии `*.admin.*` срабатывают только если их messenger id совпадает с admin env или они в `admin_telegram_ids`.
+- **`isAdmin`** в facts webhook = env-admin (`TELEGRAM_ADMIN_ID` / MAX admin) **∪** id из `admin_telegram_ids` / `doctor_telegram_ids` (Telegram) или `admin_max_ids` / `doctor_max_ids` (MAX) в `system_settings` (scope `admin`).
+- Резолвер: `apps/integrator/src/infra/db/messengerStaffIds.ts` (TTL-кеш списков 60 с; сброс при `POST /api/integrator/settings/sync` для этих ключей).
+- Канон: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md) §«Админ-бот».
 
 ## Ответ на сообщение пациента (поддержка)
 

@@ -1,7 +1,9 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+/* eslint-disable no-secrets/no-secrets -- test titles reference exported symbol names */
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   clearMessengerStaffIdsCache,
   createMessengerStaffIdsResolver,
+  invalidateMessengerStaffIdsCacheForSettingKey,
   parseIdTokens,
 } from './messengerStaffIds.js';
 import type { DbPort } from '../../kernel/contracts/index.js';
@@ -17,6 +19,27 @@ describe('parseIdTokens', () => {
 
   it('dedupes tokens', () => {
     expect(parseIdTokens('5,5,6')).toEqual(['5', '6']);
+  });
+});
+
+describe('invalidateMessengerStaffIdsCacheForSettingKey', () => {
+  beforeEach(() => {
+    clearMessengerStaffIdsCache();
+  });
+
+  it('clears resolver cache so the next lookup re-reads settings', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ value_json: { value: [] } }] });
+    const db = { query } as unknown as DbPort;
+    const resolve = createMessengerStaffIdsResolver(db);
+    await resolve('telegram', '1');
+    await resolve('telegram', '2');
+    expect(query).toHaveBeenCalledTimes(2);
+    invalidateMessengerStaffIdsCacheForSettingKey('doctor_telegram_ids');
+    await resolve('telegram', '3');
+    expect(query).toHaveBeenCalledTimes(4);
+    invalidateMessengerStaffIdsCacheForSettingKey('unrelated_key');
+    await resolve('telegram', '4');
+    expect(query).toHaveBeenCalledTimes(4);
   });
 });
 

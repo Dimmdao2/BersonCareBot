@@ -305,6 +305,36 @@ describe('orchestrator routing', () => {
     expect(plan[0]?.payload).toMatchObject({ selected: 'menu.default' });
   });
 
+  it('does not select script with $notStartsWith when conversationState has excluded prefix', async () => {
+    const getScripts = vi.fn().mockResolvedValue([
+      {
+        id: 'only.when.not.phoneauth',
+        source: 'max',
+        event: 'message.received',
+        match: {
+          context: { conversationState: { $notStartsWith: ['await_phoneauth:', 'await_contact:'] } },
+          input: { phonePresent: true },
+        },
+        steps: [{ action: 'user.phone.link', params: {} }],
+      },
+    ]);
+    const contentPort: ContentPort = {
+      getScripts,
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    const plan = await buildPlan(
+      {
+        event: {
+          ...createEvent({ source: 'max' }),
+          payload: { incoming: { phone: '+79991234567', chatId: '1', channelUserId: '1' } },
+        },
+        context: { ...baseContext, conversationState: 'await_phoneauth:auth_token_x' },
+      },
+      { contentPort, contextQueryPort },
+    );
+    expect(plan).toEqual([]);
+  });
+
   it('does not select script with $notIn when conversationState is in the exclusion list', async () => {
     const getScripts = vi.fn().mockResolvedValue([
       {

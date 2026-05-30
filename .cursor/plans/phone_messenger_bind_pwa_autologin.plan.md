@@ -181,3 +181,7 @@ pnpm --dir apps/webapp exec vitest run src/app/api/auth/phone/messenger-bind/fin
 | PWA в фоне | poll до finish |
 | A без B: вход в PWA, бот «кривой» | релиз-нота; B следом |
 | Replay контакта до finish | webapp replay `otp_ready`; finish идемпотентен |
+
+## Связанные доработки (2026-05-30)
+
+Расширение bind/autologin и staff `isAdmin`: [`docs/BOT_FIXES/README.md`](../../docs/BOT_FIXES/README.md) · план [`.cursor/plans/archive/bot_fixes_staff_auth.plan.md`](archive/bot_fixes_staff_auth.plan.md).

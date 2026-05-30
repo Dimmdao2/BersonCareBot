@@ -8,7 +8,7 @@
 2. Пользователь открывает бота (Telegram / Max), state `await_phoneauth:<token>`.
 3. Пользователь отправляет контакт → integrator `webapp.phoneMessengerBind.complete` → `POST /api/integrator/phone-messenger-bind/complete`.
 4. **После контакта (ветка по `purpose`):**
-   - **`login`** (вход по номеру в PWA, без сессии): webapp создаёт OTP-challenge, secret → `otp_ready`; PWA poll до `otp_ready` → **`POST /api/auth/phone/messenger-bind/finish`** (server-side confirm по challenge, без ввода кода в браузере) → secret `consumed`. Бот после контакта: **`phoneAuthReturnToApp`** + главное меню (без `{{code}}` в Telegram/Max); OTP остаётся только для server-side finish. Путь **`POST /api/auth/phone/confirm`** — для `phone/start` (уже привязанный TG/Max).
+   - **`login`** (вход по номеру в PWA, без сессии): webapp создаёт OTP-challenge, secret → `otp_ready`; PWA poll до `otp_ready` (интервал 2.5 s + **немедленный** poll при `visibilitychange` на шаге ожидания) → **`POST /api/auth/phone/messenger-bind/finish`** (server-side confirm по challenge, без ввода кода в браузере) → secret `consumed`. Бот после контакта: **`phoneAuthReturnToApp`** + главное меню; при наличии `facts.links.webappHomeUrl` — отдельное сообщение **`phoneAuthOpenAppPrompt`** с inline **browser URL** (`/app/tg?t=…` / `/app/max?t=…`, не `web_app`). OTP в мессенджер **не** шлётся. Путь **`POST /api/auth/phone/confirm`** — для `phone/start` (уже привязанный TG/Max).
    - **`profile_bind`** (привязка к уже залогиненному аккаунту): OTP **не** создаётся, secret сразу → `consumed`; integrator `user.phone.link` выставляет `patient_phone_trust_at`; бот шлёт `*:phoneAuthPhoneLinked` и главное меню (Telegram — reply keyboard «Запись» + «Приложение»); PWA poll до `consumed` → redirect без кода.
 5. Integrator complete API возвращает **`purpose`**; код в ответе только для `login`.
 
@@ -25,7 +25,9 @@
 | Catch-all excludes | `menu.default`, `draft.replace`, `max.default`, `max.draft.replace` — exclude `phone.request.cancel`, `start.phoneauth`, «Отмена», «Вернуться в меню» |
 | Max inline menu | Executor `expandContentMenuParam` — `menu: main` → `inlineKeyboard` (как в orchestrator `buildPlan`) |
 | `start.onboarding` | `excludeActions` включает `start.phoneauth` |
-| Шаблоны | `phoneAuthWelcome`, `phoneAuthReturnToApp`, `phoneAuthPhoneLinked`, `phoneAuthCancelled`, `phoneAuthMismatch`, … |
+| Шаблоны | `phoneAuthWelcome`, `phoneAuthReturnToApp`, `phoneAuthOpenAppPrompt`, `phoneAuthOpenAppButton`, `phoneAuthPhoneLinked`, `phoneAuthCancelled`, `phoneAuthMismatch`, … |
+| Failure bind UX | После любой ошибки complete — главное меню без `request_contact` (`appendPhoneMessengerBindFailureRecovery`) |
+| Max `phone.link` | Script `max.contact.phone.link` priority **10**, не матчит `await_phoneauth:` / `await_contact:` (`$notStartsWith`) |
 
 Парсинг `/start auth_*`: `apps/integrator/src/integrations/common/messengerStartParse.ts`.
 
@@ -35,6 +37,8 @@
 - `max_login_bot_nickname` — ник для `https://max.ru/<nick>?start=auth_…`
 
 См. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
+
+Связанные фиксы ботов: [`docs/BOT_FIXES/README.md`](../BOT_FIXES/README.md).
 
 ## База
 

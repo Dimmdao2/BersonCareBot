@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import * as appTimezone from '../../config/appTimezone.js';
+import * as messengerStaffIds from '../../infra/db/messengerStaffIds.js';
 import { registerBersoncareSettingsSyncRoute } from './settingsSyncRoute.js';
 
 const TEST_SECRET = 'test-shared-secret-16chars';
@@ -87,6 +88,33 @@ describe('POST /api/integrator/settings/sync', () => {
 
     expect(res.statusCode).toBe(200);
     expect(invalidateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('invalidates messenger staff ids cache when doctor_telegram_ids syncs', async () => {
+    // eslint-disable-next-line no-secrets/no-secrets -- method name for vi.spyOn
+    const invalidateSpy = vi.spyOn(messengerStaffIds, 'invalidateMessengerStaffIdsCacheForSettingKey');
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const app = Fastify();
+    await registerBersoncareSettingsSyncRoute(app, {
+      db: makeDbPort(query),
+      sharedSecret: TEST_SECRET,
+    });
+
+    const body = JSON.stringify({
+      key: 'doctor_telegram_ids',
+      scope: 'admin',
+      valueJson: { value: ['12345'] },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/integrator/settings/sync',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(invalidateSpy).toHaveBeenCalledWith('doctor_telegram_ids');
   });
 
   it('returns 401 for invalid signature', async () => {

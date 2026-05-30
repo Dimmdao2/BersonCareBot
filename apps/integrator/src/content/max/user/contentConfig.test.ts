@@ -6,6 +6,23 @@ import { describe, expect, it } from 'vitest';
 const dir = dirname(fileURLToPath(import.meta.url));
 
 describe('max user static content', () => {
+  it('scripts: max.contact.phone.link — low priority and excludes phoneauth/contact await states', () => {
+    const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
+      id: string;
+      priority?: number;
+      match?: { context?: { conversationState?: { $notStartsWith?: string[] } }; input?: { phonePresent?: boolean } };
+      steps?: Array<{ action?: string }>;
+    }>;
+    const link = scripts.find((s) => s.id === 'max.contact.phone.link');
+    expect(link?.priority).toBe(10);
+    expect(link?.match?.input?.phonePresent).toBe(true);
+    expect(link?.match?.context?.conversationState?.$notStartsWith).toEqual([
+      'await_phoneauth:',
+      'await_contact:',
+    ]);
+    expect(link?.steps?.[0]?.action).toBe('user.phone.link');
+  });
+
   it('scripts: start.phoneauth and contact.phoneauth for phone login bind', () => {
     const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
       id: string;

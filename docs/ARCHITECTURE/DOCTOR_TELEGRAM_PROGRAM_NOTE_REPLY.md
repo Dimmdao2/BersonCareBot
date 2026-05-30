@@ -87,9 +87,13 @@
 | Integrator scripts | `content/telegram/admin/scripts.json`, `content/max/admin/scripts.json` |
 | Integrator executor | `executeAction.ts` (`webapp.programNote.replyBegin`), `handlers/supportRelay.ts` |
 | Integrator mapIn | `integrations/telegram/mapIn.ts` — `program_reply:` |
+| Staff `isAdmin` | `infra/db/messengerStaffIds.ts`, `app/routes.ts` → `buildAdminFacts` / `buildMaxFacts` |
+
+Инициатива фиксов ботов (2026-05-30): [`docs/BOT_FIXES/README.md`](../BOT_FIXES/README.md).
 
 ## Тесты (ориентир)
 
 - `programNoteReplyContext.test.ts`, `notifyDoctorPatientProgramNote.test.ts`, `integratorSupportBridge.test.ts` (webapp)
 - `mapIn.test.ts` (`program_reply`), `programNoteReplyState.test.ts` (integrator)
-- `supportRelay` / `handleIncomingEvent` — при расширении покрыть state `#pn:` и `abortPlan` на failed reply-begin
+- `executeAction.test.ts` — failed / missing `stageItemId` `reply-begin` + `callback.answer`
+- `messengerStaffIds.test.ts`, `integrations/telegram/webhook.test.ts`, `integrations/max/webhook.test.ts`

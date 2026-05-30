@@ -214,6 +214,53 @@ function pushCallbackAnswerFromIncoming(
   });
 }
 
+async function appendPhoneMessengerBindFailureRecovery(
+  failureIntents: OutgoingIntent[],
+  action: Action,
+  ctx: DomainContext,
+  fullDeps: ExecutorDeps,
+  opts: {
+    source: 'telegram' | 'max';
+    externalId: string;
+    menuActionIdSuffix: string;
+    failureText?: { templateKey: string; intentIdSuffix: string };
+  },
+): Promise<void> {
+  const chatId = resolveChannelLinkFailureChatId(ctx, opts.externalId);
+  if (chatId === null) return;
+
+  const tplPort = fullDeps.templatePort;
+  if (tplPort && opts.failureText) {
+    const text = await renderText({
+      templateKey: opts.failureText.templateKey,
+      ctx,
+      templatePort: tplPort,
+    });
+    if (text.trim().length > 0) {
+      const channels = opts.source === 'max' ? ['max'] : ['telegram'];
+      failureIntents.push({
+        type: 'message.send',
+        meta: buildIntentMeta({ ...action, id: `${action.id}:${opts.failureText.intentIdSuffix}` }, ctx),
+        payload: {
+          recipient: { chatId },
+          message: { text },
+          delivery: { channels, maxAttempts: 1 },
+        },
+      });
+    }
+  }
+
+  failureIntents.push(
+    ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
+      source: opts.source,
+      externalId: opts.externalId,
+      templateKey: `${opts.source}:chooseMenu`,
+      actionIdSuffix: opts.menuActionIdSuffix,
+      menuOnly: true,
+    })),
+  );
+}
+
 async function buildPhoneAuthLoginUrlIntents(
   action: Action,
   ctx: DomainContext,
@@ -438,32 +485,20 @@ export async function executeAction(
           '[webapp.phoneMessengerBind.complete] failed',
         );
         const failureIntents: OutgoingIntent[] = [];
-        if (tplPort && (source === 'telegram' || source === 'max') && chatId !== null) {
-          const templateKey = phoneMessengerBindCompleteFailureTemplateKey(source, errMsg);
-          const text = await renderText({ templateKey, ctx, templatePort: tplPort });
-          if (text.trim().length > 0) {
-            const channels = source === 'max' ? ['max'] : ['telegram'];
-            failureIntents.push({
-              type: 'message.send',
-              meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-failed` }, ctx),
-              payload: {
-                recipient: { chatId },
-                message: { text },
-                delivery: { channels, maxAttempts: 1 },
-              },
-            });
-          }
-          if (source === 'telegram' || source === 'max') {
-            failureIntents.push(
-              ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
-                source,
-                externalId,
-                templateKey: `${source}:chooseMenu`,
-                actionIdSuffix: 'phone-auth-failed-menu',
-                menuOnly: true,
-              })),
-            );
-          }
+        if (source === 'telegram' || source === 'max') {
+          await appendPhoneMessengerBindFailureRecovery(failureIntents, action, ctx, fullDeps, {
+            source,
+            externalId,
+            menuActionIdSuffix: 'phone-auth-failed-menu',
+            ...(tplPort
+              ? {
+                  failureText: {
+                    templateKey: phoneMessengerBindCompleteFailureTemplateKey(source, errMsg),
+                    intentIdSuffix: 'phone-auth-failed',
+                  },
+                }
+              : {}),
+          });
         }
         return {
           actionId: action.id,
@@ -475,11 +510,20 @@ export async function executeAction(
       }
 
       if (!fullDeps.writePort) {
+        const failureIntents: OutgoingIntent[] = [];
+        if (source === 'telegram' || source === 'max') {
+          await appendPhoneMessengerBindFailureRecovery(failureIntents, action, ctx, fullDeps, {
+            source,
+            externalId,
+            menuActionIdSuffix: 'phone-auth-write-port-missing-menu',
+          });
+        }
         return {
           actionId: action.id,
           status: 'failed',
           error: 'webapp.phoneMessengerBind.complete: writePort required for phone link sync',
           values: { phoneMessengerBind: { ok: false, reason: 'write_port_missing' } },
+          ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
         };
       }
 
@@ -546,36 +590,24 @@ export async function executeAction(
 
       if (phoneLinkSyncFailure) {
         const failureIntents: OutgoingIntent[] = [];
-        if (tplPort && (source === 'telegram' || source === 'max') && chatId !== null) {
-          const templateKey = phoneMessengerBindPhoneLinkSyncFailureTemplateKey(
+        if (source === 'telegram' || source === 'max') {
+          await appendPhoneMessengerBindFailureRecovery(failureIntents, action, ctx, fullDeps, {
             source,
-            phoneLinkSyncFailure.phoneLinkReason,
-            phoneLinkSyncFailure.indeterminate === true,
-          );
-          const text = await renderText({ templateKey, ctx, templatePort: tplPort });
-          if (text.trim().length > 0) {
-            const channels = source === 'max' ? ['max'] : ['telegram'];
-            failureIntents.push({
-              type: 'message.send',
-              meta: buildIntentMeta({ ...action, id: `${action.id}:phone-auth-phone-sync-failed` }, ctx),
-              payload: {
-                recipient: { chatId },
-                message: { text },
-                delivery: { channels, maxAttempts: 1 },
-              },
-            });
-          }
-          if (source === 'telegram' || source === 'max') {
-            failureIntents.push(
-              ...(await buildPhoneMessengerBindMainMenuIntents(action, ctx, fullDeps, {
-                source,
-                externalId,
-                templateKey: `${source}:chooseMenu`,
-                actionIdSuffix: 'phone-auth-sync-failed-menu',
-                menuOnly: true,
-              })),
-            );
-          }
+            externalId,
+            menuActionIdSuffix: 'phone-auth-sync-failed-menu',
+            ...(tplPort
+              ? {
+                  failureText: {
+                    templateKey: phoneMessengerBindPhoneLinkSyncFailureTemplateKey(
+                      source,
+                      phoneLinkSyncFailure.phoneLinkReason,
+                      phoneLinkSyncFailure.indeterminate === true,
+                    ),
+                    intentIdSuffix: 'phone-auth-phone-sync-failed',
+                  },
+                }
+              : {}),
+          });
         }
         return {
           actionId: action.id,
@@ -666,7 +698,15 @@ export async function executeAction(
       const stageItemId = asString(action.params.stageItemId)
         ?? asString(readIncoming(ctx).stageItemId);
       if (!stageItemId) {
-        return { actionId: action.id, status: 'failed', error: 'webapp.programNote.replyBegin: stageItemId required' };
+        const intents: OutgoingIntent[] = [];
+        pushCallbackAnswerFromIncoming(intents, action, ctx, 'reply-begin-missing-stage-ack');
+        return {
+          actionId: action.id,
+          status: 'success',
+          error: 'webapp.programNote.replyBegin: stageItemId required',
+          intents,
+          abortPlan: true,
+        };
       }
       if (!port?.beginProgramNoteReply) {
         const intents: OutgoingIntent[] = [];

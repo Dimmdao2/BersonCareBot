@@ -24,6 +24,14 @@ type CacheEntry = {
 
 const listsCache = new Map<MessengerStaffChannel, CacheEntry>();
 
+/** Keys that affect `createMessengerStaffIdsResolver` (admin + doctor messenger id lists). */
+export const MESSENGER_STAFF_SETTINGS_KEYS = new Set([
+  'admin_telegram_ids',
+  'doctor_telegram_ids',
+  'admin_max_ids',
+  'doctor_max_ids',
+]);
+
 /** Exported for unit tests. */
 export function parseIdTokens(input: unknown): string[] {
   const fromArray = (items: unknown[]): string[] => {
@@ -109,7 +117,13 @@ export function createMessengerStaffIdsResolver(db: DbPort): ResolveMessengerSta
   };
 }
 
-/** Clears in-memory cache (tests). */
+/** Clears in-memory cache (tests and settings sync). */
 export function clearMessengerStaffIdsCache(): void {
   listsCache.clear();
+}
+
+export function invalidateMessengerStaffIdsCacheForSettingKey(key: string): void {
+  if (MESSENGER_STAFF_SETTINGS_KEYS.has(key)) {
+    clearMessengerStaffIdsCache();
+  }
 }

@@ -204,14 +204,9 @@ export function PhoneMessengerAuthFlow({
         void pollBindStatus(setupToken, bindChannel);
       }
     };
-    const onFocus = () => {
-      void pollBindStatus(setupToken, bindChannel);
-    };
     document.addEventListener("visibilitychange", onResume);
-    window.addEventListener("focus", onFocus);
     return () => {
       document.removeEventListener("visibilitychange", onResume);
-      window.removeEventListener("focus", onFocus);
     };
   }, [step, setupToken, bindChannel, pollBindStatus]);
 
