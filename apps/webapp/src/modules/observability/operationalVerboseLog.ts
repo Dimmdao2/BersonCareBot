@@ -15,6 +15,11 @@ function readBooleanValueJson(valueJson: unknown): boolean {
  * Admin-флаг `debug_forward_to_admin` управляет полнотой серверных логов (journalctl):
  * `false` (default) — только значимое (warn/error/DLQ/retry-fail); `true` — подробные operational `info`.
  * Verbose-логи не должны содержать сырые params/payload/PII. TTL-кэш (fail-safe `false`).
+ *
+ * NB: это deps-инъекционный путь для `modules/*`-флоу. Собственный кэш сбрасывается только по TTL
+ * (≤30 c), без явной инвалидации при сохранении настройки. Для route-utils без `deps` используется
+ * `configAdapter.getConfigBool("debug_forward_to_admin", false)` — он инвалидируется на сохранении
+ * (`persistAdminModesBatch` → `invalidateConfigKey`). Оба пути читают тот же ключ и eventually-consistent.
  */
 export async function isOperationalVerboseLogEnabled(deps: {
   systemSettings: {

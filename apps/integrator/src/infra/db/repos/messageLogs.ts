@@ -24,16 +24,29 @@ function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+/** PII-safe подмножество полей для warn/error (без сырого `payload`). */
+function safeAttemptFields(params: DeliveryAttemptLogParams): Record<string, unknown> {
+  return {
+    intentType: asString(params.intentType),
+    intentEventId: asString(params.intentEventId),
+    correlationId: asString(params.correlationId),
+    channel: asString(params.channel),
+    status: asString(params.status),
+    attempt: asNumber(params.attempt),
+    reason: asString(params.reason),
+  };
+}
+
 export async function insertDeliveryAttemptLog(db: DbPort, params: DeliveryAttemptLogParams): Promise<void> {
   const channel = asString(params.channel);
   const status = asString(params.status);
   const attempt = asNumber(params.attempt);
   if (channel === null || status === null || attempt === null || attempt <= 0) {
-    logger.warn({ params }, 'insertDeliveryAttemptLog: skip row with invalid channel/status/attempt');
+    logger.warn(safeAttemptFields(params), 'insertDeliveryAttemptLog: skip row with invalid channel/status/attempt');
     return;
   }
   if (status !== 'success' && status !== 'failed') {
-    logger.warn({ params, status }, 'insertDeliveryAttemptLog: skip row with status outside success|failed');
+    logger.warn(safeAttemptFields(params), 'insertDeliveryAttemptLog: skip row with status outside success|failed');
     return;
   }
   const d = getIntegratorDrizzleSession(db);
@@ -52,7 +65,7 @@ export async function insertDeliveryAttemptLog(db: DbPort, params: DeliveryAttem
       occurredAt: asString(params.occurredAt) ?? new Date().toISOString(),
     });
   } catch (err) {
-    logger.error({ err, params }, 'insert delivery attempt log failed');
+    logger.error({ err, ...safeAttemptFields(params) }, 'insert delivery attempt log failed');
   }
 }
 

@@ -10,16 +10,35 @@ Batch 1 (сделано): integrator `writePort.delivery.attempt.log`, `messageL
 Accessors: `apps/webapp/src/modules/observability/operationalVerboseLog.ts`,
 `apps/integrator/src/infra/db/repos/operationalVerboseLog.ts` (+ invalidation в settings/sync).
 
-## P2/P3: не входит в Batch 1 (загейтить позже под тот же флаг)
+Batch 1+ (добавлено): `apps/webapp/src/modules/auth/authRouteObservability.ts` (`logAuthRouteTiming`)
+загейтен под verbose через `getConfigBool("debug_forward_to_admin", false)` (deps-free `configAdapter`,
+fire-and-forget — без изменений в 6 route-файлах). `auth/exchange/route.ts`: `console.info success` →
+verbose-gated `logger.info`; `console.info access_denied` → всегда `logger.warn` (security reject, без PII).
 
-- `apps/webapp/src/modules/auth/authRouteObservability.ts` (`logAuthRouteTiming`) — success-тайминги
-  auth-роутов. Вызывается из ~6 route-файлов без доступа к `systemSettings` в сигнатуре; протаскивание
-  флага = bloat. Деферрено по правилу «не тащить deps через стек» (plan §5/§6.3). `warn` при denied остаётся.
-- retention success ticks, system health probe OK (routine success).
-- `pwa_launch`, `playback_resolved`, media preview per-item (per-request success).
-- identity resolution `console.info`, auth/service массив `console.info` — заменить на `logger` + gate либо удалить.
-- rubitime post-create steps (success-логи шагов после создания записи).
-- scheduler / web-push tick success (периодические тики).
+## Уже НЕ являются prod-шумом (проверено, трогать не нужно)
+
+- `modules/integrator/events.ts` «event received», `modules/integrator/reminderDispatch.ts` — guard
+  `NODE_ENV !== "production"` (только dev).
+- `auth/service.ts` `resolution_hints_from=…` (3 шт.) — двойной guard `!== "test" && DEBUG_AUTH === "1"`.
+- `auth/service.ts` `session_cookie_invalid_or_expired` — guard `!== "production"` (только dev).
+- Client-side `console.info` (браузер, не journalctl): `shared/ui/AuthBootstrap.tsx`,
+  `shared/ui/media/PatientMediaPlaybackVideo.tsx`, `shared/lib/safeReload.ts`, `modules/auth/authFlowObservability.ts`.
+
+## P2/P3: отдельный батч (prod-active server `console.info`, нужна аккуратность)
+
+Эти строки пишутся в prod (guard `!== "test"`) и содержат PII/printf — требуют решения warn-vs-verbose
+и редакции PII, поэтому это отдельный reviewed-батч (не смешивать с feature-флагом; правило «no mixed big sweeps»):
+
+- `auth/service.ts`: `parseToken rejected` (sub), `token_parse_failed`, `whitelist_rejected` (sub, telegramId),
+  `uuid_sub_no_platform_row`, `client_session_transport=…`. Reject/fail → канонически `warn` (всегда) со
+  структурой без сырых PII; routine — под verbose.
+- `infra/repos/pgIdentityResolution.ts`: `path=existing_binding|merge_before_bind|insert_new` (routine; infra
+  не должен импортировать `modules/*` → читать флаг через свой pool-путь, а не через `configAdapter`).
+- notify-relays/прочее: `modules/messaging/doctorNotifyTargets.ts`, `online-intake/intakeNotificationRelay.ts`,
+  `infra/integrations/sms/integratorSmsAdapter.ts`, `modules/platform-access/*` — per-operation success.
+- `app/api/admin/settings/route.ts` audit `console.info` — низкочастотный audit; оставить как есть либо
+  перевести в `logger.info` (audit, не verbose).
+- retention/health/scheduler/web-push tick success, `pwa_launch`, `playback_resolved`, media preview per-item.
 
 Канон уровней: `warn`/`error`/DLQ/retry-fail/constraint/security — всегда; routine `info` success — под verbose.
 Verbose-логи не должны содержать сырые `params`/`payload`/PII.
