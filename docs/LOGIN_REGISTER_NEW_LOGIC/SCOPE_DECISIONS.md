@@ -7,7 +7,7 @@
 Не входит в **текущую** реализацию; спеки в [`docs/TODO_NOT_NOW/`](../TODO_NOT_NOW/README.md) ([PHASE_07](../TODO_NOT_NOW/login-register-backfill-appointments.md), [PHASE_08](../TODO_NOT_NOW/login-register-mass-setup-email.md)); §10 [MAIN PLAN](MAIN%20PLAN.md) **не удаляется** — вернёмся после live-flow.
 
 - **PHASE_07** — backfill старых `appointment_records` / Rubitime-истории (dry-run → apply).
-- **PHASE_08** — массовая рассылка setup-link **старой** базе (только после отдельного продуктового OK).
+- **PHASE_08** — массовая рассылка setup-code **старой** базе (только после отдельного продуктового OK; legacy setup-link не использовать для новых писем).
 
 **PHASE_06 (2026-05-20):** merge-страховка **закрыта** — docs + регрессионный тест §7.3; merge engine **не** менялся. См. [`PHASE_06_AUDIT.md`](PHASE_06_AUDIT.md).
 
@@ -15,7 +15,7 @@
 
 - Массовая обработка **старых** Rubitime-записей.
 - Массовое создание `platform_user` для исторических `appointment_records` без `platform_user_id`.
-- Массовая рассылка setup-link **старой** базе клиентов.
+- Массовая рассылка setup-code **старой** базе клиентов.
 
 ## В scope — только live-flow
 
@@ -44,7 +44,7 @@
 |----------|-----------|
 | Email свободен | Обычная регистрация |
 | Email у contact-only user, нет password | **Не** `duplicate_email` → `existing_account_needs_email_setup` / setup-required |
-| Пользователь запросил доступ (register / «отправить ссылку») | Выпустить setup-link |
+| Пользователь запросил доступ (register / «отправить код») | Выпустить setup-code |
 | После setup | Подтвердить email + создать пароль + сессия |
 
 ### 4. Forgot (live)

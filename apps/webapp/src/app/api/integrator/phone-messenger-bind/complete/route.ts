@@ -49,7 +49,12 @@ export async function POST(request: Request) {
     if (result.code === "phone_mismatch") {
       return NextResponse.json({ ok: false, error: "phone_mismatch" }, { status: 409 });
     }
-    if (result.code === "phone_owned_by_other_user" || result.code === "channel_owned_by_other_user") {
+    if (
+      result.code === "phone_owned_by_other_user" ||
+      result.code === "channel_owned_by_other_user" ||
+      result.code.startsWith("merge_blocked_") ||
+      result.code === "legacy_contacts_conflict"
+    ) {
       return NextResponse.json({ ok: false, error: "conflict", mergeReason: result.code }, { status: 409 });
     }
     if (result.code === "used_token") {

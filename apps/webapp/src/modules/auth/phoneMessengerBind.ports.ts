@@ -23,6 +23,12 @@ export type PhoneMessengerBindSecretRow = {
   consumed_at: string | null;
 };
 
+export type PhoneMessengerBindPreOtpFailure = {
+  ok: false;
+  code: string;
+  candidateIds?: string[];
+};
+
 export interface PhoneMessengerBindPort {
   findByTokenHash(tokenHash: string): Promise<PhoneMessengerBindSecretRow | null>;
   deletePending(
@@ -53,5 +59,16 @@ export interface PhoneMessengerBindPort {
       purpose: PhoneMessengerBindPurpose;
       sessionUserId?: string | null;
     },
-  ): Promise<{ ok: true; accountCreated: boolean } | { ok: false; code: string }>;
+  ): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure>;
+  recordMessengerBindBlocked?(
+    client: PoolClient,
+    params: {
+      reason: string;
+      candidateIds: string[];
+      channelCode: PhoneMessengerBindChannel;
+      externalId: string;
+      phoneNormalized: string;
+      source: string;
+    },
+  ): Promise<void>;
 }

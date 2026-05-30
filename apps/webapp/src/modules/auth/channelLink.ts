@@ -1,5 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Pool } from "pg";
+import {
+  classifyMergeFailure,
+  mergePlatformUsersInTransaction,
+} from "@bersoncare/platform-merge";
 import { getPool } from "@/infra/db/client";
 import {
   upsertOpenConflictLog,
@@ -62,6 +66,39 @@ async function recordChannelLinkOwnershipConflict(
     ...ctx,
     classifiedReason: options.classifiedReason,
   });
+}
+
+async function tryMergeChannelLinkOwners(
+  pool: Pool,
+  params: {
+    tokenUserId: string;
+    existingUserId: string;
+    secretRowId: string;
+  },
+): Promise<{ ok: true } | { ok: false; reason: string; candidateIds: string[] }> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await mergePlatformUsersInTransaction(client, params.tokenUserId, params.existingUserId, "phone_bind");
+    await client.query(`UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`, [
+      params.secretRowId,
+    ]);
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    const classified = classifyMergeFailure(err, [params.tokenUserId, params.existingUserId]);
+    return {
+      ok: false,
+      reason: classified.code,
+      candidateIds:
+        classified.candidateIds.length > 0
+          ? classified.candidateIds
+          : [params.tokenUserId, params.existingUserId],
+    };
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -231,11 +268,36 @@ export async function completeChannelLinkFromIntegrator(params: {
 
       const classification = await classifyChannelBindingOwnerForLink(pool, boundUserId);
       if (classification.kind === "real") {
+        const merged = await tryMergeChannelLinkOwners(pool, {
+          tokenUserId: r.user_id,
+          existingUserId: boundUserId,
+          secretRowId: r.id,
+        });
+        if (merged.ok) {
+          logger.info({
+            scope: "channel_link",
+            event: "channel_link_full_merge_applied",
+            tokenUserId: r.user_id,
+            existingUserId: boundUserId,
+            channelCode: params.channelCode,
+          });
+          const canonicalAfterMerge = await resolveCanonicalUserId(pool, r.user_id);
+          if (canonicalAfterMerge == null) {
+            return { ok: false, code: "user_not_found" };
+          }
+          const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, canonicalAfterMerge);
+          return {
+            ok: true,
+            userId: canonicalAfterMerge,
+            needsPhone,
+            ...(phoneNormalized ? { phoneNormalized } : {}),
+          };
+        }
         await recordChannelLinkOwnershipConflict(pool, ctx, {
-          classifiedReason: "channel_owned_by_real_user",
+          classifiedReason: merged.reason,
           stubClassificationReason: classification.reason,
         });
-        return { ok: false, code: "conflict", mergeReason: "channel_owned_by_real_user" };
+        return { ok: false, code: "conflict", mergeReason: merged.reason };
       }
 
       const client = await pool.connect();

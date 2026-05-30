@@ -66,9 +66,9 @@ Email из Rubitime или внесённый врачом — это contact/un
 1. Сохранить email_normalized.
 2. Сбросить/оставить email_verified_at = null, если пациент сам не подтверждал этот email.
 3. НЕ создавать user_password_credentials автоматически.
-4. Отправить пациенту email setup link:
+4. Отправить пациенту email setup code:
    - “Подтвердите email и создайте доступ к кабинету”.
-5. TTL ссылки: 24 часа.
+5. TTL кода — как у `email_challenges` (10 минут), повторная отправка через cooldown OTP.
 
 Если врач меняет email существующему пациенту:
 - новый email становится unverified;
@@ -88,10 +88,12 @@ Setup link:
 - token нельзя использовать повторно;
 - старые токены для того же userId/email можно помечать revoked/expired при выпуске нового.
 
-URL примерно:
-`/app/auth/email-setup?token=...`
+Актуальный flow:
+`/api/auth/email-password/setup-access` → `challengeId` → ввод кода в текущей форме → `/api/auth/email-password/setup-code/complete`.
 
-При открытии ссылки:
+Legacy token-link `/app/auth/email-setup?token=...` оставлен только для уже отправленных старых писем.
+
+При вводе кода:
 1. Проверить token:
    - существует;
    - не истёк;
@@ -129,7 +131,7 @@ URL примерно:
 
 ⸻
 
-4. Если setup link истёк
+4. Если setup code истёк
 
 Expired TTL не должен быть тупиком.
 
@@ -152,9 +154,9 @@ Backend:
 Состояния:
 	1.	Email свободен → обычная регистрация.
 	2.	Email существует + verified + password_credentials есть → обычный вход / forgot password.
-	3.	Email существует + unverified/contact-only + password_credentials нет → отправить setup-link заново.
-	4.	Email существует + verified, но password_credentials нет → setup password link.
-	5.	Email конфликтный / несколько кандидатов → не автомержить, показать “обратитесь к специалисту/поддержке”.
+	3.	Email существует + unverified/contact-only + password_credentials нет → отправить setup-code заново.
+	4.	Email существует + verified, но password_credentials нет → setup password code.
+	5.	Email конфликтный / несколько кандидатов → пробовать безопасный auto-merge дублей; если две password-строки или blocker merge-engine — `email_conflict` + admin audit `email_auth_conflict`.
 
 ⸻
 
@@ -169,7 +171,7 @@ Backend:
 existing_account_needs_email_setup
 	•	UI показывает:
 “Аккаунт с этой почтой уже есть. Подтвердите email и задайте пароль для входа.”
-	•	далее отправка setup link.
+	•	далее отправка setup code.
 	3.	Email занят, verified, password credentials есть:
 	•	это существующий аккаунт;
 	•	предложить вход / forgot password.
@@ -355,8 +357,8 @@ Merge:
 Отчёт:
 	•	где сейчас не создаётся/не привязывается platform_user из Rubitime;
 	•	как реализован find/create by Rubitime phone/email;
-	•	как работает email setup link;
-	•	что происходит при expired link;
+	•	как работает email setup code;
+	•	что происходит при expired code;
 	•	что изменилось в register/forgot;
 	•	что нужно для backfill в prod;
 	•	какие тесты прошли.

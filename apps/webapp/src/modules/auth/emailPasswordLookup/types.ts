@@ -4,4 +4,4 @@ export type EmailPasswordAuthState =
   | { kind: "pending_registration"; userId: string }
   | { kind: "verified_with_password"; userId: string }
   | { kind: "needs_email_setup"; userId: string }
-  | { kind: "email_conflict" };
+  | { kind: "email_conflict"; candidateIds?: string[] };

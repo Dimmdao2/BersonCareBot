@@ -3,7 +3,7 @@
 **Документ фазы:** [`PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md`](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md)  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §5–6  
 **Заявленный статус:** `completed` (2026-05-20)  
-**Вердикт:** **фаза закрыта** — тупик `duplicate_email` для contact-only снят (`existing_account_needs_email_setup` + setup-link), forgot разделяет reset OTP и setup access, UI `AuthFlowV2` и lookup/setup-access API на месте. **`duplicate_email` (409)** остаётся только для verified+password и прочих «настоящих» дублей регистрации. Автотесты: **24** зелёных (routes + RTL).
+**Вердикт:** **фаза закрыта** — тупик `duplicate_email` для contact-only снят (`existing_account_needs_email_setup` + setup-code), forgot разделяет reset OTP и setup access, UI `AuthFlowV2` и lookup/setup-access API на месте. **`duplicate_email` (409)** остаётся только для verified+password и прочих «настоящих» дублей регистрации. Автотесты: **24** зелёных (routes + RTL). **Актуализация 2026-05-30:** новые письма setup отправляют код, не activation-link; legacy `/app/auth/email-setup?token=...` сохранён для старых писем.
 
 ---
 
@@ -23,7 +23,7 @@
 |---|-----------|-------------------|------------------|
 | 1 | Email свободен | `free` | Обычная регистрация + challenge |
 | 2 | Verified + password | `verified_with_password` | Login / forgot → reset OTP |
-| 3 | Contact-only / unverified, нет credentials | `needs_email_setup` | Register → **200** `existing_account_needs_email_setup`; forgot → setup-link, neutral 200 |
+| 3 | Contact-only / unverified, нет credentials | `needs_email_setup` | Register → **200** `existing_account_needs_email_setup`; forgot → setup-code |
 | 4 | Verified, нет credentials | `needs_email_setup` | Тот же fallback (ветка `else` после проверок verified+password и pending) |
 | 5 | Конфликт (несколько строк) | `email_conflict` | Register **409** `email_conflict`; UI «Обратитесь в поддержку» |
 
@@ -58,7 +58,7 @@ pnpm --filter @bersoncare/webapp exec vitest run \
 
 | `resolveAuthState` после `duplicate_email` | HTTP | Тело |
 |------------------------------------------|------|------|
-| `needs_email_setup` | **200** | `ok: true`, `error: existing_account_needs_email_setup`, `setupLinkSent: true` |
+| `needs_email_setup` | **200** | `ok: true`, `error: existing_account_needs_email_setup`, `setupCodeSent: true`, `challengeId` |
 | `email_conflict` | **409** | `email_conflict` |
 | `verified_with_password` | **409** | `duplicate_email` |
 | `pending_registration` | **200** | challenge (tryResend + `startEmailChallenge`) |
@@ -70,7 +70,7 @@ pnpm --filter @bersoncare/webapp exec vitest run \
 ```text
 findVerifiedUserIdWithPassword → да → startEmailChallenge (reset OTP), neutral 200
                               → нет → resolveAuthState
-                                      needs_email_setup → setup-link (manual_resend), neutral 200
+                                      needs_email_setup → setup-code (manual_resend)
                                       иначе → только neutral 200
 ```
 
@@ -82,7 +82,7 @@ findVerifiedUserIdWithPassword → да → startEmailChallenge (reset OTP), neu
 
 ### 4.4 `POST /api/auth/email-password/setup-access`
 
-Явный resend setup-link при `needs_email_setup`; иначе **400** `not_eligible`.
+Явный resend setup-code при `needs_email_setup`; иначе **400** `not_eligible`.
 
 ### 4.5 `POST /api/auth/email-password/login`
 
@@ -94,7 +94,7 @@ findVerifiedUserIdWithPassword → да → startEmailChallenge (reset OTP), neu
 
 | Сценарий | Поведение |
 |----------|-----------|
-| Register → `existing_account_needs_email_setup` | `emailSetupPromptEmail`, toast, кнопка «Отправить ссылку» → `setup-access` |
+| Register → `existing_account_needs_email_setup` | `emailVerifyPurpose=setup`, экран ввода кода, resend → `setup-access` |
 | Register/login → `duplicate_email` / 409 | «Войдите с паролем или восстановите доступ» |
 | Login 401 + lookup `needs_email_setup` | Экран setup (без лишнего duplicate) |
 | Forgot + lookup `needs_email_setup` | `forgot` (setup в фоне) + экран setup |
@@ -176,7 +176,7 @@ flowchart TD
 
 ### 9.3 `pending_registration` vs contact-only
 
-Пользователь с credentials, но без `email_verified_at` — **pending_registration**, не setup-link. Отдельно от contact-only карточки врача — корректно.
+Пользователь с credentials, но без `email_verified_at` — **pending_registration**, не setup-code. Отдельно от contact-only карточки врача — корректно.
 
 ### 9.4 In-memory deps
 

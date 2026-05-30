@@ -5,6 +5,8 @@ import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 
 const queryMock = vi.fn();
 const clientQueryMock = vi.fn();
+const applyMessengerPhonePublicBindMock = vi.hoisted(() => vi.fn());
+const mergePlatformUsersInTransactionMock = vi.hoisted(() => vi.fn());
 const connectMock = vi.fn(async () => ({
   query: clientQueryMock,
   release: vi.fn(),
@@ -32,6 +34,27 @@ vi.mock("@/infra/upsertBroadcastDefaultsAfterChannelBind", () => ({
 
 vi.mock("@/infra/logging/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock("@bersoncare/platform-merge", () => ({
+  applyMessengerPhonePublicBind: (...args: unknown[]) => applyMessengerPhonePublicBindMock(...args),
+  mergePlatformUsersInTransaction: (...args: unknown[]) => mergePlatformUsersInTransactionMock(...args),
+  classifyMergeFailure: (_err: unknown, candidateIds: string[]) => ({
+    code: "merge_blocked_distinct_real_users",
+    candidateIds,
+  }),
+  enrichMessengerBindAuditDetailsFields: vi.fn().mockResolvedValue({}),
+  MessengerPhoneLinkError: class MessengerPhoneLinkError extends Error {
+    readonly code: string;
+    readonly candidateIds: string[];
+
+    constructor(code: string, options?: { candidateIds?: string[] }) {
+      super(code);
+      this.name = "MessengerPhoneLinkError";
+      this.code = code;
+      this.candidateIds = options?.candidateIds ?? [];
+    }
+  },
 }));
 
 vi.mock("@/config/env", () => ({
@@ -98,6 +121,8 @@ describe("phoneMessengerBind", () => {
     registerPhoneMessengerBindPort(null);
     queryMock.mockReset();
     clientQueryMock.mockReset();
+    applyMessengerPhonePublicBindMock.mockReset();
+    mergePlatformUsersInTransactionMock.mockReset();
     connectMock.mockClear();
   });
 
@@ -122,8 +147,8 @@ describe("phoneMessengerBind", () => {
     clientQueryMock
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: "u-new" }] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "u-new" }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ user_id: "u-new" }] })
       .mockResolvedValueOnce({ rows: [] })
@@ -148,6 +173,37 @@ describe("phoneMessengerBind", () => {
       otpCode: expect.any(String),
     });
     expect(connectMock).toHaveBeenCalled();
+  });
+
+  it("auto-merges classic telegram owner plus trusted phone owner before OTP", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [secretRow({ phone_normalized: "+79267955103" })] });
+    applyMessengerPhonePublicBindMock.mockResolvedValueOnce({ platformUserId: "phone-owner" });
+    clientQueryMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "phone-owner" }] })
+      .mockResolvedValueOnce({ rows: [{ user_id: "telegram-owner", integrator_user_id: "103" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const res = await completePhoneMessengerBindFromIntegrator(
+      {
+        setupToken: "auth_testtoken",
+        channelCode: "telegram",
+        externalId: "345128672",
+        contactPhoneNormalized: "+79267955103",
+      },
+      phoneAuthDeps,
+    );
+
+    expect(res).toMatchObject({ ok: true, purpose: "login", accountCreated: false });
+    expect(applyMessengerPhonePublicBindMock).toHaveBeenCalledWith(expect.anything(), {
+      channelCode: "telegram",
+      externalId: "345128672",
+      phoneNormalized: "+79267955103",
+      canonicalIntegratorUserId: "103",
+    });
   });
 
   it("returns phone_mismatch when contact phone differs", async () => {
@@ -269,7 +325,7 @@ describe("phoneMessengerBind", () => {
     );
   });
 
-  it("profile_bind rejects phone owned by other user", async () => {
+  it("profile_bind auto-merges phone owner into session user", async () => {
     queryMock.mockResolvedValueOnce({
       rows: [secretRow({ purpose: "profile_bind", user_id: "u-session" })],
     });
@@ -277,7 +333,10 @@ describe("phoneMessengerBind", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "u-other" }] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ user_id: "u-session" }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
+    mergePlatformUsersInTransactionMock.mockResolvedValueOnce({ targetId: "u-session", duplicateId: "u-other" });
 
     const res = await completePhoneMessengerBindFromIntegrator(
       {
@@ -289,7 +348,13 @@ describe("phoneMessengerBind", () => {
       phoneAuthDeps,
     );
 
-    expect(res).toEqual({ ok: false, code: "phone_owned_by_other_user" });
+    expect(res).toEqual({ ok: true, purpose: "profile_bind" });
+    expect(mergePlatformUsersInTransactionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "u-session",
+      "u-other",
+      "phone_bind",
+    );
   });
 
   it("getPhoneMessengerBindStatus returns otp_ready with challengeId", async () => {

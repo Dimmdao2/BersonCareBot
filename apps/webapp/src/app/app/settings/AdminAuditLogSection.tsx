@@ -46,6 +46,9 @@ const ACTION_FILTER_OPTIONS = [
   { value: "auth_register_failure", label: "Сбои регистрации" },
   { value: "auto_merge_conflict", label: "auto_merge_conflict" },
   { value: "auto_merge_conflict_anomaly", label: "auto_merge_conflict_anomaly" },
+  { value: "email_auth_conflict", label: "email_auth_conflict" },
+  { value: "messenger_phone_bind_blocked", label: "messenger_phone_bind_blocked" },
+  { value: "messenger_phone_bind_anomaly", label: "messenger_phone_bind_anomaly" },
   { value: "user_purge", label: "user_purge" },
   { value: "user_purge_external_retry", label: "user_purge_external_retry" },
   { value: "user_merge", label: "user_merge" },
@@ -78,7 +81,9 @@ function actionTierLabel(action: string): string {
     action.startsWith("user_") ||
     action === "intake_status_change" ||
     action === "admin_client_profile_patch" ||
-    action.startsWith("auto_merge_conflict")
+    action.startsWith("auto_merge_conflict") ||
+    action === "email_auth_conflict" ||
+    action.startsWith("messenger_phone_bind")
   ) {
     return "Клиент / данные";
   }
@@ -96,6 +101,9 @@ function canManuallyResolveAuditRow(row: AuditItem): boolean {
   return (
     row.action === "auto_merge_conflict" ||
     row.action === "auto_merge_conflict_anomaly" ||
+    row.action === "email_auth_conflict" ||
+    row.action === "messenger_phone_bind_blocked" ||
+    row.action === "messenger_phone_bind_anomaly" ||
     row.action === "channel_link_ownership_conflict"
   );
 }
@@ -104,6 +112,9 @@ function isOpenConflictLabel(row: AuditItem): boolean {
   if (row.resolved_at != null) return false;
   if (row.action === "auto_merge_conflict" && row.conflict_key) return true;
   if (row.action === "auto_merge_conflict_anomaly") return true;
+  if (row.action === "email_auth_conflict" && row.conflict_key) return true;
+  if (row.action === "messenger_phone_bind_blocked" && row.conflict_key) return true;
+  if (row.action === "messenger_phone_bind_anomaly") return true;
   if (row.action === "channel_link_ownership_conflict") return true;
   return false;
 }

@@ -225,6 +225,7 @@ export function AuthFlowV2({
   const [emailLoginPassword, setEmailLoginPassword] = useState("");
   const [emailRegPassword, setEmailRegPassword] = useState("");
   const [emailAuthMode, setEmailAuthMode] = useState<"login" | "register" | "verify">("login");
+  const [emailVerifyPurpose, setEmailVerifyPurpose] = useState<"registration" | "setup">("registration");
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
   const [emailRegAttemptId, setEmailRegAttemptId] = useState<string | null>(null);
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
@@ -232,7 +233,9 @@ export function AuthFlowV2({
     useState<"oauth_first" | "phone" | "email_password">("oauth_first");
   const [emailRegDisplayName, setEmailRegDisplayName] = useState("");
   const [pwRecoveryPhase, setPwRecoveryPhase] = useState<"none" | "forgot_email" | "reset_code">("none");
+  const [pwRecoveryPurpose, setPwRecoveryPurpose] = useState<"reset" | "setup">("reset");
   const [pwResetEmail, setPwResetEmail] = useState("");
+  const [pwResetChallengeId, setPwResetChallengeId] = useState<string | null>(null);
   const [pwResetCode, setPwResetCode] = useState("");
   const [pwNewPassword, setPwNewPassword] = useState("");
   const [emailSetupPromptEmail, setEmailSetupPromptEmail] = useState<string | null>(null);
@@ -276,6 +279,7 @@ export function AuthFlowV2({
       setEmailRegDisplayName(p.displayName);
       setEmailRegChallengeId(p.challengeId);
       setEmailRegAttemptId(p.attemptId ?? null);
+      setEmailVerifyPurpose("registration");
       setEmailAuthMode("verify");
       setEmailRegRetrySec(p.retryAfterSeconds);
     } else if (p.mode === "password_reset") {
@@ -284,7 +288,9 @@ export function AuthFlowV2({
       setEmailPasswordReturn((prefetchedAuthConfig?.oauthProviders?.yandex || prefetchedAuthConfig?.oauthProviders?.google || prefetchedAuthConfig?.oauthProviders?.apple) ? "oauth_first" : "email_password");
       setEmailAuthMode("login");
       setPwRecoveryPhase("reset_code");
+      setPwRecoveryPurpose("reset");
       setPwResetEmail(p.email);
+      setPwResetChallengeId(p.challengeId ?? null);
     }
   }, [step, prefetchedAuthConfig, engageInteractive]);
 
@@ -332,6 +338,7 @@ export function AuthFlowV2({
 
   const resetEmailAuthFields = () => {
     setEmailAuthMode("login");
+    setEmailVerifyPurpose("registration");
     setEmailRegChallengeId(null);
     setEmailRegRetrySec(60);
     setEmailRegPassword("");
@@ -339,7 +346,9 @@ export function AuthFlowV2({
     setEmailLoginEmail("");
     setEmailLoginPassword("");
     setPwRecoveryPhase("none");
+    setPwRecoveryPurpose("reset");
     setPwResetEmail("");
+    setPwResetChallengeId(null);
     setPwResetCode("");
     setPwNewPassword("");
     setEmailSetupPromptEmail(null);
@@ -379,17 +388,40 @@ export function AuthFlowV2({
       | "email_conflict";
   };
 
-  const sendEmailSetupAccessLink = async (email: string): Promise<"ok" | "failed" | "network_error"> => {
-    const setupLinkResult = await fetchJsonSafe<{ ok?: boolean }>("/api/auth/email-password/setup-access", {
+  const startEmailSetupCode = async (
+    email: string,
+  ): Promise<
+    | { kind: "ok"; challengeId: string; retryAfterSeconds: number }
+    | { kind: "rate_limited"; retryAfterSeconds: number }
+    | { kind: "failed"; message?: string }
+    | { kind: "network_error" }
+  > => {
+    const setupCodeResult = await fetchJsonSafe<{
+      ok?: boolean;
+      challengeId?: string;
+      retryAfterSeconds?: number;
+      error?: string;
+      message?: string;
+    }>("/api/auth/email-password/setup-access", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email }),
     });
-    if (!setupLinkResult.ok) {
-      return "network_error";
+    if (!setupCodeResult.ok) {
+      return { kind: "network_error" };
     }
-    const { response: res, data } = setupLinkResult;
-    return res.ok && Boolean(data.ok) ? "ok" : "failed";
+    const { response: res, data } = setupCodeResult;
+    if (data.ok && data.challengeId) {
+      return {
+        kind: "ok",
+        challengeId: data.challengeId,
+        retryAfterSeconds: data.retryAfterSeconds ?? 60,
+      };
+    }
+    if (res.status === 429 || data.error === "rate_limited") {
+      return { kind: "rate_limited", retryAfterSeconds: Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60)) };
+    }
+    return { kind: "failed", message: data.message };
   };
 
   const goBackToEntry = () => {
@@ -477,6 +509,21 @@ export function AuthFlowV2({
           return;
         }
         const { response: resReg, data: regData } = registerResult;
+        if (regData.ok && regData.error === "existing_account_needs_email_setup") {
+          if (regData.challengeId) {
+            setEmailSetupPromptEmail(null);
+            setEmailRegPassword(emailLoginPassword);
+            setEmailRegChallengeId(regData.challengeId);
+            setEmailRegAttemptId(regData.attemptId ?? null);
+            setEmailRegRetrySec(regData.retryAfterSeconds ?? 60);
+            setEmailVerifyPurpose("setup");
+            setEmailAuthMode("verify");
+            toast.success("Отправили код на почту.");
+          } else {
+            setEmailSetupPromptEmail(email);
+          }
+          return;
+        }
         if (regData.ok && regData.challengeId) {
           saveRegisterVerifyPending({
             email,
@@ -490,13 +537,9 @@ export function AuthFlowV2({
           setEmailRegChallengeId(regData.challengeId);
           setEmailRegAttemptId(regData.attemptId ?? null);
           setEmailRegRetrySec(regData.retryAfterSeconds ?? 60);
+          setEmailVerifyPurpose("registration");
           setEmailAuthMode("verify");
           toast.success("Подтвердите email — отправили код.");
-          return;
-        }
-        if (regData.ok && regData.error === "existing_account_needs_email_setup") {
-          setEmailSetupPromptEmail(email);
-          toast.success("Отправили ссылку на почту для настройки доступа.");
           return;
         }
         if (resReg.status === 409 || regData.error === "duplicate_email") {
@@ -513,6 +556,27 @@ export function AuthFlowV2({
           return;
         }
         if (lookupState === "needs_email_setup") {
+          const setup = await startEmailSetupCode(email);
+          if (setup.kind === "network_error") {
+            toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+            return;
+          }
+          if (setup.kind === "ok") {
+            setEmailSetupPromptEmail(null);
+            setEmailRegPassword(emailLoginPassword);
+            setEmailRegChallengeId(setup.challengeId);
+            setEmailRegAttemptId(null);
+            setEmailRegRetrySec(setup.retryAfterSeconds);
+            setEmailVerifyPurpose("setup");
+            setEmailAuthMode("verify");
+            toast.success("Отправили код на почту.");
+            return;
+          }
+          if (setup.kind === "rate_limited") {
+            setEmailRegRetrySec(setup.retryAfterSeconds);
+            toast.error("Код уже отправлен. Проверьте почту.");
+            return;
+          }
           setEmailSetupPromptEmail(email);
           return;
         }
@@ -571,8 +635,17 @@ export function AuthFlowV2({
       }
       const { response: res, data } = registerResult;
       if (data.ok && data.error === "existing_account_needs_email_setup") {
-        setEmailSetupPromptEmail(email);
-        toast.success("Отправили ссылку на почту для настройки доступа.");
+        if (data.challengeId) {
+          setEmailSetupPromptEmail(null);
+          setEmailRegChallengeId(data.challengeId);
+          setEmailRegAttemptId(data.attemptId ?? null);
+          setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+          setEmailVerifyPurpose("setup");
+          setEmailAuthMode("verify");
+          toast.success("Отправили код на почту.");
+        } else {
+          setEmailSetupPromptEmail(email);
+        }
         return;
       }
       if (res.status === 409 || data.error === "duplicate_email") {
@@ -594,6 +667,7 @@ export function AuthFlowV2({
         setEmailRegChallengeId(data.challengeId);
         setEmailRegAttemptId(data.attemptId ?? null);
         setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+        setEmailVerifyPurpose("registration");
         setEmailAuthMode("verify");
         return;
       }
@@ -630,7 +704,11 @@ export function AuthFlowV2({
         return;
       }
       if (lookupState === "needs_email_setup") {
-        const forgotForSetupResult = await fetchJsonSafe<{ ok?: boolean }>("/api/auth/email-password/forgot", {
+        const forgotForSetupResult = await fetchJsonSafe<{
+          ok?: boolean;
+          challengeId?: string;
+          retryAfterSeconds?: number;
+        }>("/api/auth/email-password/forgot", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ email }),
@@ -644,9 +722,25 @@ export function AuthFlowV2({
           toast.error("Не удалось выполнить запрос");
           return;
         }
-        setPwRecoveryPhase("none");
-        setEmailSetupPromptEmail(email);
-        toast.success("Отправили ссылку на почту для настройки доступа.");
+        if (!data.challengeId) {
+          setPwRecoveryPhase("none");
+          setEmailSetupPromptEmail(email);
+          toast.error("Код уже отправлен. Проверьте почту или запросите повторно позже.");
+          return;
+        }
+        setEmailSetupPromptEmail(null);
+        setPwResetEmail(email);
+        setPwResetChallengeId(data.challengeId);
+        setPwResetCode("");
+        setPwNewPassword("");
+        setPwRecoveryPurpose("setup");
+        setPwRecoveryPhase("reset_code");
+        savePasswordResetPending({
+          email,
+          retryAfterSeconds: data.retryAfterSeconds ?? 60,
+          challengeId: data.challengeId,
+        });
+        toast.success("Отправили код на почту.");
         return;
       }
       if (lookupState === "email_conflict") {
@@ -678,6 +772,8 @@ export function AuthFlowV2({
       const sec = Math.max(1, Math.ceil(Number(data.retryAfterSeconds) || 60));
       savePasswordResetPending({ email, retryAfterSeconds: sec });
       setPwResetEmail(email);
+      setPwResetChallengeId(null);
+      setPwRecoveryPurpose("reset");
       setPwRecoveryPhase("reset_code");
       toast.success(
         "Если такой email есть в системе, на почту отправлен код. Проверьте папку «Спам».",
@@ -693,13 +789,24 @@ export function AuthFlowV2({
     engageInteractive();
     setLoading(true);
     try {
-      const result = await sendEmailSetupAccessLink(email);
-      if (result === "network_error") {
+      const result = await startEmailSetupCode(email);
+      if (result.kind === "network_error") {
         toast.error(AUTH_NETWORK_ERROR_MESSAGE);
         return;
       }
-      if (result === "ok") {
-        toast.success("Отправили ссылку на почту.");
+      if (result.kind === "ok") {
+        setEmailSetupPromptEmail(null);
+        setEmailRegChallengeId(result.challengeId);
+        setEmailRegAttemptId(null);
+        setEmailRegRetrySec(result.retryAfterSeconds);
+        setEmailVerifyPurpose("setup");
+        setEmailAuthMode("verify");
+        toast.success("Отправили код на почту.");
+        return;
+      }
+      if (result.kind === "rate_limited") {
+        setEmailRegRetrySec(result.retryAfterSeconds);
+        toast.error("Код уже отправлен. Проверьте почту.");
         return;
       }
       toast.error("Не удалось отправить письмо");
@@ -718,27 +825,48 @@ export function AuthFlowV2({
     }
     setLoading(true);
     try {
+      const endpoint =
+        pwRecoveryPurpose === "setup"
+          ? "/api/auth/email-password/setup-code/complete"
+          : "/api/auth/email-password/reset";
       const resetResult = await fetchJsonSafe<{
         ok?: boolean;
+        redirectTo?: string;
+        role?: "client" | "doctor" | "admin";
         error?: string;
         message?: string;
         retryAfterSeconds?: number;
-      }>("/api/auth/email-password/reset", {
+      }>(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, code: pwResetCode.trim(), newPassword: pwNewPassword }),
+        body: JSON.stringify(
+          pwRecoveryPurpose === "setup"
+            ? {
+                email,
+                challengeId: pwResetChallengeId,
+                code: pwResetCode.trim(),
+                password: pwNewPassword,
+              }
+            : { email, code: pwResetCode.trim(), newPassword: pwNewPassword },
+        ),
       });
       if (!resetResult.ok) {
         toast.error(AUTH_NETWORK_ERROR_MESSAGE);
         return;
       }
       const { response: res, data } = resetResult;
+      if (data.ok && data.redirectTo) {
+        redirectOk(data.redirectTo, data.role);
+        return;
+      }
       if (data.ok) {
         clearAuthFlowPending();
         setPwRecoveryPhase("none");
+        setPwRecoveryPurpose("reset");
+        setPwResetChallengeId(null);
         setPwResetCode("");
         setPwNewPassword("");
-        toast.success("Пароль обновлён. Войдите.");
+        toast.success(pwRecoveryPurpose === "setup" ? "Доступ настроен." : "Пароль обновлён. Войдите.");
         setEmailLoginEmail(email);
         setEmailLoginPassword("");
         setEmailAuthMode("login");
@@ -746,6 +874,10 @@ export function AuthFlowV2({
       }
       if (res.status === 429 || data.error === "too_many_attempts") {
         toast.error(data.message ?? "Слишком частые попытки");
+        return;
+      }
+      if (data.error === "expired_code") {
+        toast.error("Код истёк. Запросите новый.");
         return;
       }
       toast.error(data.message ?? "Неверный или просроченный код");
@@ -894,9 +1026,11 @@ export function AuthFlowV2({
               }
               if (pwRecoveryPhase !== "none") {
                 setPwRecoveryPhase("none");
+                setPwRecoveryPurpose("reset");
                 setPwResetCode("");
                 setPwNewPassword("");
                 setPwResetEmail("");
+                setPwResetChallengeId(null);
                 return;
               }
               if (emailAuthMode === "verify") {
@@ -924,7 +1058,7 @@ export function AuthFlowV2({
               disabled={loading}
               onClick={() => void submitEmailSetupAccessResend()}
             >
-              Отправить ссылку
+              Отправить код
             </Button>
           </div>
         ) : pwRecoveryPhase === "forgot_email" ? (
@@ -1153,6 +1287,9 @@ export function AuthFlowV2({
               description="Введите код из письма."
               onConfirm={async (code) => {
                 engageInteractive();
+                if (emailVerifyPurpose === "setup" && emailRegPassword.length < 8) {
+                  return { ok: false as const, message: "Пароль — не менее 8 символов." };
+                }
                 const confirmEmailResult = await fetchJsonSafe<{
                   ok?: boolean;
                   redirectTo?: string;
@@ -1160,15 +1297,29 @@ export function AuthFlowV2({
                   error?: string;
                   message?: string;
                   retryAfterSeconds?: number;
-                }>("/api/auth/email-password/register/confirm", {
+                }>(
+                  emailVerifyPurpose === "setup"
+                    ? "/api/auth/email-password/setup-code/complete"
+                    : "/api/auth/email-password/register/confirm",
+                  {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({
-                    challengeId: emailRegChallengeId,
-                    code,
-                    ...(emailRegAttemptId ? { attemptId: emailRegAttemptId } : {}),
-                  }),
-                });
+                  body: JSON.stringify(
+                    emailVerifyPurpose === "setup"
+                      ? {
+                          email: emailLoginEmail.trim(),
+                          challengeId: emailRegChallengeId,
+                          code,
+                          password: emailRegPassword,
+                        }
+                      : {
+                          challengeId: emailRegChallengeId,
+                          code,
+                          ...(emailRegAttemptId ? { attemptId: emailRegAttemptId } : {}),
+                        },
+                  ),
+                  },
+                );
                 if (!confirmEmailResult.ok) {
                   return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                 }
@@ -1199,15 +1350,24 @@ export function AuthFlowV2({
                   retryAfterSeconds?: number;
                   error?: string;
                   message?: string;
-                }>("/api/auth/email-password/register", {
+                }>(
+                  emailVerifyPurpose === "setup"
+                    ? "/api/auth/email-password/setup-access"
+                    : "/api/auth/email-password/register",
+                  {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({
-                    email,
-                    password,
-                    displayName: emailRegDisplayName.trim() || undefined,
-                  }),
-                });
+                  body: JSON.stringify(
+                    emailVerifyPurpose === "setup"
+                      ? { email }
+                      : {
+                          email,
+                          password,
+                          displayName: emailRegDisplayName.trim() || undefined,
+                        },
+                  ),
+                  },
+                );
                 if (!resendRegisterResult.ok) {
                   return { kind: "error" as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                 }
@@ -1215,12 +1375,14 @@ export function AuthFlowV2({
                 if (data.ok && data.challengeId) {
                   setEmailRegChallengeId(data.challengeId);
                   setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
-                  saveRegisterVerifyPending({
-                    email,
-                    challengeId: data.challengeId,
-                    retryAfterSeconds: data.retryAfterSeconds ?? 60,
-                    displayName: emailRegDisplayName.trim() || email.split("@")[0] || "Пациент",
-                  });
+                  if (emailVerifyPurpose === "registration") {
+                    saveRegisterVerifyPending({
+                      email,
+                      challengeId: data.challengeId,
+                      retryAfterSeconds: data.retryAfterSeconds ?? 60,
+                      displayName: emailRegDisplayName.trim() || email.split("@")[0] || "Пациент",
+                    });
+                  }
                   return { kind: "ok" as const };
                 }
                 if (res.status === 429 || data.error === "rate_limited") {
@@ -1243,6 +1405,7 @@ export function AuthFlowV2({
                 onClick={() => {
                   clearAuthFlowPending();
                   setEmailRegChallengeId(null);
+                  setEmailVerifyPurpose("registration");
                   setEmailAuthMode("register");
                 }}
               >
@@ -1250,7 +1413,7 @@ export function AuthFlowV2({
               </button>
               <div className="flex flex-col gap-1 pt-2">
                 <label htmlFor="auth-verify-resend-pwd" className={authFormFieldLabelClass}>
-                  Пароль (для повторной отправки кода)
+                  {emailVerifyPurpose === "setup" ? "Пароль" : "Пароль (для повторной отправки кода)"}
                 </label>
                 <Input
                   id="auth-verify-resend-pwd"

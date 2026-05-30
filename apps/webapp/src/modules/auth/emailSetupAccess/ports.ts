@@ -1,4 +1,4 @@
-/** Источник выпуска setup-link (см. MAIN PLAN §9, PHASE_03). */
+/** Источник выпуска setup-кода (legacy token-link остаётся только для старых ссылок). */
 export type EmailSetupAccessSource =
   | "rubitime"
   | "doctor_profile"
@@ -18,7 +18,7 @@ export type RequestContactEmailSetupResult =
   | { ok: false; reason: "invalid_email" | "not_configured" };
 
 export type EmailSetupAccessPort = {
-  /** Contact/unverified email: выпуск setup token + письмо со ссылкой на `/app/auth/email-setup`. */
+  /** Contact/unverified email: отправка setup-кода через `email_challenges`. */
   requestContactEmailSetup(
     params: RequestContactEmailSetupParams,
   ): Promise<RequestContactEmailSetupResult>;

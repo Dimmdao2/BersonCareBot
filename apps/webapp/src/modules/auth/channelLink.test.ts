@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.fn();
 const clientQueryMock = vi.fn();
+const mergePlatformUsersInTransactionMock = vi.hoisted(() => vi.fn());
 const connectMock = vi.fn(async () => ({
   query: clientQueryMock,
   release: vi.fn(),
@@ -21,6 +22,14 @@ vi.mock("@/infra/adminAuditLog", async (importOriginal) => {
     upsertOpenConflictLog: vi.fn().mockResolvedValue({ kind: "conflict", insertedFirst: true }),
   };
 });
+
+vi.mock("@bersoncare/platform-merge", () => ({
+  mergePlatformUsersInTransaction: (...args: unknown[]) => mergePlatformUsersInTransactionMock(...args),
+  classifyMergeFailure: (_err: unknown, candidateIds: string[]) => ({
+    code: "merge_blocked_distinct_real_users",
+    candidateIds,
+  }),
+}));
 
 const { sendAdminIncidentRelayAlertMock } = vi.hoisted(() => ({
   sendAdminIncidentRelayAlertMock: vi.fn().mockResolvedValue(undefined),
@@ -116,6 +125,7 @@ describe("completeChannelLinkFromIntegrator", () => {
     });
     queryMock.mockReset();
     clientQueryMock.mockReset();
+    mergePlatformUsersInTransactionMock.mockReset();
     connectMock.mockClear();
     classifyMock.mockReset();
     claimMock.mockReset();
@@ -128,6 +138,8 @@ describe("completeChannelLinkFromIntegrator", () => {
     const reporter = vi.fn();
     setChannelLinkBindingConflictReporter(reporter);
     classifyMock.mockResolvedValueOnce({ kind: "real", reason: "stub_has_phone" });
+    mergePlatformUsersInTransactionMock.mockRejectedValueOnce(new Error("merge blocked"));
+    clientQueryMock.mockResolvedValue({ rows: [] });
 
     queryMock
       .mockResolvedValueOnce({ rows: [freshSecretRow()] })
@@ -139,14 +151,14 @@ describe("completeChannelLinkFromIntegrator", () => {
       externalId: "tg_1",
     });
 
-    expect(res).toMatchObject({ ok: false, code: "conflict", mergeReason: "channel_owned_by_real_user" });
+    expect(res).toMatchObject({ ok: false, code: "conflict", mergeReason: "merge_blocked_distinct_real_users" });
     expect(reporter).toHaveBeenCalledWith({
       channelCode: "telegram",
       externalId: "tg_1",
       tokenUserId: "u1",
       existingUserId: "u2",
     });
-    expect(connectMock).not.toHaveBeenCalled();
+    expect(connectMock).toHaveBeenCalled();
     expect(claimMock).not.toHaveBeenCalled();
     expect(upsertMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -156,7 +168,7 @@ describe("completeChannelLinkFromIntegrator", () => {
         candidateIds: ["u1", "u2"],
         targetId: "u1",
         details: expect.objectContaining({
-          classifiedReason: "channel_owned_by_real_user",
+          classifiedReason: "merge_blocked_distinct_real_users",
           stubClassificationReason: "stub_has_phone",
           channelCode: "telegram",
           externalId: "tg_1",
@@ -164,13 +176,14 @@ describe("completeChannelLinkFromIntegrator", () => {
       }),
     );
     expect(sendAdminIncidentRelayAlertMock).toHaveBeenCalledTimes(1);
-    expect(queryMock).toHaveBeenCalledTimes(2);
   });
 
   it("does not relay ownership conflict when upsert is repeat (insertedFirst false)", async () => {
     setChannelLinkBindingConflictReporter(vi.fn());
     upsertMock.mockResolvedValueOnce({ kind: "conflict", insertedFirst: false });
     classifyMock.mockResolvedValueOnce({ kind: "real", reason: "stub_has_oauth" });
+    mergePlatformUsersInTransactionMock.mockRejectedValueOnce(new Error("merge blocked"));
+    clientQueryMock.mockResolvedValue({ rows: [] });
 
     queryMock
       .mockResolvedValueOnce({ rows: [freshSecretRow()] })

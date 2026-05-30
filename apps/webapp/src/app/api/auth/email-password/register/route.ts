@@ -8,7 +8,6 @@ import {
   recordAuthRegistrationSuccess,
 } from "@/app-layer/product-analytics/recordAuthRegistration";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
-import { requestEmailSetupAccessForUser } from "@/modules/auth/emailPasswordLookup/requestSetupAccess";
 import { hashPin } from "@/modules/auth/pinHash";
 
 const bodySchema = z.object({
@@ -103,35 +102,37 @@ export async function POST(request: Request) {
     const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
 
     if (state.kind === "needs_email_setup") {
-      const sent = await requestEmailSetupAccessForUser(deps.emailSetupAccess, {
-        userId: state.userId,
-        emailNormalized: emailNorm,
-        source: "registration_claim",
-      });
-      if (!sent.ok) {
+      const challenge = await startEmailChallenge(state.userId, emailNorm);
+      if (!challenge.ok) {
         await recordAuthRegistrationFailure({
           ...LOG_BASE,
           attemptId,
           stage: "start",
           contactValue: emailNorm,
           userId: state.userId,
-          errorCode: sent.error,
+          errorCode: challenge.code,
         });
-        return NextResponse.json({ ok: false, error: sent.error }, { status: 503 });
+        return NextResponse.json(
+          { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
+          { status: challenge.code === "rate_limited" ? 429 : 503 },
+        );
       }
       await recordAuthRegistrationFailure({
         ...LOG_BASE,
         attemptId,
-        stage: "start",
+        stage: "challenge_sent",
         contactValue: emailNorm,
         userId: state.userId,
+        challengeId: challenge.challengeId,
         errorCode: "existing_account_needs_email_setup",
       });
       return NextResponse.json({
         ok: true,
         attemptId,
+        challengeId: challenge.challengeId,
+        retryAfterSeconds: challenge.retryAfterSeconds,
         error: "existing_account_needs_email_setup",
-        setupLinkSent: true,
+        setupCodeSent: true,
       });
     }
 

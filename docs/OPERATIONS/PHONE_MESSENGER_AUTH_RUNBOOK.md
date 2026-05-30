@@ -8,8 +8,8 @@
 2. Пользователь открывает бота (Telegram / Max), state `await_phoneauth:<token>`.
 3. Пользователь отправляет контакт → integrator `webapp.phoneMessengerBind.complete` → `POST /api/integrator/phone-messenger-bind/complete`.
 4. **После контакта (ветка по `purpose`):**
-   - **`login`** (вход по номеру в PWA, без сессии): webapp создаёт OTP-challenge, secret → `otp_ready`; PWA poll до `otp_ready` (интервал 2.5 s + **немедленный** poll при `visibilitychange` на шаге ожидания) → **`POST /api/auth/phone/messenger-bind/finish`** (server-side confirm по challenge, без ввода кода в браузере) → secret `consumed`. Бот после контакта: **`phoneAuthReturnToApp`** + главное меню; при наличии `facts.links.webappHomeUrl` — отдельное сообщение **`phoneAuthOpenAppPrompt`** с inline **browser URL** (`/app/tg?t=…` / `/app/max?t=…`, не `web_app`). OTP в мессенджер **не** шлётся. Путь **`POST /api/auth/phone/confirm`** — для `phone/start` (уже привязанный TG/Max).
-   - **`profile_bind`** (привязка к уже залогиненному аккаунту): OTP **не** создаётся, secret сразу → `consumed`; integrator `user.phone.link` выставляет `patient_phone_trust_at`; бот шлёт `*:phoneAuthPhoneLinked` и главное меню (Telegram — reply keyboard «Запись» + «Приложение»); PWA poll до `consumed` → redirect без кода.
+   - **`login`** (вход по номеру в PWA, без сессии): webapp сначала пробует auto-merge через общий merge-engine, если мессенджер уже привязан к одной `platform_users`, а введённый телефон принадлежит другой. При успехе создаёт OTP-challenge, secret → `otp_ready`; PWA poll до `otp_ready` (интервал 2.5 s + **немедленный** poll при `visibilitychange` на шаге ожидания) → **`POST /api/auth/phone/messenger-bind/finish`** (server-side confirm по challenge, без ввода кода в браузере) → secret `consumed`. Бот после контакта: **`phoneAuthReturnToApp`** + главное меню; при наличии `facts.links.webappHomeUrl` — отдельное сообщение **`phoneAuthOpenAppPrompt`** с inline **browser URL** (`/app/tg?t=…` / `/app/max?t=…`, не `web_app`). OTP в мессенджер **не** шлётся. Путь **`POST /api/auth/phone/confirm`** — для `phone/start` (уже привязанный TG/Max).
+   - **`profile_bind`** (привязка к уже залогиненному аккаунту): если телефон уже на другой карточке, webapp сначала пробует auto-merge session user + phone owner; при hard blocker пишет audit и возвращает conflict. OTP **не** создаётся, secret сразу → `consumed`; integrator `user.phone.link` выставляет `patient_phone_trust_at`; бот шлёт `*:phoneAuthPhoneLinked` и главное меню (Telegram — reply keyboard «Запись» + «Приложение»); PWA poll до `consumed` → redirect без кода.
 5. Integrator complete API возвращает **`purpose`**; код в ответе только для `login`.
 
 ## Integrator
@@ -51,6 +51,7 @@
 | `phone_mismatch` | Контакт в боте ≠ номер, введённый в webapp | Toast, «Начать снова» |
 | `expired` | TTL secret (15 мин) | Toast, сброс на выбор мессенджера |
 | `failed` | Конфликт привязки / лимит OTP | Toast + повтор |
+| `conflict` / `merge_blocked_*` | Merge-engine отказал: разные реальные пациенты, доменный blocker, конфликт данных | Открытая строка `messenger_phone_bind_blocked` / `messenger_phone_bind_anomaly` в admin audit с `candidateIds`; админ закрывает вручную после решения |
 | `already_used` (integrator replay) | Secret `consumed` | Бот без кода |
 | Replay `otp_ready` (`login`) | Повторный контакт до confirm | **200** с тем же `otpCode` (`replay: true`, `purpose: login`) |
 | `consumed` (`profile_bind`) | Повторный poll в PWA после привязки | **200** `status: consumed` → клиент завершает bind-phone |
@@ -59,6 +60,7 @@
 
 - Webapp: `phone_messenger_bind_start`, `phone_messenger_bind_complete_ok|fail` (поля `purpose`, `channelCode`, `failure_code`, `phoneSuffix`; **не** `otpCode`).
 - Integrator: `phone_messenger_bind_complete_ok` (поле **`purpose`**: `login` \| `profile_bind`), `phone_messenger_bind_complete_failed`.
+- Admin audit: `messenger_phone_bind_blocked` / `messenger_phone_bind_anomaly` при hard blocker, `candidateIds` и `reason` в `details`.
 
 ## Rate limit (webapp)
 

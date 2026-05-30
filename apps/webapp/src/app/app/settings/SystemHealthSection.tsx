@@ -338,7 +338,8 @@ function statusBadgeVariant(status: string): "secondary" | "outline" | "destruct
     status === "up" ||
     status === "running" ||
     status === "active" ||
-    status === "idle"
+    status === "idle" ||
+    status === "configured"
   ) {
     return "secondary";
   }
@@ -355,13 +356,14 @@ function statusBadgeVariant(status: string): "secondary" | "outline" | "destruct
 }
 
 function statusDotClass(status: string): string {
-  if (status === "ok" || status === "up" || status === "running" || status === "active") return "bg-emerald-500";
+  if (status === "ok" || status === "up" || status === "running" || status === "active" || status === "configured") {
+    return "bg-emerald-500";
+  }
   if (status === "idle") return "bg-sky-500";
   if (status === "playback_disabled") return "bg-amber-500";
   if (status === "degraded" || status === "no_signal" || status === "no_source" || status === "no_activity") {
     return "bg-amber-500";
   }
-  if (status === "configured") return "bg-blue-500";
   if (status === "not_configured") return "bg-zinc-400";
   if (status === "no_data") return "bg-zinc-400";
   return "bg-rose-500";

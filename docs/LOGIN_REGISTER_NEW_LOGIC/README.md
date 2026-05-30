@@ -16,9 +16,9 @@
 |---|------|--------|
 | 0 | [PHASE_00_AUDIT_AND_AGREEMENT.md](PHASE_00_AUDIT_AND_AGREEMENT.md) | Аудит, согласование, без большой реализации |
 | 1 | [PHASE_01_RUBITIME_PLATFORM_USER.md](PHASE_01_RUBITIME_PLATFORM_USER.md) | Rubitime → find/create/link `platform_user` |
-| 2 | [PHASE_02_CONTACT_EMAIL_POLICY.md](PHASE_02_CONTACT_EMAIL_POLICY.md) | Contact/unverified email, триггеры ссылки |
-| 3 | [PHASE_03_EMAIL_SETUP_TOKENS.md](PHASE_03_EMAIL_SETUP_TOKENS.md) | Таблица токенов, сервис, письмо |
-| 4 | [PHASE_04_EMAIL_SETUP_FLOW.md](PHASE_04_EMAIL_SETUP_FLOW.md) | UI/API `/app/auth/email-setup` |
+| 2 | [PHASE_02_CONTACT_EMAIL_POLICY.md](PHASE_02_CONTACT_EMAIL_POLICY.md) | Contact/unverified email, триггеры setup-доступа |
+| 3 | [PHASE_03_EMAIL_SETUP_TOKENS.md](PHASE_03_EMAIL_SETUP_TOKENS.md) | Legacy token-link и текущая отправка setup-кода |
+| 4 | [PHASE_04_EMAIL_SETUP_FLOW.md](PHASE_04_EMAIL_SETUP_FLOW.md) | UI/API setup; legacy `/app/auth/email-setup`, текущий кодовый flow |
 | 5 | [PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md) | Состояния email в AuthFlow + API |
 | 6 | [PHASE_06_MERGE_IDENTITY.md](PHASE_06_MERGE_IDENTITY.md) | Merge — страховка, тесты + docs |
 | 7 | [login-register-backfill-appointments.md](../TODO_NOT_NOW/login-register-backfill-appointments.md) | Backfill старой базы — **отложено** → `docs/TODO_NOT_NOW/` |
@@ -59,6 +59,16 @@
 | UI | `/app/doctor/audit-log` — секция «Ошибки регистрации» |
 
 Код: `recordAuthRegistration.ts`, `maskContactHint.ts`, `registrationErrorClass.ts`, `AdminAuthRegistrationEventsSection.tsx`.
+
+## Email setup by code + merge hardening (2026-05-30)
+
+Актуальный пользовательский flow для contact-only email — **код подтверждения в текущей форме**, не activation-link. `register`, `forgot` и `setup-access` отправляют `email_challenges` код; `setup-code/complete` подтверждает email, создаёт пароль и ставит сессию. Legacy `/app/auth/email-setup?token=...` оставлен для уже отправленных старых ссылок.
+
+Merge hardening этой же волны:
+
+- phone messenger bind login/profile-bind пробует auto-merge через общий merge-engine до блокировки;
+- channel-link пробует full merge для real owner перед `channel_link_ownership_conflict`;
+- duplicate email lookup пробует безопасный auto-merge, но не сливает два password-login аккаунта; blocker пишет `email_auth_conflict`.
 
 ## Правила исполнения для агентов
 

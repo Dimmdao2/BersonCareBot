@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
-import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
 import { OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
 
 const bodySchema = z.object({
@@ -21,9 +20,8 @@ function forgotPasswordNeutralResponse(challengeRetryAfter?: number) {
  * Ответ **одинаковый** при отсутствии учётки, ошибке отправки и rate limit — без `challengeId` и без перечисления email.
  * Подтверждение: {@link consumeLatestEmailChallengeCodeForUser} или `POST …/reset` с `challengeId`.
  *
- * Contact-only email (врач/Rubitime, `email_verified_at` NULL, нет `user_password_credentials`) **не** получает
- * reset OTP: при {@link resolveAuthState} `needs_email_setup` отправляется setup-link (`emailSetupAccess`), HTTP-ответ
- * остаётся нейтральным `{ ok: true }`.
+ * Contact-only email (врач/Rubitime, `email_verified_at` NULL, нет `user_password_credentials`) получает
+ * setup-код через тот же email challenge; явный UI lookup уже перевёл пользователя в setup-password flow.
  */
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -42,15 +40,16 @@ export async function POST(request: Request) {
 
   const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
   if (state.kind === "needs_email_setup") {
-    fireAndForgetContactEmailSetup(
-      deps.emailSetupAccess,
-      {
-        userId: state.userId,
-        emailNormalized: emailNorm,
-        source: "manual_resend",
-      },
-      { hook: "auth_forgot_needs_email_setup" },
-    );
+    const challenge = await startEmailChallenge(state.userId, emailNorm);
+    if (challenge.ok) {
+      return NextResponse.json({
+        ok: true,
+        challengeId: challenge.challengeId,
+        retryAfterSeconds: challenge.retryAfterSeconds ?? OTP_RESEND_COOLDOWN_SEC,
+        setupRequired: true,
+      });
+    }
+    return forgotPasswordNeutralResponse(challenge.retryAfterSeconds);
   }
 
   return forgotPasswordNeutralResponse();

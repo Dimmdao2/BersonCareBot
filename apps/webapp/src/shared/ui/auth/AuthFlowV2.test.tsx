@@ -446,7 +446,7 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
   });
 
-  it("shows email setup prompt when register returns existing_account_needs_email_setup", async () => {
+  it("opens setup code entry when register returns existing_account_needs_email_setup", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -456,7 +456,9 @@ describe("AuthFlowV2 — browser", () => {
           return jsonRes({
             ok: true,
             error: "existing_account_needs_email_setup",
-            setupLinkSent: true,
+            setupCodeSent: true,
+            challengeId: "11111111-1111-4111-8111-111111111111",
+            retryAfterSeconds: 60,
           });
         }
         return jsonRes({});
@@ -482,10 +484,8 @@ describe("AuthFlowV2 — browser", () => {
     await user.type(screen.getByLabelText("Пароль"), "password12");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
-    expect(
-      await screen.findByText(/Аккаунт с этой почтой уже есть/i),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Отправить ссылку" })).toBeInTheDocument();
+    expect(await screen.findByText(/Код отправлен на bot@example.com/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Пароль")).toBeInTheDocument();
   });
 
   it("opens forgot-password subflow from login form", async () => {

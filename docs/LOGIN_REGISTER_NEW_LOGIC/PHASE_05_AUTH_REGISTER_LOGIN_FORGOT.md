@@ -13,16 +13,16 @@
 
 1. Свободен → обычная регистрация  
 2. Существует + verified + `user_password_credentials` → login / forgot  
-3. Существует + unverified / contact-only, нет credentials → **setup link** (`existing_account_needs_email_setup`)  
-4. Verified, нет credentials → setup password link  
-5. Конфликт / несколько кандидатов → support, без automerge  
+3. Существует + unverified / contact-only, нет credentials → **setup code** (`existing_account_needs_email_setup`)  
+4. Verified, нет credentials → setup password code  
+5. Конфликт / несколько кандидатов → безопасный auto-merge дублей по email; если две password-строки или hard blocker — support + `email_auth_conflict`  
 
 ## Scope
 
 ### В scope
 
 - `POST /api/auth/email-password/register` — код `existing_account_needs_email_setup` + отправка setup (не голый 409)
-- Явный запрос пользователя «отправить ссылку» на register/setup-required — выпуск setup-link
+- Явный запрос пользователя «отправить код» на register/setup-required — выпуск setup-code
 - `AuthFlowV2` — копирайт и ветки UI по кодам
 - `forgot` — reset только verified+credentials; contact-only → setup access (не тупик без письма); внешний ответ может оставаться generic 200
 - Опционально: `POST /api/auth/email-password/lookup` для «ввёл email на входе» без перебора
@@ -36,7 +36,7 @@
 ## Definition of Done
 
 - [x] Register + existing bot email + doctor contact → setup path, не duplicate_email
-- [x] Forgot + contact-only → setup mail (или re-issue), не silent no-op
+- [x] Forgot + contact-only → setup code (или re-issue), не silent no-op
 - [x] Forgot + verified+password → reset mail как сейчас
 - [x] Forgot не шлёт на unverified doctor-only email
 - [x] Существующий email+password аккаунт без регрессий

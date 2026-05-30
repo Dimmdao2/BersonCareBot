@@ -108,13 +108,17 @@ describe("POST /api/auth/email-password/register", () => {
     expect(body.error).toBe("email_send_failed");
   });
 
-  it("returns existing_account_needs_email_setup and sends setup link for contact-only duplicate", async () => {
+  it("returns existing_account_needs_email_setup with code challenge for contact-only duplicate", async () => {
     registerPending.mockResolvedValueOnce({ ok: false, reason: "duplicate_email" });
     resolveAuthState.mockResolvedValueOnce({
       kind: "needs_email_setup",
       userId: "22222222-2222-2222-2222-222222222222",
     });
-    requestContactEmailSetup.mockResolvedValueOnce({ ok: true, status: "enqueued" });
+    startEmailChallenge.mockResolvedValueOnce({
+      ok: true,
+      challengeId: "setup-chal-1",
+      retryAfterSeconds: 60,
+    });
 
     const res = await POST(
       new Request("http://localhost/api/auth/email-password/register", {
@@ -129,20 +133,21 @@ describe("POST /api/auth/email-password/register", () => {
     );
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok?: boolean; error?: string; setupLinkSent?: boolean };
+    const body = (await res.json()) as { ok?: boolean; error?: string; setupCodeSent?: boolean };
     expect(body).toEqual(
       expect.objectContaining({
         ok: true,
         error: "existing_account_needs_email_setup",
-        setupLinkSent: true,
+        setupCodeSent: true,
+        challengeId: "setup-chal-1",
         attemptId: expect.any(String),
       }),
     );
-    expect(requestContactEmailSetup).toHaveBeenCalledWith({
-      userId: "22222222-2222-2222-2222-222222222222",
-      emailNormalized: "patient@example.com",
-      source: "registration_claim",
-    });
+    expect(startEmailChallenge).toHaveBeenCalledWith(
+      "22222222-2222-2222-2222-222222222222",
+      "patient@example.com",
+    );
+    expect(requestContactEmailSetup).not.toHaveBeenCalled();
     expect(tryResend).not.toHaveBeenCalled();
   });
 

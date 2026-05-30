@@ -271,6 +271,16 @@ export async function completePhoneMessengerBindFromIntegrator(
       });
       if (!pre.ok) {
         await port.updateFailed(row.id, pre.code, client);
+        if (pre.candidateIds?.length) {
+          await port.recordMessengerBindBlocked?.(client, {
+            reason: pre.code,
+            candidateIds: pre.candidateIds,
+            channelCode: params.channelCode,
+            externalId: params.externalId.trim(),
+            phoneNormalized: contactPhone,
+            source: "webapp.phone_messenger_bind",
+          });
+        }
         logger.warn({
           event: "phone_messenger_bind_complete_fail",
           metric: "phone_messenger_bind_complete_fail",

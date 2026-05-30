@@ -319,7 +319,7 @@ export type ListAdminAuditLogParams = {
   targetId?: string;
   /**
    * Match rows where this platform user is `target_id`, or listed in `details.candidateIds` for
-   * `auto_merge_conflict`, or matches `details.targetId` / `details.duplicateId` for `user_merge` /
+   * merge/bind conflicts, or matches `details.targetId` / `details.duplicateId` for `user_merge` /
    * `integrator_user_merge`.
    */
   involvesPlatformUserId?: string;
@@ -377,7 +377,12 @@ export async function listAdminAuditLog(pool: Pool, params: ListAdminAuditLogPar
     const uid = params.involvesPlatformUserId.trim();
     conditions.push(
       `(l.target_id = $${i} OR (
-        l.action = 'auto_merge_conflict' AND EXISTS (
+        l.action IN (
+          'auto_merge_conflict',
+          'email_auth_conflict',
+          'messenger_phone_bind_blocked',
+          'messenger_phone_bind_anomaly'
+        ) AND EXISTS (
           SELECT 1
           FROM jsonb_array_elements_text(COALESCE(l.details->'candidateIds', '[]'::jsonb)) AS cid
           WHERE cid = $${i}
@@ -471,6 +476,9 @@ export async function listAdminAuditLog(pool: Pool, params: ListAdminAuditLogPar
 export const MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS = [
   "auto_merge_conflict",
   "auto_merge_conflict_anomaly",
+  "email_auth_conflict",
+  "messenger_phone_bind_blocked",
+  "messenger_phone_bind_anomaly",
   "channel_link_ownership_conflict",
 ] as const;
 

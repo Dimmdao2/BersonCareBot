@@ -88,7 +88,7 @@ flowchart LR
   subgraph auth [Email auth]
     LA[resolveAuthState]
     LA -->|email_conflict| SUP[409 support]
-    LA -->|needs_email_setup| SET[setup link]
+    LA -->|needs_email_setup| SET[setup code]
   end
   subgraph insurance [Страховка]
     AM[auto-merge projection / phone_bind]

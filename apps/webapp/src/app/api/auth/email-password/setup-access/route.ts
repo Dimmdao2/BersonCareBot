@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { normalizeEmail } from "@/modules/auth/emailAuth";
-import { requestEmailSetupAccessForUser } from "@/modules/auth/emailPasswordLookup/requestSetupAccess";
+import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
 
 const bodySchema = z.object({
   email: z.string().email(),
 });
 
-/** Повторная отправка setup-link для contact-only / verified без пароля (явный запрос UI). */
+/** Повторная отправка setup-кода для contact-only / verified без пароля (явный запрос UI). */
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
@@ -24,15 +23,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "not_eligible" }, { status: 400 });
   }
 
-  const sent = await requestEmailSetupAccessForUser(deps.emailSetupAccess, {
-    userId: state.userId,
-    emailNormalized: emailNorm,
-    source: "manual_resend",
-  });
-
-  if (!sent.ok) {
-    return NextResponse.json({ ok: false, error: sent.error }, { status: 503 });
+  const challenge = await startEmailChallenge(state.userId, emailNorm);
+  if (!challenge.ok) {
+    return NextResponse.json(
+      { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
+      { status: challenge.code === "rate_limited" ? 429 : 503 },
+    );
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    challengeId: challenge.challengeId,
+    retryAfterSeconds: challenge.retryAfterSeconds,
+  });
 }

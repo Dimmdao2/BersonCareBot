@@ -308,6 +308,29 @@ Runbook: `docs/OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md` §Smoke.
 
 ---
 
+## 2026-05-30 — Email setup by code + auth merge blockers
+
+**Сделано:**
+
+- Contact-only email setup переведён с activation-link на ввод кода в текущей форме: `register`, `forgot`, `setup-access` отправляют `email_challenges`, `setup-code/complete` подтверждает email, создаёт/обновляет пароль и ставит сессию.
+- Legacy `/app/auth/email-setup?token=...` оставлен для уже отправленных старых ссылок; новые письма от `createPgEmailSetupAccessPort` используют `sendEmailCodeViaIntegrator`.
+- `phone-messenger-bind` login/profile-bind пробует auto-merge перед блокировкой; hard blockers пишутся в `messenger_phone_bind_blocked` / `messenger_phone_bind_anomaly`.
+- `channel-link` для real owner пробует full merge через общий merge-engine перед `channel_link_ownership_conflict`.
+- `emailPasswordLookup` пробует безопасный auto-merge дублей по email; если у двух строк уже есть пароль или merge-engine блокирует, пишет `email_auth_conflict` с `candidateIds`.
+
+**Проверки:**
+
+- `pnpm --filter @bersoncare/webapp run test:fast` — 847 files passed, 4313 tests passed.
+- `pnpm --filter @bersoncare/webapp run typecheck` — ok.
+- `pnpm --filter @bersoncare/webapp run lint` — ok.
+
+**Решения:**
+
+- Не сливать автоматически две canonical-строки с одним email, если у обеих есть `user_password_credentials`: это реальный login-conflict, нужен admin/support.
+- `setup-code/complete` принимает latest active challenge, если UI потерял `challengeId`, чтобы не оставлять пациента в тупике при rate limit/resume.
+
+---
+
 ## Шаблон записи при закрытии этапа
 
 ```markdown

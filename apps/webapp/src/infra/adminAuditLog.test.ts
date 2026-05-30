@@ -222,7 +222,7 @@ describe("listAdminAuditLog", () => {
     expect(countCall?.[1]).toEqual(expect.arrayContaining(["system_health_"]));
   });
 
-  it("involvesPlatformUserId SQL matches user_merge details and auto_merge_conflict candidateIds", async () => {
+  it("involvesPlatformUserId SQL matches merge/bind candidateIds and user_merge details", async () => {
     const uid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const query = vi.fn(async (sql: string) => {
       if (sql.includes("count(*)")) {
@@ -238,6 +238,8 @@ describe("listAdminAuditLog", () => {
     expect(countCall).toBeDefined();
     const countSql = String(countCall?.[0]);
     expect(countSql).toContain("auto_merge_conflict");
+    expect(countSql).toContain("messenger_phone_bind_blocked");
+    expect(countSql).toContain("messenger_phone_bind_anomaly");
     expect(countSql).toContain("channel_link_ownership_conflict");
     expect(countSql).toContain("candidateIds");
     expect(countSql).toContain("user_merge");

@@ -8,7 +8,7 @@
 
 ## Цель
 
-Разослать setup-ссылки историческим пациентам с contact email и без password — **только** по явному решению.
+Разослать setup-коды историческим пациентам с contact email и без password — **только** по явному решению. Legacy setup-link не использовать для новых массовых писем.
 
 ## Gate (все обязательны)
 
@@ -16,7 +16,7 @@
 - [ ] Лимиты SMTP / согласие на нагрузку  
 - [ ] Dry-run фазы 7 завершён  
 - [ ] Feature flag или one-shot script с подтверждением оператора  
-- [ ] Откат не требует удаления users — только revoke tokens  
+- [ ] Откат не требует удаления users; для кодового flow достаточно истечения TTL/cooldown, без новых persistent setup tokens  
 
 ## Definition of Done
 
