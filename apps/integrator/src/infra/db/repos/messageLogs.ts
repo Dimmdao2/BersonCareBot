@@ -2,6 +2,7 @@ import type { DbPort, DbWriteMutation } from '../../../kernel/contracts/index.js
 import { logger } from '../../observability/logger.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
 import { deliveryAttemptLogs } from '../schema/integratorPublicProduct.js';
+import { getOperationalVerboseLogEnabled } from './operationalVerboseLog.js';
 
 type DeliveryAttemptLogParams = {
   intentType?: unknown;
@@ -62,6 +63,8 @@ export async function appendMessageLog(db: DbPort, mutation: DbWriteMutation): P
     return;
   }
 
-  // Keep non-delivery logs visible until dedicated audit tables are added.
-  logger.info({ mutationType: mutation.type, params: mutation.params }, 'append message/delivery log');
+  // Non-delivery logs are diagnostic-only until dedicated audit tables exist; gate behind verbose flag and drop raw params.
+  if (await getOperationalVerboseLogEnabled(db)) {
+    logger.info({ mutationType: mutation.type }, 'append message/delivery log');
+  }
 }

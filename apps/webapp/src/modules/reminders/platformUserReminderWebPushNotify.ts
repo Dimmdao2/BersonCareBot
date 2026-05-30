@@ -20,6 +20,7 @@ import {
 } from "@/modules/web-push/resolveReminderWebPushPayload";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
+import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
 
 const PATIENT_REMINDER_INTENT_TYPE = "patient_reminder";
 
@@ -185,6 +186,7 @@ export async function runPlatformUserReminderWebPushNotify(
     warmupSloganKey: pushPayload.warmupSloganKey,
   });
 
+  const verbose = await isOperationalVerboseLogEnabled({ systemSettings: deps.systemSettings });
   const r = await sendWebPushToSubscriptions({
     subscriptions: subs,
     vapidPublicKey: vapidKeys.publicKey,
@@ -211,6 +213,7 @@ export async function runPlatformUserReminderWebPushNotify(
           });
         }
       : undefined,
+    verbose,
     logContext: {
       userId: input.platformUserId,
       topicCode: input.topicCode,
@@ -218,17 +221,19 @@ export async function runPlatformUserReminderWebPushNotify(
     },
   });
 
-  logger.info(
-    {
-      event: "web_push_only_reminder.send_result",
-      platformUserId: input.platformUserId,
-      occurrenceId: input.occurrenceId,
-      topicCode: input.topicCode,
-      delivered: r.delivered,
-      errors: r.errors,
-    },
-    "web push-only reminder send result",
-  );
+  if (verbose) {
+    logger.info(
+      {
+        event: "web_push_only_reminder.send_result",
+        platformUserId: input.platformUserId,
+        occurrenceId: input.occurrenceId,
+        topicCode: input.topicCode,
+        delivered: r.delivered,
+        errors: r.errors,
+      },
+      "web push-only reminder send result",
+    );
+  }
 
   if (r.delivered > 0) {
     return { ok: true, delivered: r.delivered };

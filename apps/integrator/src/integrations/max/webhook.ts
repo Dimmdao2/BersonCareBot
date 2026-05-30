@@ -10,6 +10,8 @@ import { getMaxWebhookSecret } from './runtimeConfig.js';
 import { setupMaxCommands } from './setupCommands.js';
 import type { MaxUpdateValidated } from './schema.js';
 import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js';
+import { createDbPort } from '../../infra/db/client.js';
+import { getOperationalVerboseLogEnabled } from '../../infra/db/repos/operationalVerboseLog.js';
 
 export type MaxWebhookDeps = {
   eventGateway: EventGateway;
@@ -145,21 +147,26 @@ export async function registerMaxWebhookRoutes(
       }
 
       const data = parseResult.data;
-      reqLogger.info(
-        {
-          update_type: data.update_type,
-          has_message: data.message != null,
-          has_callback: data.callback != null,
-          recipient_chat_id: data.message?.recipient?.chat_id,
-          recipient_user_id: data.message?.recipient?.user_id,
-          sender_user_id: data.message?.sender?.user_id,
-        },
-        'max webhook received',
-      );
+      const verbose = await getOperationalVerboseLogEnabled(createDbPort());
+      if (verbose) {
+        reqLogger.info(
+          {
+            update_type: data.update_type,
+            has_message: data.message != null,
+            has_callback: data.callback != null,
+            recipient_chat_id: data.message?.recipient?.chat_id,
+            recipient_user_id: data.message?.recipient?.user_id,
+            sender_user_id: data.message?.sender?.user_id,
+          },
+          'max webhook received',
+        );
+      }
 
       const incoming = fromMax(data);
       if (!incoming) {
-        reqLogger.info({ update_type: data.update_type }, 'max webhook skipped (unsupported or missing chatId/userId)');
+        if (verbose) {
+          reqLogger.info({ update_type: data.update_type }, 'max webhook skipped (unsupported or missing chatId/userId)');
+        }
         return reply.code(200).send({ ok: true });
       }
 

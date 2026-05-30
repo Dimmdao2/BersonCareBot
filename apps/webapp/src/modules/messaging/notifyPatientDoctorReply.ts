@@ -9,6 +9,7 @@ import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRu
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { buildMessagePushCopy } from "@/modules/web-push/pushNotificationCopy";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
+import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
 import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
 import { resolvePatientMessageChannels } from "./resolvePatientMessageChannels";
 
@@ -84,15 +85,18 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     const availability = await buildAvailability(deps, platformUserId);
     const { selectedChannels } = resolvePatientMessageChannels({ availability, channelPrefs: prefs });
 
-    logger.info(
-      {
-        event: "patient_doctor_reply.notify",
-        platformUserId,
-        messageId,
-        selectedChannels,
-      },
-      "patient doctor reply notify channels",
-    );
+    const verbose = await isOperationalVerboseLogEnabled({ systemSettings: deps.systemSettings });
+    if (verbose) {
+      logger.info(
+        {
+          event: "patient_doctor_reply.notify",
+          platformUserId,
+          messageId,
+          selectedChannels,
+        },
+        "patient doctor reply notify channels",
+      );
+    }
 
     const bindings = await deps.getChannelBindings(platformUserId);
     const relaySent = new Set<string>();
@@ -154,6 +158,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
             onSubscriptionDead: async (endpoint) => {
               await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
             },
+            verbose,
             logContext: { userId: platformUserId },
           }).catch((err: unknown) => {
             logger.error({ err, platformUserId }, "doctor reply web push failed");

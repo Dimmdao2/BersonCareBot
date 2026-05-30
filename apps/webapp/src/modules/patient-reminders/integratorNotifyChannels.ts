@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { logger } from "@/infra/logging/logger";
+import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import { smtpInnerFromValueJson, sendTransactionalSmtpEmail } from "@/modules/outbound-email/sendTransactionalSmtp";
 import {
@@ -130,12 +131,14 @@ function resolveChannelsForGateOnly(
 }
 
 function logResolvedChannels(params: {
+  verbose: boolean;
   platformUserId?: string;
   integratorUserId: string;
   topicCode: string;
   resolved: Omit<ResolvedNotificationChannels, "userId" | "topicCode" | "integratorUserId">;
   flowSkipped?: string;
 }): void {
+  if (!params.verbose) return;
   logger.info(
     {
       event: "patient_reminder.notify_channels.resolved_channels",
@@ -159,17 +162,20 @@ function logResolvedChannels(params: {
       }),
       deliveryPath: "webapp_m2m",
       intentType: "patient_reminder",
+      verbose: params.verbose,
     });
   }
 }
 
 function logNotifyResult(params: {
+  verbose: boolean;
   integratorUserId: string;
   platformUserId?: string;
   topicCode: string;
   occurrenceId: string;
   outcome: Record<string, unknown>;
 }): void {
+  if (!params.verbose) return;
   logger.info(
     {
       event: "patient_reminder.notify_channels.result",
@@ -207,16 +213,19 @@ export async function runPatientReminderIntegratorNotify(
   body: IntegratorPatientReminderNotifyBody,
   deps: PatientReminderIntegratorNotifyDeps,
 ): Promise<Record<string, unknown>> {
-  logger.info(
-    {
-      event: "patient_reminder.notify_channels.received",
-      integratorUserId: body.integratorUserId,
-      topicCode: body.topicCode,
-      occurrenceId: body.occurrenceId,
-      idempotencyKey: `prn:${body.occurrenceId}:channels`,
-    },
-    "patient reminder notify-channels received",
-  );
+  const verbose = await isOperationalVerboseLogEnabled({ systemSettings: deps.systemSettings });
+  if (verbose) {
+    logger.info(
+      {
+        event: "patient_reminder.notify_channels.received",
+        integratorUserId: body.integratorUserId,
+        topicCode: body.topicCode,
+        occurrenceId: body.occurrenceId,
+        idempotencyKey: `prn:${body.occurrenceId}:channels`,
+      },
+      "patient reminder notify-channels received",
+    );
+  }
 
   const resultCtx = {
     integratorUserId: body.integratorUserId,
@@ -233,31 +242,35 @@ export async function runPatientReminderIntegratorNotify(
       enabledChannels: [],
     };
     logResolvedChannels({
+      verbose,
       integratorUserId: body.integratorUserId,
       topicCode: body.topicCode,
       resolved: emptyResolved,
       flowSkipped: "no_platform_user",
     });
     const out = { ok: true, skipped: "no_platform_user", skippedChannels: [] as const };
-    logNotifyResult({ ...resultCtx, outcome: out });
+    logNotifyResult({ verbose, ...resultCtx, outcome: out });
     return out;
   }
   const uid = platform.platformUserId;
 
-  logger.info(
-    {
-      event: "patient_reminder.notify_channels.resolved_user",
-      integratorUserId: body.integratorUserId,
-      platformUserId: uid,
-    },
-    "patient reminder notify-channels resolved user",
-  );
+  if (verbose) {
+    logger.info(
+      {
+        event: "patient_reminder.notify_channels.resolved_user",
+        integratorUserId: body.integratorUserId,
+        platformUserId: uid,
+      },
+      "patient reminder notify-channels resolved user",
+    );
+  }
 
   const gate = await deps.readReminderNotifyGate(uid, body.topicCode);
   if (gate.muted || !gate.topicMasterEnabled) {
     const gateResolved = resolveChannelsForGateOnly(body.topicCode, gate);
     const flowSkipped = gate.muted ? "muted" : "topic_disabled";
     logResolvedChannels({
+      verbose,
       integratorUserId: body.integratorUserId,
       platformUserId: uid,
       topicCode: body.topicCode,
@@ -276,7 +289,7 @@ export async function runPatientReminderIntegratorNotify(
       selectedChannels: gateResolved.selectedChannels,
       skippedChannels: gateResolved.skippedChannels,
     };
-    logNotifyResult({ ...resultCtx, platformUserId: uid, outcome: out });
+    logNotifyResult({ verbose, ...resultCtx, platformUserId: uid, outcome: out });
     return out;
   }
 
@@ -306,6 +319,7 @@ export async function runPatientReminderIntegratorNotify(
   });
 
   logResolvedChannels({
+    verbose,
     integratorUserId: body.integratorUserId,
     platformUserId: uid,
     topicCode: body.topicCode,
@@ -406,6 +420,7 @@ export async function runPatientReminderIntegratorNotify(
             });
           }
         : undefined,
+      verbose,
       logContext: {
         userId: uid,
         topicCode: body.topicCode,
@@ -416,32 +431,34 @@ export async function runPatientReminderIntegratorNotify(
     out.webPushErrors = r.errors;
     out.webPushDeactivated = r.deactivated;
 
-    logger.info(
-      {
-        event: "web_push_send_result",
-        userId: uid,
-        topicCode: body.topicCode,
-        occurrenceId: body.occurrenceId,
-        delivered: r.delivered,
-        errors: r.errors,
-        activeSubscriptionsCount: subs.length,
-        deactivatedSubscriptionsCount: r.deactivated,
-      },
-      "web push send result",
-    );
+    if (verbose) {
+      logger.info(
+        {
+          event: "web_push_send_result",
+          userId: uid,
+          topicCode: body.topicCode,
+          occurrenceId: body.occurrenceId,
+          delivered: r.delivered,
+          errors: r.errors,
+          activeSubscriptionsCount: subs.length,
+          deactivatedSubscriptionsCount: r.deactivated,
+        },
+        "web push send result",
+      );
 
-    logger.info(
-      {
-        event: "patient_reminder.notify_channels.web_push.result",
-        platformUserId: uid,
-        topicCode: body.topicCode,
-        activeSubscriptionsCount: subs.length,
-        webPushDelivered: r.delivered,
-        webPushErrors: r.errors,
-        deactivatedSubscriptionsCount: r.deactivated,
-      },
-      "patient reminder web push result",
-    );
+      logger.info(
+        {
+          event: "patient_reminder.notify_channels.web_push.result",
+          platformUserId: uid,
+          topicCode: body.topicCode,
+          activeSubscriptionsCount: subs.length,
+          webPushDelivered: r.delivered,
+          webPushErrors: r.errors,
+          deactivatedSubscriptionsCount: r.deactivated,
+        },
+        "patient reminder web push result",
+      );
+    }
     }
   }
 
@@ -525,6 +542,6 @@ export async function runPatientReminderIntegratorNotify(
     (out.skippedChannels as SkippedNotificationChannel[]) ?? resolved.skippedChannels,
   );
 
-  logNotifyResult({ ...resultCtx, platformUserId: uid, outcome: out });
+  logNotifyResult({ verbose, ...resultCtx, platformUserId: uid, outcome: out });
   return out;
 }

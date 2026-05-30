@@ -375,8 +375,8 @@ export function AdminSettingsSection({
         />
 
         <LabeledSwitch
-          label="Debug: пересылать входящие админу"
-          hint="Пересылать все входящие сообщения администратору для отладки"
+          label="Debug: подробные серверные логи"
+          hint="Включает подробные operational-логи webapp и integrator (journalctl). Не меняет доставку сообщений. На проде держать выключенным."
           checked={debugForward}
           onCheckedChange={setDebugForward}
           disabled={isPending}

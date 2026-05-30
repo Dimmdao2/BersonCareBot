@@ -35,13 +35,15 @@ export async function sendWebPushToSubscriptions(params: {
   payload: WebPushClientPayload;
   onSubscriptionDead: (endpoint: string) => Promise<void>;
   onAttempt?: (result: WebPushDeliveryAttemptResult) => void | Promise<void>;
+  /** Gate per-subscription success/deactivation `info` logs behind admin verbose flag. Provider errors stay `warn`. */
+  verbose?: boolean;
   logContext?: {
     userId?: string;
     topicCode?: string;
     occurrenceId?: string;
   };
 }): Promise<{ delivered: number; errors: number; deactivated: number }> {
-  const { subscriptions, vapidPublicKey, vapidPrivateKey, vapidSubject, payload, onSubscriptionDead, onAttempt, logContext } =
+  const { subscriptions, vapidPublicKey, vapidPrivateKey, vapidSubject, payload, onSubscriptionDead, onAttempt, verbose, logContext } =
     params;
   if (subscriptions.length === 0) return { delivered: 0, errors: 0, deactivated: 0 };
 
@@ -88,16 +90,18 @@ export async function sendWebPushToSubscriptions(params: {
         endpointHash,
         providerStatusCode: result?.statusCode,
       });
-      logger.info(
-        {
-          event: "web_push_provider_response",
-          outcome: "ok",
-          statusCode: result?.statusCode,
-          endpointHash,
-          ...logContext,
-        },
-        "web push provider response",
-      );
+      if (verbose) {
+        logger.info(
+          {
+            event: "web_push_provider_response",
+            outcome: "ok",
+            statusCode: result?.statusCode,
+            endpointHash,
+            ...logContext,
+          },
+          "web push provider response",
+        );
+      }
     } catch (e: unknown) {
       const status = (e as { statusCode?: number })?.statusCode;
       const message = e instanceof Error ? e.message : String(e);
@@ -112,16 +116,18 @@ export async function sendWebPushToSubscriptions(params: {
           reason,
           errorMessage: message,
         });
-        logger.info(
-          {
-            event: "web_push_provider_response",
-            outcome: "subscription_dead",
-            statusCode: status,
-            endpointHash,
-            ...logContext,
-          },
-          "web push subscription deactivated",
-        );
+        if (verbose) {
+          logger.info(
+            {
+              event: "web_push_provider_response",
+              outcome: "subscription_dead",
+              statusCode: status,
+              endpointHash,
+              ...logContext,
+            },
+            "web push subscription deactivated",
+          );
+        }
       } else {
         await onAttempt?.({
           status: "failed",

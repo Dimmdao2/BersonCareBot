@@ -42,6 +42,7 @@ import {
   upsertReminderRule,
 } from './repos/reminders.js';
 import { buildReminderRuleUpsertKeyPayload } from './repos/projectionOutboxMergePolicy.js';
+import { getOperationalVerboseLogEnabled } from './repos/operationalVerboseLog.js';
 import {
   REMINDER_RULE_UPSERTED,
   REMINDER_OCCURRENCE_FINALIZED,
@@ -1150,9 +1151,6 @@ export function createDbWritePort(input: {
           return;
         }
         case 'delivery.attempt.log': {
-          if (mutation.type === 'delivery.attempt.log') {
-            logger.info({ params: mutation.params }, 'delivery attempt log');
-          }
           const dalParams = mutation.params as {
             intentType?: unknown;
             intentEventId?: unknown;
@@ -1164,6 +1162,23 @@ export function createDbWritePort(input: {
             payload?: unknown;
             occurredAt?: unknown;
           };
+          if (await getOperationalVerboseLogEnabled(db)) {
+            logger.info(
+              {
+                intentType: asNullableString(dalParams.intentType),
+                intentEventId: asNullableString(dalParams.intentEventId),
+                correlationId: asNullableString(dalParams.correlationId),
+                channel: asNonEmptyString(dalParams.channel),
+                status: asNonEmptyString(dalParams.status),
+                attempt:
+                  typeof dalParams.attempt === 'number' && Number.isFinite(dalParams.attempt)
+                    ? Math.trunc(dalParams.attempt)
+                    : null,
+                reason: asNullableString(dalParams.reason),
+              },
+              'delivery attempt log',
+            );
+          }
           const intentEventId = asNullableString(dalParams.intentEventId);
           const correlationId = asNullableString(dalParams.correlationId);
           const channel = asNonEmptyString(dalParams.channel);

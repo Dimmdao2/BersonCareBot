@@ -12,6 +12,8 @@ import {
   recordAuthLogin,
 } from "@/app-layer/product-analytics/recordAuthLogin";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
+import { logger } from "@/app-layer/logging/logger";
+import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
 const ROUTE = "auth/exchange";
@@ -68,9 +70,7 @@ export async function POST(request: Request) {
       contactValue: "integrator",
       errorCode: "access_denied",
     });
-    if (process.env.NODE_ENV !== "test") {
-      console.info("[auth/exchange] access_denied");
-    }
+    logger.warn({ route: ROUTE, outcome: "access_denied" }, "auth/exchange access_denied");
     const res = NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
     logAuthRouteTiming({
       route: ROUTE,
@@ -88,8 +88,11 @@ export async function POST(request: Request) {
     : result.session.user.bindings?.telegramId
       ? "telegram"
       : "web";
-  if (process.env.NODE_ENV !== "test") {
-    console.info("[auth/exchange] success source=%s role=%s", source, result.session.user.role);
+  if (process.env.NODE_ENV !== "test" && (await getConfigBool("debug_forward_to_admin", false))) {
+    logger.info(
+      { route: ROUTE, outcome: "ok", source, role: result.session.user.role },
+      "auth/exchange success",
+    );
   }
 
   await recordAuthLogin({

@@ -6,6 +6,12 @@ vi.mock("web-push", () => ({
   default: { sendNotification: sendNotificationMock },
 }));
 
+const loggerInfoMock = vi.hoisted(() => vi.fn());
+const loggerWarnMock = vi.hoisted(() => vi.fn());
+vi.mock("@/infra/logging/logger", () => ({
+  logger: { info: loggerInfoMock, warn: loggerWarnMock, error: vi.fn(), debug: vi.fn() },
+}));
+
 import { sendWebPushToSubscriptions } from "./sendWebPushToSubscriptions";
 
 const sub: WebPushSubscriptionPayloadV1 = {
@@ -17,6 +23,8 @@ const sub: WebPushSubscriptionPayloadV1 = {
 describe("sendWebPushToSubscriptions onAttempt", () => {
   beforeEach(() => {
     sendNotificationMock.mockReset();
+    loggerInfoMock.mockReset();
+    loggerWarnMock.mockReset();
   });
 
   it("calls onAttempt with success", async () => {
@@ -66,5 +74,48 @@ describe("sendWebPushToSubscriptions onAttempt", () => {
     });
     expect(dead).toEqual([sub.endpoint]);
     expect(attempts[0]).toMatchObject({ status: "failed", reason: "provider_410", providerStatusCode: 410 });
+  });
+
+  it("does not emit per-subscription success info when verbose is off", async () => {
+    sendNotificationMock.mockResolvedValue({ statusCode: 201 });
+    await sendWebPushToSubscriptions({
+      subscriptions: [sub],
+      vapidPublicKey: "pub",
+      vapidPrivateKey: "priv",
+      vapidSubject: "mailto:test@example.com",
+      payload: { title: "t", body: "b", url: "https://x" },
+      onSubscriptionDead: async () => {},
+    });
+    expect(loggerInfoMock).not.toHaveBeenCalled();
+  });
+
+  it("emits per-subscription success info when verbose is on", async () => {
+    sendNotificationMock.mockResolvedValue({ statusCode: 201 });
+    await sendWebPushToSubscriptions({
+      subscriptions: [sub],
+      vapidPublicKey: "pub",
+      vapidPrivateKey: "priv",
+      vapidSubject: "mailto:test@example.com",
+      payload: { title: "t", body: "b", url: "https://x" },
+      onSubscriptionDead: async () => {},
+      verbose: true,
+    });
+    expect(loggerInfoMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps provider error as warn regardless of verbose", async () => {
+    const err = Object.assign(new Error("boom"), { statusCode: 500 });
+    sendNotificationMock.mockRejectedValue(err);
+    await sendWebPushToSubscriptions({
+      subscriptions: [sub],
+      vapidPublicKey: "pub",
+      vapidPrivateKey: "priv",
+      vapidSubject: "mailto:test@example.com",
+      payload: { title: "t", body: "b", url: "https://x" },
+      onSubscriptionDead: async () => {},
+      verbose: false,
+    });
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1);
+    expect(loggerInfoMock).not.toHaveBeenCalled();
   });
 });

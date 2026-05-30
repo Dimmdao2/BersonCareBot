@@ -30,6 +30,7 @@ import {
   productAnalyticsMetadataFromPayload,
 } from "@/app-layer/product-analytics/createTrackedWebPushPayload";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
+import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 
 export const integratorPatientWebPushNotifyBodySchema = z
@@ -219,6 +220,7 @@ export async function runPatientWebPushNotify(
     warmupSloganKey: null,
   });
 
+  const verbose = await isOperationalVerboseLogEnabled({ systemSettings: deps.systemSettings });
   const r = await sendWebPushToSubscriptions({
     subscriptions: subs,
     vapidPublicKey: vapidKeys.publicKey,
@@ -245,23 +247,26 @@ export async function runPatientWebPushNotify(
           });
         }
       : undefined,
+    verbose,
     logContext: {
       userId: uid,
       topicCode: body.topicCode,
     },
   });
 
-  logger.info(
-    {
-      event: "patient_web_push_notify.result",
-      platformUserId: uid,
-      topicCode: body.topicCode,
-      intentType: body.intentType,
-      delivered: r.delivered,
-      errors: r.errors,
-    },
-    "patient web push notify result",
-  );
+  if (verbose) {
+    logger.info(
+      {
+        event: "patient_web_push_notify.result",
+        platformUserId: uid,
+        topicCode: body.topicCode,
+        intentType: body.intentType,
+        delivered: r.delivered,
+        errors: r.errors,
+      },
+      "patient web push notify result",
+    );
+  }
 
   return {
     ok: true,

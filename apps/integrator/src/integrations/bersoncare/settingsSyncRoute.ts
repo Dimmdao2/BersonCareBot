@@ -8,6 +8,7 @@ import { invalidateSmtpOutboundCache } from '../../config/smtpOutbound.js';
 import { invalidateAppDisplayTimezoneCache } from '../../config/appTimezone.js';
 import { invalidateGoogleCalendarConfigCache } from '../google-calendar/runtimeConfig.js';
 import { invalidateMessengerStaffIdsCacheForSettingKey } from '../../infra/db/messengerStaffIds.js';
+import { invalidateOperationalVerboseLogCache } from '../../infra/db/repos/operationalVerboseLog.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -106,6 +107,9 @@ export async function registerBersoncareSettingsSyncRoute(
     }
     if (key === 'smtp_outbound') {
       invalidateSmtpOutboundCache();
+    }
+    if (key === 'debug_forward_to_admin') {
+      invalidateOperationalVerboseLogCache();
     }
     invalidateMessengerStaffIdsCacheForSettingKey(key);
 

@@ -7,6 +7,7 @@ import type {
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
 import { createDbPort } from '../../infra/db/client.js';
+import { getOperationalVerboseLogEnabled } from '../../infra/db/repos/operationalVerboseLog.js';
 import { createGetBranchTimezoneWithDataQuality } from '../../infra/db/branchTimezone.js';
 import { fetchRubitimeRecordById } from './client.js';
 import {
@@ -40,12 +41,15 @@ async function processRubitimeBody(input: {
     correlationId: input.correlationId,
     eventId: input.eventId,
   });
-  reqLogger.info(
-    { event: input.body.event, from: input.body.from, dataKeys: Object.keys(input.body.data ?? {}) },
-    '[rubitime] webhook received',
-  );
 
   const dbPort = createDbPort();
+  const verbose = await getOperationalVerboseLogEnabled(dbPort);
+  if (verbose) {
+    reqLogger.info(
+      { event: input.body.event, from: input.body.from, dataKeys: Object.keys(input.body.data ?? {}) },
+      '[rubitime] webhook received',
+    );
+  }
   const incoming = await prepareRubitimeWebhookIngress(input.body, {
     db: dbPort,
     dispatchPort: input.dispatchPort,
@@ -86,18 +90,19 @@ async function processRubitimeBody(input: {
     gcalEventId,
   });
 
-  const loggedIncoming = (incomingEvent.payload as { incoming?: unknown }).incoming;
-  reqLogger.info(
-    {
-      action: (loggedIncoming as Record<string, unknown>)?.action,
-      entity: (loggedIncoming as Record<string, unknown>)?.entity,
-      status: (loggedIncoming as Record<string, unknown>)?.status,
-      phone: (loggedIncoming as Record<string, unknown>)?.phone,
-      recordId: (loggedIncoming as Record<string, unknown>)?.recordId,
-      gcalEventId: (loggedIncoming as Record<string, unknown>)?.gcalEventId,
-    },
-    '[rubitime] mapped to event',
-  );
+  if (verbose) {
+    const loggedIncoming = (incomingEvent.payload as { incoming?: unknown }).incoming;
+    reqLogger.info(
+      {
+        action: (loggedIncoming as Record<string, unknown>)?.action,
+        entity: (loggedIncoming as Record<string, unknown>)?.entity,
+        status: (loggedIncoming as Record<string, unknown>)?.status,
+        recordId: (loggedIncoming as Record<string, unknown>)?.recordId,
+        gcalEventId: (loggedIncoming as Record<string, unknown>)?.gcalEventId,
+      },
+      '[rubitime] mapped to event',
+    );
+  }
 
   const autobind = buildUserEmailAutobindWebappEvent(input.body);
   if (autobind) {
