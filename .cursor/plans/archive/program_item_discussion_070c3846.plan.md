@@ -24,7 +24,7 @@ todos:
     content: "Фаза 6: Patient program-submission upload, 480p transcode worker branch, discussion media bubbles, access+stats exclusion, doctor view"
     status: completed
   - id: phase-7-docs-ci
-    content: "Фаза 7: Sync architecture docs, close LOG.md, full pnpm run ci before merge"
+    content: "Фаза 7: Sync architecture docs, close LOG.md (CI перед merge — отложен)"
     status: completed
 isProject: false
 ---
@@ -351,7 +351,7 @@ flowchart TB
 - [x] Submission media: upload, 480p MP4, в thread, без HLS и без playback stats.
 - [x] Архитектура: modules/ports/DI, Drizzle migrations, thin routes, LOG.md актуален.
 - [x] Rollback-путь подтверждён: каждый включённый шаг управляется `system_settings` feature-flag и может быть выключен без schema rollback.
-- [x] `pnpm run ci` зелёный перед merge (см. `docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/LOG.md` §Этап 7).
+- [ ] `pnpm run ci` зелёный перед merge — отложено (см. `docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/LOG.md` §Этап 7).
 
 ---
 

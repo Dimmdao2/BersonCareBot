@@ -8,7 +8,7 @@
 
 ## Статус
 
-- **Инициатива закрыта (2026-05-30).** Этапы 0–7 выполнены; финальный CI — см. [`LOG.md`](LOG.md) §Этап 7.
+- **Инициатива закрыта (2026-05-30).** Этапы 0–7: код и документация готовы; **полный `pnpm run ci` перед merge — отложен** (см. [`LOG.md`](LOG.md) §Этап 7).
 - Этап 0 (документация и контракты) — выполнен.
 - Этап 1 (schema + doctor reply interim) — выполнен.
 - Этап 2 (patient discussion API + dual-write observation + batch summary endpoint) — выполнен.
@@ -16,7 +16,7 @@
 - Этап 4 (item page: complete modal + discussion preview + payload complete API) — выполнен.
 - Этап 5 (unread indicators) — выполнен.
 - Этап 6 (patient media submission) — выполнен.
-- Этап 7 (синхронизация architecture docs + закрытие LOG + CI) — выполнен.
+- Этап 7 (синхронизация architecture docs + закрытие LOG) — выполнен; финальный CI — **отложен**.
 
 ## Rollout (`system_settings`, scope `admin`)
 

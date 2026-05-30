@@ -391,7 +391,7 @@
 | 4 | **PASS** | Item page layout, complete modal, instruction label, preview block |
 | 5 | **PASS** | Per-item unread, chat count badge, mark-read sync (modal + support chat) |
 | 6 | **PASS** | Upload presign/confirm, 480p worker, media bubbles, ACL, doctor preview |
-| 7 | **PASS** | Architecture docs sync, LOG closure, full `pnpm run ci` |
+| 7 | **PASS** (docs) / **CI отложен** | Architecture docs sync, LOG closure; `pnpm run ci` — перед merge, не в этой сессии |
 
 ### Definition of Done (весь план)
 
@@ -403,10 +403,12 @@
 - [x] Submission media: upload, 480p MP4, thread, без HLS и без playback stats.
 - [x] Архитектура: modules/ports/DI, Drizzle, thin routes, LOG актуален.
 - [x] Rollback через `system_settings` feature-flags без schema rollback.
-- [x] `pnpm run ci` зелёный (см. ниже).
+- [ ] `pnpm run ci` зелёный перед merge — **отложено** (параллельная разработка; барьер — отдельный прогон перед push).
 
 ### Финальный CI
 
-Команда (барьер merge): `pnpm install --frozen-lockfile && pnpm run ci`.
+Команда (барьер merge/push): `pnpm install --frozen-lockfile && pnpm run ci`.
 
-Результат: *(заполняется после прогона в этой сессии)*.
+**Статус:** не запускался в рамках закрытия этапа 7 (2026-05-30) — параллельные изменения в рабочем дереве.
+
+**Локально известно:** lint падал на `no-secrets` в `processProgramSubmissionTranscode.ts` (`submission_480p_head_missing_after_upload`) — исправлено `eslint-disable-next-line` по паттерну `processTranscodeJob.ts`; полный прогон CI не подтверждался.

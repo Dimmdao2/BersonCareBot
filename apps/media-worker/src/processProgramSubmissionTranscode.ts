@@ -110,6 +110,7 @@ export async function processProgramSubmissionTranscodeJob(
 
     const headOk = await headObjectExists(ctx.s3Client, ctx.bucket, outputKey);
     if (!headOk) {
+      // eslint-disable-next-line no-secrets/no-secrets -- ops error token, not a secret
       throw new Error("submission_480p_head_missing_after_upload");
     }
 

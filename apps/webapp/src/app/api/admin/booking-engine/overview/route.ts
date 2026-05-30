@@ -58,6 +58,7 @@ export async function GET() {
     bridgeEnabled,
     doctorAppointmentsReadSource,
     bookingSlotsReadSource,
+    calendarReadSource: doctorAppointmentsReadSource,
     organization,
     branches,
     rooms,

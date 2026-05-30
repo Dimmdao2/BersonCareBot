@@ -105,6 +105,9 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         organizationId: input.organizationId,
         rangeStart,
         rangeEnd,
+        specialistId: input.specialistId,
+        branchId: input.branchId,
+        roomId: input.roomId,
       });
     },
 
@@ -125,6 +128,50 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
 
     deleteScheduleBlock(blockId, organizationId) {
       return port.deleteScheduleBlock(organizationId, blockId);
+    },
+
+    listWorkingHoursAdmin(input) {
+      return port.listWorkingHoursAdmin({
+        organizationId: input.organizationId,
+        specialistId: input.specialistId,
+        branchId: input.branchId,
+        roomId: input.roomId,
+      });
+    },
+
+    createWorkingHours(input) {
+      if (!input.organizationId) throw new Error("organization_id_required");
+      if (input.startMinute >= input.endMinute) throw new Error("invalid_working_hours_range");
+      return port.createWorkingHours({
+        organizationId: input.organizationId,
+        specialistId: input.specialistId ?? null,
+        branchId: input.branchId ?? null,
+        roomId: input.roomId ?? null,
+        weekday: input.weekday,
+        startMinute: input.startMinute,
+        endMinute: input.endMinute,
+      });
+    },
+
+    updateWorkingHours(input) {
+      if (input.startMinute != null && input.endMinute != null && input.startMinute >= input.endMinute) {
+        throw new Error("invalid_working_hours_range");
+      }
+      return port.updateWorkingHours(input);
+    },
+
+    deactivateWorkingHours(id, organizationId) {
+      return port.deactivateWorkingHours(organizationId, id);
+    },
+
+    async usesWorkingHoursFallback(input) {
+      const rows = await port.listWorkingHours({
+        organizationId: input.organizationId,
+        specialistId: input.specialistId ?? null,
+        branchId: input.branchId ?? null,
+        roomId: input.roomId ?? null,
+      });
+      return rows.length === 0;
     },
   };
 }

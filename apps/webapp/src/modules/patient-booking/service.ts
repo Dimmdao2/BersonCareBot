@@ -201,6 +201,7 @@ export function createPatientBookingService(input: {
           platformUserContacts: input.platformUserContacts ?? null,
           getPlatformUserIdentityContacts: input.getPlatformUserIdentityContacts,
           isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
+          resolveSlotsReadSource: input.resolveSlotsReadSource,
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
         }
@@ -272,7 +273,21 @@ export function createPatientBookingService(input: {
       const formAnswers = rawInput.formAnswers ?? [];
 
       if (canonicalDeps) {
-        return createBookingOnCanonicalEngine(canonicalDeps, createInput, formAnswers);
+        const slotLockKey =
+          createInput.type === "in_person"
+            ? `${createInput.branchServiceId}|${createInput.slotStart}|${createInput.slotEnd}`
+            : `online:${createInput.category}|${createInput.slotStart}|${createInput.slotEnd}`;
+        if (inFlightCreateBySlot.has(slotLockKey)) {
+          throw new Error("slot_overlap");
+        }
+        inFlightCreateBySlot.add(slotLockKey);
+        try {
+          const result = await createBookingOnCanonicalEngine(canonicalDeps, createInput, formAnswers);
+          invalidateSlotsCache();
+          return result;
+        } finally {
+          inFlightCreateBySlot.delete(slotLockKey);
+        }
       }
 
       const slotLockKey =

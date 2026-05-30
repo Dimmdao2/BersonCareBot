@@ -190,18 +190,26 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       return Math.max(0, Math.round(minutes));
     },
 
-    async listScheduleBlocks({ organizationId, rangeStart, rangeEnd }) {
+    async listScheduleBlocks({ organizationId, rangeStart, rangeEnd, specialistId, branchId, roomId }) {
       const db = getDrizzle();
+      const scopeConds = [
+        eq(beSb.organizationId, organizationId),
+        gte(beSb.endAt, rangeStart),
+        lte(beSb.startAt, rangeEnd),
+      ];
+      if (specialistId) {
+        scopeConds.push(or(eq(beSb.specialistId, specialistId), isNull(beSb.specialistId))!);
+      }
+      if (branchId) {
+        scopeConds.push(or(eq(beSb.branchId, branchId), isNull(beSb.branchId))!);
+      }
+      if (roomId) {
+        scopeConds.push(or(eq(beSb.roomId, roomId), isNull(beSb.roomId))!);
+      }
       const rows = await db
         .select()
         .from(beSb)
-        .where(
-          and(
-            eq(beSb.organizationId, organizationId),
-            gte(beSb.endAt, rangeStart),
-            lte(beSb.startAt, rangeEnd),
-          ),
-        )
+        .where(and(...scopeConds))
         .orderBy(asc(beSb.startAt));
       return rows.map((row) => ({
         id: row.id,
@@ -249,6 +257,97 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
     async deleteScheduleBlock(organizationId, blockId) {
       const db = getDrizzle();
       await db.delete(beSb).where(and(eq(beSb.id, blockId), eq(beSb.organizationId, organizationId)));
+    },
+
+    async listWorkingHoursAdmin({ organizationId, specialistId, branchId, roomId }) {
+      const db = getDrizzle();
+      const conds = [eq(beWh.organizationId, organizationId)];
+      if (specialistId === null) conds.push(isNull(beWh.specialistId));
+      else if (specialistId) conds.push(eq(beWh.specialistId, specialistId));
+      if (branchId === null) conds.push(isNull(beWh.branchId));
+      else if (branchId) conds.push(eq(beWh.branchId, branchId));
+      if (roomId === null) conds.push(isNull(beWh.roomId));
+      else if (roomId) conds.push(eq(beWh.roomId, roomId));
+      const rows = await db
+        .select()
+        .from(beWh)
+        .where(and(...conds))
+        .orderBy(asc(beWh.weekday), asc(beWh.startMinute));
+      return rows.map((row) => ({
+        id: row.id,
+        organizationId: row.organizationId,
+        specialistId: row.specialistId,
+        branchId: row.branchId,
+        roomId: row.roomId,
+        weekday: row.weekday,
+        startMinute: row.startMinute,
+        endMinute: row.endMinute,
+        isActive: row.isActive,
+      }));
+    },
+
+    async createWorkingHours(input) {
+      const db = getDrizzle();
+      const inserted = await db
+        .insert(beWh)
+        .values({
+          organizationId: input.organizationId,
+          specialistId: input.specialistId ?? null,
+          branchId: input.branchId ?? null,
+          roomId: input.roomId ?? null,
+          weekday: input.weekday,
+          startMinute: input.startMinute,
+          endMinute: input.endMinute,
+          isActive: true,
+        })
+        .returning();
+      const row = inserted[0]!;
+      return {
+        id: row.id,
+        organizationId: row.organizationId,
+        specialistId: row.specialistId,
+        branchId: row.branchId,
+        roomId: row.roomId,
+        weekday: row.weekday,
+        startMinute: row.startMinute,
+        endMinute: row.endMinute,
+        isActive: row.isActive,
+      };
+    },
+
+    async updateWorkingHours(input) {
+      const db = getDrizzle();
+      const patch: Partial<typeof beWh.$inferInsert> = { updatedAt: new Date().toISOString() };
+      if (input.weekday != null) patch.weekday = input.weekday;
+      if (input.startMinute != null) patch.startMinute = input.startMinute;
+      if (input.endMinute != null) patch.endMinute = input.endMinute;
+      if (input.isActive != null) patch.isActive = input.isActive;
+      const updated = await db
+        .update(beWh)
+        .set(patch)
+        .where(and(eq(beWh.id, input.id), eq(beWh.organizationId, input.organizationId)))
+        .returning();
+      const row = updated[0];
+      if (!row) throw new Error("working_hours_not_found");
+      return {
+        id: row.id,
+        organizationId: row.organizationId,
+        specialistId: row.specialistId,
+        branchId: row.branchId,
+        roomId: row.roomId,
+        weekday: row.weekday,
+        startMinute: row.startMinute,
+        endMinute: row.endMinute,
+        isActive: row.isActive,
+      };
+    },
+
+    async deactivateWorkingHours(organizationId, id) {
+      const db = getDrizzle();
+      await db
+        .update(beWh)
+        .set({ isActive: false, updatedAt: new Date().toISOString() })
+        .where(and(eq(beWh.id, id), eq(beWh.organizationId, organizationId)));
     },
   };
 }

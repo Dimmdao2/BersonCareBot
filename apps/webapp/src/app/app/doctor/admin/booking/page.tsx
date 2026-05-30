@@ -10,6 +10,7 @@ import { BookingMergeCandidatesSection } from "@/app/app/settings/BookingMergeCa
 import { BookingPublicAttributionSection } from "@/app/app/settings/BookingPublicAttributionSection";
 import { BookingPublicWidgetSection } from "@/app/app/settings/BookingPublicWidgetSection";
 import { BookingScheduleBlocksSection } from "@/app/app/settings/BookingScheduleBlocksSection";
+import { BookingWorkingHoursSection } from "@/app/app/settings/BookingWorkingHoursSection";
 import { BookingPoliciesSection } from "@/app/app/settings/BookingPoliciesSection";
 import { BookingEventNotificationsSection } from "@/app/app/settings/BookingEventNotificationsSection";
 import { BookingManualLifecycleSection } from "@/app/app/settings/BookingManualLifecycleSection";
@@ -68,6 +69,7 @@ export default async function DoctorAdminBookingPage() {
           <BookingManualLifecycleSection apiBase="/api/doctor/booking-engine" />
           <BookingMergeCandidatesSection />
           <BookingScheduleBlocksSection />
+          <BookingWorkingHoursSection />
         </section>
         <section id="booking-bridge" className="space-y-4">
           <RubitimeSection />

@@ -79,7 +79,7 @@ function confirmedRecord(): PatientBookingRecord {
   return { ...pendingRecord(), status: "confirmed", canonicalAppointmentId: "appt-1" };
 }
 
-function deps(bridge: boolean): CanonicalBookingDeps {
+function deps(bridge: boolean, slotsReadSource: "rubitime" | "canonical" = "canonical"): CanonicalBookingDeps {
   return {
     bookingsPort: bookingsPort as never,
     syncPort: syncPort as never,
@@ -93,6 +93,7 @@ function deps(bridge: boolean): CanonicalBookingDeps {
     products: null,
     clientHistory: null,
     isRubitimeBridgeEnabled: async () => bridge,
+    resolveSlotsReadSource: async () => slotsReadSource,
   };
 }
 
@@ -283,6 +284,39 @@ describe("createBookingOnCanonicalEngine", () => {
     expect(bookingEngine.createAppointment).toHaveBeenCalledWith(
       expect.objectContaining({ durationMinutes: 60 }),
     );
+  });
+
+  it("rubitime slot mode: fails when createRecord throws", async () => {
+    syncPort.createRecord.mockRejectedValue(new Error("network"));
+    await expect(
+      createBookingOnCanonicalEngine(deps(false, "rubitime"), {
+        userId: "user-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      }),
+    ).rejects.toThrow("rubitime_sync_failed");
+    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("pb-1");
+    expect(bookingsPort.markConfirmed).not.toHaveBeenCalled();
+  });
+
+  it("rubitime slot mode: skips assertSlotAvailable", async () => {
+    bookingScheduling.assertSlotAvailable.mockRejectedValue(new Error("slot_unavailable"));
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rt-1", raw: {} });
+    await createBookingOnCanonicalEngine(deps(false, "rubitime"), {
+      userId: "user-1",
+      type: "online",
+      category: "general",
+      slotStart: "2026-06-01T10:00:00.000Z",
+      slotEnd: "2026-06-01T11:00:00.000Z",
+      contactName: "Иван",
+      contactPhone: "+79001234567",
+    });
+    expect(bookingScheduling.assertSlotAvailable).not.toHaveBeenCalled();
+    expect(syncPort.createRecord).toHaveBeenCalledBefore(bookingEngine.createAppointment as never);
   });
 
   it("rejects invalid form answers", async () => {

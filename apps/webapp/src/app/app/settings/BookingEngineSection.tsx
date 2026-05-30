@@ -30,6 +30,7 @@ type Overview = {
   bridgeEnabled: boolean;
   doctorAppointmentsReadSource: DoctorAppointmentsReadSource;
   bookingSlotsReadSource: BookingSlotsReadSource;
+  calendarReadSource: DoctorAppointmentsReadSource;
   organization: { id: string; title: string } | null;
   branches: { id: string; title: string; cityCode: string; isActive: boolean }[];
   rooms: { id: string; branchId: string; title: string; isActive: boolean }[];
@@ -204,9 +205,9 @@ export function BookingEngineSection() {
 
         {data && (
           <>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Label className="sr-only">Источник списка записей врача</Label>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex flex-col gap-1">
+                <Label>Список записей врача</Label>
                 <Select
                   value={data.doctorAppointmentsReadSource}
                   disabled={isPending}
@@ -239,8 +240,8 @@ export function BookingEngineSection() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-center gap-2">
-                <Label className="sr-only">Источник слотов</Label>
+              <div className="flex flex-col gap-1">
+                <Label>Свободные слоты пациента</Label>
                 <Select
                   value={data.bookingSlotsReadSource}
                   disabled={isPending}
@@ -273,6 +274,18 @@ export function BookingEngineSection() {
                   </SelectContent>
                 </Select>
               </div>
+              <p className="text-sm text-muted-foreground">
+                Календарь сейчас:{" "}
+                {data.calendarReadSource === "canonical" ? "Канон" : "Rubitime"}
+              </p>
+              {data.doctorAppointmentsReadSource === "rubitime_legacy" &&
+              data.bookingSlotsReadSource === "canonical" ? (
+                <p className="text-sm text-destructive">Источники расходятся</p>
+              ) : null}
+              {data.doctorAppointmentsReadSource === "canonical" &&
+              data.bookingSlotsReadSource === "rubitime" ? (
+                <p className="text-sm text-destructive">Источники расходятся</p>
+              ) : null}
               <div className="flex items-center gap-2">
                 <Switch
                   checked={data.bridgeEnabled}

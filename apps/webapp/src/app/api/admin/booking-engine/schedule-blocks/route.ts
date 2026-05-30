@@ -27,6 +27,9 @@ export async function GET(request: Request) {
     organizationId: gate.ctx.organizationId,
     rangeStart,
     rangeEnd,
+    specialistId: url.searchParams.get("specialistId") || undefined,
+    branchId: url.searchParams.get("branchId") || undefined,
+    roomId: url.searchParams.get("roomId") || undefined,
   });
   return NextResponse.json({ ok: true, blocks });
 }
