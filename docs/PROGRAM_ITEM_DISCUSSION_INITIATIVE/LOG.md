@@ -411,4 +411,11 @@
 
 **Статус:** не запускался в рамках закрытия этапа 7 (2026-05-30) — параллельные изменения в рабочем дереве.
 
-**Локально известно:** lint падал на `no-secrets` в `processProgramSubmissionTranscode.ts` (`submission_480p_head_missing_after_upload`) — исправлено `eslint-disable-next-line` по паттерну `processTranscodeJob.ts`; полный прогон CI не подтверждался.
+**Локально известно:** lint падал на `no-secrets` в `processProgramSubmissionTranscode.ts` (`submission_480p_head_missing_after_upload`) — исправлено `eslint-disable-next-line` по паттерну `processTranscodeJob.ts` (commit `71985985`); полный прогон CI не подтверждался.
+
+### Исправления по аудиту этапа 7
+
+- **`api.md`:** discussion GET/POST/read/media, batch summary, program-submission presign/confirm/status, doctor `program-note-reply`; observation-note помечен legacy.
+- **`PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`:** секция обсуждения по пункту программы.
+- **`TREATMENT_PROGRAM_EXECUTION_RULES.md`:** ссылка на инициативу в «Источник правил».
+- LOG/README/plan: CI явно **отложен** до стабильного дерева; DoD по CI — `[ ]`.

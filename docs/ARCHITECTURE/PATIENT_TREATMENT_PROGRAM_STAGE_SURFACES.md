@@ -31,6 +31,18 @@
 
 Общие хелперы превью и «последней активности» по элементу: `apps/webapp/src/app/app/patient/treatment/stageItemSnapshot.ts` (импортируются с экрана программы пациента).
 
+## Обсуждение по пункту программы (doctor-program)
+
+Только **`assignment_source === doctor`**. Rollout: **`patient_program_discussion_ui_enabled`**; медиа — дополнительно **`patient_program_discussion_media_submission_enabled`**.
+
+| Поверхность | Поведение |
+|-------------|-----------|
+| Секция «Программа этапа» / item page | «Комментарии», badge/unread, «Камера» → `ProgramItemDiscussionDialog` / `ProgramItemDiscussionMediaPicker` |
+| Thread UI | Источник правды — `program_item_discussion_messages`; legacy admin replies — read-time merge из support-чата |
+| ACL медиа submission | `usage_purpose=program_item_submission` — uploader + doctor/admin ([`MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](MEDIA_HTTP_ACCESS_AUTHORIZATION.md)) |
+
+Канон API и UX: [`program-detail/README.md`](../../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), инициатива [`PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md), HTTP-реестр — [`api.md`](../../../apps/webapp/src/app/api/api.md).
+
 ## Страница пункта `/app/patient/treatment/[instanceId]/item/[itemId]`
 
 Отдельная страница пункта (не модалка) использует те же правила видимости элемента, что и остальной пациентский UI программы, и задаёт **контекст навигации** через query-параметры:

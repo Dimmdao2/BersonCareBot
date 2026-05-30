@@ -9,6 +9,7 @@
 - **Архитектура модулей:** `.cursor/rules/clean-architecture-module-isolation.mdc`.
 - **Интеграционные ключи:** `.cursor/rules/000-critical-integration-config-in-db.mdc` (в DB, не в env).
 - **Схема логики системы (исторический эталон):** `docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md` — сверять при изменениях домена; расхождение оформлять явно в постановке / LOG.
+- **Обсуждение по пунктам программы (закрыта 2026-05-30):** `docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/LOG.md` — thread per stage item, feature flags, patient media submission; plan — `.cursor/plans/archive/program_item_discussion_070c3846.plan.md`.
 
 ## Абсолютные запреты
 
