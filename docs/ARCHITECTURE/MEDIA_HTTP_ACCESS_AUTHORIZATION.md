@@ -26,7 +26,7 @@
 - Playback / redirect / HLS proxy: [`canAccessProgramSubmissionMedia`](../../apps/webapp/src/modules/media/programSubmissionPlaybackAccess.ts) — **uploader** (patient) или **doctor/admin**; чужой patient session → **401**.
 - Transcode: 480p progressive MP4, poster.jpg, без HLS; исходник удаляется после успеха.
 - Не учитывается в `recordPlaybackResolutionStat` / material-ratings.
-- Инициатива: [`docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md).
+- Инициатива: [`docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md).
 
 Канонический комментарий в коде:
 

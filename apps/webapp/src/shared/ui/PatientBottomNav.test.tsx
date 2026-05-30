@@ -61,7 +61,7 @@ describe("PatientBottomNav", () => {
     const { rerender } = render(<PatientBottomNav />);
     const bottomNav = screen.getByTestId("patient-bottom-nav");
     const chatLink = within(bottomNav).getByRole("link", { name: /Чат/ });
-    expect(chatLink.getAttribute("aria-label")).toMatch(/есть новые сообщения/);
+    expect(chatLink.getAttribute("aria-label")).toMatch(/, 2 новых/);
 
     chatUnreadState.count = 0;
     notifyPatientSupportUnreadCountChanged();

@@ -1,9 +1,10 @@
 ---
 name: Program Item Discussion
-overview: "Поэтапная реализация обсуждения по элементам назначенной врачом программы: thread per stage_item, UI пациента (комментарии, выполнение, unread), interim-ответ врача из журнала программы, загрузка фото/видео для контроля специалистом — с соблюдением clean architecture, Drizzle и правил patient UX."
+overview: "Обсуждение по элементам doctor-program: thread per stage_item, patient UI (комментарии, unread, media submission), interim doctor reply из журнала. Этапы 0–7 и независимый аудит P0 закрыты (2026-05-30); барьер merge — full pnpm run ci при стабильном дереве."
+status: completed
 todos:
   - id: phase-0-docs
-    content: "Фаза 0: docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/ (LOG.md, README, API contracts P1–P24)"
+    content: "Фаза 0: docs/archive/.../PROGRAM_ITEM_DISCUSSION_INITIATIVE/ (LOG.md, README, API contracts P1–P24)"
     status: completed
   - id: phase-1-schema-reply
     content: "Фаза 1: Drizzle schema (discussion, reads, media usage_purpose) + backfill + sendProgramNoteReply + doctor journal click-to-reply"
@@ -24,8 +25,14 @@ todos:
     content: "Фаза 6: Patient program-submission upload, 480p transcode worker branch, discussion media bubbles, access+stats exclusion, doctor view"
     status: completed
   - id: phase-7-docs-ci
-    content: "Фаза 7: Sync architecture docs, close LOG.md (CI перед merge — отложен)"
+    content: "Фаза 7: Sync architecture docs, close LOG.md, перенос в docs/archive"
     status: completed
+  - id: phase-audit-p0-props
+    content: "Аудит P0: mediaSubmissionEnabled props на tile/item page + discussionFeatureGates.test cast + P19 idempotency test"
+    status: completed
+  - id: phase-ci-merge-barrier
+    content: "Full pnpm run ci перед merge/push — отдельный прогон при стабильном worktree (не блокирует закрытие плана)"
+    status: cancelled
 isProject: false
 ---
 
@@ -160,7 +167,7 @@ flowchart TB
 - HLS для submission-медиа
 - Учёт submission-медиа в analytics/material-ratings
 
-**Execution log:** [`docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/LOG.md`](docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/LOG.md) — обязателен с первого коммита.
+**Execution log:** [`docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/LOG.md`](docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/LOG.md) — обязателен с первого коммита.
 
 ## Rollout и rollback
 
@@ -351,7 +358,9 @@ flowchart TB
 - [x] Submission media: upload, 480p MP4, в thread, без HLS и без playback stats.
 - [x] Архитектура: modules/ports/DI, Drizzle migrations, thin routes, LOG.md актуален.
 - [x] Rollback-путь подтверждён: каждый включённый шаг управляется `system_settings` feature-flag и может быть выключен без schema rollback.
-- [ ] `pnpm run ci` зелёный перед merge — отложено (см. `docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/LOG.md` §Этап 7).
+- [x] Независимый аудит P0 (`mediaSubmissionEnabled` props) — закрыт.
+- [x] Инициатива перенесена в `docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/`.
+- [ ] `pnpm run ci` зелёный перед merge — барьер push (todo `phase-ci-merge-barrier`: cancelled в frontmatter; прогон при стабильном worktree).
 
 ---
 

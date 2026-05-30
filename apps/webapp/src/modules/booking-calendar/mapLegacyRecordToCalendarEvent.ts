@@ -17,6 +17,8 @@ export type LegacyAppointmentRecordRow = {
   user_id: string | null;
   display_name: string | null;
   branch_name: string | null;
+  branch_id: string | null;
+  mapped_be_branch_id: string | null;
 };
 
 const DEFAULT_DURATION_MINUTES = 60;
@@ -61,7 +63,7 @@ export function mapLegacyRecordToCalendarEvent(row: LegacyAppointmentRecordRow):
     source: "rubitime_legacy",
     specialistId: null,
     specialistName: null,
-    branchId: null,
+    branchId: row.mapped_be_branch_id?.trim() || null,
     branchTitle: row.branch_name?.trim() || null,
     roomId: null,
     roomTitle: null,

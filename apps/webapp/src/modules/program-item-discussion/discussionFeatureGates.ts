@@ -1,4 +1,15 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+type DiscussionSettingKey =
+  | "patient_program_discussion_ui_enabled"
+  | "patient_program_discussion_media_submission_enabled";
+
+export type DiscussionFeatureGateDeps = {
+  systemSettings: {
+    getSetting: (
+      key: DiscussionSettingKey,
+      scope: "admin",
+    ) => Promise<{ valueJson: unknown } | null | undefined>;
+  };
+};
 
 export function parseDiscussionFeatureEnabled(valueJson: unknown): boolean {
   return (
@@ -9,14 +20,14 @@ export function parseDiscussionFeatureEnabled(valueJson: unknown): boolean {
 }
 
 export async function isPatientProgramDiscussionUiEnabled(
-  deps: ReturnType<typeof buildAppDeps> = buildAppDeps(),
+  deps: DiscussionFeatureGateDeps,
 ): Promise<boolean> {
   const row = await deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin");
   return parseDiscussionFeatureEnabled(row?.valueJson ?? null);
 }
 
 export async function isPatientProgramDiscussionMediaSubmissionEnabled(
-  deps: ReturnType<typeof buildAppDeps> = buildAppDeps(),
+  deps: DiscussionFeatureGateDeps,
 ): Promise<boolean> {
   const row = await deps.systemSettings.getSetting(
     "patient_program_discussion_media_submission_enabled",
@@ -27,7 +38,7 @@ export async function isPatientProgramDiscussionMediaSubmissionEnabled(
 
 /** Media upload + attach require both rollout flags (P23). */
 export async function isPatientProgramDiscussionMediaFlowEnabled(
-  deps: ReturnType<typeof buildAppDeps> = buildAppDeps(),
+  deps: DiscussionFeatureGateDeps,
 ): Promise<boolean> {
   const [ui, media] = await Promise.all([
     isPatientProgramDiscussionUiEnabled(deps),

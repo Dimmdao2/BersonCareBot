@@ -93,6 +93,7 @@
 ### 2.4 Расписание/рабочие часы (ТЗ §7.1, §21.2)
 - [x] Модель **WorkingHours / AvailabilityRule / ScheduleBlock** (рабочее время специалиста по филиалу/кабинету, блокировки, отсутствия/отпуска).
 - [x] Ручное создание брони/блока администратором (заготовка под календарь этапа 8).
+- [x] **UI-паритет (2026-05-30):** admin CRUD рабочих часов и scoped блокировок — `BookingWorkingHoursSection`, `BookingScheduleBlocksSection` на `/app/doctor/admin/booking` (план [`rubitime_transition_stabilize`](../../.cursor/plans/archive/rubitime_transition_stabilize.plan.md), UI §A15–A16).
 
 ### 2.5 Уведомления (ТЗ §18, C4)
 - [x] Уведомление пациенту: запись создана/подтверждена (ТЗ §18.2).
@@ -316,7 +317,7 @@
 - [x] GCal — зеркало/синхронизация, не источник правды; канон — собственная БД; переиспользовать существующую GCal-синхронизацию.
 
 ### Способ реализации (этап 8)
-- Календарь и список `/app/doctor/appointments` читают один read switch: **`rubitime_legacy`** → `appointment_records` (`pgBookingCalendarLegacy`, `doctorAppointmentsReadSwitch`); **`canonical`** → `be_appointments` (`pgBookingCalendar`, `pgDoctorCanonicalAppointments`). Блокировки — `be_schedule_blocks`; free/busy — `booking-scheduling.getSlots` при `includeFreeSlots=1` и **`freeSlotsEnabled`** (false в Rubitime read).
+- Календарь и список `/app/doctor/appointments` читают один read switch: **`rubitime_legacy`** → `appointment_records` (`pgBookingCalendarLegacy`, `doctorAppointmentsReadSwitch`); **`canonical`** → `be_appointments` (`pgBookingCalendar`, `pgDoctorCanonicalAppointments`). Legacy: mapper `mapLegacyRecordToCalendarEvent`, фильтры **`calendarLegacyFilters`**. Блокировки — `be_schedule_blocks`; free/busy — `booking-scheduling.getSlots` при `includeFreeSlots=1` и **`freeSlotsEnabled`** (false в Rubitime read).
 - Действия через service-слой записи/переноса/отмены (этапы 2/4); GCal — зеркало по `be:{appointmentId}`.
 - Admin: calendar API без отдельной UI-страницы (этап 8 — doctor UI).
 

@@ -4,23 +4,23 @@
 
 ---
 
-## 2026-05-30 — Rubitime transition stabilize (П.0–П.8)
+## 2026-05-30 — Rubitime transition stabilize (П.0–П.8, audit closure)
 
-**План:** [`.cursor/plans/archive/rubitime_transition_stabilize.plan.md`](../../.cursor/plans/archive/rubitime_transition_stabilize.plan.md)
+**План:** [`.cursor/plans/archive/rubitime_transition_stabilize.plan.md`](../../.cursor/plans/archive/rubitime_transition_stabilize.plan.md) (`status: completed`, `completedAt: 2026-05-30`).
 
 **Сделано:**
-- **П.0:** миграция `0100_booking_slots_read_source.sql` — seed `booking_slots_read_source=rubitime` (симметрия с `rubitime_legacy` для appointments).
-- **П.1:** `BookingEngineSection` — labels «Список записей врача» / «Свободные слоты пациента», статус календаря, warning при расхождении источников; overview `calendarReadSource`; PATCH tests для read-source keys.
-- **П.2:** `pgBookingCalendarLegacy` + `bookingCalendarReadSwitch`; range overlap на `appointment_records`; `freeSlotsEnabled: false` в Rubitime mode; read-only panel для legacy events; API `readSource`/`freeSlotsEnabled`.
-- **П.3:** Rubitime-first create при `booking_slots_read_source=rubitime` (`canonicalCreate.ts`): skip `assertSlotAvailable`, обязательный `createRecord`, rollback `cancelRecord`, `inFlightCreateBySlot`.
+- **П.0:** миграция `0100_booking_slots_read_source.sql` — seed `booking_slots_read_source=rubitime` в `public` + **`integrator.system_settings`** (симметрия с `0099` / `rubitime_legacy` для appointments).
+- **П.1:** `BookingEngineSection` — labels «Список записей врача» / «Свободные слоты пациента», статус календаря, warning «Источники расходятся»; overview `calendarReadSource`; PATCH/route tests (`admin/settings`, `overview/route`).
+- **П.2:** `pgBookingCalendarLegacy` + `bookingCalendarReadSwitch`; range overlap на `appointment_records`; `freeSlotsEnabled: false` в Rubitime mode; legacy events read-only; API `readSource`/`freeSlotsEnabled`; **`calendarLegacyFilters`** (soft-filter scope, dedupe prefer legacy); `branchId` через `be_external_entity_mappings`; admin/doctor calendar route tests.
+- **П.3:** Rubitime-first create при `booking_slots_read_source=rubitime`: skip `assertSlotAvailable`, обязательный `createRecord`, rollback `cancelRecord`, `inFlightCreateBySlot`; tests incl. prepayment order, `rubitime_id_missing`, canonical fail rollback.
 - **П.4:** убран select «Длительность» в `SlotStepClient` (`slotCount=1`).
-- **П.5:** CRUD `be_working_hours` — port/service/API/UI `BookingWorkingHoursSection`, fallback indicator.
-- **П.6:** scoped schedule blocks — GET filters + POST scope в UI/API.
-- **П.7:** docs — `MASTER_PLAN`, `STAGE_CHECKLISTS`, `UI_SURFACES`, `DOCTOR_CABINET_NAVIGATION`, `api.md`, этот LOG.
+- **П.5:** CRUD `be_working_hours` — port/service/API/UI `BookingWorkingHoursSection`, fallback indicator; route tests GET/POST/PATCH/DELETE + validation.
+- **П.6:** scoped schedule blocks — GET filters + POST scope в UI/API; `scheduleBlockScope` verify; route test.
+- **П.7:** docs — `MASTER_PLAN`, `STAGE_CHECKLISTS`, `UI_SURFACES`, `DOCTOR_CABINET_NAVIGATION`, `api.md` (`overview`, `calendarLegacyFilters`), `README` (initiative + `docs/README.md`), `ROADMAP` (post-stage), этот LOG; plan YAML/frontmatter закрыт.
 
-**Проверки:** targeted vitest (booking-calendar, canonicalCreate, SlotStepClient, working-hours, admin settings, schedule-blocks route); `pnpm --dir apps/webapp run lint`; `pnpm --dir apps/webapp exec tsc --noEmit`.
+**Проверки:** targeted vitest (booking-calendar incl. `calendarLegacyFilters`, canonicalCreate, SlotStepClient, working-hours, schedule-blocks, overview, admin/doctor calendar); `computeSlots.test.ts`; `pnpm --dir apps/webapp run lint`.
 
-**Намеренно не делали:** отдельный setting key для calendar (reuse appointments read source); Rubitime free slots в doctor calendar; integrator SQL mirror в миграции 0100 (как в 0099 — только `public.system_settings`).
+**Намеренно не делали:** отдельный setting key для calendar (reuse `booking_doctor_appointments_read_source`); Rubitime free slots в doctor calendar (только suppress canonical).
 
 ---
 

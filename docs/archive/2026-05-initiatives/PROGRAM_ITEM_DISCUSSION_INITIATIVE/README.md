@@ -1,5 +1,7 @@
 # PROGRAM_ITEM_DISCUSSION_INITIATIVE
 
+**Архив:** `docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/` (перенос 2026-05-30).
+
 Инициатива по обсуждению элементов назначенной врачом программы реабилитации в кабинете пациента:
 - thread по `instance_stage_item_id`;
 - interim-ответ врача из журнала выполнения на странице программы;
@@ -8,15 +10,7 @@
 
 ## Статус
 
-- **Инициатива закрыта (2026-05-30).** Этапы 0–7: код и документация готовы; **полный `pnpm run ci` перед merge — отложен** (см. [`LOG.md`](LOG.md) §Этап 7).
-- Этап 0 (документация и контракты) — выполнен.
-- Этап 1 (schema + doctor reply interim) — выполнен.
-- Этап 2 (patient discussion API + dual-write observation + batch summary endpoint) — выполнен.
-- Этап 3 (patient UI плитки) — выполнен.
-- Этап 4 (item page: complete modal + discussion preview + payload complete API) — выполнен.
-- Этап 5 (unread indicators) — выполнен.
-- Этап 6 (patient media submission) — выполнен.
-- Этап 7 (синхронизация architecture docs + закрытие LOG) — выполнен; финальный CI — **отложен**.
+- **Инициатива закрыта (2026-05-30).** Этапы 0–7 и независимый аудит P0 — выполнены. Plan: [`program_item_discussion_070c3846.plan.md`](../../../../.cursor/plans/archive/program_item_discussion_070c3846.plan.md) (`status: completed`). Барьер merge — full `pnpm run ci` при стабильном worktree (см. [`LOG.md`](LOG.md) §Закрытие независимого аудита).
 
 ## Rollout (`system_settings`, scope `admin`)
 
@@ -30,7 +24,7 @@ Default: **off** до smoke на stage. Rollback — отключение фла
 
 ## План исполнения
 
-- Архив plan-файла: [`.cursor/plans/archive/program_item_discussion_070c3846.plan.md`](../../.cursor/plans/archive/program_item_discussion_070c3846.plan.md)
+- Архив plan-файла: [`.cursor/plans/archive/program_item_discussion_070c3846.plan.md`](../../../../.cursor/plans/archive/program_item_discussion_070c3846.plan.md)
 
 ## Зафиксированные решения (P1-P24)
 

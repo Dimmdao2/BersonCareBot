@@ -15,9 +15,11 @@ const LIST_SELECT = `SELECT
   ar.record_at,
   ar.status,
   ar.payload_json,
+  ar.branch_id,
   pu.id AS user_id,
   COALESCE(pu.display_name, pu.first_name || ' ' || NULLIF(pu.last_name, ''), pu.first_name, pu.last_name) AS display_name,
-  b.name AS branch_name`;
+  b.name AS branch_name,
+  branch_map.canonical_id AS mapped_be_branch_id`;
 
 function mapRows(rows: LegacyAppointmentRecordRow[]): CalendarAppointmentEvent[] {
   const events: CalendarAppointmentEvent[] = [];
@@ -38,6 +40,9 @@ export function createPgBookingCalendarLegacyPort(): Pick<BookingCalendarPort, "
          FROM appointment_records ar
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
          LEFT JOIN branches b ON ar.branch_id = b.id
+         LEFT JOIN be_external_entity_mappings branch_map ON branch_map.entity_type = 'branch'
+           AND branch_map.external_system = 'rubitime'
+           AND branch_map.external_id = b.integrator_branch_id::text
          WHERE ar.deleted_at IS NULL
            AND ar.status IN ('created', 'updated')
            AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}

@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createBookingCalendarService } from "./service";
 import type { BookingCalendarPort } from "./ports";
 import type { BookingSchedulingPort } from "@/modules/booking-scheduling/ports";
+import type { CalendarAppointmentEvent } from "./types";
 
 describe("booking-calendar service", () => {
   const mockPort: BookingCalendarPort = {
@@ -179,5 +180,60 @@ describe("booking-calendar service", () => {
     expect(result.freeSlotsEnabled).toBe(false);
     expect(result.readSource).toBe("rubitime_legacy");
     expect(isolatedScheduling.getSlots).not.toHaveBeenCalled();
+  });
+
+  it("soft-filters legacy appointments by branch when filter is active", async () => {
+    const legacyPort: BookingCalendarPort = {
+      ...mockPort,
+      listAppointmentsInRange: vi.fn(async () => [
+        legacyEvent({ id: "a-match", branchId: "b1", patientPhone: "+79001111111" }),
+        legacyEvent({ id: "a-skip", branchId: "b2", patientPhone: "+79002222222" }),
+      ]),
+    };
+    function legacyEvent(overrides: Partial<CalendarAppointmentEvent>): CalendarAppointmentEvent {
+      return {
+        kind: "appointment",
+        id: "a1",
+        startAt: "2026-05-30T08:00:00.000Z",
+        endAt: "2026-05-30T09:00:00.000Z",
+        status: "confirmed",
+        source: "rubitime_legacy",
+        specialistId: null,
+        specialistName: null,
+        branchId: "b1",
+        branchTitle: "Филиал",
+        roomId: null,
+        roomTitle: null,
+        serviceId: null,
+        serviceTitle: null,
+        platformUserId: null,
+        patientName: "Иван",
+        patientPhone: "+79001234567",
+        bookingStatus: "created",
+        paymentStatus: null,
+        prepaymentPending: false,
+        packageUsageRef: null,
+        packageTitle: null,
+        rescheduleCount: 0,
+        originalStartAt: null,
+        formComments: [],
+        ...overrides,
+      };
+    }
+    const rubitimeService = createBookingCalendarService({
+      calendarPort: legacyPort,
+      listScheduleBlocks,
+      schedulingPort,
+      resolveCalendarReadSource: async () => "rubitime_legacy",
+    });
+    const result = await rubitimeService.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      branchId: "b1",
+    });
+    const appointments = result.events.filter((e) => e.kind === "appointment");
+    expect(appointments).toHaveLength(1);
+    expect(appointments[0]!.id).toBe("a-match");
   });
 });

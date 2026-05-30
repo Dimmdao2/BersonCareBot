@@ -7,6 +7,7 @@ const bookingsPort = {
   createPending: vi.fn(),
   markConfirmed: vi.fn(),
   markFailedSync: vi.fn(),
+  markAwaitingPayment: vi.fn(),
 };
 
 const syncPort = {
@@ -319,6 +320,80 @@ describe("createBookingOnCanonicalEngine", () => {
     expect(bookingScheduling.assertSlotAvailable).not.toHaveBeenCalled();
     expect(syncPort.createRecord).toHaveBeenCalled();
     expect(bookingEngine.createAppointment).toHaveBeenCalled();
+  });
+
+  it("rubitime slot mode: fails when rubitimeId is missing", async () => {
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "", raw: {} });
+    await expect(
+      createBookingOnCanonicalEngine(deps(false, "rubitime"), {
+        userId: "user-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      }),
+    ).rejects.toThrow("rubitime_id_missing");
+    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("pb-1");
+  });
+
+  it("rubitime slot mode: rolls back Rubitime when canonical create fails", async () => {
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rt-rollback", raw: {} });
+    bookingEngine.createAppointment.mockRejectedValue(new Error("db_fail"));
+    await expect(
+      createBookingOnCanonicalEngine(deps(false, "rubitime"), {
+        userId: "user-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      }),
+    ).rejects.toThrow("db_fail");
+    expect(syncPort.cancelRecord).toHaveBeenCalledWith("rt-rollback");
+    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("pb-1");
+  });
+
+  it("rubitime slot mode: creates Rubitime record before awaiting payment", async () => {
+    const payments = {
+      resolvePrepayment: vi.fn().mockResolvedValue({
+        required: true,
+        amountMinor: 150000,
+        currency: "RUB",
+      }),
+      createAppointmentPaymentIntent: vi.fn().mockResolvedValue(undefined),
+    };
+    bookingsPort.markAwaitingPayment.mockResolvedValue({
+      ...pendingRecord(),
+      status: "awaiting_payment",
+      canonicalAppointmentId: "appt-1",
+    });
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rt-prepay", raw: {} });
+
+    await createBookingOnCanonicalEngine(
+      { ...deps(false, "rubitime"), payments: payments as never },
+      {
+        userId: "user-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      },
+    );
+
+    expect(syncPort.createRecord).toHaveBeenCalled();
+    expect(bookingEngine.createAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "awaiting_payment" }),
+    );
+    expect(payments.createAppointmentPaymentIntent).toHaveBeenCalled();
+    expect(bookingsPort.markAwaitingPayment).toHaveBeenCalledWith("pb-1", "appt-1");
+    expect(syncPort.createRecord.mock.invocationCallOrder[0]!).toBeLessThan(
+      bookingsPort.markAwaitingPayment.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("rejects invalid form answers", async () => {

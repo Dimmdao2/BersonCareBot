@@ -23,7 +23,7 @@ describe("discussionFeatureGates", () => {
       }
       return null;
     });
-    const deps = { systemSettings: { getSetting } } as Parameters<
+    const deps = { systemSettings: { getSetting } } satisfies Parameters<
       typeof isPatientProgramDiscussionMediaFlowEnabled
     >[0];
 

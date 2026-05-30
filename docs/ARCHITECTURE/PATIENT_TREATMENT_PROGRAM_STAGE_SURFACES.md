@@ -41,7 +41,7 @@
 | Thread UI | Источник правды — `program_item_discussion_messages`; legacy admin replies — read-time merge из support-чата |
 | ACL медиа submission | `usage_purpose=program_item_submission` — uploader + doctor/admin ([`MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](MEDIA_HTTP_ACCESS_AUTHORIZATION.md)) |
 
-Канон API и UX: [`program-detail/README.md`](../../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), инициатива [`PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md), HTTP-реестр — [`api.md`](../../../apps/webapp/src/app/api/api.md).
+Канон API и UX: [`program-detail/README.md`](../../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), инициатива [`PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md), HTTP-реестр — [`api.md`](../../../apps/webapp/src/app/api/api.md).
 
 ## Страница пункта `/app/patient/treatment/[instanceId]/item/[itemId]`
 

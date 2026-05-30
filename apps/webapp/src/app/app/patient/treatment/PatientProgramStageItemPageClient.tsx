@@ -91,6 +91,8 @@ export type PatientProgramStageItemPageClientProps = {
   planItemDoneRepeatCooldownMinutes: number;
   /** Rollout-гейт UI обсуждения элемента программы. */
   patientProgramDiscussionUiEnabled: boolean;
+  /** Rollout-гейт загрузки медиа в обсуждение (требует UI-флаг). */
+  patientProgramDiscussionMediaSubmissionEnabled?: boolean;
 };
 
 type StageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][number];
@@ -311,6 +313,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     resolvedTestId = null,
     planItemDoneRepeatCooldownMinutes,
     patientProgramDiscussionUiEnabled,
+    patientProgramDiscussionMediaSubmissionEnabled = false,
   } = props;
   const router = useRouter();
   const planItemDoneRepeatCooldownMs = useMemo(
@@ -337,6 +340,10 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
   const allowPatientObservationComment =
     detail.assignmentSource === "doctor" && patientProgramDiscussionUiEnabled;
+  const mediaSubmissionEnabled =
+    detail.assignmentSource === "doctor" &&
+    patientProgramDiscussionUiEnabled &&
+    patientProgramDiscussionMediaSubmissionEnabled;
 
   const navForPath = navMode === "default" ? undefined : navMode;
 

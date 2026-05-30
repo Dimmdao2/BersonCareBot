@@ -7,7 +7,7 @@
 ## Пациент: наблюдение и thread по пункту программы
 
 - UI (doctor-program, `assignment_source === doctor`): вкладка «Программа» и страница пункта — см. [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md).
-- Rollout: `patient_program_discussion_ui_enabled` (thread UI), `patient_program_discussion_media_submission_enabled` (камера + upload) — оба scope `admin`, default off. Инициатива: [`docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md).
+- Rollout: `patient_program_discussion_ui_enabled` (thread UI), `patient_program_discussion_media_submission_enabled` (камера + upload) — оба scope `admin`, default off. Инициатива: [`docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/README.md).
 - **Текстовый комментарий:** `POST /api/patient/treatment-program-instances/{instanceId}/items/{itemId}/discussion` — тело `{ body }`; dual-write в `program_action_log` (`action_type: note`, `payload.source: patient_observation`) и в `program_item_discussion_messages`.
 - **Legacy path** (сохранён для совместимости): `POST .../progress/observation-note` — тот же dual-write через `patientAppendObservationNote`.
 - **Медиа пациента:** presign/confirm → `POST .../discussion/media` с `{ mediaFileId }`; журнал врача — `payload.source: patient_media`.

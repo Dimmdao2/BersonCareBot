@@ -1,10 +1,15 @@
 import type { BookingSchedulingPort } from "@/modules/booking-scheduling/ports";
 import { localDateKey } from "@/modules/booking-scheduling/computeSlots";
+import {
+  dedupeCalendarAppointmentsPreferLegacy,
+  matchesLegacyAppointmentScopeFilter,
+} from "./calendarLegacyFilters";
 import type { CalendarReadSource } from "./types";
 import type { BookingCalendarPort, BookingCalendarService } from "./ports";
 import type { ScheduleBlockRecord } from "@/modules/booking-scheduling/ports";
 import type {
   CalendarAggregate,
+  CalendarAppointmentEvent,
   CalendarBlockEvent,
   CalendarFilters,
   CalendarFreeSlotEvent,
@@ -121,8 +126,15 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
         )
         .map(mapBlock);
 
+      let appointmentEventsFiltered = appointmentEvents as CalendarAppointmentEvent[];
+      if (readSource === "rubitime_legacy") {
+        appointmentEventsFiltered = dedupeCalendarAppointmentsPreferLegacy(appointmentEventsFiltered).filter((e) =>
+          matchesLegacyAppointmentScopeFilter(e, filters),
+        );
+      }
+
       return {
-        events: [...appointmentEvents, ...blockEvents, ...freeSlots],
+        events: [...appointmentEventsFiltered, ...blockEvents, ...freeSlots],
         filters: filterMeta,
         readSource,
         freeSlotsEnabled,

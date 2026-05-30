@@ -21,6 +21,16 @@
 | 8 | Календарь | `done` | 1, 2, 4 | 5–7 (отображение статусов/оплат добавляется по мере готовности) | [`stage8`](../../.cursor/plans/archive/own_booking_stage8_calendar.plan.md) |
 | 9 | Карточка клиента и полная история | `done` | 1–8 (события) | — (потребитель таймлайна) | [`stage9`](../../.cursor/plans/archive/own_booking_stage9_client_card_history.plan.md) |
 
+## Post-stage: переход Rubitime (закрыт 2026-05-30)
+
+Отдельный план после этапов 1–9 — не новый «этап 10», а стабилизация production cutover:
+
+| План | Статус | Суть |
+|------|--------|------|
+| [`rubitime_transition_stabilize`](../../.cursor/plans/archive/rubitime_transition_stabilize.plan.md) | `done` | Defaults read sources (`0099`/`0100` + integrator mirror); календарь на `appointment_records`; Rubitime-first create; UI working hours / scoped blocks; docs + targeted tests |
+
+Журнал: [`LOG.md`](LOG.md) §2026-05-30 Rubitime transition stabilize.
+
 ## Правила порядка
 
 - **Этап 1 — фундамент**: пока не закрыт его DoD (модель + статусы + события + multi-tenant + совместимость), этапы 2–9 не стартуют по своим контрактам.

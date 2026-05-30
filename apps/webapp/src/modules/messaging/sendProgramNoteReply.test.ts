@@ -72,6 +72,41 @@ describe("createSendProgramNoteReply", () => {
     expect(notifyPatientOfDoctorReply).toHaveBeenCalledTimes(1);
   });
 
+  it("passes integratorMessageId to support append for idempotent dedup (P19)", async () => {
+    const platformUserId = "00000000-0000-4000-8000-000000000001";
+    const stageItemId = "00000000-0000-4000-8000-000000000002";
+    vi.mocked(resolveProgramNoteReplyContext).mockResolvedValue({
+      platformUserId,
+      stageItemId,
+      exerciseTitle: "Присед",
+      integratorConversationId: `webapp:platform:${platformUserId}`,
+      programNoteReplyState: `admin_reply:webapp:platform:${platformUserId}#pn:${stageItemId}`,
+      assignmentSource: "doctor",
+      itemStatus: "active",
+    });
+    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "support-msg-dup" });
+    const sendProgramNoteReply = createSendProgramNoteReply({
+      supportCommunication: {
+        ensureWebappConversationForUser: vi.fn().mockResolvedValue({ id: "conv-1" }),
+        appendWebappMessage,
+      } as unknown as PatientInboundChatPort,
+      discussion: {
+        appendDoctorReplyForProgramNote: vi.fn().mockResolvedValue({ id: "discussion-dup" }),
+      } as unknown as ProgramItemDiscussionService,
+    });
+
+    await sendProgramNoteReply({
+      integratorConversationId: `webapp:platform:${platformUserId}`,
+      integratorMessageId: "webapp-msg:idempotent-1",
+      stageItemId,
+      text: "Повтор",
+    });
+
+    expect(appendWebappMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ integratorMessageId: "webapp-msg:idempotent-1" }),
+    );
+  });
+
   it("returns mismatch when stage item belongs another patient", async () => {
     const stageItemId = "00000000-0000-4000-8000-000000000002";
     vi.mocked(resolveProgramNoteReplyContext).mockResolvedValue({

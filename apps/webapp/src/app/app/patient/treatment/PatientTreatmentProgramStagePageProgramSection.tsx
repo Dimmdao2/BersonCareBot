@@ -268,6 +268,8 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   planItemDoneRepeatCooldownMinutes: number;
   /** Комментарии к пунктам — только для программ на сопровождении врача. */
   allowPatientObservationComment: boolean;
+  /** Rollout-гейт загрузки медиа в обсуждение (требует UI-флаг). */
+  mediaSubmissionEnabled?: boolean;
 }) {
   const {
     instanceId,
@@ -288,6 +290,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     itemLinksPlanTab = null,
     planItemDoneRepeatCooldownMinutes,
     allowPatientObservationComment,
+    mediaSubmissionEnabled = false,
   } = props;
   const planItemDoneRepeatCooldownMs = useMemo(
     () => planItemDoneRepeatCooldownMsFromMinutes(planItemDoneRepeatCooldownMinutes),

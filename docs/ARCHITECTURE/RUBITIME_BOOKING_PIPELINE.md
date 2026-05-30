@@ -26,10 +26,21 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 ## Native booking (webapp create) — post-create projection
 
-При создании записи из webapp (не через Rubitime iframe/сайт) данные проходят два параллельных пути:
+При создании записи из webapp (не через Rubitime iframe/сайт) поведение зависит от **`system_settings`** (scope `admin`):
+
+| Ключ | Значения | Эффект |
+|------|----------|--------|
+| `booking_doctor_appointments_read_source` | `rubitime_legacy` (default seed) · `canonical` | Список `/app/doctor/appointments`, KPI «Сегодня», **календарь** `/app/doctor/calendar` |
+| `booking_slots_read_source` | `rubitime` (default seed `0100`) · `canonical` | Patient/public **слоты** и **create** |
+
+**Create при `booking_slots_read_source=rubitime` (transitional, 2026-05-30):** Rubitime-first — обязательный `syncPort.createRecord`, канон `be_appointments` + `patient_bookings` после успеха Rubitime; при сбое канона — rollback `cancelRecord`. `assertSlotAvailable` **не** вызывается (Rubitime-слот уже занят во внешней системе). Не зависит от `booking_rubitime_bridge_enabled`.
+
+**Create при `booking_slots_read_source=canonical`:** канон primary; Rubitime — best-effort при включённом мосте.
+
+**Календарь:** reuse `booking_doctor_appointments_read_source` (отдельного ключа нет). При `rubitime_legacy` — `appointment_records` (`pgBookingCalendarLegacy`, фильтры `calendarLegacyFilters`); canonical free slots скрыты (`freeSlotsEnabled: false`). При `canonical` — `be_appointments` + optional free slots через `booking-scheduling`.
 
 **Patient path (webapp):**
-1. `POST /api/booking/create` (сессия) или `POST /api/booking/public/create` (гость, этап 3) → канон `be_appointments` при включённом booking-engine DI.
+1. `POST /api/booking/create` (сессия) или `POST /api/booking/public/create` (гость, этап 3) → канон `be_appointments` при включённом booking-engine DI (порядок с Rubitime — см. таблицу выше).
    - **Без предоплаты:** `patient_bookings` (confirmed) → `emitBookingEvent('booking.created')` → TG/MAX + напоминания.
    - **С предоплатой (этап 5):** `awaiting_payment` + payment intent → оплата (`/app/patient/booking/pay` или `/book/pay`) → capture → `booking.payment_captured` → напоминания (событие `booking.created` до оплаты **не** шлётся).
 2. Integrator → M2M **`POST /api/integrator/patient-notifications/web-push`** (`intentType: appointment_lifecycle`) → текст в **PWA-чат** (`/app/patient/messages`) + Web Push с тем же `openUrl`. См. [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md). Slot-напоминания (`appointment_reminder`) в чат **не** пишутся.
@@ -78,7 +89,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 - **Мост:** `system_settings.booking_rubitime_bridge_enabled` (admin). При включении админ может запустить проекцию (`POST /api/admin/booking-engine/bridge`) — idempotent upsert в `be_appointments` + `be_external_entity_mappings` по `integrator_record_id` / `rubitime_record_id`.
 - **Код:** модуль `apps/webapp/src/modules/booking-engine/`, репозитории `pgBookingEngine.ts`, `pgBookingRubitimeBridge.ts`; вебхук integrator **не меняется**.
-- **Write-путь (этап 2, done):** пациентский create при каноническом DI пишет в `be_appointments`; Rubitime create — best-effort + mapping в `be_external_entity_mappings`. Read UI врача — `appointment_records` (+ проекция `be:{id}` при create).
+- **Write-путь (этап 2, done):** пациентский create при каноническом DI пишет в `be_appointments`; Rubitime — по режиму `booking_slots_read_source` (Rubitime-first или best-effort bridge). Read UI врача — `appointment_records` по умолчанию (`rubitime_legacy`); cutover на канон — явный switch.
 
 ### Перенос и отмена (этап 4, native)
 

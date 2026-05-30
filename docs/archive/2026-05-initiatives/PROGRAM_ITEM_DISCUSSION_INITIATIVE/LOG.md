@@ -373,12 +373,12 @@
 
 ### Синхронизация architecture docs
 
-- [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md) — patient thread API, webapp doctor reply из журнала, rollout flags, карта кода.
-- [`docs/ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](../ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md) — ACL `program_item_submission`, обновлённые таблицы маршрутов.
-- [`docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`](../ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md) — submission progressive-only, discussion/doctor surfaces.
-- [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md) — feature flags rollout.
+- [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md) — patient thread API, webapp doctor reply из журнала, rollout flags, карта кода.
+- [`docs/ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](../../../ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md) — ACL `program_item_submission`, обновлённые таблицы маршрутов.
+- [`docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`](../../../ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md) — submission progressive-only, discussion/doctor surfaces.
+- [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md) — feature flags rollout.
 - [`README.md`](README.md) — статус «инициатива закрыта», таблица rollout.
-- Plan перенесён в [`.cursor/plans/archive/program_item_discussion_070c3846.plan.md`](../../.cursor/plans/archive/program_item_discussion_070c3846.plan.md).
+- Plan перенесён в [`.cursor/plans/archive/program_item_discussion_070c3846.plan.md`](../../../../.cursor/plans/archive/program_item_discussion_070c3846.plan.md).
 
 ### Gate-вердикты по фазам (Definition of Done)
 
@@ -391,19 +391,11 @@
 | 4 | **PASS** | Item page layout, complete modal, instruction label, preview block |
 | 5 | **PASS** | Per-item unread, chat count badge, mark-read sync (modal + support chat) |
 | 6 | **PASS** | Upload presign/confirm, 480p worker, media bubbles, ACL, doctor preview |
-| 7 | **PASS** (docs) / **CI отложен** | Architecture docs sync, LOG closure; `pnpm run ci` — перед merge, не в этой сессии |
+| 7 | **PASS** (docs) / **CI отложен** | Architecture docs sync; см. §Закрытие независимого аудита |
 
 ### Definition of Done (весь план)
 
-- [x] Пациент doctor-program: плитка и item page по спецификации.
-- [x] Thread modal: patient + admin + legacy merge per item.
-- [x] Врач отвечает из журнала программы; пациент получает prefixed message (Telegram + webapp).
-- [x] Unread: badge на «Комментарии», «новых: n» на item, цифра на иконке чата.
-- [x] Выполнение с difficulty/reps/weight; строка «В прошлый раз…».
-- [x] Submission media: upload, 480p MP4, thread, без HLS и без playback stats.
-- [x] Архитектура: modules/ports/DI, Drizzle, thin routes, LOG актуален.
-- [x] Rollback через `system_settings` feature-flags без schema rollback.
-- [ ] `pnpm run ci` зелёный перед merge — **отложено** (параллельная разработка; барьер — отдельный прогон перед push).
+См. актуальный чеклист в §«Закрытие независимого аудита» ниже.
 
 ### Финальный CI
 
@@ -419,3 +411,54 @@
 - **`PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`:** секция обсуждения по пункту программы.
 - **`TREATMENT_PROGRAM_EXECUTION_RULES.md`:** ссылка на инициативу в «Источник правил».
 - LOG/README/plan: CI явно **отложен** до стабильного дерева; DoD по CI — `[ ]`.
+
+---
+
+## 2026-05-30 — Закрытие независимого аудита (этапы 0–7 → 100% code)
+
+### Что исправлено
+
+- **P0 runtime/typecheck:** прокинут `mediaSubmissionEnabled` в `PatientTreatmentProgramStagePageProgramSection` (props + destructure, default `false`).
+- **P0 item page:** в `PatientProgramStageItemPageClientProps` добавлен `patientProgramDiscussionMediaSubmissionEnabled`; вычисляется локальный `mediaSubmissionEnabled` (doctor + UI + media flags).
+- **Typecheck:** `discussionFeatureGates.test.ts` — cast через `unknown` для mock deps.
+- **P19:** unit-тест `sendProgramNoteReply` — stable `integratorMessageId` передаётся в `appendWebappMessage` для support idempotency.
+
+### Локальные проверки после fix
+
+- `pnpm --dir apps/webapp exec tsc --noEmit` — ошибок по discussion/mediaSubmission нет.
+- RTL: `PatientTreatmentProgramDetailClient.test.tsx`, `PatientProgramStageItemPageClient.test.tsx` — green.
+- Discussion suite (routes, service, gates, unread, submission, worker-related webapp tests): **122+ tests PASS**.
+
+### Gate-вердикты (актуализировано)
+
+| Фаза | Вердикт | Примечание |
+|------|---------|------------|
+| 0–2 | **PASS** | без изменений |
+| 3–4 | **PASS** | после fix props camera/discussion UI |
+| 5–6 | **PASS** | backend + UI media flow после fix |
+| 7 | **PASS** (docs) / **CI отложен** | full `pnpm run ci` — барьер push при стабильном дереве |
+
+### Definition of Done (весь план)
+
+- [x] Пациент doctor-program: плитка и item page по спецификации.
+- [x] Thread modal: patient + admin + legacy merge per item.
+- [x] Врач отвечает из журнала программы; пациент получает prefixed message (Telegram + webapp).
+- [x] Unread: badge на «Комментарии», «новых: n» на item, цифра на иконке чата.
+- [x] Выполнение с difficulty/reps/weight; строка «В прошлый раз…».
+- [x] Submission media: upload, 480p MP4, thread, без HLS и без playback stats.
+- [x] Архитектура: modules/ports/DI, Drizzle, thin routes, LOG актуален.
+- [x] Rollback через `system_settings` feature-flags без schema rollback.
+- [x] Независимый аудит P0 (mediaSubmissionEnabled props) — закрыт.
+- [x] Инициатива перенесена в `docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/`.
+- [ ] `pnpm run ci` зелёный перед merge — барьер push (todo `phase-ci-merge-barrier`: cancelled; прогон при стабильном worktree).
+
+---
+
+## 2026-05-30 — Архивация и синхронизация docs/plan
+
+### Что сделано
+
+- Папка инициативы перенесена: `docs/PROGRAM_ITEM_DISCUSSION_INITIATIVE/` → `docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/`.
+- Обновлены ссылки в `docs/README.md`, architecture docs, `api.md`, `program-detail/README.md`, `TREATMENT_PROGRAM_EXECUTION_RULES.md`.
+- Plan frontmatter: `status: completed`; todos `phase-audit-p0-props` completed, `phase-ci-merge-barrier` cancelled.
+- Инициатива снята с блока «Активные инициативы» в `docs/README.md`.

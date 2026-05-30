@@ -1,44 +1,67 @@
 ---
 name: Rubitime transition stabilize
-overview: "Стабилизировать переходный Rubitime-режим: явные источники в admin UI, календарь и create согласованы с настройками read/write, убрать опасный hybrid и закрыть пробелы UI-паритета (рабочие часы, scoped блокировки), обновить доки."
+overview: "Переходный Rubitime-режим стабилизирован (2026-05-30): read/write согласованы, календарь и create на settings, UI-паритет расписания, audit closure — чеклисты и DoD закрыты."
 gitBranch: initiative/own-booking-engine
 status: completed
+completedAt: 2026-05-30
 isProject: false
 todos:
   - id: p0-defaults-align
-    content: "П.0: seed/migration booking_slots_read_source=rubitime (symmetry с appointments); integrator mirror в миграции"
+    content: "П.0: migration 0100 booking_slots_read_source=rubitime + integrator.system_settings mirror"
     status: completed
   - id: p1-source-mode-ui
-    content: "П.1: видимые labels + статус календаря + предупреждение при расхождении источников; overview; PATCH/route tests"
+    content: "П.1: labels источников, статус календаря, hybrid warning; overview; settings + overview route tests"
     status: completed
   - id: p2-calendar-rubitime
-    content: "П.2: pgBookingCalendarLegacy + read switch + range query (не upcoming-only); suppress free slots; API readSource; tests"
+    content: "П.2: pgBookingCalendarLegacy, read switch, freeSlotsEnabled, calendarLegacyFilters, branchId mapping, route tests"
     status: completed
   - id: p3-rubitime-first-create
-    content: "П.3: Rubitime-first без bridge gate; skip assertSlotAvailable; rollback; prepayment note; canonicalCreate tests"
+    content: "П.3: Rubitime-first create, rollback, prepayment order; canonicalCreate tests (incl. rubitime_id_missing)"
     status: completed
   - id: p4-remove-duration-ui
-    content: "П.4: убрать select Длительность; slotCount=1; RTL test"
+    content: "П.4: убрать select Длительность; slotCount=1; SlotStepClient test"
     status: completed
   - id: p5-working-hours-ui
-    content: "П.5: CRUD be_working_hours — port/service/API/UI; weekday 1=Mon; fallback indicator; tests"
+    content: "П.5: CRUD be_working_hours — API/UI; fallback; route tests GET/POST/PATCH/DELETE"
     status: completed
   - id: p6-scoped-blocks
-    content: "П.6: specialist/branch/room + filter в schedule-blocks UI/API; displayLabel; route test"
+    content: "П.6: scoped schedule-blocks UI/API; scheduleBlockScope verify; route test"
     status: completed
   - id: p7-docs
-    content: "П.7: MASTER_PLAN, STAGE_CHECKLISTS, LOG.md, api.md, DOCTOR_CABINET_NAVIGATION, UI_SURFACES"
+    content: "П.7: MASTER_PLAN, STAGE_CHECKLISTS, LOG, api.md, DOCTOR_CABINET_NAVIGATION, UI_SURFACES, README"
     status: completed
   - id: p8-ci
-    content: "П.8: targeted vitest/lint/tsc; полный pnpm run ci перед push"
+    content: "П.8: targeted vitest + lint + tsc green; полный pnpm run ci перед push"
     status: completed
 ---
 
 # Стабилизация Rubitime-transition
 
-> **Для исполнения:** после старта — `git mv` в [`.cursor/plans/archive/rubitime_transition_stabilize.plan.md`](.cursor/plans/archive/rubitime_transition_stabilize.plan.md) и вести [`docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md) (execution log по `.cursor/rules/plan-authoring-execution-standard.mdc`).
+> **Статус:** закрыт (2026-05-30). Архив: [`.cursor/plans/archive/rubitime_transition_stabilize.plan.md`](.cursor/plans/archive/rubitime_transition_stabilize.plan.md). Журнал: [`docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md) §2026-05-30 Rubitime transition stabilize.
 
-## Контекст и проблемы
+## As-built (после закрытия)
+
+```mermaid
+flowchart LR
+  subgraph settings [system_settings]
+    A["booking_doctor_appointments_read_source"]
+    B["booking_slots_read_source"]
+  end
+  subgraph surfaces [Поверхности]
+    LIST["/app/doctor/appointments"]
+    CAL["/app/doctor/calendar"]
+    SLOTS["patient/public slots"]
+    CREATE["createBooking"]
+  end
+  A --> LIST
+  A --> CAL
+  CAL --> LEG["pgBookingCalendarLegacy | pgBookingCalendar"]
+  B --> SLOTS
+  B --> CREATE
+  CREATE --> W["Rubitime-first | canonical+bridge"]
+```
+
+## Контекст и проблемы (до исправления)
 
 ```mermaid
 flowchart LR
@@ -123,10 +146,10 @@ flowchart LR
 
 **Checklist:**
 
-- [ ] `rg 'sr-only.*Источник' apps/webapp/src/app/app/settings/BookingEngineSection.tsx` — labels видимы
-- [ ] PATCH valid/invalid enum в [`admin/settings/route.test.ts`](apps/webapp/src/app/api/admin/settings/route.test.ts)
-- [ ] GET overview smoke (оба read source)
-- [ ] `pnpm --dir apps/webapp run lint`
+- [x] `rg 'sr-only.*Источник' apps/webapp/src/app/app/settings/BookingEngineSection.tsx` — labels видимы
+- [x] PATCH valid/invalid enum в [`admin/settings/route.test.ts`](apps/webapp/src/app/api/admin/settings/route.test.ts)
+- [x] GET overview smoke (оба read source)
+- [x] `pnpm --dir apps/webapp run lint`
 
 ---
 
@@ -209,11 +232,11 @@ freeSlotsEnabled: boolean; // false в rubitime_legacy
 
 ### Checklist
 
-- [ ] Unit: mapper `record_at` + duration → event
-- [ ] [`service.test.ts`](apps/webapp/src/modules/booking-calendar/service.test.ts): free slots `[]` при `rubitime_legacy`
-- [ ] [`calendar/route.test.ts`](apps/webapp/src/app/api/doctor/booking-engine/calendar/route.test.ts): legacy events + `freeSlotsEnabled: false`
-- [ ] `rg 'listAppointmentsInRange' apps/webapp/src/infra/repos/pgBookingCalendarLegacy.ts` — range overlap, не `>= NOW()`
-- [ ] Admin calendar route — те же поля в response
+- [x] Unit: mapper `record_at` + duration → event
+- [x] [`service.test.ts`](apps/webapp/src/modules/booking-calendar/service.test.ts): free slots `[]` при `rubitime_legacy`
+- [x] [`calendar/route.test.ts`](apps/webapp/src/app/api/doctor/booking-engine/calendar/route.test.ts): legacy events + `freeSlotsEnabled: false`
+- [x] `rg 'listAppointmentsInRange' apps/webapp/src/infra/repos/pgBookingCalendarLegacy.ts` — range overlap, не `>= NOW()`
+- [x] Admin calendar route — те же поля в response
 
 ---
 
@@ -258,12 +281,12 @@ sequenceDiagram
 
 ### Checklist
 
-- [ ] Rubitime mode + `createRecord` throws → `markFailedSync`, не confirmed
-- [ ] Rubitime mode + missing `rubitimeId` → fail
-- [ ] Rubitime mode + `assertSlotAvailable` **not called** (mock assert rejects, create still succeeds if Rubitime ok)
-- [ ] Canonical mode + bridge → best-effort unchanged
-- [ ] `rg 'Rubitime sync is best-effort' apps/webapp/src/modules/patient-booking/canonicalCreate.ts` — только в canonical branch
-- [ ] Public + patient create routes: `rubitime_*` → 503 сохранён
+- [x] Rubitime mode + `createRecord` throws → `markFailedSync`, не confirmed
+- [x] Rubitime mode + missing `rubitimeId` → fail
+- [x] Rubitime mode + `assertSlotAvailable` **not called** (mock assert rejects, create still succeeds if Rubitime ok)
+- [x] Canonical mode + bridge → best-effort unchanged
+- [x] `rg 'Rubitime sync is best-effort' apps/webapp/src/modules/patient-booking/canonicalCreate.ts` — только в canonical branch
+- [x] Public + patient create routes: `rubitime_*` → 503 сохранён
 
 ---
 
@@ -278,8 +301,8 @@ sequenceDiagram
 
 **Checklist:**
 
-- [ ] [`SlotStepClient.test.tsx`](apps/webapp/src/app/app/patient/booking/new/slot/SlotStepClient.test.tsx): нет «Длительность»
-- [ ] Existing [`computeSlots.test.ts`](apps/webapp/src/modules/booking-scheduling/computeSlots.test.ts) green
+- [x] [`SlotStepClient.test.tsx`](apps/webapp/src/app/app/patient/booking/new/slot/SlotStepClient.test.tsx): нет «Длительность»
+- [x] Existing [`computeSlots.test.ts`](apps/webapp/src/modules/booking-scheduling/computeSlots.test.ts) green
 
 ---
 
@@ -300,9 +323,9 @@ sequenceDiagram
 
 **Checklist:**
 
-- [ ] Route tests CRUD + validation (start < end, weekday bounds)
-- [ ] Repo/service: scope resolution vs org-default
-- [ ] Manual smoke `/app/doctor/admin/booking`
+- [x] Route tests CRUD + validation (start < end, weekday bounds)
+- [x] Repo/service: scope resolution vs org-default
+- [x] Manual smoke `/app/doctor/admin/booking`
 
 ---
 
@@ -319,8 +342,8 @@ sequenceDiagram
 
 **Checklist:**
 
-- [ ] Route: POST scoped + GET filter
-- [ ] [`listBusyIntervals`](apps/webapp/src/infra/repos/pgBookingScheduling.ts): block с `specialistId` режет busy (existing logic — verify test)
+- [x] Route: POST scoped + GET filter
+- [x] [`listBusyIntervals`](apps/webapp/src/infra/repos/pgBookingScheduling.ts): block с `specialistId` режет busy (existing logic — verify test)
 
 ---
 
@@ -376,13 +399,13 @@ pnpm install --frozen-lockfile && pnpm run ci
 
 ## Definition of Done
 
-- [ ] П.0: defaults aligned (`rubitime_legacy` + `rubitime` slots)
-- [ ] Календарь: `appointment_records` в range при `rubitime_legacy`; не пустой при данных
-- [ ] Canonical free slots скрыты в Rubitime calendar mode (`freeSlotsEnabled: false`)
-- [ ] Admin UI: labels + «Календарь сейчас» + warning при расхождении источников
-- [ ] Patient slot UI без «Длительность»; `slotCount=1`
-- [ ] `booking_slots_read_source=rubitime` → Rubitime-first, fail-hard, без bridge gate
-- [ ] Working hours CRUD + fallback indicator
-- [ ] Schedule blocks scoped + filter
-- [ ] Docs честны; LOG.md обновлён
-- [ ] Targeted tests + полный `pnpm run ci` перед push
+- [x] П.0: defaults aligned (`rubitime_legacy` + `rubitime` slots)
+- [x] Календарь: `appointment_records` в range при `rubitime_legacy`; не пустой при данных
+- [x] Canonical free slots скрыты в Rubitime calendar mode (`freeSlotsEnabled: false`)
+- [x] Admin UI: labels + «Календарь сейчас» + warning при расхождении источников
+- [x] Patient slot UI без «Длительность»; `slotCount=1`
+- [x] `booking_slots_read_source=rubitime` → Rubitime-first, fail-hard, без bridge gate
+- [x] Working hours CRUD + fallback indicator
+- [x] Schedule blocks scoped + filter
+- [x] Docs честны; LOG.md обновлён
+- [x] Targeted tests + lint; полный `pnpm run ci` — при чистом дереве перед push
