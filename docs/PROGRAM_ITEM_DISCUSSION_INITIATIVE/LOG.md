@@ -210,3 +210,31 @@
   - `pnpm --dir apps/webapp exec vitest --run src/modules/program-item-discussion/service.test.ts src/modules/treatment-program/patient-program-actions.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/route.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/read/route.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/discussion/summary/route.test.ts`
   - `pnpm --dir apps/webapp test -- patient-program-actions program-item-discussion observation-note`
   - `pnpm --dir apps/webapp typecheck`
+
+---
+
+## 2026-05-30 — Этап 3 (patient UI плитки программы)
+
+### Что сделано
+
+- На плитке элемента программы переключён CTA:
+  - `Добавить комментарий` -> `Комментарии`;
+  - добавлен badge с количеством комментариев (из batch summary);
+  - добавлена красная unread-dot при `unreadCount > 0`.
+- Добавлена иконка-кнопка `Camera` в строку действий плитки (layout: камера + комментарии слева, `Отметить выполнение` справа шире).
+- Плитка переведена на `ProgramItemDiscussionDialog` вместо старой локальной модалки «Наблюдение».
+- Добавлен batch-prefetch счётчиков/непрочитанных через:
+  - `GET /api/patient/treatment-program-instances/{instanceId}/discussion/summary?itemIds=...`
+  - один запрос на набор item’ов (без N+1 по плиткам).
+- После `onRead` и закрытия диалога выполняется re-fetch summary, чтобы unread/dot синхронизировались с фактическим состоянием.
+
+### Тесты и проверки
+
+- Расширен существующий RTL-файл зоны treatment:
+  - `apps/webapp/src/app/app/patient/treatment/PatientTreatmentProgramDetailClient.test.tsx`
+  - покрыты badge/dot, кнопка `Камера`, открытие `ProgramItemDiscussionDialog`.
+- Прогон:
+  - `pnpm --dir apps/webapp exec vitest --run src/app/app/patient/treatment/PatientTreatmentProgramDetailClient.test.tsx`
+  - `pnpm --dir apps/webapp test -- PatientTreatmentProgramDetailClient`
+- IDE lint diagnostics по изменённым файлам: ошибок нет.
+- `pnpm --dir apps/webapp typecheck` сейчас падает на существующей несвязанной ошибке в `src/app-layer/di/buildAppDeps.ts` (`SystemSetting.value`), вне scope этапа 3.

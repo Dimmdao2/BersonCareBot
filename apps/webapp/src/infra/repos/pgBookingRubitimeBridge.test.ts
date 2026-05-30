@@ -110,6 +110,7 @@ describe("createPgBookingRubitimeBridgePort projection idempotency", () => {
 
     expect(result.projectedAppointments).toBe(0);
     expect(result.skippedExisting).toBe(1);
+    expect(result.recoveredMappings).toBe(1);
     expect(txInsert.mock.calls.filter(([table]) => table === beAppointments)).toHaveLength(0);
     expect(txInsert.mock.calls.filter(([table]) => table === beExternalEntityMappings).length).toBeGreaterThan(0);
     expect(

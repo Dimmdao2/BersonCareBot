@@ -6,6 +6,11 @@ import {
   resolveAppointmentCanonicalRefs,
   type ExternalMappingLookup,
 } from "@/modules/booking-rubitime-bridge/legacyProjection";
+import {
+  recoverableAppointmentSlotPhoneQuery,
+  recoverableAppointmentStrictQuery,
+  type RecoverableAppointmentLookup,
+} from "@/modules/booking-rubitime-bridge/recoverExistingProjection";
 import type { RubitimeBridgePort } from "@/modules/booking-rubitime-bridge/ports";
 import type { BridgeProjectionStats } from "@/modules/booking-engine/types";
 import {
@@ -53,6 +58,61 @@ async function loadMappingLookup(organizationId: string): Promise<ExternalMappin
   };
 }
 
+async function findRecoverableRubitimeProjectionId(
+  db: ReturnType<typeof getDrizzle>,
+  lookup: RecoverableAppointmentLookup,
+): Promise<string | null> {
+  const strict = await db.execute<{ id: string }>(recoverableAppointmentStrictQuery(lookup));
+  if (strict.rows[0]?.id) return strict.rows[0].id;
+  const fallback = await db.execute<{ id: string }>(recoverableAppointmentSlotPhoneQuery(lookup));
+  return fallback.rows[0]?.id ?? null;
+}
+
+async function linkRecoveredRubitimeProjection(
+  db: ReturnType<typeof getDrizzle>,
+  params: {
+    organizationId: string;
+    appointmentId: string;
+    externalId: string;
+    eventPayload: Record<string, unknown>;
+    now: string;
+  },
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(beExternalEntityMappings)
+      .values({
+        organizationId: params.organizationId,
+        entityType: "appointment",
+        canonicalId: params.appointmentId,
+        externalSystem: "rubitime",
+        externalId: params.externalId,
+        metadata: { projectedFrom: "read_bridge", recoveredExistingAppointment: true },
+        createdAt: params.now,
+        updatedAt: params.now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          beExternalEntityMappings.externalSystem,
+          beExternalEntityMappings.entityType,
+          beExternalEntityMappings.externalId,
+        ],
+        set: {
+          canonicalId: params.appointmentId,
+          metadata: { projectedFrom: "read_bridge", recoveredExistingAppointment: true },
+          updatedAt: params.now,
+        },
+      });
+    await tx.insert(beAppointmentHistoryEvents).values({
+      organizationId: params.organizationId,
+      appointmentId: params.appointmentId,
+      eventType: "rubitime_projection_mapping_recovered",
+      payload: params.eventPayload,
+      occurredAt: params.now,
+    });
+  });
+}
+
 async function upsertProjectedAppointment(
   lookup: ExternalMappingLookup,
   params: {
@@ -65,7 +125,7 @@ async function upsertProjectedAppointment(
     legacyStatus: string;
     lastEvent: string;
   },
-): Promise<"projected" | "skipped"> {
+): Promise<"projected" | "skipped" | "recovered"> {
   const db = getDrizzle();
   const existing = await db
     .select({ canonicalId: beExternalEntityMappings.canonicalId })
@@ -90,57 +150,22 @@ async function upsertProjectedAppointment(
     ...refs,
   };
 
-  const recoverable = await db.execute<{ id: string }>(sql`
-    SELECT id
-    FROM be_appointments
-    WHERE organization_id = ${params.organizationId}::uuid
-      AND source = 'rubitime_projection'
-      AND specialist_id IS NOT DISTINCT FROM ${refs.specialistId}::uuid
-      AND start_at = ${params.startAt}::timestamptz
-      AND end_at = ${legacy.endAtIso}::timestamptz
-      AND (
-        ${params.phoneNormalized}::text IS NULL
-        OR phone_normalized IS NOT DISTINCT FROM ${params.phoneNormalized}::text
-      )
-    ORDER BY updated_at DESC
-    LIMIT 1
-  `);
-  if (recoverable.rows[0]) {
-    const appointmentId = recoverable.rows[0]!.id;
-    await db.transaction(async (tx) => {
-      await tx
-        .insert(beExternalEntityMappings)
-        .values({
-          organizationId: params.organizationId,
-          entityType: "appointment",
-          canonicalId: appointmentId,
-          externalSystem: "rubitime",
-          externalId: params.externalId,
-          metadata: { projectedFrom: "read_bridge", recoveredExistingAppointment: true },
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [
-            beExternalEntityMappings.externalSystem,
-            beExternalEntityMappings.entityType,
-            beExternalEntityMappings.externalId,
-          ],
-          set: {
-            canonicalId: appointmentId,
-            metadata: { projectedFrom: "read_bridge", recoveredExistingAppointment: true },
-            updatedAt: now,
-          },
-        });
-      await tx.insert(beAppointmentHistoryEvents).values({
-        organizationId: params.organizationId,
-        appointmentId,
-        eventType: "rubitime_projection_mapping_recovered",
-        payload: eventPayload,
-        occurredAt: now,
-      });
+  const recoverableId = await findRecoverableRubitimeProjectionId(db, {
+    organizationId: params.organizationId,
+    specialistId: refs.specialistId,
+    startAt: params.startAt,
+    endAtIso: legacy.endAtIso,
+    phoneNormalized: params.phoneNormalized,
+  });
+  if (recoverableId) {
+    await linkRecoveredRubitimeProjection(db, {
+      organizationId: params.organizationId,
+      appointmentId: recoverableId,
+      externalId: params.externalId,
+      eventPayload,
+      now,
     });
-    return "skipped";
+    return "recovered";
   }
 
   return db.transaction(async (tx) => {
@@ -205,6 +230,7 @@ async function projectRows(
   const lookup = await loadMappingLookup(organizationId);
   let projectedAppointments = 0;
   let skippedExisting = 0;
+  let recoveredMappings = 0;
   for (const row of rows) {
     const result = await upsertProjectedAppointment(lookup, {
       organizationId,
@@ -217,9 +243,12 @@ async function projectRows(
       lastEvent: row.lastEvent,
     });
     if (result === "projected") projectedAppointments += 1;
-    else skippedExisting += 1;
+    else if (result === "recovered") {
+      skippedExisting += 1;
+      recoveredMappings += 1;
+    } else skippedExisting += 1;
   }
-  return { projectedAppointments, skippedExisting };
+  return { projectedAppointments, skippedExisting, recoveredMappings };
 }
 
 export function createPgBookingRubitimeBridgePort(): RubitimeBridgePort {

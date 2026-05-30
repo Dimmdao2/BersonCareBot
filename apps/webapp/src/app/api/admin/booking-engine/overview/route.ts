@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { parseDoctorAppointmentsReadSource } from "@/infra/repos/doctorAppointmentsReadSwitch";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 export async function GET() {
@@ -27,10 +29,16 @@ export async function GET() {
     service.bridge.getMappingSummary(organizationId),
   ]);
   const bridgeEnabled = await service.bridge.isBridgeEnabled();
+  const readSourceRow = await buildAppDeps().systemSettings?.getSetting(
+    "booking_doctor_appointments_read_source",
+    "admin",
+  );
+  const doctorAppointmentsReadSource = parseDoctorAppointmentsReadSource(readSourceRow?.value);
   return NextResponse.json({
     ok: true,
     organizationId,
     bridgeEnabled,
+    doctorAppointmentsReadSource,
     organization,
     branches,
     rooms,

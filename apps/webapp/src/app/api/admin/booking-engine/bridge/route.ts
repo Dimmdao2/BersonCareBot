@@ -37,7 +37,21 @@ export async function PATCH(request: Request) {
 export async function POST() {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
-  const result = await gate.ctx.service.bridge.projectAll(gate.ctx.organizationId);
-  const mapping = await gate.ctx.service.bridge.getMappingSummary(gate.ctx.organizationId);
-  return NextResponse.json({ ok: true, projection: result, mapping });
+  try {
+    const result = await gate.ctx.service.bridge.projectAll(gate.ctx.organizationId);
+    const mapping = await gate.ctx.service.bridge.getMappingSummary(gate.ctx.organizationId);
+    return NextResponse.json({ ok: true, projection: result, mapping });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const isOverlap =
+      message.includes("be_appointments_specialist_no_overlap") || message.includes("23P01");
+    return NextResponse.json(
+      {
+        ok: false,
+        error: isOverlap ? "appointment_slot_overlap" : "projection_failed",
+        message,
+      },
+      { status: isOverlap ? 409 : 500 },
+    );
+  }
 }

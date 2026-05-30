@@ -316,6 +316,15 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: raw };
   }
 
+  if (parsed.data.key === "booking_doctor_appointments_read_source") {
+    const inner = normalizedValue.value;
+    const raw = typeof inner === "string" ? inner.trim() : "";
+    if (raw !== "rubitime_legacy" && raw !== "canonical") {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: raw };
+  }
+
   if (ADMIN_BOOLEAN_SETTING_KEYS.has(parsed.data.key)) {
     const b = coerceAdminBooleanSetting(normalizedValue.value);
     if (b === null) {

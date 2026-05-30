@@ -16,8 +16,10 @@
 - `doctorAppointmentsReadSwitch`: default read = `appointment_records`; cutover через `system_settings.booking_doctor_appointments_read_source` (`rubitime_legacy` | `canonical`).
 - `pgBookingRubitimeBridge`: recovery существующей `rubitime_projection` → upsert mapping + history `rubitime_projection_mapping_recovered`, без duplicate insert.
 - Ops SQL: `apps/webapp/scripts/rubitime-appointment-mapping-audit.sql`, `backfill-rubitime-appointment-mappings.sql`.
-- Ключ `booking_doctor_appointments_read_source` в `ALLOWED_KEYS` и admin settings route.
-- Тесты: `doctorAppointmentsReadSwitch.test.ts`, `pgBookingRubitimeBridge.test.ts`.
+- Ключ `booking_doctor_appointments_read_source` в `ALLOWED_KEYS`, admin settings (PATCH-валидация), seed-миграция `0099_*`, селектор в `BookingEngineSection`.
+- Overview API отдаёт `doctorAppointmentsReadSource`; POST `/bridge` — JSON-ошибки (409 при overlap), без HTML 500.
+- Recovery: strict + fallback по слоту/телефону (`recoverExistingProjection.ts`), счётчик `recoveredMappings`.
+- Тесты: `doctorAppointmentsReadSwitch.test.ts`, `pgBookingRubitimeBridge.test.ts`, `buildAppDeps.test.ts`.
 
 **Двусторонняя синхронизация (без изменений кода):** `patient-booking/service` по-прежнему вызывает `syncPort.createRecord` / `cancelRecord` / `updateRecord` в legacy- и canonical-путях; integrator продолжает писать `appointment_records` / `rubitime_records`.
 

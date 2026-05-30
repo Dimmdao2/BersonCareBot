@@ -59,8 +59,16 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
       .fn()
       .mockImplementation(async (input) => ({ ...appointment, status: input.toStatus })),
     isBridgeEnabled: vi.fn().mockResolvedValue(true),
-    projectAppointmentRecords: vi.fn().mockResolvedValue({ projectedAppointments: 0, skippedExisting: 0 }),
-    projectRubitimeRecords: vi.fn().mockResolvedValue({ projectedAppointments: 0, skippedExisting: 0 }),
+    projectAppointmentRecords: vi.fn().mockResolvedValue({
+      projectedAppointments: 0,
+      skippedExisting: 0,
+      recoveredMappings: 0,
+    }),
+    projectRubitimeRecords: vi.fn().mockResolvedValue({
+      projectedAppointments: 0,
+      skippedExisting: 0,
+      recoveredMappings: 0,
+    }),
     getMappingSummary: vi.fn().mockResolvedValue({
       branches: 0,
       specialists: 0,

@@ -138,4 +138,6 @@ export type TransitionAppointmentStatusInput = {
 export type BridgeProjectionStats = {
   projectedAppointments: number;
   skippedExisting: number;
+  /** Mapping восстановлен для уже существующей `rubitime_projection` без дубля insert. */
+  recoveredMappings: number;
 };

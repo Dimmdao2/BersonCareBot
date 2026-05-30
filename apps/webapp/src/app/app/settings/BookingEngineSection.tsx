@@ -22,9 +22,12 @@ import {
 
 const BASE = "/api/admin/booking-engine";
 
+type DoctorAppointmentsReadSource = "rubitime_legacy" | "canonical";
+
 type Overview = {
   organizationId: string;
   bridgeEnabled: boolean;
+  doctorAppointmentsReadSource: DoctorAppointmentsReadSource;
   organization: { id: string; title: string } | null;
   branches: { id: string; title: string; cityCode: string; isActive: boolean }[];
   rooms: { id: string; branchId: string; title: string; isActive: boolean }[];
@@ -55,10 +58,29 @@ type Overview = {
   };
 };
 
-async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
+async function apiJson<T extends { ok?: boolean; error?: string; message?: string }>(
+  url: string,
+  init?: RequestInit,
+): Promise<T> {
   const res = await fetch(url, init);
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  let body: T;
+  try {
+    body = JSON.parse(text) as T;
+  } catch {
+    throw new Error(res.ok ? "invalid_json" : `http_${res.status}`);
+  }
+  if (!res.ok || body.ok === false) {
+    const detail = typeof body.message === "string" ? body.message : body.error;
+    throw new Error(detail ?? `http_${res.status}`);
+  }
+  return body;
 }
+
+const READ_SOURCE_ITEMS: { value: DoctorAppointmentsReadSource; label: string }[] = [
+  { value: "rubitime_legacy", label: "Rubitime" },
+  { value: "canonical", label: "Канон" },
+];
 
 export function BookingEngineSection() {
   const [data, setData] = useState<Overview | null>(null);
@@ -101,7 +123,11 @@ export function BookingEngineSection() {
       setLoadError(res.error ?? "load_failed");
       return;
     }
-    setData(res as Overview);
+    setData({
+      ...(res as Overview),
+      doctorAppointmentsReadSource:
+        res.doctorAppointmentsReadSource === "canonical" ? "canonical" : "rubitime_legacy",
+    });
     setOrgTitle(res.organization?.title ?? "");
     if (res.branches?.[0]) {
       setRoomBranchId((prev) => prev || res.branches![0]!.id);
@@ -164,6 +190,40 @@ export function BookingEngineSection() {
           <>
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
+                <Label className="sr-only">Источник списка записей врача</Label>
+                <Select
+                  value={data.doctorAppointmentsReadSource}
+                  disabled={isPending}
+                  onValueChange={(value) =>
+                    run(async () => {
+                      const res = await apiJson<{ ok: boolean }>("/api/admin/settings", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          key: "booking_doctor_appointments_read_source",
+                          value,
+                        }),
+                      });
+                      if (!res.ok) throw new Error("read_source_save_failed");
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    className="w-[10rem]"
+                    displayLabel={
+                      READ_SOURCE_ITEMS.find((i) => i.value === data.doctorAppointmentsReadSource)?.label
+                    }
+                  />
+                  <SelectContent>
+                    {READ_SOURCE_ITEMS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
                 <Switch
                   checked={data.bridgeEnabled}
                   disabled={isPending}
@@ -187,8 +247,7 @@ export function BookingEngineSection() {
                 disabled={isPending || !data.bridgeEnabled}
                 onClick={() =>
                   run(async () => {
-                    const res = await apiJson<{ ok: boolean }>(`${BASE}/bridge`, { method: "POST" });
-                    if (!res.ok) throw new Error("projection_failed");
+                    await apiJson<{ ok: boolean }>(`${BASE}/bridge`, { method: "POST" });
                   })
                 }
               >
