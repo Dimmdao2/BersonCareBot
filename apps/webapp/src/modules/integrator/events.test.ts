@@ -1128,6 +1128,63 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     expect(result.retryable).toBe(false);
   });
 
+  it("appointment.record.upserted branch FK violation is non-retryable (422 path)", async () => {
+    const pgErr = Object.assign(new Error("insert or update on table \"appointment_records\" violates foreign key constraint \"appointment_records_branch_id_fkey\""), {
+      code: "23503",
+      constraint: "appointment_records_branch_id_fkey",
+    });
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockRejectedValue(pgErr),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-fk-1",
+          status: "created",
+          integratorBranchId: "17356",
+          payloadJson: {},
+        },
+      },
+      { ...mockDeps, appointmentProjection: mockAp },
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.retryable).toBe(false);
+    expect(result.reason).toContain("appointment.record.upserted:");
+  });
+
+  it("appointment.record.upserted status check violation is non-retryable (422 path)", async () => {
+    const pgErr = Object.assign(new Error("new row for relation \"appointment_records\" violates check constraint \"appointment_records_status_check\""), {
+      code: "23514",
+      constraint: "appointment_records_status_check",
+    });
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockRejectedValue(pgErr),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-check-1",
+          status: "canceled",
+          payloadJson: {},
+        },
+      },
+      { ...mockDeps, appointmentProjection: mockAp },
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.retryable).toBe(false);
+    expect(result.reason).toContain("appointment.record.upserted:");
+  });
+
   it("appointment.record.upserted normalizes phone before ensureClientFromAppointmentProjection", async () => {
     const ensureClientFromAppointmentProjection = vi
       .fn()

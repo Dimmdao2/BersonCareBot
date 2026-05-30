@@ -230,6 +230,36 @@ function isNonRetryableProjectionUpsertError(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505";
 }
 
+function readPgCode(err: unknown): string | null {
+  if (!err || typeof err !== "object") return null;
+  const e = err as { code?: unknown; cause?: { code?: unknown } };
+  if (typeof e.code === "string" && e.code.length > 0) return e.code;
+  if (typeof e.cause?.code === "string" && e.cause.code.length > 0) return e.cause.code;
+  return null;
+}
+
+function readPgConstraint(err: unknown): string | null {
+  if (!err || typeof err !== "object") return null;
+  const e = err as { constraint?: unknown; cause?: { constraint?: unknown } };
+  if (typeof e.constraint === "string" && e.constraint.length > 0) return e.constraint;
+  if (typeof e.cause?.constraint === "string" && e.cause.constraint.length > 0) return e.cause.constraint;
+  return null;
+}
+
+/**
+ * appointment_records deterministic DB errors should not be retried forever:
+ * - 23503 appointment_records_branch_id_fkey (branch mapping/data mismatch)
+ * - 23514 appointment_records_status_check (unsupported status payload)
+ */
+function isNonRetryableAppointmentProjectionError(err: unknown): boolean {
+  const code = readPgCode(err);
+  const constraint = readPgConstraint(err);
+  return (
+    (code === "23503" && constraint === "appointment_records_branch_id_fkey") ||
+    (code === "23514" && constraint === "appointment_records_status_check")
+  );
+}
+
 function extractIntegratorUserIdsFromPayload(payload: Record<string, unknown>): string[] {
   const ids: string[] = [];
   const top = payload.integratorUserId ?? payload.integrator_user_id;
@@ -1013,7 +1043,10 @@ export async function handleIntegratorEvent(
       return {
         accepted: false,
         reason: `appointment.record.upserted: ${reason}`,
-        retryable: true,
+        retryable:
+          isNonRetryableProjectionUpsertError(err) || isNonRetryableAppointmentProjectionError(err)
+            ? false
+            : true,
       };
     }
   }
