@@ -649,4 +649,79 @@ describe("patient-program-actions", () => {
       }),
     );
   });
+
+  it("patientAppendDiscussionMedia writes action log and discussion message", async () => {
+    const tplPort = createInMemoryTreatmentProgramPort();
+    const instPort = createInMemoryTreatmentProgramInstancePort();
+    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
+    const instSvc = createTreatmentProgramInstanceService({
+      instances: instPort,
+      templates: tplSvc,
+      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      itemRefs,
+    });
+    const actionLog = createInMemoryProgramActionLogPort();
+    const insertSpy = vi.spyOn(actionLog, "insertAction");
+    const mediaId = "66666666-6666-4666-8666-666666666666";
+    const appendDiscussionMessage = vi.fn(async () => ({
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      instanceStageItemId: "33333333-3333-4333-8333-333333333333",
+      patientUserId: patient,
+      senderRole: "patient" as const,
+      origin: "patient_observation" as const,
+      body: null,
+      mediaFileId: mediaId,
+      supportMessageId: null,
+      createdAt: "2026-05-03T10:00:00.000Z",
+    }));
+    const notifyDoctorOfProgramNote = vi.fn().mockResolvedValue(undefined);
+    const actions = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
+      resolvePatientLabel: async () => "Иван П.",
+      notifyDoctorOfProgramNote,
+      discussion: { appendMessage: appendDiscussionMessage },
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: refA, comment: null, groupId: g1.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+      assignmentSource: "doctor",
+    });
+    const item = instStageForTpl(inst, s1.id).items[0]!;
+
+    await actions.patientAppendDiscussionMedia({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: item.id,
+      mediaFileId: mediaId,
+    });
+
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "note",
+        note: null,
+        payload: { source: "patient_media", mediaFileId: mediaId },
+      }),
+    );
+    expect(appendDiscussionMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instanceStageItemId: item.id,
+        mediaFileId: mediaId,
+        origin: "patient_observation",
+      }),
+    );
+    expect(notifyDoctorOfProgramNote).toHaveBeenCalledWith(
+      expect.objectContaining({ noteText: "Медиафайл" }),
+    );
+  });
 });

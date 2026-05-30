@@ -89,21 +89,19 @@ describe("POST .../discussion/media", () => {
     });
     getMediaRowMock.mockResolvedValue({ id: mediaFileId, status: "ready" });
     appendDiscussionMediaMock.mockResolvedValue(undefined);
-    listMessagesForStageItemMock
-      .mockResolvedValueOnce([])
-      .mockResolvedValue([
-        {
-          id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-          instanceStageItemId: itemId,
-          patientUserId,
-          senderRole: "patient",
-          origin: "patient_observation",
-          body: null,
-          mediaFileId,
-          supportMessageId: null,
-          createdAt: "2026-05-30T12:00:00.000Z",
-        },
-      ]);
+    listMessagesForStageItemMock.mockResolvedValue([
+      {
+        id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        instanceStageItemId: itemId,
+        patientUserId,
+        senderRole: "patient",
+        origin: "patient_observation",
+        body: null,
+        mediaFileId,
+        supportMessageId: null,
+        createdAt: "2026-05-30T12:00:00.000Z",
+      },
+    ]);
   });
 
   it("returns 403 when media flow disabled", async () => {

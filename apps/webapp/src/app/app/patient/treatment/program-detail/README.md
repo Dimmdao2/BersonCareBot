@@ -33,8 +33,8 @@
 
 ## Вкладка «Программа»: обсуждение с плитки
 
-- В **`PatientTreatmentProgramStagePageProgramSection`** (только `assignment_source === doctor` и `patient_program_discussion_ui_enabled`) — кнопки «Камера» и «Комментарии» (badge/dot из batch summary) открывают **`ProgramItemDiscussionDialog`** → **`POST .../discussion`** (dual-write в `program_action_log`). Для **promo** и при выключенном feature-flag controls скрыты.
-- На странице пункта **`PatientProgramStageItemPageClient`**: layout `[Камера][Отметить выполнение]`, preview последнего комментария, `ProgramItemCompleteDialog` → **`POST .../progress/complete`** с optional payload (`perceivedDifficulty`, `reps`, `weightKg`).
+- В **`PatientTreatmentProgramStagePageProgramSection`** (только `assignment_source === doctor` и `patient_program_discussion_ui_enabled`) — кнопки «Камера» и «Комментарии» (badge/dot из batch summary) открывают **`ProgramItemDiscussionDialog`** → **`POST .../discussion`** (dual-write в `program_action_log`). При **`patient_program_discussion_media_submission_enabled`** (и UI-флаге) «Камера» сразу открывает **`ProgramItemDiscussionMediaPicker`** → presign/confirm → **`POST .../discussion/media`**. Для **promo** и при выключенном feature-flag controls скрыты.
+- На странице пункта **`PatientProgramStageItemPageClient`**: layout `[Камера][Отметить выполнение]`, preview последнего комментария, `ProgramItemCompleteDialog` → **`POST .../progress/complete`** с optional payload (`perceivedDifficulty`, `reps`, `weightKg`); камера — тот же media-picker при обоих rollout-флагах.
 - Ответ врача из Telegram/MAX (кнопка «Ответить» под уведомлением) попадает в **`/app/patient/messages`** с текстом `Ответ на ваш комментарий к упражнению «…»:` — не путать с **`/api/doctor/comments`** (карточка клиента). Канон: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
 
 ## Инварианты после декомпозиции

@@ -347,6 +347,22 @@
 ### Тесты и проверки
 
 - `src/modules/media/programSubmissionPlaybackAccess.test.ts`
+- `src/modules/program-item-discussion/discussionFeatureGates.test.ts`
 - `src/app/api/patient/media/program-submission/presign/route.test.ts`
-- Прогон: `pnpm --dir apps/webapp test -- program-submission media`
-- `pnpm --dir apps/media-worker test` (worker branch)
+- `src/app/api/patient/media/program-submission/confirm/route.test.ts`
+- `src/app/api/patient/treatment-program-instances/.../discussion/media/route.test.ts`
+- `src/modules/treatment-program/patient-program-actions.test.ts` (`patientAppendDiscussionMedia`)
+- `src/app/api/media/[id]/playback/route.test.ts`, `[id]/route.test.ts`, `hls/.../route.test.ts` (ACL mocks)
+- Прогон: `pnpm --dir apps/webapp test -- program-submission media discussionFeatureGates patientAppendDiscussionMedia`
+- `pnpm --dir apps/media-worker test` (worker branch + poster)
+
+### Исправления по аудиту этапа 6
+
+- Shared gates: `discussionFeatureGates.ts` — media flow требует UI + media flags (P23).
+- Presign/confirm/status/discussion/media — единый `isPatientProgramDiscussionMediaFlowEnabled`.
+- Confirm отклоняет строки с `usage_purpose !== program_item_submission`.
+- HLS proxy — ACL через `getMediaAccessRow` + `assertMediaPlaybackAccess`.
+- Doctor journal: `DoctorProgramActionLogMediaPreview` (video через `PatientMediaPlaybackVideo`).
+- Camera UX: прямой вызов picker на плитке и item page.
+- Worker: poster.jpg после 480p transcode.
+- Тесты: confirm route, discussion/media route, feature gates, playback/hls mock fixes.
