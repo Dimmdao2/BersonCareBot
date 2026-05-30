@@ -260,6 +260,11 @@ export function createTreatmentProgramProgressService(deps: {
       patientUserId: string;
       instanceId: string;
       stageItemId: string;
+      completion?: {
+        perceivedDifficulty?: "easy" | "medium" | "hard";
+        reps?: number;
+        weightKg?: number;
+      };
     }): Promise<TreatmentProgramInstanceDetail> {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
@@ -282,13 +287,30 @@ export function createTreatmentProgramProgressService(deps: {
       const ts = nowIso();
       const row = await instances.setStageItemCompletedAt(input.instanceId, item.id, ts);
       if (!row) throw new Error("Не удалось сохранить");
+      const completionPayload: Record<string, unknown> = {
+        source: "simple_item_complete",
+        itemType: item.itemType,
+      };
+      if (
+        input.completion?.perceivedDifficulty === "easy" ||
+        input.completion?.perceivedDifficulty === "medium" ||
+        input.completion?.perceivedDifficulty === "hard"
+      ) {
+        completionPayload.perceivedDifficulty = input.completion.perceivedDifficulty;
+      }
+      if (typeof input.completion?.reps === "number" && Number.isFinite(input.completion.reps)) {
+        completionPayload.reps = input.completion.reps;
+      }
+      if (typeof input.completion?.weightKg === "number" && Number.isFinite(input.completion.weightKg)) {
+        completionPayload.weightKg = input.completion.weightKg;
+      }
       await actionLog.insertAction({
         instanceId: input.instanceId,
         instanceStageItemId: item.id,
         patientUserId: input.patientUserId,
         actionType: "done",
         sessionId: null,
-        payload: { source: "simple_item_complete", itemType: item.itemType },
+        payload: completionPayload,
         note: null,
       });
       if (!hadCompleted) {

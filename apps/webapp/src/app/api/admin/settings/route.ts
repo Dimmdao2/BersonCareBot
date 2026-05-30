@@ -82,6 +82,7 @@ const ADMIN_SCOPE_KEYS = [
   "booking_default_organization_id",
   "booking_rubitime_bridge_enabled",
   "booking_doctor_appointments_read_source",
+  "booking_slots_read_source",
   "booking_payment_enabled",
   "booking_payment_providers",
   "booking_lifecycle_notifications",
@@ -320,6 +321,15 @@ export async function PATCH(request: Request) {
     const inner = normalizedValue.value;
     const raw = typeof inner === "string" ? inner.trim() : "";
     if (raw !== "rubitime_legacy" && raw !== "canonical") {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: raw };
+  }
+
+  if (parsed.data.key === "booking_slots_read_source") {
+    const inner = normalizedValue.value;
+    const raw = typeof inner === "string" ? inner.trim() : "";
+    if (raw !== "rubitime" && raw !== "canonical") {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: raw };

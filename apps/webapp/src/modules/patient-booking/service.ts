@@ -40,6 +40,7 @@ import {
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { PatientBookingRecord } from "./types";
 import { prepaymentContextFromBooking } from "@/modules/payments/prepaymentContextFromBooking";
+import type { BookingSlotsReadSource } from "./slotsReadSource";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
@@ -165,6 +166,7 @@ export function createPatientBookingService(input: {
   clientHistory?: ClientHistoryService | null;
   platformUserContacts?: PlatformUserContactsService | null;
   getPlatformUserIdentityContacts?: (userId: string) => Promise<IdentityContactFields | null>;
+  resolveSlotsReadSource?: () => Promise<BookingSlotsReadSource>;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   slotsTtlMs?: number;
@@ -213,18 +215,27 @@ export function createPatientBookingService(input: {
         return cached.value;
       }
 
+      const slotsReadSource = (await input.resolveSlotsReadSource?.()) ?? "canonical";
+      const useCanonicalSlots =
+        slotsReadSource === "canonical" &&
+        input.bookingScheduling !== null &&
+        input.bookingScheduling !== undefined &&
+        input.bookingEngine !== null &&
+        input.bookingEngine !== undefined;
       let value: Awaited<ReturnType<BookingSyncPort["fetchSlots"]>>;
-      if (input.bookingScheduling && input.bookingEngine) {
+      if (useCanonicalSlots) {
+        const bookingScheduling = input.bookingScheduling!;
+        const bookingEngine = input.bookingEngine!;
         if (query.type === "online") {
-          const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
-          value = await input.bookingScheduling.getOnlineSlots({
+          const orgId = await bookingEngine.organization.getDefaultOrganizationId();
+          value = await bookingScheduling.getOnlineSlots({
             organizationId: orgId,
             category: query.category,
             date: query.date,
             slotCount: query.slotCount,
           });
         } else {
-          value = await input.bookingScheduling.getInPersonSlots({
+          value = await bookingScheduling.getInPersonSlots({
             branchServiceId: query.branchServiceId,
             date: query.date,
             slotCount: query.slotCount,

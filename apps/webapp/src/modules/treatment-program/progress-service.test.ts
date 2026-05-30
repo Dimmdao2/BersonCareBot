@@ -289,6 +289,72 @@ describe("treatment-program progress-service", () => {
     });
   });
 
+  it("patientCompleteSimpleItem writes optional completion payload fields", async () => {
+    const insertSpy = vi.spyOn(actionLog, "insertAction");
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          groups: [
+            {
+              sourceGroupId: tplGroupMain,
+              title: "G",
+              description: null,
+              scheduleText: null,
+              sortOrder: 0,
+            },
+          ],
+          items: [
+            {
+              itemType: "exercise",
+              itemRefId: "11111111-1111-4111-8111-111111111111",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "Упражнение" },
+              templateGroupId: tplGroupMain,
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await progress.patientCompleteSimpleItem({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      completion: {
+        perceivedDifficulty: "medium",
+        reps: 10,
+        weightKg: 2.5,
+      },
+    });
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "done",
+        payload: expect.objectContaining({
+          source: "simple_item_complete",
+          itemType: "exercise",
+          perceivedDifficulty: "medium",
+          reps: 10,
+          weightKg: 2.5,
+        }),
+      }),
+    );
+  });
+
   it("test_results: scoring passIfGte submits set; doctor accept completes item; stage closes only after doctor completes stage", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",

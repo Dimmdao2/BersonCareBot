@@ -249,3 +249,41 @@
 - Проверки после исправления:
   - `pnpm --dir apps/webapp exec vitest --run src/app/app/patient/treatment/PatientTreatmentProgramDetailClient.test.tsx src/app/api/patient/treatment-program-instances/[instanceId]/discussion/summary/route.test.ts`
   - `ReadLints` по изменённым файлам (ошибок нет).
+
+---
+
+## 2026-05-30 — Этап 4 (patient item page + complete payload)
+
+### Что сделано
+
+- На странице пункта программы (`PatientProgramStageItemPageClient.tsx`) обновлена action-row под контентом:
+  - удалён старый CTA `Добавить комментарий`;
+  - layout приведён к `[Камера][Отметить выполнение wide]`;
+  - `Отметить выполнение` больше не one-click (открывает модалку).
+- Добавлен `ProgramItemCompleteDialog.tsx`:
+  - выбор сложности (`easy|medium|hard`);
+  - опциональные поля `reps`, `weightKg`;
+  - submit-кнопка `Записать`.
+- Item page discussion UX:
+  - заголовок `Комментарий специалиста` переименован в `Инструкция от специалиста`;
+  - добавлен discussion preview block: последний комментарий (если есть), flat CTA (`Открыть комментарии` / `Оставить комментарий к выполнению`), строка `В прошлый раз сделано ...` при наличии `reps + weightKg` в последнем `done`.
+  - вместо старой модалки наблюдения используется `ProgramItemDiscussionDialog`.
+- `POST .../progress/complete` расширен для backward-compatible body:
+  - старый пустой POST поддержан;
+  - новый JSON body (`perceivedDifficulty`, `reps`, `weightKg`) валидируется и передаётся в service.
+- `patientCompleteSimpleItem` в `progress-service` расширен:
+  - в `program_action_log.payload` теперь сохраняются optional completion-поля, если переданы.
+- Rollout parity:
+  - item-page discussion UI тоже привязан к `patient_program_discussion_ui_enabled` (флаг читается в `[instanceId]/item/[itemId]/page.tsx` и прокидывается в клиент).
+
+### Тесты и проверки
+
+- Добавлены/обновлены тесты:
+  - `src/app/app/patient/treatment/PatientProgramStageItemPageClient.test.tsx`
+  - `src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/progress/complete/route.test.ts`
+  - `src/modules/treatment-program/progress-service.test.ts` (payload для `patientCompleteSimpleItem`)
+- Прогоны:
+  - `pnpm --dir apps/webapp exec vitest --run src/modules/treatment-program/progress-service.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/progress/complete/route.test.ts src/app/app/patient/treatment/PatientProgramStageItemPageClient.test.tsx`
+  - `pnpm --dir apps/webapp test -- progress-service complete route PatientProgramStageItemPageClient`
+  - `ReadLints` по изменённым файлам: ошибок нет.
+- `pnpm --dir apps/webapp typecheck` падает на несвязанных ошибках в `src/modules/patient-booking/service.ts` (nullable checks), вне scope этапа 4.

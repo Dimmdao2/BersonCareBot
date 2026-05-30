@@ -13,6 +13,7 @@
 - Этап 1 (schema + doctor reply interim) выполнен.
 - Этап 2 (patient discussion API + dual-write observation + batch summary endpoint) выполнен.
 - Этап 3 (patient UI плитки: комментарии/badge/dot + camera + wire dialog) выполнен.
+- Этап 4 (item page: complete modal + discussion preview + payload complete API) выполнен.
 
 ## План исполнения
 

@@ -35,6 +35,14 @@ function firstSearchParam(raw: string | string[] | undefined): string {
   return "";
 }
 
+function parseDiscussionUiEnabled(valueJson: unknown): boolean {
+  return (
+    valueJson !== null &&
+    typeof valueJson === "object" &&
+    (valueJson as Record<string, unknown>).value === true
+  );
+}
+
 export default async function PatientTreatmentProgramItemPage({ params, searchParams }: Props) {
   const session = await getOptionalPatientSession();
   if (!session) {
@@ -64,16 +72,19 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const appDisplayTimeZone = await getAppDisplayTimeZone();
   let detail;
   let planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(null);
+  let patientProgramDiscussionUiEnabled = false;
   try {
-    const [rawDetail, planItemCooldownSetting] = await Promise.all([
+    const [rawDetail, planItemCooldownSetting, discussionUiEnabledSetting] = await Promise.all([
       deps.treatmentProgramInstance.getInstanceForPatient(session.user.userId, instanceId),
       deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
+      deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin"),
     ]);
     if (!rawDetail) notFound();
     detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
     planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(
       planItemCooldownSetting?.valueJson ?? null,
     );
+    patientProgramDiscussionUiEnabled = parseDiscussionUiEnabled(discussionUiEnabledSetting?.valueJson ?? null);
   } catch {
     notFound();
   }
@@ -148,6 +159,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
         itemLinksPlanTab={itemLinksPlanTab}
         resolvedTestId={resolvedTestIdForResolve}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
+        patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
       />
     </AppShell>
   );

@@ -23,11 +23,13 @@ import {
 const BASE = "/api/admin/booking-engine";
 
 type DoctorAppointmentsReadSource = "rubitime_legacy" | "canonical";
+type BookingSlotsReadSource = "rubitime" | "canonical";
 
 type Overview = {
   organizationId: string;
   bridgeEnabled: boolean;
   doctorAppointmentsReadSource: DoctorAppointmentsReadSource;
+  bookingSlotsReadSource: BookingSlotsReadSource;
   organization: { id: string; title: string } | null;
   branches: { id: string; title: string; cityCode: string; isActive: boolean }[];
   rooms: { id: string; branchId: string; title: string; isActive: boolean }[];
@@ -79,6 +81,11 @@ async function apiJson<T extends { ok?: boolean; error?: string; message?: strin
 
 const READ_SOURCE_ITEMS: { value: DoctorAppointmentsReadSource; label: string }[] = [
   { value: "rubitime_legacy", label: "Rubitime" },
+  { value: "canonical", label: "Канон" },
+];
+
+const SLOTS_READ_SOURCE_ITEMS: { value: BookingSlotsReadSource; label: string }[] = [
+  { value: "rubitime", label: "Rubitime" },
   { value: "canonical", label: "Канон" },
 ];
 
@@ -135,6 +142,7 @@ export function BookingEngineSection() {
       ...(res as Overview),
       doctorAppointmentsReadSource:
         res.doctorAppointmentsReadSource === "canonical" ? "canonical" : "rubitime_legacy",
+      bookingSlotsReadSource: res.bookingSlotsReadSource === "rubitime" ? "rubitime" : "canonical",
     });
     setOrgTitle(res.organization?.title ?? "");
     if (res.branches?.[0]) {
@@ -224,6 +232,40 @@ export function BookingEngineSection() {
                   />
                   <SelectContent>
                     {READ_SOURCE_ITEMS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="sr-only">Источник слотов</Label>
+                <Select
+                  value={data.bookingSlotsReadSource}
+                  disabled={isPending}
+                  onValueChange={(value) =>
+                    run(async () => {
+                      const res = await apiJson<{ ok: boolean }>("/api/admin/settings", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          key: "booking_slots_read_source",
+                          value,
+                        }),
+                      });
+                      if (!res.ok) throw new Error("slots_read_source_save_failed");
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    className="w-[10rem]"
+                    displayLabel={
+                      SLOTS_READ_SOURCE_ITEMS.find((i) => i.value === data.bookingSlotsReadSource)?.label
+                    }
+                  />
+                  <SelectContent>
+                    {SLOTS_READ_SOURCE_ITEMS.map((item) => (
                       <SelectItem key={item.value} value={item.value}>
                         {item.label}
                       </SelectItem>

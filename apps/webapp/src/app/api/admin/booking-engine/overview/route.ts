@@ -1,7 +1,20 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { parseDoctorAppointmentsReadSource } from "@/infra/repos/doctorAppointmentsReadSwitch";
+import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsReadSource";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+
+function parseDoctorAppointmentsReadSource(valueJson: unknown): "rubitime_legacy" | "canonical" {
+  if (
+    valueJson !== null &&
+    typeof valueJson === "object" &&
+    "value" in (valueJson as Record<string, unknown>) &&
+    (valueJson as { value: unknown }).value === "canonical"
+  ) {
+    return "canonical";
+  }
+  if (valueJson === "canonical") return "canonical";
+  return "rubitime_legacy";
+}
 
 export async function GET() {
   const gate = await requireAdminBookingEngine();
@@ -33,12 +46,18 @@ export async function GET() {
     "booking_doctor_appointments_read_source",
     "admin",
   );
+  const slotsReadSourceRow = await buildAppDeps().systemSettings?.getSetting(
+    "booking_slots_read_source",
+    "admin",
+  );
   const doctorAppointmentsReadSource = parseDoctorAppointmentsReadSource(readSourceRow?.valueJson ?? null);
+  const bookingSlotsReadSource = parseBookingSlotsReadSource(slotsReadSourceRow?.valueJson ?? null);
   return NextResponse.json({
     ok: true,
     organizationId,
     bridgeEnabled,
     doctorAppointmentsReadSource,
+    bookingSlotsReadSource,
     organization,
     branches,
     rooms,

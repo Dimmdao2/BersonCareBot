@@ -4,8 +4,16 @@ import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole"
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
+const completeBodySchema = z
+  .object({
+    perceivedDifficulty: z.enum(["easy", "medium", "hard"]).optional(),
+    reps: z.number().int().positive().max(5000).optional(),
+    weightKg: z.number().min(0).max(500).optional(),
+  })
+  .strict();
+
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ instanceId: string; itemId: string }> },
 ) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });
@@ -16,12 +24,28 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
   }
 
+  let parsedBody: z.infer<typeof completeBodySchema> = {};
+  try {
+    const rawText = await request.text();
+    if (rawText.trim() !== "") {
+      const bodyJson = JSON.parse(rawText) as unknown;
+      const validated = completeBodySchema.safeParse(bodyJson);
+      if (!validated.success) {
+        return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+      }
+      parsedBody = validated.data;
+    }
+  } catch {
+    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+  }
+
   const deps = buildAppDeps();
   try {
     const item = await deps.treatmentProgramProgress.patientCompleteSimpleItem({
       patientUserId: gate.session.user.userId,
       instanceId,
       stageItemId: itemId,
+      completion: Object.keys(parsedBody).length > 0 ? parsedBody : undefined,
     });
     return NextResponse.json({ ok: true, item });
   } catch (e) {

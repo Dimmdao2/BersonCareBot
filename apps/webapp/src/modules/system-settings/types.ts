@@ -80,6 +80,8 @@ export const ALLOWED_KEYS = [
    * Переключать на `canonical` только после паритета и backfill mappings.
    */
   "booking_doctor_appointments_read_source",
+  /** Источник свободных слотов пациента: `rubitime` (legacy) | `canonical` (booking-scheduling). */
+  "booking_slots_read_source",
   /** Вкл/выкл платёжный слой записи (предоплата, intents). */
   "booking_payment_enabled",
   /** Провайдеры оплаты записи: `{ value: { enabled, defaultProviderId, providers[] } }`; секреты merge при PATCH. */

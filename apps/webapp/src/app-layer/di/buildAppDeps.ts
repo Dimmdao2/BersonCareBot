@@ -256,6 +256,7 @@ import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
 import { createPatientBookingService } from "@/modules/patient-booking/service";
+import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsReadSource";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
 import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
@@ -803,6 +804,11 @@ patientBookingService = createPatientBookingService({
     const identity = await doctorClientsPort.getClientIdentity(userId);
     if (!identity) return null;
     return { phone: identity.phone, email: identity.email ?? null };
+  },
+  resolveSlotsReadSource: async () => {
+    if (inMemoryRepos) return "rubitime";
+    const row = await systemSettingsService.getSetting("booking_slots_read_source", "admin");
+    return parseBookingSlotsReadSource(row?.valueJson ?? null);
   },
   isRubitimeBridgeEnabled: bookingRubitimeBridgePort
     ? () => bookingRubitimeBridgePort.isBridgeEnabled()

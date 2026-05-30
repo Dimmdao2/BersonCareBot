@@ -351,7 +351,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   }, [allowPatientObservationComment, instanceId, visibleProgramItems]);
 
   useEffect(() => {
-    void loadDiscussionSummary();
+    const timer = setTimeout(() => {
+      void loadDiscussionSummary();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadDiscussionSummary]);
 
   if (visibleProgramItems.length === 0) return null;
