@@ -93,8 +93,13 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
       });
     },
 
-    async listMessagesForStageItem(stageItemId: string, limit = 200): Promise<ProgramItemDiscussionMessage[]> {
-      return port.listMessagesForStageItem(assertUuid(stageItemId, "stage_item_id"), limit);
+    async listMessagesForStageItem(
+      stageItemId: string,
+      limit = 200,
+      offset = 0,
+    ): Promise<ProgramItemDiscussionMessage[]> {
+      const safeOffset = Math.max(0, Math.trunc(offset));
+      return port.listMessagesForStageItem(assertUuid(stageItemId, "stage_item_id"), limit, safeOffset);
     },
 
     async countMessagesForItem(stageItemId: string): Promise<number> {
@@ -115,6 +120,7 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
         exerciseTitle,
         excludeSupportMessageIds,
         limit: input.limit,
+        offset: input.offset,
       });
     },
 

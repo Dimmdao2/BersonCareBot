@@ -5,6 +5,7 @@ import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageItemView,
 } from "./types";
+import type { ProgramItemDiscussionService } from "@/modules/program-item-discussion/service";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import {
   isInstanceStageItemActiveForPatient,
@@ -127,6 +128,7 @@ export function createTreatmentProgramPatientActionService(deps: {
     exerciseTitle: string;
     noteText: string;
   }) => Promise<void>;
+  discussion?: Pick<ProgramItemDiscussionService, "appendMessage">;
 }) {
   const nowFn = deps.now ?? (() => new Date());
   const getPersonalTz = deps.getPatientCalendarTimezoneIana ?? (async () => null);
@@ -442,6 +444,15 @@ export function createTreatmentProgramPatientActionService(deps: {
         payload: { source: "patient_observation" },
         note: noteTrim.slice(0, 4000),
       });
+      if (detail.assignmentSource === "doctor" && deps.discussion) {
+        await deps.discussion.appendMessage({
+          instanceStageItemId: input.stageItemId,
+          patientUserId: input.patientUserId,
+          senderRole: "patient",
+          origin: "patient_observation",
+          body: noteTrim,
+        });
+      }
       if (detail.assignmentSource === "doctor" && deps.notifyDoctorOfProgramNote && deps.resolvePatientLabel) {
         const snap = item.snapshot as Record<string, unknown>;
         const title =

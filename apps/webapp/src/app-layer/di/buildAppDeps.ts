@@ -664,6 +664,7 @@ const treatmentProgramPatientActions = createTreatmentProgramPatientActionServic
   instances: treatmentProgramInstancePort,
   actionLog: programActionLogPort,
   patientDiarySnapshots: patientDiarySnapshotsPort,
+  discussion: programItemDiscussionService,
   getAppDefaultTimezoneIana: getAppDisplayTimeZone,
   getPatientCalendarTimezoneIana: patientCalendarTimezoneGet,
   resolvePatientLabel: async (platformUserId) => {

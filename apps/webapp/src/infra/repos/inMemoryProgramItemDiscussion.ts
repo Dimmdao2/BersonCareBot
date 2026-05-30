@@ -44,12 +44,17 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       return { ...row };
     },
 
-    async listMessagesForStageItem(stageItemId: string, limit = 200): Promise<ProgramItemDiscussionMessage[]> {
-      const safeLimit = Math.min(Math.max(limit, 1), 500);
+    async listMessagesForStageItem(
+      stageItemId: string,
+      limit = 200,
+      offset = 0,
+    ): Promise<ProgramItemDiscussionMessage[]> {
+      const safeLimit = Math.max(1, Math.trunc(limit));
+      const safeOffset = Math.max(0, Math.trunc(offset));
       return [...rows.values()]
         .filter((x) => x.instanceStageItemId === stageItemId)
         .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id)))
-        .slice(0, safeLimit)
+        .slice(safeOffset, safeOffset + safeLimit)
         .map((x) => ({ ...x }));
     },
 

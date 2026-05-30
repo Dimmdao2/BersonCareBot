@@ -33,4 +33,5 @@ export type ProgramItemDiscussionLegacyMergeInput = {
   exerciseTitle: string;
   excludeSupportMessageIds?: string[];
   limit?: number;
+  offset?: number;
 };

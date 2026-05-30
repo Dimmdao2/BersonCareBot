@@ -6,7 +6,7 @@ import type {
 
 export type ProgramItemDiscussionPort = {
   insertMessage(input: ProgramItemDiscussionMessageInsert): Promise<ProgramItemDiscussionMessage>;
-  listMessagesForStageItem(stageItemId: string, limit?: number): Promise<ProgramItemDiscussionMessage[]>;
+  listMessagesForStageItem(stageItemId: string, limit?: number, offset?: number): Promise<ProgramItemDiscussionMessage[]>;
   countMessagesForItem(stageItemId: string): Promise<number>;
   mergeLegacyAdminReplies(input: ProgramItemDiscussionLegacyMergeInput): Promise<ProgramItemDiscussionMessage[]>;
   markRead(params: { patientUserId: string; stageItemId: string; lastReadAt?: string }): Promise<void>;

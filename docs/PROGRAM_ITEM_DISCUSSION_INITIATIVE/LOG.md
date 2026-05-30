@@ -156,3 +156,57 @@
 - Проверка ссылок на route: в коде остался только `program-note-reply`.
 - Проверка наличия новых ключей feature-flag в `system_settings` контуре (types + API + modes + UI data flow).
 - Проверка наличия методов порта и реализаций (`pg` + `inMemory`) для `countMessagesForItem` и `mergeLegacyAdminReplies`.
+
+---
+
+## 2026-05-30 — Этап 2 (patient discussion API + dual-write observation)
+
+### Что сделано
+
+- Реализованы patient discussion endpoints:
+  - `GET /api/patient/treatment-program-instances/{instanceId}/items/{itemId}/discussion`
+  - `POST /api/patient/treatment-program-instances/{instanceId}/items/{itemId}/discussion`
+  - `POST /api/patient/treatment-program-instances/{instanceId}/items/{itemId}/discussion/read`
+- Реализован batch summary endpoint для плиток/списков:
+  - `GET /api/patient/treatment-program-instances/{instanceId}/discussion/summary`
+  - поддержан запрос подмножества `itemIds=uuid,uuid,...` без N HTTP запросов по одному item.
+- Для всех новых patient discussion endpoints добавлен runtime gate по `patient_program_discussion_ui_enabled` (rollback без миграций).
+- `POST .../discussion` маршрутизирован через `patientAppendObservationNote` (единый путь): сохраняет запись в `program_action_log`, сохраняет сообщение в discussion и сохраняет текущие уведомления врачу.
+- В `createTreatmentProgramPatientActionService` добавлен dual-write:
+  - `patientAppendObservationNote` теперь пишет в `program_item_discussion_messages` (`sender_role=patient`, `origin=patient_observation`) для doctor-program.
+- Добавлен shared UI компонент:
+  - `apps/webapp/src/app/app/patient/treatment/ProgramItemDiscussionDialog.tsx`
+  - при открытии выполняет `GET .../discussion` и `POST .../discussion/read`, composer отправляет через `POST .../discussion`.
+
+### Контракт GET discussion (зафиксированы параметры пагинации)
+
+- Поддержаны query-параметры:
+  - `direction` — `backward` (default) / `forward`
+  - `limit` — default `30`, max `100`
+  - `cursor` — opaque cursor по позиции `(createdAt,id)`
+- Сортировка стабильная по `(createdAt,id)`.
+- В ответе отдаются:
+  - `messages`
+  - `pageInfo` (`direction`, `limit`, `nextCursor`, `hasMore`)
+  - `totalCount`
+  - `unreadCount`
+  - `lastMessage`
+  - `lastDoneSummary`
+- Legacy admin replies включаются через read-time merge (`mergeLegacyAdminReplies`) и участвуют в пагинации.
+
+### Локальные проверки этапа 2
+
+- `pnpm --dir apps/webapp exec vitest --run src/modules/treatment-program/patient-program-actions.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/route.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/read/route.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/discussion/summary/route.test.ts`
+- `pnpm --dir apps/webapp typecheck`
+- IDE lint diagnostics по изменённым файлам: ошибок нет.
+
+### Закрытие аудита этапа 2 (без хвостов)
+
+- Убраны жёсткие потолки выборки `500/2000` в `program-item-discussion` репозитории, которые обрезали длинные треды.
+- `listMessagesForStageItem` переведён на `(limit, offset)` без hard-cap; API routes теперь догружают полную историю батчами.
+- `mergeLegacyAdminReplies` переведён на `(limit, offset)` поверх отфильтрованного legacy-потока (prefix match), без hard-cap и без обрезания длинной истории.
+- `GET .../discussion` и `GET .../discussion/summary` больше не опираются на фиксированное окно в 500 строк: сбор истории выполняется батчами до исчерпания данных.
+- Проверки после фикса:
+  - `pnpm --dir apps/webapp exec vitest --run src/modules/program-item-discussion/service.test.ts src/modules/treatment-program/patient-program-actions.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/route.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/read/route.test.ts src/app/api/patient/treatment-program-instances/[instanceId]/discussion/summary/route.test.ts`
+  - `pnpm --dir apps/webapp test -- patient-program-actions program-item-discussion observation-note`
+  - `pnpm --dir apps/webapp typecheck`

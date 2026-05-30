@@ -10,6 +10,8 @@
 
 - Активная инициатива.
 - Этап 0 (документация и контракты) выполнен.
+- Этап 1 (schema + doctor reply interim) выполнен.
+- Этап 2 (patient discussion API + dual-write observation + batch summary endpoint) выполнен.
 
 ## План исполнения
 

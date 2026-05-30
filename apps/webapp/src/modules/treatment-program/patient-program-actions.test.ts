@@ -587,4 +587,66 @@ describe("patient-program-actions", () => {
       noteText: "Болит колено",
     });
   });
+
+  it("patientAppendObservationNote writes discussion message for doctor-assigned programs", async () => {
+    const tplPort = createInMemoryTreatmentProgramPort();
+    const instPort = createInMemoryTreatmentProgramInstancePort();
+    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
+    const instSvc = createTreatmentProgramInstanceService({
+      instances: instPort,
+      templates: tplSvc,
+      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      itemRefs,
+    });
+    const actionLog = createInMemoryProgramActionLogPort();
+    const appendDiscussionMessage = vi.fn(async () => ({
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      instanceStageItemId: "33333333-3333-4333-8333-333333333333",
+      patientUserId: patient,
+      senderRole: "patient" as const,
+      origin: "patient_observation" as const,
+      body: "ok",
+      mediaFileId: null,
+      supportMessageId: null,
+      createdAt: "2026-05-03T10:00:00.000Z",
+    }));
+    const actions = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      patientDiarySnapshots: createInMemoryPatientDiarySnapshotsPort(),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
+      discussion: { appendMessage: appendDiscussionMessage },
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: refA, comment: null, groupId: g1.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+      assignmentSource: "doctor",
+    });
+    const item = instStageForTpl(inst, s1.id).items[0]!;
+
+    await actions.patientAppendObservationNote({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: item.id,
+      note: "  Болит колено ",
+    });
+
+    expect(appendDiscussionMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instanceStageItemId: item.id,
+        patientUserId: patient,
+        senderRole: "patient",
+        origin: "patient_observation",
+        body: "Болит колено",
+      }),
+    );
+  });
 });

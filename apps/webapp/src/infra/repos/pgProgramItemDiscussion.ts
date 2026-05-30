@@ -63,15 +63,17 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       }
     },
 
-    async listMessagesForStageItem(stageItemId: string, limit = 200): Promise<ProgramItemDiscussionMessage[]> {
+    async listMessagesForStageItem(stageItemId: string, limit = 200, offset = 0): Promise<ProgramItemDiscussionMessage[]> {
       const db = getDrizzle();
-      const safeLimit = Math.min(Math.max(limit, 1), 500);
+      const safeLimit = Math.max(1, Math.trunc(limit));
+      const safeOffset = Math.max(0, Math.trunc(offset));
       const rows = await db
         .select()
         .from(programItemDiscussionMessages)
         .where(eq(programItemDiscussionMessages.instanceStageItemId, stageItemId))
         .orderBy(asc(programItemDiscussionMessages.createdAt), asc(programItemDiscussionMessages.id))
-        .limit(safeLimit);
+        .limit(safeLimit)
+        .offset(safeOffset);
       return rows.map(mapMessage);
     },
 
@@ -88,50 +90,64 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
 
     async mergeLegacyAdminReplies(input: ProgramItemDiscussionLegacyMergeInput): Promise<ProgramItemDiscussionMessage[]> {
       const db = getDrizzle();
-      const targetLimit = Math.min(Math.max(input.limit ?? 200, 1), 500);
-      const fetchLimit = Math.min(targetLimit * 5, 2000);
-      const rows = await db
-        .select({
-          id: supportConversationMessages.id,
-          text: supportConversationMessages.text,
-          createdAt: supportConversationMessages.createdAt,
-        })
-        .from(supportConversationMessages)
-        .innerJoin(
-          supportConversations,
-          eq(supportConversationMessages.conversationId, supportConversations.id),
-        )
-        .where(
-          and(
-            eq(supportConversations.platformUserId, input.patientUserId),
-            eq(supportConversationMessages.senderRole, "admin"),
-          ),
-        )
-        .orderBy(asc(supportConversationMessages.createdAt), asc(supportConversationMessages.id))
-        .limit(fetchLimit);
-
+      const targetLimit = Math.max(1, Math.trunc(input.limit ?? 200));
+      const safeOffset = Math.max(0, Math.trunc(input.offset ?? 0));
+      const fetchChunk = Math.max(200, targetLimit * 2);
       const seenSupportMessageIds = new Set(input.excludeSupportMessageIds ?? []);
+      let skippedMerged = 0;
+      let rawOffset = 0;
       const merged: ProgramItemDiscussionMessage[] = [];
-      for (const row of rows) {
-        if (seenSupportMessageIds.has(row.id)) continue;
-        const body = extractPatientExerciseCommentReplyBody({
-          exerciseTitle: input.exerciseTitle,
-          messageText: row.text,
-        });
-        if (!body) continue;
-        seenSupportMessageIds.add(row.id);
-        merged.push({
-          id: `legacy:${row.id}`,
-          instanceStageItemId: input.stageItemId,
-          patientUserId: input.patientUserId,
-          senderRole: "admin",
-          origin: "support_admin_reply",
-          body,
-          mediaFileId: null,
-          supportMessageId: row.id,
-          createdAt: row.createdAt,
-        });
-        if (merged.length >= targetLimit) break;
+      while (merged.length < targetLimit) {
+        const rows = await db
+          .select({
+            id: supportConversationMessages.id,
+            text: supportConversationMessages.text,
+            createdAt: supportConversationMessages.createdAt,
+          })
+          .from(supportConversationMessages)
+          .innerJoin(
+            supportConversations,
+            eq(supportConversationMessages.conversationId, supportConversations.id),
+          )
+          .where(
+            and(
+              eq(supportConversations.platformUserId, input.patientUserId),
+              eq(supportConversationMessages.senderRole, "admin"),
+            ),
+          )
+          .orderBy(asc(supportConversationMessages.createdAt), asc(supportConversationMessages.id))
+          .limit(fetchChunk)
+          .offset(rawOffset);
+
+        if (rows.length === 0) break;
+        rawOffset += rows.length;
+
+        for (const row of rows) {
+          if (seenSupportMessageIds.has(row.id)) continue;
+          const body = extractPatientExerciseCommentReplyBody({
+            exerciseTitle: input.exerciseTitle,
+            messageText: row.text,
+          });
+          if (!body) continue;
+          seenSupportMessageIds.add(row.id);
+          if (skippedMerged < safeOffset) {
+            skippedMerged += 1;
+            continue;
+          }
+          merged.push({
+            id: `legacy:${row.id}`,
+            instanceStageItemId: input.stageItemId,
+            patientUserId: input.patientUserId,
+            senderRole: "admin",
+            origin: "support_admin_reply",
+            body,
+            mediaFileId: null,
+            supportMessageId: row.id,
+            createdAt: row.createdAt,
+          });
+          if (merged.length >= targetLimit) break;
+        }
+        if (rows.length < fetchChunk) break;
       }
       return merged;
     },
