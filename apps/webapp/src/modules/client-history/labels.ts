@@ -72,6 +72,31 @@ export function formatAmountMinor(amountMinor: number | null, currency: string |
   return (amountMinor / 100).toLocaleString("ru-RU", { style: "currency", currency });
 }
 
+const CANCELLATION_DECISION_LABELS: Record<string, string> = {
+  free: "Бесплатная",
+  penalized: "Штрафная",
+  package_charged: "Со списанием",
+  no_package_charge: "Без списания",
+  retain_prepayment: "Удержание предоплаты",
+  refund_prepayment: "Возврат предоплаты",
+  custom: "Индивидуально",
+};
+
+export function cancellationDecisionTypeLabel(decisionType: string): string {
+  return CANCELLATION_DECISION_LABELS[decisionType] ?? decisionType;
+}
+
+export function paymentStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    pending: "Ожидает",
+    captured: "Оплачено",
+    refunded: "Возврат",
+    failed: "Ошибка",
+    succeeded: "Оплачено",
+  };
+  return map[status] ?? status;
+}
+
 export function appointmentStatusLabel(status: string): string {
   const map: Record<string, string> = {
     created: "Создана",

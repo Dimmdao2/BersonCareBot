@@ -37,3 +37,11 @@
 3. UI-поверхности этапа присутствуют и работают во всех затронутых кабинетах.
 4. Целевые тесты + `lint`/`typecheck` по затронутым пакетам зелёные; для крупного этапа — финальный `pnpm run ci`.
 5. Обновлены `LOG.md` и связанная доменная документация (README модуля, `api.md`, `DB_STRUCTURE.md`, `RUBITIME_BOOKING_PIPELINE.md` при изменении моста).
+
+## 2026-05-30 — Prod-hardening закрыт
+
+- Canonical-first cancel: lifecycle не блокируется ошибкой Rubitime-адаптера.
+- Patient native actions на `/app/patient/booking/new`; doctor/admin parity по manual lifecycle.
+- A13: `booking_lifecycle_notifications` (UI + применение в lifecycle/integrator emit path).
+- Payments: registry `mock` + `yookassa`, webhook verification/idempotency, конфиг через `system_settings`.
+- Дополнены route/ui/inprocess тесты для calendar/manual lifecycle/policies.

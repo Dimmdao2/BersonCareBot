@@ -166,6 +166,10 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
   it("includes web_push_vapid for webapp whitelist", () => {
     expect(ALLOWED_KEYS).toContain("web_push_vapid");
   });
+
+  it("includes booking_lifecycle_notifications for webapp whitelist", () => {
+    expect(ALLOWED_KEYS).toContain("booking_lifecycle_notifications");
+  });
 });
 
 describe("PATCH /api/admin/settings", () => {
@@ -230,6 +234,40 @@ describe("PATCH /api/admin/settings", () => {
       })
     );
     expect(res.status).toBe(200);
+  });
+
+  it("updates booking_lifecycle_notifications", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "booking_lifecycle_notifications",
+      scope: "admin",
+      valueJson: { value: { events: {} } },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "booking_lifecycle_notifications",
+          value: {
+            events: {
+              "booking.created": { enabled: true, notifyPatient: true, notifyStaff: true },
+              "booking.cancelled": { enabled: true, notifyPatient: false, notifyStaff: true },
+            },
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "booking_lifecycle_notifications",
+      "admin",
+      expect.any(Object),
+      "a1",
+    );
   });
 
   it("returns 200 for admin updating max_debug_page_enabled (AdminSettingsSection body)", async () => {

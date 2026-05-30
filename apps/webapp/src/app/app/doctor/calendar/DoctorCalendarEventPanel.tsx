@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { DateTime } from "luxon";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,10 @@ import type {
   AppointmentRescheduleRecord,
 } from "@/modules/booking-appointment-lifecycle/ports";
 import { appointmentStatusLabel } from "@/modules/booking-calendar/appointmentStatusLabels";
+import {
+  cancellationDecisionTypeLabel,
+  paymentStatusLabel,
+} from "@/modules/client-history/labels";
 import { BookingStaffPaymentPanel } from "@/app/app/settings/BookingStaffPaymentPanel";
 import { AppointmentStaffCommentsSection } from "@/app/app/doctor/clients/AppointmentStaffCommentsSection";
 
@@ -75,11 +80,12 @@ function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta
   const [createRoomId, setCreateRoomId] = useState<string | null>(null);
   const [createServiceId, setCreateServiceId] = useState<string | null>(null);
   const [createPhone, setCreatePhone] = useState("");
+  const selectedId = selected?.id ?? null;
 
   useEffect(() => {
-    if (!selected) return;
+    if (!selectedId) return;
     let cancelled = false;
-    void fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/lifecycle`)
+    void fetch(`${apiBase}/appointments/${encodeURIComponent(selectedId)}/lifecycle`)
       .then((res) => res.json())
       .then((json: LifecycleResponse) => {
         if (!cancelled && json.ok) setLifecycle(json);
@@ -90,7 +96,7 @@ function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta
     return () => {
       cancelled = true;
     };
-  }, [apiBase, selected?.id]);
+  }, [apiBase, selectedId]);
 
   if (!selected) {
     return (
@@ -186,8 +192,18 @@ function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta
         {selected.branchTitle ? <p>{selected.branchTitle}</p> : null}
         {selected.roomTitle ? <p>{selected.roomTitle}</p> : null}
         {selected.patientPhone ? <p>{selected.patientPhone}</p> : null}
+        {selected.platformUserId ? (
+          <Link
+            href={`/app/doctor/clients/${encodeURIComponent(selected.platformUserId)}`}
+            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Карточка клиента
+          </Link>
+        ) : null}
         {selected.packageTitle ? <Badge variant="secondary">{selected.packageTitle}</Badge> : null}
-        {selected.paymentStatus ? <Badge variant="secondary">Оплата: {selected.paymentStatus}</Badge> : null}
+        {selected.paymentStatus ? (
+          <Badge variant="secondary">Оплата: {paymentStatusLabel(selected.paymentStatus)}</Badge>
+        ) : null}
         {selected.originalStartAt ? (
           <p className="text-xs text-muted-foreground">
             Исходное время: {formatEventAt(selected.originalStartAt, timeZone)}
@@ -215,7 +231,7 @@ function DoctorCalendarEventPanelInner({ apiBase, selected, timeZone, filterMeta
           <div className="space-y-1">
             {lifecycle.cancellations.map((c) => (
               <p key={c.id} className="text-xs text-muted-foreground">
-                Отмена ({c.cancellationType})
+                Отмена ({cancellationDecisionTypeLabel(c.cancellationType)})
                 {c.staffComment ? `: ${c.staffComment}` : ""}
               </p>
             ))}

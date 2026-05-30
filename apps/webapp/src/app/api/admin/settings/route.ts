@@ -77,6 +77,7 @@ const ADMIN_SCOPE_KEYS = [
   "booking_rubitime_bridge_enabled",
   "booking_payment_enabled",
   "booking_payment_providers",
+  "booking_lifecycle_notifications",
   "patient_default_promo_treatment_program_template_id",
   "patient_home_daily_practice_target",
   "patient_home_morning_ping_enabled",

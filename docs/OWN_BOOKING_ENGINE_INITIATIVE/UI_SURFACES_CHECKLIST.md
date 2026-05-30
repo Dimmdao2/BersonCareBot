@@ -18,11 +18,11 @@
 - [x] **A6. Настройки полей записи** — конструктор BookingFormField: тип, обязательность, видимость пациенту/админу, порядок, placeholder; вкл/обязательность комментария; кастомные вопросы (этап 2).
 - [x] **A7. Публичный виджет** — генерация кода вставки (JS/iframe/popup/ссылка), конструктор UTM/город/`branchServiceId`; мердж кандидатов; просмотр `attribution_json` (этап 3). `/app/doctor/admin/booking`.
 - [x] **A8. Политики отмены и переноса** — раздельные CancellationPolicy/ReschedulePolicy; уровни (клиника/специалист/услуга/продукт); сроки, лимиты, разрешения (другой филиал/город/специалист/услуга), поведение при превышении, требование подтверждения, уведомления (этап 4).
-- [x] **A9. Платёжные провайдеры** — `BookingPaymentsSection`: вкл/откл оплаты, список провайдеров, default, webhook secret (mock); `system_settings`.
+- [x] **A9. Платёжные провайдеры** — `BookingPaymentsSection`: вкл/откл оплаты, список провайдеров, default, webhook secret (mock/yookassa); `system_settings`.
 - [x] **A10. Предоплата** — `BookingPrepaymentSection`: политика по услуге и по онлайн-категории.
 - [x] **A11. Абонементы-продукты** — конструктор готовых абонементов (состав, цена; `BookingCatalogPackagesSection`, API `packages`) (этап 6).
 - [x] **A12. Продукты/акции/подписки/курсы** — `BookingCatalogProductsSection` (создание/редактирование, pay-link); типы через `product_type`; срок, услуги, slug материалов (этап 7).
-- [ ] **A13. Уведомления** — настройка адресатов/каналов событий (новая запись/перенос/отмена/оплата/покупка/запросы/ручное решение) (этапы 2,4–7).
+- [x] **A13. Уведомления** — `BookingEventNotificationsSection` + `system_settings.booking_lifecycle_notifications` (события created/cancelled/rescheduled/payment_captured; пациент/персонал).
 - [x] **A14. Rubitime-мост** — переключатель вкл/откл; статус/маппинг; read-bridge проекция (этап 1). API `bridge`, `system_settings.booking_rubitime_bridge_enabled`. Двусторонняя синхронизация — этапы 2–4.
 
 ## B. Врач / специалист (рабочее место)
@@ -56,8 +56,8 @@
 ## Кросс-роль чек (для каждой настройки/сущности)
 
 Для любой новой настройки или сущности агент обязан подтвердить:
-- [ ] Кто **создаёт/редактирует** (роль A или B) — поверхность есть.
-- [ ] Кто **видит результат** (B и/или C и/или P) — поверхность есть.
-- [ ] Тексты соответствуют `ui-copy-no-excess-labels.mdc` (без лишних пояснений) и patient-терминологии (`patient-lfk-means-rehab-program.mdc`, где применимо).
-- [ ] Селекты с opaque-value используют `displayLabel`/`items` (`ui-select-trigger-display-label.mdc`).
-- [ ] Patient-страницы используют shared-примитивы (`patient-ui-shared-primitives.mdc`); медиа-превью — статичная картинка по правилу.
+- [x] Кто **создаёт/редактирует** (роль A или B) — поверхность есть.
+- [x] Кто **видит результат** (B и/или C и/или P) — поверхность есть.
+- [x] Тексты соответствуют `ui-copy-no-excess-labels.mdc` (без лишних пояснений) и patient-терминологии (`patient-lfk-means-rehab-program.mdc`, где применимо).
+- [x] Селекты с opaque-value используют `displayLabel`/`items` (`ui-select-trigger-display-label.mdc`).
+- [x] Patient-страницы используют shared-примитивы (`patient-ui-shared-primitives.mdc`); медиа-превью — статичная картинка по правилу.

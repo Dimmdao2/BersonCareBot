@@ -14,7 +14,14 @@ import {
 } from "@/components/ui/select";
 import { patchAdminSetting } from "./patchAdminSetting";
 
-type ProviderRow = { id: string; label: string; enabled: boolean; webhookSecret?: string };
+type ProviderRow = {
+  id: string;
+  label: string;
+  enabled: boolean;
+  webhookSecret?: string;
+  shopId?: string;
+  apiKey?: string;
+};
 
 type Props = {
   paymentEnabled: boolean;
@@ -29,6 +36,8 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
   const [providers, setProviders] = useState<ProviderRow[]>(providersJson.providers);
   const [defaultProviderId, setDefaultProviderId] = useState(providersJson.defaultProviderId || "mock");
   const [webhookSecrets, setWebhookSecrets] = useState<Record<string, string>>({});
+  const [shopIds, setShopIds] = useState<Record<string, string>>({});
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -44,6 +53,8 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
         providers: providers.map((p) => ({
           ...p,
           webhookSecret: webhookSecrets[p.id]?.trim() || p.webhookSecret || "",
+          shopId: shopIds[p.id]?.trim() || p.shopId || "",
+          apiKey: apiKeys[p.id]?.trim() || p.apiKey || "",
         })),
       });
       if (!okEnabled || !okProviders) setError("Не удалось сохранить");
@@ -79,7 +90,7 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
                 setProviders((prev) => prev.map((x) => (x.id === p.id ? { ...x, enabled: checked } : x)))
               }
             />
-            {p.id === "mock" ? (
+            {p.id === "mock" || p.id === "yookassa" ? (
               <Input
                 type="password"
                 autoComplete="off"
@@ -87,6 +98,22 @@ export function BookingPaymentsSection({ paymentEnabled: initialEnabled, provide
                 value={webhookSecrets[p.id] ?? ""}
                 onChange={(e) => setWebhookSecrets((prev) => ({ ...prev, [p.id]: e.target.value }))}
               />
+            ) : null}
+            {p.id === "yookassa" ? (
+              <>
+                <Input
+                  placeholder="Shop ID"
+                  value={shopIds[p.id] ?? p.shopId ?? ""}
+                  onChange={(e) => setShopIds((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                />
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  placeholder="Секретный ключ API"
+                  value={apiKeys[p.id] ?? ""}
+                  onChange={(e) => setApiKeys((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                />
+              </>
             ) : null}
           </div>
         ))}

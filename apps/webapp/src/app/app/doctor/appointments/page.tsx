@@ -58,7 +58,12 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
         </ul>
       </section>
       <section id="doctor-appointments-upcoming-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <h2>{listSectionTitle(view)}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2>{listSectionTitle(view)}</h2>
+          <Link href="/app/doctor/calendar" className="text-sm font-medium text-primary underline-offset-2 hover:underline">
+            Календарь
+          </Link>
+        </div>
         {appointments.length === 0 ? (
           <p className="text-muted-foreground">Нет записей на выбранный период.</p>
         ) : (

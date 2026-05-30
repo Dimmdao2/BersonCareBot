@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { paymentStatusLabel, timelineEventTitle } from "@/modules/client-history/labels";
 
 type PaymentSummary = {
   appointmentStatus: string;
@@ -60,19 +61,19 @@ export function BookingStaffPaymentPanel({ apiBase, appointmentId }: Props) {
           ) : null}
           {summary.intent ? (
             <p>
-              Интент: {summary.intent.status}, {formatMinor(summary.intent.amountMinor, "RUB")}
+              Интент: {paymentStatusLabel(summary.intent.status)}, {formatMinor(summary.intent.amountMinor, "RUB")}
             </p>
           ) : null}
           {summary.payment ? (
             <p>
-              Платёж: {summary.payment.status}, {formatMinor(summary.payment.amountMinor, "RUB")}
+              Платёж: {paymentStatusLabel(summary.payment.status)}, {formatMinor(summary.payment.amountMinor, "RUB")}
             </p>
           ) : null}
           {summary.history.length > 0 ? (
             <ul className="list-disc pl-4 text-muted-foreground">
               {summary.history.slice(0, 8).map((h, index) => (
                 <li key={`${h.eventType}-${h.occurredAt}-${index}`}>
-                  {h.eventType}
+                  {timelineEventTitle(h.eventType)}
                   {h.amountMinor != null ? ` · ${formatMinor(h.amountMinor, "RUB")}` : ""}
                 </li>
               ))}

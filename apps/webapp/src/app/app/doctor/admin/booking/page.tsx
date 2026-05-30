@@ -11,6 +11,7 @@ import { BookingPublicAttributionSection } from "@/app/app/settings/BookingPubli
 import { BookingPublicWidgetSection } from "@/app/app/settings/BookingPublicWidgetSection";
 import { BookingScheduleBlocksSection } from "@/app/app/settings/BookingScheduleBlocksSection";
 import { BookingPoliciesSection } from "@/app/app/settings/BookingPoliciesSection";
+import { BookingEventNotificationsSection } from "@/app/app/settings/BookingEventNotificationsSection";
 import { BookingManualLifecycleSection } from "@/app/app/settings/BookingManualLifecycleSection";
 import { BookingCatalogPackagesSection } from "@/app/app/settings/BookingCatalogPackagesSection";
 import { BookingCatalogProductsSection } from "@/app/app/settings/BookingCatalogProductsSection";
@@ -33,31 +34,44 @@ export default async function DoctorAdminBookingPage() {
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <h1 className="mb-6 text-xl font-semibold">Запись / Rubitime</h1>
-      <div className="space-y-6">
-        <BookingCatalogHelp />
-        <BookingEngineSection />
-        <BookingFormFieldsSection />
-        <BookingPoliciesSection />
-        <BookingPaymentsSection paymentEnabled={paymentEnabled} providersJson={providersJson} />
-        <BookingPrepaymentSection />
-        <BookingCatalogPackagesSection apiBase="/api/doctor/booking-engine/packages" />
-        <BookingCatalogProductsSection apiBase="/api/doctor/booking-engine/products" />
-        <BookingPatientPackagesSection
-          apiBase="/api/doctor/booking-engine/patient-packages"
-          packagesApi="/api/doctor/booking-engine/packages"
-          servicesApi="/api/doctor/booking-engine/services"
-        />
-        <BookingPatientProductsSection
-          apiBase="/api/doctor/booking-engine/patient-products"
-          servicesApi="/api/doctor/booking-engine/services"
-        />
-        <BookingManualLifecycleSection apiBase="/api/doctor/booking-engine" />
-        <BookingPublicWidgetSection />
-        <BookingPublicAttributionSection />
-        <BookingMergeCandidatesSection />
-        <BookingScheduleBlocksSection />
-        <RubitimeSection />
+      <h1 className="mb-6 text-xl font-semibold">Запись</h1>
+      <div className="space-y-8">
+        <section id="booking-help" className="space-y-4">
+          <BookingCatalogHelp />
+        </section>
+        <section id="booking-catalog" className="space-y-4">
+          <BookingEngineSection />
+          <BookingFormFieldsSection />
+          <BookingCatalogPackagesSection apiBase="/api/doctor/booking-engine/packages" />
+          <BookingCatalogProductsSection apiBase="/api/doctor/booking-engine/products" />
+        </section>
+        <section id="booking-policies-pay" className="space-y-4">
+          <BookingPoliciesSection />
+          <BookingEventNotificationsSection />
+          <BookingPaymentsSection paymentEnabled={paymentEnabled} providersJson={providersJson} />
+          <BookingPrepaymentSection />
+        </section>
+        <section id="booking-public" className="space-y-4">
+          <BookingPublicWidgetSection />
+          <BookingPublicAttributionSection />
+        </section>
+        <section id="booking-operations" className="space-y-4">
+          <BookingPatientPackagesSection
+            apiBase="/api/doctor/booking-engine/patient-packages"
+            packagesApi="/api/doctor/booking-engine/packages"
+            servicesApi="/api/doctor/booking-engine/services"
+          />
+          <BookingPatientProductsSection
+            apiBase="/api/doctor/booking-engine/patient-products"
+            servicesApi="/api/doctor/booking-engine/services"
+          />
+          <BookingManualLifecycleSection apiBase="/api/doctor/booking-engine" />
+          <BookingMergeCandidatesSection />
+          <BookingScheduleBlocksSection />
+        </section>
+        <section id="booking-bridge" className="space-y-4">
+          <RubitimeSection />
+        </section>
       </div>
     </div>
   );

@@ -4,8 +4,25 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const API_BASE = "/api/doctor/booking-engine";
+
+const CANCEL_TYPES = [
+  { value: "free", label: "Бесплатная" },
+  { value: "penalized", label: "Штрафная" },
+  { value: "package_charged", label: "Со списанием" },
+  { value: "no_package_charge", label: "Без списания" },
+  { value: "retain_prepayment", label: "Удержание предоплаты" },
+  { value: "refund_prepayment", label: "Возврат предоплаты" },
+  { value: "custom", label: "Индивидуально" },
+] as const;
 
 type Props = {
   recordId: string;
@@ -18,6 +35,7 @@ function isCanonicalAppointmentId(id: string): boolean {
 export function DoctorAppointmentActions({ recordId }: Props) {
   const [pending, setPending] = useState<"cancel" | "reschedule" | null>(null);
   const [note, setNote] = useState<string>("");
+  const [cancelType, setCancelType] = useState("free");
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [newStartLocal, setNewStartLocal] = useState("");
   const [newEndLocal, setNewEndLocal] = useState("");
@@ -43,7 +61,7 @@ export function DoctorAppointmentActions({ recordId }: Props) {
     setNote("");
     try {
       await callApi(`${API_BASE}/appointments/${encodeURIComponent(recordId)}/manual-cancel`, {
-        decisionType: "free",
+        decisionType: cancelType,
       });
       setNote("Отменено.");
     } catch (err) {
@@ -80,7 +98,7 @@ export function DoctorAppointmentActions({ recordId }: Props) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           variant="outline"
@@ -91,6 +109,21 @@ export function DoctorAppointmentActions({ recordId }: Props) {
         >
           Перенести
         </Button>
+        <Select value={cancelType} onValueChange={(v) => setCancelType(v ?? "free")}>
+          <SelectTrigger
+            className="h-8 w-[9rem]"
+            displayLabel={CANCEL_TYPES.find((t) => t.value === cancelType)?.label}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CANCEL_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value} label={t.label}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           type="button"
           variant="outline"

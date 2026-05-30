@@ -19,6 +19,34 @@ type PurchaseRow = {
   fulfillmentJson: Record<string, unknown>;
 };
 
+const PRODUCT_STATUS_LABELS: Record<string, string> = {
+  awaiting_payment: "Ожидает оплаты",
+  paid: "Оплачен",
+  active: "Активен",
+  consumed: "Использован",
+  expired: "Истёк",
+};
+
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  promo: "Акция",
+  gift_certificate: "Подарочный",
+  single_visit: "Разовый визит",
+  course: "Курс",
+  subscription: "Подписка",
+};
+
+const ERROR_LABELS: Record<string, string> = {
+  platform_user_id_required: "Укажите ID пациента.",
+  service_id_required: "Выберите услугу для списания.",
+  consume_failed: "Не удалось списать визит.",
+  failed: "Не удалось загрузить покупки.",
+};
+
+function errorLabel(code: string | null): string | null {
+  if (!code) return null;
+  return ERROR_LABELS[code] ?? `Ошибка: ${code}`;
+}
+
 export function BookingPatientProductsSection({
   apiBase = "/api/admin/booking-engine/patient-products",
   servicesApi = "/api/admin/booking-engine/services",
@@ -94,7 +122,7 @@ export function BookingPatientProductsSection({
         <Button type="button" variant="outline" size="sm" onClick={loadServices}>
           Загрузить услуги
         </Button>
-        <Label htmlFor="pp-user">Platform user ID</Label>
+        <Label htmlFor="pp-user">ID пациента</Label>
         <Input id="pp-user" value={platformUserId} onChange={(e) => setPlatformUserId(e.target.value)} />
         <Label htmlFor="pp-svc">Услуга для списания</Label>
         <select
@@ -123,7 +151,8 @@ export function BookingPatientProductsSection({
             return (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-1">
                 <span>
-                  {p.title} — {p.status}
+                  {p.title} — {PRODUCT_STATUS_LABELS[p.status] ?? p.status}
+                  {p.productType ? ` · ${PRODUCT_TYPE_LABELS[p.productType] ?? p.productType}` : ""}
                   {remaining != null ? ` (${remaining})` : ""}
                 </span>
                 {remaining != null && remaining > 0 ? (
@@ -135,7 +164,7 @@ export function BookingPatientProductsSection({
             );
           })}
         </ul>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-destructive">{errorLabel(error)}</p> : null}
       </CardContent>
     </Card>
   );

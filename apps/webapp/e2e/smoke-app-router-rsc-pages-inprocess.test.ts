@@ -23,6 +23,7 @@ const LOADERS = {
   patientDiary: () => import("@/app/app/patient/diary/page") as Promise<PageMod>,
   patientDiaryLfkJournal: () => import("@/app/app/patient/diary/lfk/journal/page") as Promise<PageMod>,
   patientDiarySymptomsJournal: () => import("@/app/app/patient/diary/symptoms/journal/page") as Promise<PageMod>,
+  patientBookingNew: () => import("@/app/app/patient/booking/new/page") as Promise<PageMod>,
   patientContentSlug: () => import("@/app/app/patient/content/[slug]/page") as Promise<PageMod>,
   patientGoReminderTarget: () => import("@/app/app/patient/go/[kind]/page") as Promise<PageMod>,
   doctorContentMotivation: () => import("@/app/app/doctor/content/motivation/page") as Promise<PageMod>,
@@ -93,6 +94,7 @@ describe("app router RSC pages smoke (in-process)", () => {
     expectAsyncRscPage(mod("patientDiary"), "patient/diary");
     expectAsyncRscPage(mod("patientDiaryLfkJournal"), "patient/diary/lfk/journal");
     expectAsyncRscPage(mod("patientDiarySymptomsJournal"), "patient/diary/symptoms/journal");
+    expectAsyncRscPage(mod("patientBookingNew"), "patient/booking/new");
     expectAsyncRscPage(mod("patientContentSlug"), "patient/content/[slug]");
     expectAsyncRscPage(mod("patientGoReminderTarget"), "patient/go/[kind]");
   });

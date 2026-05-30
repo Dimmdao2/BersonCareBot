@@ -223,7 +223,7 @@ export type PatientBookingService = {
   >;
   getBookingByCanonicalAppointment(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
   cancelBooking(input: CancelPatientBookingInput): Promise<
-    | { ok: true; lateCancellation?: boolean }
+    | { ok: true; lateCancellation?: boolean; rubitimeMirrorFailed?: boolean }
     | {
         ok: false;
         error:

@@ -6,6 +6,7 @@ import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMessenger";
+import { CabinetBookingActions } from "@/app/app/patient/cabinet/CabinetBookingActions";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 import { cn } from "@/lib/utils";
 import { patientListItemClass, patientMutedTextClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
@@ -72,8 +73,9 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
         {bookings.map((row) => {
           const rubitimeUrl = row.rubitimeManageUrl?.trim() ?? "";
           const safeRubitime = rubitimeUrl !== "" && isSafeExternalHref(rubitimeUrl);
-          const canManage = safeRubitime && showManageLink(row.status);
-          /** Отдельный URL «Информация» в модели пока нет — при совпадении с manage показываем только «Управлять». */
+          const hasNativeActions = Boolean(row.canonicalAppointmentId);
+          const canManageRubitime =
+            !hasNativeActions && safeRubitime && showManageLink(row.status);
 
           const openRubitime = () => {
             if (safeRubitime && rubitimeUrl) openExternalLinkInMessenger(rubitimeUrl);
@@ -103,7 +105,10 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
                     Оплатить
                   </Link>
                 ) : null}
-                {canManage ? (
+                {hasNativeActions && showManageLink(row.status) ? (
+                  <CabinetBookingActions row={row} />
+                ) : null}
+                {canManageRubitime ? (
                   <button type="button" className={bookingReminderManageCtaClass} onClick={openRubitime}>
                     Управлять
                   </button>

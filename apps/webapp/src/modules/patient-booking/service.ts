@@ -24,7 +24,12 @@ import type { AppointmentProjectionPort } from "./ports";
 import { validateCreatePatientBookingInput } from "./createInputValidation";
 import { extractRubitimeManageUrlFromIntegratorCreateRaw } from "./rubitimeManageUrl";
 import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from "./canonicalCreate";
-import { buildBookingNotificationsSent } from "./bookingLifecycleNotifications";
+import {
+  buildBookingNotificationsSent,
+  resolveBookingNotifyTargets,
+  type BookingLifecycleNotificationsSettings,
+} from "./bookingLifecycleNotifications";
+import { logBookingRubitimeMirrorFailed } from "./bookingLifecycleObservability";
 import {
   projectCanonicalAppointmentCancelled,
   projectCanonicalAppointmentRescheduled,
@@ -156,6 +161,7 @@ export function createPatientBookingService(input: {
   products?: ProductsService | null;
   clientHistory?: ClientHistoryService | null;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
+  getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   slotsTtlMs?: number;
 }): PatientBookingService {
   const slotsTtlMs = input.slotsTtlMs ?? 60 * 1000;
@@ -186,6 +192,8 @@ export function createPatientBookingService(input: {
           products: input.products ?? null,
           clientHistory: input.clientHistory ?? null,
           isRubitimeBridgeEnabled: input.isRubitimeBridgeEnabled ?? (async () => false),
+          getBookingLifecycleNotificationSettings:
+            input.getBookingLifecycleNotificationSettings ?? (async () => null),
         }
       : null;
 
@@ -355,27 +363,34 @@ export function createPatientBookingService(input: {
         invalidateSlotsCache();
         const finalized = confirmed ?? pending;
         try {
-          await input.syncPort.emitBookingEvent({
-            eventType: "booking.created",
-            idempotencyKey: `booking.created:${pending.id}`,
-            payload: {
-              bookingId: finalized.id,
-              userId: finalized.userId as string,
-              rubitimeId: finalized.rubitimeId,
-              bookingType: finalized.bookingType,
-              city: finalized.city ?? undefined,
-              category: finalized.category,
-              slotStart: finalized.slotStart,
-              slotEnd: finalized.slotEnd,
-              contactName: finalized.contactName,
-              contactPhone: finalized.contactPhone,
-              contactEmail: finalized.contactEmail ?? undefined,
-              branchServiceId: finalized.branchServiceId,
-              cityCodeSnapshot: finalized.cityCodeSnapshot,
-              serviceTitleSnapshot: finalized.serviceTitleSnapshot,
-              canonicalAppointmentId: finalized.canonicalAppointmentId ?? undefined,
-            },
-          });
+          const createNotify = resolveBookingNotifyTargets(
+            "booking.created",
+            { notifyPatient: true, notifyStaff: true },
+            (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
+          );
+          if (createNotify.notifyPatient || createNotify.notifyStaff) {
+            await input.syncPort.emitBookingEvent({
+              eventType: "booking.created",
+              idempotencyKey: `booking.created:${pending.id}`,
+              payload: {
+                bookingId: finalized.id,
+                userId: finalized.userId as string,
+                rubitimeId: finalized.rubitimeId,
+                bookingType: finalized.bookingType,
+                city: finalized.city ?? undefined,
+                category: finalized.category,
+                slotStart: finalized.slotStart,
+                slotEnd: finalized.slotEnd,
+                contactName: finalized.contactName,
+                contactPhone: finalized.contactPhone,
+                contactEmail: finalized.contactEmail ?? undefined,
+                branchServiceId: finalized.branchServiceId,
+                cityCodeSnapshot: finalized.cityCodeSnapshot,
+                serviceTitleSnapshot: finalized.serviceTitleSnapshot,
+                canonicalAppointmentId: finalized.canonicalAppointmentId ?? undefined,
+              },
+            });
+          }
         } catch {
           // Integration notifications/reminders are best-effort and must not fail booking confirmation.
         }
@@ -585,14 +600,19 @@ export function createPatientBookingService(input: {
         // Best-effort notifications.
       }
 
+      const rescheduleNotify = resolveBookingNotifyTargets(
+        "booking.rescheduled",
+        result.reschedulePolicy,
+        (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
+      );
       await input.appointmentLifecycle.patchLatestRescheduleNotifications(
         row.canonicalAppointmentId,
         orgId,
         buildBookingNotificationsSent({
           eventType: "booking.rescheduled",
           idempotencyKey,
-          notifyPatient: result.reschedulePolicy.notifyPatient,
-          notifyStaff: result.reschedulePolicy.notifyStaff,
+          notifyPatient: rescheduleNotify.notifyPatient,
+          notifyStaff: rescheduleNotify.notifyStaff,
           integratorStatus,
         }),
       );
@@ -617,19 +637,6 @@ export function createPatientBookingService(input: {
         }
 
         await input.bookingsPort.markCancelling(row.id);
-        if (row.rubitimeId) {
-          try {
-            await input.syncPort.cancelRecord(row.rubitimeId);
-          } catch {
-            await input.bookingsPort.markCancelled({
-              bookingId: row.id,
-              reason: "cancel_sync_failed",
-              status: "cancel_failed",
-            });
-            invalidateSlotsCache();
-            return { ok: false, error: "sync_failed" };
-          }
-        }
 
         const lifecycleResult = await input.appointmentLifecycle.patientCancel({
           appointmentId: row.canonicalAppointmentId,
@@ -649,6 +656,21 @@ export function createPatientBookingService(input: {
             return { ok: false, error: "staff_confirmation_required" };
           }
           return { ok: false, error: "lifecycle_failed" };
+        }
+
+        let rubitimeMirrorStatus: "ok" | "failed" | "skipped" = "skipped";
+        if (row.rubitimeId) {
+          try {
+            await input.syncPort.cancelRecord(row.rubitimeId);
+            rubitimeMirrorStatus = "ok";
+          } catch {
+            rubitimeMirrorStatus = "failed";
+            logBookingRubitimeMirrorFailed({
+              bookingId: row.id,
+              action: "cancel_record",
+              rubitimeId: row.rubitimeId,
+            });
+          }
         }
 
         if (input.payments) {
@@ -741,15 +763,21 @@ export function createPatientBookingService(input: {
           // Best-effort.
         }
 
+        const cancelNotify = resolveBookingNotifyTargets(
+          "booking.cancelled",
+          lifecycleResult.cancelPolicy,
+          (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
+        );
         await input.appointmentLifecycle.patchLatestCancellationNotifications(
           row.canonicalAppointmentId,
           orgId,
           buildBookingNotificationsSent({
             eventType: "booking.cancelled",
             idempotencyKey,
-            notifyPatient: lifecycleResult.cancelPolicy.notifyPatient,
-            notifyStaff: lifecycleResult.cancelPolicy.notifyStaff,
+            notifyPatient: cancelNotify.notifyPatient,
+            notifyStaff: cancelNotify.notifyStaff,
             integratorStatus,
+            rubitimeMirrorStatus,
           }),
         );
 
@@ -758,21 +786,18 @@ export function createPatientBookingService(input: {
           lateCancellation:
             lifecycleResult.eligibility.reasonCode === "late" ||
             lifecycleResult.eligibility.reasonCode === "forfeited_by_reschedule",
+          ...(rubitimeMirrorStatus === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
         };
       }
 
       await input.bookingsPort.markCancelling(row.id);
+      let legacyRubitimeMirror: "ok" | "failed" | "skipped" = "skipped";
       if (row.rubitimeId) {
         try {
           await input.syncPort.cancelRecord(row.rubitimeId);
+          legacyRubitimeMirror = "ok";
         } catch {
-          await input.bookingsPort.markCancelled({
-            bookingId: row.id,
-            reason: "cancel_sync_failed",
-            status: "cancel_failed",
-          });
-          invalidateSlotsCache();
-          return { ok: false, error: "sync_failed" };
+          legacyRubitimeMirror = "failed";
         }
       }
       await input.bookingsPort.markCancelled({
@@ -806,7 +831,10 @@ export function createPatientBookingService(input: {
       } catch {
         // Booking cancellation state is primary; event fan-out is best-effort.
       }
-      return { ok: true };
+      return {
+        ok: true,
+        ...(legacyRubitimeMirror === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
+      };
     },
 
     async listMyBookings(userId) {

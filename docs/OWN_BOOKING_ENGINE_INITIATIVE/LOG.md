@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-05-30 — Prod-hardening: закрытие оставшихся хвостов
+
+**Сделано:**
+- Payments: для YooKassa включена реальная проверка webhook (`authorization` и fallback `x-yookassa-signature` + `webhookSecret`), `providerConfig` прокинут в `verifyWebhook`.
+- Notifications: `booking_lifecycle_notifications` применяется не только в staff lifecycle, но и в emit-path `booking.created` и `booking.payment_captured`.
+- Тесты покрытия: добавлены route tests для `doctor|admin calendar`, `manual-cancel`, `manual-reschedule`, `booking-engine/policies`; UI round-trip test для `BookingPoliciesSection`; доп. кейсы `patient-booking/service` (lifecycle error + idempotent повторная отмена); `admin/settings` для `booking_lifecycle_notifications`; smoke inprocess для `patient/booking/new`.
+- UX-polish: `BookingPatientPackagesSection`, `BookingPatientProductsSection`, `BookingStaffPaymentPanel` — человекочитаемые статусы/ошибки без сырых кодов.
+- Документация синхронизирована: `MASTER_PLAN`, `ROADMAP`, `STAGE_CHECKLISTS`, `UI_SURFACES_CHECKLIST`.
+
+**Проверки:**
+- `pnpm --filter @bersoncare/webapp exec vitest run src/infra/payments/yookassaPaymentProvider.test.ts src/app/api/doctor/booking-engine/appointments/[id]/manual-reschedule/route.test.ts src/app/api/admin/booking-engine/calendar/route.test.ts src/app/api/admin/booking-engine/appointments/[id]/manual-cancel/route.test.ts src/app/api/admin/booking-engine/appointments/[id]/manual-reschedule/route.test.ts src/app/api/admin/booking-engine/policies/route.test.ts src/app/app/settings/BookingPoliciesSection.test.tsx src/modules/patient-booking/service.test.ts src/app/api/admin/settings/route.test.ts` ✅
+- `pnpm --filter @bersoncare/webapp exec vitest run e2e/smoke-app-router-rsc-pages-inprocess.test.ts` ✅
+
+---
+
 ## 2026-05-30 — Этап 8: календарь специалиста/админа (закрыт)
 
 **Сделано:**
@@ -356,6 +371,19 @@
 - UI: возвраты в оплатах; «был по абонементу» без summary; e2e smoke для history-компонентов.
 
 **Проверки:** vitest `clientHistoryUtils`; `pnpm --filter webapp typecheck`.
+
+## 2026-05-30 — Prod-hardening (аудит own booking)
+
+**Сделано:**
+- Cancel-flow: канонический lifecycle до best-effort Rubitime; `rubitime_mirror` в `notifications_sent`; warn-log при сбое моста.
+- Пациент: native Перенести/Отменить на `/app/patient/booking/new` (`CabinetBookingActions`).
+- Политики: полный UI round-trip по scope/полям; A13 `booking_lifecycle_notifications`.
+- Врач: тип отмены в списке записей; ссылка на карточку клиента в календаре; переход список ↔ календарь.
+- Admin booking: секции каталог/политики/публичный канал/операции/мост; help own-engine-first.
+- Платежи: `paymentProviderRegistry`, адаптер `yookassa`, UI shopId/apiKey.
+- Тесты: `service.test` cancel, `BookingUpcomingSection`, calendar/manual-cancel routes, yookassa webhook parse.
+
+**Проверки:** targeted vitest по затронутым модулям; `pnpm --filter @bersoncare/webapp typecheck`.
 
 ## 2026-05-30 — Документация: синхронизация этапа 9
 

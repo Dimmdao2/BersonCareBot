@@ -518,27 +518,40 @@ const paymentsService =
           const row = await patientBookingsPort.markConfirmedByCanonicalAppointment(appointmentId, null);
           if (!row) return;
           try {
-            await bookingSyncPortForPayments.emitBookingEvent({
-              eventType: "booking.payment_captured",
-              idempotencyKey: `booking.payment_captured:${paymentId}`,
-              payload: {
-                bookingId: row.id,
-                userId: platformUserId ?? row.userId ?? row.id,
-                rubitimeId: row.rubitimeId,
-                bookingType: row.bookingType,
-                city: row.city ?? undefined,
-                category: row.category,
-                slotStart: row.slotStart,
-                slotEnd: row.slotEnd,
-                contactName: row.contactName,
-                contactPhone: row.contactPhone,
-                contactEmail: row.contactEmail ?? undefined,
-                branchServiceId: row.branchServiceId,
-                cityCodeSnapshot: row.cityCodeSnapshot,
-                serviceTitleSnapshot: row.serviceTitleSnapshot,
-                canonicalAppointmentId: appointmentId,
-              },
-            });
+            const { loadBookingLifecycleNotificationsFromSystemSettings, resolveBookingNotifyTargets } = await import(
+              "@/modules/booking-notifications/settings"
+            );
+            const notificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings((key, scope) =>
+              systemSettingsService.getSetting(key, scope),
+            );
+            const paymentNotify = resolveBookingNotifyTargets(
+              "booking.payment_captured",
+              { notifyPatient: true, notifyStaff: true },
+              notificationSettings,
+            );
+            if (paymentNotify.notifyPatient || paymentNotify.notifyStaff) {
+              await bookingSyncPortForPayments.emitBookingEvent({
+                eventType: "booking.payment_captured",
+                idempotencyKey: `booking.payment_captured:${paymentId}`,
+                payload: {
+                  bookingId: row.id,
+                  userId: platformUserId ?? row.userId ?? row.id,
+                  rubitimeId: row.rubitimeId,
+                  bookingType: row.bookingType,
+                  city: row.city ?? undefined,
+                  category: row.category,
+                  slotStart: row.slotStart,
+                  slotEnd: row.slotEnd,
+                  contactName: row.contactName,
+                  contactPhone: row.contactPhone,
+                  contactEmail: row.contactEmail ?? undefined,
+                  branchServiceId: row.branchServiceId,
+                  cityCodeSnapshot: row.cityCodeSnapshot,
+                  serviceTitleSnapshot: row.serviceTitleSnapshot,
+                  canonicalAppointmentId: appointmentId,
+                },
+              });
+            }
           } catch {
             // Notifications are best-effort.
           }
@@ -757,6 +770,13 @@ patientBookingService = createPatientBookingService({
   isRubitimeBridgeEnabled: bookingRubitimeBridgePort
     ? () => bookingRubitimeBridgePort.isBridgeEnabled()
     : undefined,
+  getBookingLifecycleNotificationSettings: async () => {
+    const row = await systemSettingsService.getSetting("booking_lifecycle_notifications", "admin");
+    const { parseBookingLifecycleNotificationsSettings } = await import(
+      "@/modules/booking-notifications/settings"
+    );
+    return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
+  },
 });
 
 const patientHomeBlocksService = createPatientHomeBlocksService({

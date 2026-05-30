@@ -1,6 +1,6 @@
 import type { BeAppointment } from "@/modules/booking-engine/types";
 import type { BookingEnginePort } from "@/modules/booking-engine/ports";
-import { getPaymentProviderAdapter } from "@/infra/payments/mockPaymentProvider";
+import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
 import { parseBookingPaymentSettingsValue } from "./bookingPaymentSettings";
 import { quotePrepayment } from "./prepaymentCalculator";
 import type { PaymentsConfigReader, PaymentsPort } from "./ports";
@@ -134,6 +134,7 @@ export function createPaymentsService(deps: {
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
         metadata: { appointmentId: input.appointmentId },
+        providerConfig: provider,
       });
 
       const intent = await deps.port.createPaymentIntent({
@@ -187,6 +188,7 @@ export function createPaymentsService(deps: {
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
         metadata: { patientPackageId: input.patientPackageId },
+        providerConfig: provider,
       });
 
       const intent = await deps.port.createPaymentIntent({
@@ -242,6 +244,7 @@ export function createPaymentsService(deps: {
         currency: input.currency,
         idempotencyKey: input.idempotencyKey,
         metadata: { productPurchaseId: input.productPurchaseId },
+        providerConfig: provider,
       });
 
       const intent = await deps.port.createPaymentIntent({
@@ -391,6 +394,7 @@ export function createPaymentsService(deps: {
         headers: input.headers,
         bodyText: input.bodyText,
         webhookSecret: secret,
+        providerConfig: provider,
       });
 
       const stored = await deps.port.recordProviderEvent({
@@ -457,6 +461,7 @@ export function createPaymentsService(deps: {
           amountMinor: payment.amountMinor,
           currency: payment.currency,
           idempotencyKey,
+          providerConfig: provider,
         });
         const refund = await deps.port.createRefund({
           organizationId: input.organizationId,

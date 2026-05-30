@@ -12,6 +12,24 @@ type Props = {
   servicesApi?: string;
 };
 
+const PACKAGE_STATUS_LABELS: Record<string, string> = {
+  draft: "Черновик",
+  active: "Активен",
+  expired: "Истёк",
+  paid: "Оплачен",
+};
+
+const ERROR_LABELS: Record<string, string> = {
+  platform_user_id_required: "Укажите ID пациента.",
+  invalid_form: "Проверьте форму: название, цена и состав абонемента обязательны.",
+  failed: "Не удалось выполнить операцию.",
+};
+
+function errorLabel(code: string | null): string | null {
+  if (!code) return null;
+  return ERROR_LABELS[code] ?? `Ошибка: ${code}`;
+}
+
 export function BookingPatientPackagesSection({
   apiBase = "/api/admin/booking-engine/patient-packages",
   packagesApi = "/api/admin/booking-engine/packages",
@@ -134,7 +152,7 @@ export function BookingPatientPackagesSection({
         <Button type="button" variant="outline" size="sm" onClick={loadRefs}>
           Загрузить справочники
         </Button>
-        <Label htmlFor="pp-user">ID пациента (platform user)</Label>
+        <Label htmlFor="pp-user">ID пациента</Label>
         <Input id="pp-user" value={platformUserId} onChange={(e) => setPlatformUserId(e.target.value)} />
         <Button type="button" variant="outline" size="sm" disabled={pending} onClick={loadPatientPackages}>
           Абонементы пациента
@@ -143,7 +161,7 @@ export function BookingPatientPackagesSection({
           <ul className="text-sm">
             {listed.map((p) => (
               <li key={p.id}>
-                {p.title} · {p.status} · остаток{" "}
+                {p.title} · {PACKAGE_STATUS_LABELS[p.status] ?? p.status} · остаток{" "}
                 {p.balance.items.map((it) => it.remaining).join(", ")}
               </li>
             ))}
@@ -198,7 +216,7 @@ export function BookingPatientPackagesSection({
             Создан: {resultId}. Оплата: /app/patient/memberships/pay?patientPackageId={resultId}
           </p>
         ) : null}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-destructive">{errorLabel(error)}</p> : null}
       </CardContent>
     </Card>
   );

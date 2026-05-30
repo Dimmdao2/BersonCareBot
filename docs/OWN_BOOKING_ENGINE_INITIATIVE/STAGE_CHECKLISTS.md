@@ -200,7 +200,7 @@
 ### 5.2 Провайдеры из БД (ТЗ §13.2, §13.3, КРИТИЧНО §24.12)
 - [x] **PaymentProviderConfig** в `system_settings` (`booking_payment_enabled`, `booking_payment_providers`); `ALLOWED_KEYS` + sync integrator. Секреты не в ENV.
 - [x] Включение/отключение провайдера, выбор default; mock-провайдер для старта; расширение списка без смены кода адаптера-порта.
-- [x] Несколько провайдеров в конфиге (старт: mock; YooKassa — отдельный адаптер при подключении эквайринга, см. `SCOPE_DECISIONS.md` Q1).
+- [x] Несколько провайдеров в конфиге: mock + YooKassa через `PaymentProviderPort`/registry (без ENV-секретов).
 
 ### 5.3 Предоплата (ТЗ §10)
 - [x] **PrepaymentPolicy** по услуге и по онлайн-категории: фикс / процент / полная / отключена.
@@ -218,7 +218,7 @@
 
 ### Приёмка этапа 5
 - [x] Предоплата (очная услуга + онлайн-категория) настраивается и взимается; статусы меняются по факту оплаты.
-- [x] Провайдеры в `system_settings`; mock + вебхук идемпотентен.
+- [x] Провайдеры в `system_settings`; mock + YooKassa, вебхуки идемпотентны (включая verification реального провайдера).
 - [x] Возврат/удержание при отмене; перенос фиксируется в history.
 - [x] UI §A9–A10, §C-pay, §B-pay, §P-pay (`/book/pay`); integrator `booking.payment_captured`.
 
@@ -323,6 +323,7 @@
 - [x] Специалист/админ работает с расписанием через календарь: просмотр/создание/перенос/отмена/фильтры; статусы и оплаты/абонементы видны.
 - [x] GCal остаётся зеркалом; канон — БД.
 - [x] UI: календарь в кабинете врача/админа (UI §B-calendar).
+- [x] Route tests: `GET /api/doctor|admin/booking-engine/calendar`, `manual-cancel`, `manual-reschedule`.
 
 ---
 

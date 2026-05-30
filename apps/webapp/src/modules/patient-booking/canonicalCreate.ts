@@ -21,6 +21,10 @@ import type {
 import type { CreatePatientBookingInput, PatientBookingRecord } from "./types";
 import { extractRubitimeManageUrlFromIntegratorCreateRaw } from "./rubitimeManageUrl";
 import { projectCanonicalAppointmentForDoctor } from "./projectCanonicalAppointment";
+import {
+  resolveBookingNotifyTargets,
+  type BookingLifecycleNotificationsSettings,
+} from "./bookingLifecycleNotifications";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
@@ -39,6 +43,7 @@ export type CanonicalBookingDeps = {
   products: ProductsService | null;
   clientHistory: ClientHistoryService | null;
   isRubitimeBridgeEnabled: () => Promise<boolean>;
+  getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
 };
 
 function toPendingRowOnline(
@@ -402,27 +407,34 @@ export async function createBookingOnCanonicalEngine(
   }
 
   try {
-    await deps.syncPort.emitBookingEvent({
-      eventType: "booking.created",
-      idempotencyKey: `booking.created:${pending.id}`,
-      payload: {
-        bookingId: (confirmed ?? pending).id,
-        userId: createInput.userId,
-        rubitimeId,
-        bookingType: pendingRow.bookingType,
-        city: pendingRow.city ?? undefined,
-        category: pendingRow.category,
-        slotStart: pendingRow.slotStart,
-        slotEnd: pendingRow.slotEnd,
-        contactName: pendingRow.contactName,
-        contactPhone: pendingRow.contactPhone,
-        contactEmail: pendingRow.contactEmail ?? undefined,
-        branchServiceId: pendingRow.branchServiceId,
-        cityCodeSnapshot: pendingRow.cityCodeSnapshot,
-        serviceTitleSnapshot: pendingRow.serviceTitleSnapshot,
-        canonicalAppointmentId: appointment.id,
-      },
-    });
+    const createNotify = resolveBookingNotifyTargets(
+      "booking.created",
+      { notifyPatient: true, notifyStaff: true },
+      (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
+    );
+    if (createNotify.notifyPatient || createNotify.notifyStaff) {
+      await deps.syncPort.emitBookingEvent({
+        eventType: "booking.created",
+        idempotencyKey: `booking.created:${pending.id}`,
+        payload: {
+          bookingId: (confirmed ?? pending).id,
+          userId: createInput.userId,
+          rubitimeId,
+          bookingType: pendingRow.bookingType,
+          city: pendingRow.city ?? undefined,
+          category: pendingRow.category,
+          slotStart: pendingRow.slotStart,
+          slotEnd: pendingRow.slotEnd,
+          contactName: pendingRow.contactName,
+          contactPhone: pendingRow.contactPhone,
+          contactEmail: pendingRow.contactEmail ?? undefined,
+          branchServiceId: pendingRow.branchServiceId,
+          cityCodeSnapshot: pendingRow.cityCodeSnapshot,
+          serviceTitleSnapshot: pendingRow.serviceTitleSnapshot,
+          canonicalAppointmentId: appointment.id,
+        },
+      });
+    }
   } catch {
     // Notifications are best-effort.
   }

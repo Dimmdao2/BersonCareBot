@@ -47,6 +47,12 @@ export async function POST(request: Request, context: RouteContext) {
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
   }
+  const { loadBookingLifecycleNotificationsFromSystemSettings } = await import(
+    "@/modules/booking-notifications/settings"
+  );
+  const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(
+    (key, scope) => deps.systemSettings.getSetting(key, scope),
+  );
   await applyStaffCancelSideEffects({
     projection: deps.appointmentProjection,
     lifecycle: deps.bookingAppointmentLifecycle,
@@ -57,6 +63,7 @@ export async function POST(request: Request, context: RouteContext) {
     bookingRow: deps.patientBooking
       ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
       : null,
+    lifecycleNotificationSettings,
   });
   if (deps.payments) {
     await deps.payments.applyCancelPaymentOutcome({

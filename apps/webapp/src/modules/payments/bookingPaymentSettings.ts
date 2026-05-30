@@ -24,7 +24,10 @@ export function parseBookingPaymentSettingsValue(envelope: unknown): BookingPaym
   const defaults: BookingPaymentSettings = {
     enabled: false,
     defaultProviderId: "mock",
-    providers: [{ id: "mock", label: "Тестовый (mock)", enabled: true }],
+    providers: [
+      { id: "mock", label: "Тестовый (mock)", enabled: true },
+      { id: "yookassa", label: "ЮKassa", enabled: false },
+    ],
   };
   if (envelope === null || typeof envelope !== "object") return defaults;
   const inner =

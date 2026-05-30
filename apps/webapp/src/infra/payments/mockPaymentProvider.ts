@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { PaymentProviderPort } from "@/modules/payments/providerPort";
 
+export { getPaymentProviderAdapter } from "./paymentProviderRegistry";
+
 function signMockPayload(secret: string, body: string): string {
   return createHmac("sha256", secret).update(body).digest("hex");
 }
@@ -42,14 +44,3 @@ export function createMockPaymentProvider(): PaymentProviderPort {
   };
 }
 
-const providers = new Map<string, PaymentProviderPort>();
-
-export function getPaymentProviderAdapter(providerId: string): PaymentProviderPort {
-  if (providerId !== "mock") throw new Error(`unsupported_payment_provider:${providerId}`);
-  let adapter = providers.get(providerId);
-  if (!adapter) {
-    adapter = createMockPaymentProvider();
-    providers.set(providerId, adapter);
-  }
-  return adapter;
-}
