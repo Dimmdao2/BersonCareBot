@@ -21,13 +21,67 @@ export function stableStringifyForIdempotency(value: unknown): string {
   return JSON.stringify(String(value));
 }
 
-/**
- * Payload fields excluded from idempotency hash — must stay aligned with integrator
- * `projectionIdempotencyKey` / `hashPayload` rules (e.g. `reminder.rule.upserted` omits `updatedAt`).
- */
+/** Must stay aligned with integrator `buildReminderRuleUpsertKeyPayload`. */
+export const REMINDER_RULE_UPSERTED_FINGERPRINT_FIELDS = [
+  "integratorRuleId",
+  "integratorUserId",
+  "category",
+  "isEnabled",
+  "scheduleType",
+  "timezone",
+  "intervalMinutes",
+  "windowStartMinute",
+  "windowEndMinute",
+  "daysMask",
+  "contentMode",
+] as const;
+
 const PAYLOAD_VOLATILE_KEYS_BY_EVENT: Readonly<Record<string, readonly string[]>> = {
   "reminder.rule.upserted": ["updatedAt"],
 };
+
+function asFingerprintString(value: unknown): string | null {
+  if (typeof value === "string" && value.trim().length > 0) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(Math.trunc(value));
+  return null;
+}
+
+function asFingerprintFiniteInt(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === "string" && value.trim().length > 0) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  }
+  return null;
+}
+
+/** Canonical fingerprint object for `reminder.rule.upserted` (integrator projection key). */
+export function buildReminderRuleUpsertKeyPayload(raw: Record<string, unknown>): Record<string, unknown> {
+  const integratorRuleId = asFingerprintString(raw.integratorRuleId);
+  const integratorUserId = asFingerprintString(raw.integratorUserId);
+  const category = asFingerprintString(raw.category);
+  const scheduleType = asFingerprintString(raw.scheduleType);
+  const timezone = asFingerprintString(raw.timezone);
+  const daysMask = asFingerprintString(raw.daysMask);
+  const contentMode = asFingerprintString(raw.contentMode);
+  const intervalMinutes = asFingerprintFiniteInt(raw.intervalMinutes);
+  const windowStartMinute = asFingerprintFiniteInt(raw.windowStartMinute);
+  const windowEndMinute = asFingerprintFiniteInt(raw.windowEndMinute);
+  const isEnabled = raw.isEnabled === true;
+  return {
+    integratorRuleId: integratorRuleId ?? "",
+    integratorUserId: integratorUserId ?? "",
+    category: category ?? "",
+    isEnabled,
+    scheduleType: scheduleType ?? "",
+    timezone: timezone ?? "",
+    intervalMinutes: intervalMinutes ?? 0,
+    windowStartMinute: windowStartMinute ?? 0,
+    windowEndMinute: windowEndMinute ?? 0,
+    daysMask: daysMask ?? "",
+    contentMode: contentMode ?? "",
+  };
+}
 
 function stripVolatilePayloadFields(
   eventType: string,
@@ -42,6 +96,16 @@ function stripVolatilePayloadFields(
   return out;
 }
 
+function normalizePayloadForIdempotencyHash(
+  eventType: string,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  if (eventType === "reminder.rule.upserted") {
+    return buildReminderRuleUpsertKeyPayload(payload);
+  }
+  return stripVolatilePayloadFields(eventType, payload);
+}
+
 /** Drops volatile / transport-only top-level fields before hashing. */
 export function semanticIntegratorEventForIdempotencyHash(parsed: Record<string, unknown>): Record<string, unknown> {
   const { occurredAt: _occ, idempotencyKey: _idem, ...rest } = parsed;
@@ -50,7 +114,7 @@ export function semanticIntegratorEventForIdempotencyHash(parsed: Record<string,
   if (payload && typeof payload === "object" && !Array.isArray(payload)) {
     return {
       ...rest,
-      payload: stripVolatilePayloadFields(eventType, payload as Record<string, unknown>),
+      payload: normalizePayloadForIdempotencyHash(eventType, payload as Record<string, unknown>),
     };
   }
   return rest;
@@ -60,4 +124,12 @@ export function semanticIntegratorEventForIdempotencyHash(parsed: Record<string,
 export function computeIntegratorEventsRequestHash(parsed: Record<string, unknown>): string {
   const semantic = semanticIntegratorEventForIdempotencyHash(parsed);
   return createHash("sha256").update(stableStringifyForIdempotency(semantic)).digest("hex");
+}
+
+/** Keys in raw payload that are ignored for reminder.rule.upserted idempotency (for mismatch logs). */
+export function listIgnoredReminderRuleUpsertPayloadKeys(payload: Record<string, unknown>): string[] {
+  const allowed = new Set<string>([...REMINDER_RULE_UPSERTED_FINGERPRINT_FIELDS, "updatedAt"]);
+  return Object.keys(payload)
+    .filter((k) => !allowed.has(k))
+    .sort();
 }

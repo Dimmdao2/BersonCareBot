@@ -14,7 +14,7 @@ export function isKeyValid(key: string): boolean {
 export type CachedResponseHit =
   | { hit: true; status: number; body: Record<string, unknown> }
   | { hit: false }
-  | { hit: true; mismatch: true };
+  | { hit: true; mismatch: true; storedRequestHash: string };
 
 export async function getCachedResponse(
   key: string,
@@ -33,7 +33,9 @@ export async function getCachedResponse(
   );
   const row = res.rows[0];
   if (!row) return { hit: false };
-  if (row.request_hash !== requestHash) return { hit: true, mismatch: true };
+  if (row.request_hash !== requestHash) {
+    return { hit: true, mismatch: true, storedRequestHash: row.request_hash };
+  }
   return {
     hit: true,
     status: row.status,

@@ -13,6 +13,49 @@ function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
+function asFingerprintString(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(Math.trunc(value));
+  return null;
+}
+
+function asFingerprintFiniteInt(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  }
+  return null;
+}
+
+/** Canonical projection fingerprint for `reminder.rule.upserted` — aligned with webapp idempotency hash. */
+export function buildReminderRuleUpsertKeyPayload(raw: Record<string, unknown>): Record<string, unknown> {
+  const integratorRuleId = asFingerprintString(raw.integratorRuleId);
+  const integratorUserId = asFingerprintString(raw.integratorUserId);
+  const category = asFingerprintString(raw.category);
+  const scheduleType = asFingerprintString(raw.scheduleType);
+  const timezone = asFingerprintString(raw.timezone);
+  const daysMask = asFingerprintString(raw.daysMask);
+  const contentMode = asFingerprintString(raw.contentMode);
+  const intervalMinutes = asFingerprintFiniteInt(raw.intervalMinutes);
+  const windowStartMinute = asFingerprintFiniteInt(raw.windowStartMinute);
+  const windowEndMinute = asFingerprintFiniteInt(raw.windowEndMinute);
+  const isEnabled = raw.isEnabled === true;
+  return {
+    integratorRuleId: integratorRuleId ?? '',
+    integratorUserId: integratorUserId ?? '',
+    category: category ?? '',
+    isEnabled,
+    scheduleType: scheduleType ?? '',
+    timezone: timezone ?? '',
+    intervalMinutes: intervalMinutes ?? 0,
+    windowStartMinute: windowStartMinute ?? 0,
+    windowEndMinute: windowEndMinute ?? 0,
+    daysMask: daysMask ?? '',
+    contentMode: contentMode ?? '',
+  };
+}
+
 const BIGINT_STRING = /^\d+$/;
 
 /**
@@ -126,9 +169,11 @@ export function recomputeProjectionIdempotencyKeyAfterMerge(
     case REMINDER_RULE_UPSERTED: {
       const ruleId = asNonEmptyString(payload.integratorRuleId);
       if (!ruleId) return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));
-      const keyPayload = { ...payload } as Record<string, unknown>;
-      delete keyPayload.updatedAt;
-      return projectionIdempotencyKey(eventType, ruleId, hashPayload(keyPayload));
+      return projectionIdempotencyKey(
+        eventType,
+        ruleId,
+        hashPayload(buildReminderRuleUpsertKeyPayload(payload)),
+      );
     }
     case REMINDER_OCCURRENCE_FINALIZED: {
       const oid = asNonEmptyString(payload.integratorOccurrenceId);

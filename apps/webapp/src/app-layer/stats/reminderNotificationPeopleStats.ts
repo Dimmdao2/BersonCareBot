@@ -25,6 +25,7 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
 }): Promise<ReminderPeopleWithNotificationsStats> {
   const windowHours = opts.windowHours;
   const iana = opts.displayTimezone;
+  const ianaSql = sql`${iana}::text`;
   const db = getDrizzle();
 
   const [dailyRows, channelRows, currentRow] = await Promise.all([
@@ -45,9 +46,9 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
         SELECT generate_series(
           date_trunc(
             'day',
-            timezone(${iana}, now()) - (${windowHours}::integer * interval '1 hour')
+            timezone(${ianaSql}, now()) - (${windowHours}::integer * interval '1 hour')
           ),
-          date_trunc('day', timezone(${iana}, now())),
+          date_trunc('day', timezone(${ianaSql}, now())),
           interval '1 day'
         ) AS day_bucket
       )
@@ -55,7 +56,7 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
         ds.day_bucket::text AS bucket,
         COUNT(eu.platform_user_id)::int AS "peopleCount"
       FROM day_series ds
-      LEFT JOIN enabled_users eu ON date_trunc('day', timezone(${iana}, eu.cohort_at)) <= ds.day_bucket
+      LEFT JOIN enabled_users eu ON date_trunc('day', timezone(${ianaSql}, eu.cohort_at)) <= ds.day_bucket
       GROUP BY ds.day_bucket
       ORDER BY ds.day_bucket
     `),

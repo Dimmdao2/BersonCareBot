@@ -60,7 +60,7 @@ export function isKeyValid(key: string): boolean {
 export type CachedResponseHit =
   | { hit: true; status: number; body: Record<string, unknown> }
   | { hit: false }
-  | { hit: true; mismatch: true };
+  | { hit: true; mismatch: true; storedRequestHash: string };
 
 export async function getCachedResponse(
   key: string,
@@ -70,7 +70,9 @@ export async function getCachedResponse(
   if (purgeExpiredInPlace(store)) await persistStore(store);
   const entry = store[key];
   if (!entry) return { hit: false };
-  if (entry.requestHash !== requestHash) return { hit: true, mismatch: true };
+  if (entry.requestHash !== requestHash) {
+    return { hit: true, mismatch: true, storedRequestHash: entry.requestHash };
+  }
   return { hit: true, status: entry.status, body: entry.responseBody };
 }
 

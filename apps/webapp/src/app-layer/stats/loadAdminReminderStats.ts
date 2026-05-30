@@ -156,14 +156,15 @@ export async function loadContentEngagementStats(opts: {
 }): Promise<ContentEngagementStatsResponse> {
   const windowHours = clampWindowHours(opts.windowHours);
   const displayTimezone = await getAppDisplayTimeZone();
+  const displayTimezoneSql = sql`${displayTimezone}::text`;
   const windowCutoffSql = sql`(now() - (${windowHours}::integer * interval '1 hour'))`;
   const pushStartHour = productAnalyticsWindowStartHour(windowHours);
   const db = getDrizzle();
 
-  const hourTruncOcc = sql`date_trunc('hour', timezone(${displayTimezone}, ${reminderOccurrenceHistory.occurredAt}))`;
-  const dayTruncOcc = sql`date_trunc('day', timezone(${displayTimezone}, ${reminderOccurrenceHistory.occurredAt}))`;
-  const hourTruncPush = sql`date_trunc('hour', timezone(${displayTimezone}, ${productAnalyticsHourly.bucketHour}))`;
-  const dayTruncPush = sql`date_trunc('day', timezone(${displayTimezone}, ${productAnalyticsHourly.bucketHour}))`;
+  const hourTruncOcc = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${reminderOccurrenceHistory.occurredAt}))`;
+  const dayTruncOcc = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${reminderOccurrenceHistory.occurredAt}))`;
+  const hourTruncPush = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${productAnalyticsHourly.bucketHour}))`;
+  const dayTruncPush = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${productAnalyticsHourly.bucketHour}))`;
 
   const [
     occRows,

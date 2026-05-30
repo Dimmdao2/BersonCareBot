@@ -41,6 +41,7 @@ import {
   upsertReminderOccurrencePlanned,
   upsertReminderRule,
 } from './repos/reminders.js';
+import { buildReminderRuleUpsertKeyPayload } from './repos/projectionOutboxMergePolicy.js';
 import {
   REMINDER_RULE_UPSERTED,
   REMINDER_OCCURRENCE_FINALIZED,
@@ -930,7 +931,7 @@ export function createDbWritePort(input: {
                 ? { scheduleData: mutation.params.scheduleData }
                 : {}),
             });
-            const keyPayload = {
+            const keyPayload = buildReminderRuleUpsertKeyPayload({
               integratorRuleId: id,
               integratorUserId: canonicalUserId,
               category,
@@ -942,7 +943,7 @@ export function createDbWritePort(input: {
               windowEndMinute,
               daysMask,
               contentMode,
-            };
+            });
             const payload = { ...keyPayload, updatedAt };
             pendingRule.push({
               eventType: REMINDER_RULE_UPSERTED,

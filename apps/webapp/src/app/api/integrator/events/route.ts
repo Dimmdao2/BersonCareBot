@@ -4,7 +4,11 @@ import { upsertOpenConflictLog, writeAuditLog, computeConflictKeyFromCandidateId
 import { integratorAutoMergeAnomalyDedupKey } from "@/modules/admin-incidents/integratorAutoMergeAnomalyDedup";
 import { sendAdminIncidentRelayAlert } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import { getPool } from "@/app-layer/db/client";
-import { computeIntegratorEventsRequestHash } from "@/app-layer/idempotency/integratorEventSemanticHash";
+import {
+  computeIntegratorEventsRequestHash,
+  listIgnoredReminderRuleUpsertPayloadKeys,
+} from "@/app-layer/idempotency/integratorEventSemanticHash";
+import { logger } from "@/infra/logging/logger";
 import { handleIntegratorEvent } from "@/modules/integrator/events";
 import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
@@ -62,6 +66,22 @@ export async function POST(request: Request) {
   const requestHash = computeIntegratorEventsRequestHash(parsed);
   const cached = await getCachedResponse(idempotencyKey, requestHash);
   if (cached.hit && "mismatch" in cached && cached.mismatch) {
+    const payload =
+      typeof eventBody.payload === "object" && eventBody.payload !== null
+        ? eventBody.payload
+        : undefined;
+    logger.warn(
+      {
+        eventType: eventBody.eventType,
+        idempotencyKey,
+        incomingRequestHash: requestHash,
+        storedRequestHash: cached.storedRequestHash,
+        ...(eventBody.eventType === "reminder.rule.upserted" && payload
+          ? { ignoredPayloadKeys: listIgnoredReminderRuleUpsertPayloadKeys(payload) }
+          : {}),
+      },
+      "integrator_events_idempotency_mismatch",
+    );
     return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
   }
   if (cached.hit && "status" in cached) {
@@ -167,6 +187,15 @@ export async function POST(request: Request) {
     if (!stored) {
       const again = await getCachedResponse(idempotencyKey, requestHash);
       if (again.hit && "mismatch" in again && again.mismatch) {
+        logger.warn(
+          {
+            eventType: eventBody.eventType,
+            idempotencyKey,
+            incomingRequestHash: requestHash,
+            storedRequestHash: again.storedRequestHash,
+          },
+          "integrator_events_idempotency_mismatch",
+        );
         return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
       }
       if (again.hit && "status" in again) {

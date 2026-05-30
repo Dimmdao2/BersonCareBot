@@ -90,5 +90,14 @@ describe('projectionOutboxMergePolicy', () => {
     const movedUser = deepReplaceIntegratorUserIdInValue(base, '1', '2') as Record<string, unknown>;
     const kUser = recomputeProjectionIdempotencyKeyAfterMerge(REMINDER_RULE_UPSERTED, movedUser, 7);
     expect(kUser).not.toBe(kA);
+
+    const withLegacyFields = {
+      ...base,
+      updatedAt: '2026-01-03T00:00:00.000Z',
+      linkedObjectType: 'lfk_complex',
+      scheduleData: { foo: 1 },
+    };
+    const kLegacy = recomputeProjectionIdempotencyKeyAfterMerge(REMINDER_RULE_UPSERTED, withLegacyFields, 8);
+    expect(kLegacy).toBe(kA);
   });
 });
