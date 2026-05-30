@@ -168,6 +168,7 @@ import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatien
 import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPatientMessage";
 import { notifyDoctorPatientProgramNote } from "@/modules/messaging/notifyDoctorPatientProgramNote";
 import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
+import { createSendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { createPgReminderRulesPort } from "@/infra/repos/pgReminderRules";
@@ -192,6 +193,7 @@ import { createClinicalTestsService, createTestSetsService } from "@/modules/tes
 import { createClinicalTestMeasureKindsService } from "@/modules/tests/measureKindsService";
 import { createRecommendationsService } from "@/modules/recommendations/service";
 import { createCommentsService } from "@/modules/comments/service";
+import { createProgramItemDiscussionService } from "@/modules/program-item-discussion/service";
 import { createTreatmentProgramService } from "@/modules/treatment-program/service";
 import { createTreatmentProgramInstanceService } from "@/modules/treatment-program/instance-service";
 import { snapshotPromoDaysBeforeRefresh } from "@/app-layer/treatment-program/snapshotPromoDaysBeforeRefresh";
@@ -219,6 +221,8 @@ import {
 import { createPgTreatmentProgramTestAttemptsPort } from "@/infra/repos/pgTreatmentProgramTestAttempts";
 import { createPgProgramActionLogPort } from "@/infra/repos/pgProgramActionLog";
 import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
+import { createPgProgramItemDiscussionPort } from "@/infra/repos/pgProgramItemDiscussion";
+import { createInMemoryProgramItemDiscussionPort } from "@/infra/repos/inMemoryProgramItemDiscussion";
 import { createPgPatientDiarySnapshotsPort } from "@/infra/repos/pgPatientDiarySnapshots";
 import { createInMemoryPatientDiarySnapshotsPort } from "@/infra/repos/inMemoryPatientDiarySnapshots";
 import { createPgTreatmentProgramEventsPort } from "@/infra/repos/pgTreatmentProgramEvents";
@@ -640,6 +644,10 @@ const treatmentProgramEventsPort = treatmentProgramInMemoryPersistence
   ? treatmentProgramInMemoryPersistence.eventsPort
   : createPgTreatmentProgramEventsPort();
 const programActionLogPort = !inMemoryRepos ? createPgProgramActionLogPort() : createInMemoryProgramActionLogPort();
+const programItemDiscussionPort = !inMemoryRepos
+  ? createPgProgramItemDiscussionPort()
+  : createInMemoryProgramItemDiscussionPort();
+const programItemDiscussionService = createProgramItemDiscussionService(programItemDiscussionPort);
 const patientDiarySnapshotsPort = !inMemoryRepos
   ? createPgPatientDiarySnapshotsPort()
   : createInMemoryPatientDiarySnapshotsPort();
@@ -827,9 +835,15 @@ const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
   getProfileEmailFields: (platformUserId) => userProjectionPort.getProfileEmailFields(platformUserId),
   getChannelBindings: loadPlatformUserChannelBindings,
 });
+const sendProgramNoteReply = createSendProgramNoteReply({
+  supportCommunication: supportCommunicationPort,
+  discussion: programItemDiscussionService,
+  notifyPatientOfDoctorReply: notifyPatientDoctorReply,
+});
 const integratorSupportBridge = createIntegratorSupportBridge({
   port: supportCommunicationPort,
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
+  sendProgramNoteReply,
 });
 const patientMessagingService = createPatientMessagingService(supportCommunicationPort, {
   isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),
@@ -1268,6 +1282,7 @@ function _buildAppDeps() {
     },
     supportCommunication: supportCommunicationPort,
     integratorSupportBridge,
+    sendProgramNoteReply,
     /** Поддержка: чат webapp ↔ админ (этап 8). */
     messaging: {
       patient: patientMessagingService,
@@ -1324,6 +1339,7 @@ function _buildAppDeps() {
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
     treatmentProgramPatientActions,
+    programItemDiscussion: programItemDiscussionService,
     /** Журнал действий пациента по программе (дневник недели и др.). */
     programActionLog: programActionLogPort,
     patientDiarySnapshots: patientDiarySnapshotsPort,

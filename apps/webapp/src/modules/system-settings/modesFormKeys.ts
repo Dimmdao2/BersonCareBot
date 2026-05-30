@@ -15,6 +15,9 @@ export const MODES_FORM_KEYS = [
   "test_account_identifiers",
   "patient_app_maintenance_enabled",
   "patient_app_maintenance_message",
+  "patient_program_discussion_doctor_reply_from_log_enabled",
+  "patient_program_discussion_ui_enabled",
+  "patient_program_discussion_media_submission_enabled",
   "patient_booking_url",
 ] as const;
 

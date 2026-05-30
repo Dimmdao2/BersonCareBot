@@ -33,6 +33,9 @@ export type AdminSettingsSectionProps = {
   testAccountMaxIds: string;
   patientAppMaintenanceEnabled: boolean;
   patientAppMaintenanceMessage: string;
+  patientProgramDiscussionDoctorReplyFromLogEnabled: boolean;
+  patientProgramDiscussionUiEnabled: boolean;
+  patientProgramDiscussionMediaSubmissionEnabled: boolean;
   patientBookingUrl: string;
 };
 
@@ -65,6 +68,9 @@ export function AdminSettingsSection({
   testAccountMaxIds,
   patientAppMaintenanceEnabled,
   patientAppMaintenanceMessage,
+  patientProgramDiscussionDoctorReplyFromLogEnabled,
+  patientProgramDiscussionUiEnabled,
+  patientProgramDiscussionMediaSubmissionEnabled,
   patientBookingUrl,
 }: AdminSettingsSectionProps) {
   const [devModeVal, setDevModeVal] = useState(devMode);
@@ -84,6 +90,13 @@ export function AdminSettingsSection({
 
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(patientAppMaintenanceEnabled);
   const [maintenanceMessage, setMaintenanceMessage] = useState(patientAppMaintenanceMessage);
+  const [discussionDoctorReplyFromLogEnabled, setDiscussionDoctorReplyFromLogEnabled] = useState(
+    patientProgramDiscussionDoctorReplyFromLogEnabled,
+  );
+  const [discussionUiEnabled, setDiscussionUiEnabled] = useState(patientProgramDiscussionUiEnabled);
+  const [discussionMediaSubmissionEnabled, setDiscussionMediaSubmissionEnabled] = useState(
+    patientProgramDiscussionMediaSubmissionEnabled,
+  );
   const [bookingUrl, setBookingUrl] = useState(patientBookingUrl);
 
   const [saved, setSaved] = useState(false);
@@ -145,6 +158,15 @@ export function AdminSettingsSection({
           { key: "test_account_identifiers", value: testPayload },
           { key: "patient_app_maintenance_enabled", value: maintenanceEnabled },
           { key: "patient_app_maintenance_message", value: msgRaw },
+          {
+            key: "patient_program_discussion_doctor_reply_from_log_enabled",
+            value: discussionDoctorReplyFromLogEnabled,
+          },
+          { key: "patient_program_discussion_ui_enabled", value: discussionUiEnabled },
+          {
+            key: "patient_program_discussion_media_submission_enabled",
+            value: discussionMediaSubmissionEnabled,
+          },
           { key: "patient_booking_url", value: bookingRaw },
         ]);
         if (!batchResult.ok) {
@@ -316,6 +338,31 @@ export function AdminSettingsSection({
             />
             <span className="text-xs text-muted-foreground">Пусто — URL по умолчанию (Rubitime).</span>
           </label>
+        </section>
+
+        <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
+          <p className="text-sm font-semibold">Обсуждения в программе лечения</p>
+          <LabeledSwitch
+            label="Doctor: ответ из журнала программы"
+            checked={discussionDoctorReplyFromLogEnabled}
+            onCheckedChange={(v) => setDiscussionDoctorReplyFromLogEnabled(Boolean(v))}
+            disabled={isPending}
+            switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
+          />
+          <LabeledSwitch
+            label="Patient: UI обсуждений по элементам"
+            checked={discussionUiEnabled}
+            onCheckedChange={(v) => setDiscussionUiEnabled(Boolean(v))}
+            disabled={isPending}
+            switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
+          />
+          <LabeledSwitch
+            label="Patient: загрузка фото/видео в обсуждение"
+            checked={discussionMediaSubmissionEnabled}
+            onCheckedChange={(v) => setDiscussionMediaSubmissionEnabled(Boolean(v))}
+            disabled={isPending}
+            switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
+          />
         </section>
 
         <LabeledSwitch

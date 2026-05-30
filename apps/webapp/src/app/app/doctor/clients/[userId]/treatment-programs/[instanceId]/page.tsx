@@ -40,6 +40,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
     clinicalTests,
     recommendations,
     contentPagesAll,
+    discussionDoctorReplyFlag,
   ] = await Promise.all([
     deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
     deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
@@ -53,6 +54,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
     deps.clinicalTests.listClinicalTests({ archiveScope: "active" }),
     deps.recommendations.listRecommendations({ includeArchived: false }),
     deps.contentPages.listAll(),
+    deps.systemSettings.getSetting("patient_program_discussion_doctor_reply_from_log_enabled", "admin"),
   ]);
 
   const treatmentProgramLibrary = buildTreatmentProgramLibraryPickers({
@@ -66,6 +68,10 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
 
   const patientDisplayNameRaw = clientProfile?.identity.displayName?.trim() ?? "";
   const patientDisplayName = patientDisplayNameRaw !== "" ? patientDisplayNameRaw : "Имя не указано";
+  const doctorReplyFromLogEnabled =
+    discussionDoctorReplyFlag?.valueJson !== null &&
+    typeof discussionDoctorReplyFlag?.valueJson === "object" &&
+    (discussionDoctorReplyFlag.valueJson as Record<string, unknown>).value === true;
 
   const qs = scopeParam ? `?scope=${encodeURIComponent(scopeParam)}` : "";
   const backHref = `/app/doctor/clients/${encodeURIComponent(userId)}${qs}`;
@@ -90,6 +96,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
         isAdmin={session.user.role === "admin"}
         appDisplayTimeZone={appDisplayTimeZone}
         treatmentProgramLibrary={treatmentProgramLibrary}
+        doctorReplyFromLogEnabled={doctorReplyFromLogEnabled}
       />
     </AppShell>
   );

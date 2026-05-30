@@ -1054,6 +1054,7 @@ export const mediaFiles = pgTable("media_files", {
 	videoDurationSeconds: integer("video_duration_seconds"),
 	availableQualitiesJson: jsonb("available_qualities_json"),
 	videoDeliveryOverride: text("video_delivery_override"),
+	usagePurpose: text("usage_purpose"),
 }, (table) => [
 	index("idx_media_files_created_at").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
 	index("idx_media_files_folder_created").using("btree", table.folderId.asc().nullsLast().op("uuid_ops"), table.createdAt.desc().nullsFirst().op("timestamptz_ops")).where(sql`(folder_id IS NOT NULL)`),
@@ -1081,6 +1082,10 @@ export const mediaFiles = pgTable("media_files", {
 	check(
 		"media_files_video_delivery_override_check",
 		sql`(video_delivery_override IS NULL) OR (video_delivery_override = ANY (ARRAY['mp4'::text, 'hls'::text, 'auto'::text]))`,
+	),
+	check(
+		"media_files_usage_purpose_check",
+		sql`(usage_purpose IS NULL) OR (usage_purpose = ANY (ARRAY['program_item_submission'::text]))`,
 	),
 ]);
 

@@ -44,6 +44,9 @@ const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   "video_hls_reconcile_enabled",
   "patient_home_morning_ping_enabled",
   "patient_home_warmup_skip_to_next_available_enabled",
+  "patient_program_discussion_doctor_reply_from_log_enabled",
+  "patient_program_discussion_ui_enabled",
+  "patient_program_discussion_media_submission_enabled",
 ]);
 
 const ADMIN_SCOPE_KEYS = [
@@ -65,6 +68,9 @@ const ADMIN_SCOPE_KEYS = [
   "app_display_timezone",
   "patient_app_maintenance_enabled",
   "patient_app_maintenance_message",
+  "patient_program_discussion_doctor_reply_from_log_enabled",
+  "patient_program_discussion_ui_enabled",
+  "patient_program_discussion_media_submission_enabled",
   "video_hls_pipeline_enabled",
   "video_hls_new_uploads_auto_transcode",
   "video_hls_reconcile_enabled",

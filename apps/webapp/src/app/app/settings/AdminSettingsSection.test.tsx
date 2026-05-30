@@ -27,6 +27,9 @@ const baseProps = {
   testAccountMaxIds: "",
   patientAppMaintenanceEnabled: false,
   patientAppMaintenanceMessage: "msg",
+  patientProgramDiscussionDoctorReplyFromLogEnabled: false,
+  patientProgramDiscussionUiEnabled: false,
+  patientProgramDiscussionMediaSubmissionEnabled: false,
   patientBookingUrl: "https://example.com/book",
 };
 
@@ -50,7 +53,7 @@ describe("AdminSettingsSection", () => {
     await waitFor(() => expect(patchBatchMock).toHaveBeenCalledTimes(1));
 
     const items = patchBatchMock.mock.calls[0]![0] as { key: string; value: unknown }[];
-    expect(items).toHaveLength(13);
+    expect(items).toHaveLength(16);
     const keys = items.map((i) => i.key);
     expect(keys).toEqual(
       expect.arrayContaining([
@@ -66,6 +69,9 @@ describe("AdminSettingsSection", () => {
         "test_account_identifiers",
         "patient_app_maintenance_enabled",
         "patient_app_maintenance_message",
+        "patient_program_discussion_doctor_reply_from_log_enabled",
+        "patient_program_discussion_ui_enabled",
+        "patient_program_discussion_media_submission_enabled",
         "patient_booking_url",
       ]),
     );

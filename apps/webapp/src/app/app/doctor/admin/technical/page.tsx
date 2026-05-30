@@ -27,6 +27,11 @@ export default async function DoctorAdminTechnicalPage() {
           testAccountMaxIds={diagnostics.testAccountIdentifiers.maxIds.join(" ")}
           patientAppMaintenanceEnabled={diagnostics.patientAppMaintenanceEnabled}
           patientAppMaintenanceMessage={diagnostics.patientAppMaintenanceMessage}
+          patientProgramDiscussionDoctorReplyFromLogEnabled={
+            diagnostics.patientProgramDiscussionDoctorReplyFromLogEnabled
+          }
+          patientProgramDiscussionUiEnabled={diagnostics.patientProgramDiscussionUiEnabled}
+          patientProgramDiscussionMediaSubmissionEnabled={diagnostics.patientProgramDiscussionMediaSubmissionEnabled}
           patientBookingUrl={diagnostics.patientBookingUrl}
         />
         <AdminIncidentAlertsSection initialConfig={diagnostics.incidentAlertsConfig} />

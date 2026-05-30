@@ -15,6 +15,8 @@ export type ProgramNoteReplyContext = {
   exerciseTitle: string;
   integratorConversationId: string;
   programNoteReplyState: string;
+  assignmentSource: string;
+  itemStatus: string;
 };
 
 export function buildProgramNoteReplyState(integratorConversationId: string, stageItemId: string): string {
@@ -39,6 +41,8 @@ export async function resolveProgramNoteReplyContext(
   const rows = await db
     .select({
       patientUserId: treatmentProgramInstances.patientUserId,
+      assignmentSource: treatmentProgramInstances.assignmentSource,
+      itemStatus: treatmentProgramInstanceStageItems.status,
       snapshot: treatmentProgramInstanceStageItems.snapshot,
     })
     .from(treatmentProgramInstanceStageItems)
@@ -63,6 +67,8 @@ export async function resolveProgramNoteReplyContext(
     exerciseTitle: exerciseTitleFromSnapshot(row.snapshot),
     integratorConversationId,
     programNoteReplyState: buildProgramNoteReplyState(integratorConversationId, id),
+    assignmentSource: row.assignmentSource,
+    itemStatus: row.itemStatus,
   };
 }
 
@@ -72,5 +78,22 @@ export function formatPatientExerciseCommentReplyText(input: {
 }): string {
   const title = input.exerciseTitle.trim() || "Пункт программы";
   const body = input.doctorText.trim();
-  return `Ответ на ваш комментарий к упражнению «${title}»:\n\n${body}`;
+  return `${patientExerciseCommentReplyPrefix(title)}\n\n${body}`;
+}
+
+export function patientExerciseCommentReplyPrefix(exerciseTitle: string): string {
+  const title = exerciseTitle.trim() || "Пункт программы";
+  return `Ответ на ваш комментарий к упражнению «${title}»:`;
+}
+
+export function extractPatientExerciseCommentReplyBody(input: {
+  exerciseTitle: string;
+  messageText: string;
+}): string | null {
+  const prefix = patientExerciseCommentReplyPrefix(input.exerciseTitle);
+  const text = input.messageText;
+  if (!text.startsWith(prefix)) return null;
+  const body = text.slice(prefix.length).trim();
+  if (body.length === 0) return null;
+  return body;
 }

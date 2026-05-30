@@ -132,6 +132,9 @@ export type AdminDiagnosticsSettings = {
   testAccountIdentifiers: { phones: string[]; telegramIds: string[]; maxIds: string[] };
   patientAppMaintenanceEnabled: boolean;
   patientAppMaintenanceMessage: string;
+  patientProgramDiscussionDoctorReplyFromLogEnabled: boolean;
+  patientProgramDiscussionUiEnabled: boolean;
+  patientProgramDiscussionMediaSubmissionEnabled: boolean;
   patientBookingUrl: string;
   incidentAlertsConfig: AdminIncidentAlertConfig;
 };
@@ -247,6 +250,27 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
       const raw = getValueJson(adminSettingsList.find((x) => x.key === "patient_app_maintenance_message")?.valueJson, "");
       const s = typeof raw === "string" ? raw.trim() : "";
       return s.length > 0 ? s : DEFAULT_PATIENT_MAINTENANCE_MESSAGE;
+    })(),
+    patientProgramDiscussionDoctorReplyFromLogEnabled: (() => {
+      const raw = getValueJson<unknown>(
+        adminSettingsList.find((x) => x.key === "patient_program_discussion_doctor_reply_from_log_enabled")?.valueJson,
+        false,
+      );
+      return raw === true || raw === "true";
+    })(),
+    patientProgramDiscussionUiEnabled: (() => {
+      const raw = getValueJson<unknown>(
+        adminSettingsList.find((x) => x.key === "patient_program_discussion_ui_enabled")?.valueJson,
+        false,
+      );
+      return raw === true || raw === "true";
+    })(),
+    patientProgramDiscussionMediaSubmissionEnabled: (() => {
+      const raw = getValueJson<unknown>(
+        adminSettingsList.find((x) => x.key === "patient_program_discussion_media_submission_enabled")?.valueJson,
+        false,
+      );
+      return raw === true || raw === "true";
     })(),
     patientBookingUrl: (() => {
       const raw = getValueJson(adminSettingsList.find((x) => x.key === "patient_booking_url")?.valueJson, "");

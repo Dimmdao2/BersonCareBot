@@ -49,6 +49,12 @@ export const ALLOWED_KEYS = [
   "patient_app_maintenance_enabled",
   /** Текст на экране техработ (пациентское приложение). */
   "patient_app_maintenance_message",
+  /** Rollout фазы 1: interim-ответ врача из журнала программы (doctor UI + API). */
+  "patient_program_discussion_doctor_reply_from_log_enabled",
+  /** Rollout фазы 3+: patient UI обсуждений элементов программы. */
+  "patient_program_discussion_ui_enabled",
+  /** Rollout фазы 6+: загрузка submission-медиа в обсуждение. */
+  "patient_program_discussion_media_submission_enabled",
   /** VIDEO_HLS_DELIVERY: глобально включает очередь транскода и poll в `apps/media-worker` (admin UI + worker read same row). */
   "video_hls_pipeline_enabled",
   /** VIDEO_HLS_DELIVERY phase-06: после confirm/multipart complete для video/* ставить job в очередь (вместе с `video_hls_pipeline_enabled`). */

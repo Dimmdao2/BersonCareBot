@@ -41,7 +41,12 @@ export function normalizeModesFormPatchItem(
     return { ok: true, valueJson: normalizedValue };
   }
 
-  if (key === "patient_app_maintenance_enabled") {
+  if (
+    key === "patient_app_maintenance_enabled" ||
+    key === "patient_program_discussion_doctor_reply_from_log_enabled" ||
+    key === "patient_program_discussion_ui_enabled" ||
+    key === "patient_program_discussion_media_submission_enabled"
+  ) {
     const inner = normalizedValue.value;
     const b =
       typeof inner === "boolean"

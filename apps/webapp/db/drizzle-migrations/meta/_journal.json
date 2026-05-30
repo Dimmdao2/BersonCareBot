@@ -687,6 +687,13 @@
       "when": 1784000000000,
       "tag": "0097_platform_user_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1784100000000,
+      "tag": "0098_program_item_discussion_stage1",
+      "breakpoints": true
     }
   ]
 }

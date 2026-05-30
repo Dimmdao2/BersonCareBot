@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import { Activity, BookOpen, ClipboardList, Layers, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -120,6 +121,13 @@ function doctorTimelineWhoRu(actorId: string | null, opts: { currentUserId: stri
   if (actorId === opts.currentUserId) return "Вы";
   if (actorId === opts.patientUserId) return "Пациент";
   return "Врач";
+}
+
+function isPatientObservationActionRow(row: ProgramActionLogListRow): boolean {
+  if (row.actionType !== "note") return false;
+  if (!row.note?.trim()) return false;
+  const source = row.payload && typeof row.payload.source === "string" ? row.payload.source : null;
+  return source === "patient_observation";
 }
 
 /** Строки тестов из снимка элемента этапа (`tests[]` в JSON снимка). */
@@ -778,6 +786,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   isAdmin?: boolean;
   appDisplayTimeZone: string;
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
+  doctorReplyFromLogEnabled: boolean;
 }) {
   const {
     patientProfileHref,
@@ -791,6 +800,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
     isAdmin = false,
     appDisplayTimeZone,
     treatmentProgramLibrary,
+    doctorReplyFromLogEnabled,
   } = props;
   const [detail, setDetail] = useState(initial);
   const [error, setError] = useState<string | null>(null);
@@ -799,6 +809,11 @@ export function TreatmentProgramInstanceDetailClient(props: {
   const [programEvents, setProgramEvents] = useState<TreatmentProgramEventRow[]>(initialEvents);
   const [actionLog, setActionLog] = useState<ProgramActionLogListRow[]>(initialActionLog);
   const [addLibrarySpec, setAddLibrarySpec] = useState<InstanceAddLibraryItemSpec | null>(null);
+  const [noteReplyOpen, setNoteReplyOpen] = useState(false);
+  const [noteReplyTarget, setNoteReplyTarget] = useState<ProgramActionLogListRow | null>(null);
+  const [noteReplyDraft, setNoteReplyDraft] = useState("");
+  const [noteReplySaving, setNoteReplySaving] = useState(false);
+  const [noteReplyError, setNoteReplyError] = useState<string | null>(null);
 
   const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
   const stageTitles = useMemo(() => stageTitleById(detail), [detail]);
@@ -894,6 +909,57 @@ export function TreatmentProgramInstanceDetailClient(props: {
     },
     [detail.id, detail.status, stageZero, refresh],
   );
+
+  const openProgramNoteReplyDialog = useCallback((row: ProgramActionLogListRow) => {
+    if (!doctorReplyFromLogEnabled) return;
+    if (!isPatientObservationActionRow(row)) return;
+    setNoteReplyTarget(row);
+    setNoteReplyDraft("");
+    setNoteReplyError(null);
+    setNoteReplyOpen(true);
+  }, [doctorReplyFromLogEnabled]);
+
+  const sendProgramNoteReply = useCallback(async () => {
+    if (!noteReplyTarget) return;
+    const text = noteReplyDraft.trim();
+    if (!text) {
+      setNoteReplyError("Введите ответ");
+      return;
+    }
+    setNoteReplySaving(true);
+    setNoteReplyError(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/items/${encodeURIComponent(noteReplyTarget.instanceStageItemId)}/program-note-reply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data?.ok) {
+        setNoteReplyError(
+          data?.error === "feature_disabled"
+            ? "Функция временно отключена"
+            : data?.error === "program_not_doctor_assigned"
+              ? "Ответы доступны только для программ, назначенных врачом"
+              : data?.error === "program_item_not_active"
+                ? "Элемент уже не активен"
+                : data?.error === "not_found" || data?.error === "stage_item_not_found"
+                  ? "Элемент не найден"
+                  : data?.error ?? "Не удалось отправить ответ",
+        );
+        return;
+      }
+      setNoteReplyOpen(false);
+      setNoteReplyTarget(null);
+      setNoteReplyDraft("");
+      toast.success("Ответ отправлен");
+    } finally {
+      setNoteReplySaving(false);
+    }
+  }, [detail.id, noteReplyDraft, noteReplyTarget]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -992,8 +1058,29 @@ export function TreatmentProgramInstanceDetailClient(props: {
                 {actionLog.map((row) => {
                   const itemLabel = itemTitles.get(row.instanceStageItemId) ?? "Элемент";
                   const diffRu = formatLfkPostSessionDifficultyRu(row.payload?.difficulty);
+                  const canReply = doctorReplyFromLogEnabled && isPatientObservationActionRow(row);
                   return (
-                    <li key={row.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
+                    <li
+                      key={row.id}
+                      className={cn(
+                        "rounded-md border border-border/60 bg-muted/10 px-2 py-1.5",
+                        canReply &&
+                          "cursor-pointer transition-colors hover:bg-muted/25 focus-within:bg-muted/25",
+                      )}
+                      role={canReply ? "button" : undefined}
+                      tabIndex={canReply ? 0 : undefined}
+                      onClick={canReply ? () => openProgramNoteReplyDialog(row) : undefined}
+                      onKeyDown={
+                        canReply
+                          ? (event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                openProgramNoteReplyDialog(row);
+                              }
+                            }
+                          : undefined
+                      }
+                    >
                       <span className="text-xs text-muted-foreground">
                         {formatBookingDateTimeShortStyleRu(row.createdAt, appDisplayTimeZone)}
                       </span>
@@ -1180,6 +1267,54 @@ export function TreatmentProgramInstanceDetailClient(props: {
         editLocked={isProgramInstanceEditLocked(detail.status)}
         onAdded={refresh}
       />
+      <Dialog
+        open={noteReplyOpen}
+        onOpenChange={(open) => {
+          setNoteReplyOpen(open);
+          if (!open) {
+            setNoteReplyError(null);
+            setNoteReplySaving(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ответ на заметку пациента</DialogTitle>
+            <DialogDescription>
+              {noteReplyTarget?.note?.trim() ? `Заметка: ${noteReplyTarget.note.trim()}` : "Добавьте ответ"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="doctor-program-note-reply-text">Ответ</Label>
+            <Textarea
+              id="doctor-program-note-reply-text"
+              value={noteReplyDraft}
+              onChange={(event) => setNoteReplyDraft(event.target.value)}
+              rows={4}
+              maxLength={4000}
+              placeholder="Введите ответ"
+            />
+            {noteReplyError ? (
+              <p className="text-xs text-destructive" role="alert">
+                {noteReplyError}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={noteReplySaving}
+              onClick={() => setNoteReplyOpen(false)}
+            >
+              Отмена
+            </Button>
+            <Button type="button" disabled={noteReplySaving} onClick={() => void sendProgramNoteReply()}>
+              {noteReplySaving ? "Отправка…" : "Отправить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -4,10 +4,7 @@ import {
   webappPlatformConversationId,
 } from "@/modules/messaging/supportConversationIds";
 import type { NotifyPatientDoctorReplyParams } from "@/modules/messaging/notifyPatientDoctorReply";
-import {
-  formatPatientExerciseCommentReplyText,
-  resolveProgramNoteReplyContext,
-} from "@/modules/messaging/programNoteReplyContext";
+import type { SendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
 
 export type IntegratorSupportSyncMessageInput = {
   platformUserId: string;
@@ -30,6 +27,7 @@ export type IntegratorSupportAdminReplyInput = {
 export function createIntegratorSupportBridge(deps: {
   port: SupportCommunicationPort;
   notifyPatientOfDoctorReply?: (params: NotifyPatientDoctorReplyParams) => Promise<void>;
+  sendProgramNoteReply?: SendProgramNoteReply;
 }) {
   return {
     async syncUserMessage(input: IntegratorSupportSyncMessageInput): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -69,15 +67,17 @@ export function createIntegratorSupportBridge(deps: {
       const trimmed = input.text.trim();
       if (!trimmed) return { ok: false, error: "empty" };
 
-      let chatText = trimmed;
-      if (input.programNoteStageItemId) {
-        const noteCtx = await resolveProgramNoteReplyContext(input.programNoteStageItemId);
-        if (noteCtx && noteCtx.platformUserId === platformUserId) {
-          chatText = formatPatientExerciseCommentReplyText({
-            exerciseTitle: noteCtx.exerciseTitle,
-            doctorText: trimmed,
-          });
-        }
+      if (input.programNoteStageItemId && deps.sendProgramNoteReply) {
+        const result = await deps.sendProgramNoteReply({
+          integratorConversationId: input.integratorConversationId,
+          integratorMessageId: input.integratorMessageId,
+          stageItemId: input.programNoteStageItemId,
+          text: trimmed,
+          createdAt: input.createdAt,
+          source: "webapp",
+        });
+        if (!result.ok) return result;
+        return { ok: true };
       }
 
       const { id: conversationId } = await deps.port.ensureWebappConversationForUser(platformUserId);
@@ -88,7 +88,7 @@ export function createIntegratorSupportBridge(deps: {
         conversationId,
         integratorMessageId,
         senderRole: "admin",
-        text: chatText,
+        text: trimmed,
         source: "webapp",
         createdAt,
       });
@@ -97,7 +97,7 @@ export function createIntegratorSupportBridge(deps: {
         await deps.notifyPatientOfDoctorReply({
           platformUserId,
           messageId: integratorMessageId,
-          text: chatText,
+          text: trimmed,
         });
       }
 
