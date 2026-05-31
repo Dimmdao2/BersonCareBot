@@ -485,3 +485,32 @@
 - Обновлены ссылки в `docs/README.md`, architecture docs, `api.md`, `program-detail/README.md`, `TREATMENT_PROGRAM_EXECUTION_RULES.md`.
 - Plan frontmatter: `status: completed`; todos `phase-audit-p0-props` completed, `phase-ci-merge-barrier` cancelled.
 - Инициатива снята с блока «Активные инициативы» в `docs/README.md`.
+
+---
+
+## 2026-05-31 — Integrator: reply-flow «Ответить» на observation (Telegram + MAX)
+
+### Симптом
+
+После callback `program_reply:{stageItemId}` бот писал «Напишите ответ…», но следующий текст админа уходил в `*.admin.message.unmatched` (`replyMode` не включался). В БД `telegram_state.state` оставался `idle` вместо `admin_reply:webapp:platform:…#pn:{stageItemId}`.
+
+### Причина
+
+1. В `telegram.admin.programNote.reply.start` / `max.admin.programNote.reply.start` шаг `user.state.set` брал `state` из `{{values.programNoteReplyState}}` — orchestrator подставляет `values.*` **до** выполнения шагов, на плане значение пустое.
+2. `writePort` для `user.state.set` и чтение `userState` в `getLinkDataByIdentity` работали только для `telegram`, не для `max`.
+
+### Исправление (integrator)
+
+- `webapp.programNote.replyBegin` после успешного `beginProgramNoteReply` явно пишет `user.state.set` (`resource` + `channelUserId` + state); fallback `channelUserId` через `readMessengerChannelUserId` (`meta` / `incoming.chatId`).
+- Из admin `scripts.json` (telegram + max) удалён шаг `user.state.set` с `values.programNoteReplyState`.
+- `setUserState` / `getUserState` / `getLinkDataByIdentity(max)` — runtime state через `telegram_state` по `identity_id`; `writePort` принимает `max`.
+- `mergeIntegratorUsers`: дедуп `user_subscriptions` по `topic_id` (не `subscription_id`).
+- Общее: `templateInterpolation` + повторная подстановка `values.*` в `handleIncomingEvent` между шагами (на будущее для цепочек вроде reminders).
+
+Док: `apps/integrator/src/content/telegram/admin/admin.md` (шаг 2).
+
+### Проверки
+
+- `pnpm --dir apps/integrator exec vitest --run` (выборочно): `programNoteReplyFlow`, `handleIncomingEvent`, `templateInterpolation`, `channelUsers`, `mergeIntegratorUsers`, `executeAction` (`programNote`), `buildPlan`, `routing`.
+- Full `pnpm run ci` — не гонялся в этой сессии.
+- E2E webhook на полный `program_reply` → текст → пациент — не добавлялся.

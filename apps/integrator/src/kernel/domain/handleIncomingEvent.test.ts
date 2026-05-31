@@ -306,10 +306,55 @@ describe('handleIncomingEvent (v3)', () => {
     });
 
     expect(executeAction).toHaveBeenCalledTimes(1);
-    expect(result.actions).toHaveLength(2);
+    expect(result.actions).toHaveLength(1);
     expect(result.results).toHaveLength(1);
     expect(result.intents.some((i) => (i.payload as { message?: { text?: string } }).message?.text === 'Номер привязан')).toBe(
       false,
     );
+  });
+
+  it('re-interpolates values.* from prior step results before executing the next step', async () => {
+    const event: IncomingEvent = {
+      type: 'callback.received',
+      meta: {
+        eventId: 'evt-values-runtime',
+        occurredAt: '2026-05-31T12:00:00.000Z',
+        source: 'telegram',
+        userId: '1',
+      },
+      payload: { incoming: { callbackQueryId: 'cq-1' } },
+    };
+
+    const buildPlan = vi.fn().mockResolvedValue([
+      { id: 's1', kind: 'reminders.rules.get', mode: 'sync', payload: {} },
+      {
+        id: 's2',
+        kind: 'reminders.rule.toggle',
+        mode: 'sync',
+        payload: { userId: '{{values.reminderUserId}}', category: 'exercise' },
+      },
+    ]) as unknown as () => Promise<Step[]>;
+
+    const executeAction = vi.fn<
+      (action: { id: string; type: string; params?: Record<string, unknown> }, context: DomainContext) => Promise<ActionResult>
+    >().mockImplementation(async (action) => {
+      if (action.id === 's1') {
+        return {
+          actionId: 's1',
+          status: 'success',
+          values: { reminderUserId: 'integrator-user-99' },
+        };
+      }
+      return { actionId: action.id, status: 'success' };
+    });
+
+    await handleIncomingEvent(event, {
+      buildBaseContext: vi.fn().mockResolvedValue({ actor: { isAdmin: false }, identityLinks: [] }),
+      buildPlan,
+      executeAction,
+    });
+
+    expect(executeAction).toHaveBeenCalledTimes(2);
+    expect(executeAction.mock.calls[1]?.[0].params?.userId).toBe('integrator-user-99');
   });
 });

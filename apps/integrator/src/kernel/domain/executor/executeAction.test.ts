@@ -4686,7 +4686,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
     expect(result.intents?.filter((i) => i.type === 'callback.answer')).toHaveLength(1);
   });
 
-  it('webapp.programNote.replyBegin success returns programNoteReplyState without abortPlan', async () => {
+  it('webapp.programNote.replyBegin success persists reply state and returns programNoteReplyState', async () => {
     const replyState = 'admin_reply:webapp:platform:doc-1#pn:stage-42';
     const webappEventsPort = {
       beginProgramNoteReply: vi.fn().mockResolvedValue({
@@ -4697,6 +4697,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
       listSymptomTrackings: vi.fn(),
       listLfkComplexes: vi.fn(),
     };
+    const writeDb = vi.fn().mockResolvedValue(undefined);
     const adminCtx: DomainContext = {
       ...ctx,
       event: {
@@ -4705,12 +4706,13 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
           eventId: 'evt-pn-ok',
           occurredAt: '2026-04-11T12:00:00.000Z',
           source: 'telegram',
-          userId: '1',
+          userId: '9001',
         },
         payload: {
           incoming: {
             kind: 'callback',
             chatId: 1,
+            channelUserId: '9001',
             callbackQueryId: 'cq-pn-ok',
             stageItemId: 'stage-42',
           },
@@ -4725,7 +4727,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
         params: { stageItemId: 'stage-42' },
       },
       adminCtx,
-      { webappEventsPort },
+      { webappEventsPort, writePort: { writeDb } },
     );
     expect(result.status).toBe('success');
     expect(result.abortPlan).toBeUndefined();
@@ -4733,11 +4735,66 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
       programNoteReply: { ok: true },
       programNoteReplyState: replyState,
     });
+    expect(result.writes).toEqual([
+      expect.objectContaining({
+        type: 'user.state.set',
+        params: { resource: 'telegram', channelUserId: '9001', state: replyState },
+      }),
+    ]);
+    expect(writeDb).toHaveBeenCalled();
     expect(result.intents?.some((i) => i.type === 'callback.answer')).toBeFalsy();
     expect(webappEventsPort.beginProgramNoteReply).toHaveBeenCalledWith({
       stageItemId: 'stage-42',
       idempotencyKey: 'program-note-reply-begin:stage-42',
     });
+  });
+
+  it('webapp.programNote.replyBegin persists state using incoming.chatId when meta.userId absent', async () => {
+    const replyState = 'admin_reply:webapp:platform:doc#pn:stage-7';
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const webappEventsPort = {
+      beginProgramNoteReply: vi.fn().mockResolvedValue({
+        ok: true,
+        programNoteReplyState: replyState,
+      }),
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const adminCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'callback.received',
+        meta: {
+          eventId: 'evt-pn-chat',
+          occurredAt: '2026-05-31T12:00:00.000Z',
+          source: 'max',
+        },
+        payload: {
+          incoming: {
+            kind: 'callback',
+            chatId: 4242,
+            stageItemId: 'stage-7',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'pn-begin-chat',
+        type: 'webapp.programNote.replyBegin',
+        mode: 'sync',
+        params: { stageItemId: 'stage-7' },
+      },
+      adminCtx,
+      { webappEventsPort, writePort: { writeDb } },
+    );
+    expect(result.writes).toEqual([
+      expect.objectContaining({
+        type: 'user.state.set',
+        params: { resource: 'max', channelUserId: '4242', state: replyState },
+      }),
+    ]);
   });
 
   it('webapp.phoneMessengerBind.complete login with webappHomeUrl adds open-app url inline message', async () => {

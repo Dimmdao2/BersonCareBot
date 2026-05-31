@@ -96,7 +96,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
     const getSql = flatExec(execute, 1);
     expect(getSql).toContain('LEFT JOIN telegram_state');
-    expect(getSql).toContain("i.resource = 'telegram'");
+    expect(getSql).toContain('i.resource = telegram');
   });
 
   it('setUserPhone writes canonical contact only', async () => {
@@ -285,7 +285,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(sqlText).toContain('legacy_contact_phone');
   });
 
-  it('getLinkDataByIdentity (max) uses public bindings + legacy contacts without telegram_state', async () => {
+  it('getLinkDataByIdentity (max) uses public bindings + telegram_state for runtime state', async () => {
     const { db, query, execute } = createDbMock();
     mockDefaultLinkedPhoneStrategyQuery(query);
     execute.mockResolvedValueOnce({
@@ -293,6 +293,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
         {
           user_id: '3',
           channel_id: '999',
+          user_state: 'admin_reply:webapp:platform:u#pn:item-1',
           pub_phone: '+79990000000',
           legacy_contact_phone: null,
         },
@@ -303,13 +304,23 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     const row = await getLinkDataByIdentity(db, 'max', '999');
     expect(row?.phoneNormalized).toBe('+79990000000');
     expect(row?.username).toBeNull();
-    expect(row?.userState).toBeNull();
+    expect(row?.userState).toBe('admin_reply:webapp:platform:u#pn:item-1');
     const sqlText = flatExec(execute, 0);
     expect(sqlText).toContain('public.user_channel_bindings');
     expect(sqlText).toContain('pub_phone');
     expect(sqlText).toContain('legacy_contact_phone');
     expect(sqlText).toContain('max');
-    expect(sqlText).not.toContain('telegram_state');
+    expect(sqlText).toContain('telegram_state');
+  });
+
+  it('setUserState (max) targets max identity in telegram_state', async () => {
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
+    await setUserState(db, '999', 'admin_reply:test', 'max');
+
+    const setSql = flatExec(execute, 0);
+    expect(setSql).toContain('INSERT INTO telegram_state');
+    expect(setSql).toContain('i.resource = max');
   });
 
   it('getLinkDataByIdentity returns null phone when neither public nor labeled contact has a number', async () => {

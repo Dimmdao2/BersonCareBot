@@ -384,7 +384,7 @@ export async function mergeIntegratorUsers(
        USING user_subscriptions w
        WHERE us.user_id = ${loser}::bigint
          AND w.user_id = ${winner}::bigint
-         AND us.subscription_id = w.subscription_id
+         AND us.topic_id = w.topic_id
     `,
     );
     const userSubscriptionsDeletedDuplicate = usd.rowCount ?? 0;

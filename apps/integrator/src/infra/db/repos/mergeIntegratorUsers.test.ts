@@ -76,6 +76,11 @@ describe('mergeIntegratorUsers', () => {
     const outboxSql = sql.find((s) => s.includes('projection_outbox'));
     expect(outboxSql).toBeDefined();
     expect(outboxSql).toContain("status = 'pending'");
+
+    const subsDedupSql = sql.find((s) => s.startsWith('DELETE FROM user_subscriptions'));
+    expect(subsDedupSql).toBeDefined();
+    expect(subsDedupSql).toContain('topic_id');
+    expect(subsDedupSql).not.toContain('subscription_id');
   });
 
   it('throws when a user row is missing', async () => {

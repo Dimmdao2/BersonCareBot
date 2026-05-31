@@ -20,6 +20,8 @@ import type {
 } from '../contracts/index.js';
 import type { DbWriteMutation } from '../contracts/index.js';
 import { executeAction } from './executor/executeAction.js';
+import { buildScriptInterpolationVars } from '../orchestrator/scriptVars.js';
+import { interpolateTemplate } from '../orchestrator/templateInterpolation.js';
 
 type HandleIncomingEventDeps = {
   readPort?: DbReadPort;
@@ -37,13 +39,20 @@ export type DomainHandleIncomingResult = {
   jobs: DeliveryJob[];
 };
 
-/** Превращает шаг плана в действие для исполнителя. */
-function toAction(step: Step): Action {
+/** Превращает шаг плана в действие; подставляет `values.*` из накопленных результатов шагов. */
+function toAction(step: Step, context: DomainContext): Action {
+  const vars = {
+    event: context.event,
+    context: context.base,
+    ...buildScriptInterpolationVars({ event: context.event, context: context.base }),
+    values: context.values,
+  };
+  const params = interpolateTemplate(step.payload, vars) as Record<string, unknown>;
   return {
     id: step.id,
     type: step.kind,
     mode: step.mode,
-    params: step.payload,
+    params,
   };
 }
 
@@ -288,7 +297,7 @@ export async function handleIncomingEvent(
     ? await deps.buildPlan({ event, context: base })
     : [];
 
-  const actions = steps.map(toAction);
+  const actions: Action[] = [];
   const execute = deps.executeAction
     ? deps.executeAction
     : (action: Action, ctx: DomainContext) => executeAction(action, ctx);
@@ -298,7 +307,9 @@ export async function handleIncomingEvent(
   const intents: OutgoingIntent[] = [];
   const jobs: DeliveryJob[] = [];
 
-  for (const action of actions) {
+  for (const step of steps) {
+    const action = toAction(step, context);
+    actions.push(action);
     const result = await execute(action, context);
     results.push(result);
     if (result.values) {

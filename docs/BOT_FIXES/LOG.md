@@ -27,3 +27,22 @@
 ### Backlog (вне инициативы)
 
 - Native Telegram-reply без inline «Ответить» (`message_id → conversationId`).
+
+---
+
+## 2026-05-31 — program_reply: state + replyMode (Telegram + MAX)
+
+### Симптом / причина
+
+См. `docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/LOG.md` (§ 2026-05-31): пустой `{{values.programNoteReplyState}}` в плане, `max` без персистенции state.
+
+### Сделано
+
+- State выставляется в `replyBegin`, не в script-step с `values.*`.
+- MAX: `user.state.set` / read `userState` как у telegram (`telegram_state` по identity).
+- Runtime re-interpolation `values.*` между шагами плана.
+- `mergeIntegratorUsers`: `topic_id` в DELETE дубликатов подписок.
+
+### Проверки
+
+- Integrator unit-тесты по зоне (см. LOG инициативы); full `ci` — не в этой сессии.

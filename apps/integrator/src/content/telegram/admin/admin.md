@@ -17,7 +17,7 @@
 ## Ответ на наблюдение по упражнению (program note)
 
 1. Уведомление [`notifyDoctorPatientProgramNote`](../../../../../webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts) → кнопка **«Ответить»** → callback **`program_reply:{stageItemId}`** (укладывается в лимит 64 байта).
-2. `telegram.admin.programNote.reply.start` / `max.admin.programNote.reply.start` → `webapp.programNote.replyBegin` → state `admin_reply:webapp:platform:{userId}#pn:{stageItemId}`.
+2. `telegram.admin.programNote.reply.start` / `max.admin.programNote.reply.start` → `webapp.programNote.replyBegin` (внутри экшена — `user.state.set` с state `admin_reply:webapp:platform:{userId}#pn:{stageItemId}` для telegram и max).
 3. Текст → `*.admin.reply.message` → `admin-reply` с **`programNoteStageItemId`** → префикс в чате пациента.
 4. После ответа state **не** сбрасывается в `idle` (можно дописать несколько сообщений); **«Дополнить ответ»** снова через `program_reply:{stageItemId}`.
 

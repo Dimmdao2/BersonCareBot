@@ -18,6 +18,8 @@ import type {
 import { logger } from '../../infra/observability/logger.js';
 import { telegramReplyTextToMenuAction } from '../../integrations/telegram/mapIn.js';
 import { MESSENGER_START_SPECIAL_ACTIONS } from './messengerStartConstants.js';
+import { buildScriptInterpolationVars } from './scriptVars.js';
+import { getPathValue, interpolateTemplate } from './templateInterpolation.js';
 
 type StepWhen = {
   path?: string;
@@ -57,23 +59,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function getPathValue(source: unknown, path: string): unknown {
-  const segments = path.split('.').filter((part) => part.length > 0);
-  let current: unknown = source;
-  for (const segment of segments) {
-    if (!isRecord(current) && !Array.isArray(current)) return undefined;
-    const index = Number(segment);
-    if (Array.isArray(current) && Number.isInteger(index)) {
-      current = current[index];
-    } else if (isRecord(current)) {
-      current = current[segment];
-    } else {
-      return undefined;
-    }
-  }
-  return current;
-}
-
 function evaluateWhen(when: StepWhen, vars: Record<string, unknown>): boolean {
   if (when.and && Array.isArray(when.and)) {
     return when.and.every((item) => evaluateWhen(item, vars));
@@ -98,43 +83,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function isTruthyString(value: unknown): boolean {
   return typeof value === 'string' && value.trim().length > 0;
-}
-
-/** Собирает из события и контекста переменные для сравнения с условиями сценария (действие, текст, состояние пользователя и т.д.). */
-function normalizeMatchVars(input: OrchestratorInput): Record<string, unknown> {
-  const eventPayload = asRecord(input.event.payload) ?? {};
-  const normalizedInput = asRecord(eventPayload.incoming) ?? eventPayload;
-  const facts = asRecord(input.context.facts) ?? {};
-  const ctx = input.context as Record<string, unknown>;
-  const conversationState = isTruthyString(normalizedInput.userState)
-    ? normalizedInput.userState
-    : (isTruthyString(ctx.conversationState) ? ctx.conversationState : undefined);
-  const actor = {
-    ...(asRecord(input.context.actor) ?? {}),
-    ...(typeof normalizedInput.channelUserId === 'number' || isTruthyString(normalizedInput.channelUserId)
-      ? { channelUserId: normalizedInput.channelUserId }
-      : {}),
-    ...(typeof normalizedInput.channelId === 'string' ? { channelUserId: normalizedInput.channelId } : {}),
-    ...(typeof normalizedInput.chatId === 'number' ? { chatId: normalizedInput.chatId } : {}),
-    ...(typeof normalizedInput.channelUsername === 'string' ? { username: normalizedInput.channelUsername } : {}),
-    ...(conversationState ? { userState: conversationState } : {}),
-  };
-  const context = {
-    ...input.context,
-    ...(conversationState ? { conversationState } : {}),
-    ...(typeof normalizedInput.hasLinkedPhone === 'boolean' ? { linkedPhone: normalizedInput.hasLinkedPhone } : {}),
-  };
-
-  return {
-    source: input.event.meta.source,
-    event: input.event.type,
-    meta: input.event.meta,
-    payload: input.event.payload,
-    input: normalizedInput,
-    actor,
-    context,
-    facts,
-  };
 }
 
 function countSpecificity(match: unknown): number {
@@ -236,38 +184,11 @@ function scriptMatches(script: ScriptShape, input: OrchestratorInput): { matched
     return { matched: true, specificity: 0 };
   }
 
-  const vars = normalizeMatchVars(input);
+  const vars = buildScriptInterpolationVars(input);
   return {
     matched: matchesScriptPattern(vars, match),
     specificity: countSpecificity(match),
   };
-}
-
-function interpolate(value: unknown, vars: Record<string, unknown>): unknown {
-  if (typeof value === 'string') {
-    const singlePlaceholder = value.match(/^\{\{\s*([\w.]+)\s*\}\}$/);
-    if (singlePlaceholder) {
-      const key = singlePlaceholder[1];
-      if (typeof key !== 'string') return '';
-      const replacement = getPathValue(vars, key);
-      return replacement === undefined ? '' : replacement;
-    }
-    return value.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
-      const replacement = getPathValue(vars, key);
-      return typeof replacement === 'string' || typeof replacement === 'number'
-        ? String(replacement)
-        : '';
-    });
-  }
-  if (Array.isArray(value)) return value.map((item) => interpolate(item, vars));
-  if (isRecord(value)) {
-    const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) {
-      result[k] = interpolate(v, vars);
-    }
-    return result;
-  }
-  return value;
 }
 
 async function runContextQueries(
@@ -283,7 +204,7 @@ async function runContextQueries(
     const name = typeof item.name === 'string' ? item.name : '';
     if (!name) continue;
     const varsWithQueries = { ...vars, queries: results };
-    const query = interpolate(item.query, varsWithQueries) as ContextQuery;
+    const query = interpolateTemplate(item.query, varsWithQueries) as ContextQuery;
     if (!isRecord(query) || typeof query.type !== 'string') continue;
     results[name] = await contextQueryPort.request(query);
   }
@@ -291,7 +212,7 @@ async function runContextQueries(
 }
 
 function toPlanStep(step: ScriptStep, input: OrchestratorInput, index: number, vars: Record<string, unknown>): OrchestratorPlanStep {
-  const interpolated = interpolate(step.params ?? {}, vars) as Record<string, unknown>;
+  const interpolated = interpolateTemplate(step.params ?? {}, vars, { preserveUnresolvedValues: true }) as Record<string, unknown>;
   // Логгирование параметров шага для callback-сценариев (debug, уровень LOG_LEVEL)
   if (input.event.type === 'callback.received') {
     logger.debug(
@@ -364,7 +285,7 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
   const source = input.event.meta.source;
   if (source !== 'telegram' && source !== 'max') return null;
 
-  const vars = normalizeMatchVars(input);
+  const vars = buildScriptInterpolationVars(input);
   const inc = asRecord(vars.input) ?? {};
   const text = typeof inc.text === 'string' ? inc.text.trim() : '';
   const action = typeof inc.action === 'string' ? inc.action.trim() : '';
@@ -445,7 +366,7 @@ function buildLinkedPhoneCallbackGatePlan(input: OrchestratorInput): Orchestrato
   if (input.context.actor?.isAdmin === true) return null;
   if (input.context.linkedPhone === true) return null;
 
-  const vars = normalizeMatchVars(input);
+  const vars = buildScriptInterpolationVars(input);
   const inc = asRecord(vars.input) ?? {};
   const callbackQueryId = typeof inc.callbackQueryId === 'string' ? inc.callbackQueryId.trim() : '';
   if (!callbackQueryId) return null;
@@ -535,7 +456,7 @@ export async function buildPlan(
   const baseVars = {
     event: input.event,
     context: input.context,
-    ...normalizeMatchVars(input),
+    ...buildScriptInterpolationVars(input),
   } as Record<string, unknown>;
   if (input.event.type === 'callback.received') {
     logger.debug({ baseVars }, '[orchestrator][buildPlan] baseVars');

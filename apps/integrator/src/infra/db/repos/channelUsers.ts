@@ -178,18 +178,19 @@ export async function upsertUser(
   }
 }
 
-/** Sets dialog state for a channel user. */
+/** Sets dialog state for a messenger identity (telegram_state keyed by identity_id). */
 export async function setUserState(
   db: DbPort,
   channelUserId: string,
   state: string | null,
+  resource: 'telegram' | 'max' = 'telegram',
 ): Promise<void> {
   try {
     await runIntegratorSql(db, sql`
     WITH target_identity AS (
       SELECT i.id
       FROM identities i
-      WHERE i.resource = 'telegram'
+      WHERE i.resource = ${resource}
         AND i.external_id = ${channelUserId}
       LIMIT 1
     ),
@@ -210,15 +211,19 @@ export async function setUserState(
   }
 }
 
-/** Reads dialog state for a channel user. */
-export async function getUserState(db: DbPort, channelUserId: string): Promise<string | null> {
+/** Reads dialog state for a messenger identity. */
+export async function getUserState(
+  db: DbPort,
+  channelUserId: string,
+  resource: 'telegram' | 'max' = 'telegram',
+): Promise<string | null> {
   try {
     const res = await runIntegratorSql<{ state: string | null }>(db, sql`
     SELECT ts.state
     FROM identities i
     LEFT JOIN telegram_state ts
       ON ts.identity_id = i.id
-    WHERE i.resource = 'telegram'
+    WHERE i.resource = ${resource}
       AND i.external_id = ${channelUserId}
     LIMIT 1
   `);
@@ -504,13 +509,16 @@ export async function getLinkDataByIdentity(
     const res = await runIntegratorSql<{
       user_id: string;
       channel_id: string;
+      user_state: string | null;
       pub_phone: string | null;
       legacy_contact_phone: string | null;
     }>(db, sql`
     SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id,
+           ts.state AS user_state,
            NULLIF(TRIM(pub.phone_normalized), '') AS pub_phone,
            cp.phone AS legacy_contact_phone
     FROM identities i
+    LEFT JOIN telegram_state ts ON ts.identity_id = i.id
     LEFT JOIN LATERAL (
       WITH RECURSIVE pu_chain AS (
         SELECT pu.id, pu.phone_normalized, pu.merged_into_id
@@ -567,7 +575,7 @@ export async function getLinkDataByIdentity(
       channelId: row.channel_id,
       username: null,
       phoneNormalized: phone,
-      userState: null,
+      userState: row.user_state,
     };
   } catch (err) {
     logger.error({ err, resource, externalId, branch: 'non_telegram' }, 'getLinkDataByIdentity error');

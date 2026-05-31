@@ -43,6 +43,7 @@ import {
   readIncomingMessageId,
   readConversationId,
   readExternalActorId,
+  readMessengerChannelUserId,
   readIncomingPhone,
   formatActorLabel,
   nowIso,
@@ -760,6 +761,25 @@ export async function executeAction(
           abortPlan: true,
         };
       }
+      const channelUserId = readMessengerChannelUserId(ctx, action);
+      const resource = ctx.event.meta.source;
+      const writes: DbWriteMutation[] = [];
+      if (
+        deps.writePort
+        && channelUserId
+        && (resource === 'telegram' || resource === 'max')
+      ) {
+        const stateWrite: DbWriteMutation = {
+          type: 'user.state.set',
+          params: {
+            resource,
+            channelUserId,
+            state: result.programNoteReplyState,
+          },
+        };
+        await persistWrites(deps.writePort, [stateWrite]);
+        writes.push(stateWrite);
+      }
       return {
         actionId: action.id,
         status: 'success',
@@ -767,6 +787,7 @@ export async function executeAction(
           programNoteReply: { ok: true },
           programNoteReplyState: result.programNoteReplyState,
         },
+        ...(writes.length > 0 ? { writes } : {}),
       };
     }
 

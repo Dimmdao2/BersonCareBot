@@ -356,14 +356,6 @@
         }
       },
       {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "{{values.programNoteReplyState}}"
-        }
-      },
-      {
         "action": "message.send",
         "mode": "async",
         "params": {

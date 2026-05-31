@@ -417,10 +417,10 @@ export function createDbWritePort(input: {
         }
         case 'user.state.set': {
           const resource = readResource(mutation.params);
-          if (resource !== 'telegram') return;
+          if (resource !== 'telegram' && resource !== 'max') return;
           const channelUserId = readChannelUserId(mutation.params);
           if (!channelUserId) return;
-          await setUserState(db, channelUserId, asNullableString(mutation.params.state));
+          await setUserState(db, channelUserId, asNullableString(mutation.params.state), resource);
           return;
         }
         case 'user.phone.link': {

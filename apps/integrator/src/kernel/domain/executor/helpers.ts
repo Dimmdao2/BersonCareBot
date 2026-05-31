@@ -156,6 +156,17 @@ export function readExternalActorId(ctx: DomainContext): string | null {
     ?? asString(readIncoming(ctx).channelId);
 }
 
+/** Channel external id for messenger writes (meta → params → incoming chat/channel). */
+export function readMessengerChannelUserId(ctx: DomainContext, action?: { params?: Record<string, unknown> }): string | null {
+  const params = action?.params;
+  const incoming = readIncoming(ctx);
+  return readExternalActorId(ctx)
+    ?? asNumericString(params?.channelUserId)
+    ?? asNumericString(params?.channelId)
+    ?? asNumericString(incoming.channelUserId)
+    ?? asNumericString(incoming.chatId);
+}
+
 export function formatActorLabel(input: {
   firstName?: string | null;
   lastName?: string | null;
