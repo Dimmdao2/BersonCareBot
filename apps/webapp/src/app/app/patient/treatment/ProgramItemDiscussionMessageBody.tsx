@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PatientMediaPlaybackVideo } from "@/shared/ui/media/PatientMediaPlaybackVideo";
+import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { cn } from "@/lib/utils";
 import { patientBodyTextClass } from "@/shared/ui/patientVisual";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
@@ -37,8 +38,22 @@ export function ProgramItemDiscussionMessageBody(props: {
 
   if (mediaId) {
     const isVideo = playback?.delivery === "mp4" || playback?.delivery === "hls";
-    const thumbSrc =
-      isVideo && playback?.posterUrl ? playback.posterUrl : `/api/media/${encodeURIComponent(mediaId)}`;
+    const thumbMedia: import("@/modules/recommendations/types").RecommendationMediaItem =
+      isVideo && playback?.posterUrl
+        ? {
+            mediaType: "video",
+            mediaUrl: playback.posterUrl,
+            previewSmUrl: playback.posterUrl,
+            previewMdUrl: playback.posterUrl,
+            sortOrder: 0,
+          }
+        : {
+            mediaType: "image",
+            mediaUrl: `/api/media/${encodeURIComponent(mediaId)}`,
+            previewSmUrl: `/api/media/${encodeURIComponent(mediaId)}`,
+            previewMdUrl: `/api/media/${encodeURIComponent(mediaId)}`,
+            sortOrder: 0,
+          };
 
     return (
       <>
@@ -47,14 +62,10 @@ export function ProgramItemDiscussionMessageBody(props: {
           className="block max-w-full overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]"
           onClick={() => setPlayerOpen(true)}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={thumbSrc}
-            alt=""
-            className={cn(
-              "max-w-full object-cover",
-              isVideo ? "aspect-video w-44" : "max-h-48 w-auto object-contain",
-            )}
+          <PatientCatalogMediaStaticThumb
+            media={thumbMedia}
+            frameClassName={cn(isVideo ? "aspect-video w-44" : "max-h-48 w-auto")}
+            sizes="176px"
           />
         </button>
         <Dialog open={playerOpen} onOpenChange={setPlayerOpen}>

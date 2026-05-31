@@ -1,16 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Camera, Info, MessageCircle, NotebookText, PlayCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { AlertTriangle, Info, MessageCircle, NotebookText } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import {
-  formatRelativePatientCalendarDayRu,
-  isPersistentRecommendation,
-} from "@/modules/treatment-program/stage-semantics";
+import { isPersistentRecommendation } from "@/modules/treatment-program/stage-semantics";
 import {
   mergeLastActivityDisplayedIso,
   primaryMediaForStageItem,
@@ -40,9 +37,11 @@ import {
 } from "@/app/app/patient/treatment/programCompositionOrder";
 import { ProgramItemDiscussionDialog } from "./ProgramItemDiscussionDialog";
 import {
-  ProgramItemDiscussionMediaPicker,
-  type ProgramItemDiscussionMediaPickerHandle,
-} from "./ProgramItemDiscussionMediaPicker";
+  ProgramItemCompleteDialog,
+  type ProgramItemCompleteDialogPayload,
+} from "./ProgramItemCompleteDialog";
+import { PatientProgramItemExecutionRow } from "./PatientProgramItemExecutionRow";
+import { postProgramItemComplete } from "./postProgramItemComplete";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];
 
@@ -138,9 +137,6 @@ function ProgramTileHintButton(props: { ariaLabel: string; icon: ReactNode; chil
   );
 }
 
-/** Как в модалке «Состав этапа» (`PatientTreatmentProgramDetailClient` — `MAX_COMPOSITION_TODAY_DOTS`). */
-const MAX_TODAY_DOTS = 24;
-
 type ItemDiscussionSummary = {
   totalCount: number;
   unreadCount: number;
@@ -151,30 +147,21 @@ function PatientProgramTileSimpleCompleteButton(props: {
   completedAt: string | null;
   lastDoneAtIso: string | undefined;
   busy: string | null;
-  base: string;
-  refresh: () => Promise<void>;
-  setBusy: (v: string | null) => void;
-  setError: (v: string | null) => void;
   planItemDoneRepeatCooldownMs: number;
   containerClassName?: string;
+  onOpenComplete: (itemId: string) => void;
 }) {
   const {
     itemId,
     completedAt,
     lastDoneAtIso,
     busy,
-    base,
-    refresh,
-    setBusy,
-    setError,
     planItemDoneRepeatCooldownMs,
     containerClassName,
+    onOpenComplete,
   } = props;
   const merged = mergeLastActivityDisplayedIso(lastDoneAtIso, completedAt);
   const doneFrozen = isItemDoneCooldownActive(merged, planItemDoneRepeatCooldownMs);
-  /* Скрыто: подпись cooldown — при возврате раскомментировать и импорт formatPlanItemDoneCooldownCaption + itemDoneCooldownMinutesRemaining.
-  const cooldownMinutes = itemDoneCooldownMinutesRemaining(merged, planItemDoneRepeatCooldownMs);
-  */
 
   return (
     <div className={cn("flex min-w-0 flex-1 basis-0 flex-col gap-0.5", containerClassName)}>
@@ -186,63 +173,15 @@ function PatientProgramTileSimpleCompleteButton(props: {
           doneFrozen && patientSimpleCompleteDoneButtonToneClass,
         )}
         disabled={busy !== null || doneFrozen}
-        onClick={async (e) => {
+        onClick={(e) => {
           e.stopPropagation();
-          setBusy(itemId);
-          setError(null);
-          try {
-            const res = await fetch(`${base}/${encodeURIComponent(itemId)}/progress/complete`, {
-              method: "POST",
-            });
-            const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-            if (!res.ok || !data?.ok) {
-              setError(data?.error ?? "Ошибка");
-              return;
-            }
-            await refresh();
-          } finally {
-            setBusy(null);
-          }
+          onOpenComplete(itemId);
         }}
       >
         <span className="w-full text-center leading-tight">
           {doneFrozen ? "Выполнено" : "Отметить выполнение"}
         </span>
       </button>
-      {/* Скрыто: строка «Можно отметить повторно…» — см. cooldownMinutes выше.
-      {doneFrozen && cooldownMinutes != null ? (
-        <p className={cn(patientMutedTextClass, "text-center text-[10px] leading-tight")}>
-          {formatPlanItemDoneCooldownCaption(cooldownMinutes)}
-        </p>
-      ) : null}
-      */}
-    </div>
-  );
-}
-
-function PatientProgramTileTodayDots(props: { todayCount: number }) {
-  const { todayCount } = props;
-  const dotCount = Math.min(todayCount, MAX_TODAY_DOTS);
-  const dotOverflow = todayCount > MAX_TODAY_DOTS ? todayCount - MAX_TODAY_DOTS : 0;
-  return (
-    <div
-      className="flex min-h-[10px] shrink-0 flex-wrap items-center justify-start gap-0.5"
-      aria-label={todayCount === 0 ? "Сегодня не отмечено" : `Сегодня отмечено ${todayCount} раз`}
-    >
-      {todayCount === 0 ? (
-        <span className="size-2 shrink-0 rounded-full bg-muted-foreground/35" aria-hidden />
-      ) : (
-        <>
-          {Array.from({ length: dotCount }, (_, i) => (
-            <span key={i} className="size-2 shrink-0 rounded-full bg-[#16a34a]" aria-hidden />
-          ))}
-          {dotOverflow > 0 ? (
-            <span className="text-[10px] font-medium leading-none text-muted-foreground" aria-hidden>
-              +{dotOverflow}
-            </span>
-          ) : null}
-        </>
-      )}
     </div>
   );
 }
@@ -298,8 +237,8 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   );
 
   const [discussionDialogItemId, setDiscussionDialogItemId] = useState<string | null>(null);
-  const [mediaPickItemId, setMediaPickItemId] = useState<string | null>(null);
-  const mediaPickerRef = useRef<ProgramItemDiscussionMediaPickerHandle>(null);
+  const [completeDialogItemId, setCompleteDialogItemId] = useState<string | null>(null);
+  const [completeSubmitting, setCompleteSubmitting] = useState(false);
   const [discussionSummaryByItemId, setDiscussionSummaryByItemId] = useState<Record<string, ItemDiscussionSummary>>(
     {},
   );
@@ -366,6 +305,32 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     return () => clearTimeout(timer);
   }, [loadDiscussionSummary]);
 
+  const handleTileComplete = useCallback(
+    async (payload: ProgramItemCompleteDialogPayload) => {
+      if (!completeDialogItemId) return;
+      setCompleteSubmitting(true);
+      setBusy(completeDialogItemId);
+      setError(null);
+      try {
+        const result = await postProgramItemComplete({
+          base,
+          itemId: completeDialogItemId,
+          payload,
+        });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setCompleteDialogItemId(null);
+        await refresh();
+      } finally {
+        setCompleteSubmitting(false);
+        setBusy(null);
+      }
+    },
+    [base, completeDialogItemId, refresh, setBusy, setError],
+  );
+
   if (visibleProgramItems.length === 0) return null;
 
   const itemProgramHref = (itemId: string) =>
@@ -373,7 +338,6 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
 
   const renderTile = (item: InstanceStageItem): ReactNode => {
     const media = primaryMediaForStageItem(item);
-    const isVideo = media?.mediaType === "video";
     const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
     const todayCount = doneTodayCountByItemId[item.id] ?? 0;
     const readOnlyTile = readOnly || contentBlocked;
@@ -413,18 +377,6 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 frameClassName="h-full w-full rounded-none"
                 sizes="72px"
               />
-              <div
-                className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20"
-                aria-hidden
-              >
-                {isVideo ? (
-                  <PlayCircle className="size-8 text-white/45 drop-shadow-md" />
-                ) : (
-                  <span className="rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                    Открыть
-                  </span>
-                )}
-              </div>
             </Link>
             <div className="flex min-h-[72px] min-w-0 flex-1 flex-col self-stretch">
               <Link
@@ -447,15 +399,12 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
               </Link>
 
             <div className="mt-auto flex w-full min-w-0 shrink-0 items-start justify-between gap-2">
-              <div className="flex min-w-0 flex-1 flex-col gap-0">
-                <p className={cn(patientMutedTextClass, "text-xs leading-tight")}>Выполнялось</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className={cn(patientMutedTextClass, "shrink-0 text-xs leading-tight")}>
-                    {lastIso ? formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone) : "Никогда"}
-                  </p>
-                  <PatientProgramTileTodayDots todayCount={todayCount} />
-                </div>
-              </div>
+              <PatientProgramItemExecutionRow
+                lastIso={lastIso}
+                todayCount={todayCount}
+                appDisplayTimeZone={appDisplayTimeZone}
+                variant="tile"
+              />
               {hasHintRow ? (
                 <div className="flex shrink-0 flex-wrap items-start justify-end gap-0.5">
                   {hasDescription ? (
@@ -501,51 +450,29 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           {!readOnlyTile ? (
             <div className="mt-1.5 flex w-full min-w-0 gap-2 border-t border-[var(--patient-border)] pt-2">
               {allowPatientObservationComment ? (
-                <>
-                  <button
-                    type="button"
-                    className={cn(
-                      patientSecondaryActionClass,
-                      "inline-flex size-9 min-h-9 min-w-9 shrink-0 cursor-pointer items-center justify-center p-0",
-                    )}
-                    disabled={busy !== null}
-                    aria-label="Камера"
-                    onClick={() => {
-                      setError(null);
-                      if (mediaSubmissionEnabled) {
-                        setMediaPickItemId(item.id);
-                        queueMicrotask(() => mediaPickerRef.current?.openPicker());
-                        return;
-                      }
-                      setDiscussionDialogItemId(item.id);
-                    }}
-                  >
-                    <Camera className="size-4" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      patientSecondaryActionClass,
-                      "inline-flex min-h-9 min-w-[7.5rem] shrink-0 cursor-pointer items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs font-medium leading-tight",
-                    )}
-                    disabled={busy !== null}
-                    onClick={() => {
-                      setError(null);
-                      setDiscussionDialogItemId(item.id);
-                    }}
-                  >
-                    <MessageCircle className="size-3.5 shrink-0" aria-hidden />
-                    <span className="leading-tight">Комментарии</span>
-                    {discussionCount > 0 ? (
-                      <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
-                        {discussionCount}
-                      </span>
-                    ) : null}
-                    {hasDiscussionDot ? (
-                      <span className="size-1.5 shrink-0 rounded-full bg-[#ef4444]" aria-label="Есть непрочитанные комментарии" />
-                    ) : null}
-                  </button>
-                </>
+                <button
+                  type="button"
+                  className={cn(
+                    patientSecondaryActionClass,
+                    "inline-flex min-h-9 min-w-[7.5rem] shrink-0 cursor-pointer items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs font-medium leading-tight",
+                  )}
+                  disabled={busy !== null}
+                  onClick={() => {
+                    setError(null);
+                    setDiscussionDialogItemId(item.id);
+                  }}
+                >
+                  <MessageCircle className="size-3.5 shrink-0" aria-hidden />
+                  <span className="leading-tight">Комментарии</span>
+                  {discussionCount > 0 ? (
+                    <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
+                      {discussionCount}
+                    </span>
+                  ) : null}
+                  {hasDiscussionDot ? (
+                    <span className="size-1.5 shrink-0 rounded-full bg-[#ef4444]" aria-label="Есть непрочитанные комментарии" />
+                  ) : null}
+                </button>
               ) : null}
               {showSimpleCompleteFooter ? (
                 <PatientProgramTileSimpleCompleteButton
@@ -553,12 +480,9 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                   completedAt={item.completedAt}
                   lastDoneAtIso={lastDoneAtIsoByItemId[item.id]}
                   busy={busy}
-                  base={base}
-                  refresh={refresh}
-                  setBusy={setBusy}
-                  setError={setError}
                   planItemDoneRepeatCooldownMs={planItemDoneRepeatCooldownMs}
                   containerClassName={allowPatientObservationComment ? "flex-[1.45]" : undefined}
+                  onOpenComplete={setCompleteDialogItemId}
                 />
               ) : null}
             </div>
@@ -604,26 +528,12 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
         )}
       </ul>
 
-      {mediaSubmissionEnabled && mediaPickItemId ? (
-        <ProgramItemDiscussionMediaPicker
-          ref={mediaPickerRef}
-          variant="hidden"
-          instanceId={instanceId}
-          itemId={mediaPickItemId}
-          disabled={busy !== null}
-          onUploaded={() => {
-            setMediaPickItemId(null);
-            void loadDiscussionSummary();
-          }}
-          onError={(msg) => setError(msg === "network_error" ? "Ошибка сети" : "Не удалось загрузить файл")}
-        />
-      ) : null}
-
       {discussionDialogItemId ? (
         <ProgramItemDiscussionDialog
           instanceId={instanceId}
           itemId={discussionDialogItemId}
           open
+          mediaSubmissionEnabled={mediaSubmissionEnabled}
           onOpenChange={(open) => {
             if (!open) {
               setDiscussionDialogItemId(null);
@@ -633,6 +543,15 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           onRead={loadDiscussionSummary}
         />
       ) : null}
+
+      <ProgramItemCompleteDialog
+        open={completeDialogItemId != null}
+        onOpenChange={(open) => {
+          if (!open) setCompleteDialogItemId(null);
+        }}
+        onSubmit={handleTileComplete}
+        submitting={completeSubmitting}
+      />
     </section>
   );
 }

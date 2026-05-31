@@ -28,6 +28,7 @@ import type { TreatmentProgramTestResultDetailRow } from "@/modules/treatment-pr
 import type { TreatmentProgramEventRow } from "@/modules/treatment-program/types";
 import type { ProgramActionLogListRow } from "@/modules/treatment-program/types";
 import { DoctorProgramActionLogMediaPreview } from "./DoctorProgramActionLogMediaPreview";
+import { DoctorProgramItemDiscussionDialog } from "./DoctorProgramItemDiscussionDialog";
 import {
   formatNormalizedTestDecisionRu,
   formatTreatmentProgramStageStatusRu,
@@ -826,6 +827,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   const [noteReplyDraft, setNoteReplyDraft] = useState("");
   const [noteReplySaving, setNoteReplySaving] = useState(false);
   const [noteReplyError, setNoteReplyError] = useState<string | null>(null);
+  const [discussionTarget, setDiscussionTarget] = useState<{ itemId: string; label: string } | null>(null);
 
   const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
   const stageTitles = useMemo(() => stageTitleById(detail), [detail]);
@@ -930,6 +932,14 @@ export function TreatmentProgramInstanceDetailClient(props: {
     setNoteReplyError(null);
     setNoteReplyOpen(true);
   }, [doctorReplyFromLogEnabled]);
+
+  const openDiscussionDialog = useCallback(
+    (row: ProgramActionLogListRow) => {
+      const itemLabel = itemTitles.get(row.instanceStageItemId) ?? "Элемент";
+      setDiscussionTarget({ itemId: row.instanceStageItemId, label: itemLabel });
+    },
+    [itemTitles],
+  );
 
   const sendProgramNoteReply = useCallback(async () => {
     if (!noteReplyTarget) return;
@@ -1071,27 +1081,11 @@ export function TreatmentProgramInstanceDetailClient(props: {
                   const itemLabel = itemTitles.get(row.instanceStageItemId) ?? "Элемент";
                   const diffRu = formatLfkPostSessionDifficultyRu(row.payload?.difficulty);
                   const canReply = doctorReplyFromLogEnabled && isPatientObservationActionRow(row);
+                  const showDiscussion = isPatientObservationActionRow(row) || Boolean(patientMediaFileIdFromActionRow(row));
                   return (
                     <li
                       key={row.id}
-                      className={cn(
-                        "rounded-md border border-border/60 bg-muted/10 px-2 py-1.5",
-                        canReply &&
-                          "cursor-pointer transition-colors hover:bg-muted/25 focus-within:bg-muted/25",
-                      )}
-                      role={canReply ? "button" : undefined}
-                      tabIndex={canReply ? 0 : undefined}
-                      onClick={canReply ? () => openProgramNoteReplyDialog(row) : undefined}
-                      onKeyDown={
-                        canReply
-                          ? (event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                openProgramNoteReplyDialog(row);
-                              }
-                            }
-                          : undefined
-                      }
+                      className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5"
                     >
                       <span className="text-xs text-muted-foreground">
                         {formatBookingDateTimeShortStyleRu(row.createdAt, appDisplayTimeZone)}
@@ -1106,6 +1100,32 @@ export function TreatmentProgramInstanceDetailClient(props: {
                       ) : null}
                       {patientMediaFileIdFromActionRow(row) ? (
                         <DoctorProgramActionLogMediaPreview mediaFileId={patientMediaFileIdFromActionRow(row)!} />
+                      ) : null}
+                      {showDiscussion || canReply ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {showDiscussion ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => openDiscussionDialog(row)}
+                            >
+                              Обсуждение
+                            </Button>
+                          ) : null}
+                          {canReply ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => openProgramNoteReplyDialog(row)}
+                            >
+                              Ответить
+                            </Button>
+                          ) : null}
+                        </div>
                       ) : null}
                     </li>
                   );
@@ -1330,6 +1350,17 @@ export function TreatmentProgramInstanceDetailClient(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {discussionTarget ? (
+        <DoctorProgramItemDiscussionDialog
+          instanceId={detail.id}
+          itemId={discussionTarget.itemId}
+          itemLabel={discussionTarget.label}
+          open
+          onOpenChange={(open) => {
+            if (!open) setDiscussionTarget(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

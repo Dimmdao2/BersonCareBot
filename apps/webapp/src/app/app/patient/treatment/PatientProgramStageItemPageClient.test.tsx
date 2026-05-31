@@ -136,7 +136,7 @@ describe("PatientProgramStageItemPageClient", () => {
 
     expect(await screen.findByText("Инструкция от специалиста")).toBeInTheDocument();
     expect(screen.queryByText("Комментарий специалиста")).not.toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Камера" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Оставить комментарий к выполнению/i })).toBeInTheDocument();
 
     const completeButton = screen.getByRole("button", { name: /Отметить выполнение/i });

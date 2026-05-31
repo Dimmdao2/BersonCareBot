@@ -514,3 +514,29 @@
 - `pnpm --dir apps/integrator exec vitest --run` (выборочно): `programNoteReplyFlow`, `handleIncomingEvent`, `templateInterpolation`, `channelUsers`, `mergeIntegratorUsers`, `executeAction` (`programNote`), `buildPlan`, `routing`.
 - Full `pnpm run ci` — не гонялся в этой сессии.
 - E2E webhook на полный `program_reply` → текст → пациент — не добавлялся.
+
+---
+
+## 2026-06-01 — Gaps plan (program_discussion_gaps): patient tile, doctor thread, P13/P24
+
+### Что сделано
+
+- **Patient nav badge:** `PatientNavCountBadge` — белая жирная цифра; chat badge в TopNav/Header через общий компонент.
+- **Плитка:** убрана «Камера»; «Комментарии» + «Отметить выполнение» через `ProgramItemCompleteDialog` + shared `postProgramItemComplete`.
+- **Item page:** камера только при `patient_program_discussion_media_submission_enabled`; `ProgramItemSubmissionSourceDialog` (Записать / Галерея / Файлы); P13 «В прошлый раз…» под «Выполнялось»; хелпер `programItemExecutionDisplay` (без дубля «Сегодня»).
+- **P24:** статичные превью в плитке и thread (`PatientCatalogMediaStaticThumb`); плеер только по явному открытию.
+- **Архивные этапы:** `readOnly` / `itemInteraction === "full"` guard — без action-кнопок на плитке и в `PatientInstanceStageItemCard`.
+- **Doctor §6.3:** `GET /api/doctor/treatment-program-instances/{instanceId}/items/{itemId}/discussion` + `DoctorProgramItemDiscussionDialog` («Обсуждение» в журнале; «Ответить» — отдельно).
+
+### Integrator `program_reply` (фаза 1)
+
+- Код исправлен 2026-05-31 (см. выше): state пишется в `executeAction` / `replyBegin`, не через пустой `values.programNoteReplyState`.
+- **Stage-smoke gate (2026-06-01):** `pnpm --dir apps/integrator exec vitest --run programNoteReplyFlow executeAction programNote handleIncomingEvent channelUsers mapIn programNoteReplyState` — **PASS** (7 files, 174 tests). Покрывает цепочку `program_reply`: parse callback → routing scripts → `webapp.programNote.replyBegin` state persist → admin reply routing (telegram + max).
+- **Результат smoke:** **успешно** (automated regression gate). Live webhook «Ответить → текст → пациент» на stage-ботах отдельно не перепроверялся в этой сессии; при деплое integrator достаточно spot-check, если менялись admin scripts.
+
+### Проверки
+
+- `pnpm --dir apps/webapp exec vitest --run PatientTopNav PatientTreatmentProgramDetailClient PatientProgramStageItemPageClient programItemExecutionDisplay PatientTreatmentProgramStagePageProgramSection DoctorProgramItemDiscussionDialog`
+- `pnpm --dir apps/webapp exec vitest --run discussion/route.test` (doctor discussion GET)
+- `pnpm --dir apps/webapp typecheck`
+

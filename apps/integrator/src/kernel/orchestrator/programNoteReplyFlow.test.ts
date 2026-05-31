@@ -39,7 +39,7 @@ function adminProgramReplyEvent(source: 'telegram' | 'max'): IncomingEvent {
 
 describe('program note reply flow', () => {
   const baseContext: BaseContext = {
-    actor: { isAdmin: true, channelUserId: 9001, chatId: 9001 },
+    actor: { isAdmin: true },
     identityLinks: [],
   };
 

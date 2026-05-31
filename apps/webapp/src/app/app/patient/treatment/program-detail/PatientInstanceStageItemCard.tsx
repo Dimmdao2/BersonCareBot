@@ -317,7 +317,7 @@ export function PatientInstanceStageItemCard(props: {
             );
           })()}
 
-          {!contentBlocked && !readOnly ? (
+          {!contentBlocked && !readOnly && itemInteraction === "full" ? (
             item.itemType === "clinical_test" ? (
               <div className="mt-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                 {!clinicalTestSnapLoaded ? (

@@ -9,7 +9,6 @@ import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import {
   isPersistentRecommendation,
-  formatRelativePatientCalendarDayRu,
   selectCurrentWorkingStageForPatientDetail,
   splitPatientProgramStagesForDetailUi,
 } from "@/modules/treatment-program/stage-semantics";
@@ -38,11 +37,10 @@ import {
   patientBodyTextClass,
   patientButtonPrimaryClass,
   patientButtonSuccessClass,
-  patientMutedTextStrongClass,
+  patientMutedTextClass,
   patientProgramItemHeroTitleClass,
   patientProgramItemPrimaryStatTextClass,
   patientInnerPageStackClass,
-  patientMutedTextClass,
   patientScrollbarHiddenClass,
   patientSectionTitleClass,
   patientSectionTitleNormalClass,
@@ -63,13 +61,15 @@ import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientT
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import { ProgramItemDiscussionDialog } from "@/app/app/patient/treatment/ProgramItemDiscussionDialog";
 import {
-  ProgramItemDiscussionMediaPicker,
-  type ProgramItemDiscussionMediaPickerHandle,
-} from "@/app/app/patient/treatment/ProgramItemDiscussionMediaPicker";
+  ProgramItemSubmissionSourceDialog,
+  type ProgramItemSubmissionSourceDialogHandle,
+} from "@/app/app/patient/treatment/ProgramItemSubmissionSourceDialog";
 import {
   ProgramItemCompleteDialog,
   type ProgramItemCompleteDialogPayload,
 } from "@/app/app/patient/treatment/ProgramItemCompleteDialog";
+import { PatientProgramItemExecutionRow } from "@/app/app/patient/treatment/PatientProgramItemExecutionRow";
+import { postProgramItemComplete } from "@/app/app/patient/treatment/postProgramItemComplete";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 
 const EMPTY_ORDERED_ITEM_IDS: string[] = [];
@@ -158,33 +158,6 @@ function pickFirstFiniteNum(...vals: unknown[]): number | null {
 }
 
 const ITEM_MAX_TODAY_DOTS = 24;
-
-function ItemPageTodayDots(props: { todayCount: number }) {
-  const { todayCount } = props;
-  const dotCount = Math.min(todayCount, ITEM_MAX_TODAY_DOTS);
-  const dotOverflow = todayCount > ITEM_MAX_TODAY_DOTS ? todayCount - ITEM_MAX_TODAY_DOTS : 0;
-  return (
-    <div
-      className="flex min-h-[10px] shrink-0 flex-wrap items-center justify-end gap-0.5"
-      aria-label={todayCount === 0 ? "Сегодня не отмечено" : `Сегодня отмечено ${todayCount} раз`}
-    >
-      {todayCount === 0 ? (
-        <span className="size-2 shrink-0 rounded-full bg-muted-foreground/35" aria-hidden />
-      ) : (
-        <>
-          {Array.from({ length: dotCount }, (_, i) => (
-            <span key={i} className="size-2 shrink-0 rounded-full bg-[#16a34a]" aria-hidden />
-          ))}
-          {dotOverflow > 0 ? (
-            <span className="text-[10px] font-medium leading-none text-muted-foreground" aria-hidden>
-              +{dotOverflow}
-            </span>
-          ) : null}
-        </>
-      )}
-    </div>
-  );
-}
 
 function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: string }) {
   const { media, title } = props;
@@ -329,7 +302,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [doneTodayCountByActivityKey, setDoneTodayCountByActivityKey] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
   const [discussionDialogOpen, setDiscussionDialogOpen] = useState(false);
-  const mediaPickerRef = useRef<ProgramItemDiscussionMediaPickerHandle>(null);
+  const mediaPickerRef = useRef<ProgramItemSubmissionSourceDialogHandle>(null);
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [discussionPreview, setDiscussionPreview] = useState<ItemDiscussionPreview>({
     totalCount: 0,
@@ -554,14 +527,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     setBusy(item.id);
     setError(null);
     try {
-      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(completion),
+      const result = await postProgramItemComplete({
+        base,
+        itemId: item.id,
+        payload: completion,
       });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data?.ok) {
-        setError(data?.error ?? "Ошибка");
+      if (!result.ok) {
+        setError(result.error);
         return;
       }
       setCompleteDialogOpen(false);
@@ -823,7 +795,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                 ) : (
                   <div className="flex w-full min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 flex-nowrap items-stretch gap-2">
-                      {allowPatientObservationComment ? (
+                      {mediaSubmissionEnabled ? (
                         <button
                           type="button"
                           className={cn(
@@ -834,11 +806,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                           disabled={busy !== null}
                           aria-label="Камера"
                           onClick={() => {
-                            if (mediaSubmissionEnabled) {
-                              queueMicrotask(() => mediaPickerRef.current?.openPicker());
-                              return;
-                            }
-                            void openDiscussionDialog();
+                            queueMicrotask(() => mediaPickerRef.current?.open());
                           }}
                         >
                           <Camera className="size-4" aria-hidden />
@@ -849,7 +817,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         className={cn(
                           patientButtonPrimaryClass,
                           "min-h-9 min-w-0 shrink basis-0 py-2.5 text-xs font-medium leading-tight sm:min-h-10",
-                          allowPatientObservationComment ? "flex-[1.45]" : "flex-1",
+                          mediaSubmissionEnabled ? "flex-[1.45]" : "flex-1",
                           simpleCompleteDoneFrozen &&
                             cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
                           !simpleCompleteDoneFrozen && "gap-0",
@@ -886,19 +854,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               </div>
             ) : null}
 
-            <div className="-mx-4 flex flex-wrap items-center gap-2 border-b border-[var(--patient-border)]/50 bg-muted/15 px-4 py-2.5 lg:-mx-5 lg:px-5">
-              <span className={cn("text-xs leading-snug", patientMutedTextStrongClass)}>
-                {(() => {
-                  const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
-                  const todayCount = doneTodayCountByItemId[item.id] ?? 0;
-                  if (!lastIso) return "Выполнялось: никогда";
-                  const rel = formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone);
-                  const suffix = todayCount > 0 ? ` · Сегодня ${todayCount} раз` : "";
-                  return `Выполнялось: ${rel}${suffix}`;
-                })()}
-              </span>
-              <ItemPageTodayDots todayCount={doneTodayCountByItemId[item.id] ?? 0} />
-            </div>
+            <PatientProgramItemExecutionRow
+              lastIso={mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt)}
+              todayCount={doneTodayCountByItemId[item.id] ?? 0}
+              appDisplayTimeZone={appDisplayTimeZone}
+              lastDoneSummary={discussionPreview.lastDoneSummary}
+              variant="itemPage"
+            />
           </div>
 
           {item.effectiveComment?.trim() ? (
@@ -940,18 +902,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               >
                 {discussionPreview.lastMessage ? "Открыть комментарии" : "Оставить комментарий к выполнению"}
               </button>
-              {discussionPreview.lastDoneSummary &&
-              (discussionPreview.lastDoneSummary.reps != null ||
-                discussionPreview.lastDoneSummary.weightKg != null) ? (
-                <p className={cn(patientMutedTextClass, "m-0 text-xs leading-snug")}>
-                  {discussionPreview.lastDoneSummary.reps != null &&
-                  discussionPreview.lastDoneSummary.weightKg != null
-                    ? `В прошлый раз: ${discussionPreview.lastDoneSummary.reps} повторений, ${discussionPreview.lastDoneSummary.weightKg} кг`
-                    : discussionPreview.lastDoneSummary.reps != null
-                      ? `В прошлый раз: ${discussionPreview.lastDoneSummary.reps} повторений`
-                      : `В прошлый раз: ${discussionPreview.lastDoneSummary.weightKg} кг`}
-                </p>
-              ) : null}
             </div>
           ) : null}
 
@@ -986,9 +936,8 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             mediaSubmissionEnabled={mediaSubmissionEnabled}
           />
           {mediaSubmissionEnabled ? (
-            <ProgramItemDiscussionMediaPicker
+            <ProgramItemSubmissionSourceDialog
               ref={mediaPickerRef}
-              variant="hidden"
               instanceId={instanceId}
               itemId={item.id}
               disabled={busy !== null}

@@ -1,6 +1,6 @@
 ---
 name: Program Item Discussion
-overview: "Обсуждение по элементам doctor-program: thread per stage_item, patient UI (комментарии, unread, media submission), interim doctor reply из журнала. Этапы 0–7 и независимый аудит P0 закрыты (2026-05-30); барьер merge — full pnpm run ci при стабильном дереве."
+overview: "Обсуждение по элементам doctor-program: thread per stage_item, patient UI (комментарии, unread, media submission), interim doctor reply из журнала. Этапы 0–7 и аудит P0 (2026-05-30); gaps-plan UX/doctor thread (2026-06-01) закрыт; барьер merge — full pnpm run ci при стабильном дереве."
 status: completed
 todos:
   - id: phase-0-docs
@@ -13,7 +13,7 @@ todos:
     content: "Фаза 2: Patient discussion GET/POST/read API, observation dual-write, ProgramItemDiscussionDialog, batch summary endpoint"
     status: completed
   - id: phase-3-tile-ui
-    content: "Фаза 3: Patient program tile — Комментарии+badge+unread dot, camera icon, layout кнопок, wire dialog"
+    content: "Фаза 3: Patient program tile — Комментарии+badge+unread dot, «Отметить выполнение» через ProgramItemCompleteDialog (камера только на item page при media-flag; gaps 2026-06-01)"
     status: completed
   - id: phase-4-item-ui
     content: "Фаза 4: Item page — layout under video, Инструкция от специалиста, preview block, ProgramItemCompleteDialog, last done line"
@@ -33,6 +33,9 @@ todos:
   - id: phase-ci-merge-barrier
     content: "Full pnpm run ci перед merge/push — отдельный прогон при стабильном worktree (не блокирует закрытие плана)"
     status: cancelled
+  - id: phase-gaps-2026-06-01
+    content: "Gaps: плитка без камеры + complete modal; item source dialog; P13/P24; doctor GET discussion + read-only UI; archive readOnly guards; integrator program_reply smoke PASS"
+    status: completed
 isProject: false
 ---
 
@@ -350,15 +353,17 @@ flowchart TB
 
 ## Definition of Done (весь план)
 
-- [x] Пациент doctor-program: плитка и item page по спецификации (комментарии, камера, выполнение, инструкция, превью thread).
+- [x] Пациент doctor-program: плитка — «Комментарии» + complete-модалка (без камеры); item page — камера при media-flag, source dialog, complete-модалка, инструкция, preview thread.
 - [x] Thread modal показывает историю patient + admin (+ legacy merge) только по данному элементу.
-- [x] Врач отвечает кликом по заметке пациента в журнале программы; пациент получает push/prefix как из Telegram.
-- [x] Unread: badge count на «Комментарии», «новых: n» на item, цифра на иконке чата; сброс при прочтении.
-- [x] Выполнение с difficulty/reps/weight; строка «В прошлый раз…».
-- [x] Submission media: upload, 480p MP4, в thread, без HLS и без playback stats.
+- [x] Врач: ответ из журнала (reply-модалка) + read-only thread (`GET .../discussion`, «Обсуждение»); пациент получает push/prefix как из Telegram.
+- [x] Unread: badge count на «Комментарии», «новых: n» на item, белая цифра на иконке чата; сброс при прочтении.
+- [x] Выполнение с difficulty/reps/weight (tile + item через модалку); строка «В прошлый раз…» под «Выполнялось» (P13).
+- [x] Submission media: upload, 480p MP4, в thread; превью static thumb без play-overlay (P24); плеер только по явному открытию.
+- [x] Архивные этапы: без action-кнопок (readOnly guard).
 - [x] Архитектура: modules/ports/DI, Drizzle migrations, thin routes, LOG.md актуален.
 - [x] Rollback-путь подтверждён: каждый включённый шаг управляется `system_settings` feature-flag и может быть выключен без schema rollback.
 - [x] Независимый аудит P0 (`mediaSubmissionEnabled` props) — закрыт.
+- [x] Integrator `program_reply` stage-smoke gate — PASS (2026-06-01, integrator vitest regression).
 - [x] Инициатива перенесена в `docs/archive/2026-05-initiatives/PROGRAM_ITEM_DISCUSSION_INITIATIVE/`.
 - [ ] `pnpm run ci` зелёный перед merge — барьер push (todo `phase-ci-merge-barrier`: cancelled в frontmatter; прогон при стабильном worktree).
 

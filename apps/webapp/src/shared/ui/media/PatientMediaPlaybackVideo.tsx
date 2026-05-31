@@ -182,7 +182,6 @@ function PlaybackEngine({
   }, [hlsQualityChoice, sortedPlaybackQualities]);
 
   const useNativeHlsPlayback = shouldUseNativeHls();
-  const showNativeQualityHint = sourceKind === "hls" && useNativeHlsPlayback && !error;
   const showHlsJsQualityControls =
     sourceKind === "hls" && !useNativeHlsPlayback && sortedPlaybackQualities.length >= 2 && !error;
 
@@ -515,9 +514,6 @@ function PlaybackEngine({
           </>
         )}
       </div>
-      {!error && showNativeQualityHint ? (
-        <p className={cn(patientMutedTextClass, "text-right text-xs")}>Качество: авто</p>
-      ) : null}
       {!error && showHlsJsQualityControls ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className={cn(patientMutedTextClass, "text-xs tabular-nums")} aria-live="polite">
