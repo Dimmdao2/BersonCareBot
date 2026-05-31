@@ -32,7 +32,7 @@ function normalizeLimit(raw: string | null): number | null {
 
 export async function GET(
   request: Request,
-  context: { params: Promise<{ instanceId: string; itemId: string }> },
+  context: { params: Promise<{ instanceId: string; stageItemId: string }> },
 ) {
   const session = await getCurrentSession();
   if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -40,8 +40,8 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
-  const { instanceId, itemId } = await context.params;
-  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(itemId).success) {
+  const { instanceId, stageItemId } = await context.params;
+  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageItemId).success) {
     return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
   }
 
@@ -77,12 +77,12 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "program_not_doctor_assigned" }, { status: 400 });
     }
 
-    const item = instance.stages.flatMap((s) => s.items).find((x) => x.id === itemId) ?? null;
+    const item = instance.stages.flatMap((s) => s.items).find((x) => x.id === stageItemId) ?? null;
     if (!item) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
     const pageResult = await listDiscussionPageMerged({
       discussion: deps.programItemDiscussion,
-      stageItemId: itemId,
+      stageItemId,
       patientUserId: instance.patientUserId,
       exerciseTitle: exerciseTitleFromSnapshot(item.snapshot),
       limit,
