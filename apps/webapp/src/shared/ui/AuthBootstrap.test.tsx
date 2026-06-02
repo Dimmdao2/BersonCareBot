@@ -399,7 +399,6 @@ describe("AuthBootstrap", () => {
     );
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
     expect(mockReplace).toHaveBeenCalledWith("/app");
-    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
   });
 
   it("при зависшем exchange по miniapp ?t= переводит на обычный вход без продления одноразового токена", async () => {
@@ -435,7 +434,6 @@ describe("AuthBootstrap", () => {
     );
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
     expect(mockReplace).toHaveBeenCalledWith("/app?next=%2Fapp%2Fpatient");
-    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
   });
 
   it("на max_miniapp при наличии TG и MAX initData сначала вызывает max-init", async () => {

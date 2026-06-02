@@ -19,6 +19,8 @@
 
 Doctor-scope `doctor_specialist_task_reminder_channels` в `/app/settings`: `{ value: { channels: ["telegram","max",…] } }`.
 
+Доставка: telegram, max, email (integrator SMTP), web push. SMS не используется. `reminder_sent_at` выставляется только после успешной отправки хотя бы в один канал.
+
 ## UI
 
 - Карточка пациента: секция «Задачи» на «Обзоре», сводка в Hero и чип Action Strip

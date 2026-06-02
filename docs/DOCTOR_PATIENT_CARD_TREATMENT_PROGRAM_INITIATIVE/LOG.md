@@ -280,6 +280,13 @@
 - `pnpm --dir apps/webapp exec vitest run src/modules/specialist-tasks/service.test.ts`
 - `pnpm --dir apps/webapp exec tsc --noEmit`
 
+### Доработка после аудита (2026-06-02)
+
+- `reminder_sent_at` только при успешной доставке; Hero desktop — заголовок ближайшей задачи; описание в списке (line-clamp).
+- ESLint: `SpecialistTaskFormDialog` — remount по `key` вместо `useEffect`+setState.
+- Док: `api.md`, `HOST_DEPLOY_README.md` (cron tick), `TODO.md` §Doctor card.
+- Тесты: `tasks/route.test.ts`, `specialist-task-reminders/tick/route.test.ts`, `dispatchDueReminders.test.ts`.
+
 ---
 
 ## 2026-05-09 — Аудит экрана инстанса (порядок этапа 0, контракт API)

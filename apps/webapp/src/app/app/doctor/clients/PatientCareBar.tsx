@@ -111,6 +111,9 @@ export function PatientCareBar({
               >
                 Задачи: {taskSummary.openCount} невып.
                 {taskSummary.nextImportantOrOverdue?.isImportant ? " ❗" : ""}
+                {taskSummary.nextImportantOrOverdue?.title
+                  ? ` · ${taskSummary.nextImportantOrOverdue.title}`
+                  : ""}
               </button>
             ) : null}
           </div>

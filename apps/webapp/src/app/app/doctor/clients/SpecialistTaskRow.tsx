@@ -43,6 +43,9 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy }: Props) {
           {overdue ? <span className="text-xs font-medium text-destructive">Просрочено</span> : null}
         </div>
         {dueLabel ? <p className="text-xs text-muted-foreground">Срок: {dueLabel}</p> : null}
+        {task.description?.trim() ? (
+          <p className="line-clamp-2 text-xs text-muted-foreground">{task.description.trim()}</p>
+        ) : null}
       </div>
       <div className="flex shrink-0 gap-2">
         <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onEdit(task)}>

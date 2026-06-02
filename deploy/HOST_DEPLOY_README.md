@@ -328,6 +328,8 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Integrator push outbox (опциональный relay):** `POST /api/internal/system-health-guard/tick` с тем же Bearer — читает **`public.integrator_push_outbox`** и при деградации шлёт Telegram/Max, если в **`admin_incident_alert_config`** включена тема **`system_health_db_guard`** (по умолчанию **выключена**). Рекомендуется редкий cron на loopback (например **`*/15 * * * *`**), тот же `INTERNAL_JOB_SECRET`, тот же nginx `allow 127.0.0.1` для `/api/internal/`. Дрейн очереди по-прежнему: `pnpm run integrator-push-outbox-tick` или отдельный systemd unit.
 
+**Напоминания о задачах специалиста (фаза 2C):** после миграции **`0102_specialist_tasks.sql`** — `POST /api/internal/specialist-task-reminders/tick` с тем же Bearer: due-задачи (`remind_at`, не выполнена, без `reminder_sent_at`), доставка по каналам из doctor-scope **`doctor_specialist_task_reminder_channels`** в `/app/settings`. Рекомендуется cron на loopback **каждые 5–15 минут**, параметр **`?limit=`** (по умолчанию 50, cap 100). Ответ JSON: `processed`, `sent`, `errors`.
+
 **Web Push-only напоминания (без бота):** после миграции `0075_webapp_reminder_occurrences.sql` — `POST /api/internal/reminders/web-push-only/tick` с тем же Bearer: планирует due-слоты в **`webapp_reminder_occurrences`** для правил `reminder_rules` с `integrator_user_id IS NULL` и отправляет Web Push через те же настройки каналов/тем, что M2M `notify-channels`. Рекомендуется cron на loopback **каждую минуту** (или чаще при высокой нагрузке), параметр **`?limit=`** (по умолчанию 50, cap 100). Ответ JSON: `rulesFound`, `plannedUpserts` (алиас **`planned`**), `dueClaimed`, `sent`, **`skipped`**, `skippedNoSubscription`, `skippedNoTopic`, `failed`.
 
 **Post-deploy checklist (Web Push-only reminders):**
@@ -445,6 +447,12 @@ CRON_TZ=Europe/Moscow
 */15 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/system-health-guard/tick" >/dev/null'
 ```
 
+Пример cron **напоминаний о задачах специалиста** (после миграции `0102_specialist_tasks.sql`):
+
+```cron
+*/10 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/specialist-task-reminders/tick?limit=50" >/dev/null'
+```
+
 **Обязательный** host-level cron Web Push-only напоминаний (пациент без бота, только подписка в браузере). Файл на хосте: **`/etc/cron.d/bersoncarebot-webpush-reminders`** (устанавливается **вручную** после deploy — `deploy-prod.sh` cron не трогает):
 
 ```cron
@@ -539,7 +547,7 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
 
-**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention`, `POST /api/internal/media-hls-proxy-errors/retention`, `POST /api/internal/product-analytics/retention`, `POST /api/internal/media-transcode/reconcile` и `POST /api/internal/system-health-guard/tick`, `POST /api/internal/reminders/web-push-only/tick`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
+**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention`, `POST /api/internal/media-hls-proxy-errors/retention`, `POST /api/internal/product-analytics/retention`, `POST /api/internal/media-transcode/reconcile`, `POST /api/internal/system-health-guard/tick`, `POST /api/internal/specialist-task-reminders/tick`, `POST /api/internal/reminders/web-push-only/tick`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
 
 **Auth (webapp):** Yandex OAuth и Telegram Login Widget **не** требуют новых ключей в `webapp.prod` — клиент OAuth и имя бота для виджета задаются в **`system_settings`** (admin scope) в БД webapp; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`. Секреты в env-файлы деплоя не добавлять.
 

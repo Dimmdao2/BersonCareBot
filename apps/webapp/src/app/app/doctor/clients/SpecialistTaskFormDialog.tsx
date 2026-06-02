@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,14 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
-
-export type SpecialistTaskFormValues = {
-  title: string;
-  description: string;
-  dueAt: string;
-  remindAt: string;
-  isImportant: boolean;
-};
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return "";
@@ -38,38 +30,21 @@ function fromLocalInput(value: string): string | null {
   return d.toISOString();
 }
 
-type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+type FormFieldsProps = {
   patientUserId: string;
   editing: SpecialistTaskRow | null;
   onSaved: () => void;
+  onClose: () => void;
 };
 
-export function SpecialistTaskFormDialog({
-  open,
-  onOpenChange,
-  patientUserId,
-  editing,
-  onSaved,
-}: Props) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [dueAt, setDueAt] = useState("");
-  const [remindAt, setRemindAt] = useState("");
-  const [isImportant, setIsImportant] = useState(false);
+function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: FormFieldsProps) {
+  const [title, setTitle] = useState(editing?.title ?? "");
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [dueAt, setDueAt] = useState(() => toLocalInput(editing?.dueAt ?? null));
+  const [remindAt, setRemindAt] = useState(() => toLocalInput(editing?.remindAt ?? null));
+  const [isImportant, setIsImportant] = useState(editing?.isImportant ?? false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (!open) return;
-    setTitle(editing?.title ?? "");
-    setDescription(editing?.description ?? "");
-    setDueAt(toLocalInput(editing?.dueAt ?? null));
-    setRemindAt(toLocalInput(editing?.remindAt ?? null));
-    setIsImportant(editing?.isImportant ?? false);
-    setError(null);
-  }, [open, editing]);
 
   function handleSubmit() {
     setError(null);
@@ -95,7 +70,7 @@ export function SpecialistTaskFormDialog({
           return;
         }
         onSaved();
-        onOpenChange(false);
+        onClose();
       } catch {
         setError("Ошибка сети");
       }
@@ -103,49 +78,77 @@ export function SpecialistTaskFormDialog({
   }
 
   return (
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>{editing ? "Изменить задачу" : "Новая задача"}</DialogTitle>
+      </DialogHeader>
+      <div className="flex flex-col gap-3">
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Кратко"
+          maxLength={500}
+        />
+        <Textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Подробнее"
+          rows={3}
+        />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Срок</span>
+          <Input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Напомнить</span>
+          <Input type="datetime-local" value={remindAt} onChange={(e) => setRemindAt(e.target.value)} />
+        </label>
+        <LabeledSwitch
+          label="Важное"
+          checked={isImportant}
+          onCheckedChange={setIsImportant}
+          disabled={isPending}
+        />
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+          Отмена
+        </Button>
+        <Button type="button" onClick={handleSubmit} disabled={isPending || !title.trim()}>
+          {isPending ? "Сохранение…" : "Сохранить"}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  patientUserId: string;
+  editing: SpecialistTaskRow | null;
+  onSaved: () => void;
+};
+
+export function SpecialistTaskFormDialog({
+  open,
+  onOpenChange,
+  patientUserId,
+  editing,
+  onSaved,
+}: Props) {
+  return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{editing ? "Изменить задачу" : "Новая задача"}</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Кратко"
-            maxLength={500}
-          />
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Подробнее"
-            rows={3}
-          />
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium">Срок</span>
-            <Input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium">Напомнить</span>
-            <Input type="datetime-local" value={remindAt} onChange={(e) => setRemindAt(e.target.value)} />
-          </label>
-          <LabeledSwitch
-            label="Важное"
-            checked={isImportant}
-            onCheckedChange={setIsImportant}
-            disabled={isPending}
-          />
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
-            Отмена
-          </Button>
-          <Button type="button" onClick={handleSubmit} disabled={isPending || !title.trim()}>
-            {isPending ? "Сохранение…" : "Сохранить"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      {open ? (
+        <SpecialistTaskFormFields
+          key={editing?.id ?? "new"}
+          patientUserId={patientUserId}
+          editing={editing}
+          onSaved={onSaved}
+          onClose={() => onOpenChange(false)}
+        />
+      ) : null}
     </Dialog>
   );
 }

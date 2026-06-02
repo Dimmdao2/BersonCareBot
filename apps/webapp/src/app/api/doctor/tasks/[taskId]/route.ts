@@ -29,14 +29,15 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
 
-  const existing = await buildAppDeps().specialistTasks.getByIdForOwner(taskId, session.user.userId);
+  const deps = buildAppDeps();
+  const existing = await deps.specialistTasks.getByIdForOwner(taskId, session.user.userId);
   if (!existing) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   const clearReminderSent =
     parsed.data.remindAt !== undefined && parsed.data.remindAt !== existing.remindAt;
 
   try {
-    const task = await buildAppDeps().specialistTasks.update(taskId, session.user.userId, {
+    const task = await deps.specialistTasks.update(taskId, session.user.userId, {
       ...parsed.data,
       clearReminderSent,
     });
@@ -65,7 +66,8 @@ export async function DELETE(
     return NextResponse.json({ ok: false, error: "invalid_task" }, { status: 400 });
   }
 
-  const deleted = await buildAppDeps().specialistTasks.delete(taskId, session.user.userId);
+  const deps = buildAppDeps();
+  const deleted = await deps.specialistTasks.delete(taskId, session.user.userId);
   if (!deleted) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
