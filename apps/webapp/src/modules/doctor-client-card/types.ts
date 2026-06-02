@@ -42,10 +42,17 @@ export type DoctorClientProgramInboxRow = {
   kind: "comment" | "media";
 };
 
+export type DoctorClientRecentProgramChangeRow = {
+  id: string;
+  createdAt: string;
+  summary: string;
+};
+
 export type DoctorClientProgramCardData = {
   aggregates: DoctorClientProgramCardAggregates;
   carePlan: DoctorClientOverviewCarePlanModel | null;
   programInbox: DoctorClientProgramInboxRow[];
+  recentProgramChanges: DoctorClientRecentProgramChangeRow[];
 };
 
 export const DOCTOR_CLIENT_TAB_IDS = [

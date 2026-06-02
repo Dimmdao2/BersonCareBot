@@ -104,6 +104,7 @@ export default async function DoctorClientProfilePage({
         programCardAggregates={programCardData?.aggregates}
         carePlanOverview={programCardData?.carePlan ?? null}
         programInbox={programCardData?.programInbox ?? []}
+        recentProgramChanges={programCardData?.recentProgramChanges ?? []}
         displayTimeZone={displayTimeZone}
         wellbeingChartModel={wellbeingChartModel}
         taskSummary={taskSummary}

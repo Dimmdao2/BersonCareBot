@@ -606,6 +606,26 @@ export function createTreatmentProgramInstanceService(deps: {
           targetId: input.instanceId,
           payload: { scope: "program", from: beforeStatus, to: input.status },
         });
+
+        if (input.status === "completed") {
+          for (const stage of prev.stages) {
+            if (stage.status === "completed" || stage.status === "skipped") continue;
+            const beforeStageStatus = stage.status;
+            const updatedStage = await instances.updateInstanceStage(input.instanceId, stage.id, {
+              status: "completed",
+              skipReason: null,
+            });
+            if (!updatedStage) continue;
+            await appendEvent({
+              instanceId: input.instanceId,
+              actorId: input.actorId,
+              eventType: "stage_completed",
+              targetType: "stage",
+              targetId: stage.id,
+              payload: { from: beforeStageStatus, to: "completed", programCompleted: true },
+            });
+          }
+        }
       }
       return row;
     },

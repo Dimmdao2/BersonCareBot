@@ -21,6 +21,7 @@ describe("loadDoctorClientProgramCardData", () => {
       {
         treatmentProgramInstance: {
           getInstanceById: vi.fn(),
+          listProgramEvents: vi.fn().mockResolvedValue([]),
           patientPlanUpdatedBadgeForInstance: vi.fn(),
         },
         programItemDiscussion: { listMessagesForStageItem: vi.fn() },
@@ -37,10 +38,6 @@ describe("loadDoctorClientProgramCardData", () => {
     const data = await loadDoctorClientProgramCardData(
       {
         treatmentProgramInstance: {
-          patientPlanUpdatedBadgeForInstance: vi.fn().mockResolvedValue({
-            show: true,
-            eventIso: "2025-06-01T12:00:00.000Z",
-          }),
           getInstanceById: vi.fn().mockResolvedValue({
             id: "inst-1",
             title: "План",
@@ -109,6 +106,11 @@ describe("loadDoctorClientProgramCardData", () => {
                 ],
               },
             ],
+          }),
+          listProgramEvents: vi.fn().mockResolvedValue([]),
+          patientPlanUpdatedBadgeForInstance: vi.fn().mockResolvedValue({
+            show: true,
+            eventIso: "2025-06-01T12:00:00.000Z",
           }),
         },
         programItemDiscussion: {

@@ -1,17 +1,20 @@
 import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
-import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
+import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceSummary, TreatmentProgramEventRow } from "@/modules/treatment-program/types";
 import { buildDoctorClientCarePlanOverview } from "./buildDoctorClientCarePlanOverview";
+import { buildDoctorClientRecentProgramChanges } from "./buildDoctorClientRecentProgramChanges";
 import { countDiscussionAttentionFromMessages } from "./countDiscussionAttention";
 import type {
   DoctorClientProgramCardAggregates,
   DoctorClientProgramCardData,
   DoctorClientProgramInboxRow,
+  DoctorClientRecentProgramChangeRow,
 } from "./types";
 
 export type LoadDoctorClientProgramCardAggregatesDeps = {
   treatmentProgramInstance: {
     getInstanceById(id: string): Promise<TreatmentProgramInstanceDetail | null>;
+    listProgramEvents(instanceId: string): Promise<TreatmentProgramEventRow[]>;
     patientPlanUpdatedBadgeForInstance(input: {
       patientUserId: string;
       instanceId: string;
@@ -37,6 +40,7 @@ const EMPTY_DATA: DoctorClientProgramCardData = {
   aggregates: EMPTY_AGGREGATES,
   carePlan: null,
   programInbox: [],
+  recentProgramChanges: [],
 };
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
@@ -107,12 +111,13 @@ export async function loadDoctorClientProgramCardData(
   const active = pickActivePlanInstance(instances);
   if (!active) return EMPTY_DATA;
 
-  const [badge, detail] = await Promise.all([
+  const [badge, detail, events] = await Promise.all([
     deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({
       patientUserId,
       instanceId: active.id,
     }),
     deps.treatmentProgramInstance.getInstanceById(active.id),
+    deps.treatmentProgramInstance.listProgramEvents(active.id),
   ]);
 
   if (!detail) {
@@ -124,8 +129,25 @@ export async function loadDoctorClientProgramCardData(
       },
       carePlan: null,
       programInbox: [],
+      recentProgramChanges: [],
     };
   }
+
+  const itemTitle = (id: string) => {
+    for (const st of detail.stages) {
+      for (const it of st.items) {
+        if (it.id === id) return snapshotTitle(it.snapshot, it.itemType);
+      }
+    }
+    return undefined;
+  };
+  const stageTitle = (id: string) => detail.stages.find((s) => s.id === id)?.title ?? undefined;
+
+  const recentProgramChanges: DoctorClientRecentProgramChangeRow[] = buildDoctorClientRecentProgramChanges({
+    events,
+    itemTitle,
+    stageTitle,
+  });
 
   const { aggregates: attention, programInbox } = await collectAttentionForActiveItems(
     detail,
@@ -141,6 +163,7 @@ export async function loadDoctorClientProgramCardData(
     },
     carePlan: buildDoctorClientCarePlanOverview(detail),
     programInbox,
+    recentProgramChanges,
   };
 }
 

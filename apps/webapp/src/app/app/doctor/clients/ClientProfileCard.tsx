@@ -19,6 +19,7 @@ import type {
   DoctorClientOverviewCarePlanModel,
   DoctorClientProgramCardAggregates,
   DoctorClientProgramInboxRow,
+  DoctorClientRecentProgramChangeRow,
   DoctorClientTabId,
   DoctorClientTaskSummary,
 } from "@/modules/doctor-client-card/types";
@@ -61,6 +62,7 @@ type ClientProfileCardProps = {
   programCardAggregates?: DoctorClientProgramCardAggregates;
   carePlanOverview?: DoctorClientOverviewCarePlanModel | null;
   programInbox?: DoctorClientProgramInboxRow[];
+  recentProgramChanges?: DoctorClientRecentProgramChangeRow[];
   displayTimeZone?: string;
   wellbeingChartModel?: WellbeingWeekChartModel;
   taskSummary?: DoctorClientTaskSummary | null;
@@ -88,6 +90,7 @@ function ClientProfileCardInner({
   programCardAggregates = EMPTY_AGGREGATES,
   carePlanOverview = null,
   programInbox = [],
+  recentProgramChanges = [],
   displayTimeZone = "Europe/Moscow",
   wellbeingChartModel,
   taskSummary = null,
@@ -225,6 +228,7 @@ function ClientProfileCardInner({
               profileListScope={profileListScope}
               treatmentProgramInstancesInitial={treatmentProgramInstancesInitial}
               carePlan={carePlanOverview}
+              recentProgramChanges={recentProgramChanges}
               assignTreatmentProgramEnabled={assignTreatmentProgramEnabled}
               wellbeingModel={wellbeingModelResolved}
               displayTimeZone={displayTimeZone}

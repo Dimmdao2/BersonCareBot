@@ -5,30 +5,47 @@ export function isProgramInstanceEditLocked(status: TreatmentProgramInstanceStat
   return status === "completed";
 }
 
-const ACTIVE_DATA_MUTATION_PROMPT =
-  "Применить изменение к активной программе лечения пациента? Оно отразится в плане.";
+const ACTIVE_BATCH_SAVE_PROMPT =
+  "Применить изменения к активной программе лечения пациента? Они отразятся в плане.";
+
+/** Структурные мутации (добавление, удаление, reorder): только lock при `completed`. */
+export function isProgramInstanceStructuralMutationBlocked(status: TreatmentProgramInstanceStatus): boolean {
+  return status === "completed";
+}
 
 /**
- * Перед каждой мутацией данных инстанса (этап / группа / элемент / тест).
- * Для `completed` — отказ; для `active` — подтверждение в браузере.
+ * @deprecated Используйте {@link runIfProgramInstanceStructuralMutationAllowed} или batch save.
+ * Оставлено для совместимости: без confirm на каждый клик (фаза 3).
  */
 export function requestProgramInstanceDataMutation(status: TreatmentProgramInstanceStatus): boolean {
+  return !isProgramInstanceStructuralMutationBlocked(status);
+}
+
+/** Одно подтверждение перед сохранением черновика активной программы. */
+export function confirmActiveProgramInstanceBatchSave(status: TreatmentProgramInstanceStatus): boolean {
   if (status === "completed") return false;
   if (status === "active") {
-    return typeof globalThis !== "undefined" && globalThis.confirm?.(ACTIVE_DATA_MUTATION_PROMPT) === true;
+    return typeof globalThis !== "undefined" && globalThis.confirm?.(ACTIVE_BATCH_SAVE_PROMPT) === true;
   }
   return true;
 }
 
+/** Структурные async-мутации без confirm на каждый клик. */
+export async function runIfProgramInstanceStructuralMutationAllowed(
+  status: TreatmentProgramInstanceStatus,
+  action: () => Promise<void>,
+): Promise<boolean> {
+  if (isProgramInstanceStructuralMutationBlocked(status)) return false;
+  await action();
+  return true;
+}
+
 /**
- * Единая точка для async-мутаций: при отказе guard действие не выполняется.
- * Для `completed` — немедленный выход; для `active` — тот же confirm, что и у {@link requestProgramInstanceDataMutation}.
+ * @deprecated Алиас {@link runIfProgramInstanceStructuralMutationAllowed} (фаза 3: без confirm на клик).
  */
 export async function runIfProgramInstanceMutationAllowed(
   status: TreatmentProgramInstanceStatus,
   action: () => Promise<void>,
 ): Promise<boolean> {
-  if (!requestProgramInstanceDataMutation(status)) return false;
-  await action();
-  return true;
+  return runIfProgramInstanceStructuralMutationAllowed(status, action);
 }

@@ -55,6 +55,12 @@ import {
   runIfProgramInstanceMutationAllowed,
 } from "@/app/app/doctor/treatment-program-shared/programInstanceMutationGuard";
 import {
+  InstanceEditorDraftProvider,
+  useInstanceEditorDraft,
+} from "@/app/app/doctor/treatment-program-shared/InstanceEditorDraftContext";
+import { InstanceEditorSaveBar } from "@/app/app/doctor/treatment-program-shared/InstanceEditorSaveBar";
+import { useInstanceEditorUnsavedGate } from "@/app/app/doctor/treatment-program-shared/InstanceEditorUnsavedChangesDialog";
+import {
   INSTANCE_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS,
   INSTANCE_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS,
   INSTANCE_HEADER_BG_STAGE_EDITABLE,
@@ -256,18 +262,25 @@ function DoctorInstanceStageItemPreviewBlock(props: { item: InstanceStageItemT }
   );
 }
 
+function parseLoadField(raw: string, label: string): number | null {
+  const t = raw.trim();
+  if (t === "") return null;
+  const n = Number.parseInt(t, 10);
+  if (!Number.isFinite(n) || String(n) !== t.trim()) {
+    throw new Error(`${label}: целое число или пусто`);
+  }
+  return n;
+}
+
 function DoctorInstanceStageItemLoadForm(props: {
-  instanceId: string;
   item: InstanceStageItemT;
-  programStatus: TreatmentProgramInstanceStatus;
   editLocked: boolean;
-  onSaved: () => Promise<void>;
 }) {
-  const { instanceId, item, programStatus, editLocked, onSaved } = props;
+  const { item, editLocked } = props;
+  const { patchItemLoadSettings } = useInstanceEditorDraft();
   const [reps, setReps] = useState("");
   const [sets, setSets] = useState("");
   const [maxPain, setMaxPain] = useState("");
-  const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -278,59 +291,18 @@ function DoctorInstanceStageItemLoadForm(props: {
     setMsg(null);
   }, [item.id, item.itemType, item.settings, item.snapshot]);
 
-  const save = async () => {
+  const applyLoadDraft = (nextReps: string, nextSets: string, nextMaxPain: string) => {
     if (editLocked) return;
-    const parseField = (raw: string, label: string): number | null => {
-      const t = raw.trim();
-      if (t === "") return null;
-      const n = Number.parseInt(t, 10);
-      if (!Number.isFinite(n) || String(n) !== t.trim()) {
-        throw new Error(`${label}: целое число или пусто`);
-      }
-      return n;
-    };
-
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setSaving(true);
+    try {
+      patchItemLoadSettings(item.id, {
+        reps: parseLoadField(nextReps, "Повторы"),
+        sets: parseLoadField(nextSets, "Подходы"),
+        maxPain: parseLoadField(nextMaxPain, "Макс. боль"),
+      });
       setMsg(null);
-      try {
-        let repsV: number | null;
-        let setsV: number | null;
-        let maxPV: number | null;
-        try {
-          repsV = parseField(reps, "Повторы");
-          setsV = parseField(sets, "Подходы");
-          maxPV = parseField(maxPain, "Макс. боль");
-        } catch (err) {
-          setMsg(err instanceof Error ? err.message : "Ошибка");
-          return;
-        }
-
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(item.id)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              loadSettings: {
-                reps: repsV,
-                sets: setsV,
-                maxPain: maxPV,
-              },
-            }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setMsg(data.error ?? "Ошибка сохранения");
-          return;
-        }
-        await onSaved();
-        setMsg("Сохранено");
-      } finally {
-        setSaving(false);
-      }
-    });
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Ошибка");
+    }
   };
 
   return (
@@ -346,9 +318,10 @@ function DoctorInstanceStageItemLoadForm(props: {
             type="text"
             inputMode="numeric"
             className="h-8 text-xs"
-            disabled={saving || editLocked}
+            disabled={editLocked}
             value={reps}
             onChange={(e) => setReps(e.target.value)}
+            onBlur={() => applyLoadDraft(reps, sets, maxPain)}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -360,9 +333,10 @@ function DoctorInstanceStageItemLoadForm(props: {
             type="text"
             inputMode="numeric"
             className="h-8 text-xs"
-            disabled={saving || editLocked}
+            disabled={editLocked}
             value={sets}
             onChange={(e) => setSets(e.target.value)}
+            onBlur={() => applyLoadDraft(reps, sets, maxPain)}
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -374,18 +348,14 @@ function DoctorInstanceStageItemLoadForm(props: {
             type="text"
             inputMode="numeric"
             className="h-8 text-xs"
-            disabled={saving || editLocked}
+            disabled={editLocked}
             value={maxPain}
             onChange={(e) => setMaxPain(e.target.value)}
+            onBlur={() => applyLoadDraft(reps, sets, maxPain)}
           />
         </div>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button type="button" size="sm" variant="secondary" disabled={saving || editLocked} onClick={() => void save()}>
-          {saving ? "Сохранение…" : "Сохранить"}
-        </Button>
-      </div>
-      {msg ? <p className="text-xs text-muted-foreground">{msg}</p> : null}
+      {msg ? <p className="text-xs text-destructive">{msg}</p> : null}
     </div>
   );
 }
@@ -488,24 +458,15 @@ function DoctorProgramInstanceItemCard(props: {
               hideGroupSelect={recPhase0}
             />
             {item.itemType === "exercise" ? (
-              <DoctorInstanceStageItemLoadForm
-                instanceId={instanceId}
-                item={item}
-                programStatus={programStatus}
-                editLocked={editLocked}
-                onSaved={onSaved}
-              />
+              <DoctorInstanceStageItemLoadForm item={item} editLocked={editLocked} />
             ) : null}
             {item.itemType === "clinical_test" ? <ClinicalTestCatalogSnapshotLines snapshot={item.snapshot} /> : null}
             <ItemLocalCommentForm
               key={`${item.id}:${item.localComment ?? ""}`}
-              instanceId={instanceId}
               itemId={item.id}
-              programStatus={programStatus}
               editLocked={editLocked}
               initialDraft={item.localComment ?? ""}
               placeholder={item.comment?.trim() ? `Из шаблона: ${item.comment.trim()}` : "Из шаблона: —"}
-              onSaved={onSaved}
             />
           </div>
         </div>
@@ -521,6 +482,10 @@ function ProgramInstanceCompleteControl(props: {
   onPatched: () => Promise<void>;
 }) {
   const { instanceId, status, onPatched } = props;
+  const { runOrPromptSave, unsavedDialog } = useInstanceEditorUnsavedGate({
+    description:
+      "Есть несохранённые правки плана. Сохраните или отмените их перед завершением программы.",
+  });
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -551,7 +516,13 @@ function ProgramInstanceCompleteControl(props: {
   return (
     <>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" variant="destructive" disabled={saving} onClick={() => setOpen(true)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          disabled={saving}
+          onClick={() => runOrPromptSave(() => setOpen(true))}
+        >
           Завершить программу лечения
         </Button>
         {msg ? (
@@ -560,6 +531,7 @@ function ProgramInstanceCompleteControl(props: {
           </span>
         ) : null}
       </div>
+      {unsavedDialog}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
@@ -789,27 +761,93 @@ export function TreatmentProgramInstanceDetailClient(props: {
   doctorReplyFromLogEnabled: boolean;
   initialOpenDiscussionItemId?: string | null;
 }) {
+  const [baseline, setBaseline] = useState(props.initial);
+  const [programEvents, setProgramEvents] = useState<TreatmentProgramEventRow[]>(props.initialEvents);
+  const [actionLog, setActionLog] = useState<ProgramActionLogListRow[]>(props.initialActionLog);
+
+  const refreshBaseline = useCallback(async () => {
+    const res = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(baseline.id)}`);
+    const data = (await res.json().catch(() => null)) as { ok?: boolean; item?: TreatmentProgramInstanceDetail };
+    if (!res.ok || !data.ok || !data.item) {
+      throw new Error("Не удалось обновить данные");
+    }
+    setBaseline(data.item);
+    const evRes = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(baseline.id)}/events`);
+    const evData = (await evRes.json().catch(() => null)) as { ok?: boolean; events?: TreatmentProgramEventRow[] };
+    if (evRes.ok && evData.ok && evData.events) setProgramEvents(evData.events);
+    const alRes = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(baseline.id)}/action-log`);
+    const alData = (await alRes.json().catch(() => null)) as {
+      ok?: boolean;
+      entries?: ProgramActionLogListRow[];
+    };
+    if (alRes.ok && alData.ok && alData.entries) setActionLog(alData.entries);
+  }, [baseline.id]);
+
+  return (
+    <InstanceEditorDraftProvider
+      baseline={baseline}
+      programStatus={baseline.status}
+      onBaselineSynced={refreshBaseline}
+    >
+      <TreatmentProgramInstanceDetailClientBody
+        {...props}
+        baseline={baseline}
+        setBaseline={setBaseline}
+        programEvents={programEvents}
+        setProgramEvents={setProgramEvents}
+        actionLog={actionLog}
+        setActionLog={setActionLog}
+        refreshBaseline={refreshBaseline}
+      />
+    </InstanceEditorDraftProvider>
+  );
+}
+
+function TreatmentProgramInstanceDetailClientBody(props: {
+  patientProfileHref: string;
+  patientDisplayName: string;
+  initial: TreatmentProgramInstanceDetail;
+  initialTestResults: TreatmentProgramTestResultDetailRow[];
+  initialAttemptAcceptMap: Record<string, boolean>;
+  initialEvents: TreatmentProgramEventRow[];
+  initialActionLog: ProgramActionLogListRow[];
+  currentUserId: string;
+  isAdmin?: boolean;
+  appDisplayTimeZone: string;
+  treatmentProgramLibrary: TreatmentProgramLibraryPickers;
+  doctorReplyFromLogEnabled: boolean;
+  initialOpenDiscussionItemId?: string | null;
+  baseline: TreatmentProgramInstanceDetail;
+  setBaseline: (detail: TreatmentProgramInstanceDetail) => void;
+  programEvents: TreatmentProgramEventRow[];
+  setProgramEvents: (events: TreatmentProgramEventRow[]) => void;
+  actionLog: ProgramActionLogListRow[];
+  setActionLog: (rows: ProgramActionLogListRow[]) => void;
+  refreshBaseline: () => Promise<void>;
+}) {
   const {
     patientProfileHref,
     patientDisplayName,
-    initial,
     initialOpenDiscussionItemId,
     initialTestResults,
     initialAttemptAcceptMap,
-    initialEvents,
-    initialActionLog,
     currentUserId,
     isAdmin = false,
     appDisplayTimeZone,
     treatmentProgramLibrary,
     doctorReplyFromLogEnabled,
+    baseline,
+    programEvents,
+    setProgramEvents,
+    actionLog,
+    setActionLog,
+    refreshBaseline,
   } = props;
-  const [detail, setDetail] = useState(initial);
+  const { displayDetail } = useInstanceEditorDraft();
+  const detail = displayDetail;
   const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
   const [attemptAcceptMap, setAttemptAcceptMap] = useState<Record<string, boolean>>(initialAttemptAcceptMap);
-  const [programEvents, setProgramEvents] = useState<TreatmentProgramEventRow[]>(initialEvents);
-  const [actionLog, setActionLog] = useState<ProgramActionLogListRow[]>(initialActionLog);
   const [addLibrarySpec, setAddLibrarySpec] = useState<InstanceAddLibraryItemSpec | null>(null);
   const [noteReplyOpen, setNoteReplyOpen] = useState(false);
   const [noteReplyTarget, setNoteReplyTarget] = useState<ProgramActionLogListRow | null>(null);
@@ -855,23 +893,12 @@ export function TreatmentProgramInstanceDetailClient(props: {
 
   const refresh = useCallback(async () => {
     setError(null);
-    const res = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}`);
-    const data = (await res.json().catch(() => null)) as { ok?: boolean; item?: TreatmentProgramInstanceDetail };
-    if (!res.ok || !data.ok || !data.item) {
+    try {
+      await refreshBaseline();
+    } catch {
       setError("Не удалось обновить данные");
-      return;
     }
-    setDetail(data.item);
-    const evRes = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/events`);
-    const evData = (await evRes.json().catch(() => null)) as { ok?: boolean; events?: TreatmentProgramEventRow[] };
-    if (evRes.ok && evData.ok && evData.events) setProgramEvents(evData.events);
-    const alRes = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/action-log`);
-    const alData = (await alRes.json().catch(() => null)) as {
-      ok?: boolean;
-      entries?: ProgramActionLogListRow[];
-    };
-    if (alRes.ok && alData.ok && alData.entries) setActionLog(alData.entries);
-  }, [detail.id]);
+  }, [refreshBaseline]);
 
   const reorderPipelineStages = useCallback(
     async (activeId: string, overId: string) => {
@@ -1015,6 +1042,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
 
   return (
     <div className="flex flex-col gap-4">
+      <InstanceEditorSaveBar />
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -1421,6 +1449,7 @@ function InstanceStageGroupsPanel(props: {
 }) {
   const { instanceId, stage, onSaved, testResults, programStatus, newGroupOpen, onNewGroupOpenChange, onRequestAddLibraryItem } =
     props;
+  const { patchGroup } = useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);
   const [title, setTitle] = useState("");
   const [groupEdit, setGroupEdit] = useState<{
@@ -1615,7 +1644,7 @@ function InstanceStageGroupsPanel(props: {
     });
   };
 
-  const saveGroupEdit = async () => {
+  const saveGroupEdit = () => {
     if (!groupEdit) return;
     if (editLocked) return;
     const gMeta = stage.groups.find((g) => g.id === groupEdit.id);
@@ -1627,39 +1656,21 @@ function InstanceStageGroupsPanel(props: {
         return;
       }
     }
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setBusy(true);
-      setMsg(null);
-      try {
-        const body: Record<string, unknown> = isSysGroup
-          ? {
-              description: groupEdit.description.trim() || null,
-              scheduleText: groupEdit.scheduleText.trim() || null,
-            }
-          : {
-              title: groupEdit.title.trim(),
-              description: groupEdit.description.trim() || null,
-              scheduleText: groupEdit.scheduleText.trim() || null,
-            };
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupEdit.id)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
+    patchGroup(
+      groupEdit.id,
+      isSysGroup
+        ? {
+            description: groupEdit.description.trim() || null,
+            scheduleText: groupEdit.scheduleText.trim() || null,
+          }
+        : {
+            title: groupEdit.title.trim(),
+            description: groupEdit.description.trim() || null,
+            scheduleText: groupEdit.scheduleText.trim() || null,
           },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setMsg(data.error ?? "Ошибка");
-          return;
-        }
-        setGroupEdit(null);
-        await onSaved();
-      } finally {
-        setBusy(false);
-      }
-    });
+    );
+    setGroupEdit(null);
+    setMsg(null);
   };
 
   return (
@@ -2215,6 +2226,8 @@ function StageDoctorControls(props: {
   onPatched: () => Promise<void>;
 }) {
   const { instanceId, stage, programStatus, onPatched } = props;
+  const { patchStageMetadata } = useInstanceEditorDraft();
+  const { runOrPromptSave, unsavedDialog } = useInstanceEditorUnsavedGate();
   const stageId = stage.id;
   const status = stage.status;
   const editLocked = isProgramInstanceEditLocked(programStatus);
@@ -2234,7 +2247,6 @@ function StageDoctorControls(props: {
     stage.expectedDurationDays != null ? String(stage.expectedDurationDays) : "",
   );
   const [textDraft, setTextDraft] = useState(stage.expectedDurationText ?? "");
-  const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -2259,28 +2271,32 @@ function StageDoctorControls(props: {
 
   const patch = async (body: { status: string; reason?: string | null }) => {
     if (editLocked) return;
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setSaving(true);
-      setMsg(null);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setMsg(data.error ?? "Ошибка");
-          return;
-        }
-        await onPatched();
-        setMsg("Сохранено");
-      } finally {
-        setSaving(false);
-      }
+    runOrPromptSave(() => {
+      void (async () => {
+        await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+          setSaving(true);
+          setMsg(null);
+          try {
+            const res = await fetch(
+              `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              },
+            );
+            const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+            if (!res.ok || !data.ok) {
+              setMsg(data.error ?? "Ошибка");
+              return;
+            }
+            await onPatched();
+            setMsg("Сохранено");
+          } finally {
+            setSaving(false);
+          }
+        });
+      })();
     });
   };
 
@@ -2293,35 +2309,39 @@ function StageDoctorControls(props: {
       setSkipDialogError("Укажите причину пропуска");
       return;
     }
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setSkipDialogError(null);
-      setSaving(true);
-      setMsg(null);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "skipped", reason }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setSkipDialogError(data.error ?? "Ошибка");
-          return;
-        }
-        await onPatched();
-        setSkipDialogOpen(false);
-        setSkipReasonDraft("");
-        setMsg("Сохранено");
-      } finally {
-        setSaving(false);
-      }
+    runOrPromptSave(() => {
+      void (async () => {
+        await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+          setSkipDialogError(null);
+          setSaving(true);
+          setMsg(null);
+          try {
+            const res = await fetch(
+              `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "skipped", reason }),
+              },
+            );
+            const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+            if (!res.ok || !data.ok) {
+              setSkipDialogError(data.error ?? "Ошибка");
+              return;
+            }
+            await onPatched();
+            setSkipDialogOpen(false);
+            setSkipReasonDraft("");
+            setMsg("Сохранено");
+          } finally {
+            setSaving(false);
+          }
+        });
+      })();
     });
   };
 
-  const saveStageSettings = async () => {
+  const saveStageSettings = () => {
     if (editLocked) return;
     const titleTrim = titleDraft.trim();
     if (!titleTrim) {
@@ -2338,36 +2358,16 @@ function StageDoctorControls(props: {
       }
       expectedDurationDays = n;
     }
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setSettingsSaving(true);
-      setSettingsMsg(null);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: titleTrim,
-              description: descriptionDraft.trim() || null,
-              goals: goalsDraft.trim() || null,
-              objectives: objectivesDraft.trim() || null,
-              expectedDurationDays,
-              expectedDurationText: textDraft.trim() || null,
-            }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setSettingsMsg(data.error ?? "Ошибка");
-          return;
-        }
-        setStageSettingsOpen(false);
-        await onPatched();
-      } finally {
-        setSettingsSaving(false);
-      }
+    patchStageMetadata(stageId, {
+      title: titleTrim,
+      description: descriptionDraft.trim() || null,
+      goals: goalsDraft.trim() || null,
+      objectives: objectivesDraft.trim() || null,
+      expectedDurationDays,
+      expectedDurationText: textDraft.trim() || null,
     });
+    setStageSettingsOpen(false);
+    setSettingsMsg(null);
   };
 
   return (
@@ -2422,7 +2422,7 @@ function StageDoctorControls(props: {
             type="button"
             size="sm"
             variant="secondary"
-            disabled={saving || settingsSaving || editLocked}
+            disabled={saving || editLocked}
             onClick={() => setStageSettingsOpen(true)}
           >
             Изменить
@@ -2468,7 +2468,7 @@ function StageDoctorControls(props: {
                 value={titleDraft}
                 onChange={(e) => setTitleDraft(e.target.value)}
                 maxLength={2000}
-                disabled={settingsSaving}
+                disabled={editLocked}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -2479,7 +2479,7 @@ function StageDoctorControls(props: {
                 className="text-sm"
                 value={descriptionDraft}
                 onChange={(e) => setDescriptionDraft(e.target.value)}
-                disabled={settingsSaving}
+                disabled={editLocked}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -2490,7 +2490,7 @@ function StageDoctorControls(props: {
                 className="text-sm"
                 value={goalsDraft}
                 onChange={(e) => setGoalsDraft(e.target.value)}
-                disabled={settingsSaving}
+                disabled={editLocked}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -2501,7 +2501,7 @@ function StageDoctorControls(props: {
                 className="text-sm"
                 value={objectivesDraft}
                 onChange={(e) => setObjectivesDraft(e.target.value)}
-                disabled={settingsSaving}
+                disabled={editLocked}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -2512,7 +2512,7 @@ function StageDoctorControls(props: {
                 inputMode="numeric"
                 value={daysDraft}
                 onChange={(e) => setDaysDraft(e.target.value)}
-                disabled={settingsSaving}
+                disabled={editLocked}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -2522,17 +2522,17 @@ function StageDoctorControls(props: {
                 className="text-sm"
                 value={textDraft}
                 onChange={(e) => setTextDraft(e.target.value)}
-                disabled={settingsSaving}
+                disabled={editLocked}
               />
             </div>
             {settingsMsg ? <p className="text-xs text-destructive">{settingsMsg}</p> : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={settingsSaving} onClick={() => setStageSettingsOpen(false)}>
+            <Button type="button" variant="outline" disabled={editLocked} onClick={() => setStageSettingsOpen(false)}>
               Отмена
             </Button>
-            <Button type="button" disabled={settingsSaving || !titleDraft.trim()} onClick={() => void saveStageSettings()}>
-              {settingsSaving ? "Сохранение…" : "Сохранить настройки этапа"}
+            <Button type="button" disabled={editLocked || !titleDraft.trim()} onClick={() => saveStageSettings()}>
+              Применить
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2583,23 +2583,20 @@ function StageDoctorControls(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {unsavedDialog}
     </div>
   );
 }
 
 function ItemLocalCommentForm(props: {
-  instanceId: string;
   itemId: string;
   initialDraft: string;
   placeholder?: string;
-  onSaved: () => Promise<void>;
-  programStatus: TreatmentProgramInstanceStatus;
   editLocked: boolean;
 }) {
-  const { instanceId, itemId, initialDraft, placeholder, onSaved, programStatus, editLocked } = props;
+  const { itemId, initialDraft, placeholder, editLocked } = props;
+  const { patchItemLocalComment } = useInstanceEditorDraft();
   const [draft, setDraft] = useState(initialDraft);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(initialDraft);
@@ -2614,49 +2611,15 @@ function ItemLocalCommentForm(props: {
         id={`lc-${itemId}`}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (editLocked) return;
+          patchItemLocalComment(itemId, draft.trim() === "" ? null : draft.trim());
+        }}
         rows={3}
         className="text-sm"
-        disabled={saving || editLocked}
+        disabled={editLocked}
         placeholder={placeholder ?? "Из шаблона: —"}
       />
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          disabled={saving || editLocked}
-          onClick={async () => {
-            if (editLocked) return;
-            await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-              setSaving(true);
-              setMsg(null);
-              try {
-                const res = await fetch(
-                  `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(itemId)}`,
-                  {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ localComment: draft.trim() === "" ? null : draft.trim() }),
-                  },
-                );
-                const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                if (!res.ok || !data.ok) {
-                  setMsg(data.error ?? "Ошибка сохранения");
-                  return;
-                }
-                await onSaved();
-                setMsg("Сохранено");
-              } catch {
-                setMsg("Ошибка сохранения");
-              } finally {
-                setSaving(false);
-              }
-            });
-          }}
-        >
-          {saving ? "Сохранение…" : "Сохранить"}
-        </Button>
-      </div>
-      {msg ? <p className="text-xs text-muted-foreground">{msg}</p> : null}
     </div>
   );
 }

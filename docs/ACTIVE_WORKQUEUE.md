@@ -9,8 +9,8 @@
 | **2A** — дизайн карточки врача | **Закрыта** | [`CARD_REDESIGN_PLAN.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md) |
 | **2B** — реализация карточки | **Закрыта** | LOG §2026-06-02 |
 | **2C** — задачи специалиста | **Закрыта** (аудит 2026-06-02) | [`SPECIALIST_TASKS.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md), LOG §2C |
-| **3** — черновик редактора программы | Открыта | |
-| **4** — фильтры каталога (регион + нагрузка) | Открыта | |
+| **3** — черновик редактора программы | **Закрыта** (2026-06-02) | LOG §фаза 3 |
+| **4** — фильтры каталога (регион + нагрузка) | Открыта | **следующая** |
 | **5** — cross-patient inbox «Сегодня» | Открыта | после 2 |
 | **6** — CMS enum + `/help` | Открыта | |
 | **7** — хвосты docs/шаблонов | Частично | этот файл |
@@ -27,7 +27,14 @@
 - Пациент: `loadPatientProgramInteractionBundle`, UI visible/disabled, API `patient_support_*_disabled`.
 - Док: [`DOCTOR_DASHBOARD_METRICS.md`](ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md), [`PROMO_ASSIGNMENT_SOURCE.md`](PROMO_ASSIGNMENT_SOURCE.md), `apps/webapp/src/app/api/api.md`.
 
-**Следующий шаг очереди:** фаза **3** (черновик редактора программы).
+## Фаза 3 (закрыта)
+
+- In-memory черновик редактора инстанса (этап/группа/комментарии/нагрузка), одна кнопка «Сохранить», модалка перед сменой статуса этапа и «Завершить программу» при несохранённых правках; `beforeunload` при dirty.
+- Normalize no-op патчей (blur без изменений); partial batch save — baseline sync + сообщение в UI.
+- Завершение программы переводит все этапы (кроме skipped) в `completed`.
+- На «Обзоре» карточки — блок «Изменения программы» (до 5 последних событий).
+
+**Следующий шаг очереди:** фаза **4** (фильтры каталога на экране программы).
 
 ## Вне scope «сейчас»
 

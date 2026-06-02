@@ -284,6 +284,35 @@ describe("treatment-program instance service", () => {
     expect(second.status).toBe("active");
   });
 
+  it("updateInstance completed marks all non-skipped stages completed", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "S1" });
+    const s2 = await tplSvc.createStage(tpl.id, { title: "S2" });
+    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
+    await tplSvc.addStageItem(s2.id, { itemType: "recommendation", itemRefId: refB });
+    const patient = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    const pipeline = inst.stages.filter((s) => s.sortOrder > 0);
+    expect(pipeline.length).toBeGreaterThanOrEqual(2);
+
+    await instSvc.updateInstance({
+      instanceId: inst.id,
+      status: "completed",
+      actorId: null,
+    });
+
+    const after = await instPort.getInstanceById(inst.id);
+    expect(after?.status).toBe("completed");
+    for (const stage of after!.stages) {
+      if (stage.status === "skipped") continue;
+      expect(stage.status).toBe("completed");
+    }
+  });
+
   it("createBlankIndividualPlan sets templateId null and single stage zero", async () => {
     const patient = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
     const inst = await instSvc.createBlankIndividualPlan({

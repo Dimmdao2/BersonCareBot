@@ -2,18 +2,23 @@
 
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
 import { DoctorClientOverviewCarePlan } from "./DoctorClientOverviewCarePlan";
+import { DoctorClientOverviewRecentProgramChanges } from "./DoctorClientOverviewRecentProgramChanges";
 import { DoctorClientOverviewWellbeing } from "./DoctorClientOverviewWellbeing";
 import { PatientSpecialistTasksSection } from "./PatientSpecialistTasksSection";
 import { doctorClientOverviewPrimaryCardClass, doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
 import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import type { DoctorClientOverviewCarePlanModel } from "@/modules/doctor-client-card/types";
+import type {
+  DoctorClientOverviewCarePlanModel,
+  DoctorClientRecentProgramChangeRow,
+} from "@/modules/doctor-client-card/types";
 
 type Props = {
   userId: string;
   profileListScope?: string;
   treatmentProgramInstancesInitial?: TreatmentProgramInstanceSummary[];
   carePlan: DoctorClientOverviewCarePlanModel | null;
+  recentProgramChanges?: DoctorClientRecentProgramChangeRow[];
   assignTreatmentProgramEnabled: boolean;
   wellbeingModel: WellbeingWeekChartModel;
   displayTimeZone: string;
@@ -25,6 +30,7 @@ export function DoctorClientOverviewTab({
   profileListScope,
   treatmentProgramInstancesInitial,
   carePlan,
+  recentProgramChanges = [],
   assignTreatmentProgramEnabled,
   wellbeingModel,
   displayTimeZone,
@@ -40,6 +46,15 @@ export function DoctorClientOverviewTab({
         assignEnabled={assignTreatmentProgramEnabled}
         onAssignClick={onNavigateProgram}
       />
+      {carePlan ? (
+        <DoctorClientOverviewRecentProgramChanges
+          patientUserId={userId}
+          instanceId={carePlan.instanceId}
+          profileListScope={profileListScope}
+          rows={recentProgramChanges}
+          displayTimeZone={displayTimeZone}
+        />
+      ) : null}
       <DoctorClientOverviewWellbeing chartModel={wellbeingModel} displayTimeZone={displayTimeZone} />
       <PatientSpecialistTasksSection patientUserId={userId} />
       <details id="doctor-client-section-notes" className={`md:col-span-2 ${doctorClientOverviewPrimaryCardClass}`}>

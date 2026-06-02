@@ -4,10 +4,21 @@
 
 ---
 
-## 2026-06-02 — Синхронизация docs и плана (2C закрыта)
+## 2026-06-02 — Фаза 3: черновик редактора назначенной программы
 
-- План-очередь: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) — YAML todos 0–2C completed, `phase-2c-audit-remediation` completed; фаза 3 pending.
-- `ACTIVE_WORKQUEUE.md`, `docs/README.md`, `DOCTOR_PATIENT_CARD` README — 2C закрыта, следующая 3.
+- **Черновик:** `treatment-program-shared/instanceEditorDraft.ts`, `InstanceEditorDraftContext`, sticky `InstanceEditorSaveBar`; правки метаданных этапа/группы, `localComment`, нагрузка упражнения — in-memory; один batch save (`flushInstanceEditorDraft`) с единственным confirm для `active`.
+- **Guard:** `programInstanceMutationGuard` — структурные мутации без confirm на клик; `useInstanceEditorUnsavedGate` — модалка перед **сменой статуса этапа** и **«Завершить программу»** при dirty; `beforeunload` при уходе со страницы.
+- **Normalize:** `normalizeInstanceEditorDraft` / `isInstanceEditorDraftDirty` — no-op blur не помечает черновик dirty; partial batch failure → перезагрузка baseline + toast «сохранено частично».
+- **Backend:** `updateInstance(status=completed)` закрывает все этапы (кроме `skipped`) + события `stage_completed`.
+- **Карточка:** блок «Изменения программы» на табе «Обзор» (`buildDoctorClientRecentProgramChanges`, до 5 событий).
+- **Проверки:** `instanceEditorDraft.test.ts`, `flushInstanceEditorDraft.test.ts`, `instance-service.test.ts` (complete→stages), `buildDoctorClientRecentProgramChanges.test.ts`, `loadDoctorClientProgramCardAggregates.test.ts`; `tsc --noEmit` webapp; `api.md` — UX черновика редактора.
+
+---
+
+## 2026-06-02 — Синхронизация docs и плана (3 закрыта)
+
+- План-очередь: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) — YAML todos 0–3 completed; **следующая фаза 4** (фильтры каталога).
+- `ACTIVE_WORKQUEUE.md`, `DOCTOR_PATIENT_CARD` README, `TODO.md` §Doctor card — фаза 3 закрыта.
 
 ---
 

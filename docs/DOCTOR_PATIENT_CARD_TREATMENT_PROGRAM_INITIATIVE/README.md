@@ -2,7 +2,7 @@
 
 Инициатива по **кабинету врача**: карточка пациента как место **назначения программ лечения из шаблонов** и **корректировки `treatment_program_instance`** (без дублирования каноничных спецификаций — только ссылки и дорожная карта).
 
-**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Карточка врача (2A–2B)** и ✅ **задачи специалиста (2C)** — 2026-06-02 ([`CARD_REDESIGN_PLAN.md`](CARD_REDESIGN_PLAN.md), [`SPECIALIST_TASKS.md`](SPECIALIST_TASKS.md), [`LOG.md`](LOG.md)). **Следующий контур:** фаза **3** (черновик редактора программы) — [`docs/TODO.md`](../TODO.md) §Doctor card; очередь [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md).
+**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Карточка врача (2A–2B)** и ✅ **задачи специалиста (2C)** — 2026-06-02. ✅ **Черновик редактора программы (фаза 3)** — 2026-06-02. **Следующий контур:** фаза **4** (фильтры каталога) — [`docs/TODO.md`](../TODO.md) §Doctor card; очередь [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md).
 
 **Операционный roadmap:** [`ROADMAP.md`](ROADMAP.md).
 
