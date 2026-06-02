@@ -1066,6 +1066,10 @@ export function createTreatmentProgramInstanceService(deps: {
       const detail = await instances.getInstanceById(input.instanceId);
       if (!detail) throw new Error("Программа не найдена");
       for (const id of input.orderedStageIds) assertUuid(id);
+      const stageZero = detail.stages.find((s) => s.sortOrder === 0);
+      if (stageZero && input.orderedStageIds[0] !== stageZero.id) {
+        throw new Error("Этап «Общие рекомендации» должен оставаться первым");
+      }
       const ok = await instances.reorderInstanceStages(input.instanceId, input.orderedStageIds);
       if (!ok) throw new Error("Некорректный порядок этапов");
       await appendEvent({

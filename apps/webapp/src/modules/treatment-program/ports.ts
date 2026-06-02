@@ -54,6 +54,7 @@ import type {
 
 /** Контекст этапа шаблона для валидации элементов (`addStageItem` / `updateStageItem`). */
 export type TreatmentProgramTemplateStageValidationContext = {
+  templateId: string;
   sortOrder: number;
   groups: Array<Pick<TreatmentProgramTemplateStageGroup, "id" | "systemKind">>;
 };
@@ -98,6 +99,8 @@ export type TreatmentProgramPort = {
   ): Promise<TreatmentProgramTemplateStageGroup | null>;
   deleteTemplateStageGroup(groupId: string): Promise<boolean>;
   reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]): Promise<boolean>;
+  reorderTemplateStages(templateId: string, orderedStageIds: string[]): Promise<boolean>;
+  reorderTemplateStageItems(stageId: string, orderedItemIds: string[]): Promise<boolean>;
 
   /** Каталожный шаблон комплекса ЛФК: порядок упражнений для развёртывания; `null`, если нет или в архиве. */
   getLfkComplexExpandPreview(complexTemplateId: string): Promise<LfkComplexExpandPreview | null>;

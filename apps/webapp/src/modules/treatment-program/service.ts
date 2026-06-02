@@ -323,6 +323,32 @@ export function createTreatmentProgramService(
       if (!ok) throw new Error("Некорректный порядок групп этапа");
     },
 
+    async reorderTemplateStages(templateId: string, orderedStageIds: string[]) {
+      assertUuid(templateId);
+      for (const id of orderedStageIds) assertUuid(id);
+      const tpl = await port.getTemplateById(templateId);
+      if (!tpl) throw new Error("Шаблон программы не найден");
+      if (tpl.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      const stageZero = tpl.stages.find((s) => s.sortOrder === 0);
+      if (stageZero && orderedStageIds[0] !== stageZero.id) {
+        throw new Error("Этап «Общие рекомендации» должен оставаться первым");
+      }
+      const ok = await port.reorderTemplateStages(templateId, orderedStageIds);
+      if (!ok) throw new Error("Некорректный порядок этапов");
+    },
+
+    async reorderTemplateStageItems(stageId: string, orderedItemIds: string[]) {
+      assertUuid(stageId);
+      for (const id of orderedItemIds) assertUuid(id);
+      const ctx = await port.getTemplateStageValidationContext(stageId);
+      if (!ctx) throw new Error("Этап не найден");
+      const tpl = await port.getTemplateById(ctx.templateId);
+      if (!tpl) throw new Error("Шаблон программы не найден");
+      if (tpl.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      const ok = await port.reorderTemplateStageItems(stageId, orderedItemIds);
+      if (!ok) throw new Error("Некорректный порядок элементов этапа");
+    },
+
     async expandLfkComplexIntoTemplateStageItems(
       templateId: string,
       stageId: string,

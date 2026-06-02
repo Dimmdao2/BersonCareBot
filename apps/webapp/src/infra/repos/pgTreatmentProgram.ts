@@ -49,6 +49,16 @@ import {
 } from "@/modules/treatment-program/types";
 import { TreatmentProgramTemplateAlreadyArchivedError, TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 
+function sameIdSet(ordered: string[], expected: Set<string>): boolean {
+  if (ordered.length !== expected.size) return false;
+  const seen = new Set<string>();
+  for (const id of ordered) {
+    if (!expected.has(id) || seen.has(id)) return false;
+    seen.add(id);
+  }
+  return true;
+}
+
 function mapTemplate(
   row: typeof tplTable.$inferSelect,
   counts?: { stageCount: number; itemCount: number },
@@ -539,7 +549,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     ): Promise<TreatmentProgramTemplateStageValidationContext | null> {
       const db = getDrizzle();
       const [st] = await db
-        .select({ sortOrder: stageTable.sortOrder })
+        .select({ sortOrder: stageTable.sortOrder, templateId: stageTable.templateId })
         .from(stageTable)
         .where(eq(stageTable.id, stageId))
         .limit(1);
@@ -549,6 +559,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         .from(tplGroupTable)
         .where(eq(tplGroupTable.stageId, stageId));
       return {
+        templateId: st.templateId,
         sortOrder: st.sortOrder,
         groups: groupRows.map((r) => ({
           id: r.id,
@@ -790,6 +801,57 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       await db.update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId));
       const res = await db.delete(tplGroupTable).where(eq(tplGroupTable.id, groupId)).returning({ id: tplGroupTable.id });
       return res.length > 0;
+    },
+
+    async reorderTemplateStages(templateId: string, orderedStageIds: string[]) {
+      const db = getDrizzle();
+      const TEMP_OFFSET = 100_000;
+      return db.transaction(async (tx) => {
+        const stagesRows = await tx
+          .select({ id: stageTable.id, sortOrder: stageTable.sortOrder })
+          .from(stageTable)
+          .where(eq(stageTable.templateId, templateId));
+        const idSet = new Set(stagesRows.map((r) => r.id));
+        if (!sameIdSet(orderedStageIds, idSet)) return false;
+        const zero = stagesRows.find((r) => r.sortOrder === 0);
+        if (zero && orderedStageIds[0] !== zero.id) return false;
+        for (let i = 0; i < orderedStageIds.length; i++) {
+          await tx
+            .update(stageTable)
+            .set({ sortOrder: TEMP_OFFSET + i })
+            .where(eq(stageTable.id, orderedStageIds[i]!));
+        }
+        for (let i = 0; i < orderedStageIds.length; i++) {
+          await tx
+            .update(stageTable)
+            .set({ sortOrder: i })
+            .where(eq(stageTable.id, orderedStageIds[i]!));
+        }
+        return true;
+      });
+    },
+
+    async reorderTemplateStageItems(stageId: string, orderedItemIds: string[]) {
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        const stRow = await tx.query.treatmentProgramTemplateStages.findFirst({
+          where: eq(stageTable.id, stageId),
+        });
+        if (!stRow) return false;
+        const itemRows = await tx
+          .select({ id: itemTable.id })
+          .from(itemTable)
+          .where(eq(itemTable.stageId, stageId));
+        const idSet = new Set(itemRows.map((r) => r.id));
+        if (!sameIdSet(orderedItemIds, idSet)) return false;
+        for (let i = 0; i < orderedItemIds.length; i++) {
+          await tx
+            .update(itemTable)
+            .set({ sortOrder: i })
+            .where(eq(itemTable.id, orderedItemIds[i]!));
+        }
+        return true;
+      });
     },
 
     async reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]) {

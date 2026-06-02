@@ -837,6 +837,8 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const stageList = [...stages.values()].filter((s) => s.instanceId === instanceId);
       const idSet = new Set(stageList.map((s) => s.id));
       if (!sameIdSet(orderedStageIds, idSet)) return false;
+      const zero = stageList.find((s) => s.sortOrder === 0);
+      if (zero && orderedStageIds[0] !== zero.id) return false;
       for (let i = 0; i < orderedStageIds.length; i++) {
         const sid = orderedStageIds[i]!;
         const s = stages.get(sid);

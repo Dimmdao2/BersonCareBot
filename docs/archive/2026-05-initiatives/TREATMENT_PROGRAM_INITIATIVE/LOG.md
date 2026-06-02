@@ -893,3 +893,15 @@
 - `vitest --run` — `PatientTreatmentProgramDetailClient.test.tsx`, `[instanceId]/page.nudgeResilience.test.tsx`, `[instanceId]/page.templateDescription.test.tsx` — **PASS** (21 tests)
 
 **Намеренно не делали:** полный `pnpm run ci` репозитория.
+
+---
+
+## 2026-06-02 — DnD reorder этапов и элементов (шаблон + инстанс)
+
+**Сделано:** bulk-reorder API шаблона, DnD в `TreatmentProgramConstructorClient` и `TreatmentProgramInstanceDetailClient`, валидация этапа 0, shared-хелперы и `TreatmentProgramDndUi`, archived-check для `reorderTemplateStageItems`, chevrons элементов шаблона на `items/reorder`.
+
+**Детали и проверки:** [`LOG_DND_REORDER_2026-06.md`](./LOG_DND_REORDER_2026-06.md).
+
+**Тесты:** `treatmentProgramReorderHelpers.test.ts`, `treatmentProgramInstanceItemDnd.test.ts`, `TreatmentProgramConstructorClient.reorder.test.tsx`, `service.test.ts` (reorder), `pnpm --dir apps/webapp run lint`, `typecheck`, `vitest src/modules/treatment-program`.
+
+**План (архив):** `.cursor/plans/archive/program-stage-dnd-reorder_8fce4297.plan.md`.

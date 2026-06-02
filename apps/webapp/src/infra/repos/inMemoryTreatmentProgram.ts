@@ -214,6 +214,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         .filter((g) => g.stageId === stageId)
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
       return {
+        templateId: st.templateId,
         sortOrder: st.sortOrder,
         groups: groupList.map((g) => ({
           id: g.id,
@@ -635,6 +636,37 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         const row = tplGroups.get(gid);
         if (!row) return false;
         tplGroups.set(gid, { ...row, sortOrder: i });
+      }
+      return true;
+    },
+
+    async reorderTemplateStages(templateId: string, orderedStageIds: string[]) {
+      const tpl = templates.get(templateId);
+      if (!tpl) return false;
+      const stageList = [...stages.values()].filter((s) => s.templateId === templateId);
+      const idSet = new Set(stageList.map((s) => s.id));
+      if (!sameIdSet(orderedStageIds, idSet)) return false;
+      const zero = stageList.find((s) => s.sortOrder === 0);
+      if (zero && orderedStageIds[0] !== zero.id) return false;
+      for (let i = 0; i < orderedStageIds.length; i++) {
+        const sid = orderedStageIds[i]!;
+        const row = stages.get(sid);
+        if (!row) return false;
+        stages.set(sid, { ...row, sortOrder: i });
+      }
+      return true;
+    },
+
+    async reorderTemplateStageItems(stageId: string, orderedItemIds: string[]) {
+      if (!stages.has(stageId)) return false;
+      const itemList = [...items.values()].filter((it) => it.stageId === stageId);
+      const idSet = new Set(itemList.map((it) => it.id));
+      if (!sameIdSet(orderedItemIds, idSet)) return false;
+      for (let i = 0; i < orderedItemIds.length; i++) {
+        const iid = orderedItemIds[i]!;
+        const row = items.get(iid);
+        if (!row) return false;
+        items.set(iid, { ...row, sortOrder: i });
       }
       return true;
     },

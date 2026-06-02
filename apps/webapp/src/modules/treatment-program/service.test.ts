@@ -464,4 +464,95 @@ describe("treatment-program service", () => {
       );
     });
   });
+
+  it("reorderTemplateStages keeps stage zero first and renumbers pipeline", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const s0 = (await svc.getTemplate(tpl.id)).stages.find((s) => s.sortOrder === 0)!;
+    const s1 = await svc.createStage(tpl.id, { title: "S1" });
+    const s2 = await svc.createStage(tpl.id, { title: "S2" });
+    await svc.reorderTemplateStages(tpl.id, [s0.id, s2.id, s1.id]);
+    const after = sortByOrderThenId((await svc.getTemplate(tpl.id)).stages);
+    expect(after.map((s) => s.id)).toEqual([s0.id, s2.id, s1.id]);
+    expect(after.map((s) => s.sortOrder)).toEqual([0, 1, 2]);
+  });
+
+  it("reorderTemplateStages rejects moving stage zero from index 0", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const d = await svc.getTemplate(tpl.id);
+    const s0 = d.stages.find((s) => s.sortOrder === 0)!;
+    const s1 = await svc.createStage(tpl.id, { title: "S1" });
+    await expect(svc.reorderTemplateStages(tpl.id, [s1.id, s0.id])).rejects.toThrow(/Общие рекомендации/);
+  });
+
+  it("reorderTemplateStages rejects incomplete orderedStageIds", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const s0 = (await svc.getTemplate(tpl.id)).stages.find((s) => s.sortOrder === 0)!;
+    await svc.createStage(tpl.id, { title: "S1" });
+    await expect(svc.reorderTemplateStages(tpl.id, [s0.id])).rejects.toThrow(/Некорректный порядок этапов/);
+  });
+
+  it("reorderTemplateStageItems rejects on archived template", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const stage = await svc.createStage(tpl.id, { title: "S1" });
+    const item = await svc.addStageItem(stage.id, {
+      itemType: "recommendation",
+      itemRefId: validRef,
+    });
+    await svc.updateTemplate(tpl.id, { status: "archived" });
+    await expect(svc.reorderTemplateStageItems(stage.id, [item.id])).rejects.toBeInstanceOf(
+      TreatmentProgramTemplateAlreadyArchivedError,
+    );
+  });
+
+  it("reorderTemplateStageItems rejects unknown item id in ordered list", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const stage = await svc.createStage(tpl.id, { title: "S1" });
+    const item = await svc.addStageItem(stage.id, {
+      itemType: "recommendation",
+      itemRefId: validRef,
+    });
+    await expect(
+      svc.reorderTemplateStageItems(stage.id, [item.id, "99999999-9999-4999-8999-999999999999"]),
+    ).rejects.toThrow(/Некорректный порядок элементов этапа/);
+  });
+
+  it("reorderTemplateStageItems rejects duplicate ids in ordered list", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const stage = await svc.createStage(tpl.id, { title: "S1" });
+    const item = await svc.addStageItem(stage.id, {
+      itemType: "recommendation",
+      itemRefId: validRef,
+    });
+    await expect(svc.reorderTemplateStageItems(stage.id, [item.id, item.id])).rejects.toThrow(
+      /Некорректный порядок элементов этапа/,
+    );
+  });
+
+  it("reorderTemplateStageItems renumbers all items on stage", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const stage = await svc.createStage(tpl.id, { title: "S1" });
+    const g1 = await svc.createTemplateStageGroup(stage.id, { title: "G1" });
+    const g2 = await svc.createTemplateStageGroup(stage.id, { title: "G2" });
+    const a = await svc.addStageItem(stage.id, {
+      itemType: "recommendation",
+      itemRefId: validRef,
+      groupId: g1.id,
+    });
+    const b = await svc.addStageItem(stage.id, {
+      itemType: "recommendation",
+      itemRefId: "22222222-2222-4222-8222-222222222222",
+      groupId: g2.id,
+    });
+    await svc.reorderTemplateStageItems(stage.id, [b.id, a.id]);
+    const items = sortByOrderThenId((await svc.getTemplate(tpl.id)).stages.find((s) => s.id === stage.id)!.items);
+    expect(items.map((i) => i.id)).toEqual([b.id, a.id]);
+    expect(items.map((i) => i.sortOrder)).toEqual([0, 1]);
+  });
 });

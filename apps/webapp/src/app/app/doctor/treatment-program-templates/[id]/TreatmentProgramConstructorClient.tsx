@@ -46,6 +46,18 @@ import { TreatmentProgramTemplateStatusBadge } from "../TreatmentProgramTemplate
 import { TemplateReorderChevrons } from "@/shared/ui/doctor/TemplateReorderChevrons";
 import { cn } from "@/lib/utils";
 import {
+  TreatmentProgramPipelineStagesDnd,
+  TreatmentProgramSortablePipelineStage,
+  TreatmentProgramSortableItemShell,
+  TreatmentProgramStageItemsDnd,
+} from "@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi";
+import {
+  computeOrderedItemIdsAfterGroupItemAdjacentSwap,
+  computeOrderedStageIdsAfterPipelineMove,
+  planStageItemDndReorder,
+  sortByOrderThenId,
+} from "@/app/app/doctor/treatment-program-shared/treatmentProgramReorderHelpers";
+import {
   TPL_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS,
   TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS,
   TPL_HEADER_BG_GROUP_CUSTOM,
@@ -208,20 +220,37 @@ function findLibraryRow(
   return rows.find((r) => r.id === id) ?? null;
 }
 
+function isTemplateItemDndEligible(
+  stage: StageWithChildren,
+  item: TreatmentProgramStageItem,
+): boolean {
+  if (!item.groupId) return true;
+  const g = stage.groups.find((x) => x.id === item.groupId);
+  if (!g) return true;
+  return !isTreatmentProgramTemplateSystemStageGroup(g);
+}
+
+function templateStageDndItemIds(stage: StageWithChildren): string[] {
+  return sortByOrderThenId(stage.items.filter((it) => isTemplateItemDndEligible(stage, it))).map((it) => it.id);
+}
+
 function StageItemListRow({
   library,
   item,
   editLocked,
   onOpenSettings,
+  dragHandle,
 }: {
   library: TreatmentProgramLibraryPickers;
   item: TreatmentProgramStageItem;
   editLocked: boolean;
   onOpenSettings: () => void;
+  dragHandle?: ReactNode;
 }) {
   const libRow = findLibraryRow(library, item.itemType, item.itemRefId);
-  return (
-    <li className="flex min-w-0 items-center gap-2 px-2 py-2">
+  const rowBody = (
+    <>
+      {dragHandle}
       <LibraryMediaThumb compact src={libRow?.thumbUrl} itemType={item.itemType} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{libRow?.title ?? item.itemRefId}</p>
@@ -238,13 +267,14 @@ function StageItemListRow({
       >
         <Settings className="size-4" />
       </Button>
-    </li>
+    </>
   );
-}
 
-/** Стабильный порядок для этапов и элементов (как на сервере в `getTemplateById`). */
-function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
-  return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+  if (dragHandle) {
+    return <div className="flex min-w-0 items-center gap-2 px-2 py-2">{rowBody}</div>;
+  }
+
+  return <li className="flex min-w-0 items-center gap-2 px-2 py-2">{rowBody}</li>;
 }
 
 type StageWithChildren = TreatmentProgramTemplateDetail["stages"][number];
@@ -757,16 +787,6 @@ export function TreatmentProgramConstructorClient({
     return res.ok && !!json.ok;
   }
 
-  async function patchItemSortOrder(itemId: string, sortOrder: number): Promise<boolean> {
-    const res = await fetch(`/api/doctor/treatment-program-templates/stage-items/${itemId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sortOrder }),
-    });
-    const json = (await res.json()) as { ok?: boolean; error?: string };
-    return res.ok && !!json.ok;
-  }
-
   async function handleSaveStageSettings() {
     const sid = stageSettingsStageId;
     if (!sid || editLocked) return;
@@ -814,21 +834,103 @@ export function TreatmentProgramConstructorClient({
     }
   }
 
+  async function reorderTemplateStagesBulk(orderedStageIds: string[]) {
+    const res = await fetch(
+      `/api/doctor/treatment-program-templates/${encodeURIComponent(detail.id)}/stages/reorder`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedStageIds }),
+      },
+    );
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    if (!res.ok || !json.ok) {
+      setError(json.error ?? "Не удалось изменить порядок этапов");
+      return false;
+    }
+    return true;
+  }
+
+  async function reorderTemplateStageItemsBulk(stageId: string, orderedItemIds: string[]) {
+    const res = await fetch(
+      `/api/doctor/treatment-program-templates/stages/${encodeURIComponent(stageId)}/items/reorder`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedItemIds }),
+      },
+    );
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    if (!res.ok || !json.ok) {
+      setError(json.error ?? "Не удалось изменить порядок элементов");
+      return false;
+    }
+    return true;
+  }
+
   async function handleMoveStage(stageId: string, dir: -1 | 1) {
-    const sorted = sortByOrderThenId(detail.stages);
-    const idx = sorted.findIndex((s) => s.id === stageId);
+    const pipeline = sortByOrderThenId(detail.stages).filter((s) => s.sortOrder > 0);
+    const idx = pipeline.findIndex((s) => s.id === stageId);
     const j = idx + dir;
-    if (idx < 0 || j < 0 || j >= sorted.length) return;
-    const a = sorted[idx]!;
-    const b = sorted[j]!;
-    if (a.sortOrder === 0 || b.sortOrder === 0) return;
+    if (idx < 0 || j < 0 || j >= pipeline.length) return;
+    const overId = pipeline[j]!.id;
+    const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, stageId, overId);
+    if (!ordered) {
+      setError("Не удалось изменить порядок этапов");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const ok1 = await patchStageSortOrder(a.id, b.sortOrder);
-      const ok2 = await patchStageSortOrder(b.id, a.sortOrder);
-      if (!ok1 || !ok2) {
-        setError("Не удалось изменить порядок этапов");
+      const ok = await reorderTemplateStagesBulk(ordered);
+      if (!ok) return;
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePipelineStageDnd(activeId: string, overId: string) {
+    const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, activeId, overId);
+    if (!ordered) {
+      setError("Не удалось изменить порядок этапов");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const ok = await reorderTemplateStagesBulk(ordered);
+      if (!ok) return;
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleStageItemDnd(stage: StageWithChildren, activeId: string, overId: string) {
+    const canParticipate = (item: TreatmentProgramStageItem) => isTemplateItemDndEligible(stage, item);
+    const plan = planStageItemDndReorder(stage.items, activeId, overId, canParticipate);
+    if (!plan.ok) {
+      if (plan.error === "ungrouped_type") {
+        setError("Без группы допустимы только рекомендации и клинические тесты");
+      } else {
+        setError("Не удалось изменить порядок элементов");
+      }
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      if (plan.needsGroupPatch) {
+        const okGroup = await patchItemGroupId(activeId, plan.nextGroupId);
+        if (!okGroup) {
+          setError("Не удалось сменить группу элемента");
+          return;
+        }
+      }
+      const ok = await reorderTemplateStageItemsBulk(stage.id, plan.orderedItemIds);
+      if (!ok) {
+        await reload();
         return;
       }
       await reload();
@@ -871,20 +973,20 @@ export function TreatmentProgramConstructorClient({
     }
   }
 
-  async function handleMoveItemInSubgroup(sectionItems: TreatmentProgramStageItem[], itemId: string, dir: -1 | 1) {
-    const sorted = sortByOrderThenId(sectionItems);
-    const idx = sorted.findIndex((it) => it.id === itemId);
-    const j = idx + dir;
-    if (idx < 0 || j < 0 || j >= sorted.length) return;
-    const a = sorted[idx]!;
-    const b = sorted[j]!;
+  async function handleMoveItemInSubgroup(
+    stage: StageWithChildren,
+    groupId: string | null,
+    itemId: string,
+    dir: -1 | 1,
+  ) {
+    const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(stage.items, groupId, itemId, dir);
+    if (!ordered) return;
     setBusy(true);
     setError(null);
     try {
-      const ok1 = await patchItemSortOrder(a.id, b.sortOrder);
-      const ok2 = await patchItemSortOrder(b.id, a.sortOrder);
-      if (!ok1 || !ok2) {
-        setError("Не удалось изменить порядок элементов");
+      const ok = await reorderTemplateStageItemsBulk(stage.id, ordered);
+      if (!ok) {
+        await reload();
         return;
       }
       await reload();
@@ -1395,20 +1497,36 @@ export function TreatmentProgramConstructorClient({
             Добавьте этап лечения — блок рекомендаций вынесен выше.
           </p>
         ) : (
-          <div className="flex flex-col gap-4">
-            {stagesNonZero.map((s) => {
-              const fullIdx = orderedStages.findIndex((x) => x.id === s.id);
-              const prevStage = fullIdx > 0 ? orderedStages[fullIdx - 1]! : null;
-              const groupsOrd = orderedGroupsForStage(s);
-              const ungrouped = ungroupedItemsForStage(s);
-              return (
-                <section key={s.id} className={TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS}>
-                  <div
-                    className="border-b border-border/40 px-2 py-1.5"
-                    style={{ background: TPL_HEADER_BG_STAGE_EDITABLE }}
+          <TreatmentProgramPipelineStagesDnd
+            stageIds={stagesNonZero.map((s) => s.id)}
+            disabled={editLocked || busy}
+            onReorder={handlePipelineStageDnd}
+          >
+            <div className="flex flex-col gap-4">
+              {stagesNonZero.map((s) => {
+                const fullIdx = orderedStages.findIndex((x) => x.id === s.id);
+                const prevStage = fullIdx > 0 ? orderedStages[fullIdx - 1]! : null;
+                const groupsOrd = orderedGroupsForStage(s);
+                const ungrouped = ungroupedItemsForStage(s);
+                const dndItemIds = templateStageDndItemIds(s);
+                return (
+                  <TreatmentProgramSortablePipelineStage
+                    key={s.id}
+                    id={s.id}
+                    disabled={editLocked || busy}
+                    className={TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1 pt-0.5">
+                    {(stageDragHandle) => (
+                      <>
+                        <div
+                          className="border-b border-border/40 px-2 py-1.5"
+                          style={{ background: TPL_HEADER_BG_STAGE_EDITABLE }}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            {!editLocked ? (
+                              <div className="shrink-0 self-start pt-0.5">{stageDragHandle}</div>
+                            ) : null}
+                            <div className="min-w-0 flex-1 pt-0.5">
                         <span className="text-xs font-medium tabular-nums text-muted-foreground">
                           Этап {s.sortOrder}
                         </span>
@@ -1461,12 +1579,17 @@ export function TreatmentProgramConstructorClient({
                       </div>
                     </div>
                   </div>
-                  <div className="p-3">
-                    {groupsOrd.length === 0 && s.items.length === 0 ? (
-                      <p className="mt-3 text-sm text-muted-foreground">В этапе пока нет элементов и групп.</p>
-                    ) : (
-                      <div className="mt-3 space-y-3">
-                        {groupsOrd.map((g, groupIndex) => {
+                        <div className="p-3">
+                          {groupsOrd.length === 0 && s.items.length === 0 ? (
+                            <p className="mt-3 text-sm text-muted-foreground">В этапе пока нет элементов и групп.</p>
+                          ) : (
+                            <TreatmentProgramStageItemsDnd
+                              sortableItemIds={dndItemIds}
+                              disabled={editLocked || busy}
+                              onReorder={(activeId, overId) => void handleStageItemDnd(s, activeId, overId)}
+                            >
+                              <div className="mt-3 space-y-3">
+                                {groupsOrd.map((g, groupIndex) => {
                           const gItems = itemsInGroupForStage(s, g.id);
                           const sys = isTreatmentProgramTemplateSystemStageGroup(g);
                           return (
@@ -1539,15 +1662,38 @@ export function TreatmentProgramConstructorClient({
                                   <p className="py-2 text-xs text-muted-foreground">В группе пока нет элементов.</p>
                                 ) : (
                                   <ul className="divide-y rounded-md border border-border/30">
-                                    {gItems.map((it) => (
-                                      <StageItemListRow
-                                        key={it.id}
-                                        library={library}
-                                        item={it}
-                                        editLocked={editLocked}
-                                        onOpenSettings={() => setItemSettingsItemId(it.id)}
-                                      />
-                                    ))}
+                                    {gItems.map((it) => {
+                                      const dndEligible = isTemplateItemDndEligible(s, it);
+                                      if (!dndEligible) {
+                                        return (
+                                          <StageItemListRow
+                                            key={it.id}
+                                            library={library}
+                                            item={it}
+                                            editLocked={editLocked}
+                                            onOpenSettings={() => setItemSettingsItemId(it.id)}
+                                          />
+                                        );
+                                      }
+                                      return (
+                                        <TreatmentProgramSortableItemShell
+                                          key={it.id}
+                                          id={it.id}
+                                          disabled={editLocked || busy}
+                                          className="px-2 py-2"
+                                        >
+                                          {(dragHandle) => (
+                                            <StageItemListRow
+                                              library={library}
+                                              item={it}
+                                              editLocked={editLocked}
+                                              dragHandle={dragHandle}
+                                              onOpenSettings={() => setItemSettingsItemId(it.id)}
+                                            />
+                                          )}
+                                        </TreatmentProgramSortableItemShell>
+                                      );
+                                    })}
                                   </ul>
                                 )}
                               </div>
@@ -1562,25 +1708,38 @@ export function TreatmentProgramConstructorClient({
                             <div className="p-2">
                               <ul className="divide-y rounded-md border border-border/50">
                                 {ungrouped.map((it) => (
-                                  <StageItemListRow
+                                  <TreatmentProgramSortableItemShell
                                     key={it.id}
-                                    library={library}
-                                    item={it}
-                                    editLocked={editLocked}
-                                    onOpenSettings={() => setItemSettingsItemId(it.id)}
-                                  />
+                                    id={it.id}
+                                    disabled={editLocked || busy}
+                                    className="px-2 py-2"
+                                  >
+                                    {(dragHandle) => (
+                                      <StageItemListRow
+                                        library={library}
+                                        item={it}
+                                        editLocked={editLocked}
+                                        dragHandle={dragHandle}
+                                        onOpenSettings={() => setItemSettingsItemId(it.id)}
+                                      />
+                                    )}
+                                  </TreatmentProgramSortableItemShell>
                                 ))}
                               </ul>
                             </div>
                           </div>
-                        ) : null}
-                      </div>
+                                ) : null}
+                              </div>
+                            </TreatmentProgramStageItemsDnd>
+                          )}
+                        </div>
+                      </>
                     )}
-                  </div>
-                </section>
-              );
-            })}
-          </div>
+                  </TreatmentProgramSortablePipelineStage>
+                );
+              })}
+            </div>
+          </TreatmentProgramPipelineStagesDnd>
         )}
       </div>
 
@@ -1761,14 +1920,16 @@ export function TreatmentProgramConstructorClient({
                     ariaLabelDown="Элемент ниже в списке"
                     onUp={() =>
                       void handleMoveItemInSubgroup(
-                        itemSettingsReorderState.section,
+                        itemSettingsContext.stage,
+                        itemSettingsContext.item.groupId ?? null,
                         itemSettingsReorderState.itemId,
                         -1,
                       )
                     }
                     onDown={() =>
                       void handleMoveItemInSubgroup(
-                        itemSettingsReorderState.section,
+                        itemSettingsContext.stage,
+                        itemSettingsContext.item.groupId ?? null,
                         itemSettingsReorderState.itemId,
                         1,
                       )

@@ -1166,11 +1166,13 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       const db = getDrizzle();
       return db.transaction(async (tx) => {
         const stagesRows = await tx
-          .select({ id: stageTable.id })
+          .select({ id: stageTable.id, sortOrder: stageTable.sortOrder })
           .from(stageTable)
           .where(eq(stageTable.instanceId, instanceId));
         const idSet = new Set(stagesRows.map((r) => r.id));
         if (!sameIdSet(orderedStageIds, idSet)) return false;
+        const zero = stagesRows.find((r) => r.sortOrder === 0);
+        if (zero && orderedStageIds[0] !== zero.id) return false;
         for (let i = 0; i < orderedStageIds.length; i++) {
           await tx
             .update(stageTable)
