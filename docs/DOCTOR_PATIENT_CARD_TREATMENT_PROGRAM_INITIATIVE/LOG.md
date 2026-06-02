@@ -4,19 +4,35 @@
 
 ---
 
+## 2026-06-02 — UI-полировка карточки (после ревью Composer)
+
+**Сделано:** общий `doctorClientCardChrome.ts`; Hero — вторая строка на mobile (запись + сопровождение); Action Strip → `#doctor-client-section-program-inbox`; таб «Программа» — сначала inbox/тесты; Care Plan — прогресс этапов, кликабельные строки с превью, plain-text goals; спарклайн на всю ширину; убран пустой блок в «Коммуникации»; единые бейджи на табах.
+
+---
+
+## 2026-06-02 — Фаза 2B: доработки по аудиту
+
+**Сделано:**
+- `loadDoctorClientProgramCardData`: агрегаты + `carePlan` (текущий этап, goals/objectives, элементы с «Новое», static-превью) + `programInbox` (комментарии/медиа без ответа врача, CTA «Ответить в программе»).
+- Обзор: `buildDoctorClientCarePlanOverview`; спарклайн самочувствия с маркерами ЛФК (`warmupScatter`).
+- Тесты: `buildDoctorClientCarePlanOverview.test.ts`, `loadDoctorClientProgramCardAggregates.test.ts`; якоря `pending-program-tests` / `communications`, `?chat=1`, раскрытие графика.
+- `apps/webapp/src/app/api/api.md` — контракт RSC-агрегатов карточки.
+
+**Не делали:** фаза 2C (задачи, Drizzle, worker, Hero-сводка задач); inline quick-reply в карточке (ответ на экране инстанса).
+
+---
+
 ## 2026-06-02 — Фаза 2B: карточка врача (Tabs + Hero + Action Strip)
 
 **Сделано:**
 - `ClientProfileCard` — каркас: `PatientCareBar`, `PatientActionStrip`, табы Обзор / Программа / Коммуникации / Записи / Учётка; якоря `#doctor-client-section-*` → таб + scroll (`useDoctorClientAnchorTab`).
-- RSC: `loadDoctorClientProgramCardAggregates` (комментарии/медиа по последнему сообщению пациента в обсуждении элемента; «план не открыт» через `patientPlanUpdatedBadgeForInstance`), `buildDoctorClientWellbeingModel` + `displayTimeZone` на `[userId]/page.tsx`.
+- RSC: `loadDoctorClientProgramCardData` (комментарии/медиа по последнему сообщению пациента в обсуждении элемента; «план не открыт» через `patientPlanUpdatedBadgeForInstance`), `buildDoctorClientWellbeingModel` + `displayTimeZone` на `[userId]/page.tsx`.
 - Обзор: Care Plan summary + CTA, спарклайн самочувствия + lazy полный график, заметки; Program/Records/Account — перенос существующих панелей по §4.5.
 - Hero: компактный `DoctorClientSupportCareBar`; чат-кнопка «Чат»; меню `⋯`.
 
 **Семантика «нового» в Action Strip (2B-3):** по каждому активному элементу инстанса — последнее сообщение `senderRole=patient` без ответа врача после; медиа отдельным счётчиком (`mediaFileId`).
 
 **Проверки:** `pnpm --dir apps/webapp exec tsc --noEmit`; vitest `countDiscussionAttention.test.ts`, `ClientProfileCard.backLink.test.tsx`, `ClientProfileCard.anchorTab.test.tsx` (fast).
-
-**Не делали:** фаза 2C (задачи, Drizzle, worker, Settings); полное дерево инстанса на «Обзоре»; program inbox с быстрым ответом в карточке (остаётся на экране инстанса).
 
 ---
 

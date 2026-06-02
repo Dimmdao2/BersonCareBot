@@ -6,6 +6,44 @@ export type DoctorClientProgramCardAggregates = {
   lastPlanMutationEventAt: string | null;
 };
 
+/** Элемент текущего этапа на «Обзоре» (снимок для static-превью на клиенте). */
+export type DoctorClientOverviewCarePlanItem = {
+  id: string;
+  title: string;
+  isNew: boolean;
+  itemType: string;
+  itemRefId: string;
+  snapshot: Record<string, unknown>;
+};
+
+/** Care Plan summary на табе «Обзор» (активный инстанс + текущий этап). */
+export type DoctorClientOverviewCarePlanModel = {
+  instanceId: string;
+  instanceTitle: string;
+  stageId: string;
+  stageTitle: string;
+  goals: string | null;
+  objectives: string | null;
+  expectedDurationText: string | null;
+  completedStages: number;
+  totalStages: number;
+  items: DoctorClientOverviewCarePlanItem[];
+};
+
+/** Строка program inbox на табе «Программа» (комментарий/медиа без ответа врача). */
+export type DoctorClientProgramInboxRow = {
+  stageItemId: string;
+  instanceId: string;
+  title: string;
+  kind: "comment" | "media";
+};
+
+export type DoctorClientProgramCardData = {
+  aggregates: DoctorClientProgramCardAggregates;
+  carePlan: DoctorClientOverviewCarePlanModel | null;
+  programInbox: DoctorClientProgramInboxRow[];
+};
+
 export const DOCTOR_CLIENT_TAB_IDS = [
   "overview",
   "program",
@@ -21,6 +59,7 @@ export const DOCTOR_CLIENT_ANCHOR_TO_TAB: Record<string, DoctorClientTabId> = {
   "doctor-client-section-notes": "overview",
   "doctor-client-section-support": "overview",
   "doctor-client-section-treatment-programs": "program",
+  "doctor-client-section-program-inbox": "program",
   "doctor-client-section-pending-program-tests": "program",
   "doctor-client-section-lfk": "account",
   "doctor-client-section-symptoms": "records",

@@ -7,7 +7,7 @@ import { env } from "@/config/env";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { loadDoctorClientProgramCardAggregates } from "@/modules/doctor-client-card/loadDoctorClientProgramCardAggregates";
+import { loadDoctorClientProgramCardData } from "@/modules/doctor-client-card/loadDoctorClientProgramCardAggregates";
 import { buildDoctorClientWellbeingModel } from "../buildDoctorClientWellbeingModel";
 import { ClientProfileCard } from "../ClientProfileCard";
 
@@ -43,8 +43,8 @@ export default async function DoctorClientProfilePage({
 
   if (!profile) notFound();
 
-  const programCardAggregates = hasDb
-    ? await loadDoctorClientProgramCardAggregates(
+  const programCardData = hasDb
+    ? await loadDoctorClientProgramCardData(
         {
           treatmentProgramInstance: deps.treatmentProgramInstance,
           programItemDiscussion: deps.programItemDiscussion,
@@ -97,7 +97,9 @@ export default async function DoctorClientProfilePage({
         }
         lfkExerciseLinesByComplexId={lfkExerciseLinesByComplexId}
         autoOpenChat={autoOpenChat}
-        programCardAggregates={programCardAggregates}
+        programCardAggregates={programCardData?.aggregates}
+        carePlanOverview={programCardData?.carePlan ?? null}
+        programInbox={programCardData?.programInbox ?? []}
         displayTimeZone={displayTimeZone}
         wellbeingChartModel={wellbeingChartModel}
       />

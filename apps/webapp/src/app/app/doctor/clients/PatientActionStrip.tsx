@@ -41,7 +41,7 @@ export function PatientActionStrip({
       label: `Новые комментарии · ${aggregates.newCommentsCount}`,
       onClick: () => {
         onNavigateTab("program");
-        onNavigateAnchor("doctor-client-section-treatment-programs");
+        onNavigateAnchor("doctor-client-section-program-inbox");
       },
     });
   }
@@ -51,7 +51,7 @@ export function PatientActionStrip({
       label: `Медиа от пациента · ${aggregates.patientMediaCount}`,
       onClick: () => {
         onNavigateTab("program");
-        onNavigateAnchor("doctor-client-section-treatment-programs");
+        onNavigateAnchor("doctor-client-section-program-inbox");
       },
     });
   }
@@ -71,11 +71,11 @@ export function PatientActionStrip({
   }
 
   return (
-    <div className="border-b border-border bg-muted/30 px-4 py-2">
+    <div className="border-b border-border bg-muted/25 px-4 py-2.5">
       {chips.length === 0 ? (
         <p className="text-xs text-muted-foreground">Срочных задач нет</p>
       ) : (
-        <div className="-mx-1 flex gap-2 overflow-x-auto pb-0.5">
+        <div className="-mx-1 flex gap-2 overflow-x-auto overscroll-x-contain pb-0.5 [-webkit-overflow-scrolling:touch]">
           {chips.map((chip) => (
             <button
               key={chip.key}

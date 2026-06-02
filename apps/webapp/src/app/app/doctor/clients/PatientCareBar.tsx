@@ -22,6 +22,28 @@ type PatientCareBarProps = {
   onNavigateAnchor: (anchorId: string) => void;
 };
 
+function UpcomingAppointment({ appointment }: { appointment: AppointmentSummary }) {
+  return (
+    <>
+      {appointment.scheduleProvenancePrefix ? (
+        <p className="mb-0.5 text-xs text-muted-foreground">{appointment.scheduleProvenancePrefix}</p>
+      ) : null}
+      {appointment.link && /^https?:\/\//i.test(appointment.link) ? (
+        <a
+          href={appointment.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-primary underline underline-offset-2"
+        >
+          {appointment.label}
+        </a>
+      ) : (
+        <span className="font-medium text-foreground">{appointment.label}</span>
+      )}
+    </>
+  );
+}
+
 export function PatientCareBar({
   identity,
   firstUpcoming,
@@ -41,7 +63,7 @@ export function PatientCareBar({
       )}
     >
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <p id="doctor-client-display-name" className="min-w-0 text-base font-semibold text-foreground">
@@ -60,7 +82,7 @@ export function PatientCareBar({
             </div>
             {tel ? (
               <p className="text-sm">
-                <a href={tel} className="font-medium text-primary underline">
+                <a href={tel} className="font-medium text-primary underline underline-offset-2">
                   {identity.phone}
                 </a>
               </p>
@@ -69,31 +91,15 @@ export function PatientCareBar({
             )}
           </div>
 
-          <div className="min-w-0 text-sm md:max-w-[40%] md:text-center">
+          <div className="hidden min-w-0 max-w-[38%] text-center text-sm md:block">
             {firstUpcoming ? (
-              <>
-                {firstUpcoming.scheduleProvenancePrefix ? (
-                  <p className="mb-0.5 text-xs text-muted-foreground">{firstUpcoming.scheduleProvenancePrefix}</p>
-                ) : null}
-                {firstUpcoming.link && /^https?:\/\//i.test(firstUpcoming.link) ? (
-                  <a
-                    href={firstUpcoming.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline"
-                  >
-                    {firstUpcoming.label}
-                  </a>
-                ) : (
-                  <span>{firstUpcoming.label}</span>
-                )}
-              </>
+              <UpcomingAppointment appointment={firstUpcoming} />
             ) : (
               <p className="text-muted-foreground">Нет ближайших записей</p>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 md:shrink-0">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <div className="hidden sm:block">
               <DoctorClientSupportCareBar patientUserId={identity.userId} />
             </div>
@@ -105,7 +111,7 @@ export function PatientCareBar({
             >
               Чат
               {chatUnreadCount > 0 ? (
-                <span className="ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                <span className="ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-primary">
                   {chatUnreadCount}
                 </span>
               ) : null}
@@ -135,7 +141,14 @@ export function PatientCareBar({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 sm:hidden">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between md:hidden">
+          <div className="min-w-0 text-sm">
+            {firstUpcoming ? (
+              <UpcomingAppointment appointment={firstUpcoming} />
+            ) : (
+              <p className="text-muted-foreground">Нет ближайших записей</p>
+            )}
+          </div>
           <DoctorClientSupportCareBar patientUserId={identity.userId} />
         </div>
       </div>

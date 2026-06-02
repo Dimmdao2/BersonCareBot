@@ -19,8 +19,12 @@ import type {
   TreatmentProgramInstanceSummary,
 } from "@/modules/treatment-program/types";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
-import type { DoctorClientProgramCardAggregates } from "@/modules/doctor-client-card/types";
-import type { DoctorClientTabId } from "@/modules/doctor-client-card/types";
+import type {
+  DoctorClientOverviewCarePlanModel,
+  DoctorClientProgramCardAggregates,
+  DoctorClientProgramInboxRow,
+  DoctorClientTabId,
+} from "@/modules/doctor-client-card/types";
 import { PatientCareBar } from "./PatientCareBar";
 import {
   PatientActionStrip,
@@ -57,6 +61,8 @@ type ClientProfileCardProps = {
   lfkExerciseLinesByComplexId?: Record<string, LfkComplexExerciseLine[]>;
   autoOpenChat?: boolean;
   programCardAggregates?: DoctorClientProgramCardAggregates;
+  carePlanOverview?: DoctorClientOverviewCarePlanModel | null;
+  programInbox?: DoctorClientProgramInboxRow[];
   displayTimeZone?: string;
   wellbeingChartModel?: WellbeingWeekChartModel;
 };
@@ -81,6 +87,8 @@ function ClientProfileCardInner({
   lfkExerciseLinesByComplexId = {},
   autoOpenChat = false,
   programCardAggregates = EMPTY_AGGREGATES,
+  carePlanOverview = null,
+  programInbox = [],
   displayTimeZone = "Europe/Moscow",
   wellbeingChartModel,
 }: ClientProfileCardProps) {
@@ -238,9 +246,7 @@ function ClientProfileCardInner({
               </TabsTrigger>
               <TabsTrigger value="communications" className="rounded-none px-3 py-2">
                 Коммуникации
-                {chatUnreadCount > 0 ? (
-                  <span className="ml-1 text-xs text-muted-foreground">· {chatUnreadCount}</span>
-                ) : null}
+                <ProgramTabBadge count={chatUnreadCount} />
               </TabsTrigger>
               <TabsTrigger value="records" className="rounded-none px-3 py-2">
                 Записи
@@ -256,6 +262,7 @@ function ClientProfileCardInner({
               userId={userId}
               profileListScope={profileListScope}
               treatmentProgramInstancesInitial={treatmentProgramInstancesInitial}
+              carePlan={carePlanOverview}
               programAggregates={programCardAggregates}
               assignTreatmentProgramEnabled={assignTreatmentProgramEnabled}
               wellbeingModel={wellbeingModelResolved}
@@ -272,6 +279,7 @@ function ClientProfileCardInner({
               assignTreatmentProgramEnabled={assignTreatmentProgramEnabled}
               treatmentProgramInstancesInitial={treatmentProgramInstancesInitial}
               pendingProgramTestEvaluations={pendingProgramTestEvaluations}
+              programInbox={programInbox}
             />
           </TabsContent>
 

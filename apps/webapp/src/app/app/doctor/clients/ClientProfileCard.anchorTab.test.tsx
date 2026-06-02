@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import { ClientProfileCard } from "./ClientProfileCard";
@@ -47,23 +48,37 @@ const minimalProfile: ClientProfile = {
   recentLfkSessions: [],
 };
 
+function stubFetch() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (url.includes("support-settings")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            effectivePolicy: { onSupport: false, commentsAllowed: false, mediaAllowed: false },
+          }),
+        );
+      }
+      if (url.includes("conversations/ensure")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            conversationId: "conv-1",
+            messages: [],
+            unreadFromUserCount: 0,
+          }),
+        );
+      }
+      return new Response(JSON.stringify({ ok: true, unreadCount: 0 }));
+    }),
+  );
+}
+
 describe("ClientProfileCard anchor routing", () => {
   beforeEach(() => {
     window.location.hash = "";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string) => {
-        if (url.includes("support-settings")) {
-          return new Response(
-            JSON.stringify({
-              ok: true,
-              effectivePolicy: { onSupport: false, commentsAllowed: false, mediaAllowed: false },
-            }),
-          );
-        }
-        return new Response(JSON.stringify({ ok: true, unreadCount: 0 }));
-      }),
-    );
+    stubFetch();
   });
 
   afterEach(() => {
@@ -82,6 +97,123 @@ describe("ClientProfileCard anchor routing", () => {
     );
     await waitFor(() => {
       expect(document.getElementById("doctor-client-section-treatment-programs")).toBeTruthy();
+    });
+  });
+
+  it("opens program tab for #doctor-client-section-pending-program-tests", async () => {
+    window.location.hash = "#doctor-client-section-pending-program-tests";
+    render(
+      <ClientProfileCard
+        profile={minimalProfile}
+        messageHistory={[] as MessageLogEntry[]}
+        userId="u1"
+        pendingProgramTestEvaluations={[
+          {
+            resultId: "r1",
+            attemptId: "a1",
+            attemptSubmittedAt: "2025-01-01T00:00:00.000Z",
+            instanceId: "i1",
+            instanceTitle: "План",
+            stageTitle: "Этап",
+            stageItemId: "si1",
+            testId: "t1",
+            testTitle: "Тест",
+            createdAt: "2025-01-01T00:00:00.000Z",
+          },
+        ]}
+      />,
+    );
+    await waitFor(() => {
+      expect(document.getElementById("doctor-client-section-pending-program-tests")).toBeTruthy();
+    });
+  });
+
+  it("opens communications tab for #doctor-client-section-communications", async () => {
+    window.location.hash = "#doctor-client-section-communications";
+    render(
+      <ClientProfileCard
+        profile={minimalProfile}
+        messageHistory={[] as MessageLogEntry[]}
+        userId="u1"
+      />,
+    );
+    await waitFor(() => {
+      expect(document.getElementById("doctor-client-section-communications")).toBeTruthy();
+    });
+  });
+
+  it("auto-opens chat when autoOpenChat is true", async () => {
+    render(
+      <ClientProfileCard
+        profile={minimalProfile}
+        messageHistory={[] as MessageLogEntry[]}
+        userId="u1"
+        autoOpenChat
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeTruthy();
+    });
+  });
+});
+
+describe("ClientProfileCard wellbeing expand", () => {
+  beforeEach(() => {
+    stubFetch();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("expands full chart on Подробный график click", async () => {
+    const user = userEvent.setup();
+    render(
+      <ClientProfileCard
+        profile={{
+          ...minimalProfile,
+          recentSymptomEntries: [
+            {
+              id: "e1",
+              userId: "u1",
+              trackingId: "t1",
+              value0_10: 7,
+              entryType: "instant",
+              recordedAt: new Date().toISOString(),
+              source: "webapp",
+              notes: null,
+              createdAt: "2025-01-01T00:00:00.000Z",
+            },
+          ],
+          symptomTrackings: [
+            {
+              id: "t1",
+              userId: "u1",
+              symptomKey: "general_wellbeing",
+              symptomTitle: "Самочувствие",
+              isActive: true,
+              createdAt: "2025-01-01T00:00:00.000Z",
+              updatedAt: "2025-01-01T00:00:00.000Z",
+            },
+          ],
+        }}
+        messageHistory={[] as MessageLogEntry[]}
+        userId="u1"
+        wellbeingChartModel={{
+          aggregateSeries: [],
+          instantSeries: [{ t: Date.now(), v: 7 }],
+          warmupScatter: [],
+          weekStartMs: 0,
+          weekEndMs: Date.now() + 1,
+        }}
+        displayTimeZone="Europe/Moscow"
+      />,
+    );
+
+    const expandBtn = await screen.findByRole("button", { name: "Подробный график" });
+    await user.click(expandBtn);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Свернуть" })).toBeTruthy();
     });
   });
 });
