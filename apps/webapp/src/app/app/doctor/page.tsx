@@ -6,6 +6,7 @@ import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { loadAdminRegistrationFailureAttention } from "@/app-layer/product-analytics/loadAdminRegistrationFailureAttention";
 import { loadAdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
 import { loadDoctorTodayDashboard } from "./loadDoctorTodayDashboard";
@@ -14,6 +15,7 @@ export default async function DoctorPage() {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
   const intakeService = getOnlineIntakeService();
+  const displayIana = await getAppDisplayTimeZone();
   const [data, kpiStats] = await Promise.all([
     loadDoctorTodayDashboard(
       {
@@ -23,6 +25,8 @@ export default async function DoctorPage() {
         specialistTasks: deps.specialistTasks,
         specialistOwnerUserId: session.user.userId,
         treatmentProgramProgress: deps.treatmentProgramProgress,
+        doctorProactiveInsights: deps.doctorProactiveInsights,
+        displayIana,
       },
       intakeService,
     ),

@@ -101,7 +101,7 @@ export function DoctorClientOverviewWellbeing({ chartModel, displayTimeZone }: P
   );
 
   return (
-    <section className={doctorClientOverviewSecondaryCardClass}>
+    <section id="doctor-client-section-wellbeing" className={doctorClientOverviewSecondaryCardClass}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className={doctorClientSectionTitleClass}>Самочувствие</h3>
         {hasData ? (

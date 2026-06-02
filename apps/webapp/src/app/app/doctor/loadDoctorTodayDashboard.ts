@@ -9,11 +9,17 @@ import type { SpecialistTasksService } from "@/modules/specialist-tasks/service"
 import type { TreatmentProgramProgressService } from "@/modules/treatment-program/progress-service";
 import type { OnlineIntakeService } from "@/modules/online-intake/ports";
 import type { IntakeRequestWithPatientIdentity, IntakeType } from "@/modules/online-intake/types";
+import type { DoctorProactiveInsightsPort } from "@/modules/doctor-proactive-insights/ports";
+import { DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT } from "@/modules/doctor-proactive-insights/constants";
 import {
   DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
   mapPendingProgramTestsForToday,
   type TodayPendingProgramTestItem,
 } from "./mapPendingProgramTestsForToday";
+import {
+  mapProactiveInsightsForToday,
+  type TodayProactiveInsightItem,
+} from "./mapProactiveInsightsForToday";
 
 /** Сколько карточек клиентов показывать на «Сегодня»; полный список — `/app/doctor/clients?scope=all&support=on`. */
 export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
@@ -39,6 +45,8 @@ export type DoctorTodayDashboardDeps = {
   specialistTasks?: SpecialistTasksService;
   specialistOwnerUserId?: string;
   treatmentProgramProgress?: TreatmentProgramProgressService;
+  doctorProactiveInsights?: DoctorProactiveInsightsPort;
+  displayIana: string;
   messaging: {
     doctorSupport: {
       listOpenConversations(params: {
@@ -107,6 +115,9 @@ export type TodayDashboardData = {
   pendingProgramTests: TodayPendingProgramTestItem[];
   pendingProgramTestsTotal: number;
   pendingProgramTestsTruncated: boolean;
+  proactiveInsights: TodayProactiveInsightItem[];
+  proactiveInsightsTotal: number;
+  proactiveInsightsTruncated: boolean;
 };
 
 const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
@@ -261,6 +272,17 @@ export async function loadDoctorTodayDashboard(
   const pendingProgramTests = mapPendingProgramTestsForToday(pendingRows);
   const pendingProgramTestsTruncated = pendingProgramTestsTotal > DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT;
 
+  const proactiveResult = deps.doctorProactiveInsights
+    ? await deps.doctorProactiveInsights.queryInsights({
+        limit: DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT,
+        displayIana: deps.displayIana,
+      })
+    : { items: [], totalCount: 0 };
+  const proactiveInsights = mapProactiveInsightsForToday(proactiveResult.items);
+  const proactiveInsightsTotal = proactiveResult.totalCount;
+  const proactiveInsightsTruncated =
+    proactiveInsightsTotal > DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT;
+
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
     newIntakeRequests: newIntake.items.map(mapIntakeToTodayItem),
@@ -274,5 +296,8 @@ export async function loadDoctorTodayDashboard(
     pendingProgramTests,
     pendingProgramTestsTotal,
     pendingProgramTestsTruncated,
+    proactiveInsights,
+    proactiveInsightsTotal,
+    proactiveInsightsTruncated,
   };
 }

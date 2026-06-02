@@ -73,6 +73,14 @@ export default async function DoctorClientProfilePage({
         })
       : {};
 
+  const proactiveInsights =
+    hasDb
+      ? await deps.doctorProactiveInsights.listForPatient({
+          patientUserId: userId,
+          displayIana: displayTimeZone,
+        })
+      : [];
+
   return (
     <AppShell
       title={profile.identity.displayName}
@@ -108,6 +116,7 @@ export default async function DoctorClientProfilePage({
         displayTimeZone={displayTimeZone}
         wellbeingChartModel={wellbeingChartModel}
         taskSummary={taskSummary}
+        proactiveInsights={proactiveInsights}
       />
     </AppShell>
   );

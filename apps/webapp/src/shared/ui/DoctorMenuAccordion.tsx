@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useDoctorRegistrationSystemFailureCount } from "@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount";
 import { useDoctorOnlineIntakeNewCount } from "@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount";
 import { useDoctorPendingProgramTestsCount } from "@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount";
+import { useDoctorProactiveInsightsCount } from "@/modules/doctor-proactive-insights/hooks/useDoctorProactiveInsightsCount";
 import { useDoctorSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
 import {
   DOCTOR_MENU_DEFAULT_CLUSTER_ID,
@@ -33,6 +34,7 @@ function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): st
   if (badgeKey === "onlineIntakeNew") return `Новых заявок: ${formatted}`;
   if (badgeKey === "registrationSystemFailures") return `Сбоев регистрации: ${formatted}`;
   if (badgeKey === "pendingProgramTests") return `К проверке: ${formatted}`;
+  if (badgeKey === "todayAttention") return `Требует внимания: ${formatted}`;
   return `Непрочитанных сообщений: ${formatted}`;
 }
 
@@ -41,6 +43,7 @@ function linkAriaLabelWhenBadged(item: DoctorMenuLinkItem, formatted: string): s
   if (item.badgeKey === "onlineIntakeNew") return `${item.label}. Новых заявок: ${formatted}.`;
   if (item.badgeKey === "registrationSystemFailures") return `${item.label}. Сбоев регистрации: ${formatted}.`;
   if (item.badgeKey === "pendingProgramTests") return `${item.label}. К проверке: ${formatted}.`;
+  if (item.badgeKey === "todayAttention") return `${item.label}. Требует внимания: ${formatted}.`;
   return `${item.label}. Непрочитанных сообщений: ${formatted}.`;
 }
 
@@ -106,6 +109,7 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
   const messagesUnread = useDoctorSupportUnreadCount();
   const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
   const pendingProgramTests = useDoctorPendingProgramTestsCount();
+  const proactiveInsights = useDoctorProactiveInsightsCount();
   const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(menuAccess.role === "admin");
 
   const badgeCounts = useMemo(
@@ -115,8 +119,9 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
         messagesUnread,
         registrationSystemFailures,
         pendingProgramTests,
+        todayAttention: pendingProgramTests + proactiveInsights,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
-    [onlineIntakeNew, messagesUnread, registrationSystemFailures, pendingProgramTests],
+    [onlineIntakeNew, messagesUnread, registrationSystemFailures, pendingProgramTests, proactiveInsights],
   );
 
   const [openClusterIds, setOpenClusterIds] = useState<Set<string>>(

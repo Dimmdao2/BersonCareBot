@@ -69,6 +69,8 @@ export type DoctorClientTabId = (typeof DOCTOR_CLIENT_TAB_IDS)[number];
 export const DOCTOR_CLIENT_ANCHOR_TO_TAB: Record<string, DoctorClientTabId> = {
   "doctor-client-section-notes": "overview",
   "doctor-client-section-tasks": "overview",
+  "doctor-client-section-wellbeing": "overview",
+  "doctor-client-section-proactive-signals": "overview",
   "doctor-client-section-support": "overview",
   "doctor-client-section-treatment-programs": "program",
   "doctor-client-section-program-inbox": "program",

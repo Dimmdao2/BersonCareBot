@@ -5,6 +5,7 @@ import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayPendingProgramTestsSection } from "./DoctorTodayPendingProgramTestsSection";
+import { DoctorTodayProactiveInsightsSection } from "./DoctorTodayProactiveInsightsSection";
 import {
   ON_SUPPORT_LIST_HREF,
   PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
@@ -31,6 +32,7 @@ export function DoctorTodayDashboard({
   const intakeAttentionCount = data.newIntakeRequests.length;
   const messagesAttentionCount = data.unreadTotal;
   const pendingTestsAttentionCount = data.pendingProgramTestsTotal;
+  const proactiveAttentionCount = data.proactiveInsightsTotal;
 
   return (
     <div id="doctor-today-dashboard" className="flex flex-col gap-3">
@@ -136,11 +138,26 @@ export function DoctorTodayDashboard({
               <span className="text-muted-foreground"> — нет</span>
             )}
           </li>
-          <li className="text-muted-foreground">Комментарии к материалам — скоро</li>
+          <li>
+            <a href="#doctor-today-section-proactive-insights" className="text-primary underline underline-offset-2">
+              Сигналы пациентов
+            </a>
+            {proactiveAttentionCount > 0 ? (
+              <span className="text-muted-foreground"> — {proactiveAttentionCount}</span>
+            ) : (
+              <span className="text-muted-foreground"> — нет</span>
+            )}
+          </li>
         </ul>
       </section>
 
       <DoctorGlobalTasksSection initialTasks={data.globalOpenTasks} />
+
+      <DoctorTodayProactiveInsightsSection
+        items={data.proactiveInsights}
+        totalCount={data.proactiveInsightsTotal}
+        truncated={data.proactiveInsightsTruncated}
+      />
 
       <DoctorTodayPendingProgramTestsSection
         items={data.pendingProgramTests}

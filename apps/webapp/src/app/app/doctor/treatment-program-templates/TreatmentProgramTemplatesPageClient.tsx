@@ -34,7 +34,7 @@ import {
 import { NewTemplateForm } from "./new/NewTemplateForm";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { templateListPreviewToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctorWorkspaceLayout";
 import { TreatmentProgramTemplateStatusBadge } from "./TreatmentProgramTemplateStatusBadge";
@@ -80,27 +80,10 @@ function TreatmentProgramTemplateRowPreviewMedia({
       </div>
     );
   }
-  if (preview.mediaType === "video") {
-    return (
-      <div className={shellClass} aria-hidden>
-        <video
-          src={preview.mediaUrl}
-          muted
-          playsInline
-          preload="metadata"
-          className="size-full object-cover"
-        />
-      </div>
-    );
-  }
   return (
     <div className={shellClass} aria-hidden>
       <MediaThumb
-        media={clinicalTestMediaItemToPreviewUi({
-          mediaUrl: preview.mediaUrl,
-          mediaType: preview.mediaType,
-          sortOrder: 0,
-        })}
+        media={templateListPreviewToPreviewUi(preview)}
         className="size-full"
         imgClassName="size-full object-cover"
         sizes={videoSizes}

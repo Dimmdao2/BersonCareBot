@@ -1,3 +1,5 @@
+import type { MediaPreviewStatus } from "@/modules/media/types";
+
 /** Совпадает с CHECK в `treatment_program_template_stage_items`. */
 export const TREATMENT_PROGRAM_ITEM_TYPES = [
   "exercise",
@@ -22,6 +24,8 @@ export type TreatmentProgramLibraryPickType = TreatmentProgramItemType | "lfk_co
 export type TreatmentProgramTemplateListPreviewMedia = {
   mediaUrl: string;
   mediaType: "image" | "video" | "gif";
+  previewSmUrl?: string | null;
+  previewStatus?: MediaPreviewStatus | null;
 };
 
 export type TreatmentProgramTemplate = {

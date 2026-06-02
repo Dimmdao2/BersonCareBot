@@ -36,6 +36,9 @@ function emptyData(): TodayDashboardData {
     pendingProgramTests: [],
     pendingProgramTestsTotal: 0,
     pendingProgramTestsTruncated: false,
+    proactiveInsights: [],
+    proactiveInsightsTotal: 0,
+    proactiveInsightsTruncated: false,
   };
 }
 
@@ -251,6 +254,32 @@ describe("DoctorTodayDashboard", () => {
       "#doctor-today-section-pending-tests",
     );
     expect(screen.getByText(/попыток: 12/)).toBeInTheDocument();
+  });
+
+  it("renders proactive patient insights section and attention link", () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      proactiveInsightsTotal: 2,
+      proactiveInsightsTruncated: false,
+      proactiveInsights: [
+        {
+          kind: "wellbeing_low_streak",
+          patientUserId: "u1",
+          patientDisplayName: "Петров",
+          summary: "Низкое самочувствие 3 дн. подряд",
+          sortAt: "2026-06-02T00:00:00.000Z",
+          href: "/app/doctor/clients/u1",
+        },
+      ],
+    };
+    render(<DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />);
+    expect(screen.getByRole("heading", { name: "Сигналы пациентов" })).toBeInTheDocument();
+    expect(screen.getByText("Петров")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Сигналы пациентов" })).toHaveAttribute(
+      "href",
+      "#doctor-today-section-proactive-insights",
+    );
+    expect(screen.getByText(/— 2/)).toBeInTheDocument();
   });
 
   it("renders unread conversations and total", () => {

@@ -128,8 +128,8 @@ describe("doctor menu structure", () => {
     expect(auditLog?.badgeKey).toBe("registrationSystemFailures");
   });
 
-  it("assigns pendingProgramTests badge to standalone Сегодня link", () => {
+  it("assigns todayAttention badge to standalone Сегодня link", () => {
     const today = DOCTOR_MENU_STANDALONE_LINKS.find((i) => i.id === "overview");
-    expect(today?.badgeKey).toBe("pendingProgramTests");
+    expect(today?.badgeKey).toBe("todayAttention");
   });
 });

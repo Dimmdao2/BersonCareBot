@@ -2,6 +2,7 @@ import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
 import type { ClinicalTestMediaItem } from "@/modules/tests/types";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
+import type { TreatmentProgramTemplateListPreviewMedia } from "@/modules/treatment-program/types";
 import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 
 /**
@@ -84,6 +85,27 @@ export function recommendationMediaItemToPreviewUi(m: RecommendationMediaItem): 
     previewStatus: useSourceUrlForThumb ? "ready" : useWorkerThumb ? (rowStatus ?? "ready") : rowStatus,
     previewSmUrl: useSourceUrlForThumb ? m.mediaUrl : rowSm,
     previewMdUrl: useSourceUrlForThumb ? null : rowMd,
+    sourceWidth: null,
+    sourceHeight: null,
+  };
+}
+
+/** Превью первого элемента шаблона программы в master-list врача. */
+export function templateListPreviewToPreviewUi(
+  preview: TreatmentProgramTemplateListPreviewMedia,
+): MediaPreviewUiModel {
+  const kind: MediaPreviewUiModel["kind"] = preview.mediaType === "video" ? "video" : "image";
+  const useSourceUrlForThumb = preview.mediaType === "image" || preview.mediaType === "gif";
+  const rowSm = preview.previewSmUrl?.trim() || null;
+  const rowStatus = preview.previewStatus ?? null;
+  const useWorkerThumb = !useSourceUrlForThumb && Boolean(rowSm);
+  return {
+    id: preview.mediaUrl,
+    kind,
+    url: preview.mediaUrl,
+    previewStatus: useSourceUrlForThumb ? "ready" : useWorkerThumb ? (rowStatus ?? "ready") : rowStatus,
+    previewSmUrl: useSourceUrlForThumb ? preview.mediaUrl : rowSm,
+    previewMdUrl: null,
     sourceWidth: null,
     sourceHeight: null,
   };

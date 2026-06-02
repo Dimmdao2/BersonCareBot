@@ -1,6 +1,6 @@
 # Активная очередь (врач + пациент + CMS)
 
-**Синхронизация:** 2026-06-02. План-очередь (канон в git): [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md). Сводка чеклистов — [`TODO.md`](TODO.md). **Очередь фаз 0–6 закрыта**; активные хвосты продукта — diary, proactive inbox, D5 (см. TODO).
+**Синхронизация:** 2026-06-02 (фаза 7 + аудит). План-очередь: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) (канон в git). Сводка чеклистов — [`TODO.md`](TODO.md). **Очередь workqueue фаз 0–7 закрыта**; активные хвосты — diary, D5, расширение proactive (этап 8) — см. TODO.
 
 | Фаза | Статус | План / лог |
 |------|--------|------------|
@@ -13,7 +13,7 @@
 | **4** — фильтры каталога (регион + нагрузка) | **Закрыта** (2026-06-02) | LOG §фаза 4 |
 | **5** — cross-patient inbox «К проверке» на «Сегодня» + `focusItemId` | **Закрыта** (2026-06-02) | LOG §фаза 5 |
 | **6** — CMS enum + `/help` | **Закрыта** (2026-06-02) | LOG §фаза 6, `content-page-roles.ts`, миграция `0103` |
-| **7** — шаблон docs/очереди | **Закрыта** | `ACTIVE_WORKQUEUE.md`, синхронизация после фаз 0–6 |
+| **7** — B6 превью + proactive «Сегодня» (MVP + аудит) | **Закрыта** (2026-06-02) | LOG §фаза 7, `doctor-proactive-insights` |
 
 ## Фаза 0 (закрыта)
 
@@ -51,15 +51,25 @@
 - **Примечание:** `CabinetInfoLinks` — RSC готов, на экран «Запись» пока не смонтирован (`cabinet/page` → redirect booking). Контент для плиток — создать в CMS вручную.
 - **Проверки:** vitest `help-content`, `revalidatePatientContentPaths`, `cabinetInfoLinkTiles`; см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 6.
 
-**Очередь workqueue (фазы 0–6):** закрыта. Дальше — [`TODO.md`](TODO.md).
+**Очередь workqueue (фазы 0–7):** закрыта. Дальше — [`TODO.md`](TODO.md).
+
+## Фаза 7 (закрыта)
+
+- **B6:** превью в списке шаблонов — `MediaThumb` + worker `previewSmUrl` из `media_files` (`enrichTemplateListPreviewMedia`, `templateListPreviewToPreviewUi`).
+- **Proactive MVP на «Сегодня»:** модуль `doctor-proactive-insights`; сигналы `wellbeing_low_streak` / `program_inactivity` (только `on_support`); порт `queryInsights` + `listForPatient`.
+- **UI:** секция «Сигналы пациентов»; блок «Сигналы» в карточке (Обзор); deep links (`#doctor-client-section-wellbeing`, экран instance); бейдж меню `todayAttention` = «К проверке» + proactive.
+- **API:** `GET /api/doctor/proactive-insights/summary`; доки — `DOCTOR_DASHBOARD_METRICS.md`, `api.md`, `ROADMAP_2.md` §4.1.
+- **Аудит (2026-06-02):** inactivity по активному instance; якорь streak сегодня/вчера; один проход insights; scoped `listForPatient`; тесты `mapProactiveInsightsForToday`, `doctorNavLinks`, `mediaPreviewUiModel.templateList`.
+- **Backlog:** настраиваемые пороги / доп. сигналы — RECOMMENDATIONS этап 8.
+- **Проверки:** vitest proactive + DoctorTodayDashboard + loadDoctorTodayDashboard; `tsc --noEmit` webapp. См. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 7.
 
 ## Фаза 5 (закрыта)
 
 - Cross-patient «К проверке» на `/app/doctor` («Сегодня»): `countPendingTestEvaluationAttemptsGlobal` + `listPendingTestEvaluationsGlobal` (top 10 попыток), секция `#doctor-today-section-pending-tests`, строка в «Требует внимания».
 - Deep link `focusItemId` (UUID) на экране инстанса — scroll/highlight с retry; `discussionItem` — тоже только валидный UUID; карточка / «Сегодня» «Оценить» — тот же query.
-- Бейдж меню «Сегодня»: `GET /api/doctor/pending-program-tests/summary` → `{ ok, count }`; `useDoctorPendingProgramTestsCount`.
+- Бейдж меню «Сегодня» (фаза 5): `GET /api/doctor/pending-program-tests/summary`. С фазой 7 — суммарный `todayAttention` (+ `GET /api/doctor/proactive-insights/summary`).
 - ROADMAP_2 §2.2–2.3 — closed; план §фаза 5, `api.md`, targeted vitest — см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5.
 
 ## Вне scope «сейчас»
 
-D5 `domain→kind`, полная переработка `/diary`, курсы, proactive-лента (после карточки), UX истории тестов (после доработки элементов тестов).
+D5 `domain→kind`, полная переработка `/diary`, курсы, UX истории тестов (после доработки элементов тестов). Proactive: **MVP закрыт** (фаза 7); настраиваемые пороги и расширение сигналов — backlog этап 8 ([`RECOMMENDATIONS_AND_ROADMAP.md`](APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md)).

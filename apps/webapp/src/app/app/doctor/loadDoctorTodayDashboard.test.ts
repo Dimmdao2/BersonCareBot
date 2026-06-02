@@ -171,3 +171,55 @@ describe("loadDoctorTodayDashboard helpers", () => {
     expect(item.href).toBe("/app/doctor/clients/uuid-2");
   });
 });
+
+describe("loadDoctorTodayDashboard proactive", () => {
+  it("uses single queryInsights call for proactive section", async () => {
+    const { loadDoctorTodayDashboard } = await import("./loadDoctorTodayDashboard");
+    let queryCalls = 0;
+    const deps = {
+      doctorAppointments: {
+        listAppointmentsForSpecialist: async () => [],
+      },
+      doctorClients: {
+        getDashboardPatientMetrics: async () => ({
+          onSupportCount: 0,
+          totalClients: 0,
+          visitedThisCalendarMonthCount: 0,
+        }),
+        listClients: async () => [],
+      },
+      displayIana: "Europe/Moscow",
+      messaging: {
+        doctorSupport: {
+          listOpenConversations: async () => [],
+          unreadFromUsers: async () => 0,
+        },
+      },
+      doctorProactiveInsights: {
+        queryInsights: async () => {
+          queryCalls += 1;
+          return {
+            items: [
+              {
+                kind: "wellbeing_low_streak" as const,
+                patientUserId: "p1",
+                patientDisplayName: "A",
+                summary: "low",
+                sortAt: "2026-06-02T00:00:00.000Z",
+              },
+            ],
+            totalCount: 3,
+          };
+        },
+        listForPatient: async () => [],
+      },
+    };
+    const data = await loadDoctorTodayDashboard(deps, {
+      listForDoctor: async () => ({ items: [], total: 0 }),
+    } as unknown as import("@/modules/online-intake/ports").OnlineIntakeService);
+    expect(queryCalls).toBe(1);
+    expect(data.proactiveInsightsTotal).toBe(3);
+    expect(data.proactiveInsights).toHaveLength(1);
+    expect(data.proactiveInsights[0]?.href).toContain("#doctor-client-section-wellbeing");
+  });
+});

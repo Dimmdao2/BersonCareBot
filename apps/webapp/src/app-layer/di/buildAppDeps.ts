@@ -229,6 +229,8 @@ import {
 import { createPgTreatmentProgramTestAttemptsPort } from "@/infra/repos/pgTreatmentProgramTestAttempts";
 import { createPgProgramActionLogPort } from "@/infra/repos/pgProgramActionLog";
 import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
+import { createPgDoctorProactiveInsightsPort } from "@/infra/repos/pgDoctorProactiveInsights";
+import { createInMemoryDoctorProactiveInsightsPort } from "@/infra/repos/inMemoryDoctorProactiveInsights";
 import { createPgProgramItemDiscussionPort } from "@/infra/repos/pgProgramItemDiscussion";
 import { createInMemoryProgramItemDiscussionPort } from "@/infra/repos/inMemoryProgramItemDiscussion";
 import { createPgPatientDiarySnapshotsPort } from "@/infra/repos/pgPatientDiarySnapshots";
@@ -685,6 +687,9 @@ const treatmentProgramEventsPort = treatmentProgramInMemoryPersistence
   ? treatmentProgramInMemoryPersistence.eventsPort
   : createPgTreatmentProgramEventsPort();
 const programActionLogPort = !inMemoryRepos ? createPgProgramActionLogPort() : createInMemoryProgramActionLogPort();
+const doctorProactiveInsightsPort = !inMemoryRepos
+  ? createPgDoctorProactiveInsightsPort()
+  : createInMemoryDoctorProactiveInsightsPort();
 const programItemDiscussionPort = !inMemoryRepos
   ? createPgProgramItemDiscussionPort()
   : createInMemoryProgramItemDiscussionPort();
@@ -1390,6 +1395,7 @@ function _buildAppDeps() {
     warmupFeelingCompletion: warmupFeelingCompletionPort,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
+    doctorProactiveInsights: doctorProactiveInsightsPort,
     treatmentProgramPatientActions,
     programItemDiscussion: programItemDiscussionService,
     /** Журнал действий пациента по программе (дневник недели и др.). */

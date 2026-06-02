@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-06-02 — Workqueue фаза 7: B6 превью + proactive «Сегодня» (MVP + аудит)
+
+**Сделано:** B6 — `previewSmUrl` для video в списке шаблонов; модуль `doctor-proactive-insights` (wellbeing streak + program inactivity по active instance); «Сегодня» + карточка «Сигналы»; deep links; combined badge `todayAttention`; API summary. Аудит: `queryInsights`, scoped `listForPatient`, docs/tests.
+
+**Журнал:** [`../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 7. План: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) §фаза 7.
+
+**Проверки:** vitest proactive/dashboard/menu; `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-02 — ROADMAP_2 §1.7 + §3.3: `/help` из CMS (фаза 6, workqueue)
 
 **Сделано:** раздел `help` (`0103`), patient `/app/patient/help` + `/help/[slug]`, CMS «Статьи справки», `CONTENT_PAGE_ROLES`; хвосты — `revalidatePatientContentPaths`, редирект `/content/[slug]` → `/help/[slug]`, `force-dynamic`, canonical slug `preparation`/`cost`, `CabinetInfoLinks` (условные плитки), подсказка в `ContentForm`.

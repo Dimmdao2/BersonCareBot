@@ -66,6 +66,16 @@
 
 Ссылка «Аналитика по клиентам» (admin) → `/app/doctor/analytics/clients`.
 
+### Блок «Требует внимания» и проактивные сигналы (фаза 7 MVP)
+
+| Секция / бейдж | Источник | Определение |
+|----------------|----------|-------------|
+| «К проверке» | `treatmentProgramProgress` | Distinct попытки тестов на оценку (как `pending-program-tests/summary`) |
+| «Сигналы пациентов» | `doctorProactiveInsights.queryInsights` | Только `doctor_patient_support.on_support = true`: **`wellbeing_low_streak`** — `general_wellbeing` ≤ 2 три календарных дня подряд (якорь — сегодня или вчера); **`program_inactivity`** — активная doctor-программа без `program_action_log.done` по **этому** instance ≥ 5 дней |
+| Бейдж «Сегодня» в меню | `todayAttention` | `pending-program-tests/summary` + `proactive-insights/summary` |
+
+Пороги — `apps/webapp/src/modules/doctor-proactive-insights/constants.ts` (admin UI — backlog RECOMMENDATIONS §этап 8). На карточке клиента — `listForPatient` → блок «Сигналы» на табе «Обзор».
+
 ## Страница «Аналитика по клиентам» (`/app/doctor/analytics/clients`)
 
 - Legacy URL **`/app/doctor/stats`** — server redirect на `analytics/clients`.

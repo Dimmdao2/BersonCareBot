@@ -1,6 +1,6 @@
 ---
 name: Active workqueue plan
-overview: "Очередь: фазы 0–6 закрыты (2026-06-02); workqueue patient/doctor/CMS help завершён."
+overview: "Очередь: фазы 0–7 закрыты (2026-06-02); workqueue patient/doctor/CMS help + B6 превью + proactive MVP (с аудитом)."
 todos:
   - id: phase-0-exercises-ui-hotfix
     content: "P0: починить ряд «Комментарии» + «Отметить выполнение» в PatientTreatmentProgramStagePageProgramSection (+ тесты)"
@@ -38,6 +38,15 @@ todos:
   - id: phase-7-docs-queue
     content: Завести docs/ACTIVE_WORKQUEUE.md и синхронизировать TODO/LOG после фаз
     status: completed
+  - id: phase7-b6-preview
+    content: "B6: MediaThumb + previewSmUrl в списке шаблонов программ"
+    status: completed
+  - id: phase7-proactive-mvp
+    content: "Proactive MVP на «Сегодня» (doctor-proactive-insights)"
+    status: completed
+  - id: phase7-audit-remediation
+    content: "Аудит фазы 7: queryInsights, instance inactivity, deep links, badge/card, docs+tests"
+    status: completed
 isProject: false
 ---
 
@@ -49,7 +58,8 @@ isProject: false
 
 - Сводка задач: [`docs/TODO.md`](docs/TODO.md) §Doctor card, §CMS, §Patient
 - Контекст roadmap: [`docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md), [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md)
-- **Вне scope «сейчас»:** D5 `domain→kind`, полная переработка `/diary`, курсы, proactive-лента (после карточки), UX истории тестов (после доработки элементов тестов), inline quick-reply в карточке (ответ — на экране инстанса)
+- **Вне scope workqueue:** D5 `domain→kind`, полная переработка `/diary`, курсы, UX истории тестов (после доработки элементов тестов), inline quick-reply в карточке (ответ — на экране инстанса)
+- **Proactive backlog (этап 8):** настраиваемые пороги, сигналы ЛФК/сессий/боли — [`RECOMMENDATIONS_AND_ROADMAP.md`](docs/APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md)
 - UX-референсы для карточки врача: care management dashboards — **patient header + active care plan + clinical timeline + vitals/observations graph + tasks/alerts**
 
 ---
@@ -160,9 +170,23 @@ Cross-patient «К проверке» на «Сегодня»; deep link `focusI
 
 ---
 
-## Фаза 7 — Низкий приоритет — **закрыта** (шаблон очереди)
+## Фаза 7 — B6 превью + proactive «Сегодня» (MVP) — **закрыта** (2026-06-02)
 
-- [x] `docs/ACTIVE_WORKQUEUE.md`; синхронизация TODO/LOG после фаз 0–6.
+### B6
+
+- [x] Список шаблонов: `MediaThumb` + `templateListPreviewToPreviewUi`; enrich `previewSmUrl` из `media_files` (`pgTreatmentProgram.enrichTemplateListPreviewMedia`).
+
+### Proactive MVP (`doctor-proactive-insights`)
+
+- [x] Сигналы для `on_support`: `wellbeing_low_streak` (3 дн. ≤ 2/5, якорь сегодня/вчера), `program_inactivity` (5+ дн. без `done` по **активному instance**).
+- [x] Порт: `queryInsights` (один проход), `listForPatient` (scoped).
+- [x] UI: секция «Сигналы пациентов» на «Сегодня»; блок «Сигналы» в карточке (Обзор); deep links; бейдж `todayAttention` = pending tests + proactive.
+- [x] API: `GET /api/doctor/proactive-insights/summary`.
+- [x] Аудит (2026-06-02): исправления выше + docs (`DOCTOR_DASHBOARD_METRICS`, `api.md`, `ROADMAP_2` §4.1) + тесты.
+
+**Backlog:** admin-пороги, расширение сигналов — RECOMMENDATIONS этап 8.
+
+**DoD:** [`LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 7, [`ACTIVE_WORKQUEUE.md`](docs/ACTIVE_WORKQUEUE.md), targeted vitest + `tsc` webapp.
 
 ---
 
@@ -186,7 +210,7 @@ Cross-patient «К проверке» на «Сегодня»; deep link `focusI
 7. ~~**Фаза 4**~~ — закрыта (2026-06-02).
 8. ~~**Фаза 5**~~ — закрыта (2026-06-02).
 9. ~~**Фаза 6**~~ — закрыта (2026-06-02).
-10. ~~Фаза 7~~ — шаблон docs/очереди закрыт; дальнейшие хвосты — [`TODO.md`](docs/TODO.md) (diary, proactive inbox, D5).
+10. ~~**Фаза 7**~~ — закрыта (2026-06-02): B6 превью + proactive MVP + аудит; дальше — [`TODO.md`](docs/TODO.md) (diary, D5, расширение proactive этап 8).
 
 **CI:** полный `pnpm run ci` — перед push ([`.cursor/rules/pre-push-ci.mdc`](.cursor/rules/pre-push-ci.mdc)).
 

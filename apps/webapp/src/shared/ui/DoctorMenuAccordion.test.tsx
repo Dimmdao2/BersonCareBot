@@ -16,6 +16,7 @@ const pathnameRef = vi.hoisted(() => ({ value: "/app/doctor" }));
 const unreadCountRef = vi.hoisted(() => ({ value: 0 }));
 const intakeCountRef = vi.hoisted(() => ({ value: 0 }));
 const pendingProgramTestsCountRef = vi.hoisted(() => ({ value: 0 }));
+const proactiveInsightsCountRef = vi.hoisted(() => ({ value: 0 }));
 
 vi.mock("@/shared/hooks/useSupportUnreadPolling", () => ({
   useDoctorSupportUnreadCount: () => unreadCountRef.value,
@@ -27,6 +28,10 @@ vi.mock("@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount", () => ({
 
 vi.mock("@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount", () => ({
   useDoctorPendingProgramTestsCount: () => pendingProgramTestsCountRef.value,
+}));
+
+vi.mock("@/modules/doctor-proactive-insights/hooks/useDoctorProactiveInsightsCount", () => ({
+  useDoctorProactiveInsightsCount: () => proactiveInsightsCountRef.value,
 }));
 
 vi.mock("@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount", () => ({
@@ -87,6 +92,7 @@ describe("DoctorMenuAccordion", () => {
     unreadCountRef.value = 0;
     intakeCountRef.value = 0;
     pendingProgramTestsCountRef.value = 0;
+    proactiveInsightsCountRef.value = 0;
   });
 
   it("opens Работа с пациентами by default when localStorage empty", async () => {
@@ -247,13 +253,14 @@ describe("DoctorMenuAccordion", () => {
     });
   });
 
-  it("shows pending program tests badge on Сегодня when count > 0", async () => {
-    pendingProgramTestsCountRef.value = 7;
+  it("shows combined today attention badge when pending tests or proactive signals > 0", async () => {
+    pendingProgramTestsCountRef.value = 5;
+    proactiveInsightsCountRef.value = 2;
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor/clients" menuAccess={menuAccess} />);
     await waitFor(() => {
       const today = screen.getByRole("link", { name: /Сегодня/ });
       expect(today).toHaveTextContent("7");
-      expect(today).toHaveAttribute("aria-label", "Сегодня. К проверке: 7.");
+      expect(today).toHaveAttribute("aria-label", "Сегодня. Требует внимания: 7.");
     });
   });
 });

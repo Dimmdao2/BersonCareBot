@@ -23,6 +23,7 @@ import type {
   DoctorClientTabId,
   DoctorClientTaskSummary,
 } from "@/modules/doctor-client-card/types";
+import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
 import { PatientCareBar } from "./PatientCareBar";
 import {
   PatientActionStrip,
@@ -66,6 +67,7 @@ type ClientProfileCardProps = {
   displayTimeZone?: string;
   wellbeingChartModel?: WellbeingWeekChartModel;
   taskSummary?: DoctorClientTaskSummary | null;
+  proactiveInsights?: ProactiveInsightRow[];
 };
 
 export function ClientProfileCard(props: ClientProfileCardProps) {
@@ -94,6 +96,7 @@ function ClientProfileCardInner({
   displayTimeZone = "Europe/Moscow",
   wellbeingChartModel,
   taskSummary = null,
+  proactiveInsights = [],
 }: ClientProfileCardProps) {
   const { identity, upcomingAppointments, appointmentHistory } = profile;
   const { activeTab, setActiveTab, applyAnchor } = useDoctorClientAnchorTab(
@@ -232,6 +235,7 @@ function ClientProfileCardInner({
               assignTreatmentProgramEnabled={assignTreatmentProgramEnabled}
               wellbeingModel={wellbeingModelResolved}
               displayTimeZone={displayTimeZone}
+              proactiveInsights={proactiveInsights}
               onNavigateProgram={navigateProgram}
             />
           </TabsContent>

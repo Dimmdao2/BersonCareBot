@@ -4,6 +4,7 @@ import { DoctorNotesPanel } from "./DoctorNotesPanel";
 import { DoctorClientOverviewCarePlan } from "./DoctorClientOverviewCarePlan";
 import { DoctorClientOverviewRecentProgramChanges } from "./DoctorClientOverviewRecentProgramChanges";
 import { DoctorClientOverviewWellbeing } from "./DoctorClientOverviewWellbeing";
+import { DoctorClientOverviewProactiveSignals } from "./DoctorClientOverviewProactiveSignals";
 import { PatientSpecialistTasksSection } from "./PatientSpecialistTasksSection";
 import { doctorClientOverviewPrimaryCardClass, doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
@@ -12,6 +13,7 @@ import type {
   DoctorClientOverviewCarePlanModel,
   DoctorClientRecentProgramChangeRow,
 } from "@/modules/doctor-client-card/types";
+import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
 
 type Props = {
   userId: string;
@@ -22,6 +24,7 @@ type Props = {
   assignTreatmentProgramEnabled: boolean;
   wellbeingModel: WellbeingWeekChartModel;
   displayTimeZone: string;
+  proactiveInsights?: ProactiveInsightRow[];
   onNavigateProgram: () => void;
 };
 
@@ -34,6 +37,7 @@ export function DoctorClientOverviewTab({
   assignTreatmentProgramEnabled,
   wellbeingModel,
   displayTimeZone,
+  proactiveInsights = [],
   onNavigateProgram,
 }: Props) {
   return (
@@ -55,6 +59,7 @@ export function DoctorClientOverviewTab({
           displayTimeZone={displayTimeZone}
         />
       ) : null}
+      <DoctorClientOverviewProactiveSignals insights={proactiveInsights} />
       <DoctorClientOverviewWellbeing chartModel={wellbeingModel} displayTimeZone={displayTimeZone} />
       <PatientSpecialistTasksSection patientUserId={userId} />
       <details id="doctor-client-section-notes" className={`md:col-span-2 ${doctorClientOverviewPrimaryCardClass}`}>

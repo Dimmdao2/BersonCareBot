@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-06-02 — Фаза 7: B6 превью шаблонов + proactive-лента на «Сегодня» (MVP)
+
+- **B6 хвост:** список шаблонов — `MediaThumb` + worker `previewSmUrl` из `media_files` (`enrichTemplateListPreviewMedia`, `templateListPreviewToPreviewUi`).
+- **Proactive MVP:** модуль `doctor-proactive-insights` — `on_support`: wellbeing 3 дн. ≤ 2/5 (якорь сегодня/вчера); inactivity по **активному instance** 5+ дн.; порт `queryInsights` + `listForPatient` (scoped).
+- **UI / API:** секция «Сигналы пациентов» на «Сегодня»; блок «Сигналы» в карточке (Обзор); deep links; бейдж `todayAttention`; `GET /api/doctor/proactive-insights/summary`.
+- **Не дублируем:** inbox «К проверке» (фаза 5).
+- **Аудит (2026-06-02):** исправлены двойной build insights, global lastDone, video preview skeleton, stale test `doctorNavLinks`; добавлены тесты `mapProactiveInsightsForToday`, `mediaPreviewUiModel.templateList`, integration `loadDoctorTodayDashboard`.
+- **Доки:** `ACTIVE_WORKQUEUE.md`, `TODO.md`, `DOCTOR_DASHBOARD_METRICS.md`, `api.md`, `ROADMAP_2.md` §4.1, план-очередь §фаза 7, `APP_RESTRUCTURE_INITIATIVE/LOG.md`.
+- **Проверки:** vitest proactive + dashboard + menu (63+ targeted); `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-02 — Фаза 5: cross-patient inbox «К проверке» на «Сегодня»
 
 - **Данные:** `listPendingEvaluationResultsGlobal` / `listPendingTestEvaluationsGlobal` — result-строки по top N **попыток** (PG: `count distinct attempt` + `limit` по `max(created_at)`); `countPendingEvaluationAttemptsGlobal` / `countPendingTestEvaluationAttemptsGlobal` — точный total для truncation; тип `PendingProgramTestEvaluationGlobalRow` (+ `patientUserId`, `patientDisplayName`). Порт/сервис: `progress-service.ts`, `pgTreatmentProgramTestAttempts.ts`, `inMemoryTreatmentProgramInstance.ts`.

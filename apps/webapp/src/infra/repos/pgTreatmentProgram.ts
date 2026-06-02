@@ -9,7 +9,8 @@ import {
   treatmentProgramTemplateStageItems as itemTable,
   treatmentProgramTemplateStageGroups as tplGroupTable,
 } from "../../../db/schema/treatmentProgramTemplates";
-import type { TreatmentProgramPort, TreatmentProgramTemplateStageValidationContext } from "@/modules/treatment-program/ports";
+import type { MediaPreviewStatus } from "@/modules/media/types";
+import { mediaPreviewUrlById, parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 import type {
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
@@ -37,6 +38,7 @@ import type {
   ExpandTestSetIntoTemplateStageItemsResult,
   TreatmentProgramInstanceStageSystemKind,
 } from "@/modules/treatment-program/types";
+import type { TreatmentProgramPort, TreatmentProgramTemplateStageValidationContext } from "@/modules/treatment-program/ports";
 import {
   EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
   TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT,
@@ -242,6 +244,48 @@ async function templateListFirstItemPreviewByTemplateId(
     } else {
       out.set(row.template_id, { mediaUrl: url, mediaType: mt });
     }
+  }
+  return out;
+}
+
+async function enrichTemplateListPreviewMedia(
+  pool: ReturnType<typeof getPool>,
+  previews: Map<string, TreatmentProgramTemplateListPreviewMedia | null>,
+): Promise<Map<string, TreatmentProgramTemplateListPreviewMedia | null>> {
+  const mediaIds: string[] = [];
+  for (const preview of previews.values()) {
+    if (!preview?.mediaUrl) continue;
+    const mid = parseMediaFileIdFromAppUrl(preview.mediaUrl);
+    if (mid) mediaIds.push(mid);
+  }
+  if (mediaIds.length === 0) return previews;
+
+  const res = await pool.query<{
+    id: string;
+    preview_sm_key: string | null;
+    preview_status: string | null;
+  }>(
+    `SELECT id::text, preview_sm_key, preview_status
+     FROM media_files
+     WHERE id = ANY($1::uuid[])`,
+    [mediaIds],
+  );
+  const byId = new Map(res.rows.map((r) => [r.id.toLowerCase(), r]));
+
+  const out = new Map(previews);
+  for (const [templateId, preview] of previews) {
+    if (!preview?.mediaUrl) continue;
+    const mid = parseMediaFileIdFromAppUrl(preview.mediaUrl);
+    if (!mid) continue;
+    const mf = byId.get(mid.toLowerCase());
+    if (!mf) continue;
+    const previewSmUrl =
+      mf.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
+    out.set(templateId, {
+      ...preview,
+      previewSmUrl,
+      previewStatus: (mf.preview_status as MediaPreviewStatus | null) ?? null,
+    });
   }
   return out;
 }
@@ -586,7 +630,8 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       const ids = rows.map((r) => r.id);
       const countMap = await templateListCounts(db, ids);
       const pool = getPool();
-      const previewMap = await templateListFirstItemPreviewByTemplateId(pool, ids);
+      const previewMapRaw = await templateListFirstItemPreviewByTemplateId(pool, ids);
+      const previewMap = await enrichTemplateListPreviewMedia(pool, previewMapRaw);
       return rows.map((r) => mapTemplate(r, countMap.get(r.id), previewMap.get(r.id) ?? null));
     },
 

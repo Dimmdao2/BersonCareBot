@@ -17,7 +17,8 @@ export type DoctorMenuBadgeKey =
   | "onlineIntakeNew"
   | "messagesUnread"
   | "registrationSystemFailures"
-  | "pendingProgramTests";
+  | "pendingProgramTests"
+  | "todayAttention";
 
 export type DoctorMenuLinkItem = {
   id: string;
@@ -229,7 +230,7 @@ export const DOCTOR_MENU_CLUSTERS: DoctorMenuCluster[] = [
 
 /** Верхнеуровневые ссылки вне кластеров. */
 export const DOCTOR_MENU_STANDALONE_LINKS: DoctorMenuLinkItem[] = [
-  { id: "overview", label: "Сегодня", href: "/app/doctor", badgeKey: "pendingProgramTests" },
+  { id: "overview", label: "Сегодня", href: "/app/doctor", badgeKey: "todayAttention" },
 ];
 
 function filterMenuLinks(items: DoctorMenuLinkItem[], access: DoctorMenuAccess): DoctorMenuLinkItem[] {
