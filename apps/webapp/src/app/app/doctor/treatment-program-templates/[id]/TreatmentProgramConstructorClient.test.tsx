@@ -254,6 +254,59 @@ describe("TreatmentProgramConstructorClient", () => {
     expect(onArchived).not.toHaveBeenCalled();
   });
 
+  it("disables «Сохранить черновик» for published template when title and description are unchanged", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.endsWith("/usage")) {
+        return Promise.resolve(jsonResponse({ ok: true, usage: EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT }));
+      }
+      return Promise.resolve(new Response("unexpected", { status: 500 }));
+    });
+
+    render(
+      <TreatmentProgramConstructorClient
+        templateId={TEMPLATE_ID}
+        initialDetail={makeDetail({ status: "published", title: "Опубликованный шаблон" })}
+        library={emptyLibrary}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^опубликован$/i })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: /^сохранить черновик$/i })).toBeDisabled();
+  });
+
+  it("enables «Сохранить черновик» for published template when title was edited locally", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.endsWith("/usage")) {
+        return Promise.resolve(jsonResponse({ ok: true, usage: EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT }));
+      }
+      return Promise.resolve(new Response("unexpected", { status: 500 }));
+    });
+
+    const user = userEvent.setup();
+    render(
+      <TreatmentProgramConstructorClient
+        templateId={TEMPLATE_ID}
+        initialDetail={makeDetail({ status: "published", title: "Было" })}
+        library={emptyLibrary}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^сохранить черновик$/i })).toBeDisabled();
+    });
+
+    await user.clear(screen.getByLabelText(/^название$/i));
+    await user.type(screen.getByLabelText(/^название$/i), "Стало");
+
+    expect(screen.getByRole("button", { name: /^сохранить черновик$/i })).toBeEnabled();
+  });
+
   it("добавляет комплекс ЛФК из модалки «Элемент из библиотеки» (POST from-lfk-complex, без второй модалки)", async () => {
     const stageId = "22222222-2222-4222-8222-222222222222";
     const complexId = "33333333-3333-4333-8333-333333333333";

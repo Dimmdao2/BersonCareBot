@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-06-02 — Конструктор шаблона программы: CTA «Сохранить черновик» только при несохранённых названии/описании (published)
+
+**Повод:** у опубликованного шаблона кнопка «Сохранить черновик» оставалась активной без правок — воспринималась как лишнее «сохранение», хотя структура этапов уже пишется в API по действию, а название/описание — при `onBlur`.
+
+**Сделано:**
+
+- [`TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx): флаг `templateBasicsDirty` (сравнение `titleDraft` / `descriptionDraft` с `detail`); для `status === "published"` кнопка persist в [`DoctorCatalogPersistPublishBar`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogPersistPublishBar.tsx) **disabled**, пока нет несохранённых базовых полей. Черновик: persist по-прежнему disabled (`status === "draft"`); «Опубликовать» и PATCH статуса — без изменений.
+- Тесты: два `it` в [`TreatmentProgramConstructorClient.test.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.test.tsx) (published без правок / с правкой названия).
+
+**Поведение (канон):**
+
+| Статус шаблона | «Сохранить черновик» | Сохранение контента |
+|----------------|----------------------|---------------------|
+| `draft` | disabled (уже черновик) | структура — сразу API; название/описание — blur |
+| `published` | enabled только при `templateBasicsDirty`; клик — PATCH `{ status: "draft" }` | структура — сразу API; blur для названия/описания |
+| `archived` | disabled | редактирование заблокировано |
+
+**Сознательно не меняли:** автосохранение названия перед «Сохранить черновик» на published; отдельная кнопка «снять с публикации» без правок базовых полей (раньше persist был всегда доступен на published).
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run "src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.test.tsx"`.
+
+---
+
 ## 2026-06-01 — ROADMAP_2 / TODO: закрытие patient-хвостов, D5→TODO, 0040 prod, CMS enum
 
 **Owner sync:** §1.2 diary → TODO; §1.3 cancelled; §1.4–§1.5 closed; §1.7 → TODO после CMS; миграция **0040** на prod — closed; **D5** → [`docs/TODO.md`](../TODO.md) (не блокирует архив ASSIGNMENT_CATALOGS); **Курсы** — не держат ROADMAP_2 активным; doctor card backlog — TODO §Doctor card.

@@ -491,6 +491,15 @@ export function TreatmentProgramConstructorClient({
 
   const isArchived = detail.status === "archived";
 
+  /** Несохранённые правки названия/описания (структура этапов пишется в API сразу). */
+  const templateBasicsDirty = useMemo(() => {
+    const t = titleDraft.trim();
+    if (!t) return false;
+    const descTrimmed = descriptionDraft.trim();
+    const d = descTrimmed === "" ? null : descTrimmed;
+    return t !== detail.title || d !== (detail.description ?? null);
+  }, [descriptionDraft, detail.description, detail.title, titleDraft]);
+
   const refetchUsageClient = useCallback(async () => {
     if (externalUsageSnapshot !== undefined) return;
     try {
@@ -1750,7 +1759,12 @@ export function TreatmentProgramConstructorClient({
         isPublished={detail.status === "published"}
         catalogRecordExists
         persistLabel="Сохранить черновик"
-        persistDisabled={busy || isArchived || detail.status === "draft"}
+        persistDisabled={
+          busy ||
+          isArchived ||
+          detail.status === "draft" ||
+          (detail.status === "published" && !templateBasicsDirty)
+        }
         publishDisabled={busy || isArchived || detail.status === "published"}
         onPersist={() => void patchPublicationStatus("draft")}
         onPublish={() => void patchPublicationStatus("published")}

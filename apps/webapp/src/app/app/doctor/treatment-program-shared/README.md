@@ -8,3 +8,4 @@
 - **`TreatmentProgramDndUi.tsx`** — `@dnd-kit` обёртки: DnD pipeline-этапов и элементов этапа (grip на строке/этапе).
 - **`treatmentProgramReorderHelpers.ts`** — расчёт `orderedStageIds` / `orderedItemIds` после DnD и chevrons; `planStageItemDndReorder` для PATCH `groupId` + bulk reorder.
 - Тесты: `treatmentProgramReorderHelpers.test.ts`, `treatmentProgramInstanceItemDnd.test.ts`; RTL шаблона — `TreatmentProgramConstructorClient.reorder.test.tsx`.
+- **Конструктор шаблона** (`TreatmentProgramConstructorClient.tsx`): CTA внизу через `DoctorCatalogPersistPublishBar` — у **черновика** «Сохранить черновик» disabled, публикация через «Опубликовать»; у **опубликованного** «Сохранить черновик» (перевод в `draft`) disabled, пока нет несохранённых правок названия/описания (`templateBasicsDirty`; структура этапов пишется в API сразу). См. [`docs/APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../../../../docs/APP_RESTRUCTURE_INITIATIVE/LOG.md) § 2026-06-02.

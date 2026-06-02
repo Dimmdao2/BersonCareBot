@@ -997,3 +997,15 @@ pnpm exec tsc --noEmit
 **Результат:** команды выше — **PASS**.
 
 **Коммит:** `fix(recommendations): D3 audit GET region field and SSR docs` (только файлы FIX).
+
+---
+
+## 2026-06-02 — B6 follow-up: persist CTA на опубликованном шаблоне программы
+
+**Контекст:** хвост UX после B6 ([`LOG.md` § 2026-05-03 B6](LOG.md)); конструктор [`TreatmentProgramConstructorClient.tsx`](../../../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx).
+
+**Сделано:** для `published` кнопка «Сохранить черновик» (`DoctorCatalogPersistPublishBar` / `persistDisabled`) активна только при локальных несохранённых правках **названия или описания** (`templateBasicsDirty`). Этапы/элементы по-прежнему сохраняются немедленно через API; цепочка черновик → blur базовых полей → «Опубликовать» не затронута.
+
+**Проверки:** `TreatmentProgramConstructorClient.test.tsx` (7 тестов, +2 на persist disabled/enabled).
+
+**Документация:** [`docs/APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md) § 2026-06-02; кратко — [`treatment-program-shared/README.md`](../../../../apps/webapp/src/app/app/doctor/treatment-program-shared/README.md).
