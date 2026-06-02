@@ -34,4 +34,4 @@
 
 **Проверки:** vitest `canonicalSlugs`, `about-page`, `help-booking-about-link`, help-content + booking.
 
-**Аудит (тот же день):** RTL `HelpBookingAboutLink`, `PatientAboutSiteLink`; contract `about-page` + `routePaths.patientAbout`; `cabinet.md` про `/about` и связь с `booking`.
+**Аудит (тот же день):** RTL `HelpBookingAboutLink`, `PatientAboutSiteLink`; contract `about-page` + `routePaths.patientAbout`; `cabinet.md` про `/about` и связь с `booking`; `docs/README.md` (план закрыт ф1–4); trim slug на `[slug]/page` для CTA `booking`.

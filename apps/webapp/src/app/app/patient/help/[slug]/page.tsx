@@ -21,7 +21,8 @@ type Props = {
 export const dynamic = "force-dynamic";
 
 export default async function PatientHelpArticlePage({ params }: Props) {
-  const { slug } = await params;
+  const { slug: slugRaw } = await params;
+  const slug = slugRaw.trim();
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
   const dbRow = await deps.contentPages.getBySlug(slug);
