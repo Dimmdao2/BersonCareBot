@@ -3,14 +3,10 @@
  */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
-import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
-import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
@@ -37,6 +33,7 @@ import { DoctorClientProgramTab } from "./DoctorClientProgramTab";
 import { DoctorClientCommunicationsTab } from "./DoctorClientCommunicationsTab";
 import { DoctorClientRecordsTab } from "./DoctorClientRecordsTab";
 import { DoctorClientAccountTab } from "./DoctorClientAccountTab";
+import { DoctorClientCardAdminSection } from "./DoctorClientCardAdminSection";
 
 const EMPTY_AGGREGATES: DoctorClientProgramCardAggregates = {
   newCommentsCount: 0,
@@ -93,17 +90,12 @@ function ClientProfileCardInner({
   wellbeingChartModel,
 }: ClientProfileCardProps) {
   const { identity, upcomingAppointments, appointmentHistory } = profile;
-  const { activeTab, setActiveTab, applyAnchor } = useDoctorClientAnchorTab("overview");
+  const { activeTab, setActiveTab, applyAnchor } = useDoctorClientAnchorTab(
+    autoOpenChat ? "communications" : "overview",
+  );
 
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [chatError, setChatError] = useState<string | null>(null);
-  const [chatConversationId, setChatConversationId] = useState<string | null>(null);
-  const [chatInitialMessages, setChatInitialMessages] = useState<SerializedSupportMessage[] | null>(null);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
-  const displayHeading =
-    identity.displayName?.trim() !== "" ? identity.displayName.trim() : "Имя не указано";
   const sampleRecordId = appointmentHistory[0]?.id ?? null;
   const backLabel =
     listBasePath.includes("subscribers") || listBasePath.includes("scope=all")
@@ -116,70 +108,36 @@ function ClientProfileCardInner({
   const pendingTestsCount = pendingProgramTestEvaluations.length;
   const programBadge = programTabBadgeCount(pendingTestsCount, programCardAggregates);
 
-  const loadPatientUnreadCount = useCallback(async () => {
-    try {
-      const res = await fetch("/api/doctor/messages/conversations/unread-by-patient", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientUserId: userId }),
-      });
-      const data = (await res.json()) as { ok?: boolean; unreadCount?: number };
-      if (res.ok && data.ok && typeof data.unreadCount === "number") {
-        setChatUnreadCount(data.unreadCount);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/doctor/messages/conversations/unread-by-patient", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ patientUserId: userId }),
+        });
+        const data = (await res.json()) as { ok?: boolean; unreadCount?: number };
+        if (!cancelled && res.ok && data.ok && typeof data.unreadCount === "number") {
+          setChatUnreadCount(data.unreadCount);
+        }
+      } catch {
+        // optional badge
       }
-    } catch {
-      // optional badge
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
-  useEffect(() => {
-    void loadPatientUnreadCount();
-  }, [loadPatientUnreadCount]);
+  const openCommunications = useCallback(() => {
+    applyAnchor("doctor-client-section-communications");
+  }, [applyAnchor]);
 
-  const openPatientChat = async () => {
-    setChatOpen(true);
-    setChatLoading(true);
-    setChatError(null);
-    try {
-      const res = await fetch("/api/doctor/messages/conversations/ensure", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientUserId: userId }),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        conversationId?: string;
-        messages?: SerializedSupportMessage[];
-        unreadFromUserCount?: number;
-        error?: string;
-      };
-      if (!res.ok || !data.ok || !data.conversationId) {
-        if (data.error === "patient_not_found") {
-          setChatError("Пациент не найден, чат открыть нельзя.");
-        } else if (data.error === "conversation_ensure_failed") {
-          setChatError("Не удалось открыть чат пациента. Попробуйте ещё раз.");
-        } else {
-          setChatError("Не удалось открыть чат пациента");
-        }
-        return;
-      }
-      setChatConversationId(data.conversationId);
-      setChatInitialMessages(data.messages ?? []);
-      setChatUnreadCount(data.unreadFromUserCount ?? 0);
-    } catch {
-      setChatError("Ошибка сети при открытии чата");
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const autoOpenChatStarted = useRef(false);
   useEffect(() => {
-    if (!autoOpenChat || autoOpenChatStarted.current) return;
-    autoOpenChatStarted.current = true;
-    void openPatientChat();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot from URL
-  }, [autoOpenChat]);
+    if (!autoOpenChat) return;
+    applyAnchor("doctor-client-section-communications", { replaceHash: true });
+  }, [autoOpenChat, applyAnchor]);
 
   const navigateProgram = () => {
     setActiveTab("program");
@@ -217,7 +175,7 @@ function ClientProfileCardInner({
           identity={identity}
           firstUpcoming={firstUpcoming}
           chatUnreadCount={chatUnreadCount}
-          onOpenChat={() => void openPatientChat()}
+          onOpenChat={openCommunications}
           onNavigateAnchor={applyAnchor}
         />
 
@@ -226,7 +184,6 @@ function ClientProfileCardInner({
           chatUnreadCount={chatUnreadCount}
           aggregates={programCardAggregates}
           onNavigateTab={setActiveTab}
-          onOpenChat={() => void openPatientChat()}
           onNavigateAnchor={applyAnchor}
         />
 
@@ -235,7 +192,7 @@ function ClientProfileCardInner({
           onValueChange={(v) => setActiveTab(v as DoctorClientTabId)}
           className="gap-0"
         >
-          <div className="overflow-x-auto border-b border-border px-2">
+          <div className="sticky top-[var(--doctor-sticky-offset,0px)] z-[9] overflow-x-auto border-b border-border bg-card px-2">
             <TabsList variant="line" className="h-auto w-max min-w-full justify-start gap-0 bg-transparent p-0">
               <TabsTrigger value="overview" className="rounded-none px-3 py-2">
                 Обзор
@@ -263,7 +220,6 @@ function ClientProfileCardInner({
               profileListScope={profileListScope}
               treatmentProgramInstancesInitial={treatmentProgramInstancesInitial}
               carePlan={carePlanOverview}
-              programAggregates={programCardAggregates}
               assignTreatmentProgramEnabled={assignTreatmentProgramEnabled}
               wellbeingModel={wellbeingModelResolved}
               displayTimeZone={displayTimeZone}
@@ -285,9 +241,9 @@ function ClientProfileCardInner({
 
           <TabsContent value="communications" className="mt-0 outline-none">
             <DoctorClientCommunicationsTab
+              patientUserId={userId}
               messageHistory={messageHistory}
-              chatUnreadCount={chatUnreadCount}
-              onOpenChat={() => void openPatientChat()}
+              onUnreadChange={setChatUnreadCount}
             />
           </TabsContent>
 
@@ -303,12 +259,18 @@ function ClientProfileCardInner({
               canEditClientProfile={canEditClientProfile}
               isAdmin={isAdmin}
               canPermanentDelete={canPermanentDelete}
-              sampleRecordId={sampleRecordId}
               lfkExerciseLinesByComplexId={lfkExerciseLinesByComplexId}
             />
           </TabsContent>
         </Tabs>
       </article>
+
+      <DoctorClientCardAdminSection
+        userId={userId}
+        isAdmin={isAdmin}
+        canPermanentDelete={canPermanentDelete}
+        sampleRecordId={sampleRecordId}
+      />
 
       <p id="doctor-client-back-link-container" className="pt-1">
         <Link
@@ -321,31 +283,6 @@ function ClientProfileCardInner({
           {backLabel}
         </Link>
       </p>
-
-      <Dialog open={chatOpen} onOpenChange={setChatOpen}>
-        <DialogContent
-          className="flex max-h-[min(90vh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
-          showCloseButton={!chatLoading}
-        >
-          <DialogHeader className="shrink-0 border-b border-border px-4 py-3 pr-12">
-            <DialogTitle>Чат с пациентом</DialogTitle>
-            <DialogDescription>{displayHeading}</DialogDescription>
-          </DialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-3">
-            {chatLoading ? <p className="text-sm text-muted-foreground">Открываем чат...</p> : null}
-            {chatError ? <p className="text-sm text-destructive">{chatError}</p> : null}
-            {!chatLoading && !chatError && chatConversationId ? (
-              <DoctorChatPanel
-                key={chatConversationId}
-                conversationId={chatConversationId}
-                initialMessages={chatInitialMessages ?? []}
-                className="min-h-0 flex-1"
-                onReadStateChanged={() => setChatUnreadCount(0)}
-              />
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

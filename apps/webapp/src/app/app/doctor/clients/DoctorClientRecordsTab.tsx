@@ -2,6 +2,7 @@
 
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import { ClientBookingHistoryPanel } from "./ClientBookingHistoryPanel";
+import { doctorClientStackedCardClass, doctorClientTabSectionClass } from "./doctorClientCardChrome";
 
 type Props = {
   userId: string;
@@ -17,7 +18,7 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
 
   return (
     <div className="flex flex-col gap-0">
-      <section id="doctor-client-section-appointments" className="border-b border-border px-4 py-4">
+      <section id="doctor-client-section-appointments" className={doctorClientTabSectionClass}>
         <div className="flex flex-col gap-4">
           {upcomingAppointments.length === 0 ? (
             <p className="text-muted-foreground">Нет предстоящих записей.</p>
@@ -27,7 +28,7 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
                 <li
                   key={a.id}
                   id={`doctor-client-upcoming-appointment-${a.id}`}
-                  className="rounded-lg border border-border bg-card p-3"
+                  className={doctorClientStackedCardClass}
                 >
                   {a.link && /^https?:\/\//i.test(a.link) ? (
                     <a href={a.link} target="_blank" rel="noopener noreferrer">
@@ -46,7 +47,7 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
         </div>
       </section>
 
-      <section id="doctor-client-section-appointment-history" className="border-b border-border px-4 py-4">
+      <section id="doctor-client-section-appointment-history" className={doctorClientTabSectionClass}>
         <details className="group">
           <summary className="cursor-pointer list-none text-sm font-medium [&::-webkit-details-marker]:hidden">
             История записей ({appointmentHistory.length})
@@ -57,7 +58,7 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
             ) : (
               <ul id="doctor-client-appointment-history-list" className="m-0 list-none space-y-3 p-0">
                 {appointmentHistory.map((row) => (
-                  <li key={row.id} className="rounded-lg border border-border bg-card p-3">
+                  <li key={row.id} className={doctorClientStackedCardClass}>
                     {row.label}
                   </li>
                 ))}
@@ -67,11 +68,11 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
         </details>
       </section>
 
-      <div className="border-b border-border px-4 py-4">
+      <div className={doctorClientTabSectionClass}>
         <ClientBookingHistoryPanel userId={userId} />
       </div>
 
-      <section id="doctor-client-section-symptoms" className="px-4 py-4">
+      <section id="doctor-client-section-symptoms" className={doctorClientTabSectionClass}>
         {symptomTrackings.length === 0 ? (
           <p className="text-muted-foreground">Нет отслеживаемых симптомов.</p>
         ) : (

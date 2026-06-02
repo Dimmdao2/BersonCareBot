@@ -787,11 +787,13 @@ export function TreatmentProgramInstanceDetailClient(props: {
   appDisplayTimeZone: string;
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
   doctorReplyFromLogEnabled: boolean;
+  initialOpenDiscussionItemId?: string | null;
 }) {
   const {
     patientProfileHref,
     patientDisplayName,
     initial,
+    initialOpenDiscussionItemId,
     initialTestResults,
     initialAttemptAcceptMap,
     initialEvents,
@@ -954,6 +956,20 @@ export function TreatmentProgramInstanceDetailClient(props: {
     },
     [itemTitles],
   );
+
+  const openDiscussionForItemId = useCallback(
+    (itemId: string) => {
+      const itemLabel = itemTitles.get(itemId) ?? "Элемент";
+      setDiscussionTarget({ itemId, label: itemLabel });
+    },
+    [itemTitles],
+  );
+
+  useEffect(() => {
+    const id = initialOpenDiscussionItemId?.trim();
+    if (!id) return;
+    openDiscussionForItemId(id);
+  }, [initialOpenDiscussionItemId, openDiscussionForItemId]);
 
   const sendProgramNoteReply = useCallback(async () => {
     if (!noteReplyTarget) return;

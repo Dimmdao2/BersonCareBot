@@ -3,17 +3,16 @@
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
 import { DoctorClientOverviewCarePlan } from "./DoctorClientOverviewCarePlan";
 import { DoctorClientOverviewWellbeing } from "./DoctorClientOverviewWellbeing";
-import { doctorClientOverviewCardClass, doctorClientSectionTitleClass } from "./doctorClientCardChrome";
+import { doctorClientOverviewPrimaryCardClass, doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
 import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import type { DoctorClientOverviewCarePlanModel, DoctorClientProgramCardAggregates } from "@/modules/doctor-client-card/types";
+import type { DoctorClientOverviewCarePlanModel } from "@/modules/doctor-client-card/types";
 
 type Props = {
   userId: string;
   profileListScope?: string;
   treatmentProgramInstancesInitial?: TreatmentProgramInstanceSummary[];
   carePlan: DoctorClientOverviewCarePlanModel | null;
-  programAggregates: DoctorClientProgramCardAggregates;
   assignTreatmentProgramEnabled: boolean;
   wellbeingModel: WellbeingWeekChartModel;
   displayTimeZone: string;
@@ -25,7 +24,6 @@ export function DoctorClientOverviewTab({
   profileListScope,
   treatmentProgramInstancesInitial,
   carePlan,
-  programAggregates,
   assignTreatmentProgramEnabled,
   wellbeingModel,
   displayTimeZone,
@@ -38,18 +36,18 @@ export function DoctorClientOverviewTab({
         profileListScope={profileListScope}
         instances={treatmentProgramInstancesInitial}
         carePlan={carePlan}
-        aggregates={programAggregates}
         assignEnabled={assignTreatmentProgramEnabled}
         onAssignClick={onNavigateProgram}
       />
       <DoctorClientOverviewWellbeing chartModel={wellbeingModel} displayTimeZone={displayTimeZone} />
-      <section
-        id="doctor-client-section-notes"
-        className={`md:col-span-2 ${doctorClientOverviewCardClass}`}
-      >
-        <h3 className={`mb-3 ${doctorClientSectionTitleClass}`}>Заметки</h3>
-        <DoctorNotesPanel userId={userId} />
-      </section>
+      <details id="doctor-client-section-notes" className={`md:col-span-2 ${doctorClientOverviewPrimaryCardClass}`}>
+        <summary className={`mb-0 cursor-pointer list-none ${doctorClientSectionTitleClass} [&::-webkit-details-marker]:hidden`}>
+          Заметки
+        </summary>
+        <div className="mt-3">
+          <DoctorNotesPanel userId={userId} />
+        </div>
+      </details>
     </div>
   );
 }

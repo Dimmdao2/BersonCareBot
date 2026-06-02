@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import { createDoctorClientsPolicyTestMock } from "@/modules/doctor-clients/patientProgramInteractionPolicyTestMock";
 
 const notFoundMock = vi.hoisted(() =>
   vi.fn(() => {
@@ -66,6 +67,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getBySlug: vi.fn(async () => null),
       getRedirectNewSlugForOldSlug: vi.fn(async () => null),
     },
+    doctorClients: createDoctorClientsPolicyTestMock(),
   }),
 }));
 

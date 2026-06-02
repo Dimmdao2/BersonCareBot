@@ -170,7 +170,7 @@ describe("ClientProfileCard back link (scope)", () => {
     expect(openChat).not.toBeNull();
     expect(openChat).toHaveTextContent("Чат");
     await user.click(screen.getByRole("tab", { name: /коммуникации/i }));
-    expect(screen.getByRole("button", { name: /открыть чат/i })).toBeInTheDocument();
+    expect(screen.getByText("Чат поддержки")).toBeInTheDocument();
     expect(screen.getByText(/старый журнал отправок/i)).toBeInTheDocument();
   });
 

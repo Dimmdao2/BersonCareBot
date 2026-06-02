@@ -1,7 +1,15 @@
-import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { PatientProgramInteractionPolicy } from "./supportPolicy";
+
+export type PatientProgramInteractionPolicyDeps = {
+  doctorClients: {
+    getPatientProgramInteractionPolicy: (
+      patientUserId: string,
+    ) => Promise<PatientProgramInteractionPolicy>;
+  };
+};
 
 export async function assertPatientProgramCommentsAllowed(
-  deps: ReturnType<typeof buildAppDeps>,
+  deps: PatientProgramInteractionPolicyDeps,
   patientUserId: string,
 ): Promise<{ ok: true } | { ok: false; error: "patient_support_comments_disabled" }> {
   const policy = await deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId);
@@ -12,7 +20,7 @@ export async function assertPatientProgramCommentsAllowed(
 }
 
 export async function assertPatientProgramMediaAllowed(
-  deps: ReturnType<typeof buildAppDeps>,
+  deps: PatientProgramInteractionPolicyDeps,
   patientUserId: string,
 ): Promise<{ ok: true } | { ok: false; error: "patient_support_media_disabled" }> {
   const policy = await deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId);

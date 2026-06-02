@@ -11,13 +11,13 @@ import { TreatmentProgramInstanceDetailClient } from "./TreatmentProgramInstance
 
 type Props = {
   params: Promise<{ userId: string; instanceId: string }>;
-  searchParams: Promise<{ scope?: string }>;
+  searchParams: Promise<{ scope?: string; discussionItem?: string }>;
 };
 
 export default async function DoctorPatientTreatmentProgramPage({ params, searchParams }: Props) {
   const session = await requireDoctorAccess();
   const { userId, instanceId } = await params;
-  const { scope: scopeParam } = await searchParams;
+  const { scope: scopeParam, discussionItem: discussionItemParam } = await searchParams;
 
   const deps = buildAppDeps();
   let detail;
@@ -97,6 +97,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
         appDisplayTimeZone={appDisplayTimeZone}
         treatmentProgramLibrary={treatmentProgramLibrary}
         doctorReplyFromLogEnabled={doctorReplyFromLogEnabled}
+        initialOpenDiscussionItemId={discussionItemParam?.trim() || undefined}
       />
     </AppShell>
   );

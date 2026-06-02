@@ -4,6 +4,7 @@ import Link from "next/link";
 import { MessageSquare, ImageIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { DoctorClientProgramInboxRow } from "@/modules/doctor-client-card/types";
+import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
 import { doctorClientStackedCardClass } from "./doctorClientCardChrome";
 import { cn } from "@/lib/utils";
 
@@ -22,8 +23,6 @@ const KIND_META: Record<
 };
 
 export function DoctorClientProgramInbox({ userId, profileListScope, rows }: Props) {
-  const scopeQs = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : "";
-
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">Нет новых комментариев и медиа от пациента.</p>
@@ -47,7 +46,10 @@ export function DoctorClientProgramInbox({ userId, profileListScope, rows }: Pro
               </div>
             </div>
             <Link
-              href={`/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(row.instanceId)}${scopeQs}`}
+              href={doctorClientTreatmentProgramInstanceHref(userId, row.instanceId, {
+                profileListScope,
+                discussionItemId: row.stageItemId,
+              })}
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
                 "mt-3 inline-flex w-full sm:w-auto",

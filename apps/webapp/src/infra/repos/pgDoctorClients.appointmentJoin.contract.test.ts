@@ -18,6 +18,6 @@ describe("pgDoctorClients appointment_records join", () => {
     const file = path.join(process.cwd(), "src/infra/repos/pgDoctorClients.ts");
     const src = readFileSync(file, "utf8");
     expect(src).toContain("assignment_source = 'doctor'");
-    expect(src).toMatch(/tpi\.status\s*=\s*'active'\s+AND\s+tpi\.assignment_source\s*=\s*'doctor'/);
+    expect(src).toMatch(/status\s*=\s*'active'\s+AND\s+assignment_source\s*=\s*'doctor'/);
   });
 });

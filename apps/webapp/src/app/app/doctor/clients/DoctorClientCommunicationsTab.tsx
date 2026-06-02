@@ -1,33 +1,29 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
-import { doctorClientStackedCardClass, doctorClientTabSectionClass } from "./doctorClientCardChrome";
+import { DoctorClientEmbeddedChat } from "./DoctorClientEmbeddedChat";
+import {
+  doctorClientSectionTitleClass,
+  doctorClientStackedCardClass,
+  doctorClientTabSectionClass,
+} from "./doctorClientCardChrome";
 
 type Props = {
+  patientUserId: string;
   messageHistory: MessageLogEntry[];
-  chatUnreadCount: number;
-  onOpenChat: () => void;
+  onUnreadChange?: (count: number) => void;
 };
 
 export function DoctorClientCommunicationsTab({
+  patientUserId,
   messageHistory,
-  chatUnreadCount,
-  onOpenChat,
+  onUnreadChange,
 }: Props) {
   return (
     <section id="doctor-client-section-communications" className={doctorClientTabSectionClass}>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" size="sm" onClick={onOpenChat}>
-            Открыть чат
-            {chatUnreadCount > 0 ? (
-              <span className="ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-primary">
-                {chatUnreadCount}
-              </span>
-            ) : null}
-          </Button>
-        </div>
+        <h3 className={doctorClientSectionTitleClass}>Чат поддержки</h3>
+        <DoctorClientEmbeddedChat patientUserId={patientUserId} onUnreadChange={onUnreadChange} />
 
         {messageHistory.length > 0 ? (
           <details className="group">
@@ -52,9 +48,7 @@ export function DoctorClientCommunicationsTab({
               ))}
             </ul>
           </details>
-        ) : (
-          <p className="text-sm text-muted-foreground">Журнал отправок пуст</p>
-        )}
+        ) : null}
       </div>
     </section>
   );

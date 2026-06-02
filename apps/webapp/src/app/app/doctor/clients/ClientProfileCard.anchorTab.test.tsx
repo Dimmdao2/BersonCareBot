@@ -142,7 +142,7 @@ describe("ClientProfileCard anchor routing", () => {
     });
   });
 
-  it("auto-opens chat when autoOpenChat is true", async () => {
+  it("opens communications tab when autoOpenChat is true", async () => {
     render(
       <ClientProfileCard
         profile={minimalProfile}
@@ -152,7 +152,7 @@ describe("ClientProfileCard anchor routing", () => {
       />,
     );
     await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeTruthy();
+      expect(document.getElementById("doctor-client-section-communications")).toBeTruthy();
     });
   });
 });

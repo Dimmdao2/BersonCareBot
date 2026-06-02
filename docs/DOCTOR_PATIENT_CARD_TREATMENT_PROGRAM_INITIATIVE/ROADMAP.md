@@ -111,9 +111,14 @@
 
 **Критерий:** правки отражаются у пациента в плане (согласовать с [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) при приёмке).
 
+### Этап 3b — Редизайн карточки (Tabs + Hero, фаза 2B) ✅ 2026-06-02
+
+- IA: Hero + Action Strip + табы; агрегаты inbox/«план не открыт»; Care Plan + wellbeing на «Обзоре»; встроенный чат; deep link `?discussionItem=` на экран инстанса.
+- Спека и приёмка: [`CARD_REDESIGN_PLAN.md`](CARD_REDESIGN_PLAN.md), журнал [`LOG.md`](LOG.md). **2C** (задачи специалиста) — отдельно.
+
 ### Этап 4 — Вторичный функционал карточки по TARGET / PROGRAM_PATIENT_SHAPE
 
-- **Inbox «К проверке»** в карточке (read по `decided_by IS NULL` — см. §4.3 плана).
+- **Inbox «К проверке»** в карточке (read по `decided_by IS NULL` — см. §4.3 плана) — **частично в 2B** (таб «Программа», Action Strip).
 - Компактный **фид «Последние изменения»** из `treatment_program_events` (§4.4).
 - Кросс-пациентский inbox на «Сегодня» — в документе помечен как **backlog**.
 

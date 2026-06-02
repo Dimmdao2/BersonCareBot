@@ -93,7 +93,10 @@ export function PatientCareBar({
 
           <div className="hidden min-w-0 max-w-[38%] text-center text-sm md:block">
             {firstUpcoming ? (
-              <UpcomingAppointment appointment={firstUpcoming} />
+              <div>
+                <p className="mb-0.5 text-xs text-muted-foreground">Ближайшая:</p>
+                <UpcomingAppointment appointment={firstUpcoming} />
+              </div>
             ) : (
               <p className="text-muted-foreground">Нет ближайших записей</p>
             )}
@@ -144,7 +147,10 @@ export function PatientCareBar({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between md:hidden">
           <div className="min-w-0 text-sm">
             {firstUpcoming ? (
-              <UpcomingAppointment appointment={firstUpcoming} />
+              <div>
+                <p className="mb-0.5 text-xs text-muted-foreground">Ближайшая:</p>
+                <UpcomingAppointment appointment={firstUpcoming} />
+              </div>
             ) : (
               <p className="text-muted-foreground">Нет ближайших записей</p>
             )}

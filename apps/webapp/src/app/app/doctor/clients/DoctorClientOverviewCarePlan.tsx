@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { Activity, BookOpen, ChevronRight, ClipboardList, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -14,11 +14,11 @@ import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePl
 import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
 import type { TreatmentProgramItemType } from "@/modules/treatment-program/types";
 import type { DoctorClientOverviewCarePlanModel } from "@/modules/doctor-client-card/types";
-import type { DoctorClientProgramCardAggregates } from "@/modules/doctor-client-card/types";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
+import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
 import {
   doctorClientInsetListRowClass,
-  doctorClientOverviewCardClass,
+  doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
 } from "./doctorClientCardChrome";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,6 @@ type Props = {
   profileListScope?: string;
   instances?: TreatmentProgramInstanceSummary[];
   carePlan: DoctorClientOverviewCarePlanModel | null;
-  aggregates: DoctorClientProgramCardAggregates;
   assignEnabled: boolean;
   onAssignClick: () => void;
 };
@@ -69,7 +68,6 @@ export function DoctorClientOverviewCarePlan({
   profileListScope,
   instances,
   carePlan,
-  aggregates,
   assignEnabled,
   onAssignClick,
 }: Props) {
@@ -77,8 +75,21 @@ export function DoctorClientOverviewCarePlan({
   const activeFallback = instances ? pickActivePlanInstance(instances) : null;
   const instanceId = carePlan?.instanceId ?? activeFallback?.id ?? null;
   const instanceHref = instanceId
-    ? `/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(instanceId)}${scopeQs}`
+    ? doctorClientTreatmentProgramInstanceHref(userId, instanceId, { profileListScope })
     : null;
+
+  const itemTypeIcon = (itemType: string) => {
+    switch (itemType) {
+      case "exercise":
+        return Activity;
+      case "lesson":
+        return BookOpen;
+      case "clinical_test":
+        return ClipboardList;
+      default:
+        return FileText;
+    }
+  };
 
   const goalsLine = carePlan ? mdPreviewLine(carePlan.goals) : null;
   const objectivesLine = carePlan ? mdPreviewLine(carePlan.objectives) : null;
@@ -88,14 +99,9 @@ export function DoctorClientOverviewCarePlan({
       : 0;
 
   return (
-    <section className={doctorClientOverviewCardClass}>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+    <section className={doctorClientOverviewPrimaryCardClass}>
+      <div className="mb-3">
         <h3 className={doctorClientSectionTitleClass}>Программа реабилитации</h3>
-        {aggregates.planNotOpened ? (
-          <Badge variant="outline" className="text-xs">
-            План не открыт
-          </Badge>
-        ) : null}
       </div>
       {carePlan ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -138,17 +144,30 @@ export function DoctorClientOverviewCarePlan({
             <ul className="m-0 list-none space-y-1.5 p-0">
               {carePlan.items.map((item) => {
                 const media = carePlanItemPreview(item);
-                const rowHref = instanceHref;
+                const rowHref =
+                  instanceId != null
+                    ? doctorClientTreatmentProgramInstanceHref(userId, instanceId, {
+                        profileListScope,
+                        discussionItemId: item.id,
+                      })
+                    : null;
+                const TypeIcon = itemTypeIcon(item.itemType);
                 return (
                   <li key={item.id}>
                     {rowHref ? (
                       <Link href={rowHref} className={cn(doctorClientInsetListRowClass, "group")}>
-                        <PatientCatalogMediaStaticThumb
-                          media={media}
-                          frameClassName="size-11 shrink-0 rounded-md border border-border"
-                          sizes="44px"
-                          iconClassName="size-4"
-                        />
+                        {media ? (
+                          <PatientCatalogMediaStaticThumb
+                            media={media}
+                            frameClassName="size-11 shrink-0 rounded-md border border-border"
+                            sizes="44px"
+                            iconClassName="size-4"
+                          />
+                        ) : (
+                          <span className="flex size-11 shrink-0 items-center justify-center rounded-md border border-border bg-muted/30 text-muted-foreground">
+                            <TypeIcon className="size-4" aria-hidden />
+                          </span>
+                        )}
                         <span className="min-w-0 flex-1 truncate text-sm">{item.title}</span>
                         {item.isNew ? (
                           <Badge variant="secondary" className="shrink-0 text-[10px]">

@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-06-02 — UX-аудит 2B (P0/P1)
+
+**Сделано:**
+- Встроенный чат в табе «Коммуникации» (`DoctorClientEmbeddedChat`); Hero/Strip → таб + якорь; модалка чата убрана.
+- Inbox и Care Plan → deep link `?discussionItem=`; на экране инстанса автооткрытие `DoctorProgramItemDiscussionDialog`.
+- Action Strip: заголовок «Сейчас», variant по приоритету; «План не открыт» только в Strip.
+- Обзор: primary/secondary карточки; иконки типов элементов; заметки в `<details>`; легенда разминки на спарклайне.
+- Программа: зона «Срочное» (`doctorClientUrgentZoneClass`); Records/Account — единые секции/карточки; админ ⌄ вне таб-бара; sticky табы.
+
+**Проверки:** `tsc --noEmit`; vitest `ClientProfileCard*`, `doctor-client-card/*` (21 passed). Документация: `CARD_REDESIGN_PLAN.md`, `README.md`, `ROADMAP.md`, `api.md`.
+
+**Не делали:** Hero-сводка задач (2C); inline quick-reply в карточке.
+
+---
+
 ## 2026-06-02 — UI-полировка карточки (после ревью Composer)
 
 **Сделано:** общий `doctorClientCardChrome.ts`; Hero — вторая строка на mobile (запись + сопровождение); Action Strip → `#doctor-client-section-program-inbox`; таб «Программа» — сначала inbox/тесты; Care Plan — прогресс этапов, кликабельные строки с превью, plain-text goals; спарклайн на всю ширину; убран пустой блок в «Коммуникации»; единые бейджи на табах.

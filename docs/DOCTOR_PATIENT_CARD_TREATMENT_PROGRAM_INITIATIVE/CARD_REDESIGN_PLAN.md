@@ -1,6 +1,6 @@
 # CARD_REDESIGN_PLAN — карточка пациента врача (фаза 2A)
 
-**Статус:** дизайн утверждён owner 2026-06-02 (модель **Tabs + Hero**, график самочувствия **вторичный**). Реализация — фаза 2B; сущность «Задача» — фаза 2C.
+**Статус:** дизайн утверждён owner 2026-06-02 (модель **Tabs + Hero**, график самочувствия **вторичный**). **Фаза 2B реализована** (2026-06-02, вкл. UX-аудит P0/P1 — см. [`LOG.md`](LOG.md)). Сущность «Задача» и Hero-сводка задач — фаза **2C**.
 
 **План-очередь:** Cursor `active_workqueue_plan_30236040` (фазы 2A/2B/2C).
 **Каноничные спецификации (не дублировать):** [`ROADMAP.md`](ROADMAP.md), [`../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md`](../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md) §5–6, [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) §4.
@@ -92,7 +92,7 @@
 
 - «К проверке · N» (`pendingProgramTestEvaluations`) → таб «Программа».
 - «Новые комментарии · N» / «Медиа от пациента · N» (агрегат §3.2.1) → таб «Программа».
-- «Сообщение в чате · N» (`unread-by-patient`) → открыть чат.
+- «Сообщение в чате · N» (`unread-by-patient`) → таб «Коммуникации» (встроенный чат).
 - «План не открыт» (§3.2.2) → информативный.
 - «Задачи · N» (§3.2.3) → секция «Задачи».
 
@@ -107,10 +107,10 @@
   - *Самочувствие (вторичный):* **спарклайн** `value0_10` (`buildWellbeingWeekChartData`) + последнее значение/тренд + маркеры ЛФК-сессий; кнопка «Подробный график» раскрывает полноразмерный график с периодом и маркерами выполнения/пропусков.
   - *Секция «Задачи»* пациента (см. §6) — подробный список (решение «здесь vs мини-таб» ниже, см. §4.4).
 - **Программа •N:** `PatientTreatmentProgramsPanel` (активная + архив) + program inbox (тесты к проверке, комментарии, медиа) с быстрым ответом/оценкой. Бейдж = к проверке + новые комментарии + медиа.
-- **Коммуникации •N:** единый чат поддержки + свёрнутый старый журнал `messageHistory`.
+- **Коммуникации •N:** встроенный чат поддержки (`DoctorClientEmbeddedChat` + `POST …/conversations/ensure`) + свёрнутый старый журнал `messageHistory` в `<details>`.
 - **Записи:** предстоящие + `appointmentStats` + свёрнутая история + текстовая сводка симптомов.
 - **Учётка:** контакты/каналы, правка профиля (`AdminClientProfileEditPanel`), доп.контакты (`DoctorSupplementaryContactsPanel`), lifecycle (`DoctorClientLifecycleActions`), блокировка (`SubscriberBlockPanel`).
-- **Меню «Админ»** (isAdmin/canPermanentDelete): `AdminDangerActions`, `AdminMergeAccountsPanel`, `AdminClientAuditHistorySection` — lazy через `suspend*`.
+- **Меню «Админ»** (isAdmin/canPermanentDelete): `DoctorClientCardAdminSection` **под** карточкой (вне таб-бара), lazy через `suspend*` — не в табе «Учётка».
 
 ### 4.3 Mobile
 
@@ -200,7 +200,8 @@
 | `#doctor-client-section-contacts` | Учётка → контакты/каналы |
 | `#doctor-client-section-lifecycle` | Учётка → lifecycle |
 | `#doctor-client-section-subscriber` | Учётка → блокировка |
-| `?chat=1` | автооткрытие чата (`autoOpenChat` сохраняется как есть) |
+| `?chat=1` | таб «Коммуникации» + якорь `#doctor-client-section-communications` (`autoOpenChat`) |
+| `?discussionItem={stageItemId}` (экран инстанса) | автооткрытие `DoctorProgramItemDiscussionDialog` для элемента |
 
 **Реализация (один helper):** при маунте читать `window.location.hash`, по карте «anchor → tabId» переключить активный таб, затем `scrollIntoView` по `id` (с небольшим `requestAnimationFrame`/`useEffect` после рендера таба). Внутренние кнопки Hero «История/Заметки/Программа» переводятся на тот же механизм (сейчас это `<Link href="#...">`).
 
@@ -212,31 +213,33 @@
 
 Каждый шаг — самостоятельный PR-able кусок с локальными проверками и DoD. Полный `pnpm run ci` — **не** после каждого шага, а перед push (политика репозитория). После каждого шага — запись в `LOG.md` (что сделано / проверки / что не трогали). Care Plan на «Обзоре» — **summary + CTA на детальный экран инстанса**, дерево инстанса в карточку **не** тянем (детальный экран не переписывается, см. §11).
 
-### Фаза 2B — карточка
+### Фаза 2B — карточка ✅ (2026-06-02)
 
-**2B-1. Каркас Tabs + перенос секций (без новых данных).**
+**2B-1. Каркас Tabs + перенос секций (без новых данных).** ✅
 - Файлы: `ClientProfileCard.tsx` → тонкий каркас (Hero-заглушка + `Tabs` router, `key={userId}` сохранить); новые обёртки `OverviewTab/ProgramTab/CommunicationsTab/RecordsTab/AccountTab` в `apps/webapp/src/app/app/doctor/clients/`. Существующие панели переезжают **без изменений** по карте §4.5.
 - Props/данные `[userId]/page.tsx` **не меняем** (тот же `Promise.all`).
 - Проверки: `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp lint`; обновить/прогнать `ClientProfileCard.backLink.test.tsx`; визуальный smoke (все блоки доступны в табах).
 - DoD: длинная лента заменена табами; ни одна существующая панель не потеряна; тесты карточки зелёные.
 
-**2B-2. Hero / Care Bar.**
+**2B-2. Hero / Care Bar.** ✅
 - Новый `PatientCareBar` (идентичность, телефон `tel:`, бейджи Архив/Блок, ближайшая запись из `upcomingAppointments[0]`, тумблер сопровождения через существующий `support-settings` flow, кнопка «Чат» с `chatUnreadCount` через существующий `unread-by-patient`, меню `⋯`). Hero-сводка задач — плейсхолдер до 2C.
 - Проверки: `tsc`/`lint`; RTL на Hero (рендер бейджей, наличие кнопки чата с бейджем).
 - DoD: above-the-fold виден «кто/контакт/запись/сопровождение/чат» без скролла; mobile — 2 ряда.
 
-**2B-3. Action Strip + агрегаты (§3.2.1, §3.2.2).**
+**2B-3. Action Strip + агрегаты (§3.2.1, §3.2.2).** ✅
 - Порт/сервис rollup комментариев/медиа активного инстанса + «план не открыт»; DI в `[userId]/page.tsx` (RSC, above-the-fold); `PatientActionStrip` с чипами по §4.1; пустое состояние «Срочных задач нет».
 - Семантику «нового» комментария/медиа зафиксировать в `LOG.md` + `apps/webapp/src/app/api/api.md`.
 - Проверки: unit на агрегат (порог дат «план не открыт», подсчёт «новых»); `tsc`/`lint`; route/RSC-тест на корректные счётчики.
 - DoD: каждый чип ведёт в нужный таб/чат; «план не открыт» по алгоритму §3.2.2.
 
-**2B-4. Обзор: Care Plan + Wellbeing.**
+**2B-4. Обзор: Care Plan + Wellbeing.** ✅
 - `OverviewTab`: Care Plan-карточка из `treatmentProgramInstancesInitial` (активный инстанс summary, текущий этап, CTA «Открыть программу»/«Назначить»; элементы со static-превью `PatientCatalogMediaStaticThumb`/`MediaThumb`, **без** `<video>`, бейдж «Новое» при `lastViewedAt = null`); Wellbeing-спарклайн (`buildWellbeingWeekChartData` по `recentSymptomEntries`/`symptomTrackings`) + кнопка «Подробный график» (lazy раскрытие полного графика); компактный блок «Заметки» (§4.5).
 - Проверки: соответствие `patient-ui-shared-primitives` (static-превью); `tsc`/`lint`; RTL на «Новое»-бейдж и раскрытие графика (прогрев lazy в `beforeAll` по `webapp-tests-lean-no-bloat`).
 - DoD: лечение (программа+самочувствие) на «Обзоре»; полный график только по клику.
 
-**2B-5. Миграция якорей + `autoOpenChat`.**
+**2B-5. Миграция якорей + `autoOpenChat`.** ✅
+
+**UX-аудит после 2B (P0/P1):** встроенный чат в табе; deep link `?discussionItem=` с inbox/Care Plan; Action Strip «Сейчас»; primary/secondary обзор; зона «Срочное» на табе «Программа»; `doctorClientCardChrome.ts`; админ вне табов. Детали — [`LOG.md`](LOG.md) §2026-06-02 UX-аудит.
 - Helper «anchor → tab + scroll» по таблице §8; Hero-ссылки переведены на него; `?chat=1` сохраняет автооткрытие.
 - Проверки: `rg "doctor-client-section-" apps/webapp/src`; RTL/integration на 2–3 ключевых якоря (`-treatment-programs`, `-pending-program-tests`, `-communications`) + `?chat=1`.
 - DoD: старые `#doctor-client-section-*` и `?chat=1` открывают правильный таб без «битого» якоря.

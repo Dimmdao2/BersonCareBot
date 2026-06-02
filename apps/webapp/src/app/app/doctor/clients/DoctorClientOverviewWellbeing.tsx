@@ -4,7 +4,7 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
 import {
-  doctorClientOverviewCardClass,
+  doctorClientOverviewSecondaryCardClass,
   doctorClientSectionTitleClass,
 } from "./doctorClientCardChrome";
 import { cn } from "@/lib/utils";
@@ -69,11 +69,18 @@ function Sparkline({ model }: { model: WellbeingWeekChartModel }) {
           />
         ))}
       </svg>
-      {last != null ? (
-        <span className="shrink-0 text-sm tabular-nums text-muted-foreground">Последнее: {last}/10</span>
-      ) : (
-        <span className="shrink-0 text-sm text-muted-foreground">Разминка</span>
-      )}
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
+        {last != null ? (
+          <span className="text-sm tabular-nums text-muted-foreground">Последнее: {last}/10</span>
+        ) : (
+          <span className="text-sm text-muted-foreground">Разминка</span>
+        )}
+        {model.warmupScatter.length > 0 ? (
+          <span className="text-[10px] text-muted-foreground">
+            <span className="inline-block size-1.5 rounded-full bg-amber-500 align-middle" /> разминка
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -94,7 +101,7 @@ export function DoctorClientOverviewWellbeing({ chartModel, displayTimeZone }: P
   );
 
   return (
-    <section className={doctorClientOverviewCardClass}>
+    <section className={doctorClientOverviewSecondaryCardClass}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className={doctorClientSectionTitleClass}>Самочувствие</h3>
         {hasData ? (

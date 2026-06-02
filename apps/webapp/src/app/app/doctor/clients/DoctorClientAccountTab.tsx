@@ -11,10 +11,8 @@ import { DoctorSupplementaryContactsPanel } from "./DoctorSupplementaryContactsP
 import { DoctorClientLifecycleActions } from "./DoctorClientLifecycleActions";
 import { SubscriberBlockPanel } from "./SubscriberBlockPanel";
 import { DoctorClientSupportPanel } from "./DoctorClientSupportPanel";
-import { AdminDangerActions } from "./AdminDangerActions";
-import { AdminMergeAccountsPanel } from "./AdminMergeAccountsPanel";
-import { AdminClientAuditHistorySection } from "./AdminClientAuditHistorySection";
 import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
+import { doctorClientTabSectionClass } from "./doctorClientCardChrome";
 
 type Props = {
   profile: ClientProfile;
@@ -23,7 +21,6 @@ type Props = {
   canEditClientProfile: boolean;
   isAdmin: boolean;
   canPermanentDelete: boolean;
-  sampleRecordId: string | null;
   lfkExerciseLinesByComplexId: Record<string, LfkComplexExerciseLine[]>;
 };
 
@@ -34,18 +31,15 @@ export function DoctorClientAccountTab({
   canEditClientProfile,
   isAdmin,
   canPermanentDelete,
-  sampleRecordId,
   lfkExerciseLinesByComplexId,
 }: Props) {
   const [contactsEditing, setContactsEditing] = useState(false);
-  const [adminDetailsOpen, setAdminDetailsOpen] = useState(false);
   const { identity, channelCards, supplementaryContacts, lfkComplexes, recentLfkSessions } = profile;
   const tel = phoneToTelHref(identity.phone);
-  const showAdminDetails = isAdmin || canPermanentDelete;
 
   return (
     <div className="flex flex-col gap-0">
-      <section id="doctor-client-section-contacts" className="border-b border-border px-4 py-4">
+      <section id="doctor-client-section-contacts" className={doctorClientTabSectionClass}>
         <div className="flex flex-col gap-4">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-medium text-foreground">Контакты и каналы</p>
@@ -99,11 +93,11 @@ export function DoctorClientAccountTab({
         </div>
       </section>
 
-      <section className="border-b border-border px-4 py-4">
+      <section className={doctorClientTabSectionClass}>
         <DoctorClientSupportPanel patientUserId={userId} />
       </section>
 
-      <section id="doctor-client-section-lfk" className="border-b border-border px-4 py-4">
+      <section id="doctor-client-section-lfk" className={doctorClientTabSectionClass}>
         <details className="group">
           <summary className="cursor-pointer list-none text-sm font-medium [&::-webkit-details-marker]:hidden">
             ЛФК (legacy)
@@ -128,7 +122,7 @@ export function DoctorClientAccountTab({
         </details>
       </section>
 
-      <section id="doctor-client-section-lifecycle" className="border-b border-border px-4 py-4">
+      <section id="doctor-client-section-lifecycle" className={doctorClientTabSectionClass}>
         <DoctorClientLifecycleActions
           userId={userId}
           isArchived={identity.isArchived}
@@ -138,43 +132,13 @@ export function DoctorClientAccountTab({
         />
       </section>
 
-      <section id="doctor-client-section-subscriber" className="px-4 py-4">
+      <section id="doctor-client-section-subscriber" className={doctorClientTabSectionClass}>
         <SubscriberBlockPanel
           userId={userId}
           initiallyBlocked={identity.isBlocked}
           blockedReason={identity.blockedReason}
         />
       </section>
-
-      {showAdminDetails ? (
-        <details
-          className="border-t border-border"
-          onToggle={(e) => setAdminDetailsOpen(e.currentTarget.open)}
-        >
-          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-            Админ
-          </summary>
-          <div className="flex flex-col gap-4 border-t border-border px-4 pb-4 pt-4">
-            {isAdmin ? (
-              <AdminDangerActions userId={userId} sampleIntegratorRecordId={sampleRecordId} />
-            ) : null}
-            {canPermanentDelete ? (
-              <AdminMergeAccountsPanel
-                anchorUserId={userId}
-                enabled
-                suspendHeavyFetch={!adminDetailsOpen}
-              />
-            ) : null}
-            {canPermanentDelete ? (
-              <AdminClientAuditHistorySection
-                platformUserId={userId}
-                enabled
-                suspendLoad={!adminDetailsOpen}
-              />
-            ) : null}
-          </div>
-        </details>
-      ) : null}
     </div>
   );
 }
