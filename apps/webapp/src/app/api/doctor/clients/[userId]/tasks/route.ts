@@ -24,7 +24,7 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getClientIdentity(userId);
+  const identity = await deps.doctorClientsPort.getPatientClientIdentity(userId);
   if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   const includeCompleted = new URL(request.url).searchParams.get("includeCompleted") === "1";
@@ -58,7 +58,7 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getClientIdentity(userId);
+  const identity = await deps.doctorClientsPort.getPatientClientIdentity(userId);
   if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   try {

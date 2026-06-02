@@ -1,7 +1,7 @@
 # Документация проекта
 
 - **Backlog (security, rate limit, observability, URL/UUID в адресах):** [`TODO.md`](TODO.md) — сводка **активных Cursor-планов** и ссылка на архив в начале файла.
-- **Активная очередь (врач / пациент / CMS, фазы 0–7):** [`ACTIVE_WORKQUEUE.md`](ACTIVE_WORKQUEUE.md) — статус фаз; планы Cursor `active_workqueue_plan_30236040`, `phase1_support_model_7c745931`.
+- **Активная очередь (врач / пациент / CMS, фазы 0–7):** [`ACTIVE_WORKQUEUE.md`](ACTIVE_WORKQUEUE.md) — статус фаз; план [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) (2C закрыта, следующая — 3); фаза 1 — `phase1_support_model_7c745931`.
 - **Отложенные работы (не сейчас):** [`TODO_NOT_NOW/README.md`](TODO_NOT_NOW/README.md) — черновики и ТЗ без активного исполнения (карточка + ссылка на `.cursor/plans`).
 - **Архив (завершённые инициативы и разовые журналы):** [`archive/README.md`](archive/README.md)
 - **Операционные отчёты / runbook:** [`REPORTS/README.md`](REPORTS/README.md)

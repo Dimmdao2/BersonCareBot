@@ -73,6 +73,10 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     return 0;
   },
 
+  async getPatientClientIdentity(userId: string): Promise<ClientIdentity | null> {
+    return this.getClientIdentity(userId);
+  },
+
   async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
     const found = STUB_CLIENTS.find((c) => c.userId === userId);
     if (!found) return null;

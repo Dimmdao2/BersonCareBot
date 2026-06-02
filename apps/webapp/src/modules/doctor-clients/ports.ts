@@ -70,6 +70,8 @@ export type DoctorDashboardPatientMetrics = {
 export type DoctorClientsPort = {
   listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;
+  /** Patient-scoped doctor APIs — `role = 'client'` only; otherwise `null`. */
+  getPatientClientIdentity(userId: string): Promise<ClientIdentity | null>;
   getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics>;
   /**
    * Клиенты, созданные за последние `days` суток, без привязок telegram/max.

@@ -30,7 +30,7 @@ const baseTask = {
 describe("dispatchDueSpecialistTaskReminders", () => {
   it("marks reminder sent only when notify reports delivery", async () => {
     loadChannelsMock.mockResolvedValue(["telegram"]);
-    notifyMock.mockResolvedValue({ sent: false });
+    notifyMock.mockResolvedValue({ sent: false, undeliverable: false });
     const markReminderSent = vi.fn();
     const listDueReminders = vi.fn().mockResolvedValue([baseTask]);
 
@@ -54,12 +54,39 @@ describe("dispatchDueSpecialistTaskReminders", () => {
 
     expect(markReminderSent).not.toHaveBeenCalled();
 
-    notifyMock.mockResolvedValue({ sent: true });
+    notifyMock.mockResolvedValue({ sent: true, undeliverable: false });
     markReminderSent.mockClear();
     await dispatchDueSpecialistTaskReminders(
       deps,
       { limit: 10, now: new Date("2026-06-01T12:00:00.000Z") },
     );
+
+    expect(markReminderSent).toHaveBeenCalledWith("t1", "2026-06-01T12:00:00.000Z");
+  });
+
+  it("marks reminder sent when notify reports undeliverable (no retry loop)", async () => {
+    loadChannelsMock.mockResolvedValue(["telegram"]);
+    notifyMock.mockResolvedValue({ sent: false, undeliverable: true });
+    const markReminderSent = vi.fn();
+    const listDueReminders = vi.fn().mockResolvedValue([baseTask]);
+
+    const deps = {
+      specialistTasks: { listDueReminders, markReminderSent } as unknown as SpecialistTasksService,
+      getDoctorSetting: vi.fn(),
+      getReminderChannels: async () => ["telegram" as const],
+      getChannelBindings: vi.fn(),
+      getProfileEmail: vi.fn(),
+      webPushSubscriptions: {
+        listActiveByUserId: vi.fn().mockResolvedValue([]),
+        deleteByEndpointIfExists: vi.fn(),
+      } as unknown as WebPushSubscriptionsPort,
+      systemSettings: { getSetting: vi.fn() },
+    };
+
+    await dispatchDueSpecialistTaskReminders(deps, {
+      limit: 10,
+      now: new Date("2026-06-01T12:00:00.000Z"),
+    });
 
     expect(markReminderSent).toHaveBeenCalledWith("t1", "2026-06-01T12:00:00.000Z");
   });

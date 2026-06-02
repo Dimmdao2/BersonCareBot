@@ -14,22 +14,46 @@ import { getMaxWebAppInitDataForAuth, readTelegramInitDataForAuth } from "@/shar
  */
 
 let ensureSessionInFlight: Promise<void> | null = null;
+const SESSION_RECOVERY_FETCH_TIMEOUT_MS = 12_000;
+
+async function fetchWithRecoveryTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const ac = new AbortController();
+  const timeoutId = window.setTimeout(() => ac.abort(), SESSION_RECOVERY_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: ac.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 
 async function ensureMessengerMiniAppWebappSessionImpl(router: { refresh: () => void }): Promise<void> {
   if (typeof window === "undefined") return;
 
-  const me = await fetch("/api/me", { credentials: "include" });
+  let me: Response;
+  try {
+    me = await fetchWithRecoveryTimeout("/api/me", { credentials: "include" });
+  } catch {
+    return;
+  }
   if (me.ok) return;
   if (me.status !== 401) return;
 
   const initData = readTelegramInitDataForAuth();
   if (initData.length > 0) {
-    const res = await fetch("/api/auth/telegram-init", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ initData }),
-    });
+    let res: Response;
+    try {
+      res = await fetchWithRecoveryTimeout("/api/auth/telegram-init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ initData }),
+      });
+    } catch {
+      return;
+    }
     if (res.ok) {
       startTransition(() => router.refresh());
     }
@@ -38,12 +62,17 @@ async function ensureMessengerMiniAppWebappSessionImpl(router: { refresh: () => 
 
   const maxInit = getMaxWebAppInitDataForAuth();
   if (maxInit.length > 0) {
-    const res = await fetch("/api/auth/max-init", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ initData: maxInit }),
-    });
+    let res: Response;
+    try {
+      res = await fetchWithRecoveryTimeout("/api/auth/max-init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ initData: maxInit }),
+      });
+    } catch {
+      return;
+    }
     if (res.ok) {
       startTransition(() => router.refresh());
     }
@@ -54,7 +83,7 @@ async function ensureMessengerMiniAppWebappSessionImpl(router: { refresh: () => 
   if (bindingCand?.channel === "telegram" && bindingCand.initData.length > 0) {
     let sessionRecovered = false;
     try {
-      const res = await fetch("/api/auth/telegram-init", {
+      const res = await fetchWithRecoveryTimeout("/api/auth/telegram-init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -75,7 +104,7 @@ async function ensureMessengerMiniAppWebappSessionImpl(router: { refresh: () => 
   if (bindingCand?.channel === "max" && bindingCand.initData.length > 0) {
     let sessionRecovered = false;
     try {
-      const res = await fetch("/api/auth/max-init", {
+      const res = await fetchWithRecoveryTimeout("/api/auth/max-init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -98,12 +127,17 @@ async function ensureMessengerMiniAppWebappSessionImpl(router: { refresh: () => 
   const token = (params.get("t") ?? params.get("token"))?.trim() ?? "";
   if (!token.length) return;
 
-  const res = await fetch("/api/auth/exchange", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ token }),
-  });
+  let res: Response;
+  try {
+    res = await fetchWithRecoveryTimeout("/api/auth/exchange", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ token }),
+    });
+  } catch {
+    return;
+  }
   if (res.ok) {
     startTransition(() => router.refresh());
   }

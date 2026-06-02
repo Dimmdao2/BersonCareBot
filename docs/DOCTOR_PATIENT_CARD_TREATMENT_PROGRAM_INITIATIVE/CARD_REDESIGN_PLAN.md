@@ -187,6 +187,7 @@
 
 | Якорь (есть в коде) | Целевой таб + действие |
 |---|---|
+| `#doctor-client-section-tasks` | Обзор → секция «Задачи» (фаза 2C) |
 | `#doctor-client-section-notes` | Обзор → скролл к блоку «Заметки» |
 | `#doctor-client-section-support` | Обзор → Hero-тумблер сопровождения |
 | `#doctor-client-section-treatment-programs` | Программа → скролл |

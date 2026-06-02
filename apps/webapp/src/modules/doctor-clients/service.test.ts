@@ -30,6 +30,9 @@ describe("doctor-clients service", () => {
         },
       ];
     },
+    async getPatientClientIdentity(userId: string) {
+      return this.getClientIdentity(userId);
+    },
     async getClientIdentity(userId: string) {
       return userId === "user-1" ? stubIdentity : null;
     },
@@ -173,6 +176,9 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
   const mockPort: DoctorClientsPort = {
     async listClients() {
       return [];
+    },
+    async getPatientClientIdentity(userId: string) {
+      return this.getClientIdentity(userId);
     },
     async getClientIdentity(userId: string) {
       return userId === "user-1" ? stubIdentity : null;

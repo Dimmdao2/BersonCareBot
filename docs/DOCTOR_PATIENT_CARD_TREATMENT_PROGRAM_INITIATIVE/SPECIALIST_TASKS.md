@@ -19,7 +19,11 @@
 
 Doctor-scope `doctor_specialist_task_reminder_channels` в `/app/settings`: `{ value: { channels: ["telegram","max",…] } }`.
 
-Доставка: telegram, max, email (integrator SMTP), web push. SMS не используется. `reminder_sent_at` выставляется только после успешной отправки хотя бы в один канал.
+Доставка: telegram, max, email (integrator SMTP), web push. SMS не используется.
+
+**Идемпотентность tick:** `reminder_sent_at` — после успешной доставки хотя бы в один канал **или** если доставка невозможна (нет настроенных каналов / у владельца нет привязок под выбранные каналы), чтобы не крутить одну задачу в cron бесконечно. Временные сбои relay оставляют задачу в очереди до успеха.
+
+**Каналы** — одна doctor-scope строка `system_settings` на инстанс (как defaults сопровождения фазы 1), не per-врач.
 
 ## UI
 

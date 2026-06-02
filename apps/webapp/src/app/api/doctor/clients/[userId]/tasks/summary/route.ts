@@ -23,7 +23,7 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getClientIdentity(userId);
+  const identity = await deps.doctorClientsPort.getPatientClientIdentity(userId);
   if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
 
   const summary = await deps.specialistTasks.getPatientSummary(session.user.userId, userId);

@@ -39,9 +39,9 @@ export async function dispatchDueSpecialistTaskReminders(
         { ...deps, getReminderChannels: async () => channels },
         { patientDisplayName: patientName },
       );
-      if (result.sent) {
+      if (result.sent || result.undeliverable) {
         await deps.specialistTasks.markReminderSent(task.id, nowIso);
-        sent += 1;
+        if (result.sent) sent += 1;
       }
     } catch {
       errors += 1;

@@ -41,7 +41,11 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy }: Props) {
             </span>
           ) : null}
           {overdue ? <span className="text-xs font-medium text-destructive">Просрочено</span> : null}
+          <span className="text-xs text-muted-foreground">Открыта</span>
         </div>
+        {formatWhen(task.createdAt) ? (
+          <p className="text-xs text-muted-foreground">Поставлена: {formatWhen(task.createdAt)}</p>
+        ) : null}
         {dueLabel ? <p className="text-xs text-muted-foreground">Срок: {dueLabel}</p> : null}
         {task.description?.trim() ? (
           <p className="line-clamp-2 text-xs text-muted-foreground">{task.description.trim()}</p>

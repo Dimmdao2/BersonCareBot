@@ -57,13 +57,18 @@ function SpecialistTaskFormFields({ patientUserId, editing, onSaved, onClose }: 
     };
     startTransition(async () => {
       try {
+        const isGlobal = !patientUserId.trim();
         const url = editing
           ? `/api/doctor/tasks/${encodeURIComponent(editing.id)}`
-          : `/api/doctor/clients/${encodeURIComponent(patientUserId)}/tasks`;
+          : isGlobal
+            ? "/api/doctor/tasks"
+            : `/api/doctor/clients/${encodeURIComponent(patientUserId)}/tasks`;
         const res = await fetch(url, {
           method: editing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify(
+            isGlobal && !editing ? { ...body, patientUserId: null } : body,
+          ),
         });
         if (!res.ok) {
           setError("Не удалось сохранить");

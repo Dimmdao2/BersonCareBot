@@ -1,6 +1,6 @@
 # Активная очередь (врач + пациент + CMS)
 
-**Синхронизация:** 2026-06-02. Зеркало плана Cursor `active_workqueue_plan_30236040` и деталей фазы 1 в `phase1_support_model_7c745931`. Сводка чеклистов — [`TODO.md`](TODO.md) §Doctor card.
+**Синхронизация:** 2026-06-02. План-очередь (канон в git): [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md); IDE-копия — `~/.cursor/plans/active_workqueue_plan_30236040.plan.md`. Фаза 1: `phase1_support_model_7c745931`. Сводка чеклистов — [`TODO.md`](TODO.md) §Doctor card.
 
 | Фаза | Статус | План / лог |
 |------|--------|------------|
@@ -8,7 +8,7 @@
 | **1** — «На сопровождении» + гейты comment/media | **Закрыта** | Cursor `phase1_support_model_7c745931.plan.md`; LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) |
 | **2A** — дизайн карточки врача | **Закрыта** | [`CARD_REDESIGN_PLAN.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md) |
 | **2B** — реализация карточки | **Закрыта** | LOG §2026-06-02 |
-| **2C** — задачи специалиста | **Закрыта** | [`SPECIALIST_TASKS.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md) |
+| **2C** — задачи специалиста | **Закрыта** (аудит 2026-06-02) | [`SPECIALIST_TASKS.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md), LOG §2C |
 | **3** — черновик редактора программы | Открыта | |
 | **4** — фильтры каталога (регион + нагрузка) | Открыта | |
 | **5** — cross-patient inbox «Сегодня» | Открыта | после 2 |

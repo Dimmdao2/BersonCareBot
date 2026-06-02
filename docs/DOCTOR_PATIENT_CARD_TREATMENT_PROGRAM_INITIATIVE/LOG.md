@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-06-02 — Синхронизация docs и плана (2C закрыта)
+
+- План-очередь: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) — YAML todos 0–2C completed, `phase-2c-audit-remediation` completed; фаза 3 pending.
+- `ACTIVE_WORKQUEUE.md`, `docs/README.md`, `DOCTOR_PATIENT_CARD` README — 2C закрыта, следующая 3.
+
+---
+
+## 2026-06-02 — Фаза 2C: хвост по аудиту
+
+**Сделано:** честный `sent` в напоминаниях (relay/email/push); `undeliverable` → `reminder_sent_at` без вечного tick; `getPatientClientIdentity` (`role=client`); UI — дата постановки, выполненные, ошибки загрузки; одна форма на «Сегодня»; тесты route/summary/complete/global + notify; deploy/cron таблица, якорь `#doctor-client-section-tasks`, `api.md` / `SPECIALIST_TASKS.md`.
+
+**Проверки:** vitest (specialist-tasks, `tasks/route.test`); `tsc --noEmit`.
+
+---
+
 ## 2026-06-02 — UX-аудит 2B (P0/P1)
 
 **Сделано:**
@@ -282,10 +297,7 @@
 
 ### Доработка после аудита (2026-06-02)
 
-- `reminder_sent_at` только при успешной доставке; Hero desktop — заголовок ближайшей задачи; описание в списке (line-clamp).
-- ESLint: `SpecialistTaskFormDialog` — remount по `key` вместо `useEffect`+setState.
-- Док: `api.md`, `HOST_DEPLOY_README.md` (cron tick), `TODO.md` §Doctor card.
-- Тесты: `tasks/route.test.ts`, `specialist-task-reminders/tick/route.test.ts`, `dispatchDueReminders.test.ts`.
+См. также §«Фаза 2C: хвост по аудиту» выше (финальная итерация). Кратко: честный `sent` + `undeliverable`; `getPatientClientIdentity`; UI (дата, выполненные, ошибки, одна форма на «Сегодня»); тесты notify/dispatch/route; план [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) (`phase-2c-audit-remediation` completed).
 
 ---
 

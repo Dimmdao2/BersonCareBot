@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
   if (parsed.data.patientUserId) {
     const deps = buildAppDeps();
-    const identity = await deps.doctorClientsPort.getClientIdentity(parsed.data.patientUserId);
+    const identity = await deps.doctorClientsPort.getPatientClientIdentity(parsed.data.patientUserId);
     if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 

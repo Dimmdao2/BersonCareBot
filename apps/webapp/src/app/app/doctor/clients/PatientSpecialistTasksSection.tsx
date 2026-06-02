@@ -12,23 +12,41 @@ type Props = {
 };
 
 export function PatientSpecialistTasksSection({ patientUserId }: Props) {
-  const [tasks, setTasks] = useState<SpecialistTaskRow[]>([]);
+  const [openTasks, setOpenTasks] = useState<SpecialistTaskRow[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<SpecialistTaskRow[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SpecialistTaskRow | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const reload = useCallback(() => {
+  const reloadOpen = useCallback(() => {
     startTransition(async () => {
+      setLoadError(null);
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(patientUserId)}/tasks`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        setLoadError("Не удалось загрузить задачи");
+        return;
+      }
       const data = (await res.json()) as { tasks?: SpecialistTaskRow[] };
-      setTasks(data.tasks ?? []);
+      setOpenTasks(data.tasks ?? []);
     });
   }, [patientUserId]);
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    reloadOpen();
+  }, [reloadOpen]);
+
+  function loadCompleted() {
+    if (completedTasks !== null) return;
+    startTransition(async () => {
+      const res = await fetch(
+        `/api/doctor/clients/${encodeURIComponent(patientUserId)}/tasks?includeCompleted=1`,
+      );
+      if (!res.ok) return;
+      const data = (await res.json()) as { tasks?: SpecialistTaskRow[] };
+      setCompletedTasks((data.tasks ?? []).filter((t) => t.completedAt != null));
+    });
+  }
 
   function openCreate() {
     setEditing(null);
@@ -38,7 +56,8 @@ export function PatientSpecialistTasksSection({ patientUserId }: Props) {
   function handleComplete(taskId: string) {
     startTransition(async () => {
       await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, { method: "POST" });
-      reload();
+      setCompletedTasks(null);
+      reloadOpen();
     });
   }
 
@@ -53,11 +72,12 @@ export function PatientSpecialistTasksSection({ patientUserId }: Props) {
           Новая
         </Button>
       </div>
-      {tasks.length === 0 ? (
+      {loadError ? <p className="mb-2 text-sm text-destructive">{loadError}</p> : null}
+      {openTasks.length === 0 && !loadError ? (
         <p className="text-sm text-muted-foreground">Нет открытых задач</p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {tasks.map((task) => (
+          {openTasks.map((task) => (
             <TaskRow
               key={task.id}
               task={task}
@@ -71,12 +91,31 @@ export function PatientSpecialistTasksSection({ patientUserId }: Props) {
           ))}
         </ul>
       )}
+      <details className="mt-3" onToggle={(e) => e.currentTarget.open && loadCompleted()}>
+        <summary className="cursor-pointer text-sm text-muted-foreground">Выполненные</summary>
+        {completedTasks === null ? (
+          <p className="mt-2 text-sm text-muted-foreground">…</p>
+        ) : completedTasks.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">Нет выполненных</p>
+        ) : (
+          <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
+            {completedTasks.map((task) => (
+              <li key={task.id} className="rounded-lg border border-border bg-muted/10 p-3 text-sm">
+                <p className="font-medium text-foreground line-through opacity-70">{task.title}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </details>
       <SpecialistTaskFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         patientUserId={patientUserId}
         editing={editing}
-        onSaved={reload}
+        onSaved={() => {
+          setCompletedTasks(null);
+          reloadOpen();
+        }}
       />
     </section>
   );

@@ -781,6 +781,7 @@ sudo systemctl reload nginx
 | Файл `/etc/cron.d/` | Обязательность | Назначение |
 |---------------------|----------------|------------|
 | **`bersoncarebot-webpush-reminders`** | **обязателен** после deploy | `POST /api/internal/reminders/web-push-only/tick` каждую минуту — Web Push для `reminder_rules` без бота (`integrator_user_id IS NULL`) |
+| **`bersoncarebot-specialist-task-reminders`** (имя на усмотрение) | **рекомендуется** после миграции `0102` | `POST /api/internal/specialist-task-reminders/tick` каждые 5–15 мин — напоминания врачу по `specialist_tasks` |
 | `bersoncarebot-media-purge` | обязателен (медиа CMS) | purge очереди удаления `media-pending-delete` |
 | `bersoncarebot-media-multipart` (имя на усмотрение) | рекомендуется | multipart cleanup |
 | `bersoncarebot-webapp-hls-retention` | рекомендуется | playback + HLS proxy errors retention (weekly) |
@@ -791,6 +792,7 @@ sudo systemctl reload nginx
 
 ```bash
 test -f /etc/cron.d/bersoncarebot-webpush-reminders && grep -F 'web-push-only/tick' /etc/cron.d/bersoncarebot-webpush-reminders
+test -f /etc/cron.d/bersoncarebot-specialist-task-reminders && grep -F 'specialist-task-reminders/tick' /etc/cron.d/bersoncarebot-specialist-task-reminders
 set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
 [ -n "$INTERNAL_JOB_SECRET" ] && curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
   "http://127.0.0.1:6200/api/internal/reminders/web-push-only/tick?limit=1" | head -c 200 && echo

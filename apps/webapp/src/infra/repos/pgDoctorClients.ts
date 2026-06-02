@@ -249,6 +249,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return parseInt(r.rows[0]?.c ?? "0", 10);
     },
 
+    async getPatientClientIdentity(userId: string): Promise<ClientIdentity | null> {
+      const pool = getPool();
+      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+      const roleRow = await pool.query<{ role: string }>(
+        `SELECT role FROM platform_users WHERE id = $1::uuid`,
+        [canonicalId],
+      );
+      if (!roleRow.rows[0] || roleRow.rows[0].role !== "client") return null;
+      return this.getClientIdentity(userId);
+    },
+
     async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;

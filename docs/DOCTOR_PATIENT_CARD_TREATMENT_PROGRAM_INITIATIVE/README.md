@@ -2,7 +2,7 @@
 
 Инициатива по **кабинету врача**: карточка пациента как место **назначения программ лечения из шаблонов** и **корректировки `treatment_program_instance`** (без дублирования каноничных спецификаций — только ссылки и дорожная карта).
 
-**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Редизайн карточки (фаза 2B)** — реализован 2026-06-02 ([`CARD_REDESIGN_PLAN.md`](CARD_REDESIGN_PLAN.md), [`LOG.md`](LOG.md)). **Следующий контур:** фаза **2C** (задачи специалиста), черновик редактора программы — [`docs/TODO.md`](../TODO.md) §Doctor card; [`ROADMAP.md`](ROADMAP.md).
+**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Карточка врача (2A–2B)** и ✅ **задачи специалиста (2C)** — 2026-06-02 ([`CARD_REDESIGN_PLAN.md`](CARD_REDESIGN_PLAN.md), [`SPECIALIST_TASKS.md`](SPECIALIST_TASKS.md), [`LOG.md`](LOG.md)). **Следующий контур:** фаза **3** (черновик редактора программы) — [`docs/TODO.md`](../TODO.md) §Doctor card; очередь [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md).
 
 **Операционный roadmap:** [`ROADMAP.md`](ROADMAP.md).
 
@@ -12,7 +12,7 @@
 
 **Декомпозиция по этапам + слабые места / эскалация:** [`DECOMPOSITION.md`](DECOMPOSITION.md).
 
-**Редизайн карточки (2A дизайн → 2B реализация, Tabs + Hero):** [`CARD_REDESIGN_PLAN.md`](CARD_REDESIGN_PLAN.md) — **2B закрыта**; 2C (задачи) — в плане.
+**Редизайн карточки (2A → 2B, Tabs + Hero):** [`CARD_REDESIGN_PLAN.md`](CARD_REDESIGN_PLAN.md) — **закрыто**. **Задачи специалиста (2C):** [`SPECIALIST_TASKS.md`](SPECIALIST_TASKS.md) — **закрыто**.
 
 ---
 
