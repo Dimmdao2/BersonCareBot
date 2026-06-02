@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { mapBookingCatalogApiError } from "@/app/app/settings/rubitimeCatalogErrors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -77,7 +78,36 @@ export function RubitimeSection() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
+  const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
+  const [focusServiceId, setFocusServiceId] = useState<string | null>(null);
   const [isPending, start] = useTransition();
+
+  const linkCountByServiceId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const bs of branchServices) {
+      counts.set(bs.serviceId, (counts.get(bs.serviceId) ?? 0) + 1);
+    }
+    return counts;
+  }, [branchServices]);
+
+  const scrollToService = useCallback((serviceId: string) => {
+    setExpandedServiceId(serviceId);
+    setFocusServiceId(serviceId);
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`rubitime-catalog-service-${serviceId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }, []);
+
+  const clearFocusService = useCallback(() => {
+    setFocusServiceId(null);
+  }, []);
+
+  const collapseServiceEditor = useCallback(() => {
+    setExpandedServiceId(null);
+    setFocusServiceId(null);
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -267,6 +297,7 @@ export function RubitimeSection() {
           {services.map((s) => (
             <div
               key={s.id}
+              id={`rubitime-catalog-service-${s.id}`}
               className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-xs"
             >
               <div className="flex items-center justify-between gap-2">
@@ -284,7 +315,20 @@ export function RubitimeSection() {
                   ✕
                 </Button>
               </div>
-              <ServiceEditor key={`${s.id}-${s.updatedAt}`} service={s} onSaved={() => void loadAll()} />
+              <ServiceEditor
+                key={`${s.id}-${s.updatedAt}`}
+                service={s}
+                onSaved={() => void loadAll()}
+                isExpanded={expandedServiceId === s.id}
+                onExpand={() => {
+                  setFocusServiceId(null);
+                  setExpandedServiceId(s.id);
+                }}
+                onCollapse={collapseServiceEditor}
+                linkedBranchServiceCount={linkCountByServiceId.get(s.id) ?? 0}
+                autoFocusOnExpand={focusServiceId === s.id}
+                onAutoFocusHandled={clearFocusService}
+              />
             </div>
           ))}
           <ServiceForm onDone={() => void loadAll()} />
@@ -302,33 +346,38 @@ export function RubitimeSection() {
                 key={bs.id}
                 className="flex flex-col gap-0.5 rounded-md border border-border px-3 py-2 text-xs"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span>
                     <span className="font-mono">rubitime_service_id: {bs.rubitimeServiceId}</span>
                     {!bs.isActive && <span className="ml-1 text-muted-foreground">(неактивна)</span>}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => deleteEntity("branch-services", bs.id)}
-                    disabled={isPending}
-                  >
-                    ✕
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {svc ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => scrollToService(svc.id)}
+                        disabled={isPending}
+                      >
+                        К услуге
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => deleteEntity("branch-services", bs.id)}
+                      disabled={isPending}
+                    >
+                      ✕
+                    </Button>
+                  </div>
                 </div>
                 <span className="text-muted-foreground">
                   {br?.title ?? bs.branchId} · {svc?.title ?? bs.serviceId} · {sp?.fullName ?? bs.specialistId}
                   {svc ? ` · ${svc.durationMinutes} мин · ${formatPriceMinor(svc.priceMinor)}` : ""}
                 </span>
-                {svc ? (
-                  <ServiceEditor
-                    key={`bs-${bs.id}-${svc.updatedAt}`}
-                    service={svc}
-                    compact
-                    onSaved={() => void loadAll()}
-                  />
-                ) : null}
               </div>
             );
           })}
@@ -581,18 +630,58 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
 function ServiceEditor({
   service,
   onSaved,
-  compact = false,
+  isExpanded,
+  onExpand,
+  onCollapse,
+  linkedBranchServiceCount,
+  autoFocusOnExpand = false,
+  onAutoFocusHandled,
 }: {
   service: CatalogService;
   onSaved: () => void;
-  compact?: boolean;
+  isExpanded: boolean;
+  onExpand: () => void;
+  onCollapse: () => void;
+  linkedBranchServiceCount: number;
+  autoFocusOnExpand?: boolean;
+  onAutoFocusHandled?: () => void;
 }) {
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(service.title);
   const [description, setDescription] = useState(service.description ?? "");
   const [durationMinutes, setDurationMinutes] = useState(String(service.durationMinutes));
   const [priceMinor, setPriceMinor] = useState(String(service.priceMinor));
   const [err, setErr] = useState<string | null>(null);
   const [isPending, start] = useTransition();
+
+  function resetFromService() {
+    setTitle(service.title);
+    setDescription(service.description ?? "");
+    setDurationMinutes(String(service.durationMinutes));
+    setPriceMinor(String(service.priceMinor));
+    setErr(null);
+  }
+
+  useEffect(() => {
+    if (!isExpanded || !autoFocusOnExpand) return;
+    const frame = requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      onAutoFocusHandled?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isExpanded, autoFocusOnExpand, onAutoFocusHandled]);
+
+  function cancel() {
+    resetFromService();
+    onCollapse();
+  }
+
+  const durParsed = Number.parseInt(durationMinutes, 10);
+  const priceParsed = Number.parseInt(priceMinor, 10);
+  const pricingChanged =
+    (Number.isFinite(durParsed) && durParsed !== service.durationMinutes) ||
+    (Number.isFinite(priceParsed) && priceParsed !== service.priceMinor);
+  const showLinkImpact = isExpanded && linkedBranchServiceCount > 0 && pricingChanged;
 
   function save() {
     setErr(null);
@@ -623,18 +712,30 @@ function ServiceEditor({
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || data.ok === false) {
-        setErr(String(data.error ?? `HTTP ${res.status}`));
+        setErr(mapBookingCatalogApiError(data.error, "edit"));
         return;
       }
+      onCollapse();
       onSaved();
     });
   }
 
+  if (!isExpanded) {
+    return (
+      <div className="mt-1">
+        <Button type="button" size="sm" variant="ghost" onClick={onExpand} disabled={isPending}>
+          Изменить
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className={compact ? "flex flex-col gap-1 border-t border-border/60 pt-2" : "mt-1 flex flex-col gap-1"}>
+    <div className="mt-1 flex flex-col gap-1">
       <div className="grid grid-cols-2 gap-2">
         <input
-          className={`input-base ${compact ? "" : "col-span-2"}`}
+          ref={titleInputRef}
+          className="input-base col-span-2"
           placeholder="Название"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -658,20 +759,28 @@ function ServiceEditor({
           onChange={(e) => setPriceMinor(e.target.value)}
           disabled={isPending}
         />
-        {!compact ? (
-          <input
-            className="input-base col-span-2"
-            placeholder="Описание (необязательно)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={isPending}
-          />
-        ) : null}
+        <input
+          className="input-base col-span-2"
+          placeholder="Описание (необязательно)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={isPending}
+        />
       </div>
+      {showLinkImpact ? (
+        <p className="text-[11px] text-muted-foreground">
+          Изменение затронет {linkedBranchServiceCount} связок с Rubitime (branch-service).
+        </p>
+      ) : null}
       {err && <p className="text-xs text-destructive">{err}</p>}
-      <Button type="button" size="sm" variant="secondary" onClick={save} disabled={isPending}>
-        {isPending ? "…" : compact ? "Сохранить услугу" : "Сохранить"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="secondary" onClick={save} disabled={isPending}>
+          {isPending ? "…" : "Сохранить"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={cancel} disabled={isPending}>
+          Отмена
+        </Button>
+      </div>
     </div>
   );
 }
@@ -701,7 +810,7 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
       return;
     }
     start(async () => {
-      const res = await apiJson<{ ok: boolean; error?: string }>(`${BASE}/services`, {
+      const res = await fetch(`${BASE}/services`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -711,12 +820,15 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
           priceMinor: price,
         }),
       });
-      if (!res.ok) {
-        setErr(String(res.error ?? "Ошибка"));
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || data.ok === false) {
+        setErr(mapBookingCatalogApiError(data.error, "create"));
         return;
       }
       setTitle("");
       setDescription("");
+      setDurationMinutes("60");
+      setPriceMinor("400000");
       onDone();
     });
   }
@@ -760,7 +872,7 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
       </div>
       {err && <p className="text-xs text-destructive">{err}</p>}
       <Button size="sm" onClick={save} disabled={isPending}>
-        {isPending ? "Сохранение..." : "Сохранить услугу"}
+        {isPending ? "Сохранение..." : "Создать услугу"}
       </Button>
     </div>
   );

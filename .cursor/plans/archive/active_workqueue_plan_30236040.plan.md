@@ -1,5 +1,6 @@
 ---
 name: Active workqueue plan
+status: completed
 overview: "Очередь: фазы 0–7 закрыты (2026-06-02); workqueue patient/doctor/CMS help + B6 превью + proactive MVP (с аудитом)."
 todos:
   - id: phase-0-exercises-ui-hotfix
@@ -52,7 +53,7 @@ isProject: false
 
 # План: актуальная очередь (врач + пациент + CMS)
 
-**Синхронизация:** 2026-06-02. **Канон в репозитории:** [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) (этот файл). Очередь: [`docs/ACTIVE_WORKQUEUE.md`](docs/ACTIVE_WORKQUEUE.md), [`docs/TODO.md`](docs/TODO.md) §Doctor card. Карточка: [`CARD_REDESIGN_PLAN.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md), журнал [`LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md), задачи: [`SPECIALIST_TASKS.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md). Фаза 1: `phase1_support_model_7c745931.plan.md`.
+**Статус:** **закрыт** (`status: completed`, 2026-06-02). **Канон:** этот файл в [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](.cursor/plans/archive/active_workqueue_plan_30236040.plan.md). IDE-копия `active_workqueue_plan_24dee701` синхронизирована с ним. Очередь: [`docs/ACTIVE_WORKQUEUE.md`](docs/ACTIVE_WORKQUEUE.md), [`docs/TODO.md`](docs/TODO.md) §Doctor card. Карточка: [`CARD_REDESIGN_PLAN.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md), журнал [`LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md), задачи: [`SPECIALIST_TASKS.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md). Фаза 1: `phase1_support_model_7c745931.plan.md`.
 
 ## Источник правды
 

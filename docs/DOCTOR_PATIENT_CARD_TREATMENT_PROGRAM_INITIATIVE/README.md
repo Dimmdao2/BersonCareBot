@@ -2,7 +2,7 @@
 
 Инициатива по **кабинету врача**: карточка пациента как место **назначения программ лечения из шаблонов** и **корректировки `treatment_program_instance`** (без дублирования каноничных спецификаций — только ссылки и дорожная карта).
 
-**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Карточка врача (2A–2B)** и ✅ **задачи специалиста (2C)** — 2026-06-02. ✅ **Черновик редактора программы (фаза 3)** — 2026-06-02. ✅ **Фильтры picker «добавить из библиотеки» (фаза 4)** — 2026-06-02. ✅ **Cross-patient inbox «К проверке» на «Сегодня» (фаза 5)** — 2026-06-02 (`count`+preview, `focusItemId`, бейдж меню, `GET …/pending-program-tests/summary`). **Следующий контур:** фаза **6** (CMS enum + `/help`) — [`docs/TODO.md`](../TODO.md) §CMS; очередь [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md).
+**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Workqueue фазы 0–7 закрыты** (2026-06-02): карточка (2A–2B), задачи специалиста (2C), черновик редактора (3), фильтры picker (4), inbox «К проверке» (5), CMS help (6), B6 превью + proactive MVP (7). Сводка: [`docs/ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md); план: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md). **Дальше:** [`docs/TODO.md`](../TODO.md) (diary, D5, расширение proactive этап 8) — не workqueue.
 
 **Операционный roadmap:** [`ROADMAP.md`](ROADMAP.md).
 

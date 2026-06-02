@@ -5,6 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { httpFromDatabaseError } from "../_httpErrors";
 import { requireAdminBookingCatalog } from "../_requireAdminBookingCatalog";
 
 const PostServiceSchema = z.object({
@@ -41,6 +42,10 @@ export async function POST(request: Request) {
     const service = await gate.ctx.port.getServiceById(id);
     return NextResponse.json({ ok: true, service });
   } catch (e) {
+    const mapped = httpFromDatabaseError(e);
+    if (mapped) {
+      return NextResponse.json({ ok: false, error: mapped.error }, { status: mapped.status });
+    }
     const msg = e instanceof Error ? e.message : "internal_error";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }

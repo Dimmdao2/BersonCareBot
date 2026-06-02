@@ -92,7 +92,7 @@
 **Критерии готовности:**
 - В UI нет legacy `bookingType/category/city -> profile`.
 
-**Лог:** `S3.T04`.
+**Лог:** `S3.T04`. **Доп. 2026-06-02:** UX inline-редактирования услуг — план [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md); UI `/app/doctor/admin/booking/integrations`.
 
 ---
 

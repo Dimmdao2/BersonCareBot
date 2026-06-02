@@ -268,6 +268,20 @@
 - CI: pnpm run ci — passed ✓
 - Notes: закрыты замечания аудита (401, FK/unique → 4xx, тестовая матрица, UI/help порядок, ошибки DELETE)
 
+### Rubitime catalog UX fix — редактирование услуг (post booking admin tabs)
+- Status: done
+- Finished at: 2026-06-02
+- Plan: [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md) (`completedAt: 2026-06-02`)
+- Surface: `/app/doctor/admin/booking/integrations` → `RubitimeSection` (каталог v2)
+- Files changed:
+  - `apps/webapp/src/app/app/settings/RubitimeSection.tsx` — один PATCH-редактор; collapse «Изменить»/«Отмена»; «К услуге»; предупреждение о N branch-service при смене price/duration
+  - `apps/webapp/src/app/app/settings/rubitimeCatalogErrors.ts` — `mapBookingCatalogApiError`
+  - `apps/webapp/src/app/app/settings/RubitimeSection.test.tsx`, `rubitimeCatalogErrors.test.ts`
+  - `apps/webapp/src/app/api/admin/booking-catalog/services/route.ts` — `httpFromDatabaseError` в POST catch
+  - `apps/webapp/src/app/api/admin/booking-catalog/services/route.test.ts` — 409 unique_violation
+- Tests: vitest RubitimeSection (9), rubitimeCatalogErrors (4), services POST/PATCH routes
+- Notes: POST upsert по `(title, duration_minutes)` не менялся; compact-редактор в branch-service удалён
+
 ---
 
 ## Stage 4

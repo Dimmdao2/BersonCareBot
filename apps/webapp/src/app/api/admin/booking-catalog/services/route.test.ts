@@ -89,4 +89,23 @@ describe("POST /api/admin/booking-catalog/services", () => {
     );
     expect(res.status).toBe(200);
   });
+
+  it("returns 409 unique_violation on database conflict", async () => {
+    getSessionMock.mockResolvedValue(adminSession);
+    upsertServiceMock.mockRejectedValue({ code: "23505" });
+    const res = await POST(
+      new Request("http://localhost/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Услуга",
+          durationMinutes: 60,
+          priceMinor: 100,
+        }),
+      }),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { ok: boolean; error: string };
+    expect(body).toEqual({ ok: false, error: "unique_violation" });
+  });
 });

@@ -44,7 +44,8 @@
 | Параметры приложения | `/app/doctor/admin/app-settings` | |
 | Авторизация | `/app/doctor/admin/auth` | |
 | Интеграции | `/app/doctor/admin/integrations` | |
-| Запись / Rubitime | `/app/doctor/admin/booking` | Каталог booking-engine; read sources (`BookingEngineSection`); **`BookingWorkingHoursSection`**, **`BookingScheduleBlocksSection`**; API `/api/admin/booking-engine/*` |
+| Запись | `/app/doctor/admin/booking` | URL-вкладки (`bookingAdminTabs.ts`): обзор, каталог BE, доступность, расписание, форма, правила, оплата, публичная, операции; API `/api/admin/booking-engine/*`; read sources, working hours, schedule blocks |
+| Запись → Интеграции (Rubitime catalog v2) | `/app/doctor/admin/booking/integrations` | **`RubitimeSection`** — справочник `booking_*` через `/api/admin/booking-catalog/*` (город → филиал → услуга → специалист → branch-service); inline PATCH услуг, форма «Создать услугу»; план [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md) |
 | Технические режимы | `/app/doctor/admin/technical` | |
 
 Редиректы `?adminTab=` → см. `ADMIN_TAB_REDIRECTS` в `apps/webapp/src/app/app/settings/adminSettingsData.ts`.

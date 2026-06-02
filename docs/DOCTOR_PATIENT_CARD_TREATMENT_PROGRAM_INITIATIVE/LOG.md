@@ -69,7 +69,7 @@
 
 ## 2026-06-02 — Синхронизация docs и плана (фазы 3–5 закрыты)
 
-- План-очередь: YAML todos 0–6 completed; фаза 6 — см. запись выше.
+- План-очередь: YAML todos 0–7 completed (`status: completed`); фаза 6 — см. запись выше.
 - Фаза 5 (финал): count API, бейдж «Сегодня», UUID query, аудит порядка preview — отражено в плане §фаза 5, `ROADMAP_2` §2.2–2.3, `ACTIVE_WORKQUEUE.md`, `TODO.md`, `docs/README.md`.
 
 ---

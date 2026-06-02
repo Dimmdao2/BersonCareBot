@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-06-02 — Rubitime catalog v2: UX редактирования услуг
+
+**План:** [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md) (`status: completed`, `completedAt: 2026-06-02`).
+
+**Контекст:** вкладка **«Интеграции»** админки записи (`/app/doctor/admin/booking/integrations`) монтирует `RubitimeSection` (справочник `booking_*` через `/api/admin/booking-catalog/*`).
+
+**Сделано:**
+- Один inline-редактор услуги (PATCH по `id`); в блоке branch-service — read-only + **«К услуге»** (scroll, раскрытие, фокус в поле названия).
+- Редактор свёрнут по умолчанию (**«Изменить»** / **«Отмена»**).
+- Форма **«Создать услугу»** — только создание (POST upsert без смены семантики API); RU-ошибки через `mapBookingCatalogApiError`.
+- Предупреждение: *«Изменение затронет N связок…»* при смене длительности/цены при активных branch-service.
+- POST `/api/admin/booking-catalog/services` — `httpFromDatabaseError` в `catch` (как PATCH `[id]`).
+
+**Проверки:** vitest `RubitimeSection.test.tsx`, `rubitimeCatalogErrors.test.ts`, `services/route.test.ts`, `services/[id]/route.test.ts`; eslint.
+
+**Намеренно не делали:** strict create-only POST; смена unique `(title, duration)` в БД.
+
+**См. также:** [`BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md`](../archive/2026-04-initiatives/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md) §Rubitime catalog UX fix; [`ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`](../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md).
+
+---
+
 ## 2026-05-30 — Rubitime transition stabilize (П.0–П.8, audit closure)
 
 **План:** [`.cursor/plans/archive/rubitime_transition_stabilize.plan.md`](../../.cursor/plans/archive/rubitime_transition_stabilize.plan.md) (`status: completed`, `completedAt: 2026-05-30`).

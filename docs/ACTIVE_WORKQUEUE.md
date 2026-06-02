@@ -1,10 +1,10 @@
 # Активная очередь (врач + пациент + CMS)
 
-**Синхронизация:** 2026-06-02 (фаза 7 + аудит). План-очередь: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) (канон в git). Сводка чеклистов — [`TODO.md`](TODO.md). **Очередь workqueue фаз 0–7 закрыта**; активные хвосты — diary, D5, расширение proactive (этап 8) — см. TODO.
+**Статус:** **workqueue закрыт** (2026-06-02, фазы 0–7). План: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) (`status: completed`). Сводка чеклистов — [`TODO.md`](TODO.md). Активные хвосты вне очереди — diary, D5, расширение proactive (этап 8).
 
 | Фаза | Статус | План / лог |
 |------|--------|------------|
-| **0** — hotfix UI «Упражнения» (P0) | **Закрыта** | active workqueue §Фаза 0 |
+| **0** — hotfix UI плиток программы (P0): «Комментарии» + «Отметить выполнение» | **Закрыта** | active workqueue §Фаза 0 |
 | **1** — «На сопровождении» + гейты comment/media | **Закрыта** | Cursor `phase1_support_model_7c745931.plan.md`; LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) |
 | **2A** — дизайн карточки врача | **Закрыта** | [`CARD_REDESIGN_PLAN.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md) |
 | **2B** — реализация карточки | **Закрыта** | LOG §2026-06-02 |
@@ -51,7 +51,12 @@
 - **Примечание:** `CabinetInfoLinks` — RSC готов, на экран «Запись» пока не смонтирован (`cabinet/page` → redirect booking). Контент для плиток — создать в CMS вручную.
 - **Проверки:** vitest `help-content`, `revalidatePatientContentPaths`, `cabinetInfoLinkTiles`; см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 6.
 
-**Очередь workqueue (фазы 0–7):** закрыта. Дальше — [`TODO.md`](TODO.md).
+## Фаза 5 (закрыта)
+
+- Cross-patient «К проверке» на `/app/doctor` («Сегодня»): `countPendingTestEvaluationAttemptsGlobal` + `listPendingTestEvaluationsGlobal` (top 10 попыток), секция `#doctor-today-section-pending-tests`, строка в «Требует внимания».
+- Deep link `focusItemId` (UUID) на экране инстанса — scroll/highlight с retry; `discussionItem` — тоже только валидный UUID; карточка / «Сегодня» «Оценить» — тот же query.
+- Бейдж меню «Сегодня» (фаза 5): `GET /api/doctor/pending-program-tests/summary`. С фазой 7 — суммарный `todayAttention` (+ `GET /api/doctor/proactive-insights/summary`).
+- ROADMAP_2 §2.2–2.3 — closed; план §фаза 5, `api.md`, targeted vitest — см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5.
 
 ## Фаза 7 (закрыта)
 
@@ -63,13 +68,6 @@
 - **Backlog:** настраиваемые пороги / доп. сигналы — RECOMMENDATIONS этап 8.
 - **Проверки:** vitest proactive + DoctorTodayDashboard + loadDoctorTodayDashboard; `tsc --noEmit` webapp. См. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 7.
 
-## Фаза 5 (закрыта)
-
-- Cross-patient «К проверке» на `/app/doctor` («Сегодня»): `countPendingTestEvaluationAttemptsGlobal` + `listPendingTestEvaluationsGlobal` (top 10 попыток), секция `#doctor-today-section-pending-tests`, строка в «Требует внимания».
-- Deep link `focusItemId` (UUID) на экране инстанса — scroll/highlight с retry; `discussionItem` — тоже только валидный UUID; карточка / «Сегодня» «Оценить» — тот же query.
-- Бейдж меню «Сегодня» (фаза 5): `GET /api/doctor/pending-program-tests/summary`. С фазой 7 — суммарный `todayAttention` (+ `GET /api/doctor/proactive-insights/summary`).
-- ROADMAP_2 §2.2–2.3 — closed; план §фаза 5, `api.md`, targeted vitest — см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5.
-
-## Вне scope «сейчас»
+## Вне scope workqueue
 
 D5 `domain→kind`, полная переработка `/diary`, курсы, UX истории тестов (после доработки элементов тестов). Proactive: **MVP закрыт** (фаза 7); настраиваемые пороги и расширение сигналов — backlog этап 8 ([`RECOMMENDATIONS_AND_ROADMAP.md`](APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md)).
