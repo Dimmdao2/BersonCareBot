@@ -7,7 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
-import { HELP_CANONICAL_ARTICLE_SLUGS } from "@/modules/help-content/canonicalSlugs";
+import {
+  HELP_CANONICAL_ARTICLE_IA,
+  HELP_CANONICAL_ARTICLE_SLUGS,
+} from "@/modules/help-content/canonicalSlugs";
 import { HELP_SECTION_SLUG } from "@/modules/content-sections/types";
 import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
@@ -195,7 +198,11 @@ export function ContentForm({
         )}
         {isHelpSectionContext ? (
           <p className="text-xs text-muted-foreground">
-            Slug для кабинета: {HELP_CANONICAL_ARTICLE_SLUGS.map((s) => `"${s}"`).join(", ")}.
+            Канонические slug (плитки — после публикации; см. `canonicalSlugs.ts`):{" "}
+            {HELP_CANONICAL_ARTICLE_SLUGS.map(
+              (s) => `${s} — ${HELP_CANONICAL_ARTICLE_IA[s].title}`,
+            ).join("; ")}
+            .
           </p>
         ) : null}
       </div>

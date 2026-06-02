@@ -47,8 +47,9 @@
 - **БД:** `apps/webapp/db/drizzle-migrations/0103_help_content_section.sql` — раздел CMS `help` (`kind=article`).
 - **Врач:** `ContentPagesSidebar` → «Статьи справки»; хаб `/app/doctor/content?section=help`; slug раздела `help` зарезервирован; подсказка canonical slug в `ContentForm`.
 - **Пациент:** `/app/patient/help`, `/app/patient/help/[slug]` (`listHelpArticlesForPatient`, `PatientContentSlugArticle`); `force-dynamic`.
-- **Хвосты:** `app-layer/content/revalidatePatientContentPaths.ts` (save/lifecycle/auth); редирект `/app/patient/content/[slug]` → `/help/[slug]`; `CabinetInfoLinks` + `buildCabinetInfoLinkTiles` (плитки «Как подготовиться» / «Стоимость» при slug `preparation` / `cost` опубликованы).
-- **Примечание:** `CabinetInfoLinks` — RSC готов, на экран «Запись» пока не смонтирован (`cabinet/page` → redirect booking). Контент для плиток — создать в CMS вручную.
+- **Хвосты:** `app-layer/content/revalidatePatientContentPaths.ts` (save/lifecycle/auth); редирект `/app/patient/content/[slug]` → `/help/[slug]`; `CabinetInfoLinks` + `buildCabinetInfoLinkTiles` (плитки «Как подготовиться» / «Стоимость» при `preparation` + `services-pricing` или legacy `cost`).
+- **IA help (2026-06-03, план patient_help_booking фаза 1):** `HELP_CANONICAL_ARTICLE_IA`, семь канонических slug в `canonicalSlugs.ts`; условные плитки — `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES` + `resolvePublishedServicesPricingSlug`.
+- **Примечание:** `CabinetInfoLinks` — RSC готов, на экран «Запись» пока не смонтирован (`cabinet/page` → redirect booking); монтирование — фаза 2 того плана. Контент для плиток — создать в CMS вручную.
 - **Проверки:** vitest `help-content`, `revalidatePatientContentPaths`, `cabinetInfoLinkTiles`; см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 6.
 
 ## Фаза 5 (закрыта)

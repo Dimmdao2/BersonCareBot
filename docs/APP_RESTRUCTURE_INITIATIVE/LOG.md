@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-06-03 — Patient help/booking surface: фаза 1 (IA canonical slug)
+
+**Сделано:** расширение `help-content/canonicalSlugs.ts` — семь slug, `HELP_CANONICAL_ARTICLE_IA`, `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES`, legacy `cost` → `services-pricing`; vitest `help-content` (11+ tests); синхронизация `help/help.md`, `cabinet.md`, `TODO`, `ACTIVE_WORKQUEUE`, `DOCTOR_CMS_AND_RUNTIME`, RECOMMENDATIONS/ROADMAP_2.
+
+**Не в scope:** mount `CabinetInfoLinks` на `/booking/new`, `/about`, city-aware адреса (фазы 2–3 плана).
+
+**План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md). **Модульный LOG:** [`apps/webapp/src/modules/help-content/LOG.md`](../../apps/webapp/src/modules/help-content/LOG.md).
+
+**Проверки:** `vitest run src/modules/help-content/`; `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-02 — Workqueue фаза 7: B6 превью + proactive «Сегодня» (MVP + аудит)
 
 **Сделано:** B6 — `previewSmUrl` для video в списке шаблонов; модуль `doctor-proactive-insights` (wellbeing streak + program inactivity по active instance); «Сегодня» + карточка «Сигналы»; deep links; combined badge `todayAttention`; API summary. Аудит: `queryInsights`, scoped `listForPatient`, docs/tests.

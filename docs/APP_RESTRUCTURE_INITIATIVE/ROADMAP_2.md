@@ -50,7 +50,7 @@
 | **§1.4 Кабинет / hero визита** | ✅ закрыто — страница «Запись» | [`OWN_BOOKING_ENGINE_INITIATIVE`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md) |
 | **§1.5 Чат + Поддержка** | ✅ закрыто owner 2026-06-01 | — |
 | **§1.6 Profile** | ✅ закрыто 2026-05-10 | [`LOG.md`](LOG.md) |
-| **§1.7 `/help`** | ✅ закрыто (2026-06-02) | раздел `help`, `/app/patient/help`, canonical slug `preparation`/`cost` |
+| **§1.7 `/help`** | ✅ закрыто (2026-06-02; IA 2026-06-03) | раздел `help`, `/app/patient/help`, canonical slug — `help-content/canonicalSlugs.ts` |
 | **§3.1 D5 `domain`→`kind`** | 📋 TODO (не блокирует архив) | [`docs/TODO.md`](../TODO.md) §D5 |
 | **§3.2 миграция `0040`** | ✅ закрыто prod (owner 2026-06-01) | миграция в репо; см. [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7 |
 
