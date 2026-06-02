@@ -252,7 +252,7 @@ function InstanceStageItemDropPreviewMarker() {
   return (
     <li
       aria-hidden="true"
-      className="list-none rounded-md border border-dashed border-primary/45 bg-primary/5 px-1 py-2 transition-all"
+      className="list-none rounded-md border border-dashed border-primary/45 bg-primary/5 px-1 py-1.5 transition-all"
     >
       <div className="h-10 rounded-md bg-primary/10" />
     </li>
@@ -1963,7 +1963,7 @@ function InstanceStageGroupsPanel(props: {
                           return (
                             <Fragment key={item.id}>
                               {dropPreviewBefore ? <InstanceStageItemDropPreviewMarker /> : null}
-                              <li className="list-none px-1 py-2">{card}</li>
+                              <li className="list-none px-1 py-1.5">{card}</li>
                             </Fragment>
                           );
                         }
@@ -1973,7 +1973,7 @@ function InstanceStageGroupsPanel(props: {
                             <TreatmentProgramSortableItemShell
                               id={item.id}
                               disabled={busy || editLocked}
-                              className="list-none px-1 py-2"
+                              className="list-none px-1 py-1.5"
                             >
                               {(dragHandle) => (
                                 <DoctorProgramInstanceItemCard
@@ -2025,7 +2025,7 @@ function InstanceStageGroupsPanel(props: {
                         <TreatmentProgramSortableItemShell
                           id={item.id}
                           disabled={busy || editLocked}
-                          className="list-none px-1 py-2"
+                          className="list-none px-1 py-1.5"
                         >
                           {(dragHandle) => (
                             <DoctorProgramInstanceItemCard
