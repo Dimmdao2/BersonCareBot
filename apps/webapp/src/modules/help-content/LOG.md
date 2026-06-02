@@ -35,3 +35,9 @@
 **Проверки:** vitest `canonicalSlugs`, `about-page`, `help-booking-about-link`, help-content + booking.
 
 **Аудит (тот же день):** RTL `HelpBookingAboutLink`, `PatientAboutSiteLink`; contract `about-page` + `routePaths.patientAbout`; `cabinet.md` про `/about` и связь с `booking`; `docs/README.md` (план закрыт ф1–4); trim slug на `[slug]/page` для CTA `booking`.
+
+## 2026-06-03 — План patient_help_booking_surface: финальная синхронизация docs/plan
+
+**Статус:** план **закрыт** (фазы 1–4). YAML `todos` — все `completed`. См. [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md).
+
+**Коммиты:** `89201d96` · `06b4ff59`/`dfebf1e5` · `231719e0` · `5568a397` · `79ada87e`.

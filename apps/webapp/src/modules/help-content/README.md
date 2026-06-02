@@ -55,7 +55,8 @@
 
 ## Журнал
 
-- [`LOG.md`](LOG.md) — фаза 1 IA/slug (2026-06-03)
+- [`LOG.md`](LOG.md) — план `patient_help_booking_surface` закрыт (фазы 1–4, 2026-06-03)
+- [`CMS_EDITOR_CHECKLIST.md`](CMS_EDITOR_CHECKLIST.md) — публикация статей для плиток и `/help/booking`
 
 ## Документация
 

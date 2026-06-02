@@ -3,7 +3,7 @@ name: patient_help_booking_surface_phase
 overview: "Patient UX справки на «Запись»: IA, плитки, city-aware адрес, /about + CMS чеклист — закрыт 2026-06-03."
 todos:
   - id: help-slugs-ia
-    content: Зафиксировать IA раздела /help и канонические slug (preparation, after-visit, services-pricing, app-guide, address-spb/address-msk, about) + правило публикации через CMS
+    content: "IA /help: 8 канонических slug (вкл. booking, ф4), HELP_CANONICAL_ARTICLE_IA, публикация через CMS"
     status: completed
   - id: tests-docs-help-booking
     content: "Vitest help-content + booking + about/HelpBookingAboutLink RTL; sync TODO/ACTIVE_WORKQUEUE/docs (ф1–4)."
@@ -27,6 +27,10 @@ isProject: false
 
 **Архив:** `.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`
 
+## Статус плана
+
+**Закрыт 2026-06-03** — все `todos` completed. Коммиты: `89201d96` (ф1), `06b4ff59`/`dfebf1e5` (ф2), `231719e0` (ф3), `5568a397`/`79ada87e` (ф4).
+
 ## Scope
 - Включить полезные ссылки и справочный контент в рабочий поток `Запись`.
 - Добавить короткую внутреннюю страницу `about` со ссылкой на полный сайт.
@@ -48,7 +52,7 @@ isProject: false
 
 ## Phase 1 — IA Help + Slugs — закрыта 2026-06-03
 
-- [x] Семь канонических slug + `HELP_CANONICAL_ARTICLE_IA` (`canonicalSlugs.ts`)
+- [x] Канонические slug (7 в ф1 + `booking` в ф4) + `HELP_CANONICAL_ARTICLE_IA` (`canonicalSlugs.ts`)
 - [x] `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES` + `resolvePublishedServicesPricingSlug` (legacy `cost`)
 - [x] Доки: `help/help.md`, `cabinet.md`, `modules/help-content/README.md` + `LOG.md`, `TODO`, `ACTIVE_WORKQUEUE`, `DOCTOR_CMS`, APP_RESTRUCTURE LOG
 - [x] Vitest `help-content` (12 tests); `tsc --noEmit` webapp
@@ -84,9 +88,9 @@ isProject: false
 - [x] Slug `booking` в `canonicalSlugs.ts` (8-й канон); `/help/booking` → `HelpBookingAboutLink` → `/about`
 - [x] `CMS_EDITOR_CHECKLIST.md`; подсказка в `ContentForm` (help)
 - [x] Финальный sync: `help.md`, `about.md`, `cabinet.md`, `README`/`LOG`, `TODO`, `ACTIVE_WORKQUEUE`, `DOCTOR_CMS`
-- [x] Аудит: RTL `HelpBookingAboutLink`, `PatientAboutSiteLink`; усилен contract `about-page`
+- [x] Аудит: RTL `HelpBookingAboutLink`, `PatientAboutSiteLink`; contract `about-page`; `docs/README.md`; trim slug на help `[slug]/page`
 
-Проверки (выполнены): vitest `canonicalSlugs`, `about-page`, `PatientAboutSiteLink`, `HelpBookingAboutLink`, `help-booking-about-link`, help-content + booking
+Проверки (выполнены): vitest `canonicalSlugs`, `about-page`, `PatientAboutSiteLink`, `HelpBookingAboutLink`, `help-booking-about-link`, help-content + booking (~10+32 tests по зонам)
 
 ## Definition Of Done (весь план)
 - [x] Структура `/help` и canonical slug зафиксированы и документированы (фаза 1)

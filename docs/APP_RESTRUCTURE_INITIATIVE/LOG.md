@@ -4,11 +4,15 @@
 
 ---
 
-## 2026-06-03 — Patient help/booking surface: план закрыт (фаза 4)
+## 2026-06-03 — Patient help/booking surface: план закрыт (фазы 1–4)
 
-**Сделано:** `/app/patient/about`; slug `booking` + ссылка с `/help/booking`; `CMS_EDITOR_CHECKLIST.md`; финальный sync docs.
+**Сделано:** IA help + плитки на «Запись»; city-aware адрес; `/app/patient/about`; slug `booking` + `CMS_EDITOR_CHECKLIST.md`; sync docs/plan YAML.
 
-**План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) — все фазы completed.
+**План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) — все `todos` completed.
+
+**Коммиты:** `89201d96` (ф1) · `06b4ff59`/`dfebf1e5` (ф2) · `231719e0` (ф3) · `5568a397`/`79ada87e` (ф4).
+
+**LOG:** [`help-content/LOG.md`](../../apps/webapp/src/modules/help-content/LOG.md).
 
 ---
 

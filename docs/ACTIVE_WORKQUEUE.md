@@ -48,10 +48,10 @@
 - **Врач:** `ContentPagesSidebar` → «Статьи справки»; хаб `/app/doctor/content?section=help`; slug раздела `help` зарезервирован; подсказка canonical slug в `ContentForm`.
 - **Пациент:** `/app/patient/help`, `/app/patient/help/[slug]` (`listHelpArticlesForPatient`, `PatientContentSlugArticle`); `force-dynamic`.
 - **Хвосты:** `app-layer/content/revalidatePatientContentPaths.ts` (save/lifecycle/auth); редирект `/app/patient/content/[slug]` → `/help/[slug]`; `CabinetInfoLinks` + `buildCabinetInfoLinkTiles` (плитки «Как подготовиться» / «Стоимость» при `preparation` + `services-pricing` или legacy `cost`).
-- **IA help (2026-06-03, план patient_help_booking фаза 1):** `HELP_CANONICAL_ARTICLE_IA`, семь канонических slug в `canonicalSlugs.ts`; условные плитки — `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES` + `resolvePublishedServicesPricingSlug`.
+- **IA help (2026-06-03, план patient_help_booking):** `HELP_CANONICAL_ARTICLE_IA`, **8** канонических slug в `canonicalSlugs.ts` (вкл. `booking`); условные плитки — `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES` + `resolvePublishedServicesPricingSlug`.
 - **Полезные ссылки на «Запись» (2026-06-03, фаза 2):** `CabinetInfoLinks surface="booking"` в `booking/new/page.tsx` под `BookingUpcomingSection`; плитка `about`; `CabinetInfoLinksCard` + vitest.
 - **City-aware адрес (2026-06-03, фаза 3, закрыта):** `patientHelpAddressLink` + `bookingNewHref` — распознанный `?cityCode=` или `cityCodeSnapshot` ближайшей предстоящей записи → плитка «Адрес» на `/help/address-msk|address-spb` при публикации в CMS; иначе `/app/patient/address`; wizard back/success/reschedule сохраняют `cityCode` на «Запись».
-- **Примечание:** `/cabinet` → redirect на «Запись». Контент для условных плиток — опубликовать в CMS (`preparation`, `services-pricing`, `about`, `address-msk`, `address-spb`).
+- **Примечание:** `/cabinet` → redirect на «Запись». Контент для плиток/справки — CMS (`preparation`, `services-pricing`, `about`, `address-msk`, `address-spb`, `booking`); чеклист — `help-content/CMS_EDITOR_CHECKLIST.md`.
 - **About + CMS (2026-06-03, фаза 4, план закрыт):** `/app/patient/about`; `/help/booking` → ссылка на about; `CMS_EDITOR_CHECKLIST.md`; slug `booking` в canonical IA.
 - **Проверки:** vitest help-content + booking + about/help-booking contract; см. `help-content/LOG.md` §фазы 1–4.
 
