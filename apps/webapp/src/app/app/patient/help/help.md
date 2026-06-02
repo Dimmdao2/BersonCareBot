@@ -27,7 +27,7 @@
 
 1. Врач: «Статьи справки» → `/app/doctor/content?section=help`.
 2. Создать страницу с **точным** slug из таблицы выше, опубликовать.
-3. Плитки «Как подготовиться» / «Стоимость» (`CabinetInfoLinks`, монтирование на «Запись» — фаза 2) — только если опубликованы slug `preparation` и `services-pricing` (или legacy `cost`).
+3. Плитки «Как подготовиться» / «Стоимость» / «О специалисте» (`CabinetInfoLinks` на `/app/patient/booking/new` и при reuse) — только если опубликованы соответствующие slug (`preparation`, `services-pricing` или legacy `cost`, `about`).
 4. Адреса по городам: отдельные статьи `address-spb` / `address-msk`; общий маршрут `/app/patient/address` остаётся fallback.
 
 ## Данные
@@ -39,6 +39,6 @@
 
 - `PatientHelpArticleList.tsx` — карточки каталога
 - `HelpSupportLink.tsx` — ссылка на поддержку
-- `CabinetInfoLinks.tsx` (cabinet) — плитки с deep link на канонические slug при наличии контента
+- `CabinetInfoLinks.tsx` / `CabinetInfoLinksCard.tsx` — плитки на «Запись» (`booking/new`) и при reuse; deep link при опубликованном контенте
 
 Канон и архитектура: [`modules/help-content/README.md`](../../../modules/help-content/README.md).

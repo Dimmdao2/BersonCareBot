@@ -4,11 +4,21 @@
 
 ---
 
+## 2026-06-03 — Patient help/booking surface: фаза 2 (ссылки на «Запись»)
+
+**Сделано:** `CabinetInfoLinks` на `/app/patient/booking/new` под предстоящими записями; `surface="booking"` / `omitBookingCta`; плитка `about`; `CabinetInfoLinksCard` + тесты.
+
+**План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) §фаза 2. **LOG:** [`help-content/LOG.md`](../../apps/webapp/src/modules/help-content/LOG.md).
+
+**Проверки:** vitest `CabinetInfoLinksCard`, `cabinetInfoLinkTiles`, `help-content`.
+
+---
+
 ## 2026-06-03 — Patient help/booking surface: фаза 1 (IA canonical slug)
 
 **Сделано:** расширение `help-content/canonicalSlugs.ts` — семь slug, `HELP_CANONICAL_ARTICLE_IA`, `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES`, legacy `cost` → `services-pricing`; vitest `help-content` (11+ tests); синхронизация `help/help.md`, `cabinet.md`, `TODO`, `ACTIVE_WORKQUEUE`, `DOCTOR_CMS_AND_RUNTIME`, RECOMMENDATIONS/ROADMAP_2.
 
-**Не в scope:** mount `CabinetInfoLinks` на `/booking/new`, `/about`, city-aware адреса (фазы 2–3 плана).
+**Не в scope фазы 1:** `/about`, city-aware адреса (фазы 3–4 плана `patient_help_booking_surface`).
 
 **План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md). **Модульный LOG:** [`apps/webapp/src/modules/help-content/LOG.md`](../../apps/webapp/src/modules/help-content/LOG.md).
 

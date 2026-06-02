@@ -49,7 +49,8 @@
 - **Пациент:** `/app/patient/help`, `/app/patient/help/[slug]` (`listHelpArticlesForPatient`, `PatientContentSlugArticle`); `force-dynamic`.
 - **Хвосты:** `app-layer/content/revalidatePatientContentPaths.ts` (save/lifecycle/auth); редирект `/app/patient/content/[slug]` → `/help/[slug]`; `CabinetInfoLinks` + `buildCabinetInfoLinkTiles` (плитки «Как подготовиться» / «Стоимость» при `preparation` + `services-pricing` или legacy `cost`).
 - **IA help (2026-06-03, план patient_help_booking фаза 1):** `HELP_CANONICAL_ARTICLE_IA`, семь канонических slug в `canonicalSlugs.ts`; условные плитки — `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES` + `resolvePublishedServicesPricingSlug`.
-- **Примечание:** `CabinetInfoLinks` — RSC готов, на экран «Запись» пока не смонтирован (`cabinet/page` → redirect booking); монтирование — фаза 2 того плана. Контент для плиток — создать в CMS вручную.
+- **Полезные ссылки на «Запись» (2026-06-03, фаза 2):** `CabinetInfoLinks surface="booking"` в `booking/new/page.tsx` под `BookingUpcomingSection`; плитка `about`; `CabinetInfoLinksCard` + vitest.
+- **Примечание:** `/cabinet` → redirect на «Запись». Контент для условных плиток — опубликовать в CMS (`preparation`, `services-pricing`, `about`).
 - **Проверки:** vitest `help-content`, `revalidatePatientContentPaths`, `cabinetInfoLinkTiles`; см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 6.
 
 ## Фаза 5 (закрыта)

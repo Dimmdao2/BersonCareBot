@@ -11,6 +11,7 @@ import { patientInnerPageStackClass, patientSectionTitleClass } from "@/shared/u
 import { mergePastBookingHistory } from "../../cabinet/cabinetPastBookingsMerge";
 import { loadBookingCitiesForPatientRsc } from "../bookingCatalogRsc";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../constants";
+import { CabinetInfoLinks } from "../../cabinet/CabinetInfoLinks";
 import { BookingPastHistorySection } from "./BookingPastHistorySection";
 import { BookingUpcomingSection } from "./BookingUpcomingSection";
 import { PatientBookingPaymentHistorySection } from "./PatientBookingPaymentHistorySection";
@@ -76,6 +77,7 @@ export default async function BookingNewFormatPage() {
     >
       <div className={patientInnerPageStackClass}>
         <BookingUpcomingSection bookings={records.upcoming} appDisplayTimeZone={appDisplayTimeZone} />
+        <CabinetInfoLinks surface="booking" />
         <PatientBookingPaymentHistorySection />
         <PatientMembershipsSection />
         <FormatStepClient cities={catalogCities} catalogError={catalogCitiesError} />

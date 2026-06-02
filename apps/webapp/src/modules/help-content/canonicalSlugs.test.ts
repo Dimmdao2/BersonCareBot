@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   HELP_CANONICAL_ARTICLE_IA,
+  HELP_CANONICAL_ARTICLE_SLUG_ABOUT,
   HELP_CANONICAL_ARTICLE_SLUG_PREPARATION,
   HELP_CANONICAL_ARTICLE_SLUGS,
   HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES,
@@ -41,8 +42,11 @@ describe("canonicalSlugs", () => {
     expect(resolvePublishedServicesPricingSlug(new Set())).toBeNull();
   });
 
-  it("exposes preparation as the only cabinet tile deep-link slug in phase 1", () => {
-    expect(HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES).toEqual([HELP_CANONICAL_ARTICLE_SLUG_PREPARATION]);
+  it("exposes preparation and about as cabinet tile deep-link slugs", () => {
+    expect(HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES).toEqual([
+      HELP_CANONICAL_ARTICLE_SLUG_PREPARATION,
+      HELP_CANONICAL_ARTICLE_SLUG_ABOUT,
+    ]);
   });
 
   it("maps every canonical slug to a patient help article path", () => {

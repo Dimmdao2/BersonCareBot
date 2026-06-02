@@ -18,7 +18,7 @@
 
 ### Правило публикации
 
-Плитки «Полезная информация» (кабинет, позже — «Запись») показывают deep link на статью **только если** в CMS опубликована страница с slug из `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES` или `resolvePublishedServicesPricingSlug`. Неопубликованный slug — плитка не появляется. Все опубликованные статьи раздела `help` — в каталоге `/help` (включая канонические slug без плитки).
+Плитки «Полезная информация» на «Запись» (`CabinetInfoLinks surface="booking"`) и при reuse показывают deep link на статью **только если** в CMS опубликована страница с slug из `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES` или `resolvePublishedServicesPricingSlug`. Неопубликованный slug — плитка не появляется. Все опубликованные статьи раздела `help` — в каталоге `/help` (включая канонические slug без плитки).
 
 Для «Стоимость» канонический slug — `services-pricing`; legacy `cost` поддерживается в `resolvePublishedServicesPricingSlug` до перепубликации.
 

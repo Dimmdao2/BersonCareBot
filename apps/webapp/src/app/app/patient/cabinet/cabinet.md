@@ -6,7 +6,7 @@
 
 Текущая версия — native booking экран:
 - карточки активных записей с действиями отмены,
-- блок полезных ссылок (адрес/подготовка/стоимость) — [`CabinetInfoLinks.tsx`](CabinetInfoLinks.tsx) (RSC, **не смонтирован** на экране: `/cabinet` → redirect на «Запись»): условные плитки через `buildCabinetInfoLinkTiles` — `preparation` + стоимость (`services-pricing` / legacy `cost`); остальные канонические slug — см. `HELP_CANONICAL_ARTICLE_IA`, плитки в фазах 2–3;
+- блок полезных ссылок — [`CabinetInfoLinks.tsx`](CabinetInfoLinks.tsx) + [`CabinetInfoLinksCard.tsx`](CabinetInfoLinksCard.tsx): на **«Запись»** (`booking/new/page.tsx`, `surface="booking"`) под предстоящими записями; `/cabinet` редиректит на «Запись». Плитки: адрес, подготовка, стоимость, о специалисте (`about`), справка — см. `buildCabinetInfoLinkTiles`;
 - модальный/нижний flow записи на приём (категория -> дата -> слот -> подтверждение),
 - аккордеон истории прошедших приёмов.
 

@@ -24,4 +24,30 @@ describe("buildCabinetInfoLinkTiles", () => {
     const tiles = buildCabinetInfoLinkTiles(new Set());
     expect(tiles.map((t) => t.label)).toEqual(["Адрес кабинета", "Записаться", "Справка и контакты"]);
   });
+
+  it("on booking surface omits Записаться and keeps base tiles", () => {
+    const tiles = buildCabinetInfoLinkTiles(new Set(), { omitBookingCta: true });
+    expect(tiles.map((t) => t.label)).toEqual(["Адрес кабинета", "Справка и контакты"]);
+    expect(tiles.map((t) => t.label)).not.toContain("Записаться");
+  });
+
+  it("includes about tile when help article published", () => {
+    const tiles = buildCabinetInfoLinkTiles(new Set(["about"]), { omitBookingCta: true });
+    expect(tiles.map((t) => t.label)).toContain("О специалисте");
+    expect(tiles.find((t) => t.label === "О специалисте")?.href).toBe("/app/patient/help/about");
+  });
+
+  it("builds full booking tile set when all help slugs published", () => {
+    const tiles = buildCabinetInfoLinkTiles(
+      new Set(["preparation", "about", "services-pricing"]),
+      { omitBookingCta: true },
+    );
+    expect(tiles.map((t) => t.label)).toEqual([
+      "Адрес кабинета",
+      "Как подготовиться",
+      "О специалисте",
+      "Стоимость",
+      "Справка и контакты",
+    ]);
+  });
 });

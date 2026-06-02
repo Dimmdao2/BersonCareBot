@@ -1,29 +1,24 @@
-import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { buildCabinetInfoLinkTiles } from "@/modules/help-content/cabinetInfoLinkTiles";
+import {
+  buildCabinetInfoLinkTiles,
+  type BuildCabinetInfoLinkTilesOptions,
+} from "@/modules/help-content/cabinetInfoLinkTiles";
 import { listHelpArticlesForPatient } from "@/modules/help-content/listHelpArticles";
-import { cn } from "@/lib/utils";
-import { patientCardClass, patientInfoLinkTileClass } from "@/shared/ui/patientVisual";
+import { CabinetInfoLinksCard } from "./CabinetInfoLinksCard";
 
-/** Полезные ссылки записи: deep link на статьи справки только если они опубликованы в CMS. */
-export async function CabinetInfoLinks() {
+export type CabinetInfoLinksSurface = "cabinet" | "booking";
+
+/** Полезные ссылки: deep link на статьи справки только если опубликованы в CMS. */
+export async function CabinetInfoLinks({
+  surface = "cabinet",
+}: {
+  surface?: CabinetInfoLinksSurface;
+} = {}) {
   const deps = buildAppDeps();
   const articles = await listHelpArticlesForPatient(deps.contentPages);
-  const tiles = buildCabinetInfoLinkTiles(new Set(articles.map((a) => a.slug)));
+  const options: BuildCabinetInfoLinkTilesOptions =
+    surface === "booking" ? { omitBookingCta: true } : {};
+  const tiles = buildCabinetInfoLinkTiles(new Set(articles.map((a) => a.slug)), options);
 
-  return (
-    <Card className={cn(patientCardClass, "ring-0")}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Полезная информация</CardTitle>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {tiles.map((t) => (
-          <Link key={t.href} href={t.href} className={patientInfoLinkTileClass}>
-            {t.label}
-          </Link>
-        ))}
-      </CardContent>
-    </Card>
-  );
+  return <CabinetInfoLinksCard tiles={tiles} />;
 }

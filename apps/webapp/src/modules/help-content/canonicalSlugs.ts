@@ -30,12 +30,13 @@ export const HELP_CANONICAL_ARTICLE_SLUGS = [
 export type HelpCanonicalArticleSlug = (typeof HELP_CANONICAL_ARTICLE_SLUGS)[number];
 
 /**
- * Slug с условной плиткой в `buildCabinetInfoLinkTiles` (фаза 1).
+ * Slug с условной плиткой в `buildCabinetInfoLinkTiles`.
  * «Стоимость» — отдельно через `resolvePublishedServicesPricingSlug` (`services-pricing` / legacy `cost`).
- * Остальные канонические slug пока только каталог `/help` и CMS IA (фазы 2–3).
+ * Адреса по городам — фаза 3 (city-aware).
  */
 export const HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES = [
   HELP_CANONICAL_ARTICLE_SLUG_PREPARATION,
+  HELP_CANONICAL_ARTICLE_SLUG_ABOUT,
 ] as const;
 
 /** Пользовательский смысл канонических статей (редактор CMS / IA `/help`). */

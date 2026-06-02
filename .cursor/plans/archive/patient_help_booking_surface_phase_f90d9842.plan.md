@@ -1,16 +1,16 @@
 ---
 name: patient_help_booking_surface_phase
-overview: "Patient UX справки и полезных ссылок на «Запись»: help IA (фаза 1 закрыта 2026-06-03), about, city-aware адреса — без изменения booking core."
+overview: "Patient UX справки на «Запись»: IA (ф1), блок ссылок на booking/new (ф2, 2026-06-03); about-страница, city-aware — ф3–4."
 todos:
   - id: help-slugs-ia
     content: Зафиксировать IA раздела /help и канонические slug (preparation, after-visit, services-pricing, app-guide, address-spb/address-msk, about) + правило публикации через CMS
     status: completed
   - id: tests-docs-help-booking
-    content: "Фаза 1: vitest help-content (12 tests), sync TODO/ACTIVE_WORKQUEUE/help.md/cabinet.md/LOG. Booking RTL — фаза 2."
+    content: "Vitest help-content + CabinetInfoLinksCard RTL + booking-new-page contract; sync TODO/ACTIVE_WORKQUEUE/docs (ф1–2)."
     status: completed
   - id: booking-links-mount
     content: Смонтировать блок полезных ссылок под «Предстоящими записями» на /app/patient/booking/new с переиспользованием CabinetInfoLinks/buildCabinetInfoLinkTiles
-    status: pending
+    status: completed
   - id: about-page
     content: Добавить короткую страницу /app/patient/about с ссылкой на полный сайт и связать её из /help/booking
     status: pending
@@ -57,14 +57,14 @@ isProject: false
 - `rg "HELP_CANONICAL_ARTICLE_SLUG" apps/webapp/src/modules/help-content`
 - Сверка `routePaths.patientHelpArticle` для всех канонических slug
 
-## Phase 2 — Полезные ссылки на странице «Запись»
-- Смонтировать блок ссылок сразу под `BookingUpcomingSection` в `booking/new/page.tsx`.
-- Переиспользовать `CabinetInfoLinks`/`buildCabinetInfoLinkTiles` (`preparation`, `services-pricing`/legacy `cost`, `/help`).
-- Добавить `about` в набор ссылок (плитка или пункт `/help`).
+## Phase 2 — Полезные ссылки на странице «Запись» — закрыта 2026-06-03
 
-Проверки:
-- Unit/RTL на видимость блока при наличии/отсутствии статей `preparation` / `services-pricing`.
-- Smoke: блок всегда на «Запись», даже если upcoming пуст.
+- [x] `CabinetInfoLinks surface="booking"` под `BookingUpcomingSection` в `booking/new/page.tsx`
+- [x] `buildCabinetInfoLinkTiles({ omitBookingCta })`, плитка `about` → `/help/about`
+- [x] `CabinetInfoLinksCard` + vitest/RTL + `booking-new-page.test.ts` (contract mount)
+- [x] `booking/new/booking.md`, sync `TODO` / `DOCTOR_PATIENT_CARD` LOG
+
+Проверки (выполнены): `cabinetInfoLinkTiles`, `CabinetInfoLinksCard`, `booking-new-page`, `help-content`; блок всегда рендерится (базовые плитки без CMS).
 
 ## Phase 3 — City-Aware адреса
 - Привязка `cityCode` в ссылках адреса (СПб/Мск) на booking flow.
@@ -76,7 +76,7 @@ isProject: false
 
 ## Definition Of Done (весь план)
 - [x] Структура `/help` и canonical slug зафиксированы и документированы (фаза 1)
-- [ ] Блок полезных ссылок на `/app/patient/booking/new`
+- [x] Блок полезных ссылок на `/app/patient/booking/new` (фаза 2)
 - [ ] Страница `about` + ссылка на сайт
 - [ ] City-aware адреса СПб/Мск с fallback
-- [x] Тесты help-content + документация фазы 1
+- [x] Тесты help-content + booking info links (фазы 1–2)

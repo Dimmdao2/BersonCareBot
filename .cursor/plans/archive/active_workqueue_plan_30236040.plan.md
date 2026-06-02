@@ -165,7 +165,7 @@ Cross-patient «К проверке» на «Сегодня»; deep link `focusI
 
 **Хвосты (аудит 2026-06-02):** [x] `revalidatePatientContentPaths` — save/lifecycle/auth CMS; [x] редирект `/app/patient/content/[slug]` → `/help/[slug]` для `section=help`; [x] canonical slug `preparation` / `cost` — `CabinetInfoLinks` (RSC, плитки только при опубликованных статьях); [x] подсказка slug в `ContentForm`; [x] vitest 34+ (`help-content`, `revalidatePatientContentPaths`, `cabinetInfoLinkTiles`).
 
-**Не в scope / отложено:** полный enum §3.3 (`situation`, `course_lesson` в DDL); монтирование `CabinetInfoLinks` на экран «Запись» (компонент готов, `cabinet/page` редиректит на booking); RTL страниц `/help`.
+**Не в scope / отложено (на момент закрытия 2026-06-02):** полный enum §3.3 (`situation`, `course_lesson` в DDL); RTL страниц `/help`. **С 2026-06-03:** `CabinetInfoLinks` на `/app/patient/booking/new` — план `patient_help_booking_surface` фаза 2.
 
 **Доки:** [`LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 6, [`ACTIVE_WORKQUEUE.md`](docs/ACTIVE_WORKQUEUE.md), [`TODO.md`](docs/TODO.md), [`ROADMAP_2.md`](docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1.7/§3.3, [`DOCTOR_CMS_AND_RUNTIME.md`](docs/ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md).
 
