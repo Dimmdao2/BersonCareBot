@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
@@ -151,11 +152,14 @@ export async function saveContentPage(
 
     revalidatePath("/app/doctor/content");
     if (existingById.slug !== slug) {
-      revalidatePath(`/app/patient/content/${existingById.slug}`);
       revalidatePath("/app/patient/home");
     }
-    revalidatePath(`/app/patient/content/${slug}`);
-    revalidatePath("/app/patient/sections", "layout");
+    revalidatePatientContentPaths({
+      slug,
+      section,
+      previousSlug: existingById.slug,
+      previousSection: existingById.section,
+    });
     return { ok: true };
   }
 
@@ -195,7 +199,6 @@ export async function saveContentPage(
   }
 
   revalidatePath("/app/doctor/content");
-  revalidatePath(`/app/patient/content/${slug}`);
-  revalidatePath("/app/patient/sections", "layout");
+  revalidatePatientContentPaths({ slug, section });
   return { ok: true };
 }

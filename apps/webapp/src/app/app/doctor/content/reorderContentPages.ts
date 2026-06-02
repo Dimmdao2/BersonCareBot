@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { routePaths } from "@/app-layer/routes/paths";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { isHelpSectionSlug } from "@/modules/content-sections/types";
 
 export type ReorderContentPagesState = { ok: boolean; error?: string };
 
@@ -28,7 +30,10 @@ export async function reorderContentPagesInSection(
   }
 
   revalidatePath("/app/doctor/content");
-  revalidatePath("/app/patient/sections", "layout");
   revalidatePath("/app/patient/content");
+  if (isHelpSectionSlug(sec)) {
+    revalidatePath(routePaths.patientHelp);
+  }
+  revalidatePath("/app/patient/sections", "layout");
   return { ok: true };
 }

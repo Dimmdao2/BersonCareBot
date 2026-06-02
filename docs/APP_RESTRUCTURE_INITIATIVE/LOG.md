@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-06-02 — ROADMAP_2 §1.7 + §3.3: `/help` из CMS (фаза 6, workqueue)
+
+**Сделано:** раздел `help` (`0103`), patient `/app/patient/help` + `/help/[slug]`, CMS «Статьи справки», `CONTENT_PAGE_ROLES`; хвосты — `revalidatePatientContentPaths`, редирект `/content/[slug]` → `/help/[slug]`, `force-dynamic`, canonical slug `preparation`/`cost`, `CabinetInfoLinks` (условные плитки), подсказка в `ContentForm`.
+
+**Документы:** [`ROADMAP_2.md`](ROADMAP_2.md) §1.7/§3.3, [`DOCTOR_CMS_AND_RUNTIME.md`](../ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md), [`ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md), [`../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md), план-очередь §фаза 6.
+
+**Проверки:** vitest (`help-content`, `revalidatePatientContentPaths`); `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-02 — ROADMAP_2 §2.2–2.3: cross-patient «К проверке» + `focusItemId` (фаза 5 doctor card)
 
 **Сделано:** active workqueue **фаза 5** — cross-patient секция на `/app/doctor`, `countPendingTestEvaluationAttemptsGlobal` + preview, deep link `focusItemId`, бейдж «Сегодня» (`GET /api/doctor/pending-program-tests/summary`). Таблица §2 и тексты §2.2–2.3 помечены **closed**.
@@ -1167,9 +1177,10 @@ pnpm exec eslint \
 
 ---
 
-## Пункт 6 — `CabinetInfoLinks`
+## Пункт 6 — `CabinetInfoLinks` (история 2026-05-01)
 
 - Три плитки: «Адрес кабинета» (`patientAddress`), «Записаться» (`bookingNew`), «Справка и контакты» (`patientHelp`). Убраны вводящие в заблуждение «Как подготовиться» / «Стоимость» без расширения контента `/help`.
+- **2026-06-02:** после фазы 6 `/help` из CMS плитки «Как подготовиться» / «Стоимость» возвращены **условно** (slug `preparation` / `cost`) — см. запись «ROADMAP_2 §1.7» выше и [`CabinetInfoLinks.tsx`](../../apps/webapp/src/app/app/patient/cabinet/CabinetInfoLinks.tsx).
 
 **Проверки:** `rg "Как подготовиться|Стоимость" apps/webapp/src/app/app/patient/cabinet` — пусто.
 

@@ -6,7 +6,7 @@ import {
   parsePatientHomeCmsReturnQuery,
   type PatientHomeCmsReturnQuery,
 } from "@/modules/patient-home/patientHomeCmsReturnUrls";
-import { isSystemParentCode } from "@/modules/content-sections/types";
+import { HELP_SECTION_SLUG, isHelpSectionSlug, isSystemParentCode } from "@/modules/content-sections/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -54,8 +54,10 @@ export default async function DoctorContentNewPage({
     filteredSections = allSections.filter(
       (s) => s.kind === "system" && s.systemParentCode === systemParentFilter,
     );
+  } else if (sectionQueryRaw === HELP_SECTION_SLUG) {
+    filteredSections = allSections.filter((s) => isHelpSectionSlug(s.slug));
   } else {
-    filteredSections = allSections.filter((s) => s.kind === "article");
+    filteredSections = allSections.filter((s) => s.kind === "article" && !isHelpSectionSlug(s.slug));
   }
 
   const sectionQueryClean = sectionQueryRaw.length > 0 ? sectionQueryRaw : "";

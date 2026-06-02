@@ -5,6 +5,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
+  isHelpSectionSlug,
   isImmutableSystemSectionSlug,
   isSectionSlugProtectedFromDelete,
   isSystemParentCode,
@@ -72,7 +73,7 @@ export async function saveContentSection(
     return { ok: false, error: "Этот slug зарезервирован для служебного раздела CMS" };
   }
 
-  if (!existing && isImmutableSystemSectionSlug(slug)) {
+  if (!existing && (isImmutableSystemSectionSlug(slug) || isHelpSectionSlug(slug))) {
     return { ok: false, error: "Этот slug зарезервирован для встроенного раздела приложения" };
   }
 
@@ -81,7 +82,7 @@ export async function saveContentSection(
   if (!existing && trimmedPlacement === "system_root") {
     return { ok: false, error: "Новый раздел нельзя сохранить как встроенный корневой системный тип" };
   }
-  if (existing && isImmutableSystemSectionSlug(slug)) {
+  if (existing && (isImmutableSystemSectionSlug(slug) || isHelpSectionSlug(slug))) {
     kind = existing.kind;
     systemParentCode = existing.systemParentCode;
   }

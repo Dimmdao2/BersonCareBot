@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
@@ -13,6 +14,7 @@ export async function applyContentLifecycle(_prev: LifecycleState | null, formDa
   if (!id || !op) return { ok: false, error: "Некорректные данные" };
 
   const deps = buildAppDeps();
+  const page = await deps.contentPages.getById(id);
   const now = new Date().toISOString();
 
   try {
@@ -44,8 +46,16 @@ export async function applyContentLifecycle(_prev: LifecycleState | null, formDa
   }
 
   revalidatePath("/app/doctor/content");
-  revalidatePath("/app/patient/sections", "layout");
   revalidatePath("/app/patient/content");
+  if (page) {
+    revalidatePatientContentPaths({
+      slug: page.slug,
+      section: page.section,
+      revalidateSectionsLayout: true,
+    });
+  } else {
+    revalidatePath("/app/patient/sections", "layout");
+  }
   return { ok: true };
 }
 

@@ -1,68 +1,41 @@
-/**
- * Страница одного материала по адресу «/app/patient/content/[slug]».
- * Warmup layout определяется membership в блоке `daily_warmup`, не query param.
- */
-
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { listDailyWarmupPagesForHome, type DailyWarmupListEntry } from "@/modules/patient-home/todayConfig";
+import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { resolvePatientCanViewContent } from "@/modules/platform-access";
+import { isHelpSectionSlug } from "@/modules/content-sections/types";
 import { AppShell } from "@/shared/ui/AppShell";
-import { PatientBackToSectionShellRow } from "@/shared/ui/patient/PatientBackToSectionShellRow";
 import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
 import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
 import { parseApiMediaIdFromHref, parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
-import { PatientContentSlugArticle } from "./PatientContentSlugArticle";
-import { patientHelpArticlePathIfHelpSection } from "@/modules/help-content/patientHelpArticlePath";
-import { resolvePatientContentWarmupPageContext } from "./patientContentWarmupPageContext";
+import { PatientContentSlugArticle } from "@/app/app/patient/content/[slug]/PatientContentSlugArticle";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-/** Загружает материал по slug из каталога и рендерит статью. Доступно без входа. */
-export default async function ContentSlugPage({ params, searchParams }: Props) {
+export const dynamic = "force-dynamic";
+
+export default async function PatientHelpArticlePage({ params }: Props) {
   const { slug } = await params;
-  const sp = await searchParams;
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
   const dbRow = await deps.contentPages.getBySlug(slug);
-  if (dbRow?.requiresAuth) {
+  if (!dbRow || !isHelpSectionSlug(dbRow.section)) notFound();
+
+  if (dbRow.requiresAuth) {
     const canView = await resolvePatientCanViewContent(session, slug, deps.entitlements);
     if (!canView) notFound();
   }
-  if (!dbRow) notFound();
-
-  const helpPath = patientHelpArticlePathIfHelpSection(dbRow.section, slug);
-  if (helpPath) redirect(helpPath);
 
   const item = await deps.contentCatalog.getBySlug(slug);
   if (!item) notFound();
 
-  const contentPath = `/app/patient/content/${encodeURIComponent(slug)}`;
+  const contentPath = routePaths.patientHelpArticle(slug);
   const personalTierOk =
     session ? (await patientRscPersonalDataGate(session, contentPath)) === "allow" : false;
-  const rawFrom = sp.from;
-  const fromVal = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
-  const fromDailyWarmup = fromVal === "daily_warmup";
-
-  const orderedDailyWarmupPages: DailyWarmupListEntry[] = await listDailyWarmupPagesForHome({
-    patientHomeBlocks: deps.patientHomeBlocks,
-    contentPages: deps.contentPages,
-    contentSections: deps.contentSections,
-    systemSettings: deps.systemSettings,
-  });
-
-  const { isDailyWarmupMember, practiceSource, warmupNav, backNav } = resolvePatientContentWarmupPageContext({
-    slug,
-    fromDailyWarmup,
-    sectionSlug: dbRow.section,
-    orderedDailyWarmupPages,
-  });
 
   const videoPlayableUrl =
     item.videoSource?.type === "url" && item.videoSource.url.trim()
@@ -71,7 +44,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
         ? item.videoSource.mediaId.startsWith("/api/media/")
           ? item.videoSource.mediaId
           : `/api/media/${item.videoSource.mediaId}`
-      : undefined;
+        : undefined;
   const hostedVideoIframeSrc = videoPlayableUrl ? toYoutubeOrRutubeEmbedSrc(videoPlayableUrl) : null;
 
   let appTrustedOrigin: string | null = null;
@@ -91,15 +64,10 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
     <AppShell
       title=""
       user={session?.user ?? null}
-      backHref={backNav.backHref}
-      backLabel={backNav.backLabel}
+      backHref={routePaths.patientHelp}
+      backLabel="Справка"
       variant="patient"
       patientSuppressShellTitle
-      patientShellAboveTitleSlot={
-        backNav.showBackToSectionRow ?
-          <PatientBackToSectionShellRow sectionSlug={dbRow.section} />
-        : undefined
-      }
     >
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
         <PatientContentSlugArticle
@@ -108,13 +76,13 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           dbRow={dbRow}
           item={item}
           personalTierOk={personalTierOk}
-          isDailyWarmup={isDailyWarmupMember}
-          practiceSource={practiceSource}
+          isDailyWarmup={false}
+          practiceSource="section_page"
           videoPlayableUrl={videoPlayableUrl}
           hostedVideoIframeSrc={hostedVideoIframeSrc}
           apiMediaId={apiMediaId}
-          warmupNav={warmupNav}
-          orderedDailyWarmupPages={orderedDailyWarmupPages}
+          warmupNav={null}
+          orderedDailyWarmupPages={[]}
         />
       </Suspense>
     </AppShell>

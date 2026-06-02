@@ -1,6 +1,6 @@
 # Активная очередь (врач + пациент + CMS)
 
-**Синхронизация:** 2026-06-02. План-очередь (канон в git): [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md); IDE-копия — `~/.cursor/plans/active_workqueue_plan_30236040.plan.md`. Фаза 1: `phase1_support_model_7c745931`. Сводка чеклистов — [`TODO.md`](TODO.md) §Doctor card.
+**Синхронизация:** 2026-06-02. План-очередь (канон в git): [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md). Сводка чеклистов — [`TODO.md`](TODO.md). **Очередь фаз 0–6 закрыта**; активные хвосты продукта — diary, proactive inbox, D5 (см. TODO).
 
 | Фаза | Статус | План / лог |
 |------|--------|------------|
@@ -12,8 +12,8 @@
 | **3** — черновик редактора программы | **Закрыта** (2026-06-02) | LOG §фаза 3 |
 | **4** — фильтры каталога (регион + нагрузка) | **Закрыта** (2026-06-02) | LOG §фаза 4 |
 | **5** — cross-patient inbox «К проверке» на «Сегодня» + `focusItemId` | **Закрыта** (2026-06-02) | LOG §фаза 5 |
-| **6** — CMS enum + `/help` | Открыта | **следующая** |
-| **7** — хвосты docs/шаблонов | Частично | этот файл |
+| **6** — CMS enum + `/help` | **Закрыта** (2026-06-02) | LOG §фаза 6, `content-page-roles.ts`, миграция `0103` |
+| **7** — шаблон docs/очереди | **Закрыта** | `ACTIVE_WORKQUEUE.md`, синхронизация после фаз 0–6 |
 
 ## Фаза 0 (закрыта)
 
@@ -41,7 +41,17 @@
 - RSC: `bodyRegionIdToCode`, `includeExerciseDetails` для метаданных комплексов.
 - **Продукт:** в picker **нет** «Без региона» / «Без типа» — эти пункты только в `DoctorCatalogFiltersForm` на экранах каталога врача (аудит незаполненных полей). См. LOG §фаза 4 (финал).
 
-**Следующий шаг очереди:** фаза **6** — CMS enum типов контента + `/help`.
+## Фаза 6 (закрыта)
+
+- **Таксономия:** `apps/webapp/src/modules/content-sections/content-page-roles.ts` (`CONTENT_PAGE_ROLES`); роль `help_article` = страницы в `content_pages.section = help`.
+- **БД:** `apps/webapp/db/drizzle-migrations/0103_help_content_section.sql` — раздел CMS `help` (`kind=article`).
+- **Врач:** `ContentPagesSidebar` → «Статьи справки»; хаб `/app/doctor/content?section=help`; slug раздела `help` зарезервирован; подсказка canonical slug в `ContentForm`.
+- **Пациент:** `/app/patient/help`, `/app/patient/help/[slug]` (`listHelpArticlesForPatient`, `PatientContentSlugArticle`); `force-dynamic`.
+- **Хвосты:** `app-layer/content/revalidatePatientContentPaths.ts` (save/lifecycle/auth); редирект `/app/patient/content/[slug]` → `/help/[slug]`; `CabinetInfoLinks` + `buildCabinetInfoLinkTiles` (плитки «Как подготовиться» / «Стоимость» при slug `preparation` / `cost` опубликованы).
+- **Примечание:** `CabinetInfoLinks` — RSC готов, на экран «Запись» пока не смонтирован (`cabinet/page` → redirect booking). Контент для плиток — создать в CMS вручную.
+- **Проверки:** vitest `help-content`, `revalidatePatientContentPaths`, `cabinetInfoLinkTiles`; см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 6.
+
+**Очередь workqueue (фазы 0–6):** закрыта. Дальше — [`TODO.md`](TODO.md).
 
 ## Фаза 5 (закрыта)
 

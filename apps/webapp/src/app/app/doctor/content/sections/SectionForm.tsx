@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   type ContentSectionKind,
   type SystemParentCode,
+  isHelpSectionSlug,
   isImmutableSystemSectionSlug,
   isSectionSlugProtectedFromDelete,
   isSystemParentCode,
@@ -42,7 +43,12 @@ type SectionRow = {
   systemParentCode: SystemParentCode | null;
 };
 
-function placementSummary(kind: ContentSectionKind, systemParentCode: SystemParentCode | null): string {
+function placementSummary(
+  kind: ContentSectionKind,
+  systemParentCode: SystemParentCode | null,
+  sectionSlug?: string,
+): string {
+  if (sectionSlug && isHelpSectionSlug(sectionSlug)) return "Справка (/help)";
   if (kind === "article") return "Статьи (общий каталог)";
   if (systemParentCode && isSystemParentCode(systemParentCode)) return `Папка «${FOLDER_LABELS[systemParentCode]}»`;
   return "Встроенный системный раздел (корень приложения)";
@@ -207,7 +213,9 @@ export function SectionForm({
         {placementLocked && section ? (
           <>
             <input type="hidden" name="placement" value={editPlacementValue} />
-            <p className="text-sm text-muted-foreground">{placementSummary(section.kind, section.systemParentCode)}</p>
+            <p className="text-sm text-muted-foreground">
+              {placementSummary(section.kind, section.systemParentCode, section.slug)}
+            </p>
           </>
         ) : isEdit && section ? (
           <select

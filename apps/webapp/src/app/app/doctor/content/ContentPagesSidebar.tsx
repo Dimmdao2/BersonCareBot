@@ -2,7 +2,7 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
+import { HELP_SECTION_SLUG, SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
 
 export type ContentPagesSidebarSection = { slug: string; title: string };
 
@@ -42,7 +42,9 @@ export function ContentPagesSidebar({
   /** Кластер из `?systemParentCode=` или выведенный из открытого системного раздела. */
   highlightSystemFolderCode: string | null;
 }) {
-  const allPagesActive = highlightArticleSlug === null && highlightSystemFolderCode === null;
+  const helpActive = highlightArticleSlug === HELP_SECTION_SLUG && highlightSystemFolderCode === null;
+  const allPagesActive =
+    highlightArticleSlug === null && highlightSystemFolderCode === null && !helpActive;
 
   return (
     <nav
@@ -55,6 +57,15 @@ export function ContentPagesSidebar({
       <Separator className="my-1" />
       <Link href={`${CONTENT_BASE}/sections`} className={navBtnClass}>
         Разделы
+      </Link>
+      <Separator className="my-1" />
+      <p className="px-1 text-xs font-medium text-muted-foreground">Справка</p>
+      <Link
+        href={`${CONTENT_BASE}?section=${encodeURIComponent(HELP_SECTION_SLUG)}`}
+        className={filterBtnClass(helpActive)}
+        aria-current={helpActive ? "page" : undefined}
+      >
+        Статьи справки
       </Link>
       <Separator className="my-1" />
       <p className="px-1 text-xs font-medium text-muted-foreground">Статьи</p>

@@ -137,16 +137,15 @@
 
 **Продукт (зафиксировано owner 2026-06-01):** срок этапа **не обязателен**; persistent-рекомендации после завершения программы → **история**, в активной программе пациент видит **общее промо**; UX истории попыток тестов — **после** доработки элементов тестов.
 
-## CMS — полный enum типов контента (ROADMAP_2 §3.3)
+## CMS — полный enum типов контента (ROADMAP_2 §3.3) — **закрыто** (фаза 6, 2026-06-02)
 
-- [ ] Аудит `kind` / `system_parent_code` в `content_articles` и смежных сущностях.
-- [ ] Закрепить enum (TS + Drizzle + admin UI) для практически используемых типов (`help_article`, разделы, ситуации, разминки, уроки курсов и т.д.).
-- [ ] Точечная миграция данных; затем **`/help`** — каталог статей из CMS (см. §Patient ниже).
+- [x] Таксономия: `content_sections.kind` / `system_parent_code`; роли страниц `CONTENT_PAGE_ROLES` (`help_article`, `thematic_article`, `system_cluster_page`) — `content-page-roles.ts`.
+- [x] Раздел **`help`** (`0103_help_content_section.sql`); CMS «Статьи справки»; patient **`/help`** + **`/help/[slug]`**; `revalidatePatientContentPaths`; редирект `/content/[slug]`; canonical slug **`preparation`** / **`cost`** (`CabinetInfoLinks`, условные плитки). Док: `modules/help-content/README.md`, `DOCTOR_CMS_AND_RUNTIME.md`.
 
 ## Patient — хвосты ROADMAP_2 (owner 2026-06-01)
 
 - **CLOSED:** напоминания в primary nav (неактуально); чат + поддержка (достаточно как есть); legacy «Кабинет» → страница **«Запись»** (доработки — [`OWN_BOOKING_ENGINE_INITIATIVE/`](OWN_BOOKING_ENGINE_INITIATIVE/README.md)).
-- [ ] **`/help`** — статьи из CMS (после CMS enum выше).
+- [x] **`/help`** — каталог и статьи из CMS (раздел `help`, фаза 6).
 - [ ] **`/diary` («Статистика»)** — полная переработка (график разминок, упражнения плана, «сегодня») **отложена**; см. [`apps/webapp/src/app/app/patient/diary/diary.md`](../apps/webapp/src/app/app/patient/diary/diary.md).
 
 ## Recommendations catalog — D5 rename `domain` → `kind` (deferred)

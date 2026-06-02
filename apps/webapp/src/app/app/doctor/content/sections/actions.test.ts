@@ -93,6 +93,21 @@ describe("saveContentSection", () => {
     );
   });
 
+  it("rejects reserved help slug on create", async () => {
+    const fd = formWith({
+      slug: "help",
+      title: "Клон справки",
+      description: "",
+      sort_order: "0",
+      cover_image_url: "",
+      icon_image_url: "",
+    });
+    const res = await saveContentSection(null, fd);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/зарезервирован/i);
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
   it("rejects reserved slug on create", async () => {
     const fd = formWith({
       slug: "warmups",

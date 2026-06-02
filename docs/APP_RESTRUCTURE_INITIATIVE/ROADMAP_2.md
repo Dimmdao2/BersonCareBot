@@ -5,7 +5,7 @@
 **Синхронизация 2026-05-04 (код):** пункт **§1.2** — закрыт **технический хвост** (legacy URL → `next.config`, no-op `createLfkComplex`, empty state без самосоздания комплекса); полный UX «сегодня в фокусе / read-only история» — **в backlog** внутри §1.2 (см. DoD ниже, [`LOG.md`](LOG.md)).
 **Синхронизация 2026-05-05 (docs):** инициатива **`PATIENT_APP_SHADCN_ALIGNMENT`** перенесена в архив; правила shadcn/shared при переработке страниц закреплены в **§1 п.4**; бывший единый Phase 7 — в мини-инициативах по экрану (см. [`LOG.md`](LOG.md) 2026-05-05).
 **Синхронизация 2026-05-05 (планирование, исторически):** черновой план **§1.1b** под эталон `treatment-programs/[instanceId]` + отдельный `stages/[stageId]`; уточнения про «Историю тестирования», Play-ассет, токены и порядок секций — зафиксированы в старой версии §1.1b до пометки «устарело».
-**Синхронизация 2026-06-01 (owner):** patient §1.2 → **TODO** (детальная переработка «Статистики» позже); §1.3 **неактуален**; §1.4 **закрыт** (страница «Запись», доработки — [`OWN_BOOKING_ENGINE_INITIATIVE`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md)); §1.5 **закрыт**; §1.6 **закрыт** (редизайн профиля 2026-05-10); §1.7 → **[`docs/TODO.md`](../TODO.md)** (после CMS enum §3.3). §3.1 D5 → **TODO**, не блокирует архив инициатив; §3.2 **0040** — **закрыт** (миграции на prod прогнаны, owner 2026-06-01). §4.2 **Курсы** — отдельная инициатива, **не держит** ROADMAP_2 активным. Расширенный контур карточки врача / «На сопровождении» — **[`docs/TODO.md`](../TODO.md)** §Doctor card.
+**Синхронизация 2026-06-02:** §1.7 `/help` и §3.3 CMS enum (pragmatic) — **закрыты** (фаза 6 workqueue). §1.2 diary → **TODO**; §1.3 cancelled; §1.4–§1.6 closed; §3.1 D5 → **TODO**; §3.2 **0040** closed; §4.2 Курсы — вне активного цикла. Карточка врача / очередь 0–6 — **[`ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md)**, **[`docs/TODO.md`](../TODO.md)** §Doctor card.
 **Синхронизация 2026-06-02 (фаза 5 doctor card):** §**2.2** cross-patient inbox «К проверке» на «Сегодня» и §**2.3** deep link `focusItemId` — **✅ закрыты** (active workqueue фаза 5; [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5).
 **Синхронизация 2026-05-13 (§1.1b):** пункт **закрыт по факту** — экран **«Мой план» / программа лечения** доработан **актуальной** логикой: `routePaths.patientTreatmentProgram` → **`/app/patient/treatment/[instanceId]`**, вкладки «Программа / Рекомендации / Прогресс», hero, карточка контроля, timeline, collapsible рекомендаций и др. (см. [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), [`docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md)). Текст **§1.1b ниже — устаревшая спецификация** (архив обсуждения, не план к исполнению). **Batch** для §1.4 / §1.6 (`Collapsible` в cabinet/profile) остаётся в силе.
 **Назначение:** зафиксировать порядок работ на следующий период с важными деталями (scope, файлы, риски, DoD), чтобы агенты могли брать пункты в работу без переоткрытия контекста.
@@ -49,11 +49,11 @@
 | **§1.4 Кабинет / hero визита** | ✅ закрыто — страница «Запись» | [`OWN_BOOKING_ENGINE_INITIATIVE`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md) |
 | **§1.5 Чат + Поддержка** | ✅ закрыто owner 2026-06-01 | — |
 | **§1.6 Profile** | ✅ закрыто 2026-05-10 | [`LOG.md`](LOG.md) |
-| **§1.7 `/help`** | 📋 TODO | [`docs/TODO.md`](../TODO.md) после §3.3 CMS enum |
+| **§1.7 `/help`** | ✅ закрыто (2026-06-02) | раздел `help`, `/app/patient/help`, canonical slug `preparation`/`cost` |
 | **§3.1 D5 `domain`→`kind`** | 📋 TODO (не блокирует архив) | [`docs/TODO.md`](../TODO.md) §D5 |
 | **§3.2 миграция `0040`** | ✅ закрыто prod (owner 2026-06-01) | миграция в репо; см. [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7 |
 
-**Доменно ядро готово.** Patient polish §1.0–1.1a закрыт; §1.4–1.6 закрыты owner 2026-06-01; §1.2/§1.7 → TODO. Doctor card — [`docs/TODO.md`](../TODO.md) §Doctor card. CMS enum §3.3 — активная задача в TODO.
+**Доменно ядро готово.** Patient polish §1.0–1.1a закрыт; §1.4–1.6 закрыты owner 2026-06-01; §1.2 → TODO; §1.7 и §3.3 (pragmatic) — закрыты 2026-06-02. Doctor card — [`docs/TODO.md`](../TODO.md) §Doctor card.
 
 ---
 
@@ -440,7 +440,7 @@ pnpm --dir apps/webapp exec tsc --noEmit
 
 ### 1.7 `/help` как article-контент
 
-**Статус (owner 2026-06-01):** **TODO** — [`docs/TODO.md`](../TODO.md) §Patient + §CMS enum; после §3.3.
+**Статус (2026-06-02):** **✅ закрыто** — [`docs/TODO.md`](../TODO.md) §Patient + §CMS; реализация через `content_pages.section = help`.
 
 **Цель.** Превратить `/help` в реальную базу знаний (статьи), а не пустую страницу.
 
@@ -605,6 +605,8 @@ pnpm --dir apps/webapp exec vitest run src/modules/treatment-program src/modules
 
 ### 3.3 CMS типизация до полного enum (этап 2 roadmap)
 
+**Статус (2026-06-02):** **✅ закрыто (pragmatic)** — `content_sections` variant C + `CONTENT_PAGE_ROLES` (`help_article`, `thematic_article`, `system_cluster_page`); отдельные продуктовые типы (`situation`, `course_lesson`) — хвост RECOMMENDATIONS / курсы.
+
 **Цель.** Зафиксировать `kind` для всех типов контентных сущностей, чтобы `/help`, `/sections`, ситуации, разминки, уроки курсов имели явный тип.
 
 **Зависит от.** —
@@ -642,7 +644,7 @@ pnpm --dir apps/webapp exec vitest run src/modules/treatment-program src/modules
 
 ## 7. Definition of Done всего цикла ROADMAP_2
 
-**Статус цикла (2026-06-01, owner):** patient polish **§1.0–1.1a, 1.1b, 1.4–1.6** — закрыты; **§1.2, §1.7** → [`docs/TODO.md`](../TODO.md); **§1.3** cancelled; **§3.2** closed; **§3.1** → TODO; **§3.3 CMS enum** — активная задача в TODO. Doctor **§2.x** и расширенная карточка — [`docs/TODO.md`](../TODO.md) §Doctor card (не блокирует закрытие patient-контура). **§4.2 Курсы** — вне активного цикла.
+**Статус цикла (2026-06-02):** patient polish **§1.0–1.1a, 1.1b, 1.4–1.6, §1.7** — закрыты; **§1.2** → [`docs/TODO.md`](../TODO.md); **§1.3** cancelled; **§3.2** closed; **§3.1** → TODO; **§3.3 CMS enum (pragmatic)** — закрыт 2026-06-02. Doctor **§2.x** — [`docs/TODO.md`](../TODO.md) §Doctor card. **§4.2 Курсы** — вне активного цикла.
 
 Цикл **patient IA polish** считается закрытым, когда:
 

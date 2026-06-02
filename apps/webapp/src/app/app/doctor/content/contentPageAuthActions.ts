@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
@@ -15,6 +16,7 @@ export async function setContentPageRequiresAuth(
   if (!pageId) return { ok: false, error: "Нет id" };
 
   const deps = buildAppDeps();
+  const page = await deps.contentPages.getById(pageId);
   try {
     await deps.contentPages.updateLifecycle(pageId, { requiresAuth });
   } catch (e) {
@@ -24,6 +26,10 @@ export async function setContentPageRequiresAuth(
 
   revalidatePath("/app/doctor/content");
   revalidatePath("/app/patient");
-  revalidatePath("/app/patient/sections", "layout");
+  if (page) {
+    revalidatePatientContentPaths({ slug: page.slug, section: page.section });
+  } else {
+    revalidatePath("/app/patient/sections", "layout");
+  }
   return { ok: true };
 }

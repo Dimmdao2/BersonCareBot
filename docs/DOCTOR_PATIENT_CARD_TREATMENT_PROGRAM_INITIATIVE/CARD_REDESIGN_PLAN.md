@@ -276,7 +276,7 @@
 **Вне scope (не менять без отдельного решения):**
 - Детальный экран инстанса (`[instanceId]/*`: правка/обсуждение) — карточка только **ведёт** на него.
 - Существующие доменные панели — переезжают в табы **как есть**, без рефактора их внутренней логики.
-- Полный клинический timeline с богатой семантикой событий (после 2B); CMS/help (фаза 6). ~~Черновик редактора программы (фаза 3)~~ — **закрыта** 2026-06-02 (`treatment-program-shared/instanceEditorDraft*`). ~~Фильтры picker «добавить из библиотеки» (фаза 4)~~ — **закрыта** 2026-06-02 (`TreatmentProgramLibraryPickerToolbar`; без «Без региона»/«Без типа» — см. LOG §фаза 4). ~~Cross-patient inbox «К проверке» на «Сегодня» (фаза 5)~~ — **закрыта** 2026-06-02 (`DoctorTodayPendingProgramTestsSection`, count+preview, `focusItemId`, бейдж «Сегодня» — LOG §фаза 5).
+- Полный клинический timeline с богатой семантикой событий (после 2B). ~~CMS/help (фаза 6)~~ — **закрыта** 2026-06-02 (`CONTENT_PAGE_ROLES`, раздел `help`, `/app/patient/help`, revalidate, редирект `/content` → `/help`; см. LOG §фаза 6). ~~Черновик редактора программы (фаза 3)~~ — **закрыта** 2026-06-02 (`treatment-program-shared/instanceEditorDraft*`). ~~Фильтры picker «добавить из библиотеки» (фаза 4)~~ — **закрыта** 2026-06-02 (`TreatmentProgramLibraryPickerToolbar`; без «Без региона»/«Без типа» — см. LOG §фаза 4). ~~Cross-patient inbox «К проверке» на «Сегодня» (фаза 5)~~ — **закрыта** 2026-06-02 (`DoctorTodayPendingProgramTestsSection`, count+preview, `focusItemId`, бейдж «Сегодня» — LOG §фаза 5).
 - Контракт API `treatment-program-instances` и схема существующих таблиц программы (для 2B новые агрегаты — read-only поверх существующих данных).
 
 Любое расширение scope — согласовать до реализации.

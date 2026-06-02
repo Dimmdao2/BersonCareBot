@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyExistingContentSectionSlug,
+  HELP_SECTION_SLUG,
+  isHelpSectionSlug,
   isImmutableSystemSectionSlug,
+  isSectionSlugProtectedFromDelete,
   isValidSectionTaxonomy,
   placementFromTaxonomy,
   systemParentCodeForPatientHomeBlock,
@@ -38,6 +41,16 @@ describe("content-sections types", () => {
     expect(isImmutableSystemSectionSlug("warmups")).toBe(true);
     expect(isImmutableSystemSectionSlug("lessons")).toBe(true);
     expect(isImmutableSystemSectionSlug("custom-situation")).toBe(false);
+  });
+
+  it("help section slug is reserved and classified as article", () => {
+    expect(HELP_SECTION_SLUG).toBe("help");
+    expect(isHelpSectionSlug("help")).toBe(true);
+    expect(isSectionSlugProtectedFromDelete("help")).toBe(true);
+    expect(classifyExistingContentSectionSlug("help")).toEqual({
+      kind: "article",
+      systemParentCode: null,
+    });
   });
 
   it("isValidSectionTaxonomy rejects article + parent code", () => {

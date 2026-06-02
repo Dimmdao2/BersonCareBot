@@ -44,9 +44,20 @@
 
 ---
 
+## 2026-06-02 — Фаза 6: CMS enum + `/help` (очередь workqueue, финал)
+
+- **Таксономия / БД:** `CONTENT_PAGE_ROLES` + `contentPageRoleForSection` (`modules/content-sections/content-page-roles.ts`); раздел `help` — миграция `0103_help_content_section.sql`; константы `HELP_SECTION_SLUG`, `canonicalSlugs` (`preparation`, `cost`).
+- **CMS (врач):** сайдбар «Статьи справки»; страницы только в `?section=help`; slug `help` защищён от создания/удаления; подсказка slug в `ContentForm`.
+- **Пациент:** `/app/patient/help` (каталог), `/app/patient/help/[slug]` (`modules/help-content/listHelpArticles.ts`, `PatientContentSlugArticle`); `export const dynamic = "force-dynamic"`.
+- **Хвосты аудита:** `revalidatePatientContentPaths` (`saveContentPage`, `applyContentLifecycle`, `setContentPageRequiresAuth`); канонический URL — редирект `/app/patient/content/[slug]` → `/help/[slug]` (`patientHelpArticlePath.ts`); `CabinetInfoLinks` + `buildCabinetInfoLinkTiles` (плитки «Как подготовиться» / «Стоимость» только при опубликованных статьях; RSC, пока не на экране «Запись»).
+- **Доки / синхронизация:** `ROADMAP_2` §1.7/§3.3, `DOCTOR_CMS_AND_RUNTIME.md`, `ACTIVE_WORKQUEUE.md`, `TODO.md`, `APP_RESTRUCTURE_INITIATIVE/LOG.md`, план-очередь §фаза 6, `modules/help-content/README.md`.
+- **Проверки:** vitest 34+ (`help-content`, `content-sections`, `revalidatePatientContentPaths`, `cabinetInfoLinkTiles`, `sections/actions`); `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-02 — Синхронизация docs и плана (фазы 3–5 закрыты)
 
-- План-очередь: YAML todos 0–5 completed; **следующая фаза 6** (CMS enum + `/help`).
+- План-очередь: YAML todos 0–6 completed; фаза 6 — см. запись выше.
 - Фаза 5 (финал): count API, бейдж «Сегодня», UUID query, аудит порядка preview — отражено в плане §фаза 5, `ROADMAP_2` §2.2–2.3, `ACTIVE_WORKQUEUE.md`, `TODO.md`, `docs/README.md`.
 
 ---

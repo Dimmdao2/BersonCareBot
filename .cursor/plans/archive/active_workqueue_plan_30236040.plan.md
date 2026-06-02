@@ -1,6 +1,6 @@
 ---
 name: Active workqueue plan
-overview: "Очередь: фазы 0–5 закрыты (2026-06-02); следующая — 6 (CMS/help)."
+overview: "Очередь: фазы 0–6 закрыты (2026-06-02); workqueue patient/doctor/CMS help завершён."
 todos:
   - id: phase-0-exercises-ui-hotfix
     content: "P0: починить ряд «Комментарии» + «Отметить выполнение» в PatientTreatmentProgramStagePageProgramSection (+ тесты)"
@@ -33,8 +33,8 @@ todos:
     content: "Cross-patient «К проверке» на Сегодня: count+list global, focusItemId, бейдж меню, summary API, аудит"
     status: completed
   - id: phase-6-cms-help
-    content: CMS enum типов контента + /help из статей
-    status: pending
+    content: "CMS help: CONTENT_PAGE_ROLES, раздел help (0103), /help UI, revalidate, редирект /content, canonical slug preparation/cost"
+    status: completed
   - id: phase-7-docs-queue
     content: Завести docs/ACTIVE_WORKQUEUE.md и синхронизировать TODO/LOG после фаз
     status: completed
@@ -148,15 +148,21 @@ Cross-patient «К проверке» на «Сегодня»; deep link `focusI
 
 ---
 
-## Фаза 6 — CMS enum + `/help`
+## Фаза 6 — CMS enum + `/help` — **закрыта** (2026-06-02)
 
-**DoD:** админка управляет статьями; `/help` не заглушка.
+**База:** [x] `CONTENT_PAGE_ROLES` (`help_article`, `thematic_article`, `system_cluster_page`) в `content-page-roles.ts`; раздел `help` — миграция `0103_help_content_section.sql`; CMS-сайдбар «Статьи справки» (`?section=help`); patient `/app/patient/help`, `/app/patient/help/[slug]` (`force-dynamic`); модуль `help-content/`.
+
+**Хвосты (аудит 2026-06-02):** [x] `revalidatePatientContentPaths` — save/lifecycle/auth CMS; [x] редирект `/app/patient/content/[slug]` → `/help/[slug]` для `section=help`; [x] canonical slug `preparation` / `cost` — `CabinetInfoLinks` (RSC, плитки только при опубликованных статьях); [x] подсказка slug в `ContentForm`; [x] vitest 34+ (`help-content`, `revalidatePatientContentPaths`, `cabinetInfoLinkTiles`).
+
+**Не в scope / отложено:** полный enum §3.3 (`situation`, `course_lesson` в DDL); монтирование `CabinetInfoLinks` на экран «Запись» (компонент готов, `cabinet/page` редиректит на booking); RTL страниц `/help`.
+
+**Доки:** [`LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 6, [`ACTIVE_WORKQUEUE.md`](docs/ACTIVE_WORKQUEUE.md), [`TODO.md`](docs/TODO.md), [`ROADMAP_2.md`](docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1.7/§3.3, [`DOCTOR_CMS_AND_RUNTIME.md`](docs/ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md).
 
 ---
 
-## Фаза 7 — Низкий приоритет
+## Фаза 7 — Низкий приоритет — **закрыта** (шаблон очереди)
 
-- [x] `docs/ACTIVE_WORKQUEUE.md`; синхронизация TODO/LOG после фаз 0–2C.
+- [x] `docs/ACTIVE_WORKQUEUE.md`; синхронизация TODO/LOG после фаз 0–6.
 
 ---
 
@@ -179,8 +185,8 @@ Cross-patient «К проверке» на «Сегодня»; deep link `focusI
 6. ~~**Фаза 3**~~ — закрыта (2026-06-02).
 7. ~~**Фаза 4**~~ — закрыта (2026-06-02).
 8. ~~**Фаза 5**~~ — закрыта (2026-06-02).
-9. **Фаза 6** — **следующая.**
-10. Фаза 7 по очереди.
+9. ~~**Фаза 6**~~ — закрыта (2026-06-02).
+10. ~~Фаза 7~~ — шаблон docs/очереди закрыт; дальнейшие хвосты — [`TODO.md`](docs/TODO.md) (diary, proactive inbox, D5).
 
 **CI:** полный `pnpm run ci` — перед push ([`.cursor/rules/pre-push-ci.mdc`](.cursor/rules/pre-push-ci.mdc)).
 

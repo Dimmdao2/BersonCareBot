@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
+import { HELP_CANONICAL_ARTICLE_SLUGS } from "@/modules/help-content/canonicalSlugs";
+import { HELP_SECTION_SLUG } from "@/modules/content-sections/types";
 import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { ruRatingCountLabel } from "@/shared/lib/ruRatingCountLabel";
@@ -88,6 +90,9 @@ export function ContentForm({
     Boolean(sectionSelectReadOnly) &&
     sections.length === 1 &&
     Boolean(defaultSectionSlugForSelect);
+
+  const isHelpSectionContext =
+    defaultSectionSlugForSelect === HELP_SECTION_SLUG || page?.section === HELP_SECTION_SLUG;
 
   return (
     <form
@@ -188,6 +193,11 @@ export function ContentForm({
             ))}
           </select>
         )}
+        {isHelpSectionContext ? (
+          <p className="text-xs text-muted-foreground">
+            Slug для кабинета: {HELP_CANONICAL_ARTICLE_SLUGS.map((s) => `"${s}"`).join(", ")}.
+          </p>
+        ) : null}
       </div>
 
       <label className="flex flex-col gap-1">

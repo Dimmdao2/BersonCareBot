@@ -49,6 +49,7 @@ export const routePaths = {
   patientMessages: "/app/patient/messages",
   /** Справка (не в основном меню; прямой URL). */
   patientHelp: "/app/patient/help",
+  patientHelpArticle: (slug: string) => `/app/patient/help/${encodeURIComponent(slug)}`,
   /** Форма обращения в поддержку (Telegram админу). */
   patientSupport: DEFAULT_PATIENT_SUPPORT_PATH,
   /** Установка PWA / приложения (не в основном меню; прямой URL). */

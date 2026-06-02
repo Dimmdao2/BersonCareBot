@@ -1,3 +1,10 @@
+/** Reserved article section for patient `/help` (created by migration `0103_help_content_section.sql`). */
+export const HELP_SECTION_SLUG = "help" as const;
+
+export function isHelpSectionSlug(slug: string): boolean {
+  return slug.trim() === HELP_SECTION_SLUG;
+}
+
 /** Values stored in `content_sections.kind`. */
 export const CONTENT_SECTION_KINDS = ["article", "system"] as const;
 export type ContentSectionKind = (typeof CONTENT_SECTION_KINDS)[number];
@@ -26,7 +33,7 @@ export const CMS_UNASSIGNED_SECTION_SLUG = "_cms_unassigned" as const;
 
 export function isSectionSlugProtectedFromDelete(slug: string): boolean {
   const s = slug.trim();
-  return isImmutableSystemSectionSlug(s) || s === CMS_UNASSIGNED_SECTION_SLUG;
+  return isImmutableSystemSectionSlug(s) || isHelpSectionSlug(s) || s === CMS_UNASSIGNED_SECTION_SLUG;
 }
 
 export function isSystemParentCode(value: string | null | undefined): value is SystemParentCode {
@@ -48,6 +55,7 @@ export function classifyExistingContentSectionSlug(slug: string): {
   if (s === "warmups") return { kind: "system", systemParentCode: "warmups" };
   if (s === "lessons" || s === "course_lessons") return { kind: "system", systemParentCode: "lessons" };
   if (s === "emergency" || s === "materials" || s === "workouts") return { kind: "system", systemParentCode: null };
+  if (s === HELP_SECTION_SLUG) return { kind: "article", systemParentCode: null };
   return { kind: "article", systemParentCode: null };
 }
 

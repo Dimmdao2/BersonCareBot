@@ -7,7 +7,13 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import type { ContentSectionRow } from "@/modules/content-sections/ports";
-import { CMS_UNASSIGNED_SECTION_SLUG, isSectionSlugProtectedFromDelete, isSystemParentCode, SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
+import {
+  CMS_UNASSIGNED_SECTION_SLUG,
+  isHelpSectionSlug,
+  isSectionSlugProtectedFromDelete,
+  isSystemParentCode,
+  SYSTEM_PARENT_CODES,
+} from "@/modules/content-sections/types";
 import { AttachExistingSectionsModal } from "./AttachExistingSectionsModal";
 import { ContentPagesSectionList, type ContentPageListRow } from "./ContentPagesSectionList";
 import { ContentPagesSidebar } from "./ContentPagesSidebar";
@@ -82,13 +88,15 @@ export default async function DoctorContentPage({ searchParams }: Props) {
       : null);
 
   const articleSections = sections.filter((s) => s.kind === "article").map((s) => ({ slug: s.slug, title: s.title }));
-  const articleSectionsForSidebar = articleSections.filter((s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG);
+  const articleSectionsForSidebar = articleSections.filter(
+    (s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG && !isHelpSectionSlug(s.slug),
+  );
   const unassignedRow = sections.find((s) => s.slug === CMS_UNASSIGNED_SECTION_SLUG);
   const freeSectionsSortedForAttach = [...articleSectionsForSidebar].sort((a, b) =>
     a.title.localeCompare(b.title, "ru"),
   );
 
-  const articlePages = pages.filter((p) => isArticlePage(p, sections));
+  const articlePages = pages.filter((p) => isArticlePage(p, sections) && !isHelpSectionSlug(p.section));
   const groupedArticle = groupBySection(articlePages);
   const unassignedPages = groupedArticle.get(CMS_UNASSIGNED_SECTION_SLUG);
   const unassignedSectionNav =
