@@ -19,13 +19,30 @@ type Props = {
     max?: string;
     appointment?: string;
     treatmentProgram?: string;
+    support?: string;
     visitedMonth?: string;
     selected?: string;
     scope?: string;
   }>;
 };
 
+function resolveSupportStatus(
+  support: string | undefined,
+): "on" | "programWithoutSupport" | undefined {
+  if (support === "on") return "on";
+  if (support === "programWithoutSupport") return "programWithoutSupport";
+  return undefined;
+}
+
 const BASE = "/app/doctor/clients";
+
+function buildClientsListBasePath(scope: ClientsScope, supportRaw?: string): string {
+  const params = new URLSearchParams();
+  params.set("scope", scope === "archived" ? "archived" : scope === "all" ? "all" : "appointments");
+  const support = scope === "all" ? resolveSupportStatus(supportRaw) : undefined;
+  if (support) params.set("support", support);
+  return `${BASE}?${params.toString()}`;
+}
 
 export default async function DoctorClientsPage({ searchParams }: Props) {
   const session = await requireDoctorAccess();
@@ -39,12 +56,13 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
       scope === "all" ? `${BASE}?scope=all` : scope === "archived" ? `${BASE}?scope=archived` : BASE,
     );
   }
+  const supportStatus = scope === "all" ? resolveSupportStatus(params.support) : undefined;
   const [allClients, selectedData] = await Promise.all([
     deps.doctorClients.listClients(
       scope === "archived"
         ? { archivedOnly: true }
         : scope === "all"
-          ? {}
+          ? supportStatus ? { supportStatus } : {}
           : {
               onlyWithAppointmentRecords: true,
               visitedThisCalendarMonth: params.visitedMonth === "1",
@@ -80,12 +98,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
   const selectedPublishedTreatmentTemplates =
     selectedData?.publishedTreatmentTemplates?.map((t) => ({ id: t.id, title: t.title })) ?? [];
   const selectedPendingProgramTests = selectedData?.pendingProgramTests ?? [];
-  const listBasePathWithScope =
-    scope === "all"
-      ? `${BASE}?scope=all`
-      : scope === "archived"
-        ? `${BASE}?scope=archived`
-        : `${BASE}?scope=appointments`;
+  const listBasePathWithScope = buildClientsListBasePath(scope, params.support);
 
   return (
     <AppShell title="Клиенты" user={session.user} variant="doctor">

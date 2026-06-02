@@ -9,7 +9,12 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 
-const DOCTOR_SCOPE_KEYS = ["patient_label", "sms_fallback_enabled"] as const;
+const DOCTOR_SCOPE_KEYS = [
+  "patient_label",
+  "sms_fallback_enabled",
+  "doctor_patient_support_comments_without_support_default_enabled",
+  "doctor_patient_support_media_without_support_default_enabled",
+] as const;
 
 const patchSchema = z.object({
   key: z.enum(DOCTOR_SCOPE_KEYS),

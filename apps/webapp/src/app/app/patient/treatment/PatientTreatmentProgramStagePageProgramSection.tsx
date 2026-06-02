@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, Info, MessageCircle, NotebookText } from "lucide-react";
+import { AlertTriangle, Info, NotebookText } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
@@ -205,10 +205,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   className?: string;
   itemLinksPlanTab?: PatientPlanTab | null;
   planItemDoneRepeatCooldownMinutes: number;
-  /** Комментарии к пунктам — только для программ на сопровождении врача. */
-  allowPatientObservationComment: boolean;
-  /** Rollout-гейт загрузки медиа в обсуждение (требует UI-флаг). */
-  mediaSubmissionEnabled?: boolean;
+  /** Комментарии к пунктам: видимость и доступность (support policy). */
+  programCommentsInteraction: { visible: boolean; enabled: boolean };
+  /** Медиа в диалоге обсуждения (не на плитке). */
+  programMediaInteraction?: { visible: boolean; enabled: boolean };
 }) {
   const {
     instanceId,
@@ -228,8 +228,8 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     className,
     itemLinksPlanTab = null,
     planItemDoneRepeatCooldownMinutes,
-    allowPatientObservationComment,
-    mediaSubmissionEnabled = false,
+    programCommentsInteraction,
+    programMediaInteraction = { visible: false, enabled: false },
   } = props;
   const planItemDoneRepeatCooldownMs = useMemo(
     () => planItemDoneRepeatCooldownMsFromMinutes(planItemDoneRepeatCooldownMinutes),
@@ -255,7 +255,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   );
 
   const loadDiscussionSummary = useCallback(async () => {
-    if (!allowPatientObservationComment) {
+    if (!programCommentsInteraction.visible) {
       setDiscussionSummaryByItemId({});
       return;
     }
@@ -296,7 +296,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     } catch {
       // summary prefetch is best-effort; tile stays usable without counters.
     }
-  }, [allowPatientObservationComment, instanceId, visibleProgramItems]);
+  }, [programCommentsInteraction.visible, instanceId, visibleProgramItems]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -448,21 +448,25 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           </div>
 
           {!readOnlyTile ? (
-            <div className="mt-1.5 flex w-full min-w-0 gap-2 border-t border-[var(--patient-border)] pt-2">
-              {allowPatientObservationComment ? (
+            <div className="mt-1.5 flex w-full min-w-0 flex-nowrap items-stretch gap-2 border-t border-[var(--patient-border)] pt-2">
+              {programCommentsInteraction.visible ? (
                 <button
                   type="button"
                   className={cn(
                     patientSecondaryActionClass,
-                    "inline-flex min-h-9 min-w-[7.5rem] shrink-0 cursor-pointer items-center justify-center gap-1.5 px-2.5 py-2.5 text-xs font-medium leading-tight",
+                    "inline-flex min-h-9 max-w-[9.5rem] shrink-0 items-center justify-center gap-1 px-2 py-2.5 text-xs font-medium leading-tight whitespace-nowrap",
+                    programCommentsInteraction.enabled
+                      ? "cursor-pointer"
+                      : "cursor-not-allowed opacity-60",
                   )}
-                  disabled={busy !== null}
+                  disabled={busy !== null || !programCommentsInteraction.enabled}
+                  aria-disabled={!programCommentsInteraction.enabled}
                   onClick={() => {
+                    if (!programCommentsInteraction.enabled) return;
                     setError(null);
                     setDiscussionDialogItemId(item.id);
                   }}
                 >
-                  <MessageCircle className="size-3.5 shrink-0" aria-hidden />
                   <span className="leading-tight">Комментарии</span>
                   {discussionCount > 0 ? (
                     <span className="rounded-md border border-[#60a5fa]/70 bg-[#eff6ff] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[#1d4ed8]">
@@ -481,7 +485,6 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                   lastDoneAtIso={lastDoneAtIsoByItemId[item.id]}
                   busy={busy}
                   planItemDoneRepeatCooldownMs={planItemDoneRepeatCooldownMs}
-                  containerClassName={allowPatientObservationComment ? "flex-[1.45]" : undefined}
                   onOpenComplete={setCompleteDialogItemId}
                 />
               ) : null}
@@ -533,7 +536,9 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           instanceId={instanceId}
           itemId={discussionDialogItemId}
           open
-          mediaSubmissionEnabled={mediaSubmissionEnabled}
+          mediaSubmissionEnabled={
+            programMediaInteraction.visible && programMediaInteraction.enabled
+          }
           onOpenChange={(open) => {
             if (!open) {
               setDiscussionDialogItemId(null);

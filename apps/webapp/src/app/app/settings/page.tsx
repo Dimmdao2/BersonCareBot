@@ -47,11 +47,26 @@ export default async function SettingsPage({
     doctorSettings.find((x) => x.key === "sms_fallback_enabled")?.valueJson,
     true,
   );
+  const supportCommentsWithoutSupportDefault = getValueJson(
+    doctorSettings.find(
+      (x) => x.key === "doctor_patient_support_comments_without_support_default_enabled",
+    )?.valueJson,
+    false,
+  );
+  const supportMediaWithoutSupportDefault = getValueJson(
+    doctorSettings.find((x) => x.key === "doctor_patient_support_media_without_support_default_enabled")?.valueJson,
+    false,
+  );
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
       <h1 className="mb-6 text-xl font-semibold">Настройки специалиста</h1>
-      <SettingsForm patientLabel={String(patientLabel)} smsFallbackEnabled={Boolean(smsFallbackEnabled)} />
+      <SettingsForm
+        patientLabel={String(patientLabel)}
+        smsFallbackEnabled={Boolean(smsFallbackEnabled)}
+        supportCommentsWithoutSupportDefault={Boolean(supportCommentsWithoutSupportDefault)}
+        supportMediaWithoutSupportDefault={Boolean(supportMediaWithoutSupportDefault)}
+      />
     </div>
   );
 }

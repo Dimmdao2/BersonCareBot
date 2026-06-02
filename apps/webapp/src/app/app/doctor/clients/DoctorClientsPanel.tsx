@@ -20,6 +20,8 @@ type UrlParams = {
   appointment?: string;
   /** Сопровождение по программе лечения (плитка дашборда «На сопровождении»). */
   treatmentProgram?: string;
+  /** `on` | `programWithoutSupport` — серверный фильтр (scope=all). */
+  support?: string;
   visitedMonth?: string;
   selected?: string;
   scope?: string;
@@ -73,8 +75,16 @@ function appendListQueryParams(params: URLSearchParams, urlParams: UrlParams): v
   if (urlParams.max === "1") params.set("max", "1");
   if (urlParams.appointment === "1") params.set("appointment", "1");
   if (urlParams.treatmentProgram === "1") params.set("treatmentProgram", "1");
+  if (urlParams.support === "on" || urlParams.support === "programWithoutSupport") {
+    params.set("support", urlParams.support);
+  }
   if (scope === "appointments" && urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
 }
+
+const SUPPORT_FILTER_LABELS: Record<"on" | "programWithoutSupport", string> = {
+  on: "На сопровождении",
+  programWithoutSupport: "Программа без сопровождения",
+};
 
 export function DoctorClientsPanel({
   allClients,
@@ -87,6 +97,11 @@ export function DoctorClientsPanel({
   const scope: ClientsScope =
     urlParams.scope === "all" ? "all" : urlParams.scope === "archived" ? "archived" : "appointments";
   const showVisitedMonthFilter = scope === "appointments";
+  const activeSupportFilter =
+    scope === "all" &&
+    (urlParams.support === "on" || urlParams.support === "programWithoutSupport")
+      ? urlParams.support
+      : null;
 
   const filtered = useMemo(() => {
     const q = search.trim();
@@ -123,12 +138,13 @@ export function DoctorClientsPanel({
       if (next.max) params.set("max", "1");
       if (next.appointment) params.set("appointment", "1");
       if (next.treatmentProgram) params.set("treatmentProgram", "1");
+      if (activeSupportFilter) params.set("support", activeSupportFilter);
       if (scope === "appointments" && next.visitedMonth) params.set("visitedMonth", "1");
       if (urlParams.selected) params.set("selected", urlParams.selected);
       const query = params.toString();
       router.replace(`${basePath}${query ? `?${query}` : ""}`);
     },
-    [router, scope, urlParams.selected, basePath],
+    [activeSupportFilter, router, scope, urlParams.selected, basePath],
   );
 
   const onScopeChange = useCallback(
@@ -140,6 +156,12 @@ export function DoctorClientsPanel({
       if (urlParams.max === "1") params.set("max", "1");
       if (urlParams.appointment === "1") params.set("appointment", "1");
       if (urlParams.treatmentProgram === "1") params.set("treatmentProgram", "1");
+      if (
+        nextScope === "all" &&
+        (urlParams.support === "on" || urlParams.support === "programWithoutSupport")
+      ) {
+        params.set("support", urlParams.support);
+      }
       if (nextScope === "appointments" && urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
       if (urlParams.selected) params.set("selected", urlParams.selected);
       router.replace(`${basePath}?${params.toString()}`);
@@ -149,6 +171,7 @@ export function DoctorClientsPanel({
       router,
       scope,
       urlParams.appointment,
+      urlParams.support,
       urlParams.treatmentProgram,
       urlParams.max,
       urlParams.selected,
@@ -217,6 +240,12 @@ export function DoctorClientsPanel({
           <p className="text-muted-foreground text-xs">Введите еще {3 - search.trim().length} симв.</p>
         ) : null}
       </form>
+
+      {activeSupportFilter ? (
+        <p className="text-sm text-muted-foreground">
+          Фильтр: {SUPPORT_FILTER_LABELS[activeSupportFilter]}
+        </p>
+      ) : null}
 
       <ClientsFilters
         defaults={{

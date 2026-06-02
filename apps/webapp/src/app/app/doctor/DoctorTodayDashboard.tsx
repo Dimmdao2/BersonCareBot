@@ -3,7 +3,11 @@ import type { AdminRegistrationFailureAttention } from "@/app-layer/product-anal
 import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
-import { ON_SUPPORT_LIST_HREF, type TodayDashboardData } from "./loadDoctorTodayDashboard";
+import {
+  ON_SUPPORT_LIST_HREF,
+  PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
+  type TodayDashboardData,
+} from "./loadDoctorTodayDashboard";
 
 type Props = {
   data: TodayDashboardData;
@@ -138,9 +142,17 @@ export function DoctorTodayDashboard({
         {data.onSupportCount === 0 ? (
           <div className="flex flex-col gap-2 text-sm text-muted-foreground">
             <p>Клиентов на сопровождении нет</p>
-            <Link href={ON_SUPPORT_LIST_HREF} className="text-primary underline underline-offset-2 w-fit">
-              Список клиентов
-            </Link>
+            <div className="flex flex-col gap-1">
+              <Link href={ON_SUPPORT_LIST_HREF} className="text-primary underline underline-offset-2 w-fit">
+                Список клиентов
+              </Link>
+              <Link
+                href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
+                className="text-primary underline underline-offset-2 w-fit text-xs"
+              >
+                Программа без сопровождения
+              </Link>
+            </div>
           </div>
         ) : (
           <>
@@ -153,8 +165,8 @@ export function DoctorTodayDashboard({
                 </li>
               ))}
             </ul>
-            {data.onSupportListTruncated ? (
-              <p>
+            <p className="flex flex-col gap-1">
+              {data.onSupportListTruncated ? (
                 <Link
                   href={ON_SUPPORT_LIST_HREF}
                   className="text-sm text-primary underline underline-offset-2"
@@ -162,8 +174,14 @@ export function DoctorTodayDashboard({
                 >
                   Все на сопровождении
                 </Link>
-              </p>
-            ) : null}
+              ) : null}
+              <Link
+                href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
+                className="text-xs text-primary underline underline-offset-2 w-fit"
+              >
+                Программа без сопровождения
+              </Link>
+            </p>
           </>
         )}
       </section>

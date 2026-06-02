@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { assertPatientProgramCommentsAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
 
 function parseFeatureEnabled(valueJson: unknown): boolean {
   return (
@@ -40,6 +41,11 @@ export async function POST(
   const hasItem = detail.stages.some((stage) => stage.items.some((item) => item.id === itemId));
   if (!hasItem) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  const supportGate = await assertPatientProgramCommentsAllowed(deps, gate.session.user.userId);
+  if (!supportGate.ok) {
+    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }
 
   await deps.programItemDiscussion.markRead({

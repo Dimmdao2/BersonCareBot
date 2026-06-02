@@ -7,7 +7,7 @@ import type {
 import type { OnlineIntakeService } from "@/modules/online-intake/ports";
 import type { IntakeRequestWithPatientIdentity, IntakeType } from "@/modules/online-intake/types";
 
-/** Сколько карточек клиентов показывать на «Сегодня»; полный список — `/app/doctor/clients?scope=all&treatmentProgram=1`. */
+/** Сколько карточек клиентов показывать на «Сегодня»; полный список — `/app/doctor/clients?scope=all&support=on`. */
 export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
 
 /** Minimal conversation row shape for «Сегодня» (matches doctorSupport.listOpenConversations output). */
@@ -88,7 +88,7 @@ export type TodayDashboardData = {
   unreadConversations: TodayUnreadConversationItem[];
   unreadTotal: number;
   upcomingAppointments: TodayAppointmentItem[];
-  /** Семантика: активная назначенная программа лечения (`hasActiveTreatmentProgram`). */
+  /** Семантика: `doctor_patient_support.on_support = true`. */
   onSupportCount: number;
   onSupportClients: TodayOnSupportClientItem[];
   onSupportListTruncated: boolean;
@@ -101,7 +101,10 @@ const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
 
 const MESSAGES_HREF = "/app/doctor/messages";
 
-export const ON_SUPPORT_LIST_HREF = "/app/doctor/clients?scope=all&treatmentProgram=1";
+export const ON_SUPPORT_LIST_HREF = "/app/doctor/clients?scope=all&support=on";
+
+export const PROGRAM_WITHOUT_SUPPORT_LIST_HREF =
+  "/app/doctor/clients?scope=all&support=programWithoutSupport";
 
 const TEXT_PREVIEW_MAX = 160;
 
@@ -217,7 +220,7 @@ export async function loadDoctorTodayDashboard(
     deps.messaging.doctorSupport.listOpenConversations({ unreadOnly: true, limit: 3 }),
     deps.messaging.doctorSupport.unreadFromUsers(),
     deps.doctorClients.getDashboardPatientMetrics(),
-    deps.doctorClients.listClients({ hasActiveTreatmentProgram: true }),
+    deps.doctorClients.listClients({ supportStatus: "on" }),
   ]);
 
   const onSupportSorted = [...onSupportListRaw].sort((a, b) =>

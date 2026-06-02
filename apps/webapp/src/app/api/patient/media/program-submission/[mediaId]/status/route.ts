@@ -7,6 +7,7 @@ import {
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { assertPatientProgramMediaAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
 import { isPatientProgramDiscussionMediaFlowEnabled } from "@/modules/program-item-discussion/discussionFeatureGates";
 
 export type ProgramSubmissionMediaStatusState = "ready" | "processing" | "failed" | "pending";
@@ -36,6 +37,10 @@ export async function GET(
   const deps = buildAppDeps();
   if (!(await isPatientProgramDiscussionMediaFlowEnabled(deps))) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
+  }
+  const supportGate = await assertPatientProgramMediaAllowed(deps, gate.session.user.userId);
+  if (!supportGate.ok) {
+    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }
 
   const { mediaId } = await context.params;

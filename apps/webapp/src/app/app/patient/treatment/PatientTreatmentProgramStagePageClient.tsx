@@ -167,8 +167,8 @@ export function PatientTreatmentProgramStagePageClient(props: {
   /** Пауза перед повторным «Выполнено» у простых пунктов (мин), из `system_settings`. */
   planItemDoneRepeatCooldownMinutes: number;
   assignmentSource: TreatmentProgramInstanceDetail["assignmentSource"];
-  patientProgramDiscussionUiEnabled: boolean;
-  patientProgramDiscussionMediaSubmissionEnabled: boolean;
+  programCommentsInteraction: { visible: boolean; enabled: boolean };
+  programMediaInteraction: { visible: boolean; enabled: boolean };
 }) {
   const {
     instanceId,
@@ -182,8 +182,8 @@ export function PatientTreatmentProgramStagePageClient(props: {
     patientCalendarDayIana,
     planItemDoneRepeatCooldownMinutes,
     assignmentSource,
-    patientProgramDiscussionUiEnabled,
-    patientProgramDiscussionMediaSubmissionEnabled,
+    programCommentsInteraction,
+    programMediaInteraction,
   } = props;
   const [detachedStage, setDetachedStage] = useState<Stage>(props.stage);
   const stageForUi = embedded ? props.stage : detachedStage;
@@ -540,12 +540,8 @@ export function PatientTreatmentProgramStagePageClient(props: {
         appDisplayTimeZone={appDisplayTimeZone}
         itemLinksPlanTab={itemLinksPlanTab ?? null}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
-        allowPatientObservationComment={assignmentSource === "doctor" && patientProgramDiscussionUiEnabled}
-        mediaSubmissionEnabled={
-          assignmentSource === "doctor" &&
-          patientProgramDiscussionUiEnabled &&
-          patientProgramDiscussionMediaSubmissionEnabled
-        }
+        programCommentsInteraction={programCommentsInteraction}
+        programMediaInteraction={programMediaInteraction}
       />
     </div>
   );

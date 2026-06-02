@@ -23,8 +23,8 @@ const detailShellProps = {
   appDisplayTimeZone: "Europe/Moscow",
   patientCalendarDayIana: "Europe/Moscow",
   planItemDoneRepeatCooldownMinutes: 60,
-  patientProgramDiscussionUiEnabled: true,
-  patientProgramDiscussionMediaSubmissionEnabled: false,
+  programCommentsInteraction: { visible: true, enabled: true },
+  programMediaInteraction: { visible: false, enabled: false },
 };
 
 function clickPatientTreatmentTab(which: "program" | "recommendations" | "progress") {
@@ -1170,7 +1170,8 @@ describe("PatientTreatmentProgramDetailClient", () => {
         })}
         initialTestResults={[]}
         {...detailShellProps}
-        patientProgramDiscussionUiEnabled={false}
+        programCommentsInteraction={{ visible: false, enabled: false }}
+        programMediaInteraction={{ visible: false, enabled: false }}
       />,
     );
 
@@ -1251,6 +1252,8 @@ describe("PatientTreatmentProgramDetailClient", () => {
           })}
           initialTestResults={[]}
           {...detailShellProps}
+          programCommentsInteraction={{ visible: false, enabled: false }}
+          programMediaInteraction={{ visible: false, enabled: false }}
         />,
       );
 

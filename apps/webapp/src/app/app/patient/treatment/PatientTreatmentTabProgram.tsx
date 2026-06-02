@@ -24,8 +24,8 @@ export function PatientTreatmentTabProgram(props: {
   itemLinksPlanTab?: PatientPlanTab | null;
   planItemDoneRepeatCooldownMinutes: number;
   assignmentSource: TreatmentProgramInstanceDetail["assignmentSource"];
-  patientProgramDiscussionUiEnabled: boolean;
-  patientProgramDiscussionMediaSubmissionEnabled: boolean;
+  programCommentsInteraction: { visible: boolean; enabled: boolean };
+  programMediaInteraction: { visible: boolean; enabled: boolean };
 }) {
   const {
     instanceId,
@@ -39,8 +39,8 @@ export function PatientTreatmentTabProgram(props: {
     itemLinksPlanTab = "program",
     planItemDoneRepeatCooldownMinutes,
     assignmentSource,
-    patientProgramDiscussionUiEnabled,
-    patientProgramDiscussionMediaSubmissionEnabled,
+    programCommentsInteraction,
+    programMediaInteraction,
   } = props;
 
   if (!currentWorkingStage) {
@@ -65,8 +65,8 @@ export function PatientTreatmentTabProgram(props: {
       itemLinksPlanTab={itemLinksPlanTab ?? null}
       planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
       assignmentSource={assignmentSource}
-      patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
-      patientProgramDiscussionMediaSubmissionEnabled={patientProgramDiscussionMediaSubmissionEnabled}
+      programCommentsInteraction={programCommentsInteraction}
+      programMediaInteraction={programMediaInteraction}
     />
   );
 }

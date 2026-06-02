@@ -32,10 +32,10 @@
 | Плитка | Метрика | Определение |
 |--------|---------|-------------|
 | Всего в базе | `totalClients` | `platform_users` с `role = 'client'`, не архивные. |
-| На сопровождении | `onSupportCount` | Уникальные клиенты с хотя бы одной **активной** записью в `treatment_program_instances` (`status = 'active'`). |
+| На сопровождении | `onSupportCount` | Уникальные клиенты с `doctor_patient_support.on_support = true`. |
 | Были на приёме (месяц) | `visitedThisCalendarMonthCount` | Уникальные клиенты с прошедшим слотом `created`/`updated`: `record_at` в текущем календарном месяце **и** `record_at < NOW()`. |
 
-**Список по клику:** подписчики (`/app/doctor/subscribers`), сопровождение — `?treatmentProgram=1`; «Были на приёме» — клиенты с записями `?visitedMonth=1` (`listClients({ visitedThisCalendarMonth: true, onlyWithAppointmentRecords: true })`).
+**Список по клику:** подписчики (`/app/doctor/subscribers`), сопровождение — `?scope=all&support=on`; «программа без сопровождения» — `?scope=all&support=programWithoutSupport`; legacy «есть активная doctor-программа» — `?treatmentProgram=1`; «Были на приёме» — клиенты с записями `?visitedMonth=1` (`listClients({ visitedThisCalendarMonth: true, onlyWithAppointmentRecords: true })`).
 
 ---
 

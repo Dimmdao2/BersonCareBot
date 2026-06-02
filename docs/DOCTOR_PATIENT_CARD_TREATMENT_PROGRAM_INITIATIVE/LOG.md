@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-06-02 — Синхронизация планов и docs (фазы 0–1 закрыты)
+
+- Cursor: `active_workqueue_plan_30236040` — `phase-0` / `phase-1` / `phase-7` todos `completed`.
+- Cursor: `phase1_support_model_7c745931` — все todos `completed`, DoD [x].
+- Репозиторий: [`docs/ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md), [`docs/TODO.md`](../TODO.md) §Doctor card (P0 + support).
+
+---
+
+## 2026-06-02 — Фаза 1: доработки по аудиту
+
+- Route-тесты patient discussion/media: мок `doctorClients.getPatientProgramInteractionPolicy`; кейсы `403` comments/media.
+- UX: `support` только при `scope=all`; `listBasePath` сохраняет `support`; ссылка «Программа без сопровождения» на «Сегодня» при ненулевом списке.
+- `inMemoryDoctorClients`: фильтры `supportStatus`; RTL disabled на плитке программы; `PROMO_ASSIGNMENT_SOURCE.md`, `api.md`.
+
+---
+
+## 2026-06-02 — Фаза 1: модель «На сопровождении»
+
+- Таблица `doctor_patient_support` + backfill `on_support=true` для активных doctor-программ (миграция `0101_doctor_patient_support.sql`).
+- Метрика `onSupportCount` и «Сегодня» — по флагу сопровождения; списки `?support=on` и `?support=programWithoutSupport`.
+- Врач: PATCH/GET `support-settings`, панель в `ClientProfileCard`, doctor-scope defaults в `/app/settings`.
+- Пациент: effective policy на UI (visible/disabled) и API (`403` `patient_support_*_disabled`).
+- Док: `DOCTOR_DASHBOARD_METRICS.md`, `docs/TODO.md` (первые два пункта §Doctor card).
+- Проверки: targeted vitest (support policy, routes, patient UI), `pnpm --dir apps/webapp typecheck`.
+
+---
+
 ## 2026-06-01 — Закрытие MASTER_PLAN; продуктовые решения; backlog в TODO
 
 - **Ручной smoke** назначения программы — ✅ подтверждён owner (используется на prod).

@@ -1,16 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { gateMock, buildAppDepsMock, getSettingMock, getInstanceForPatientMock, markReadMock } = vi.hoisted(() => {
+const {
+  gateMock,
+  buildAppDepsMock,
+  getSettingMock,
+  getInstanceForPatientMock,
+  markReadMock,
+  getPatientProgramInteractionPolicyMock,
+} = vi.hoisted(() => {
   const getSettingMockInner = vi.fn();
   const getInstanceForPatientMockInner = vi.fn();
   const markReadMockInner = vi.fn();
+  const getPatientProgramInteractionPolicyMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
     getSettingMock: getSettingMockInner,
     getInstanceForPatientMock: getInstanceForPatientMockInner,
     markReadMock: markReadMockInner,
+    getPatientProgramInteractionPolicyMock: getPatientProgramInteractionPolicyMockInner,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: { getSetting: getSettingMockInner },
+      doctorClients: {
+        getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMockInner,
+      },
       treatmentProgramInstance: { getInstanceForPatient: getInstanceForPatientMockInner },
       programItemDiscussion: { markRead: markReadMockInner },
     })),
@@ -36,6 +48,7 @@ describe("POST discussion/read", () => {
     getSettingMock.mockReset();
     getInstanceForPatientMock.mockReset();
     markReadMock.mockReset();
+    getPatientProgramInteractionPolicyMock.mockReset();
 
     gateMock.mockResolvedValue({
       ok: true as const,
@@ -49,6 +62,11 @@ describe("POST discussion/read", () => {
       },
     });
     getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      onSupport: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
       assignmentSource: "doctor",

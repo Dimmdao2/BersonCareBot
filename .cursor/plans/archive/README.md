@@ -17,6 +17,8 @@
 
 Все файлы `*.plan.md` здесь имеют в frontmatter **`status: completed`** (и/или все `todos: completed`). Ссылки из документации обновляйте на путь **`.cursor/plans/archive/<имя-файла>`**.
 
+- **`phase1_support_model_7c745931.plan.md`** — фаза 1: `doctor_patient_support`, гейты comment/media, «Сегодня» / фильтры клиентов; LOG [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](../../docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md); очередь [`docs/ACTIVE_WORKQUEUE.md`](../../docs/ACTIVE_WORKQUEUE.md).
+- **`active_workqueue_plan_30236040.plan.md`** — мастер-очередь: фазы 0–1 закрыты (2026-06-02); фазы 2–7 открыты; зеркало [`docs/ACTIVE_WORKQUEUE.md`](../../docs/ACTIVE_WORKQUEUE.md).
 - **`max_tg_pre-prod_automation.plan.md`** — MAX webhook / игнорируемые `update_type` в `fromMax`, Telegram `reminders.skip.applyPreset` + `postOccurrenceSkip`, CI; журнал: [`docs/ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md`](../../docs/ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md).
 - **`telegram_menu_reply_admin.plan.md`** — Telegram: админское меню slash-команд (`setupMenuButton`), reply/inline главное меню (две кнопки), неотвеченные + «пометить все»; см. [`docs/ARCHITECTURE/SCENARIO_LOGIC_SUMMARY.md`](../../docs/ARCHITECTURE/SCENARIO_LOGIC_SUMMARY.md) и [`docs/ARCHITECTURE/CONTENT_AND_SCRIPTS_FLOW.md`](../../docs/ARCHITECTURE/CONTENT_AND_SCRIPTS_FLOW.md).
 - **`admin_incident_alerts.plan.md`** — relay TG/Max для инцидентов идентичности (`admin_incident_alert_config`); см. [`docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](../../docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md), [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_D_EVENT_HOOKS.md`](../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_D_EVENT_HOOKS.md).

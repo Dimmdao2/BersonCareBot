@@ -37,9 +37,13 @@ vi.mock("@/app-layer/locks/userLifecycleLock", () => ({
 }));
 
 const getSettingMock = vi.fn();
+const getPatientProgramInteractionPolicyMock = vi.fn();
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     systemSettings: { getSetting: getSettingMock },
+    doctorClients: {
+      getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMock,
+    },
   }),
 }));
 
@@ -57,8 +61,14 @@ describe("POST /api/patient/media/program-submission/presign", () => {
     presignMock.mockReset();
     lockMock.mockReset();
     getSettingMock.mockReset();
+    getPatientProgramInteractionPolicyMock.mockReset();
     gateMock.mockReset();
     getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      onSupport: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
     gateMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: "00000000-0000-4000-8000-000000000001", role: "patient" } },

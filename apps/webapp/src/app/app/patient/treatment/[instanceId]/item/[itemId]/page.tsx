@@ -23,6 +23,7 @@ import { PatientProgramStageItemPageClient } from "@/app/app/patient/treatment/P
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import { testTitleFromTestSetSnapshot } from "@/app/app/patient/treatment/stageItemSnapshot";
 import { parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
+import { loadPatientProgramInteractionBundle } from "@/app/app/patient/treatment/loadPatientProgramInteractionBundle";
 
 type Props = {
   params: Promise<{ instanceId: string; itemId: string }>;
@@ -33,14 +34,6 @@ function firstSearchParam(raw: string | string[] | undefined): string {
   if (typeof raw === "string") return raw;
   if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === "string") return raw[0];
   return "";
-}
-
-function parseDiscussionUiEnabled(valueJson: unknown): boolean {
-  return (
-    valueJson !== null &&
-    typeof valueJson === "object" &&
-    (valueJson as Record<string, unknown>).value === true
-  );
 }
 
 export default async function PatientTreatmentProgramItemPage({ params, searchParams }: Props) {
@@ -72,22 +65,25 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const appDisplayTimeZone = await getAppDisplayTimeZone();
   let detail;
   let planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(null);
-  let patientProgramDiscussionUiEnabled = false;
-  let patientProgramDiscussionMediaSubmissionEnabled = false;
+  let programCommentsInteraction = { visible: false, enabled: false };
+  let programMediaInteraction = { visible: false, enabled: false };
   try {
-    const [rawDetail, planItemCooldownSetting, discussionUiEnabledSetting, mediaSubmissionSetting] = await Promise.all([
+    const [rawDetail, planItemCooldownSetting] = await Promise.all([
       deps.treatmentProgramInstance.getInstanceForPatient(session.user.userId, instanceId),
       deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
-      deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin"),
-      deps.systemSettings.getSetting("patient_program_discussion_media_submission_enabled", "admin"),
     ]);
     if (!rawDetail) notFound();
     detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
     planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(
       planItemCooldownSetting?.valueJson ?? null,
     );
-    patientProgramDiscussionUiEnabled = parseDiscussionUiEnabled(discussionUiEnabledSetting?.valueJson ?? null);
-    patientProgramDiscussionMediaSubmissionEnabled = parseDiscussionUiEnabled(mediaSubmissionSetting?.valueJson ?? null);
+    const interaction = await loadPatientProgramInteractionBundle(
+      deps,
+      session.user.userId,
+      detail.assignmentSource,
+    );
+    programCommentsInteraction = interaction.comments;
+    programMediaInteraction = interaction.media;
   } catch {
     notFound();
   }
@@ -162,8 +158,8 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
         itemLinksPlanTab={itemLinksPlanTab}
         resolvedTestId={resolvedTestIdForResolve}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
-        patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
-        patientProgramDiscussionMediaSubmissionEnabled={patientProgramDiscussionMediaSubmissionEnabled}
+        programCommentsInteraction={programCommentsInteraction}
+        programMediaInteraction={programMediaInteraction}
       />
     </AppShell>
   );

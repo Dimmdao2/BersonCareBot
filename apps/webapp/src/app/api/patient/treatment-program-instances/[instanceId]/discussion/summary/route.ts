@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { exerciseTitleFromSnapshot } from "@/modules/messaging/programNoteReplyContext";
+import { assertPatientProgramCommentsAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
 import { getDiscussionSummaryForItem } from "@/modules/program-item-discussion/listDiscussionPage";
 
 function parseFeatureEnabled(valueJson: unknown): boolean {
@@ -48,6 +49,11 @@ export async function GET(
   }
   if (detail.assignmentSource !== "doctor") {
     return NextResponse.json({ ok: false, error: "program_not_doctor_assigned" }, { status: 400 });
+  }
+
+  const supportGate = await assertPatientProgramCommentsAllowed(deps, gate.session.user.userId);
+  if (!supportGate.ok) {
+    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }
 
   const allItems = detail.stages.flatMap((stage) => stage.items);

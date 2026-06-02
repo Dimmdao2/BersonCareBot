@@ -6,6 +6,7 @@ const getStatusRowMock = vi.fn();
 const isReadyMock = vi.fn();
 const gateMock = vi.fn();
 const getSettingMock = vi.fn();
+const getPatientProgramInteractionPolicyMock = vi.fn();
 
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getProgramSubmissionMediaStatusRow: (...a: unknown[]) => getStatusRowMock(...a),
@@ -15,6 +16,9 @@ vi.mock("@/app-layer/media/s3MediaStorage", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     systemSettings: { getSetting: getSettingMock },
+    doctorClients: {
+      getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMock,
+    },
   }),
 }));
 
@@ -33,7 +37,13 @@ describe("GET /api/patient/media/program-submission/[mediaId]/status", () => {
     isReadyMock.mockReset();
     gateMock.mockReset();
     getSettingMock.mockReset();
+    getPatientProgramInteractionPolicyMock.mockReset();
     getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      onSupport: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
     gateMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: patientId, role: "patient" } },

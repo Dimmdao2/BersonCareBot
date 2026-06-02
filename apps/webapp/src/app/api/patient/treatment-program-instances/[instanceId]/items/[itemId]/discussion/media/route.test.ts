@@ -8,12 +8,14 @@ const {
   listMessagesForStageItemMock,
   appendDiscussionMediaMock,
   getMediaRowMock,
+  getPatientProgramInteractionPolicyMock,
 } = vi.hoisted(() => {
   const getSettingMockInner = vi.fn();
   const getInstanceForPatientMockInner = vi.fn();
   const listMessagesForStageItemMockInner = vi.fn();
   const appendDiscussionMediaMockInner = vi.fn();
   const getMediaRowMockInner = vi.fn();
+  const getPatientProgramInteractionPolicyMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
     getSettingMock: getSettingMockInner,
@@ -21,8 +23,12 @@ const {
     listMessagesForStageItemMock: listMessagesForStageItemMockInner,
     appendDiscussionMediaMock: appendDiscussionMediaMockInner,
     getMediaRowMock: getMediaRowMockInner,
+    getPatientProgramInteractionPolicyMock: getPatientProgramInteractionPolicyMockInner,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: { getSetting: getSettingMockInner },
+      doctorClients: {
+        getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMockInner,
+      },
       treatmentProgramInstance: { getInstanceForPatient: getInstanceForPatientMockInner },
       programItemDiscussion: {
         listMessagesForStageItem: listMessagesForStageItemMockInner,
@@ -74,9 +80,15 @@ describe("POST .../discussion/media", () => {
     listMessagesForStageItemMock.mockReset();
     appendDiscussionMediaMock.mockReset();
     getMediaRowMock.mockReset();
+    getPatientProgramInteractionPolicyMock.mockReset();
 
     gateMock.mockResolvedValue(okGate());
     getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      onSupport: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
       assignmentSource: "doctor",
@@ -136,5 +148,26 @@ describe("POST .../discussion/media", () => {
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(data.message?.mediaFileId).toBe(mediaFileId);
+  });
+
+  it("returns 403 when support policy disables media", async () => {
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      onSupport: false,
+      commentsAllowed: false,
+      mediaAllowed: false,
+    });
+
+    const res = await POST(
+      new Request(`http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/media`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mediaFileId }),
+      }),
+      { params: Promise.resolve({ instanceId, itemId }) },
+    );
+    expect(res.status).toBe(403);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe("patient_support_media_disabled");
+    expect(appendDiscussionMediaMock).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole"
 import { routePaths } from "@/app-layer/routes/paths";
 import { getMediaRowForProgramSubmissionAttach } from "@/app-layer/media/s3MediaStorage";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
+import { assertPatientProgramMediaAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
 import {
   isPatientProgramDiscussionMediaFlowEnabled,
 } from "@/modules/program-item-discussion/discussionFeatureGates";
@@ -81,6 +82,14 @@ export async function POST(
 
   if (!(await isPatientProgramDiscussionMediaFlowEnabled(itemContext.deps))) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
+  }
+
+  const supportGate = await assertPatientProgramMediaAllowed(
+    itemContext.deps,
+    gate.session.user.userId,
+  );
+  if (!supportGate.ok) {
+    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }
 
   const mediaRow = await getMediaRowForProgramSubmissionAttach(

@@ -77,7 +77,7 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByText("Клиентов на сопровождении нет")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Список клиентов" })).toHaveAttribute(
       "href",
-      "/app/doctor/clients?scope=all&treatmentProgram=1",
+      "/app/doctor/clients?scope=all&support=on",
     );
     expect(screen.getByText("На сегодня записей нет")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть записи" })).toHaveAttribute(
@@ -207,7 +207,7 @@ describe("DoctorTodayDashboard", () => {
     );
     expect(screen.getByRole("link", { name: "Все на сопровождении" })).toHaveAttribute(
       "href",
-      "/app/doctor/clients?scope=all&treatmentProgram=1",
+      "/app/doctor/clients?scope=all&support=on",
     );
   });
 

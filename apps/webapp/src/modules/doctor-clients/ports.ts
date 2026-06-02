@@ -1,4 +1,5 @@
 import type { ChannelBindings } from "@/shared/types/session";
+import type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./supportPolicy";
 
 /** Фильтры для списка клиентов специалиста. */
 export type DoctorClientsFilters = {
@@ -17,6 +18,8 @@ export type DoctorClientsFilters = {
   visitedThisCalendarMonth?: boolean;
   /** Только заархивированные (`is_archived`), раздел «Архив». */
   archivedOnly?: boolean;
+  /** `on` — `doctor_patient_support.on_support`; `programWithoutSupport` — активная doctor-программа без сопровождения. */
+  supportStatus?: "on" | "programWithoutSupport";
 };
 
 /** Строка клиента в списке. */
@@ -58,7 +61,7 @@ export type ClientIdentity = {
 export type DoctorDashboardPatientMetrics = {
   /** `COUNT(*)` WHERE `role = 'client'`. */
   totalClients: number;
-  /** Есть хотя бы одна активная назначенная программа лечения (`treatment_program_instances.status = 'active'`). */
+  /** Клиенты с `doctor_patient_support.on_support = true`. */
   onSupportCount: number;
   /** Уникальные клиенты с прошедшим слотом created/updated в текущем UTC-месяце (`record_at < now()`). */
   visitedThisCalendarMonthCount: number;
@@ -84,4 +87,14 @@ export type DoctorClientsPort = {
   }): Promise<void>;
   /** Архив учётки клиента (скрыть из обычных списков; врач и админ через API). */
   setUserArchived(userId: string, archived: boolean): Promise<void>;
+  getClientSupport(patientUserId: string): Promise<ClientSupportProfile | null>;
+  updateClientSupport(params: {
+    patientUserId: string;
+    onSupport?: boolean;
+    commentsEnabled?: boolean | null;
+    mediaEnabled?: boolean | null;
+    actorId: string;
+  }): Promise<ClientSupportProfile>;
 };
+
+export type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./supportPolicy";

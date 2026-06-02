@@ -45,8 +45,8 @@ export function PatientPlanTabPanels(props: {
   patientCalendarDayIana: string;
   statsRefreshToken: number;
   planItemDoneRepeatCooldownMinutes: number;
-  patientProgramDiscussionUiEnabled: boolean;
-  patientProgramDiscussionMediaSubmissionEnabled: boolean;
+  programCommentsInteraction: { visible: boolean; enabled: boolean };
+  programMediaInteraction: { visible: boolean; enabled: boolean };
 }) {
   const {
     activeTab,
@@ -68,8 +68,8 @@ export function PatientPlanTabPanels(props: {
     patientCalendarDayIana,
     statsRefreshToken,
     planItemDoneRepeatCooldownMinutes,
-    patientProgramDiscussionUiEnabled,
-    patientProgramDiscussionMediaSubmissionEnabled,
+    programCommentsInteraction,
+    programMediaInteraction,
   } = props;
 
   return (
@@ -88,8 +88,8 @@ export function PatientPlanTabPanels(props: {
             itemLinksPlanTab="program"
             planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
             assignmentSource={detail.assignmentSource}
-            patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
-            patientProgramDiscussionMediaSubmissionEnabled={patientProgramDiscussionMediaSubmissionEnabled}
+            programCommentsInteraction={programCommentsInteraction}
+            programMediaInteraction={programMediaInteraction}
           />
         </Suspense>
       </div>

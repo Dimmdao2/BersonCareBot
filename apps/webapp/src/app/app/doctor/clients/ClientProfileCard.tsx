@@ -34,6 +34,7 @@ import { ClientBookingHistoryPanel } from "./ClientBookingHistoryPanel";
 import { groupPendingProgramTestEvaluations } from "./groupPendingProgramTestEvaluations";
 import { SubscriberBlockPanel } from "./SubscriberBlockPanel";
 import { DoctorSupplementaryContactsPanel } from "./DoctorSupplementaryContactsPanel";
+import { DoctorClientSupportPanel } from "./DoctorClientSupportPanel";
 
 type ClientProfileCardProps = {
   profile: ClientProfile;
@@ -316,6 +317,10 @@ function ClientProfileCardInner({
         <div className="border-t border-border px-4 pb-4 pt-2">
           <ClientBookingHistoryPanel userId={userId} />
         </div>
+
+        <section id="doctor-client-section-support" className="border-t border-border px-4 pb-2 pt-2">
+          <DoctorClientSupportPanel patientUserId={userId} />
+        </section>
 
         <section id="doctor-client-section-treatment-programs" className="border-t border-border px-4 pb-4 pt-2">
           <PatientTreatmentProgramsPanel

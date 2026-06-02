@@ -33,7 +33,9 @@ const {
   getUnreadCountMock,
   listActionLogForInstanceMock,
   appendObservationNoteMock,
+  getPatientProgramInteractionPolicyMock,
 } = vi.hoisted(() => {
+  const getPatientProgramInteractionPolicyMockInner = vi.fn();
   const getSettingMockInner = vi.fn();
   const getInstanceForPatientMockInner = vi.fn();
   const listMessagesForStageItemMockInner = vi.fn();
@@ -58,8 +60,12 @@ const {
     getUnreadCountMock: getUnreadCountMockInner,
     listActionLogForInstanceMock: listActionLogForInstanceMockInner,
     appendObservationNoteMock: appendObservationNoteMockInner,
+    getPatientProgramInteractionPolicyMock: getPatientProgramInteractionPolicyMockInner,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: { getSetting: getSettingMockInner },
+      doctorClients: {
+        getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMockInner,
+      },
       treatmentProgramInstance: { getInstanceForPatient: getInstanceForPatientMockInner },
       programItemDiscussion: {
         listMessagesForStageItem: listMessagesForStageItemMockInner,
@@ -120,9 +126,15 @@ describe("patient item discussion route", () => {
     getUnreadCountMock.mockReset();
     listActionLogForInstanceMock.mockReset();
     appendObservationNoteMock.mockReset();
+    getPatientProgramInteractionPolicyMock.mockReset();
 
     gateMock.mockResolvedValue(okGate());
     getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      onSupport: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
       assignmentSource: "doctor",
@@ -307,6 +319,30 @@ describe("patient item discussion route", () => {
     const data = (await res.json()) as { ok?: boolean; message?: { id?: string } | null };
     expect(data.ok).toBe(true);
     expect(data.message?.id).toBe("00000000-0000-4000-8000-000000000099");
+  });
+
+  it("returns 403 when support policy disables comments", async () => {
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      onSupport: false,
+      commentsAllowed: false,
+      mediaAllowed: false,
+    });
+
+    const res = await POST(
+      new Request(
+        `http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: "blocked" }),
+        },
+      ),
+      { params: Promise.resolve({ instanceId, itemId }) },
+    );
+    expect(res.status).toBe(403);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe("patient_support_comments_disabled");
+    expect(appendObservationNoteMock).not.toHaveBeenCalled();
   });
 
   it("returns 401 when gate rejects", async () => {

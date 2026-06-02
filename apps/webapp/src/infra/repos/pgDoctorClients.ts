@@ -9,6 +9,11 @@ import type {
   DoctorDashboardPatientMetrics,
 } from "@/modules/doctor-clients/ports";
 import { matchesDoctorClientSearch } from "@/modules/doctor-clients/clientSearchMatch";
+import {
+  getClientSupportProfile,
+  listOnSupportPatientUserIds,
+  upsertClientSupportProfile,
+} from "@/infra/repos/pgDoctorPatientSupport";
 
 function rowToBindings(rows: { channel_code: string; external_id: string }[]): ChannelBindings {
   const bindings: ChannelBindings = {};
@@ -173,6 +178,16 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         const idSet = new Set(visited.rows.map((r) => r.id));
         list = list.filter((item) => idSet.has(item.userId));
       }
+      if (filters.supportStatus === "on") {
+        const onSupportIds = await listOnSupportPatientUserIds();
+        list = list.filter((item) => onSupportIds.has(item.userId));
+      }
+      if (filters.supportStatus === "programWithoutSupport") {
+        const onSupportIds = await listOnSupportPatientUserIds();
+        list = list.filter(
+          (item) => item.activeTreatmentProgram && !onSupportIds.has(item.userId),
+        );
+      }
       return list;
     },
 
@@ -183,10 +198,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           `SELECT COUNT(*)::text AS c FROM platform_users WHERE role = 'client' AND merged_into_id IS NULL AND COALESCE(is_archived, false) = false`
         ),
         pool.query<{ c: string }>(
-          `SELECT COUNT(DISTINCT pu.id)::text AS c
-           FROM platform_users pu
-           INNER JOIN treatment_program_instances tpi ON tpi.patient_user_id = pu.id AND tpi.status = 'active' AND tpi.assignment_source = 'doctor'
-           WHERE pu.role = 'client'
+          `SELECT COUNT(*)::text AS c
+           FROM doctor_patient_support dps
+           INNER JOIN platform_users pu ON pu.id = dps.patient_user_id
+           WHERE dps.on_support = true
+             AND pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false`
         ),
@@ -343,6 +359,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
          WHERE id = $1::uuid AND role = 'client'`,
         [userId, archived]
       );
+    },
+
+    async getClientSupport(patientUserId: string) {
+      return getClientSupportProfile(patientUserId);
+    },
+
+    async updateClientSupport(params) {
+      const { actorId, ...rest } = params;
+      return upsertClientSupportProfile({ ...rest, updatedBy: actorId });
     },
   };
 }

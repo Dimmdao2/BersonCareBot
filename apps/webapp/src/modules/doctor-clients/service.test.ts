@@ -44,10 +44,24 @@ describe("doctor-clients service", () => {
     },
     async setClientBlocked() {},
     async setUserArchived() {},
+    async getClientSupport() {
+      return null;
+    },
+    async updateClientSupport(params) {
+      return {
+        patientUserId: params.patientUserId,
+        onSupport: params.onSupport ?? false,
+        commentsEnabled: params.commentsEnabled ?? null,
+        mediaEnabled: params.mediaEnabled ?? null,
+        updatedAt: new Date().toISOString(),
+        updatedBy: params.actorId,
+      };
+    },
   };
 
   const service = createDoctorClientsService({
     clientsPort: mockPort,
+    getDoctorSupportDefault: async () => false,
     getUpcomingAppointments: () => [
       {
         id: "apt-1",
@@ -87,6 +101,39 @@ describe("doctor-clients service", () => {
   it("getClientProfile returns null for unknown userId", async () => {
     const profile = await service.getClientProfile("unknown");
     expect(profile).toBeNull();
+  });
+
+  it("getPatientProgramInteractionPolicy uses port profile and doctor defaults", async () => {
+    const portWithSupport: DoctorClientsPort = {
+      ...mockPort,
+      async getClientSupport() {
+        return {
+          patientUserId: "user-1",
+          onSupport: false,
+          commentsEnabled: true,
+          mediaEnabled: null,
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          updatedBy: "doc-1",
+        };
+      },
+    };
+    const policyService = createDoctorClientsService({
+      clientsPort: portWithSupport,
+      getDoctorSupportDefault: async (key) =>
+        key === "doctor_patient_support_media_without_support_default_enabled",
+      getUpcomingAppointments: () => [],
+      listAppointmentHistoryForPhone: async () => [],
+      listSymptomTrackings: async () => [],
+      listSymptomEntries: async () => [],
+      listLfkComplexes: async () => [],
+      listLfkSessions: async () => [],
+      getChannelCards: async () => [],
+      listSupplementaryContacts: async () => [],
+    });
+    const policy = await policyService.getPatientProgramInteractionPolicy("user-1");
+    expect(policy.onSupport).toBe(false);
+    expect(policy.commentsAllowed).toBe(true);
+    expect(policy.mediaAllowed).toBe(true);
   });
 
   it("getClientProfile returns full profile for known client", async () => {
@@ -141,6 +188,19 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     },
     async setClientBlocked() {},
     async setUserArchived() {},
+    async getClientSupport() {
+      return null;
+    },
+    async updateClientSupport(params) {
+      return {
+        patientUserId: params.patientUserId,
+        onSupport: params.onSupport ?? false,
+        commentsEnabled: params.commentsEnabled ?? null,
+        mediaEnabled: params.mediaEnabled ?? null,
+        updatedAt: new Date().toISOString(),
+        updatedBy: params.actorId,
+      };
+    },
   };
 
   afterEach(() => {
@@ -153,6 +213,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
 
     const service = createDoctorClientsService({
       clientsPort: mockPort,
+      getDoctorSupportDefault: async () => false,
       getUpcomingAppointments: () => [],
       listAppointmentHistoryForPhone: async () => [
         {

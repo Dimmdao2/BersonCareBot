@@ -4,6 +4,8 @@ import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole"
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
+import { assertPatientProgramCommentsAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
+import { isPatientProgramDiscussionUiEnabled } from "@/modules/program-item-discussion/discussionFeatureGates";
 
 const bodySchema = z.object({
   note: z.string().min(1).max(4000),
@@ -30,6 +32,24 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
+  const detail = await deps.treatmentProgramInstance.getInstanceForPatient(
+    gate.session.user.userId,
+    instanceId,
+  );
+  if (!detail) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  if (detail.assignmentSource !== "doctor") {
+    return NextResponse.json({ ok: false, error: "program_not_doctor_assigned" }, { status: 400 });
+  }
+  if (!(await isPatientProgramDiscussionUiEnabled(deps))) {
+    return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
+  }
+  const supportGate = await assertPatientProgramCommentsAllowed(deps, gate.session.user.userId);
+  if (!supportGate.ok) {
+    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
+  }
+
   try {
     await deps.treatmentProgramPatientActions.patientAppendObservationNote({
       patientUserId: gate.session.user.userId,

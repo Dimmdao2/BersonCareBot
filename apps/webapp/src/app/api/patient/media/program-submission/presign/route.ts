@@ -17,6 +17,7 @@ import {
   MAX_PROGRAM_SUBMISSION_BYTES,
   PROGRAM_SUBMISSION_ALLOWED_MIME,
 } from "@/modules/media/programSubmissionUploadLimits";
+import { assertPatientProgramMediaAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
 import { isPatientProgramDiscussionMediaFlowEnabled } from "@/modules/program-item-discussion/discussionFeatureGates";
 
 const bodySchema = z.object({
@@ -36,6 +37,10 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   if (!(await isPatientProgramDiscussionMediaFlowEnabled(deps))) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
+  }
+  const supportGate = await assertPatientProgramMediaAllowed(deps, gate.session.user.userId);
+  if (!supportGate.ok) {
+    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }
 
   let json: unknown;

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 const {
   gateMock,
   buildAppDepsMock,
+  getPatientProgramInteractionPolicyMock,
   getSettingMock,
   getInstanceForPatientMock,
   listMessagesForStageItemMock,
@@ -22,8 +22,10 @@ const {
   const countLegacyAdminRepliesMockInner = vi.fn();
   const listLinkedSupportMessageIdsMockInner = vi.fn();
   const getUnreadCountMockInner = vi.fn();
+  const getPatientProgramInteractionPolicyMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
+    getPatientProgramInteractionPolicyMock: getPatientProgramInteractionPolicyMockInner,
     getSettingMock: getSettingMockInner,
     getInstanceForPatientMock: getInstanceForPatientMockInner,
     listMessagesForStageItemMock: listMessagesForStageItemMockInner,
@@ -35,6 +37,9 @@ const {
     getUnreadCountMock: getUnreadCountMockInner,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: { getSetting: getSettingMockInner },
+      doctorClients: {
+        getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMockInner,
+      },
       treatmentProgramInstance: { getInstanceForPatient: getInstanceForPatientMockInner },
       programItemDiscussion: {
         listMessagesForStageItem: listMessagesForStageItemMockInner,
@@ -74,6 +79,7 @@ describe("GET discussion summary", () => {
     countLegacyAdminRepliesMock.mockReset();
     listLinkedSupportMessageIdsMock.mockReset();
     getUnreadCountMock.mockReset();
+    getPatientProgramInteractionPolicyMock.mockReset();
 
     gateMock.mockResolvedValue({
       ok: true as const,
@@ -87,6 +93,11 @@ describe("GET discussion summary", () => {
       },
     });
     getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      onSupport: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
       assignmentSource: "doctor",

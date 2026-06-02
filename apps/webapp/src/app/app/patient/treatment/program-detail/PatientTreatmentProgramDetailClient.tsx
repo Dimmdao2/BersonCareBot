@@ -55,9 +55,8 @@ export function PatientTreatmentProgramDetailClient(props: {
   planReminderStrip?: PatientPlanTodayRemindersCardProps | null;
   /** Пауза перед повторным «Выполнено» у простых пунктов плана (мин). */
   planItemDoneRepeatCooldownMinutes: number;
-  /** Rollout-гейт UI обсуждений в пациентской программе. */
-  patientProgramDiscussionUiEnabled?: boolean;
-  patientProgramDiscussionMediaSubmissionEnabled?: boolean;
+  programCommentsInteraction?: { visible: boolean; enabled: boolean };
+  programMediaInteraction?: { visible: boolean; enabled: boolean };
 }) {
   const {
     appDisplayTimeZone,
@@ -67,8 +66,8 @@ export function PatientTreatmentProgramDetailClient(props: {
     initialPlanTab = "program",
     planReminderStrip = null,
     planItemDoneRepeatCooldownMinutes,
-    patientProgramDiscussionUiEnabled = false,
-    patientProgramDiscussionMediaSubmissionEnabled = false,
+    programCommentsInteraction = { visible: false, enabled: false },
+    programMediaInteraction = { visible: false, enabled: false },
   } = props;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -355,8 +354,8 @@ export function PatientTreatmentProgramDetailClient(props: {
         patientCalendarDayIana={patientCalendarDayIana}
         statsRefreshToken={statsRefreshToken}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
-        patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
-        patientProgramDiscussionMediaSubmissionEnabled={patientProgramDiscussionMediaSubmissionEnabled}
+        programCommentsInteraction={programCommentsInteraction}
+        programMediaInteraction={programMediaInteraction}
       />
 
       {patientPersonalProgramCtaShouldRenderOnPlanScreen(detail) ? (

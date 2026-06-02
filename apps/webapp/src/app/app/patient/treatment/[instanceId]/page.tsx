@@ -17,18 +17,11 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import { formatExercisesTodayTrainingStatus } from "@/modules/reminders/summarizeReminderForCalendarDay";
 import { parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
+import { loadPatientProgramInteractionBundle } from "@/app/app/patient/treatment/loadPatientProgramInteractionBundle";
 
 type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ tab?: string | string[] }> };
 
 export const dynamic = "force-dynamic";
-
-function parseDiscussionUiEnabled(valueJson: unknown): boolean {
-  return (
-    valueJson !== null &&
-    typeof valueJson === "object" &&
-    (valueJson as Record<string, unknown>).value === true
-  );
-}
 
 export default async function PatientTreatmentProgramDetailPage({ params, searchParams }: Props) {
   const session = await getOptionalPatientSession();
@@ -67,31 +60,22 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
 
   const appTz = await getAppDisplayTimeZone();
 
-  const [
-    initialTestResults,
-    initialProgramEvents,
-    patientIana,
-    rules,
-    planItemCooldownSetting,
-    discussionUiEnabledSetting,
-    mediaSubmissionEnabledSetting,
-  ] =
+  const [initialTestResults, initialProgramEvents, patientIana, rules, planItemCooldownSetting] =
     await Promise.all([
       deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
       deps.treatmentProgramInstance.listProgramEvents(instanceId),
       deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
       deps.reminders.listRulesByUser(session.user.userId),
       deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
-      deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin"),
-      deps.systemSettings.getSetting("patient_program_discussion_media_submission_enabled", "admin"),
     ]);
 
   const planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(
     planItemCooldownSetting?.valueJson ?? null,
   );
-  const patientProgramDiscussionUiEnabled = parseDiscussionUiEnabled(discussionUiEnabledSetting?.valueJson ?? null);
-  const patientProgramDiscussionMediaSubmissionEnabled = parseDiscussionUiEnabled(
-    mediaSubmissionEnabledSetting?.valueJson ?? null,
+  const programInteraction = await loadPatientProgramInteractionBundle(
+    deps,
+    session.user.userId,
+    detail.assignmentSource,
   );
 
   let programDescription: string | null = null;
@@ -148,8 +132,8 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
         initialPlanTab={initialPlanTab}
         planReminderStrip={planReminderStrip}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
-        patientProgramDiscussionUiEnabled={patientProgramDiscussionUiEnabled}
-        patientProgramDiscussionMediaSubmissionEnabled={patientProgramDiscussionMediaSubmissionEnabled}
+        programCommentsInteraction={programInteraction.comments}
+        programMediaInteraction={programInteraction.media}
       />
     </AppShell>
   );

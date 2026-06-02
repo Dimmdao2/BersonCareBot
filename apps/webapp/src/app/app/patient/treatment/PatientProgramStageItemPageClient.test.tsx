@@ -130,7 +130,8 @@ describe("PatientProgramStageItemPageClient", () => {
         appDisplayTimeZone="Europe/Moscow"
         itemLinksPlanTab="program"
         planItemDoneRepeatCooldownMinutes={60}
-        patientProgramDiscussionUiEnabled
+        programCommentsInteraction={{ visible: true, enabled: true }}
+        programMediaInteraction={{ visible: false, enabled: false }}
       />,
     );
 
@@ -199,7 +200,8 @@ describe("PatientProgramStageItemPageClient", () => {
         appDisplayTimeZone="Europe/Moscow"
         itemLinksPlanTab="program"
         planItemDoneRepeatCooldownMinutes={60}
-        patientProgramDiscussionUiEnabled
+        programCommentsInteraction={{ visible: true, enabled: true }}
+        programMediaInteraction={{ visible: false, enabled: false }}
       />,
     );
 
@@ -254,7 +256,8 @@ describe("PatientProgramStageItemPageClient", () => {
         appDisplayTimeZone="Europe/Moscow"
         itemLinksPlanTab="program"
         planItemDoneRepeatCooldownMinutes={60}
-        patientProgramDiscussionUiEnabled
+        programCommentsInteraction={{ visible: true, enabled: true }}
+        programMediaInteraction={{ visible: false, enabled: false }}
       />,
     );
 
@@ -263,7 +266,7 @@ describe("PatientProgramStageItemPageClient", () => {
     expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion/read"))).toBe(true);
   });
 
-  it("hides discussion controls when patientProgramDiscussionUiEnabled is false", async () => {
+  it("disables discussion CTA when visible but policy denies", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/checklist-today")) {
@@ -293,7 +296,48 @@ describe("PatientProgramStageItemPageClient", () => {
         appDisplayTimeZone="Europe/Moscow"
         itemLinksPlanTab="program"
         planItemDoneRepeatCooldownMinutes={60}
-        patientProgramDiscussionUiEnabled={false}
+        programCommentsInteraction={{ visible: true, enabled: false }}
+        programMediaInteraction={{ visible: false, enabled: false }}
+      />,
+    );
+
+    const cta = await screen.findByRole("button", { name: /Оставить комментарий к выполнению/i });
+    expect(cta).toBeDisabled();
+    expect(cta).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("hides discussion controls when comments interaction is not visible", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/checklist-today")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            doneItemIds: [],
+            doneTodayCountByItemId: {},
+            lastDoneAtIsoByItemId: {},
+            doneTodayCountByActivityKey: {},
+            lastDoneAtIsoByActivityKey: {},
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PatientProgramStageItemPageClient
+        instanceId={instanceId}
+        itemId={itemId}
+        navMode="exec"
+        backHref="/app/patient/treatment"
+        initialDetail={makeDetail()}
+        appDisplayTimeZone="Europe/Moscow"
+        itemLinksPlanTab="program"
+        planItemDoneRepeatCooldownMinutes={60}
+        programCommentsInteraction={{ visible: false, enabled: false }}
+        programMediaInteraction={{ visible: false, enabled: false }}
       />,
     );
 
@@ -336,8 +380,8 @@ describe("PatientProgramStageItemPageClient", () => {
           appDisplayTimeZone="Europe/Moscow"
           itemLinksPlanTab="program"
           planItemDoneRepeatCooldownMinutes={60}
-          patientProgramDiscussionUiEnabled
-          patientProgramDiscussionMediaSubmissionEnabled
+          programCommentsInteraction={{ visible: false, enabled: false }}
+          programMediaInteraction={{ visible: false, enabled: false }}
         />,
       );
 

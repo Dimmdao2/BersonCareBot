@@ -21,6 +21,7 @@ const headMock = vi.fn();
 const enqueueMock = vi.fn();
 const gateMock = vi.fn();
 const getSettingMock = vi.fn();
+const getPatientProgramInteractionPolicyMock = vi.fn();
 
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaRowForConfirm: (...a: unknown[]) => getRowMock(...a),
@@ -39,6 +40,9 @@ vi.mock("@/app-layer/media/programSubmissionTranscodeEnqueue", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     systemSettings: { getSetting: getSettingMock },
+    doctorClients: {
+      getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMock,
+    },
   }),
 }));
 
@@ -59,7 +63,13 @@ describe("POST /api/patient/media/program-submission/confirm", () => {
     enqueueMock.mockReset();
     gateMock.mockReset();
     getSettingMock.mockReset();
+    getPatientProgramInteractionPolicyMock.mockReset();
     getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      onSupport: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
     gateMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: patientId, role: "patient" } },

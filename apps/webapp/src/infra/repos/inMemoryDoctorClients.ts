@@ -6,9 +6,18 @@ import type {
   DoctorClientsPort,
   DoctorDashboardPatientMetrics,
 } from "@/modules/doctor-clients/ports";
+import type { ClientSupportProfile } from "@/modules/doctor-clients/supportPolicy";
 import { matchesDoctorClientSearch } from "@/modules/doctor-clients/clientSearchMatch";
 
 const STUB_CLIENTS: ClientListItem[] = [];
+const supportProfiles = new Map<string, ClientSupportProfile>();
+
+/** @internal Vitest: seed list rows and reset support profiles. */
+export function __resetInMemoryDoctorClientsForTest(stub: ClientListItem[] = []) {
+  STUB_CLIENTS.length = 0;
+  STUB_CLIENTS.push(...stub);
+  supportProfiles.clear();
+}
 
 function matchesSearch(item: ClientListItem, search: string): boolean {
   return matchesDoctorClientSearch(item, search);
@@ -40,6 +49,14 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     }
     if (filters.archivedOnly === true) {
       list = [];
+    }
+    if (filters.supportStatus === "on") {
+      list = list.filter((item) => supportProfiles.get(item.userId)?.onSupport === true);
+    }
+    if (filters.supportStatus === "programWithoutSupport") {
+      list = list.filter(
+        (item) => item.activeTreatmentProgram && supportProfiles.get(item.userId)?.onSupport !== true,
+      );
     }
     return list;
   },
@@ -91,5 +108,24 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
 
   async setUserArchived(_userId: string, _archived: boolean): Promise<void> {
     /* no-op in memory stub */
+  },
+
+  async getClientSupport(patientUserId: string) {
+    return supportProfiles.get(patientUserId) ?? null;
+  },
+
+  async updateClientSupport(params) {
+    const existing = supportProfiles.get(params.patientUserId);
+    const profile: ClientSupportProfile = {
+      patientUserId: params.patientUserId,
+      onSupport: params.onSupport ?? existing?.onSupport ?? false,
+      commentsEnabled:
+        params.commentsEnabled !== undefined ? params.commentsEnabled : (existing?.commentsEnabled ?? null),
+      mediaEnabled: params.mediaEnabled !== undefined ? params.mediaEnabled : (existing?.mediaEnabled ?? null),
+      updatedAt: new Date().toISOString(),
+      updatedBy: params.actorId,
+    };
+    supportProfiles.set(params.patientUserId, profile);
+    return profile;
   },
 };

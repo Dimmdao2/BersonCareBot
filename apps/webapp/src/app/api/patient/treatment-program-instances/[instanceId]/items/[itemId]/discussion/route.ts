@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { exerciseTitleFromSnapshot } from "@/modules/messaging/programNoteReplyContext";
+import { assertPatientProgramCommentsAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
 import { listDiscussionPageMerged } from "@/modules/program-item-discussion/listDiscussionPage";
 
 const directionSchema = z.enum(["backward", "forward"]);
@@ -149,6 +150,14 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
   }
 
+  const supportGate = await assertPatientProgramCommentsAllowed(
+    itemContext.deps,
+    gate.session.user.userId,
+  );
+  if (!supportGate.ok) {
+    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
+  }
+
   const [pageResult, unreadCount, actionLogRows] = await Promise.all([
     listDiscussionPageMerged({
       discussion: itemContext.deps.programItemDiscussion,
@@ -226,6 +235,14 @@ export async function POST(
 
   if (!(await assertDiscussionUiEnabled(itemContext.deps))) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
+  }
+
+  const supportGate = await assertPatientProgramCommentsAllowed(
+    itemContext.deps,
+    gate.session.user.userId,
+  );
+  if (!supportGate.ok) {
+    return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }
 
   try {

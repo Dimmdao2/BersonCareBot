@@ -119,10 +119,13 @@
 
 ## Doctor card & support model (owner 2026-06-01)
 
+Очередь фаз 0–7: [`ACTIVE_WORKQUEUE.md`](ACTIVE_WORKQUEUE.md). Планы Cursor (архив): [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md), [`.cursor/plans/archive/phase1_support_model_7c745931.plan.md`](../.cursor/plans/archive/phase1_support_model_7c745931.plan.md) (фазы 0–1 закрыты 2026-06-02).
+
 Следующий контур карточки пациента и «Сегодня» — **не** блокирует закрытие [`MASTER_PLAN.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md) (назначение программы). Детали — [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md) §продуктовые решения.
 
-- [ ] Флаг **«На сопровождении»** per patient (не = активная программа); блок «Сегодня» только по флагу; экран/ссылка «программа без сопровождения».
-- [ ] Вкл/выкл **«Комментарии»** и **«Отправить медиа»** per patient + default в настройках врача для клиентов без сопровождения (кнопки видны, disabled если выкл).
+- [x] **P0 (фаза 0):** ряд «Комментарии» + «Отметить выполнение» на плитках вкладки «Программа» (`PatientTreatmentProgramStagePageProgramSection`).
+- [x] Флаг **«На сопровождении»** per patient (не = активная программа); блок «Сегодня» только по флагу; экран/ссылка «программа без сопровождения».
+- [x] Вкл/выкл **«Комментарии»** и **«Отправить медиа»** per patient + default в настройках врача для клиентов без сопровождения (кнопки видны, disabled если выкл).
 - [ ] Карточка пациента: базовая перегруппировка блоков (убрать хаос, нормальные секции).
 - [ ] Карточка: **график самочувствия** (выбор периода) + на оси дней отметки выполнения/пропуска упражнений.
 - [ ] Карточка: блок **«Программа»** — список упражнений/рекомендаций с маленьким превью (как у пациента на этапах).

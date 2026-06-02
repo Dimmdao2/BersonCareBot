@@ -3,7 +3,12 @@ import type { ChannelCard } from "@/modules/channel-preferences/types";
 import type { LfkComplex, LfkSession, SymptomEntry, SymptomTracking } from "@/modules/diaries/types";
 import type { DoctorSupplementaryContact } from "@/modules/platform-user-contacts/bookingContactUpsert";
 import type { DoctorClientsFilters, DoctorClientsPort } from "./ports";
-import type { ClientIdentity, ClientListItem } from "./ports";
+import type { ClientIdentity, ClientListItem, PatientProgramInteractionPolicy } from "./ports";
+import type { ClientSupportProfile } from "./supportPolicy";
+import {
+  parseDoctorSupportDefaultEnabled,
+  resolvePatientProgramInteractionPolicy,
+} from "./supportPolicy";
 import { countCancellations30d, lastVisitLabelFromHistory } from "./appointmentStatsFromHistory";
 
 /** Строка истории записей на приём (этап 9, `appointment_records`). */
@@ -55,6 +60,11 @@ export type DoctorClientsServiceDeps = {
     userId: string,
     identity: ClientIdentity,
   ) => Promise<DoctorSupplementaryContact[]>;
+  getDoctorSupportDefault: (
+    key:
+      | "doctor_patient_support_comments_without_support_default_enabled"
+      | "doctor_patient_support_media_without_support_default_enabled",
+  ) => Promise<boolean>;
 };
 
 export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
@@ -111,6 +121,37 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
         lfkComplexes,
         recentLfkSessions,
       };
+    },
+
+    async getClientSupport(patientUserId: string): Promise<ClientSupportProfile | null> {
+      return deps.clientsPort.getClientSupport(patientUserId);
+    },
+
+    async updateClientSupport(params: {
+      patientUserId: string;
+      onSupport?: boolean;
+      commentsEnabled?: boolean | null;
+      mediaEnabled?: boolean | null;
+      actorId: string;
+    }): Promise<ClientSupportProfile> {
+      return deps.clientsPort.updateClientSupport(params);
+    },
+
+    async getPatientProgramInteractionPolicy(
+      patientUserId: string,
+    ): Promise<PatientProgramInteractionPolicy> {
+      const [profile, commentsDefault, mediaDefault] = await Promise.all([
+        deps.clientsPort.getClientSupport(patientUserId),
+        deps.getDoctorSupportDefault("doctor_patient_support_comments_without_support_default_enabled"),
+        deps.getDoctorSupportDefault("doctor_patient_support_media_without_support_default_enabled"),
+      ]);
+      return resolvePatientProgramInteractionPolicy({
+        profile,
+        defaultsWithoutSupport: {
+          commentsEnabled: commentsDefault,
+          mediaEnabled: mediaDefault,
+        },
+      });
     },
   };
 }

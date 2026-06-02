@@ -10,6 +10,10 @@ export const ALLOWED_KEYS = [
   "integrator_linked_phone_source",
   "patient_label",
   "sms_fallback_enabled",
+  /** Default: пациент без сопровождения может писать комментарии к пунктам программы (при doctor-program + rollout UI). */
+  "doctor_patient_support_comments_without_support_default_enabled",
+  /** Default: пациент без сопровождения может отправлять медиа в обсуждение программы. */
+  "doctor_patient_support_media_without_support_default_enabled",
   /** Полнота серверных логов webapp+integrator (journalctl): false (default) — только значимое (warn/error/DLQ/retry-fail); true — подробные operational `info` для диагностики. Не меняет доставку сообщений. */
   "debug_forward_to_admin",
   /** Полный сырой initData в логах webapp (journalctl) при открытии миниаппа (POST max-init / telegram-init). Выкл. на проде. Ключ исторический (раньше включали `/max-debug`). */

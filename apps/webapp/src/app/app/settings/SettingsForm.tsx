@@ -15,11 +15,22 @@ import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 type SettingsFormProps = {
   patientLabel: string;
   smsFallbackEnabled: boolean;
+  supportCommentsWithoutSupportDefault: boolean;
+  supportMediaWithoutSupportDefault: boolean;
 };
 
-export function SettingsForm({ patientLabel, smsFallbackEnabled }: SettingsFormProps) {
+export function SettingsForm({
+  patientLabel,
+  smsFallbackEnabled,
+  supportCommentsWithoutSupportDefault,
+  supportMediaWithoutSupportDefault,
+}: SettingsFormProps) {
   const [label, setLabel] = useState(patientLabel);
   const [smsFallback, setSmsFallback] = useState(smsFallbackEnabled);
+  const [supportCommentsDefault, setSupportCommentsDefault] = useState(
+    supportCommentsWithoutSupportDefault,
+  );
+  const [supportMediaDefault, setSupportMediaDefault] = useState(supportMediaWithoutSupportDefault);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -29,7 +40,7 @@ export function SettingsForm({ patientLabel, smsFallbackEnabled }: SettingsFormP
     setError(null);
     startTransition(async () => {
       try {
-        const [r1, r2] = await Promise.all([
+        const [r1, r2, r3, r4] = await Promise.all([
           fetch("/api/doctor/settings", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -40,8 +51,24 @@ export function SettingsForm({ patientLabel, smsFallbackEnabled }: SettingsFormP
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ key: "sms_fallback_enabled", value: { value: smsFallback } }),
           }),
+          fetch("/api/doctor/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              key: "doctor_patient_support_comments_without_support_default_enabled",
+              value: { value: supportCommentsDefault },
+            }),
+          }),
+          fetch("/api/doctor/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              key: "doctor_patient_support_media_without_support_default_enabled",
+              value: { value: supportMediaDefault },
+            }),
+          }),
         ]);
-        if (!r1.ok || !r2.ok) {
+        if (!r1.ok || !r2.ok || !r3.ok || !r4.ok) {
           setError("Не удалось сохранить настройки");
           return;
         }
@@ -82,6 +109,20 @@ export function SettingsForm({ patientLabel, smsFallbackEnabled }: SettingsFormP
           hint="Разрешить SMS для OTP и записи на приём; если выключено — только Telegram / Max / email."
           checked={smsFallback}
           onCheckedChange={setSmsFallback}
+          disabled={isPending}
+        />
+
+        <LabeledSwitch
+          label="Комментарии без сопровождения"
+          checked={supportCommentsDefault}
+          onCheckedChange={setSupportCommentsDefault}
+          disabled={isPending}
+        />
+
+        <LabeledSwitch
+          label="Медиа без сопровождения"
+          checked={supportMediaDefault}
+          onCheckedChange={setSupportMediaDefault}
           disabled={isPending}
         />
 

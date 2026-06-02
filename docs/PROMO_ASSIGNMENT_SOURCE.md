@@ -33,7 +33,7 @@
 - Врач при назначении: [`treatment-program-instances/route.ts`](../apps/webapp/src/app/api/doctor/clients/%5BuserId%5D/treatment-program-instances/route.ts) — `assignedBy` + **`assignmentSource: "doctor"`**.
 - Пустой индивидуальный план: [`createBlankIndividualPlan`](../apps/webapp/src/modules/treatment-program/instance-service.ts) → **`assignment_source = doctor`**.
 - Курс: [`courses/service.ts`](../apps/webapp/src/modules/courses/service.ts) — **`assignmentSource: "course"`** при `enrollPatient`.
-- «На сопровождении» / клиенты с программой у врача: [`pgDoctorClients.ts`](../apps/webapp/src/infra/repos/pgDoctorClients.ts) — активная программа для флага и ссылок только при **`assignment_source = 'doctor'`** (тот же фильтр в `getDashboardPatientMetrics` / `onSupportCount`).
+- «На сопровождении» / `onSupportCount`: [`pgDoctorClients.ts`](../apps/webapp/src/infra/repos/pgDoctorClients.ts) — **`doctor_patient_support.on_support`** (ручной флаг; backfill при миграции — активная doctor-программа). Фильтр «программа без сопровождения» — активная **`assignment_source = 'doctor'`** программа и `on_support = false`. Legacy `?treatmentProgram=1` — только «есть активная doctor-программа».
 - Рассылки: аудитория строится через `listClients` из портов врача → та же семантика `activeTreatmentProgram`.
 - Напоминания `rehab_program`: [`validateLinkedFields`](../apps/webapp/src/modules/reminders/service.ts); UI — [`RemindersPageBody.tsx`](../apps/webapp/src/app/app/patient/reminders/RemindersPageBody.tsx).
 - Действия по пунктам с инстансом: [`/api/patient/treatment-program-instances/[instanceId]/...`](../apps/webapp/src/app/api/patient/treatment-program-instances/).
