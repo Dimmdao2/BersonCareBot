@@ -17,11 +17,12 @@ import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   TreatmentProgramInstanceStatus,
-  TreatmentProgramItemType,
   TreatmentProgramLibraryPickType,
 } from "@/modules/treatment-program/types";
 import { runIfProgramInstanceMutationAllowed } from "./programInstanceMutationGuard";
+import { TreatmentProgramLibraryPickerToolbar } from "./TreatmentProgramLibraryPickerToolbar";
 import type { TreatmentProgramLibraryPickers, TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
+import { useTreatmentProgramLibraryPickerList } from "./useTreatmentProgramLibraryPickerList";
 
 /** Квадратная кнопка «+» в шапке группы / этапа 0 — как в конструкторе шаблона. */
 export function TreatmentProgramAddItemSquareButton({
@@ -111,6 +112,8 @@ export function InstanceAddLibraryItemDialog(props: {
 }) {
   const { open, onOpenChange, instanceId, spec, library, programStatus, editLocked, onAdded } = props;
   const [itemSearch, setItemSearch] = useState("");
+  const [selectedRegionCode, setSelectedRegionCode] = useState<string | null>(null);
+  const [selectedLoadType, setSelectedLoadType] = useState<string | null>(null);
   const [customKind, setCustomKind] = useState<"exercise" | "lfk_complex">("exercise");
   const [testsAddMode, setTestsAddMode] = useState<"expand_set" | "single_test">("expand_set");
   const [busy, setBusy] = useState(false);
@@ -122,6 +125,8 @@ export function InstanceAddLibraryItemDialog(props: {
   useEffect(() => {
     if (!open) {
       setItemSearch("");
+      setSelectedRegionCode(null);
+      setSelectedLoadType(null);
       setCustomKind("exercise");
       setTestsAddMode("expand_set");
       setError(null);
@@ -146,27 +151,31 @@ export function InstanceAddLibraryItemDialog(props: {
     }
   }, [spec, customKind]);
 
-  const pickerList = useMemo(() => {
-    const q = itemSearch.trim().toLowerCase();
-    const filter = <T extends { title: string }>(rows: T[]) =>
-      q ? rows.filter((r) => r.title.toLowerCase().includes(q)) : rows;
+  const pickerBaseList = useMemo((): TreatmentProgramLibraryRow[] => {
     if (spec?.context === "stage_system_tests") {
-      if (testsAddMode === "expand_set") return filter(library.testSets);
-      return filter(library.clinicalTests);
+      return testsAddMode === "expand_set" ? library.testSets : library.clinicalTests;
     }
     switch (resolvedItemType) {
       case "exercise":
-        return filter(library.exercises);
+        return library.exercises;
       case "lfk_complex":
-        return filter(library.lfkComplexes);
+        return library.lfkComplexes;
       case "clinical_test":
-        return filter(library.clinicalTests);
+        return library.clinicalTests;
       case "recommendation":
-        return filter(library.recommendations);
+        return library.recommendations;
       default:
         return [];
     }
-  }, [itemSearch, resolvedItemType, library, spec?.context, testsAddMode]);
+  }, [library, resolvedItemType, spec?.context, testsAddMode]);
+
+  const { filteredRows: pickerList, emptyMessage, applyRegionLoadFilters } = useTreatmentProgramLibraryPickerList({
+    rows: pickerBaseList,
+    searchQuery: itemSearch,
+    regionCode: selectedRegionCode,
+    loadType: selectedLoadType,
+    pickType: resolvedItemType,
+  });
 
   async function submitPick(row: TreatmentProgramLibraryRow) {
     if (!spec || editLocked || busy) return;
@@ -404,6 +413,8 @@ export function InstanceAddLibraryItemDialog(props: {
                   onClick={() => {
                     setCustomKind("exercise");
                     setItemSearch("");
+                    setSelectedRegionCode(null);
+                    setSelectedLoadType(null);
                   }}
                 >
                   Упражнение ЛФК
@@ -421,6 +432,8 @@ export function InstanceAddLibraryItemDialog(props: {
                   onClick={() => {
                     setCustomKind("lfk_complex");
                     setItemSearch("");
+                    setSelectedRegionCode(null);
+                    setSelectedLoadType(null);
                   }}
                 >
                   Комплекс ЛФК
@@ -473,21 +486,21 @@ export function InstanceAddLibraryItemDialog(props: {
               </div>
             </div>
           ) : null}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="inst-lib-search">Поиск</Label>
-            <Input
-              id="inst-lib-search"
-              className="text-sm"
-              value={itemSearch}
-              onChange={(e) => setItemSearch(e.target.value)}
-              placeholder="Фильтр по названию"
-              disabled={busy}
-            />
-          </div>
+          <TreatmentProgramLibraryPickerToolbar
+            idPrefix="inst-lib"
+            searchQuery={itemSearch}
+            onSearchQueryChange={setItemSearch}
+            regionCode={selectedRegionCode}
+            onRegionCodeChange={setSelectedRegionCode}
+            loadType={selectedLoadType}
+            onLoadTypeChange={setSelectedLoadType}
+            showRegionLoadFilters={applyRegionLoadFilters}
+            disabled={busy}
+          />
           <ul className="max-h-64 space-y-1 overflow-y-auto pr-0.5">
             {pickerList.length === 0 ? (
               <li className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-                Нет записей для выбранного типа.
+                {emptyMessage}
               </li>
             ) : (
               pickerList.map((row) => (

@@ -70,6 +70,8 @@ import type {
   TreatmentProgramLibraryPickers,
   TreatmentProgramLibraryRow,
 } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
+import { TreatmentProgramLibraryPickerToolbar } from "@/app/app/doctor/treatment-program-shared/TreatmentProgramLibraryPickerToolbar";
+import { useTreatmentProgramLibraryPickerList } from "@/app/app/doctor/treatment-program-shared/useTreatmentProgramLibraryPickerList";
 
 const ITEM_TYPE_LABEL: Record<TreatmentProgramLibraryPickType, string> = {
   exercise: "Упражнение ЛФК",
@@ -400,6 +402,13 @@ export function TreatmentProgramConstructorClient({
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [itemType, setItemType] = useState<TreatmentProgramLibraryPickType>("exercise");
   const [itemSearch, setItemSearch] = useState("");
+  const [itemRegionCode, setItemRegionCode] = useState<string | null>(null);
+  const [itemLoadType, setItemLoadType] = useState<string | null>(null);
+  const resetLibraryPickerFilters = useCallback(() => {
+    setItemSearch("");
+    setItemRegionCode(null);
+    setItemLoadType(null);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<TreatmentProgramTemplateUsageSnapshot | null>(null);
@@ -699,14 +708,14 @@ export function TreatmentProgramConstructorClient({
     setItemDialogStageId(stageId);
     setItemType("recommendation");
     setItemAddGroupId("");
-    setItemSearch("");
+    resetLibraryPickerFilters();
     setItemAddGroupShowInvalid(false);
     setItemDialogOpen(true);
-  }, []);
+  }, [resetLibraryPickerFilters]);
 
   const openItemDialogFromGroup = useCallback((stageId: string, g: TreatmentProgramTemplateStageGroup) => {
     setItemDialogStageId(stageId);
-    setItemSearch("");
+    resetLibraryPickerFilters();
     setItemAddGroupShowInvalid(false);
     if (g.systemKind === "recommendations") {
       setItemDialogAddContext("stage_system_recommendations");
@@ -723,7 +732,7 @@ export function TreatmentProgramConstructorClient({
       setItemAddGroupId(g.id);
     }
     setItemDialogOpen(true);
-  }, []);
+  }, [resetLibraryPickerFilters]);
 
   const allowUngroupedItemAdd = itemType === "recommendation" || itemType === "clinical_test";
   const itemAddNeedsPickableGroup = !allowUngroupedItemAdd && itemType !== "lfk_complex";
@@ -760,31 +769,36 @@ export function TreatmentProgramConstructorClient({
     itemDialogAddContext,
   ]);
 
-  const pickerList = useMemo(() => {
-    const q = itemSearch.trim().toLowerCase();
-    const filter = <T extends { title: string }>(rows: T[]) =>
-      q ? rows.filter((r) => r.title.toLowerCase().includes(q)) : rows;
-
+  const pickerBaseList = useMemo((): TreatmentProgramLibraryRow[] => {
     if (itemDialogAddContext === "stage_system_tests") {
-      if (testsAddMode === "expand_set") return filter(library.testSets);
-      return filter(library.clinicalTests);
+      return testsAddMode === "expand_set" ? library.testSets : library.clinicalTests;
     }
-
     switch (itemType) {
       case "exercise":
-        return filter(library.exercises);
+        return library.exercises;
       case "lfk_complex":
-        return filter(library.lfkComplexes);
+        return library.lfkComplexes;
       case "clinical_test":
-        return filter(library.clinicalTests);
+        return library.clinicalTests;
       case "recommendation":
-        return filter(library.recommendations);
+        return library.recommendations;
       case "lesson":
-        return filter(library.lessons);
+        return library.lessons;
       default:
         return [];
     }
-  }, [itemSearch, itemType, library, itemDialogAddContext, testsAddMode]);
+  }, [itemType, library, itemDialogAddContext, testsAddMode]);
+
+  const libraryPickerPickType: TreatmentProgramLibraryPickType =
+    itemDialogAddContext === "stage_system_tests" ? "clinical_test" : itemType;
+
+  const { filteredRows: pickerList, emptyMessage, applyRegionLoadFilters } = useTreatmentProgramLibraryPickerList({
+    rows: pickerBaseList,
+    searchQuery: itemSearch,
+    regionCode: itemRegionCode,
+    loadType: itemLoadType,
+    pickType: libraryPickerPickType,
+  });
 
   async function patchStageSortOrder(stageId: string, sortOrder: number): Promise<boolean> {
     const res = await fetch(`/api/doctor/treatment-program-templates/stages/${stageId}`, {
@@ -1239,7 +1253,7 @@ export function TreatmentProgramConstructorClient({
       setItemDialogStageId(null);
       setItemDialogAddContext("default");
       setTestsAddMode("expand_set");
-      setItemSearch("");
+      resetLibraryPickerFilters();
       setItemAddGroupId("");
       await reload();
     } finally {
@@ -1277,7 +1291,7 @@ export function TreatmentProgramConstructorClient({
       setItemDialogStageId(null);
       setItemDialogAddContext("default");
       setTestsAddMode("expand_set");
-      setItemSearch("");
+      resetLibraryPickerFilters();
       setItemAddGroupId("");
       await reload();
     } finally {
@@ -1336,7 +1350,7 @@ export function TreatmentProgramConstructorClient({
       setItemDialogOpen(false);
       setItemDialogStageId(null);
       setItemDialogAddContext("default");
-      setItemSearch("");
+      resetLibraryPickerFilters();
       setItemAddGroupId("");
       await reload();
     } finally {
@@ -2074,7 +2088,7 @@ export function TreatmentProgramConstructorClient({
             setItemDialogStageId(null);
             setItemDialogAddContext("default");
             setItemAddGroupId("");
-            setItemSearch("");
+            resetLibraryPickerFilters();
             setTestsAddMode("expand_set");
           }
         }}
@@ -2104,7 +2118,7 @@ export function TreatmentProgramConstructorClient({
                     )}
                     onClick={() => {
                       setItemType("exercise");
-                      setItemSearch("");
+                      resetLibraryPickerFilters();
                       setItemAddGroupShowInvalid(false);
                     }}
                   >
@@ -2122,7 +2136,7 @@ export function TreatmentProgramConstructorClient({
                     )}
                     onClick={() => {
                       setItemType("lfk_complex");
-                      setItemSearch("");
+                      resetLibraryPickerFilters();
                       setItemAddGroupShowInvalid(false);
                     }}
                   >
@@ -2151,7 +2165,7 @@ export function TreatmentProgramConstructorClient({
                     )}
                     onClick={() => {
                       setTestsAddMode("expand_set");
-                      setItemSearch("");
+                      resetLibraryPickerFilters();
                     }}
                   >
                     Набор тестов
@@ -2169,7 +2183,7 @@ export function TreatmentProgramConstructorClient({
                     onClick={() => {
                       setTestsAddMode("single_test");
                       setItemType("clinical_test");
-                      setItemSearch("");
+                      resetLibraryPickerFilters();
                     }}
                   >
                     Один тест
@@ -2177,20 +2191,21 @@ export function TreatmentProgramConstructorClient({
                 </div>
               </div>
             ) : null}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="lib-search">Поиск</Label>
-              <Input
-                id="lib-search"
-                className="text-sm"
-                value={itemSearch}
-                onChange={(e) => setItemSearch(e.target.value)}
-                placeholder="Фильтр по названию"
-              />
-            </div>
+            <TreatmentProgramLibraryPickerToolbar
+              idPrefix="tpl-lib"
+              searchQuery={itemSearch}
+              onSearchQueryChange={setItemSearch}
+              regionCode={itemRegionCode}
+              onRegionCodeChange={setItemRegionCode}
+              loadType={itemLoadType}
+              onLoadTypeChange={setItemLoadType}
+              showRegionLoadFilters={applyRegionLoadFilters}
+              disabled={editLocked}
+            />
             <ul className="max-h-64 space-y-1 overflow-y-auto pr-0.5">
               {pickerList.length === 0 ? (
                 <li className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-                  Нет записей для выбранного типа.
+                  {emptyMessage}
                 </li>
               ) : (
                 pickerList.map((row) => (

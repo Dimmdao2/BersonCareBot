@@ -3,7 +3,7 @@
 Общие примитивы для экранов врача по программам лечения:
 
 - **`treatmentProgramConstructorShellStyles.ts`** — цвета шапок карточек, классы карточек этапа/«общие рекомендации», `tplToolbarTextBtnClass`; алиасы `TPL_*` совпадают с именами в конструкторе шаблона и указывают на те же строки, что `INSTANCE_*`.
-- **`InstanceAddLibraryItemDialog.tsx`** — модалка «Элемент из библиотеки» для экрана назначенной программы (POST `.../instances/.../stages/.../items`; для этапа 0 дополнительно POST `.../items/from-freeform-recommendation`). Режим «Свой текст» на этапе 0: **`MarkdownEditorToastUi`** (как в форме каталога рекомендаций), один запрос на composite endpoint. Тесты: `InstanceAddLibraryItemDialog.test.tsx`.
+- **`InstanceAddLibraryItemDialog.tsx`** — модалка «Элемент из библиотеки» для экрана назначенной программы. Для **упражнений ЛФК и комплексов ЛФК** — `TreatmentProgramLibraryPickerToolbar` (поиск + регион + тип нагрузки) и `useTreatmentProgramLibraryPickerList` (общая семантика с каталогами врача). Метаданные строк — `buildTreatmentProgramLibraryPickers` + `bodyRegionIdToCode` + `includeExerciseDetails` для комплексов. Конструктор шаблона использует тот же toolbar/hook. Тесты: `InstanceAddLibraryItemDialog.test.tsx`, `treatmentProgramLibraryPickerFilters.test.ts`.
 - **`treatmentProgramLibraryTypes.ts`** — типы строк каталога для шаблона и инстанса.
 - **`TreatmentProgramDndUi.tsx`** — `@dnd-kit` обёртки: DnD pipeline-этапов и элементов этапа (grip на строке/этапе).
 - **`treatmentProgramReorderHelpers.ts`** — расчёт `orderedStageIds` / `orderedItemIds` после DnD и chevrons; `planStageItemDndReorder` для PATCH `groupId` + bulk reorder.

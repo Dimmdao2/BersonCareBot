@@ -15,10 +15,19 @@
 
 ---
 
-## 2026-06-02 — Синхронизация docs и плана (3 закрыта)
+## 2026-06-02 — Фаза 4: фильтры каталога в модалке экземпляра программы
 
-- План-очередь: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) — YAML todos 0–3 completed; **следующая фаза 4** (фильтры каталога).
-- `ACTIVE_WORKQUEUE.md`, `DOCTOR_PATIENT_CARD` README, `TODO.md` §Doctor card — фаза 3 закрыта.
+- **Shared:** `treatmentProgramLibraryPickerFilters.ts`, `TreatmentProgramLibraryPickerToolbar`, `useTreatmentProgramLibraryPickerList` — поиск + регион + тип нагрузки; empty state «Ничего не найдено по фильтрам»; фильтры для **exercise** и **lfk_complex** (метаданные состава комплекса).
+- **`InstanceAddLibraryItemDialog`** и **`TreatmentProgramConstructorClient`** — общий toolbar/hook.
+- **`buildTreatmentProgramLibraryPickers`:** `regionCodes` / `loadType` / `loadTypes` / `matchesMissing*`; RSC — `bodyRegionIdToCode`, `lfkTemplates` с `includeExerciseDetails: true`.
+- **Проверки:** `treatmentProgramLibraryPickerFilters.test.ts`, `InstanceAddLibraryItemDialog.test.tsx`, `buildTreatmentProgramLibraryPickers.test.ts`; `tsc --noEmit` webapp.
+
+---
+
+## 2026-06-02 — Синхронизация docs и плана (4 закрыта)
+
+- План-очередь: YAML todos 0–4 completed; **следующая фаза 5** (inbox «Сегодня»).
+- `ACTIVE_WORKQUEUE.md`, `DOCTOR_PATIENT_CARD` README, `TODO.md` §Doctor card — фаза 4 закрыта.
 
 ---
 

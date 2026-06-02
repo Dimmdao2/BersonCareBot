@@ -9,6 +9,11 @@ import {
   LESSON_CONTENT_SECTION_LEGACY,
 } from "@/modules/treatment-program/types";
 import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
+import {
+  buildExerciseMetaById,
+  buildLfkComplexLibraryFilterMeta,
+  mapExerciseRegionCodes,
+} from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryPickerFilters";
 
 function exerciseThumbUrl(m: ExerciseMedia | undefined): string | null {
   if (!m) return null;
@@ -52,17 +57,25 @@ export function buildTreatmentProgramLibraryPickers(params: {
   clinicalTests: ClinicalTest[];
   recommendations: Recommendation[];
   contentPagesAll: ContentPageRow[];
+  /** UUID региона → `reference_items.code`; для фильтров модалки / конструктора. */
+  bodyRegionIdToCode?: Record<string, string>;
 }): TreatmentProgramLibraryPickers {
-  const { exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll } = params;
+  const { exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll, bodyRegionIdToCode } =
+    params;
+  const exerciseMetaById = buildExerciseMetaById(exercises);
+
   return {
     exercises: exercises.map((e) => ({
       id: e.id,
       title: e.title,
       subtitle: e.loadType ? (LOAD_SUBTITLE[e.loadType] ?? null) : null,
       thumbUrl: exerciseThumbUrl(e.media[0]),
+      regionCodes: mapExerciseRegionCodes(e.regionRefIds, bodyRegionIdToCode),
+      loadType: e.loadType,
     })),
     lfkComplexes: lfkTemplates.map((t) => {
       const desc = t.description?.trim();
+      const filterMeta = buildLfkComplexLibraryFilterMeta(t, exerciseMetaById, bodyRegionIdToCode);
       return {
         id: t.id,
         title: t.title,
@@ -70,6 +83,7 @@ export function buildTreatmentProgramLibraryPickers(params: {
           typeof t.exerciseCount === "number" ? `${t.exerciseCount} упражнений в комплексе` : null,
         thumbUrl: lfkTemplateThumb(t),
         description: desc ? desc : null,
+        ...filterMeta,
       };
     }),
     testSets: testSets.map((ts) => {

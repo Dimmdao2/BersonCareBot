@@ -24,14 +24,18 @@ export default async function TreatmentProgramTemplateEditorPage(props: PageProp
     notFound();
   }
 
-  const [exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll] = await Promise.all([
-    deps.lfkExercises.listExercises({ includeArchived: false }),
-    deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"] }),
-    deps.testSets.listTestSets({ includeArchived: false }),
-    deps.clinicalTests.listClinicalTests({ archiveScope: "active" }),
-    deps.recommendations.listRecommendations({ includeArchived: false }),
-    deps.contentPages.listAll(),
-  ]);
+  const [exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll, bodyRegionItems] =
+    await Promise.all([
+      deps.lfkExercises.listExercises({ includeArchived: false }),
+      deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"], includeExerciseDetails: true }),
+      deps.testSets.listTestSets({ includeArchived: false }),
+      deps.clinicalTests.listClinicalTests({ archiveScope: "active" }),
+      deps.recommendations.listRecommendations({ includeArchived: false }),
+      deps.contentPages.listAll(),
+      deps.references.listActiveItemsByCategoryCode("body_region"),
+    ]);
+
+  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const library = buildTreatmentProgramLibraryPickers({
     exercises,
@@ -40,6 +44,7 @@ export default async function TreatmentProgramTemplateEditorPage(props: PageProp
     clinicalTests,
     recommendations,
     contentPagesAll,
+    bodyRegionIdToCode,
   });
 
   return (

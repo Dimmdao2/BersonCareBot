@@ -28,16 +28,19 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const listPubArch = parseDoctorCatalogPubArchQuery(sp);
   const tplListFilter = treatmentProgramTemplateFilterFromPubArch(listPubArch);
 
-  const [items, exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll] =
+  const [items, exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll, bodyRegionItems] =
     await Promise.all([
       deps.treatmentProgram.listTemplates(tplListFilter),
       deps.lfkExercises.listExercises({ includeArchived: false }),
-      deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"] }),
+      deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"], includeExerciseDetails: true }),
       deps.testSets.listTestSets({ archiveScope: "active", publicationScope: "published" }),
       deps.clinicalTests.listClinicalTests({ archiveScope: "active" }),
       deps.recommendations.listRecommendations({ includeArchived: false }),
       deps.contentPages.listAll(),
+      deps.references.listActiveItemsByCategoryCode("body_region"),
     ]);
+
+  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const library = buildTreatmentProgramLibraryPickers({
     exercises,
@@ -46,6 +49,7 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
     clinicalTests,
     recommendations,
     contentPagesAll,
+    bodyRegionIdToCode,
   });
 
   const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";

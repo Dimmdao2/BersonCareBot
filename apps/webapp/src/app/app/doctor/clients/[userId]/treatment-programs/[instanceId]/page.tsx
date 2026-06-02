@@ -41,6 +41,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
     recommendations,
     contentPagesAll,
     discussionDoctorReplyFlag,
+    bodyRegionItems,
   ] = await Promise.all([
     deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
     deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
@@ -49,13 +50,16 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
     getAppDisplayTimeZone(),
     deps.doctorClients.getClientProfile(userId),
     deps.lfkExercises.listExercises({ includeArchived: false }),
-    deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"] }),
+    deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"], includeExerciseDetails: true }),
     deps.testSets.listTestSets({ includeArchived: false }),
     deps.clinicalTests.listClinicalTests({ archiveScope: "active" }),
     deps.recommendations.listRecommendations({ includeArchived: false }),
     deps.contentPages.listAll(),
     deps.systemSettings.getSetting("patient_program_discussion_doctor_reply_from_log_enabled", "admin"),
+    deps.references.listActiveItemsByCategoryCode("body_region"),
   ]);
+
+  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const treatmentProgramLibrary = buildTreatmentProgramLibraryPickers({
     exercises,
@@ -64,6 +68,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
     clinicalTests,
     recommendations,
     contentPagesAll,
+    bodyRegionIdToCode,
   });
 
   const patientDisplayNameRaw = clientProfile?.identity.displayName?.trim() ?? "";

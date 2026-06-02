@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { DOCTOR_CATALOG_FILTER_MISSING } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import type { TreatmentProgramLibraryPickers } from "./treatmentProgramLibraryTypes";
 import { InstanceAddLibraryItemDialog } from "./InstanceAddLibraryItemDialog";
 
@@ -11,6 +12,28 @@ vi.mock("./programInstanceMutationGuard", () => ({
     await action();
     return true;
   },
+}));
+
+vi.mock("@/shared/ui/ReferenceSelect", () => ({
+  ReferenceSelect: (props: {
+    id?: string;
+    value?: string | null;
+    onChange?: (code: string | null) => void;
+  }) => (
+    <select
+      aria-label={props.id?.includes("-load") ? "Тип нагрузки" : props.id?.includes("-region") ? "Регион" : "ref"}
+      data-testid={props.id ?? "ref-select"}
+      value={props.value ?? ""}
+      onChange={(e) => props.onChange?.(e.target.value === "" ? null : e.target.value)}
+    >
+      <option value="">all</option>
+      <option value="spine">spine</option>
+      <option value="knee">knee</option>
+      <option value="strength">strength</option>
+      <option value="stretch">stretch</option>
+      <option value={DOCTOR_CATALOG_FILTER_MISSING}>missing</option>
+    </select>
+  ),
 }));
 
 const emptyLibrary: TreatmentProgramLibraryPickers = {
@@ -135,5 +158,130 @@ describe("InstanceAddLibraryItemDialog", () => {
       groupId: GROUP_ID,
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("упражнения: фильтры регион и тип нагрузки сужают список", async () => {
+    const user = userEvent.setup();
+    const library: TreatmentProgramLibraryPickers = {
+      ...emptyLibrary,
+      exercises: [
+        {
+          id: "ex-spine-strength",
+          title: "Spine strength",
+          regionCodes: ["spine"],
+          loadType: "strength",
+        },
+        {
+          id: "ex-knee-stretch",
+          title: "Knee stretch",
+          regionCodes: ["knee"],
+          loadType: "stretch",
+        },
+      ],
+    };
+
+    render(
+      <InstanceAddLibraryItemDialog
+        open
+        onOpenChange={() => {}}
+        instanceId={INSTANCE_ID}
+        spec={{
+          stageId: STAGE_ID,
+          context: "custom_group",
+          customGroupId: GROUP_ID,
+        }}
+        library={library}
+        programStatus="active"
+        editLocked={false}
+        onAdded={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /spine strength/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /knee stretch/i })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Регион"), "spine");
+    expect(screen.getByRole("button", { name: /spine strength/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /knee stretch/i })).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText("Регион"), "all");
+    await user.selectOptions(screen.getByLabelText("Тип нагрузки"), "stretch");
+    expect(screen.queryByRole("button", { name: /spine strength/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /knee stretch/i })).toBeInTheDocument();
+  });
+
+  it("рекомендации: фильтры регион/нагрузка не показываются", () => {
+    render(
+      <InstanceAddLibraryItemDialog
+        open
+        onOpenChange={() => {}}
+        instanceId={INSTANCE_ID}
+        spec={{
+          stageId: STAGE_ID,
+          context: "phase_zero_recommendations",
+          customGroupId: null,
+        }}
+        library={{
+          ...emptyLibrary,
+          recommendations: [{ id: "rec-1", title: "Rec A" }],
+        }}
+        programStatus="active"
+        editLocked={false}
+        onAdded={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Регион")).toBeNull();
+    expect(screen.queryByLabelText("Тип нагрузки")).toBeNull();
+  });
+
+  it("комбинированный фильтр регион+нагрузка и empty state по фильтрам", async () => {
+    const user = userEvent.setup();
+    const library: TreatmentProgramLibraryPickers = {
+      ...emptyLibrary,
+      exercises: [
+        {
+          id: "ex-spine-strength",
+          title: "Spine strength",
+          regionCodes: ["spine"],
+          loadType: "strength",
+        },
+        {
+          id: "ex-spine-stretch",
+          title: "Spine stretch",
+          regionCodes: ["spine"],
+          loadType: "stretch",
+        },
+      ],
+    };
+
+    render(
+      <InstanceAddLibraryItemDialog
+        open
+        onOpenChange={() => {}}
+        instanceId={INSTANCE_ID}
+        spec={{
+          stageId: STAGE_ID,
+          context: "custom_group",
+          customGroupId: GROUP_ID,
+        }}
+        library={library}
+        programStatus="active"
+        editLocked={false}
+        onAdded={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText("Регион"), "spine");
+    await user.selectOptions(screen.getByLabelText("Тип нагрузки"), "strength");
+    expect(screen.getByRole("button", { name: /spine strength/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /spine stretch/i })).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText("Регион"), "spine");
+    await user.selectOptions(screen.getByLabelText("Тип нагрузки"), "stretch");
+    expect(screen.getByRole("button", { name: /spine stretch/i })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Регион"), "knee");
+    expect(screen.getByText("Ничего не найдено по фильтрам.")).toBeInTheDocument();
   });
 });

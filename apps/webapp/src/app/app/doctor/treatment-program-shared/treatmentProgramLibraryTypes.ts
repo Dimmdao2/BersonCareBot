@@ -6,6 +6,16 @@ export type TreatmentProgramLibraryRow = {
   thumbUrl?: string | null;
   /** Описание шаблона комплекса ЛФК из каталога (модалка развёртывания в упражнения). */
   description?: string | null;
+  /** Коды `reference_items.code` (body_region) — клиентский фильтр в модалке экземпляра. */
+  regionCodes?: readonly string[];
+  /** Код `load_type` — клиентский фильтр в модалке экземпляра. */
+  loadType?: string | null;
+  /** Все типы нагрузки упражнений комплекса (фильтр «любое совпадение»). */
+  loadTypes?: readonly string[];
+  /** Есть упражнение комплекса без региона (фильтр «Без региона»). */
+  matchesMissingRegion?: boolean;
+  /** Есть упражнение комплекса без типа нагрузки (фильтр «Без типа»). */
+  matchesMissingLoad?: boolean;
 };
 
 export type TreatmentProgramLibraryPickers = {
