@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-06-02 — Фаза 4 (финал): продуктовое правило фильтров picker
+
+- **Решение owner:** пункты «Без региона» / «Без типа» (`DOCTOR_CATALOG_FILTER_MISSING`) — **только** на экранах **создания/редактирования** в библиотеке врача (`DoctorCatalogFiltersForm`: упражнения, тесты, комплексы и т.д.) для аудита незаполненных карточек. В picker **добавления из библиотеки в программу/шаблон** (`TreatmentProgramLibraryPickerToolbar`, `InstanceAddLibraryItemDialog`, `TreatmentProgramConstructorClient`) — **убраны**.
+- **Код:** без `missingValueOption` в toolbar; `treatmentProgramLibraryPickerFilters` — только конкретные коды региона/нагрузки; из `TreatmentProgramLibraryRow` убраны `matchesMissing*`.
+- **Проверки:** 13 тестов (`treatmentProgramLibraryPickerFilters.test.ts`, `InstanceAddLibraryItemDialog.test.tsx`, `buildTreatmentProgramLibraryPickers.test.ts`); `tsc --noEmit` webapp.
+- **Доки:** `treatment-program-shared/README.md`, этот LOG, `ACTIVE_WORKQUEUE.md`, план-очередь, `TODO.md` §Doctor card.
+
+---
+
 ## 2026-06-02 — Фаза 3: черновик редактора назначенной программы
 
 - **Черновик:** `treatment-program-shared/instanceEditorDraft.ts`, `InstanceEditorDraftContext`, sticky `InstanceEditorSaveBar`; правки метаданных этапа/группы, `localComment`, нагрузка упражнения — in-memory; один batch save (`flushInstanceEditorDraft`) с единственным confirm для `active`.
@@ -19,15 +28,15 @@
 
 - **Shared:** `treatmentProgramLibraryPickerFilters.ts`, `TreatmentProgramLibraryPickerToolbar`, `useTreatmentProgramLibraryPickerList` — поиск + регион + тип нагрузки; empty state «Ничего не найдено по фильтрам»; фильтры для **exercise** и **lfk_complex** (метаданные состава комплекса).
 - **`InstanceAddLibraryItemDialog`** и **`TreatmentProgramConstructorClient`** — общий toolbar/hook.
-- **`buildTreatmentProgramLibraryPickers`:** `regionCodes` / `loadType` / `loadTypes` / `matchesMissing*`; RSC — `bodyRegionIdToCode`, `lfkTemplates` с `includeExerciseDetails: true`.
+- **`buildTreatmentProgramLibraryPickers`:** `regionCodes` / `loadType` / `loadTypes`; RSC — `bodyRegionIdToCode`, `lfkTemplates` с `includeExerciseDetails: true`. В picker программы/шаблона **нет** «Без региона» / «Без типа» (только на экранах каталогов врача).
 - **Проверки:** `treatmentProgramLibraryPickerFilters.test.ts`, `InstanceAddLibraryItemDialog.test.tsx`, `buildTreatmentProgramLibraryPickers.test.ts`; `tsc --noEmit` webapp.
 
 ---
 
-## 2026-06-02 — Синхронизация docs и плана (4 закрыта)
+## 2026-06-02 — Синхронизация docs и плана (фазы 3–4 закрыты)
 
-- План-очередь: YAML todos 0–4 completed; **следующая фаза 5** (inbox «Сегодня»).
-- `ACTIVE_WORKQUEUE.md`, `DOCTOR_PATIENT_CARD` README, `TODO.md` §Doctor card — фаза 4 закрыта.
+- План-очередь: YAML todos 0–4 completed; **следующая фаза 5** (cross-patient inbox «К проверке» на «Сегодня»).
+- `ACTIVE_WORKQUEUE.md`, `DOCTOR_PATIENT_CARD` README, `TODO.md` §Doctor card, `docs/README.md` — статус очереди; фаза 4 включает финальное продуктовое правило фильтров (см. запись выше).
 
 ---
 

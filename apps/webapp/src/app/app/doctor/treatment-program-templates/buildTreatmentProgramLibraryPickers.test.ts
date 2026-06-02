@@ -89,7 +89,5 @@ describe("buildTreatmentProgramLibraryPickers", () => {
     });
     expect(pickers.lfkComplexes[0]?.regionCodes).toEqual(["spine"]);
     expect(pickers.lfkComplexes[0]?.loadTypes).toEqual(["strength"]);
-    expect(pickers.lfkComplexes[0]?.matchesMissingRegion).toBe(true);
-    expect(pickers.lfkComplexes[0]?.matchesMissingLoad).toBe(true);
   });
 });

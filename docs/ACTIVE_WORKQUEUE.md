@@ -11,7 +11,7 @@
 | **2C** — задачи специалиста | **Закрыта** (аудит 2026-06-02) | [`SPECIALIST_TASKS.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md), LOG §2C |
 | **3** — черновик редактора программы | **Закрыта** (2026-06-02) | LOG §фаза 3 |
 | **4** — фильтры каталога (регион + нагрузка) | **Закрыта** (2026-06-02) | LOG §фаза 4 |
-| **5** — cross-patient inbox «Сегодня» | Открыта | **следующая** |
+| **5** — cross-patient inbox «К проверке» на «Сегодня» + `focusItemId` | Открыта | **следующая** |
 | **6** — CMS enum + `/help` | Открыта | |
 | **7** — хвосты docs/шаблонов | Частично | этот файл |
 
@@ -37,10 +37,11 @@
 ## Фаза 4 (закрыта)
 
 - Shared picker filters: упражнения **и комплексы ЛФК** — регион, тип нагрузки, поиск; empty state по фильтрам.
-- Экран **назначенной программы** (`InstanceAddLibraryItemDialog`) и **конструктор шаблона** — один toolbar/hook.
+- Экран **назначенной программы** (`InstanceAddLibraryItemDialog`) и **конструктор шаблона** — один toolbar/hook (`TreatmentProgramLibraryPickerToolbar` + `useTreatmentProgramLibraryPickerList`).
 - RSC: `bodyRegionIdToCode`, `includeExerciseDetails` для метаданных комплексов.
+- **Продукт:** в picker **нет** «Без региона» / «Без типа» — эти пункты только в `DoctorCatalogFiltersForm` на экранах каталога врача (аудит незаполненных полей). См. LOG §фаза 4 (финал).
 
-**Следующий шаг очереди:** фаза **5** (cross-patient inbox «К проверке» на «Сегодня»).
+**Следующий шаг очереди:** фаза **5** — cross-patient блок «К проверке» на «Сегодня» и `focusItemId` на экране назначенной программы.
 
 ## Вне scope «сейчас»
 

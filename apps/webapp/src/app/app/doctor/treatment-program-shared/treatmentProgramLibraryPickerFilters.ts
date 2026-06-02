@@ -1,7 +1,6 @@
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { Template } from "@/modules/lfk-templates/types";
 import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
-import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import type { TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
 
@@ -27,29 +26,23 @@ export function buildLfkComplexLibraryFilterMeta(
   template: Template,
   exerciseMetaById: Record<string, { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }>,
   bodyRegionIdToCode: Record<string, string> | undefined,
-): Pick<TreatmentProgramLibraryRow, "regionCodes" | "loadTypes" | "matchesMissingRegion" | "matchesMissingLoad"> {
+): Pick<TreatmentProgramLibraryRow, "regionCodes" | "loadTypes"> {
   const regionCodes = new Set<string>();
   const loadTypes = new Set<string>();
-  let matchesMissingRegion = false;
-  let matchesMissingLoad = false;
 
   for (const row of template.exercises ?? []) {
     const meta = exerciseMetaById[row.exerciseId];
     if (!meta) continue;
-    if (!meta.regionRefIds.length) matchesMissingRegion = true;
     for (const rid of meta.regionRefIds) {
       const code = bodyRegionIdToCode?.[rid];
       if (code) regionCodes.add(code);
     }
-    if (!meta.loadType) matchesMissingLoad = true;
-    else loadTypes.add(meta.loadType);
+    if (meta.loadType) loadTypes.add(meta.loadType);
   }
 
   return {
     regionCodes: [...regionCodes],
     loadTypes: [...loadTypes],
-    matchesMissingRegion,
-    matchesMissingLoad,
   };
 }
 
@@ -60,18 +53,10 @@ export function supportsTreatmentProgramLibraryRegionLoadFilters(
 }
 
 function rowMatchesRegion(row: TreatmentProgramLibraryRow, regionCode: string): boolean {
-  if (isDoctorCatalogMissingFilter(regionCode)) {
-    if (row.loadTypes !== undefined) return row.matchesMissingRegion === true;
-    return (row.regionCodes ?? []).length === 0;
-  }
   return (row.regionCodes ?? []).includes(regionCode);
 }
 
 function rowMatchesLoad(row: TreatmentProgramLibraryRow, loadType: string): boolean {
-  if (isDoctorCatalogMissingFilter(loadType)) {
-    if (row.loadTypes !== undefined) return row.matchesMissingLoad === true;
-    return row.loadType == null;
-  }
   if (row.loadTypes !== undefined) return row.loadTypes.includes(loadType);
   return row.loadType === loadType;
 }

@@ -12,10 +12,6 @@ export type TreatmentProgramLibraryRow = {
   loadType?: string | null;
   /** Все типы нагрузки упражнений комплекса (фильтр «любое совпадение»). */
   loadTypes?: readonly string[];
-  /** Есть упражнение комплекса без региона (фильтр «Без региона»). */
-  matchesMissingRegion?: boolean;
-  /** Есть упражнение комплекса без типа нагрузки (фильтр «Без типа»). */
-  matchesMissingLoad?: boolean;
 };
 
 export type TreatmentProgramLibraryPickers = {

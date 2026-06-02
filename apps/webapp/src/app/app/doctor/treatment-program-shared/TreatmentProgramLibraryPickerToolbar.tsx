@@ -3,7 +3,6 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
-import { DOCTOR_CATALOG_FILTER_MISSING } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 
 type Props = {
@@ -60,10 +59,6 @@ export function TreatmentProgramLibraryPickerToolbar(props: Props) {
                 onChange={onRegionCodeChange}
                 placeholder="Все регионы"
                 clearOptionLabel="Все регионы"
-                missingValueOption={{
-                  value: DOCTOR_CATALOG_FILTER_MISSING,
-                  label: "Без региона",
-                }}
                 showAllOnFocus
                 searchable={false}
               />
@@ -81,10 +76,6 @@ export function TreatmentProgramLibraryPickerToolbar(props: Props) {
                 onChange={onLoadTypeChange}
                 placeholder="Все типы"
                 clearOptionLabel="Все типы"
-                missingValueOption={{
-                  value: DOCTOR_CATALOG_FILTER_MISSING,
-                  label: "Без типа",
-                }}
                 showAllOnFocus
                 searchable={false}
               />

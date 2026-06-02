@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { DOCTOR_CATALOG_FILTER_MISSING } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import type { TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
 import {
   buildLfkComplexLibraryFilterMeta,
@@ -41,22 +40,14 @@ describe("treatmentProgramLibraryPickerFilters", () => {
     expect(out.map((r) => r.id)).toEqual(["ex-1"]);
   });
 
-  it("supports missing region and missing load filters", () => {
-    const byMissingRegion = filterTreatmentProgramLibraryPickerRows(rows, {
+  it("exercise without region/load does not match concrete region filter", () => {
+    const out = filterTreatmentProgramLibraryPickerRows(rows, {
       searchQuery: "",
-      regionCode: DOCTOR_CATALOG_FILTER_MISSING,
+      regionCode: "spine",
       loadType: null,
       applyRegionLoadFilters: true,
     });
-    expect(byMissingRegion.map((r) => r.id)).toEqual(["ex-3"]);
-
-    const byMissingLoad = filterTreatmentProgramLibraryPickerRows(rows, {
-      searchQuery: "",
-      regionCode: null,
-      loadType: DOCTOR_CATALOG_FILTER_MISSING,
-      applyRegionLoadFilters: true,
-    });
-    expect(byMissingLoad.map((r) => r.id)).toEqual(["ex-3"]);
+    expect(out.map((r) => r.id)).toEqual(["ex-1"]);
   });
 
   it("empty message distinguishes filtered vs empty catalog", () => {
@@ -119,8 +110,6 @@ describe("treatmentProgramLibraryPickerFilters", () => {
     );
     expect(meta.regionCodes).toEqual(["spine"]);
     expect(meta.loadTypes).toEqual(["strength"]);
-    expect(meta.matchesMissingRegion).toBe(true);
-    expect(meta.matchesMissingLoad).toBe(true);
 
     const complexRow: TreatmentProgramLibraryRow = {
       id: "tpl-1",
@@ -132,14 +121,6 @@ describe("treatmentProgramLibraryPickerFilters", () => {
         searchQuery: "",
         regionCode: "spine",
         loadType: "strength",
-        applyRegionLoadFilters: true,
-      }).length,
-    ).toBe(1);
-    expect(
-      filterTreatmentProgramLibraryPickerRows([complexRow], {
-        searchQuery: "",
-        regionCode: DOCTOR_CATALOG_FILTER_MISSING,
-        loadType: null,
         applyRegionLoadFilters: true,
       }).length,
     ).toBe(1);

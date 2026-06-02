@@ -3,9 +3,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DOCTOR_CATALOG_FILTER_MISSING } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import type { TreatmentProgramLibraryPickers } from "./treatmentProgramLibraryTypes";
 import { InstanceAddLibraryItemDialog } from "./InstanceAddLibraryItemDialog";
+import { TreatmentProgramLibraryPickerToolbar } from "./TreatmentProgramLibraryPickerToolbar";
 
 vi.mock("./programInstanceMutationGuard", () => ({
   runIfProgramInstanceMutationAllowed: async (_status: string, action: () => Promise<void>) => {
@@ -19,6 +19,7 @@ vi.mock("@/shared/ui/ReferenceSelect", () => ({
     id?: string;
     value?: string | null;
     onChange?: (code: string | null) => void;
+    missingValueOption?: { value: string; label: string };
   }) => (
     <select
       aria-label={props.id?.includes("-load") ? "Тип нагрузки" : props.id?.includes("-region") ? "Регион" : "ref"}
@@ -31,7 +32,9 @@ vi.mock("@/shared/ui/ReferenceSelect", () => ({
       <option value="knee">knee</option>
       <option value="strength">strength</option>
       <option value="stretch">stretch</option>
-      <option value={DOCTOR_CATALOG_FILTER_MISSING}>missing</option>
+      {props.missingValueOption ? (
+        <option value={props.missingValueOption.value}>{props.missingValueOption.label}</option>
+      ) : null}
     </select>
   ),
 }));
@@ -233,6 +236,24 @@ describe("InstanceAddLibraryItemDialog", () => {
 
     expect(screen.queryByLabelText("Регион")).toBeNull();
     expect(screen.queryByLabelText("Тип нагрузки")).toBeNull();
+  });
+
+  it("toolbar: нет пунктов «Без региона» / «Без типа»", () => {
+    render(
+      <TreatmentProgramLibraryPickerToolbar
+        idPrefix="inst-lib"
+        searchQuery=""
+        onSearchQueryChange={() => {}}
+        regionCode={null}
+        onRegionCodeChange={() => {}}
+        loadType={null}
+        onLoadTypeChange={() => {}}
+        showRegionLoadFilters
+      />,
+    );
+
+    expect(screen.queryByRole("option", { name: /без региона/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /без типа/i })).toBeNull();
   });
 
   it("комбинированный фильтр регион+нагрузка и empty state по фильтрам", async () => {
