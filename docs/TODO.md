@@ -116,3 +116,37 @@
 - Метрики OAuth flow (start / success / exchange_failed).
 - Логировать повторные попытки callback (по возможности без PII).
 - Логировать/метрить срабатывания rate limit (hits, 429).
+
+## Doctor card & support model (owner 2026-06-01)
+
+Следующий контур карточки пациента и «Сегодня» — **не** блокирует закрытие [`MASTER_PLAN.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md) (назначение программы). Детали — [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md) §продуктовые решения.
+
+- [ ] Флаг **«На сопровождении»** per patient (не = активная программа); блок «Сегодня» только по флагу; экран/ссылка «программа без сопровождения».
+- [ ] Вкл/выкл **«Комментарии»** и **«Отправить медиа»** per patient + default в настройках врача для клиентов без сопровождения (кнопки видны, disabled если выкл).
+- [ ] Карточка пациента: базовая перегруппировка блоков (убрать хаос, нормальные секции).
+- [ ] Карточка: **график самочувствия** (выбор периода) + на оси дней отметки выполнения/пропуска упражнений.
+- [ ] Карточка: блок **«Программа»** — список упражнений/рекомендаций с маленьким превью (как у пациента на этапах).
+- [ ] Карточка: блок **комментариев/медиа** с быстрым ответом.
+- [ ] Редактор назначенной программы: **черновик in-memory**, одно «Сохранить»; смена статуса этапа только после сохранения (модалка); **завершение программы → все этапы completed**; краткая лента изменений в карточке.
+- [ ] **Добавление из каталога** на экране программы: фильтры **регион + тип нагрузки**, не только название.
+- [ ] **Proactive inbox / лента событий** на «Сегодня» (см. [`RECOMMENDATIONS_AND_ROADMAP.md`](APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md) этап 8) — после карточки и сопровождения; не путать с inbox «К проверке» (частично уже есть).
+
+**Продукт (зафиксировано owner 2026-06-01):** срок этапа **не обязателен**; persistent-рекомендации после завершения программы → **история**, в активной программе пациент видит **общее промо**; UX истории попыток тестов — **после** доработки элементов тестов.
+
+## CMS — полный enum типов контента (ROADMAP_2 §3.3)
+
+- [ ] Аудит `kind` / `system_parent_code` в `content_articles` и смежных сущностях.
+- [ ] Закрепить enum (TS + Drizzle + admin UI) для практически используемых типов (`help_article`, разделы, ситуации, разминки, уроки курсов и т.д.).
+- [ ] Точечная миграция данных; затем **`/help`** — каталог статей из CMS (см. §Patient ниже).
+
+## Patient — хвосты ROADMAP_2 (owner 2026-06-01)
+
+- **CLOSED:** напоминания в primary nav (неактуально); чат + поддержка (достаточно как есть); legacy «Кабинет» → страница **«Запись»** (доработки — [`OWN_BOOKING_ENGINE_INITIATIVE/`](OWN_BOOKING_ENGINE_INITIATIVE/README.md)).
+- [ ] **`/help`** — статьи из CMS (после CMS enum выше).
+- [ ] **`/diary` («Статистика»)** — полная переработка (график разминок, упражнения плана, «сегодня») **отложена**; см. [`apps/webapp/src/app/app/patient/diary/diary.md`](../apps/webapp/src/app/app/patient/diary/diary.md).
+
+## Recommendations catalog — D5 rename `domain` → `kind` (deferred)
+
+- **Статус:** отложено owner; **не блокирует** архив [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) и закрытие ROADMAP_2 patient/doctor polish.
+- **Канон сейчас:** колонка `recommendations.domain`, UI «Тип», справочник `recommendation_type`.
+- **Когда вернёмся:** план [`STAGE_D5_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md) — spike + миграция + код/API/UI в одном релизе.

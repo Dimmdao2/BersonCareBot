@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-06-01 — Закрытие MASTER_PLAN; продуктовые решения; backlog в TODO
+
+- **Ручной smoke** назначения программы — ✅ подтверждён owner (используется на prod).
+- **O5–O7** — решения зафиксированы в [`ROADMAP.md`](ROADMAP.md) §5.
+- **Следующий контур** (сопровождение, карточка, черновик редактора, графики) — [`docs/TODO.md`](../../TODO.md) §Doctor card; не блокирует закрытие [`MASTER_PLAN.md`](MASTER_PLAN.md).
+
+---
+
 ## 2026-05-14 — Инбокс «Тесты, ожидающие оценки» по попытке
 
 - DTO `PendingProgramTestEvaluationRow`: `attemptId`, `attemptSubmittedAt`; PG + in-memory `listPendingEvaluationResultsForPatient` заполняют поля.

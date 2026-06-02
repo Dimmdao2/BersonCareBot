@@ -1,7 +1,7 @@
 # MASTER PLAN: убрать прямое назначение ЛФК — оставить только программу лечения
 
 **Дата:** 2026-05-05  
-**Статус:** ✅ выполнен (2026-05-05) — ручной smoke на живом стенде остаётся за командой  
+**Статус:** ✅ выполнен (2026-05-05); ручной smoke — ✅ owner 2026-06-01  
 **Папка инициативы:** `docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/`
 
 Детальная декомпозиция по этапам A–E: [`DECOMPOSITION.md`](DECOMPOSITION.md).
@@ -229,7 +229,7 @@ pnpm --dir apps/webapp test -- PatientTreatmentProgramsPanel
 
 ## Шаг 4 — Ручной smoke
 
-> ⏳ **Pending — требует живого стенда.** Автоматические проверки (typecheck, lint, тесты) пройдены. Smoke должна пройти команда перед merge/deploy.
+> ✅ **Закрыто owner 2026-06-01** — назначение программ на prod используется в работе.
 
 - [ ] Карточка клиента с legacy ЛФК-комплексами: видно список + `DoctorLfkComplexExerciseOverridesPanel`, кнопки «Назначить комплекс ЛФК» **нет**.
 - [ ] Карточка без ЛФК: секция ЛФК показывает «Нет комплексов ЛФК.», без лишних подсказок.
@@ -257,7 +257,7 @@ pnpm --dir apps/webapp test -- PatientTreatmentProgramsPanel
 5. ✅ `PatientTreatmentProgramsPanel` — единственный путь назначения; работает через **модалку** с поиском, inline-ошибкой и `toast.success`.
 6. ✅ `pnpm --dir apps/webapp exec tsc --noEmit` и `lint` — без ошибок.
 7. ✅ Тест `PatientTreatmentProgramsPanel.test.tsx` — зелёный (3 новых сценария).
-8. ⏳ Ручной smoke — pending на живом стенде.
+8. ✅ Ручной smoke — owner 2026-06-01.
 9. ✅ `LOG.md` обновлён.
 
 ---

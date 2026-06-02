@@ -2,7 +2,13 @@
 
 Дата начала: 2026-05-01.
 
-Формат записи: дата, ссылка на этап ([`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) часть IV и/или [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md)), изменения, проверки, решения, что не делали вне scope.
+---
+
+## 2026-06-01 — ROADMAP_2 / TODO: закрытие patient-хвостов, D5→TODO, 0040 prod, CMS enum
+
+**Owner sync:** §1.2 diary → TODO; §1.3 cancelled; §1.4–§1.5 closed; §1.7 → TODO после CMS; миграция **0040** на prod — closed; **D5** → [`docs/TODO.md`](../TODO.md) (не блокирует архив ASSIGNMENT_CATALOGS); **Курсы** — не держат ROADMAP_2 активным; doctor card backlog — TODO §Doctor card.
+
+**Документы:** [`ROADMAP_2.md`](ROADMAP_2.md) §0, §2, §3, §6–§7; [`docs/TODO.md`](../TODO.md); [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md).
 
 ---
 

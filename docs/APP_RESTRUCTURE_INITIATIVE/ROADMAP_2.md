@@ -5,6 +5,7 @@
 **Синхронизация 2026-05-04 (код):** пункт **§1.2** — закрыт **технический хвост** (legacy URL → `next.config`, no-op `createLfkComplex`, empty state без самосоздания комплекса); полный UX «сегодня в фокусе / read-only история» — **в backlog** внутри §1.2 (см. DoD ниже, [`LOG.md`](LOG.md)).
 **Синхронизация 2026-05-05 (docs):** инициатива **`PATIENT_APP_SHADCN_ALIGNMENT`** перенесена в архив; правила shadcn/shared при переработке страниц закреплены в **§1 п.4**; бывший единый Phase 7 — в мини-инициативах по экрану (см. [`LOG.md`](LOG.md) 2026-05-05).
 **Синхронизация 2026-05-05 (планирование, исторически):** черновой план **§1.1b** под эталон `treatment-programs/[instanceId]` + отдельный `stages/[stageId]`; уточнения про «Историю тестирования», Play-ассет, токены и порядок секций — зафиксированы в старой версии §1.1b до пометки «устарело».
+**Синхронизация 2026-06-01 (owner):** patient §1.2 → **TODO** (детальная переработка «Статистики» позже); §1.3 **неактуален**; §1.4 **закрыт** (страница «Запись», доработки — [`OWN_BOOKING_ENGINE_INITIATIVE`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md)); §1.5 **закрыт**; §1.6 **закрыт** (редизайн профиля 2026-05-10); §1.7 → **[`docs/TODO.md`](../TODO.md)** (после CMS enum §3.3). §3.1 D5 → **TODO**, не блокирует архив инициатив; §3.2 **0040** — **закрыт** (миграции на prod прогнаны, owner 2026-06-01). §4.2 **Курсы** — отдельная инициатива, **не держит** ROADMAP_2 активным. Расширенный контур карточки врача / «На сопровождении» — **[`docs/TODO.md`](../TODO.md)** §Doctor card.
 **Синхронизация 2026-05-13 (§1.1b):** пункт **закрыт по факту** — экран **«Мой план» / программа лечения** доработан **актуальной** логикой: `routePaths.patientTreatmentProgram` → **`/app/patient/treatment/[instanceId]`**, вкладки «Программа / Рекомендации / Прогресс», hero, карточка контроля, timeline, collapsible рекомендаций и др. (см. [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), [`docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md)). Текст **§1.1b ниже — устаревшая спецификация** (архив обсуждения, не план к исполнению). **Batch** для §1.4 / §1.6 (`Collapsible` в cabinet/profile) остаётся в силе.
 **Назначение:** зафиксировать порядок работ на следующий период с важными деталями (scope, файлы, риски, DoD), чтобы агенты могли брать пункты в работу без переоткрытия контекста.
 **Не заменяет:** [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (общий стратегический документ) и [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) (план кабинета врача). Этот документ — операционная нарезка «что брать сейчас», ссылающаяся на оба.
@@ -32,7 +33,7 @@
 | PROGRAM_PATIENT_SHAPE A1–A5 (модель плана, группы, action_log, инбокс «К проверке», бейджи, calendar_timezone) | ✅ PASS / merge-ready | `archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/AUDIT_GLOBAL.md` |
 | ASSIGNMENT_CATALOGS_REWORK B1–B7 (типизация тестов, measure_kinds, sets editor, recommendations, LFK UX, конструктор шаблонов, локальные комментарии) | ✅ PASS | `archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md` |
 | Defer-wave D1–D4, D6 | ✅ PASS | `archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md` |
-| D5 (`recommendations.domain` → `kind`) | ⏸ DEFERRED (owner pause) | `archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md` |
+| D5 (`recommendations.domain` → `kind`) | 📋 TODO — не блокирует архив | [`docs/TODO.md`](../TODO.md) §D5; [`STAGE_D5_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md) |
 | PLAN_DOCTOR_CABINET этапы 1–8 (CMS C, меню, бейджи, «Сегодня», единый чат, REPACK карточки, usage/archive каталогов, density) | ✅ PASS | `done/*_EXECUTION_AUDIT.md` + `LOG.md` |
 | Этап 6 PLAN_DOCTOR_CABINET — глубокая часть карточки пациента (hero / табы / таб «Назначения») | ❄ FROZEN намеренно | `PLAN_DOCTOR_CABINET.md` §этап 6 |
 | Patient Plan polish первого прохода (Stage 0 badge, формат тестов, «Снять Новое», LFK-форма в теле этапа, sort_order, goals/objectives в диалоге, swap-confirm) | ✅ закрыто 2026-05-04 | `E2E_ACCEPTANCE_AFTER_AB.md` §4–§6 |
@@ -41,10 +42,17 @@
 | **PATIENT_APP_SHADCN_ALIGNMENT** — Phases **0–6** (patient shadcn/Base UI alignment: примитивы, patient-экраны, уведомления, формы + FAB дневника и intake) | ✅ закрыто 2026-05-05 | [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md) · [`LOG.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md) · [`AUDIT_RESULTS.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md) |
 | Редизайн **раздела «Назначения»** в кабинете врача (IA/UI кластера: меню, списки, навигация по каталогам) | ✅ практически закрыто 2026-05-04 | owner sync; детали каталогов — execution в [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md) |
 | **Шаблоны программ** внутри «Назначений» — мелкий хвост (список/конструктор, UX) | ⚡ неблокирующий хвост | [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §шапка; не блокирует §1.2–§2.x |
-| **Курсы** (`COURSES_INITIATIVE`, roadmap этап 7) | ⏸ отложены владельцем | [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md) |
-| **Patient `/diary` §1.2** — тех. согласованность (legacy URL, no-op создания комплекса, empty state) | ⚡ частично закрыто 2026-05-04 в коде | [`LOG.md`](LOG.md) 2026-05-04; UX «сегодня» / read-only история — см. §3 §1.2 DoD |
+| **Курсы** (`COURSES_INITIATIVE`) | ⏸ отложены; **не блокируют** ROADMAP_2 | [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md) |
+| **Patient `/diary` §1.2** — тех. согласованность + MVP график самочувствия | ✅ тех. закрыто 2026-05-04; полный UX — **TODO** owner 2026-06-01 | [`docs/TODO.md`](../TODO.md) §Patient; [`diary.md`](../../apps/webapp/src/app/app/patient/diary/diary.md) |
+| **§1.3 Напоминания в primary nav** | ❌ неактуально (owner 2026-06-01) | — |
+| **§1.4 Кабинет / hero визита** | ✅ закрыто — страница «Запись» | [`OWN_BOOKING_ENGINE_INITIATIVE`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md) |
+| **§1.5 Чат + Поддержка** | ✅ закрыто owner 2026-06-01 | — |
+| **§1.6 Profile** | ✅ закрыто 2026-05-10 | [`LOG.md`](LOG.md) |
+| **§1.7 `/help`** | 📋 TODO | [`docs/TODO.md`](../TODO.md) после §3.3 CMS enum |
+| **§3.1 D5 `domain`→`kind`** | 📋 TODO (не блокирует архив) | [`docs/TODO.md`](../TODO.md) §D5 |
+| **§3.2 миграция `0040`** | ✅ закрыто prod (owner 2026-06-01) | миграция в репо; см. [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7 |
 
-**Доменно ядро готово.** Дальше — поверхностная полировка пациента (в т.ч. завершение UX §1.2 дневника), разморозка кусков карточки врача и фоновые хвосты. Работа по шаблонам программ идёт **параллельно** низким приоритетом и не стопорит patient IA / doctor card.
+**Доменно ядро готово.** Patient polish §1.0–1.1a закрыт; §1.4–1.6 закрыты owner 2026-06-01; §1.2/§1.7 → TODO. Doctor card — [`docs/TODO.md`](../TODO.md) §Doctor card. CMS enum §3.3 — активная задача в TODO.
 
 ---
 
@@ -69,20 +77,20 @@
 | 1.1 | Patient `/treatment-programs` список polish (без % прогресса в MVP) | UI / patient | S–M | 1.0 | 1.2–1.7, 3.x |
 | 1.1a | Patient `/treatment-programs/[instanceId]` MVP-проход (текущий этап + архив + этап 0) | UI / patient | M | 1.0 | 1.2–1.7, 3.x |
 | 1.1b | ~~План визуального редизайна detail (`treatment-programs` + `stages/[stageId]`, см. устаревший §1.1b)~~ — **закрыто по факту** актуальной страницей плана/программы (`/app/patient/treatment/[instanceId]`, вкладки и модули `treatment/**`) | UI / patient | — | ✅ выполнено иначе | 1.2–1.7, 3.x |
-| 1.2 | Patient `/diary` → режим «сегодня» (read-only past); **тех. хвост 2026-05-04 закрыт в коде** | UI / patient | S | — | 1.1, 1.1a, 1.3–1.6, 3.x |
-| 1.3 | Patient `/reminders` в основное меню | UI / nav | S | — | все |
-| 1.4 | Patient `/cabinet` hero визита + объединение intake/past | UI / patient | M | — | 1.1, 1.2, 1.3, 1.5, 1.6 |
-| 1.5 | Patient `/messages` + `/support` → одна «Поддержка» | UI / data | M | — | 1.1–1.4, 1.6 |
-| 1.6 | Patient `/profile` сжатие | UI / patient | S | — | все |
-| 1.7 | Patient `/help` как article-контент | content / CMS | M | этап 2 roadmap (CMS типизация enum) | 2.x, 3.x |
+| 1.2 | Patient `/diary` → режим «сегодня» | UI / patient | — | **TODO** owner 2026-06-01 | — |
+| 1.3 | Patient `/reminders` в основное меню | UI / nav | — | **cancelled** owner 2026-06-01 | — |
+| 1.4 | Patient `/cabinet` hero визита + объединение intake/past | UI / patient | — | **✅ closed** → «Запись» | OWN_BOOKING |
+| 1.5 | Patient `/messages` + `/support` → одна «Поддержка» | UI / data | — | **✅ closed** owner 2026-06-01 | — |
+| 1.6 | Patient `/profile` сжатие | UI / patient | — | **✅ closed** 2026-05-10 | — |
+| 1.7 | Patient `/help` как article-контент | content / CMS | 3.3 CMS enum | **TODO** [`docs/TODO.md`](../TODO.md) | — |
 | 2.1 | Doctor card этап 6: hero программы + tab-layout | UI / doctor | L | желательно 1.1, 1.4 | 1.7, 3.x |
 | 2.2 | Cross-patient inbox «К проверке» в «Сегодня» врача | UI / data | M | — | 1.x, 2.1, 3.x |
 | 2.3 | «Открыть тест» → акцент на конкретный тест в `TreatmentProgramInstanceDetailClient` | UI | S | 2.2 опц. | 1.x |
-| 3.1 | D5 `recommendations.domain` → `kind` | data / refactor | M | owner unfreeze | 1.x, 2.x |
-| 3.2 | Prod-применение миграции `0040` (DROP `tests.scoring_config`) | ops | — | runbook | независимо |
-| 3.3 | CMS типизация до полного enum (этап 2 roadmap) | CMS | M | — | 1.7 включается после |
+| 3.1 | D5 `recommendations.domain` → `kind` | data / refactor | — | **TODO** [`docs/TODO.md`](../TODO.md) — не блокирует архив | — |
+| 3.2 | Prod-применение миграции `0040` (DROP `tests.scoring_config`) | ops | — | **✅ closed** owner 2026-06-01 | — |
+| 3.3 | CMS типизация до полного enum (этап 2 roadmap) | CMS | M | **активно** — [`docs/TODO.md`](../TODO.md) | 1.7 |
 | 4.1 | Inbox событий пациентов / proactive doctor assistant | UI / data | L | 2.1 желательно | — |
-| 4.2 | Курсы (полноценная инициатива) | feature | XL | ⏸ отложены owner 2026-05-04 | — |
+| 4.2 | Курсы (полноценная инициатива) | feature | XL | ⏸ отложены; **не блокируют** ROADMAP_2 | [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md) |
 
 ---
 
@@ -245,6 +253,8 @@ Post-MVP (отдельно, не блокирует MVP): множественн
 
 ### 1.2 `/diary` → режим «сегодня» (read-only past)
 
+**Статус (owner 2026-06-01):** **отложено** — детальная переработка в [`docs/TODO.md`](../TODO.md) §Patient. Текущий MVP (график самочувствия за неделю) остаётся; полный UX из спеки ниже — не в ближайшей очереди.
+
 **Тех. согласованность (2026-05-04, до полного UX-прохода):** legacy URL `/app/patient/diary/symptoms` и `/app/patient/diary/lfk` (включая вариант со слэшем) → permanent-редиректы в [`apps/webapp/next.config.ts`](../../apps/webapp/next.config.ts); server action `createLfkComplex` — no-op; на единой [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx) убрана форма самосоздания комплекса, empty state и CTA ведут на программы лечения и сообщения. Детали — [`LOG.md`](LOG.md) записи 2026-05-04.
 
 **Промежуточный MVP (2026-05-09):** на `/app/patient/diary` показывается недельный график самочувствия (Recharts `ComposedChart`); вкладки «Симптомы»/«ЛФК» и связанный UI на странице не монтируются. Источник правды по поведению и TODO — [`apps/webapp/src/app/app/patient/diary/diary.md`](../../apps/webapp/src/app/app/patient/diary/diary.md).
@@ -287,7 +297,9 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/diary
 
 ### 1.3 `/reminders` в основное меню
 
-**Цель.** Перестать прятать существующую полезную страницу.
+**Статус (owner 2026-06-01):** **неактуально** — пункт закрыт без реализации.
+
+**Цель (исторически).** Перестать прятать существующую полезную страницу.
 
 **Что делать.**
 
@@ -319,7 +331,9 @@ pnpm --dir apps/webapp exec tsc --noEmit
 
 ### 1.4 `/cabinet` hero визита + объединение intake/past
 
-**Цель.** В `/cabinet` ближайший визит — приоритетный блок; история intake (`CabinetIntakeHistory`) и прошлых приёмов (`CabinetPastBookings`) — единая хронологическая лента.
+**Статус (owner 2026-06-01):** **закрыто** — legacy `/cabinet` редиректит на **«Запись»** (`/app/patient/booking/new`); доработки записи — отдельная инициатива [`OWN_BOOKING_ENGINE_INITIATIVE`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md), не этот пункт ROADMAP_2.
+
+**Цель (исторически).** В `/cabinet` ближайший визит — приоритетный блок; история intake (`CabinetIntakeHistory`) и прошлых приёмов (`CabinetPastBookings`) — единая хронологическая лента.
 
 **Что делать.**
 
@@ -354,7 +368,9 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/cabinet
 
 ### 1.5 `/messages` + `/support` → одна «Поддержка»
 
-**Цель.** Один сценарий «связаться со специалистом» — одна точка входа.
+**Статус (owner 2026-06-01):** **закрыто** — текущее разделение «Чат» и «Поддержка» достаточно; объединение не планируется.
+
+**Цель (исторически).** Один сценарий «связаться со специалистом» — одна точка входа.
 
 **Что делать.**
 
@@ -389,7 +405,9 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/messages src/app/app/
 
 ### 1.6 `/profile` сжатие
 
-**Цель.** Убрать дублирующие точки входа (`Уведомления` как ссылка vs страница `/notifications`), привести `/profile` к компактному списку «аккаунт + настройки + установка + выход».
+**Статус:** **✅ закрыто 2026-05-10** — см. [`LOG.md`](LOG.md) (PatientProfileHero, плоская страница).
+
+**Цель (исторически).** Убрать дублирующие точки входа (`Уведомления` как ссылка vs страница `/notifications`), привести `/profile` к компактному списку «аккаунт + настройки + установка + выход».
 
 **Что делать.**
 
@@ -420,6 +438,8 @@ pnpm --dir apps/webapp exec tsc --noEmit
 ---
 
 ### 1.7 `/help` как article-контент
+
+**Статус (owner 2026-06-01):** **TODO** — [`docs/TODO.md`](../TODO.md) §Patient + §CMS enum; после §3.3.
 
 **Цель.** Превратить `/help` в реальную базу знаний (статьи), а не пустую страницу.
 
@@ -555,13 +575,11 @@ pnpm --dir apps/webapp exec vitest run src/modules/treatment-program src/modules
 
 ### 3.1 D5 `recommendations.domain` → `kind`
 
-**Статус сейчас.** ⏸ owner pause. Снимается отдельным решением владельца.
+**Статус (owner 2026-06-01):** перенесено в [`docs/TODO.md`](../TODO.md) §D5 — **не блокирует** закрытие инициатив и архив ASSIGNMENT_CATALOGS. Канон: колонка `domain`, UI «Тип».
 
-**Когда возьмём.** После завершения 1.1–1.4 (когда доменно ничего не двигается). Это инвазивный рефактор переименования; дешевле делать в спокойный момент.
+**Детали (исторически).**
 
-**Детали.**
-
-- План есть: `archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md`.
+- План: `archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md`.
 - Затрагивает: схема `recommendations`, миграция (rename column), Drizzle schema, типы в `modules/recommendations`, UI ярлыки, тесты.
 - Совместимость: в одной миграции — `ALTER TABLE … RENAME COLUMN domain TO kind` + одновременный код-релиз (без длинной dual-read фазы — таблица модерируемого размера).
 - Sync с integrator не требуется (не относится к `system_settings`), но проверить, что integrator-side ничего не читает по имени `domain`.
@@ -574,22 +592,9 @@ pnpm --dir apps/webapp exec vitest run src/modules/treatment-program src/modules
 
 ### 3.2 Prod-применение миграции `0040` (DROP `tests.scoring_config`)
 
-**Статус сейчас.** Миграция в репо, на dev применена, prod ждёт runbook.
+**Статус (owner 2026-06-01):** **✅ закрыто** — миграции на production прогнаны (подтверждение владельца).
 
-**Что делать.**
-
-- Подготовить ops-runbook в `deploy/RUNBOOK_DROP_SCORING_CONFIG.md` (если ещё нет): backup → миграция → smoke (`SELECT count(*) FROM tests` + сценарий «открыть существующий тест»).
-- Применить с полным префиксом env (см. `.cursor/rules/host-psql-database-url.mdc`):
-
-```bash
-set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
-# далее — drizzle:migrate из проекта или ручной апдейт по runbook
-```
-
-- После — отметка в `LOG.md` и `AUDIT_DEFER_CLOSURE_GLOBAL.md`.
-
-**Кому отдать.** Shell / ops агент с явным согласием владельца.
+Миграция в репо: [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql). Ранее в docs фигурировал отдельный ops-runbook — актуально только для истории деплоев до этой даты.
 
 ---
 
@@ -614,27 +619,34 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
 
 ### 4.1 Inbox событий пациентов / proactive doctor assistant
 
-Этап 8 `RECOMMENDATIONS_AND_ROADMAP.md`. Включается, когда `2.1` и `2.2` отработают и появится понимание, какие именно события доктору нужны проактивно.
+Этап 8 [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md). **Не путать** с inbox «К проверке» (тесты) — часть уже на карточке и в экране программы.
+
+**По плану (что должно появиться):**
+
+- **Проактивная лента** на «Сегодня» и/или в карточке: сигналы вроде «боль выше порога N дней», «пропуски занятий/упражнений», «тест отправлен — нужна оценка» (частично пересекается с «К проверке»).
+- **Агрегатор событий** поверх уже существующих данных: дневник самочувствия, сессии/отметки ЛФК и программы, ответы на тесты, записи на приём.
+- **Настраиваемые пороги** (например «уведомить при боли ≥ 7») — отдельный admin UI.
+
+**Когда:** после карточки врача и модели «На сопровождении» — см. [`docs/TODO.md`](../TODO.md) §Doctor card. Включается, когда станет ясно, какие события нужны в первую очередь (после §2.1–2.2 ROADMAP_2 или их замены в TODO).
 
 ### 4.2 Курсы
 
-Отдельная инициатива [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md). **Статус (2026-05-04, owner):** **отложены** — не входят в ближайшую очередь работ; не блокируют patient IA (`ROADMAP_2` §3), карточку врача §4 и полировку шаблонов. Ранее планировалось стартовать после ядра `PROGRAM_PATIENT_SHAPE` и оплаты; фактическая дата возврата — по отдельному решению.
+Отдельная инициатива [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md). **Статус (owner):** **отложены** — **не входят** в активный контур ROADMAP_2 и **не блокируют** его закрытие по patient/doctor polish. Дата возврата — отдельное решение.
 
 ---
 
 ## 7. Definition of Done всего цикла ROADMAP_2
 
-Цикл считается закрытым, когда:
+**Статус цикла (2026-06-01, owner):** patient polish **§1.0–1.1a, 1.1b, 1.4–1.6** — закрыты; **§1.2, §1.7** → [`docs/TODO.md`](../TODO.md); **§1.3** cancelled; **§3.2** closed; **§3.1** → TODO; **§3.3 CMS enum** — активная задача в TODO. Doctor **§2.x** и расширенная карточка — [`docs/TODO.md`](../TODO.md) §Doctor card (не блокирует закрытие patient-контура). **§4.2 Курсы** — вне активного цикла.
 
-1. **1.1b** — закрыт фактической доработкой экрана плана/программы (`/app/patient/treatment/[instanceId]`, см. §0 и §3 **1.1b**); остальные пункты: 1.0, 1.1, 1.1a, 1.2–1.6 (1.7 — отдельно после 3.3).
-2. Закрыт пункт 2.1 (с `*_EXECUTION_AUDIT.md` в `done/`) и 2.3.
-3. Пункт 2.2 либо закрыт, либо явно отложен в backlog с причиной в [`LOG.md`](LOG.md).
-4. По 3.1, 3.2, 3.3 — каждый отдельно: либо закрыт, либо явно зафиксирован отложенным с владельцем решения.
-5. Полный `pnpm install --frozen-lockfile && pnpm run ci` зелёный на финальном коммите цикла.
-6. Обновлены документы:
-   - [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) — этапы 5 (patient IA) и кусок этапа 6 (doctor card) помечены как продвинутые/закрытые.
-   - [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — этап 6 «снято с заморозки» / закрыт.
-   - [`LOG.md`](LOG.md) — финальная запись «ROADMAP_2 завершён» со списком закрытых пунктов и ссылками на мини-инициативы.
+Цикл **patient IA polish** считается закрытым, когда:
+
+1. **1.1b** — закрыт (`/app/patient/treatment/[instanceId]`).
+2. **1.0, 1.1, 1.1a, 1.4, 1.5, 1.6** — закрыты (см. §0, [`LOG.md`](LOG.md)).
+3. **1.2, 1.7** — явно в TODO; **1.3** — cancelled.
+4. **3.2** — closed; **3.1** — TODO; **3.3** — выполнен или в TODO с причиной.
+
+Doctor card §2.1–2.3 и proactive §4.1 — **отдельный контур** в [`docs/TODO.md`](../TODO.md); не блокируют пункты 1–4 выше.
 
 ---
 

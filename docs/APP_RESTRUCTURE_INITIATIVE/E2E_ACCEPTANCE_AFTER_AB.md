@@ -225,8 +225,8 @@
 | **P2** | ~~UX-01~~ … | ~~Sonnet 4.6~~ | ~~S~~ — **fixed 2026-05-04** (кнопка «Снять «Новое»») |
 | **P2** | ~~B6: предупреждение при смене порядка этапа 0~~ … | ~~Sonnet 4.6~~ | ~~S~~ — **fixed 2026-05-04** (`confirm` в `handleMoveStage`) |
 | **P2** | Этап 6 PLAN_DOCTOR_CABINET: hero программы + tab-layout в карточке пациента | Composer-2 | L |
-| **P3** | Prod-деплой миграции `0040` DROP scoring_config (ops-хвост по runbook) | shell / ops | — |
-| **P3** | D5: `domain` → `kind` (снятие owner pause) | Codex 5.3 | M |
+| **P3** | Prod-деплой миграции `0040` DROP scoring_config | shell / ops | — | **✅ closed** owner 2026-06-01 |
+| **P3** | D5: `domain` → `kind` | Codex 5.3 | M | **TODO** [`docs/TODO.md`](../TODO.md) — не блокирует архив |
 | **P3** | Cross-patient inbox «К проверке» на Today врача | Sonnet 4.6 / Composer-2 | M |
 
 ---

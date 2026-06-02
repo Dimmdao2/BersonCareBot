@@ -33,6 +33,7 @@ type CatalogService = {
   priceMinor: number;
   isActive: boolean;
   sortOrder: number;
+  updatedAt: string;
 };
 
 type CatalogSpecialist = {
@@ -266,21 +267,24 @@ export function RubitimeSection() {
           {services.map((s) => (
             <div
               key={s.id}
-              className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"
+              className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-xs"
             >
-              <span>
-                {s.title} · {s.durationMinutes} мин · {formatPriceMinor(s.priceMinor)}
-                {!s.isActive && <span className="ml-1 text-muted-foreground">(неактивна)</span>}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => deleteEntity("services", s.id)}
-                disabled={isPending}
-              >
-                ✕
-              </Button>
+              <div className="flex items-center justify-between gap-2">
+                <span>
+                  {s.title} · {s.durationMinutes} мин · {formatPriceMinor(s.priceMinor)}
+                  {!s.isActive && <span className="ml-1 text-muted-foreground">(неактивна)</span>}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => deleteEntity("services", s.id)}
+                  disabled={isPending}
+                >
+                  ✕
+                </Button>
+              </div>
+              <ServiceEditor key={`${s.id}-${s.updatedAt}`} service={s} onSaved={() => void loadAll()} />
             </div>
           ))}
           <ServiceForm onDone={() => void loadAll()} />
@@ -315,7 +319,16 @@ export function RubitimeSection() {
                 </div>
                 <span className="text-muted-foreground">
                   {br?.title ?? bs.branchId} · {svc?.title ?? bs.serviceId} · {sp?.fullName ?? bs.specialistId}
+                  {svc ? ` · ${svc.durationMinutes} мин · ${formatPriceMinor(svc.priceMinor)}` : ""}
                 </span>
+                {svc ? (
+                  <ServiceEditor
+                    key={`bs-${bs.id}-${svc.updatedAt}`}
+                    service={svc}
+                    compact
+                    onSaved={() => void loadAll()}
+                  />
+                ) : null}
               </div>
             );
           })}
@@ -565,6 +578,104 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
   );
 }
 
+function ServiceEditor({
+  service,
+  onSaved,
+  compact = false,
+}: {
+  service: CatalogService;
+  onSaved: () => void;
+  compact?: boolean;
+}) {
+  const [title, setTitle] = useState(service.title);
+  const [description, setDescription] = useState(service.description ?? "");
+  const [durationMinutes, setDurationMinutes] = useState(String(service.durationMinutes));
+  const [priceMinor, setPriceMinor] = useState(String(service.priceMinor));
+  const [err, setErr] = useState<string | null>(null);
+  const [isPending, start] = useTransition();
+
+  function save() {
+    setErr(null);
+    if (!title.trim()) {
+      setErr("Название обязательно");
+      return;
+    }
+    const dur = Number.parseInt(durationMinutes, 10);
+    const price = Number.parseInt(priceMinor, 10);
+    if (!Number.isFinite(dur) || dur <= 0) {
+      setErr("Длительность должна быть > 0");
+      return;
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      setErr("Цена (копейки) должна быть >= 0");
+      return;
+    }
+    start(async () => {
+      const res = await fetch(`${BASE}/services/${service.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() || null,
+          durationMinutes: dur,
+          priceMinor: price,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || data.ok === false) {
+        setErr(String(data.error ?? `HTTP ${res.status}`));
+        return;
+      }
+      onSaved();
+    });
+  }
+
+  return (
+    <div className={compact ? "flex flex-col gap-1 border-t border-border/60 pt-2" : "mt-1 flex flex-col gap-1"}>
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          className={`input-base ${compact ? "" : "col-span-2"}`}
+          placeholder="Название"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          disabled={isPending}
+        />
+        <input
+          className="input-base"
+          placeholder="Длительность (мин)"
+          type="number"
+          min={1}
+          value={durationMinutes}
+          onChange={(e) => setDurationMinutes(e.target.value)}
+          disabled={isPending}
+        />
+        <input
+          className="input-base"
+          placeholder="Цена (копейки)"
+          type="number"
+          min={0}
+          value={priceMinor}
+          onChange={(e) => setPriceMinor(e.target.value)}
+          disabled={isPending}
+        />
+        {!compact ? (
+          <input
+            className="input-base col-span-2"
+            placeholder="Описание (необязательно)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={isPending}
+          />
+        ) : null}
+      </div>
+      {err && <p className="text-xs text-destructive">{err}</p>}
+      <Button type="button" size="sm" variant="secondary" onClick={save} disabled={isPending}>
+        {isPending ? "…" : compact ? "Сохранить услугу" : "Сохранить"}
+      </Button>
+    </div>
+  );
+}
+
 function ServiceForm({ onDone }: { onDone: () => void }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -612,7 +723,7 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
-      <p className="text-sm font-medium">Добавить / обновить услугу</p>
+      <p className="text-sm font-medium">Добавить услугу</p>
       <div className="grid grid-cols-2 gap-2">
         <input
           className="input-base col-span-2"

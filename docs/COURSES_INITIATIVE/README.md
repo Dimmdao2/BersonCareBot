@@ -6,7 +6,7 @@
 
 > **Очерёдность:** последняя инициатива в очереди реструктуризации. Стартует **после** ядра пациентского `PROGRAM_PATIENT_SHAPE_PLAN` и появления оплаты. До этого — только документация.
 >
-> **Отложено владельцем (2026-05-04):** инициатива **не в ближайшей очереди** работ; не блокирует patient IA и полировку кабинета врача — см. [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) и запись в [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md).
+> **Отложено владельцем (2026-05-04):** инициатива **не в ближайшей очереди**; **не блокирует** закрытие ROADMAP_2 patient/doctor polish и архив смежных инициатив — см. [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §4.2, [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md) 2026-06-01.
 
 ---
 
