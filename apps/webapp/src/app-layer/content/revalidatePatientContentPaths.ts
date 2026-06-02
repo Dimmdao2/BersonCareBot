@@ -30,6 +30,7 @@ export function revalidatePatientContentPaths(args: {
   }
   if (helpTouched) {
     revalidatePath(routePaths.patientHelp);
+    revalidatePath(routePaths.bookingNew);
     for (const s of slugs) {
       if (s) revalidatePath(routePaths.patientHelpArticle(s));
     }

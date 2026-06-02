@@ -12,4 +12,6 @@
 
 **План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) — фаза 2 закрыта.
 
-**Проверки:** vitest `help-content`, `CabinetInfoLinksCard`, `cabinetInfoLinkTiles`, `booking-new-page`; `tsc --noEmit` webapp.
+**Проверки:** vitest `help-content`, `CabinetInfoLinksCard`, `cabinetInfoLinkTiles`, `booking-new-page`, `revalidatePatientContentPaths` (`booking/new`); `tsc --noEmit` webapp.
+
+**Аудит (тот же день):** в `revalidatePatientContentPaths` добавлен `revalidatePath(routePaths.bookingNew)` при `section=help` — иначе плитки на «Запись» не обновлялись после публикации статей в CMS.

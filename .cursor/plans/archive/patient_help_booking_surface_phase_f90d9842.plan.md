@@ -62,9 +62,10 @@ isProject: false
 - [x] `CabinetInfoLinks surface="booking"` под `BookingUpcomingSection` в `booking/new/page.tsx`
 - [x] `buildCabinetInfoLinkTiles({ omitBookingCta })`, плитка `about` → `/help/about`
 - [x] `CabinetInfoLinksCard` + vitest/RTL + `booking-new-page.test.ts` (contract mount)
-- [x] `booking/new/booking.md`, sync `TODO` / `DOCTOR_PATIENT_CARD` LOG
+- [x] `booking/new/booking.md`, sync `TODO` / `ACTIVE_WORKQUEUE` / `DOCTOR_CMS` / `DOCTOR_PATIENT_CARD` LOG
+- [x] `revalidatePatientContentPaths` — инвалидация `routePaths.bookingNew` при изменении раздела `help`
 
-Проверки (выполнены): `cabinetInfoLinkTiles`, `CabinetInfoLinksCard`, `booking-new-page`, `help-content`; блок всегда рендерится (базовые плитки без CMS).
+Проверки (выполнены): `cabinetInfoLinkTiles`, `CabinetInfoLinksCard`, `booking-new-page`, `help-content`, `revalidatePatientContentPaths` (22 tests); блок всегда рендерится (базовые плитки без CMS).
 
 ## Phase 3 — City-Aware адреса
 - Привязка `cityCode` в ссылках адреса (СПб/Мск) на booking flow.

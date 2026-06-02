@@ -16,6 +16,7 @@ describe("revalidatePatientContentPaths", () => {
     revalidatePatientContentPaths({ slug: "preparation", section: "help" });
     const paths = vi.mocked(revalidatePath).mock.calls.map((c) => c[0]);
     expect(paths).toContain("/app/patient/help");
+    expect(paths).toContain("/app/patient/booking/new");
     expect(paths).toContain("/app/patient/help/preparation");
     expect(paths).toContain("/app/patient/content/preparation");
   });

@@ -8,4 +8,4 @@
 - Условные плитки из CMS (`buildCabinetInfoLinkTiles`): `preparation`, `about`, стоимость (`services-pricing` / legacy `cost`).
 - Блок рендерится **всегда** (адрес + справка), даже если список предстоящих записей пуст.
 
-См. [`modules/help-content/README.md`](../../../../modules/help-content/README.md).
+См. [`modules/help-content/README.md`](../../../../modules/help-content/README.md). После публикации статей help в CMS — инвалидация через `revalidatePatientContentPaths` (включая этот маршрут).

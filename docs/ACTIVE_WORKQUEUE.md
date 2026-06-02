@@ -51,7 +51,7 @@
 - **IA help (2026-06-03, план patient_help_booking фаза 1):** `HELP_CANONICAL_ARTICLE_IA`, семь канонических slug в `canonicalSlugs.ts`; условные плитки — `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES` + `resolvePublishedServicesPricingSlug`.
 - **Полезные ссылки на «Запись» (2026-06-03, фаза 2):** `CabinetInfoLinks surface="booking"` в `booking/new/page.tsx` под `BookingUpcomingSection`; плитка `about`; `CabinetInfoLinksCard` + vitest.
 - **Примечание:** `/cabinet` → redirect на «Запись». Контент для условных плиток — опубликовать в CMS (`preparation`, `services-pricing`, `about`).
-- **Проверки:** vitest `help-content`, `revalidatePatientContentPaths`, `cabinetInfoLinkTiles`; см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 6.
+- **Проверки:** vitest `help-content`, `revalidatePatientContentPaths` (+ `booking/new` при help), `cabinetInfoLinkTiles`, `CabinetInfoLinksCard`, `booking-new-page`; см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 6, `help-content/LOG.md` §фаза 2.
 
 ## Фаза 5 (закрыта)
 

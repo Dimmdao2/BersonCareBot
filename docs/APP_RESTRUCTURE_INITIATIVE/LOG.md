@@ -10,7 +10,9 @@
 
 **План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) §фаза 2. **LOG:** [`help-content/LOG.md`](../../apps/webapp/src/modules/help-content/LOG.md).
 
-**Проверки:** vitest `CabinetInfoLinksCard`, `cabinetInfoLinkTiles`, `help-content`.
+**Проверки:** vitest `CabinetInfoLinksCard`, `cabinetInfoLinkTiles`, `booking-new-page`, `help-content`, `revalidatePatientContentPaths` (22 tests).
+
+**Аудит (тот же день):** `revalidatePatientContentPaths` — `revalidatePath(routePaths.bookingNew)` при save/lifecycle help (плитки на «Запись» без устаревшего кэша).
 
 ---
 

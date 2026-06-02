@@ -140,7 +140,7 @@
 ## CMS — полный enum типов контента (ROADMAP_2 §3.3) — **закрыто** (фаза 6, 2026-06-02)
 
 - [x] Таксономия: `content_sections.kind` / `system_parent_code`; роли страниц `CONTENT_PAGE_ROLES` (`help_article`, `thematic_article`, `system_cluster_page`) — `content-page-roles.ts`.
-- [x] Раздел **`help`** (`0103_help_content_section.sql`); CMS «Статьи справки»; patient **`/help`** + **`/help/[slug]`**; `revalidatePatientContentPaths`; редирект `/content/[slug]`; IA canonical slug (`preparation`, `after-visit`, `services-pricing`, `app-guide`, `address-spb`, `address-msk`, `about`; legacy **`cost`** → alias стоимости). **`/app/patient/booking/new`:** `CabinetInfoLinks surface="booking"` под предстоящими записями (план patient_help_booking — фазы 1–2 закрыты 2026-06-03). Док: `modules/help-content/README.md`, `help/help.md`, `cabinet/cabinet.md`, `DOCTOR_CMS_AND_RUNTIME.md`.
+- [x] Раздел **`help`** (`0103_help_content_section.sql`); CMS «Статьи справки»; patient **`/help`** + **`/help/[slug]`**; `revalidatePatientContentPaths` (+ **`/booking/new`** при help); редирект `/content/[slug]`; IA canonical slug; **`/app/patient/booking/new`:** `CabinetInfoLinks surface="booking"` (план patient_help_booking — **фазы 1–2 закрыты** 2026-06-03). Док: `modules/help-content/README.md`, `help/help.md`, `booking/new/booking.md`, `cabinet/cabinet.md`, `DOCTOR_CMS_AND_RUNTIME.md`; план: `.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`.
 
 ## Patient — хвосты ROADMAP_2 (owner 2026-06-01)
 
