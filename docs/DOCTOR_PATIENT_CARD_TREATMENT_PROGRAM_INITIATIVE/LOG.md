@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-06-02 — Фаза 2B: карточка врача (Tabs + Hero + Action Strip)
+
+**Сделано:**
+- `ClientProfileCard` — каркас: `PatientCareBar`, `PatientActionStrip`, табы Обзор / Программа / Коммуникации / Записи / Учётка; якоря `#doctor-client-section-*` → таб + scroll (`useDoctorClientAnchorTab`).
+- RSC: `loadDoctorClientProgramCardAggregates` (комментарии/медиа по последнему сообщению пациента в обсуждении элемента; «план не открыт» через `patientPlanUpdatedBadgeForInstance`), `buildDoctorClientWellbeingModel` + `displayTimeZone` на `[userId]/page.tsx`.
+- Обзор: Care Plan summary + CTA, спарклайн самочувствия + lazy полный график, заметки; Program/Records/Account — перенос существующих панелей по §4.5.
+- Hero: компактный `DoctorClientSupportCareBar`; чат-кнопка «Чат»; меню `⋯`.
+
+**Семантика «нового» в Action Strip (2B-3):** по каждому активному элементу инстанса — последнее сообщение `senderRole=patient` без ответа врача после; медиа отдельным счётчиком (`mediaFileId`).
+
+**Проверки:** `pnpm --dir apps/webapp exec tsc --noEmit`; vitest `countDiscussionAttention.test.ts`, `ClientProfileCard.backLink.test.tsx`, `ClientProfileCard.anchorTab.test.tsx` (fast).
+
+**Не делали:** фаза 2C (задачи, Drizzle, worker, Settings); полное дерево инстанса на «Обзоре»; program inbox с быстрым ответом в карточке (остаётся на экране инстанса).
+
+---
+
 ## 2026-06-02 — Фаза 2A: дизайн карточки утверждён
 
 - Модель карточки: **Tabs + Hero**, график самочувствия **вторичный** (спарклайн в «Обзоре», полный — по клику) — owner.

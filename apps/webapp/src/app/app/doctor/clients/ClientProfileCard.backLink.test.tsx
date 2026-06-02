@@ -26,6 +26,9 @@ vi.mock("./DoctorClientLifecycleActions", () => ({ DoctorClientLifecycleActions:
 vi.mock("./DoctorNotesPanel", () => ({ DoctorNotesPanel: () => null }));
 vi.mock("./ClientBookingHistoryPanel", () => ({ ClientBookingHistoryPanel: () => null }));
 vi.mock("./SubscriberBlockPanel", () => ({ SubscriberBlockPanel: () => null }));
+vi.mock("./DoctorClientSupportCareBar", () => ({
+  DoctorClientSupportCareBar: () => <div id="doctor-client-section-support" />,
+}));
 
 const minimalProfile: ClientProfile = {
   identity: {
@@ -152,7 +155,8 @@ describe("ClientProfileCard back link (scope)", () => {
     expect(link).toHaveAttribute("href", href);
   });
 
-  it("renders support chat CTA instead of legacy send form", () => {
+  it("renders support chat CTA instead of legacy send form", async () => {
+    const user = userEvent.setup();
     render(
       <ClientProfileCard
         profile={minimalProfile}
@@ -164,7 +168,8 @@ describe("ClientProfileCard back link (scope)", () => {
 
     const openChat = document.getElementById("doctor-client-open-support-chat-button");
     expect(openChat).not.toBeNull();
-    expect(openChat).toHaveTextContent("Открыть чат");
+    expect(openChat).toHaveTextContent("Чат");
+    await user.click(screen.getByRole("tab", { name: /коммуникации/i }));
     expect(screen.getByText(/единый чат поддержки/i)).toBeInTheDocument();
     expect(screen.getByText(/старый журнал отправок/i)).toBeInTheDocument();
   });
@@ -184,7 +189,7 @@ describe("ClientProfileCard back link (scope)", () => {
       />,
     );
 
-    expect(await screen.findByRole("button", { name: /открыть чат 2/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /чат 2/i })).toBeInTheDocument();
   });
 
   it("shows a clear error when patient is missing during chat ensure", async () => {
@@ -211,7 +216,9 @@ describe("ClientProfileCard back link (scope)", () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /открыть чат/i }));
+    const openChat = document.getElementById("doctor-client-open-support-chat-button");
+    expect(openChat).not.toBeNull();
+    await userEvent.click(openChat!);
     expect(await screen.findByText("Пациент не найден, чат открыть нельзя.")).toBeInTheDocument();
   });
 });

@@ -1,0 +1,90 @@
+"use client";
+
+import type { ClientProfile } from "@/modules/doctor-clients/service";
+import { ClientBookingHistoryPanel } from "./ClientBookingHistoryPanel";
+
+type Props = {
+  userId: string;
+  profile: Pick<
+    ClientProfile,
+    "upcomingAppointments" | "appointmentHistory" | "appointmentStats" | "symptomTrackings" | "recentSymptomEntries"
+  >;
+};
+
+export function DoctorClientRecordsTab({ userId, profile }: Props) {
+  const { upcomingAppointments, appointmentHistory, appointmentStats, symptomTrackings, recentSymptomEntries } =
+    profile;
+
+  return (
+    <div className="flex flex-col gap-0">
+      <section id="doctor-client-section-appointments" className="border-b border-border px-4 py-4">
+        <div className="flex flex-col gap-4">
+          {upcomingAppointments.length === 0 ? (
+            <p className="text-muted-foreground">Нет предстоящих записей.</p>
+          ) : (
+            <ul id="doctor-client-upcoming-appointments-list" className="m-0 list-none space-y-3 p-0">
+              {upcomingAppointments.map((a) => (
+                <li
+                  key={a.id}
+                  id={`doctor-client-upcoming-appointment-${a.id}`}
+                  className="rounded-lg border border-border bg-card p-3"
+                >
+                  {a.link && /^https?:\/\//i.test(a.link) ? (
+                    <a href={a.link} target="_blank" rel="noopener noreferrer">
+                      {a.label}
+                    </a>
+                  ) : (
+                    a.label
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Статистика: всего {appointmentStats.total}, отмен за 30 дн.: {appointmentStats.cancellations30d}
+          </p>
+        </div>
+      </section>
+
+      <section id="doctor-client-section-appointment-history" className="border-b border-border px-4 py-4">
+        <details className="group">
+          <summary className="cursor-pointer list-none text-sm font-medium [&::-webkit-details-marker]:hidden">
+            История записей ({appointmentHistory.length})
+          </summary>
+          <div className="mt-3">
+            {appointmentHistory.length === 0 ? (
+              <p className="text-muted-foreground">Нет записей в projection.</p>
+            ) : (
+              <ul id="doctor-client-appointment-history-list" className="m-0 list-none space-y-3 p-0">
+                {appointmentHistory.map((row) => (
+                  <li key={row.id} className="rounded-lg border border-border bg-card p-3">
+                    {row.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </details>
+      </section>
+
+      <div className="border-b border-border px-4 py-4">
+        <ClientBookingHistoryPanel userId={userId} />
+      </div>
+
+      <section id="doctor-client-section-symptoms" className="px-4 py-4">
+        {symptomTrackings.length === 0 ? (
+          <p className="text-muted-foreground">Нет отслеживаемых симптомов.</p>
+        ) : (
+          <>
+            <p className="text-sm">Симптомы: {symptomTrackings.map((t) => t.symptomTitle).join(", ")}</p>
+            {recentSymptomEntries.length > 0 ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Последние записи: {recentSymptomEntries.slice(0, 5).map((e) => `${e.value0_10}`).join(", ")}
+              </p>
+            ) : null}
+          </>
+        )}
+      </section>
+    </div>
+  );
+}

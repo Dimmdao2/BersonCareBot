@@ -6,6 +6,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { loadDoctorClientProgramCardAggregates } from "@/modules/doctor-client-card/loadDoctorClientProgramCardAggregates";
+import { buildDoctorClientWellbeingModel } from "../buildDoctorClientWellbeingModel";
 import { ClientProfileCard } from "../ClientProfileCard";
 
 type Props = { params: Promise<{ userId: string }> };
@@ -27,16 +30,35 @@ export default async function DoctorClientProfilePage({
         ? "/app/doctor/clients?scope=archived"
         : "/app/doctor/clients?scope=appointments";
   const deps = buildAppDeps();
-  const [profile, messageHistory, publishedTreatmentTemplates, pendingProgramTests, treatmentProgramInstances] =
+  const hasDb = Boolean(env.DATABASE_URL);
+  const [profile, messageHistory, publishedTreatmentTemplates, pendingProgramTests, treatmentProgramInstances, displayTimeZone] =
     await Promise.all([
       deps.doctorClients.getClientProfile(userId),
       deps.doctorMessaging.listMessageHistory({ userId, pageSize: 10 }),
       deps.treatmentProgram.listTemplates({ includeArchived: false, status: "published" }),
       deps.treatmentProgramProgress.listPendingTestEvaluationsForPatient(userId),
-      Boolean(env.DATABASE_URL) ? deps.treatmentProgramInstance.listForPatientClinicalView(userId) : Promise.resolve([]),
+      hasDb ? deps.treatmentProgramInstance.listForPatientClinicalView(userId) : Promise.resolve([]),
+      getAppDisplayTimeZone(),
     ]);
 
   if (!profile) notFound();
+
+  const programCardAggregates = hasDb
+    ? await loadDoctorClientProgramCardAggregates(
+        {
+          treatmentProgramInstance: deps.treatmentProgramInstance,
+          programItemDiscussion: deps.programItemDiscussion,
+        },
+        userId,
+        treatmentProgramInstances,
+      )
+    : undefined;
+
+  const wellbeingChartModel = buildDoctorClientWellbeingModel(
+    profile.symptomTrackings,
+    profile.recentSymptomEntries,
+    displayTimeZone,
+  );
 
   const lfkComplexIds = profile.lfkComplexes.map((c) => c.id);
   const lfkExerciseLinesByComplexId =
@@ -75,6 +97,9 @@ export default async function DoctorClientProfilePage({
         }
         lfkExerciseLinesByComplexId={lfkExerciseLinesByComplexId}
         autoOpenChat={autoOpenChat}
+        programCardAggregates={programCardAggregates}
+        displayTimeZone={displayTimeZone}
+        wellbeingChartModel={wellbeingChartModel}
       />
     </AppShell>
   );
