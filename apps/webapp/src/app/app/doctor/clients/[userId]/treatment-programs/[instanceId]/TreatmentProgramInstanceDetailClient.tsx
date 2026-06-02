@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -74,6 +74,7 @@ import {
   TreatmentProgramSortablePipelineStage,
   TreatmentProgramSortableItemShell,
   TreatmentProgramStageItemsDnd,
+  type TreatmentProgramStageItemsDropPreview,
 } from "@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi";
 import {
   computeOrderedItemIdsAfterGroupItemAdjacentSwap,
@@ -195,6 +196,67 @@ function isInstanceItemDndEligible(stage: InstanceStageT, item: InstanceStageIte
 
 function instanceStageDndItemIds(stage: InstanceStageT): string[] {
   return sortByOrderThenId(stage.items.filter((it) => isInstanceItemDndEligible(stage, it))).map((it) => it.id);
+}
+
+function optimisticInstanceStageItemsAfterDnd(
+  items: InstanceStageItemT[],
+  orderedItemIds: string[],
+  activeId: string,
+  nextGroupId: string | null,
+): InstanceStageItemT[] {
+  const orderById = new Map(orderedItemIds.map((id, index) => [id, index]));
+  return items.map((item) => {
+    const nextOrder = orderById.get(item.id);
+    if (nextOrder === undefined) return item;
+    return {
+      ...item,
+      sortOrder: nextOrder,
+      groupId: item.id === activeId ? nextGroupId : item.groupId,
+    };
+  });
+}
+
+type InstanceStageItemDropPreviewPlacement = {
+  activeId: string;
+  groupId: string | null;
+  insertIndex: number;
+};
+
+function sameInstanceGroupKey(item: { groupId: string | null | undefined }, groupId: string | null): boolean {
+  return (item.groupId ?? null) === (groupId ?? null);
+}
+
+function buildInstanceStageItemDropPreviewPlacement(
+  stage: InstanceStageT,
+  dropPreview: TreatmentProgramStageItemsDropPreview,
+): InstanceStageItemDropPreviewPlacement | null {
+  if (!dropPreview) return null;
+  const canParticipate = (it: InstanceStageItemT) => isInstanceItemDndEligible(stage, it);
+  const plan = planStageItemDndReorder(stage.items, dropPreview.activeId, dropPreview.overId, canParticipate);
+  if (!plan.ok) return null;
+  const previewItems = optimisticInstanceStageItemsAfterDnd(
+    stage.items,
+    plan.orderedItemIds,
+    dropPreview.activeId,
+    plan.nextGroupId,
+  );
+  const targetGroupItems = sortByOrderThenId(
+    previewItems.filter((item) => sameInstanceGroupKey(item, plan.nextGroupId)),
+  );
+  const insertIndex = targetGroupItems.findIndex((item) => item.id === dropPreview.activeId);
+  if (insertIndex < 0) return null;
+  return { activeId: dropPreview.activeId, groupId: plan.nextGroupId, insertIndex };
+}
+
+function InstanceStageItemDropPreviewMarker() {
+  return (
+    <li
+      aria-hidden="true"
+      className="list-none rounded-md border border-dashed border-primary/45 bg-primary/5 px-1 py-2 transition-all"
+    >
+      <div className="h-10 rounded-md bg-primary/10" />
+    </li>
+  );
 }
 
 function pickFirstFiniteNum(...vals: unknown[]): number | null {
@@ -1499,6 +1561,7 @@ function InstanceStageGroupsPanel(props: {
     props;
   const { patchGroup } = useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);
+  const [optimisticItems, setOptimisticItems] = useState<InstanceStageItemT[] | null>(null);
   const [title, setTitle] = useState("");
   const [groupEdit, setGroupEdit] = useState<{
     id: string;
@@ -1508,12 +1571,16 @@ function InstanceStageGroupsPanel(props: {
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    setOptimisticItems(null);
+  }, [stage.id, stage.items]);
+  const displayStage = optimisticItems ? { ...stage, items: optimisticItems } : stage;
   const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stage.groups);
   const userGroupsOrdered = sortedGroups.filter((g) => !g.systemKind);
-  const ungrouped = sortByOrderThenId(stage.items.filter((it) => !it.groupId));
+  const ungrouped = sortByOrderThenId(displayStage.items.filter((it) => !it.groupId));
   const hasUngrouped = ungrouped.length > 0;
   const hasGroups = sortedGroups.length > 0;
-  const isEmptyStage = !hasUngrouped && !hasGroups && stage.items.length === 0;
+  const isEmptyStage = !hasUngrouped && !hasGroups && displayStage.items.length === 0;
 
   const editingGroupMeta = groupEdit ? stage.groups.find((g) => g.id === groupEdit.id) : null;
   const editingIsSystem = editingGroupMeta ? isTreatmentProgramInstanceSystemStageGroup(editingGroupMeta) : false;
@@ -1583,8 +1650,8 @@ function InstanceStageGroupsPanel(props: {
 
   const handleItemDnd = async (activeId: string, overId: string) => {
     if (editLocked) return;
-    const canParticipate = (it: InstanceStageItemT) => isInstanceItemDndEligible(stage, it);
-    const plan = planStageItemDndReorder(stage.items, activeId, overId, canParticipate);
+    const canParticipate = (it: InstanceStageItemT) => isInstanceItemDndEligible(displayStage, it);
+    const plan = planStageItemDndReorder(displayStage.items, activeId, overId, canParticipate);
     if (!plan.ok) {
       if (plan.error === "ungrouped_type") {
         setMsg("Без группы допустимы только рекомендации и клинические тесты");
@@ -1594,6 +1661,9 @@ function InstanceStageGroupsPanel(props: {
       return;
     }
     await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setOptimisticItems(
+        optimisticInstanceStageItemsAfterDnd(displayStage.items, plan.orderedItemIds, activeId, plan.nextGroupId),
+      );
       setBusy(true);
       setMsg(null);
       try {
@@ -1609,6 +1679,7 @@ function InstanceStageGroupsPanel(props: {
           const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
           if (!res.ok || !data.ok) {
             setMsg(data.error ?? "Не удалось сменить группу");
+            setOptimisticItems(null);
             return;
           }
         }
@@ -1623,17 +1694,22 @@ function InstanceStageGroupsPanel(props: {
         const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
         if (!res.ok || !data.ok) {
           setMsg(data.error ?? "Не удалось изменить порядок");
+          setOptimisticItems(null);
           await onSaved();
           return;
         }
         await onSaved();
+        setOptimisticItems(null);
+      } catch (error) {
+        setOptimisticItems(null);
+        throw error;
       } finally {
         setBusy(false);
       }
     });
   };
 
-  const dndItemIds = instanceStageDndItemIds(stage);
+  const dndItemIds = instanceStageDndItemIds(displayStage);
 
   const hideGroupFromModal = async () => {
     if (!groupEdit) return;
@@ -1721,6 +1797,27 @@ function InstanceStageGroupsPanel(props: {
     setMsg(null);
   };
 
+  const shouldRenderDropPreviewBeforeItem = (
+    placement: InstanceStageItemDropPreviewPlacement | null,
+    groupId: string | null,
+    items: InstanceStageItemT[],
+    index: number,
+  ): boolean => {
+    if (!placement || placement.groupId !== groupId) return false;
+    const nonActiveBefore = items.slice(0, index).filter((item) => item.id !== placement.activeId).length;
+    return placement.insertIndex === nonActiveBefore;
+  };
+
+  const shouldRenderDropPreviewAfterItems = (
+    placement: InstanceStageItemDropPreviewPlacement | null,
+    groupId: string | null,
+    items: InstanceStageItemT[],
+  ): boolean => {
+    if (!placement || placement.groupId !== groupId) return false;
+    const nonActiveCount = items.filter((item) => item.id !== placement.activeId).length;
+    return placement.insertIndex >= nonActiveCount;
+  };
+
   return (
     <div className="min-w-0">
       {isEmptyStage ? (
@@ -1731,15 +1828,18 @@ function InstanceStageGroupsPanel(props: {
           disabled={busy || editLocked}
           onReorder={handleItemDnd}
         >
+          {(dropPreview) => {
+            const dropPreviewPlacement = buildInstanceStageItemDropPreviewPlacement(displayStage, dropPreview);
+            return (
           <div className="mt-1 space-y-3">
             {sortedGroups.map((g) => {
-            const gItems = sortByOrderThenId(stage.items.filter((it) => it.groupId === g.id));
+            const gItems = sortByOrderThenId(displayStage.items.filter((it) => it.groupId === g.id));
             const isSys = isTreatmentProgramInstanceSystemStageGroup(g);
             const userIdx = userGroupsOrdered.findIndex((x) => x.id === g.id);
             return (
               <div
                 key={g.id}
-                className="overflow-hidden rounded-md border border-border/50 bg-background/60 shadow-sm"
+                className="overflow-visible rounded-md border border-border/50 bg-background/60 shadow-sm"
               >
                 <div
                   className="flex items-start justify-between gap-2 border-b border-border/25 px-2 py-1.5"
@@ -1839,9 +1939,10 @@ function InstanceStageGroupsPanel(props: {
                   {gItems.length === 0 ? (
                     <p className="py-2 text-xs text-muted-foreground">В группе пока нет элементов.</p>
                   ) : (
-                    <ul className="divide-y rounded-md border border-border/30">
+                    <ul className="space-y-px">
                       {gItems.map((item, idx) => {
-                        const dndEligible = isInstanceItemDndEligible(stage, item);
+                        const dndEligible = isInstanceItemDndEligible(displayStage, item);
+                        const dropPreviewBefore = shouldRenderDropPreviewBeforeItem(dropPreviewPlacement, g.id, gItems, idx);
                         const card = (
                           <DoctorProgramInstanceItemCard
                             instanceId={instanceId}
@@ -1860,38 +1961,44 @@ function InstanceStageGroupsPanel(props: {
                         );
                         if (!dndEligible) {
                           return (
-                            <li key={item.id} className="list-none px-1 py-2">
-                              {card}
-                            </li>
+                            <Fragment key={item.id}>
+                              {dropPreviewBefore ? <InstanceStageItemDropPreviewMarker /> : null}
+                              <li className="list-none px-1 py-2">{card}</li>
+                            </Fragment>
                           );
                         }
                         return (
-                          <TreatmentProgramSortableItemShell
-                            key={item.id}
-                            id={item.id}
-                            disabled={busy || editLocked}
-                            className="list-none px-1 py-2"
-                          >
-                            {(dragHandle) => (
-                              <DoctorProgramInstanceItemCard
-                                instanceId={instanceId}
-                                stage={stage}
-                                item={item}
-                                testResults={testResults}
-                                programStatus={programStatus}
-                                onSaved={onSaved}
-                                dragHandle={dragHandle}
-                                reorderInGroup={{
-                                  disableAll: busy || editLocked,
-                                  disableUp: idx <= 0,
-                                  disableDown: idx >= gItems.length - 1,
-                                  onMove: (dir) => void reorderItemInStageGroup(g.id, item.id, dir),
-                                }}
-                              />
-                            )}
-                          </TreatmentProgramSortableItemShell>
+                          <Fragment key={item.id}>
+                            {dropPreviewBefore ? <InstanceStageItemDropPreviewMarker /> : null}
+                            <TreatmentProgramSortableItemShell
+                              id={item.id}
+                              disabled={busy || editLocked}
+                              className="list-none px-1 py-2"
+                            >
+                              {(dragHandle) => (
+                                <DoctorProgramInstanceItemCard
+                                  instanceId={instanceId}
+                                  stage={stage}
+                                  item={item}
+                                  testResults={testResults}
+                                  programStatus={programStatus}
+                                  onSaved={onSaved}
+                                  dragHandle={dragHandle}
+                                  reorderInGroup={{
+                                    disableAll: busy || editLocked,
+                                    disableUp: idx <= 0,
+                                    disableDown: idx >= gItems.length - 1,
+                                    onMove: (dir) => void reorderItemInStageGroup(g.id, item.id, dir),
+                                  }}
+                                />
+                              )}
+                            </TreatmentProgramSortableItemShell>
+                          </Fragment>
                         );
                       })}
+                      {shouldRenderDropPreviewAfterItems(dropPreviewPlacement, g.id, gItems) ? (
+                        <InstanceStageItemDropPreviewMarker />
+                      ) : null}
                     </ul>
                   )}
                 </div>
@@ -1899,43 +2006,58 @@ function InstanceStageGroupsPanel(props: {
             );
           })}
           {hasUngrouped ? (
-            <div className="overflow-hidden rounded-md border-2 border-destructive bg-background/60">
+            <div className="overflow-visible rounded-md border-2 border-destructive bg-background/60">
               <div className="border-b border-destructive/50 bg-destructive/20 px-2 py-2 dark:bg-destructive/30">
                 <p className="text-sm font-semibold text-foreground">Без группы</p>
               </div>
               <div className="p-2">
-                <ul className="divide-y rounded-md border border-border/50">
-                  {ungrouped.map((item, idx) => (
-                    <TreatmentProgramSortableItemShell
-                      key={item.id}
-                      id={item.id}
-                      disabled={busy || editLocked}
-                      className="list-none px-1 py-2"
-                    >
-                      {(dragHandle) => (
-                        <DoctorProgramInstanceItemCard
-                          instanceId={instanceId}
-                          stage={stage}
-                          item={item}
-                          testResults={testResults}
-                          programStatus={programStatus}
-                          onSaved={onSaved}
-                          dragHandle={dragHandle}
-                          reorderInGroup={{
-                            disableAll: busy || editLocked,
-                            disableUp: idx <= 0,
-                            disableDown: idx >= ungrouped.length - 1,
-                            onMove: (dir) => void reorderItemInStageGroup(null, item.id, dir),
-                          }}
-                        />
-                      )}
-                    </TreatmentProgramSortableItemShell>
-                  ))}
+                <ul className="space-y-px">
+                  {ungrouped.map((item, idx) => {
+                    const dropPreviewBefore = shouldRenderDropPreviewBeforeItem(
+                      dropPreviewPlacement,
+                      null,
+                      ungrouped,
+                      idx,
+                    );
+                    return (
+                      <Fragment key={item.id}>
+                        {dropPreviewBefore ? <InstanceStageItemDropPreviewMarker /> : null}
+                        <TreatmentProgramSortableItemShell
+                          id={item.id}
+                          disabled={busy || editLocked}
+                          className="list-none px-1 py-2"
+                        >
+                          {(dragHandle) => (
+                            <DoctorProgramInstanceItemCard
+                              instanceId={instanceId}
+                              stage={stage}
+                              item={item}
+                              testResults={testResults}
+                              programStatus={programStatus}
+                              onSaved={onSaved}
+                              dragHandle={dragHandle}
+                              reorderInGroup={{
+                                disableAll: busy || editLocked,
+                                disableUp: idx <= 0,
+                                disableDown: idx >= ungrouped.length - 1,
+                                onMove: (dir) => void reorderItemInStageGroup(null, item.id, dir),
+                              }}
+                            />
+                          )}
+                        </TreatmentProgramSortableItemShell>
+                      </Fragment>
+                    );
+                  })}
+                  {shouldRenderDropPreviewAfterItems(dropPreviewPlacement, null, ungrouped) ? (
+                    <InstanceStageItemDropPreviewMarker />
+                  ) : null}
                 </ul>
               </div>
             </div>
           ) : null}
           </div>
+            );
+          }}
         </TreatmentProgramStageItemsDnd>
       )}
       {msg ? <p className="mt-2 text-xs text-destructive">{msg}</p> : null}

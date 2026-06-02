@@ -7,22 +7,30 @@ import {
   closestCenter,
   useSensor,
   useSensors,
+  type DragCancelEvent,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
+  type SortingStrategy,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type SortableListeners = NonNullable<ReturnType<typeof useSortable>["listeners"]>;
+export type TreatmentProgramStageItemsDropPreview = { activeId: string; overId: string } | null;
+
+const noSortingDisplacementStrategy: SortingStrategy = () => null;
+const ITEM_DROP_PREVIEW_DELAY_MS = 120;
 
 function useDefaultDndSensors() {
   return useSensors(
@@ -75,6 +83,8 @@ export function TreatmentProgramPipelineStagesDnd({
   children: ReactNode;
 }) {
   const sensors = useDefaultDndSensors();
+  /** Stable per-mount id so @dnd-kit a11y ids match SSR and client (avoids hydration mismatch on DndDescribedBy-*). */
+  const dndContextId = useId();
 
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -83,7 +93,7 @@ export function TreatmentProgramPipelineStagesDnd({
   };
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+    <DndContext id={dndContextId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={stageIds} strategy={verticalListSortingStrategy} disabled={disabled}>
         {children}
       </SortableContext>
@@ -108,6 +118,8 @@ export function TreatmentProgramSortablePipelineStage({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.85 : 1,
+    position: "relative",
+    zIndex: isDragging ? 50 : undefined,
   };
   const dragHandle = (
     <TreatmentProgramDragHandle
@@ -119,7 +131,7 @@ export function TreatmentProgramSortablePipelineStage({
   );
 
   return (
-    <section ref={setNodeRef} style={style} className={className}>
+    <section ref={setNodeRef} style={style} className={cn(isDragging && "shadow-lg", className)}>
       {children(dragHandle)}
     </section>
   );
@@ -134,24 +146,71 @@ export function TreatmentProgramStageItemsDnd({
   sortableItemIds: string[];
   disabled?: boolean;
   onReorder: (activeId: string, overId: string) => void | Promise<void>;
-  children: ReactNode;
+  children: ReactNode | ((dropPreview: TreatmentProgramStageItemsDropPreview) => ReactNode);
 }) {
   const sensors = useDefaultDndSensors();
+  /** Stable per-mount id so @dnd-kit a11y ids match SSR and client (avoids hydration mismatch on DndDescribedBy-*). */
+  const dndContextId = useId();
+  const [hoverTarget, setHoverTarget] = useState<TreatmentProgramStageItemsDropPreview>(null);
+  const [dropPreview, setDropPreview] = useState<TreatmentProgramStageItemsDropPreview>(null);
+
+  useEffect(() => {
+    setDropPreview(null);
+    if (!hoverTarget) return;
+    const timer = window.setTimeout(() => {
+      setDropPreview(hoverTarget);
+    }, ITEM_DROP_PREVIEW_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [hoverTarget]);
+
+  const resetDragState = () => {
+    setHoverTarget(null);
+    setDropPreview(null);
+  };
+
+  const renderChildren = (preview: TreatmentProgramStageItemsDropPreview) =>
+    typeof children === "function" ? children(preview) : children;
+
+  const onDragStart = (_event: DragStartEvent) => {
+    resetDragState();
+  };
+
+  const onDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      setHoverTarget(null);
+      return;
+    }
+    setHoverTarget({ activeId: String(active.id), overId: String(over.id) });
+  };
 
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    resetDragState();
     if (!over || active.id === over.id) return;
     void onReorder(String(active.id), String(over.id));
   };
 
+  const onDragCancel = (_event: DragCancelEvent) => {
+    resetDragState();
+  };
+
   if (sortableItemIds.length === 0) {
-    return <>{children}</>;
+    return <>{renderChildren(null)}</>;
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-      <SortableContext items={sortableItemIds} strategy={verticalListSortingStrategy} disabled={disabled}>
-        {children}
+    <DndContext
+      id={dndContextId}
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
+    >
+      <SortableContext items={sortableItemIds} strategy={noSortingDisplacementStrategy} disabled={disabled}>
+        {renderChildren(dropPreview)}
       </SortableContext>
     </DndContext>
   );
@@ -174,6 +233,8 @@ export function TreatmentProgramSortableItemShell({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.85 : 1,
+    position: "relative",
+    zIndex: isDragging ? 50 : undefined,
   };
   const dragHandle = (
     <TreatmentProgramDragHandle
@@ -185,7 +246,7 @@ export function TreatmentProgramSortableItemShell({
   );
 
   return (
-    <li ref={setNodeRef} style={style} className={cn("list-none", className)}>
+    <li ref={setNodeRef} style={style} className={cn("list-none", isDragging && "shadow-lg", className)}>
       {children(dragHandle)}
     </li>
   );
