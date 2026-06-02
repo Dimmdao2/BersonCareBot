@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-06-03 — Аудит фазы 2: remediation (unsaved gate, RTL smoke)
+
+- **Unsaved gate:** `isFlushableDirty` / `hasInstanceEditorDraftFlushableChanges` — status API блокируется только при metadata-dirty; structural-only не мешает смене статуса этапа/программы.
+- **Тесты:** `InstanceEditorUnsavedChangesDialog.test.tsx`; RTL smoke `TreatmentProgramInstanceDetailClient.phase2.test.tsx` (add stage → dirty без editor-mutation fetch); unit `hasInstanceEditorDraftFlushableChanges`.
+- **Проверки:** vitest phase-2 suite (57 tests); `tsc --noEmit` webapp.
+
+---
+
+## 2026-06-03 — Фаза 2 batch-toolbar: полное закрытие (хвосты + проверки)
+
+- **Хвосты:** guard-тест editor fetch; RTL SaveBar (`structuralPending`); context test metadata+addItemCreate; `expandLines` в pickers; dialog `test_set_expand`; snapshot helper tests; убраны мёртвые props `InstanceStageGroupsPanel`.
+- **Вне scope фазы 2:** UI «замена элемента» (`patchItemStructural.replace`) — модель готова, экран не требовался.
+- **План:** `.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md` — фаза 2 закрыта полностью.
+- **Проверки:** vitest phase-2 suite; `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-03 — Аудит фазы 1 + фаза 2: UI → draft (structural без немедленного API)
 
 - **Модель:** `groupHides`; union `itemCreates` (`library_item`, `freeform_recommendation`, `test_set_expand`, `lfk_complex_expand`); `applyStageOrder` фиксирует этап 0 первым.

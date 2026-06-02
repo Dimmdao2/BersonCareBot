@@ -975,6 +975,14 @@ export function isInstanceEditorDraftFlushEmpty(changes: InstanceEditorDraftFlus
   );
 }
 
+/** Metadata-патчи, которые legacy flush может отправить на сервер (до batch API фазы 3). */
+export function hasInstanceEditorDraftFlushableChanges(
+  draft: InstanceEditorDraft,
+  baseline: TreatmentProgramInstanceDetail,
+): boolean {
+  return !isInstanceEditorDraftFlushEmpty(pickInstanceEditorDraftFlushChanges(draft, baseline));
+}
+
 /** Структурные правки (reorder/create/delete/replace) — batch-save фазы 3. */
 export function hasInstanceEditorDraftStructuralChanges(
   draft: InstanceEditorDraft,

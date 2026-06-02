@@ -127,6 +127,8 @@ describe("InstanceEditorDraftContext", () => {
       result.current.addStageCreate({ title: "Draft stage" });
     });
 
+    expect(result.current.isFlushableDirty).toBe(false);
+
     let saveResult: Awaited<ReturnType<typeof result.current.saveDraft>> | undefined;
     await act(async () => {
       saveResult = await result.current.saveDraft();
@@ -158,6 +160,52 @@ describe("InstanceEditorDraftContext", () => {
         (g) => g.id === "44444444-4444-4444-8444-444444444444",
       ),
     ).toBe(false);
+  });
+
+  it("addItemCreate and metadata patches update displayDetail without fetch", () => {
+    const baseline = minimalDetail();
+    const itemId = "55555555-5555-4555-8555-555555555555";
+    baseline.stages[0]!.items.push({
+      id: itemId,
+      stageId: baseline.stages[0]!.id,
+      itemType: "exercise",
+      itemRefId: "ex-ref",
+      sortOrder: 0,
+      comment: null,
+      localComment: null,
+      settings: null,
+      snapshot: { title: "Упр" },
+      completedAt: null,
+      isActionable: null,
+      status: "active",
+      groupId: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastViewedAt: null,
+      effectiveComment: null,
+    });
+    const { result } = renderHook(() => useInstanceEditorDraft(), { wrapper: wrapper(baseline) });
+    const stageId = baseline.stages[0]!.id;
+
+    act(() => {
+      result.current.addGroupCreate({ stageId, title: "Новая группа" });
+      result.current.addItemCreate({
+        kind: "library_item",
+        stageId,
+        itemType: "recommendation",
+        itemRefId: "rec-1",
+        snapshot: { title: "Рек из каталога" },
+      });
+      result.current.patchItemLocalComment(itemId, "Коммент врача");
+      result.current.patchItemLoadSettings(itemId, { reps: 10, sets: 2, maxPain: 3 });
+    });
+
+    const stage = result.current.displayDetail.stages[0]!;
+    expect(stage.groups.some((g) => g.title === "Новая группа")).toBe(true);
+    expect(stage.items.some((it) => it.snapshot.title === "Рек из каталога")).toBe(true);
+    const patched = stage.items.find((it) => it.id === itemId);
+    expect(patched?.localComment).toBe("Коммент врача");
+    expect(patched?.settings).toMatchObject({ reps: 10, sets: 2, maxPain: 3 });
+    expect(result.current.isDirty).toBe(true);
   });
 });
 

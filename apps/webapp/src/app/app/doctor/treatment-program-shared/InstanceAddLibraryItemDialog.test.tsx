@@ -284,4 +284,47 @@ describe("InstanceAddLibraryItemDialog", () => {
     await user.selectOptions(screen.getByLabelText("Регион"), "knee");
     expect(screen.getByText("Ничего не найдено по фильтрам.")).toBeInTheDocument();
   });
+
+  it("набор тестов: addItemCreate test_set_expand", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const library: TreatmentProgramLibraryPickers = {
+      ...emptyLibrary,
+      testSets: [
+        {
+          id: "set-1",
+          title: "Набор A",
+          subtitle: "1 тестов",
+          expandLines: [{ itemRefId: "test-a", snapshot: { title: "Тест A" } }],
+        },
+      ],
+    };
+
+    render(
+      <InstanceAddLibraryItemDialog
+        open
+        onOpenChange={onOpenChange}
+        spec={{
+          stageId: STAGE_ID,
+          context: "stage_system_tests",
+          customGroupId: null,
+        }}
+        library={library}
+        editLocked={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /набор a/i }));
+
+    await waitFor(() => {
+      expect(addItemCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "test_set_expand",
+          stageId: STAGE_ID,
+          testSetId: "set-1",
+        }),
+      );
+    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
 });

@@ -14,6 +14,7 @@ import {
   clearFlushableInstanceEditorDraftSections,
   createEmptyInstanceEditorDraft,
   createInstanceEditorDraftClientId,
+  hasInstanceEditorDraftFlushableChanges,
   hasInstanceEditorDraftStructuralChanges,
   isInstanceEditorDraftClientId,
   isInstanceEditorDraftDirty,
@@ -39,6 +40,8 @@ import { flushInstanceEditorDraft } from "./flushInstanceEditorDraft";
 type InstanceEditorDraftContextValue = {
   programStatus: TreatmentProgramInstanceStatus;
   isDirty: boolean;
+  /** Metadata-патчи, блокирующие status API до legacy flush (structural-only не блокирует). */
+  isFlushableDirty: boolean;
   saving: boolean;
   displayDetail: TreatmentProgramInstanceDetail;
   patchStageMetadata: (stageId: string, patch: InstanceEditorStageMetadataPatch) => void;
@@ -92,6 +95,7 @@ export function InstanceEditorDraftProvider(props: {
   }, [baseline.status]);
 
   const isDirty = isInstanceEditorDraftDirty(draft, baseline);
+  const isFlushableDirty = hasInstanceEditorDraftFlushableChanges(draft, baseline);
   const displayDetail = useMemo(
     () => mergeInstanceEditorDraftIntoDetail(baseline, draft),
     [baseline, draft],
@@ -317,6 +321,7 @@ export function InstanceEditorDraftProvider(props: {
     (): InstanceEditorDraftContextValue => ({
       programStatus,
       isDirty,
+      isFlushableDirty,
       saving,
       displayDetail,
       patchStageMetadata,
@@ -339,6 +344,7 @@ export function InstanceEditorDraftProvider(props: {
     [
       programStatus,
       isDirty,
+      isFlushableDirty,
       saving,
       displayDetail,
       patchStageMetadata,

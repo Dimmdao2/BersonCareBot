@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyInstanceEditorDraft,
   createInstanceEditorDraftClientId,
+  hasInstanceEditorDraftFlushableChanges,
   hasInstanceEditorDraftStructuralChanges,
   isInstanceEditorDraftDirty,
   isInstanceEditorDraftEmpty,
@@ -348,6 +349,19 @@ describe("instanceEditorDraft", () => {
     draft.itemStructuralPatches["44444444-4444-4444-8444-444444444444"] = { status: "disabled" };
 
     expect(isInstanceEditorDraftFlushEmpty(pickInstanceEditorDraftFlushChanges(draft, baseline))).toBe(true);
+    expect(hasInstanceEditorDraftStructuralChanges(draft, baseline)).toBe(true);
+    expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(true);
+  });
+
+  it("hasInstanceEditorDraftFlushableChanges is false for structural-only draft", () => {
+    const baseline = minimalDetail();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.stageCreates.push({
+      clientId: createInstanceEditorDraftClientId(),
+      title: "Этап 2",
+    });
+
+    expect(hasInstanceEditorDraftFlushableChanges(draft, baseline)).toBe(false);
     expect(hasInstanceEditorDraftStructuralChanges(draft, baseline)).toBe(true);
     expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(true);
   });

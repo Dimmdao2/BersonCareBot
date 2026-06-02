@@ -26,7 +26,7 @@ export function InstanceEditorUnsavedChangesDialog(props: Props) {
     onOpenChange,
     onProceed,
     title = "Сначала сохраните изменения",
-    description = "Смена статуса этапа доступна только после сохранения или отмены правок в черновике.",
+    description = "Сохраните или отмените правки названий, комментариев и нагрузки перед сменой статуса.",
   } = props;
   const { saving, discardDraft, saveDraft } = useInstanceEditorDraft();
 
@@ -75,20 +75,20 @@ export function InstanceEditorUnsavedChangesDialog(props: Props) {
 
 /** Хук: блокировать действие при несохранённом черновике. */
 export function useInstanceEditorUnsavedGate(options?: { title?: string; description?: string }) {
-  const { isDirty } = useInstanceEditorDraft();
+  const { isFlushableDirty } = useInstanceEditorDraft();
   const [dialogOpen, setDialogOpen] = useState(false);
   const pendingRef = useRef<(() => void) | null>(null);
 
   const runOrPromptSave = useCallback(
     (action: () => void) => {
-      if (!isDirty) {
+      if (!isFlushableDirty) {
         action();
         return;
       }
       pendingRef.current = action;
       setDialogOpen(true);
     },
-    [isDirty],
+    [isFlushableDirty],
   );
 
   const dialog = (

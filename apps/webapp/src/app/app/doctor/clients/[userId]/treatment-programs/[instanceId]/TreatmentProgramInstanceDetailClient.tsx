@@ -426,11 +426,9 @@ function DoctorInstanceStageItemLoadForm(props: {
 }
 
 function DoctorProgramInstanceItemCard(props: {
-  instanceId: string;
   stage: InstanceStageT;
   item: InstanceStageItemT;
   testResults: TreatmentProgramTestResultDetailRow[];
-  onSaved: () => Promise<void>;
   programStatus: TreatmentProgramInstanceStatus;
   /** Левая колонка «Рекомендации (этап 0)»: без суффикса типа и без выбора группы. */
   phaseZeroRecommendation?: boolean;
@@ -444,11 +442,9 @@ function DoctorProgramInstanceItemCard(props: {
   dragHandle?: ReactNode;
 }) {
   const {
-    instanceId,
     stage,
     item,
     testResults,
-    onSaved,
     programStatus,
     phaseZeroRecommendation = false,
     reorderInGroup,
@@ -546,7 +542,7 @@ function ProgramInstanceCompleteControl(props: {
   const { instanceId, status, onPatched } = props;
   const { runOrPromptSave, unsavedDialog } = useInstanceEditorUnsavedGate({
     description:
-      "Есть несохранённые правки плана. Сохраните или отмените их перед завершением программы.",
+      "Есть несохранённые правки названий, комментариев и нагрузки. Сохраните или отмените их перед завершением программы.",
   });
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -674,9 +670,7 @@ function DoctorInstancePipelineStageBlock(props: {
       <div className="p-3">
         <StageDoctorControls instanceId={instanceId} stage={stage} programStatus={programStatus} onPatched={onSaved} />
         <InstanceStageGroupsPanel
-          instanceId={instanceId}
           stage={stage}
-          onSaved={onSaved}
           testResults={testResults}
           programStatus={programStatus}
           newGroupOpen={newGroupOpen}
@@ -1158,11 +1152,9 @@ function TreatmentProgramInstanceDetailClientBody(props: {
                 {phaseZeroRecommendations.map((item, idx) => (
                   <DoctorProgramInstanceItemCard
                     key={item.id}
-                    instanceId={detail.id}
                     stage={stageZero}
                     item={item}
                     testResults={testResults}
-                    onSaved={refresh}
                     programStatus={detail.status}
                     phaseZeroRecommendation
                     reorderInGroup={{
@@ -1486,17 +1478,14 @@ function TreatmentProgramInstanceDetailClientBody(props: {
 }
 
 function InstanceStageGroupsPanel(props: {
-  instanceId: string;
   stage: TreatmentProgramInstanceDetail["stages"][number];
-  onSaved: () => Promise<void>;
   testResults: TreatmentProgramTestResultDetailRow[];
   programStatus: TreatmentProgramInstanceStatus;
   newGroupOpen: boolean;
   onNewGroupOpenChange: (open: boolean) => void;
   onRequestAddLibraryItem: (spec: InstanceAddLibraryItemSpec) => void;
 }) {
-  const { instanceId, stage, onSaved, testResults, programStatus, newGroupOpen, onNewGroupOpenChange, onRequestAddLibraryItem } =
-    props;
+  const { stage, testResults, programStatus, newGroupOpen, onNewGroupOpenChange, onRequestAddLibraryItem } = props;
   const { patchGroup, setGroupReorder, setItemReorder, patchItemStructural, hideGroup, addGroupCreate } =
     useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);
@@ -1762,12 +1751,10 @@ function InstanceStageGroupsPanel(props: {
                         const dropPreviewBefore = shouldRenderDropPreviewBeforeItem(dropPreviewPlacement, g.id, gItems, idx);
                         const card = (
                           <DoctorProgramInstanceItemCard
-                            instanceId={instanceId}
                             stage={stage}
                             item={item}
                             testResults={testResults}
                             programStatus={programStatus}
-                            onSaved={onSaved}
                             reorderInGroup={{
                               disableAll: editLocked,
                               disableUp: idx <= 0,
@@ -1794,12 +1781,10 @@ function InstanceStageGroupsPanel(props: {
                             >
                               {(dragHandle) => (
                                 <DoctorProgramInstanceItemCard
-                                  instanceId={instanceId}
                                   stage={stage}
                                   item={item}
                                   testResults={testResults}
                                   programStatus={programStatus}
-                                  onSaved={onSaved}
                                   dragHandle={dragHandle}
                                   reorderInGroup={{
                                     disableAll: editLocked,
@@ -1846,12 +1831,10 @@ function InstanceStageGroupsPanel(props: {
                         >
                           {(dragHandle) => (
                             <DoctorProgramInstanceItemCard
-                              instanceId={instanceId}
                               stage={stage}
                               item={item}
                               testResults={testResults}
                               programStatus={programStatus}
-                              onSaved={onSaved}
                               dragHandle={dragHandle}
                               reorderInGroup={{
                                 disableAll: editLocked,

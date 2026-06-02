@@ -83,7 +83,7 @@ D5 `domain→kind`, полная переработка `/diary`, курсы, UX
 | Фаза плана | Статус |
 |------------|--------|
 | 1 — browser draft model (`InstanceEditorDraft`, merge/normalize) | **Закрыта** (2026-06-03) |
-| 2 — UI → in-memory draft (structural без immediate API) | **Закрыта** (2026-06-03) |
+| 2 — UI → in-memory draft (structural без immediate API) | **Закрыта** (2026-06-03; аудит remediation: `isFlushableDirty`, RTL smoke) |
 | 3 — server `POST …/editor-batch` + `program_changed` | **Следующая** |
 | 4–7 — sticky toolbar, collapsible stages, comments dialog, history | pending |
 

@@ -1,12 +1,12 @@
 ---
 name: instance-editor-batch-toolbar
-overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, отдельная модалка порядка этапов, общий диалог комментариев и единое batch-сохранение редакторских правок с одной записью истории. Фазы 1–2 закрыты (2026-06-03); активна фаза 3 (server editor-batch)."
+overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, отдельная модалка порядка этапов, общий диалог комментариев и единое batch-сохранение редакторских правок с одной записью истории. Фазы 1–2 закрыты (2026-06-03, аудит remediation); активна фаза 3 (server editor-batch)."
 todos:
   - id: phase-1-draft-model
     content: "Фаза 1: Расширить InstanceEditorDraft, merge/normalize, context API, flush vs structural split"
     status: completed
   - id: draft-model
-    content: "Фаза 2: Перевести editor-операции в in-memory (TreatmentProgramInstanceDetailClient, InstanceAddLibraryItemDialog)"
+    content: "Фаза 2: Editor → in-memory draft + аудит remediation (gate, RTL smoke, guard-тесты)"
     status: completed
   - id: batch-save
     content: "Фаза 3: Добавить серверный batch-save use-case, route и единое событие истории program_changed"
@@ -33,11 +33,11 @@ isProject: false
 | Фаза | Статус |
 |------|--------|
 | 1 — browser draft model | **Закрыта** |
-| 2 — UI → in-memory draft | **Закрыта** |
+| 2 — UI → in-memory draft | **Закрыта** (аудит remediation 2026-06-03) |
 | 3 — server `editor-batch` | **Следующая** |
 | 4–7 — toolbar, collapsible, comments, history | pending |
 
-LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 (фазы 1–2).
+LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 (фазы 1–2, аудит remediation).
 
 ## Scope
 
@@ -58,7 +58,7 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 ## Решения
 
 - Сделать полноценный batch-save: один новый doctor endpoint, один сервисный use-case, одна доменная запись истории `program_changed` с summary/diff в payload.
-- Все редакторские изменения инстанса копить в браузерном `InstanceEditorDraft`; статусные действия этапа/программы остаются отдельными командами, но при dirty draft сначала требуют сохранение.
+- Все редакторские изменения инстанса копить в браузерном `InstanceEditorDraft`; статусные действия этапа/программы остаются отдельными командами. **Unsaved gate (фаза 2):** блокирует status API только при **metadata-dirty** (`isFlushableDirty`); structural-only не блокирует. Финальный UX gate — фаза 7.
 - Модалка «Изменить порядок этапов» сохраняет порядок в браузерный draft и закрывается; глобальная кнопка «Сохранить изменения» отправляет всё одним batch.
 - Карточки этапов больше не имеют stage drag handle и не обёрнуты в stage-level sortable в основном списке.
 - Комментарии: общий диалог по всем пунктам программы, фильтр по пункту с поиском; default показывает все сообщения.
@@ -75,12 +75,16 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] Unit/RTL: `instanceEditorDraft.test.ts`, `InstanceEditorDraftContext.test.tsx`, `flushInstanceEditorDraft.test.ts`.
 - [x] Инвентарь editor `fetch` → фаза 2 (см. README §фаза 2, закрыта 2026-06-03).
 
-### Фаза 2 — Перевод editor-операций в in-memory ✅ (2026-06-03)
+### Фаза 2 — Перевод editor-операций в in-memory ✅ (2026-06-03, закрыта полностью)
 
 - [x] Reorder этапов/групп/элементов, add stage/group/item, delete/hide item, patch `groupId`/`isActionable`/`status` — draft API в `TreatmentProgramInstanceDetailClient`.
-- [x] `InstanceAddLibraryItemDialog` → `addItemCreate` (library / freeform / test set expand / lfk complex expand); `expandLines` в pickers.
-- [x] `saveDraft` + SaveBar: `structuralPending` UX; status этапа/программы — по-прежнему immediate API.
-- [x] Vitest 33 tests; `tsc --noEmit` webapp.
+- [x] `localComment`, `loadSettings`, metadata этапа/группы — draft (`patchItemLocalComment`, `patchItemLoadSettings`, `patchStageMetadata`, `patchGroup`).
+- [x] `InstanceAddLibraryItemDialog` → `addItemCreate` (library / freeform / test set expand / lfk complex expand); `expandLines` в pickers; `treatmentProgramLibraryDraftSnapshot.ts`.
+- [x] `saveDraft` + SaveBar: `structuralPending` UX; status этапа/программы — immediate API.
+- [x] Guard: `instanceEditorPhase2FetchGuard.test.ts` — нет immediate editor-mutation fetch в UI.
+- [x] RTL/unit: `InstanceEditorSaveBar.test.tsx`, расширен `InstanceEditorDraftContext.test.tsx`, dialog/pickers/snapshot tests; `tsc --noEmit` webapp.
+- [x] **Замена элемента (`replace`)** — только в модели draft; UI отложен (не блокер фазы 2).
+- [x] **Аудит remediation:** `hasInstanceEditorDraftFlushableChanges` / `isFlushableDirty`; unsaved gate — metadata-only; RTL smoke `TreatmentProgramInstanceDetailClient.phase2.test.tsx`; `InstanceEditorUnsavedChangesDialog.test.tsx`; guard/SaveBar/snapshot tests.
 
 ### Фаза 3 — Серверный batch-save и единое событие
 - Добавить новый route: `POST /api/doctor/treatment-program-instances/[instanceId]/editor-batch`.

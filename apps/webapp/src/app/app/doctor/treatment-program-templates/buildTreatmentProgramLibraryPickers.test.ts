@@ -89,5 +89,55 @@ describe("buildTreatmentProgramLibraryPickers", () => {
     });
     expect(pickers.lfkComplexes[0]?.regionCodes).toEqual(["spine"]);
     expect(pickers.lfkComplexes[0]?.loadTypes).toEqual(["strength"]);
+    expect(pickers.lfkComplexes[0]?.expandLines).toEqual([
+      expect.objectContaining({ itemRefId: "e1", snapshot: expect.objectContaining({ title: "Упражнение" }) }),
+      expect.objectContaining({ itemRefId: "e2" }),
+    ]);
+  });
+
+  it("builds expandLines for test sets", () => {
+    const pickers = buildTreatmentProgramLibraryPickers({
+      exercises: [],
+      lfkTemplates: [],
+      testSets: [
+        {
+          id: "set-1",
+          title: "Набор",
+          description: null,
+          publicationStatus: "published",
+          isArchived: false,
+          createdBy: null,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          items: [
+            {
+              id: "line-1",
+              testSetId: "set-1",
+              testId: "test-a",
+              sortOrder: 0,
+              comment: null,
+              test: {
+                id: "test-a",
+                title: "Тест A",
+                testType: null,
+                isArchived: false,
+                bodyRegionId: null,
+                bodyRegionIds: [],
+                previewMedia: { mediaUrl: "https://example.com/t.jpg", mediaType: "image", sortOrder: 0 },
+              },
+            },
+          ],
+        },
+      ],
+      clinicalTests: [],
+      recommendations: [],
+      contentPagesAll: [],
+    });
+    expect(pickers.testSets[0]?.expandLines).toEqual([
+      expect.objectContaining({
+        itemRefId: "test-a",
+        snapshot: expect.objectContaining({ title: "Тест A" }),
+      }),
+    ]);
   });
 });
