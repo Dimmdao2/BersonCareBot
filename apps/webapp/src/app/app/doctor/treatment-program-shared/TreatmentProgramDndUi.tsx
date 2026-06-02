@@ -155,12 +155,24 @@ export function TreatmentProgramStageItemsDnd({
   const [dropPreview, setDropPreview] = useState<TreatmentProgramStageItemsDropPreview>(null);
 
   useEffect(() => {
-    setDropPreview(null);
-    if (!hoverTarget) return;
-    const timer = window.setTimeout(() => {
-      setDropPreview(hoverTarget);
+    let cancelled = false;
+    const clearTimer = window.setTimeout(() => {
+      if (!cancelled) setDropPreview(null);
+    }, 0);
+    if (!hoverTarget) {
+      return () => {
+        cancelled = true;
+        window.clearTimeout(clearTimer);
+      };
+    }
+    const previewTimer = window.setTimeout(() => {
+      if (!cancelled) setDropPreview(hoverTarget);
     }, ITEM_DROP_PREVIEW_DELAY_MS);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(clearTimer);
+      window.clearTimeout(previewTimer);
+    };
   }, [hoverTarget]);
 
   const resetDragState = () => {
