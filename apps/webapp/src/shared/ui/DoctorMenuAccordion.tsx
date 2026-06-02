@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDoctorRegistrationSystemFailureCount } from "@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount";
 import { useDoctorOnlineIntakeNewCount } from "@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount";
+import { useDoctorPendingProgramTestsCount } from "@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount";
 import { useDoctorSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
 import {
   DOCTOR_MENU_DEFAULT_CLUSTER_ID,
@@ -31,6 +32,7 @@ export function formatNavBadgeCount(n: number): string | null {
 function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): string {
   if (badgeKey === "onlineIntakeNew") return `Новых заявок: ${formatted}`;
   if (badgeKey === "registrationSystemFailures") return `Сбоев регистрации: ${formatted}`;
+  if (badgeKey === "pendingProgramTests") return `К проверке: ${formatted}`;
   return `Непрочитанных сообщений: ${formatted}`;
 }
 
@@ -38,6 +40,7 @@ function linkAriaLabelWhenBadged(item: DoctorMenuLinkItem, formatted: string): s
   if (!item.badgeKey || !formatted) return undefined;
   if (item.badgeKey === "onlineIntakeNew") return `${item.label}. Новых заявок: ${formatted}.`;
   if (item.badgeKey === "registrationSystemFailures") return `${item.label}. Сбоев регистрации: ${formatted}.`;
+  if (item.badgeKey === "pendingProgramTests") return `${item.label}. К проверке: ${formatted}.`;
   return `${item.label}. Непрочитанных сообщений: ${formatted}.`;
 }
 
@@ -102,6 +105,7 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
 
   const messagesUnread = useDoctorSupportUnreadCount();
   const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
+  const pendingProgramTests = useDoctorPendingProgramTestsCount();
   const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(menuAccess.role === "admin");
 
   const badgeCounts = useMemo(
@@ -110,8 +114,9 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
         onlineIntakeNew,
         messagesUnread,
         registrationSystemFailures,
+        pendingProgramTests,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
-    [onlineIntakeNew, messagesUnread, registrationSystemFailures],
+    [onlineIntakeNew, messagesUnread, registrationSystemFailures, pendingProgramTests],
   );
 
   const [openClusterIds, setOpenClusterIds] = useState<Set<string>>(

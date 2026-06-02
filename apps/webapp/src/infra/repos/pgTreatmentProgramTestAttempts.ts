@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
+import { platformUsers } from "../../../db/schema/schema";
 import {
   treatmentProgramInstances as instanceTable,
   treatmentProgramInstanceStageItems as itemTable,
@@ -17,6 +18,7 @@ import type {
   TreatmentProgramTestResultRow,
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
+  PendingProgramTestEvaluationGlobalRow,
 } from "@/modules/treatment-program/types";
 
 function mapAttempt(row: typeof attemptTable.$inferSelect): TreatmentProgramTestAttemptRow {
@@ -40,6 +42,43 @@ function mapResult(row: typeof resultTable.$inferSelect): TreatmentProgramTestRe
     normalizedDecision: row.normalizedDecision as NormalizedTestDecision,
     decidedBy: row.decidedBy ?? null,
     createdAt: row.createdAt,
+  };
+}
+
+function pendingEvaluationGlobalWhere() {
+  return and(
+    eq(instanceTable.status, "active"),
+    ne(instanceTable.assignmentSource, "promo"),
+    isNull(resultTable.decidedBy),
+    isNotNull(attemptTable.submittedAt),
+  );
+}
+
+function mapPendingEvaluationGlobalRow(r: {
+  attemptId: string;
+  attemptSubmittedAt: string | null;
+  result: typeof resultTable.$inferSelect;
+  instanceId: string;
+  instanceTitle: string;
+  stageTitle: string;
+  instanceStageItemId: string;
+  testTitle: string | null;
+  patientUserId: string;
+  patientDisplayName: string | null;
+}): PendingProgramTestEvaluationGlobalRow {
+  return {
+    attemptId: r.attemptId,
+    attemptSubmittedAt: r.attemptSubmittedAt!,
+    resultId: r.result.id,
+    testId: r.result.testId,
+    testTitle: r.testTitle ?? null,
+    createdAt: r.result.createdAt,
+    instanceId: r.instanceId,
+    instanceTitle: r.instanceTitle,
+    stageTitle: r.stageTitle,
+    stageItemId: r.instanceStageItemId,
+    patientUserId: r.patientUserId,
+    patientDisplayName: r.patientDisplayName?.trim() || "—",
   };
 }
 
@@ -345,6 +384,69 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         stageTitle: r.stageTitle,
         stageItemId: r.instanceStageItemId,
       }));
+    },
+
+    async countPendingEvaluationAttemptsGlobal(): Promise<number> {
+      const db = getDrizzle();
+      const [row] = await db
+        .select({ count: sql<number>`count(distinct ${attemptTable.id})::int` })
+        .from(resultTable)
+        .innerJoin(attemptTable, eq(resultTable.attemptId, attemptTable.id))
+        .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
+        .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
+        .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
+        .where(pendingEvaluationGlobalWhere());
+      return row?.count ?? 0;
+    },
+
+    async listPendingEvaluationResultsGlobal(
+      maxAttempts: number,
+    ): Promise<PendingProgramTestEvaluationGlobalRow[]> {
+      const cap = Math.min(Math.max(maxAttempts, 1), 50);
+      const db = getDrizzle();
+
+      const attemptRows = await db
+        .select({
+          attemptId: attemptTable.id,
+          latestAt: sql<string>`max(${resultTable.createdAt})`.as("latest_at"),
+        })
+        .from(resultTable)
+        .innerJoin(attemptTable, eq(resultTable.attemptId, attemptTable.id))
+        .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
+        .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
+        .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
+        .where(pendingEvaluationGlobalWhere())
+        .groupBy(attemptTable.id)
+        .orderBy(desc(sql`max(${resultTable.createdAt})`), asc(attemptTable.id))
+        .limit(cap);
+
+      const attemptIds = attemptRows.map((r) => r.attemptId);
+      if (attemptIds.length === 0) return [];
+
+      const rows = await db
+        .select({
+          attemptId: attemptTable.id,
+          attemptSubmittedAt: attemptTable.submittedAt,
+          result: resultTable,
+          instanceId: instanceTable.id,
+          instanceTitle: instanceTable.title,
+          stageTitle: stageTable.title,
+          instanceStageItemId: attemptTable.instanceStageItemId,
+          testTitle: clinicalTests.title,
+          patientUserId: instanceTable.patientUserId,
+          patientDisplayName: platformUsers.displayName,
+        })
+        .from(resultTable)
+        .innerJoin(attemptTable, eq(resultTable.attemptId, attemptTable.id))
+        .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
+        .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
+        .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
+        .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))
+        .innerJoin(platformUsers, eq(platformUsers.id, instanceTable.patientUserId))
+        .where(and(pendingEvaluationGlobalWhere(), inArray(attemptTable.id, attemptIds)))
+        .orderBy(desc(resultTable.createdAt), asc(resultTable.id));
+
+      return rows.map(mapPendingEvaluationGlobalRow);
     },
 
     async overrideResultDecision(

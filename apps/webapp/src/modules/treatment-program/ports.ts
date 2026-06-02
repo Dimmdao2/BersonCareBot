@@ -35,6 +35,7 @@ import type {
   TreatmentProgramTestResultRow,
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
+  PendingProgramTestEvaluationGlobalRow,
   LfkComplexExpandPreview,
   ExpandLfkComplexIntoStageItemsPortInput,
   ExpandLfkComplexIntoStageItemsResult,
@@ -341,6 +342,10 @@ export type TreatmentProgramTestAttemptsPort = {
    * A4: результаты с `decided_by IS NULL` по **активным** экземплярам программ пациента (inbox врача).
    */
   listPendingEvaluationResultsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]>;
+  /** Cross-patient inbox «К проверке» на «Сегодня» (active, не promo, submitted). */
+  countPendingEvaluationAttemptsGlobal(): Promise<number>;
+  /** Все pending result-строки для top `maxAttempts` попыток (по дате последнего result). */
+  listPendingEvaluationResultsGlobal(maxAttempts: number): Promise<PendingProgramTestEvaluationGlobalRow[]>;
 };
 
 export type ProgramActionLogPort = {

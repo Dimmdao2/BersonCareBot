@@ -1301,6 +1301,102 @@ describe("treatment-program progress-service", () => {
     expect(pending.some((x) => x.instanceId === inst.id)).toBe(false);
   });
 
+  it("listPendingTestEvaluationsGlobal returns pending across patients excluding promo", async () => {
+    const patientB = "22222222-2222-4222-8222-222222222222";
+    const instA = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: doctor,
+      assignmentSource: "doctor",
+      title: "A",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "clinical_test",
+              itemRefId: testId,
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "clinical_test",
+                title: "T",
+                tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const itemA = instA.stages[0]!.items[0]!.id;
+    await progress.patientSubmitTestResult({
+      patientUserId: patient,
+      instanceId: instA.id,
+      stageItemId: itemA,
+      testId,
+      rawValue: { score: 3 },
+    });
+
+    const promoInst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patientB,
+      assignedBy: null,
+      assignmentSource: "promo",
+      title: "Promo",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "clinical_test",
+              itemRefId: testId,
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "clinical_test",
+                title: "T",
+                tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const itemPromo = promoInst.stages[0]!.items[0]!.id;
+    await progress.patientSubmitTestResult({
+      patientUserId: patientB,
+      instanceId: promoInst.id,
+      stageItemId: itemPromo,
+      testId,
+      rawValue: { score: 4 },
+    });
+
+    const global = await progress.listPendingTestEvaluationsGlobal(20);
+    expect(global.some((x) => x.instanceId === instA.id && x.patientUserId === patient)).toBe(true);
+    expect(global.some((x) => x.instanceId === promoInst.id)).toBe(false);
+
+    const count = await progress.countPendingTestEvaluationAttemptsGlobal();
+    expect(count).toBe(1);
+  });
+
   it("§8: stage_skipped записывается в treatment_program_events", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",

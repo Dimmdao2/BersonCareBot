@@ -15,6 +15,7 @@ const menuAccess = { role: "doctor" as const, adminMode: false };
 const pathnameRef = vi.hoisted(() => ({ value: "/app/doctor" }));
 const unreadCountRef = vi.hoisted(() => ({ value: 0 }));
 const intakeCountRef = vi.hoisted(() => ({ value: 0 }));
+const pendingProgramTestsCountRef = vi.hoisted(() => ({ value: 0 }));
 
 vi.mock("@/shared/hooks/useSupportUnreadPolling", () => ({
   useDoctorSupportUnreadCount: () => unreadCountRef.value,
@@ -22,6 +23,14 @@ vi.mock("@/shared/hooks/useSupportUnreadPolling", () => ({
 
 vi.mock("@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount", () => ({
   useDoctorOnlineIntakeNewCount: () => intakeCountRef.value,
+}));
+
+vi.mock("@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount", () => ({
+  useDoctorPendingProgramTestsCount: () => pendingProgramTestsCountRef.value,
+}));
+
+vi.mock("@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount", () => ({
+  useDoctorRegistrationSystemFailureCount: () => 0,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -77,6 +86,7 @@ describe("DoctorMenuAccordion", () => {
     pathnameRef.value = "/app/doctor";
     unreadCountRef.value = 0;
     intakeCountRef.value = 0;
+    pendingProgramTestsCountRef.value = 0;
   });
 
   it("opens Работа с пациентами by default when localStorage empty", async () => {
@@ -234,6 +244,16 @@ describe("DoctorMenuAccordion", () => {
     await user.click(screen.getByRole("button", { name: "Коммуникации" }));
     await waitFor(() => {
       expect(screen.getByRole("link", { name: /Онлайн-заявки/ })).toHaveTextContent("99+");
+    });
+  });
+
+  it("shows pending program tests badge on Сегодня when count > 0", async () => {
+    pendingProgramTestsCountRef.value = 7;
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor/clients" menuAccess={menuAccess} />);
+    await waitFor(() => {
+      const today = screen.getByRole("link", { name: /Сегодня/ });
+      expect(today).toHaveTextContent("7");
+      expect(today).toHaveAttribute("aria-label", "Сегодня. К проверке: 7.");
     });
   });
 });

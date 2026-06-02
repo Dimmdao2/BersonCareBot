@@ -4,6 +4,7 @@ import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adm
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
+import { DoctorTodayPendingProgramTestsSection } from "./DoctorTodayPendingProgramTestsSection";
 import {
   ON_SUPPORT_LIST_HREF,
   PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
@@ -29,6 +30,7 @@ export function DoctorTodayDashboard({
 }: Props) {
   const intakeAttentionCount = data.newIntakeRequests.length;
   const messagesAttentionCount = data.unreadTotal;
+  const pendingTestsAttentionCount = data.pendingProgramTestsTotal;
 
   return (
     <div id="doctor-today-dashboard" className="flex flex-col gap-3">
@@ -124,11 +126,27 @@ export function DoctorTodayDashboard({
               <span className="text-muted-foreground"> — нет непрочитанных</span>
             )}
           </li>
+          <li>
+            <a href="#doctor-today-section-pending-tests" className="text-primary underline underline-offset-2">
+              Тесты к проверке
+            </a>
+            {pendingTestsAttentionCount > 0 ? (
+              <span className="text-muted-foreground"> — попыток: {pendingTestsAttentionCount}</span>
+            ) : (
+              <span className="text-muted-foreground"> — нет</span>
+            )}
+          </li>
           <li className="text-muted-foreground">Комментарии к материалам — скоро</li>
         </ul>
       </section>
 
       <DoctorGlobalTasksSection initialTasks={data.globalOpenTasks} />
+
+      <DoctorTodayPendingProgramTestsSection
+        items={data.pendingProgramTests}
+        totalAttempts={data.pendingProgramTestsTotal}
+        truncated={data.pendingProgramTestsTruncated}
+      />
 
       <section
         id="doctor-today-section-on-support"

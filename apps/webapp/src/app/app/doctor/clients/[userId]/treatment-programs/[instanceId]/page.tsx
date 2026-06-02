@@ -2,6 +2,7 @@
  * Экземпляр программы лечения пациента (врач): просмотр и override комментариев.
  */
 import { notFound } from "next/navigation";
+import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -11,13 +12,14 @@ import { TreatmentProgramInstanceDetailClient } from "./TreatmentProgramInstance
 
 type Props = {
   params: Promise<{ userId: string; instanceId: string }>;
-  searchParams: Promise<{ scope?: string; discussionItem?: string }>;
+  searchParams: Promise<{ scope?: string; discussionItem?: string; focusItemId?: string }>;
 };
 
 export default async function DoctorPatientTreatmentProgramPage({ params, searchParams }: Props) {
   const session = await requireDoctorAccess();
   const { userId, instanceId } = await params;
-  const { scope: scopeParam, discussionItem: discussionItemParam } = await searchParams;
+  const { scope: scopeParam, discussionItem: discussionItemParam, focusItemId: focusItemIdParam } =
+    await searchParams;
 
   const deps = buildAppDeps();
   let detail;
@@ -78,6 +80,14 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
     typeof discussionDoctorReplyFlag?.valueJson === "object" &&
     (discussionDoctorReplyFlag.valueJson as Record<string, unknown>).value === true;
 
+  const discussionItemRaw = discussionItemParam?.trim();
+  const initialOpenDiscussionItemId =
+    discussionItemRaw && z.string().uuid().safeParse(discussionItemRaw).success ? discussionItemRaw : undefined;
+
+  const focusItemIdRaw = focusItemIdParam?.trim();
+  const initialFocusTestResultId =
+    focusItemIdRaw && z.string().uuid().safeParse(focusItemIdRaw).success ? focusItemIdRaw : undefined;
+
   const qs = scopeParam ? `?scope=${encodeURIComponent(scopeParam)}` : "";
   const backHref = `/app/doctor/clients/${encodeURIComponent(userId)}${qs}`;
 
@@ -102,7 +112,8 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
         appDisplayTimeZone={appDisplayTimeZone}
         treatmentProgramLibrary={treatmentProgramLibrary}
         doctorReplyFromLogEnabled={doctorReplyFromLogEnabled}
-        initialOpenDiscussionItemId={discussionItemParam?.trim() || undefined}
+        initialOpenDiscussionItemId={initialOpenDiscussionItemId}
+        initialFocusTestResultId={initialFocusTestResultId}
       />
     </AppShell>
   );

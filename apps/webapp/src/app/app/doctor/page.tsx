@@ -22,6 +22,7 @@ export default async function DoctorPage() {
         messaging: deps.messaging,
         specialistTasks: deps.specialistTasks,
         specialistOwnerUserId: session.user.userId,
+        treatmentProgramProgress: deps.treatmentProgramProgress,
       },
       intakeService,
     ),

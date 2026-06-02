@@ -132,7 +132,7 @@
 - [x] Задачи специалиста (глобальные + по пациенту, напоминания, фаза 2C) — [`SPECIALIST_TASKS.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md).
 - [x] Редактор назначенной программы: **черновик in-memory**, одно «Сохранить»; смена статуса этапа только после сохранения (модалка); **завершение программы → все этапы completed**; краткая лента изменений в карточке.
 - [x] **Добавление из каталога** на экране программы и в конструкторе шаблона: фильтры **регион + тип нагрузки + поиск** (exercise/lfk_complex); **без** «Без региона»/«Без типа» — те пункты только в каталогах врача при редактировании карточек.
-- [ ] **Cross-patient inbox «К проверке»** на «Сегодня» + `focusItemId` на экране программы (фаза **5** очереди — [`ACTIVE_WORKQUEUE.md`](ACTIVE_WORKQUEUE.md)).
+- [x] **Cross-patient inbox «К проверке»** на «Сегодня» + `focusItemId` на экране программы (фаза **5**): `countPendingTestEvaluationAttemptsGlobal`, preview top 10 попыток, `#doctor-today-section-pending-tests`, бейдж «Сегодня» (`GET /api/doctor/pending-program-tests/summary`), UUID для `focusItemId`/`discussionItem`.
 - [ ] **Proactive inbox / лента событий** на «Сегодня» (см. [`RECOMMENDATIONS_AND_ROADMAP.md`](APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md) этап 8) — после карточки и сопровождения; не путать с inbox «К проверке» (частично уже есть).
 
 **Продукт (зафиксировано owner 2026-06-01):** срок этапа **не обязателен**; persistent-рекомендации после завершения программы → **история**, в активной программе пациент видит **общее промо**; UX истории попыток тестов — **после** доработки элементов тестов.

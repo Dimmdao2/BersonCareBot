@@ -13,7 +13,11 @@ export const DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY = "doctorMenu.openClusters.v1
 export const DOCTOR_MENU_DEFAULT_CLUSTER_ID = "patients-work";
 
 /** Ключ счётчика для бейджа пункта меню врача (навигация). */
-export type DoctorMenuBadgeKey = "onlineIntakeNew" | "messagesUnread" | "registrationSystemFailures";
+export type DoctorMenuBadgeKey =
+  | "onlineIntakeNew"
+  | "messagesUnread"
+  | "registrationSystemFailures"
+  | "pendingProgramTests";
 
 export type DoctorMenuLinkItem = {
   id: string;
@@ -225,7 +229,7 @@ export const DOCTOR_MENU_CLUSTERS: DoctorMenuCluster[] = [
 
 /** Верхнеуровневые ссылки вне кластеров. */
 export const DOCTOR_MENU_STANDALONE_LINKS: DoctorMenuLinkItem[] = [
-  { id: "overview", label: "Сегодня", href: "/app/doctor" },
+  { id: "overview", label: "Сегодня", href: "/app/doctor", badgeKey: "pendingProgramTests" },
 ];
 
 function filterMenuLinks(items: DoctorMenuLinkItem[], access: DoctorMenuAccess): DoctorMenuLinkItem[] {

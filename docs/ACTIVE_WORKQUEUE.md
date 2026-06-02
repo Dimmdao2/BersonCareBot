@@ -11,8 +11,8 @@
 | **2C** — задачи специалиста | **Закрыта** (аудит 2026-06-02) | [`SPECIALIST_TASKS.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md), LOG §2C |
 | **3** — черновик редактора программы | **Закрыта** (2026-06-02) | LOG §фаза 3 |
 | **4** — фильтры каталога (регион + нагрузка) | **Закрыта** (2026-06-02) | LOG §фаза 4 |
-| **5** — cross-patient inbox «К проверке» на «Сегодня» + `focusItemId` | Открыта | **следующая** |
-| **6** — CMS enum + `/help` | Открыта | |
+| **5** — cross-patient inbox «К проверке» на «Сегодня» + `focusItemId` | **Закрыта** (2026-06-02) | LOG §фаза 5 |
+| **6** — CMS enum + `/help` | Открыта | **следующая** |
 | **7** — хвосты docs/шаблонов | Частично | этот файл |
 
 ## Фаза 0 (закрыта)
@@ -41,7 +41,14 @@
 - RSC: `bodyRegionIdToCode`, `includeExerciseDetails` для метаданных комплексов.
 - **Продукт:** в picker **нет** «Без региона» / «Без типа» — эти пункты только в `DoctorCatalogFiltersForm` на экранах каталога врача (аудит незаполненных полей). См. LOG §фаза 4 (финал).
 
-**Следующий шаг очереди:** фаза **5** — cross-patient блок «К проверке» на «Сегодня» и `focusItemId` на экране назначенной программы.
+**Следующий шаг очереди:** фаза **6** — CMS enum типов контента + `/help`.
+
+## Фаза 5 (закрыта)
+
+- Cross-patient «К проверке» на `/app/doctor` («Сегодня»): `countPendingTestEvaluationAttemptsGlobal` + `listPendingTestEvaluationsGlobal` (top 10 попыток), секция `#doctor-today-section-pending-tests`, строка в «Требует внимания».
+- Deep link `focusItemId` (UUID) на экране инстанса — scroll/highlight с retry; `discussionItem` — тоже только валидный UUID; карточка / «Сегодня» «Оценить» — тот же query.
+- Бейдж меню «Сегодня»: `GET /api/doctor/pending-program-tests/summary` → `{ ok, count }`; `useDoctorPendingProgramTestsCount`.
+- ROADMAP_2 §2.2–2.3 — closed; план §фаза 5, `api.md`, targeted vitest — см. [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5.
 
 ## Вне scope «сейчас»
 

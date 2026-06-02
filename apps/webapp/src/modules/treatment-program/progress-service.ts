@@ -15,6 +15,7 @@ import {
 import type {
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
+  PendingProgramTestEvaluationGlobalRow,
   ProgramActionLogListRow,
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageRow,
@@ -600,6 +601,15 @@ export function createTreatmentProgramProgressService(deps: {
     async listPendingTestEvaluationsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]> {
       assertUuid(patientUserId);
       return tests.listPendingEvaluationResultsForPatient(patientUserId);
+    },
+
+    async countPendingTestEvaluationAttemptsGlobal(): Promise<number> {
+      return tests.countPendingEvaluationAttemptsGlobal();
+    },
+
+    async listPendingTestEvaluationsGlobal(maxAttempts: number): Promise<PendingProgramTestEvaluationGlobalRow[]> {
+      const cap = Math.min(Math.max(maxAttempts, 1), 50);
+      return tests.listPendingEvaluationResultsGlobal(cap);
     },
 
     async getPatientTestSetPageServerSnapshot(input: {

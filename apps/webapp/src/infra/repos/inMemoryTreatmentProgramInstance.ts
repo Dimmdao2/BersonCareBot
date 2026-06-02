@@ -33,6 +33,7 @@ import type {
   TreatmentProgramTestResultRow,
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
+  PendingProgramTestEvaluationGlobalRow,
 } from "@/modules/treatment-program/types";
 import {
   effectiveInstanceStageItemComment,
@@ -1210,6 +1211,77 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         });
       }
       return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    },
+
+    async countPendingEvaluationAttemptsGlobal(): Promise<number> {
+      const attemptIds = new Set<string>();
+      for (const r of results.values()) {
+        if (r.decidedBy) continue;
+        const att = attempts.get(r.attemptId);
+        if (!att || !att.submittedAt) continue;
+        const item = items.get(att.instanceStageItemId);
+        if (!item) continue;
+        const st = stages.get(item.stageId);
+        if (!st) continue;
+        const inst = instances.get(st.instanceId);
+        if (!inst || inst.status !== "active") continue;
+        if (inst.assignmentSource === "promo") continue;
+        attemptIds.add(att.id);
+      }
+      return attemptIds.size;
+    },
+
+    async listPendingEvaluationResultsGlobal(maxAttempts: number): Promise<PendingProgramTestEvaluationGlobalRow[]> {
+      const cap = Math.min(Math.max(maxAttempts, 1), 50);
+      const out: PendingProgramTestEvaluationGlobalRow[] = [];
+      for (const r of results.values()) {
+        if (r.decidedBy) continue;
+        const att = attempts.get(r.attemptId);
+        if (!att || !att.submittedAt) continue;
+        const item = items.get(att.instanceStageItemId);
+        if (!item) continue;
+        const st = stages.get(item.stageId);
+        if (!st) continue;
+        const inst = instances.get(st.instanceId);
+        if (!inst || inst.status !== "active") continue;
+        if (inst.assignmentSource === "promo") continue;
+        out.push({
+          attemptId: att.id,
+          attemptSubmittedAt: att.submittedAt!,
+          resultId: r.id,
+          testId: r.testId,
+          testTitle: null,
+          createdAt: r.createdAt,
+          instanceId: inst.id,
+          instanceTitle: inst.title,
+          stageTitle: st.title,
+          stageItemId: item.id,
+          patientUserId: inst.patientUserId,
+          patientDisplayName: "—",
+        });
+      }
+      const groups = new Map<string, PendingProgramTestEvaluationGlobalRow[]>();
+      for (const row of out) {
+        const list = groups.get(row.attemptId);
+        if (list) list.push(row);
+        else groups.set(row.attemptId, [row]);
+      }
+      const sortedAttemptIds = [...groups.entries()]
+        .map(([attemptId, rowsForAttempt]) => ({
+          attemptId,
+          latestAt: rowsForAttempt.reduce((max, row) => (row.createdAt > max ? row.createdAt : max), rowsForAttempt[0]!.createdAt),
+        }))
+        .sort((a, b) => {
+          const d = b.latestAt.localeCompare(a.latestAt);
+          if (d !== 0) return d;
+          return b.attemptId.localeCompare(a.attemptId);
+        })
+        .slice(0, cap)
+        .map((g) => g.attemptId);
+      const allowed = new Set(sortedAttemptIds);
+      return out
+        .filter((row) => allowed.has(row.attemptId))
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     },
 
     async overrideResultDecision(resultId: string, input: { normalizedDecision: NormalizedTestDecision; decidedBy: string }) {

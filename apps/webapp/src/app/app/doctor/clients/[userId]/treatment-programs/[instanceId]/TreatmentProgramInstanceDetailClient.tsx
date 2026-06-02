@@ -87,6 +87,7 @@ import {
   type InstanceAddLibraryItemSpec,
 } from "@/app/app/doctor/treatment-program-shared/InstanceAddLibraryItemDialog";
 import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
+import { doctorProgramTestResultDomId } from "@/app/app/doctor/treatment-program-shared/doctorProgramTestResultDomId";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { primaryMediaForStageItem } from "@/app/app/patient/treatment/stageItemSnapshot";
 
@@ -285,6 +286,7 @@ function DoctorInstanceStageItemLoadForm(props: {
 
   useEffect(() => {
     const e = effectiveLoadTripleFromParts(item.itemType, item.settings, item.snapshot);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync load draft fields when item changes
     setReps(e.reps != null ? String(e.reps) : "");
     setSets(e.sets != null ? String(e.sets) : "");
     setMaxPain(e.maxPain != null ? String(e.maxPain) : "");
@@ -760,6 +762,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
   doctorReplyFromLogEnabled: boolean;
   initialOpenDiscussionItemId?: string | null;
+  initialFocusTestResultId?: string | null;
 }) {
   const [baseline, setBaseline] = useState(props.initial);
   const [programEvents, setProgramEvents] = useState<TreatmentProgramEventRow[]>(props.initialEvents);
@@ -817,6 +820,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
   doctorReplyFromLogEnabled: boolean;
   initialOpenDiscussionItemId?: string | null;
+  initialFocusTestResultId?: string | null;
   baseline: TreatmentProgramInstanceDetail;
   setBaseline: (detail: TreatmentProgramInstanceDetail) => void;
   programEvents: TreatmentProgramEventRow[];
@@ -829,6 +833,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     patientProfileHref,
     patientDisplayName,
     initialOpenDiscussionItemId,
+    initialFocusTestResultId,
     initialTestResults,
     initialAttemptAcceptMap,
     currentUserId,
@@ -997,6 +1002,45 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     if (!id) return;
     openDiscussionForItemId(id);
   }, [initialOpenDiscussionItemId, openDiscussionForItemId]);
+
+  useEffect(() => {
+    const resultId = initialFocusTestResultId?.trim();
+    if (!resultId) return;
+
+    let cancelled = false;
+    let highlightTimer: number | undefined;
+    let retryTimer: number | undefined;
+    let attempts = 0;
+    const maxAttempts = 20;
+
+    const applyHighlight = (el: HTMLElement) => {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-primary", "ring-offset-2", "rounded-lg");
+      highlightTimer = window.setTimeout(() => {
+        el.classList.remove("ring-2", "ring-primary", "ring-offset-2", "rounded-lg");
+      }, 4000);
+    };
+
+    const tryFocus = () => {
+      if (cancelled) return;
+      const el = document.getElementById(doctorProgramTestResultDomId(resultId));
+      if (!el) {
+        attempts += 1;
+        if (attempts < maxAttempts) {
+          retryTimer = window.setTimeout(tryFocus, 100);
+        }
+        return;
+      }
+      applyHighlight(el);
+    };
+
+    tryFocus();
+    return () => {
+      cancelled = true;
+      if (highlightTimer !== undefined) window.clearTimeout(highlightTimer);
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
+  }, [initialFocusTestResultId]);
 
   const sendProgramNoteReply = useCallback(async () => {
     if (!noteReplyTarget) return;
@@ -1275,7 +1319,11 @@ function TreatmentProgramInstanceDetailClientBody(props: {
                       </div>
                       <ul className="m-0 list-none space-y-2 p-0">
                         {g.results.map((r) => (
-                          <li key={r.id} className="rounded border border-border/50 bg-background/50 p-2">
+                          <li
+                            key={r.id}
+                            id={doctorProgramTestResultDomId(r.id)}
+                            className="rounded border border-border/50 bg-background/50 p-2"
+                          >
                             <p className="font-medium">
                               {r.testTitle ?? r.testId}{" "}
                               <span className="text-xs font-normal text-muted-foreground">
@@ -2599,6 +2647,7 @@ function ItemLocalCommentForm(props: {
   const [draft, setDraft] = useState(initialDraft);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset comment draft when itemId/initialDraft changes
     setDraft(initialDraft);
   }, [itemId, initialDraft]);
 

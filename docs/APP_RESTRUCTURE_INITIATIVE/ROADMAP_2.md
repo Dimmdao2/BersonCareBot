@@ -6,6 +6,7 @@
 **Синхронизация 2026-05-05 (docs):** инициатива **`PATIENT_APP_SHADCN_ALIGNMENT`** перенесена в архив; правила shadcn/shared при переработке страниц закреплены в **§1 п.4**; бывший единый Phase 7 — в мини-инициативах по экрану (см. [`LOG.md`](LOG.md) 2026-05-05).
 **Синхронизация 2026-05-05 (планирование, исторически):** черновой план **§1.1b** под эталон `treatment-programs/[instanceId]` + отдельный `stages/[stageId]`; уточнения про «Историю тестирования», Play-ассет, токены и порядок секций — зафиксированы в старой версии §1.1b до пометки «устарело».
 **Синхронизация 2026-06-01 (owner):** patient §1.2 → **TODO** (детальная переработка «Статистики» позже); §1.3 **неактуален**; §1.4 **закрыт** (страница «Запись», доработки — [`OWN_BOOKING_ENGINE_INITIATIVE`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md)); §1.5 **закрыт**; §1.6 **закрыт** (редизайн профиля 2026-05-10); §1.7 → **[`docs/TODO.md`](../TODO.md)** (после CMS enum §3.3). §3.1 D5 → **TODO**, не блокирует архив инициатив; §3.2 **0040** — **закрыт** (миграции на prod прогнаны, owner 2026-06-01). §4.2 **Курсы** — отдельная инициатива, **не держит** ROADMAP_2 активным. Расширенный контур карточки врача / «На сопровождении» — **[`docs/TODO.md`](../TODO.md)** §Doctor card.
+**Синхронизация 2026-06-02 (фаза 5 doctor card):** §**2.2** cross-patient inbox «К проверке» на «Сегодня» и §**2.3** deep link `focusItemId` — **✅ закрыты** (active workqueue фаза 5; [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5).
 **Синхронизация 2026-05-13 (§1.1b):** пункт **закрыт по факту** — экран **«Мой план» / программа лечения** доработан **актуальной** логикой: `routePaths.patientTreatmentProgram` → **`/app/patient/treatment/[instanceId]`**, вкладки «Программа / Рекомендации / Прогресс», hero, карточка контроля, timeline, collapsible рекомендаций и др. (см. [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), [`docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md)). Текст **§1.1b ниже — устаревшая спецификация** (архив обсуждения, не план к исполнению). **Batch** для §1.4 / §1.6 (`Collapsible` в cabinet/profile) остаётся в силе.
 **Назначение:** зафиксировать порядок работ на следующий период с важными деталями (scope, файлы, риски, DoD), чтобы агенты могли брать пункты в работу без переоткрытия контекста.
 **Не заменяет:** [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (общий стратегический документ) и [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) (план кабинета врача). Этот документ — операционная нарезка «что брать сейчас», ссылающаяся на оба.
@@ -84,8 +85,8 @@
 | 1.6 | Patient `/profile` сжатие | UI / patient | — | **✅ closed** 2026-05-10 | — |
 | 1.7 | Patient `/help` как article-контент | content / CMS | 3.3 CMS enum | **TODO** [`docs/TODO.md`](../TODO.md) | — |
 | 2.1 | Doctor card этап 6: hero программы + tab-layout | UI / doctor | L | желательно 1.1, 1.4 | 1.7, 3.x |
-| 2.2 | Cross-patient inbox «К проверке» в «Сегодня» врача | UI / data | M | — | 1.x, 2.1, 3.x |
-| 2.3 | «Открыть тест» → акцент на конкретный тест в `TreatmentProgramInstanceDetailClient` | UI | S | 2.2 опц. | 1.x |
+| 2.2 | Cross-patient inbox «К проверке» в «Сегодня» врача | UI / data | M | **✅ closed** 2026-06-02 (фаза 5) | 1.x, 2.1, 3.x |
+| 2.3 | «Открыть тест» → акцент на конкретный тест в `TreatmentProgramInstanceDetailClient` | UI | S | **✅ closed** 2026-06-02 (`focusItemId`) | 1.x |
 | 3.1 | D5 `recommendations.domain` → `kind` | data / refactor | — | **TODO** [`docs/TODO.md`](../TODO.md) — не блокирует архив | — |
 | 3.2 | Prod-применение миграции `0040` (DROP `tests.scoring_config`) | ops | — | **✅ closed** owner 2026-06-01 | — |
 | 3.3 | CMS типизация до полного enum (этап 2 roadmap) | CMS | M | **активно** — [`docs/TODO.md`](../TODO.md) | 1.7 |
@@ -520,6 +521,8 @@ pnpm --dir apps/webapp exec vitest run src/app/app/doctor/clients
 
 ### 2.2 Cross-patient inbox «К проверке» в «Сегодня» врача
 
+**Статус:** **✅ закрыто** 2026-06-02 (active workqueue фаза 5 — [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5).
+
 **Цель.** Вместо инбокса per-patient сделать сводный «К проверке» в `/app/doctor` (этап 4 PLAN_DOCTOR_CABINET — Today).
 
 **Что делать.**
@@ -546,13 +549,15 @@ pnpm --dir apps/webapp exec tsc --noEmit
 pnpm --dir apps/webapp exec vitest run src/modules/treatment-program src/modules/doctor-review-inbox
 ```
 
-**DoD.** Сводный список виден на «Сегодня»; CTA открывает конкретный тест/занятие.
+**DoD.** [x] Сводный список на «Сегодня»; CTA «Оценить» с `focusItemId`; бейдж «Сегодня»; count API. Реализация: `listPendingTestEvaluationsGlobal` / `countPendingTestEvaluationAttemptsGlobal`, `DoctorTodayPendingProgramTestsSection`, `GET /api/doctor/pending-program-tests/summary`.
 
 **Кому отдать.** Codex 5.3 (порт + UI).
 
 ---
 
 ### 2.3 «Открыть тест» → акцент на конкретный тест
+
+**Статус:** **✅ закрыто** 2026-06-02 (вместе с фазой 5; query `focusItemId` на `/app/doctor/clients/[userId]/treatment-programs/[instanceId]`).
 
 **Цель.** При переходе из «К проверке» (в карточке пациента или из кросс-инбокса 2.2) экземпляр программы открывается с фокусом на нужном тесте.
 
@@ -565,7 +570,7 @@ pnpm --dir apps/webapp exec vitest run src/modules/treatment-program src/modules
 
 - `apps/webapp/src/app/app/doctor/treatment-program-instances/[id]/**`.
 
-**DoD.** Параметр URL поддержан; визуальный акцент работает.
+**DoD.** [x] Query `focusItemId` (UUID); scroll/highlight в `TreatmentProgramInstanceDetailClient` с retry; невалидный UUID игнорируется.
 
 **Кому отдать.** Composer-2 / Sonnet 4.6 (S).
 

@@ -14,6 +14,7 @@ import {
   doctorClientTabSectionClass,
   doctorClientUrgentZoneClass,
 } from "./doctorClientCardChrome";
+import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -35,7 +36,6 @@ export function DoctorClientProgramTab({
   pendingProgramTestEvaluations,
   programInbox,
 }: Props) {
-  const scopeQs = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : "";
   const pendingGroups = groupPendingProgramTestEvaluations(pendingProgramTestEvaluations);
   const inboxCount = programInbox.length;
   const hasUrgent = inboxCount > 0 || pendingProgramTestEvaluations.length > 0;
@@ -73,7 +73,10 @@ export function DoctorClientProgramTab({
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">Без оценки: {g.results.length}</p>
                       <Link
-                        href={`/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(g.instanceId)}${scopeQs}#doctor-program-instance-test-results`}
+                        href={doctorClientTreatmentProgramInstanceHref(userId, g.instanceId, {
+                          profileListScope,
+                          focusItemId: g.results[0]?.resultId,
+                        })}
                         className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3 inline-flex")}
                       >
                         Оценить

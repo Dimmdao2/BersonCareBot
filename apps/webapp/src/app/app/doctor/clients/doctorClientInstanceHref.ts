@@ -2,7 +2,7 @@
 export function doctorClientTreatmentProgramInstanceHref(
   userId: string,
   instanceId: string,
-  options?: { profileListScope?: string; discussionItemId?: string },
+  options?: { profileListScope?: string; discussionItemId?: string; focusItemId?: string },
 ): string {
   const params = new URLSearchParams();
   if (options?.profileListScope) {
@@ -10,6 +10,9 @@ export function doctorClientTreatmentProgramInstanceHref(
   }
   if (options?.discussionItemId) {
     params.set("discussionItem", options.discussionItemId);
+  }
+  if (options?.focusItemId) {
+    params.set("focusItemId", options.focusItemId);
   }
   const qs = params.toString();
   const base = `/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(instanceId)}`;

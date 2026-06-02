@@ -33,6 +33,9 @@ function emptyData(): TodayDashboardData {
     onSupportClients: [],
     onSupportListTruncated: false,
     globalOpenTasks: [],
+    pendingProgramTests: [],
+    pendingProgramTestsTotal: 0,
+    pendingProgramTestsTruncated: false,
   };
 }
 
@@ -68,6 +71,7 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByRole("heading", { name: "Новые онлайн-заявки" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Непрочитанные сообщения" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ближайшие записи" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "К проверке" })).toBeInTheDocument();
     expect(screen.getByText("Новые клиенты за 7 дн. без каналов связи")).toBeInTheDocument();
   });
 
@@ -91,6 +95,7 @@ describe("DoctorTodayDashboard", () => {
       "/app/doctor/online-intake",
     );
     expect(screen.getByText("Непрочитанных сообщений нет")).toBeInTheDocument();
+    expect(screen.getByText("Нет тестов, ожидающих оценки")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть все сообщения" })).toHaveAttribute(
       "href",
       "/app/doctor/messages",
@@ -210,6 +215,42 @@ describe("DoctorTodayDashboard", () => {
       "href",
       "/app/doctor/clients?scope=all&support=on",
     );
+  });
+
+  it("renders pending program tests with evaluate link and truncation footer", () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      pendingProgramTestsTotal: 12,
+      pendingProgramTestsTruncated: true,
+      pendingProgramTests: [
+        {
+          attemptId: "00000000-0000-4000-8000-000000000011",
+          patientUserId: "00000000-0000-4000-8000-000000000001",
+          patientDisplayName: "Иванова",
+          instanceId: "00000000-0000-4000-8000-000000000021",
+          instanceTitle: "Программа А",
+          stageTitle: "Этап 1",
+          pendingCount: 2,
+          submittedAtLabel: "02.06.2026, 10:00",
+          href: "/app/doctor/clients/u1/treatment-programs/i1?focusItemId=r1",
+        },
+      ],
+    };
+    render(
+      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
+    );
+    expect(screen.getByText(/Попыток без оценки: 12/)).toBeInTheDocument();
+    expect(screen.getByText("Иванова")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Оценить" })).toHaveAttribute(
+      "href",
+      "/app/doctor/clients/u1/treatment-programs/i1?focusItemId=r1",
+    );
+    expect(screen.getByText("Показаны первые 1 из 12")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Тесты к проверке" })).toHaveAttribute(
+      "href",
+      "#doctor-today-section-pending-tests",
+    );
+    expect(screen.getByText(/попыток: 12/)).toBeInTheDocument();
   });
 
   it("renders unread conversations and total", () => {

@@ -675,6 +675,12 @@ export type PendingProgramTestEvaluationRow = {
   stageItemId: string;
 };
 
+/** Cross-patient inbox «Сегодня»: те же поля + пациент. */
+export type PendingProgramTestEvaluationGlobalRow = PendingProgramTestEvaluationRow & {
+  patientUserId: string;
+  patientDisplayName: string;
+};
+
 /** §8 SYSTEM_LOGIC_SCHEMA — `treatment_program_events.event_type`. */
 export const TREATMENT_PROGRAM_EVENT_TYPES = [
   "item_added",

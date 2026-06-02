@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-06-02 — Фаза 5: cross-patient inbox «К проверке» на «Сегодня»
+
+- **Данные:** `listPendingEvaluationResultsGlobal` / `listPendingTestEvaluationsGlobal` — result-строки по top N **попыток** (PG: `count distinct attempt` + `limit` по `max(created_at)`); `countPendingEvaluationAttemptsGlobal` / `countPendingTestEvaluationAttemptsGlobal` — точный total для truncation; тип `PendingProgramTestEvaluationGlobalRow` (+ `patientUserId`, `patientDisplayName`). Порт/сервис: `progress-service.ts`, `pgTreatmentProgramTestAttempts.ts`, `inMemoryTreatmentProgramInstance.ts`.
+- **«Сегодня»:** `DoctorTodayPendingProgramTestsSection`, `mapPendingProgramTestsForToday`, `loadDoctorTodayDashboard`; строка «Тесты к проверке» в «Требует внимания»; якорь `#doctor-today-section-pending-tests`; порядок preview = порядок PG top-N.
+- **Deep link:** `doctorClientTreatmentProgramInstanceHref` + query `focusItemId` (UUID `treatment_program_test_results.id`) → `doctorProgramTestResultDomId`, scroll/highlight с retry до mount; карточка (`DoctorClientProgramTab`) «Оценить» — тот же href. RSC `page.tsx`: UUID для `focusItemId` и `discussionItem`.
+- **Меню:** бейдж «Сегодня» — `GET /api/doctor/pending-program-tests/summary`, `useDoctorPendingProgramTestsCount`, `DoctorMenuBadgeKey.pendingProgramTests` (ROADMAP_2 §2.2).
+- **Доки / синхронизация:** `api.md`, `ACTIVE_WORKQUEUE.md`, `TODO.md`, `CARD_REDESIGN_PLAN.md` §11, `ROADMAP_2.md` §2.2–2.3, план-очередь §фаза 5.
+- **Проверки:** `progress-service.test.ts`, `mapPendingProgramTestsForToday.test.ts`, `DoctorTodayDashboard.test.tsx`, `doctorClientInstanceHref.test.ts`, `pending-program-tests/summary/route.test.ts`, `DoctorMenuAccordion.test.tsx`, `useDoctorPendingProgramTestsCount.test.tsx`; targeted vitest + `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-02 — Фаза 4 (финал): продуктовое правило фильтров picker
 
 - **Решение owner:** пункты «Без региона» / «Без типа» (`DOCTOR_CATALOG_FILTER_MISSING`) — **только** на экранах **создания/редактирования** в библиотеке врача (`DoctorCatalogFiltersForm`: упражнения, тесты, комплексы и т.д.) для аудита незаполненных карточек. В picker **добавления из библиотеки в программу/шаблон** (`TreatmentProgramLibraryPickerToolbar`, `InstanceAddLibraryItemDialog`, `TreatmentProgramConstructorClient`) — **убраны**.
@@ -33,10 +44,10 @@
 
 ---
 
-## 2026-06-02 — Синхронизация docs и плана (фазы 3–4 закрыты)
+## 2026-06-02 — Синхронизация docs и плана (фазы 3–5 закрыты)
 
-- План-очередь: YAML todos 0–4 completed; **следующая фаза 5** (cross-patient inbox «К проверке» на «Сегодня»).
-- `ACTIVE_WORKQUEUE.md`, `DOCTOR_PATIENT_CARD` README, `TODO.md` §Doctor card, `docs/README.md` — статус очереди; фаза 4 включает финальное продуктовое правило фильтров (см. запись выше).
+- План-очередь: YAML todos 0–5 completed; **следующая фаза 6** (CMS enum + `/help`).
+- Фаза 5 (финал): count API, бейдж «Сегодня», UUID query, аудит порядка preview — отражено в плане §фаза 5, `ROADMAP_2` §2.2–2.3, `ACTIVE_WORKQUEUE.md`, `TODO.md`, `docs/README.md`.
 
 ---
 

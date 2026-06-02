@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-06-02 — ROADMAP_2 §2.2–2.3: cross-patient «К проверке» + `focusItemId` (фаза 5 doctor card)
+
+**Сделано:** active workqueue **фаза 5** — cross-patient секция на `/app/doctor`, `countPendingTestEvaluationAttemptsGlobal` + preview, deep link `focusItemId`, бейдж «Сегодня» (`GET /api/doctor/pending-program-tests/summary`). Таблица §2 и тексты §2.2–2.3 помечены **closed**.
+
+**Документы:** [`ROADMAP_2.md`](ROADMAP_2.md), [`../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](../DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §фаза 5, [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) §фаза 5.
+
+---
+
 ## 2026-06-02 — Конструктор шаблона программы: CTA «Сохранить черновик» только при несохранённых названии/описании (published)
 
 **Повод:** у опубликованного шаблона кнопка «Сохранить черновик» оставалась активной без правок — воспринималась как лишнее «сохранение», хотя структура этапов уже пишется в API по действию, а название/описание — при `onBlur`.

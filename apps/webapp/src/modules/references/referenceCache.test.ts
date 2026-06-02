@@ -24,6 +24,7 @@ describe("referenceCache", () => {
       },
     });
     const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
       json: async () => ({ ok: true, items: [{ id: "1", code: "a", title: "A", sortOrder: 1 }] }),
     });
     vi.stubGlobal("fetch", fetchMock);

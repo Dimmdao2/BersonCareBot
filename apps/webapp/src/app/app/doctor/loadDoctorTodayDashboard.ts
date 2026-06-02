@@ -6,8 +6,14 @@ import type {
 } from "@/modules/doctor-clients/ports";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import type { SpecialistTasksService } from "@/modules/specialist-tasks/service";
+import type { TreatmentProgramProgressService } from "@/modules/treatment-program/progress-service";
 import type { OnlineIntakeService } from "@/modules/online-intake/ports";
 import type { IntakeRequestWithPatientIdentity, IntakeType } from "@/modules/online-intake/types";
+import {
+  DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
+  mapPendingProgramTestsForToday,
+  type TodayPendingProgramTestItem,
+} from "./mapPendingProgramTestsForToday";
 
 /** Сколько карточек клиентов показывать на «Сегодня»; полный список — `/app/doctor/clients?scope=all&support=on`. */
 export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
@@ -32,6 +38,7 @@ export type DoctorTodayDashboardDeps = {
   };
   specialistTasks?: SpecialistTasksService;
   specialistOwnerUserId?: string;
+  treatmentProgramProgress?: TreatmentProgramProgressService;
   messaging: {
     doctorSupport: {
       listOpenConversations(params: {
@@ -97,6 +104,9 @@ export type TodayDashboardData = {
   onSupportClients: TodayOnSupportClientItem[];
   onSupportListTruncated: boolean;
   globalOpenTasks: SpecialistTaskRow[];
+  pendingProgramTests: TodayPendingProgramTestItem[];
+  pendingProgramTestsTotal: number;
+  pendingProgramTestsTruncated: boolean;
 };
 
 const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
@@ -242,6 +252,15 @@ export async function loadDoctorTodayDashboard(
       ? await deps.specialistTasks.listGlobalOpen(deps.specialistOwnerUserId, 8)
       : [];
 
+  const [pendingProgramTestsTotal, pendingRows] = deps.treatmentProgramProgress
+    ? await Promise.all([
+        deps.treatmentProgramProgress.countPendingTestEvaluationAttemptsGlobal(),
+        deps.treatmentProgramProgress.listPendingTestEvaluationsGlobal(DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT),
+      ])
+    : [0, []];
+  const pendingProgramTests = mapPendingProgramTestsForToday(pendingRows);
+  const pendingProgramTestsTruncated = pendingProgramTestsTotal > DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT;
+
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
     newIntakeRequests: newIntake.items.map(mapIntakeToTodayItem),
@@ -252,5 +271,8 @@ export async function loadDoctorTodayDashboard(
     onSupportClients,
     onSupportListTruncated,
     globalOpenTasks,
+    pendingProgramTests,
+    pendingProgramTestsTotal,
+    pendingProgramTestsTruncated,
   };
 }

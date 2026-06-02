@@ -23,14 +23,19 @@ export async function loadReferenceItems(categoryCode: string): Promise<Referenc
     /* ignore */
   }
   const res = await fetch(`/api/references/${encodeURIComponent(categoryCode)}`);
-  const data = (await res.json()) as { ok?: boolean; items?: ReferenceItemDto[] };
-  if (!data.ok || !Array.isArray(data.items)) return [];
+  if (!res.ok) return [];
   try {
-    sessionStorage.setItem(key, JSON.stringify(data.items));
+    const data = (await res.json()) as { ok?: boolean; items?: ReferenceItemDto[] };
+    if (!data.ok || !Array.isArray(data.items)) return [];
+    try {
+      sessionStorage.setItem(key, JSON.stringify(data.items));
+    } catch {
+      /* ignore quota */
+    }
+    return data.items;
   } catch {
-    /* ignore quota */
+    return [];
   }
-  return data.items;
 }
 
 export function clearReferenceCache(categoryCode?: string): void {
