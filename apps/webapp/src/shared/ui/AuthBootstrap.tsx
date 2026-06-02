@@ -69,6 +69,7 @@ type AuthBootstrapProps = {
 };
 
 const TOKEN_FALLBACK_MS = 1100;
+const AUTH_REQUEST_TIMEOUT_MS = 12_000;
 
 function logAuthBootstrap(
   message: string,
@@ -408,6 +409,44 @@ export function AuthBootstrap({
       setEffectiveEntryClassification(nextClassification);
     };
 
+    const buildWebAuthFallbackUrl = (): string => {
+      const params = new URLSearchParams();
+      if (nextParam) params.set("next", nextParam);
+      const qs = params.toString();
+      return qs ? `/app?${qs}` : "/app";
+    };
+
+    const recoverHungBootstrapToWebAuth = (input: {
+      attemptType: "telegram_init" | "max_init" | "exchange";
+      entry: string;
+      startedAt: number;
+    }) => {
+      stopPolling();
+      clearStaleBotPlatformCookie();
+      setMaxMiniappServerUnavailable(false);
+      setMiniappHelpLinks({ telegram: null, max: null });
+      setDebugInfo(null);
+      setState("idle");
+      setError(null);
+      setInitDataStatus("no");
+      setEffectiveEntryClassification("browser_interactive");
+      emitAuthFlowEvent("auth_attempt_finished", {
+        correlationId,
+        attemptType: input.attemptType,
+        epoch: authEpochRef.current,
+        ok: false,
+        httpStatus: undefined,
+        errorCode: "timeout",
+        elapsedMs: Date.now() - input.startedAt,
+      });
+      logAuthBootstrap("auth request timeout → web auth fallback", {
+        flow: flowHint,
+        correlationId,
+        entry: input.entry,
+      });
+      router.replace(buildWebAuthFallbackUrl());
+    };
+
     const postMessengerInit = (
       endpoint: "/api/auth/telegram-init" | "/api/auth/max-init",
       initData: string,
@@ -450,6 +489,11 @@ export function AuthBootstrap({
       }
 
       const startedAt = Date.now();
+      let timedOut = false;
+      const timeoutId = window.setTimeout(() => {
+        timedOut = true;
+        ac.abort();
+      }, AUTH_REQUEST_TIMEOUT_MS);
       void fetch(endpoint, {
         method: "POST",
         headers: authHeaders(),
@@ -462,6 +506,7 @@ export function AuthBootstrap({
             return;
           }
           const text = await response.text();
+          window.clearTimeout(timeoutId);
           if (cancelled || epochAtSend !== authEpochRef.current) {
             sentRef.current = false;
             return;
@@ -521,12 +566,16 @@ export function AuthBootstrap({
           router.replace(target);
         })
         .catch((e) => {
+          window.clearTimeout(timeoutId);
           if (cancelled || epochAtSend !== authEpochRef.current) {
             sentRef.current = false;
             return;
           }
           if (e instanceof DOMException && e.name === "AbortError") {
             sentRef.current = false;
+            if (timedOut) {
+              recoverHungBootstrapToWebAuth({ attemptType, entry, startedAt });
+            }
             return;
           }
           setState("error");
@@ -615,6 +664,11 @@ export function AuthBootstrap({
       });
 
       const startedAt = Date.now();
+      let timedOut = false;
+      const timeoutId = window.setTimeout(() => {
+        timedOut = true;
+        ac.abort();
+      }, AUTH_REQUEST_TIMEOUT_MS);
       void fetch("/api/auth/exchange", {
         method: "POST",
         headers: authHeaders(),
@@ -627,6 +681,7 @@ export function AuthBootstrap({
             return;
           }
           const text = await response.text();
+          window.clearTimeout(timeoutId);
           if (cancelled || epochAtSend !== authEpochRef.current) {
             tokenExchangeSentRef.current = false;
             return;
@@ -656,12 +711,16 @@ export function AuthBootstrap({
           router.replace(target);
         })
         .catch((e) => {
+          window.clearTimeout(timeoutId);
           if (cancelled || epochAtSend !== authEpochRef.current) {
             tokenExchangeSentRef.current = false;
             return;
           }
           if (e instanceof DOMException && e.name === "AbortError") {
             tokenExchangeSentRef.current = false;
+            if (timedOut) {
+              recoverHungBootstrapToWebAuth({ attemptType: "exchange", entry: "integrator_jwt", startedAt });
+            }
             return;
           }
           setState("error");

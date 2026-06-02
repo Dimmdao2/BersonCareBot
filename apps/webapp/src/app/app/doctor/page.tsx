@@ -20,6 +20,8 @@ export default async function DoctorPage() {
         doctorAppointments: deps.doctorAppointments,
         doctorClients: deps.doctorClientsPort,
         messaging: deps.messaging,
+        specialistTasks: deps.specialistTasks,
+        specialistOwnerUserId: session.user.userId,
       },
       intakeService,
     ),

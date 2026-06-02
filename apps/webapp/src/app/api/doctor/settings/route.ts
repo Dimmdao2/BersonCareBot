@@ -14,6 +14,7 @@ const DOCTOR_SCOPE_KEYS = [
   "sms_fallback_enabled",
   "doctor_patient_support_comments_without_support_default_enabled",
   "doctor_patient_support_media_without_support_default_enabled",
+  "doctor_specialist_task_reminder_channels",
 ] as const;
 
 const patchSchema = z.object({

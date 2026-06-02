@@ -3,6 +3,7 @@ import type { AdminRegistrationFailureAttention } from "@/app-layer/product-anal
 import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
+import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import {
   ON_SUPPORT_LIST_HREF,
   PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
@@ -126,6 +127,8 @@ export function DoctorTodayDashboard({
           <li className="text-muted-foreground">Комментарии к материалам — скоро</li>
         </ul>
       </section>
+
+      <DoctorGlobalTasksSection initialTasks={data.globalOpenTasks} />
 
       <section
         id="doctor-today-section-on-support"

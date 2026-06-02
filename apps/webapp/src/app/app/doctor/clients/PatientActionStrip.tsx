@@ -12,6 +12,7 @@ type PatientActionStripProps = {
   pendingTestsCount: number;
   chatUnreadCount: number;
   aggregates: DoctorClientProgramCardAggregates;
+  openTasksCount?: number;
   onNavigateTab: (tab: DoctorClientTabId) => void;
   onNavigateAnchor: (anchorId: string) => void;
 };
@@ -20,6 +21,7 @@ export function PatientActionStrip({
   pendingTestsCount,
   chatUnreadCount,
   aggregates,
+  openTasksCount = 0,
   onNavigateTab,
   onNavigateAnchor,
 }: PatientActionStripProps) {
@@ -75,6 +77,17 @@ export function PatientActionStrip({
       label: "План не открыт",
       variant: "outline",
       onClick: () => onNavigateTab("overview"),
+    });
+  }
+  if (openTasksCount > 0) {
+    chips.push({
+      key: "tasks",
+      label: `Задачи · ${openTasksCount}`,
+      variant: "secondary",
+      onClick: () => {
+        onNavigateTab("overview");
+        onNavigateAnchor("doctor-client-section-tasks");
+      },
     });
   }
 

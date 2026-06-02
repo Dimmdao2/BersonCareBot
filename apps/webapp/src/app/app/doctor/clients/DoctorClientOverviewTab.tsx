@@ -3,6 +3,7 @@
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
 import { DoctorClientOverviewCarePlan } from "./DoctorClientOverviewCarePlan";
 import { DoctorClientOverviewWellbeing } from "./DoctorClientOverviewWellbeing";
+import { PatientSpecialistTasksSection } from "./PatientSpecialistTasksSection";
 import { doctorClientOverviewPrimaryCardClass, doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
 import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
@@ -40,6 +41,7 @@ export function DoctorClientOverviewTab({
         onAssignClick={onNavigateProgram}
       />
       <DoctorClientOverviewWellbeing chartModel={wellbeingModel} displayTimeZone={displayTimeZone} />
+      <PatientSpecialistTasksSection patientUserId={userId} />
       <details id="doctor-client-section-notes" className={`md:col-span-2 ${doctorClientOverviewPrimaryCardClass}`}>
         <summary className={`mb-0 cursor-pointer list-none ${doctorClientSectionTitleClass} [&::-webkit-details-marker]:hidden`}>
           Заметки

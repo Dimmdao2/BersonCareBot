@@ -17,3 +17,6 @@ export const OPERATOR_BACKUP_JOB_FAMILY = "backup";
 
 export const OPERATOR_REMINDERS_JOB_FAMILY = "reminders";
 export const OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY = "reminders.web_push_only.tick";
+
+export const OPERATOR_SPECIALIST_TASKS_JOB_FAMILY = "specialist_tasks";
+export const OPERATOR_SPECIALIST_TASK_REMINDERS_TICK_JOB_KEY = "specialist_task_reminders.tick";

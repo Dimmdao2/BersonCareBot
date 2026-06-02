@@ -20,6 +20,7 @@ import type {
   DoctorClientProgramCardAggregates,
   DoctorClientProgramInboxRow,
   DoctorClientTabId,
+  DoctorClientTaskSummary,
 } from "@/modules/doctor-client-card/types";
 import { PatientCareBar } from "./PatientCareBar";
 import {
@@ -62,6 +63,7 @@ type ClientProfileCardProps = {
   programInbox?: DoctorClientProgramInboxRow[];
   displayTimeZone?: string;
   wellbeingChartModel?: WellbeingWeekChartModel;
+  taskSummary?: DoctorClientTaskSummary | null;
 };
 
 export function ClientProfileCard(props: ClientProfileCardProps) {
@@ -88,6 +90,7 @@ function ClientProfileCardInner({
   programInbox = [],
   displayTimeZone = "Europe/Moscow",
   wellbeingChartModel,
+  taskSummary = null,
 }: ClientProfileCardProps) {
   const { identity, upcomingAppointments, appointmentHistory } = profile;
   const { activeTab, setActiveTab, applyAnchor } = useDoctorClientAnchorTab(
@@ -177,12 +180,14 @@ function ClientProfileCardInner({
           chatUnreadCount={chatUnreadCount}
           onOpenChat={openCommunications}
           onNavigateAnchor={applyAnchor}
+          taskSummary={taskSummary}
         />
 
         <PatientActionStrip
           pendingTestsCount={pendingTestsCount}
           chatUnreadCount={chatUnreadCount}
           aggregates={programCardAggregates}
+          openTasksCount={taskSummary?.openCount ?? 0}
           onNavigateTab={setActiveTab}
           onNavigateAnchor={applyAnchor}
         />

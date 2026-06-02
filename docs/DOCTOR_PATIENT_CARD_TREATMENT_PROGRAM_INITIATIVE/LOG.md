@@ -267,6 +267,21 @@
 
 ---
 
+## 2026-06-02 — Фаза 2C: задачи специалиста
+
+- Drizzle `specialist_tasks` + миграция `0102`; модуль `specialist-tasks` (порт/сервис/DI).
+- API: `/api/doctor/tasks`, `/api/doctor/clients/:userId/tasks`, summary, complete; internal tick `specialist-task-reminders`.
+- Настройки: `doctor_specialist_task_reminder_channels` в `/app/settings`.
+- UI: секция «Задачи» в карточке (Обзор), Hero + Action Strip; «Мои задачи» на «Сегодня».
+- Спека: `SPECIALIST_TASKS.md`.
+
+### Проверки
+
+- `pnpm --dir apps/webapp exec vitest run src/modules/specialist-tasks/service.test.ts`
+- `pnpm --dir apps/webapp exec tsc --noEmit`
+
+---
+
 ## 2026-05-09 — Аудит экрана инстанса (порядок этапа 0, контракт API)
 
 - **Порядок элементов на этапе 0:** перестановка стрелками учитывает только **`item_type === "recommendation"`** внутри «ленты» этапа 0, чтобы не смешивать с другими строками с `group_id = null` (если они появятся).

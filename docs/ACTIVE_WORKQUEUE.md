@@ -6,8 +6,9 @@
 |------|--------|------------|
 | **0** — hotfix UI «Упражнения» (P0) | **Закрыта** | active workqueue §Фаза 0 |
 | **1** — «На сопровождении» + гейты comment/media | **Закрыта** | Cursor `phase1_support_model_7c745931.plan.md`; LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) |
-| **2A** — дизайн карточки врача | Открыта | active workqueue §Фаза 2A |
-| **2B** — реализация карточки | Открыта | после 2A |
+| **2A** — дизайн карточки врача | **Закрыта** | [`CARD_REDESIGN_PLAN.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md) |
+| **2B** — реализация карточки | **Закрыта** | LOG §2026-06-02 |
+| **2C** — задачи специалиста | **Закрыта** | [`SPECIALIST_TASKS.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md) |
 | **3** — черновик редактора программы | Открыта | |
 | **4** — фильтры каталога (регион + нагрузка) | Открыта | |
 | **5** — cross-patient inbox «Сегодня» | Открыта | после 2 |
@@ -26,7 +27,7 @@
 - Пациент: `loadPatientProgramInteractionBundle`, UI visible/disabled, API `patient_support_*_disabled`.
 - Док: [`DOCTOR_DASHBOARD_METRICS.md`](ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md), [`PROMO_ASSIGNMENT_SOURCE.md`](PROMO_ASSIGNMENT_SOURCE.md), `apps/webapp/src/app/api/api.md`.
 
-**Следующий шаг очереди:** фаза **2A** (дизайн карточки врача) — обязателен до кода 2B.
+**Следующий шаг очереди:** фаза **3** (черновик редактора программы).
 
 ## Вне scope «сейчас»
 

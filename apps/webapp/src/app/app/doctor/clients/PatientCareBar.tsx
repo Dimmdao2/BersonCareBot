@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ClientIdentity } from "@/modules/doctor-clients/ports";
 import type { AppointmentSummary } from "@/modules/appointments/service";
+import type { SpecialistTaskPatientSummary } from "@/modules/specialist-tasks/types";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { cn } from "@/lib/utils";
 import { DoctorClientSupportCareBar } from "./DoctorClientSupportCareBar";
@@ -20,6 +21,7 @@ type PatientCareBarProps = {
   chatUnreadCount: number;
   onOpenChat: () => void;
   onNavigateAnchor: (anchorId: string) => void;
+  taskSummary?: SpecialistTaskPatientSummary | null;
 };
 
 function UpcomingAppointment({ appointment }: { appointment: AppointmentSummary }) {
@@ -50,6 +52,7 @@ export function PatientCareBar({
   chatUnreadCount,
   onOpenChat,
   onNavigateAnchor,
+  taskSummary,
 }: PatientCareBarProps) {
   const tel = phoneToTelHref(identity.phone);
   const displayHeading =
@@ -100,6 +103,16 @@ export function PatientCareBar({
             ) : (
               <p className="text-muted-foreground">Нет ближайших записей</p>
             )}
+            {taskSummary && taskSummary.openCount > 0 ? (
+              <button
+                type="button"
+                className="mt-2 w-full text-left text-xs text-primary underline underline-offset-2"
+                onClick={() => onNavigateAnchor("doctor-client-section-tasks")}
+              >
+                Задачи: {taskSummary.openCount} невып.
+                {taskSummary.nextImportantOrOverdue?.isImportant ? " ❗" : ""}
+              </button>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -157,6 +170,18 @@ export function PatientCareBar({
           </div>
           <DoctorClientSupportCareBar patientUserId={identity.userId} />
         </div>
+        {taskSummary && taskSummary.openCount > 0 ? (
+          <button
+            type="button"
+            className="text-left text-sm text-primary underline underline-offset-2 md:hidden"
+            onClick={() => onNavigateAnchor("doctor-client-section-tasks")}
+          >
+            Задачи: {taskSummary.openCount} невып.
+            {taskSummary.nextImportantOrOverdue?.title
+              ? ` · ${taskSummary.nextImportantOrOverdue.title}`
+              : ""}
+          </button>
+        ) : null}
       </div>
     </header>
   );

@@ -11,6 +11,8 @@ import {
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
   OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
   OPERATOR_REMINDERS_JOB_FAMILY,
+  OPERATOR_SPECIALIST_TASKS_JOB_FAMILY,
+  OPERATOR_SPECIALIST_TASK_REMINDERS_TICK_JOB_KEY,
   OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY,
   OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
@@ -125,6 +127,16 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     staleAfterSec: 8 * 24 * 60 * 60,
     kind: "internal_http",
     internalPath: "/api/internal/product-analytics/retention",
+  },
+  {
+    id: "specialist_task_reminders_tick",
+    jobFamily: OPERATOR_SPECIALIST_TASKS_JOB_FAMILY,
+    jobKey: OPERATOR_SPECIALIST_TASK_REMINDERS_TICK_JOB_KEY,
+    label: "Напоминания о задачах специалиста",
+    scheduleHint: "каждые 5–15 мин",
+    staleAfterSec: 30 * 60,
+    kind: "internal_http",
+    internalPath: "/api/internal/specialist-task-reminders/tick",
   },
   {
     id: "backup_hourly",

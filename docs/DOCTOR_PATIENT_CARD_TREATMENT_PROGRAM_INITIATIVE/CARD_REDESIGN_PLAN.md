@@ -1,6 +1,6 @@
 # CARD_REDESIGN_PLAN — карточка пациента врача (фаза 2A)
 
-**Статус:** дизайн утверждён owner 2026-06-02 (модель **Tabs + Hero**, график самочувствия **вторичный**). **Фаза 2B реализована** (2026-06-02, вкл. UX-аудит P0/P1 — см. [`LOG.md`](LOG.md)). Сущность «Задача» и Hero-сводка задач — фаза **2C**.
+**Статус:** дизайн утверждён owner 2026-06-02 (модель **Tabs + Hero**, график самочувствия **вторичный**). **Фазы 2B–2C реализованы** (2026-06-02 — см. [`LOG.md`](LOG.md), задачи: [`SPECIALIST_TASKS.md`](SPECIALIST_TASKS.md)).
 
 **План-очередь:** Cursor `active_workqueue_plan_30236040` (фазы 2A/2B/2C).
 **Каноничные спецификации (не дублировать):** [`ROADMAP.md`](ROADMAP.md), [`../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md`](../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md) §5–6, [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) §4.
@@ -263,7 +263,7 @@
 - [x] Самочувствие: спарклайн в «Обзоре» (маркеры ЛФК), полный график — по клику.
 - [x] Старые `#doctor-client-section-*` и `?chat=1` открывают правильный таб без 404 якоря.
 - [x] Mobile: чат, сопровождение доступны без горизонтального хаоса (задачи — 2C).
-- [ ] Задачи: список в карточке + сводка невыполненных в Hero; напоминание приходит по выбранным каналам и не дублируется (2C).
+- [x] Задачи: список в карточке + сводка невыполненных в Hero; напоминание по каналам из настроек, без дублей (`reminder_sent_at`) — 2C.
 - [x] Нет нарушений module isolation (2B); новые сущности на Drizzle и конфиг каналов — 2C.
 
 ---

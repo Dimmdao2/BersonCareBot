@@ -32,6 +32,7 @@ function emptyData(): TodayDashboardData {
     onSupportCount: 0,
     onSupportClients: [],
     onSupportListTruncated: false,
+    globalOpenTasks: [],
   };
 }
 

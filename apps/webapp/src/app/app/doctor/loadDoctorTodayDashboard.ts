@@ -4,6 +4,8 @@ import type {
   DoctorClientsFilters,
   DoctorDashboardPatientMetrics,
 } from "@/modules/doctor-clients/ports";
+import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
+import type { SpecialistTasksService } from "@/modules/specialist-tasks/service";
 import type { OnlineIntakeService } from "@/modules/online-intake/ports";
 import type { IntakeRequestWithPatientIdentity, IntakeType } from "@/modules/online-intake/types";
 
@@ -28,6 +30,8 @@ export type DoctorTodayDashboardDeps = {
     getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics>;
     listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]>;
   };
+  specialistTasks?: SpecialistTasksService;
+  specialistOwnerUserId?: string;
   messaging: {
     doctorSupport: {
       listOpenConversations(params: {
@@ -92,6 +96,7 @@ export type TodayDashboardData = {
   onSupportCount: number;
   onSupportClients: TodayOnSupportClientItem[];
   onSupportListTruncated: boolean;
+  globalOpenTasks: SpecialistTaskRow[];
 };
 
 const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
@@ -232,6 +237,11 @@ export async function loadDoctorTodayDashboard(
   const onSupportCount = patientMetrics.onSupportCount;
   const onSupportListTruncated = onSupportCount > onSupportClients.length;
 
+  const globalOpenTasks =
+    deps.specialistTasks && deps.specialistOwnerUserId
+      ? await deps.specialistTasks.listGlobalOpen(deps.specialistOwnerUserId, 8)
+      : [];
+
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
     newIntakeRequests: newIntake.items.map(mapIntakeToTodayItem),
@@ -241,5 +251,6 @@ export async function loadDoctorTodayDashboard(
     onSupportCount,
     onSupportClients,
     onSupportListTruncated,
+    globalOpenTasks,
   };
 }

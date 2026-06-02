@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
 import { SettingsForm } from "./SettingsForm";
+import { parseSpecialistTaskReminderChannels } from "@/modules/specialist-tasks/reminderChannels";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -57,6 +58,9 @@ export default async function SettingsPage({
     doctorSettings.find((x) => x.key === "doctor_patient_support_media_without_support_default_enabled")?.valueJson,
     false,
   );
+  const taskReminderChannels = parseSpecialistTaskReminderChannels(
+    doctorSettings.find((x) => x.key === "doctor_specialist_task_reminder_channels")?.valueJson ?? null,
+  );
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
@@ -66,6 +70,7 @@ export default async function SettingsPage({
         smsFallbackEnabled={Boolean(smsFallbackEnabled)}
         supportCommentsWithoutSupportDefault={Boolean(supportCommentsWithoutSupportDefault)}
         supportMediaWithoutSupportDefault={Boolean(supportMediaWithoutSupportDefault)}
+        taskReminderChannels={taskReminderChannels}
       />
     </div>
   );

@@ -184,6 +184,9 @@ import { notifyIntegratorRuleUpdated } from "@/modules/reminders/notifyIntegrato
 import { createPgAppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
 import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
 import { createPgDoctorNotesPort } from "@/infra/repos/pgDoctorNotes";
+import { createPgSpecialistTasksPort } from "@/infra/repos/pgSpecialistTasks";
+import { inMemorySpecialistTasksPort } from "@/infra/repos/inMemorySpecialistTasks";
+import { createSpecialistTasksService } from "@/modules/specialist-tasks/service";
 import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
 import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
@@ -501,6 +504,8 @@ const mediaStoragePort =
 const referencesPort = !inMemoryRepos ? pgReferencesPort : inMemoryReferencesPort;
 const doctorNotesPort = !inMemoryRepos ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
+const specialistTasksPort = !inMemoryRepos ? createPgSpecialistTasksPort() : inMemorySpecialistTasksPort;
+const specialistTasksService = createSpecialistTasksService(specialistTasksPort);
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
@@ -1152,6 +1157,7 @@ function _buildAppDeps() {
     /** Прямой порт для API (идентичность, блокировка) без лишней агрегации профиля. */
     doctorClientsPort,
     doctorNotes: doctorNotesService,
+    specialistTasks: specialistTasksService,
     doctorMessaging: createDoctorMessagingService({
       getClientIdentity: async (userId) => {
         const p = await doctorClients.getClientProfile(userId);

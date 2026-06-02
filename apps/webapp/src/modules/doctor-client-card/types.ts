@@ -1,3 +1,7 @@
+import type { SpecialistTaskPatientSummary } from "@/modules/specialist-tasks/types";
+
+export type { SpecialistTaskPatientSummary as DoctorClientTaskSummary };
+
 /** Счётчики Action Strip и plan-not-opened для карточки клиента врача (фаза 2B). */
 export type DoctorClientProgramCardAggregates = {
   newCommentsCount: number;
@@ -57,6 +61,7 @@ export type DoctorClientTabId = (typeof DOCTOR_CLIENT_TAB_IDS)[number];
 /** Якорь секции → активный таб (§8 CARD_REDESIGN_PLAN). */
 export const DOCTOR_CLIENT_ANCHOR_TO_TAB: Record<string, DoctorClientTabId> = {
   "doctor-client-section-notes": "overview",
+  "doctor-client-section-tasks": "overview",
   "doctor-client-section-support": "overview",
   "doctor-client-section-treatment-programs": "program",
   "doctor-client-section-program-inbox": "program",

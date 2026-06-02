@@ -54,6 +54,10 @@ export default async function DoctorClientProfilePage({
       )
     : undefined;
 
+  const taskSummary = hasDb
+    ? await deps.specialistTasks.getPatientSummary(session.user.userId, userId)
+    : null;
+
   const wellbeingChartModel = buildDoctorClientWellbeingModel(
     profile.symptomTrackings,
     profile.recentSymptomEntries,
@@ -102,6 +106,7 @@ export default async function DoctorClientProfilePage({
         programInbox={programCardData?.programInbox ?? []}
         displayTimeZone={displayTimeZone}
         wellbeingChartModel={wellbeingChartModel}
+        taskSummary={taskSummary}
       />
     </AppShell>
   );
