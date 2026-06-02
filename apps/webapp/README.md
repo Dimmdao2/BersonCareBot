@@ -26,7 +26,9 @@ It is intentionally separated from the current `tgcarebot` integrator **as a pro
 ```bash
 cp webapp/.env.example webapp/.env.dev
 pnpm install
-pnpm webapp:dev
+pnpm webapp:dev          # webpack (default)
+pnpm dev:turbo           # from repo root — Turbopack, faster HMR
+pnpm dev:stop            # stop dev listeners on :5200 / :4200 only (not prod :6200 / :3200)
 ```
 
 Default local URL: `http://127.0.0.1:5200/app`

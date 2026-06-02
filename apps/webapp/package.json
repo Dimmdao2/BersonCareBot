@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --webpack -H 127.0.0.1 -p 5200",
-    "dev:visual": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack -H 127.0.0.1 -p 5200",
+    "dev:stop": "bash ../../scripts/kill-local-dev-ports.sh",
+    "dev": "bash ../../scripts/kill-local-dev-ports.sh && next dev --webpack -H 127.0.0.1 -p 5200",
+    "dev:turbo": "bash ../../scripts/kill-local-dev-ports.sh && next dev -H 127.0.0.1 -p 5200",
+    "dev:visual": "bash ../../scripts/kill-local-dev-ports.sh && WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack -H 127.0.0.1 -p 5200",
     "lint": "eslint . && bash scripts/check-media-preview-invariants.sh && bash scripts/check-legacy-migrations-frozen.sh && bash scripts/check-drizzle-journal-sync.sh",
     "check:catalog-shared-primitives": "bash scripts/check-catalog-shared-primitives.sh",
     "check:media-preview-invariants": "bash scripts/check-media-preview-invariants.sh",

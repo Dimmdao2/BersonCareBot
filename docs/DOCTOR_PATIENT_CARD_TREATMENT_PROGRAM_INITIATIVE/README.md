@@ -12,6 +12,8 @@
 
 **Декомпозиция по этапам + слабые места / эскалация:** [`DECOMPOSITION.md`](DECOMPOSITION.md).
 
+**Редизайн карточки (фаза 2A, Tabs + Hero):** [`CARD_REDESIGN_PLAN.md`](CARD_REDESIGN_PLAN.md).
+
 ---
 
 ## Зачем отдельная папка
