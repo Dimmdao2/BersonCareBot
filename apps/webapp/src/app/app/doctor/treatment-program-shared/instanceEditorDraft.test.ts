@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   createEmptyInstanceEditorDraft,
+  createInstanceEditorDraftClientId,
+  hasInstanceEditorDraftStructuralChanges,
   isInstanceEditorDraftDirty,
   isInstanceEditorDraftEmpty,
+  isInstanceEditorDraftFlushEmpty,
   mergeInstanceEditorDraftIntoDetail,
+  mergeInstanceEditorDraftIntoDetailRaw,
   normalizeInstanceEditorDraft,
+  pickInstanceEditorDraftFlushChanges,
 } from "./instanceEditorDraft";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 
@@ -40,10 +45,20 @@ function minimalDetail(): TreatmentProgramInstanceDetail {
           {
             id: "33333333-3333-4333-8333-333333333333",
             stageId: "22222222-2222-4222-8222-222222222222",
-            title: "Группа",
+            title: "Группа A",
             description: null,
             scheduleText: null,
             sortOrder: 0,
+            systemKind: null,
+            sourceGroupId: null,
+          },
+          {
+            id: "66666666-6666-4666-8666-666666666666",
+            stageId: "22222222-2222-4222-8222-222222222222",
+            title: "Группа B",
+            description: null,
+            scheduleText: null,
+            sortOrder: 1,
             systemKind: null,
             sourceGroupId: null,
           },
@@ -58,7 +73,25 @@ function minimalDetail(): TreatmentProgramInstanceDetail {
             comment: null,
             localComment: null,
             settings: null,
-            snapshot: { title: "Упр" },
+            snapshot: { title: "Упр 1" },
+            completedAt: null,
+            isActionable: null,
+            status: "active" as const,
+            groupId: "33333333-3333-4333-8333-333333333333",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            lastViewedAt: null,
+            effectiveComment: null,
+          },
+          {
+            id: "77777777-7777-4777-8777-777777777777",
+            stageId: "22222222-2222-4222-8222-222222222222",
+            itemType: "exercise" as const,
+            itemRefId: "88888888-8888-4888-8888-888888888888",
+            sortOrder: 1,
+            comment: null,
+            localComment: null,
+            settings: null,
+            snapshot: { title: "Упр 2" },
             completedAt: null,
             isActionable: null,
             status: "active" as const,
@@ -110,5 +143,308 @@ describe("instanceEditorDraft", () => {
 
     expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(true);
     expect(normalizeInstanceEditorDraft(draft, baseline).itemPatches).toEqual(draft.itemPatches);
+  });
+
+  it("merge applies stageOrder, creates, deletes, reorders and structural patches", () => {
+    const baseline = minimalDetail();
+    const draft = createEmptyInstanceEditorDraft();
+    const newStageId = createInstanceEditorDraftClientId();
+    const newGroupId = createInstanceEditorDraftClientId();
+    const newItemId = createInstanceEditorDraftClientId();
+
+    draft.stageCreates.push({ clientId: newStageId, title: "Новый этап" });
+    draft.groupCreates.push({
+      clientId: newGroupId,
+      stageId: "22222222-2222-4222-8222-222222222222",
+      title: "Новая группа",
+    });
+    draft.itemCreates.push({
+      kind: "library_item",
+      clientId: newItemId,
+      stageId: "22222222-2222-4222-8222-222222222222",
+      itemType: "recommendation",
+      itemRefId: "99999999-9999-4999-8999-999999999999",
+      groupId: newGroupId,
+      snapshot: { title: "Рек" },
+    });
+    draft.itemDeletes["77777777-7777-4777-8777-777777777777"] = true;
+    draft.itemReorders["22222222-2222-4222-8222-222222222222"] = [
+      "77777777-7777-4777-8777-777777777777",
+      "44444444-4444-4444-8444-444444444444",
+      newItemId,
+    ];
+    draft.groupReorders["22222222-2222-4222-8222-222222222222"] = [
+      "66666666-6666-4666-8666-666666666666",
+      "33333333-3333-4333-8333-333333333333",
+      newGroupId,
+    ];
+    draft.itemStructuralPatches["44444444-4444-4444-8444-444444444444"] = {
+      groupId: "66666666-6666-4666-8666-666666666666",
+      isActionable: false,
+      status: "disabled",
+    };
+    draft.stageOrder = [
+      "22222222-2222-4222-8222-222222222222",
+      newStageId,
+    ];
+
+    const merged = mergeInstanceEditorDraftIntoDetail(baseline, draft);
+    expect(merged.stages.map((s) => s.id)).toEqual([
+      "22222222-2222-4222-8222-222222222222",
+      newStageId,
+    ]);
+    expect(merged.stages[0]?.groups.map((g) => g.id)).toEqual([
+      "66666666-6666-4666-8666-666666666666",
+      "33333333-3333-4333-8333-333333333333",
+      newGroupId,
+    ]);
+    const stageItems = merged.stages[0]?.items ?? [];
+    expect(stageItems.map((i) => i.id)).toEqual([
+      "44444444-4444-4444-8444-444444444444",
+      newItemId,
+    ]);
+    expect(stageItems[0]?.groupId).toBe("66666666-6666-4666-8666-666666666666");
+    expect(stageItems[0]?.isActionable).toBe(false);
+    expect(stageItems[0]?.status).toBe("disabled");
+    expect(merged.stages[1]?.title).toBe("Новый этап");
+  });
+
+  it("normalize drops no-op stageOrder and reorders", () => {
+    const baseline = minimalDetail();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.stageOrder = ["22222222-2222-4222-8222-222222222222"];
+    draft.groupReorders["22222222-2222-4222-8222-222222222222"] = [
+      "33333333-3333-4333-8333-333333333333",
+      "66666666-6666-4666-8666-666666666666",
+    ];
+    draft.itemReorders["22222222-2222-4222-8222-222222222222"] = [
+      "44444444-4444-4444-8444-444444444444",
+      "77777777-7777-4777-8777-777777777777",
+    ];
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.stageOrder).toBeNull();
+    expect(normalized.groupReorders).toEqual({});
+    expect(normalized.itemReorders).toEqual({});
+    expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(false);
+  });
+
+  it("normalize keeps stageOrder when order changes", () => {
+    const baseline = minimalDetail();
+    const secondStageId = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.stageCreates.push({ clientId: secondStageId, title: "Этап 2" });
+    draft.stageOrder = [secondStageId, "22222222-2222-4222-8222-222222222222"];
+
+    expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(true);
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.stageOrder).toEqual(draft.stageOrder);
+    expect(normalized.stageCreates).toHaveLength(1);
+
+    const merged = mergeInstanceEditorDraftIntoDetailRaw(baseline, normalized);
+    expect(merged.stages.map((s) => s.id)).toEqual([
+      secondStageId,
+      "22222222-2222-4222-8222-222222222222",
+    ]);
+  });
+
+  it("normalize drops structural patch matching effective item", () => {
+    const baseline = minimalDetail();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemStructuralPatches["44444444-4444-4444-8444-444444444444"] = {
+      groupId: "33333333-3333-4333-8333-333333333333",
+    };
+
+    expect(normalizeInstanceEditorDraft(draft, baseline).itemStructuralPatches).toEqual({});
+  });
+
+  it("normalize removes itemDeletes for unknown ids and draft-only creates", () => {
+    const baseline = minimalDetail();
+    const draftItemId = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemDeletes["00000000-0000-4000-8000-000000000000"] = true;
+    draft.itemCreates.push({
+      kind: "library_item",
+      clientId: draftItemId,
+      stageId: "22222222-2222-4222-8222-222222222222",
+      itemType: "recommendation",
+      itemRefId: "99999999-9999-4999-8999-999999999999",
+      snapshot: { title: "X" },
+    });
+    draft.itemDeletes[draftItemId] = true;
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.itemDeletes).toEqual({});
+    expect(normalized.itemCreates).toEqual([]);
+    expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(false);
+  });
+
+  it("merge applies item replace structural patch", () => {
+    const baseline = minimalDetail();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemStructuralPatches["44444444-4444-4444-8444-444444444444"] = {
+      replace: {
+        itemType: "recommendation",
+        itemRefId: "99999999-9999-4999-8999-999999999999",
+        snapshot: { title: "Новая рек" },
+      },
+    };
+
+    const merged = mergeInstanceEditorDraftIntoDetail(baseline, draft);
+    const item = merged.stages[0]?.items[0];
+    expect(item?.itemType).toBe("recommendation");
+    expect(item?.itemRefId).toBe("99999999-9999-4999-8999-999999999999");
+    expect(item?.snapshot).toEqual({ title: "Новая рек" });
+  });
+
+  it("group reorder keeps system groups at fixed positions", () => {
+    const baseline = minimalDetail();
+    baseline.stages[0]!.groups = [
+      {
+        id: "rec-group",
+        stageId: baseline.stages[0]!.id,
+        title: "Рекомендации",
+        description: null,
+        scheduleText: null,
+        sortOrder: 0,
+        systemKind: "recommendations",
+        sourceGroupId: null,
+      },
+      ...baseline.stages[0]!.groups,
+      {
+        id: "tests-group",
+        stageId: baseline.stages[0]!.id,
+        title: "Тестирование",
+        description: null,
+        scheduleText: null,
+        sortOrder: 99,
+        systemKind: "tests",
+        sourceGroupId: null,
+      },
+    ];
+
+    const draft = createEmptyInstanceEditorDraft();
+    draft.groupReorders[baseline.stages[0]!.id] = [
+      "66666666-6666-4666-8666-666666666666",
+      "33333333-3333-4333-8333-333333333333",
+    ];
+
+    const merged = mergeInstanceEditorDraftIntoDetail(baseline, draft);
+    expect(merged.stages[0]?.groups.map((g) => g.id)).toEqual([
+      "rec-group",
+      "66666666-6666-4666-8666-666666666666",
+      "33333333-3333-4333-8333-333333333333",
+      "tests-group",
+    ]);
+  });
+
+  it("pickInstanceEditorDraftFlushChanges ignores structural sections", () => {
+    const baseline = minimalDetail();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.stageCreates.push({
+      clientId: createInstanceEditorDraftClientId(),
+      title: "Этап 2",
+    });
+    draft.itemStructuralPatches["44444444-4444-4444-8444-444444444444"] = { status: "disabled" };
+
+    expect(isInstanceEditorDraftFlushEmpty(pickInstanceEditorDraftFlushChanges(draft, baseline))).toBe(true);
+    expect(hasInstanceEditorDraftStructuralChanges(draft, baseline)).toBe(true);
+    expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(true);
+  });
+
+  it("normalize keeps patches on draft-created group and item", () => {
+    const baseline = minimalDetail();
+    const groupId = createInstanceEditorDraftClientId();
+    const itemId = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.groupCreates.push({
+      clientId: groupId,
+      stageId: "22222222-2222-4222-8222-222222222222",
+      title: "Draft group",
+    });
+    draft.itemCreates.push({
+      kind: "library_item",
+      clientId: itemId,
+      stageId: "22222222-2222-4222-8222-222222222222",
+      itemType: "recommendation",
+      itemRefId: "99999999-9999-4999-8999-999999999999",
+      groupId,
+      snapshot: { title: "Draft item" },
+    });
+    draft.groupPatches[groupId] = { title: "Renamed draft group" };
+    draft.itemPatches[itemId] = { localComment: "Draft comment" };
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.groupPatches[groupId]).toEqual({ title: "Renamed draft group" });
+    expect(normalized.itemPatches[itemId]).toEqual({ localComment: "Draft comment" });
+  });
+
+  it("stageOrder keeps stage zero first", () => {
+    const baseline = minimalDetail();
+    const stageZeroId = "00000000-0000-4000-8000-000000000001";
+    const pipelineId = baseline.stages[0]!.id;
+    baseline.stages.unshift({
+      ...baseline.stages[0]!,
+      id: stageZeroId,
+      title: "Общие",
+      sortOrder: 0,
+      groups: [],
+      items: [],
+    });
+
+    const draft = createEmptyInstanceEditorDraft();
+    draft.stageOrder = [pipelineId, stageZeroId];
+
+    const merged = mergeInstanceEditorDraftIntoDetail(baseline, draft);
+    expect(merged.stages[0]?.id).toBe(stageZeroId);
+    expect(merged.stages[0]?.sortOrder).toBe(0);
+    expect(merged.stages[1]?.id).toBe(pipelineId);
+  });
+
+  it("groupHides removes group and disables its items in preview", () => {
+    const baseline = minimalDetail();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.groupHides["33333333-3333-4333-8333-333333333333"] = true;
+
+    const merged = mergeInstanceEditorDraftIntoDetail(baseline, draft);
+    expect(merged.stages[0]?.groups.some((g) => g.id === "33333333-3333-4333-8333-333333333333")).toBe(
+      false,
+    );
+    expect(merged.stages[0]?.items.every((i) => i.status === "disabled")).toBe(true);
+  });
+
+  it("materializes test_set_expand and lfk_complex_expand item creates", () => {
+    const baseline = minimalDetail();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemCreates.push({
+      kind: "test_set_expand",
+      stageId: "22222222-2222-4222-8222-222222222222",
+      testSetId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      items: [
+        {
+          clientId: createInstanceEditorDraftClientId(),
+          itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          snapshot: { title: "Тест 1" },
+        },
+      ],
+    });
+    draft.itemCreates.push({
+      kind: "lfk_complex_expand",
+      stageId: "22222222-2222-4222-8222-222222222222",
+      groupId: "33333333-3333-4333-8333-333333333333",
+      complexTemplateId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      items: [
+        {
+          clientId: createInstanceEditorDraftClientId(),
+          itemRefId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          snapshot: { title: "Упр A" },
+        },
+      ],
+    });
+
+    const merged = mergeInstanceEditorDraftIntoDetail(baseline, draft);
+    const types = merged.stages[0]?.items.map((i) => i.itemType);
+    expect(types).toContain("clinical_test");
+    expect(types).toContain("exercise");
   });
 });

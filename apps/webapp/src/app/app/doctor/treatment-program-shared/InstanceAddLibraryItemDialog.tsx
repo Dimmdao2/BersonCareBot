@@ -15,14 +15,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-  TreatmentProgramInstanceStatus,
-  TreatmentProgramLibraryPickType,
-} from "@/modules/treatment-program/types";
-import { runIfProgramInstanceMutationAllowed } from "./programInstanceMutationGuard";
+import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
 import { TreatmentProgramLibraryPickerToolbar } from "./TreatmentProgramLibraryPickerToolbar";
 import type { TreatmentProgramLibraryPickers, TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
 import { useTreatmentProgramLibraryPickerList } from "./useTreatmentProgramLibraryPickerList";
+import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
+import {
+  freeformRecommendationDraftSnapshot,
+  libraryRowToItemDraftSnapshot,
+} from "./treatmentProgramLibraryDraftSnapshot";
 
 /** Квадратная кнопка «+» в шапке группы / этапа 0 — как в конструкторе шаблона. */
 export function TreatmentProgramAddItemSquareButton({
@@ -103,20 +104,17 @@ export type InstanceAddLibraryItemSpec = {
 export function InstanceAddLibraryItemDialog(props: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  instanceId: string;
   spec: InstanceAddLibraryItemSpec | null;
   library: TreatmentProgramLibraryPickers;
-  programStatus: TreatmentProgramInstanceStatus;
   editLocked: boolean;
-  onAdded: () => Promise<void>;
 }) {
-  const { open, onOpenChange, instanceId, spec, library, programStatus, editLocked, onAdded } = props;
+  const { open, onOpenChange, spec, library, editLocked } = props;
+  const { addItemCreate } = useInstanceEditorDraft();
   const [itemSearch, setItemSearch] = useState("");
   const [selectedRegionCode, setSelectedRegionCode] = useState<string | null>(null);
   const [selectedLoadType, setSelectedLoadType] = useState<string | null>(null);
   const [customKind, setCustomKind] = useState<"exercise" | "lfk_complex">("exercise");
   const [testsAddMode, setTestsAddMode] = useState<"expand_set" | "single_test">("expand_set");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phaseZeroSource, setPhaseZeroSource] = useState<"catalog" | "freeform">("catalog");
   const [freeformTitle, setFreeformTitle] = useState("");
@@ -177,8 +175,8 @@ export function InstanceAddLibraryItemDialog(props: {
     pickType: resolvedItemType,
   });
 
-  async function submitPick(row: TreatmentProgramLibraryRow) {
-    if (!spec || editLocked || busy) return;
+  function submitPick(row: TreatmentProgramLibraryRow) {
+    if (!spec || editLocked) return;
     if (spec.context === "custom_group") {
       if (!spec.customGroupId?.trim()) {
         setError("Не задана группа");
@@ -186,84 +184,66 @@ export function InstanceAddLibraryItemDialog(props: {
       }
     }
     setError(null);
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setBusy(true);
-      try {
-        if (spec.context === "stage_system_tests" && testsAddMode === "expand_set") {
-          const res = await fetch(
-            `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(spec.stageId)}/items/from-test-set`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ testSetId: row.id }),
-            },
-          );
-          const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-          if (!res.ok || !data.ok) {
-            setError(data.error ?? "Не удалось добавить тесты из набора");
-            return;
-          }
-          onOpenChange(false);
-          await onAdded();
-          return;
-        }
 
-        if (resolvedItemType === "lfk_complex") {
-          if (!spec.customGroupId?.trim()) {
-            setError("Не задана группа");
-            return;
-          }
-          const res = await fetch(
-            `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(spec.stageId)}/items/from-lfk-complex`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                complexTemplateId: row.id,
-                groupId: spec.customGroupId,
-              }),
-            },
-          );
-          const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-          if (!res.ok || !data.ok) {
-            setError(data.error ?? "Не удалось добавить упражнения из комплекса");
-            return;
-          }
-          onOpenChange(false);
-          await onAdded();
-          return;
-        }
-
-        const body: Record<string, unknown> = {
-          itemType: resolvedItemType,
-          itemRefId: row.id,
-        };
-        if (spec.context === "custom_group" && spec.customGroupId) {
-          body.groupId = spec.customGroupId;
-        }
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(spec.stageId)}/items`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setError(data.error ?? "Не удалось добавить элемент");
-          return;
-        }
-        onOpenChange(false);
-        await onAdded();
-      } finally {
-        setBusy(false);
+    if (spec.context === "stage_system_tests" && testsAddMode === "expand_set") {
+      const lines = row.expandLines ?? [];
+      if (lines.length === 0) {
+        setError("Набор пуст или нет данных для добавления");
+        return;
       }
+      addItemCreate({
+        kind: "test_set_expand",
+        stageId: spec.stageId,
+        testSetId: row.id,
+        items: lines.map((line) => ({
+          itemRefId: line.itemRefId,
+          snapshot: line.snapshot,
+        })),
+      });
+      onOpenChange(false);
+      return;
+    }
+
+    if (resolvedItemType === "lfk_complex") {
+      if (!spec.customGroupId?.trim()) {
+        setError("Не задана группа");
+        return;
+      }
+      const lines = row.expandLines ?? [];
+      if (lines.length === 0) {
+        setError("Комплекс пуст или нет данных для разворота");
+        return;
+      }
+      addItemCreate({
+        kind: "lfk_complex_expand",
+        stageId: spec.stageId,
+        groupId: spec.customGroupId,
+        complexTemplateId: row.id,
+        items: lines.map((line) => ({
+          itemRefId: line.itemRefId,
+          snapshot: line.snapshot,
+        })),
+      });
+      onOpenChange(false);
+      return;
+    }
+
+    const groupId =
+      spec.context === "custom_group" && spec.customGroupId ? spec.customGroupId : undefined;
+
+    addItemCreate({
+      kind: "library_item",
+      stageId: spec.stageId,
+      itemType: resolvedItemType,
+      itemRefId: row.id,
+      groupId,
+      snapshot: libraryRowToItemDraftSnapshot(row, resolvedItemType),
     });
+    onOpenChange(false);
   }
 
-  async function submitFreeform() {
-    if (!spec || editLocked || busy) return;
+  function submitFreeform() {
+    if (!spec || editLocked) return;
     if (spec.context !== "phase_zero_recommendations") return;
     const title = freeformTitle.trim();
     if (!title) {
@@ -271,28 +251,15 @@ export function InstanceAddLibraryItemDialog(props: {
       return;
     }
     setError(null);
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setBusy(true);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(spec.stageId)}/items/from-freeform-recommendation`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, bodyMd: freeformBody.trim() }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setError(data.error ?? "Не удалось добавить рекомендацию");
-          return;
-        }
-        onOpenChange(false);
-        await onAdded();
-      } finally {
-        setBusy(false);
-      }
+    const bodyMd = freeformBody.trim();
+    addItemCreate({
+      kind: "freeform_recommendation",
+      stageId: spec.stageId,
+      title,
+      bodyMd,
+      snapshot: freeformRecommendationDraftSnapshot(title, bodyMd),
     });
+    onOpenChange(false);
   }
 
   const showCustomKindToggle = spec?.context === "custom_group";
@@ -367,7 +334,7 @@ export function InstanceAddLibraryItemDialog(props: {
                 className="text-sm"
                 value={freeformTitle}
                 onChange={(e) => setFreeformTitle(e.target.value)}
-                disabled={busy || editLocked}
+                disabled={editLocked}
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -377,16 +344,12 @@ export function InstanceAddLibraryItemDialog(props: {
                 className="min-h-[200px] resize-y text-sm"
                 value={freeformBody}
                 onChange={(e) => setFreeformBody(e.target.value)}
-                disabled={busy || editLocked}
+                disabled={editLocked}
                 maxLength={100_000}
                 spellCheck
               />
             </div>
-            <Button
-              type="button"
-              disabled={editLocked || busy}
-              onClick={() => void submitFreeform()}
-            >
+            <Button type="button" disabled={editLocked} onClick={submitFreeform}>
               Добавить
             </Button>
           </div>
@@ -495,7 +458,7 @@ export function InstanceAddLibraryItemDialog(props: {
             loadType={selectedLoadType}
             onLoadTypeChange={setSelectedLoadType}
             showRegionLoadFilters={applyRegionLoadFilters}
-            disabled={busy}
+            disabled={false}
           />
           <ul className="max-h-64 space-y-1 overflow-y-auto pr-0.5">
             {pickerList.length === 0 ? (
@@ -507,8 +470,8 @@ export function InstanceAddLibraryItemDialog(props: {
                 <li key={row.id}>
                   <button
                     type="button"
-                    disabled={editLocked || busy}
-                    onClick={() => void submitPick(row)}
+                    disabled={editLocked}
+                    onClick={() => submitPick(row)}
                     className="flex w-full items-start gap-3 rounded-md border border-border/50 bg-card/20 px-2 py-2 text-left text-sm shadow-sm transition-colors hover:border-border hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50"
                   >
                     <LibraryMediaThumb
@@ -535,7 +498,7 @@ export function InstanceAddLibraryItemDialog(props: {
         </div>
         )}
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Закрыть
           </Button>
         </DialogFooter>

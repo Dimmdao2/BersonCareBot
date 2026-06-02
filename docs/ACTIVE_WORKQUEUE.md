@@ -75,3 +75,16 @@
 ## Вне scope workqueue
 
 D5 `domain→kind`, полная переработка `/diary`, курсы, UX истории тестов (после доработки элементов тестов). Proactive: **MVP закрыт** (фаза 7); настраиваемые пороги и расширение сигналов — backlog этап 8 ([`RECOMMENDATIONS_AND_ROADMAP.md`](APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md)).
+
+### Редактор инстанса программы — batch toolbar (активный план)
+
+План: [`.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03.
+
+| Фаза плана | Статус |
+|------------|--------|
+| 1 — browser draft model (`InstanceEditorDraft`, merge/normalize) | **Закрыта** (2026-06-03) |
+| 2 — UI → in-memory draft (structural без immediate API) | **Закрыта** (2026-06-03) |
+| 3 — server `POST …/editor-batch` + `program_changed` | **Следующая** |
+| 4–7 — sticky toolbar, collapsible stages, comments dialog, history | pending |
+
+Код: `apps/webapp/src/app/app/doctor/treatment-program-shared/` (`instanceEditorDraft*`, `InstanceAddLibraryItemDialog`); `api.md` — UX черновика.

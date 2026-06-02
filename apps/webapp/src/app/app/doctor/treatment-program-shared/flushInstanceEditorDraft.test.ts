@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createEmptyInstanceEditorDraft } from "./instanceEditorDraft";
 import { flushInstanceEditorDraft } from "./flushInstanceEditorDraft";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 
@@ -93,11 +94,28 @@ describe("flushInstanceEditorDraft", () => {
       instanceId: baseline.id,
       programStatus: "active",
       draft: {
+        ...createEmptyInstanceEditorDraft(),
         stageMetadata: {
           "22222222-2222-4222-8222-222222222222": { title: "Этап 1" },
         },
-        groupPatches: {},
-        itemPatches: {},
+      },
+      baseline,
+    });
+    expect(result).toEqual({ ok: true });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("returns ok without fetch when only structural draft sections are dirty", async () => {
+    const baseline = minimalDetail();
+    const result = await flushInstanceEditorDraft({
+      instanceId: baseline.id,
+      programStatus: "active",
+      draft: {
+        ...createEmptyInstanceEditorDraft(),
+        stageOrder: ["22222222-2222-4222-8222-222222222222"],
+        itemStructuralPatches: {
+          "44444444-4444-4444-8444-444444444444": { status: "disabled" },
+        },
       },
       baseline,
     });
@@ -111,6 +129,7 @@ describe("flushInstanceEditorDraft", () => {
       instanceId: baseline.id,
       programStatus: "active",
       draft: {
+        ...createEmptyInstanceEditorDraft(),
         stageMetadata: {
           "22222222-2222-4222-8222-222222222222": { title: "Новый этап" },
         },
@@ -145,13 +164,13 @@ describe("flushInstanceEditorDraft", () => {
       instanceId: baseline.id,
       programStatus: "active",
       draft: {
+        ...createEmptyInstanceEditorDraft(),
         stageMetadata: {
           "22222222-2222-4222-8222-222222222222": { title: "Новый этап" },
         },
         groupPatches: {
           "33333333-3333-4333-8333-333333333333": { title: "Новая группа" },
         },
-        itemPatches: {},
       },
       baseline,
     });

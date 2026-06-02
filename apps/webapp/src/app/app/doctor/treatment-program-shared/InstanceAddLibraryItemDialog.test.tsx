@@ -7,11 +7,10 @@ import type { TreatmentProgramLibraryPickers } from "./treatmentProgramLibraryTy
 import { InstanceAddLibraryItemDialog } from "./InstanceAddLibraryItemDialog";
 import { TreatmentProgramLibraryPickerToolbar } from "./TreatmentProgramLibraryPickerToolbar";
 
-vi.mock("./programInstanceMutationGuard", () => ({
-  runIfProgramInstanceMutationAllowed: async (_status: string, action: () => Promise<void>) => {
-    await action();
-    return true;
-  },
+const addItemCreate = vi.fn(() => ["draft:item-1"]);
+
+vi.mock("./InstanceEditorDraftContext", () => ({
+  useInstanceEditorDraft: () => ({ addItemCreate }),
 }));
 
 vi.mock("@/shared/ui/ReferenceSelect", () => ({
@@ -48,67 +47,57 @@ const emptyLibrary: TreatmentProgramLibraryPickers = {
   lessons: [],
 };
 
-const INSTANCE_ID = "11111111-1111-4111-8111-111111111111";
 const STAGE_ID = "22222222-2222-4222-8222-222222222222";
 const GROUP_ID = "33333333-3333-4333-8333-333333333333";
 const COMPLEX_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const EXERCISE_A = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const EXERCISE_B = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 describe("InstanceAddLibraryItemDialog", () => {
   beforeEach(() => {
+    addItemCreate.mockClear();
     vi.restoreAllMocks();
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ ok: true, item: {}, recommendationId: "rec-new" }), { status: 200 }),
-    );
   });
 
-  it("режим «Свой текст»: один POST на from-freeform-recommendation", async () => {
+  it("режим «Свой текст»: addItemCreate freeform_recommendation", async () => {
     const user = userEvent.setup();
-    const onAdded = vi.fn().mockResolvedValue(undefined);
     const onOpenChange = vi.fn();
 
     render(
       <InstanceAddLibraryItemDialog
         open
         onOpenChange={onOpenChange}
-        instanceId={INSTANCE_ID}
         spec={{
           stageId: STAGE_ID,
           context: "phase_zero_recommendations",
           customGroupId: null,
         }}
         library={emptyLibrary}
-        programStatus="active"
         editLocked={false}
-        onAdded={onAdded}
       />,
     );
 
     await user.click(screen.getByRole("radio", { name: /свой текст/i }));
-
     await user.type(screen.getByLabelText(/заголовок/i), "Заголовок из приёма");
-
     await user.type(screen.getByLabelText(/^Текст$/i), "Текст **markdown**");
-
     await user.click(screen.getByRole("button", { name: /^добавить$/i }));
 
     await waitFor(() => {
-      expect(onAdded).toHaveBeenCalled();
+      expect(addItemCreate).toHaveBeenCalledTimes(1);
     });
-
-    const posts = vi.mocked(globalThis.fetch).mock.calls.filter(([, init]) => (init as RequestInit)?.method === "POST");
-    expect(posts).toHaveLength(1);
-    const [url, init] = posts[0]!;
-    expect(String(url)).toContain("/items/from-freeform-recommendation");
-    expect(JSON.parse((init!.body as string) as string)).toEqual({
-      title: "Заголовок из приёма",
-      bodyMd: "Текст **markdown**",
-    });
+    expect(addItemCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "freeform_recommendation",
+        stageId: STAGE_ID,
+        title: "Заголовок из приёма",
+        bodyMd: "Текст **markdown**",
+      }),
+    );
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("комплекс ЛФК: POST from-lfk-complex, не POST .../items с lfk_complex", async () => {
+  it("комплекс ЛФК: addItemCreate lfk_complex_expand", async () => {
     const user = userEvent.setup();
-    const onAdded = vi.fn().mockResolvedValue(undefined);
     const onOpenChange = vi.fn();
     const library: TreatmentProgramLibraryPickers = {
       ...emptyLibrary,
@@ -119,6 +108,10 @@ describe("InstanceAddLibraryItemDialog", () => {
           subtitle: "2 упражнений",
           thumbUrl: null,
           description: null,
+          expandLines: [
+            { itemRefId: EXERCISE_A, snapshot: { title: "Упр A" } },
+            { itemRefId: EXERCISE_B, snapshot: { title: "Упр B" } },
+          ],
         },
       ],
     };
@@ -127,16 +120,13 @@ describe("InstanceAddLibraryItemDialog", () => {
       <InstanceAddLibraryItemDialog
         open
         onOpenChange={onOpenChange}
-        instanceId={INSTANCE_ID}
         spec={{
           stageId: STAGE_ID,
           context: "custom_group",
           customGroupId: GROUP_ID,
         }}
         library={library}
-        programStatus="active"
         editLocked={false}
-        onAdded={onAdded}
       />,
     );
 
@@ -144,22 +134,20 @@ describe("InstanceAddLibraryItemDialog", () => {
     await user.click(screen.getByRole("button", { name: /комплекс а/i }));
 
     await waitFor(() => {
-      expect(onAdded).toHaveBeenCalled();
+      expect(addItemCreate).toHaveBeenCalledTimes(1);
     });
-
-    const posts = vi
-      .mocked(globalThis.fetch)
-      .mock.calls.filter(
-        ([url, init]) =>
-          (init as RequestInit)?.method === "POST" && String(url).includes("/items/from-lfk-complex"),
-      );
-    expect(posts).toHaveLength(1);
-    const [url, init] = posts[0]!;
-    expect(String(url)).not.toMatch(/\/items$/);
-    expect(JSON.parse((init!.body as string) as string)).toEqual({
-      complexTemplateId: COMPLEX_ID,
-      groupId: GROUP_ID,
-    });
+    expect(addItemCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "lfk_complex_expand",
+        stageId: STAGE_ID,
+        groupId: GROUP_ID,
+        complexTemplateId: COMPLEX_ID,
+        items: [
+          { itemRefId: EXERCISE_A, snapshot: { title: "Упр A" } },
+          { itemRefId: EXERCISE_B, snapshot: { title: "Упр B" } },
+        ],
+      }),
+    );
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -187,16 +175,13 @@ describe("InstanceAddLibraryItemDialog", () => {
       <InstanceAddLibraryItemDialog
         open
         onOpenChange={() => {}}
-        instanceId={INSTANCE_ID}
         spec={{
           stageId: STAGE_ID,
           context: "custom_group",
           customGroupId: GROUP_ID,
         }}
         library={library}
-        programStatus="active"
         editLocked={false}
-        onAdded={vi.fn()}
       />,
     );
 
@@ -218,7 +203,6 @@ describe("InstanceAddLibraryItemDialog", () => {
       <InstanceAddLibraryItemDialog
         open
         onOpenChange={() => {}}
-        instanceId={INSTANCE_ID}
         spec={{
           stageId: STAGE_ID,
           context: "phase_zero_recommendations",
@@ -228,9 +212,7 @@ describe("InstanceAddLibraryItemDialog", () => {
           ...emptyLibrary,
           recommendations: [{ id: "rec-1", title: "Rec A" }],
         }}
-        programStatus="active"
         editLocked={false}
-        onAdded={vi.fn()}
       />,
     );
 
@@ -280,16 +262,13 @@ describe("InstanceAddLibraryItemDialog", () => {
       <InstanceAddLibraryItemDialog
         open
         onOpenChange={() => {}}
-        instanceId={INSTANCE_ID}
         spec={{
           stageId: STAGE_ID,
           context: "custom_group",
           customGroupId: GROUP_ID,
         }}
         library={library}
-        programStatus="active"
         editLocked={false}
-        onAdded={vi.fn()}
       />,
     );
 

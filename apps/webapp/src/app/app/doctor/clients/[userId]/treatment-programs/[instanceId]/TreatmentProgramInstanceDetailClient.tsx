@@ -58,6 +58,7 @@ import {
   InstanceEditorDraftProvider,
   useInstanceEditorDraft,
 } from "@/app/app/doctor/treatment-program-shared/InstanceEditorDraftContext";
+import type { InstanceEditorItemStructuralPatch } from "@/app/app/doctor/treatment-program-shared/instanceEditorDraft";
 import { InstanceEditorSaveBar } from "@/app/app/doctor/treatment-program-shared/InstanceEditorSaveBar";
 import { useInstanceEditorUnsavedGate } from "@/app/app/doctor/treatment-program-shared/InstanceEditorUnsavedChangesDialog";
 import {
@@ -512,13 +513,10 @@ function DoctorProgramInstanceItemCard(props: {
           </div>
           <div className="min-w-0 flex-1 flex flex-col gap-4">
             <InstanceStageItemDoctorRow
-              instanceId={instanceId}
               item={item}
-              programStatus={programStatus}
               editLocked={editLocked}
               groups={stage.groups}
               testResults={testResults}
-              onSaved={onSaved}
               hideGroupSelect={recPhase0}
             />
             {item.itemType === "exercise" ? (
@@ -691,47 +689,26 @@ function DoctorInstancePipelineStageBlock(props: {
 }
 
 function DoctorInstanceAddPipelineStageControls(props: {
-  instanceId: string;
   programStatus: TreatmentProgramInstanceStatus;
-  onSaved: () => Promise<void>;
   /** Заметная плашка, когда пайплайн-этапов ещё нет (только этап 0). */
   prominentEmpty: boolean;
 }) {
-  const { instanceId, programStatus, onSaved, prominentEmpty } = props;
+  const { programStatus, prominentEmpty } = props;
+  const { addStageCreate } = useInstanceEditorDraft();
   const titleFieldId = useId();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
-  const [saving, setSaving] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const editLocked = isProgramInstanceEditLocked(programStatus);
 
-  const submit = async () => {
+  const submit = () => {
     const t = titleDraft.trim();
     if (!t) return;
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setSaving(true);
-      setDialogError(null);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title: t }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setDialogError(data.error ?? "Не удалось добавить этап");
-          return;
-        }
-        setTitleDraft("");
-        setDialogOpen(false);
-        await onSaved();
-      } finally {
-        setSaving(false);
-      }
-    });
+    if (editLocked) return;
+    addStageCreate({ title: t });
+    setTitleDraft("");
+    setDialogOpen(false);
+    setDialogError(null);
   };
 
   const openButton = (
@@ -769,7 +746,7 @@ function DoctorInstanceAddPipelineStageControls(props: {
           <DialogHeader>
             <DialogTitle>Новый этап</DialogTitle>
             <DialogDescription>
-              Порядок назначит сервер автоматически (следующий номер после существующих).
+              Этап попадёт в черновик; порядок можно изменить перед сохранением программы.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
@@ -780,26 +757,22 @@ function DoctorInstanceAddPipelineStageControls(props: {
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
               maxLength={2000}
-              disabled={saving || editLocked}
+              disabled={editLocked}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  void submit();
+                  submit();
                 }
               }}
             />
             {dialogError ? <p className="text-xs text-destructive">{dialogError}</p> : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
               Отмена
             </Button>
-            <Button
-              type="button"
-              disabled={editLocked || saving || !titleDraft.trim()}
-              onClick={() => void submit()}
-            >
-              {saving ? "Добавление…" : "Добавить"}
+            <Button type="button" disabled={editLocked || !titleDraft.trim()} onClick={submit}>
+              Добавить
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -910,7 +883,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     setActionLog,
     refreshBaseline,
   } = props;
-  const { displayDetail } = useInstanceEditorDraft();
+  const { displayDetail, setStageOrder, setItemReorder } = useInstanceEditorDraft();
   const detail = displayDetail;
   const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
@@ -968,30 +941,15 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   }, [refreshBaseline]);
 
   const reorderPipelineStages = useCallback(
-    async (activeId: string, overId: string) => {
+    (activeId: string, overId: string) => {
       const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, activeId, overId);
       if (!ordered) {
         setError("Не удалось изменить порядок этапов");
         return;
       }
-      await runIfProgramInstanceMutationAllowed(detail.status, async () => {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/stages/reorder`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderedStageIds: ordered }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setError(data.error ?? "Не удалось изменить порядок этапов");
-          return;
-        }
-        await refresh();
-      });
+      setStageOrder(ordered);
     },
-    [detail.id, detail.stages, detail.status, refresh],
+    [detail.stages, setStageOrder],
   );
 
   const refreshResults = useCallback(async () => {
@@ -1008,30 +966,15 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   }, [detail.id]);
 
   const reorderPhaseZeroItem = useCallback(
-    async (itemId: string, dir: -1 | 1) => {
+    (itemId: string, dir: -1 | 1) => {
       if (!stageZero) return;
       const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(stageZero.items, null, itemId, dir, {
         itemInReorderBand: (it) => it.itemType === "recommendation",
       });
       if (!ordered) return;
-      await runIfProgramInstanceMutationAllowed(detail.status, async () => {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/stages/${encodeURIComponent(stageZero.id)}/items/reorder`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderedItemIds: ordered }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setError(data.error ?? "Не удалось изменить порядок");
-          return;
-        }
-        await refresh();
-      });
+      setItemReorder(stageZero.id, ordered);
     },
-    [detail.id, detail.status, stageZero, refresh],
+    [stageZero, setItemReorder],
   );
 
   const openProgramNoteReplyDialog = useCallback((row: ProgramActionLogListRow) => {
@@ -1465,9 +1408,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
             ))}
           </TreatmentProgramPipelineStagesDnd>
           <DoctorInstanceAddPipelineStageControls
-            instanceId={detail.id}
             programStatus={detail.status}
-            onSaved={refresh}
             prominentEmpty={pipelineStages.length === 0}
           />
         </div>
@@ -1477,12 +1418,9 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         onOpenChange={(o) => {
           if (!o) setAddLibrarySpec(null);
         }}
-        instanceId={detail.id}
         spec={addLibrarySpec}
         library={treatmentProgramLibrary}
-        programStatus={detail.status}
         editLocked={isProgramInstanceEditLocked(detail.status)}
-        onAdded={refresh}
       />
       <Dialog
         open={noteReplyOpen}
@@ -1559,9 +1497,9 @@ function InstanceStageGroupsPanel(props: {
 }) {
   const { instanceId, stage, onSaved, testResults, programStatus, newGroupOpen, onNewGroupOpenChange, onRequestAddLibraryItem } =
     props;
-  const { patchGroup } = useInstanceEditorDraft();
+  const { patchGroup, setGroupReorder, setItemReorder, patchItemStructural, hideGroup, addGroupCreate } =
+    useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);
-  const [optimisticItems, setOptimisticItems] = useState<InstanceStageItemT[] | null>(null);
   const [title, setTitle] = useState("");
   const [groupEdit, setGroupEdit] = useState<{
     id: string;
@@ -1569,12 +1507,8 @@ function InstanceStageGroupsPanel(props: {
     description: string;
     scheduleText: string;
   } | null>(null);
-  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  useEffect(() => {
-    setOptimisticItems(null);
-  }, [stage.id, stage.items]);
-  const displayStage = optimisticItems ? { ...stage, items: optimisticItems } : stage;
+  const displayStage = stage;
   const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stage.groups);
   const userGroupsOrdered = sortedGroups.filter((g) => !g.systemKind);
   const ungrouped = sortByOrderThenId(displayStage.items.filter((it) => !it.groupId));
@@ -1585,70 +1519,29 @@ function InstanceStageGroupsPanel(props: {
   const editingGroupMeta = groupEdit ? stage.groups.find((g) => g.id === groupEdit.id) : null;
   const editingIsSystem = editingGroupMeta ? isTreatmentProgramInstanceSystemStageGroup(editingGroupMeta) : false;
 
-  const reorder = async (groupId: string, dir: -1 | 1) => {
+  const reorder = (groupId: string, dir: -1 | 1) => {
     if (editLocked) return;
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      const idx = userGroupsOrdered.findIndex((g) => g.id === groupId);
-      const j = idx + dir;
-      if (idx < 0 || j < 0 || j >= userGroupsOrdered.length) return;
-      const newOrder = userGroupsOrdered.map((g) => g.id);
-      const a = newOrder[idx]!;
-      const b = newOrder[j]!;
-      newOrder[idx] = b;
-      newOrder[j] = a;
-      setBusy(true);
-      setMsg(null);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/groups/reorder`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderedGroupIds: newOrder }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setMsg(data.error ?? "Ошибка порядка групп");
-          return;
-        }
-        await onSaved();
-      } finally {
-        setBusy(false);
-      }
-    });
+    const idx = userGroupsOrdered.findIndex((g) => g.id === groupId);
+    const j = idx + dir;
+    if (idx < 0 || j < 0 || j >= userGroupsOrdered.length) return;
+    const newOrder = userGroupsOrdered.map((g) => g.id);
+    const a = newOrder[idx]!;
+    const b = newOrder[j]!;
+    newOrder[idx] = b;
+    newOrder[j] = a;
+    setMsg(null);
+    setGroupReorder(stage.id, newOrder);
   };
 
-  const reorderItemInStageGroup = async (groupId: string | null, itemId: string, dir: -1 | 1) => {
+  const reorderItemInStageGroup = (groupId: string | null, itemId: string, dir: -1 | 1) => {
     if (editLocked) return;
     const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(stage.items, groupId, itemId, dir);
     if (!ordered) return;
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setBusy(true);
-      setMsg(null);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/items/reorder`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderedItemIds: ordered }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setMsg(data.error ?? "Ошибка порядка элементов");
-          await onSaved();
-          return;
-        }
-        await onSaved();
-      } finally {
-        setBusy(false);
-      }
-    });
+    setMsg(null);
+    setItemReorder(stage.id, ordered);
   };
 
-  const handleItemDnd = async (activeId: string, overId: string) => {
+  const handleItemDnd = (activeId: string, overId: string) => {
     if (editLocked) return;
     const canParticipate = (it: InstanceStageItemT) => isInstanceItemDndEligible(displayStage, it);
     const plan = planStageItemDndReorder(displayStage.items, activeId, overId, canParticipate);
@@ -1660,58 +1553,16 @@ function InstanceStageGroupsPanel(props: {
       }
       return;
     }
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setOptimisticItems(
-        optimisticInstanceStageItemsAfterDnd(displayStage.items, plan.orderedItemIds, activeId, plan.nextGroupId),
-      );
-      setBusy(true);
-      setMsg(null);
-      try {
-        if (plan.needsGroupPatch) {
-          const res = await fetch(
-            `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(activeId)}`,
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ groupId: plan.nextGroupId }),
-            },
-          );
-          const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-          if (!res.ok || !data.ok) {
-            setMsg(data.error ?? "Не удалось сменить группу");
-            setOptimisticItems(null);
-            return;
-          }
-        }
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/items/reorder`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderedItemIds: plan.orderedItemIds }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setMsg(data.error ?? "Не удалось изменить порядок");
-          setOptimisticItems(null);
-          await onSaved();
-          return;
-        }
-        await onSaved();
-        setOptimisticItems(null);
-      } catch (error) {
-        setOptimisticItems(null);
-        throw error;
-      } finally {
-        setBusy(false);
-      }
-    });
+    setMsg(null);
+    if (plan.needsGroupPatch) {
+      patchItemStructural(activeId, { groupId: plan.nextGroupId });
+    }
+    setItemReorder(stage.id, plan.orderedItemIds);
   };
 
   const dndItemIds = instanceStageDndItemIds(displayStage);
 
-  const hideGroupFromModal = async () => {
+  const hideGroupFromModal = () => {
     if (!groupEdit) return;
     if (editLocked) return;
     const merged =
@@ -1719,53 +1570,19 @@ function InstanceStageGroupsPanel(props: {
         ? "Применить к активной программе пациента? Элементы группы будут скрыты у пациента, группа удалена. Продолжить?"
         : "Элементы группы будут скрыты у пациента, сама группа удалена. Продолжить?";
     if (!globalThis.confirm(merged)) return;
-    setBusy(true);
     setMsg(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupEdit.id)}/hide`,
-        { method: "POST" },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setMsg(data.error ?? "Ошибка");
-        return;
-      }
-      setGroupEdit(null);
-      await onSaved();
-    } finally {
-      setBusy(false);
-    }
+    hideGroup(groupEdit.id);
+    setGroupEdit(null);
   };
 
-  const addGroup = async () => {
+  const addGroup = () => {
     if (editLocked) return;
     const t = title.trim();
     if (!t) return;
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setBusy(true);
-      setMsg(null);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/groups`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title: t }),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setMsg(data.error ?? "Ошибка");
-          return;
-        }
-        setTitle("");
-        onNewGroupOpenChange(false);
-        await onSaved();
-      } finally {
-        setBusy(false);
-      }
-    });
+    addGroupCreate({ stageId: stage.id, title: t });
+    setTitle("");
+    onNewGroupOpenChange(false);
+    setMsg(null);
   };
 
   const saveGroupEdit = () => {
@@ -1825,7 +1642,7 @@ function InstanceStageGroupsPanel(props: {
       ) : (
         <TreatmentProgramStageItemsDnd
           sortableItemIds={dndItemIds}
-          disabled={busy || editLocked}
+          disabled={editLocked}
           onReorder={handleItemDnd}
         >
           {(dropPreview) => {
@@ -1853,7 +1670,7 @@ function InstanceStageGroupsPanel(props: {
                   </div>
                   <div className="flex shrink-0 flex-wrap items-start justify-end gap-1">
                     <TreatmentProgramAddItemSquareButton
-                      disabled={busy || editLocked}
+                      disabled={editLocked}
                       onClick={() => {
                         if (isSys) {
                           if (g.systemKind === "recommendations") {
@@ -1885,7 +1702,7 @@ function InstanceStageGroupsPanel(props: {
                           size="sm"
                           variant="outline"
                           className={tplToolbarTextBtnClass}
-                          disabled={busy || editLocked}
+                          disabled={editLocked}
                           onClick={() =>
                             setGroupEdit({
                               id: g.id,
@@ -1900,7 +1717,7 @@ function InstanceStageGroupsPanel(props: {
                         <TemplateReorderChevrons
                           compact
                           className="-mt-px shrink-0"
-                          disabled={busy || editLocked}
+                          disabled={editLocked}
                           disableUp={userIdx <= 0}
                           disableDown={userIdx < 0 || userIdx >= userGroupsOrdered.length - 1}
                           ariaLabelUp="Группа выше"
@@ -1915,7 +1732,7 @@ function InstanceStageGroupsPanel(props: {
                         size="sm"
                         variant="outline"
                         className={tplToolbarTextBtnClass}
-                        disabled={busy || editLocked}
+                        disabled={editLocked}
                         onClick={() =>
                           setGroupEdit({
                             id: g.id,
@@ -1952,7 +1769,7 @@ function InstanceStageGroupsPanel(props: {
                             programStatus={programStatus}
                             onSaved={onSaved}
                             reorderInGroup={{
-                              disableAll: busy || editLocked,
+                              disableAll: editLocked,
                               disableUp: idx <= 0,
                               disableDown: idx >= gItems.length - 1,
                               onMove: (dir) => void reorderItemInStageGroup(g.id, item.id, dir),
@@ -1972,7 +1789,7 @@ function InstanceStageGroupsPanel(props: {
                             {dropPreviewBefore ? <InstanceStageItemDropPreviewMarker /> : null}
                             <TreatmentProgramSortableItemShell
                               id={item.id}
-                              disabled={busy || editLocked}
+                              disabled={editLocked}
                               className="list-none px-1 py-1.5"
                             >
                               {(dragHandle) => (
@@ -1985,7 +1802,7 @@ function InstanceStageGroupsPanel(props: {
                                   onSaved={onSaved}
                                   dragHandle={dragHandle}
                                   reorderInGroup={{
-                                    disableAll: busy || editLocked,
+                                    disableAll: editLocked,
                                     disableUp: idx <= 0,
                                     disableDown: idx >= gItems.length - 1,
                                     onMove: (dir) => void reorderItemInStageGroup(g.id, item.id, dir),
@@ -2024,7 +1841,7 @@ function InstanceStageGroupsPanel(props: {
                         {dropPreviewBefore ? <InstanceStageItemDropPreviewMarker /> : null}
                         <TreatmentProgramSortableItemShell
                           id={item.id}
-                          disabled={busy || editLocked}
+                          disabled={editLocked}
                           className="list-none px-1 py-1.5"
                         >
                           {(dragHandle) => (
@@ -2037,7 +1854,7 @@ function InstanceStageGroupsPanel(props: {
                               onSaved={onSaved}
                               dragHandle={dragHandle}
                               reorderInGroup={{
-                                disableAll: busy || editLocked,
+                                disableAll: editLocked,
                                 disableUp: idx <= 0,
                                 disableDown: idx >= ungrouped.length - 1,
                                 onMove: (dir) => void reorderItemInStageGroup(null, item.id, dir),
@@ -2077,7 +1894,7 @@ function InstanceStageGroupsPanel(props: {
             </Button>
             <Button
               type="button"
-              disabled={busy || editLocked || !title.trim()}
+              disabled={editLocked || !title.trim()}
               onClick={() => void addGroup()}
             >
               Добавить
@@ -2112,7 +1929,7 @@ function InstanceStageGroupsPanel(props: {
                   value={groupEdit.title}
                   onChange={(e) => setGroupEdit((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
                   maxLength={2000}
-                  disabled={busy || editingIsSystem}
+                  disabled={editingIsSystem}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -2124,7 +1941,7 @@ function InstanceStageGroupsPanel(props: {
                   value={groupEdit.description}
                   onChange={(e) => setGroupEdit((prev) => (prev ? { ...prev, description: e.target.value } : prev))}
                   maxLength={10000}
-                  disabled={busy}
+                  disabled={false}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -2136,22 +1953,22 @@ function InstanceStageGroupsPanel(props: {
                   value={groupEdit.scheduleText}
                   onChange={(e) => setGroupEdit((prev) => (prev ? { ...prev, scheduleText: e.target.value } : prev))}
                   maxLength={5000}
-                  disabled={busy}
+                  disabled={false}
                 />
               </div>
             </div>
             <DialogFooter className="gap-2 sm:flex-wrap sm:justify-end">
-              <Button type="button" variant="outline" disabled={busy} onClick={() => setGroupEdit(null)}>
+              <Button type="button" variant="outline" onClick={() => setGroupEdit(null)}>
                 Отмена
               </Button>
               {editingIsSystem ? null : (
-                <Button type="button" variant="destructive" disabled={busy || editLocked} onClick={() => void hideGroupFromModal()}>
+                <Button type="button" variant="destructive" disabled={editLocked} onClick={() => void hideGroupFromModal()}>
                   Скрыть
                 </Button>
               )}
               <Button
                 type="button"
-                disabled={busy || editLocked || (!editingIsSystem && !groupEdit.title.trim())}
+                disabled={editLocked || (!editingIsSystem && !groupEdit.title.trim())}
                 onClick={() => void saveGroupEdit()}
               >
                 Сохранить
@@ -2165,19 +1982,15 @@ function InstanceStageGroupsPanel(props: {
 }
 
 function InstanceStageItemDoctorRow(props: {
-  instanceId: string;
   item: TreatmentProgramInstanceDetail["stages"][number]["items"][number];
   groups: TreatmentProgramInstanceDetail["stages"][number]["groups"];
   testResults: TreatmentProgramTestResultDetailRow[];
-  onSaved: () => Promise<void>;
-  programStatus: TreatmentProgramInstanceStatus;
   editLocked: boolean;
   /** Скрыть выбор группы (блок рекомендаций этапа 0). */
   hideGroupSelect?: boolean;
 }) {
-  const { instanceId, item, groups, testResults, onSaved, programStatus, editLocked, hideGroupSelect = false } =
-    props;
-  const [saving, setSaving] = useState(false);
+  const { item, groups, testResults, editLocked, hideGroupSelect = false } = props;
+  const { patchItemStructural, deleteItem: deleteItemDraft } = useInstanceEditorDraft();
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -2204,53 +2017,16 @@ function InstanceStageItemDoctorRow(props: {
     !hideGroupSelect &&
     !(itemGroup !== undefined && isTreatmentProgramInstanceSystemStageGroup(itemGroup));
 
-  const patchItem = async (body: Record<string, unknown>) => {
+  const applyStructural = (patch: InstanceEditorItemStructuralPatch) => {
     if (editLocked) return;
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setSaving(true);
-      setMsg(null);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(item.id)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setMsg(data.error ?? "Ошибка");
-          return;
-        }
-        await onSaved();
-      } finally {
-        setSaving(false);
-      }
-    });
+    setMsg(null);
+    patchItemStructural(item.id, patch);
   };
 
-  const deleteItem = async () => {
+  const deleteItem = () => {
     if (editLocked) return;
-    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
-      setSaving(true);
-      setMsg(null);
-      try {
-        const res = await fetch(
-          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(item.id)}`,
-          { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) },
-        );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          setMsg(data.error ?? "Ошибка удаления");
-          return;
-        }
-        setDeleteConfirmOpen(false);
-        await onSaved();
-      } finally {
-        setSaving(false);
-      }
-    });
+    deleteItemDraft(item.id);
+    setDeleteConfirmOpen(false);
   };
 
   const recActionabilityValue = item.isActionable === false ? "persistent" : "actionable";
@@ -2265,8 +2041,8 @@ function InstanceStageItemDoctorRow(props: {
         {item.itemType === "recommendation" ? (
           <Select
             value={recActionabilityValue}
-            onValueChange={(v) => void patchItem({ isActionable: v === "actionable" })}
-            disabled={saving || editLocked}
+            onValueChange={(v) => applyStructural({ isActionable: v === "actionable" })}
+            disabled={editLocked}
             items={doctorRecommendationActionabilitySelectItems}
           >
             <SelectTrigger
@@ -2285,8 +2061,8 @@ function InstanceStageItemDoctorRow(props: {
         <div className="w-full max-w-md">
           <Select
             value={groupSelectValue}
-            onValueChange={(v) => void patchItem({ groupId: v === "__none__" ? null : v })}
-            disabled={saving || editLocked}
+            onValueChange={(v) => applyStructural({ groupId: v === "__none__" ? null : v })}
+            disabled={editLocked}
             items={groupSelectItems}
           >
             <SelectTrigger
@@ -2311,10 +2087,10 @@ function InstanceStageItemDoctorRow(props: {
             type="button"
             variant="outline"
             size="sm"
-            disabled={saving || editLocked}
+            disabled={editLocked}
             onClick={() => {
               if (hasHistory) setConfirmOpen(true);
-              else void patchItem({ status: "disabled" });
+              else applyStructural({ status: "disabled" });
             }}
           >
             Отключить
@@ -2324,8 +2100,8 @@ function InstanceStageItemDoctorRow(props: {
             type="button"
             variant="secondary"
             size="sm"
-            disabled={saving || editLocked}
-            onClick={() => void patchItem({ status: "active" })}
+            disabled={editLocked}
+            onClick={() => applyStructural({ status: "active" })}
           >
             Включить
           </Button>
@@ -2335,7 +2111,7 @@ function InstanceStageItemDoctorRow(props: {
           variant="outline"
           size="sm"
           className="border-destructive/40 text-destructive hover:bg-destructive/10"
-          disabled={saving || editLocked}
+          disabled={editLocked}
           onClick={() => setDeleteConfirmOpen(true)}
         >
           Удалить
@@ -2358,7 +2134,7 @@ function InstanceStageItemDoctorRow(props: {
               type="button"
               onClick={() => {
                 setConfirmOpen(false);
-                void patchItem({ status: "disabled" });
+                applyStructural({ status: "disabled" });
               }}
             >
               Отключить
@@ -2376,11 +2152,11 @@ function InstanceStageItemDoctorRow(props: {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={saving} onClick={() => setDeleteConfirmOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
               Отмена
             </Button>
-            <Button type="button" variant="destructive" disabled={saving || editLocked} onClick={() => void deleteItem()}>
-              {saving ? "Удаление…" : "Удалить"}
+            <Button type="button" variant="destructive" disabled={editLocked} onClick={deleteItem}>
+              Удалить
             </Button>
           </DialogFooter>
         </DialogContent>

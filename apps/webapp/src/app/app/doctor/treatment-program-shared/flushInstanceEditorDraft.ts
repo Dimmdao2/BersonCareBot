@@ -1,8 +1,8 @@
 import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
 import { confirmActiveProgramInstanceBatchSave } from "./programInstanceMutationGuard";
 import {
-  isInstanceEditorDraftEmpty,
-  pickInstanceEditorDraftChanges,
+  isInstanceEditorDraftFlushEmpty,
+  pickInstanceEditorDraftFlushChanges,
   type InstanceEditorDraft,
 } from "./instanceEditorDraft";
 
@@ -32,8 +32,8 @@ export async function flushInstanceEditorDraft(input: {
   | { ok: true }
   | { ok: false; error: string; cancelled?: boolean; partial?: boolean }
 > {
-  const changes = pickInstanceEditorDraftChanges(input.draft, input.baseline);
-  if (isInstanceEditorDraftEmpty(changes)) {
+  const changes = pickInstanceEditorDraftFlushChanges(input.draft, input.baseline);
+  if (isInstanceEditorDraftFlushEmpty(changes)) {
     return { ok: true };
   }
 

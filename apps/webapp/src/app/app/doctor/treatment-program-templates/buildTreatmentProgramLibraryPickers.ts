@@ -76,6 +76,9 @@ export function buildTreatmentProgramLibraryPickers(params: {
     lfkComplexes: lfkTemplates.map((t) => {
       const desc = t.description?.trim();
       const filterMeta = buildLfkComplexLibraryFilterMeta(t, exerciseMetaById, bodyRegionIdToCode);
+      const sortedExercises = [...t.exercises].sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
+      );
       return {
         id: t.id,
         title: t.title,
@@ -84,6 +87,27 @@ export function buildTreatmentProgramLibraryPickers(params: {
         thumbUrl: lfkTemplateThumb(t),
         description: desc ? desc : null,
         ...filterMeta,
+        expandLines: sortedExercises.map((line) => {
+          const title = line.exerciseTitle?.trim() || "Упражнение";
+          const m = line.firstMedia;
+          const snapshot: Record<string, unknown> = {
+            itemType: "exercise",
+            id: line.exerciseId,
+            title,
+            ...(m?.mediaUrl?.trim()
+              ? {
+                  media: [
+                    {
+                      mediaUrl: m.mediaUrl.trim(),
+                      mediaType: m.mediaType ?? "image",
+                      sortOrder: 0,
+                    },
+                  ],
+                }
+              : {}),
+          };
+          return { itemRefId: line.exerciseId, snapshot };
+        }),
       };
     }),
     testSets: testSets.map((ts) => {
@@ -93,11 +117,33 @@ export function buildTreatmentProgramLibraryPickers(params: {
           ? firstPreview.mediaUrl.trim()
           : null;
       const n = ts.items.length;
+      const sortedItems = [...ts.items].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
       return {
         id: ts.id,
         title: ts.title,
         subtitle: n > 0 ? `${n} тестов в наборе` : "Пустой набор",
         thumbUrl: thumb,
+        expandLines: sortedItems.map((line) => {
+          const test = line.test;
+          const previewUrl = test.previewMedia?.mediaUrl?.trim();
+          const snapshot: Record<string, unknown> = {
+            itemType: "clinical_test",
+            id: test.id,
+            title: test.title,
+            tests: [
+              {
+                testId: test.id,
+                title: test.title,
+                sortOrder: line.sortOrder,
+                comment: line.comment,
+                ...(previewUrl
+                  ? { media: [{ mediaUrl: previewUrl, mediaType: "image", sortOrder: 0 }] }
+                  : {}),
+              },
+            ],
+          };
+          return { itemRefId: test.id, snapshot };
+        }),
       };
     }),
     clinicalTests: clinicalTests

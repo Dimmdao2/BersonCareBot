@@ -1,4 +1,9 @@
 /** Строки каталогов для модалки «Элемент из библиотеки» (шаблон и экземпляр программы). */
+export type TreatmentProgramLibraryExpandLine = {
+  itemRefId: string;
+  snapshot: Record<string, unknown>;
+};
+
 export type TreatmentProgramLibraryRow = {
   id: string;
   title: string;
@@ -12,6 +17,8 @@ export type TreatmentProgramLibraryRow = {
   loadType?: string | null;
   /** Все типы нагрузки упражнений комплекса (фильтр «любое совпадение»). */
   loadTypes?: readonly string[];
+  /** Строки для client-side draft expand (набор тестов / комплекс ЛФК). */
+  expandLines?: TreatmentProgramLibraryExpandLine[];
 };
 
 export type TreatmentProgramLibraryPickers = {

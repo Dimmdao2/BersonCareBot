@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-06-03 — Аудит фазы 1 + фаза 2: UI → draft (structural без немедленного API)
+
+- **Модель:** `groupHides`; union `itemCreates` (`library_item`, `freeform_recommendation`, `test_set_expand`, `lfk_complex_expand`); `applyStageOrder` фиксирует этап 0 первым.
+- **Context / SaveBar:** `hideGroup`; `saveDraft` → `{ structuralPending }` + toast при только structural.
+- **UI:** reorder/add/hide/patch/delete элементов и групп, модалка библиотеки — через draft API; `expandLines` в picker для test set / lfk complex; `treatmentProgramLibraryDraftSnapshot.ts`.
+- **Доки:** `treatment-program-shared/README.md`, `api.md` (structural в черновике, не immediate API); план `.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md` — todos `phase-1-draft-model`, `draft-model` **completed**.
+- **Проверки:** vitest 33 tests (draft + dialog + pickers); `tsc --noEmit` webapp.
+
+---
+
+## 2026-06-03 — Редактор инстанса: фаза 1 закрыта (browser draft model)
+
+- **Draft:** расширен `InstanceEditorDraft` — `stageOrder`, `stageCreates`, `groupCreates`, `itemCreates`, `itemDeletes`, `itemReorders`, `groupReorders`, `itemStructuralPatches`; client-id через `draft:` prefix.
+- **Merge/normalize:** `mergeInstanceEditorDraftIntoDetailRaw`; normalize для draft-сущностей (stage/group/item creates); `pickInstanceEditorDraftFlushChanges` vs `hasInstanceEditorDraftStructuralChanges`.
+- **Context:** `setStageOrder`, `addStageCreate`, `addGroupCreate`, `addItemCreate`, `deleteItem`, `setItemReorder`, `setGroupReorder`, `patchItemStructural`; `saveDraft` после legacy flush сбрасывает только metadata-секции (`clearFlushableInstanceEditorDraftSections`).
+- **План:** `.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md` — todo `phase-1-draft-model` **completed** (фаза 2 — отдельная запись выше).
+- **Проверки:** vitest 20 tests (`instanceEditorDraft`, `InstanceEditorDraftContext`, `flushInstanceEditorDraft`); `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-02 — Фаза 7: B6 превью шаблонов + proactive-лента на «Сегодня» (MVP)
 
 - **B6 хвост:** список шаблонов — `MediaThumb` + worker `previewSmUrl` из `media_files` (`enrichTemplateListPreviewMedia`, `templateListPreviewToPreviewUi`).
@@ -36,9 +56,9 @@
 
 ---
 
-## 2026-06-02 — Фаза 3: черновик редактора назначенной программы
+## 2026-06-02 — Фаза 3: черновик редактора назначенной программы (metadata)
 
-- **Черновик:** `treatment-program-shared/instanceEditorDraft.ts`, `InstanceEditorDraftContext`, sticky `InstanceEditorSaveBar`; правки метаданных этапа/группы, `localComment`, нагрузка упражнения — in-memory; один batch save (`flushInstanceEditorDraft`) с единственным confirm для `active`.
+- **Черновик (metadata):** `treatment-program-shared/instanceEditorDraft.ts`, `InstanceEditorDraftContext`, sticky `InstanceEditorSaveBar`; правки метаданных этапа/группы, `localComment`, нагрузка упражнения — in-memory; один batch save (`flushInstanceEditorDraft`) с единственным confirm для `active`. **Structural** операции — отдельный план batch-toolbar (фазы 1–2 закрыты 2026-06-03, см. LOG выше).
 - **Guard:** `programInstanceMutationGuard` — структурные мутации без confirm на клик; `useInstanceEditorUnsavedGate` — модалка перед **сменой статуса этапа** и **«Завершить программу»** при dirty; `beforeunload` при уходе со страницы.
 - **Normalize:** `normalizeInstanceEditorDraft` / `isInstanceEditorDraftDirty` — no-op blur не помечает черновик dirty; partial batch failure → перезагрузка baseline + toast «сохранено частично».
 - **Backend:** `updateInstance(status=completed)` закрывает все этапы (кроме `skipped`) + события `stage_completed`.
