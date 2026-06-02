@@ -18,6 +18,7 @@ import { PatientBookingPaymentHistorySection } from "./PatientBookingPaymentHist
 import { PatientMembershipsSection } from "../PatientMembershipsSection";
 import { BookingWizardShell } from "./BookingWizardShell";
 import { pickBookingCityCodeForAddressLinks } from "@/modules/help-content/patientHelpAddressLink";
+import { PatientAboutSiteLink } from "../../about/PatientAboutSiteLink";
 import { FormatStepClient } from "./FormatStepClient";
 
 export const dynamic = "force-dynamic";
@@ -32,18 +33,10 @@ function BookingFormatPromoBanner() {
       <div
         className={cn(
           patientHomePlanCardClass,
-          "rounded-none border-0 text-sm font-light leading-snug md:rounded-none",
+          "rounded-none border-0 md:rounded-none",
         )}
       >
-        <span className="text-[#132a52]">Подробно обо мне и моих услугах вы можете почитать </span>
-        <a
-          href="https://dmitryberson.ru"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-light text-[var(--patient-color-primary)] underline decoration-[var(--patient-color-primary)] underline-offset-2"
-        >
-          на моём сайте
-        </a>
+        <PatientAboutSiteLink />
       </div>
     </div>
   );

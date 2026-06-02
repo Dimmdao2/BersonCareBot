@@ -140,7 +140,7 @@
 ## CMS — полный enum типов контента (ROADMAP_2 §3.3) — **закрыто** (фаза 6, 2026-06-02)
 
 - [x] Таксономия: `content_sections.kind` / `system_parent_code`; роли страниц `CONTENT_PAGE_ROLES` (`help_article`, `thematic_article`, `system_cluster_page`) — `content-page-roles.ts`.
-- [x] Раздел **`help`** (`0103_help_content_section.sql`); CMS «Статьи справки»; patient **`/help`** + **`/help/[slug]`**; `revalidatePatientContentPaths` (+ **`/booking/new`** при help); редирект `/content/[slug]`; IA canonical slug; **`/app/patient/booking/new`:** `CabinetInfoLinks surface="booking"`; **city-aware** плитка «Адрес» (`address-msk`/`address-spb`, fallback `/address`) — план patient_help_booking **фазы 1–3** (2026-06-03). Док: `modules/help-content/README.md`, `help/help.md`, `booking/new/booking.md`, `cabinet/cabinet.md`, `DOCTOR_CMS_AND_RUNTIME.md`; план: `.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`.
+- [x] Раздел **`help`** (`0103_help_content_section.sql`); CMS «Статьи справки»; patient **`/help`** + **`/help/[slug]`**; `revalidatePatientContentPaths` (+ **`/booking/new`** при help); редирект `/content/[slug]`; IA canonical slug; **`/app/patient/booking/new`:** `CabinetInfoLinks`; city-aware «Адрес»; **`/app/patient/about`**; slug **`booking`** → about; **`CMS_EDITOR_CHECKLIST.md`** — план patient_help_booking **закрыт** (2026-06-03). Док: `modules/help-content/README.md`, `help/help.md`, `about/about.md`, `booking/new/booking.md`; план: `.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`.
 
 ## Patient — хвосты ROADMAP_2 (owner 2026-06-01)
 

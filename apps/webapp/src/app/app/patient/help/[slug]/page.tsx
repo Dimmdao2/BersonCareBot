@@ -10,7 +10,9 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
 import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
 import { parseApiMediaIdFromHref, parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
+import { HELP_CANONICAL_ARTICLE_SLUG_BOOKING } from "@/modules/help-content/canonicalSlugs";
 import { PatientContentSlugArticle } from "@/app/app/patient/content/[slug]/PatientContentSlugArticle";
+import { HelpBookingAboutLink } from "../HelpBookingAboutLink";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -69,6 +71,7 @@ export default async function PatientHelpArticlePage({ params }: Props) {
       variant="patient"
       patientSuppressShellTitle
     >
+      {slug === HELP_CANONICAL_ARTICLE_SLUG_BOOKING ? <HelpBookingAboutLink /> : null}
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
         <PatientContentSlugArticle
           slug={slug}

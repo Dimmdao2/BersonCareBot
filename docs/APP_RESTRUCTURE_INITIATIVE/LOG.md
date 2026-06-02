@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-06-03 — Patient help/booking surface: план закрыт (фаза 4)
+
+**Сделано:** `/app/patient/about`; slug `booking` + ссылка с `/help/booking`; `CMS_EDITOR_CHECKLIST.md`; финальный sync docs.
+
+**План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) — все фазы completed.
+
+---
+
 ## 2026-06-03 — Patient help/booking surface: фаза 3 (city-aware адрес)
 
 **Сделано:** `patientHelpAddressLink`, `bookingNewHref`; city-aware плитка «Адрес» на «Запись»; wizard back/success с `?cityCode=`; ревью (invalid query → snapshot, reschedule redirect).

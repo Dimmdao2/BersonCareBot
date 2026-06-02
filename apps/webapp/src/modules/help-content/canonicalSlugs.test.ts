@@ -21,6 +21,7 @@ describe("canonicalSlugs", () => {
       "address-spb",
       "address-msk",
       "about",
+      "booking",
     ]);
     for (const slug of HELP_CANONICAL_ARTICLE_SLUGS) {
       expect(HELP_CANONICAL_ARTICLE_IA[slug].title.length).toBeGreaterThan(0);

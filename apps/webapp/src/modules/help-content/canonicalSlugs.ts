@@ -13,6 +13,8 @@ export const HELP_CANONICAL_ARTICLE_SLUG_APP_GUIDE = "app-guide" as const;
 export const HELP_CANONICAL_ARTICLE_SLUG_ADDRESS_SPB = "address-spb" as const;
 export const HELP_CANONICAL_ARTICLE_SLUG_ADDRESS_MSK = "address-msk" as const;
 export const HELP_CANONICAL_ARTICLE_SLUG_ABOUT = "about" as const;
+/** Справка по записи в приложении; на странице — ссылка на `/app/patient/about`. */
+export const HELP_CANONICAL_ARTICLE_SLUG_BOOKING = "booking" as const;
 
 /** Устаревший slug; плитки принимают его как alias для `services-pricing` до перепубликации в CMS. */
 export const HELP_CANONICAL_ARTICLE_SLUG_COST_LEGACY = "cost" as const;
@@ -25,6 +27,7 @@ export const HELP_CANONICAL_ARTICLE_SLUGS = [
   HELP_CANONICAL_ARTICLE_SLUG_ADDRESS_SPB,
   HELP_CANONICAL_ARTICLE_SLUG_ADDRESS_MSK,
   HELP_CANONICAL_ARTICLE_SLUG_ABOUT,
+  HELP_CANONICAL_ARTICLE_SLUG_BOOKING,
 ] as const;
 
 export type HelpCanonicalArticleSlug = (typeof HELP_CANONICAL_ARTICLE_SLUGS)[number];
@@ -69,7 +72,11 @@ export const HELP_CANONICAL_ARTICLE_IA: Readonly<
   },
   [HELP_CANONICAL_ARTICLE_SLUG_ABOUT]: {
     title: "О специалисте",
-    purpose: "Кратко «обо мне»; в тексте — ссылка на полный сайт (дублирует маршрут `/app/patient/about` при появлении).",
+    purpose: "Кратко «обо мне»; в тексте — ссылка на полный сайт; см. также `/app/patient/about`.",
+  },
+  [HELP_CANONICAL_ARTICLE_SLUG_BOOKING]: {
+    title: "Запись на приём",
+    purpose: "Как записаться в приложении; на странице — ссылка на `/app/patient/about`.",
   },
 };
 

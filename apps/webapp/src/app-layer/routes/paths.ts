@@ -33,6 +33,8 @@ export const routePaths = {
   bookingNewConfirm: "/app/patient/booking/new/confirm",
   /** Адрес кабинета (iframe сайта специалиста). */
   patientAddress: "/app/patient/address",
+  /** Кратко о специалисте + ссылка на полный сайт. */
+  patientAbout: "/app/patient/about",
   profile: "/app/patient/profile",
   notifications: "/app/patient/notifications",
   purchases: "/app/patient/purchases",

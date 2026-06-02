@@ -1,25 +1,25 @@
 ---
 name: patient_help_booking_surface_phase
-overview: "Patient UX справки на «Запись»: IA (ф1), блок ссылок (ф2), city-aware адрес (ф3, 2026-06-03); about + CMS чеклист — ф4."
+overview: "Patient UX справки на «Запись»: IA, плитки, city-aware адрес, /about + CMS чеклист — закрыт 2026-06-03."
 todos:
   - id: help-slugs-ia
     content: Зафиксировать IA раздела /help и канонические slug (preparation, after-visit, services-pricing, app-guide, address-spb/address-msk, about) + правило публикации через CMS
     status: completed
   - id: tests-docs-help-booking
-    content: "Vitest help-content + booking city-aware (patientHelpAddressLink, bookingNewHref) + CabinetInfoLinksCard; sync TODO/ACTIVE_WORKQUEUE/docs (ф1–3)."
+    content: "Vitest help-content + booking + about/HelpBookingAboutLink RTL; sync TODO/ACTIVE_WORKQUEUE/docs (ф1–4)."
     status: completed
   - id: booking-links-mount
     content: Смонтировать блок полезных ссылок под «Предстоящими записями» на /app/patient/booking/new с переиспользованием CabinetInfoLinks/buildCabinetInfoLinkTiles
     status: completed
   - id: about-page
     content: Добавить короткую страницу /app/patient/about с ссылкой на полный сайт и связать её из /help/booking
-    status: pending
+    status: completed
   - id: city-aware-address
     content: Заложить city-aware адреса (cityCode->адрес/ссылка) на экране записи и в полезных ссылках без ломки текущего /app/patient/address
     status: completed
   - id: cms-editor-checklist
     content: "Подготовить редакторский чеклист CMS: какие статьи обязательны к публикации для включения ссылок в booking/help"
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -78,13 +78,20 @@ isProject: false
 
 Проверки (выполнены): vitest help-content + booking (`bookingNewHref`, `*-page`, `ConfirmStepClient`) — ~32 tests; `tsc --noEmit` webapp
 
-## Phase 4 — CMS контент и документация
-- Редакторский чеклист обязательных статей.
-- Финальный sync docs по booking/help links.
+## Phase 4 — CMS контент и документация — закрыта 2026-06-03
+
+- [x] `/app/patient/about` + `routePaths.patientAbout` + `PatientAboutSiteLink`
+- [x] Slug `booking` в `canonicalSlugs.ts` (8-й канон); `/help/booking` → `HelpBookingAboutLink` → `/about`
+- [x] `CMS_EDITOR_CHECKLIST.md`; подсказка в `ContentForm` (help)
+- [x] Финальный sync: `help.md`, `about.md`, `cabinet.md`, `README`/`LOG`, `TODO`, `ACTIVE_WORKQUEUE`, `DOCTOR_CMS`
+- [x] Аудит: RTL `HelpBookingAboutLink`, `PatientAboutSiteLink`; усилен contract `about-page`
+
+Проверки (выполнены): vitest `canonicalSlugs`, `about-page`, `PatientAboutSiteLink`, `HelpBookingAboutLink`, `help-booking-about-link`, help-content + booking
 
 ## Definition Of Done (весь план)
 - [x] Структура `/help` и canonical slug зафиксированы и документированы (фаза 1)
 - [x] Блок полезных ссылок на `/app/patient/booking/new` (фаза 2)
-- [ ] Страница `about` + ссылка на сайт
+- [x] Страница `about` + ссылка на сайт + связь из `/help/booking` (фаза 4)
 - [x] City-aware адреса СПб/Мск с fallback (фаза 3)
-- [x] Тесты help-content + booking info links (фазы 1–3)
+- [x] Редакторский чеклист CMS (фаза 4)
+- [x] Тесты help-content + booking info links (фазы 1–4)

@@ -33,6 +33,7 @@
 | `address-spb` | Адрес, СПб |
 | `address-msk` | Адрес, Москва |
 | `about` | О специалисте (+ ссылка на сайт в тексте) |
+| `booking` | Запись в приложении → ссылка на `/app/patient/about` |
 
 Подробнее: [`apps/webapp/src/app/app/patient/help/help.md`](../../app/app/patient/help/help.md).
 
@@ -43,6 +44,8 @@
 - `cabinetInfoLinkTiles.ts` — плитки «Полезная информация» (только если статья опубликована)
 - `patientHelpAddressLink.ts` — city-aware href плитки «Адрес кабинета» (`moscow`/`msk`/`spb` → `address-msk`/`address-spb`, иначе `/app/patient/address`)
 - `app/app/patient/booking/bookingNewHref.ts` — URL «Запись» с `?cityCode=` для wizard back / success redirect
+- [`CMS_EDITOR_CHECKLIST.md`](CMS_EDITOR_CHECKLIST.md) — публикация статей для плиток и `/help/booking`
+- `/app/patient/about` — краткая страница о специалисте (`specialistPublicSite.ts`)
 - `patientHelpArticlePath.ts` — редирект с `/content`
 - Инвалидация кэша: `app-layer/content/revalidatePatientContentPaths.ts` (вызывается из CMS actions)
 

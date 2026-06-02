@@ -52,7 +52,8 @@
 - **Полезные ссылки на «Запись» (2026-06-03, фаза 2):** `CabinetInfoLinks surface="booking"` в `booking/new/page.tsx` под `BookingUpcomingSection`; плитка `about`; `CabinetInfoLinksCard` + vitest.
 - **City-aware адрес (2026-06-03, фаза 3, закрыта):** `patientHelpAddressLink` + `bookingNewHref` — распознанный `?cityCode=` или `cityCodeSnapshot` ближайшей предстоящей записи → плитка «Адрес» на `/help/address-msk|address-spb` при публикации в CMS; иначе `/app/patient/address`; wizard back/success/reschedule сохраняют `cityCode` на «Запись».
 - **Примечание:** `/cabinet` → redirect на «Запись». Контент для условных плиток — опубликовать в CMS (`preparation`, `services-pricing`, `about`, `address-msk`, `address-spb`).
-- **Проверки:** vitest `help-content`, `patientHelpAddressLink`, `bookingNewHref`, `revalidatePatientContentPaths` (+ `booking/new` при help), `cabinetInfoLinkTiles`, `CabinetInfoLinksCard`, `booking-new-page`, `service-page`, `confirm-page`, `ConfirmStepClient`; см. `help-content/LOG.md` §фазы 1–3.
+- **About + CMS (2026-06-03, фаза 4, план закрыт):** `/app/patient/about`; `/help/booking` → ссылка на about; `CMS_EDITOR_CHECKLIST.md`; slug `booking` в canonical IA.
+- **Проверки:** vitest help-content + booking + about/help-booking contract; см. `help-content/LOG.md` §фазы 1–4.
 
 ## Фаза 5 (закрыта)
 

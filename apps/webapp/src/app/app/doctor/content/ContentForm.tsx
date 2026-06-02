@@ -198,7 +198,7 @@ export function ContentForm({
         )}
         {isHelpSectionContext ? (
           <p className="text-xs text-muted-foreground">
-            Канонические slug (плитки — после публикации; см. `canonicalSlugs.ts`):{" "}
+            Канонические slug (плитки — после публикации; чеклист: `help-content/CMS_EDITOR_CHECKLIST.md`):{" "}
             {HELP_CANONICAL_ARTICLE_SLUGS.map(
               (s) => `${s} — ${HELP_CANONICAL_ARTICLE_IA[s].title}`,
             ).join("; ")}

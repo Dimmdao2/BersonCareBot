@@ -25,3 +25,13 @@
 **План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) — фаза 3 `completed`.
 
 **Проверки:** vitest help-content + booking (~32 tests); `tsc --noEmit` webapp.
+
+## 2026-06-03 — План patient_help_booking_surface, фаза 4 (about + CMS чеклист) — закрыта
+
+**Сделано:** `/app/patient/about`; slug `booking` в canonical IA; `HelpBookingAboutLink` на `/help/booking`; `CMS_EDITOR_CHECKLIST.md`; `PatientAboutSiteLink` (reuse на «Запись»); sync docs/plan.
+
+**План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) — план закрыт (ф4).
+
+**Проверки:** vitest `canonicalSlugs`, `about-page`, `help-booking-about-link`, help-content + booking.
+
+**Аудит (тот же день):** RTL `HelpBookingAboutLink`, `PatientAboutSiteLink`; contract `about-page` + `routePaths.patientAbout`; `cabinet.md` про `/about` и связь с `booking`.
