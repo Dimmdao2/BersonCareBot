@@ -17,9 +17,14 @@ import { BookingUpcomingSection } from "./BookingUpcomingSection";
 import { PatientBookingPaymentHistorySection } from "./PatientBookingPaymentHistorySection";
 import { PatientMembershipsSection } from "../PatientMembershipsSection";
 import { BookingWizardShell } from "./BookingWizardShell";
+import { pickBookingCityCodeForAddressLinks } from "@/modules/help-content/patientHelpAddressLink";
 import { FormatStepClient } from "./FormatStepClient";
 
 export const dynamic = "force-dynamic";
+
+type PageProps = {
+  searchParams: Promise<{ cityCode?: string }>;
+};
 
 function BookingFormatPromoBanner() {
   return (
@@ -44,14 +49,19 @@ function BookingFormatPromoBanner() {
   );
 }
 
-export default async function BookingNewFormatPage() {
+export default async function BookingNewFormatPage({ searchParams }: PageProps) {
   const session = await getOptionalPatientSession();
   if (!session) {
     redirect(routePaths.patient);
   }
 
+  const { cityCode: cityCodeFromQuery } = await searchParams;
   const deps = buildAppDeps();
   const records = await deps.patientBooking.listMyBookings(session.user.userId);
+  const bookingCityCode = pickBookingCityCodeForAddressLinks(
+    cityCodeFromQuery,
+    records.upcoming.map((b) => b.cityCodeSnapshot),
+  );
   const projectionPast = await deps.patientCabinet.getPastAppointments(session.user.userId);
   const pastItems = mergePastBookingHistory(records.history, projectionPast);
   const appDisplayTimeZone = await getAppDisplayTimeZone();
@@ -77,7 +87,7 @@ export default async function BookingNewFormatPage() {
     >
       <div className={patientInnerPageStackClass}>
         <BookingUpcomingSection bookings={records.upcoming} appDisplayTimeZone={appDisplayTimeZone} />
-        <CabinetInfoLinks surface="booking" />
+        <CabinetInfoLinks surface="booking" bookingCityCode={bookingCityCode} />
         <PatientBookingPaymentHistorySection />
         <PatientMembershipsSection />
         <FormatStepClient cities={catalogCities} catalogError={catalogCitiesError} />

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { bookingNewHref } from "../../bookingNewHref";
 import { loadBookingServicesForPatientRsc } from "../../bookingCatalogRsc";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../../constants";
 import { BookingWizardShell } from "../BookingWizardShell";
@@ -37,7 +38,7 @@ export default async function BookingNewServicePage({ searchParams }: Props) {
       title="Выберите услугу"
       step={2}
       totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
-      backHref={routePaths.bookingNew}
+      backHref={bookingNewHref(cityCode)}
       user={session.user}
     >
       <ServiceStepClient

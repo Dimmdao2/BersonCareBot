@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-06-03 — Patient help/booking surface: фаза 3 (city-aware адрес)
+
+**Сделано:** `patientHelpAddressLink`, `bookingNewHref`; city-aware плитка «Адрес» на «Запись»; wizard back/success с `?cityCode=`; ревью (invalid query → snapshot, reschedule redirect).
+
+**План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) §фаза 3. **LOG:** [`help-content/LOG.md`](../../apps/webapp/src/modules/help-content/LOG.md) §фаза 3.
+
+**Проверки:** vitest help-content + booking (~32 tests); `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-03 — Patient help/booking surface: фаза 2 (ссылки на «Запись»)
 
 **Сделано:** `CabinetInfoLinks` на `/app/patient/booking/new` под предстоящими записями; `surface="booking"` / `omitBookingCta`; плитка `about`; `CabinetInfoLinksCard` + тесты.

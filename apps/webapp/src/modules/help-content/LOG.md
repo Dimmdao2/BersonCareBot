@@ -15,3 +15,13 @@
 **Проверки:** vitest `help-content`, `CabinetInfoLinksCard`, `cabinetInfoLinkTiles`, `booking-new-page`, `revalidatePatientContentPaths` (`booking/new`); `tsc --noEmit` webapp.
 
 **Аудит (тот же день):** в `revalidatePatientContentPaths` добавлен `revalidatePath(routePaths.bookingNew)` при `section=help` — иначе плитки на «Запись» не обновлялись после публикации статей в CMS.
+
+## 2026-06-03 — План patient_help_booking_surface, фаза 3 (city-aware адрес) — закрыта
+
+**Сделано:** `patientHelpAddressLink.ts`; `buildCabinetInfoLinkTiles({ bookingCityCode })`; `booking/new/page.tsx`; `bookingNewHref.ts` (wizard back/success); `/app/patient/address` без изменений.
+
+**Аудит и ревью:** alias `msk`; contract-тесты service/confirm/booking-new; нераспознанный `?cityCode=` → fallback на snapshot; reschedule → `successRedirectPath` с городом. Доки: `booking.md`, `cabinet.md`, `help.md`, `DOCTOR_CMS`, `TODO`, `ACTIVE_WORKQUEUE`, APP_RESTRUCTURE LOG.
+
+**План:** [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md) — фаза 3 `completed`.
+
+**Проверки:** vitest help-content + booking (~32 tests); `tsc --noEmit` webapp.

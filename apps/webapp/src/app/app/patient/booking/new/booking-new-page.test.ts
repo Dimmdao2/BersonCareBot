@@ -7,9 +7,13 @@ const pagePath = join(import.meta.dirname, "page.tsx");
 describe("booking/new page (patient help links)", () => {
   it("mounts CabinetInfoLinks with booking surface immediately after BookingUpcomingSection", () => {
     const src = readFileSync(pagePath, "utf8");
-    expect(src).toContain('<CabinetInfoLinks surface="booking" />');
+    expect(src).toContain('surface="booking"');
+    expect(src).toContain("bookingCityCode={bookingCityCode}");
+    expect(src).toContain("pickBookingCityCodeForAddressLinks");
+    expect(src).toContain("cityCodeFromQuery");
+    expect(src).toContain("cityCodeSnapshot");
     expect(src).toMatch(
-      /<BookingUpcomingSection[\s\S]*?<CabinetInfoLinks surface="booking"\s*\/>/,
+      /<BookingUpcomingSection[\s\S]*?<CabinetInfoLinks[\s\S]*?surface="booking"/,
     );
   });
 });

@@ -11,13 +11,16 @@ export type CabinetInfoLinksSurface = "cabinet" | "booking";
 /** Полезные ссылки: deep link на статьи справки только если опубликованы в CMS. */
 export async function CabinetInfoLinks({
   surface = "cabinet",
+  bookingCityCode = null,
 }: {
   surface?: CabinetInfoLinksSurface;
+  /** Контекст города на «Запись» (`moscow` / `spb` из query или предстоящей записи). */
+  bookingCityCode?: string | null;
 } = {}) {
   const deps = buildAppDeps();
   const articles = await listHelpArticlesForPatient(deps.contentPages);
   const options: BuildCabinetInfoLinkTilesOptions =
-    surface === "booking" ? { omitBookingCta: true } : {};
+    surface === "booking" ? { omitBookingCta: true, bookingCityCode } : {};
   const tiles = buildCabinetInfoLinkTiles(new Set(articles.map((a) => a.slug)), options);
 
   return <CabinetInfoLinksCard tiles={tiles} />;

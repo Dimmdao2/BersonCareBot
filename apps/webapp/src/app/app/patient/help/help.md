@@ -21,7 +21,7 @@
 | `address-msk` | Адрес кабинета, Москва |
 | `about` | Кратко о специалисте + ссылка на полный сайт |
 
-Любые другие slug допустимы в каталоге `/help`. Условные плитки (`buildCabinetInfoLinkTiles`, см. `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES` + `resolvePublishedServicesPricingSlug`) на фазе 1 — только **подготовка** и **стоимость**; остальные канонические slug видны в каталоге `/help` после публикации, плитки — в фазах 2–3 плана booking/help.
+Любые другие slug допустимы в каталоге `/help`. Условные плитки: `preparation`, `about` (`HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES`), **стоимость** (`resolvePublishedServicesPricingSlug`). Плитка **«Адрес кабинета»** всегда есть; её href city-aware (`address-msk` / `address-spb` при публикации и известном городе) — `patientHelpAddressLink.ts`, фаза 3.
 
 ## Публикация через CMS
 

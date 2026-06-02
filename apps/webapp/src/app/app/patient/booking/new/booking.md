@@ -8,4 +8,10 @@
 - Условные плитки из CMS (`buildCabinetInfoLinkTiles`): `preparation`, `about`, стоимость (`services-pricing` / legacy `cost`).
 - Блок рендерится **всегда** (адрес + справка), даже если список предстоящих записей пуст.
 
+## City-aware адрес (фаза 3)
+
+- Контекст города: распознанный `?cityCode=` в URL, иначе `cityCodeSnapshot` ближайшей предстоящей записи (`pickBookingCityCodeForAddressLinks`; нераспознанный query не перекрывает snapshot; upcoming — `ORDER BY slot_start ASC`).
+- Плитка «Адрес кабинета»: при опубликованных `address-msk` / `address-spb` и коде `moscow` / `msk` / `spb` → `/app/patient/help/address-msk|address-spb`; иначе `/app/patient/address` (iframe без изменений).
+- Wizard: «Назад» с шага услуги и редирект после подтверждения очной записи — `bookingNewHref(cityCode)` (`../bookingNewHref.ts`), чтобы на «Запись» сохранился город для плиток.
+
 См. [`modules/help-content/README.md`](../../../../modules/help-content/README.md). После публикации статей help в CMS — инвалидация через `revalidatePatientContentPaths` (включая этот маршрут).

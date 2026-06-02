@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { bookingNewHref } from "../../bookingNewHref";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../../constants";
 import { BookingWizardShell } from "../BookingWizardShell";
 import { ConfirmStepClient } from "./ConfirmStepClient";
@@ -74,6 +75,8 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
 
   const backHref = `${routePaths.bookingNewSlot}?${buildSlotBackQuery(raw)}`;
   const appDisplayTimeZone = await getAppDisplayTimeZone();
+  const cityCodeForLinks = first(raw.cityCode);
+  const successRedirectPath = bookingNewHref(cityCodeForLinks);
 
   const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
 
@@ -87,7 +90,8 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
     >
       <ConfirmStepClient
         type={type}
-        cityCode={first(raw.cityCode)}
+        successRedirectPath={successRedirectPath}
+        cityCode={cityCodeForLinks}
         cityTitle={first(raw.cityTitle)}
         branchServiceId={first(raw.branchServiceId)}
         serviceTitle={first(raw.serviceTitle)}

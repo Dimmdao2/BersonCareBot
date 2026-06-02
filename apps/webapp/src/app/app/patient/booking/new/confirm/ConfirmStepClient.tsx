@@ -252,7 +252,7 @@ export function ConfirmStepClient({
               .then((ok) => {
                 if (ok) {
                   toast.success("Запись перенесена");
-                  router.push(rescheduleState.successRedirectPath);
+                  router.push(successRedirectPath);
                 }
               });
             return;

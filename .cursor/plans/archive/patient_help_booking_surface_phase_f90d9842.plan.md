@@ -1,12 +1,12 @@
 ---
 name: patient_help_booking_surface_phase
-overview: "Patient UX справки на «Запись»: IA (ф1), блок ссылок на booking/new (ф2, 2026-06-03); about-страница, city-aware — ф3–4."
+overview: "Patient UX справки на «Запись»: IA (ф1), блок ссылок (ф2), city-aware адрес (ф3, 2026-06-03); about + CMS чеклист — ф4."
 todos:
   - id: help-slugs-ia
     content: Зафиксировать IA раздела /help и канонические slug (preparation, after-visit, services-pricing, app-guide, address-spb/address-msk, about) + правило публикации через CMS
     status: completed
   - id: tests-docs-help-booking
-    content: "Vitest help-content + CabinetInfoLinksCard RTL + booking-new-page contract; sync TODO/ACTIVE_WORKQUEUE/docs (ф1–2)."
+    content: "Vitest help-content + booking city-aware (patientHelpAddressLink, bookingNewHref) + CabinetInfoLinksCard; sync TODO/ACTIVE_WORKQUEUE/docs (ф1–3)."
     status: completed
   - id: booking-links-mount
     content: Смонтировать блок полезных ссылок под «Предстоящими записями» на /app/patient/booking/new с переиспользованием CabinetInfoLinks/buildCabinetInfoLinkTiles
@@ -16,7 +16,7 @@ todos:
     status: pending
   - id: city-aware-address
     content: Заложить city-aware адреса (cityCode->адрес/ссылка) на экране записи и в полезных ссылках без ломки текущего /app/patient/address
-    status: pending
+    status: completed
   - id: cms-editor-checklist
     content: "Подготовить редакторский чеклист CMS: какие статьи обязательны к публикации для включения ссылок в booking/help"
     status: pending
@@ -67,9 +67,16 @@ isProject: false
 
 Проверки (выполнены): `cabinetInfoLinkTiles`, `CabinetInfoLinksCard`, `booking-new-page`, `help-content`, `revalidatePatientContentPaths` (22 tests); блок всегда рендерится (базовые плитки без CMS).
 
-## Phase 3 — City-Aware адреса
-- Привязка `cityCode` в ссылках адреса (СПб/Мск) на booking flow.
-- Fallback `/app/patient/address`.
+## Phase 3 — City-Aware адреса — закрыта 2026-06-03
+
+- [x] `patientHelpAddressLink.ts` — нормализация `moscow`/`msk`/`spb`, `resolvePatientAddressHref`, `pickBookingCityCodeForAddressLinks`
+- [x] `buildCabinetInfoLinkTiles({ bookingCityCode })` + `CabinetInfoLinks` / `booking/new/page.tsx` (`searchParams.cityCode`, `cityCodeSnapshot` предстоящих)
+- [x] Fallback `/app/patient/address` без изменений iframe-страницы
+- [x] `bookingNewHref(cityCode)` — wizard «Назад» (service) и success/reschedule redirect (confirm)
+- [x] Ревью: нераспознанный `?cityCode=` не блокирует snapshot; reschedule → `successRedirectPath` с городом
+- [x] Vitest: `patientHelpAddressLink` (+ alias `msk`), `bookingNewHref`, `cabinetInfoLinkTiles`, contract pages, `ConfirmStepClient`
+
+Проверки (выполнены): vitest help-content + booking (`bookingNewHref`, `*-page`, `ConfirmStepClient`) — ~32 tests; `tsc --noEmit` webapp
 
 ## Phase 4 — CMS контент и документация
 - Редакторский чеклист обязательных статей.
@@ -79,5 +86,5 @@ isProject: false
 - [x] Структура `/help` и canonical slug зафиксированы и документированы (фаза 1)
 - [x] Блок полезных ссылок на `/app/patient/booking/new` (фаза 2)
 - [ ] Страница `about` + ссылка на сайт
-- [ ] City-aware адреса СПб/Мск с fallback
-- [x] Тесты help-content + booking info links (фазы 1–2)
+- [x] City-aware адреса СПб/Мск с fallback (фаза 3)
+- [x] Тесты help-content + booking info links (фазы 1–3)

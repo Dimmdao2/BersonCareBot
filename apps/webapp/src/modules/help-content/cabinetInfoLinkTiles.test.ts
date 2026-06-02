@@ -50,4 +50,21 @@ describe("buildCabinetInfoLinkTiles", () => {
       "Справка и контакты",
     ]);
   });
+
+  it("uses city-aware address help when bookingCityCode and articles published", () => {
+    const published = new Set(["address-msk", "address-spb"]);
+    const msk = buildCabinetInfoLinkTiles(published, { bookingCityCode: "moscow" });
+    expect(msk[0]?.href).toBe("/app/patient/help/address-msk");
+    const spb = buildCabinetInfoLinkTiles(published, { bookingCityCode: "spb", omitBookingCta: true });
+    expect(spb[0]?.href).toBe("/app/patient/help/address-spb");
+  });
+
+  it("falls back to patient address when city unknown or article missing", () => {
+    expect(buildCabinetInfoLinkTiles(new Set(["address-msk"]), { bookingCityCode: "spb" })[0]?.href).toBe(
+      "/app/patient/address",
+    );
+    expect(buildCabinetInfoLinkTiles(new Set(), { bookingCityCode: "moscow" })[0]?.href).toBe(
+      "/app/patient/address",
+    );
+  });
 });

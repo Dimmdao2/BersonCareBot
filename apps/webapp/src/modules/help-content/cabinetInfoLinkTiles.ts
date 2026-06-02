@@ -6,12 +6,15 @@ import {
   type HelpCanonicalArticleSlug,
   resolvePublishedServicesPricingSlug,
 } from "./canonicalSlugs";
+import { resolvePatientAddressHref } from "./patientHelpAddressLink";
 
 export type CabinetInfoLinkTile = { href: string; label: string };
 
 export type BuildCabinetInfoLinkTilesOptions = {
   /** На экране «Запись» — без плитки «Записаться». */
   omitBookingCta?: boolean;
+  /** Код города каталога (`moscow`, `spb`, …) для city-aware адреса; иначе fallback `/app/patient/address`. */
+  bookingCityCode?: string | null;
 };
 
 /** Подписи условных плиток по каноническому slug (расширять при добавлении slug в `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES`). */
@@ -25,7 +28,12 @@ export function buildCabinetInfoLinkTiles(
   publishedHelpSlugs: ReadonlySet<string>,
   options: BuildCabinetInfoLinkTilesOptions = {},
 ): CabinetInfoLinkTile[] {
-  const tiles: CabinetInfoLinkTile[] = [{ href: routePaths.patientAddress, label: "Адрес кабинета" }];
+  const tiles: CabinetInfoLinkTile[] = [
+    {
+      href: resolvePatientAddressHref(publishedHelpSlugs, options.bookingCityCode),
+      label: "Адрес кабинета",
+    },
+  ];
   if (!options.omitBookingCta) {
     tiles.push({ href: routePaths.bookingNew, label: "Записаться" });
   }

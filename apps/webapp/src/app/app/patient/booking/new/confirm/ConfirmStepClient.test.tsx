@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfirmStepClient } from "./ConfirmStepClient";
-import { routePaths } from "@/app-layer/routes/paths";
+import { bookingNewHref } from "../../bookingNewHref";
 
 const createBooking = vi.fn(async () => true);
 const push = vi.fn();
@@ -83,6 +83,7 @@ describe("ConfirmStepClient", () => {
         cityTitle="Москва"
         branchServiceId="11111111-1111-4111-8111-111111111111"
         serviceTitle="Сеанс"
+        successRedirectPath={bookingNewHref("msk")}
         {...baseProps}
       />,
     );
@@ -112,7 +113,7 @@ describe("ConfirmStepClient", () => {
     );
 
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith(routePaths.bookingNew);
+      expect(push).toHaveBeenCalledWith(bookingNewHref("msk"));
     });
   });
 });

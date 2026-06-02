@@ -41,6 +41,8 @@
 - `canonicalSlugs.ts` — slug, IA-метаданные, `HELP_CANONICAL_ARTICLE_SLUGS_IN_CABINET_TILES`, `resolvePublishedServicesPricingSlug`
 - `listHelpArticles.ts` — список для каталога
 - `cabinetInfoLinkTiles.ts` — плитки «Полезная информация» (только если статья опубликована)
+- `patientHelpAddressLink.ts` — city-aware href плитки «Адрес кабинета» (`moscow`/`msk`/`spb` → `address-msk`/`address-spb`, иначе `/app/patient/address`)
+- `app/app/patient/booking/bookingNewHref.ts` — URL «Запись» с `?cityCode=` для wizard back / success redirect
 - `patientHelpArticlePath.ts` — редирект с `/content`
 - Инвалидация кэша: `app-layer/content/revalidatePatientContentPaths.ts` (вызывается из CMS actions)
 
