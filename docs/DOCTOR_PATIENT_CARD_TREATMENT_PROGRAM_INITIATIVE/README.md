@@ -2,7 +2,7 @@
 
 Инициатива по **кабинету врача**: карточка пациента как место **назначения программ лечения из шаблонов** и **корректировки `treatment_program_instance`** (без дублирования каноничных спецификаций — только ссылки и дорожная карта).
 
-**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Workqueue фазы 0–7 закрыты** (2026-06-02): карточка (2A–2B), задачи специалиста (2C), черновик редактора metadata (3), фильтры picker (4), inbox «К проверке» (5), CMS help (6), B6 превью + proactive MVP (7). Сводка: [`docs/ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md). **Активный план (вне workqueue):** [`.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`](../../.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md) — фазы 1–2 закрыты (2026-06-03, аудит remediation); structural draft в UI; фаза 3 — server `editor-batch`. **Дальше:** [`docs/TODO.md`](../TODO.md) (diary, D5, расширение proactive этап 8) — не workqueue.
+**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Workqueue фазы 0–7 закрыты** (2026-06-02). **Активный план:** [`.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`](../../.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md) — **фазы 1–3 закрыты полностью** (2026-06-03: editor-batch, `program_changed`, tx, pre-validate); **фаза 4** — sticky toolbar. Сводка: [`docs/ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md). **Дальше:** [`docs/TODO.md`](../TODO.md).
 
 **Операционный roadmap:** [`ROADMAP.md`](ROADMAP.md).
 

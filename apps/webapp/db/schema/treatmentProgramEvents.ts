@@ -57,7 +57,8 @@ export const treatmentProgramEvents = pgTable(
         'stage_skipped'::text,
         'stage_completed'::text,
         'status_changed'::text,
-        'test_completed'::text
+        'test_completed'::text,
+        'program_changed'::text
       ])`,
     ),
     check(

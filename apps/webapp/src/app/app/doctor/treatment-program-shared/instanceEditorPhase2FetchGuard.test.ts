@@ -40,3 +40,11 @@ describe("instance editor phase 2 — no immediate editor mutation fetch", () =>
     expect(source.includes("addItemCreate")).toBe(true);
   });
 });
+
+describe("instance editor phase 3 — flush uses editor-batch only", () => {
+  it("flushInstanceEditorDraft posts editor-batch, not legacy patch paths", () => {
+    const source = readModule("./flushInstanceEditorDraft.ts");
+    expect(source).toContain("/editor-batch");
+    assertNoForbiddenEditorFetch("flushInstanceEditorDraft", source);
+  });
+});

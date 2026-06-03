@@ -1,6 +1,6 @@
 ---
 name: instance-editor-batch-toolbar
-overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, отдельная модалка порядка этапов, общий диалог комментариев и единое batch-сохранение редакторских правок с одной записью истории. Фазы 1–2 закрыты (2026-06-03, аудит remediation); активна фаза 3 (server editor-batch)."
+overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, отдельная модалка порядка этапов, общий диалог комментариев и единое batch-сохранение редакторских правок с одной записью истории. Фазы 1–3 закрыты полностью (2026-06-03, incl. audit remediation); активна фаза 4 (sticky toolbar)."
 todos:
   - id: phase-1-draft-model
     content: "Фаза 1: Расширить InstanceEditorDraft, merge/normalize, context API, flush vs structural split"
@@ -9,8 +9,8 @@ todos:
     content: "Фаза 2: Editor → in-memory draft + аудит remediation (gate, RTL smoke, guard-тесты)"
     status: completed
   - id: batch-save
-    content: "Фаза 3: Добавить серверный batch-save use-case, route и единое событие истории program_changed"
-    status: pending
+    content: "Фаза 3: editor-batch + program_changed + tx + pre-validate (audit remediation)"
+    status: completed
   - id: toolbar-stages
     content: "Фаза 4: Сделать sticky toolbar, collapsible stages и удалить drag этапов из карточек"
     status: pending
@@ -34,10 +34,10 @@ isProject: false
 |------|--------|
 | 1 — browser draft model | **Закрыта** |
 | 2 — UI → in-memory draft | **Закрыта** (аудит remediation 2026-06-03) |
-| 3 — server `editor-batch` | **Следующая** |
-| 4–7 — toolbar, collapsible, comments, history | pending |
+| 3 — server `editor-batch` | **Закрыта полностью** (2026-06-03; audit remediation: tx, pre-validate) |
+| 4 — sticky toolbar, collapsible | **Следующая** |
 
-LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 (фазы 1–2, аудит remediation).
+LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 (фазы 1–3, remediation ф.2–3).
 
 ## Scope
 
@@ -86,15 +86,15 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] **Замена элемента (`replace`)** — только в модели draft; UI отложен (не блокер фазы 2).
 - [x] **Аудит remediation:** `hasInstanceEditorDraftFlushableChanges` / `isFlushableDirty`; unsaved gate — metadata-only; RTL smoke `TreatmentProgramInstanceDetailClient.phase2.test.tsx`; `InstanceEditorUnsavedChangesDialog.test.tsx`; guard/SaveBar/snapshot tests.
 
-### Фаза 3 — Серверный batch-save и единое событие
-- Добавить новый route: `POST /api/doctor/treatment-program-instances/[instanceId]/editor-batch`.
-- Добавить use-case `doctorApplyInstanceEditorBatch` в [instance-service.ts](apps/webapp/src/modules/treatment-program/instance-service.ts) через порты и сервисные инварианты stage zero/system groups.
-- Обновить [flushInstanceEditorDraft.ts](apps/webapp/src/app/app/doctor/treatment-program-shared/flushInstanceEditorDraft.ts): вместо последовательных PATCH отправлять один batch payload.
-- Добавить единое событие истории `program_changed` с detail payload (добавлено/удалено/перемещено/обновлено).
-- Проверки фазы:
-  - service tests (успешный batch, валидационные ошибки, откат ошибки);
-  - route tests (auth/body/validation);
-  - проверка единственной записи истории за batch.
+### Фаза 3 — Серверный batch-save и единое событие ✅ (2026-06-03, закрыта полностью)
+
+- [x] Route `POST /api/doctor/treatment-program-instances/[instanceId]/editor-batch` + Zod body `{ draft }`.
+- [x] `doctorApplyInstanceEditorBatch` / `applyInstanceEditorBatch` — metadata + structural в одном проходе; `program_changed` с `payload.diff`.
+- [x] Миграция `0104_program_changed_event_type.sql`; тип `program_changed` в schema/types.
+- [x] `flushInstanceEditorDraft` → один POST editor-batch; `saveDraft` сбрасывает весь черновик.
+- [x] Pre-validate до мутаций (`validateInstanceEditorBatchDraft`) — reorder, groupId, loadSettings.
+- [x] PG/in-memory транзакция batch (`runInMutationTransaction`).
+- [x] Тесты: `instanceEditorBatch.test.ts` (11 кейсов: empty/combined/rollback/tx), `instanceEditorBatchSchema.test.ts`, `editor-batch/route.test.ts`, guard flush → editor-batch, flush/context/SaveBar, `doctor-timeline-text`.
 
 ### Фаза 4 — Sticky toolbar и режимы экрана
 - В [TreatmentProgramInstanceDetailClient.tsx](apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx) добавить sticky toolbar внутри `#app-shell-doctor` (`top-[var(--doctor-sticky-offset,0px)]`).

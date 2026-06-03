@@ -729,6 +729,13 @@
       "when": 1784600000000,
       "tag": "0103_help_content_section",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1784700000000,
+      "tag": "0104_program_changed_event_type",
+      "breakpoints": true
     }
   ]
 }

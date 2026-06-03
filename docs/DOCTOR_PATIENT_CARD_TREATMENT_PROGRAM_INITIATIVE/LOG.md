@@ -4,6 +4,46 @@
 
 ---
 
+## 2026-06-03 — Фаза 3 batch-toolbar: закрытие (итог)
+
+- **Сервер:** `POST …/editor-batch`, `applyInstanceEditorBatch`, `program_changed`, миграция `0104`.
+- **Надёжность:** `validateInstanceEditorBatchDraft` (reorder, structural, loadSettings); `runInMutationTransaction` (PG + in-memory).
+- **Клиент:** `flushInstanceEditorDraft` → один POST; `saveDraft` сбрасывает весь draft.
+- **Проверки:** vitest batch/schema/route/guard (11+ серверных кейсов); `tsc --noEmit` webapp.
+- **План:** `.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md` — todo `batch-save` **completed**; следующая фаза 4.
+
+---
+
+## 2026-06-03 — Фаза 3: remediation по аудиту
+
+- **Транзакция:** `runInMutationTransaction` на `TreatmentProgramInstancePort` — PG (`AsyncLocalStorage` + Drizzle tx), in-memory (snapshot/restore); batch apply обёрнут в tx.
+- **Pre-validate:** reorder этапов/групп/элементов, `groupId` structural, `loadSettings`, existence групп.
+- **Клиент:** убран dead `partial` toast; комментарии `instanceEditorDraft` актуализированы.
+- **Тесты:** diff payload, group create, loadSettings reject, rollback mid-batch, invalid reorder pre-validate.
+
+---
+
+## 2026-06-03 — Фаза 3 batch-toolbar: полное закрытие (хвосты)
+
+- **Pre-validate:** `validateInstanceEditorBatchDraft` в `applyInstanceEditorBatch` — проверка до мутаций (порядок этапов, structural guard, system group hide, item refs).
+- **Тесты сервиса:** пустой draft без `program_changed`; metadata+structural → одно событие; откат при ошибке reorder/delete (нет event, нет partial create); `instanceEditorBatchSchema.test.ts`.
+- **Route:** `editor-batch/route.test.ts` — 403, 404 (instance / patient).
+- **Guard phase 3:** `flushInstanceEditorDraft` → только `/editor-batch`.
+- **Timeline copy:** `doctor-timeline-text.test.ts` — «Программа изменена» для `program_changed`.
+- **Проверки:** vitest batch/guard/schema/route; `tsc --noEmit` webapp.
+
+---
+
+## 2026-06-03 — Фаза 3 batch-toolbar: server editor-batch + program_changed
+
+- **API:** `POST /api/doctor/treatment-program-instances/[instanceId]/editor-batch` — `{ draft }` (Zod `instanceEditorBatchBodySchema`).
+- **Сервис:** `applyInstanceEditorBatch` + `doctorApplyInstanceEditorBatch`; одно событие `program_changed` с `payload.diff`.
+- **DDL:** миграция `0104_program_changed_event_type.sql`.
+- **Клиент:** `flushInstanceEditorDraft` → один POST; `saveDraft` сбрасывает весь черновик.
+- **Проверки:** `instanceEditorBatch.test.ts`, `editor-batch/route.test.ts`, flush/context/SaveBar; `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-03 — Аудит фазы 2: remediation (unsaved gate, RTL smoke)
 
 - **Unsaved gate:** `isFlushableDirty` / `hasInstanceEditorDraftFlushableChanges` — status API блокируется только при metadata-dirty; structural-only не мешает смене статуса этапа/программы.

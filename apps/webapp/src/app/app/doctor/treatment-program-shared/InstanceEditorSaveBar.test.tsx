@@ -37,31 +37,27 @@ describe("InstanceEditorSaveBar", () => {
     discardDraft.mockReset();
     vi.mocked(toast.success).mockReset();
     vi.mocked(toast).mockReset();
+    vi.mocked(toast.error).mockReset();
   });
 
-  it("structural-only save shows info toast", async () => {
-    saveDraft.mockResolvedValue({ ok: false, structuralPending: true });
+  it("successful save shows success toast", async () => {
+    saveDraft.mockResolvedValue({ ok: true });
     const user = userEvent.setup();
     render(<InstanceEditorSaveBar />);
 
     await user.click(screen.getByRole("button", { name: /^сохранить$/i }));
 
     expect(saveDraft).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(toast)).toHaveBeenCalledWith(
-      expect.stringContaining("batch-save"),
-      expect.objectContaining({ icon: "ℹ️" }),
-    );
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Изменения сохранены");
   });
 
-  it("metadata flush with structural left shows success hint", async () => {
-    saveDraft.mockResolvedValue({ ok: true, structuralPending: true });
+  it("failed save shows error toast", async () => {
+    saveDraft.mockResolvedValue({ ok: false, error: "Ошибка" });
     const user = userEvent.setup();
     render(<InstanceEditorSaveBar />);
 
     await user.click(screen.getByRole("button", { name: /^сохранить$/i }));
 
-    expect(vi.mocked(toast.success)).toHaveBeenCalledWith(
-      expect.stringContaining("Структурные изменения"),
-    );
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Ошибка");
   });
 });

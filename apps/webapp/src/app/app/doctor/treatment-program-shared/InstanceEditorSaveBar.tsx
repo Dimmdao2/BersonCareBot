@@ -28,17 +28,9 @@ export function InstanceEditorSaveBar() {
           onClick={() => {
             void saveDraft().then((r) => {
               if (r.ok) {
-                if (r.structuralPending) {
-                  toast.success("Текстовые правки сохранены. Структурные изменения остаются в черновике до batch-save.");
-                } else {
-                  toast.success("Изменения сохранены");
-                }
-              } else if (r.structuralPending) {
-                toast("Структурные изменения пока только в черновике (batch-save — в следующей фазе)", {
-                  icon: "ℹ️",
-                });
+                toast.success("Изменения сохранены");
               } else if (!r.cancelled && r.error) {
-                toast.error(r.partial ? `${r.error} (сохранено частично — проверьте план)` : r.error);
+                toast.error(r.error);
               }
             });
           }}

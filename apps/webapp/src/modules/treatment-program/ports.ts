@@ -283,6 +283,11 @@ export type TreatmentProgramInstancePort = {
     instanceId: string,
     stageItemId: string,
   ): Promise<{ updated: boolean }>;
+  /**
+   * PG: serializes `fn` in one Drizzle transaction (AsyncLocalStorage tx for port methods).
+   * In-memory: snapshot/restore instance tree maps on failure.
+   */
+  runInMutationTransaction<T>(fn: () => Promise<T>): Promise<T>;
 };
 
 /** §8: история изменений экземпляра программы (только через сервисный слой). */

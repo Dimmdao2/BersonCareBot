@@ -954,7 +954,7 @@ export type InstanceEditorDraftFlushChanges = Pick<
   "stageMetadata" | "groupPatches" | "itemPatches"
 >;
 
-/** Секции черновика, которые сейчас сбрасывает legacy `flushInstanceEditorDraft` (до batch API фазы 3). */
+/** Metadata-секции черновика (этап/группа/элемент) для unsaved gate и batch-save. */
 export function pickInstanceEditorDraftFlushChanges(
   draft: InstanceEditorDraft,
   baseline: TreatmentProgramInstanceDetail,
@@ -975,7 +975,7 @@ export function isInstanceEditorDraftFlushEmpty(changes: InstanceEditorDraftFlus
   );
 }
 
-/** Metadata-патчи, которые legacy flush может отправить на сервер (до batch API фазы 3). */
+/** Есть metadata-патчи относительно baseline (`isFlushableDirty` / unsaved gate). */
 export function hasInstanceEditorDraftFlushableChanges(
   draft: InstanceEditorDraft,
   baseline: TreatmentProgramInstanceDetail,
@@ -1002,7 +1002,7 @@ export function hasInstanceEditorDraftStructuralChanges(
   );
 }
 
-/** После legacy flush — сохранить structural-секции черновика. */
+/** После успешного batch-save — очистить только metadata-секции (legacy helper). */
 export function clearFlushableInstanceEditorDraftSections(draft: InstanceEditorDraft): InstanceEditorDraft {
   return {
     ...draft,

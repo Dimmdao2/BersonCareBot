@@ -699,6 +699,7 @@ export const TREATMENT_PROGRAM_EVENT_TYPES = [
   "stage_completed",
   "status_changed",
   "test_completed",
+  "program_changed",
 ] as const;
 
 export type TreatmentProgramEventType = (typeof TREATMENT_PROGRAM_EVENT_TYPES)[number];
@@ -715,6 +716,7 @@ export const TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES: readonly TreatmentProg
   "stage_removed",
   "stage_skipped",
   "status_changed",
+  "program_changed",
 ];
 
 export type TreatmentProgramEventTargetType = "stage" | "stage_item" | "program";
@@ -768,6 +770,8 @@ export function formatTreatmentProgramEventTypeRu(eventType: TreatmentProgramEve
       return "обновление статуса";
     case "test_completed":
       return "завершён тест";
+    case "program_changed":
+      return "программа изменена";
     default:
       return typeof eventType === "string" ? eventType : String(eventType);
   }
@@ -909,6 +913,8 @@ export function summarizeTreatmentProgramEventForDoctorRu(
       const tail = decRu ? ` — ${decRu}` : "";
       return `Отправлен результат теста «${itemLabel}»${tail}`;
     }
+    case "program_changed":
+      return "Программа изменена";
     case "status_changed":
       return summarizeTreatmentProgramStatusChangedForDoctorRu(event, labels, {
         stageTitle,

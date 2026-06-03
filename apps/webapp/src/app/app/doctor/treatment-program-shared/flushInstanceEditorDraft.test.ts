@@ -73,19 +73,19 @@ function minimalDetail(): TreatmentProgramInstanceDetail {
 }
 
 describe("flushInstanceEditorDraft", () => {
+  const fetchMock = vi.fn();
+
   beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({ ok: true }),
-      })),
-    );
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.clearAllMocks();
   });
 
   it("returns ok when draft has no real changes", async () => {
@@ -105,14 +105,13 @@ describe("flushInstanceEditorDraft", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("returns ok without fetch when only structural draft sections are dirty", async () => {
+  it("POSTs editor-batch for structural draft", async () => {
     const baseline = minimalDetail();
     const result = await flushInstanceEditorDraft({
       instanceId: baseline.id,
       programStatus: "active",
       draft: {
         ...createEmptyInstanceEditorDraft(),
-        stageOrder: ["22222222-2222-4222-8222-222222222222"],
         itemStructuralPatches: {
           "44444444-4444-4444-8444-444444444444": { status: "disabled" },
         },
@@ -120,10 +119,13 @@ describe("flushInstanceEditorDraft", () => {
       baseline,
     });
     expect(result).toEqual({ ok: true });
-    expect(fetch).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/editor-batch");
+    expect(init.method).toBe("POST");
   });
 
-  it("PATCHes only changed fields", async () => {
+  it("POSTs editor-batch with metadata and structural sections", async () => {
     const baseline = minimalDetail();
     const result = await flushInstanceEditorDraft({
       instanceId: baseline.id,
@@ -132,9 +134,6 @@ describe("flushInstanceEditorDraft", () => {
         ...createEmptyInstanceEditorDraft(),
         stageMetadata: {
           "22222222-2222-4222-8222-222222222222": { title: "Новый этап" },
-        },
-        groupPatches: {
-          "33333333-3333-4333-8333-333333333333": { title: "Новая группа" },
         },
         itemPatches: {
           "44444444-4444-4444-8444-444444444444": { localComment: "Коммент" },
@@ -143,23 +142,15 @@ describe("flushInstanceEditorDraft", () => {
       baseline,
     });
     expect(result).toEqual({ ok: true });
-    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("returns partial when a later PATCH fails", async () => {
+  it("returns error when editor-batch fails", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: async () => ({ ok: false, error: "fail" }),
+    });
     const baseline = minimalDetail();
-    let call = 0;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        call += 1;
-        if (call === 1) {
-          return { ok: true, json: async () => ({ ok: true }) };
-        }
-        return { ok: false, json: async () => ({ ok: false, error: "fail" }) };
-      }),
-    );
-
     const result = await flushInstanceEditorDraft({
       instanceId: baseline.id,
       programStatus: "active",
@@ -168,12 +159,9 @@ describe("flushInstanceEditorDraft", () => {
         stageMetadata: {
           "22222222-2222-4222-8222-222222222222": { title: "Новый этап" },
         },
-        groupPatches: {
-          "33333333-3333-4333-8333-333333333333": { title: "Новая группа" },
-        },
       },
       baseline,
     });
-    expect(result).toEqual({ ok: false, error: "fail", partial: true });
+    expect(result).toEqual({ ok: false, error: "fail" });
   });
 });

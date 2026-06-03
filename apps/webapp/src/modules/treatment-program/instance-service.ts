@@ -26,6 +26,14 @@ import {
   TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
 } from "./types";
 import { isStageZero, assertTreatmentProgramStageItemFitsSystemGroup } from "./stage-semantics";
+import {
+  applyInstanceEditorBatch,
+  type ApplyInstanceEditorBatchDeps,
+} from "./instanceEditorBatchApply";
+import {
+  isProgramChangedDiffEmpty,
+  type InstanceEditorBatchDraft,
+} from "./instanceEditorBatchSchema";
 
 /** Второй экземпляр со `status: active` для того же пациента запрещён (POST назначения). */
 export const SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE =
@@ -1540,6 +1548,40 @@ export function createTreatmentProgramInstanceService(deps: {
         }
       }
       return blocks;
+    },
+
+    async doctorApplyInstanceEditorBatch(input: {
+      instanceId: string;
+      actorId: string | null;
+      draft: InstanceEditorBatchDraft;
+    }) {
+      assertUuid(input.instanceId);
+      if (input.actorId) assertUuid(input.actorId);
+
+      const batchDeps: ApplyInstanceEditorBatchDeps = {
+        instances,
+        templates,
+        snapshots,
+        itemRefs,
+        testAttempts,
+      };
+      const { detail, diff } = await applyInstanceEditorBatch(batchDeps, {
+        instanceId: input.instanceId,
+        draft: input.draft,
+      });
+
+      if (!isProgramChangedDiffEmpty(diff)) {
+        await appendEvent({
+          instanceId: input.instanceId,
+          actorId: input.actorId,
+          eventType: "program_changed",
+          targetType: "program",
+          targetId: input.instanceId,
+          payload: { scope: "editor_batch", diff },
+        });
+      }
+
+      return detail;
     },
   };
 }

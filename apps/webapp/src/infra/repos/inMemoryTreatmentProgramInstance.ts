@@ -171,6 +171,26 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
     stages.set(next.id, { ...next, status: "available" });
   }
 
+  function snapshotInstanceTree() {
+    return {
+      instances: new Map(instances),
+      stages: new Map(stages),
+      items: new Map(items),
+      instGroups: new Map(instGroups),
+    };
+  }
+
+  function restoreInstanceTree(snap: ReturnType<typeof snapshotInstanceTree>) {
+    instances.clear();
+    stages.clear();
+    items.clear();
+    instGroups.clear();
+    for (const [k, v] of snap.instances) instances.set(k, v);
+    for (const [k, v] of snap.stages) stages.set(k, v);
+    for (const [k, v] of snap.items) items.set(k, v);
+    for (const [k, v] of snap.instGroups) instGroups.set(k, v);
+  }
+
   const instancePort: TreatmentProgramInstancePort = {
     async createInstanceTree(input: CreateTreatmentProgramInstanceTreeInput): Promise<TreatmentProgramInstanceDetail> {
       for (const r of instances.values()) {
@@ -987,6 +1007,16 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const t = isoNow();
       items.set(stageItemId, { ...row, lastViewedAt: t });
       return { updated: true };
+    },
+
+    async runInMutationTransaction<T>(fn: () => Promise<T>): Promise<T> {
+      const snap = snapshotInstanceTree();
+      try {
+        return await fn();
+      } catch (e) {
+        restoreInstanceTree(snap);
+        throw e;
+      }
     },
   };
 

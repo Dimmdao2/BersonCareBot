@@ -63,7 +63,7 @@ function wrapper(baseline: TreatmentProgramInstanceDetail, onBaselineSynced = vi
 }
 
 describe("InstanceEditorDraftContext", () => {
-  it("structural draft methods update displayDetail and stay dirty after metadata flush", async () => {
+  it("saveDraft clears draft after successful editor-batch flush", async () => {
     const baseline = minimalDetail();
     const { result } = renderHook(() => useInstanceEditorDraft(), { wrapper: wrapper(baseline) });
 
@@ -74,18 +74,15 @@ describe("InstanceEditorDraftContext", () => {
     });
 
     expect(result.current.isDirty).toBe(true);
-    expect(result.current.displayDetail.stages.some((s) => s.id === stageId)).toBe(true);
-    expect(result.current.displayDetail.stages[0]?.title).toBe("Renamed");
 
     await act(async () => {
       await result.current.saveDraft();
     });
 
     await waitFor(() => {
-      expect(result.current.displayDetail.stages.some((s) => s.id === stageId)).toBe(true);
-      expect(result.current.isDirty).toBe(true);
+      expect(result.current.isDirty).toBe(false);
     });
-    expect(result.current.displayDetail.stages[0]?.title).toBe("Этап 1");
+    expect(result.current.displayDetail).toEqual(baseline);
   });
 
   it("setStageOrder and patchItemStructural are exposed", () => {
@@ -119,7 +116,7 @@ describe("InstanceEditorDraftContext", () => {
     expect(result.current.displayDetail).toEqual(baseline);
   });
 
-  it("saveDraft with structural-only returns structuralPending", async () => {
+  it("saveDraft persists structural draft via editor-batch", async () => {
     const baseline = minimalDetail();
     const { result } = renderHook(() => useInstanceEditorDraft(), { wrapper: wrapper(baseline) });
 
@@ -134,7 +131,8 @@ describe("InstanceEditorDraftContext", () => {
       saveResult = await result.current.saveDraft();
     });
 
-    expect(saveResult).toEqual({ ok: false, structuralPending: true });
+    expect(saveResult).toEqual({ ok: true });
+    expect(result.current.isDirty).toBe(false);
   });
 
   it("hideGroup marks draft dirty", () => {

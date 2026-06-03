@@ -82,4 +82,22 @@ describe("doctor treatment program timeline copy", () => {
     expect(text).toContain("Тест колено");
     expect(text).toContain("зачтено");
   });
+
+  it("summarizes program_changed batch save", () => {
+    const text = summarizeTreatmentProgramEventForDoctorRu(
+      {
+        id: "e5",
+        instanceId: "inst",
+        actorId: "doc",
+        eventType: "program_changed",
+        targetType: "program",
+        targetId: "inst",
+        payload: { scope: "editor_batch", diff: { stagesMetadataUpdated: 1 } },
+        reason: null,
+        createdAt: "2026-06-03T12:00:00.000Z",
+      },
+      labels,
+    );
+    expect(text).toBe("Программа изменена");
+  });
 });

@@ -11,18 +11,14 @@ import {
 } from "react";
 import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
 import {
-  clearFlushableInstanceEditorDraftSections,
   createEmptyInstanceEditorDraft,
   createInstanceEditorDraftClientId,
   hasInstanceEditorDraftFlushableChanges,
-  hasInstanceEditorDraftStructuralChanges,
   isInstanceEditorDraftClientId,
   isInstanceEditorDraftDirty,
-  isInstanceEditorDraftFlushEmpty,
   itemCreateClientIds,
   mergeInstanceEditorDraftIntoDetail,
   normalizeInstanceEditorDraft,
-  pickInstanceEditorDraftFlushChanges,
   prepareInstanceEditorItemCreate,
   removeItemFromInstanceEditorItemCreates,
   type InstanceEditorDraft,
@@ -67,8 +63,6 @@ type InstanceEditorDraftContextValue = {
     ok: boolean;
     error?: string;
     cancelled?: boolean;
-    partial?: boolean;
-    structuralPending?: boolean;
   }>;
 };
 
@@ -281,12 +275,7 @@ export function InstanceEditorDraftProvider(props: {
 
   const saveDraft = useCallback(async () => {
     if (!isInstanceEditorDraftDirty(draft, baseline)) return { ok: true };
-    const structuralPending = hasInstanceEditorDraftStructuralChanges(draft, baseline);
-    const flushChanges = pickInstanceEditorDraftFlushChanges(draft, baseline);
-    if (isInstanceEditorDraftFlushEmpty(flushChanges)) {
-      if (structuralPending) return { ok: false, structuralPending: true };
-      return { ok: true };
-    }
+
     setSaving(true);
     try {
       const result = await flushInstanceEditorDraft({
@@ -297,21 +286,11 @@ export function InstanceEditorDraftProvider(props: {
       });
       if (!result.ok) {
         if (result.cancelled) return { ok: false, cancelled: true };
-        if (result.partial) {
-          await onBaselineSynced();
-        }
-        return { ok: false, error: result.error, partial: result.partial };
+        return { ok: false, error: result.error };
       }
-      const afterFlush = normalizeInstanceEditorDraft(
-        clearFlushableInstanceEditorDraftSections(draft),
-        baseline,
-      );
-      setDraft(afterFlush);
+      setDraft(createEmptyInstanceEditorDraft());
       await onBaselineSynced();
-      return {
-        ok: true,
-        structuralPending: hasInstanceEditorDraftStructuralChanges(afterFlush, baseline),
-      };
+      return { ok: true };
     } finally {
       setSaving(false);
     }
