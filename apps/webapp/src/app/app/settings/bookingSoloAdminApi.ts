@@ -1,5 +1,8 @@
 const BASE = "/api/admin/booking-engine";
 
+export const SOLO_BOOKING_UNAVAILABLE_MESSAGE =
+  "Запись недоступна без подключения к базе данных.";
+
 export type SoloOverview = {
   organizationId: string;
   organization: { id: string; title: string } | null;
@@ -133,6 +136,35 @@ export function isServiceAvailableAtLocation(
   return Boolean(loc && spec);
 }
 
+/** Число активных услуг без хотя бы одной включённой пары услуга×локация. */
+export function countServicesWithoutAvailability(
+  activeServices: { id: string }[],
+  activeBranchIds: Iterable<string>,
+  overview: Pick<SoloOverview, "locationAvailability" | "specialistAvailability" | "specialists">,
+): number {
+  const branchIds = [...activeBranchIds];
+  if (branchIds.length === 0) return activeServices.length;
+  return activeServices.filter((service) =>
+    !branchIds.some((branchId) => isServiceAvailableAtLocation(overview, service.id, branchId)),
+  ).length;
+}
+
+/** Есть ли активные интервалы на weekday хотя бы одного из ближайших daysAhead дней. */
+export function hasScheduleOnUpcomingDays(
+  rows: { weekday: number; isActive: boolean }[],
+  daysAhead = 7,
+  fromDate = new Date(),
+): boolean {
+  const activeWeekdays = new Set(rows.filter((r) => r.isActive).map((r) => r.weekday));
+  if (activeWeekdays.size === 0) return false;
+  for (let i = 0; i < daysAhead; i++) {
+    const d = new Date(fromDate);
+    d.setDate(d.getDate() + i);
+    if (activeWeekdays.has(d.getDay())) return true;
+  }
+  return false;
+}
+
 export async function setServiceLocationAvailability(
   serviceId: string,
   branchId: string,
@@ -160,4 +192,32 @@ export async function setServiceLocationAvailability(
       isActive: enabled,
     }),
   });
+}
+
+export function minuteToTimeLabel(minute: number): string {
+  const h = Math.floor(minute / 60);
+  const m = minute % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+export function timeLabelToMinute(value: string): number {
+  const [h, m] = value.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) throw new Error("invalid_time");
+  return h * 60 + m;
+}
+
+export function slugFieldKey(label: string, existing: string[]): string {
+  const base =
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9а-яё]+/gi, "_")
+      .replace(/^_|_$/g, "")
+      .slice(0, 40) || "field";
+  let key = base;
+  let i = 2;
+  while (existing.includes(key)) {
+    key = `${base}_${i++}`;
+  }
+  return key;
 }

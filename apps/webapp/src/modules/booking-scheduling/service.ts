@@ -27,6 +27,10 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       return port.resolveCanonicalFromBranchService(branchServiceId);
     },
 
+    resolveLegacyBranchServiceId(input) {
+      return port.resolveLegacyBranchServiceId(input);
+    },
+
     async getInPersonSlots({ branchServiceId, date, slotCount = 1 }) {
       const ctx = await port.resolveCanonicalFromBranchService(branchServiceId);
       if (!ctx) throw new Error("branch_service_not_found");
@@ -173,6 +177,18 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       });
       return rows.length === 0;
     },
+
+    getBufferMinutes(organizationId, specialistId) {
+      return port.getBufferMinutes(organizationId, specialistId);
+    },
+
+    upsertBufferMinutes(input) {
+      return port.upsertBufferMinutes(input);
+    },
+
+    getMinNoticeHours(organizationId) {
+      return port.getMinNoticeHours(organizationId);
+    },
   };
 }
 
@@ -196,6 +212,8 @@ async function computeSlotsInternal(
     }),
   );
   const bufferMinutes = await port.getBufferMinutes(context.organizationId, context.specialistId);
+  const minNoticeHours = await port.getMinNoticeHours(context.organizationId);
+  const minSlotStartMs = Date.now() + minNoticeHours * 3_600_000;
   const rangeStart = `${context.dateFrom}T00:00:00.000Z`;
   const rangeEnd = `${context.dateTo}T23:59:59.999Z`;
   const busy = await port.listBusyIntervals({
@@ -216,6 +234,7 @@ async function computeSlotsInternal(
     const free = subtractBusy(workingIntervals, busyMs);
     const daySlots = generateSlotsFromFree(free, totalDuration, context.durationMinutes);
     for (const slot of daySlots) {
+      if (new Date(slot.startAt).getTime() < minSlotStartMs) continue;
       if (slotCount > 1 && !isChainFree(slot.startAt, slotCount, context.durationMinutes, busy)) {
         continue;
       }

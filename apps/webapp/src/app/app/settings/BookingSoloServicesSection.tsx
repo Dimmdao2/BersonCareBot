@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
   fetchSoloOverview,
   minorToRublesInput,
@@ -26,13 +27,21 @@ export function BookingSoloServicesSection() {
   const [unavailable, setUnavailable] = useState(false);
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("60");
   const [priceRub, setPriceRub] = useState("5000");
   const [patientVisible, setPatientVisible] = useState(true);
+  const [usableInPackages, setUsableInPackages] = useState(true);
+  const [prepaymentApplicable, setPrepaymentApplicable] = useState(false);
+  const [onlinePaymentApplicable, setOnlinePaymentApplicable] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [editDuration, setEditDuration] = useState("");
   const [editPriceRub, setEditPriceRub] = useState("");
+  const [editUsableInPackages, setEditUsableInPackages] = useState(true);
+  const [editPrepaymentApplicable, setEditPrepaymentApplicable] = useState(false);
+  const [editOnlinePaymentApplicable, setEditOnlinePaymentApplicable] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -69,7 +78,7 @@ export function BookingSoloServicesSection() {
 
   if (unavailable) {
     return (
-      <p className="text-sm text-muted-foreground">Каноническая запись недоступна без подключения к БД.</p>
+      <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>
     );
   }
 
@@ -90,6 +99,12 @@ export function BookingSoloServicesSection() {
               placeholder="Название"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+            />
+            <Input
+              className="min-w-[12rem] flex-1"
+              placeholder="Описание для пациента"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
             />
             <Input
               className="w-20"
@@ -113,6 +128,18 @@ export function BookingSoloServicesSection() {
               <Switch checked={patientVisible} onCheckedChange={setPatientVisible} />
               Доступна пациентам
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={usableInPackages} onCheckedChange={setUsableInPackages} />
+              Абонементы
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={prepaymentApplicable} onCheckedChange={setPrepaymentApplicable} />
+              Предоплата
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={onlinePaymentApplicable} onCheckedChange={setOnlinePaymentApplicable} />
+              Онлайн-оплата
+            </label>
             <Button
               type="button"
               size="sm"
@@ -125,13 +152,18 @@ export function BookingSoloServicesSection() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       title: title.trim(),
+                      description: description.trim() || null,
                       durationMinutes: Number(duration),
                       priceMinor: rublesToMinor(rub),
                       publicWidgetVisible: patientVisible,
                       adminManualOnly: !patientVisible,
+                      usableInPackages,
+                      prepaymentApplicable,
+                      onlinePaymentApplicable,
                     }),
                   });
                   setTitle("");
+                  setDescription("");
                 })
               }
             >
@@ -147,7 +179,10 @@ export function BookingSoloServicesSection() {
                 <th className="px-3 py-2 font-medium">Услуга</th>
                 <th className="px-3 py-2 font-medium">Мин</th>
                 <th className="px-3 py-2 font-medium">Цена</th>
-                <th className="px-3 py-2 font-medium">Пациентам</th>
+                <th className="px-3 py-2 font-medium">Доступна пациентам</th>
+                <th className="px-3 py-2 font-medium">Абон.</th>
+                <th className="px-3 py-2 font-medium">Предопл.</th>
+                <th className="px-3 py-2 font-medium">Онлайн</th>
                 <th className="px-3 py-2 font-medium text-right">Действия</th>
               </tr>
             </thead>
@@ -158,7 +193,15 @@ export function BookingSoloServicesSection() {
                   <tr key={s.id} className="border-b border-border/60 last:border-0">
                     <td className="px-3 py-2">
                       {editId === s.id ? (
-                        <Input className="h-8" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                        <div className="space-y-1">
+                          <Input className="h-8" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                          <Input
+                            className="h-8"
+                            placeholder="Описание"
+                            value={editDescription}
+                            onChange={(e) => setEditDescription(e.target.value)}
+                          />
+                        </div>
                       ) : (
                         <span className={!s.isActive ? "text-muted-foreground line-through" : undefined}>
                           {s.title}
@@ -210,6 +253,69 @@ export function BookingSoloServicesSection() {
                         />
                       )}
                     </td>
+                    <td className="px-3 py-2">
+                      {editId === s.id ? (
+                        <Switch checked={editUsableInPackages} onCheckedChange={setEditUsableInPackages} />
+                      ) : (
+                        <Switch
+                          checked={s.usableInPackages}
+                          disabled={pending || !s.isActive}
+                          onCheckedChange={(checked) =>
+                            run(async () => {
+                              await apiJson(`${BASE}/services/${s.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ usableInPackages: checked }),
+                              });
+                            })
+                          }
+                        />
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {editId === s.id ? (
+                        <Switch
+                          checked={editPrepaymentApplicable}
+                          onCheckedChange={setEditPrepaymentApplicable}
+                        />
+                      ) : (
+                        <Switch
+                          checked={s.prepaymentApplicable}
+                          disabled={pending || !s.isActive}
+                          onCheckedChange={(checked) =>
+                            run(async () => {
+                              await apiJson(`${BASE}/services/${s.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ prepaymentApplicable: checked }),
+                              });
+                            })
+                          }
+                        />
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {editId === s.id ? (
+                        <Switch
+                          checked={editOnlinePaymentApplicable}
+                          onCheckedChange={setEditOnlinePaymentApplicable}
+                        />
+                      ) : (
+                        <Switch
+                          checked={s.onlinePaymentApplicable}
+                          disabled={pending || !s.isActive}
+                          onCheckedChange={(checked) =>
+                            run(async () => {
+                              await apiJson(`${BASE}/services/${s.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ onlinePaymentApplicable: checked }),
+                              });
+                            })
+                          }
+                        />
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       {editId === s.id ? (
                         <>
@@ -226,8 +332,12 @@ export function BookingSoloServicesSection() {
                                   headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({
                                     title: editTitle,
+                                    description: editDescription.trim() || null,
                                     durationMinutes: Number(editDuration),
                                     priceMinor: rublesToMinor(rub),
+                                    usableInPackages: editUsableInPackages,
+                                    prepaymentApplicable: editPrepaymentApplicable,
+                                    onlinePaymentApplicable: editOnlinePaymentApplicable,
                                   }),
                                 });
                                 setEditId(null);
@@ -258,8 +368,12 @@ export function BookingSoloServicesSection() {
                             onClick={() => {
                               setEditId(s.id);
                               setEditTitle(s.title);
+                              setEditDescription(s.description ?? "");
                               setEditDuration(String(s.durationMinutes));
                               setEditPriceRub(minorToRublesInput(s.priceMinor));
+                              setEditUsableInPackages(s.usableInPackages);
+                              setEditPrepaymentApplicable(s.prepaymentApplicable);
+                              setEditOnlinePaymentApplicable(s.onlinePaymentApplicable);
                             }}
                           >
                             Изм.

@@ -27,6 +27,12 @@ export type CanonicalBookingContext = {
 
 export type BookingSchedulingPort = {
   resolveCanonicalFromBranchService(branchServiceId: string): Promise<CanonicalBookingContext | null>;
+  resolveLegacyBranchServiceId(input: {
+    organizationId: string;
+    branchId: string;
+    serviceId: string;
+    specialistId?: string | null;
+  }): Promise<string | null>;
   listServicesByCityCode(organizationId: string, cityCode: string): Promise<{ serviceId: string; branchId: string }[]>;
   getSlots(context: SchedulingContext): Promise<BookingSlotsByDate[]>;
   listBusyIntervals(input: {
@@ -44,6 +50,12 @@ export type BookingSchedulingPort = {
     roomId: string | null;
   }): Promise<{ weekday: number; startMinute: number; endMinute: number }[]>;
   getBufferMinutes(organizationId: string, specialistId: string | null): Promise<number>;
+  upsertBufferMinutes(input: {
+    organizationId: string;
+    specialistId?: string | null;
+    minutes: number;
+  }): Promise<void>;
+  getMinNoticeHours(organizationId: string): Promise<number>;
   listScheduleBlocks(input: {
     organizationId: string;
     rangeStart: string;
@@ -122,6 +134,12 @@ export type UpdateWorkingHoursInput = {
 
 export type BookingSchedulingService = {
   resolveInPersonContext(branchServiceId: string): Promise<CanonicalBookingContext | null>;
+  resolveLegacyBranchServiceId(input: {
+    organizationId: string;
+    branchId: string;
+    serviceId: string;
+    specialistId?: string | null;
+  }): Promise<string | null>;
   getInPersonSlots(input: {
     branchServiceId: string;
     date?: string;
@@ -173,4 +191,11 @@ export type BookingSchedulingService = {
     branchId?: string | null;
     roomId?: string | null;
   }): Promise<boolean>;
+  getBufferMinutes(organizationId: string, specialistId: string | null): Promise<number>;
+  upsertBufferMinutes(input: {
+    organizationId: string;
+    specialistId?: string | null;
+    minutes: number;
+  }): Promise<void>;
+  getMinNoticeHours(organizationId: string): Promise<number>;
 };

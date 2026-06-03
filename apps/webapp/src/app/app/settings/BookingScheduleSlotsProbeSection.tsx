@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 
 const OVERVIEW = "/api/admin/booking-engine/overview";
-const CALENDAR = "/api/admin/booking-engine/calendar";
+const SLOTS_PROBE = "/api/admin/booking-engine/slots-probe";
 
 type BranchRow = { id: string; title: string; isActive: boolean };
 type ServiceRow = { id: string; title: string; isActive: boolean };
@@ -35,18 +35,27 @@ export function BookingScheduleSlotsProbeSection() {
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [slots, setSlots] = useState<string[]>([]);
+  const [slotsReadSource, setSlotsReadSource] = useState<"canonical" | "rubitime">("canonical");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const loadCatalog = useCallback(async () => {
     try {
       const res = await fetch(OVERVIEW);
-      const json = await readJsonSafe<{ ok?: boolean; branches?: BranchRow[]; services?: ServiceRow[] }>(res);
+      const json = await readJsonSafe<{
+        ok?: boolean;
+        branches?: BranchRow[];
+        services?: ServiceRow[];
+        bookingSlotsReadSource?: "canonical" | "rubitime";
+      }>(res);
       if (json?.ok && json.branches && json.services) {
         const activeBranches = json.branches.filter((b) => b.isActive);
         const activeServices = json.services.filter((s) => s.isActive);
         setBranches(activeBranches);
         setServices(activeServices);
+        if (json.bookingSlotsReadSource === "canonical" || json.bookingSlotsReadSource === "rubitime") {
+          setSlotsReadSource(json.bookingSlotsReadSource);
+        }
         if (activeBranches[0]) setBranchId((prev) => prev || activeBranches[0]!.id);
         if (activeServices[0]) setServiceId((prev) => prev || activeServices[0]!.id);
       }
@@ -65,35 +74,27 @@ export function BookingScheduleSlotsProbeSection() {
   const serviceLabel = services.find((s) => s.id === serviceId)?.title;
 
   function probe() {
-    if (!serviceId || !date) return;
+    if (!branchId || !serviceId || !date) return;
     setError(null);
     startTransition(async () => {
       try {
-        const qs = new URLSearchParams({
-          view: "day",
-          date,
-          serviceId,
-          includeFreeSlots: "1",
-        });
-        if (branchId) qs.set("branchId", branchId);
-        const res = await fetch(`${CALENDAR}?${qs.toString()}`);
+        const qs = new URLSearchParams({ branchId, serviceId, date });
+        const res = await fetch(`${SLOTS_PROBE}?${qs.toString()}`);
         const json = await readJsonSafe<{
           ok?: boolean;
           error?: string;
-          events?: Array<{ kind: string; startAt: string; endAt: string }>;
+          slots?: string[];
+          bookingSlotsReadSource?: "canonical" | "rubitime";
         }>(res);
         if (!json || !json.ok) {
           setError(json?.error ?? `probe_failed_${res.status}`);
           setSlots([]);
           return;
         }
-        const freeSlots = (json.events ?? []).filter((event) => event.kind === "freeSlot");
-        setSlots(
-          freeSlots.map((s) => {
-            const start = new Date(s.startAt);
-            return start.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-          }),
-        );
+        if (json.bookingSlotsReadSource === "canonical" || json.bookingSlotsReadSource === "rubitime") {
+          setSlotsReadSource(json.bookingSlotsReadSource);
+        }
+        setSlots(json.slots ?? []);
       } catch {
         setError("probe_failed");
         setSlots([]);
@@ -107,6 +108,9 @@ export function BookingScheduleSlotsProbeSection() {
         <CardTitle className="text-base">Проверка записи глазами пациента</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Слоты считаются тем же путём, что и для пациента при записи ({slotsReadSource === "canonical" ? "ваше расписание" : "Rubitime"}).
+        </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-2">
             <Label>Локация</Label>
@@ -142,9 +146,18 @@ export function BookingScheduleSlotsProbeSection() {
         <Button type="button" size="sm" disabled={pending} onClick={probe}>
           Показать свободные слоты
         </Button>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? (
+          <p className="text-sm text-destructive">
+            {error === "branch_service_mapping_missing"
+              ? "Нет сопоставления локации и услуги для patient API — проверьте доступность и Rubitime-маппинг."
+              : error}
+          </p>
+        ) : null}
         {slots.length > 0 ? (
           <p className="text-sm text-muted-foreground">Слоты: {slots.join(", ")}</p>
+        ) : null}
+        {!error && !pending && slots.length === 0 && branchId && serviceId ? (
+          <p className="text-sm text-muted-foreground">На выбранную дату свободных слотов нет.</p>
         ) : null}
       </CardContent>
     </Card>

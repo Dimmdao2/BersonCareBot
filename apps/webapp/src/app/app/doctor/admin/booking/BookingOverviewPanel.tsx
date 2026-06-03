@@ -6,7 +6,7 @@ import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
 export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData }) {
   if (data.unavailable) {
-    return <p className="text-sm text-muted-foreground">Каноническая запись недоступна без подключения к БД.</p>;
+    return <p className="text-sm text-muted-foreground">Запись недоступна без подключения к базе данных.</p>;
   }
 
   const { stats, warnings } = data;
@@ -24,7 +24,13 @@ export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData 
             <p>Активных локаций: {stats.activeLocations}</p>
             <p>Активных услуг: {stats.activeServices}</p>
             <p>Доступно пациентам: {stats.patientVisibleServices}</p>
-            <p>Расписание: {stats.hasCustomSchedule ? "настроено" : "не настроено"}</p>
+            <p>Расписание:{" "}
+              {stats.hasUpcomingSchedule
+                ? "на ближайшие дни"
+                : stats.hasCustomSchedule
+                  ? "настроено"
+                  : "не настроено"}
+            </p>
             {stats.servicesWithoutAvailability > 0 ? (
               <p className="text-muted-foreground">
                 Услуг без доступности: {stats.servicesWithoutAvailability}

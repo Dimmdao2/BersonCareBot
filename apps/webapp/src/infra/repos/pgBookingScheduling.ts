@@ -13,6 +13,7 @@ import {
   beWorkingHours as beWh,
   beScheduleBlocks as beSb,
 } from "../../../db/schema/bookingScheduling";
+import { systemSettings } from "../../../db/schema/schema";
 import { buildSlotsForContext } from "@/modules/booking-scheduling/service";
 import type { BookingSchedulingPort, CanonicalBookingContext } from "@/modules/booking-scheduling/ports";
 
@@ -72,6 +73,42 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         durationMinutes,
         branchTimezone: branch.timezone,
       } satisfies CanonicalBookingContext;
+    },
+
+    async resolveLegacyBranchServiceId({ organizationId, branchId, serviceId, specialistId }) {
+      const db = getDrizzle();
+      const ssaConds = [
+        eq(beSpecialistServiceAvailability.organizationId, organizationId),
+        eq(beSpecialistServiceAvailability.branchId, branchId),
+        eq(beSpecialistServiceAvailability.serviceId, serviceId),
+        eq(beSpecialistServiceAvailability.isActive, true),
+      ];
+      if (specialistId) {
+        ssaConds.push(eq(beSpecialistServiceAvailability.specialistId, specialistId));
+      }
+      const ssaRows = await db
+        .select({ id: beSpecialistServiceAvailability.id })
+        .from(beSpecialistServiceAvailability)
+        .where(and(...ssaConds))
+        .orderBy(asc(beSpecialistServiceAvailability.createdAt))
+        .limit(1);
+      const ssaId = ssaRows[0]?.id;
+      if (!ssaId) return null;
+
+      const mapRows = await db
+        .select({ metadata: beExternalEntityMappings.metadata })
+        .from(beExternalEntityMappings)
+        .where(
+          and(
+            eq(beExternalEntityMappings.organizationId, organizationId),
+            eq(beExternalEntityMappings.entityType, "availability"),
+            eq(beExternalEntityMappings.canonicalId, ssaId),
+          ),
+        )
+        .limit(1);
+      const legacyId = mapRows[0]?.metadata as { legacy_branch_service_id?: string } | null | undefined;
+      const id = legacyId?.legacy_branch_service_id;
+      return typeof id === "string" && id.length > 0 ? id : null;
     },
 
     async listServicesByCityCode(organizationId, cityCode) {
@@ -188,6 +225,58 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       const cfg = rows[0]?.config;
       const minutes = cfg && typeof cfg.minutes === "number" ? cfg.minutes : 0;
       return Math.max(0, Math.round(minutes));
+    },
+
+    async upsertBufferMinutes({ organizationId, specialistId, minutes }) {
+      const db = getDrizzle();
+      const safeMinutes = Math.max(0, Math.min(240, Math.round(minutes)));
+      const scopeConds = [
+        eq(beAvailabilityRules.organizationId, organizationId),
+        eq(beAvailabilityRules.ruleType, "buffer_minutes"),
+        specialistId ? eq(beAvailabilityRules.specialistId, specialistId) : isNull(beAvailabilityRules.specialistId),
+      ];
+      const existing = await db
+        .select({ id: beAvailabilityRules.id })
+        .from(beAvailabilityRules)
+        .where(and(...scopeConds))
+        .limit(1);
+      const now = new Date().toISOString();
+      if (existing[0]) {
+        await db
+          .update(beAvailabilityRules)
+          .set({ config: { minutes: safeMinutes }, isActive: true, updatedAt: now })
+          .where(eq(beAvailabilityRules.id, existing[0].id));
+        return;
+      }
+      await db.insert(beAvailabilityRules).values({
+        organizationId,
+        specialistId: specialistId ?? null,
+        branchId: null,
+        ruleType: "buffer_minutes",
+        config: { minutes: safeMinutes },
+        isActive: true,
+      });
+    },
+
+    async getMinNoticeHours(_organizationId) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ valueJson: systemSettings.valueJson })
+        .from(systemSettings)
+        .where(and(eq(systemSettings.key, "booking_min_notice_hours"), eq(systemSettings.scope, "admin")))
+        .limit(1);
+      const raw = rows[0]?.valueJson;
+      const inner =
+        raw !== null && typeof raw === "object" && "value" in (raw as Record<string, unknown>)
+          ? (raw as { value: unknown }).value
+          : raw;
+      const n =
+        typeof inner === "number" && Number.isFinite(inner)
+          ? inner
+          : typeof inner === "string" && /^\d+$/.test(inner.trim())
+            ? Number.parseInt(inner.trim(), 10)
+            : 0;
+      return Math.max(0, Math.min(168, Math.round(n)));
     },
 
     async listScheduleBlocks({ organizationId, rangeStart, rangeEnd, specialistId, branchId, roomId }) {

@@ -1,5 +1,5 @@
-import { BookingFormFieldsSection } from "@/app/app/settings/BookingFormFieldsSection";
+import { BookingSoloFormFieldsSection } from "@/app/app/settings/BookingSoloFormFieldsSection";
 
 export default function DoctorAdminBookingFormPage() {
-  return <BookingFormFieldsSection layout="cards" />;
+  return <BookingSoloFormFieldsSection />;
 }

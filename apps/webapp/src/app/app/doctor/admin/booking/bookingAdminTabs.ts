@@ -32,10 +32,10 @@ export const BOOKING_ADMIN_TABS: BookingAdminTab[] = [
   { id: "form", label: "Форма", href: `${BOOKING_ADMIN_BASE}/form` },
   { id: "rules", label: "Правила", href: `${BOOKING_ADMIN_BASE}/rules` },
   { id: "payments", label: "Оплата", href: `${BOOKING_ADMIN_BASE}/payments` },
-  { id: "memberships", label: "Абонементы", href: `${BOOKING_ADMIN_BASE}/memberships` },
+  { id: "memberships", label: "Абонементы и продукты", href: `${BOOKING_ADMIN_BASE}/memberships` },
   { id: "public", label: "Публичная запись", href: `${BOOKING_ADMIN_BASE}/public` },
   { id: "operations", label: "Операции", href: `${BOOKING_ADMIN_BASE}/operations` },
-  { id: "integrations", label: "Rubitime", href: `${BOOKING_ADMIN_BASE}/integrations` },
+  { id: "integrations", label: "Интеграция Rubitime", href: `${BOOKING_ADMIN_BASE}/integrations` },
 ];
 
 /** Legacy маршруты → актуальная вкладка (redirect + подсветка nav). */

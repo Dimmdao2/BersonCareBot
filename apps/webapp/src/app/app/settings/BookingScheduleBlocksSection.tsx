@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { pickDefaultSpecialist } from "@/app/app/settings/bookingSoloAdminApi";
 const BASE = "/api/admin/booking-engine/schedule-blocks";
 const OVERVIEW = "/api/admin/booking-engine/overview";
 
@@ -32,6 +33,11 @@ type Catalog = {
   branches: { id: string; title: string }[];
   rooms: { id: string; title: string }[];
 };
+
+function blockTypeLabel(blockType: string, solo: boolean): string {
+  if (blockType === "absence") return "Отсутствие";
+  return solo ? "Занято" : "Блок";
+}
 
 function scopeLabel(
   block: Block,
@@ -80,15 +86,24 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
     const res = await fetch(OVERVIEW);
     const json = (await res.json()) as {
       ok?: boolean;
-      specialists?: Catalog["specialists"];
+      specialists?: (Catalog["specialists"][0] & { isActive?: boolean })[];
       branches?: Catalog["branches"];
       rooms?: Catalog["rooms"];
     };
     if (json.ok && json.specialists && json.branches && json.rooms) {
       setCatalog({ specialists: json.specialists, branches: json.branches, rooms: json.rooms });
-      if (soloUx && json.specialists[0]) {
-        setSpecialistId(json.specialists[0].id);
-        setFilterSpecialistId(json.specialists[0].id);
+      if (soloUx) {
+        const specialist = pickDefaultSpecialist(
+          json.specialists.map((s) => ({
+            id: s.id,
+            fullName: s.fullName,
+            isActive: s.isActive ?? true,
+          })),
+        );
+        if (specialist) {
+          setSpecialistId(specialist.id);
+          setFilterSpecialistId(specialist.id);
+        }
       }
     }
   }, [soloUx]);
@@ -249,12 +264,12 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
           <label className="flex flex-col gap-1">
             <Label>Тип</Label>
             <Select value={blockType} onValueChange={(v) => setBlockType(v as "block" | "absence")}>
-              <SelectTrigger displayLabel={blockType === "block" ? "Блок" : "Отсутствие"}>
+              <SelectTrigger displayLabel={blockTypeLabel(blockType, soloUx)}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="block" label="Блок">
-                  Блок
+                <SelectItem value="block" label={blockTypeLabel("block", soloUx)}>
+                  {blockTypeLabel("block", soloUx)}
                 </SelectItem>
                 <SelectItem value="absence" label="Отсутствие">
                   Отсутствие
@@ -332,7 +347,7 @@ export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: bool
           {blocks.map((b) => (
             <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
               <span>
-                {scopeLabel(b, catalog)} · {b.blockType === "absence" ? "Отсутствие" : "Блок"} ·{" "}
+                {scopeLabel(b, catalog)} · {blockTypeLabel(b.blockType, soloUx)} ·{" "}
                 {new Date(b.startAt).toLocaleString("ru-RU")} — {new Date(b.endAt).toLocaleString("ru-RU")}
                 {b.title ? ` · ${b.title}` : ""}
               </span>

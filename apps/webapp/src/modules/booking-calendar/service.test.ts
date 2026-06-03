@@ -64,6 +64,7 @@ describe("booking-calendar service", () => {
 
   const schedulingPort: BookingSchedulingPort = {
     resolveCanonicalFromBranchService: vi.fn(),
+    resolveLegacyBranchServiceId: vi.fn(),
     listServicesByCityCode: vi.fn(),
     getSlots: vi.fn(async () => [
       {
@@ -81,6 +82,8 @@ describe("booking-calendar service", () => {
     createWorkingHours: vi.fn(),
     updateWorkingHours: vi.fn(),
     deactivateWorkingHours: vi.fn(),
+    upsertBufferMinutes: vi.fn(),
+    getMinNoticeHours: vi.fn(async () => 0),
   };
 
   const service = createBookingCalendarService({
@@ -148,6 +151,7 @@ describe("booking-calendar service", () => {
   it("skips free slots when read source is rubitime_legacy", async () => {
     const isolatedScheduling: BookingSchedulingPort = {
       resolveCanonicalFromBranchService: vi.fn(),
+    resolveLegacyBranchServiceId: vi.fn(),
       listServicesByCityCode: vi.fn(),
       getSlots: vi.fn(async () => []),
       listBusyIntervals: vi.fn(),
@@ -160,6 +164,8 @@ describe("booking-calendar service", () => {
       createWorkingHours: vi.fn(),
       updateWorkingHours: vi.fn(),
       deactivateWorkingHours: vi.fn(),
+      upsertBufferMinutes: vi.fn(),
+      getMinNoticeHours: vi.fn(async () => 0),
     };
     const isolatedRubitimeService = createBookingCalendarService({
       calendarPort: mockPort,

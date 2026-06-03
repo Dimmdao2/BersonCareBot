@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
   ensureDefaultSpecialist,
   fetchSoloOverview,
@@ -32,6 +33,7 @@ export function BookingSoloLocationsSection() {
   const [editTitle, setEditTitle] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editTimezone, setEditTimezone] = useState("Europe/Moscow");
+  const [editSortOrder, setEditSortOrder] = useState("0");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const load = useCallback(async () => {
@@ -70,7 +72,7 @@ export function BookingSoloLocationsSection() {
 
   if (unavailable) {
     return (
-      <p className="text-sm text-muted-foreground">Каноническая запись недоступна без подключения к БД.</p>
+      <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>
     );
   }
 
@@ -105,6 +107,7 @@ export function BookingSoloLocationsSection() {
               onClick={() =>
                 run(async () => {
                   await ensureDefaultSpecialist(orgTitle);
+                  const maxOrder = branches.reduce((m, b) => Math.max(m, b.sortOrder), 0);
                   await apiJson(`${BASE}/branches`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -113,6 +116,7 @@ export function BookingSoloLocationsSection() {
                       cityCode: slugCityCode(title),
                       address: address.trim() || null,
                       timezone,
+                      sortOrder: maxOrder + 10,
                     }),
                   });
                   setTitle("");
@@ -148,12 +152,15 @@ export function BookingSoloLocationsSection() {
               <tr className="border-b bg-muted/40 text-left">
                 <th className="px-3 py-2 font-medium">Локация</th>
                 <th className="px-3 py-2 font-medium">Адрес</th>
-                <th className="px-3 py-2 font-medium">Пациентам</th>
+                <th className="px-3 py-2 font-medium">Порядок</th>
+                <th className="px-3 py-2 font-medium">Показывать пациентам</th>
                 <th className="px-3 py-2 font-medium text-right">Действия</th>
               </tr>
             </thead>
             <tbody>
-              {branches.map((b) => (
+              {[...branches]
+                .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"))
+                .map((b) => (
                 <tr key={b.id} className="border-b border-border/60 last:border-0">
                   <td className="px-3 py-2">
                     {editId === b.id ? (
@@ -169,6 +176,18 @@ export function BookingSoloLocationsSection() {
                       <Input className="h-8" value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
                     ) : (
                       (b.address ?? "—")
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    {editId === b.id ? (
+                      <Input
+                        className="h-8 w-16"
+                        type="number"
+                        value={editSortOrder}
+                        onChange={(e) => setEditSortOrder(e.target.value)}
+                      />
+                    ) : (
+                      b.sortOrder
                     )}
                   </td>
                   <td className="px-3 py-2">
@@ -203,6 +222,7 @@ export function BookingSoloLocationsSection() {
                                   title: editTitle,
                                   address: editAddress.trim() || null,
                                   timezone: editTimezone,
+                                  sortOrder: Number(editSortOrder),
                                 }),
                               });
                               setEditId(null);
@@ -234,6 +254,7 @@ export function BookingSoloLocationsSection() {
                           setEditTitle(b.title);
                           setEditAddress(b.address ?? "");
                           setEditTimezone(b.timezone);
+                          setEditSortOrder(String(b.sortOrder));
                         }}
                       >
                         Изм.

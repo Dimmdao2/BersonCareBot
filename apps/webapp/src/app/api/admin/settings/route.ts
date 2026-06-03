@@ -83,6 +83,7 @@ const ADMIN_SCOPE_KEYS = [
   "booking_rubitime_bridge_enabled",
   "booking_doctor_appointments_read_source",
   "booking_slots_read_source",
+  "booking_min_notice_hours",
   "booking_payment_enabled",
   "booking_payment_providers",
   "booking_lifecycle_notifications",
@@ -333,6 +334,20 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: raw };
+  }
+
+  if (parsed.data.key === "booking_min_notice_hours") {
+    const inner = normalizedValue.value;
+    const n =
+      typeof inner === "number" && Number.isFinite(inner)
+        ? inner
+        : typeof inner === "string" && /^\d+$/.test(inner.trim())
+          ? Number.parseInt(inner.trim(), 10)
+          : NaN;
+    if (!Number.isFinite(n) || n < 0 || n > 168) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: n };
   }
 
   if (ADMIN_BOOLEAN_SETTING_KEYS.has(parsed.data.key)) {

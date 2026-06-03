@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import {
+  SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   ensureDefaultSpecialist,
   fetchSoloOverview,
   isServiceAvailableAtLocation,
@@ -64,7 +65,7 @@ export function BookingSoloAvailabilitySection() {
 
   if (unavailable) {
     return (
-      <p className="text-sm text-muted-foreground">Каноническая запись недоступна без подключения к БД.</p>
+      <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>
     );
   }
 
