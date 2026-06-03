@@ -31,6 +31,14 @@ function addValidity(validFrom: string, validityDays: number | null): string | n
 
 const PACKAGE_CHARGE_REVERT_STATUSES = ["visit_confirmed", "confirmed", "completed"] as const;
 
+function isPaymentOfferConfigurationError(code: string): boolean {
+  return (
+    code === "payments_disabled" ||
+    code === "payment_provider_unavailable" ||
+    code === "payments_unavailable"
+  );
+}
+
 export function createMembershipsService(deps: {
   port: MembershipsPort;
   payments: PaymentsService | null;
@@ -128,7 +136,12 @@ export function createMembershipsService(deps: {
           input.paidAmountMinor != null &&
           input.sendForPayment === false);
       if (input.priceMinor > 0 && input.sendForPayment !== false && !staffSold) {
-        return this.createPaymentOffer(pkg.id, input.organizationId, input.platformUserId);
+        return this.createPaymentOfferOrKeepOffered(
+          pkg.id,
+          input.organizationId,
+          input.platformUserId,
+          pkg,
+        );
       }
       const activated = await this.activatePatientPackage(pkg.id, input.organizationId);
       return activated ?? (await withBalance(pkg));
@@ -168,7 +181,12 @@ export function createMembershipsService(deps: {
         return activated ?? (await withBalance(pkg));
       }
       if (pkg.priceMinor > 0) {
-        return this.createPaymentOffer(pkg.id, input.organizationId, input.platformUserId);
+        return this.createPaymentOfferOrKeepOffered(
+          pkg.id,
+          input.organizationId,
+          input.platformUserId,
+          pkg,
+        );
       }
       const activated = await this.activatePatientPackage(pkg.id, input.organizationId);
       return activated ?? (await withBalance(pkg));
@@ -199,6 +217,23 @@ export function createMembershipsService(deps: {
       const updated = await deps.port.getPatientPackage(patientPackageId, organizationId);
       if (!updated) throw new Error("package_not_found");
       return { ...(await withBalance(updated)), paymentIntentId: intent.id };
+    },
+
+    async createPaymentOfferOrKeepOffered(
+      patientPackageId: string,
+      organizationId: string,
+      platformUserId: string,
+      fallbackPkg: PatientPackageRecord,
+    ) {
+      try {
+        return await this.createPaymentOffer(patientPackageId, organizationId, platformUserId);
+      } catch (err) {
+        const code = err instanceof Error ? err.message : "";
+        if (isPaymentOfferConfigurationError(code)) {
+          return withBalance(fallbackPkg);
+        }
+        throw err;
+      }
     },
 
     async activatePatientPackageFromDoctorSale(

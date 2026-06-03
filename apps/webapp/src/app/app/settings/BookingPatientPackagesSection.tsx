@@ -23,9 +23,26 @@ const PACKAGE_STATUS_LABELS: Record<string, string> = {
 
 const ERROR_LABELS: Record<string, string> = {
   platform_user_id_required: "Укажите ID пациента.",
+  catalog_package_required: "Выберите абонемент из каталога.",
   invalid_form: "Проверьте форму: название, цена и состав абонемента обязательны.",
+  invalid_body: "Некорректные данные запроса.",
+  catalog_not_found: "Абонемент не найден в каталоге.",
+  payments_disabled: "Оплата отключена — абонемент создан, но ссылку на оплату выставить нельзя.",
+  payment_provider_unavailable: "Платёжный провайдер не настроен — абонемент создан без онлайн-оплаты.",
+  payments_unavailable: "Модуль оплаты недоступен.",
   failed: "Не удалось выполнить операцию.",
+  response_parse_failed: "Ошибка ответа сервера.",
 };
+
+async function readJsonSafe<T>(res: Response): Promise<T | null> {
+  const raw = await res.text();
+  if (!raw.trim()) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
 
 function errorLabel(code: string | null): string | null {
   if (!code) return null;
@@ -59,10 +76,10 @@ export function BookingPatientPackagesSection({
   function loadRefs() {
     startTransition(async () => {
       const [svcRes, pkgRes] = await Promise.all([fetch(servicesApi), fetch(packagesApi)]);
-      const svcJson = (await svcRes.json()) as { ok?: boolean; services?: Array<{ id: string; title: string }> };
-      const pkgJson = (await pkgRes.json()) as { ok?: boolean; packages?: Array<{ id: string; title: string }> };
-      if (svcJson.ok && svcJson.services) setServices(svcJson.services);
-      if (pkgJson.ok && pkgJson.packages) setCatalog(pkgJson.packages);
+      const svcJson = await readJsonSafe<{ ok?: boolean; services?: Array<{ id: string; title: string }> }>(svcRes);
+      const pkgJson = await readJsonSafe<{ ok?: boolean; packages?: Array<{ id: string; title: string }> }>(pkgRes);
+      if (svcJson?.ok && svcJson.services) setServices(svcJson.services);
+      if (pkgJson?.ok && pkgJson.packages) setCatalog(pkgJson.packages);
     });
   }
 
@@ -81,7 +98,7 @@ export function BookingPatientPackagesSection({
     }
     startTransition(async () => {
       const res = await fetch(`${apiBase}?platformUserId=${encodeURIComponent(platformUserId.trim())}`);
-      const json = (await res.json()) as {
+      const json = await readJsonSafe<{
         ok?: boolean;
         packages?: Array<{
           id: string;
@@ -90,7 +107,11 @@ export function BookingPatientPackagesSection({
           balance: { items: Array<{ remaining: number }> };
         }>;
         error?: string;
-      };
+      }>(res);
+      if (!json) {
+        setError("response_parse_failed");
+        return;
+      }
       if (!json.ok) {
         setError(json.error ?? "failed");
         return;
@@ -101,6 +122,14 @@ export function BookingPatientPackagesSection({
 
   function offerCatalog() {
     setError(null);
+    if (!platformUserId.trim()) {
+      setError("platform_user_id_required");
+      return;
+    }
+    if (!catalogId) {
+      setError("catalog_package_required");
+      return;
+    }
     startTransition(async () => {
       const res = await fetch(apiBase, {
         method: "POST",
@@ -111,7 +140,11 @@ export function BookingPatientPackagesSection({
           subscriptionPackageId: catalogId,
         }),
       });
-      const json = (await res.json()) as { ok?: boolean; package?: { id: string }; error?: string };
+      const json = await readJsonSafe<{ ok?: boolean; package?: { id: string }; error?: string }>(res);
+      if (!json) {
+        setError("response_parse_failed");
+        return;
+      }
       if (!json.ok) {
         setError(json.error ?? "failed");
         return;
@@ -139,7 +172,15 @@ export function BookingPatientPackagesSection({
           items,
         }),
       });
-      const json = (await res.json()) as { ok?: boolean; package?: { id: string; paymentIntentId?: string }; error?: string };
+      const json = await readJsonSafe<{
+        ok?: boolean;
+        package?: { id: string; paymentIntentId?: string };
+        error?: string;
+      }>(res);
+      if (!json) {
+        setError("response_parse_failed");
+        return;
+      }
       if (!json.ok) {
         setError(json.error ?? "failed");
         return;

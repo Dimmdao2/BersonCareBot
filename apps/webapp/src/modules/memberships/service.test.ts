@@ -184,6 +184,31 @@ describe("createMembershipsService", () => {
     );
   });
 
+  it("offerCatalogPackageToPatient keeps offered package when payments disabled", async () => {
+    const offered = {
+      ...basePkg,
+      status: "offered" as const,
+      priceMinor: 10000,
+      validFrom: null,
+      validUntil: null,
+    };
+    const port = makePort({
+      offerCatalogPackageToPatient: vi.fn().mockResolvedValue(offered),
+      getPatientPackage: vi.fn().mockResolvedValue(offered),
+    });
+    const payments = {
+      createPackagePaymentIntent: vi.fn().mockRejectedValue(new Error("payments_disabled")),
+    };
+    const svc = createMembershipsService({ port, payments: payments as never, bookingEngine: null });
+    const result = await svc.offerCatalogPackageToPatient({
+      organizationId: "org-1",
+      platformUserId: "user-1",
+      subscriptionPackageId: "cat-1",
+    });
+    expect(result.status).toBe("offered");
+    expect(payments.createPackagePaymentIntent).toHaveBeenCalled();
+  });
+
   it("createManualPatientPackage staff sale skips payment offer and passes sale fields to port", async () => {
     const offered = {
       ...basePkg,

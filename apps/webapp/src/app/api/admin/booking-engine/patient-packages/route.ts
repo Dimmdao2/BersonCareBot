@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  membershipErrorResponse,
+  resolveAssignedByPlatformUserId,
+} from "@/app/api/booking-engine/patientPackagesRouteShared";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
 const itemSchema = z.object({
@@ -49,11 +53,15 @@ export async function GET(request: Request) {
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
   }
-  const packages = await deps.memberships.listPatientPackagesForUser(
-    platformUserId,
-    gate.ctx.organizationId,
-  );
-  return NextResponse.json({ ok: true, packages });
+  try {
+    const packages = await deps.memberships.listPatientPackagesForUser(
+      platformUserId,
+      gate.ctx.organizationId,
+    );
+    return NextResponse.json({ ok: true, packages });
+  } catch (err) {
+    return membershipErrorResponse(err);
+  }
 }
 
 export async function POST(request: Request) {
@@ -67,36 +75,41 @@ export async function POST(request: Request) {
   if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
   }
+  const assignedByPlatformUserId = resolveAssignedByPlatformUserId(gate.ctx.session.user.userId);
   const body = parsed.data;
-  if (body.kind === "manual") {
-    const pkg = await deps.memberships.createManualPatientPackage({
+  try {
+    if (body.kind === "manual") {
+      const pkg = await deps.memberships.createManualPatientPackage({
+        organizationId: gate.ctx.organizationId,
+        platformUserId: body.platformUserId,
+        title: body.title,
+        priceMinor: body.priceMinor,
+        currency: body.currency,
+        validityDays: body.validityDays ?? null,
+        deductionMode: body.deductionMode,
+        items: body.items,
+        assignedByPlatformUserId,
+        notes: body.notes ?? null,
+        sendForPayment: body.sendForPayment,
+        soldAt: body.soldAt ?? null,
+        paidAmountMinor: body.paidAmountMinor ?? null,
+        paidCurrency: body.paidCurrency,
+        activateImmediately: body.activateImmediately,
+      });
+      return NextResponse.json({ ok: true, package: pkg });
+    }
+    const pkg = await deps.memberships.offerCatalogPackageToPatient({
       organizationId: gate.ctx.organizationId,
       platformUserId: body.platformUserId,
-      title: body.title,
-      priceMinor: body.priceMinor,
-      currency: body.currency,
-      validityDays: body.validityDays ?? null,
-      deductionMode: body.deductionMode,
-      items: body.items,
-      assignedByPlatformUserId: gate.ctx.session.user.userId,
-      notes: body.notes ?? null,
-      sendForPayment: body.sendForPayment,
+      subscriptionPackageId: body.subscriptionPackageId,
+      assignedByPlatformUserId,
       soldAt: body.soldAt ?? null,
       paidAmountMinor: body.paidAmountMinor ?? null,
       paidCurrency: body.paidCurrency,
       activateImmediately: body.activateImmediately,
     });
     return NextResponse.json({ ok: true, package: pkg });
+  } catch (err) {
+    return membershipErrorResponse(err);
   }
-  const pkg = await deps.memberships.offerCatalogPackageToPatient({
-    organizationId: gate.ctx.organizationId,
-    platformUserId: body.platformUserId,
-    subscriptionPackageId: body.subscriptionPackageId,
-    assignedByPlatformUserId: gate.ctx.session.user.userId,
-    soldAt: body.soldAt ?? null,
-    paidAmountMinor: body.paidAmountMinor ?? null,
-    paidCurrency: body.paidCurrency,
-    activateImmediately: body.activateImmediately,
-  });
-  return NextResponse.json({ ok: true, package: pkg });
 }
