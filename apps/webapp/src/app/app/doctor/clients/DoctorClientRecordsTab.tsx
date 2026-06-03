@@ -3,7 +3,11 @@
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import { ClientBookingHistoryPanel } from "./ClientBookingHistoryPanel";
 import { DoctorClientMembershipsPanel } from "./DoctorClientMembershipsPanel";
-import { doctorClientStackedCardClass, doctorClientTabSectionClass } from "./doctorClientCardChrome";
+import {
+  doctorClientSectionTitleClass,
+  doctorClientStackedCardClass,
+  doctorClientTabSectionClass,
+} from "./doctorClientCardChrome";
 
 type Props = {
   userId: string;
@@ -25,7 +29,10 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
   return (
     <div className="flex flex-col gap-0">
       <section id="doctor-client-section-memberships" className={doctorClientTabSectionClass}>
-        <DoctorClientMembershipsPanel platformUserId={userId} appointments={appointmentOptions} />
+        <div className="flex flex-col gap-3">
+          <h2 className={doctorClientSectionTitleClass}>Абонементы</h2>
+          <DoctorClientMembershipsPanel platformUserId={userId} appointments={appointmentOptions} />
+        </div>
       </section>
 
       <section id="doctor-client-section-appointments" className={doctorClientTabSectionClass}>
