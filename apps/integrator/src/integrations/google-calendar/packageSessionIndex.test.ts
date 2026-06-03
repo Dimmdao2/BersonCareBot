@@ -1,3 +1,4 @@
+/* eslint-disable no-secrets/no-secrets -- test titles reference exported symbol names */
 import { describe, expect, it } from 'vitest';
 import {
   computePackageSessionIndex,
@@ -24,5 +25,18 @@ describe('computePackageSessionIndex', () => {
     expect(formatPackageSessionDescriptionLine(index!)).toBe(
       'Абонемент от 2026-05-01: сеанс 2 из 4',
     );
+  });
+
+  it('includes penalty usage in session index when ref points to penalty', () => {
+    const index = computePackageSessionIndex({
+      items: [{ quantity_initial: 3 }],
+      usages: [
+        { id: 'u1', usage_kind: 'penalty', occurred_at: '2026-01-03T00:00:00Z' },
+      ],
+      usageRefId: 'u1',
+      soldAt: '2026-05-01T12:00:00Z',
+      createdAt: '2026-04-01T00:00:00Z',
+    });
+    expect(index?.sessionIndex).toBe(1);
   });
 });

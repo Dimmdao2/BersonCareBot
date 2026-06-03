@@ -77,10 +77,13 @@ describe("createMembershipsService", () => {
     const port = makePort();
     const bookingEngine = {
       getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", status: "visit_confirmed", organizationId: "org-1" }),
+      getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
       transitionAppointmentStatus: vi.fn().mockResolvedValue({}),
     };
-    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+    const refreshPackageCalendar = vi.fn().mockResolvedValue(undefined);
+    const svc = createMembershipsService({ port, payments: null, bookingEngine, refreshPackageCalendar });
     await svc.consumeForAppointment({ organizationId: "org-1", appointmentId: "appt-1" });
+    expect(refreshPackageCalendar).toHaveBeenCalledWith("appt-1");
     expect(port.appendUsage).toHaveBeenCalledWith(expect.objectContaining({ usageKind: "release" }));
     expect(port.appendUsage).toHaveBeenCalledWith(expect.objectContaining({ usageKind: "consume" }));
     expect(bookingEngine.transitionAppointmentStatus).toHaveBeenCalledWith(
@@ -106,17 +109,20 @@ describe("createMembershipsService", () => {
         platformUserId: "user-1",
         organizationId: "org-1",
       }),
+      getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
       transitionAppointmentStatus: vi.fn(),
     };
     const svc = createMembershipsService({ port, payments: null, bookingEngine });
     await svc.penaltyDeductForAppointment({ organizationId: "org-1", appointmentId: "appt-2" });
     expect(port.appendUsage).toHaveBeenCalledWith(expect.objectContaining({ usageKind: "penalty" }));
+    expect(port.setAppointmentPackageUsageRef).toHaveBeenCalledWith("appt-2", "u-penalty");
   });
 
   it("consumeForAppointment asPenalty does not transition appointment status", async () => {
     const port = makePort();
     const bookingEngine = {
       getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", status: "late_cancellation", organizationId: "org-1" }),
+      getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
       transitionAppointmentStatus: vi.fn().mockResolvedValue({}),
     };
     const svc = createMembershipsService({ port, payments: null, bookingEngine });
@@ -134,6 +140,7 @@ describe("createMembershipsService", () => {
     });
     const bookingEngine = {
       getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", status: "visit_confirmed", organizationId: "org-1" }),
+      getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
       transitionAppointmentStatus: vi.fn().mockResolvedValue({}),
     };
     const svc = createMembershipsService({ port, payments: null, bookingEngine });
@@ -234,6 +241,7 @@ describe("createMembershipsService", () => {
         status: "confirmed",
         organizationId: "org-1",
       }),
+      getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
       transitionAppointmentStatus: vi.fn(),
     };
     const svc = createMembershipsService({ port, payments: null, bookingEngine });
@@ -281,6 +289,42 @@ describe("createMembershipsService", () => {
     });
     expect(port.appendUsage).toHaveBeenCalledWith(expect.objectContaining({ usageKind: "refund" }));
     expect(port.setAppointmentPackageUsageRef).toHaveBeenCalledWith("appt-past", null);
+  });
+
+  it("refundConsumedAppointmentPackage reverts charged_to_package using history", async () => {
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockResolvedValue([
+        {
+          id: "u-consume",
+          patientPackageId: "pp-1",
+          patientPackageItemId: "i1",
+          appointmentId: "appt-past",
+          usageKind: "consume" as const,
+          quantity: 1,
+          comment: null,
+          occurredAt: "2026-01-02T00:00:00Z",
+        },
+      ]),
+    });
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: "appt-past",
+        status: "charged_to_package",
+        organizationId: "org-1",
+      }),
+      getStatusBeforePackageCharge: vi.fn().mockResolvedValue("confirmed"),
+      transitionAppointmentStatus: vi.fn().mockResolvedValue({}),
+    };
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+    await svc.refundConsumedAppointmentPackage({
+      organizationId: "org-1",
+      appointmentId: "appt-past",
+    });
+    expect(bookingEngine.transitionAppointmentStatus).toHaveBeenCalledWith({
+      appointmentId: "appt-past",
+      toStatus: "confirmed",
+      payload: { source: "membership_refund" },
+    });
   });
 
   it("createManualPatientPackage with zero price activates without payment offer", async () => {

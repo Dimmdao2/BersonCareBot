@@ -61,4 +61,21 @@ export async function emitPackageLinkedCalendarSync(
   });
 }
 
+/** After consume/penalty ref change — refresh GCal ✅ and session line (best-effort). */
+export async function syncPackageCalendarAfterUsageChange(opts: {
+  appointmentId: string;
+  bookingEngine: { getAppointment(id: string): Promise<BeAppointment | null> };
+  resolveBookingRow?: (canonicalAppointmentId: string) => Promise<PatientBookingRecord | null>;
+  syncPort?: BookingSyncPort | null;
+}): Promise<void> {
+  const appt = await opts.bookingEngine.getAppointment(opts.appointmentId);
+  if (!appt) return;
+  const { createBookingSyncPort } = await import("@/modules/integrator/bookingM2mApi");
+  const syncPort = opts.syncPort ?? createBookingSyncPort();
+  const bookingRow = opts.resolveBookingRow
+    ? await opts.resolveBookingRow(opts.appointmentId).catch(() => null)
+    : null;
+  await emitPackageLinkedCalendarSync(syncPort, appt, bookingRow);
+}
+
 export { emitStaffCanonicalBookingEvent };

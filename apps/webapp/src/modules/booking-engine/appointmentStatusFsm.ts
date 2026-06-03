@@ -57,7 +57,7 @@ const VALID_TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]>
   no_show: [],
   completed: [],
   visit_confirmed: [],
-  charged_to_package: [],
+  charged_to_package: ["visit_confirmed", "confirmed", "completed"],
   manual_review_required: [
     "created",
     "awaiting_payment",

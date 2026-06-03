@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { BE_DEFAULT_ORGANIZATION_ID } from "../../../db/schema/bookingEngine";
 import {
@@ -19,6 +19,7 @@ import {
 } from "../../../db/schema/bookingEngine";
 import type { BookingEngineCorePort } from "@/modules/booking-engine/ports";
 import type {
+  AppointmentStatus,
   BeAppointment,
   BeBranch,
   BeClinicService,
@@ -564,6 +565,26 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const db = getDrizzle();
       const rows = await db.select().from(beAppointments).where(eq(beAppointments.id, id)).limit(1);
       return rows[0] ? mapAppointment(rows[0]) : null;
+    },
+
+    async getStatusBeforePackageCharge(appointmentId) {
+      const revertTargets: AppointmentStatus[] = ["visit_confirmed", "confirmed", "completed"];
+      const db = getDrizzle();
+      const rows = await db
+        .select({ payload: beAppointmentHistoryEvents.payload })
+        .from(beAppointmentHistoryEvents)
+        .where(eq(beAppointmentHistoryEvents.appointmentId, appointmentId))
+        .orderBy(desc(beAppointmentHistoryEvents.occurredAt))
+        .limit(50);
+      for (const row of rows) {
+        const payload = row.payload;
+        if (payload?.toStatus !== "charged_to_package") continue;
+        const fromStatus = payload.fromStatus;
+        if (typeof fromStatus === "string" && revertTargets.includes(fromStatus as AppointmentStatus)) {
+          return fromStatus as AppointmentStatus;
+        }
+      }
+      return null;
     },
 
     async createAppointment(input: CreateAppointmentInput) {

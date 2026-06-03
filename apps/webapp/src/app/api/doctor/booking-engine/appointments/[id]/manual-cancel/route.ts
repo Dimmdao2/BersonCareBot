@@ -53,27 +53,6 @@ export async function POST(request: Request, context: RouteContext) {
   const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(
     (key, scope) => deps.systemSettings.getSetting(key, scope),
   );
-  await applyStaffCancelSideEffects({
-    projection: deps.appointmentProjection,
-    lifecycle: deps.bookingAppointmentLifecycle,
-    organizationId: gate.ctx.organizationId,
-    appointment: result.appointment,
-    cancelPolicy: result.cancelPolicy,
-    syncPort: createBookingSyncPort(),
-    bookingRow: deps.patientBooking
-      ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
-      : null,
-    lifecycleNotificationSettings,
-  });
-  if (deps.payments) {
-    await deps.payments.applyCancelPaymentOutcome({
-      appointmentId,
-      organizationId: gate.ctx.organizationId,
-      prepaymentRetained: parsed.data.decisionType === "retain_prepayment",
-      prepaymentRefunded: parsed.data.decisionType === "refund_prepayment",
-      reason: parsed.data.reason,
-    });
-  }
   if (deps.memberships) {
     try {
       await deps.memberships.applyCancelPackageOutcome({
@@ -87,5 +66,26 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ ok: false, error: message }, { status: 409 });
     }
   }
+  if (deps.payments) {
+    await deps.payments.applyCancelPaymentOutcome({
+      appointmentId,
+      organizationId: gate.ctx.organizationId,
+      prepaymentRetained: parsed.data.decisionType === "retain_prepayment",
+      prepaymentRefunded: parsed.data.decisionType === "refund_prepayment",
+      reason: parsed.data.reason,
+    });
+  }
+  await applyStaffCancelSideEffects({
+    projection: deps.appointmentProjection,
+    lifecycle: deps.bookingAppointmentLifecycle,
+    organizationId: gate.ctx.organizationId,
+    appointment: result.appointment,
+    cancelPolicy: result.cancelPolicy,
+    syncPort: createBookingSyncPort(),
+    bookingRow: deps.patientBooking
+      ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
+      : null,
+    lifecycleNotificationSettings,
+  });
   return NextResponse.json({ ok: true, appointment: result.appointment });
 }

@@ -25,4 +25,10 @@ describe("appointmentStatusFsm", () => {
     expect(isTerminalAppointmentStatus("cancelled_by_patient")).toBe(true);
     expect(isTerminalAppointmentStatus("confirmed")).toBe(false);
   });
+
+  it("allows charged_to_package → visit_confirmed for package refund", () => {
+    expect(() =>
+      assertValidAppointmentStatusTransition("charged_to_package", "visit_confirmed"),
+    ).not.toThrow();
+  });
 });

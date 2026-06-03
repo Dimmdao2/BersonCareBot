@@ -17,7 +17,7 @@ export function computePackageSessionIndex(input: {
   const totalSessions = input.items.reduce((sum, it) => sum + it.quantityInitial, 0);
   if (totalSessions <= 0) return null;
 
-  const linkedKinds = new Set(["reserve", "consume", "manual_adjust"]);
+  const linkedKinds = new Set(["reserve", "consume", "penalty", "manual_adjust"]);
   const ordered = [...input.usages]
     .filter((u) => linkedKinds.has(u.usageKind))
     .sort((a, b) => {

@@ -21,6 +21,7 @@ const bookingEngine = {
   organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
   createAppointment: vi.fn(),
   upsertRubitimeAppointmentMapping: vi.fn(),
+  getAppointment: vi.fn(),
 };
 
 const bookingScheduling = {
@@ -105,7 +106,13 @@ describe("createBookingOnCanonicalEngine", () => {
     vi.clearAllMocks();
     bookingsPort.createPending.mockResolvedValue(pendingRecord());
     bookingsPort.markConfirmed.mockResolvedValue(confirmedRecord());
+    bookingScheduling.assertSlotAvailable.mockResolvedValue(undefined);
     bookingEngine.createAppointment.mockResolvedValue({
+      id: "appt-1",
+      startAt: "2026-06-01T10:00:00.000Z",
+      endAt: "2026-06-01T11:00:00.000Z",
+    });
+    bookingEngine.getAppointment.mockResolvedValue({
       id: "appt-1",
       startAt: "2026-06-01T10:00:00.000Z",
       endAt: "2026-06-01T11:00:00.000Z",

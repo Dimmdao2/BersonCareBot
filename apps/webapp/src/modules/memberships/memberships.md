@@ -13,7 +13,9 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 ## Booking integration
 
 - Create (in_person): optional `patientPackageId` on `POST /api/booking/create`; if omitted and no `productPurchaseId`, **auto FEFO** (`fefoPicker.ts`) among active packages with balance for service; `reserveForAppointment` before `markConfirmed`; skips prepayment when package covers visit. Staff manual create (`POST .../appointments/manual`) uses the same FEFO when `platformUserId` + `serviceId` are set.
-- Calendar: `booking.package_linked` / `booking.package_unlinked` → integrator GCal update only (no patient/doctor notifications). Summary `✅` after status markers; description line `Абонемент от <soldAt>: сеанс n из N`.
+- Calendar: `booking.package_linked` / `booking.package_unlinked` → integrator GCal update only (no patient/doctor notifications). Summary `✅` after status markers; description line `Абонемент от <soldAt>: сеанс n из N`. After consume/penalty ref change, `refreshPackageCalendar` emits `package_linked` (best-effort).
+- Refund: restores balance + clears ref; reverts `charged_to_package` → prior status from history (`visit_confirmed` / `confirmed` / `completed`).
+- Penalty without prior reserve sets `package_usage_ref` for GCal.
 - Cancel: `applyCancelPackageOutcome` — release or penalty; patient late cancel uses `policyResolver` (`chargePackageSessionOnLate` → `package_charged`).
 - Visit: `wrapBookingEngineMembershipHooks` calls `onVisitConfirmed` after transition to `visit_confirmed` or `completed` when `deductionMode=auto_on_visit_confirmed`.
 

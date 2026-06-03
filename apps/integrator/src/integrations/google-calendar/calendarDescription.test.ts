@@ -28,6 +28,15 @@ describe('google calendar description format', () => {
     );
   });
 
+  it('appends package session line after support program', () => {
+    expect(
+      buildGoogleCalendarDescription({
+        phoneNormalized: '+79001112233',
+        packageSessionLine: 'Абонемент от 2026-05-01: сеанс 2 из 10',
+      }),
+    ).toBe('#+79001112233\n\nАбонемент от 2026-05-01: сеанс 2 из 10');
+  });
+
   it('shows only problematic marker when note is empty', () => {
     expect(
       buildGoogleCalendarDescription({

@@ -633,6 +633,19 @@ const paymentsService =
       })
     : null;
 
+const refreshPackageCalendarForAppointment = bookingEngineService
+  ? async (appointmentId: string) => {
+      const { syncPackageCalendarAfterUsageChange } = await import(
+        "@/app-layer/booking/emitPackageCalendarSync"
+      );
+      await syncPackageCalendarAfterUsageChange({
+        appointmentId,
+        bookingEngine: bookingEngineService,
+        resolveBookingRow: (id) => patientBookingsPort.getByCanonicalAppointmentId(id),
+      });
+    }
+  : undefined;
+
 const membershipsServiceResolved =
   membershipsPort && bookingEngineService && paymentsService
     ? createMembershipsService({
@@ -640,6 +653,7 @@ const membershipsServiceResolved =
         payments: paymentsService,
         bookingEngine: bookingEngineService,
         resolveServiceTitle: resolveMembershipServiceTitle,
+        refreshPackageCalendar: refreshPackageCalendarForAppointment,
       })
     : membershipsService;
 

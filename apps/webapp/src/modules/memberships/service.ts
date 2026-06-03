@@ -16,7 +16,7 @@ import type {
 
 type BookingEngineService = Pick<
   ReturnType<typeof createBookingEngineService>,
-  "getAppointment" | "transitionAppointmentStatus"
+  "getAppointment" | "getStatusBeforePackageCharge" | "transitionAppointmentStatus"
 >;
 
 import { parsePatientPackageProductRef } from "./patientPackageProductRef";
@@ -29,12 +29,24 @@ function addValidity(validFrom: string, validityDays: number | null): string | n
   return d.toISOString();
 }
 
+const PACKAGE_CHARGE_REVERT_STATUSES = ["visit_confirmed", "confirmed", "completed"] as const;
+
 export function createMembershipsService(deps: {
   port: MembershipsPort;
   payments: PaymentsService | null;
   bookingEngine: BookingEngineService | null;
   resolveServiceTitle?: (serviceId: string) => Promise<string | null>;
+  /** Refreshes GCal after consume / penalty ref update (best-effort). */
+  refreshPackageCalendar?: (appointmentId: string) => Promise<void>;
 }) {
+  async function refreshPackageCalendarForAppointment(appointmentId: string) {
+    if (!deps.refreshPackageCalendar) return;
+    try {
+      await deps.refreshPackageCalendar(appointmentId);
+    } catch {
+      // Calendar sync is best-effort.
+    }
+  }
   async function refreshPatientPackageRecord(pkg: PatientPackageRecord): Promise<PatientPackageRecord> {
     if (isPatientPackageExpired(pkg) && pkg.status === "active") {
       const updated = await deps.port.setPatientPackageStatus(pkg.id, pkg.organizationId, "expired");
@@ -400,6 +412,8 @@ export function createMembershipsService(deps: {
         payloadJson: { appointmentId: input.appointmentId, usageId: consume.id },
       });
 
+      await refreshPackageCalendarForAppointment(input.appointmentId);
+
       return consume;
     },
 
@@ -488,12 +502,14 @@ export function createMembershipsService(deps: {
         quantity: 1,
         createdByPlatformUserId: input.createdByPlatformUserId ?? null,
       });
+      await deps.port.setAppointmentPackageUsageRef(input.appointmentId, usage.id);
       await deps.port.appendHistoryEvent({
         organizationId: input.organizationId,
         patientPackageId: pkg.id,
         eventType: "penalty_without_reserve",
         payloadJson: { appointmentId: input.appointmentId, usageId: usage.id },
       });
+      await refreshPackageCalendarForAppointment(input.appointmentId);
       return usage;
     },
 
@@ -597,6 +613,23 @@ export function createMembershipsService(deps: {
 
       await deps.port.setAppointmentPackageUsageRef(input.appointmentId, null);
 
+      if (deps.bookingEngine) {
+        const appt = await deps.bookingEngine.getAppointment(input.appointmentId);
+        if (appt?.status === "charged_to_package") {
+          const fromHistory = await deps.bookingEngine.getStatusBeforePackageCharge(input.appointmentId);
+          const revertTo =
+            fromHistory &&
+            (PACKAGE_CHARGE_REVERT_STATUSES as readonly string[]).includes(fromHistory)
+              ? fromHistory
+              : "visit_confirmed";
+          await deps.bookingEngine.transitionAppointmentStatus({
+            appointmentId: input.appointmentId,
+            toStatus: revertTo,
+            payload: { source: "membership_refund" },
+          });
+        }
+      }
+
       await deps.port.appendHistoryEvent({
         organizationId: input.organizationId,
         patientPackageId: consume.patientPackageId,
@@ -652,6 +685,10 @@ export function createMembershipsService(deps: {
         eventType: "manual_consume",
         payloadJson: { usageId: usage.id, appointmentId: input.appointmentId ?? null },
       });
+
+      if (input.appointmentId) {
+        await refreshPackageCalendarForAppointment(input.appointmentId);
+      }
 
       return usage;
     },

@@ -86,8 +86,8 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
     }
   }
 
-  const loadPackages = useCallback(() => {
-    startTransition(async () => {
+  const loadPackages = useCallback(async () => {
+    try {
       const res = await fetch(`${apiBase}?platformUserId=${encodeURIComponent(platformUserId)}`);
       const json = (await res.json()) as { ok?: boolean; packages?: PackageRow[]; error?: string };
       if (!json.ok) {
@@ -96,11 +96,15 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
       }
       setPackages(json.packages ?? []);
       setError(null);
-    });
+    } catch {
+      showError("load_failed");
+    }
   }, [platformUserId]);
 
   useEffect(() => {
-    loadPackages();
+    queueMicrotask(() => {
+      void loadPackages();
+    });
     void Promise.all([fetch(servicesApi), fetch(catalogApi)]).then(async ([svcRes, catRes]) => {
       const svcJson = (await svcRes.json()) as {
         ok?: boolean;
@@ -159,7 +163,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
       setPaidRub("");
       setSoldDate("");
       setItems([]);
-      loadPackages();
+      void loadPackages();
     });
   }
 
@@ -193,7 +197,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
       setCatalogId("");
       setCatalogPaidRub("");
       setCatalogSoldDate("");
-      loadPackages();
+      void loadPackages();
     });
   }
 
@@ -214,7 +218,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
         return;
       }
       setError(null);
-      loadPackages();
+      void loadPackages();
     });
   }
 
@@ -231,7 +235,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
         return;
       }
       setError(null);
-      loadPackages();
+      void loadPackages();
     });
   }
 
@@ -248,7 +252,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
         return;
       }
       setError(null);
-      loadPackages();
+      void loadPackages();
     });
   }
 

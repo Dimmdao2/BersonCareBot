@@ -41,6 +41,11 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
       return port.getAppointment(id);
     },
 
+    async getStatusBeforePackageCharge(appointmentId) {
+      assertUuid(appointmentId, "appointmentId");
+      return port.getStatusBeforePackageCharge(appointmentId);
+    },
+
     async createAppointment(input: CreateAppointmentInput) {
       assertUuid(input.organizationId, "organizationId");
       const status = input.status ?? "created";

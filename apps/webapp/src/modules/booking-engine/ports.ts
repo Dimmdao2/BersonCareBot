@@ -1,5 +1,6 @@
 import type { RubitimeBridgePort } from "@/modules/booking-rubitime-bridge/ports";
 import type {
+  AppointmentStatus,
   BeAppointment,
   BeBranch,
   BeClinicService,
@@ -125,6 +126,8 @@ export type ServiceAvailabilityPort = {
 
 export type BookingEnginePort = {
   getAppointment(id: string): Promise<BeAppointment | null>;
+  /** Status immediately before transition to `charged_to_package` (for package refund revert). */
+  getStatusBeforePackageCharge(appointmentId: string): Promise<AppointmentStatus | null>;
   createAppointment(input: CreateAppointmentInput): Promise<BeAppointment>;
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<BeAppointment>;
   upsertRubitimeAppointmentMapping(input: {

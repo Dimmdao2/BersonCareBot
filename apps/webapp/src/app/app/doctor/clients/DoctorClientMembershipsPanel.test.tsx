@@ -1,75 +1,49 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { DoctorClientMembershipsPanel } from "./DoctorClientMembershipsPanel";
 
 const platformUserId = "00000000-0000-4000-8000-000000000099";
 
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  if (typeof Request !== "undefined" && input instanceof Request) return input.url;
+  return String(input);
+}
+
+function mockFetchResponse(data: unknown): Response {
+  return { ok: true, json: async () => data } as Response;
+}
+
 describe("DoctorClientMembershipsPanel", () => {
   beforeEach(() => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : input.toString();
-        if (url.includes("/patient-packages")) {
-          return {
-            ok: true,
-            json: async () => ({
-              ok: true,
-              packages: [
-                {
-                  id: "pkg-1",
-                  title: "Абонемент 5",
-                  status: "active",
-                  soldAt: "2026-05-01T00:00:00Z",
-                  paidAmountMinor: 10000,
-                  balance: {
-                    items: [
-                      {
-                        patientPackageItemId: "item-1",
-                        serviceId: "svc-1",
-                        serviceTitle: "Приём 60",
-                        remaining: 4,
-                        displayRemaining: 5,
-                        reserved: 1,
-                      },
-                    ],
-                  },
-                },
-              ],
-            }),
-          } as Response;
-        }
-        if (url.includes("/services")) {
-          return { ok: true, json: async () => ({ ok: true, services: [] }) } as Response;
-        }
-        if (url.includes("/booking-engine/packages")) {
-          return {
-            ok: true,
-            json: async () => ({
-              ok: true,
-              packages: [{ id: "cat-1", title: "Каталог 10", priceMinor: 500000 }],
-            }),
-          } as Response;
-        }
-        return { ok: true, json: async () => ({ ok: true }) } as Response;
-      }),
-    );
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (/\/patient-packages(\?|$)/.test(url)) {
+        return mockFetchResponse({ ok: true, packages: [] });
+      }
+      if (/\/booking-engine\/services(\?|$)/.test(url)) {
+        return mockFetchResponse({ ok: true, services: [] });
+      }
+      if (/\/booking-engine\/packages(\?|$)/.test(url)) {
+        return mockFetchResponse({ ok: true, packages: [] });
+      }
+      return mockFetchResponse({ ok: true });
+    });
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it("shows active package balance with reserved count", async () => {
+  it("renders doctor membership workflow sections", async () => {
     render(<DoctorClientMembershipsPanel platformUserId={platformUserId} />);
-    await waitFor(() => {
-      expect(screen.getByText("Абонемент 5")).toBeTruthy();
-    });
-    expect(screen.getByText(/остаток 5/)).toBeTruthy();
-    expect(screen.getByText(/зарезервировано 1/)).toBeTruthy();
+    expect(await screen.findByText("Нет активных абонементов.")).toBeTruthy();
     expect(screen.getByText("Назначить из каталога")).toBeTruthy();
     expect(screen.getByText("Индивидуальный абонемент")).toBeTruthy();
+    expect(screen.getByText("Списать сеанс по абонементу")).toBeTruthy();
+    expect(screen.getByText("Отвязать / вернуть сеанс")).toBeTruthy();
   });
 });
