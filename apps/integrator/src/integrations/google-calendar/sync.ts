@@ -94,8 +94,8 @@ export async function mapRubitimeEventToGoogleEvent(
   );
   const description = await buildGoogleCalendarDescriptionForSync(db, {
     rubRecordId: input.rubRecordId,
-    record: input.record,
-    phoneNormalized: input.phoneNormalized,
+    ...(input.record !== undefined ? { record: input.record } : {}),
+    ...(input.phoneNormalized !== undefined ? { phoneNormalized: input.phoneNormalized } : {}),
   });
   return {
     summary,
@@ -170,8 +170,8 @@ export async function syncCanonicalAppointmentToCalendar(
         comment: input.description,
       },
       ...(input.clientName ? { clientName: input.clientName } : {}),
-      phoneNormalized: input.phoneNormalized,
-      titleMarker: input.titleMarker,
+      ...(input.phoneNormalized !== undefined ? { phoneNormalized: input.phoneNormalized } : {}),
+      ...(input.titleMarker !== undefined ? { titleMarker: input.titleMarker } : {}),
     },
     deps,
   );

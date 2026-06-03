@@ -376,14 +376,12 @@ async function trySyncCanonicalBookingToGoogleCalendar(
     return;
   }
   const action =
-    eventType === 'booking.deleted'
-      ? 'canceled'
-      : eventType === 'booking.rescheduled' ||
-          eventType === 'booking.payment_captured' ||
-          eventType === 'booking.cancelled' ||
-          eventType === 'booking.reschedule_requested'
-        ? 'updated'
-        : 'created';
+    eventType === 'booking.rescheduled' ||
+    eventType === 'booking.payment_captured' ||
+    eventType === 'booking.cancelled' ||
+    eventType === 'booking.reschedule_requested'
+      ? 'updated'
+      : 'created';
   const titleMarker =
     eventType === 'booking.cancelled'
       ? 'cancelled'

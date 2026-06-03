@@ -173,9 +173,9 @@ export async function buildGoogleCalendarDescriptionForSync(
 
   return buildGoogleCalendarDescription({
     phoneNormalized: enriched.phoneNormalized ?? phone,
-    clientComment,
-    staffComment: enriched.staffComment,
-    isProblematic: enriched.isProblematic,
-    supportProgramTitle: enriched.supportProgramTitle,
+    clientComment: clientComment ?? null,
+    staffComment: enriched.staffComment ?? null,
+    ...(enriched.isProblematic !== undefined ? { isProblematic: enriched.isProblematic } : {}),
+    supportProgramTitle: enriched.supportProgramTitle ?? null,
   });
 }

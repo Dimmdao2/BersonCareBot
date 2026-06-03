@@ -475,6 +475,10 @@ export function createPatientBookingService(input: {
       return input.bookingsPort.getByCanonicalAppointmentId(canonicalAppointmentId);
     },
 
+    async getByRubitimeId(rubitimeId: string) {
+      return input.bookingsPort.getByRubitimeId(rubitimeId);
+    },
+
     async previewCancel(previewInput) {
       const row = await input.bookingsPort.getByIdForUser(previewInput.bookingId, previewInput.userId);
       if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {

@@ -231,6 +231,7 @@ export type PatientBookingService = {
     import("@/modules/payments/types").PaymentHistoryEventRecord[]
   >;
   getBookingByCanonicalAppointment(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
+  getByRubitimeId(rubitimeId: string): Promise<PatientBookingRecord | null>;
   cancelBooking(input: CancelPatientBookingInput): Promise<
     | { ok: true; lateCancellation?: boolean; rubitimeMirrorFailed?: boolean }
     | {

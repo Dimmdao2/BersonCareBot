@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
@@ -22,8 +23,12 @@ export function LegalBackButton() {
   }
 
   return (
-    <a href="/" onClick={handleClick} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ml-2 shrink-0")}>
+    <Link
+      href="/"
+      onClick={handleClick}
+      className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ml-2 shrink-0")}
+    >
       ← Назад
-    </a>
+    </Link>
   );
 }
