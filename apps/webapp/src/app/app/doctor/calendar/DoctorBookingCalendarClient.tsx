@@ -112,8 +112,19 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
           freeSlotsEnabled && specialistId && branchId && serviceId ? "1" : undefined,
       });
       const res = await fetch(`${API_BASE}/calendar?${qs}`);
-      const json = (await res.json()) as CalendarResponse;
-      if (!json.ok) {
+      const raw = await res.text();
+      if (!raw.trim()) {
+        setError(res.ok ? "load_failed" : `load_failed_${res.status}`);
+        return;
+      }
+      let json: CalendarResponse;
+      try {
+        json = JSON.parse(raw) as CalendarResponse;
+      } catch {
+        setError("load_failed");
+        return;
+      }
+      if (!res.ok || !json.ok) {
         setError(json.error ?? "load_failed");
         return;
       }

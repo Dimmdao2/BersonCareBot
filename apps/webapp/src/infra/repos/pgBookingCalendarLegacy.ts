@@ -49,11 +49,14 @@ export function createPgBookingCalendarLegacyPort(): Pick<BookingCalendarPort, "
            AND appt_map.external_system = 'rubitime'
            AND appt_map.external_id = ar.integrator_record_id
          LEFT JOIN be_appointments be_from_map ON be_from_map.id = appt_map.canonical_id
-         LEFT JOIN be_appointments be_from_id ON ar.integrator_record_id LIKE 'be:%'
-           AND be_from_id.id = (substring(ar.integrator_record_id from 4))::uuid
-         LEFT JOIN be_package_usages u_map ON u_map.id = be_from_map.package_usage_ref
+         LEFT JOIN be_appointments be_from_id ON be_from_id.id = CASE
+           WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
+             THEN (substring(ar.integrator_record_id from 4))::uuid
+           ELSE NULL
+         END
+         LEFT JOIN be_package_usages u_map ON u_map.id::text = be_from_map.package_usage_ref
          LEFT JOIN be_patient_packages pp_from_map ON pp_from_map.id = u_map.patient_package_id
-         LEFT JOIN be_package_usages u_id ON u_id.id = be_from_id.package_usage_ref
+         LEFT JOIN be_package_usages u_id ON u_id.id::text = be_from_id.package_usage_ref
          LEFT JOIN be_patient_packages pp_from_id ON pp_from_id.id = u_id.patient_package_id
          WHERE ar.deleted_at IS NULL
            AND ar.status IN ('created', 'updated')

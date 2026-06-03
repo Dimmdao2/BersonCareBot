@@ -17,6 +17,16 @@ const CALENDAR = "/api/admin/booking-engine/calendar";
 
 type ServiceRow = { id: string; title: string };
 
+async function readJsonSafe<T>(res: Response): Promise<T | null> {
+  const raw = await res.text();
+  if (!raw.trim()) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
 export function BookingScheduleSlotsProbeSection() {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [serviceId, setServiceId] = useState("");
@@ -26,11 +36,15 @@ export function BookingScheduleSlotsProbeSection() {
   const [pending, startTransition] = useTransition();
 
   const loadServices = useCallback(async () => {
-    const res = await fetch(OVERVIEW);
-    const json = (await res.json()) as { ok?: boolean; services?: ServiceRow[] };
-    if (json.ok && json.services) {
-      setServices(json.services);
-      if (json.services[0]) setServiceId((prev) => prev || json.services![0]!.id);
+    try {
+      const res = await fetch(OVERVIEW);
+      const json = await readJsonSafe<{ ok?: boolean; services?: ServiceRow[] }>(res);
+      if (json?.ok && json.services) {
+        setServices(json.services);
+        if (json.services[0]) setServiceId((prev) => prev || json.services![0]!.id);
+      }
+    } catch {
+      setError("overview_load_failed");
     }
   }, []);
 
@@ -46,31 +60,35 @@ export function BookingScheduleSlotsProbeSection() {
     if (!serviceId || !date) return;
     setError(null);
     startTransition(async () => {
-      const from = `${date}T00:00:00.000Z`;
-      const to = `${date}T23:59:59.999Z`;
-      const qs = new URLSearchParams({
-        from,
-        to,
-        serviceId,
-        includeFreeSlots: "true",
-      });
-      const res = await fetch(`${CALENDAR}?${qs.toString()}`);
-      const json = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        freeSlots?: Array<{ startAt: string; endAt: string }>;
-      };
-      if (!json.ok) {
-        setError(json.error ?? "probe_failed");
+      try {
+        const qs = new URLSearchParams({
+          view: "day",
+          date,
+          serviceId,
+          includeFreeSlots: "1",
+        });
+        const res = await fetch(`${CALENDAR}?${qs.toString()}`);
+        const json = await readJsonSafe<{
+          ok?: boolean;
+          error?: string;
+          events?: Array<{ kind: string; startAt: string; endAt: string }>;
+        }>(res);
+        if (!json || !json.ok) {
+          setError(json?.error ?? `probe_failed_${res.status}`);
+          setSlots([]);
+          return;
+        }
+        const freeSlots = (json.events ?? []).filter((event) => event.kind === "freeSlot");
+        setSlots(
+          freeSlots.map((s) => {
+            const start = new Date(s.startAt);
+            return start.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+          }),
+        );
+      } catch {
+        setError("probe_failed");
         setSlots([]);
-        return;
       }
-      setSlots(
-        (json.freeSlots ?? []).map((s) => {
-          const start = new Date(s.startAt);
-          return start.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-        }),
-      );
     });
   }
 
