@@ -26,7 +26,7 @@ export const stepsIos: readonly InstallStep[] = [
 export const stepsAndroid: readonly InstallStep[] = [
   { title: "Нажмите меню ⋮", hint: "android-menu" },
   { title: "Выберите «Установить приложение»", hint: "android-install" },
-  { title: "Подтвердите установку", hint: "android-confirm" },
+  { title: "Подтвердите установку", footnote: "Нажмите «Установить» в появившемся диалоге Chrome." },
 ] as const;
 
 export function platformIntro(platform: LandingInstallPlatform): string {

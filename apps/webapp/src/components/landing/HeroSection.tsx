@@ -40,10 +40,10 @@ const trustPoints = [
 ] as const;
 
 const heroTitleClass =
-  "max-w-3xl text-[1.625rem] font-semibold leading-[1.14] tracking-[-0.025em] text-[#13234A] sm:text-[2rem] lg:text-[2.375rem]";
+  "max-w-3xl text-[1.375rem] font-semibold leading-[1.18] tracking-[-0.025em] text-[#13234A] sm:text-[1.625rem] lg:text-[1.875rem]";
 
 const phoneImageClass =
-  "relative h-auto w-[168px] rounded-[22px] border border-white/20 bg-white sm:w-[240px] sm:rounded-[26px] md:w-[320px] lg:w-[400px] lg:rounded-[28px]";
+  "relative h-auto w-[168px] rounded-[22px] border border-white/20 bg-white sm:w-[240px] sm:rounded-[26px] md:w-[320px] lg:w-[340px] lg:rounded-[28px]";
 
 export function HeroSection() {
   const [activeSlide, setActiveSlide] = useState(0);
@@ -63,8 +63,8 @@ export function HeroSection() {
         <h1 className={heroTitleClass}>
           Разминки и тренировки для дома и работы
         </h1>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-[#536179] sm:text-[1.0625rem] sm:leading-7">
-          Заботьтесь о теле без спортзала и сложных программ.
+        <p className="mt-3 max-w-2xl text-base font-medium leading-7 text-[#17264A] sm:text-[1.0625rem] sm:leading-7">
+          Безопасные и эффективные занятия от реабилитолога
         </p>
 
         <div
@@ -96,7 +96,7 @@ export function HeroSection() {
                 width={512}
                 height={1024}
                 priority
-                sizes="(max-width: 640px) 168px, (max-width: 1024px) 240px, 400px"
+                sizes="(max-width: 640px) 168px, (max-width: 1024px) 240px, 340px"
                 className={phoneImageClass}
               />
             </div>

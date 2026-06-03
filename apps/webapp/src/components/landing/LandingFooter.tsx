@@ -13,7 +13,7 @@ const linkClass =
 
 export function LandingFooter() {
   return (
-    <footer className="overflow-x-hidden border-t border-[#E6ECF8] bg-white py-10 sm:py-12">
+    <footer id="contacts" className="scroll-mt-[80px] overflow-x-hidden border-t border-[#E6ECF8] bg-white py-10 sm:py-12">
       <div className={landingContainer}>
         <div className="grid min-w-0 gap-8 md:grid-cols-2 md:items-start md:gap-12">
           <div>
@@ -43,22 +43,16 @@ export function LandingFooter() {
               <ArrowUpRight className="h-4 w-4" aria-hidden />
             </Link>
             <Link
-              href="https://t.me/dmitryberson"
+              href="/legal/privacy"
               className={cn(linkClass, "w-fit")}
-              target="_blank"
-              rel="noreferrer"
             >
-              Telegram: @dmitryberson
-              <ArrowUpRight className="h-4 w-4" aria-hidden />
+              Политика конфиденциальности
             </Link>
             <Link
-              href="https://t.me/dimmdao"
+              href="/legal/terms"
               className={cn(linkClass, "w-fit")}
-              target="_blank"
-              rel="noreferrer"
             >
-              Запись: @dimmdao
-              <ArrowUpRight className="h-4 w-4" aria-hidden />
+              Условия использования
             </Link>
           </div>
         </div>

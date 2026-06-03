@@ -1,4 +1,4 @@
-import { CheckCircle2, Info } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { InstallStepVisual } from "@/components/landing/InstallStepVisual";
 import type { InstallStep } from "@/components/landing/installSteps";
 import type { LandingInstallPlatform } from "@/components/landing/detectLandingInstallPlatform";
@@ -9,13 +9,12 @@ import {
 } from "@/components/landing/landingTypography";
 
 export function PlatformInstallCard({
-  intro,
   steps,
   successNote,
   wrongBrowser = false,
   platform = "ios",
 }: {
-  intro: string;
+  intro?: string;
   steps: readonly InstallStep[];
   successNote: string;
   wrongBrowser?: boolean;
@@ -23,16 +22,9 @@ export function PlatformInstallCard({
 }) {
   return (
     <article className={landingInstallCard}>
-      {wrongBrowser ? (
-        <WrongBrowserBanner platform={platform} />
-      ) : (
-        <p className="flex items-start gap-2.5 rounded-xl border border-[#FFE6B5] bg-[#FFF8E8] px-4 py-3 text-[0.9375rem] font-medium leading-6 text-[#7A4A00]">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#C2780A]" aria-hidden />
-          <span className="min-w-0">{intro}</span>
-        </p>
-      )}
+      {wrongBrowser && <WrongBrowserBanner platform={platform} />}
 
-      <ol className="mt-5 space-y-4 sm:mt-6 sm:space-y-5">
+      <ol className={`space-y-4 sm:space-y-5 ${wrongBrowser ? "mt-5 sm:mt-6" : ""}`}>
         {steps.map((step, index) => (
           <li
             key={step.title}

@@ -5,7 +5,6 @@
  * пользователя (пациент/врач), и на любой странице.
  */
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { Geist, Roboto } from "next/font/google";
@@ -18,6 +17,7 @@ import { PlatformProvider } from "@/shared/ui/PlatformProvider";
 import { BuildVersionWatcher } from "@/shared/ui/BuildVersionWatcher";
 import { HorizontalOverflowProbe } from "@/shared/ui/dev/HorizontalOverflowProbe";
 import { PWA_APP_ROOT_CLASS } from "@/shared/lib/pwaLayoutClasses";
+import { TelegramMiniAppScript } from "@/shared/ui/TelegramMiniAppScript";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 const robotoHeading = Roboto({
@@ -72,11 +72,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <div id="app-root" className={PWA_APP_ROOT_CLASS}>
           <TooltipProvider>
             <ClientToaster />
-            {/* Telegram Mini App SDK: lazyOnload — первый usable UI не ждёт telegram.org (вне Mini App скрипт догружается после загрузки страницы). */}
-            <Script
-              src="https://telegram.org/js/telegram-web-app.js"
-              strategy="lazyOnload"
-            />
+            <TelegramMiniAppScript />
             <PlatformProvider serverHint={platformEntry}>
               <BuildVersionWatcher />
               <HorizontalOverflowProbe />

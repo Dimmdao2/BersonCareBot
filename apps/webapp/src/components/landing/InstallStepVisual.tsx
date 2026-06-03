@@ -1,62 +1,85 @@
-import { Download, MoreVertical, PlusSquare, Share2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 export type InstallHintKind =
   | "ios-share"
   | "ios-add-home"
   | "ios-add"
   | "android-menu"
-  | "android-install"
-  | "android-confirm";
+  | "android-install";
 
 type InstallStepVisualProps = {
   kind: InstallHintKind;
 };
 
-const chip = "mt-2 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[#E6ECF8] bg-[#F8FAFF] px-2.5 py-1.5 text-sm font-medium text-[#17264A]";
+type ScreenshotProps = {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  /** Tailwind max-width класс; по умолчанию для портретных скринов */
+  maxW?: string;
+};
 
-/** Компактные подсказки к шагам установки. */
+function StepScreenshot({ src, alt, width, height, maxW = "max-w-[180px] sm:max-w-[210px]" }: ScreenshotProps) {
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      className={`mt-3 h-auto w-full rounded-xl border border-[#DDE3F0] shadow-sm ${maxW}`}
+    />
+  );
+}
+
+/** Скриншоты-подсказки к шагам установки. */
 export function InstallStepVisual({ kind }: InstallStepVisualProps) {
   switch (kind) {
     case "ios-share":
       return (
-        <span className={cn(chip, "text-[#007AFF]")} aria-hidden>
-          <Share2 className="h-4 w-4 shrink-0" strokeWidth={2} />
-          Поделиться
-        </span>
+        <StepScreenshot
+          src="/images/landing/install/ios-step-1-share.png"
+          alt="Safari — кнопка «Поделиться» внизу браузера"
+          width={507}
+          height={1024}
+        />
       );
     case "ios-add-home":
       return (
-        <span className={chip} aria-hidden>
-          <PlusSquare className="h-4 w-4 shrink-0 text-[#2F55B7]" />
-          На экран «Домой»
-        </span>
+        <StepScreenshot
+          src="/images/landing/install/ios-step-2-add-home.png"
+          alt="Меню «Поделиться» — пункт «На экран Домой»"
+          width={537}
+          height={1024}
+        />
       );
     case "ios-add":
       return (
-        <span className="mt-2 inline-flex rounded-lg bg-[#007AFF] px-3 py-1.5 text-sm font-semibold text-white" aria-hidden>
-          Добавить
-        </span>
+        <StepScreenshot
+          src="/images/landing/install/ios-step-3-confirm.png"
+          alt="Диалог подтверждения — кнопка «Добавить»"
+          width={655}
+          height={412}
+          maxW="max-w-[260px] sm:max-w-[300px]"
+        />
       );
     case "android-menu":
       return (
-        <span className={chip} aria-hidden>
-          <MoreVertical className="h-4 w-4 shrink-0 text-[#17264A]" />
-          Меню ⋮
-        </span>
+        <StepScreenshot
+          src="/images/landing/install/android-step-1-menu.png"
+          alt="Chrome — кнопка меню ⋮ в правом углу"
+          width={504}
+          height={1024}
+        />
       );
     case "android-install":
       return (
-        <span className={chip} aria-hidden>
-          <Download className="h-4 w-4 shrink-0 text-[#2F55B7]" />
-          Установить приложение
-        </span>
-      );
-    case "android-confirm":
-      return (
-        <span className="mt-2 inline-flex rounded-lg bg-[#2F55B7] px-3 py-1.5 text-sm font-semibold text-white" aria-hidden>
-          Подтвердить
-        </span>
+        <StepScreenshot
+          src="/images/landing/install/android-step-2-install.png"
+          alt="Меню Chrome — пункт «Установить приложение»"
+          width={504}
+          height={1024}
+        />
       );
     default:
       return null;

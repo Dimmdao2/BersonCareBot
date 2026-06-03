@@ -9,7 +9,6 @@ import {
 } from "@/components/landing/detectLandingInstallPlatform";
 import {
   INSTALL_SUCCESS_NOTE,
-  platformIntro,
   stepsForPlatform,
 } from "@/components/landing/installSteps";
 import { landingH2, landingBodySecondary } from "@/components/landing/landingTypography";
@@ -91,7 +90,6 @@ export function InstallSectionClient() {
 
       <div className="mt-6 sm:mt-8">
         <PlatformInstallCard
-          intro={platformIntro(installState.active)}
           steps={stepsForPlatform(installState.active)}
           successNote={INSTALL_SUCCESS_NOTE}
           wrongBrowser={installState.wrongBrowser}

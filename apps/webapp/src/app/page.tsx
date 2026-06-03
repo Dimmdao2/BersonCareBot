@@ -52,7 +52,7 @@ export default async function HomePage() {
   return (
     <div
       data-landing-public
-      className="min-h-screen scroll-smooth overflow-x-hidden bg-white text-[#17264A]"
+      className="min-h-screen bg-white text-[#17264A]"
     >
       <StandaloneRootRedirect />
       <LandingPwaClientBootstrap />
