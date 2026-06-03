@@ -1,6 +1,7 @@
 import type { ProgramItemDiscussionPort } from "./ports";
 import type {
   ProgramItemDiscussionLegacyMergeInput,
+  ProgramItemDiscussionAttentionSummary,
   ProgramItemDiscussionListPageInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
@@ -102,6 +103,12 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
     ): Promise<ProgramItemDiscussionMessage[]> {
       const safeOffset = Math.max(0, Math.trunc(offset));
       return port.listMessagesForStageItem(assertUuid(stageItemId, "stage_item_id"), limit, safeOffset);
+    },
+
+    async listAttentionSummaryForStageItems(stageItemIds: string[]): Promise<ProgramItemDiscussionAttentionSummary[]> {
+      const ids = [...new Set(stageItemIds.map((id) => assertUuid(id, "stage_item_id")))];
+      if (ids.length === 0) return [];
+      return port.listAttentionSummaryForStageItems(ids);
     },
 
     async listMessagesPage(input: ProgramItemDiscussionListPageInput): Promise<ProgramItemDiscussionMessage[]> {

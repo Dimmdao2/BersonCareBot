@@ -7,6 +7,7 @@ describe("program item discussion service unread", () => {
     const port: ProgramItemDiscussionPort = {
       insertMessage: vi.fn(),
       listMessagesForStageItem: vi.fn(),
+      listAttentionSummaryForStageItems: vi.fn(),
       listMessagesPage: vi.fn(),
       countMessagesForItem: vi.fn(),
       countLegacyAdminRepliesForStageItem: vi.fn(),

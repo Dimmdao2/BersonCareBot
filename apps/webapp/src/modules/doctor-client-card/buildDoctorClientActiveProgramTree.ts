@@ -13,6 +13,24 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
   return itemType;
 }
 
+function itemTypeLabel(itemType: string): string {
+  if (itemType === "lfk_exercise") return "Упражнение";
+  if (itemType === "lfk_complex") return "Комплекс";
+  if (itemType === "clinical_test") return "Клинический тест";
+  if (itemType === "test_set") return "Набор тестов";
+  if (itemType === "recommendation") return "Рекомендация";
+  if (itemType === "lesson") return "Материал";
+  return itemType;
+}
+
+function stageStatusLabel(status: string): string {
+  if (status === "in_progress") return "В работе";
+  if (status === "available") return "Доступен";
+  if (status === "completed") return "Завершён";
+  if (status === "skipped") return "Пропущен";
+  return status;
+}
+
 function activeItemsForStage(stage: TreatmentProgramInstanceDetail["stages"][number]) {
   return [...stage.items]
     .filter((i) => i.status === "active")
@@ -27,11 +45,6 @@ export function buildDoctorClientActiveProgramTree(
 
   const { stageZero, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
   const working = selectCurrentWorkingStageForPatientDetail(pipeline);
-  const defaultExpandedStageId =
-    working?.id ??
-    stageZero.find((s) => activeItemsForStage(s).length > 0)?.id ??
-    pipeline.find((s) => activeItemsForStage(s).length > 0)?.id ??
-    null;
 
   const mapStage = (stage: TreatmentProgramInstanceDetail["stages"][number]) => {
     const activeItems = activeItemsForStage(stage);
@@ -48,6 +61,7 @@ export function buildDoctorClientActiveProgramTree(
             id: it.id,
             title: snapshotTitle(it.snapshot, it.itemType),
             itemType: it.itemType,
+            itemTypeLabel: itemTypeLabel(it.itemType),
             isNew: it.lastViewedAt == null,
           }));
         if (items.length === 0) return null;
@@ -66,6 +80,7 @@ export function buildDoctorClientActiveProgramTree(
         id: it.id,
         title: snapshotTitle(it.snapshot, it.itemType),
         itemType: it.itemType,
+        itemTypeLabel: itemTypeLabel(it.itemType),
         isNew: it.lastViewedAt == null,
       }));
 
@@ -81,6 +96,7 @@ export function buildDoctorClientActiveProgramTree(
             ? stageTitle
             : "Этап",
       status: stage.status,
+      statusLabel: stageStatusLabel(stage.status),
       groups,
       ungroupedItems: ungrouped,
     };
@@ -91,6 +107,14 @@ export function buildDoctorClientActiveProgramTree(
   const stages = [...stageZeroBlocks, ...pipelineBlocks];
 
   if (stages.length === 0) return null;
+
+  const visibleStageIds = new Set(stages.map((stage) => stage.id));
+  const defaultExpandedStageId =
+    working && visibleStageIds.has(working.id)
+      ? working.id
+      : (stageZero.find((s) => visibleStageIds.has(s.id))?.id ??
+        pipeline.find((s) => visibleStageIds.has(s.id))?.id ??
+        null);
 
   return {
     instanceId: detail.id,

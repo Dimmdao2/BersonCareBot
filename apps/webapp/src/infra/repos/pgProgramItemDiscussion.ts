@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   programItemDiscussionMessages,
@@ -82,6 +82,39 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
         .limit(safeLimit)
         .offset(safeOffset);
       return rows.map(mapMessage);
+    },
+
+    async listAttentionSummaryForStageItems(stageItemIds: string[]) {
+      const ids = [...new Set(stageItemIds)];
+      if (ids.length === 0) return [];
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(programItemDiscussionMessages)
+        .where(inArray(programItemDiscussionMessages.instanceStageItemId, ids))
+        .orderBy(
+          asc(programItemDiscussionMessages.instanceStageItemId),
+          asc(programItemDiscussionMessages.createdAt),
+          asc(programItemDiscussionMessages.id),
+        );
+
+      const latestByItem = new Map<string, ProgramItemDiscussionMessage>();
+      for (const row of rows) {
+        const message = mapMessage(row);
+        latestByItem.set(message.instanceStageItemId, message);
+      }
+
+      return ids.map((stageItemId) => {
+        const latest = latestByItem.get(stageItemId);
+        if (!latest || latest.senderRole !== "patient") {
+          return { stageItemId, comments: 0, media: 0 };
+        }
+        return {
+          stageItemId,
+          comments: latest.mediaFileId ? 0 : 1,
+          media: latest.mediaFileId ? 1 : 0,
+        };
+      });
     },
 
     async listMessagesPage(input: ProgramItemDiscussionListPageInput): Promise<ProgramItemDiscussionMessage[]> {

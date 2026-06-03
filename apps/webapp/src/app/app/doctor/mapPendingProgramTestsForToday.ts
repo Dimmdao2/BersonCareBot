@@ -49,6 +49,7 @@ export function mapPendingProgramTestsForToday(
       submittedAtLabel: formatDateTimeRu(g.attemptSubmittedAt),
       href: doctorClientProfileHref(patientUserId, {
         profileListScope: "appointments",
+        pendingAttemptId: g.attemptId,
         hash: DOCTOR_CLIENT_PENDING_TESTS_SECTION_ANCHOR,
       }),
     };

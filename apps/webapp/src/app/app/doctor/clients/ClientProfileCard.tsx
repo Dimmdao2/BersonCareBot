@@ -70,6 +70,7 @@ type ClientProfileCardProps = {
   wellbeingChartModel?: WellbeingWeekChartModel;
   taskSummary?: DoctorClientTaskSummary | null;
   proactiveInsights?: ProactiveInsightRow[];
+  focusPendingProgramAttemptId?: string;
 };
 
 export function ClientProfileCard(props: ClientProfileCardProps) {
@@ -100,6 +101,7 @@ function ClientProfileCardInner({
   wellbeingChartModel,
   taskSummary = null,
   proactiveInsights = [],
+  focusPendingProgramAttemptId,
 }: ClientProfileCardProps) {
   const { identity, upcomingAppointments, appointmentHistory } = profile;
   const { activeTab, setActiveTab, applyAnchor } = useDoctorClientAnchorTab(
@@ -255,6 +257,7 @@ function ClientProfileCardInner({
               pendingProgramTestEvaluations={pendingProgramTestEvaluations}
               programInbox={programInbox}
               activeProgramTree={activeProgramTree}
+              focusPendingProgramAttemptId={focusPendingProgramAttemptId}
             />
           </TabsContent>
 

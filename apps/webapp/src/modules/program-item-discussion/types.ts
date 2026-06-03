@@ -27,6 +27,12 @@ export type ProgramItemDiscussionMessageInsert = {
   createdAt?: string;
 };
 
+export type ProgramItemDiscussionAttentionSummary = {
+  stageItemId: string;
+  comments: number;
+  media: number;
+};
+
 export type ProgramItemDiscussionMessageCursor = {
   createdAt: string;
   id: string;

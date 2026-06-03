@@ -60,6 +60,28 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
         .map((x) => ({ ...x }));
     },
 
+    async listAttentionSummaryForStageItems(stageItemIds: string[]) {
+      const ids = [...new Set(stageItemIds)];
+      const sorted = [...rows.values()]
+        .filter((x) => ids.includes(x.instanceStageItemId))
+        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id)));
+      const latestByItem = new Map<string, ProgramItemDiscussionMessage>();
+      for (const row of sorted) {
+        latestByItem.set(row.instanceStageItemId, row);
+      }
+      return ids.map((stageItemId) => {
+        const latest = latestByItem.get(stageItemId);
+        if (!latest || latest.senderRole !== "patient") {
+          return { stageItemId, comments: 0, media: 0 };
+        }
+        return {
+          stageItemId,
+          comments: latest.mediaFileId ? 0 : 1,
+          media: latest.mediaFileId ? 1 : 0,
+        };
+      });
+    },
+
     async countMessagesForItem(stageItemId: string): Promise<number> {
       return [...rows.values()].filter((x) => x.instanceStageItemId === stageItemId).length;
     },

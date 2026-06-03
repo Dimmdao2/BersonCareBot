@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -30,6 +31,7 @@ type Props = {
   pendingProgramTestEvaluations: PendingProgramTestEvaluationRow[];
   programInbox: DoctorClientProgramInboxRow[];
   activeProgramTree: DoctorClientActiveProgramTreeModel | null;
+  focusPendingProgramAttemptId?: string;
 };
 
 export function DoctorClientProgramTab({
@@ -41,10 +43,21 @@ export function DoctorClientProgramTab({
   pendingProgramTestEvaluations,
   programInbox,
   activeProgramTree,
+  focusPendingProgramAttemptId,
 }: Props) {
   const pendingGroups = groupPendingProgramTestEvaluations(pendingProgramTestEvaluations);
   const inboxCount = programInbox.length;
   const hasUrgent = inboxCount > 0 || pendingProgramTestEvaluations.length > 0;
+
+  useEffect(() => {
+    if (!focusPendingProgramAttemptId) return;
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`doctor-client-pending-attempt-${focusPendingProgramAttemptId}`);
+      if (el && typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  }, [focusPendingProgramAttemptId]);
 
   return (
     <div className="flex flex-col gap-0">
@@ -73,7 +86,14 @@ export function DoctorClientProgramTab({
                 </div>
                 <ul className="m-0 list-none space-y-2 p-0">
                   {pendingGroups.map((g) => (
-                    <li key={g.attemptId} className={doctorClientStackedCardClass}>
+                    <li
+                      key={g.attemptId}
+                      id={`doctor-client-pending-attempt-${g.attemptId}`}
+                      className={cn(
+                        doctorClientStackedCardClass,
+                        focusPendingProgramAttemptId === g.attemptId && "ring-2 ring-primary/50",
+                      )}
+                    >
                       <p className="text-sm font-medium leading-snug">
                         {g.instanceTitle} · {g.stageTitle}
                       </p>

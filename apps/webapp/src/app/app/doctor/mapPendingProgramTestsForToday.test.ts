@@ -39,7 +39,7 @@ describe("mapPendingProgramTestsForToday", () => {
     expect(item?.patientDisplayName).toBe("Иванова");
     expect(item?.pendingCount).toBe(2);
     expect(item?.href).toBe(
-      "/app/doctor/clients/patient-1?scope=appointments#doctor-client-section-pending-program-tests",
+      "/app/doctor/clients/patient-1?scope=appointments&pendingAttempt=att-1#doctor-client-section-pending-program-tests",
     );
   });
 

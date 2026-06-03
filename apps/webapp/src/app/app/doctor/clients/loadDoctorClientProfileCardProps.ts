@@ -17,6 +17,7 @@ import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWe
 import type { PendingProgramTestEvaluationRow, TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
 import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
 import { buildDoctorClientWellbeingModel } from "./buildDoctorClientWellbeingModel";
+import { normalizeDoctorClientProfileScope } from "./doctorClientProfileHref";
 
 export type DoctorClientProfileCardPageProps = {
   profile: ClientProfile;
@@ -45,9 +46,9 @@ export type LoadDoctorClientProfileCardResult =
   | { kind: "not_found" }
   | { kind: "found"; props: DoctorClientProfileCardPageProps };
 
-function listBasePathForScope(scopeParam: string | undefined): string {
-  if (scopeParam === "all") return "/app/doctor/clients?scope=all";
-  if (scopeParam === "archived") return "/app/doctor/clients?scope=archived";
+function listBasePathForScope(scope: "appointments" | "all" | "archived"): string {
+  if (scope === "all") return "/app/doctor/clients?scope=all";
+  if (scope === "archived") return "/app/doctor/clients?scope=archived";
   return "/app/doctor/clients?scope=appointments";
 }
 
@@ -61,7 +62,8 @@ export async function loadDoctorClientProfileCardProps(input: {
   const { userId, doctorUserId, scopeParam, autoOpenChat = false } = input;
   const deps = buildAppDeps();
   const hasDb = Boolean(env.DATABASE_URL);
-  const listBasePath = listBasePathForScope(scopeParam);
+  const profileListScope = normalizeDoctorClientProfileScope(scopeParam);
+  const listBasePath = listBasePathForScope(profileListScope);
 
   const [profile, messageHistory, publishedTreatmentTemplates, pendingProgramTests, treatmentProgramInstances, displayTimeZone] =
     await Promise.all([
@@ -119,7 +121,7 @@ export async function loadDoctorClientProfileCardProps(input: {
       messageHistory: messageHistory.items,
       userId,
       listBasePath,
-      profileListScope: scopeParam,
+      profileListScope,
       publishedTreatmentProgramTemplates: publishedTreatmentTemplates.map((t) => ({
         id: t.id,
         title: t.title,

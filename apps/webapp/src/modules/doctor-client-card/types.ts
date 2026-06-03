@@ -52,6 +52,7 @@ export type DoctorClientActiveProgramTreeItem = {
   id: string;
   title: string;
   itemType: string;
+  itemTypeLabel: string;
   isNew: boolean;
 };
 
@@ -65,6 +66,7 @@ export type DoctorClientActiveProgramTreeStage = {
   id: string;
   title: string;
   status: string;
+  statusLabel: string;
   groups: DoctorClientActiveProgramTreeGroup[];
   ungroupedItems: DoctorClientActiveProgramTreeItem[];
 };

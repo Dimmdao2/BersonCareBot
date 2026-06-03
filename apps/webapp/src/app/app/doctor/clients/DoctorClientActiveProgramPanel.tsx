@@ -30,8 +30,11 @@ function ItemRow(props: {
   });
   return (
     <li>
-      <Link href={href} className={cn(doctorClientInsetListRowClass, "group text-sm")}>
-        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+      <Link href={href} className={cn(doctorClientInsetListRowClass, "group items-start text-sm")}>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{item.title}</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">{item.itemTypeLabel}</span>
+        </span>
         {item.isNew ? (
           <Badge variant="secondary" className="shrink-0 text-[10px]">
             Новое
@@ -88,8 +91,13 @@ export function DoctorClientActiveProgramPanel({ userId, profileListScope, tree 
                   className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
                   aria-hidden
                 />
-                <span className="min-w-0 flex-1 text-sm font-medium">{stage.title}</span>
-                <span className="text-xs text-muted-foreground tabular-nums">{itemCount}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{stage.title}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{stage.statusLabel}</span>
+                </span>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  Активных: {itemCount}
+                </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="border-t border-border/60 px-3 pb-3 pt-2">
                 {stage.groups.map((group) => (

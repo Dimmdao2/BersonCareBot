@@ -9,7 +9,7 @@ import { loadDoctorClientProfileCardProps } from "../loadDoctorClientProfileCard
 
 type Props = { params: Promise<{ userId: string }> };
 
-type SearchParams = Promise<{ scope?: string; chat?: string }>;
+type SearchParams = Promise<{ scope?: string; chat?: string; pendingAttempt?: string }>;
 
 export default async function DoctorClientProfilePage({
   params,
@@ -17,8 +17,9 @@ export default async function DoctorClientProfilePage({
 }: Props & { searchParams: SearchParams }) {
   const session = await requireDoctorAccess();
   const { userId } = await params;
-  const { scope: scopeParam, chat: chatParam } = await searchParams;
+  const { scope: scopeParam, chat: chatParam, pendingAttempt: pendingAttemptParam } = await searchParams;
   const autoOpenChat = chatParam === "1";
+  const focusPendingProgramAttemptId = pendingAttemptParam?.trim() || undefined;
 
   const loaded = await loadDoctorClientProfileCardProps({
     userId,
@@ -41,6 +42,7 @@ export default async function DoctorClientProfilePage({
     >
       <ClientProfileCard
         {...props}
+        focusPendingProgramAttemptId={focusPendingProgramAttemptId}
         isAdmin={session.user.role === "admin"}
         canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
         canEditClientProfile={session.user.role === "admin" && Boolean(session.adminMode)}

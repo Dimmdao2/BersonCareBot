@@ -111,7 +111,9 @@ describe("buildDoctorClientActiveProgramTree", () => {
 
     expect(tree?.defaultExpandedStageId).toBe("st-1");
     expect(tree?.stages).toHaveLength(1);
+    expect(tree?.stages[0]?.statusLabel).toBe("В работе");
     expect(tree?.stages[0]?.ungroupedItems.map((i) => i.title)).toEqual(["А", "Б"]);
+    expect(tree?.stages[0]?.ungroupedItems.map((i) => i.itemTypeLabel)).toEqual(["Рекомендация", "Рекомендация"]);
     expect(tree?.stages[0]?.ungroupedItems[0]?.isNew).toBe(false);
     expect(tree?.stages[0]?.ungroupedItems[1]?.isNew).toBe(true);
   });
@@ -200,5 +202,63 @@ describe("buildDoctorClientActiveProgramTree", () => {
 
     expect(tree?.stages.map((s) => s.id)).toEqual(["st-0", "st-1"]);
     expect(tree?.stages[0]?.title).toBe("Общие рекомендации");
+  });
+
+  it("does not default-expand an in-progress stage hidden from the tree", () => {
+    const emptyWorkingStage: TreatmentProgramInstanceDetail["stages"][number] = {
+      id: "st-empty",
+      instanceId: "inst-1",
+      sourceStageId: null,
+      title: "Пустой этап",
+      description: null,
+      sortOrder: 1,
+      localComment: null,
+      skipReason: null,
+      status: "in_progress",
+      startedAt: null,
+      goals: null,
+      objectives: null,
+      expectedDurationDays: null,
+      expectedDurationText: null,
+      groups: [],
+      items: [],
+    };
+    const visibleStage: TreatmentProgramInstanceDetail["stages"][number] = {
+      ...emptyWorkingStage,
+      id: "st-visible",
+      title: "Следующий этап",
+      sortOrder: 2,
+      status: "available",
+      items: [
+        {
+          id: "item-visible",
+          stageId: "st-visible",
+          itemType: "clinical_test",
+          itemRefId: "test-1",
+          sortOrder: 0,
+          comment: null,
+          localComment: null,
+          settings: null,
+          snapshot: { title: "Тест" },
+          completedAt: null,
+          isActionable: true,
+          status: "active",
+          groupId: null,
+          createdAt: "2025-01-01T00:00:00.000Z",
+          lastViewedAt: null,
+          effectiveComment: null,
+        },
+      ],
+    };
+
+    const tree = buildDoctorClientActiveProgramTree(
+      baseDetail({
+        stages: [emptyWorkingStage, visibleStage],
+      }),
+    );
+
+    expect(tree?.stages.map((s) => s.id)).toEqual(["st-visible"]);
+    expect(tree?.defaultExpandedStageId).toBe("st-visible");
+    expect(tree?.stages[0]?.ungroupedItems[0]?.itemTypeLabel).toBe("Клинический тест");
   });
 });

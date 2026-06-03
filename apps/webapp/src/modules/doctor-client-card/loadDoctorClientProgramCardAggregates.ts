@@ -1,10 +1,8 @@
-import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceSummary, TreatmentProgramEventRow } from "@/modules/treatment-program/types";
 import { buildDoctorClientActiveProgramTree } from "./buildDoctorClientActiveProgramTree";
 import { buildDoctorClientCarePlanOverview } from "./buildDoctorClientCarePlanOverview";
 import { buildDoctorClientRecentProgramChanges } from "./buildDoctorClientRecentProgramChanges";
-import { countDiscussionAttentionFromMessages } from "./countDiscussionAttention";
 import type {
   DoctorClientProgramCardAggregates,
   DoctorClientProgramCardData,
@@ -22,11 +20,9 @@ export type LoadDoctorClientProgramCardAggregatesDeps = {
     }): Promise<{ show: boolean; eventIso: string | null }>;
   };
   programItemDiscussion: {
-    listMessagesForStageItem(
-      stageItemId: string,
-      limit?: number,
-      offset?: number,
-    ): Promise<Awaited<ReturnType<ProgramItemDiscussionPort["listMessagesForStageItem"]>>>;
+    listAttentionSummaryForStageItems(
+      stageItemIds: string[],
+    ): Promise<{ stageItemId: string; comments: number; media: number }[]>;
   };
 };
 
@@ -51,10 +47,10 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
   return itemType;
 }
 
-function collectAttentionForActiveItems(
+async function collectAttentionForActiveItems(
   detail: TreatmentProgramInstanceDetail,
   instanceId: string,
-  listMessagesForStageItem: LoadDoctorClientProgramCardAggregatesDeps["programItemDiscussion"]["listMessagesForStageItem"],
+  listAttentionSummaryForStageItems: LoadDoctorClientProgramCardAggregatesDeps["programItemDiscussion"]["listAttentionSummaryForStageItems"],
 ): Promise<{
   aggregates: Pick<DoctorClientProgramCardAggregates, "newCommentsCount" | "patientMediaCount">;
   programInbox: DoctorClientProgramInboxRow[];
@@ -65,44 +61,46 @@ function collectAttentionForActiveItems(
       .map((i) => ({ ...i, stageId: s.id })),
   );
 
-  return Promise.all(
-    activeItems.map(async (item) => {
-      const messages = await listMessagesForStageItem(item.id, 50, 0);
-      const counts = countDiscussionAttentionFromMessages(messages);
-      return { item, counts };
-    }),
-  ).then((rows) => {
-    let newCommentsCount = 0;
-    let patientMediaCount = 0;
-    const programInbox: DoctorClientProgramInboxRow[] = [];
-    const title = (it: (typeof activeItems)[number]) =>
-      snapshotTitle(it.snapshot, it.itemType);
+  if (activeItems.length === 0) {
+    return {
+      aggregates: { newCommentsCount: 0, patientMediaCount: 0 },
+      programInbox: [],
+    };
+  }
 
-    for (const { item, counts } of rows) {
-      newCommentsCount += counts.comments;
-      patientMediaCount += counts.media;
-      if (counts.comments > 0) {
-        programInbox.push({
-          stageItemId: item.id,
-          instanceId,
-          title: title(item),
-          kind: "comment",
-        });
-      }
-      if (counts.media > 0) {
-        programInbox.push({
-          stageItemId: item.id,
-          instanceId,
-          title: title(item),
-          kind: "media",
-        });
-      }
+  const summaries = await listAttentionSummaryForStageItems(activeItems.map((item) => item.id));
+  const summaryByItem = new Map(summaries.map((row) => [row.stageItemId, row]));
+  let newCommentsCount = 0;
+  let patientMediaCount = 0;
+  const programInbox: DoctorClientProgramInboxRow[] = [];
+  const title = (it: (typeof activeItems)[number]) =>
+    snapshotTitle(it.snapshot, it.itemType);
+
+  for (const item of activeItems) {
+    const summary = summaryByItem.get(item.id) ?? { comments: 0, media: 0 };
+    newCommentsCount += summary.comments;
+    patientMediaCount += summary.media;
+    if (summary.comments > 0) {
+      programInbox.push({
+        stageItemId: item.id,
+        instanceId,
+        title: title(item),
+        kind: "comment",
+      });
     }
+    if (summary.media > 0) {
+      programInbox.push({
+        stageItemId: item.id,
+        instanceId,
+        title: title(item),
+        kind: "media",
+      });
+    }
+  }
 
-    programInbox.sort((a, b) => a.title.localeCompare(b.title, "ru") || a.stageItemId.localeCompare(b.stageItemId));
+  programInbox.sort((a, b) => a.title.localeCompare(b.title, "ru") || a.stageItemId.localeCompare(b.stageItemId));
 
-    return { aggregates: { newCommentsCount, patientMediaCount }, programInbox };
-  });
+  return { aggregates: { newCommentsCount, patientMediaCount }, programInbox };
 }
 
 export async function loadDoctorClientProgramCardData(
@@ -155,7 +153,7 @@ export async function loadDoctorClientProgramCardData(
   const { aggregates: attention, programInbox } = await collectAttentionForActiveItems(
     detail,
     active.id,
-    deps.programItemDiscussion.listMessagesForStageItem,
+    deps.programItemDiscussion.listAttentionSummaryForStageItems,
   );
 
   return {

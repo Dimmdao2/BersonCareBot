@@ -1,6 +1,7 @@
 import type {
   ProgramItemDiscussionLegacyMergeInput,
   ProgramItemDiscussionLegacyUnreadInput,
+  ProgramItemDiscussionAttentionSummary,
   ProgramItemDiscussionListPageInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
@@ -9,6 +10,7 @@ import type {
 export type ProgramItemDiscussionPort = {
   insertMessage(input: ProgramItemDiscussionMessageInsert): Promise<ProgramItemDiscussionMessage>;
   listMessagesForStageItem(stageItemId: string, limit?: number, offset?: number): Promise<ProgramItemDiscussionMessage[]>;
+  listAttentionSummaryForStageItems(stageItemIds: string[]): Promise<ProgramItemDiscussionAttentionSummary[]>;
   listMessagesPage(input: ProgramItemDiscussionListPageInput): Promise<ProgramItemDiscussionMessage[]>;
   countMessagesForItem(stageItemId: string): Promise<number>;
   countLegacyAdminRepliesForStageItem(input: ProgramItemDiscussionLegacyMergeInput): Promise<number>;

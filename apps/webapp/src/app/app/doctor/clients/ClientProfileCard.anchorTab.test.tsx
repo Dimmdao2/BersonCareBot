@@ -117,9 +117,16 @@ describe("ClientProfileCard anchor routing", () => {
               id: "st-1",
               title: "Этап 1",
               status: "in_progress",
+              statusLabel: "В работе",
               groups: [],
               ungroupedItems: [
-                { id: "item-1", title: "Разминка", itemType: "lfk_exercise", isNew: false },
+                {
+                  id: "item-1",
+                  title: "Разминка",
+                  itemType: "lfk_exercise",
+                  itemTypeLabel: "Упражнение",
+                  isNew: false,
+                },
               ],
             },
           ],
@@ -129,7 +136,7 @@ describe("ClientProfileCard anchor routing", () => {
     await waitFor(() => {
       expect(screen.getByText("Разминка")).toBeInTheDocument();
     });
-    const itemLink = screen.getByRole("link", { name: "Разминка" });
+    const itemLink = screen.getByRole("link", { name: /Разминка/ });
     expect(itemLink.getAttribute("href")).toContain("discussionItem=item-1");
     expect(itemLink.getAttribute("href")).toContain("scope=appointments");
   });
@@ -141,6 +148,7 @@ describe("ClientProfileCard anchor routing", () => {
         profile={minimalProfile}
         messageHistory={[] as MessageLogEntry[]}
         userId="u1"
+        focusPendingProgramAttemptId="a1"
         pendingProgramTestEvaluations={[
           {
             resultId: "r1",
@@ -160,6 +168,7 @@ describe("ClientProfileCard anchor routing", () => {
     await waitFor(() => {
       expect(document.getElementById("doctor-client-section-pending-program-tests")).toBeTruthy();
     });
+    expect(document.getElementById("doctor-client-pending-attempt-a1")?.className).toContain("ring-primary");
   });
 
   it("opens communications tab for #doctor-client-section-communications", async () => {

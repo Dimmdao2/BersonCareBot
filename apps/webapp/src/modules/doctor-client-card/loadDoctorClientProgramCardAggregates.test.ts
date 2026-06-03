@@ -24,7 +24,7 @@ describe("loadDoctorClientProgramCardData", () => {
           listProgramEvents: vi.fn().mockResolvedValue([]),
           patientPlanUpdatedBadgeForInstance: vi.fn(),
         },
-        programItemDiscussion: { listMessagesForStageItem: vi.fn() },
+        programItemDiscussion: { listAttentionSummaryForStageItems: vi.fn() },
       },
       "p1",
       [],
@@ -35,6 +35,15 @@ describe("loadDoctorClientProgramCardData", () => {
   });
 
   it("aggregates patient-last messages and plan-not-opened badge", async () => {
+    const listAttentionSummaryForStageItems = vi.fn(async (ids: string[]) =>
+      ids.map((id) =>
+        id === "item-a"
+          ? { stageItemId: id, comments: 1, media: 0 }
+          : id === "item-b"
+            ? { stageItemId: id, comments: 0, media: 1 }
+            : { stageItemId: id, comments: 0, media: 0 },
+      ),
+    );
     const data = await loadDoctorClientProgramCardData(
       {
         treatmentProgramInstance: {
@@ -114,39 +123,7 @@ describe("loadDoctorClientProgramCardData", () => {
           }),
         },
         programItemDiscussion: {
-          listMessagesForStageItem: vi.fn(async (id: string) => {
-            if (id === "item-a") {
-              return [
-                {
-                  id: "m1",
-                  instanceStageItemId: id,
-                  patientUserId: "p1",
-                  senderRole: "patient" as const,
-                  origin: "patient_observation" as const,
-                  body: "Вопрос",
-                  mediaFileId: null,
-                  supportMessageId: null,
-                  createdAt: "2025-06-01T10:00:00.000Z",
-                },
-              ];
-            }
-            if (id === "item-b") {
-              return [
-                {
-                  id: "m2",
-                  instanceStageItemId: id,
-                  patientUserId: "p1",
-                  senderRole: "patient" as const,
-                  origin: "patient_observation" as const,
-                  body: null,
-                  mediaFileId: "media-1",
-                  supportMessageId: null,
-                  createdAt: "2025-06-01T11:00:00.000Z",
-                },
-              ];
-            }
-            return [];
-          }),
+          listAttentionSummaryForStageItems,
         },
       },
       "p1",
@@ -163,5 +140,7 @@ describe("loadDoctorClientProgramCardData", () => {
     expect(data.carePlan?.instanceId).toBe("inst-1");
     expect(data.activeProgramTree?.instanceId).toBe("inst-1");
     expect(data.activeProgramTree?.stages[0]?.ungroupedItems).toHaveLength(2);
+    expect(listAttentionSummaryForStageItems).toHaveBeenCalledTimes(1);
+    expect(listAttentionSummaryForStageItems).toHaveBeenCalledWith(["item-a", "item-b"]);
   });
 });
