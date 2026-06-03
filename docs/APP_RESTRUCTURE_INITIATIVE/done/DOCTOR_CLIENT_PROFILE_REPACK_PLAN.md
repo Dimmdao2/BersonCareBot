@@ -2,6 +2,7 @@
 
 **Дата:** 2026-05-02.
 **Статус:** выполнено.
+**Навигация (2026-06-03):** master-detail `?selected` на `/app/doctor/clients` снят; карточка только на `/app/doctor/clients/[userId]` — см. [`.cursor/plans/archive/unify_doctor_patient_card_37615243.plan.md`](../../../.cursor/plans/archive/unify_doctor_patient_card_37615243.plan.md).
 **Связанный общий план:** [PLAN_DOCTOR_CABINET.md](../PLAN_DOCTOR_CABINET.md), этап 6 (минимальная пересборка карточки пациента из имеющегося — заморозка глубокой переработки).
 **Аудит закрытия:** [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md) — чек-листы §5, синхронизация документов, остаточные хвосты.
 

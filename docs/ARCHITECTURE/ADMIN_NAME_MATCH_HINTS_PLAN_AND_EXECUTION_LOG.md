@@ -37,7 +37,7 @@
 2. **Свёрнутая секция merge:** при `sectionOpen === false` preview не запрашивается; активный preview-fetch отменяется; состояние preview очищается.
 3. **`merge-user-search`:** отдельное состояние ошибки (403 / HTTP / сеть) vs пустой успешный список; текст «Ничего не найдено» только при успехе и 0 результатов.
 4. **`<select>` вторая запись:** если UUID выбран только из поиска и нет в overlap-списке — дополнительная `<option>` + строка с полным UUID под полем.
-5. **Отчёт по ФИО:** перед новым «Запустить поиск» сброс предыдущих `orderedGroups` / `swappedPairs` / `disclaimer`; ссылки на клиента с **`scope=all&selected=`** (чтобы запись была в левом списке по умолчанию); «Назад» на `.../clients?scope=all`.
+5. **Отчёт по ФИО:** перед новым «Запустить поиск» сброс предыдущих `orderedGroups` / `swappedPairs` / `disclaimer`; ссылки на клиента — **`/app/doctor/clients/<uuid>?scope=all`** (canonical карточка); «Назад» на `.../clients?scope=all`.
 6. **После успешного `POST .../merge`:** сброс строки поиска второй записи, результатов поиска, ошибки поиска; `canonicalIsAnchor` и `alignToRecommendation` возвращаются к значениям по умолчанию.
 7. **SQL:** нормализация пробелов через POSIX `[[:space:]]+` в `regexp_replace`; запросы ordered и swapped выполняются **последовательно** (проще тесты и предсказуемая нагрузка).
 8. **Мелкий фикс сборки:** в `name-match-hints/page.tsx` явный импорт `Link` из `next/link` (eslint `react/jsx-no-undef`).

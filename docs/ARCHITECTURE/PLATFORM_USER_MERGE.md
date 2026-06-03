@@ -254,7 +254,7 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 Доступ: **только** `role === admin` и включённый **admin mode** (тот же guard, что `POST .../merge` и `GET .../merge-preview`; на карточке используется тот же флаг, что и для безвозвратного удаления).
 
-Поверхность: `/app/doctor/clients/[userId]` и колонка деталей на `/app/doctor/clients` — блок **«Объединение учётных записей (admin)»** внутри аккордеона карточки (`ClientProfileCard` → `AdminMergeAccountsPanel`). Отдельная страница **`/app/doctor/clients/name-match-hints`** (только admin + admin mode): кнопка «Запустить поиск» по отчёту `name-match-hints`, ссылка из списка клиентов при том же guard.
+Поверхность: каноническая карточка **`/app/doctor/clients/[userId]`** — блок **«Объединение учётных записей (admin)»** внутри карточки (`ClientProfileCard` → `AdminMergeAccountsPanel`). Список **`/app/doctor/clients`** — только список и фильтры; legacy `?selected=<uuid>` редиректит на `[userId]`. Отдельная страница **`/app/doctor/clients/name-match-hints`** (только admin + admin mode): кнопка «Запустить поиск» по отчёту `name-match-hints`, ссылка из списка клиентов при том же guard.
 
 **Integrator proxy — фантомный `integrator_user_id` у дубликата:** если M2M `POST /api/integrator/users/merge` возвращает `USER_NOT_FOUND` и в теле указано, что отсутствует **только** integrator id стороны **дубликата** (`missingIntegratorUserIds`), webapp **`POST /api/doctor/clients/integrator-merge`** (без `dryRun`) обнуляет `platform_users.integrator_user_id` у дубликата, пишет audit `integrator_user_merge` со статусом ok и `phase: orphan_duplicate_integrator_id_cleared`; после этого можно обновить preview и выполнить обычный webapp merge. При `dryRun: true` в том же случае возвращается подсказка без записи в БД.
 
@@ -279,7 +279,7 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 **Устойчивость UI и навигация (после hardening):**
 - `merge-preview` в `AdminMergeAccountsPanel`: предыдущий запрос отменяется через `AbortController`; ответы от устаревших запросов не применяются (монотонный счётчик запроса), чтобы при быстрой смене второй записи или опций не показывался чужой preview. Пока раздел merge в аккордеоне карточки **не открыт** (`suspendHeavyFetch`), кандидаты / preview / поиск второй записи не запрашиваются, активные запросы отменяются.
 - Поиск второй записи (`merge-user-search`): сеть/403 показываются отдельно от пустого списка; UUID второй стороны, выбранной только из поиска, дублируется отдельной опцией в `<select>` и строкой с полным UUID.
-- Страница `/app/doctor/clients/name-match-hints`: ссылки на карточку ведут на `?scope=all&selected=<uuid>`; при новом запуске отчёта предыдущие строки очищаются до прихода ответа; «Назад» — в список **все подписчики** (`scope=all`).
+- Страница `/app/doctor/clients/name-match-hints`: ссылки на карточку ведут на `/app/doctor/clients/<uuid>?scope=all`; при новом запуске отчёта предыдущие строки очищаются до прихода ответа; «Назад» — в список **все подписчики** (`scope=all`).
 
 Чистая логика ориентации preview и проверки `canSubmitManualMerge` вынесена в `apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts` (тесты рядом).
 

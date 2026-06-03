@@ -10,6 +10,7 @@ import type {
   TreatmentProgramInstanceDetail,
 } from "@/modules/treatment-program/types";
 import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
+import { TEST_EDITOR_PATIENT_PROFILE_HREF } from "../../../doctorClientProfileHref.testFixtures";
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -193,7 +194,7 @@ describe("TreatmentProgramInstanceDetailClient phase 7 history and unsaved gate"
   }) {
     return render(
       <TreatmentProgramInstanceDetailClient
-        patientProfileHref="/app/doctor/clients/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        patientProfileHref={TEST_EDITOR_PATIENT_PROFILE_HREF}
         patientDisplayName="Иван Т."
         initial={options?.initial ?? instanceWithPipeline()}
         initialTestResults={[]}

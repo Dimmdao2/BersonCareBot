@@ -73,11 +73,11 @@ describe("DoctorOnlineIntakeClient", () => {
     });
     expect(screen.getByRole("link", { name: "Карточка клиента" })).toHaveAttribute(
       "href",
-      `/app/doctor/clients/${PATIENT_ID}`,
+      `/app/doctor/clients/${PATIENT_ID}?scope=appointments`,
     );
     expect(screen.getByRole("link", { name: "Чат" })).toHaveAttribute(
       "href",
-      `/app/doctor/clients/${PATIENT_ID}?chat=1`,
+      `/app/doctor/clients/${PATIENT_ID}?scope=appointments&chat=1`,
     );
   });
 

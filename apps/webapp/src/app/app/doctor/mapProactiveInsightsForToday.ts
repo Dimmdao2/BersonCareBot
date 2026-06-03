@@ -1,22 +1,23 @@
 import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
-import { doctorClientTreatmentProgramInstanceHref } from "./clients/doctorClientInstanceHref";
+import {
+  DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
+  doctorClientProfileHref,
+} from "./clients/doctorClientProfileHref";
 
 export type TodayProactiveInsightItem = ProactiveInsightRow & {
   href: string;
 };
 
 const WELLBEING_ANCHOR = "doctor-client-section-wellbeing";
-const PROGRAM_SECTION_ANCHOR = "doctor-client-section-treatment-programs";
 
 export function proactiveInsightHref(row: ProactiveInsightRow): string {
-  const base = `/app/doctor/clients/${encodeURIComponent(row.patientUserId)}`;
   if (row.kind === "wellbeing_low_streak") {
-    return `${base}#${WELLBEING_ANCHOR}`;
+    return doctorClientProfileHref(row.patientUserId, { hash: WELLBEING_ANCHOR });
   }
-  if (row.kind === "program_inactivity" && row.activeProgramInstanceId) {
-    return doctorClientTreatmentProgramInstanceHref(row.patientUserId, row.activeProgramInstanceId);
-  }
-  return `${base}#${PROGRAM_SECTION_ANCHOR}`;
+  return doctorClientProfileHref(row.patientUserId, {
+    profileListScope: "appointments",
+    hash: DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
+  });
 }
 
 export function mapProactiveInsightsForToday(rows: readonly ProactiveInsightRow[]): TodayProactiveInsightItem[] {

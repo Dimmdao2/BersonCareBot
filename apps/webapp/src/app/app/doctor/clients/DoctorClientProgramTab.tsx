@@ -6,7 +6,11 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
 import { DoctorClientProgramInbox } from "./DoctorClientProgramInbox";
 import { groupPendingProgramTestEvaluations } from "./groupPendingProgramTestEvaluations";
-import type { DoctorClientProgramInboxRow } from "@/modules/doctor-client-card/types";
+import type {
+  DoctorClientActiveProgramTreeModel,
+  DoctorClientProgramInboxRow,
+} from "@/modules/doctor-client-card/types";
+import { DoctorClientActiveProgramPanel } from "./DoctorClientActiveProgramPanel";
 import type { PendingProgramTestEvaluationRow, TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
 import {
   doctorClientSectionTitleClass,
@@ -25,6 +29,7 @@ type Props = {
   treatmentProgramInstancesInitial?: TreatmentProgramInstanceSummary[];
   pendingProgramTestEvaluations: PendingProgramTestEvaluationRow[];
   programInbox: DoctorClientProgramInboxRow[];
+  activeProgramTree: DoctorClientActiveProgramTreeModel | null;
 };
 
 export function DoctorClientProgramTab({
@@ -35,6 +40,7 @@ export function DoctorClientProgramTab({
   treatmentProgramInstancesInitial,
   pendingProgramTestEvaluations,
   programInbox,
+  activeProgramTree,
 }: Props) {
   const pendingGroups = groupPendingProgramTestEvaluations(pendingProgramTestEvaluations);
   const inboxCount = programInbox.length;
@@ -91,6 +97,13 @@ export function DoctorClientProgramTab({
       ) : null}
 
       <section id="doctor-client-section-treatment-programs" className={doctorClientTabSectionClass}>
+        {activeProgramTree ? (
+          <DoctorClientActiveProgramPanel
+            userId={userId}
+            profileListScope={profileListScope}
+            tree={activeProgramTree}
+          />
+        ) : null}
         <PatientTreatmentProgramsPanel
           patientUserId={userId}
           templates={publishedTreatmentProgramTemplates}

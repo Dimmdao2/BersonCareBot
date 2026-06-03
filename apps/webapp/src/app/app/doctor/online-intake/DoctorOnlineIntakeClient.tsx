@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
+import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 
 type IntakeItem = {
   id: string;
@@ -65,14 +66,6 @@ const TYPE_LABELS: Record<string, string> = {
   lfk: "ЛФК",
   nutrition: "Нутрициология",
 };
-
-function doctorClientProfileHref(patientUserId: string): string {
-  return `/app/doctor/clients/${encodeURIComponent(patientUserId)}`;
-}
-
-function doctorClientChatHref(patientUserId: string): string {
-  return `${doctorClientProfileHref(patientUserId)}?chat=1`;
-}
 
 function IntakeDetailBody({ detail }: { detail: IntakeDetail }) {
   return (
@@ -140,12 +133,18 @@ function IntakeCardActions({
   return (
     <div className="flex gap-2 flex-wrap">
       <Link
-        href={doctorClientProfileHref(patientUserId)}
+        href={doctorClientProfileHref(patientUserId, { profileListScope: "appointments" })}
         className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
       >
         Карточка клиента
       </Link>
-      <Link href={doctorClientChatHref(patientUserId)} className={cn(buttonVariants({ size: "sm" }))}>
+      <Link
+        href={doctorClientProfileHref(patientUserId, {
+          profileListScope: "appointments",
+          openChat: true,
+        })}
+        className={cn(buttonVariants({ size: "sm" }))}
+      >
         Чат
       </Link>
       {status !== "closed" ? (

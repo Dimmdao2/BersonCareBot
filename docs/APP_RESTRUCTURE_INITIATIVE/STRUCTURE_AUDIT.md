@@ -129,8 +129,8 @@
 | Группа | URL | Назначение |
 |--------|-----|------------|
 | Сегодня | `/app/doctor` | Рабочий inbox: KPI, очереди (заявки, сообщения, записи); health-баннер для admin |
-| Клиенты | `/app/doctor/clients` | Список + master-detail; query `scope=appointments\|all\|archived` |
-| Карточка клиента | `/app/doctor/clients/[userId]` | Аккордеон с 13 секциями |
+| Клиенты | `/app/doctor/clients` | Список и фильтры; query `scope=appointments\|all\|archived`; legacy `?selected=<uuid>` → redirect на карточку |
+| Карточка клиента | `/app/doctor/clients/[userId]` | `ClientProfileCard` (табы: Обзор, Программа, …); read-only дерево активной программы на табе «Программа» |
 | Подписчики (legacy) | `/app/doctor/subscribers`, `/subscribers/[userId]` | Полные redirect-ы на `/clients?scope=all` |
 | Hint admin | `/app/doctor/clients/name-match-hints` | Admin-debug |
 | Записи | `/app/doctor/appointments` | Расписание; `view=future\|month\|cancellationsMonth`; при расхождении имени Rubitime и профиля — подсказка «В Rubitime» |

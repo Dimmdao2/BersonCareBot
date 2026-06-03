@@ -48,9 +48,39 @@ export type DoctorClientRecentProgramChangeRow = {
   summary: string;
 };
 
+export type DoctorClientActiveProgramTreeItem = {
+  id: string;
+  title: string;
+  itemType: string;
+  isNew: boolean;
+};
+
+export type DoctorClientActiveProgramTreeGroup = {
+  id: string;
+  title: string | null;
+  items: DoctorClientActiveProgramTreeItem[];
+};
+
+export type DoctorClientActiveProgramTreeStage = {
+  id: string;
+  title: string;
+  status: string;
+  groups: DoctorClientActiveProgramTreeGroup[];
+  ungroupedItems: DoctorClientActiveProgramTreeItem[];
+};
+
+/** Read-only состав активной программы на табе «Программа». */
+export type DoctorClientActiveProgramTreeModel = {
+  instanceId: string;
+  instanceTitle: string;
+  defaultExpandedStageId: string | null;
+  stages: DoctorClientActiveProgramTreeStage[];
+};
+
 export type DoctorClientProgramCardData = {
   aggregates: DoctorClientProgramCardAggregates;
   carePlan: DoctorClientOverviewCarePlanModel | null;
+  activeProgramTree: DoctorClientActiveProgramTreeModel | null;
   programInbox: DoctorClientProgramInboxRow[];
   recentProgramChanges: DoctorClientRecentProgramChangeRow[];
 };

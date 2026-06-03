@@ -5,6 +5,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import toast from "react-hot-toast";
+import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 import { InstanceEditorToolbar } from "./InstanceEditorToolbar";
 
 const saveDraft = vi.fn();
@@ -56,7 +57,7 @@ describe("InstanceEditorToolbar", () => {
 
   const baseProps = {
     programTitle: "План реабилитации",
-    patientProfileHref: "/app/doctor/clients/u1",
+    patientProfileHref: doctorClientProfileHref("u1", { profileListScope: "appointments" }),
     patientDisplayName: "Иван Т.",
     programStatus: "active" as const,
     pipelineStageCount: 0,

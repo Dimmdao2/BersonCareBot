@@ -62,7 +62,7 @@ describe("DoctorProgramItemDiscussionDialog", () => {
   });
 
   it("ignores stale response after item switch", async () => {
-    let resolveSlowItemA: ((value: Response) => void) | null = null;
+    let resolveSlowItemA: (value: Response) => void = () => {};
     const slowItemAPromise = new Promise<Response>((resolve) => {
       resolveSlowItemA = resolve;
     });

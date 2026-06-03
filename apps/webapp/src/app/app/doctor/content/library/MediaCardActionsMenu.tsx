@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { doctorClientProfileHref } from "../../clients/doctorClientProfileHref";
 import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import {
@@ -137,7 +138,10 @@ export function MediaCardActionsMenu({
             <p>
               Загрузил:{" "}
               {item.userId ? (
-                <Link className="text-primary underline" href={`/app/doctor/clients/${item.userId}`}>
+                <Link
+                  className="text-primary underline"
+                  href={doctorClientProfileHref(item.userId, { profileListScope: "appointments" })}
+                >
                   {item.uploadedByName?.trim() || item.userId}
                 </Link>
               ) : (

@@ -464,6 +464,20 @@
 
 ---
 
+## 2026-06-03 — Единая карточка клиента (canonical route)
+
+- Список `/app/doctor/clients` — только список; desktop master-detail `?selected=` убран; legacy `?selected=<uuid>` → redirect на `/app/doctor/clients/[userId]?scope=…`.
+- Клик по строке (в т.ч. фильтр `treatmentProgram=1`) — canonical карточка, не editor инстанса.
+- Общий RSC-loader `loadDoctorClientProfileCardProps`; таб «Программа» — read-only `activeProgramTree` активного инстанса (`buildDoctorClientActiveProgramTree`).
+- «Сегодня» и proactive — ссылки на карточку с `#doctor-client-section-treatment-programs`; возврат из editor — тот же hash.
+- Проверки: vitest по затронутым файлам, `tsc --noEmit` (webapp).
+
+**Follow-up (аудит 2026-06-03):** удалён неиспользуемый `ClientListLink` (`?selected` на desktop); обновлены `SPECIALIST_CABINET_STRUCTURE.md`, `ADMIN_NAME_MATCH_HINTS_PLAN_AND_EXECUTION_LOG.md`, `STRUCTURE_AUDIT.md`, `TODO.md`; e2e — invalid `?selected`, цепочка subscribers→canonical; RTL — `activeProgramTree` в `ClientProfileCard.anchorTab.test.tsx`.
+
+**Документация и план:** канон в репозитории — [`.cursor/plans/archive/unify_doctor_patient_card_37615243.plan.md`](../../.cursor/plans/archive/unify_doctor_patient_card_37615243.plan.md) (`status: completed`). Проверки: 49 vitest (10 файлов), `tsc --noEmit` webapp.
+
+---
+
 ## 2026-06-02 — Фаза 2C: задачи специалиста
 
 - Drizzle `specialist_tasks` + миграция `0102`; модуль `specialist-tasks` (порт/сервис/DI).

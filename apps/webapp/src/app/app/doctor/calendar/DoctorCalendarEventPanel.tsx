@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { DateTime } from "luxon";
 import { Badge } from "@/components/ui/badge";
@@ -237,7 +238,9 @@ function DoctorCalendarEventPanelInner({
         {selected.patientPhone ? <p>{selected.patientPhone}</p> : null}
         {selected.platformUserId ? (
           <Link
-            href={`/app/doctor/clients/${encodeURIComponent(selected.platformUserId)}`}
+            href={doctorClientProfileHref(selected.platformUserId, {
+              profileListScope: "appointments",
+            })}
             className="text-xs font-medium text-primary underline-offset-2 hover:underline"
           >
             Карточка клиента

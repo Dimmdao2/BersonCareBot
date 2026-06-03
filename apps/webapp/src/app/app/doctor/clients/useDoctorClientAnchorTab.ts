@@ -39,7 +39,9 @@ export function useDoctorClientAnchorTab(defaultTab: DoctorClientTabId = "overvi
     const tab = DOCTOR_CLIENT_ANCHOR_TO_TAB[anchorId];
     if (tab) setActiveTab(tab);
     if (options?.replaceHash !== false) {
-      window.history.replaceState(null, "", `#${anchorId}`);
+      const url = new URL(window.location.href);
+      url.hash = anchorId;
+      window.history.replaceState(null, "", url.toString());
     }
     scrollToAnchor(anchorId);
   }, []);

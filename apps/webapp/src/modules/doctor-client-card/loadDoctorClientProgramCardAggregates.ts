@@ -1,6 +1,7 @@
 import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceSummary, TreatmentProgramEventRow } from "@/modules/treatment-program/types";
+import { buildDoctorClientActiveProgramTree } from "./buildDoctorClientActiveProgramTree";
 import { buildDoctorClientCarePlanOverview } from "./buildDoctorClientCarePlanOverview";
 import { buildDoctorClientRecentProgramChanges } from "./buildDoctorClientRecentProgramChanges";
 import { countDiscussionAttentionFromMessages } from "./countDiscussionAttention";
@@ -39,6 +40,7 @@ const EMPTY_AGGREGATES: DoctorClientProgramCardAggregates = {
 const EMPTY_DATA: DoctorClientProgramCardData = {
   aggregates: EMPTY_AGGREGATES,
   carePlan: null,
+  activeProgramTree: null,
   programInbox: [],
   recentProgramChanges: [],
 };
@@ -128,6 +130,7 @@ export async function loadDoctorClientProgramCardData(
         lastPlanMutationEventAt: badge.eventIso,
       },
       carePlan: null,
+      activeProgramTree: null,
       programInbox: [],
       recentProgramChanges: [],
     };
@@ -162,6 +165,7 @@ export async function loadDoctorClientProgramCardData(
       lastPlanMutationEventAt: badge.eventIso,
     },
     carePlan: buildDoctorClientCarePlanOverview(detail),
+    activeProgramTree: buildDoctorClientActiveProgramTree(detail),
     programInbox,
     recentProgramChanges,
   };

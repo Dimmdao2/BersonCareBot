@@ -16,6 +16,7 @@ import type {
 } from "@/modules/treatment-program/types";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
 import type {
+  DoctorClientActiveProgramTreeModel,
   DoctorClientOverviewCarePlanModel,
   DoctorClientProgramCardAggregates,
   DoctorClientProgramInboxRow,
@@ -62,6 +63,7 @@ type ClientProfileCardProps = {
   autoOpenChat?: boolean;
   programCardAggregates?: DoctorClientProgramCardAggregates;
   carePlanOverview?: DoctorClientOverviewCarePlanModel | null;
+  activeProgramTree?: DoctorClientActiveProgramTreeModel | null;
   programInbox?: DoctorClientProgramInboxRow[];
   recentProgramChanges?: DoctorClientRecentProgramChangeRow[];
   displayTimeZone?: string;
@@ -91,6 +93,7 @@ function ClientProfileCardInner({
   autoOpenChat = false,
   programCardAggregates = EMPTY_AGGREGATES,
   carePlanOverview = null,
+  activeProgramTree = null,
   programInbox = [],
   recentProgramChanges = [],
   displayTimeZone = "Europe/Moscow",
@@ -251,6 +254,7 @@ function ClientProfileCardInner({
               treatmentProgramInstancesInitial={treatmentProgramInstancesInitial}
               pendingProgramTestEvaluations={pendingProgramTestEvaluations}
               programInbox={programInbox}
+              activeProgramTree={activeProgramTree}
             />
           </TabsContent>
 

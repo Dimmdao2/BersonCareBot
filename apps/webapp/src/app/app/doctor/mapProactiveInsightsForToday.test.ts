@@ -14,7 +14,7 @@ describe("proactiveInsightHref", () => {
     ).toBe("/app/doctor/clients/u1#doctor-client-section-wellbeing");
   });
 
-  it("links program inactivity to active instance when present", () => {
+  it("links program inactivity to patient card program section when instance present", () => {
     expect(
       proactiveInsightHref({
         kind: "program_inactivity",
@@ -24,10 +24,12 @@ describe("proactiveInsightHref", () => {
         sortAt: "2026-06-02T00:00:00.000Z",
         activeProgramInstanceId: "inst-9",
       }),
-    ).toBe("/app/doctor/clients/u1/treatment-programs/inst-9");
+    ).toBe(
+      "/app/doctor/clients/u1?scope=appointments#doctor-client-section-treatment-programs",
+    );
   });
 
-  it("falls back to program section anchor without instance id", () => {
+  it("links program inactivity to patient card program section without instance id", () => {
     expect(
       proactiveInsightHref({
         kind: "program_inactivity",
@@ -36,7 +38,9 @@ describe("proactiveInsightHref", () => {
         summary: "s",
         sortAt: "2026-06-02T00:00:00.000Z",
       }),
-    ).toBe("/app/doctor/clients/u1#doctor-client-section-treatment-programs");
+    ).toBe(
+      "/app/doctor/clients/u1?scope=appointments#doctor-client-section-treatment-programs",
+    );
   });
 });
 

@@ -6,6 +6,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ProgramActionLogListRow, TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
+import { TEST_EDITOR_PATIENT_PROFILE_HREF } from "../../../doctorClientProfileHref.testFixtures";
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -186,7 +187,7 @@ describe("TreatmentProgramInstanceDetailClient phase 6 discussions", () => {
   }) {
     return render(
       <TreatmentProgramInstanceDetailClient
-        patientProfileHref="/app/doctor/clients/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        patientProfileHref={TEST_EDITOR_PATIENT_PROFILE_HREF}
         patientDisplayName="Иван Т."
         initial={options?.initial ?? instanceWithExerciseItem()}
         initialTestResults={[]}
@@ -214,9 +215,9 @@ describe("TreatmentProgramInstanceDetailClient phase 6 discussions", () => {
 
     await user.click(screen.getByTestId("instance-editor-comments"));
     expect(await screen.findByRole("heading", { name: /обсуждения по программе/i })).toBeInTheDocument();
-    await user.click(screen.getByTestId("doctor-instance-discussion-item-filter"));
+    await user.click(screen.getByRole("combobox", { name: /пункт программы/i }));
     await waitFor(() => {
-      expect(screen.getByRole("option", { name: "Приседания" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Приседания" })).toBeInTheDocument();
     });
   });
 

@@ -68,6 +68,29 @@ describe("DoctorClientsPanel", () => {
     expect(within(row!).getByText(/отмены/)).toBeInTheDocument();
   });
 
+  it("links patient row to canonical client card route", () => {
+    const uid = "00000000-0000-4000-8000-000000000099";
+    const list = [
+      baseItem({
+        userId: uid,
+        displayName: "Карточка",
+        activeTreatmentProgram: true,
+        activeTreatmentProgramInstanceId: "inst-abc",
+      }),
+    ];
+    render(
+      <DoctorClientsPanel
+        allClients={list}
+        urlParams={{ scope: "all", treatmentProgram: "1" }}
+        basePath="/app/doctor/clients"
+      />,
+    );
+    const link = document.getElementById(`doctor-clients-card-${uid}`)!;
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", `/app/doctor/clients/${encodeURIComponent(uid)}?scope=all`);
+    expect(link.getAttribute("href")).not.toContain("treatment-programs");
+  });
+
   it("does not show raw phone as a text line in the row", () => {
     const phone = "+7 (900) 123-45-67";
     const list = [baseItem({ userId: "d", displayName: "Doe", phone })];

@@ -38,11 +38,11 @@ describe("doctor clients e2e (in-process)", () => {
     expect(typeof filters.ClientsFilters).toBe("function");
   });
 
-  it("ClientListLink and ClientProfileCard are defined", async () => {
-    const link = await import("@/app/app/doctor/clients/ClientListLink");
+  it("ClientProfileCard and doctorClientProfileHref are defined", async () => {
     const card = await import("@/app/app/doctor/clients/ClientProfileCard");
-    expect(typeof link.ClientListLink).toBe("function");
+    const href = await import("@/app/app/doctor/clients/doctorClientProfileHref");
     expect(typeof card.ClientProfileCard).toBe("function");
+    expect(typeof href.doctorClientProfileHref).toBe("function");
   });
 
   it("ClientBookingHistoryPanel and AppointmentStaffCommentsSection are defined", async () => {

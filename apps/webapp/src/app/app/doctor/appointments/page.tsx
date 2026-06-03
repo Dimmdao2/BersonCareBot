@@ -4,6 +4,7 @@
  */
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import type { DoctorAppointmentsListFilter } from "@/modules/doctor-appointments/ports";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -72,7 +73,7 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
               const uid = a.clientUserId?.trim() ?? "";
               const hasClient = uid.length > 0;
               const clientHref = hasClient
-                ? `/app/doctor/clients/${encodeURIComponent(uid)}`
+                ? doctorClientProfileHref(uid, { profileListScope: "appointments" })
                 : "/app/doctor/appointments";
               return (
               <li key={a.id} id={`doctor-appointments-item-${a.id}`} className="rounded-lg border border-border bg-card p-3">

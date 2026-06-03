@@ -100,6 +100,40 @@ describe("ClientProfileCard anchor routing", () => {
     });
   });
 
+  it("renders active program tree on program tab", async () => {
+    window.location.hash = "#doctor-client-section-treatment-programs";
+    render(
+      <ClientProfileCard
+        profile={minimalProfile}
+        messageHistory={[] as MessageLogEntry[]}
+        userId="u1"
+        profileListScope="appointments"
+        activeProgramTree={{
+          instanceId: "inst-1",
+          instanceTitle: "План реабилитации",
+          defaultExpandedStageId: "st-1",
+          stages: [
+            {
+              id: "st-1",
+              title: "Этап 1",
+              status: "in_progress",
+              groups: [],
+              ungroupedItems: [
+                { id: "item-1", title: "Разминка", itemType: "lfk_exercise", isNew: false },
+              ],
+            },
+          ],
+        }}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Разминка")).toBeInTheDocument();
+    });
+    const itemLink = screen.getByRole("link", { name: "Разминка" });
+    expect(itemLink.getAttribute("href")).toContain("discussionItem=item-1");
+    expect(itemLink.getAttribute("href")).toContain("scope=appointments");
+  });
+
   it("opens program tab for #doctor-client-section-pending-program-tests", async () => {
     window.location.hash = "#doctor-client-section-pending-program-tests";
     render(

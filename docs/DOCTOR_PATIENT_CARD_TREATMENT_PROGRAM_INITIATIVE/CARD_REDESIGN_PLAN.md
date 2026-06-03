@@ -1,6 +1,6 @@
 # CARD_REDESIGN_PLAN — карточка пациента врача (фаза 2A)
 
-**Статус:** дизайн утверждён owner 2026-06-02 (модель **Tabs + Hero**, график самочувствия **вторичный**). **Фазы 2B–2C реализованы** (2026-06-02 — см. [`LOG.md`](LOG.md), задачи: [`SPECIALIST_TASKS.md`](SPECIALIST_TASKS.md)).
+**Статус:** дизайн утверждён owner 2026-06-02 (модель **Tabs + Hero**, график самочувствия **вторичный**). **Фазы 2B–2C реализованы** (2026-06-02 — см. [`LOG.md`](LOG.md), задачи: [`SPECIALIST_TASKS.md`](SPECIALIST_TASKS.md)). **Навигация:** карточка только на `/app/doctor/clients/[userId]` (2026-06-03, [`LOG.md`](LOG.md) §2026-06-03).
 
 **План-очередь:** Cursor `active_workqueue_plan_30236040` (фазы 2A/2B/2C).
 **Каноничные спецификации (не дублировать):** [`ROADMAP.md`](ROADMAP.md), [`../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md`](../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md) §5–6, [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) §4.

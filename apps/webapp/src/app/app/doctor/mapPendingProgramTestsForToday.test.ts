@@ -34,12 +34,13 @@ describe("mapPendingProgramTestsForToday", () => {
     },
   ];
 
-  it("builds href with focusItemId on first result in attempt group", () => {
+  it("builds href to patient card pending tests section", () => {
     const [item] = mapPendingProgramTestsForToday(rows);
     expect(item?.patientDisplayName).toBe("Иванова");
     expect(item?.pendingCount).toBe(2);
-    expect(item?.href).toContain("focusItemId=res-1");
-    expect(item?.href).toContain("/app/doctor/clients/patient-1/treatment-programs/inst-1");
+    expect(item?.href).toBe(
+      "/app/doctor/clients/patient-1?scope=appointments#doctor-client-section-pending-program-tests",
+    );
   });
 
   it("preserves attempt order from input rows (PG top-N order)", () => {

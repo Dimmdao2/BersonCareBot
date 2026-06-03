@@ -1,6 +1,5 @@
 /**
- * Client-only UI for admin name-match hints. Links open the clients hub with scope=all so subscribers
- * without appointments still appear in the list while the detail column loads by selected id.
+ * Client-only UI for admin name-match hints. Links open canonical client card (`scope=all`).
  */
 "use client";
 
@@ -28,13 +27,12 @@ type OrderedGroup = {
 type SwappedPair = { userA: Member; userB: Member };
 
 type Props = {
-  /** Path without query, e.g. `/app/doctor/clients` — links add `scope=all&selected=`. */
+  /** Unused legacy prop; kept for page compatibility. */
   clientsListBase: string;
 };
 
-function clientProfileHref(base: string, userId: string): string {
-  const sep = base.includes("?") ? "&" : "?";
-  return `${base}${sep}scope=all&selected=${encodeURIComponent(userId)}`;
+function clientProfileHref(_base: string, userId: string): string {
+  return `/app/doctor/clients/${encodeURIComponent(userId)}?scope=all`;
 }
 
 export function NameMatchHintsClient({ clientsListBase }: Props) {

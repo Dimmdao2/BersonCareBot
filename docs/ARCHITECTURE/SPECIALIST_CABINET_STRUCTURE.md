@@ -171,7 +171,7 @@
 
 ### 5.5. Десктоп
 
-Master-detail: слева список, справа карточка выбранного клиента, сверху фильтры и поиск.
+Список клиентов на `/app/doctor/clients` — фильтры и поиск; клик по строке открывает **отдельный экран** карточки `/app/doctor/clients/[userId]` (без встроенной правой колонки на том же URL). Legacy `?selected=<uuid>` редиректит на canonical route.
 
 ### 5.6. Мобильный
 
@@ -228,7 +228,7 @@ Master-detail: слева список, справа карточка выбра
 
 ### 6.9. Реализация в webapp (ориентир)
 
-- **Карточка** — `ClientProfileCard`: блоки как **аккордеон** (одна открытая секция; по умолчанию «Контакты»). На `/app/doctor/clients` и на `/app/doctor/clients/[userId]` один и тот же паттерн.
+- **Карточка** — `ClientProfileCard` на **`/app/doctor/clients/[userId]`**: табы (Обзор, Программа, Коммуникации, …); на табе «Программа» — read-only дерево активной программы и список назначений. Список `/app/doctor/clients` карточку не рендерит.
 - **Admin + admin mode:** секции «Объединение учётных записей» и «История операций» не дергают тяжёлые API, пока секция закрыта (ленивая загрузка).
 - **Редактирование профиля клиента админом** (ФИО, email, телефон): `PATCH /api/admin/users/:userId/profile` и панель `AdminClientProfileEditPanel`; доверие телефона — trusted source `admin_manual_profile_patch` (см. `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §8).
 

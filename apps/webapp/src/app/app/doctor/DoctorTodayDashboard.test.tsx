@@ -124,7 +124,7 @@ describe("DoctorTodayDashboard", () => {
           branchName: "Филиал А",
           scheduleProvenancePrefix: "Rubitime",
           rubitimeNameIfDifferent: null,
-          href: "/app/doctor/clients/user-1",
+          href: "/app/doctor/clients/user-1?scope=appointments",
           ctaLabel: "Открыть карточку",
         },
       ],
@@ -137,7 +137,7 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByText(/Филиал А/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть карточку" })).toHaveAttribute(
       "href",
-      "/app/doctor/clients/user-1",
+      "/app/doctor/clients/user-1?scope=appointments",
     );
   });
 
@@ -155,7 +155,7 @@ describe("DoctorTodayDashboard", () => {
           status: "created",
           branchName: null,
           scheduleProvenancePrefix: null,
-          href: "/app/doctor/clients/user-2",
+          href: "/app/doctor/clients/user-2?scope=appointments",
           ctaLabel: "Открыть карточку",
         },
       ],
@@ -197,8 +197,16 @@ describe("DoctorTodayDashboard", () => {
       ...emptyData(),
       onSupportCount: 2,
       onSupportClients: [
-        { userId: "u-a", displayName: "Анна", href: "/app/doctor/clients/u-a/treatment-programs/p-1" },
-        { userId: "u-b", displayName: "Борис", href: "/app/doctor/clients/u-b/treatment-programs/p-2" },
+        {
+          userId: "u-a",
+          displayName: "Анна",
+          href: "/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs",
+        },
+        {
+          userId: "u-b",
+          displayName: "Борис",
+          href: "/app/doctor/clients/u-b?scope=appointments#doctor-client-section-treatment-programs",
+        },
       ],
       onSupportListTruncated: true,
     };
@@ -208,11 +216,11 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByText(/Клиентов: 2/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Анна" })).toHaveAttribute(
       "href",
-      "/app/doctor/clients/u-a/treatment-programs/p-1",
+      "/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs",
     );
     expect(screen.getByRole("link", { name: "Борис" })).toHaveAttribute(
       "href",
-      "/app/doctor/clients/u-b/treatment-programs/p-2",
+      "/app/doctor/clients/u-b?scope=appointments#doctor-client-section-treatment-programs",
     );
     expect(screen.getByRole("link", { name: "Все на сопровождении" })).toHaveAttribute(
       "href",
@@ -235,7 +243,7 @@ describe("DoctorTodayDashboard", () => {
           stageTitle: "Этап 1",
           pendingCount: 2,
           submittedAtLabel: "02.06.2026, 10:00",
-          href: "/app/doctor/clients/u1/treatment-programs/i1?focusItemId=r1",
+          href: "/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests",
         },
       ],
     };
@@ -246,7 +254,7 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByText("Иванова")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Оценить" })).toHaveAttribute(
       "href",
-      "/app/doctor/clients/u1/treatment-programs/i1?focusItemId=r1",
+      "/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests",
     );
     expect(screen.getByText("Показаны первые 1 из 12")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Тесты к проверке" })).toHaveAttribute(

@@ -8,6 +8,10 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { buildTreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers";
+import {
+  DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
+  doctorClientProfileHref,
+} from "../../../doctorClientProfileHref";
 import { TreatmentProgramInstanceDetailClient } from "./TreatmentProgramInstanceDetailClient";
 
 type Props = {
@@ -88,8 +92,10 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
   const initialFocusTestResultId =
     focusItemIdRaw && z.string().uuid().safeParse(focusItemIdRaw).success ? focusItemIdRaw : undefined;
 
-  const qs = scopeParam ? `?scope=${encodeURIComponent(scopeParam)}` : "";
-  const backHref = `/app/doctor/clients/${encodeURIComponent(userId)}${qs}`;
+  const backHref = doctorClientProfileHref(userId, {
+    profileListScope: scopeParam,
+    hash: DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
+  });
 
   return (
     <AppShell

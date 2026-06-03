@@ -161,5 +161,7 @@ describe("loadDoctorClientProgramCardData", () => {
     });
     expect(data.programInbox).toHaveLength(2);
     expect(data.carePlan?.instanceId).toBe("inst-1");
+    expect(data.activeProgramTree?.instanceId).toBe("inst-1");
+    expect(data.activeProgramTree?.stages[0]?.ungroupedItems).toHaveLength(2);
   });
 });

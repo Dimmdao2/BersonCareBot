@@ -1,6 +1,9 @@
 import type { PendingProgramTestEvaluationGlobalRow } from "@/modules/treatment-program/types";
 import { groupPendingProgramTestEvaluations } from "./clients/groupPendingProgramTestEvaluations";
-import { doctorClientTreatmentProgramInstanceHref } from "./clients/doctorClientInstanceHref";
+import {
+  DOCTOR_CLIENT_PENDING_TESTS_SECTION_ANCHOR,
+  doctorClientProfileHref,
+} from "./clients/doctorClientProfileHref";
 import { formatDateTimeRu } from "./loadDoctorTodayDashboard";
 
 export const DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT = 10;
@@ -35,7 +38,6 @@ export function mapPendingProgramTestsForToday(
   return groups.map((g) => {
     const headGlobal = rows.find((r) => r.attemptId === g.attemptId);
     const patientUserId = headGlobal?.patientUserId ?? "";
-    const focusResultId = g.results[0]?.resultId;
     return {
       attemptId: g.attemptId,
       patientUserId,
@@ -45,8 +47,9 @@ export function mapPendingProgramTestsForToday(
       stageTitle: g.stageTitle,
       pendingCount: g.results.length,
       submittedAtLabel: formatDateTimeRu(g.attemptSubmittedAt),
-      href: doctorClientTreatmentProgramInstanceHref(patientUserId, g.instanceId, {
-        focusItemId: focusResultId,
+      href: doctorClientProfileHref(patientUserId, {
+        profileListScope: "appointments",
+        hash: DOCTOR_CLIENT_PENDING_TESTS_SECTION_ANCHOR,
       }),
     };
   });

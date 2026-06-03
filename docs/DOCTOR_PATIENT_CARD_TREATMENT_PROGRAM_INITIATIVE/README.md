@@ -2,7 +2,7 @@
 
 Инициатива по **кабинету врача**: карточка пациента как место **назначения программ лечения из шаблонов** и **корректировки `treatment_program_instance`** (без дублирования каноничных спецификаций — только ссылки и дорожная карта).
 
-**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Workqueue фазы 0–7 закрыты** (2026-06-02). ✅ **План batch-toolbar закрыт** (фазы 1–7, 2026-06-03): [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](../../.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md). Сводка: [`docs/ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md). **Дальше:** [`docs/TODO.md`](../TODO.md).
+**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Workqueue фазы 0–7 закрыты** (2026-06-02). ✅ **План batch-toolbar закрыт** (фазы 1–7, 2026-06-03): [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](../../.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md). ✅ **Единая карточка клиента (canonical route)** — [`.cursor/plans/archive/unify_doctor_patient_card_37615243.plan.md`](../../.cursor/plans/archive/unify_doctor_patient_card_37615243.plan.md) (2026-06-03). Сводка: [`docs/ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md). **Дальше:** [`docs/TODO.md`](../TODO.md).
 
 **Операционный roadmap:** [`ROADMAP.md`](ROADMAP.md).
 
@@ -13,6 +13,17 @@
 **Декомпозиция по этапам + слабые места / эскалация:** [`DECOMPOSITION.md`](DECOMPOSITION.md).
 
 **Редизайн карточки (2A → 2B, Tabs + Hero):** [`CARD_REDESIGN_PLAN.md`](CARD_REDESIGN_PLAN.md) — **закрыто**. **Задачи специалиста (2C):** [`SPECIALIST_TASKS.md`](SPECIALIST_TASKS.md) — **закрыто**.
+
+**Навигация карточки (список → canonical `[userId]`, дерево активной программы):** план в archive выше; факты в [`LOG.md`](LOG.md) §2026-06-03.
+
+### Маршруты (канон после 2026-06-03)
+
+| Экран | URL | Примечание |
+|-------|-----|------------|
+| Список клиентов | `/app/doctor/clients?scope=appointments\|all\|archived` | Только список; `?selected=<uuid>` → redirect на карточку |
+| Карточка клиента | `/app/doctor/clients/[userId]?scope=…` | `ClientProfileCard`; loader `loadDoctorClientProfileCardProps` |
+| Секция программы (hash) | `…#doctor-client-section-treatment-programs` | Таб «Программа»; read-only `activeProgramTree` |
+| Editor инстанса | `/app/doctor/clients/[userId]/treatment-programs/[instanceId]` | Back/имя → карточка с hash программы |
 
 ---
 

@@ -20,6 +20,10 @@ import {
   mapProactiveInsightsForToday,
   type TodayProactiveInsightItem,
 } from "./mapProactiveInsightsForToday";
+import {
+  DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
+  doctorClientProfileHref,
+} from "./clients/doctorClientProfileHref";
 
 /** Сколько карточек клиентов показывать на «Сегодня»; полный список — `/app/doctor/clients?scope=all&support=on`. */
 export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
@@ -160,7 +164,9 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
     status: row.status,
     branchName: row.branchName,
     scheduleProvenancePrefix: row.scheduleProvenancePrefix ?? null,
-    href: hasClient ? `/app/doctor/clients/${encodeURIComponent(uid)}` : "/app/doctor/appointments",
+    href: hasClient
+      ? doctorClientProfileHref(uid, { profileListScope: "appointments" })
+      : "/app/doctor/appointments",
     ctaLabel: hasClient ? "Открыть карточку" : "Открыть записи",
   };
 }
@@ -182,15 +188,13 @@ export function mapIntakeToTodayItem(row: IntakeRequestWithPatientIdentity): Tod
 
 export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSupportClientItem {
   const uid = row.userId.trim();
-  const instanceId = row.activeTreatmentProgramInstanceId?.trim() ?? "";
-  const programHref =
-    instanceId !== ""
-      ? `/app/doctor/clients/${encodeURIComponent(uid)}/treatment-programs/${encodeURIComponent(instanceId)}`
-      : `/app/doctor/clients/${encodeURIComponent(uid)}`;
   return {
     userId: uid,
     displayName: row.displayName.trim() || "—",
-    href: programHref,
+    href: doctorClientProfileHref(uid, {
+      profileListScope: "appointments",
+      hash: DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
+    }),
   };
 }
 

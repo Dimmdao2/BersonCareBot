@@ -18,42 +18,23 @@ type UrlParams = {
   telegram?: string;
   max?: string;
   appointment?: string;
-  /** Сопровождение по программе лечения (плитка дашборда «На сопровождении»). */
   treatmentProgram?: string;
-  /** `on` | `programWithoutSupport` — серверный фильтр (scope=all). */
   support?: string;
   visitedMonth?: string;
-  selected?: string;
   scope?: string;
 };
 
 type Props = {
   allClients: ClientListItem[];
   urlParams: UrlParams;
-  /** Путь страницы списка (без завершающего слэша). */
   basePath?: string;
-  /** Ссылка на отчёт по ФИО: только admin + admin mode. */
   showAdminNameMatchHintsLink?: boolean;
 };
 
 const DEFAULT_BASE = "/app/doctor/clients";
 
-function clientMasterRowHref(
-  c: ClientListItem,
-  basePath: string,
-  scope: ClientsScope,
-  preferTreatmentProgramRow: boolean,
-): string {
-  const qs = `?scope=${encodeURIComponent(scope)}`;
-  if (
-    preferTreatmentProgramRow &&
-    c.activeTreatmentProgram &&
-    (c.activeTreatmentProgramInstanceId ?? "").trim() !== ""
-  ) {
-    const iid = c.activeTreatmentProgramInstanceId!.trim();
-    return `${basePath}/${encodeURIComponent(c.userId)}/treatment-programs/${encodeURIComponent(iid)}${qs}`;
-  }
-  return `${basePath}/${encodeURIComponent(c.userId)}${qs}`;
+function clientRowHref(c: ClientListItem, basePath: string, scope: ClientsScope): string {
+  return `${basePath}/${encodeURIComponent(c.userId)}?scope=${encodeURIComponent(scope)}`;
 }
 
 function matchesSearch(item: ClientListItem, query: string): boolean {
@@ -65,20 +46,6 @@ function matchesSearch(item: ClientListItem, query: string): boolean {
     (item.bindings.telegramId ?? "").toLowerCase().includes(s) ||
     (item.bindings.maxId ?? "").toLowerCase().includes(s)
   );
-}
-
-function appendListQueryParams(params: URLSearchParams, urlParams: UrlParams): void {
-  const scope: ClientsScope =
-    urlParams.scope === "all" ? "all" : urlParams.scope === "archived" ? "archived" : "appointments";
-  params.set("scope", scope);
-  if (urlParams.telegram === "1") params.set("telegram", "1");
-  if (urlParams.max === "1") params.set("max", "1");
-  if (urlParams.appointment === "1") params.set("appointment", "1");
-  if (urlParams.treatmentProgram === "1") params.set("treatmentProgram", "1");
-  if (urlParams.support === "on" || urlParams.support === "programWithoutSupport") {
-    params.set("support", urlParams.support);
-  }
-  if (scope === "appointments" && urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
 }
 
 const SUPPORT_FILTER_LABELS: Record<"on" | "programWithoutSupport", string> = {
@@ -140,11 +107,10 @@ export function DoctorClientsPanel({
       if (next.treatmentProgram) params.set("treatmentProgram", "1");
       if (activeSupportFilter) params.set("support", activeSupportFilter);
       if (scope === "appointments" && next.visitedMonth) params.set("visitedMonth", "1");
-      if (urlParams.selected) params.set("selected", urlParams.selected);
       const query = params.toString();
       router.replace(`${basePath}${query ? `?${query}` : ""}`);
     },
-    [activeSupportFilter, router, scope, urlParams.selected, basePath],
+    [activeSupportFilter, router, scope, basePath],
   );
 
   const onScopeChange = useCallback(
@@ -163,7 +129,6 @@ export function DoctorClientsPanel({
         params.set("support", urlParams.support);
       }
       if (nextScope === "appointments" && urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
-      if (urlParams.selected) params.set("selected", urlParams.selected);
       router.replace(`${basePath}?${params.toString()}`);
     },
     [
@@ -174,23 +139,9 @@ export function DoctorClientsPanel({
       urlParams.support,
       urlParams.treatmentProgram,
       urlParams.max,
-      urlParams.selected,
       urlParams.telegram,
       urlParams.visitedMonth,
     ],
-  );
-
-  const onRowClick = useCallback(
-    (userId: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
-      if (typeof window !== "undefined" && window.innerWidth >= 768) {
-        e.preventDefault();
-        const params = new URLSearchParams();
-        appendListQueryParams(params, urlParams);
-        params.set("selected", userId);
-        router.push(`${basePath}?${params.toString()}`);
-      }
-    },
-    [router, basePath, urlParams],
   );
 
   return (
@@ -278,8 +229,7 @@ export function DoctorClientsPanel({
             <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="rounded-lg border border-border bg-card p-0">
               <Link
                 id={`doctor-clients-card-${c.userId}`}
-                href={clientMasterRowHref(c, basePath, scope, urlParams.treatmentProgram === "1")}
-                onClick={onRowClick(c.userId)}
+                href={clientRowHref(c, basePath, scope)}
                 className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="min-w-0">
