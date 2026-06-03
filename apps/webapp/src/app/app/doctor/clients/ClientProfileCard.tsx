@@ -178,32 +178,34 @@ function ClientProfileCardInner({
 
       <article
         id={`doctor-client-profile-card-${userId}`}
-        className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+        className="rounded-lg border border-border bg-card shadow-sm"
       >
-        <PatientCareBar
-          identity={identity}
-          firstUpcoming={firstUpcoming}
-          chatUnreadCount={chatUnreadCount}
-          onOpenChat={openCommunications}
-          onNavigateAnchor={applyAnchor}
-          taskSummary={taskSummary}
-        />
+        <div className="md:sticky md:top-[var(--doctor-sticky-offset,0px)] md:z-10">
+          <PatientCareBar
+            identity={identity}
+            firstUpcoming={firstUpcoming}
+            chatUnreadCount={chatUnreadCount}
+            onOpenChat={openCommunications}
+            onNavigateAnchor={applyAnchor}
+            taskSummary={taskSummary}
+          />
 
-        <PatientActionStrip
-          pendingTestsCount={pendingTestsCount}
-          chatUnreadCount={chatUnreadCount}
-          aggregates={programCardAggregates}
-          openTasksCount={taskSummary?.openCount ?? 0}
-          onNavigateTab={setActiveTab}
-          onNavigateAnchor={applyAnchor}
-        />
+          <PatientActionStrip
+            pendingTestsCount={pendingTestsCount}
+            chatUnreadCount={chatUnreadCount}
+            aggregates={programCardAggregates}
+            openTasksCount={taskSummary?.openCount ?? 0}
+            onNavigateTab={setActiveTab}
+            onNavigateAnchor={applyAnchor}
+          />
+        </div>
 
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as DoctorClientTabId)}
           className="gap-0"
         >
-          <div className="sticky top-[var(--doctor-sticky-offset,0px)] z-[9] overflow-x-auto border-b border-border bg-card px-2">
+          <div className="overflow-x-auto border-b border-border bg-card px-2">
             <TabsList variant="line" className="h-auto w-max min-w-full justify-start gap-0 bg-transparent p-0">
               <TabsTrigger value="overview" className="rounded-none px-3 py-2">
                 Обзор

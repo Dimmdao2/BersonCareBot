@@ -60,10 +60,7 @@ export function PatientCareBar({
 
   return (
     <header
-      className={cn(
-        "z-10 border-b border-border bg-card px-4 py-3",
-        "md:sticky md:top-[var(--doctor-sticky-offset,0px)]",
-      )}
+      className={cn("border-b border-border bg-card px-4 py-3")}
     >
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
