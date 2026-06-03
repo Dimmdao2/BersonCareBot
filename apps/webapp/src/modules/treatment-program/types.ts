@@ -771,7 +771,7 @@ export function formatTreatmentProgramEventTypeRu(eventType: TreatmentProgramEve
     case "test_completed":
       return "завершён тест";
     case "program_changed":
-      return "программа изменена";
+      return "Программа изменена";
     default:
       return typeof eventType === "string" ? eventType : String(eventType);
   }
@@ -929,4 +929,76 @@ export function summarizeTreatmentProgramEventForDoctorRu(
 export function shouldOmitTreatmentProgramEventFromDoctorTimeline(event: TreatmentProgramEventRow): boolean {
   if (event.eventType !== "status_changed" || event.targetType !== "stage_item") return false;
   return event.payload?.field === "completedAt";
+}
+
+/** Сводка изменений из batch-save (`program_changed.payload.diff`). */
+export type TreatmentProgramChangedDiffSummary = {
+  stagesAdded: number;
+  stagesReordered: boolean;
+  groupsAdded: number;
+  groupsHidden: number;
+  groupsMetadataUpdated: number;
+  stagesMetadataUpdated: number;
+  itemsAdded: number;
+  itemsRemoved: number;
+  itemsStructuralUpdated: number;
+  itemsMetadataUpdated: number;
+  itemsReordered: boolean;
+  groupsReordered: boolean;
+};
+
+function readProgramChangedDiffCount(raw: Record<string, unknown>, key: string): number {
+  const value = raw[key];
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function readProgramChangedDiffFlag(raw: Record<string, unknown>, key: string): boolean {
+  return raw[key] === true;
+}
+
+export function parseProgramChangedDiffFromPayload(
+  payload: Record<string, unknown> | null | undefined,
+): TreatmentProgramChangedDiffSummary | null {
+  if (!payload || payload.scope !== "editor_batch") return null;
+  const raw = payload.diff;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const d = raw as Record<string, unknown>;
+  return {
+    stagesAdded: readProgramChangedDiffCount(d, "stagesAdded"),
+    stagesReordered: readProgramChangedDiffFlag(d, "stagesReordered"),
+    groupsAdded: readProgramChangedDiffCount(d, "groupsAdded"),
+    groupsHidden: readProgramChangedDiffCount(d, "groupsHidden"),
+    groupsMetadataUpdated: readProgramChangedDiffCount(d, "groupsMetadataUpdated"),
+    stagesMetadataUpdated: readProgramChangedDiffCount(d, "stagesMetadataUpdated"),
+    itemsAdded: readProgramChangedDiffCount(d, "itemsAdded"),
+    itemsRemoved: readProgramChangedDiffCount(d, "itemsRemoved"),
+    itemsStructuralUpdated: readProgramChangedDiffCount(d, "itemsStructuralUpdated"),
+    itemsMetadataUpdated: readProgramChangedDiffCount(d, "itemsMetadataUpdated"),
+    itemsReordered: readProgramChangedDiffFlag(d, "itemsReordered"),
+    groupsReordered: readProgramChangedDiffFlag(d, "groupsReordered"),
+  };
+}
+
+export function formatProgramChangedDiffDetailLinesRu(diff: TreatmentProgramChangedDiffSummary): string[] {
+  const lines: string[] = [];
+  if (diff.stagesAdded > 0) lines.push(`Добавлено этапов: ${diff.stagesAdded}`);
+  if (diff.stagesReordered) lines.push("Изменён порядок этапов");
+  if (diff.groupsAdded > 0) lines.push(`Добавлено групп: ${diff.groupsAdded}`);
+  if (diff.groupsHidden > 0) lines.push(`Скрыто групп: ${diff.groupsHidden}`);
+  if (diff.groupsMetadataUpdated > 0) lines.push(`Обновлено групп: ${diff.groupsMetadataUpdated}`);
+  if (diff.stagesMetadataUpdated > 0) lines.push(`Обновлено этапов: ${diff.stagesMetadataUpdated}`);
+  if (diff.itemsAdded > 0) lines.push(`Добавлено элементов: ${diff.itemsAdded}`);
+  if (diff.itemsRemoved > 0) lines.push(`Удалено элементов: ${diff.itemsRemoved}`);
+  if (diff.itemsStructuralUpdated > 0) lines.push(`Изменена структура элементов: ${diff.itemsStructuralUpdated}`);
+  if (diff.itemsMetadataUpdated > 0) lines.push(`Обновлены комментарии и нагрузка элементов: ${diff.itemsMetadataUpdated}`);
+  if (diff.itemsReordered) lines.push("Изменён порядок элементов");
+  if (diff.groupsReordered) lines.push("Изменён порядок групп");
+  return lines;
+}
+
+export function formatProgramChangedEventDetailLinesForDoctorRu(event: TreatmentProgramEventRow): string[] {
+  if (event.eventType !== "program_changed") return [];
+  const diff = parseProgramChangedDiffFromPayload(event.payload);
+  if (!diff) return [];
+  return formatProgramChangedDiffDetailLinesRu(diff);
 }

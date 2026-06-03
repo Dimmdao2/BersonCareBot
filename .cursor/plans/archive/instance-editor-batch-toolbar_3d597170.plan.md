@@ -1,6 +1,7 @@
 ---
 name: instance-editor-batch-toolbar
-overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, модалка порядка этапов, общий диалог комментариев и единое batch-сохранение. Фазы 1–6 закрыты (2026-06-03); ф.7 — история, unsaved gate, регрессия."
+overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, модалка порядка этапов, общий диалог комментариев и единое batch-сохранение. План закрыт (2026-06-03, фазы 1–7)."
+status: completed
 todos:
   - id: phase-1-draft-model
     content: "Фаза 1: Расширить InstanceEditorDraft, merge/normalize, context API, flush vs structural split"
@@ -24,8 +25,8 @@ todos:
     content: "Фаза 6: Общий диалог комментариев по всем пунктам с searchable фильтром — закрыта"
     status: completed
   - id: history-gate-tests
-    content: "Фаза 7: Обновить историю, unsaved gate, документацию и focused проверки"
-    status: pending
+    content: "Фаза 7: program_changed в timeline, unsaved gate UX, документация — закрыта"
+    status: completed
 isProject: false
 ---
 
@@ -41,9 +42,9 @@ isProject: false
 | 4 — sticky toolbar | **Закрыта полностью** (2026-06-03; audit remediation) |
 | 5 — collapsible этапы + модалка порядка | **Закрыта полностью** (2026-06-03) |
 | 6 — общий диалог комментариев | **Закрыта полностью** (2026-06-03) |
-| 7 — история, unsaved gate, регрессия | **Следующая** |
+| 7 — история, unsaved gate, регрессия | **Закрыта полностью** (2026-06-03) |
 
-LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.6 (итог).
+LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.7 (итог). **План закрыт** — архив: [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](archive/instance-editor-batch-toolbar_3d597170.plan.md).
 
 ## Scope
 
@@ -125,16 +126,13 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] Audit remediation (2026-06-03): summary prefetch в фильтре; auth/400 route tests; RTL action log «Обсуждение»; empty program; счётчики vitest в LOG/plan.
 - [x] Проверки: 28 vitest (listInstanceDiscussionPage 3, discussion route 7, summary route 4, instance dialog RTL 5, messages panel 1, item dialog 1, phase4 3, phase6 integration 4); `api.md`; `tsc --noEmit` webapp.
 
-### Фаза 7 — История, unsaved gate, документация, регрессия
-- Добавить форматирование `program_changed` в [types.ts](apps/webapp/src/modules/treatment-program/types.ts): строка `Программа изменена`.
-- В таймлайне сделать раскрытие detail payload по клику на строку `Программа изменена`.
-- Обновить [InstanceEditorUnsavedChangesDialog.tsx](apps/webapp/src/app/app/doctor/treatment-program-shared/InstanceEditorUnsavedChangesDialog.tsx):
-  - текст: `Для изменения статуса этапа (программы) необходимо сохранить изменения. Сохранить?`
-  - кнопки: `Сохранить`, `Вернуться к редактированию`.
-- Обновить [docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md).
-- Финальные проверки:
-  - focused vitest по draft/service/routes/dialog/reorder;
-  - `pnpm --dir apps/webapp run typecheck`.
+### Фаза 7 — История, unsaved gate, документация, регрессия ✅ (2026-06-03)
+- [x] `program_changed`: «Программа изменена» + `formatProgramChangedEventDetailLinesForDoctorRu` (`types.ts`).
+- [x] Timeline: раскрытие diff по клику — `DoctorProgramInstanceTimelineEventRow`.
+- [x] `InstanceEditorUnsavedChangesDialog`: текст gate + кнопки «Сохранить» / «Вернуться к редактированию».
+- [x] Audit remediation (2026-06-03): RTL `TreatmentProgramInstanceDetailClient.phase7.test.tsx` (timeline expand/collapse, metadata vs structural gate); unit `doctor-timeline-text`; unsaved save→proceed / return / toast on error; `pendingRef` reset; план в `archive/`; stale `~/.cursor/plans` stub удалён.
+- [x] Проверки: 56 vitest focused (doctor-timeline 9, instanceEditorBatch 11, batchSchema 5, unsaved gate 5, timeline row 3, phase7 integration 5, draft 11, stage-order 7); `tsc --noEmit` webapp.
+- [x] LOG, ACTIVE_WORKQUEUE, TODO, README, `api.md`, `treatment-program-shared/README.md`.
 
 ## Definition of Done
 
@@ -142,6 +140,6 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - Этапы сворачиваются/разворачиваются вручную; при первом открытии раскрыт активный этап.
 - Sticky toolbar содержит программу, пациента, статус, комментарии, добавление этапа, порядок этапов, сохранение.
 - Editor mutations не пишутся сразу в БД; глобальное сохранение отправляет batch и создаёт одну понятную запись истории.
-- Статусные действия при dirty draft показывают модалку с сохранением или возвратом к редактированию.
+- Статусные действия при **metadata-dirty** черновике показывают модалку с сохранением или возвратом к редактированию (structural-only не блокирует).
 - Общие комментарии открываются из toolbar и фильтруются по любому пункту программы.
 - Focused тесты и linter/typecheck по изменённой области проходят.

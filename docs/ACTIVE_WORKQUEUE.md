@@ -76,9 +76,9 @@
 
 D5 `domain→kind`, полная переработка `/diary`, курсы, UX истории тестов (после доработки элементов тестов). Proactive: **MVP закрыт** (фаза 7); настраиваемые пороги и расширение сигналов — backlog этап 8 ([`RECOMMENDATIONS_AND_ROADMAP.md`](APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md)).
 
-### Редактор инстанса программы — batch toolbar (активный план)
+### Редактор инстанса программы — batch toolbar (закрыт)
 
-План: [`.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.6.
+План (архив): [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.7.
 
 | Фаза плана | Статус |
 |------------|--------|
@@ -88,6 +88,8 @@ D5 `domain→kind`, полная переработка `/diary`, курсы, UX
 | 4 — sticky toolbar | **Закрыта полностью** (2026-06-03) |
 | 5 — collapsible этапы + модалка порядка | **Закрыта полностью** (2026-06-03) |
 | 6 — общий диалог комментариев | **Закрыта полностью** (2026-06-03) |
-| 7 — история, unsaved gate, регрессия | **Следующая** |
+| 7 — история, unsaved gate, регрессия | **Закрыта полностью** (2026-06-03) |
 
-Код: `treatment-program-shared/` (`InstanceEditorToolbar`, …, `instanceEditorDraft*` → `editor-batch`); экран инстанса — `DoctorProgramInstanceDiscussionDialog`, `DoctorProgramDiscussionMessagesPanel`, `listInstanceDiscussionPageMerged`, routes `…/discussion` + `…/discussion/summary`; `AppShell` `--doctor-sticky-offset`; миграция `0104_program_changed_event_type.sql`; `api.md`.
+**План batch-toolbar закрыт** (фазы 1–7). LOG: §2026-06-03 ф.7. Проверки ф.7: 56 focused vitest + `tsc --noEmit` webapp.
+
+Код: `treatment-program-shared/` (`InstanceEditorToolbar`, `InstanceEditorUnsavedChangesDialog`, …, `instanceEditorDraft*` → `editor-batch`); экран инстанса — `DoctorProgramInstanceTimelineEventRow`, `DoctorProgramInstanceDiscussionDialog`, `DoctorProgramDiscussionMessagesPanel`, `listInstanceDiscussionPageMerged`, routes `…/discussion` + `…/discussion/summary`; `AppShell` `--doctor-sticky-offset`; миграция `0104_program_changed_event_type.sql`; `api.md`.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,10 +26,10 @@ export function InstanceEditorUnsavedChangesDialog(props: Props) {
     open,
     onOpenChange,
     onProceed,
-    title = "Сначала сохраните изменения",
-    description = "Сохраните или отмените правки названий, комментариев и нагрузки перед сменой статуса.",
+    title = "Несохранённые изменения",
+    description = "Для изменения статуса этапа (программы) необходимо сохранить изменения. Сохранить?",
   } = props;
-  const { saving, discardDraft, saveDraft } = useInstanceEditorDraft();
+  const { saving, saveDraft } = useInstanceEditorDraft();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -39,19 +40,7 @@ export function InstanceEditorUnsavedChangesDialog(props: Props) {
         </DialogHeader>
         <DialogFooter className="gap-2 sm:flex-wrap sm:justify-end">
           <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
-            Закрыть
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={saving}
-            onClick={() => {
-              discardDraft();
-              onOpenChange(false);
-              onProceed?.();
-            }}
-          >
-            Отменить изменения
+            Вернуться к редактированию
           </Button>
           <Button
             type="button"
@@ -59,13 +48,17 @@ export function InstanceEditorUnsavedChangesDialog(props: Props) {
             onClick={() => {
               void saveDraft().then((r) => {
                 if (r.ok) {
-                  onOpenChange(false);
                   onProceed?.();
+                  onOpenChange(false);
+                  return;
+                }
+                if (!r.cancelled && r.error) {
+                  toast.error(r.error);
                 }
               });
             }}
           >
-            {saving ? "Сохранение…" : "Сохранить и продолжить"}
+            {saving ? "Сохранение…" : "Сохранить"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -91,10 +84,17 @@ export function useInstanceEditorUnsavedGate(options?: { title?: string; descrip
     [isFlushableDirty],
   );
 
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      pendingRef.current = null;
+    }
+  }, []);
+
   const dialog = (
     <InstanceEditorUnsavedChangesDialog
       open={dialogOpen}
-      onOpenChange={setDialogOpen}
+      onOpenChange={handleDialogOpenChange}
       onProceed={() => {
         pendingRef.current?.();
         pendingRef.current = null;

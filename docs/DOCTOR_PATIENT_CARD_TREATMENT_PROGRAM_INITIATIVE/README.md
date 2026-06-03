@@ -2,7 +2,7 @@
 
 Инициатива по **кабинету врача**: карточка пациента как место **назначения программ лечения из шаблонов** и **корректировки `treatment_program_instance`** (без дублирования каноничных спецификаций — только ссылки и дорожная карта).
 
-**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Workqueue фазы 0–7 закрыты** (2026-06-02). **Активный план:** [`.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`](../../.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md) — **фазы 1–6 закрыты** (2026-06-03); **ф.7** — история, unsaved gate, регрессия. Сводка: [`docs/ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md). **Дальше:** [`docs/TODO.md`](../TODO.md).
+**Статус:** ✅ **MASTER_PLAN закрыт** (2026-05-05); ручной smoke назначения — ✅ owner 2026-06-01. ✅ **Workqueue фазы 0–7 закрыты** (2026-06-02). ✅ **План batch-toolbar закрыт** (фазы 1–7, 2026-06-03): [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](../../.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md). Сводка: [`docs/ACTIVE_WORKQUEUE.md`](../ACTIVE_WORKQUEUE.md). **Дальше:** [`docs/TODO.md`](../TODO.md).
 
 **Операционный roadmap:** [`ROADMAP.md`](ROADMAP.md).
 

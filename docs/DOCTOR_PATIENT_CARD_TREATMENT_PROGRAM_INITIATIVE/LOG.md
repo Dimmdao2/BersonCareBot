@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-06-03 — Фаза 7 batch-toolbar: закрыта полностью (итог + audit); **план в archive**
+
+- **История:** `program_changed` → «Программа изменена»; детализация `payload.diff` (строки на русском) — `formatProgramChangedDiffDetailLinesRu`; раскрытие по клику в «История правок программы» (`DoctorProgramInstanceTimelineEventRow`).
+- **Unsaved gate:** `InstanceEditorUnsavedChangesDialog` — «Для изменения статуса этапа (программы) необходимо сохранить изменения. Сохранить?»; кнопки «Сохранить» / «Вернуться к редактированию» (без discard); save → proceed после flush; toast при ошибке save; `pendingRef` сброс при закрытии.
+- **Audit remediation:** RTL `TreatmentProgramInstanceDetailClient.phase7.test.tsx` (timeline expand/collapse; metadata gate; structural-only); unit parse diff; unsaved save→proceed, return без proceed, toast при ошибке save; `pendingRef` сброс при закрытии gate; план в `archive/`; удалён stale `~/.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`.
+- **Проверки:** 56 vitest focused phase7 (doctor-timeline 9, batch 11, schema 5, unsaved 5, timeline row 3, phase7 integration 5, draft 11, stage-order 7); `tsc --noEmit` webapp.
+- **План:** todo `history-gate-tests` **completed**; batch-toolbar **закрыт** (фазы 1–7); архив `.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`.
+
+---
+
 ## 2026-06-03 — Фаза 6 batch-toolbar: закрыта полностью (итог)
 
 - **API:** `GET /api/doctor/treatment-program-instances/[instanceId]/discussion` — merged thread по всем пунктам или `?stageItemId=`; `GET …/discussion/summary?stageItemIds=` — batch-счётчики. Сервис `listInstanceDiscussionPageMerged` (single-item → делегат `listDiscussionPageMerged`; multi-item merge + `paginateMergedMessages`).
@@ -148,7 +158,7 @@
 ## 2026-06-02 — Фаза 3: черновик редактора назначенной программы (metadata)
 
 - **Черновик (metadata):** `treatment-program-shared/instanceEditorDraft.ts`, `InstanceEditorDraftContext`, sticky `InstanceEditorSaveBar`; правки метаданных этапа/группы, `localComment`, нагрузка упражнения — in-memory; один batch save (`flushInstanceEditorDraft`) с единственным confirm для `active`. **Structural** операции — отдельный план batch-toolbar (фазы 1–2 закрыты 2026-06-03, см. LOG выше).
-- **Guard:** `programInstanceMutationGuard` — структурные мутации без confirm на клик; `useInstanceEditorUnsavedGate` — модалка перед **сменой статуса этапа** и **«Завершить программу»** при dirty; `beforeunload` при уходе со страницы.
+- **Guard:** `programInstanceMutationGuard` — структурные мутации без confirm на клик; `useInstanceEditorUnsavedGate` — модалка перед **сменой статуса этапа** и **«Завершить программу»** при **metadata-dirty** (`isFlushableDirty`; structural-only не блокирует); `beforeunload` при любом dirty.
 - **Normalize:** `normalizeInstanceEditorDraft` / `isInstanceEditorDraftDirty` — no-op blur не помечает черновик dirty; partial batch failure → перезагрузка baseline + toast «сохранено частично».
 - **Backend:** `updateInstance(status=completed)` закрывает все этапы (кроме `skipped`) + события `stage_completed`.
 - **Карточка:** блок «Изменения программы» на табе «Обзор» (`buildDoctorClientRecentProgramChanges`, до 5 событий).

@@ -31,13 +31,13 @@ import type { ProgramActionLogListRow } from "@/modules/treatment-program/types"
 import { DoctorProgramActionLogMediaPreview } from "./DoctorProgramActionLogMediaPreview";
 import { DoctorProgramItemDiscussionDialog } from "./DoctorProgramItemDiscussionDialog";
 import { DoctorProgramInstanceDiscussionDialog } from "./DoctorProgramInstanceDiscussionDialog";
+import { DoctorProgramInstanceTimelineEventRow } from "./DoctorProgramInstanceTimelineEventRow";
 import {
   formatNormalizedTestDecisionRu,
   formatTreatmentProgramStageStatusRu,
   formatProgramActionLogSummaryRu,
   formatLfkPostSessionDifficultyRu,
   shouldOmitTreatmentProgramEventFromDoctorTimeline,
-  summarizeTreatmentProgramEventForDoctorRu,
 } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import {
@@ -542,10 +542,7 @@ function ProgramInstanceCompleteControl(props: {
   onPatched: () => Promise<void>;
 }) {
   const { instanceId, status, onPatched } = props;
-  const { runOrPromptSave, unsavedDialog } = useInstanceEditorUnsavedGate({
-    description:
-      "Есть несохранённые правки названий, комментариев и нагрузки. Сохраните или отмените их перед завершением программы.",
-  });
+  const { runOrPromptSave, unsavedDialog } = useInstanceEditorUnsavedGate();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -832,6 +829,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   const [instanceDiscussionOpen, setInstanceDiscussionOpen] = useState(false);
   const [addStageDialogOpen, setAddStageDialogOpen] = useState(false);
   const [stageOrderDialogOpen, setStageOrderDialogOpen] = useState(false);
+  const [expandedTimelineEventIds, setExpandedTimelineEventIds] = useState<Set<string>>(() => new Set());
 
   const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
   const stageTitles = useMemo(() => stageTitleById(detail), [detail]);
@@ -1218,16 +1216,22 @@ function TreatmentProgramInstanceDetailClientBody(props: {
                     patientUserId: detail.patientUserId,
                   });
                   return (
-                    <li key={e.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
-                      <span className="text-xs text-muted-foreground">
-                        {formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)}
-                      </span>
-                      <span className="ml-2 font-medium">{summarizeTreatmentProgramEventForDoctorRu(e, eventLabels)}</span>
-                      {who ? <span className="ml-1 text-xs text-muted-foreground">· {who}</span> : null}
-                      {e.reason ? (
-                        <span className="mt-0.5 block text-xs text-foreground/90">Комментарий: {e.reason}</span>
-                      ) : null}
-                    </li>
+                    <DoctorProgramInstanceTimelineEventRow
+                      key={e.id}
+                      event={e}
+                      labels={eventLabels}
+                      createdAtLabel={formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)}
+                      whoLabel={who}
+                      expanded={expandedTimelineEventIds.has(e.id)}
+                      onToggleExpand={() => {
+                        setExpandedTimelineEventIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(e.id)) next.delete(e.id);
+                          else next.add(e.id);
+                          return next;
+                        });
+                      }}
+                    />
                   );
                 })
               )}

@@ -1,18 +1,28 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import toast from "react-hot-toast";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import {
   InstanceEditorDraftProvider,
   useInstanceEditorDraft,
 } from "./InstanceEditorDraftContext";
 import { useInstanceEditorUnsavedGate } from "./InstanceEditorUnsavedChangesDialog";
+import { flushInstanceEditorDraft } from "./flushInstanceEditorDraft";
 
 vi.mock("./flushInstanceEditorDraft", () => ({
   flushInstanceEditorDraft: vi.fn(async () => ({ ok: true as const })),
 }));
+
+vi.mock("react-hot-toast", () => {
+  const toastFn = Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+  });
+  return { default: toastFn };
+});
 
 function minimalDetail(): TreatmentProgramInstanceDetail {
   return {
@@ -83,6 +93,9 @@ function renderGate(dirtyMode: "structural" | "metadata" | "none", onAction = vi
 }
 
 describe("useInstanceEditorUnsavedGate", () => {
+  beforeEach(() => {
+    vi.mocked(flushInstanceEditorDraft).mockResolvedValue({ ok: true as const });
+  });
   it("structural-only dirty runs status action without dialog", async () => {
     const onAction = vi.fn();
     const user = userEvent.setup();
@@ -105,5 +118,61 @@ describe("useInstanceEditorUnsavedGate", () => {
 
     expect(onAction).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(
+      screen.getByText(/для изменения статуса этапа \(программы\) необходимо сохранить изменения/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^сохранить$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /вернуться к редактированию/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /отменить изменения/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^закрыть$/i })).not.toBeInTheDocument();
+  });
+
+  it("save runs action after successful flush", async () => {
+    const onAction = vi.fn();
+    const user = userEvent.setup();
+    renderGate("metadata", onAction);
+
+    await user.click(screen.getByRole("button", { name: /mark dirty/i }));
+    await user.click(screen.getByRole("button", { name: /сменить статус/i }));
+    await user.click(screen.getByRole("button", { name: /^сохранить$/i }));
+
+    await waitFor(() => {
+      expect(onAction).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("return to editing clears pending action without proceeding", async () => {
+    const onAction = vi.fn();
+    const user = userEvent.setup();
+    renderGate("metadata", onAction);
+
+    await user.click(screen.getByRole("button", { name: /mark dirty/i }));
+    await user.click(screen.getByRole("button", { name: /сменить статус/i }));
+    await user.click(screen.getByRole("button", { name: /вернуться к редактированию/i }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onAction).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /сменить статус/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it("shows toast and keeps dialog open when save fails", async () => {
+    vi.mocked(flushInstanceEditorDraft).mockResolvedValueOnce({ ok: false, error: "Ошибка сохранения" });
+    const onAction = vi.fn();
+    const user = userEvent.setup();
+    renderGate("metadata", onAction);
+
+    await user.click(screen.getByRole("button", { name: /mark dirty/i }));
+    await user.click(screen.getByRole("button", { name: /сменить статус/i }));
+    await user.click(screen.getByRole("button", { name: /^сохранить$/i }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Ошибка сохранения");
+    });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(onAction).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatTreatmentProgramEventTypeRu,
   shouldOmitTreatmentProgramEventFromDoctorTimeline,
   summarizeTreatmentProgramEventForDoctorRu,
+  formatProgramChangedEventDetailLinesForDoctorRu,
+  parseProgramChangedDiffFromPayload,
 } from "./types";
 
 const labels = {
@@ -99,5 +102,84 @@ describe("doctor treatment program timeline copy", () => {
       labels,
     );
     expect(text).toBe("Программа изменена");
+  });
+
+  it("formats program_changed diff detail lines", () => {
+    const lines = formatProgramChangedEventDetailLinesForDoctorRu({
+      id: "e6",
+      instanceId: "inst",
+      actorId: "doc",
+      eventType: "program_changed",
+      targetType: "program",
+      targetId: "inst",
+      payload: {
+        scope: "editor_batch",
+        diff: { itemsAdded: 2, stagesReordered: true, stagesMetadataUpdated: 1 },
+      },
+      reason: null,
+      createdAt: "2026-06-03T12:00:00.000Z",
+    });
+    expect(lines).toEqual([
+      "Изменён порядок этапов",
+      "Обновлено этапов: 1",
+      "Добавлено элементов: 2",
+    ]);
+  });
+
+  it("formatTreatmentProgramEventTypeRu capitalizes program_changed", () => {
+    expect(formatTreatmentProgramEventTypeRu("program_changed")).toBe("Программа изменена");
+  });
+
+  it("parseProgramChangedDiffFromPayload rejects non-batch scope", () => {
+    expect(parseProgramChangedDiffFromPayload({ scope: "other", diff: {} })).toBeNull();
+    expect(parseProgramChangedDiffFromPayload(null)).toBeNull();
+  });
+
+  it("parseProgramChangedDiffFromPayload reads all diff counters", () => {
+    const diff = parseProgramChangedDiffFromPayload({
+      scope: "editor_batch",
+      diff: {
+        stagesAdded: 1,
+        groupsAdded: 2,
+        groupsHidden: 1,
+        itemsRemoved: 3,
+        itemsStructuralUpdated: 1,
+        itemsMetadataUpdated: 4,
+        itemsReordered: true,
+        groupsReordered: true,
+      },
+    });
+    expect(diff).toMatchObject({
+      stagesAdded: 1,
+      groupsAdded: 2,
+      groupsHidden: 1,
+      itemsRemoved: 3,
+      itemsStructuralUpdated: 1,
+      itemsMetadataUpdated: 4,
+      itemsReordered: true,
+      groupsReordered: true,
+    });
+    expect(
+      formatProgramChangedEventDetailLinesForDoctorRu({
+        id: "e7",
+        instanceId: "inst",
+        actorId: null,
+        eventType: "program_changed",
+        targetType: "program",
+        targetId: "inst",
+        payload: { scope: "editor_batch", diff: diff ?? {} },
+        reason: null,
+        createdAt: "2026-06-03T12:00:00.000Z",
+      }),
+    ).toEqual([
+      "Добавлено этапов: 1",
+      "Добавлено групп: 2",
+      "Скрыто групп: 1",
+      "Удалено элементов: 3",
+      "Изменена структура элементов: 1",
+      "Обновлены комментарии и нагрузка элементов: 4",
+      "Изменён порядок элементов",
+      "Изменён порядок групп",
+    ]);
   });
 });
