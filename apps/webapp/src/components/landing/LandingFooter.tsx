@@ -27,9 +27,7 @@ export function LandingFooter() {
               />
               <p className="text-base font-semibold text-[#17264A]">BersonCare</p>
             </div>
-            <p className={cn(landingBody, "mt-3 max-w-sm")}>
-              Пациентский кабинет для реабилитации и сопровождения.
-            </p>
+            <p className={cn(landingBody, "mt-3 max-w-sm")}>Удобное приложение для заботы о здоровье.</p>
           </div>
 
           <div className={cn("flex flex-col gap-3", landingBodySecondary)}>
