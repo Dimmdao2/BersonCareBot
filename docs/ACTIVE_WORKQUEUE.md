@@ -78,7 +78,7 @@ D5 `domain→kind`, полная переработка `/diary`, курсы, UX
 
 ### Редактор инстанса программы — batch toolbar (активный план)
 
-План: [`.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03.
+План: [`.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.5.
 
 | Фаза плана | Статус |
 |------------|--------|
@@ -86,6 +86,7 @@ D5 `domain→kind`, полная переработка `/diary`, курсы, UX
 | 2 — UI → in-memory draft (structural без immediate API) | **Закрыта** (2026-06-03; аудит remediation: `isFlushableDirty`, RTL smoke) |
 | 3 — server `POST …/editor-batch` + `program_changed` + tx | **Закрыта полностью** (2026-06-03; audit remediation) |
 | 4 — sticky toolbar | **Закрыта полностью** (2026-06-03) |
-| 5 — collapsible этапы | **Следующая** (модалка порядка — **готова**: `InstanceEditorStageOrderDialog`) |
+| 5 — collapsible этапы + модалка порядка | **Закрыта полностью** (2026-06-03) |
+| 6 — общий диалог комментариев | **Следующая** |
 
-Код: `treatment-program-shared/` (`InstanceEditorToolbar`, `InstanceEditorAddStageDialog`, `InstanceEditorStageOrderDialog`, `instanceEditorDraft*` → `editor-batch`); `AppShell` `--doctor-sticky-offset`; миграция `0104_program_changed_event_type.sql`; `api.md`.
+Код: `treatment-program-shared/` (`InstanceEditorToolbar`, `InstanceEditorAddStageDialog`, `InstanceEditorStageOrderDialog`, `instanceEditorDefaultExpandedStageId`, `useInstanceEditorPipelineStageExpansion`, `instanceEditorDraft*` → `editor-batch`); `AppShell` `--doctor-sticky-offset`; миграция `0104_program_changed_event_type.sql`; `api.md`.

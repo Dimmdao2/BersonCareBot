@@ -4,13 +4,24 @@
 
 ---
 
+## 2026-06-03 — Фаза 5 batch-toolbar: закрыта полностью (итог)
+
+- **Collapsible:** pipeline-этапы (`sortOrder > 0`) — `Collapsible` (заголовок + chevron); «+ Группа» вне trigger, при клике на свёрнутом этапе — auto-expand + диалог.
+- **Default expanded:** `pickDefaultExpandedPipelineStageId` — `in_progress` → `available` → первый незавершённый; `useInstanceEditorPipelineStageExpansion` (lazy init + deferred init при пустом pipeline на mount).
+- **Audit remediation:** unit-кейсы multi `in_progress`/`available`; RTL all terminal + `aria-expanded`; hook sync/deferred init; исправлен счётчик vitest в LOG.
+- **Порядок этапов:** `InstanceEditorStageOrderDialog` → draft; inline stage DnD на списке снят (регрессия в phase5 test).
+- **Проверки:** 25 vitest phase5-focused (defaultExpanded 7, hook 5, phase5 RTL 8, stage-order 2, fetch guard 3); `api.md` (collapsible UX); `tsc --noEmit` webapp.
+- **План:** todo `collapsible-stages`, `stage-order-modal` **completed**; следующая — ф.6 (`comments-dialog`).
+
+---
+
 ## 2026-06-03 — Фаза 4 batch-toolbar: закрыта полностью (итог)
 
 - **Toolbar:** `InstanceEditorToolbar` — три зоны (meta | «Комментарии» | actions), `INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS` под `DoctorHeader`, `--doctor-sticky-offset` на `#app-shell-doctor`.
 - **Экран инстанса:** `TreatmentProgramInstanceDetailClient` — toolbar вместо `InstanceEditorSaveBar`; summary без дубля title/patient/status; `InstanceEditorAddStageDialog` (один CTA «Добавить этап»).
 - **Порядок этапов:** `InstanceEditorStageOrderDialog` → draft `stageOrder`; inline stage DnD/drag-handle сняты; batch через `editor-batch`.
 - **Проверки:** 20 vitest (toolbar, add-stage, stage-order, phase2/4, fetch guard); `api.md` (toolbar UX, §stages/reorder); `tsc --noEmit` webapp.
-- **План:** todo `toolbar-stages`, `stage-order-modal` **completed**; следующий — `collapsible-stages` (ф.5).
+- **План:** todo `toolbar-stages` **completed**; ф.5 — см. §ф.5 (закрыта).
 
 ---
 

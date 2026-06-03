@@ -1,6 +1,6 @@
 ---
 name: instance-editor-batch-toolbar
-overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, модалка порядка этапов, общий диалог комментариев и единое batch-сохранение. Фазы 1–4 закрыты (2026-06-03); ф.5 частично — модалка порядка готова, collapsible этапы — следующий шаг."
+overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, модалка порядка этапов, общий диалог комментариев и единое batch-сохранение. Фазы 1–5 закрыты (2026-06-03); ф.6 — общий диалог комментариев."
 todos:
   - id: phase-1-draft-model
     content: "Фаза 1: Расширить InstanceEditorDraft, merge/normalize, context API, flush vs structural split"
@@ -18,8 +18,8 @@ todos:
     content: "Фаза 5 (часть): InstanceEditorStageOrderDialog → draft stageOrder; inline stage DnD снят"
     status: completed
   - id: collapsible-stages
-    content: "Фаза 5: Collapsible этапы (default expanded active) + тесты toggle"
-    status: pending
+    content: "Фаза 5: Collapsible этапы (default expanded active) + тесты toggle — закрыта"
+    status: completed
   - id: comments-dialog
     content: "Фаза 6: Добавить общий диалог комментариев по всем пунктам с searchable фильтром"
     status: pending
@@ -39,9 +39,10 @@ isProject: false
 | 2 — UI → in-memory draft | **Закрыта** (аудит remediation 2026-06-03) |
 | 3 — server `editor-batch` | **Закрыта полностью** (2026-06-03; audit remediation: tx, pre-validate) |
 | 4 — sticky toolbar | **Закрыта полностью** (2026-06-03; audit remediation) |
-| 5 — collapsible этапы | **Следующая** (модалка порядка — **готова**, см. `InstanceEditorStageOrderDialog`) |
+| 5 — collapsible этапы + модалка порядка | **Закрыта полностью** (2026-06-03) |
+| 6 — общий диалог комментариев | **Следующая** |
 
-LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.4 (итог).
+LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.5 (итог).
 
 ## Scope
 
@@ -107,12 +108,14 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] Audit remediation: один CTA «Добавить этап»; `InstanceEditorStageOrderDialog`; inline stage DnD/drag-handle сняты.
 - [x] RTL: `InstanceEditorToolbar.test.tsx`, `InstanceEditorAddStageDialog.test.tsx`, `InstanceEditorStageOrderDialog.test.tsx`, `TreatmentProgramInstanceDetailClient.phase4.test.tsx`; `api.md`; 20 vitest (phase2/4/guard); `tsc --noEmit`.
 
-### Фаза 5 — Сворачиваемые этапы
+### Фаза 5 — Сворачиваемые этапы ✅ (2026-06-03, закрыта полностью)
 - [x] `InstanceEditorStageOrderDialog`: DnD списка названий, «Сохранить порядок» → draft `stageOrder` (2026-06-03).
 - [x] Stage DnD/drag-handle в основном списке сняты (2026-06-03).
-- [ ] Collapsible этапы: default expanded active (`in_progress` → `available` → первый незавершённый).
-- [ ] Проверки: component tests default-expanded/manual toggle.
+- [x] Collapsible этапы: default expanded active (`in_progress` → `available` → первый незавершённый); `pickDefaultExpandedPipelineStageId`, `useInstanceEditorPipelineStageExpansion`; «+ Группа» auto-expand на свёрнутом этапе.
+- [x] Проверки: `instanceEditorDefaultExpandedStageId.test.ts` (7), `useInstanceEditorPipelineStageExpansion.test.tsx` (5), `TreatmentProgramInstanceDetailClient.phase5.test.tsx` (8); `api.md`; регрессия без inline stage DnD; `instanceEditorPhase2FetchGuard.test.ts`.
+- [x] Audit remediation (2026-06-03): lazy init hook без flash; «+ Группа» auto-expand; расширенные unit/RTL (`aria-expanded`, all terminal, multi in_progress/available); LOG/plan counts.
 - [x] Reorder modal tests; нет immediate `/stages/reorder` с экрана редактора.
+- [x] `tsc --noEmit` webapp.
 
 ### Фаза 6 — Общий диалог комментариев по всем пунктам
 - Добавить doctor API summary/list по instance (в [app/api/doctor/treatment-program-instances/...](apps/webapp/src/app/api/doctor/treatment-program-instances/)) с фильтром по `stageItemId`.

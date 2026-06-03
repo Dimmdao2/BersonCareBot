@@ -4,7 +4,8 @@ import { Fragment, type ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Activity, BookOpen, ClipboardList, Layers, MessageSquare } from "lucide-react";
+import { Activity, BookOpen, ChevronDown, ClipboardList, Layers, MessageSquare } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ import type { InstanceEditorItemStructuralPatch } from "@/app/app/doctor/treatme
 import { InstanceEditorToolbar } from "@/app/app/doctor/treatment-program-shared/InstanceEditorToolbar";
 import { InstanceEditorAddStageDialog } from "@/app/app/doctor/treatment-program-shared/InstanceEditorAddStageDialog";
 import { InstanceEditorStageOrderDialog } from "@/app/app/doctor/treatment-program-shared/InstanceEditorStageOrderDialog";
+import { useInstanceEditorPipelineStageExpansion } from "@/app/app/doctor/treatment-program-shared/useInstanceEditorPipelineStageExpansion";
 import { useInstanceEditorUnsavedGate } from "@/app/app/doctor/treatment-program-shared/InstanceEditorUnsavedChangesDialog";
 import {
   INSTANCE_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS,
@@ -619,61 +621,95 @@ function DoctorInstancePipelineStageBlock(props: {
   testResults: TreatmentProgramTestResultDetailRow[];
   onSaved: () => Promise<void>;
   onRequestAddLibraryItem: (spec: InstanceAddLibraryItemSpec) => void;
+  expanded: boolean;
+  onExpandedChange: (open: boolean) => void;
 }) {
-  const { instanceId, stage, programStatus, testResults, onSaved, onRequestAddLibraryItem } = props;
+  const {
+    instanceId,
+    stage,
+    programStatus,
+    testResults,
+    onSaved,
+    onRequestAddLibraryItem,
+    expanded,
+    onExpandedChange,
+  } = props;
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const editLocked = isProgramInstanceEditLocked(programStatus);
 
   return (
-    <section className={INSTANCE_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS}>
-      <div
-        className="border-b border-border/40 px-2 py-1.5"
-        style={{ background: INSTANCE_HEADER_BG_STAGE_EDITABLE }}
-      >
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 flex-1 pt-0.5">
-            <span className="text-xs font-medium tabular-nums text-muted-foreground">
-              Этап {stage.sortOrder}
-            </span>
-            <h3 className="mt-0.5 text-sm font-semibold leading-tight text-foreground">{stage.title}</h3>
-            {stage.description?.trim() ? (
-              <p className="mt-1 text-xs leading-snug whitespace-pre-wrap text-muted-foreground">
-                {stage.description.trim()}
-              </p>
-            ) : null}
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className="uppercase tracking-wide">{formatTreatmentProgramStageStatusRu(stage.status)}</span>
-              {stage.skipReason ? <span>Причина пропуска: {stage.skipReason}</span> : null}
+    <section
+      className={INSTANCE_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS}
+      data-testid={`instance-editor-pipeline-stage-${stage.id}`}
+      data-expanded={expanded ? "true" : "false"}
+    >
+      <Collapsible open={expanded} onOpenChange={onExpandedChange}>
+        <div
+          className="border-b border-border/40 px-2 py-1.5"
+          style={{ background: INSTANCE_HEADER_BG_STAGE_EDITABLE }}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <CollapsibleTrigger
+              type="button"
+              className="flex min-w-0 flex-1 items-start gap-2 pt-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                  Этап {stage.sortOrder}
+                </span>
+                <h3 className="mt-0.5 text-sm font-semibold leading-tight text-foreground">{stage.title}</h3>
+                {stage.description?.trim() ? (
+                  <p className="mt-1 text-xs leading-snug whitespace-pre-wrap text-muted-foreground">
+                    {stage.description.trim()}
+                  </p>
+                ) : null}
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="uppercase tracking-wide">{formatTreatmentProgramStageStatusRu(stage.status)}</span>
+                  {stage.skipReason ? <span>Причина пропуска: {stage.skipReason}</span> : null}
+                </div>
+              </div>
+              <ChevronDown
+                className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-data-[open]/collapsible:rotate-180"
+                aria-hidden
+              />
+            </CollapsibleTrigger>
+            <div className="flex shrink-0 flex-wrap items-start justify-end gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className={tplToolbarTextBtnClass}
+                disabled={editLocked}
+                onClick={() => {
+                  if (editLocked) return;
+                  onExpandedChange(true);
+                  setNewGroupOpen(true);
+                }}
+              >
+                + Группа
+              </Button>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-start justify-end gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className={tplToolbarTextBtnClass}
-              disabled={editLocked}
-              onClick={() => {
-                if (editLocked) return;
-                setNewGroupOpen(true);
-              }}
-            >
-              + Группа
-            </Button>
-          </div>
         </div>
-      </div>
-      <div className="p-3">
-        <StageDoctorControls instanceId={instanceId} stage={stage} programStatus={programStatus} onPatched={onSaved} />
-        <InstanceStageGroupsPanel
-          stage={stage}
-          testResults={testResults}
-          programStatus={programStatus}
-          newGroupOpen={newGroupOpen}
-          onNewGroupOpenChange={setNewGroupOpen}
-          onRequestAddLibraryItem={onRequestAddLibraryItem}
-        />
-      </div>
+        <CollapsibleContent>
+          <div className="p-3">
+            <StageDoctorControls
+              instanceId={instanceId}
+              stage={stage}
+              programStatus={programStatus}
+              onPatched={onSaved}
+            />
+            <InstanceStageGroupsPanel
+              stage={stage}
+              testResults={testResults}
+              programStatus={programStatus}
+              newGroupOpen={newGroupOpen}
+              onNewGroupOpenChange={setNewGroupOpen}
+              onRequestAddLibraryItem={onRequestAddLibraryItem}
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </section>
   );
 }
@@ -818,6 +854,9 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     [detail.stages],
   );
   const pipelineStages = useMemo(() => sortedStages.filter((s) => s.sortOrder > 0), [sortedStages]);
+  const { isStageExpanded, setStageExpanded } = useInstanceEditorPipelineStageExpansion(
+    pipelineStages.map((stage) => ({ id: stage.id, sortOrder: stage.sortOrder, status: stage.status })),
+  );
   const stageZero = useMemo(
     () => sortedStages.find((s) => s.sortOrder === 0) ?? null,
     [sortedStages],
@@ -1291,6 +1330,8 @@ function TreatmentProgramInstanceDetailClientBody(props: {
                 testResults={testResults}
                 onSaved={refresh}
                 onRequestAddLibraryItem={(spec) => setAddLibrarySpec(spec)}
+                expanded={isStageExpanded(stage.id)}
+                onExpandedChange={(open) => setStageExpanded(stage.id, open)}
               />
             ))}
           </div>
