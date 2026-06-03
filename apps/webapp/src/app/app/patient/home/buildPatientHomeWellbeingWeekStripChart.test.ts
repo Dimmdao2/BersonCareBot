@@ -140,6 +140,29 @@ describe("buildPatientHomeWellbeingWeekStripChart", () => {
     expect(segments.find((s) => s.key === "window-anchor")?.kind).toBe("solid");
   });
 
+  it("keeps the first in-window connection after a solid anchor bridge", () => {
+    const wednesday = DateTime.fromObject({ year: 2026, month: 5, day: 20, hour: 15 }, { zone: tz });
+    vi.setSystemTime(wednesday.toMillis());
+    const windowStartIso = wednesday.minus({ days: HOME_WELLBEING_STRIP_DAY_COUNT - 1 }).toISODate()!;
+    const { segments } = buildPatientHomeWellbeingWeekStripChart({
+      marks: [
+        { recordedAt: DateTime.fromISO("2026-05-19T10:00:00", { zone: tz }).toUTC().toISO()!, score: 3 },
+        { recordedAt: DateTime.fromISO("2026-05-20T14:00:00", { zone: tz }).toUTC().toISO()!, score: 5 },
+      ],
+      timeZone: tz,
+      todayIso: "2026-05-20",
+      windowStartIso,
+      nowMs: wednesday.toMillis(),
+      anchorDayBeforeWindowHadMarks: true,
+      anchorDayBeforeWindowLastScore: 4,
+      lastScoreBeforeWindow: 4,
+    });
+
+    const firstConnection = segments.find((s) => s.key === "solid-0");
+    expect(firstConnection?.kind).toBe("solid");
+    expect(firstConnection?.x0).toBeLessThan(firstConnection?.x1 ?? 0);
+  });
+
   it("uses fewer solid segments when many marks fall in the same 2h bucket", () => {
     const friday = DateTime.fromObject({ year: 2026, month: 5, day: 22, hour: 11 }, { zone: tz });
     vi.setSystemTime(friday.toMillis());

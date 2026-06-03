@@ -189,8 +189,7 @@ export function buildPatientHomeWellbeingWeekStripChart(
     segments.push(segmentBetween("window-anchor", anchor, first, "solid"));
   }
 
-  const solidLoopStart = anchorDayBeforeWindowHadMarks ? 1 : 0;
-  for (let i = solidLoopStart; i < clippedMarks.length - 1; i += 1) {
+  for (let i = 0; i < clippedMarks.length - 1; i += 1) {
     segments.push(
       segmentBetween(`solid-${i}`, clippedMarks[i]!, clippedMarks[i + 1]!, "solid"),
     );

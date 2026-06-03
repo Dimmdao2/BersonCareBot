@@ -19,6 +19,7 @@ import { StandaloneRootRedirect } from "@/components/landing/StandaloneRootRedir
 const ogTitle = "BersonCare — забота о твоём здоровье";
 const ogDescription =
   "Мобильный помощник для восстановления и реабилитации: разминки, упражнения, дневник самочувствия, напоминания и полезные материалы.";
+const shareImage = "/pwa-icon-512.png";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://bersoncare.ru"),
@@ -30,6 +31,20 @@ export const metadata: Metadata = {
     url: "https://bersoncare.ru",
     siteName: "BersonCare",
     type: "website",
+    images: [
+      {
+        url: shareImage,
+        width: 512,
+        height: 512,
+        alt: "Иконка приложения BersonCare",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: ogTitle,
+    description: ogDescription,
+    images: [shareImage],
   },
 };
 

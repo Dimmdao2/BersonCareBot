@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import {
@@ -12,17 +13,18 @@ const linkClass =
 
 export function LandingFooter() {
   return (
-    <footer className="overflow-x-hidden border-t border-[#E6ECF8] bg-[#F8FAFF] py-10 sm:py-12">
+    <footer className="overflow-x-hidden border-t border-[#E6ECF8] bg-white py-10 sm:py-12">
       <div className={landingContainer}>
         <div className="grid min-w-0 gap-8 md:grid-cols-2 md:items-start md:gap-12">
           <div>
             <div className="flex items-center gap-2">
-              <span
-                className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#2F55B7] to-[#5A78D6] text-sm font-bold text-white"
-                aria-hidden
-              >
-                B
-              </span>
+              <Image
+                src="/apple-touch-icon.png"
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 rounded-xl"
+              />
               <p className="text-base font-semibold text-[#17264A]">BersonCare</p>
             </div>
             <p className={cn(landingBody, "mt-3 max-w-sm")}>

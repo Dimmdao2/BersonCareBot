@@ -707,6 +707,27 @@
   }
 }
 
+@keyframes landingHeroSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.landing-hero-slide-in {
+  animation: landingHeroSlideIn ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-slide-in {
+    animation: none;
+  }
+}
+
 #app-shell-patient .patient-shimmer-sheen {
   background-image: linear-gradient(
     105deg,

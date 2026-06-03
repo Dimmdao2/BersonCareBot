@@ -38,8 +38,7 @@ export const landingBodySecondary = "text-[0.9375rem] leading-6 text-[#667085]";
 export const landingCaption = "text-sm leading-5 text-[#98A2B3]";
 
 export const landingInstallCard = cn(
-  "min-w-0 rounded-[22px] border border-[#E6ECF8] bg-white p-5 shadow-[0_8px_28px_rgba(31,61,120,0.06)]",
-  "sm:rounded-[24px] sm:p-7",
+  "min-w-0 rounded-[22px] border border-[#E6ECF8] bg-white p-5 sm:rounded-[24px] sm:p-7",
 );
 
 export const landingCtaPrimary = cn(

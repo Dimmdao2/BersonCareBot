@@ -1,6 +1,8 @@
 import { CheckCircle2, Info } from "lucide-react";
 import { InstallStepVisual } from "@/components/landing/InstallStepVisual";
 import type { InstallStep } from "@/components/landing/installSteps";
+import type { LandingInstallPlatform } from "@/components/landing/detectLandingInstallPlatform";
+import { WrongBrowserBanner } from "@/components/landing/WrongBrowserBanner";
 import {
   landingInstallCard,
   landingStepTitle,
@@ -10,17 +12,25 @@ export function PlatformInstallCard({
   intro,
   steps,
   successNote,
+  wrongBrowser = false,
+  platform = "ios",
 }: {
   intro: string;
   steps: readonly InstallStep[];
   successNote: string;
+  wrongBrowser?: boolean;
+  platform?: LandingInstallPlatform;
 }) {
   return (
     <article className={landingInstallCard}>
-      <p className="flex items-start gap-2.5 rounded-xl border border-[#FFE6B5] bg-[#FFF8E8] px-4 py-3 text-[0.9375rem] font-medium leading-6 text-[#7A4A00]">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#C2780A]" aria-hidden />
-        <span className="min-w-0">{intro}</span>
-      </p>
+      {wrongBrowser ? (
+        <WrongBrowserBanner platform={platform} />
+      ) : (
+        <p className="flex items-start gap-2.5 rounded-xl border border-[#FFE6B5] bg-[#FFF8E8] px-4 py-3 text-[0.9375rem] font-medium leading-6 text-[#7A4A00]">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#C2780A]" aria-hidden />
+          <span className="min-w-0">{intro}</span>
+        </p>
+      )}
 
       <ol className="mt-5 space-y-4 sm:mt-6 sm:space-y-5">
         {steps.map((step, index) => (
@@ -29,7 +39,7 @@ export function PlatformInstallCard({
             className="flex gap-3.5 rounded-2xl border border-[#EEF2FA] bg-[#F8FAFF] p-3.5 sm:gap-4 sm:p-4"
           >
             <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-base font-bold text-[#2F55B7] shadow-[0_2px_8px_rgba(31,61,120,0.08)] ring-1 ring-[#D5DEF1] sm:h-10 sm:w-10 sm:text-[1.0625rem]"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-base font-bold text-[#2F55B7] ring-1 ring-[#D5DEF1] sm:h-10 sm:w-10 sm:text-[1.0625rem]"
               aria-hidden
             >
               {index + 1}

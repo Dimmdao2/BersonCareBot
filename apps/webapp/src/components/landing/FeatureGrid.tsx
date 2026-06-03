@@ -63,7 +63,7 @@ export function FeatureGrid() {
                 key={f.title}
                 className={cn(
                   "group flex min-w-0 items-start gap-4 rounded-2xl border border-[#E6ECF8] bg-white p-5",
-                  "transition hover:-translate-y-0.5 hover:border-[#C8D3EC] hover:shadow-[0_12px_28px_rgba(31,61,120,0.08)]",
+                  "transition hover:-translate-y-0.5 hover:border-[#C8D3EC]",
                   "sm:p-6",
                 )}
               >

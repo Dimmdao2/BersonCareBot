@@ -13,9 +13,9 @@ const linkClass =
 
 export function SpecialistSection() {
   return (
-    <section id="specialist" className="overflow-x-hidden bg-[#F8FAFF] py-12 sm:py-14 lg:py-16">
+    <section id="specialist" className="overflow-x-hidden bg-white py-12 sm:py-14 lg:py-16">
       <div className={landingContainer}>
-        <div className="mx-auto max-w-3xl rounded-[24px] border border-[#E6ECF8] bg-white p-5 shadow-[0_8px_28px_rgba(31,61,120,0.06)] sm:p-7">
+        <div className="mx-auto max-w-3xl rounded-[24px] border border-[#E6ECF8] bg-white p-5 sm:p-7">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
             <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl ring-1 ring-[#E6ECF8] sm:h-28 sm:w-28">
               <Image
