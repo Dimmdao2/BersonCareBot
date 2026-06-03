@@ -22,6 +22,10 @@
 
 Завершённые продуктовые инициативы (AUTH, phone bind, identity, merge v2, timezone, booking, …): [`2026-04-initiatives/README.md`](2026-04-initiatives/README.md).
 
+## 2026-06 — patient help на «Запись»
+
+План `patient_help_booking_surface` закрыт (фазы 1–4): [`2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/README.md`](2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/README.md). Список полезных задач после плана — [`FOLLOW_UP.md`](2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/FOLLOW_UP.md).
+
 ## 2026-05 — вынесенные закрытые пункты project backlog
 
 Записи, удалённые из [`../TODO.md`](../TODO.md) как история: [`TODO_BACKLOG_CLOSED_HISTORY.md`](TODO_BACKLOG_CLOSED_HISTORY.md).

@@ -57,6 +57,7 @@
 
 - [`LOG.md`](LOG.md) — план `patient_help_booking_surface` закрыт (фазы 1–4, 2026-06-03)
 - [`CMS_EDITOR_CHECKLIST.md`](CMS_EDITOR_CHECKLIST.md) — публикация статей для плиток и `/help/booking`
+- **Следующие шаги:** [`docs/archive/2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/FOLLOW_UP.md`](../../../../docs/archive/2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/FOLLOW_UP.md)
 
 ## Документация
 

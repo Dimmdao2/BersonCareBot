@@ -41,3 +41,5 @@
 **Статус:** план **закрыт** (фазы 1–4). YAML `todos` — все `completed`. См. [`.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md`](../../../../.cursor/plans/archive/patient_help_booking_surface_phase_f90d9842.plan.md).
 
 **Коммиты:** `89201d96` · `06b4ff59`/`dfebf1e5` · `231719e0` · `5568a397` · `79ada87e`.
+
+**Следующие шаги (вне scope плана):** [`docs/archive/2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/FOLLOW_UP.md`](../../../../docs/archive/2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/FOLLOW_UP.md).
