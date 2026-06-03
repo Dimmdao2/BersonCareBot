@@ -21,7 +21,10 @@ export function useInstanceEditorPipelineStageExpansion(pipelineStages: Pipeline
     if (!deferredInitRef.current) return;
     if (pipelineStages.length === 0) return;
     deferredInitRef.current = false;
-    setExpandedStageIds(buildInitialExpandedStageIds(pipelineStages));
+    const t = window.setTimeout(() => {
+      setExpandedStageIds(buildInitialExpandedStageIds(pipelineStages));
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [pipelineStages]);
 
   const setStageExpanded = useCallback((stageId: string, open: boolean) => {

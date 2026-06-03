@@ -299,6 +299,28 @@ function orderedIdsEqual(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
+/**
+ * Нормализовать reorder к актуальному набору id:
+ * - убрать id, которых уже нет после структурных правок;
+ * - убрать дубли;
+ * - дописать отсутствующие id (например, новые create), чтобы сервер не падал на assertSameIdSet.
+ */
+function reconcileReorderToExpectedIds(order: readonly string[], expectedOrder: readonly string[]): string[] {
+  const allowed = new Set(expectedOrder);
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const id of order) {
+    if (!allowed.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+  for (const id of expectedOrder) {
+    if (seen.has(id)) continue;
+    normalized.push(id);
+  }
+  return normalized;
+}
+
 /** Сравнимое с UI чтение нагрузки упражнения из baseline. */
 export function readInstanceItemLoadSettingsPatch(
   item: TreatmentProgramInstanceStageItemRow,
@@ -349,15 +371,6 @@ function findItem(baseline: TreatmentProgramInstanceDetail, itemId: string) {
 
 function baselineStageIdOrder(stages: TreatmentProgramInstanceDetail["stages"]): string[] {
   return sortByOrderThenId(stages).map((s) => s.id);
-}
-
-function defaultStageIdOrderAfterCreates(
-  baseline: TreatmentProgramInstanceDetail,
-  stageCreates: InstanceEditorStageCreate[],
-): string[] {
-  const sorted = sortByOrderThenId(baseline.stages);
-  if (stageCreates.length === 0) return sorted.map((s) => s.id);
-  return [...sorted.map((s) => s.id), ...stageCreates.map((s) => s.clientId)];
 }
 
 function userGroupIdsInDisplayOrder(stage: InstanceEditorStageNode): string[] {
@@ -876,35 +889,39 @@ export function normalizeInstanceEditorDraft(
     }
   }
 
-  if (draft.stageOrder) {
-    const expected = defaultStageIdOrderAfterCreates(baseline, next.stageCreates);
-    if (!orderedIdsEqual(draft.stageOrder, expected)) {
-      next.stageOrder = draft.stageOrder;
-    }
-  }
-
   const partialForReorderCompare: InstanceEditorDraft = {
     ...next,
+    stageOrder: null,
     itemReorders: {},
     groupReorders: {},
   };
   const mergedForReorder = mergeInstanceEditorDraftIntoDetailRaw(baseline, partialForReorderCompare);
 
+  if (draft.stageOrder) {
+    const expected = baselineStageIdOrder(mergedForReorder.stages);
+    const reconciled = reconcileReorderToExpectedIds(draft.stageOrder, expected);
+    if (!orderedIdsEqual(reconciled, expected)) {
+      next.stageOrder = reconciled;
+    }
+  }
+
   for (const [stageId, order] of Object.entries(draft.groupReorders)) {
     const stage = mergedForReorder.stages.find((s) => s.id === stageId);
     if (!stage) continue;
-    const baselineOrder = userGroupIdsInDisplayOrder(stage);
-    if (!orderedIdsEqual(order, baselineOrder)) {
-      next.groupReorders[stageId] = order;
+    const expectedOrder = userGroupIdsInDisplayOrder(stage);
+    const reconciled = reconcileReorderToExpectedIds(order, expectedOrder);
+    if (!orderedIdsEqual(reconciled, expectedOrder)) {
+      next.groupReorders[stageId] = reconciled;
     }
   }
 
   for (const [stageId, order] of Object.entries(draft.itemReorders)) {
     const stage = mergedForReorder.stages.find((s) => s.id === stageId);
     if (!stage) continue;
-    const baselineOrder = stageItemIdsInDisplayOrder(stage);
-    if (!orderedIdsEqual(order, baselineOrder)) {
-      next.itemReorders[stageId] = order;
+    const expectedOrder = stageItemIdsInDisplayOrder(stage);
+    const reconciled = reconcileReorderToExpectedIds(order, expectedOrder);
+    if (!orderedIdsEqual(reconciled, expectedOrder)) {
+      next.itemReorders[stageId] = reconciled;
     }
   }
 

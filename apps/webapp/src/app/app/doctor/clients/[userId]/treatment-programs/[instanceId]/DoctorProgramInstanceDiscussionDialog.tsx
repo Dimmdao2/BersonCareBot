@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +46,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [messageCountByItemId, setMessageCountByItemId] = useState<Record<string, number>>({});
+  const loadGenerationRef = useRef(0);
 
   const itemLabelById = useMemo(() => new Map(programItems.map((item) => [item.id, item.label])), [programItems]);
 
@@ -76,7 +77,12 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   );
 
   const loadPage = useCallback(
-    async (cursor: string | null, appendOlder: boolean, stageItemId: string) => {
+    async (
+      cursor: string | null,
+      appendOlder: boolean,
+      stageItemId: string,
+      generation: number,
+    ) => {
       const url = new URL(basePath, window.location.origin);
       url.searchParams.set("direction", "backward");
       url.searchParams.set("limit", "50");
@@ -86,6 +92,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       if (cursor) url.searchParams.set("cursor", cursor);
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
+      if (generation !== loadGenerationRef.current) return;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
         throw new Error(data?.error ?? "Не удалось загрузить обсуждения");
       }
@@ -102,17 +109,22 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   );
 
   const bootstrap = useCallback(async () => {
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
+    setLoadingOlder(false);
     setError(null);
     setMessages([]);
     setNextCursor(null);
     try {
-      await loadPage(null, false, filterStageItemId);
+      await loadPage(null, false, filterStageItemId, generation);
     } catch (e) {
+      if (generation !== loadGenerationRef.current) return;
       const msg = e instanceof Error ? e.message : "Не удалось загрузить обсуждения";
       setError(msg);
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, [filterStageItemId, loadPage]);
 
@@ -123,9 +135,12 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
 
   useEffect(() => {
     if (!open) {
+      loadGenerationRef.current += 1;
       setFilterStageItemId(DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS);
       setItemSearch("");
       setMessages([]);
+      setLoading(false);
+      setLoadingOlder(false);
       setNextCursor(null);
       setError(null);
       setMessageCountByItemId({});
@@ -218,12 +233,18 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
             itemLabelById={showItemLabels ? itemLabelById : undefined}
             onLoadOlder={() => {
               if (!nextCursor) return;
+              const generation = loadGenerationRef.current;
               setLoadingOlder(true);
-              void loadPage(nextCursor, true, filterStageItemId)
+              void loadPage(nextCursor, true, filterStageItemId, generation)
                 .catch((e) => {
+                  if (generation !== loadGenerationRef.current) return;
                   setError(e instanceof Error ? e.message : "Не удалось загрузить обсуждения");
                 })
-                .finally(() => setLoadingOlder(false));
+                .finally(() => {
+                  if (generation === loadGenerationRef.current) {
+                    setLoadingOlder(false);
+                  }
+                });
             }}
           />
         </div>

@@ -127,7 +127,11 @@ export async function GET(
       },
       totalCount: pageResult.totalCount,
     });
-  } catch {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "error";
+    if (msg.includes("не найден")) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: false, error: "internal_error" }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { arrayMove } from "@dnd-kit/sortable";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,14 +36,18 @@ export function InstanceEditorStageOrderDialog(props: {
   );
   const [localIds, setLocalIds] = useState<string[]>(pipelineIds);
 
-  useEffect(() => {
-    if (open) setLocalIds(pipelineIds);
-  }, [open, pipelineIds]);
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (next) setLocalIds(pipelineIds);
+      onOpenChange(next);
+    },
+    [onOpenChange, pipelineIds],
+  );
 
   const saveOrder = () => {
     if (editLocked || !stageZeroId) return;
     setStageOrder([stageZeroId, ...localIds]);
-    onOpenChange(false);
+    handleOpenChange(false);
   };
 
   const onReorder = (activeId: string, overId: string) => {
@@ -56,7 +60,7 @@ export function InstanceEditorStageOrderDialog(props: {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Изменить порядок этапов</DialogTitle>
@@ -86,7 +90,7 @@ export function InstanceEditorStageOrderDialog(props: {
           </div>
         </TreatmentProgramPipelineStagesDnd>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             Отмена
           </Button>
           <Button type="button" disabled={editLocked || !stageZeroId} onClick={saveOrder}>

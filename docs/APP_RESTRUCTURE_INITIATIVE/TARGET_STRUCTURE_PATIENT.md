@@ -5,6 +5,7 @@
 **Назначение:** единая мысленная карта, чтобы все продуктовые и технические решения по пациентскому интерфейсу принимались в одном русле, а не точечно от страницы к странице.
 
 **Связанные документы:**
+- канон возможностей продукта (без IA по экранам): [`../PRODUCT_OVERVIEW.md`](../PRODUCT_OVERVIEW.md)
 - baseline-аудит: [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md)
 - рекомендации и этапы работ: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md)
 - редизайн «Сегодня» (архив): [`../archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/README.md), [`VISUAL_SYSTEM_SPEC.md`](../archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/VISUAL_SYSTEM_SPEC.md)

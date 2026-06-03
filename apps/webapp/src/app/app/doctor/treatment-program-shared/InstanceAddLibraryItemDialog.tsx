@@ -1,7 +1,7 @@
 "use client";
 
 import { Activity, BookOpen, ClipboardList, ImageIcon, Layers, MessageSquare, Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -120,19 +120,25 @@ export function InstanceAddLibraryItemDialog(props: {
   const [freeformTitle, setFreeformTitle] = useState("");
   const [freeformBody, setFreeformBody] = useState("");
 
-  useEffect(() => {
-    if (!open) {
-      setItemSearch("");
-      setSelectedRegionCode(null);
-      setSelectedLoadType(null);
-      setCustomKind("exercise");
-      setTestsAddMode("expand_set");
-      setError(null);
-      setPhaseZeroSource("catalog");
-      setFreeformTitle("");
-      setFreeformBody("");
-    }
-  }, [open]);
+  const resetDialogForm = useCallback(() => {
+    setItemSearch("");
+    setSelectedRegionCode(null);
+    setSelectedLoadType(null);
+    setCustomKind("exercise");
+    setTestsAddMode("expand_set");
+    setError(null);
+    setPhaseZeroSource("catalog");
+    setFreeformTitle("");
+    setFreeformBody("");
+  }, []);
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next) resetDialogForm();
+      onOpenChange(next);
+    },
+    [onOpenChange, resetDialogForm],
+  );
 
   const resolvedItemType: TreatmentProgramLibraryPickType = useMemo(() => {
     if (!spec) return "exercise";
@@ -200,7 +206,7 @@ export function InstanceAddLibraryItemDialog(props: {
           snapshot: line.snapshot,
         })),
       });
-      onOpenChange(false);
+      handleOpenChange(false);
       return;
     }
 
@@ -224,7 +230,7 @@ export function InstanceAddLibraryItemDialog(props: {
           snapshot: line.snapshot,
         })),
       });
-      onOpenChange(false);
+      handleOpenChange(false);
       return;
     }
 
@@ -239,7 +245,7 @@ export function InstanceAddLibraryItemDialog(props: {
       groupId,
       snapshot: libraryRowToItemDraftSnapshot(row, resolvedItemType),
     });
-    onOpenChange(false);
+    handleOpenChange(false);
   }
 
   function submitFreeform() {
@@ -259,14 +265,14 @@ export function InstanceAddLibraryItemDialog(props: {
       bodyMd,
       snapshot: freeformRecommendationDraftSnapshot(title, bodyMd),
     });
-    onOpenChange(false);
+    handleOpenChange(false);
   }
 
   const showCustomKindToggle = spec?.context === "custom_group";
   const isPhaseZero = spec?.context === "phase_zero_recommendations";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{isPhaseZero ? "Рекомендация" : "Элемент из библиотеки"}</DialogTitle>
@@ -498,7 +504,7 @@ export function InstanceAddLibraryItemDialog(props: {
         </div>
         )}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             Закрыть
           </Button>
         </DialogFooter>

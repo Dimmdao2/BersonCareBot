@@ -137,4 +137,22 @@ describe("GET doctor instance discussion", () => {
     expect((await res.json()).error).toBe("invalid_limit");
     expect(listInstanceDiscussionPageMergedMock).not.toHaveBeenCalled();
   });
+
+  it("returns 500 when discussion listing throws unexpectedly", async () => {
+    listInstanceDiscussionPageMergedMock.mockRejectedValue(new Error("database unavailable"));
+    const res = await GET(new Request(`http://localhost/discussion?limit=30`), {
+      params: Promise.resolve({ instanceId }),
+    });
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("internal_error");
+  });
+
+  it("returns 404 when listing error message indicates not found", async () => {
+    listInstanceDiscussionPageMergedMock.mockRejectedValue(new Error("Программа не найдена"));
+    const res = await GET(new Request(`http://localhost/discussion?limit=30`), {
+      params: Promise.resolve({ instanceId }),
+    });
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe("not_found");
+  });
 });

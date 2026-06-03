@@ -230,6 +230,75 @@ describe("instanceEditorDraft", () => {
     expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(false);
   });
 
+  it("normalize drops itemReorders after delete removes reordered item", () => {
+    const baseline = minimalDetail();
+    const stageId = "22222222-2222-4222-8222-222222222222";
+    const itemA = "44444444-4444-4444-8444-444444444444";
+    const itemB = "77777777-7777-4777-8777-777777777777";
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemReorders[stageId] = [itemB, itemA];
+    draft.itemDeletes[itemB] = true;
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.itemReorders).toEqual({});
+    expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(true);
+    expect(normalized.itemDeletes).toEqual({ [itemB]: true });
+  });
+
+  it("normalize keeps itemReorders when delete leaves a different order", () => {
+    const baseline = minimalDetail();
+    const stageId = "22222222-2222-4222-8222-222222222222";
+    const itemA = "44444444-4444-4444-8444-444444444444";
+    const itemB = "77777777-7777-4777-8777-777777777777";
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemReorders[stageId] = [itemB, itemA];
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.itemReorders[stageId]).toEqual([itemB, itemA]);
+  });
+
+  it("normalize appends newly created item to existing itemReorders", () => {
+    const baseline = minimalDetail();
+    const stageId = "22222222-2222-4222-8222-222222222222";
+    const itemA = "44444444-4444-4444-8444-444444444444";
+    const itemB = "77777777-7777-4777-8777-777777777777";
+    const newItemId = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemReorders[stageId] = [itemB, itemA];
+    draft.itemCreates.push({
+      kind: "library_item",
+      clientId: newItemId,
+      stageId,
+      itemType: "recommendation",
+      itemRefId: "99999999-9999-4999-8999-999999999999",
+      snapshot: { title: "Новая рекомендация" },
+    });
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.itemReorders[stageId]).toEqual([itemB, itemA, newItemId]);
+  });
+
+  it("normalize appends newly created stage to existing stageOrder", () => {
+    const baseline = minimalDetail();
+    baseline.stages.push({
+      ...baseline.stages[0]!,
+      id: "99999999-9999-4999-8999-999999999999",
+      title: "Этап 2",
+      sortOrder: 2,
+      groups: [],
+      items: [],
+    });
+    const firstStageId = baseline.stages[0]!.id;
+    const secondStageId = baseline.stages[1]!.id;
+    const thirdStageId = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.stageOrder = [secondStageId, firstStageId];
+    draft.stageCreates.push({ clientId: thirdStageId, title: "Этап 3" });
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.stageOrder).toEqual([secondStageId, firstStageId, thirdStageId]);
+  });
+
   it("normalize keeps stageOrder when order changes", () => {
     const baseline = minimalDetail();
     const secondStageId = createInstanceEditorDraftClientId();

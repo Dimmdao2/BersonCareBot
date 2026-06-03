@@ -5,6 +5,7 @@
 **Назначение:** единая мысленная карта кабинета как **рабочего инструмента**, а не панели настроек и каталогов.
 
 **Связанные документы:**
+- канон возможностей продукта (без IA по экранам): [`../PRODUCT_OVERVIEW.md`](../PRODUCT_OVERVIEW.md)
 - baseline-аудит (часть II): [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md)
 - рекомендации и этапы работ: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md)
 - целевая структура пациента: [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md)

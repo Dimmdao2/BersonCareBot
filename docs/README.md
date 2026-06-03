@@ -1,5 +1,6 @@
 # Документация проекта
 
+- **Продукт (суть и возможности для пациента и специалиста):** [`PRODUCT_OVERVIEW.md`](PRODUCT_OVERVIEW.md) — канонический обзор без детализации экранов.
 - **Backlog (security, rate limit, observability, URL/UUID в адресах):** [`TODO.md`](TODO.md) — сводка **активных Cursor-планов** и ссылка на архив в начале файла.
 - **Очередь workqueue (врач / пациент / CMS, фазы 0–7):** [`ACTIVE_WORKQUEUE.md`](ACTIVE_WORKQUEUE.md) — **закрыта** 2026-06-02; план [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md). Активные хвосты — [`TODO.md`](TODO.md) (diary, D5, proactive этап 8).
 - **Отложенные работы (не сейчас):** [`TODO_NOT_NOW/README.md`](TODO_NOT_NOW/README.md) — черновики и ТЗ без активного исполнения (карточка + ссылка на `.cursor/plans`).
