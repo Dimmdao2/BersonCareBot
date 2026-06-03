@@ -15,7 +15,7 @@ export function compareDiscussionMessages(
   return a.id.localeCompare(b.id);
 }
 
-function paginateMergedMessages(params: {
+export function paginateMergedMessages(params: {
   messages: ProgramItemDiscussionMessage[];
   limit: number;
   direction: "backward" | "forward";

@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-06-03 — Фаза 6 batch-toolbar: закрыта полностью (итог)
+
+- **API:** `GET /api/doctor/treatment-program-instances/[instanceId]/discussion` — merged thread по всем пунктам или `?stageItemId=`; `GET …/discussion/summary?stageItemIds=` — batch-счётчики. Сервис `listInstanceDiscussionPageMerged` (single-item → делегат `listDiscussionPageMerged`; multi-item merge + `paginateMergedMessages`).
+- **UI:** `DoctorProgramInstanceDiscussionDialog` — поиск + Select («Все пункты» default); prefetch **`GET …/discussion/summary`** → счётчики в опциях фильтра; shared read-only `DoctorProgramDiscussionMessagesPanel` (подписи пунктов в all-items mode). Toolbar «Комментарии» открывает instance dialog (не scroll к `CommentBlock`).
+- **Per-item:** `DoctorProgramItemDiscussionDialog` + `?discussionItem=` deep link без регресса; item-level API unchanged.
+- **Audit remediation:** summary prefetch в фильтре; route tests `401`/`403`/`400`; RTL journal «Обсуждение»; empty program в instance dialog.
+- **Проверки:** 28 vitest phase6-focused (listInstanceDiscussionPage 3, discussion route 7, summary route 4, instance dialog RTL 5, messages panel 1, item dialog 1, phase4 3, phase6 integration 4); `api.md`; `tsc --noEmit` webapp.
+- **План:** todo `comments-dialog` **completed**; следующая — ф.7 (`history-gate-tests`).
+
+---
+
 ## 2026-06-03 — Фаза 5 batch-toolbar: закрыта полностью (итог)
 
 - **Collapsible:** pipeline-этапы (`sortOrder > 0`) — `Collapsible` (заголовок + chevron); «+ Группа» вне trigger, при клике на свёрнутом этапе — auto-expand + диалог.

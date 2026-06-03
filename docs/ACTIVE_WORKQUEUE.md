@@ -78,7 +78,7 @@ D5 `domain→kind`, полная переработка `/diary`, курсы, UX
 
 ### Редактор инстанса программы — batch toolbar (активный план)
 
-План: [`.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.5.
+План: [`.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.6.
 
 | Фаза плана | Статус |
 |------------|--------|
@@ -87,6 +87,7 @@ D5 `domain→kind`, полная переработка `/diary`, курсы, UX
 | 3 — server `POST …/editor-batch` + `program_changed` + tx | **Закрыта полностью** (2026-06-03; audit remediation) |
 | 4 — sticky toolbar | **Закрыта полностью** (2026-06-03) |
 | 5 — collapsible этапы + модалка порядка | **Закрыта полностью** (2026-06-03) |
-| 6 — общий диалог комментариев | **Следующая** |
+| 6 — общий диалог комментариев | **Закрыта полностью** (2026-06-03) |
+| 7 — история, unsaved gate, регрессия | **Следующая** |
 
-Код: `treatment-program-shared/` (`InstanceEditorToolbar`, `InstanceEditorAddStageDialog`, `InstanceEditorStageOrderDialog`, `instanceEditorDefaultExpandedStageId`, `useInstanceEditorPipelineStageExpansion`, `instanceEditorDraft*` → `editor-batch`); `AppShell` `--doctor-sticky-offset`; миграция `0104_program_changed_event_type.sql`; `api.md`.
+Код: `treatment-program-shared/` (`InstanceEditorToolbar`, …, `instanceEditorDraft*` → `editor-batch`); экран инстанса — `DoctorProgramInstanceDiscussionDialog`, `DoctorProgramDiscussionMessagesPanel`, `listInstanceDiscussionPageMerged`, routes `…/discussion` + `…/discussion/summary`; `AppShell` `--doctor-sticky-offset`; миграция `0104_program_changed_event_type.sql`; `api.md`.

@@ -35,7 +35,7 @@
 
 - В **`PatientTreatmentProgramStagePageProgramSection`** (только `assignment_source === doctor` и `patient_program_discussion_ui_enabled`) — кнопки «Комментарии» (badge/dot из batch summary) и «Отметить выполнение» (через **`ProgramItemCompleteDialog`** → **`POST .../progress/complete`** с payload). **Камеры на плитке нет.** Диалог комментариев — **`ProgramItemDiscussionDialog`** → **`POST .../discussion`** (dual-write в `program_action_log`). Для **promo** и при выключенном feature-flag controls скрыты.
 - На странице пункта **`PatientProgramStageItemPageClient`**: «Отметить выполнение» через **`ProgramItemCompleteDialog`**; при **`patient_program_discussion_media_submission_enabled`** (и UI-флаге) — кнопка «Камера» → **`ProgramItemSubmissionSourceDialog`** (Записать / Галерея / Файлы) → upload pipeline → **`POST .../discussion/media`**. Строка «Выполнялось» + «В прошлый раз…» — под ней, вне блока комментариев. Превью медиа в списках/thread — только статичное изображение (P24).
-- Врач: **`GET /api/doctor/treatment-program-instances/{instanceId}/items/{stageItemId}/discussion`** + read-only **`DoctorProgramItemDiscussionDialog`** из журнала программы (кнопка «Обсуждение»); ответ — отдельная модалка «Ответить».
+- Врач: **`GET …/discussion`** (instance merged + filter) и **`GET …/discussion/summary`**; toolbar → **`DoctorProgramInstanceDiscussionDialog`**; deep link **`?discussionItem=`** → **`DoctorProgramItemDiscussionDialog`**; журнал программы — per-item «Обсуждение»; ответ — модалка «Ответить».
 
 ## Feature flags (rollout)
 

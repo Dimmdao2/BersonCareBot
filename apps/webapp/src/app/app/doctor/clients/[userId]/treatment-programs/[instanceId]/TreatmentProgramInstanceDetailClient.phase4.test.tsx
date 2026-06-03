@@ -168,7 +168,19 @@ describe("TreatmentProgramInstanceDetailClient phase 4 toolbar", () => {
   beforeEach(() => {
     scrollIntoView.mockReset();
     Element.prototype.scrollIntoView = scrollIntoView;
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/discussion")) {
+          return new Response(
+            JSON.stringify({ ok: true, messages: [], pageInfo: { nextCursor: null } }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ ok: false }), { status: 404 });
+      }),
+    );
   });
 
   function renderClient(initial: TreatmentProgramInstanceDetail = minimalInstanceDetail()) {
@@ -209,12 +221,12 @@ describe("TreatmentProgramInstanceDetailClient phase 4 toolbar", () => {
     expect(screen.queryByTestId("pipeline-dnd")).not.toBeInTheDocument();
   });
 
-  it("scrolls to program comments from toolbar", async () => {
+  it("opens instance discussion dialog from toolbar comments button", async () => {
     const user = userEvent.setup();
-    renderClient();
+    renderClient(instanceDetailWithPipelineStages());
 
     await user.click(screen.getByTestId("instance-editor-comments"));
-    expect(scrollIntoView).toHaveBeenCalled();
+    expect(await screen.findByRole("heading", { name: /обсуждения по программе/i })).toBeInTheDocument();
   });
 
   it("opens stage order dialog from toolbar", async () => {

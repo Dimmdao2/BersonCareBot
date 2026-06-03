@@ -1,6 +1,6 @@
 ---
 name: instance-editor-batch-toolbar
-overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, модалка порядка этапов, общий диалог комментариев и единое batch-сохранение. Фазы 1–5 закрыты (2026-06-03); ф.6 — общий диалог комментариев."
+overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, модалка порядка этапов, общий диалог комментариев и единое batch-сохранение. Фазы 1–6 закрыты (2026-06-03); ф.7 — история, unsaved gate, регрессия."
 todos:
   - id: phase-1-draft-model
     content: "Фаза 1: Расширить InstanceEditorDraft, merge/normalize, context API, flush vs structural split"
@@ -21,8 +21,8 @@ todos:
     content: "Фаза 5: Collapsible этапы (default expanded active) + тесты toggle — закрыта"
     status: completed
   - id: comments-dialog
-    content: "Фаза 6: Добавить общий диалог комментариев по всем пунктам с searchable фильтром"
-    status: pending
+    content: "Фаза 6: Общий диалог комментариев по всем пунктам с searchable фильтром — закрыта"
+    status: completed
   - id: history-gate-tests
     content: "Фаза 7: Обновить историю, unsaved gate, документацию и focused проверки"
     status: pending
@@ -40,9 +40,10 @@ isProject: false
 | 3 — server `editor-batch` | **Закрыта полностью** (2026-06-03; audit remediation: tx, pre-validate) |
 | 4 — sticky toolbar | **Закрыта полностью** (2026-06-03; audit remediation) |
 | 5 — collapsible этапы + модалка порядка | **Закрыта полностью** (2026-06-03) |
-| 6 — общий диалог комментариев | **Следующая** |
+| 6 — общий диалог комментариев | **Закрыта полностью** (2026-06-03) |
+| 7 — история, unsaved gate, регрессия | **Следующая** |
 
-LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.5 (итог).
+LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.6 (итог).
 
 ## Scope
 
@@ -104,7 +105,7 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 ### Фаза 4 — Sticky toolbar и режимы экрана ✅ (2026-06-03, закрыта полностью)
 - [x] Sticky toolbar в `#app-shell-doctor`: `INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS` (`top-[calc(3.5rem+safe-area)]`, full-bleed `-mx-3`); `--doctor-sticky-offset` на `#app-shell-doctor` (`AppShell` doctor).
 - [x] Три зоны на `lg`: meta | «Комментарии» | actions (`Добавить этап`, «Изменить порядок», save/discard).
-- [x] `InstanceEditorSaveBar` снят с экрана (`@deprecated`); `InstanceEditorAddStageDialog`; scroll к `#doctor-program-instance-comments`.
+- [x] `InstanceEditorSaveBar` снят с экрана (`@deprecated`); `InstanceEditorAddStageDialog`; toolbar «Комментарии» → `DoctorProgramInstanceDiscussionDialog`.
 - [x] Audit remediation: один CTA «Добавить этап»; `InstanceEditorStageOrderDialog`; inline stage DnD/drag-handle сняты.
 - [x] RTL: `InstanceEditorToolbar.test.tsx`, `InstanceEditorAddStageDialog.test.tsx`, `InstanceEditorStageOrderDialog.test.tsx`, `TreatmentProgramInstanceDetailClient.phase4.test.tsx`; `api.md`; 20 vitest (phase2/4/guard); `tsc --noEmit`.
 
@@ -118,15 +119,11 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] `tsc --noEmit` webapp.
 
 ### Фаза 6 — Общий диалог комментариев по всем пунктам
-- Добавить doctor API summary/list по instance (в [app/api/doctor/treatment-program-instances/...](apps/webapp/src/app/api/doctor/treatment-program-instances/)) с фильтром по `stageItemId`.
-- Добавить диалог уровня instance (новый компонент рядом с [DoctorProgramItemDiscussionDialog.tsx](apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramItemDiscussionDialog.tsx)):
-  - список обсуждений по всем пунктам,
-  - searchable select по пунктам программы,
-  - фильтр `Все пункты` по умолчанию.
-- Сохранить текущий per-item сценарий (`discussionItem`) без регресса.
-- Проверки фазы:
-  - route/service tests (all + filtered);
-  - RTL тест фильтра и открытия thread.
+- [x] Doctor API: `GET …/[instanceId]/discussion?stageItemId=` (optional), `GET …/discussion/summary?stageItemIds=`; сервис `listInstanceDiscussionPageMerged`.
+- [x] `DoctorProgramInstanceDiscussionDialog` + shared `DoctorProgramDiscussionMessagesPanel`; toolbar «Комментарии» → instance dialog.
+- [x] Searchable select по пунктам; default «Все пункты»; per-item `DoctorProgramItemDiscussionDialog` + `?discussionItem=` без регресса.
+- [x] Audit remediation (2026-06-03): summary prefetch в фильтре; auth/400 route tests; RTL action log «Обсуждение»; empty program; счётчики vitest в LOG/plan.
+- [x] Проверки: 28 vitest (listInstanceDiscussionPage 3, discussion route 7, summary route 4, instance dialog RTL 5, messages panel 1, item dialog 1, phase4 3, phase6 integration 4); `api.md`; `tsc --noEmit` webapp.
 
 ### Фаза 7 — История, unsaved gate, документация, регрессия
 - Добавить форматирование `program_changed` в [types.ts](apps/webapp/src/modules/treatment-program/types.ts): строка `Программа изменена`.

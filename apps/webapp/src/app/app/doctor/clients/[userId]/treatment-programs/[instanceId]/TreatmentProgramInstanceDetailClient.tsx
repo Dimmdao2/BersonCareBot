@@ -30,6 +30,7 @@ import type { TreatmentProgramEventRow } from "@/modules/treatment-program/types
 import type { ProgramActionLogListRow } from "@/modules/treatment-program/types";
 import { DoctorProgramActionLogMediaPreview } from "./DoctorProgramActionLogMediaPreview";
 import { DoctorProgramItemDiscussionDialog } from "./DoctorProgramItemDiscussionDialog";
+import { DoctorProgramInstanceDiscussionDialog } from "./DoctorProgramInstanceDiscussionDialog";
 import {
   formatNormalizedTestDecisionRu,
   formatTreatmentProgramStageStatusRu,
@@ -828,6 +829,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   const [noteReplySaving, setNoteReplySaving] = useState(false);
   const [noteReplyError, setNoteReplyError] = useState<string | null>(null);
   const [discussionTarget, setDiscussionTarget] = useState<{ itemId: string; label: string } | null>(null);
+  const [instanceDiscussionOpen, setInstanceDiscussionOpen] = useState(false);
   const [addStageDialogOpen, setAddStageDialogOpen] = useState(false);
   const [stageOrderDialogOpen, setStageOrderDialogOpen] = useState(false);
 
@@ -867,6 +869,17 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         ? sortByOrderThenId(stageZero.items.filter((it) => it.itemType === "recommendation"))
         : [],
     [stageZero],
+  );
+
+  const discussionProgramItems = useMemo(
+    () =>
+      sortedStages.flatMap((stage) =>
+        sortByOrderThenId(stage.items).map((item) => ({
+          id: item.id,
+          label: itemTitles.get(item.id) ?? "Элемент",
+        })),
+      ),
+    [sortedStages, itemTitles],
   );
 
   const refresh = useCallback(async () => {
@@ -1015,10 +1028,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     }
   }, [detail.id, noteReplyDraft, noteReplyTarget]);
 
-  const scrollToComments = useCallback(() => {
-    document.getElementById("doctor-program-instance-comments")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
-
   return (
     <div className="flex flex-col gap-4">
       <InstanceEditorToolbar
@@ -1027,7 +1036,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         patientDisplayName={patientDisplayName}
         programStatus={detail.status}
         pipelineStageCount={pipelineStages.length}
-        onCommentsClick={scrollToComments}
+        onCommentsClick={() => setInstanceDiscussionOpen(true)}
         onAddStageClick={() => setAddStageDialogOpen(true)}
         onChangeStageOrderClick={() => setStageOrderDialogOpen(true)}
       />
@@ -1042,6 +1051,12 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         programStatus={detail.status}
         stageZeroId={stageZero?.id ?? null}
         pipelineStages={pipelineStages.map((s) => ({ id: s.id, title: s.title }))}
+      />
+      <DoctorProgramInstanceDiscussionDialog
+        open={instanceDiscussionOpen}
+        onOpenChange={setInstanceDiscussionOpen}
+        instanceId={detail.id}
+        programItems={discussionProgramItems}
       />
       {error ? (
         <p className="text-sm text-destructive" role="alert">
