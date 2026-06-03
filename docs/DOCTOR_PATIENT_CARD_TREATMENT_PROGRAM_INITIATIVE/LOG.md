@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-06-03 — Фаза 4 batch-toolbar: закрыта полностью (итог)
+
+- **Toolbar:** `InstanceEditorToolbar` — три зоны (meta | «Комментарии» | actions), `INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS` под `DoctorHeader`, `--doctor-sticky-offset` на `#app-shell-doctor`.
+- **Экран инстанса:** `TreatmentProgramInstanceDetailClient` — toolbar вместо `InstanceEditorSaveBar`; summary без дубля title/patient/status; `InstanceEditorAddStageDialog` (один CTA «Добавить этап»).
+- **Порядок этапов:** `InstanceEditorStageOrderDialog` → draft `stageOrder`; inline stage DnD/drag-handle сняты; batch через `editor-batch`.
+- **Проверки:** 20 vitest (toolbar, add-stage, stage-order, phase2/4, fetch guard); `api.md` (toolbar UX, §stages/reorder); `tsc --noEmit` webapp.
+- **План:** todo `toolbar-stages`, `stage-order-modal` **completed**; следующий — `collapsible-stages` (ф.5).
+
+---
+
 ## 2026-06-03 — Фаза 3 batch-toolbar: закрытие (итог)
 
 - **Сервер:** `POST …/editor-batch`, `applyInstanceEditorBatch`, `program_changed`, миграция `0104`.

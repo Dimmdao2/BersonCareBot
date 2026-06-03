@@ -7,7 +7,7 @@
  */
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientGatedHeader } from "@/shared/ui/PatientGatedHeader";
@@ -219,6 +219,11 @@ export function AppShell({
       <div
         id="app-shell-doctor"
         className={DOCTOR_PAGE_CONTAINER_CLASS}
+        style={
+          {
+            "--doctor-sticky-offset": "calc(3.5rem + env(safe-area-inset-top, 0px))",
+          } as CSSProperties
+        }
       >
         <main id="app-shell-content" className="flex flex-col gap-3">
           {children}

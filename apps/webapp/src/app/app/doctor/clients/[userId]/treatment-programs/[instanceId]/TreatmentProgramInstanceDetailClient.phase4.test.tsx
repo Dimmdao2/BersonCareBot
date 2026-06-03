@@ -2,7 +2,7 @@
 
 import type { ComponentType, ReactNode } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
@@ -52,16 +52,8 @@ vi.mock("@/app/app/doctor/treatment-program-shared/flushInstanceEditorDraft", ()
 
 const INSTANCE_ID = "11111111-1111-4111-8111-111111111111";
 const STAGE_ZERO = "00000000-0000-4000-8000-000000000001";
-
-const FORBIDDEN_EDITOR_FETCH_SNIPPETS = [
-  "stage-items/",
-  "stage-groups/",
-  "from-test-set",
-  "from-lfk-complex",
-  "from-freeform-recommendation",
-  "groups/reorder",
-  "stages/reorder",
-] as const;
+const STAGE_ONE = "00000000-0000-4000-8000-000000000002";
+const STAGE_TWO = "00000000-0000-4000-8000-000000000003";
 
 const emptyLibrary: TreatmentProgramLibraryPickers = {
   exercises: [],
@@ -71,12 +63,6 @@ const emptyLibrary: TreatmentProgramLibraryPickers = {
   recommendations: [],
   lessons: [],
 };
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  if (input instanceof URL) return input.href;
-  return input.url;
-}
 
 function minimalInstanceDetail(): TreatmentProgramInstanceDetail {
   return {
@@ -113,6 +99,51 @@ function minimalInstanceDetail(): TreatmentProgramInstanceDetail {
   };
 }
 
+function instanceDetailWithPipelineStages(): TreatmentProgramInstanceDetail {
+  return {
+    ...minimalInstanceDetail(),
+    stages: [
+      minimalInstanceDetail().stages[0]!,
+      {
+        id: STAGE_ONE,
+        instanceId: INSTANCE_ID,
+        sourceStageId: null,
+        title: "Этап 1",
+        description: null,
+        sortOrder: 1,
+        status: "available",
+        skipReason: null,
+        localComment: null,
+        startedAt: null,
+        goals: null,
+        objectives: null,
+        expectedDurationDays: null,
+        expectedDurationText: null,
+        groups: [],
+        items: [],
+      },
+      {
+        id: STAGE_TWO,
+        instanceId: INSTANCE_ID,
+        sourceStageId: null,
+        title: "Этап 2",
+        description: null,
+        sortOrder: 2,
+        status: "locked",
+        skipReason: null,
+        localComment: null,
+        startedAt: null,
+        goals: null,
+        objectives: null,
+        expectedDurationDays: null,
+        expectedDurationText: null,
+        groups: [],
+        items: [],
+      },
+    ],
+  };
+}
+
 let TreatmentProgramInstanceDetailClient: ComponentType<{
   patientProfileHref: string;
   patientDisplayName: string;
@@ -127,24 +158,25 @@ let TreatmentProgramInstanceDetailClient: ComponentType<{
   doctorReplyFromLogEnabled: boolean;
 }>;
 
-describe("TreatmentProgramInstanceDetailClient phase 2 draft smoke", () => {
-  const fetchMock = vi.fn();
+describe("TreatmentProgramInstanceDetailClient phase 4 toolbar", () => {
+  const scrollIntoView = vi.fn();
 
   beforeAll(async () => {
     ({ TreatmentProgramInstanceDetailClient } = await import("./TreatmentProgramInstanceDetailClient"));
   }, 25_000);
 
   beforeEach(() => {
-    fetchMock.mockReset();
-    globalThis.fetch = fetchMock as typeof fetch;
+    scrollIntoView.mockReset();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    vi.stubGlobal("fetch", vi.fn());
   });
 
-  function renderClient() {
+  function renderClient(initial: TreatmentProgramInstanceDetail = minimalInstanceDetail()) {
     return render(
       <TreatmentProgramInstanceDetailClient
         patientProfileHref="/app/doctor/clients/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
         patientDisplayName="Иван Т."
-        initial={minimalInstanceDetail()}
+        initial={initial}
         initialTestResults={[]}
         initialAttemptAcceptMap={{}}
         initialEvents={[]}
@@ -157,30 +189,41 @@ describe("TreatmentProgramInstanceDetailClient phase 2 draft smoke", () => {
     );
   }
 
-  function assertNoForbiddenEditorFetch() {
-    for (const [input, init] of fetchMock.mock.calls) {
-      const url = requestUrl(input as RequestInfo);
-      const method = (init as RequestInit | undefined)?.method ?? "GET";
-      if (method === "GET") continue;
-      for (const snippet of FORBIDDEN_EDITOR_FETCH_SNIPPETS) {
-        expect(url.includes(snippet), `unexpected editor fetch ${method} ${url}`).toBe(false);
-      }
-    }
-  }
+  it("uses sticky toolbar instead of legacy SaveBar and drops duplicate summary header", () => {
+    renderClient();
 
-  it("add pipeline stage updates draft without immediate editor mutation fetch", async () => {
+    const toolbar = screen.getByTestId("instance-editor-toolbar");
+    expect(toolbar).toHaveClass("sticky", "-mx-3");
+    expect(toolbar.className).toMatch(/top-\[calc\(3\.5rem/);
+
+    expect(screen.getByRole("heading", { name: /план реабилитации/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /иван т\./i })).toBeInTheDocument();
+    expect(screen.getByTestId("instance-editor-comments")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^сохранить изменения$/i })).toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: /^сохранить$/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^статус программы:/i)).not.toBeInTheDocument();
+    expect(document.getElementById("doctor-program-instance-comments")).toBeTruthy();
+    expect(document.getElementById("doctor-program-instance-pipeline")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^добавить этап$/i })).toHaveLength(1);
+    expect(screen.queryByTestId("pipeline-dnd")).not.toBeInTheDocument();
+  });
+
+  it("scrolls to program comments from toolbar", async () => {
     const user = userEvent.setup();
     renderClient();
 
-    await user.click(within(screen.getByTestId("instance-editor-toolbar")).getByTestId("instance-editor-add-stage"));
-    const titleInput = await screen.findByLabelText(/название/i);
-    await user.type(titleInput, "Этап 2");
-    await user.click(screen.getByRole("button", { name: /^добавить$/i }));
+    await user.click(screen.getByTestId("instance-editor-comments"));
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
 
-    await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/несохранённые изменения/i);
-    });
-    expect(screen.getByText("Этап 2")).toBeInTheDocument();
-    assertNoForbiddenEditorFetch();
+  it("opens stage order dialog from toolbar", async () => {
+    const user = userEvent.setup();
+    renderClient(instanceDetailWithPipelineStages());
+
+    await user.click(screen.getByTestId("instance-editor-change-stage-order"));
+    const dialog = await screen.findByRole("dialog", { name: /изменить порядок этапов/i });
+    expect(within(dialog).getByText("Этап 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("Этап 2")).toBeInTheDocument();
   });
 });

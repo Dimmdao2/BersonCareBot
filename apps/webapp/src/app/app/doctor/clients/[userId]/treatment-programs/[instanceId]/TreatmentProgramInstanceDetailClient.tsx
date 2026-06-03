@@ -59,7 +59,9 @@ import {
   useInstanceEditorDraft,
 } from "@/app/app/doctor/treatment-program-shared/InstanceEditorDraftContext";
 import type { InstanceEditorItemStructuralPatch } from "@/app/app/doctor/treatment-program-shared/instanceEditorDraft";
-import { InstanceEditorSaveBar } from "@/app/app/doctor/treatment-program-shared/InstanceEditorSaveBar";
+import { InstanceEditorToolbar } from "@/app/app/doctor/treatment-program-shared/InstanceEditorToolbar";
+import { InstanceEditorAddStageDialog } from "@/app/app/doctor/treatment-program-shared/InstanceEditorAddStageDialog";
+import { InstanceEditorStageOrderDialog } from "@/app/app/doctor/treatment-program-shared/InstanceEditorStageOrderDialog";
 import { useInstanceEditorUnsavedGate } from "@/app/app/doctor/treatment-program-shared/InstanceEditorUnsavedChangesDialog";
 import {
   INSTANCE_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS,
@@ -71,15 +73,12 @@ import {
 } from "@/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles";
 import { TemplateReorderChevrons } from "@/shared/ui/doctor/TemplateReorderChevrons";
 import {
-  TreatmentProgramPipelineStagesDnd,
-  TreatmentProgramSortablePipelineStage,
   TreatmentProgramSortableItemShell,
   TreatmentProgramStageItemsDnd,
   type TreatmentProgramStageItemsDropPreview,
 } from "@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi";
 import {
   computeOrderedItemIdsAfterGroupItemAdjacentSwap,
-  computeOrderedStageIdsAfterPipelineMove,
   planStageItemDndReorder,
   sortByOrderThenId,
 } from "@/app/app/doctor/treatment-program-shared/treatmentProgramReorderHelpers";
@@ -620,10 +619,8 @@ function DoctorInstancePipelineStageBlock(props: {
   testResults: TreatmentProgramTestResultDetailRow[];
   onSaved: () => Promise<void>;
   onRequestAddLibraryItem: (spec: InstanceAddLibraryItemSpec) => void;
-  stageDragHandle?: ReactNode;
 }) {
-  const { instanceId, stage, programStatus, testResults, onSaved, onRequestAddLibraryItem, stageDragHandle } =
-    props;
+  const { instanceId, stage, programStatus, testResults, onSaved, onRequestAddLibraryItem } = props;
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const editLocked = isProgramInstanceEditLocked(programStatus);
 
@@ -634,7 +631,6 @@ function DoctorInstancePipelineStageBlock(props: {
         style={{ background: INSTANCE_HEADER_BG_STAGE_EDITABLE }}
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
-          {stageDragHandle ? <div className="shrink-0 self-start pt-0.5">{stageDragHandle}</div> : null}
           <div className="min-w-0 flex-1 pt-0.5">
             <span className="text-xs font-medium tabular-nums text-muted-foreground">
               Этап {stage.sortOrder}
@@ -679,99 +675,6 @@ function DoctorInstancePipelineStageBlock(props: {
         />
       </div>
     </section>
-  );
-}
-
-function DoctorInstanceAddPipelineStageControls(props: {
-  programStatus: TreatmentProgramInstanceStatus;
-  /** Заметная плашка, когда пайплайн-этапов ещё нет (только этап 0). */
-  prominentEmpty: boolean;
-}) {
-  const { programStatus, prominentEmpty } = props;
-  const { addStageCreate } = useInstanceEditorDraft();
-  const titleFieldId = useId();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
-  const [dialogError, setDialogError] = useState<string | null>(null);
-  const editLocked = isProgramInstanceEditLocked(programStatus);
-
-  const submit = () => {
-    const t = titleDraft.trim();
-    if (!t) return;
-    if (editLocked) return;
-    addStageCreate({ title: t });
-    setTitleDraft("");
-    setDialogOpen(false);
-    setDialogError(null);
-  };
-
-  const openButton = (
-    <Button
-      type="button"
-      variant={prominentEmpty ? "default" : "outline"}
-      size="sm"
-      disabled={editLocked}
-      onClick={() => {
-        setDialogError(null);
-        setDialogOpen(true);
-      }}
-    >
-      Добавить этап
-    </Button>
-  );
-
-  return (
-    <>
-      {prominentEmpty ? (
-        <section className="flex min-h-[7rem] flex-col justify-center rounded-xl border border-dashed border-border/80 bg-muted/10 px-4 py-6">
-          {openButton}
-        </section>
-      ) : (
-        <div className="flex shrink-0">{openButton}</div>
-      )}
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setDialogError(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Новый этап</DialogTitle>
-            <DialogDescription>
-              Этап попадёт в черновик; порядок можно изменить перед сохранением программы.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={titleFieldId}>Название</Label>
-            <Input
-              id={titleFieldId}
-              className="text-sm"
-              value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              maxLength={2000}
-              disabled={editLocked}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-            />
-            {dialogError ? <p className="text-xs text-destructive">{dialogError}</p> : null}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Отмена
-            </Button>
-            <Button type="button" disabled={editLocked || !titleDraft.trim()} onClick={submit}>
-              Добавить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
 
@@ -877,7 +780,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     setActionLog,
     refreshBaseline,
   } = props;
-  const { displayDetail, setStageOrder, setItemReorder } = useInstanceEditorDraft();
+  const { displayDetail, setItemReorder } = useInstanceEditorDraft();
   const detail = displayDetail;
   const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
@@ -889,6 +792,8 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   const [noteReplySaving, setNoteReplySaving] = useState(false);
   const [noteReplyError, setNoteReplyError] = useState<string | null>(null);
   const [discussionTarget, setDiscussionTarget] = useState<{ itemId: string; label: string } | null>(null);
+  const [addStageDialogOpen, setAddStageDialogOpen] = useState(false);
+  const [stageOrderDialogOpen, setStageOrderDialogOpen] = useState(false);
 
   const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
   const stageTitles = useMemo(() => stageTitleById(detail), [detail]);
@@ -933,18 +838,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
       setError("Не удалось обновить данные");
     }
   }, [refreshBaseline]);
-
-  const reorderPipelineStages = useCallback(
-    (activeId: string, overId: string) => {
-      const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, activeId, overId);
-      if (!ordered) {
-        setError("Не удалось изменить порядок этапов");
-        return;
-      }
-      setStageOrder(ordered);
-    },
-    [detail.stages, setStageOrder],
-  );
 
   const refreshResults = useCallback(async () => {
     const res = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results`);
@@ -1083,9 +976,34 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     }
   }, [detail.id, noteReplyDraft, noteReplyTarget]);
 
+  const scrollToComments = useCallback(() => {
+    document.getElementById("doctor-program-instance-comments")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
-      <InstanceEditorSaveBar />
+      <InstanceEditorToolbar
+        programTitle={detail.title}
+        patientProfileHref={patientProfileHref}
+        patientDisplayName={patientDisplayName}
+        programStatus={detail.status}
+        pipelineStageCount={pipelineStages.length}
+        onCommentsClick={scrollToComments}
+        onAddStageClick={() => setAddStageDialogOpen(true)}
+        onChangeStageOrderClick={() => setStageOrderDialogOpen(true)}
+      />
+      <InstanceEditorAddStageDialog
+        open={addStageDialogOpen}
+        onOpenChange={setAddStageDialogOpen}
+        programStatus={detail.status}
+      />
+      <InstanceEditorStageOrderDialog
+        open={stageOrderDialogOpen}
+        onOpenChange={setStageOrderDialogOpen}
+        programStatus={detail.status}
+        stageZeroId={stageZero?.id ?? null}
+        pipelineStages={pipelineStages.map((s) => ({ id: s.id, title: s.title }))}
+      />
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -1095,22 +1013,10 @@ function TreatmentProgramInstanceDetailClientBody(props: {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
         <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-left">
           <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-summary">
-            <h2 className="text-lg font-semibold tracking-tight">{detail.title}</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Пациент:{" "}
-              <Link
-                href={patientProfileHref}
-                className="font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                {patientDisplayName}
-              </Link>
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Статус программы: {detail.status === "completed" ? "завершена" : "активна"}
-            </p>
             <ProgramInstanceCompleteControl instanceId={detail.id} status={detail.status} onPatched={refresh} />
           </section>
 
+          <div id="doctor-program-instance-comments">
           <CommentBlock
             targetType="program_instance"
             targetId={detail.id}
@@ -1119,6 +1025,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
             mutationsDisabled={detail.status === "completed"}
             title="Комментарии к программе"
           />
+          </div>
 
           <section
             className={INSTANCE_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS}
@@ -1374,35 +1281,19 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         </div>
 
         <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-right">
-          <TreatmentProgramPipelineStagesDnd
-            stageIds={pipelineStages.map((s) => s.id)}
-            disabled={isProgramInstanceEditLocked(detail.status)}
-            onReorder={reorderPipelineStages}
-          >
+          <div id="doctor-program-instance-pipeline" className="flex flex-col gap-4">
             {pipelineStages.map((stage) => (
-              <TreatmentProgramSortablePipelineStage
+              <DoctorInstancePipelineStageBlock
                 key={stage.id}
-                id={stage.id}
-                disabled={isProgramInstanceEditLocked(detail.status)}
-              >
-                {(stageDragHandle) => (
-                  <DoctorInstancePipelineStageBlock
-                    instanceId={detail.id}
-                    stage={stage}
-                    programStatus={detail.status}
-                    testResults={testResults}
-                    onSaved={refresh}
-                    stageDragHandle={stageDragHandle}
-                    onRequestAddLibraryItem={(spec) => setAddLibrarySpec(spec)}
-                  />
-                )}
-              </TreatmentProgramSortablePipelineStage>
+                instanceId={detail.id}
+                stage={stage}
+                programStatus={detail.status}
+                testResults={testResults}
+                onSaved={refresh}
+                onRequestAddLibraryItem={(spec) => setAddLibrarySpec(spec)}
+              />
             ))}
-          </TreatmentProgramPipelineStagesDnd>
-          <DoctorInstanceAddPipelineStageControls
-            programStatus={detail.status}
-            prominentEmpty={pipelineStages.length === 0}
-          />
+          </div>
         </div>
       </div>
       <InstanceAddLibraryItemDialog

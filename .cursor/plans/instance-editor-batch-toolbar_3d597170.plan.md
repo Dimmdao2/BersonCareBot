@@ -1,6 +1,6 @@
 ---
 name: instance-editor-batch-toolbar
-overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, отдельная модалка порядка этапов, общий диалог комментариев и единое batch-сохранение редакторских правок с одной записью истории. Фазы 1–3 закрыты полностью (2026-06-03, incl. audit remediation); активна фаза 4 (sticky toolbar)."
+overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, модалка порядка этапов, общий диалог комментариев и единое batch-сохранение. Фазы 1–4 закрыты (2026-06-03); ф.5 частично — модалка порядка готова, collapsible этапы — следующий шаг."
 todos:
   - id: phase-1-draft-model
     content: "Фаза 1: Расширить InstanceEditorDraft, merge/normalize, context API, flush vs structural split"
@@ -12,10 +12,13 @@ todos:
     content: "Фаза 3: editor-batch + program_changed + tx + pre-validate (audit remediation)"
     status: completed
   - id: toolbar-stages
-    content: "Фаза 4: Сделать sticky toolbar, collapsible stages и удалить drag этапов из карточек"
-    status: pending
+    content: "Фаза 4: Sticky toolbar, InstanceEditorAddStageDialog, audit remediation — закрыта"
+    status: completed
   - id: stage-order-modal
-    content: "Фаза 5: Добавить модалку изменения порядка этапов с локальным draft-сохранением"
+    content: "Фаза 5 (часть): InstanceEditorStageOrderDialog → draft stageOrder; inline stage DnD снят"
+    status: completed
+  - id: collapsible-stages
+    content: "Фаза 5: Collapsible этапы (default expanded active) + тесты toggle"
     status: pending
   - id: comments-dialog
     content: "Фаза 6: Добавить общий диалог комментариев по всем пунктам с searchable фильтром"
@@ -35,9 +38,10 @@ isProject: false
 | 1 — browser draft model | **Закрыта** |
 | 2 — UI → in-memory draft | **Закрыта** (аудит remediation 2026-06-03) |
 | 3 — server `editor-batch` | **Закрыта полностью** (2026-06-03; audit remediation: tx, pre-validate) |
-| 4 — sticky toolbar, collapsible | **Следующая** |
+| 4 — sticky toolbar | **Закрыта полностью** (2026-06-03; audit remediation) |
+| 5 — collapsible этапы | **Следующая** (модалка порядка — **готова**, см. `InstanceEditorStageOrderDialog`) |
 
-LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 (фазы 1–3, remediation ф.2–3).
+LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.4 (итог).
 
 ## Scope
 
@@ -96,24 +100,19 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] PG/in-memory транзакция batch (`runInMutationTransaction`).
 - [x] Тесты: `instanceEditorBatch.test.ts` (11 кейсов: empty/combined/rollback/tx), `instanceEditorBatchSchema.test.ts`, `editor-batch/route.test.ts`, guard flush → editor-batch, flush/context/SaveBar, `doctor-timeline-text`.
 
-### Фаза 4 — Sticky toolbar и режимы экрана
-- В [TreatmentProgramInstanceDetailClient.tsx](apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx) добавить sticky toolbar внутри `#app-shell-doctor` (`top-[var(--doctor-sticky-offset,0px)]`).
-- Слева направо: название программы, пациент, статус.
-- Правая зона: `Добавить этап`, `Изменить порядок`, `Сохранить изменения`.
-- Добавить кнопку `Комментарии` в центральной зоне.
-- Убрать дублирующий [InstanceEditorSaveBar.tsx](apps/webapp/src/app/app/doctor/treatment-program-shared/InstanceEditorSaveBar.tsx) из этого экрана.
-- Проверки фазы:
-  - RTL smoke toolbar;
-  - sticky-поведение в doctor shell.
+### Фаза 4 — Sticky toolbar и режимы экрана ✅ (2026-06-03, закрыта полностью)
+- [x] Sticky toolbar в `#app-shell-doctor`: `INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS` (`top-[calc(3.5rem+safe-area)]`, full-bleed `-mx-3`); `--doctor-sticky-offset` на `#app-shell-doctor` (`AppShell` doctor).
+- [x] Три зоны на `lg`: meta | «Комментарии» | actions (`Добавить этап`, «Изменить порядок», save/discard).
+- [x] `InstanceEditorSaveBar` снят с экрана (`@deprecated`); `InstanceEditorAddStageDialog`; scroll к `#doctor-program-instance-comments`.
+- [x] Audit remediation: один CTA «Добавить этап»; `InstanceEditorStageOrderDialog`; inline stage DnD/drag-handle сняты.
+- [x] RTL: `InstanceEditorToolbar.test.tsx`, `InstanceEditorAddStageDialog.test.tsx`, `InstanceEditorStageOrderDialog.test.tsx`, `TreatmentProgramInstanceDetailClient.phase4.test.tsx`; `api.md`; 20 vitest (phase2/4/guard); `tsc --noEmit`.
 
-### Фаза 5 — Сворачиваемые этапы и модалка порядка
-- Сделать collapsible этапы: по умолчанию раскрыт активный этап (`in_progress`, иначе `available`, иначе первый незавершённый).
-- Убрать drag-handle этапа из карточек; убрать stage DnD в основном списке.
-- Добавить модалку `Изменить порядок этапов`: список названий, DnD, `Сохранить порядок`.
-- Сохранение в модалке меняет только draft `stageOrder`, закрывает модалку.
-- Проверки фазы:
-  - component tests default-expanded/manual toggle;
-  - reorder modal tests на локальный порядок и отсутствие прямого `/stages/reorder`.
+### Фаза 5 — Сворачиваемые этапы
+- [x] `InstanceEditorStageOrderDialog`: DnD списка названий, «Сохранить порядок» → draft `stageOrder` (2026-06-03).
+- [x] Stage DnD/drag-handle в основном списке сняты (2026-06-03).
+- [ ] Collapsible этапы: default expanded active (`in_progress` → `available` → первый незавершённый).
+- [ ] Проверки: component tests default-expanded/manual toggle.
+- [x] Reorder modal tests; нет immediate `/stages/reorder` с экрана редактора.
 
 ### Фаза 6 — Общий диалог комментариев по всем пунктам
 - Добавить doctor API summary/list по instance (в [app/api/doctor/treatment-program-instances/...](apps/webapp/src/app/api/doctor/treatment-program-instances/)) с фильтром по `stageItemId`.

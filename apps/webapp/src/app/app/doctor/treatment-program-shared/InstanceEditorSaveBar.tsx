@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { isProgramInstanceEditLocked } from "./programInstanceMutationGuard";
 import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
 
+/** @deprecated На экране инстанса заменён на {@link InstanceEditorToolbar}. Оставлен для unit-тестов legacy-поведения save/discard. */
 export function InstanceEditorSaveBar() {
   const { programStatus, isDirty, saving, discardDraft, saveDraft } = useInstanceEditorDraft();
   const editLocked = isProgramInstanceEditLocked(programStatus);

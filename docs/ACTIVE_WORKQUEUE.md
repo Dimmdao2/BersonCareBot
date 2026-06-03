@@ -85,6 +85,7 @@ D5 `domain→kind`, полная переработка `/diary`, курсы, UX
 | 1 — browser draft model (`InstanceEditorDraft`, merge/normalize) | **Закрыта** (2026-06-03) |
 | 2 — UI → in-memory draft (structural без immediate API) | **Закрыта** (2026-06-03; аудит remediation: `isFlushableDirty`, RTL smoke) |
 | 3 — server `POST …/editor-batch` + `program_changed` + tx | **Закрыта полностью** (2026-06-03; audit remediation) |
-| 4 — sticky toolbar, collapsible stages, comments dialog | **Следующая** |
+| 4 — sticky toolbar | **Закрыта полностью** (2026-06-03) |
+| 5 — collapsible этапы | **Следующая** (модалка порядка — **готова**: `InstanceEditorStageOrderDialog`) |
 
-Код: `treatment-program-shared/` (`instanceEditorDraft*`, `flushInstanceEditorDraft` → editor-batch); `modules/treatment-program/` (`instanceEditorBatchApply`, `runInMutationTransaction`); миграция `0104_program_changed_event_type.sql`; `api.md`.
+Код: `treatment-program-shared/` (`InstanceEditorToolbar`, `InstanceEditorAddStageDialog`, `InstanceEditorStageOrderDialog`, `instanceEditorDraft*` → `editor-batch`); `AppShell` `--doctor-sticky-offset`; миграция `0104_program_changed_event_type.sql`; `api.md`.
