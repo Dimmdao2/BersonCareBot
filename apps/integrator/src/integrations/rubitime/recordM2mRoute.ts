@@ -38,7 +38,8 @@ import { telegramConfig } from '../telegram/config.js';
 import { maxConfig } from '../max/config.js';
 import { ERR_LEGACY_RESOLVE_DISABLED } from './internalContract.js';
 import { runPostCreateProjection } from './postCreateProjection.js';
-import { syncCanonicalAppointmentToCalendar } from '../google-calendar/sync.js';
+import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
+import { syncAppointmentToCalendar, syncCanonicalAppointmentToCalendar } from '../google-calendar/sync.js';
 
 /** Rubitime API2 `create-record` requires `status` (numeric status id; 0 matches get-record/update-record tests). */
 const RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0;
@@ -352,22 +353,55 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   dispatchPort: DispatchPort,
 ): Promise<void> {
   const appointmentId = payload.canonicalAppointmentId;
+  const rubitimeRecordId = asNonEmptyString(payload.rubitimeId);
+
+  if (eventType === 'booking.deleted') {
+    const mapKey =
+      rubitimeRecordId ?? (appointmentId ? `be:${appointmentId}` : null);
+    if (!mapKey) return;
+    try {
+      await syncAppointmentToCalendar(
+        { action: 'canceled', rubRecordId: mapKey },
+        { dispatchPort, db: createDbPort() },
+      );
+    } catch (err) {
+      logger.warn({ err, mapKey, eventType }, 'canonical GCal delete failed');
+    }
+    return;
+  }
+
   if (!appointmentId) return;
+  // Rubitime-first create: GCal already synced in runPostCreateProjection (map key = rubitime id).
+  if (eventType === 'booking.created' && rubitimeRecordId) {
+    return;
+  }
   const action =
-    eventType === 'booking.cancelled'
+    eventType === 'booking.deleted'
       ? 'canceled'
-      : eventType === 'booking.rescheduled' || eventType === 'booking.payment_captured'
+      : eventType === 'booking.rescheduled' ||
+          eventType === 'booking.payment_captured' ||
+          eventType === 'booking.cancelled' ||
+          eventType === 'booking.reschedule_requested'
         ? 'updated'
         : 'created';
+  const titleMarker =
+    eventType === 'booking.cancelled'
+      ? 'cancelled'
+      : eventType === 'booking.reschedule_requested'
+        ? 'reschedule_pending'
+        : 'none';
   try {
     await syncCanonicalAppointmentToCalendar(
       {
         action,
         appointmentId,
+        rubitimeRecordId,
         startAt: payload.slotStart,
         endAt: payload.slotEnd,
         clientName: payload.contactName,
         serviceTitle: payload.serviceTitleSnapshot ?? null,
+        phoneNormalized: normalizeRuPhoneE164(payload.contactPhone),
+        titleMarker,
       },
       { dispatchPort, db: createDbPort() },
     );
@@ -497,6 +531,18 @@ async function handleBookingLifecycleEvent(
       timeZone,
       ...(webappEventsPort ? { webappEventsPort } : {}),
     });
+    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+    rememberBookingEventKey(dedupKey);
+    return;
+  }
+
+  if (eventType === 'booking.reschedule_requested') {
+    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+    rememberBookingEventKey(dedupKey);
+    return;
+  }
+
+  if (eventType === 'booking.deleted') {
     await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
     rememberBookingEventKey(dedupKey);
     return;

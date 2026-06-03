@@ -45,6 +45,22 @@ export function createPgBookingCalendarLegacyPort(): Pick<BookingCalendarPort, "
            AND branch_map.external_id = b.integrator_branch_id::text
          WHERE ar.deleted_at IS NULL
            AND ar.status IN ('created', 'updated')
+           AND NOT (
+             ar.integrator_record_id LIKE 'be:%'
+             AND EXISTS (
+               SELECT 1
+               FROM be_external_entity_mappings m
+               WHERE m.entity_type = 'appointment'
+                 AND m.external_system = 'rubitime'
+                 AND m.canonical_id::text = substring(ar.integrator_record_id from 4)
+                 AND EXISTS (
+                   SELECT 1 FROM appointment_records ar_rt
+                   WHERE ar_rt.integrator_record_id = m.external_id
+                     AND ar_rt.deleted_at IS NULL
+                     AND ar_rt.status IN ('created', 'updated')
+                 )
+             )
+           )
            AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
            AND ar.record_at IS NOT NULL
            AND ar.record_at < $2::timestamptz

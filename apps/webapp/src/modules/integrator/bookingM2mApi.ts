@@ -249,11 +249,21 @@ export function createBookingSyncPort(): BookingSyncPort {
     },
 
     async cancelRecord(rubitimeId: string): Promise<void> {
+      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/update-record", {
+        recordId: rubitimeId,
+        patch: { status: 4 },
+      });
+      if (status >= 400 || json.ok !== true) {
+        throw new Error("rubitime_cancel_failed");
+      }
+    },
+
+    async deleteRecord(rubitimeId: string): Promise<void> {
       const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/remove-record", {
         recordId: rubitimeId,
       });
       if (status >= 400 || json.ok !== true) {
-        throw new Error("rubitime_cancel_failed");
+        throw new Error("rubitime_delete_failed");
       }
     },
 

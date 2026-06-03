@@ -69,19 +69,19 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 **Содержимое описания события:**
 
-- **Клиент:** поле `comment` (как в [документации Rubitime API](https://rubitime.ru/faq/api)).
-- **Администратор:** первое непустое из `admin_comment`, `comment_admin`, `staff_comment`, `internal_comment`, `admin_note` (единого канонического имени во всех ответах API нет — список расширяется при подтверждённых полях из `get-record`).
-- Формат текста: блоки `Клиент: …` и `Администратор: …`, между блоками — пустая строка. Если оба комментария пусты, в описание подставляется резервная строка `Rubitime #<id записи>`.
+- **Заголовок (`summary`):** только ФИО (без услуги); при отмене/запросе переноса — префиксы ❌ / ⚠️ (см. `summaryMarkers.ts`).
+- **Описание (`description`):** первая строка `#+7…` (телефон из Rubitime/БД); ниже — комментарий клиента (`comment`); ниже — комментарий специалиста о клиенте (`be_patient_booking_profiles.problematic_note` или `be_appointment_staff_comments` к визиту) и строка `Проблемный` при `is_problematic`; ниже — `На сопровождении: <название программы>` при `doctor_patient_support.on_support` и активном `treatment_program_instances`. Код: `apps/integrator/src/integrations/google-calendar/calendarDescription.ts`.
 
 **Вебхук:** часть полей может приходить только на верхнем уровне `data`, а не внутри `data.record`. В `toRubitimeIncoming` (`connector.ts`) для ключей комментариев выполняется подмешивание с родительского уровня, если во вложенной записи значение пустое (`mergeRubitimeWebhookSiblingCommentFields`).
 
-**Проверки в репозитории:** `apps/integrator/src/integrations/google-calendar/sync.test.ts` (`buildGoogleCalendarDescriptionFromRubitimeRecord`, интеграция с `mapRubitimeEventToGoogleEvent`), `apps/integrator/src/integrations/rubitime/connector.test.ts` (merge полей вебхука).
+**Проверки в репозитории:** `apps/integrator/src/integrations/google-calendar/calendarDescription.test.ts`, `sync.test.ts` (`mapRubitimeEventToGoogleEvent`), `apps/integrator/src/integrations/rubitime/connector.test.ts` (merge полей вебхука).
 
 ### Журнал (фрагмент)
 
 | Дата | Изменение |
 |------|-----------|
 | 2026-05-02 | Описание события GCal: комментарии клиента/админа вместо одного только id; merge полей комментариев из тела вебхука; unit-тесты. |
+| 2026-06-03 | **Google Calendar:** при Rubitime-first create не дублировать событие на `booking.created`; отмена пациентом/специалистом — префикс **❌** в заголовке (событие остаётся); запрос переноса (`staff_confirmation_required`) — **⚠️**; удаление в Rubitime (`remove-record`/webhook delete) и soft-delete в кабинете — **удаление** из GCal; отмена в Rubitime — `update-record` status `4`, не `remove-record`. **Календарь врача (webapp):** dedupe legacy/`be:` проекции. |
 
 ## Каноническая модель и read-bridge (этап 1, OWN_BOOKING_ENGINE)
 

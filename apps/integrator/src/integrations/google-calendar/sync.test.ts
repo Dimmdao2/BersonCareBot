@@ -1,48 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import nock from 'nock';
-import {
-  buildGoogleCalendarDescriptionFromRubitimeRecord,
-  mapRubitimeEventToGoogleEvent,
-  syncAppointmentToCalendar,
-} from './sync.js';
+import { formatPhoneHashtag } from './calendarDescription.js';
+import { mapRubitimeEventToGoogleEvent, syncAppointmentToCalendar } from './sync.js';
 
-describe('Google Calendar event description (Rubitime comments)', () => {
-  it('formats client and admin lines when both present', () => {
-    expect(
-      buildGoogleCalendarDescriptionFromRubitimeRecord(
-        { comment: 'От клиента', admin_comment: 'От админа' },
-        '99',
-      ),
-    ).toBe('Клиент: От клиента\n\nАдминистратор: От админа');
-  });
-
-  it('uses only client line when admin fields empty', () => {
-    expect(
-      buildGoogleCalendarDescriptionFromRubitimeRecord({ comment: 'Только клиент' }, '1'),
-    ).toBe('Клиент: Только клиент');
-  });
-
-  it('uses first matching admin key by priority', () => {
-    expect(
-      buildGoogleCalendarDescriptionFromRubitimeRecord(
-        { admin_comment: 'Первый', staff_comment: 'Второй' },
-        '2',
-      ),
-    ).toBe('Администратор: Первый');
-    expect(
-      buildGoogleCalendarDescriptionFromRubitimeRecord({ staff_comment: 'Только staff' }, '3'),
-    ).toBe('Администратор: Только staff');
-  });
-
-  it('falls back to Rubitime id when no comments', () => {
-    expect(buildGoogleCalendarDescriptionFromRubitimeRecord({}, '42')).toBe('Rubitime #42');
-    expect(buildGoogleCalendarDescriptionFromRubitimeRecord(undefined, '42')).toBe('Rubitime #42');
-  });
-
-  it('trims whitespace on comment values', () => {
-    expect(
-      buildGoogleCalendarDescriptionFromRubitimeRecord({ comment: '  x  ', comment_admin: '  y  ' }, '0'),
-    ).toBe('Клиент: x\n\nАдминистратор: y');
+describe('google calendar description (exported helpers)', () => {
+  it('formats phone hashtag', () => {
+    expect(formatPhoneHashtag('+79189000792')).toBe('#+79189000792');
   });
 });
 
@@ -57,20 +20,35 @@ describe('google calendar sync', () => {
         record: {
           service_title: 'ЛФК',
           duration_minutes: 45,
+          phone: '+79991234567',
         },
       },
       { displayTimeZone: 'Europe/Moscow' },
     );
 
     expect(mapped).toEqual({
-      summary: 'Иванов Иван — ЛФК',
+      summary: 'Иванов Иван',
       startDateTime: '2026-04-01T07:00:00.000Z',
       endDateTime: '2026-04-01T07:45:00.000Z',
-      description: 'Rubitime #rec-1',
+      description: '#+79991234567',
     });
   });
 
-  it('puts client and admin comments in calendar description when present', async () => {
+  it('prefixes summary with cancel marker when titleMarker is cancelled', async () => {
+    const mapped = await mapRubitimeEventToGoogleEvent(
+      {
+        action: 'updated',
+        rubRecordId: 'rec-x',
+        recordAt: '2026-04-01T10:00:00.000Z',
+        clientName: 'Иванов Иван',
+        titleMarker: 'cancelled',
+      },
+      { displayTimeZone: 'Europe/Moscow' },
+    );
+    expect(mapped?.summary).toBe('❌ Иванов Иван');
+  });
+
+  it('puts client comment in calendar description when present', async () => {
     const mapped = await mapRubitimeEventToGoogleEvent(
       {
         action: 'created',
@@ -81,12 +59,12 @@ describe('google calendar sync', () => {
           service_title: 'ЛФК',
           duration_minutes: 45,
           comment: 'Нужна раскладка',
-          admin_comment: 'Перенесли окно',
+          phone: '+79991234567',
         },
       },
       { displayTimeZone: 'Europe/Moscow' },
     );
-    expect(mapped?.description).toBe('Клиент: Нужна раскладка\n\nАдминистратор: Перенесли окно');
+    expect(mapped?.description).toBe('#+79991234567\n\nНужна раскладка');
   });
 
   it('preserves explicit Zulu ISO without shifting', async () => {
@@ -146,9 +124,9 @@ describe('google calendar sync', () => {
   });
 });
 
-describe("syncCanonicalAppointmentToCalendar", () => {
-  it("uses be: map key", async () => {
-    const { canonicalCalendarMapKey } = await import("./sync.js");
-    expect(canonicalCalendarMapKey("appt-1")).toBe("be:appt-1");
+describe('syncCanonicalAppointmentToCalendar', () => {
+  it('uses be: map key helper', async () => {
+    const { canonicalCalendarMapKey } = await import('./sync.js');
+    expect(canonicalCalendarMapKey('appt-1')).toBe('be:appt-1');
   });
 });

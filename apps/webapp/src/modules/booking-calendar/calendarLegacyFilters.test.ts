@@ -71,4 +71,16 @@ describe("calendarLegacyFilters", () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.id).toBe("legacy-1");
   });
+
+  it("drops native be: row when Rubitime row exists for the same slot", () => {
+    const rubitime = legacyEvent({ id: "rt-42", patientPhone: "+79001234567", patientName: "Иван" });
+    const native = legacyEvent({
+      id: "be:appt-uuid",
+      patientPhone: "+79001234567",
+      patientName: "Иван",
+    });
+    const result = dedupeCalendarAppointmentsPreferLegacy([native, rubitime]);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe("rt-42");
+  });
 });

@@ -14,6 +14,11 @@ vi.mock('./postCreateProjection.js', () => ({
   runPostCreateProjection: mockRunPostCreateProjection,
 }));
 
+const mockSyncCanonicalAppointmentToCalendar = vi.hoisted(() => vi.fn().mockResolvedValue('gcal-canonical'));
+vi.mock('../google-calendar/sync.js', () => ({
+  syncCanonicalAppointmentToCalendar: mockSyncCanonicalAppointmentToCalendar,
+}));
+
 const enqueueMessageRetryJob = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const cancelPendingBookingReminderJobsByBookingId = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const dbQuery = vi.hoisted(() => vi.fn().mockResolvedValue({ rows: [] }));
@@ -189,6 +194,7 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     cancelPendingBookingReminderJobsByBookingId.mockClear();
     dbQuery.mockClear();
     getTargetsByPhone.mockResolvedValue(null);
+    mockSyncCanonicalAppointmentToCalendar.mockClear();
   });
 
   it('returns 400 when payload is invalid (missing slotEnd)', async () => {
@@ -269,6 +275,83 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     });
     expect(res2.statusCode).toBe(200);
     expect(dispatchOutgoing.mock.calls.length).toBe(afterFirst);
+  });
+
+  it('booking.created skips canonical GCal sync when rubitimeId is set (post-create already synced)', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify(
+      bookingEventBody({
+        rubitimeId: 'rt-gcal-1',
+        canonicalAppointmentId: '9f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+      }),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockSyncCanonicalAppointmentToCalendar).not.toHaveBeenCalled();
+  });
+
+  it('booking.cancelled updates GCal title with cancel marker instead of deleting', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify({
+      eventType: 'booking.cancelled' as const,
+      idempotencyKey: `cancel-gcal-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        rubitimeId: 'rt-cancel-gcal',
+        canonicalAppointmentId: 'bf14566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'updated',
+        titleMarker: 'cancelled',
+        rubitimeRecordId: 'rt-cancel-gcal',
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('booking.rescheduled uses rubitime map key for GCal when rubitimeId is set', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify({
+      eventType: 'booking.rescheduled' as const,
+      idempotencyKey: `resched-gcal-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        rubitimeId: 'rt-gcal-2',
+        canonicalAppointmentId: 'af14566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'updated',
+        appointmentId: 'af14566f-a4de-4ab4-9336-5ddf806cd6ce',
+        rubitimeRecordId: 'rt-gcal-2',
+      }),
+      expect.any(Object),
+    );
   });
 
   it('booking.created patient web push uses messages openUrl', async () => {

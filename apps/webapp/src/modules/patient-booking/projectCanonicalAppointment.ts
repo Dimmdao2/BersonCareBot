@@ -5,11 +5,21 @@ export function nativeIntegratorRecordId(appointmentId: string): string {
   return `be:${appointmentId}`;
 }
 
+/** Doctor legacy UI: Rubitime row when synced; otherwise native `be:` projection. */
+export function resolveDoctorProjectionIntegratorRecordId(
+  appointmentId: string,
+  rubitimeRecordId?: string | null,
+): string {
+  const rt = rubitimeRecordId?.trim();
+  return rt ? rt : nativeIntegratorRecordId(appointmentId);
+}
+
 type ProjectionContactFields = {
   phoneNormalized: string | null;
   contactName: string;
   serviceTitle: string | null;
   branchTitle: string | null;
+  rubitimeRecordId?: string | null;
 };
 
 function basePayloadJson(
@@ -33,7 +43,7 @@ export async function projectCanonicalAppointmentForDoctor(
   input: ProjectionContactFields,
 ): Promise<void> {
   await projection.upsertRecordFromProjection({
-    integratorRecordId: nativeIntegratorRecordId(appt.id),
+    integratorRecordId: resolveDoctorProjectionIntegratorRecordId(appt.id, input.rubitimeRecordId),
     phoneNormalized: input.phoneNormalized,
     recordAt: appt.startAt,
     status: "created",
@@ -50,7 +60,7 @@ export async function projectCanonicalAppointmentRescheduled(
   input: ProjectionContactFields,
 ): Promise<void> {
   await projection.upsertRecordFromProjection({
-    integratorRecordId: nativeIntegratorRecordId(appt.id),
+    integratorRecordId: resolveDoctorProjectionIntegratorRecordId(appt.id, input.rubitimeRecordId),
     phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
     recordAt: appt.startAt,
     status: "updated",
@@ -67,7 +77,7 @@ export async function projectCanonicalAppointmentCancelled(
   input: ProjectionContactFields,
 ): Promise<void> {
   await projection.upsertRecordFromProjection({
-    integratorRecordId: nativeIntegratorRecordId(appt.id),
+    integratorRecordId: resolveDoctorProjectionIntegratorRecordId(appt.id, input.rubitimeRecordId),
     phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
     recordAt: appt.startAt,
     status: "cancelled",

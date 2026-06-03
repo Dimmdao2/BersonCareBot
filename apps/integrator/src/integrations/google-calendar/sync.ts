@@ -10,14 +10,13 @@ import {
   getGoogleEventIdByRubitimeRecordId,
   upsertBookingCalendarMap,
 } from '../../infra/db/repos/bookingCalendarMap.js';
+import { buildGoogleCalendarDescriptionForSync } from './calendarDescription.js';
+import {
+  buildGoogleCalendarSummary,
+  type GoogleCalendarTitleMarker,
+} from './summaryMarkers.js';
 
-export type RubitimeCalendarSyncEvent = {
-  action: 'created' | 'updated' | 'canceled';
-  rubRecordId: string;
-  recordAt?: string;
-  record?: Record<string, unknown>;
-  clientName?: string;
-};
+export type { GoogleCalendarTitleMarker } from './summaryMarkers.js';
 
 type SyncDeps = {
   client?: GoogleCalendarClient;
@@ -59,48 +58,16 @@ function extractServiceTitle(record: Record<string, unknown> | undefined): strin
   );
 }
 
-/** Комментарий клиента — каноническое поле Rubitime API `comment`. */
-const RUBITIME_CLIENT_COMMENT_KEYS = ['comment'] as const;
-
-/**
- * Внутренний комментарий администратора: в API нет единого канонического имени во всех версиях;
- * перебираем типичные ключи (см. также merge в `connector.toRubitimeIncoming`).
- */
-const RUBITIME_ADMIN_COMMENT_KEYS = [
-  'admin_comment',
-  'comment_admin',
-  'staff_comment',
-  'internal_comment',
-  'admin_note',
-] as const;
-
-function firstNonEmptyFromRecord(
-  record: Record<string, unknown> | undefined,
-  keys: readonly string[],
-): string | undefined {
-  if (!record) return undefined;
-  for (const k of keys) {
-    const s = asString(record[k]);
-    if (s) return s;
-  }
-  return undefined;
-}
-
-/** Текст описания события в Google Calendar (вместо одного только id записи). */
-export function buildGoogleCalendarDescriptionFromRubitimeRecord(
-  record: Record<string, unknown> | undefined,
-  rubRecordId: string,
-): string {
-  const client = firstNonEmptyFromRecord(record, RUBITIME_CLIENT_COMMENT_KEYS);
-  const admin = firstNonEmptyFromRecord(record, RUBITIME_ADMIN_COMMENT_KEYS);
-  const parts: string[] = [];
-  if (client) parts.push(`Клиент: ${client}`);
-  if (admin) parts.push(`Администратор: ${admin}`);
-  if (parts.length > 0) {
-    return parts.join('\n\n');
-  }
-  return `Rubitime #${rubRecordId}`;
-}
+export type RubitimeCalendarSyncEvent = {
+  action: 'created' | 'updated' | 'canceled';
+  rubRecordId: string;
+  recordAt?: string;
+  record?: Record<string, unknown>;
+  clientName?: string;
+  phoneNormalized?: string | null;
+  /** `canceled` action удаляет событие; маркеры — только при upsert (`created`/`updated`). */
+  titleMarker?: GoogleCalendarTitleMarker;
+};
 
 export async function mapRubitimeEventToGoogleEvent(
   input: RubitimeCalendarSyncEvent,
@@ -120,12 +87,21 @@ export async function mapRubitimeEventToGoogleEvent(
   const durationMinutes = extractDurationMinutes(input.record);
   const endIso = new Date(new Date(startIso).getTime() + durationMinutes * 60_000).toISOString();
   const serviceTitle = extractServiceTitle(input.record);
-  const summary = `${input.clientName ?? 'Клиент'}${serviceTitle ? ` — ${serviceTitle}` : ''}`;
+  const summary = buildGoogleCalendarSummary(
+    input.clientName,
+    serviceTitle,
+    input.titleMarker ?? 'none',
+  );
+  const description = await buildGoogleCalendarDescriptionForSync(db, {
+    rubRecordId: input.rubRecordId,
+    record: input.record,
+    phoneNormalized: input.phoneNormalized,
+  });
   return {
     summary,
     startDateTime: startIso,
     endDateTime: endIso,
-    description: buildGoogleCalendarDescriptionFromRubitimeRecord(input.record, input.rubRecordId),
+    description,
   };
 }
 
@@ -159,11 +135,15 @@ export async function syncAppointmentToCalendar(
 export type CanonicalCalendarSyncEvent = {
   action: 'created' | 'updated' | 'canceled';
   appointmentId: string;
+  /** When set (Rubitime transitional create), reuse the same GCal map row as post-create projection. */
+  rubitimeRecordId?: string | null;
   startAt: string;
   endAt: string;
   clientName?: string;
   serviceTitle?: string | null;
   description?: string;
+  phoneNormalized?: string | null;
+  titleMarker?: GoogleCalendarTitleMarker;
 };
 
 export function canonicalCalendarMapKey(appointmentId: string): string {
@@ -174,7 +154,8 @@ export async function syncCanonicalAppointmentToCalendar(
   input: CanonicalCalendarSyncEvent,
   deps: SyncDeps = {},
 ): Promise<string | null> {
-  const mapKey = canonicalCalendarMapKey(input.appointmentId);
+  const rt = input.rubitimeRecordId?.trim();
+  const mapKey = rt ? rt : canonicalCalendarMapKey(input.appointmentId);
   return syncAppointmentToCalendar(
     {
       action: input.action === 'created' ? 'created' : input.action === 'canceled' ? 'canceled' : 'updated',
@@ -189,6 +170,8 @@ export async function syncCanonicalAppointmentToCalendar(
         comment: input.description,
       },
       ...(input.clientName ? { clientName: input.clientName } : {}),
+      phoneNormalized: input.phoneNormalized,
+      titleMarker: input.titleMarker,
     },
     deps,
   );

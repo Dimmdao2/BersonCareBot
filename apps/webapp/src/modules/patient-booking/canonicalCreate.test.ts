@@ -14,6 +14,7 @@ const syncPort = {
   createRecord: vi.fn(),
   emitBookingEvent: vi.fn(),
   cancelRecord: vi.fn(),
+  deleteRecord: vi.fn(),
 };
 
 const bookingEngine = {
@@ -305,6 +306,43 @@ describe("createBookingOnCanonicalEngine", () => {
     expect(bookingsPort.markConfirmed).not.toHaveBeenCalled();
   });
 
+  it("rubitime slot mode: skips native be: doctor projection when rubitime id is set", async () => {
+    const appointmentProjection = { upsertRecordFromProjection: vi.fn() };
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rt-1", raw: {} });
+    await createBookingOnCanonicalEngine(
+      { ...deps(false, "rubitime"), appointmentProjection: appointmentProjection as never },
+      {
+        userId: "user-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      },
+    );
+    expect(appointmentProjection.upsertRecordFromProjection).not.toHaveBeenCalled();
+  });
+
+  it("canonical mode without rubitime: projects doctor row under be: id", async () => {
+    const appointmentProjection = { upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined) };
+    await createBookingOnCanonicalEngine(
+      { ...deps(false), appointmentProjection: appointmentProjection as never },
+      {
+        userId: "user-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      },
+    );
+    expect(appointmentProjection.upsertRecordFromProjection).toHaveBeenCalledWith(
+      expect.objectContaining({ integratorRecordId: "be:appt-1" }),
+    );
+  });
+
   it("rubitime slot mode: skips assertSlotAvailable", async () => {
     bookingScheduling.assertSlotAvailable.mockRejectedValue(new Error("slot_unavailable"));
     syncPort.createRecord.mockResolvedValue({ rubitimeId: "rt-1", raw: {} });
@@ -352,7 +390,7 @@ describe("createBookingOnCanonicalEngine", () => {
         contactPhone: "+79001234567",
       }),
     ).rejects.toThrow("db_fail");
-    expect(syncPort.cancelRecord).toHaveBeenCalledWith("rt-rollback");
+    expect(syncPort.deleteRecord).toHaveBeenCalledWith("rt-rollback");
     expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("pb-1");
   });
 

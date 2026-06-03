@@ -20,17 +20,43 @@ export function matchesLegacyAppointmentScopeFilter(
   return true;
 }
 
-/** Prefer legacy row when the same slot would appear twice (safety net for mixed sources). */
+function calendarAppointmentSlotKey(event: CalendarAppointmentEvent): string {
+  return `${event.startAt}|${event.patientPhone ?? ""}|${event.patientName ?? ""}`;
+}
+
+function isNativeProjectionCalendarId(id: string): boolean {
+  return id.startsWith("be:");
+}
+
+/** Prefer Rubitime row over native `be:` projection when both represent the same slot. */
 export function dedupeCalendarAppointmentsPreferLegacy(
   events: CalendarAppointmentEvent[],
 ): CalendarAppointmentEvent[] {
-  const byKey = new Map<string, CalendarAppointmentEvent>();
+  const bySlot = new Map<string, CalendarAppointmentEvent[]>();
   for (const event of events) {
-    const key = `${event.startAt}|${event.patientPhone ?? event.patientName ?? event.id}`;
-    const existing = byKey.get(key);
-    if (!existing || event.source === "rubitime_legacy") {
-      byKey.set(key, event);
-    }
+    const key = calendarAppointmentSlotKey(event);
+    const group = bySlot.get(key) ?? [];
+    group.push(event);
+    bySlot.set(key, group);
   }
-  return [...byKey.values()];
+
+  const out: CalendarAppointmentEvent[] = [];
+  for (const group of bySlot.values()) {
+    const rubitimeRows = group.filter((e) => !isNativeProjectionCalendarId(e.id));
+    if (rubitimeRows.length > 0) {
+      const preferred =
+        rubitimeRows.find((e) => e.source === "rubitime_legacy") ?? rubitimeRows[0]!;
+      out.push(preferred);
+      continue;
+    }
+    const byId = new Map<string, CalendarAppointmentEvent>();
+    for (const event of group) {
+      const existing = byId.get(event.id);
+      if (!existing || event.source === "rubitime_legacy") {
+        byId.set(event.id, event);
+      }
+    }
+    out.push(...byId.values());
+  }
+  return out;
 }

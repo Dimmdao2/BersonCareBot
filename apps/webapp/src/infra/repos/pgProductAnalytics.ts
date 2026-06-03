@@ -1,10 +1,11 @@
-import { and, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import {
   buildAdminDashboard,
   productAnalyticsWindowStartHour,
 } from "@/modules/product-analytics/buildAdminDashboard";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
 import {
   hourlyDimsFromEvent,
   shouldUpdateUserHourly,
@@ -28,7 +29,9 @@ import {
   productAnalyticsUserHourly,
   productPushNotifications,
 } from "../../../db/schema/productAnalytics";
-import { platformUsers } from "../../../db/schema/schema";
+import { platformUsers, systemSettings, userChannelBindings } from "../../../db/schema/schema";
+
+const STAFF_ANALYTICS_ROLES = ["admin", "doctor"] as const;
 
 function pgErrCode(e: unknown): string | undefined {
   if (typeof e === "object" && e !== null && "code" in e) {
@@ -40,6 +43,71 @@ function pgErrCode(e: unknown): string | undefined {
 
 function retentionCutoffIso(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function readTestAccountIdentifiers(
+  db: ReturnType<typeof getDrizzle>,
+): Promise<ReturnType<typeof normalizeTestAccountIdentifiersValue>> {
+  const [row] = await db
+    .select({ valueJson: systemSettings.valueJson })
+    .from(systemSettings)
+    .where(and(eq(systemSettings.key, "test_account_identifiers"), eq(systemSettings.scope, "admin")))
+    .limit(1);
+  if (!row?.valueJson || typeof row.valueJson !== "object") return null;
+  const inner = (row.valueJson as Record<string, unknown>).value;
+  return normalizeTestAccountIdentifiersValue(inner);
+}
+
+async function loadExcludedAnalyticsUserIds(db: ReturnType<typeof getDrizzle>): Promise<string[]> {
+  const excluded = new Set<string>();
+
+  const staffRows = await db
+    .select({ id: platformUsers.id })
+    .from(platformUsers)
+    .where(inArray(platformUsers.role, [...STAFF_ANALYTICS_ROLES]));
+  for (const row of staffRows) excluded.add(row.id);
+
+  const spec = await readTestAccountIdentifiers(db);
+  if (!spec) return [...excluded];
+
+  const phoneRowsPromise =
+    spec.phones.length > 0
+      ? db
+          .select({ id: platformUsers.id })
+          .from(platformUsers)
+          .where(inArray(platformUsers.phoneNormalized, spec.phones))
+      : Promise.resolve([] as Array<{ id: string }>);
+  const telegramRowsPromise =
+    spec.telegramIds.length > 0
+      ? db
+          .select({ id: userChannelBindings.userId })
+          .from(userChannelBindings)
+          .where(
+            and(
+              eq(userChannelBindings.channelCode, "telegram"),
+              inArray(userChannelBindings.externalId, spec.telegramIds),
+            ),
+          )
+      : Promise.resolve([] as Array<{ id: string }>);
+  const maxRowsPromise =
+    spec.maxIds.length > 0
+      ? db
+          .select({ id: userChannelBindings.userId })
+          .from(userChannelBindings)
+          .where(
+            and(eq(userChannelBindings.channelCode, "max"), inArray(userChannelBindings.externalId, spec.maxIds)),
+          )
+      : Promise.resolve([] as Array<{ id: string }>);
+
+  const [phoneRows, telegramRows, maxRows] = await Promise.all([
+    phoneRowsPromise,
+    telegramRowsPromise,
+    maxRowsPromise,
+  ]);
+  for (const row of phoneRows) excluded.add(row.id);
+  for (const row of telegramRows) excluded.add(row.id);
+  for (const row of maxRows) excluded.add(row.id);
+  return [...excluded];
 }
 
 async function upsertHourlyCount(
@@ -228,22 +296,112 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const db = getDrizzle();
       const displayTimezone = await getAppDisplayTimeZone();
       const startHour = productAnalyticsWindowStartHour(windowHours);
-      const startIso = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
+      const excludedUserIds = await loadExcludedAnalyticsUserIds(db);
 
-      const hourlyRows = await db
+      const recentEventConditions = [gte(productAnalyticsEventsRecent.occurredAt, startHour)];
+      if (excludedUserIds.length > 0) {
+        const notExcluded = or(
+          isNull(productAnalyticsEventsRecent.userId),
+          notInArray(productAnalyticsEventsRecent.userId, excludedUserIds),
+        );
+        if (notExcluded) recentEventConditions.push(notExcluded);
+      }
+      const recentRows = await db
         .select({
-          bucketHour: productAnalyticsHourly.bucketHour,
-          eventType: productAnalyticsHourly.eventType,
-          entryChannel: productAnalyticsHourly.entryChannel,
-          pageKey: productAnalyticsHourly.pageKey,
-          topicCode: productAnalyticsHourly.topicCode,
-          pushKind: productAnalyticsHourly.pushKind,
-          warmupSloganKey: productAnalyticsHourly.warmupSloganKey,
-          eventCount: productAnalyticsHourly.eventCount,
+          occurredAt: productAnalyticsEventsRecent.occurredAt,
+          eventType: productAnalyticsEventsRecent.eventType,
+          entryChannel: productAnalyticsEventsRecent.entryChannel,
+          pageKey: productAnalyticsEventsRecent.pageKey,
+          topicCode: productAnalyticsEventsRecent.topicCode,
+          pushKind: productAnalyticsEventsRecent.pushKind,
+          warmupSloganKey: productAnalyticsEventsRecent.warmupSloganKey,
         })
-        .from(productAnalyticsHourly)
-        .where(gte(productAnalyticsHourly.bucketHour, startHour));
+        .from(productAnalyticsEventsRecent)
+        .where(and(...recentEventConditions) ?? recentEventConditions[0]);
 
+      const pushConditions = [gte(productPushNotifications.createdAt, startHour)];
+      if (excludedUserIds.length > 0) {
+        pushConditions.push(notInArray(productPushNotifications.userId, excludedUserIds));
+      }
+      const pushRows = await db
+        .select({
+          createdAt: productPushNotifications.createdAt,
+          topicCode: productPushNotifications.topicCode,
+          pushKind: productPushNotifications.pushKind,
+          warmupSloganKey: productPushNotifications.warmupSloganKey,
+          warmupSloganText: productPushNotifications.warmupSloganText,
+        })
+        .from(productPushNotifications)
+        .where(and(...pushConditions) ?? pushConditions[0]);
+
+      const hourlyByKey = new Map<
+        string,
+        {
+          bucketHour: string;
+          eventType: string;
+          entryChannel: string;
+          pageKey: string;
+          topicCode: string;
+          pushKind: string;
+          warmupSloganKey: string;
+          eventCount: number;
+        }
+      >();
+      const addHourlyEvent = (event: ProductAnalyticsIngestEvent, increment = 1) => {
+        const bucketHour = truncateToUtcHour(event.occurredAt ?? new Date().toISOString());
+        const dims = hourlyDimsFromEvent(event);
+        const key = [
+          bucketHour,
+          event.eventType,
+          dims.entryChannel,
+          dims.pageKey,
+          dims.topicCode,
+          dims.pushKind,
+          dims.warmupSloganKey,
+        ].join("|");
+        const current = hourlyByKey.get(key);
+        if (current) {
+          current.eventCount += increment;
+          return;
+        }
+        hourlyByKey.set(key, {
+          bucketHour,
+          eventType: event.eventType,
+          entryChannel: dims.entryChannel,
+          pageKey: dims.pageKey,
+          topicCode: dims.topicCode,
+          pushKind: dims.pushKind,
+          warmupSloganKey: dims.warmupSloganKey,
+          eventCount: increment,
+        });
+      };
+      for (const row of recentRows) {
+        addHourlyEvent({
+          eventType: row.eventType as ProductAnalyticsIngestEvent["eventType"],
+          entryChannel: row.entryChannel as ProductAnalyticsIngestEvent["entryChannel"],
+          occurredAt: row.occurredAt,
+          pageKey: row.pageKey,
+          topicCode: row.topicCode,
+          pushKind: row.pushKind,
+          warmupSloganKey: row.warmupSloganKey,
+        });
+      }
+      for (const row of pushRows) {
+        addHourlyEvent({
+          eventType: "push_sent",
+          entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent["entryChannel"],
+          occurredAt: row.createdAt,
+          topicCode: row.topicCode,
+          pushKind: row.pushKind,
+          warmupSloganKey: row.warmupSloganKey,
+        });
+      }
+      const hourlyRows = [...hourlyByKey.values()];
+
+      const userHourlyConditions = [gte(productAnalyticsUserHourly.bucketHour, startHour)];
+      if (excludedUserIds.length > 0) {
+        userHourlyConditions.push(notInArray(productAnalyticsUserHourly.userId, excludedUserIds));
+      }
       const userHourlyRows = await db
         .select({
           bucketHour: productAnalyticsUserHourly.bucketHour,
@@ -257,7 +415,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
           lastSeenAt: productAnalyticsUserHourly.lastSeenAt,
         })
         .from(productAnalyticsUserHourly)
-        .where(gte(productAnalyticsUserHourly.bucketHour, startHour));
+        .where(and(...userHourlyConditions) ?? userHourlyConditions[0]);
 
       const userIds = [...new Set(userHourlyRows.map((r) => r.userId))];
       const userDisplayNames: Record<string, string> = {};
@@ -278,19 +436,12 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         }
       }
 
-      const warmupSamples = await db
-        .select({
-          sloganKey: productPushNotifications.warmupSloganKey,
-          sampleText: productPushNotifications.warmupSloganText,
-        })
-        .from(productPushNotifications)
-        .where(
-          and(
-            gte(productPushNotifications.createdAt, startIso),
-            eq(productPushNotifications.pushKind, "warmup"),
-            isNotNull(productPushNotifications.warmupSloganKey),
-          ),
-        );
+      const warmupSamples = pushRows
+        .filter((r) => r.pushKind === "warmup" && r.warmupSloganKey != null)
+        .map((r) => ({
+          sloganKey: r.warmupSloganKey as string,
+          sampleText: r.warmupSloganText,
+        }));
 
       return buildAdminDashboard({
         windowHours,
@@ -375,11 +526,19 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
 
     async listRegistrationEvents(params: ListRegistrationEventsParams): Promise<ListRegistrationEventsResult> {
       const db = getDrizzle();
+      const excludedUserIds = await loadExcludedAnalyticsUserIds(db);
       const conditions = [
         gte(productAnalyticsEventsRecent.occurredAt, params.startIso),
         lt(productAnalyticsEventsRecent.occurredAt, params.endExclusiveIso),
         inArray(productAnalyticsEventsRecent.eventType, [...AUTH_REGISTRATION_EVENT_TYPES]),
       ];
+      if (excludedUserIds.length > 0) {
+        const notExcluded = or(
+          isNull(productAnalyticsEventsRecent.userId),
+          notInArray(productAnalyticsEventsRecent.userId, excludedUserIds),
+        );
+        if (notExcluded) conditions.push(notExcluded);
+      }
       if (params.eventType) {
         conditions.push(eq(productAnalyticsEventsRecent.eventType, params.eventType));
       }

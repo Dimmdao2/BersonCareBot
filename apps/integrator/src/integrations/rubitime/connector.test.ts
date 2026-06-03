@@ -9,6 +9,7 @@ vi.mock('../google-calendar/sync.js', () => ({
 import {
   buildUserEmailAutobindWebappEvent,
   rubitimeIncomingToEvent,
+  resolveRubitimeIncomingCalendarTitleMarker,
   syncRubitimeWebhookBodyToGoogleCalendar,
   toRubitimeIncoming,
 } from './connector.js';

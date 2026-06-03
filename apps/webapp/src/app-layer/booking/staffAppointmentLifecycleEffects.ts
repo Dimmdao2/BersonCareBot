@@ -16,7 +16,7 @@ import {
 
 type LifecycleService = ReturnType<typeof createBookingAppointmentLifecycleService>;
 
-function projectionFromAppointment(appt: BeAppointment) {
+function projectionFromAppointment(appt: BeAppointment, bookingRow?: PatientBookingRecord | null) {
   const attr = appt.attributionJson ?? {};
   const contactName =
     typeof attr.contact_name === "string"
@@ -35,6 +35,7 @@ function projectionFromAppointment(appt: BeAppointment) {
     contactName,
     serviceTitle,
     branchTitle: null,
+    rubitimeRecordId: bookingRow?.rubitimeId ?? null,
   };
 }
 
@@ -52,7 +53,7 @@ export async function applyStaffCancelSideEffects(opts: {
     await projectCanonicalAppointmentCancelled(
       opts.projection,
       opts.appointment,
-      projectionFromAppointment(opts.appointment),
+      projectionFromAppointment(opts.appointment, opts.bookingRow),
     );
   }
   const integratorStatus = await emitStaffCanonicalBookingEvent({
@@ -93,7 +94,7 @@ export async function applyStaffRescheduleSideEffects(opts: {
     await projectCanonicalAppointmentRescheduled(
       opts.projection,
       opts.appointment,
-      projectionFromAppointment(opts.appointment),
+      projectionFromAppointment(opts.appointment, opts.bookingRow),
     );
   }
   const integratorStatus = await emitStaffCanonicalBookingEvent({

@@ -1,6 +1,10 @@
 import type { DbPort, DispatchPort, IncomingEvent, WebappEventBody } from '../../kernel/contracts/index.js';
 import type { NormalizeToUtcInstantFailureReason } from '../../shared/normalizeToUtcInstant.js';
-import { syncAppointmentToCalendar, type RubitimeCalendarSyncEvent } from '../google-calendar/sync.js';
+import {
+  syncAppointmentToCalendar,
+  type GoogleCalendarTitleMarker,
+  type RubitimeCalendarSyncEvent,
+} from '../google-calendar/sync.js';
 import type { RubitimeWebhookBodyValidated } from './schema.js';
 import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
 
@@ -236,6 +240,14 @@ export function buildUserEmailAutobindWebappEvent(body: RubitimeWebhookBodyValid
   };
 }
 
+export function resolveRubitimeIncomingCalendarTitleMarker(
+  incoming: RubitimeIncomingPayload,
+): GoogleCalendarTitleMarker {
+  if (incoming.status === 'canceled') return 'cancelled';
+  if (incoming.status === 'moved_awaiting') return 'reschedule_pending';
+  return 'none';
+}
+
 /**
  * Google Calendar projection: вызывается из Rubitime ingress (webhook) один раз на обработанное тело.
  * Слой sync по EXEC — connector, не дублировать вызов из других мест на тот же webhook.
@@ -258,10 +270,15 @@ export async function syncRubitimeWebhookBodyToGoogleCalendar(
   const syncPayload: RubitimeCalendarSyncEvent = {
     action: incoming.action,
     rubRecordId: recordId.trim(),
+    titleMarker:
+      incoming.action === 'canceled' ? 'none' : resolveRubitimeIncomingCalendarTitleMarker(incoming),
   };
   if (incoming.recordAt !== undefined) syncPayload.recordAt = incoming.recordAt;
   if (incoming.record !== undefined) syncPayload.record = incoming.record;
   if (incoming.clientName !== undefined) syncPayload.clientName = incoming.clientName;
+  if (incoming.phone !== undefined) {
+    syncPayload.phoneNormalized = normalizeRuPhoneE164(incoming.phone);
+  }
   if (deps === undefined) {
     return syncAppointmentToCalendar(syncPayload);
   }

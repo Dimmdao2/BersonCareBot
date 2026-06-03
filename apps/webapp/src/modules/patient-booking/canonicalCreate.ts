@@ -338,7 +338,7 @@ export async function createBookingOnCanonicalEngine(
     await deps.bookingsPort.markFailedSync(pending.id);
     if (rubitimeFirst && rubitimeId) {
       try {
-        await deps.syncPort.cancelRecord(rubitimeId);
+        await deps.syncPort.deleteRecord(rubitimeId);
       } catch {
         // Best-effort rollback of Rubitime record.
       }
@@ -460,7 +460,8 @@ export async function createBookingOnCanonicalEngine(
     canonicalAppointmentId: appointment.id,
   });
 
-  if (deps.appointmentProjection) {
+  // Rubitime post-create projection already fills appointment_records; skip native `be:` row.
+  if (deps.appointmentProjection && !rubitimeId) {
     try {
       await projectCanonicalAppointmentForDoctor(deps.appointmentProjection, appointment, {
         phoneNormalized,

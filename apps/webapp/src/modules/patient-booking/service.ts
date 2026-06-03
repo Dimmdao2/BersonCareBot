@@ -77,6 +77,7 @@ function rowToProjectionInput(row: PatientBookingRecord) {
     contactName: row.contactName,
     serviceTitle: row.serviceTitleSnapshot,
     branchTitle: row.branchTitleSnapshot,
+    rubitimeRecordId: row.rubitimeId,
   };
 }
 
@@ -565,12 +566,39 @@ export function createPatientBookingService(input: {
       });
       if (!result.ok) {
         const err = result.error;
+        if (err === "staff_confirmation_required") {
+          try {
+            await input.syncPort.emitBookingEvent({
+              eventType: "booking.reschedule_requested",
+              idempotencyKey: `booking.reschedule_requested:${row.id}:${rescheduleInput.slotStart}`,
+              payload: {
+                bookingId: row.id,
+                userId: row.userId as string,
+                rubitimeId: row.rubitimeId,
+                bookingType: row.bookingType,
+                city: row.city ?? undefined,
+                category: row.category,
+                slotStart: row.slotStart,
+                slotEnd: row.slotEnd,
+                contactName: row.contactName,
+                contactPhone: row.contactPhone,
+                contactEmail: row.contactEmail ?? undefined,
+                branchServiceId: row.branchServiceId,
+                cityCodeSnapshot: row.cityCodeSnapshot,
+                serviceTitleSnapshot: row.serviceTitleSnapshot,
+                canonicalAppointmentId: row.canonicalAppointmentId ?? undefined,
+              },
+            });
+          } catch {
+            // GCal marker is best-effort.
+          }
+          return { ok: false, error: err };
+        }
         if (
           err === "not_found" ||
           err === "too_late" ||
           err === "limit_exceeded" ||
-          err === "change_not_allowed" ||
-          err === "staff_confirmation_required"
+          err === "change_not_allowed"
         ) {
           return { ok: false, error: err };
         }

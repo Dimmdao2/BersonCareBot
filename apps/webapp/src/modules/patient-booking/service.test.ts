@@ -21,6 +21,7 @@ const syncPort = vi.hoisted(() => ({
   fetchSlots: vi.fn(),
   createRecord: vi.fn(),
   cancelRecord: vi.fn(),
+  deleteRecord: vi.fn(),
   emitBookingEvent: vi.fn(),
 }));
 

@@ -111,10 +111,19 @@ export type CreatePendingPatientBookingInput = {
 export type BookingSyncPort = {
   fetchSlots(query: BookingSlotsIntegratorQuery): Promise<BookingSlotsByDate[]>;
   createRecord(input: CreateBookingSyncInput): Promise<{ rubitimeId: string | null; raw: Record<string, unknown> }>;
+  /** Отмена в Rubitime (status canceled), не удаление записи. */
   cancelRecord(rubitimeId: string): Promise<void>;
+  /** Удаление записи в Rubitime (освобождение слота / откат create). */
+  deleteRecord(rubitimeId: string): Promise<void>;
   updateRecord?(input: { rubitimeId: string; slotStart: string; slotEnd?: string }): Promise<void>;
   emitBookingEvent(input: {
-    eventType: "booking.created" | "booking.cancelled" | "booking.rescheduled" | "booking.payment_captured";
+    eventType:
+      | "booking.created"
+      | "booking.cancelled"
+      | "booking.rescheduled"
+      | "booking.reschedule_requested"
+      | "booking.deleted"
+      | "booking.payment_captured";
     idempotencyKey: string;
     payload: {
       bookingId: string;

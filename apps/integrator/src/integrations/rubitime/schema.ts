@@ -155,6 +155,8 @@ export const BookingLifecycleEventSchema = z.object({
     'booking.created',
     'booking.cancelled',
     'booking.rescheduled',
+    'booking.reschedule_requested',
+    'booking.deleted',
     'booking.payment_captured',
   ]),
   idempotencyKey: z.string().optional(),
