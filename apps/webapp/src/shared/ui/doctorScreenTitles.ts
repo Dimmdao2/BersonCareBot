@@ -1,4 +1,4 @@
-import { BOOKING_ADMIN_BASE, BOOKING_ADMIN_TABS } from "@/app/app/doctor/admin/booking/bookingAdminTabs";
+import { BOOKING_ADMIN_BASE, BOOKING_ADMIN_TABS, bookingAdminTabFromPathname } from "@/app/app/doctor/admin/booking/bookingAdminTabs";
 
 /**
  * Заголовки экранов кабинета врача по pathname (сервер и клиент).
@@ -54,9 +54,8 @@ export function getDoctorScreenTitle(pathname: string): string {
   if (exact[p]) return exact[p]!;
 
   if (p === BOOKING_ADMIN_BASE || p.startsWith(`${BOOKING_ADMIN_BASE}/`)) {
-    const tab = BOOKING_ADMIN_TABS.find(
-      (t) => p === t.href || (t.id !== "overview" && p.startsWith(`${t.href}/`)),
-    );
+    const tabId = bookingAdminTabFromPathname(p);
+    const tab = BOOKING_ADMIN_TABS.find((t) => t.id === tabId);
     if (tab && tab.id !== "overview") return `Запись — ${tab.label}`;
     return "Запись";
   }

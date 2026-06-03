@@ -7,8 +7,8 @@ export default function DoctorAdminBookingSchedulePage() {
   return (
     <div className="space-y-4">
       <div className={BOOKING_CARD_GRID_WIDE_CLASS}>
-        <BookingWorkingHoursSection />
-        <BookingScheduleBlocksSection />
+        <BookingWorkingHoursSection soloUx />
+        <BookingScheduleBlocksSection soloUx />
       </div>
       <BookingScheduleSlotsProbeSection />
     </div>

@@ -19,11 +19,15 @@ describe("bookingAdminTabFromPathname", () => {
     }
   });
 
-  it("has ten unique tab ids and hrefs", () => {
-    expect(BOOKING_ADMIN_TABS).toHaveLength(10);
+  it("maps legacy catalog to locations", () => {
+    expect(bookingAdminTabFromPathname(`${BOOKING_ADMIN_BASE}/catalog`)).toBe("locations");
+  });
+
+  it("has twelve unique tab ids and hrefs", () => {
+    expect(BOOKING_ADMIN_TABS).toHaveLength(12);
     const ids = new Set(BOOKING_ADMIN_TABS.map((t) => t.id));
-    expect(ids.size).toBe(10);
+    expect(ids.size).toBe(12);
     const hrefs = new Set(BOOKING_ADMIN_TABS.map((t) => t.href));
-    expect(hrefs.size).toBe(10);
+    expect(hrefs.size).toBe(12);
   });
 });

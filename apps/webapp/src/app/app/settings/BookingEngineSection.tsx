@@ -20,6 +20,7 @@ import {
   BookingEngineSpecialistList,
 } from "./BookingEngineCatalogLists";
 import { BookingAvailabilityMatrixTable } from "./BookingAvailabilityMatrixTable";
+import { parseRublesInput, rublesToMinor } from "@/app/app/settings/bookingSoloAdminApi";
 import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
 const BASE = "/api/admin/booking-engine";
@@ -116,7 +117,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
   const [specialistBranchId, setSpecialistBranchId] = useState("");
   const [serviceTitle, setServiceTitle] = useState("");
   const [serviceDuration, setServiceDuration] = useState("60");
-  const [servicePrice, setServicePrice] = useState("500000");
+  const [servicePrice, setServicePrice] = useState("5000");
   const [availSpecialistId, setAvailSpecialistId] = useState("");
   const [availServiceId, setAvailServiceId] = useState("");
   const [availBranchId, setAvailBranchId] = useState("");
@@ -543,7 +544,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                           body: JSON.stringify({
                             title: serviceTitle,
                             durationMinutes: Number(serviceDuration),
-                            priceMinor: Number(servicePrice),
+                            priceMinor: rublesToMinor(parseRublesInput(servicePrice)),
                             publicWidgetVisible: servicePublicWidget,
                             adminManualOnly: serviceManualOnly,
                           }),

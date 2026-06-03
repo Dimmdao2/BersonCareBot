@@ -54,7 +54,7 @@ function timeToMinute(v: string): number {
   return h * 60 + m;
 }
 
-export function BookingWorkingHoursSection() {
+export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolean }) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [usesFallback, setUsesFallback] = useState(false);
@@ -87,8 +87,14 @@ export function BookingWorkingHoursSection() {
     };
     if (json.ok && json.specialists && json.branches && json.rooms) {
       setCatalog({ specialists: json.specialists, branches: json.branches, rooms: json.rooms });
+      if (soloUx && json.specialists[0]) {
+        setSpecialistId(json.specialists[0].id);
+      }
+      if (soloUx && json.branches[0]) {
+        setBranchId((prev) => prev || json.branches![0]!.id);
+      }
     }
-  }, []);
+  }, [soloUx]);
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams();
@@ -161,9 +167,12 @@ export function BookingWorkingHoursSection() {
       <CardContent className="space-y-4">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {usesFallback ? (
-          <p className="text-sm text-muted-foreground">Используется fallback 09:00–18:00</p>
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            Расписание не настроено — используется временный режим 09:00–18:00.
+          </p>
         ) : null}
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className={soloUx ? "grid gap-3 sm:grid-cols-1" : "grid gap-3 sm:grid-cols-3"}>
+          {!soloUx ? (
           <div className="flex flex-col gap-1">
             <Label>Специалист</Label>
             <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(!v || v === "__none__" ? "" : v)}>
@@ -182,8 +191,9 @@ export function BookingWorkingHoursSection() {
               </SelectContent>
             </Select>
           </div>
+          ) : null}
           <div className="flex flex-col gap-1">
-            <Label>Филиал</Label>
+            <Label>{soloUx ? "Локация" : "Филиал"}</Label>
             <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
               <SelectTrigger displayLabel={branchId ? branchLabel : "Все"}>
                 <SelectValue />
@@ -200,6 +210,7 @@ export function BookingWorkingHoursSection() {
               </SelectContent>
             </Select>
           </div>
+          {!soloUx ? (
           <div className="flex flex-col gap-1">
             <Label>Кабинет</Label>
             <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(!v || v === "__none__" ? "" : v)}>
@@ -218,6 +229,7 @@ export function BookingWorkingHoursSection() {
               </SelectContent>
             </Select>
           </div>
+          ) : null}
         </div>
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">

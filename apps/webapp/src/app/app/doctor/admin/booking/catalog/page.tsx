@@ -1,11 +1,7 @@
-import { BookingCatalogHelp } from "@/app/app/settings/BookingCatalogHelp";
-import { BookingEngineSection } from "@/app/app/settings/BookingEngineSection";
+import { redirect } from "next/navigation";
+import { BOOKING_ADMIN_BASE } from "@/app/app/doctor/admin/booking/bookingAdminTabs";
 
-export default function DoctorAdminBookingCatalogPage() {
-  return (
-    <div className="space-y-4">
-      <BookingCatalogHelp />
-      <BookingEngineSection mode="catalog" />
-    </div>
-  );
+/** Legacy `/catalog` → `/locations`. */
+export default function DoctorAdminBookingCatalogRedirectPage() {
+  redirect(`${BOOKING_ADMIN_BASE}/locations`);
 }

@@ -15,7 +15,8 @@ import {
 const OVERVIEW = "/api/admin/booking-engine/overview";
 const CALENDAR = "/api/admin/booking-engine/calendar";
 
-type ServiceRow = { id: string; title: string };
+type BranchRow = { id: string; title: string; isActive: boolean };
+type ServiceRow = { id: string; title: string; isActive: boolean };
 
 async function readJsonSafe<T>(res: Response): Promise<T | null> {
   const raw = await res.text();
@@ -28,20 +29,26 @@ async function readJsonSafe<T>(res: Response): Promise<T | null> {
 }
 
 export function BookingScheduleSlotsProbeSection() {
+  const [branches, setBranches] = useState<BranchRow[]>([]);
   const [services, setServices] = useState<ServiceRow[]>([]);
+  const [branchId, setBranchId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [slots, setSlots] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const loadServices = useCallback(async () => {
+  const loadCatalog = useCallback(async () => {
     try {
       const res = await fetch(OVERVIEW);
-      const json = await readJsonSafe<{ ok?: boolean; services?: ServiceRow[] }>(res);
-      if (json?.ok && json.services) {
-        setServices(json.services);
-        if (json.services[0]) setServiceId((prev) => prev || json.services![0]!.id);
+      const json = await readJsonSafe<{ ok?: boolean; branches?: BranchRow[]; services?: ServiceRow[] }>(res);
+      if (json?.ok && json.branches && json.services) {
+        const activeBranches = json.branches.filter((b) => b.isActive);
+        const activeServices = json.services.filter((s) => s.isActive);
+        setBranches(activeBranches);
+        setServices(activeServices);
+        if (activeBranches[0]) setBranchId((prev) => prev || activeBranches[0]!.id);
+        if (activeServices[0]) setServiceId((prev) => prev || activeServices[0]!.id);
       }
     } catch {
       setError("overview_load_failed");
@@ -50,10 +57,11 @@ export function BookingScheduleSlotsProbeSection() {
 
   useEffect(() => {
     startTransition(() => {
-      void loadServices();
+      void loadCatalog();
     });
-  }, [loadServices]);
+  }, [loadCatalog]);
 
+  const branchLabel = branches.find((b) => b.id === branchId)?.title;
   const serviceLabel = services.find((s) => s.id === serviceId)?.title;
 
   function probe() {
@@ -67,6 +75,7 @@ export function BookingScheduleSlotsProbeSection() {
           serviceId,
           includeFreeSlots: "1",
         });
+        if (branchId) qs.set("branchId", branchId);
         const res = await fetch(`${CALENDAR}?${qs.toString()}`);
         const json = await readJsonSafe<{
           ok?: boolean;
@@ -95,17 +104,30 @@ export function BookingScheduleSlotsProbeSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Проверка слотов</CardTitle>
+        <CardTitle className="text-base">Проверка записи глазами пациента</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label>Локация</Label>
+            <Select value={branchId} onValueChange={(v) => v && setBranchId(v)}>
+              <SelectTrigger displayLabel={branchLabel} className="w-full max-w-md" />
+              <SelectContent>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id} label={b.title}>
+                    {b.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label>Услуга</Label>
             <Select value={serviceId} onValueChange={(v) => v && setServiceId(v)}>
               <SelectTrigger displayLabel={serviceLabel} className="w-full max-w-md" />
               <SelectContent>
                 {services.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
+                  <SelectItem key={s.id} value={s.id} label={s.title}>
                     {s.title}
                   </SelectItem>
                 ))}

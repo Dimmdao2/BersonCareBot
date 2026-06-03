@@ -1,5 +1,5 @@
-import { BookingEngineSection } from "@/app/app/settings/BookingEngineSection";
+import { BookingSoloAvailabilitySection } from "@/app/app/settings/BookingSoloAvailabilitySection";
 
 export default function DoctorAdminBookingAvailabilityPage() {
-  return <BookingEngineSection mode="availability" />;
+  return <BookingSoloAvailabilitySection />;
 }

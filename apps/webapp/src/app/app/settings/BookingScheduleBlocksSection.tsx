@@ -50,7 +50,7 @@ function scopeLabel(
   return parts.length > 0 ? parts.join(" · ") : "Вся клиника";
 }
 
-export function BookingScheduleBlocksSection() {
+export function BookingScheduleBlocksSection({ soloUx = false }: { soloUx?: boolean }) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -86,8 +86,12 @@ export function BookingScheduleBlocksSection() {
     };
     if (json.ok && json.specialists && json.branches && json.rooms) {
       setCatalog({ specialists: json.specialists, branches: json.branches, rooms: json.rooms });
+      if (soloUx && json.specialists[0]) {
+        setSpecialistId(json.specialists[0].id);
+        setFilterSpecialistId(json.specialists[0].id);
+      }
     }
-  }, []);
+  }, [soloUx]);
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams();
@@ -154,11 +158,12 @@ export function BookingScheduleBlocksSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Блокировки расписания</CardTitle>
+        <CardTitle>{soloUx ? "Исключения" : "Блокировки расписания"}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className={soloUx ? "grid gap-3 sm:grid-cols-1" : "grid gap-3 sm:grid-cols-3"}>
+          {!soloUx ? (
           <div className="flex flex-col gap-1">
             <Label>Фильтр: специалист</Label>
             <Select
@@ -186,8 +191,9 @@ export function BookingScheduleBlocksSection() {
               </SelectContent>
             </Select>
           </div>
+          ) : null}
           <div className="flex flex-col gap-1">
-            <Label>Фильтр: филиал</Label>
+            <Label>{soloUx ? "Локация" : "Фильтр: филиал"}</Label>
             <Select value={filterBranchId || "__all__"} onValueChange={(v) => setFilterBranchId(!v || v === "__all__" ? "" : v)}>
               <SelectTrigger
                 displayLabel={
@@ -208,6 +214,7 @@ export function BookingScheduleBlocksSection() {
               </SelectContent>
             </Select>
           </div>
+          {!soloUx ? (
           <div className="flex flex-col gap-1">
             <Label>Фильтр: кабинет</Label>
             <Select value={filterRoomId || "__all__"} onValueChange={(v) => setFilterRoomId(!v || v === "__all__" ? "" : v)}>
@@ -228,6 +235,7 @@ export function BookingScheduleBlocksSection() {
               </SelectContent>
             </Select>
           </div>
+          ) : null}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
@@ -258,6 +266,7 @@ export function BookingScheduleBlocksSection() {
             <Label>Название</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
+          {!soloUx ? (
           <div className="flex flex-col gap-1">
             <Label>Специалист</Label>
             <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(!v || v === "__none__" ? "" : v)}>
@@ -276,8 +285,9 @@ export function BookingScheduleBlocksSection() {
               </SelectContent>
             </Select>
           </div>
+          ) : null}
           <div className="flex flex-col gap-1">
-            <Label>Филиал</Label>
+            <Label>{soloUx ? "Локация" : "Филиал"}</Label>
             <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
               <SelectTrigger displayLabel={branchId ? branchLabel : "Все"}>
                 <SelectValue />
@@ -294,6 +304,7 @@ export function BookingScheduleBlocksSection() {
               </SelectContent>
             </Select>
           </div>
+          {!soloUx ? (
           <div className="flex flex-col gap-1">
             <Label>Кабинет</Label>
             <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(!v || v === "__none__" ? "" : v)}>
@@ -312,6 +323,7 @@ export function BookingScheduleBlocksSection() {
               </SelectContent>
             </Select>
           </div>
+          ) : null}
         </div>
         <Button type="button" onClick={createBlock} disabled={pending || !startAt || !endAt}>
           Добавить

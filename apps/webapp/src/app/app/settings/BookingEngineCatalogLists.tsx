@@ -4,6 +4,12 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+import {
+  minorToRublesInput,
+  parseRublesInput,
+  rublesToMinor,
+} from "@/app/app/settings/bookingSoloAdminApi";
+
 const BASE = "/api/admin/booking-engine";
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -599,7 +605,7 @@ export function BookingEngineServiceList({
                     setEditId(s.id);
                     setEditTitle(s.title);
                     setEditDuration(String(s.durationMinutes));
-                    setEditPrice(String(s.priceMinor));
+                    setEditPrice(minorToRublesInput(s.priceMinor));
                   }}
                   onCancel={() => setEditId(null)}
                   onSave={() =>
@@ -610,7 +616,7 @@ export function BookingEngineServiceList({
                         body: JSON.stringify({
                           title: editTitle,
                           durationMinutes: Number(editDuration),
-                          priceMinor: Number(editPrice),
+                          priceMinor: rublesToMinor(parseRublesInput(editPrice)),
                         }),
                       });
                       if (!res.ok) throw new Error("service_patch_failed");
@@ -699,7 +705,7 @@ export function BookingEngineServiceList({
               setEditId(s.id);
               setEditTitle(s.title);
               setEditDuration(String(s.durationMinutes));
-              setEditPrice(String(s.priceMinor));
+              setEditPrice(minorToRublesInput(s.priceMinor));
             }}
             onCancel={() => setEditId(null)}
             onSave={() =>
@@ -710,7 +716,7 @@ export function BookingEngineServiceList({
                   body: JSON.stringify({
                     title: editTitle,
                     durationMinutes: Number(editDuration),
-                    priceMinor: Number(editPrice),
+                    priceMinor: rublesToMinor(parseRublesInput(editPrice)),
                   }),
                 });
                 if (!res.ok) throw new Error("service_patch_failed");
