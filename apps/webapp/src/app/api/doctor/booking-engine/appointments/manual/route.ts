@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { emitStaffCanonicalBookingEvent } from "@/app-layer/booking/staffBookingIntegratorEvent";
+import {
+  emitPackageLinkedCalendarSync,
+  emitStaffCanonicalBookingEvent,
+} from "@/app-layer/booking/emitPackageCalendarSync";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../_requireDoctorBookingEngine";
 
@@ -37,7 +40,7 @@ export async function POST(request: Request) {
         durationMinutes: parsed.data.durationMinutes,
       });
     }
-    const appointment = await ctx.service.createAppointment({
+    let appointment = await ctx.service.createAppointment({
       organizationId: ctx.organizationId,
       branchId: parsed.data.branchId ?? null,
       roomId: parsed.data.roomId ?? null,
@@ -52,8 +55,32 @@ export async function POST(request: Request) {
       phoneNormalized: parsed.data.phoneNormalized ?? null,
       actorId: ctx.session.user.userId,
     });
+    const syncPort = createBookingSyncPort();
+    if (
+      parsed.data.platformUserId &&
+      parsed.data.serviceId &&
+      deps.memberships
+    ) {
+      const picked = await deps.memberships.pickAutoPackageForBooking(
+        parsed.data.platformUserId,
+        ctx.organizationId,
+        parsed.data.serviceId,
+      );
+      if (picked) {
+        await deps.memberships.reserveForAppointment({
+          organizationId: ctx.organizationId,
+          patientPackageId: picked.id,
+          serviceId: parsed.data.serviceId,
+          appointmentId: appointment.id,
+          platformUserId: parsed.data.platformUserId,
+        });
+        const fresh = await ctx.service.getAppointment(appointment.id);
+        if (fresh) appointment = fresh;
+        await emitPackageLinkedCalendarSync(syncPort, appointment);
+      }
+    }
     await emitStaffCanonicalBookingEvent({
-      syncPort: createBookingSyncPort(),
+      syncPort,
       eventType: "booking.created",
       appointment,
     });

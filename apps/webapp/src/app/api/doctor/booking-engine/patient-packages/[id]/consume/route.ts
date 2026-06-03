@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { emitPackageLinkedCalendarSync } from "@/app-layer/booking/emitPackageCalendarSync";
+import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
 
 const bodySchema = z.object({
@@ -30,6 +32,12 @@ export async function POST(request: Request, context: RouteContext) {
       appointmentId: parsed.data.appointmentId ?? null,
       createdByPlatformUserId: gate.ctx.session.user.userId,
     });
+    if (parsed.data.appointmentId) {
+      const appointment = await gate.ctx.service.getAppointment(parsed.data.appointmentId);
+      if (appointment) {
+        await emitPackageLinkedCalendarSync(createBookingSyncPort(), appointment);
+      }
+    }
     return NextResponse.json({ ok: true, usage });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "consume_failed";

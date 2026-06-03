@@ -72,8 +72,9 @@ function eventTitle(event: CalendarEvent): string {
   if (event.kind === "block") {
     return event.title ?? "Блокировка";
   }
+  const packagePrefix = event.packageUsageRef || event.packageTitle ? "✅ " : "";
   const parts = [event.patientName ?? "Запись", event.serviceTitle].filter(Boolean);
-  return parts.join(" · ");
+  return `${packagePrefix}${parts.join(" · ")}`;
 }
 
 function buildQuery(params: Record<string, string | null | undefined>): string {

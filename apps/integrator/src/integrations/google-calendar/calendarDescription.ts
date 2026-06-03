@@ -26,6 +26,7 @@ export type GoogleCalendarDescriptionInput = {
   staffComment?: string | null;
   isProblematic?: boolean;
   supportProgramTitle?: string | null;
+  packageSessionLine?: string | null;
 };
 
 /** Первая строка описания: `#+79001234567`. */
@@ -60,6 +61,12 @@ export function buildGoogleCalendarDescription(input: GoogleCalendarDescriptionI
   if (program) {
     if (lines.length > 0) lines.push('');
     lines.push(`На сопровождении: ${program}`);
+  }
+
+  const packageLine = input.packageSessionLine?.trim();
+  if (packageLine) {
+    if (lines.length > 0) lines.push('');
+    lines.push(packageLine);
   }
 
   return lines.join('\n');
@@ -151,6 +158,7 @@ export async function buildGoogleCalendarDescriptionForSync(
     rubRecordId: string;
     record?: Record<string, unknown>;
     phoneNormalized?: string | null;
+    packageSessionLine?: string | null;
   },
 ): Promise<string> {
   const recordPhone = asString(input.record?.phone);
@@ -177,5 +185,6 @@ export async function buildGoogleCalendarDescriptionForSync(
     staffComment: enriched.staffComment ?? null,
     ...(enriched.isProblematic !== undefined ? { isProblematic: enriched.isProblematic } : {}),
     supportProgramTitle: enriched.supportProgramTitle ?? null,
+    packageSessionLine: input.packageSessionLine ?? null,
   });
 }

@@ -20,12 +20,20 @@ const manualSchema = z.object({
   items: z.array(itemSchema).min(1),
   notes: z.string().trim().max(2000).optional(),
   sendForPayment: z.boolean().optional(),
+  soldAt: z.string().datetime().optional(),
+  paidAmountMinor: z.number().int().min(0).optional(),
+  paidCurrency: z.string().length(3).optional(),
+  activateImmediately: z.boolean().optional(),
 });
 
 const offerSchema = z.object({
   kind: z.literal("catalog"),
   platformUserId: z.string().uuid(),
   subscriptionPackageId: z.string().uuid(),
+  soldAt: z.string().datetime().optional(),
+  paidAmountMinor: z.number().int().min(0).optional(),
+  paidCurrency: z.string().length(3).optional(),
+  activateImmediately: z.boolean().optional(),
 });
 
 const postSchema = z.discriminatedUnion("kind", [manualSchema, offerSchema]);
@@ -73,6 +81,10 @@ export async function POST(request: Request) {
       assignedByPlatformUserId: gate.ctx.session.user.userId,
       notes: body.notes ?? null,
       sendForPayment: body.sendForPayment,
+      soldAt: body.soldAt ?? null,
+      paidAmountMinor: body.paidAmountMinor ?? null,
+      paidCurrency: body.paidCurrency,
+      activateImmediately: body.activateImmediately,
     });
     return NextResponse.json({ ok: true, package: pkg });
   }
@@ -81,6 +93,10 @@ export async function POST(request: Request) {
     platformUserId: body.platformUserId,
     subscriptionPackageId: body.subscriptionPackageId,
     assignedByPlatformUserId: gate.ctx.session.user.userId,
+    soldAt: body.soldAt ?? null,
+    paidAmountMinor: body.paidAmountMinor ?? null,
+    paidCurrency: body.paidCurrency,
+    activateImmediately: body.activateImmediately,
   });
   return NextResponse.json({ ok: true, package: pkg });
 }

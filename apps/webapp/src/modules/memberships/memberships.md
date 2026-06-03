@@ -2,7 +2,9 @@
 
 Composite packages: catalog templates (`be_subscription_packages` + `be_package_items`) and patient instances (`be_patient_packages` + `be_patient_package_items`).
 
-Balance is **derived** from append-only `be_package_usages` (`reserve`, `consume`, `release`, `penalty`, `manual_adjust`) — see `balanceCalculator.ts`. Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
+Balance is **derived** from append-only `be_package_usages` (`reserve`, `consume`, `release`, `penalty`, `manual_adjust`, `refund`) — see `balanceCalculator.ts`. `remaining` blocks overbooking (includes reserves); `displayRemaining` is for doctor card UI (reserved sessions still count as owned). Sale metadata on `be_patient_packages`: `sold_at`, `paid_amount_minor`, `paid_currency` (backfill from `created_at` / `price_minor`).
+
+Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 
 ## Payments
 
@@ -10,7 +12,8 @@ Balance is **derived** from append-only `be_package_usages` (`reserve`, `consume
 
 ## Booking integration
 
-- Create (in_person): optional `patientPackageId` on `POST /api/booking/create` — validated before appointment; `reserveForAppointment` before `markConfirmed`; skips prepayment when package covers service.
+- Create (in_person): optional `patientPackageId` on `POST /api/booking/create`; if omitted and no `productPurchaseId`, **auto FEFO** (`fefoPicker.ts`) among active packages with balance for service; `reserveForAppointment` before `markConfirmed`; skips prepayment when package covers visit. Staff manual create (`POST .../appointments/manual`) uses the same FEFO when `platformUserId` + `serviceId` are set.
+- Calendar: `booking.package_linked` / `booking.package_unlinked` → integrator GCal update only (no patient/doctor notifications). Summary `✅` after status markers; description line `Абонемент от <soldAt>: сеанс n из N`.
 - Cancel: `applyCancelPackageOutcome` — release or penalty; patient late cancel uses `policyResolver` (`chargePackageSessionOnLate` → `package_charged`).
 - Visit: `wrapBookingEngineMembershipHooks` calls `onVisitConfirmed` after transition to `visit_confirmed` or `completed` when `deductionMode=auto_on_visit_confirmed`.
 
@@ -33,10 +36,12 @@ UI: `PatientMembershipsSection`, `/app/patient/memberships/pay`, `/app/patient/m
 | Method | Path |
 |--------|------|
 | GET/POST | `/api/admin/booking-engine/packages` |
-| GET/POST | `/api/admin/booking-engine/patient-packages` (`?platformUserId=` on GET) |
+| GET/POST | `/api/admin/booking-engine/patient-packages` (`?platformUserId=` on GET; manual POST supports `soldAt`, `paidAmountMinor`, `activateImmediately`) |
 | POST | `/api/admin/booking-engine/patient-packages/[id]/consume` |
+| POST | `/api/doctor/booking-engine/appointments/[id]/package/unlink` |
+| POST | `/api/doctor/booking-engine/appointments/[id]/package/refund` |
 
-Same under `/api/doctor/booking-engine/...`. UI: `BookingCatalogPackagesSection`, `BookingPatientPackagesSection` on `/app/doctor/admin/booking`.
+Same under `/api/doctor/booking-engine/...` where mirrored. UI: `BookingPatientPackagesSection` (admin booking ops), **`DoctorClientMembershipsPanel`** on patient card tab «Записи».
 
 ## Docs
 

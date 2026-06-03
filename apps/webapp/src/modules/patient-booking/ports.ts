@@ -123,7 +123,9 @@ export type BookingSyncPort = {
       | "booking.rescheduled"
       | "booking.reschedule_requested"
       | "booking.deleted"
-      | "booking.payment_captured";
+      | "booking.payment_captured"
+      | "booking.package_linked"
+      | "booking.package_unlinked";
     idempotencyKey: string;
     payload: {
       bookingId: string;

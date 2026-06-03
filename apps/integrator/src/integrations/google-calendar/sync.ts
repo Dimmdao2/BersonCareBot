@@ -11,6 +11,7 @@ import {
   upsertBookingCalendarMap,
 } from '../../infra/db/repos/bookingCalendarMap.js';
 import { buildGoogleCalendarDescriptionForSync } from './calendarDescription.js';
+import { resolvePackageCalendarContext } from './resolvePackageCalendarContext.js';
 import {
   buildGoogleCalendarSummary,
   type GoogleCalendarTitleMarker,
@@ -87,15 +88,26 @@ export async function mapRubitimeEventToGoogleEvent(
   const durationMinutes = extractDurationMinutes(input.record);
   const endIso = new Date(new Date(startIso).getTime() + durationMinutes * 60_000).toISOString();
   const serviceTitle = extractServiceTitle(input.record);
+  let packageLinked = false;
+  let packageSessionLine: string | null = null;
+  try {
+    const pkgCtx = await resolvePackageCalendarContext(db, input.rubRecordId);
+    packageLinked = pkgCtx.packageLinked;
+    packageSessionLine = pkgCtx.packageSessionLine;
+  } catch {
+    // Package enrichment is best-effort.
+  }
   const summary = buildGoogleCalendarSummary(
     input.clientName,
     serviceTitle,
     input.titleMarker ?? 'none',
+    packageLinked,
   );
   const description = await buildGoogleCalendarDescriptionForSync(db, {
     rubRecordId: input.rubRecordId,
     ...(input.record !== undefined ? { record: input.record } : {}),
     ...(input.phoneNormalized !== undefined ? { phoneNormalized: input.phoneNormalized } : {}),
+    packageSessionLine,
   });
   return {
     summary,

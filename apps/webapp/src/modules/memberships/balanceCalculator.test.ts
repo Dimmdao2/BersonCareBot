@@ -51,6 +51,7 @@ describe("computeItemBalances", () => {
     ];
     const balances = computeItemBalances(items, usages);
     expect(balances[1]?.remaining).toBe(3);
+    expect(balances[1]?.displayRemaining).toBe(4);
   });
 
   it("applies penalty as debit", () => {

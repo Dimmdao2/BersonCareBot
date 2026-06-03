@@ -41,6 +41,25 @@ describe("mapLegacyRecordToCalendarEvent", () => {
     expect(event!.endAt).toBe("2026-05-30T10:30:00.000Z");
   });
 
+  it("maps package usage ref and title when provided", () => {
+    const event = mapLegacyRecordToCalendarEvent({
+      integrator_record_id: "rt-pkg",
+      phone_normalized: "+79001234567",
+      record_at: new Date("2026-05-30T10:00:00.000Z"),
+      status: "created",
+      payload_json: { name: "Иван" },
+      user_id: "user-1",
+      display_name: null,
+      branch_name: null,
+      branch_id: null,
+      mapped_be_branch_id: null,
+      package_usage_ref: "usage-uuid",
+      package_title: "Абонемент 10",
+    });
+    expect(event!.packageUsageRef).toBe("usage-uuid");
+    expect(event!.packageTitle).toBe("Абонемент 10");
+  });
+
   it("returns null for canceled records", () => {
     expect(
       mapLegacyRecordToCalendarEvent({

@@ -245,12 +245,26 @@ export async function createBookingOnCanonicalEngine(
 
   let packageCoversVisit = false;
   let productCoversVisit = false;
-  const patientPackageId =
+  let patientPackageId =
     createInput.type === "in_person" ? createInput.patientPackageId?.trim() : undefined;
   const productPurchaseId =
     createInput.type === "in_person" ? createInput.productPurchaseId?.trim() : undefined;
   if (patientPackageId && productPurchaseId) {
     throw new Error("payment_option_conflict");
+  }
+  if (
+    createInput.type === "in_person" &&
+    !productPurchaseId &&
+    !patientPackageId &&
+    canonicalServiceId &&
+    deps.memberships
+  ) {
+    const picked = await deps.memberships.pickAutoPackageForBooking(
+      createInput.userId,
+      orgId,
+      canonicalServiceId,
+    );
+    if (picked) patientPackageId = picked.id;
   }
   if (patientPackageId) {
     if (!canonicalServiceId || !deps.memberships) {
@@ -471,6 +485,20 @@ export async function createBookingOnCanonicalEngine(
       });
     } catch {
       // Doctor projection is best-effort on transition.
+    }
+  }
+
+  if (packageCoversVisit && patientPackageId && deps.bookingEngine) {
+    try {
+      const { emitPackageLinkedCalendarSync } = await import(
+        "@/app-layer/booking/emitPackageCalendarSync"
+      );
+      const freshAppt = await deps.bookingEngine.getAppointment(appointment.id);
+      if (freshAppt) {
+        await emitPackageLinkedCalendarSync(deps.syncPort, freshAppt, confirmed ?? pending);
+      }
+    } catch {
+      // Calendar package marker sync is best-effort.
     }
   }
 

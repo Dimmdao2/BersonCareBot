@@ -32,6 +32,11 @@ export type CreateManualPatientPackageInput = {
   assignedByPlatformUserId?: string | null;
   notes?: string | null;
   sendForPayment?: boolean;
+  soldAt?: string | null;
+  paidAmountMinor?: number | null;
+  paidCurrency?: string | null;
+  /** Doctor sale: activate immediately without payment intent. */
+  activateImmediately?: boolean;
 };
 
 export type MembershipsPort = {
@@ -67,6 +72,9 @@ export type MembershipsPort = {
       paymentRef: string | null;
       validFrom: string | null;
       validUntil: string | null;
+      soldAt: string | null;
+      paidAmountMinor: number | null;
+      paidCurrency: string | null;
     }>,
   ): Promise<PatientPackageRecord | null>;
 

@@ -5,6 +5,7 @@ import {
   findItemForService,
   hasAvailableForService,
 } from "./balanceCalculator";
+import { pickPatientPackageFefo } from "./fefoPicker";
 import type { MembershipsPort } from "./ports";
 import type {
   PatientPackageBalanceView,
@@ -109,7 +110,12 @@ export function createMembershipsService(deps: {
         eventType: "manual_created",
         payloadJson: { title: input.title, priceMinor: input.priceMinor },
       });
-      if (input.priceMinor > 0 && input.sendForPayment !== false) {
+      const staffSold =
+        input.activateImmediately === true ||
+        (input.soldAt != null &&
+          input.paidAmountMinor != null &&
+          input.sendForPayment === false);
+      if (input.priceMinor > 0 && input.sendForPayment !== false && !staffSold) {
         return this.createPaymentOffer(pkg.id, input.organizationId, input.platformUserId);
       }
       const activated = await this.activatePatientPackage(pkg.id, input.organizationId);
@@ -121,6 +127,10 @@ export function createMembershipsService(deps: {
       platformUserId: string;
       subscriptionPackageId: string;
       assignedByPlatformUserId?: string | null;
+      soldAt?: string | null;
+      paidAmountMinor?: number | null;
+      paidCurrency?: string | null;
+      activateImmediately?: boolean;
     }) {
       const pkg = await deps.port.offerCatalogPackageToPatient(input);
       await deps.port.appendHistoryEvent({
@@ -129,6 +139,22 @@ export function createMembershipsService(deps: {
         eventType: "catalog_offered",
         payloadJson: { subscriptionPackageId: input.subscriptionPackageId },
       });
+      const staffSold =
+        input.activateImmediately === true ||
+        (input.soldAt != null && input.paidAmountMinor != null);
+      if (staffSold || input.activateImmediately === true) {
+        const activated = await this.activatePatientPackageFromDoctorSale(
+          pkg.id,
+          input.organizationId,
+          {
+            soldAt: input.soldAt ?? null,
+            paidAmountMinor: input.paidAmountMinor ?? pkg.priceMinor,
+            paidCurrency: input.paidCurrency,
+            paymentRef: `doctor_sale:${pkg.id}`,
+          },
+        );
+        return activated ?? (await withBalance(pkg));
+      }
       if (pkg.priceMinor > 0) {
         return this.createPaymentOffer(pkg.id, input.organizationId, input.platformUserId);
       }
@@ -163,6 +189,36 @@ export function createMembershipsService(deps: {
       return { ...(await withBalance(updated)), paymentIntentId: intent.id };
     },
 
+    async activatePatientPackageFromDoctorSale(
+      patientPackageId: string,
+      organizationId: string,
+      input: {
+        soldAt?: string | null;
+        paidAmountMinor?: number | null;
+        paidCurrency?: string | null;
+        paymentRef?: string;
+      },
+    ) {
+      const activated = await this.activatePatientPackage(
+        patientPackageId,
+        organizationId,
+        input.paymentRef,
+      );
+      if (!activated) return null;
+      const now = input.soldAt ?? new Date().toISOString();
+      const updated = await deps.port.setPatientPackageStatus(
+        patientPackageId,
+        organizationId,
+        "active",
+        {
+          soldAt: now,
+          paidAmountMinor: input.paidAmountMinor ?? activated.priceMinor,
+          paidCurrency: input.paidCurrency ?? activated.currency,
+        },
+      );
+      return updated ? withBalance(updated) : activated;
+    },
+
     async activatePatientPackage(patientPackageId: string, organizationId: string, paymentRef?: string) {
       const pkg = await deps.port.getPatientPackage(patientPackageId, organizationId);
       if (!pkg) return null;
@@ -192,6 +248,19 @@ export function createMembershipsService(deps: {
         await this.activatePatientPackage(productRef, organizationId, result.payment?.id);
       }
       return result;
+    },
+
+    async pickAutoPackageForBooking(
+      platformUserId: string,
+      organizationId: string,
+      serviceId: string,
+    ): Promise<PatientPackageListItem | null> {
+      const eligible = await this.listActivePackagesForBooking(
+        platformUserId,
+        organizationId,
+        serviceId,
+      );
+      return pickPatientPackageFefo(eligible, serviceId);
     },
 
     async listActivePackagesForBooking(platformUserId: string, organizationId: string, serviceId: string) {
@@ -449,6 +518,95 @@ export function createMembershipsService(deps: {
       return { action: "released" as const };
     },
 
+    async assertAppointmentNotLinkedToPackage(appointmentId: string, organizationId: string) {
+      if (deps.bookingEngine) {
+        const appt = await deps.bookingEngine.getAppointment(appointmentId);
+        if (appt?.packageUsageRef) throw new Error("appointment_already_linked_to_package");
+      }
+      const usages = await deps.port.listUsagesForAppointment(appointmentId, organizationId);
+      let reserved = 0;
+      let released = 0;
+      let consumed = 0;
+      let refunded = 0;
+      for (const u of usages) {
+        const q = u.quantity;
+        switch (u.usageKind) {
+          case "reserve":
+            reserved += q;
+            break;
+          case "release":
+            released += q;
+            break;
+          case "consume":
+          case "penalty":
+          case "manual_adjust":
+            consumed += q;
+            break;
+          case "refund":
+            refunded += q;
+            break;
+          default:
+            break;
+        }
+      }
+      if (reserved > released || consumed > refunded) {
+        throw new Error("appointment_already_linked_to_package");
+      }
+    },
+
+    async unlinkAppointmentFromPackage(input: {
+      organizationId: string;
+      appointmentId: string;
+      createdByPlatformUserId?: string | null;
+    }) {
+      const usages = await deps.port.listUsagesForAppointment(input.appointmentId, input.organizationId);
+      const hasConsume = usages.some(
+        (u) => u.usageKind === "consume" || u.usageKind === "penalty" || u.usageKind === "manual_adjust",
+      );
+      if (hasConsume) throw new Error("appointment_has_consumed_package_session");
+      const result = await this.releaseReserveForAppointment({
+        organizationId: input.organizationId,
+        appointmentId: input.appointmentId,
+        comment: "doctor_unlink",
+      });
+      if (result.skipped) throw new Error("appointment_not_linked_to_package");
+      return result;
+    },
+
+    async refundConsumedAppointmentPackage(input: {
+      organizationId: string;
+      appointmentId: string;
+      createdByPlatformUserId?: string | null;
+    }) {
+      const usages = await deps.port.listUsagesForAppointment(input.appointmentId, input.organizationId);
+      const consume = usages.find(
+        (u) => u.usageKind === "consume" || u.usageKind === "penalty" || u.usageKind === "manual_adjust",
+      );
+      if (!consume) throw new Error("appointment_not_linked_to_package");
+
+      const refund = await deps.port.appendUsage({
+        organizationId: input.organizationId,
+        patientPackageId: consume.patientPackageId,
+        patientPackageItemId: consume.patientPackageItemId,
+        appointmentId: input.appointmentId,
+        usageKind: "refund",
+        quantity: consume.quantity,
+        comment: "doctor_refund",
+        createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+      });
+
+      await deps.port.setAppointmentPackageUsageRef(input.appointmentId, null);
+
+      await deps.port.appendHistoryEvent({
+        organizationId: input.organizationId,
+        patientPackageId: consume.patientPackageId,
+        eventType: "session_refunded",
+        payloadJson: { appointmentId: input.appointmentId, refundUsageId: refund.id },
+      });
+
+      return refund;
+    },
+
     async manualConsume(input: {
       organizationId: string;
       patientPackageId: string;
@@ -458,6 +616,9 @@ export function createMembershipsService(deps: {
     }) {
       const pkg = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
       if (!pkg) throw new Error("package_not_found");
+      if (input.appointmentId) {
+        await this.assertAppointmentNotLinkedToPackage(input.appointmentId, input.organizationId);
+      }
       const usages = await deps.port.listUsagesForPackage(pkg.id, pkg.organizationId);
       const balances = computeItemBalances(pkg.items, usages);
       const row = balances.find((b) => b.patientPackageItemId === input.patientPackageItemId);

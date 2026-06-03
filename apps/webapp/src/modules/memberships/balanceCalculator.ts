@@ -10,6 +10,7 @@ export function computeItemBalances(
     let consumed = 0;
     let released = 0;
     let penalty = 0;
+    let refunded = 0;
     for (const u of forItem) {
       const q = u.quantity;
       switch (u.usageKind) {
@@ -28,13 +29,17 @@ export function computeItemBalances(
         case "manual_adjust":
           consumed += q;
           break;
+        case "refund":
+          refunded += q;
+          break;
         default:
           break;
       }
     }
-    const debited = consumed + penalty;
+    const debited = Math.max(0, consumed + penalty - refunded);
     const credited = released;
     const remaining = item.quantityInitial - debited + credited - reserved;
+    const displayRemaining = item.quantityInitial - debited + credited;
     return {
       patientPackageItemId: item.id,
       serviceId: item.serviceId,
@@ -43,7 +48,9 @@ export function computeItemBalances(
       consumed,
       released,
       penalty,
+      refunded,
       remaining: Math.max(0, remaining),
+      displayRemaining: Math.max(0, displayRemaining),
     };
   });
 }

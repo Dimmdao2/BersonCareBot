@@ -296,6 +296,33 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     expect(mockSyncCanonicalAppointmentToCalendar).not.toHaveBeenCalled();
   });
 
+  it('booking.package_linked syncs GCal without patient notifications', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify({
+      eventType: 'booking.package_linked' as const,
+      idempotencyKey: `pkg-linked-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        canonicalAppointmentId: 'cf14566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'updated',
+        appointmentId: 'cf14566f-a4de-4ab4-9336-5ddf806cd6ce',
+      }),
+      expect.any(Object),
+    );
+  });
+
   it('booking.cancelled updates GCal title with cancel marker instead of deleting', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const app = await buildApp(dispatchOutgoing);

@@ -158,6 +158,8 @@ export const BookingLifecycleEventSchema = z.object({
     'booking.reschedule_requested',
     'booking.deleted',
     'booking.payment_captured',
+    'booking.package_linked',
+    'booking.package_unlinked',
   ]),
   idempotencyKey: z.string().optional(),
   payload: BookingLifecyclePayloadSchema,

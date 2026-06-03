@@ -2,6 +2,7 @@
 
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import { ClientBookingHistoryPanel } from "./ClientBookingHistoryPanel";
+import { DoctorClientMembershipsPanel } from "./DoctorClientMembershipsPanel";
 import { doctorClientStackedCardClass, doctorClientTabSectionClass } from "./doctorClientCardChrome";
 
 type Props = {
@@ -16,8 +17,17 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
   const { upcomingAppointments, appointmentHistory, appointmentStats, symptomTrackings, recentSymptomEntries } =
     profile;
 
+  const appointmentOptions = [...upcomingAppointments, ...appointmentHistory].map((a) => ({
+    id: a.id,
+    label: a.label,
+  }));
+
   return (
     <div className="flex flex-col gap-0">
+      <section id="doctor-client-section-memberships" className={doctorClientTabSectionClass}>
+        <DoctorClientMembershipsPanel platformUserId={userId} appointments={appointmentOptions} />
+      </section>
+
       <section id="doctor-client-section-appointments" className={doctorClientTabSectionClass}>
         <div className="flex flex-col gap-4">
           {upcomingAppointments.length === 0 ? (

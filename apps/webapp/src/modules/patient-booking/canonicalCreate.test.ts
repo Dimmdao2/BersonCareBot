@@ -434,6 +434,101 @@ describe("createBookingOnCanonicalEngine", () => {
     );
   });
 
+  it("auto FEFO reserves package on in-person create when no explicit package id", async () => {
+    const resolved: ResolvedBranchService = {
+      branchService: {
+        id: "bs-1",
+        branchId: "br-1",
+        serviceId: "sv-1",
+        specialistId: "sp-1",
+        rubitimeServiceId: "1",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      branch: {
+        id: "br-1",
+        cityId: "c-1",
+        title: "Филиал",
+        address: null,
+        rubitimeBranchId: "1",
+        timezone: "Europe/Moscow",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      service: {
+        id: "sv-1",
+        title: "Приём",
+        description: null,
+        durationMinutes: 60,
+        priceMinor: 0,
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      specialist: {
+        id: "sp-1",
+        branchId: "br-1",
+        fullName: "Доктор",
+        description: null,
+        rubitimeCooperatorId: "1",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      city: { id: "c-1", code: "msk", title: "Москва", isActive: true, sortOrder: 0, createdAt: "", updatedAt: "" },
+    };
+    bookingCatalog.resolveBranchService.mockResolvedValue(resolved);
+    bookingScheduling.resolveInPersonContext.mockResolvedValue({
+      organizationId: "org-1",
+      branchId: "br-1",
+      specialistId: "sp-1",
+      serviceId: "sv-1",
+      roomId: null,
+      branchServiceId: "bs-1",
+      durationMinutes: 60,
+      branchTimezone: "Europe/Moscow",
+    });
+    const memberships = {
+      pickAutoPackageForBooking: vi.fn().mockResolvedValue({ id: "pkg-fefo" }),
+      listActivePackagesForBooking: vi.fn().mockResolvedValue([{ id: "pkg-fefo" }]),
+      reserveForAppointment: vi.fn().mockResolvedValue({ id: "usage-reserve" }),
+    };
+    bookingEngine.getAppointment = vi.fn().mockResolvedValue({
+      id: "appt-1",
+      startAt: "2026-06-01T10:00:00.000Z",
+      endAt: "2026-06-01T11:00:00.000Z",
+    });
+
+    await createBookingOnCanonicalEngine(
+      { ...deps(false), memberships: memberships as never },
+      {
+        userId: "user-1",
+        type: "in_person",
+        branchServiceId: "bs-1",
+        cityCode: "msk",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T11:00:00.000Z",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      },
+    );
+
+    expect(memberships.pickAutoPackageForBooking).toHaveBeenCalledWith("user-1", "org-1", "sv-1");
+    expect(memberships.reserveForAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        patientPackageId: "pkg-fefo",
+        serviceId: "sv-1",
+        appointmentId: "appt-1",
+      }),
+    );
+  });
+
   it("rejects invalid form answers", async () => {
     bookingForm.validateAnswers.mockResolvedValue({ ok: false, error: "required_field_missing" });
 

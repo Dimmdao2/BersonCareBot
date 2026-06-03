@@ -62,6 +62,10 @@ function mapPatientPackage(
     deductionMode: row.deductionMode as PatientPackageRecord["deductionMode"],
     paymentIntentId: row.paymentIntentId,
     paymentRef: row.paymentRef,
+    soldAt: row.soldAt,
+    paidAmountMinor: row.paidAmountMinor,
+    paidCurrency: row.paidCurrency,
+    createdAt: row.createdAt,
     notes: row.notes,
     items,
   };
@@ -270,7 +274,16 @@ export function createPgMembershipsPort(): MembershipsPort {
     async createManualPatientPackage(input: CreateManualPatientPackageInput) {
       const db = getDrizzle();
       const now = new Date().toISOString();
-      const status = input.sendForPayment === false && input.priceMinor === 0 ? "active" : "offered";
+      const staffSold =
+        input.activateImmediately === true ||
+        (input.soldAt != null &&
+          input.paidAmountMinor != null &&
+          input.sendForPayment === false);
+      const status =
+        staffSold || (input.sendForPayment === false && input.priceMinor === 0) ? "active" : "offered";
+      const soldAt = input.soldAt ?? (staffSold ? now : null);
+      const paidAmountMinor = input.paidAmountMinor ?? (staffSold ? input.priceMinor : null);
+      const paidCurrency = input.paidCurrency ?? input.currency ?? "RUB";
       const inserted = await db
         .insert(bePatientPackages)
         .values({
@@ -284,6 +297,9 @@ export function createPgMembershipsPort(): MembershipsPort {
           deductionMode: input.deductionMode ?? "auto_on_visit_confirmed",
           assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
           notes: input.notes ?? null,
+          soldAt,
+          paidAmountMinor,
+          paidCurrency: staffSold || paidAmountMinor != null ? paidCurrency : null,
           validFrom: status === "active" ? now : null,
           validUntil:
             status === "active" && input.validityDays
@@ -353,6 +369,9 @@ export function createPgMembershipsPort(): MembershipsPort {
       if (patch?.paymentRef !== undefined) set.paymentRef = patch.paymentRef;
       if (patch?.validFrom !== undefined) set.validFrom = patch.validFrom;
       if (patch?.validUntil !== undefined) set.validUntil = patch.validUntil;
+      if (patch?.soldAt !== undefined) set.soldAt = patch.soldAt;
+      if (patch?.paidAmountMinor !== undefined) set.paidAmountMinor = patch.paidAmountMinor;
+      if (patch?.paidCurrency !== undefined) set.paidCurrency = patch.paidCurrency;
       const rows = await db
         .update(bePatientPackages)
         .set(set)

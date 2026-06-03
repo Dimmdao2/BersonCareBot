@@ -69,8 +69,9 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 **Содержимое описания события:**
 
-- **Заголовок (`summary`):** только ФИО (без услуги); при отмене/запросе переноса — префиксы ❌ / ⚠️ (см. `summaryMarkers.ts`).
-- **Описание (`description`):** первая строка `#+7…` (телефон из Rubitime/БД); ниже — комментарий клиента (`comment`); ниже — комментарий специалиста о клиенте (`be_patient_booking_profiles.problematic_note` или `be_appointment_staff_comments` к визиту) и строка `Проблемный` при `is_problematic`; ниже — `На сопровождении: <название программы>` при `doctor_patient_support.on_support` и активном `treatment_program_instances`. Код: `apps/integrator/src/integrations/google-calendar/calendarDescription.ts`.
+- **Заголовок (`summary`):** только ФИО (без услуги); при отмене/запросе переноса — префиксы ❌ / ⚠️, затем при связи с абонементом — **✅** (см. `summaryMarkers.ts`, `resolvePackageCalendarContext.ts`).
+- **Описание (`description`):** первая строка `#+7…` (телефон из Rubitime/БД); ниже — комментарий клиента (`comment`); ниже — комментарий специалиста о клиенте (`be_patient_booking_profiles.problematic_note` или `be_appointment_staff_comments` к визиту) и строка `Проблемный` при `is_problematic`; ниже — `На сопровождении: <название программы>` при `doctor_patient_support.on_support` и активном `treatment_program_instances`; при `be_appointments.package_usage_ref` — строка `Абонемент от <sold_at|created_at>: сеанс n из N`. Код: `calendarDescription.ts`, `packageSessionIndex.ts`.
+- **Lifecycle без уведомлений:** `booking.package_linked` / `booking.package_unlinked` (webapp M2M) — только обновление GCal для канонической записи.
 
 **Вебхук:** часть полей может приходить только на верхнем уровне `data`, а не внутри `data.record`. В `toRubitimeIncoming` (`connector.ts`) для ключей комментариев выполняется подмешивание с родительского уровня, если во вложенной записи значение пустое (`mergeRubitimeWebhookSiblingCommentFields`).
 

@@ -63,6 +63,10 @@ export type PatientPackageRecord = {
   deductionMode: PackageDeductionMode;
   paymentIntentId: string | null;
   paymentRef: string | null;
+  soldAt: string | null;
+  paidAmountMinor: number | null;
+  paidCurrency: string | null;
+  createdAt: string;
   notes: string | null;
   items: PatientPackageItemRecord[];
 };
@@ -76,7 +80,11 @@ export type PackageItemBalance = {
   consumed: number;
   released: number;
   penalty: number;
+  refunded: number;
+  /** Available for new booking (reserves block overbooking). */
   remaining: number;
+  /** Display: sessions not yet consumed (reserved still count as owned). */
+  displayRemaining: number;
 };
 
 export type PatientPackageBalanceView = {

@@ -20,6 +20,12 @@ describe("google calendar summary markers", () => {
     expect(
       stripGoogleCalendarSummaryMarkers(`${GCAL_SUMMARY_CANCELLED_PREFIX}${GCAL_SUMMARY_RESCHEDULE_PENDING_PREFIX}Петр`),
     ).toBe("Петр");
+    expect(buildGoogleCalendarSummary("Иван Иванов", undefined, "none", true)).toBe(
+      "✅ Иван Иванов",
+    );
+    expect(buildGoogleCalendarSummary("Иван Иванов", undefined, "cancelled", true)).toBe(
+      "❌ ✅ Иван Иванов",
+    );
     expect(buildGoogleCalendarSummary(`${GCAL_SUMMARY_CANCELLED_PREFIX}Петр`, "Услуга", "none")).toBe(
       "Петр",
     );

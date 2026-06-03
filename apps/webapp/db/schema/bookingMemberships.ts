@@ -32,6 +32,7 @@ export const PACKAGE_USAGE_KINDS = [
   "release",
   "penalty",
   "manual_adjust",
+  "refund",
 ] as const;
 export type PackageUsageKind = (typeof PACKAGE_USAGE_KINDS)[number];
 
@@ -108,6 +109,9 @@ export const bePatientPackages = pgTable(
     deductionMode: text("deduction_mode").notNull().default("auto_on_visit_confirmed"),
     paymentIntentId: uuid("payment_intent_id"),
     paymentRef: text("payment_ref"),
+    soldAt: timestamp("sold_at", { withTimezone: true, mode: "string" }),
+    paidAmountMinor: integer("paid_amount_minor"),
+    paidCurrency: text("paid_currency"),
     assignedByPlatformUserId: uuid("assigned_by_platform_user_id"),
     notes: text(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
@@ -145,6 +149,10 @@ export const bePatientPackages = pgTable(
       sql`deduction_mode = ANY (ARRAY['auto_on_visit_confirmed'::text, 'manual'::text])`,
     ),
     check("be_patient_packages_price_check", sql`price_minor >= 0`),
+    check(
+      "be_patient_packages_paid_amount_check",
+      sql`paid_amount_minor IS NULL OR paid_amount_minor >= 0`,
+    ),
   ],
 );
 
@@ -219,7 +227,7 @@ export const bePackageUsages = pgTable(
     }).onDelete("set null"),
     check(
       "be_package_usages_kind_check",
-      sql`usage_kind = ANY (ARRAY['reserve'::text, 'consume'::text, 'release'::text, 'penalty'::text, 'manual_adjust'::text])`,
+      sql`usage_kind = ANY (ARRAY['reserve'::text, 'consume'::text, 'release'::text, 'penalty'::text, 'manual_adjust'::text, 'refund'::text])`,
     ),
     check("be_package_usages_quantity_check", sql`quantity > 0`),
   ],

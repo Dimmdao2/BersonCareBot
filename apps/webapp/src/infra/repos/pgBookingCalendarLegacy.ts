@@ -19,7 +19,9 @@ const LIST_SELECT = `SELECT
   pu.id AS user_id,
   COALESCE(pu.display_name, pu.first_name || ' ' || NULLIF(pu.last_name, ''), pu.first_name, pu.last_name) AS display_name,
   b.name AS branch_name,
-  branch_map.canonical_id AS mapped_be_branch_id`;
+  branch_map.canonical_id AS mapped_be_branch_id,
+  COALESCE(be_from_map.package_usage_ref, be_from_id.package_usage_ref)::text AS package_usage_ref,
+  COALESCE(pp_from_map.title, pp_from_id.title) AS package_title`;
 
 function mapRows(rows: LegacyAppointmentRecordRow[]): CalendarAppointmentEvent[] {
   const events: CalendarAppointmentEvent[] = [];
@@ -43,6 +45,16 @@ export function createPgBookingCalendarLegacyPort(): Pick<BookingCalendarPort, "
          LEFT JOIN be_external_entity_mappings branch_map ON branch_map.entity_type = 'branch'
            AND branch_map.external_system = 'rubitime'
            AND branch_map.external_id = b.integrator_branch_id::text
+         LEFT JOIN be_external_entity_mappings appt_map ON appt_map.entity_type = 'appointment'
+           AND appt_map.external_system = 'rubitime'
+           AND appt_map.external_id = ar.integrator_record_id
+         LEFT JOIN be_appointments be_from_map ON be_from_map.id = appt_map.canonical_id
+         LEFT JOIN be_appointments be_from_id ON ar.integrator_record_id LIKE 'be:%'
+           AND be_from_id.id = (substring(ar.integrator_record_id from 4))::uuid
+         LEFT JOIN be_package_usages u_map ON u_map.id = be_from_map.package_usage_ref
+         LEFT JOIN be_patient_packages pp_from_map ON pp_from_map.id = u_map.patient_package_id
+         LEFT JOIN be_package_usages u_id ON u_id.id = be_from_id.package_usage_ref
+         LEFT JOIN be_patient_packages pp_from_id ON pp_from_id.id = u_id.patient_package_id
          WHERE ar.deleted_at IS NULL
            AND ar.status IN ('created', 'updated')
            AND NOT (

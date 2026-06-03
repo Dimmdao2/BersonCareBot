@@ -379,7 +379,9 @@ async function trySyncCanonicalBookingToGoogleCalendar(
     eventType === 'booking.rescheduled' ||
     eventType === 'booking.payment_captured' ||
     eventType === 'booking.cancelled' ||
-    eventType === 'booking.reschedule_requested'
+    eventType === 'booking.reschedule_requested' ||
+    eventType === 'booking.package_linked' ||
+    eventType === 'booking.package_unlinked'
       ? 'updated'
       : 'created';
   const titleMarker =
@@ -541,6 +543,12 @@ async function handleBookingLifecycleEvent(
   }
 
   if (eventType === 'booking.deleted') {
+    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+    rememberBookingEventKey(dedupKey);
+    return;
+  }
+
+  if (eventType === 'booking.package_linked' || eventType === 'booking.package_unlinked') {
     await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
     rememberBookingEventKey(dedupKey);
     return;
