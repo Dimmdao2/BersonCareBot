@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS "idx_doctor_patient_support_on_support"
 
 -- Preserve current «На сопровождении» semantics: active doctor-assigned program => on_support.
 INSERT INTO "doctor_patient_support" ("patient_user_id", "on_support", "comments_enabled", "media_enabled", "updated_at")
-SELECT DISTINCT tpi.patient_user_id, true, NULL, NULL, now()
+SELECT DISTINCT tpi.patient_user_id, true, NULL::boolean, NULL::boolean, now()
 FROM "treatment_program_instances" tpi
 INNER JOIN "platform_users" pu ON pu.id = tpi.patient_user_id
 WHERE tpi.status = 'active'
