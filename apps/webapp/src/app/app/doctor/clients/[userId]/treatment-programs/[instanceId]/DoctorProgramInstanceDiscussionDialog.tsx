@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import type { ReferenceItemDto } from "@/modules/references/referenceCache";
+import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { DoctorProgramDiscussionMessagesPanel } from "./DoctorProgramDiscussionMessagesPanel";
+import { sendDoctorProgramDiscussionReply } from "./doctorProgramDiscussionReply";
 
 export const DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS = "__all__";
 
@@ -39,7 +40,6 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
 }) {
   const { instanceId, programItems, open, onOpenChange } = props;
   const [filterStageItemId, setFilterStageItemId] = useState<string>(DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS);
-  const [itemSearch, setItemSearch] = useState("");
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -47,6 +47,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [messageCountByItemId, setMessageCountByItemId] = useState<Record<string, number>>({});
   const loadGenerationRef = useRef(0);
+  const filterStageItemIdRef = useRef(filterStageItemId);
 
   const itemLabelById = useMemo(() => new Map(programItems.map((item) => [item.id, item.label])), [programItems]);
 
@@ -58,18 +59,16 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
     [messageCountByItemId],
   );
 
-  const filteredItemOptions = useMemo(() => {
-    const query = itemSearch.trim().toLowerCase();
-    if (!query) return programItems;
-    return programItems.filter((item) => item.label.toLowerCase().includes(query));
-  }, [programItems, itemSearch]);
-
-  const selectedFilterLabel = useMemo(() => {
-    if (filterStageItemId === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS) return "Все пункты";
-    const base = itemLabelById.get(filterStageItemId) ?? "Пункт";
-    const count = messageCountByItemId[filterStageItemId];
-    return count != null && count > 0 ? `${base} (${count})` : base;
-  }, [filterStageItemId, itemLabelById, messageCountByItemId]);
+  const filterItems = useMemo<ReferenceItemDto[]>(
+    () =>
+      programItems.map((item, index) => ({
+        id: item.id,
+        code: item.id,
+        title: formatItemOptionLabel(item),
+        sortOrder: index,
+      })),
+    [formatItemOptionLabel, programItems],
+  );
 
   const basePath = useMemo(
     () => `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/discussion`,
@@ -128,16 +127,43 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
     }
   }, [filterStageItemId, loadPage]);
 
+  const refreshSummary = useCallback(async (generation: number = loadGenerationRef.current) => {
+    try {
+      const url = new URL(`${basePath}/summary`, window.location.origin);
+      const res = await fetch(url.toString());
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        summaryByStageItemId?: Record<string, { totalCount?: number }>;
+      } | null;
+      if (!res.ok || !data?.ok || !data.summaryByStageItemId) return;
+      if (generation !== loadGenerationRef.current) return;
+      const next: Record<string, number> = {};
+      for (const [id, summary] of Object.entries(data.summaryByStageItemId)) {
+        const count = summary?.totalCount;
+        if (typeof count === "number" && Number.isFinite(count) && count > 0) {
+          next[id] = Math.floor(count);
+        }
+      }
+      if (generation !== loadGenerationRef.current) return;
+      setMessageCountByItemId(next);
+    } catch {
+      // summary prefetch is best-effort
+    }
+  }, [basePath]);
+
   useEffect(() => {
     if (!open) return;
     void bootstrap();
   }, [open, bootstrap]);
 
   useEffect(() => {
+    filterStageItemIdRef.current = filterStageItemId;
+  }, [filterStageItemId]);
+
+  useEffect(() => {
     if (!open) {
       loadGenerationRef.current += 1;
       setFilterStageItemId(DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS);
-      setItemSearch("");
       setMessages([]);
       setLoading(false);
       setLoadingOlder(false);
@@ -149,32 +175,8 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const url = new URL(`${basePath}/summary`, window.location.origin);
-        const res = await fetch(url.toString());
-        const data = (await res.json().catch(() => null)) as {
-          ok?: boolean;
-          summaryByStageItemId?: Record<string, { totalCount?: number }>;
-        } | null;
-        if (!res.ok || !data?.ok || !data.summaryByStageItemId || cancelled) return;
-        const next: Record<string, number> = {};
-        for (const [id, summary] of Object.entries(data.summaryByStageItemId)) {
-          const count = summary?.totalCount;
-          if (typeof count === "number" && Number.isFinite(count) && count > 0) {
-            next[id] = Math.floor(count);
-          }
-        }
-        if (!cancelled) setMessageCountByItemId(next);
-      } catch {
-        // summary prefetch is best-effort
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, basePath]);
+    void refreshSummary(loadGenerationRef.current);
+  }, [open, refreshSummary]);
 
   const showItemLabels = filterStageItemId === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS;
 
@@ -186,43 +188,22 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div className="grid gap-2">
-            <Label htmlFor="doctor-instance-discussion-item-search">Пункт программы</Label>
-            <Input
-              id="doctor-instance-discussion-item-search"
-              value={itemSearch}
-              onChange={(e) => setItemSearch(e.target.value)}
-              placeholder="Поиск пункта"
-              data-testid="doctor-instance-discussion-item-search"
-            />
-            <Select
-              value={filterStageItemId}
-              onValueChange={(value) => {
-                if (!value) return;
-                setFilterStageItemId(value);
-              }}
-              items={[
-                { value: DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS, label: "Все пункты" },
-                ...filteredItemOptions.map((item) => ({
-                  value: item.id,
-                  label: formatItemOptionLabel(item),
-                })),
-              ]}
-            >
-              <SelectTrigger
+            <Label htmlFor="doctor-instance-discussion-item-filter">Пункт программы</Label>
+            <div data-testid="doctor-instance-discussion-item-filter">
+              <ReferenceSelect
                 id="doctor-instance-discussion-item-filter"
-                className="w-full"
-                displayLabel={selectedFilterLabel}
-                data-testid="doctor-instance-discussion-item-filter"
+                prefetchedItems={filterItems}
+                valueMatch="id"
+                submitField="id"
+                value={filterStageItemId === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS ? null : filterStageItemId}
+                onChange={(nextValue) => {
+                  setFilterStageItemId(nextValue ?? DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS);
+                }}
+                placeholder="Все пункты"
+                clearOptionLabel="Все пункты"
+                showAllOnFocus
               />
-              <SelectContent>
-                <SelectItem value={DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS}>Все пункты</SelectItem>
-                {filteredItemOptions.map((item) => (
-                  <SelectItem key={item.id} value={item.id} label={formatItemOptionLabel(item)}>
-                    {formatItemOptionLabel(item)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            </div>
           </div>
           <DoctorProgramDiscussionMessagesPanel
             messages={messages}
@@ -231,6 +212,31 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
             error={error}
             nextCursor={nextCursor}
             itemLabelById={showItemLabels ? itemLabelById : undefined}
+            onSelectItemFilter={(stageItemId) => setFilterStageItemId(stageItemId)}
+            onSendReply={async (stageItemId, text) => {
+              const sendResult = await sendDoctorProgramDiscussionReply({
+                instanceId,
+                stageItemId,
+                text,
+              });
+              if (!sendResult.ok) return sendResult;
+
+              const generation = loadGenerationRef.current;
+              const currentFilter = filterStageItemIdRef.current;
+              const shouldReloadThread =
+                currentFilter === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS || currentFilter === stageItemId;
+              try {
+                if (shouldReloadThread) {
+                  await loadPage(null, false, currentFilter, generation);
+                }
+              } catch {
+                if (generation === loadGenerationRef.current) {
+                  setError("Ответ отправлен, но список не обновился. Откройте обсуждение заново.");
+                }
+              }
+              void refreshSummary(generation);
+              return { ok: true as const };
+            }}
             onLoadOlder={() => {
               if (!nextCursor) return;
               const generation = loadGenerationRef.current;

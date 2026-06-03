@@ -1,7 +1,7 @@
 "use client";
 
 import { arrayMove } from "@dnd-kit/sortable";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +35,11 @@ export function InstanceEditorStageOrderDialog(props: {
     [pipelineStages],
   );
   const [localIds, setLocalIds] = useState<string[]>(pipelineIds);
+
+  useEffect(() => {
+    if (!open) return;
+    setLocalIds(pipelineIds);
+  }, [open, pipelineIds]);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {

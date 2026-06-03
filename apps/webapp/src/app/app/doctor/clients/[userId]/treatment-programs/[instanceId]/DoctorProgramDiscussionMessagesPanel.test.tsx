@@ -45,4 +45,38 @@ describe("DoctorProgramDiscussionMessagesPanel", () => {
     await user.click(screen.getByRole("button", { name: /показать предыдущие/i }));
     expect(onLoadOlder).toHaveBeenCalledTimes(1);
   });
+
+  it("opens inline reply composer and sends doctor reply", async () => {
+    const user = userEvent.setup();
+    const onSendReply = vi.fn(async () => ({ ok: true as const }));
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      media: "(hover: none), (pointer: coarse)",
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+      addListener: () => {},
+      removeListener: () => {},
+    }));
+
+    render(
+      <DoctorProgramDiscussionMessagesPanel
+        messages={[message("m1", "Пациент пишет")]}
+        loading={false}
+        loadingOlder={false}
+        error={null}
+        nextCursor={null}
+        onLoadOlder={() => {}}
+        onSendReply={onSendReply}
+      />,
+    );
+
+    await user.click(screen.getByText("Пациент пишет"));
+    await user.click(screen.getByRole("button", { name: /ответить/i }));
+    await user.type(screen.getByPlaceholderText(/введите ответ пациенту/i), "Ответ врача");
+    await user.click(screen.getByRole("button", { name: /отправить ответ/i }));
+
+    expect(onSendReply).toHaveBeenCalledWith(itemA, "Ответ врача");
+  });
 });

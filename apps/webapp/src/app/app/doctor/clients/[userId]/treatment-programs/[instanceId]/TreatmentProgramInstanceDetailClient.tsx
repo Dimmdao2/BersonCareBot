@@ -1342,7 +1342,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
           <div id="doctor-program-instance-pipeline" className="flex flex-col gap-4">
             {pipelineStages.map((stage) => (
               <DoctorInstancePipelineStageBlock
-                key={stage.id}
+                key={`${stage.id}:${stage.sortOrder}`}
                 instanceId={detail.id}
                 stage={stage}
                 programStatus={detail.status}

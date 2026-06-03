@@ -3,7 +3,8 @@
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -34,7 +35,8 @@ const ITEM_DROP_PREVIEW_DELAY_MS = 120;
 
 function useDefaultDndSensors() {
   return useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 }
@@ -60,7 +62,7 @@ export function TreatmentProgramDragHandle({
       type="button"
       variant="outline"
       size="icon"
-      className={cn("size-7 shrink-0 cursor-grab text-muted-foreground", className)}
+      className={cn("size-7 shrink-0 cursor-grab touch-none select-none text-muted-foreground", className)}
       aria-label={ariaLabel}
       disabled={disabled}
       {...attributes}

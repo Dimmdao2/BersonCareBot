@@ -15,6 +15,11 @@ const itemB = "33333333-3333-4333-8333-333333333333";
 describe("DoctorProgramInstanceDiscussionDialog", () => {
   const fetchMock = vi.fn();
 
+  async function openFilter(user: ReturnType<typeof userEvent.setup>) {
+    const filter = within(screen.getByTestId("doctor-instance-discussion-item-filter")).getByRole("combobox");
+    await user.click(filter);
+  }
+
   beforeEach(() => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -166,8 +171,8 @@ describe("DoctorProgramInstanceDiscussionDialog", () => {
       />,
     );
 
-    await user.click(screen.getByTestId("doctor-instance-discussion-item-filter"));
-    await user.click(await screen.findByRole("option", { name: "Мост" }));
+    await openFilter(user);
+    await user.click(await screen.findByRole("button", { name: "Мост" }));
 
     await waitFor(() => {
       expect(screen.getByText("Только мост")).toBeInTheDocument();
@@ -277,8 +282,8 @@ describe("DoctorProgramInstanceDiscussionDialog", () => {
     await user.click(screen.getByRole("button", { name: /показать предыдущие/i }));
     expect(screen.getByRole("button", { name: /загрузка/i })).toBeDisabled();
 
-    await user.click(screen.getByTestId("doctor-instance-discussion-item-filter"));
-    await user.click(await screen.findByRole("option", { name: "Мост" }));
+    await openFilter(user);
+    await user.click(await screen.findByRole("button", { name: "Мост" }));
     await waitFor(() => {
       expect(screen.getByText("Фильтр мост")).toBeInTheDocument();
     });
@@ -331,9 +336,11 @@ describe("DoctorProgramInstanceDiscussionDialog", () => {
 
     await screen.findByText("Сообщение по приседу");
 
-    await user.type(screen.getByTestId("doctor-instance-discussion-item-search"), "мост");
-    await user.click(screen.getByTestId("doctor-instance-discussion-item-filter"));
-    await user.click(await screen.findByRole("option", { name: "Мост (2)" }));
+    const filter = within(screen.getByTestId("doctor-instance-discussion-item-filter")).getByRole("combobox");
+    await user.click(filter);
+    await user.clear(filter);
+    await user.type(filter, "мост");
+    await user.click(await screen.findByRole("button", { name: "Мост (2)" }));
 
     await waitFor(() => {
       expect(screen.getByText("Сообщение по мосту")).toBeInTheDocument();
@@ -342,7 +349,7 @@ describe("DoctorProgramInstanceDiscussionDialog", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining(`stageItemId=${encodeURIComponent(itemB)}`),
     );
-    expect(screen.getByTestId("doctor-instance-discussion-item-filter")).toHaveTextContent("Мост (2)");
+    expect(filter).toHaveValue("Мост (2)");
   });
 
   it("shows message counts from summary in item filter", async () => {
@@ -360,9 +367,9 @@ describe("DoctorProgramInstanceDiscussionDialog", () => {
     );
 
     await screen.findByText("Сообщение по приседу");
-    await user.click(screen.getByTestId("doctor-instance-discussion-item-filter"));
-    expect(await screen.findByRole("option", { name: "Приседания (1)" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Мост (2)" })).toBeInTheDocument();
+    await openFilter(user);
+    expect(await screen.findByRole("button", { name: "Приседания (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Мост (2)" })).toBeInTheDocument();
   });
 
   it("loads older messages when next cursor is present", async () => {
@@ -455,5 +462,27 @@ describe("DoctorProgramInstanceDiscussionDialog", () => {
     );
 
     expect(await screen.findByText(/пока нет сообщений/i)).toBeInTheDocument();
+  });
+
+  it("filters thread by clicking exercise title in message", async () => {
+    const user = userEvent.setup();
+    render(
+      <DoctorProgramInstanceDiscussionDialog
+        instanceId={instanceId}
+        programItems={[
+          { id: itemA, label: "Приседания" },
+          { id: itemB, label: "Мост" },
+        ]}
+        open
+        onOpenChange={() => {}}
+      />,
+    );
+
+    await screen.findByText("Сообщение по приседу");
+    await user.click(screen.getByRole("button", { name: "Мост" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`stageItemId=${encodeURIComponent(itemB)}`));
+    });
   });
 });

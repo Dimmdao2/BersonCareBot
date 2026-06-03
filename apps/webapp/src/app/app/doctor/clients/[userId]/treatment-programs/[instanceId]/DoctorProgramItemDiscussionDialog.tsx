@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { DoctorProgramDiscussionMessagesPanel } from "./DoctorProgramDiscussionMessagesPanel";
+import { sendDoctorProgramDiscussionReply } from "./doctorProgramDiscussionReply";
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -33,6 +34,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loadGenerationRef = useRef(0);
 
   const basePath = useMemo(
     () =>
@@ -41,13 +43,14 @@ export function DoctorProgramItemDiscussionDialog(props: {
   );
 
   const loadPage = useCallback(
-    async (cursor: string | null, appendOlder: boolean) => {
+    async (cursor: string | null, appendOlder: boolean, generation: number) => {
       const url = new URL(basePath, window.location.origin);
       url.searchParams.set("direction", "backward");
       url.searchParams.set("limit", "50");
       if (cursor) url.searchParams.set("cursor", cursor);
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
+      if (generation !== loadGenerationRef.current) return;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
         throw new Error(data?.error ?? "Не удалось загрузить обсуждение");
       }
@@ -64,15 +67,22 @@ export function DoctorProgramItemDiscussionDialog(props: {
   );
 
   const bootstrap = useCallback(async () => {
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
+    setLoadingOlder(false);
     setError(null);
+    setMessages([]);
+    setNextCursor(null);
     try {
-      await loadPage(null, false);
+      await loadPage(null, false, generation);
     } catch (e) {
+      if (generation !== loadGenerationRef.current) return;
       const msg = e instanceof Error ? e.message : "Не удалось загрузить обсуждение";
       setError(msg);
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, [loadPage]);
 
@@ -80,6 +90,16 @@ export function DoctorProgramItemDiscussionDialog(props: {
     if (!open) return;
     void bootstrap();
   }, [open, bootstrap]);
+
+  useEffect(() => {
+    if (open) return;
+    loadGenerationRef.current += 1;
+    setMessages([]);
+    setLoading(false);
+    setLoadingOlder(false);
+    setError(null);
+    setNextCursor(null);
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -93,14 +113,37 @@ export function DoctorProgramItemDiscussionDialog(props: {
           loadingOlder={loadingOlder}
           error={error}
           nextCursor={nextCursor}
+          onSendReply={async (_stageItemId, text) => {
+            const sendResult = await sendDoctorProgramDiscussionReply({
+              instanceId,
+              stageItemId: itemId,
+              text,
+            });
+            if (!sendResult.ok) return sendResult;
+            const generation = loadGenerationRef.current;
+            try {
+              await loadPage(null, false, generation);
+            } catch {
+              if (generation === loadGenerationRef.current) {
+                setError("Ответ отправлен, но список не обновился. Откройте обсуждение заново.");
+              }
+            }
+            return { ok: true as const };
+          }}
           onLoadOlder={() => {
             if (!nextCursor) return;
+            const generation = loadGenerationRef.current;
             setLoadingOlder(true);
-            void loadPage(nextCursor, true)
+            void loadPage(nextCursor, true, generation)
               .catch((e) => {
+                if (generation !== loadGenerationRef.current) return;
                 setError(e instanceof Error ? e.message : "Не удалось загрузить обсуждение");
               })
-              .finally(() => setLoadingOlder(false));
+              .finally(() => {
+                if (generation === loadGenerationRef.current) {
+                  setLoadingOlder(false);
+                }
+              });
           }}
         />
       </DialogContent>

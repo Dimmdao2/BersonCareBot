@@ -75,4 +75,33 @@ describe("InstanceEditorStageOrderDialog", () => {
 
     expect(screen.getByRole("button", { name: /^сохранить порядок$/i })).toBeDisabled();
   });
+
+  it("refreshes pipeline list from latest props on open", () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <InstanceEditorStageOrderDialog
+        open={false}
+        onOpenChange={onOpenChange}
+        programStatus="active"
+        stageZeroId={STAGE_ZERO}
+        pipelineStages={[{ id: STAGE_A, title: "Этап A" }]}
+      />,
+    );
+
+    rerender(
+      <InstanceEditorStageOrderDialog
+        open
+        onOpenChange={onOpenChange}
+        programStatus="active"
+        stageZeroId={STAGE_ZERO}
+        pipelineStages={[
+          { id: STAGE_A, title: "Этап A" },
+          { id: STAGE_B, title: "Этап B" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Этап A")).toBeInTheDocument();
+    expect(screen.getByText("Этап B")).toBeInTheDocument();
+  });
 });
