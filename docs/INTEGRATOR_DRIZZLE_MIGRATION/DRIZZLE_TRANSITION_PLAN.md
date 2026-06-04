@@ -45,7 +45,7 @@
 | 1 | M | **I** | Integrator: `outgoingDeliveryQueue`, `bookingProfilesRepo`, оставшиеся простые `db.query` в repos + config reads | **После P1–P4** — хвост не вошедший в этапы | `bookingProfilesRepo` — высокий функциональный риск (Rubitime, дубли каталогов); см. [LOG](./LOG.md), [TODO](../TODO.md). |
 | 2 | S | **II** | `projectionHealth.ts` ↔ `scripts/projection-health.mjs` — одна логика | Вне этапов P2 (скрипт оставался) | Сначала **унификация** цифр (DoD фазы); перенос агрегатов на Drizzle `groupBy` — после закрытия расхождений с CLI и отдельной постановки. |
 | 3 | M | **III** | Advisory locks: integrator (`rubitimeApiThrottle`, `schedulerLocks`) + webapp (`userLifecycleLock`, multipart, intake, diary purge) | Частично пересекается с «сложным SQL», но отдельный риск session/transaction | Документировать тип блокировки (`xact` vs session) при переносе. |
-| 4 | L | **IV** | Webapp: напоминания `pgReminder*` | Вне integrator master | Сильная связь с `integrator_user_id`; нужны интеграционные тесты. |
+| 4 | L | **IV** | Webapp: напоминания `pgReminder*` | Вне integrator master | **Done (2026-06-05):** `runWebappSql` + Drizzle; см. [LOG](./LOG.md), [wave2_phase_04](./plans/wave2_phase_04_webapp_reminders.plan.md). |
 | 5 | L | **V** | Webapp: медиа (S3, transcode, multipart, preview worker) | Вне integrator master | Advisory + статусы + внешний S3 — высокий регрессионный риск. |
 | 6 | L | **VI** | Webapp: LFK каталог / дневник / назначения | Вне integrator master | Динамические list-SQL — последним слоем после стабилизации CRUD. |
 | 7 | M | **VII** | Webapp: auth + rate limits | Вне integrator master | Hot path; контрактные тесты + нагрузочные выборочно. |

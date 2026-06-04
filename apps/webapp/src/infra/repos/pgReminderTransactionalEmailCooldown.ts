@@ -1,4 +1,6 @@
-import { getPool } from "@/infra/db/client";
+import { and, eq, sql } from "drizzle-orm";
+import { getDrizzle } from "@/app-layer/db/drizzle";
+import { emailSendCooldowns } from "../../../db/schema/schema";
 
 /**
  * Резервный ключ в `email_send_cooldowns.email_normalized` для интервала между
@@ -18,26 +20,36 @@ export function createPgReminderTransactionalEmailCooldownPort(
 ): ReminderTransactionalEmailCooldownPort {
   return {
     async shouldSkipDueToCooldown(platformUserId) {
-      const pool = getPool();
-      const res = await pool.query<{ last_sent_at: Date }>(
-        `SELECT last_sent_at FROM email_send_cooldowns
-         WHERE user_id = $1::uuid AND email_normalized = $2
-         LIMIT 1`,
-        [platformUserId, REMINDER_TRANSACTIONAL_EMAIL_COOLDOWN_EMAIL_KEY],
-      );
-      if (res.rows.length === 0) return false;
-      const delta = (Date.now() - new Date(res.rows[0].last_sent_at).getTime()) / 1000;
+      const db = getDrizzle();
+      const rows = await db
+        .select({ lastSentAt: emailSendCooldowns.lastSentAt })
+        .from(emailSendCooldowns)
+        .where(
+          and(
+            eq(emailSendCooldowns.userId, platformUserId),
+            eq(emailSendCooldowns.emailNormalized, REMINDER_TRANSACTIONAL_EMAIL_COOLDOWN_EMAIL_KEY),
+          ),
+        )
+        .limit(1);
+      if (rows.length === 0) return false;
+      const last = rows[0]!.lastSentAt;
+      const delta = (Date.now() - new Date(last).getTime()) / 1000;
       return delta < minIntervalSec;
     },
 
     async recordSent(platformUserId) {
-      const pool = getPool();
-      await pool.query(
-        `INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
-         VALUES ($1::uuid, $2, now())
-         ON CONFLICT (user_id, email_normalized) DO UPDATE SET last_sent_at = now()`,
-        [platformUserId, REMINDER_TRANSACTIONAL_EMAIL_COOLDOWN_EMAIL_KEY],
-      );
+      const db = getDrizzle();
+      await db
+        .insert(emailSendCooldowns)
+        .values({
+          userId: platformUserId,
+          emailNormalized: REMINDER_TRANSACTIONAL_EMAIL_COOLDOWN_EMAIL_KEY,
+          lastSentAt: sql`now()`,
+        })
+        .onConflictDoUpdate({
+          target: [emailSendCooldowns.userId, emailSendCooldowns.emailNormalized],
+          set: { lastSentAt: sql`now()` },
+        });
     },
   };
 }

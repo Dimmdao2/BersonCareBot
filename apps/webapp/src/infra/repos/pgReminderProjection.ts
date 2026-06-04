@@ -4,7 +4,9 @@
  * Read API returns rows with id/userId as integrator ids (string) for adapter compatibility.
  */
 
+import { sql } from "drizzle-orm";
 import { getPool } from "@/infra/db/client";
+import { getWebappSqlDb, runWebappSql } from "@/infra/db/runWebappSql";
 import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
 import { loadWarmupsSectionSlugs } from "@/modules/reminders/loadWarmupsSectionSlugs";
 import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
@@ -148,12 +150,19 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
     async upsertRuleFromProjection(params) {
       const pool = getPool();
       const platformUserId = await resolvePlatformUserId(pool, params.integratorUserId);
-      await pool.query(
-        `INSERT INTO reminder_rules (
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`
+        INSERT INTO reminder_rules (
           integrator_rule_id, platform_user_id, integrator_user_id, category, is_enabled,
           schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute,
           days_mask, content_mode, updated_at
-        ) VALUES ($1, $2, $3::bigint, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::timestamptz)
+        ) VALUES (
+          ${params.integratorRuleId}, ${platformUserId}, ${params.integratorUserId}::bigint, ${params.category},
+          ${params.isEnabled}, ${params.scheduleType}, ${params.timezone}, ${params.intervalMinutes},
+          ${params.windowStartMinute}, ${params.windowEndMinute}, ${params.daysMask}, ${params.contentMode},
+          ${params.updatedAt}::timestamptz
+        )
         ON CONFLICT (integrator_rule_id) DO UPDATE SET
           platform_user_id = COALESCE(EXCLUDED.platform_user_id, reminder_rules.platform_user_id),
           integrator_user_id = EXCLUDED.integrator_user_id,
@@ -167,75 +176,56 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
           days_mask = EXCLUDED.days_mask,
           content_mode = EXCLUDED.content_mode,
           updated_at = EXCLUDED.updated_at`,
-        [
-          params.integratorRuleId,
-          platformUserId,
-          params.integratorUserId,
-          params.category,
-          params.isEnabled,
-          params.scheduleType,
-          params.timezone,
-          params.intervalMinutes,
-          params.windowStartMinute,
-          params.windowEndMinute,
-          params.daysMask,
-          params.contentMode,
-          params.updatedAt,
-        ]
       );
     },
 
     async appendFinalizedOccurrenceFromProjection(params) {
-      const pool = getPool();
-      await pool.query(
-        `INSERT INTO reminder_occurrence_history (
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`
+        INSERT INTO reminder_occurrence_history (
           integrator_occurrence_id, integrator_rule_id, integrator_user_id, category,
           status, delivery_channel, error_code, occurred_at
-        ) VALUES ($1, $2, $3::bigint, $4, $5, $6, $7, $8::timestamptz)
+        ) VALUES (
+          ${params.integratorOccurrenceId}, ${params.integratorRuleId}, ${params.integratorUserId}::bigint,
+          ${params.category}, ${params.status}, ${params.deliveryChannel ?? null},
+          ${params.errorCode ?? null}, ${params.occurredAt}::timestamptz
+        )
         ON CONFLICT (integrator_occurrence_id) DO NOTHING`,
-        [
-          params.integratorOccurrenceId,
-          params.integratorRuleId,
-          params.integratorUserId,
-          params.category,
-          params.status,
-          params.deliveryChannel ?? null,
-          params.errorCode ?? null,
-          params.occurredAt,
-        ]
       );
     },
 
     async appendDeliveryEventFromProjection(params) {
-      const pool = getPool();
-      await pool.query(
-        `INSERT INTO reminder_delivery_events (
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`
+        INSERT INTO reminder_delivery_events (
           integrator_delivery_log_id, integrator_occurrence_id, integrator_rule_id, integrator_user_id,
           channel, status, error_code, payload_json, created_at
-        ) VALUES ($1, $2, $3, $4::bigint, $5, $6, $7, $8::jsonb, $9::timestamptz)
+        ) VALUES (
+          ${params.integratorDeliveryLogId}, ${params.integratorOccurrenceId}, ${params.integratorRuleId},
+          ${params.integratorUserId}::bigint, ${params.channel}, ${params.status}, ${params.errorCode ?? null},
+          ${JSON.stringify(params.payloadJson ?? {})}::jsonb, ${params.createdAt}::timestamptz
+        )
         ON CONFLICT (integrator_delivery_log_id) DO NOTHING`,
-        [
-          params.integratorDeliveryLogId,
-          params.integratorOccurrenceId,
-          params.integratorRuleId,
-          params.integratorUserId,
-          params.channel,
-          params.status,
-          params.errorCode ?? null,
-          JSON.stringify(params.payloadJson ?? {}),
-          params.createdAt,
-        ]
       );
     },
 
     async upsertContentAccessGrantFromProjection(params) {
       const pool = getPool();
       const platformUserId = await resolvePlatformUserId(pool, params.integratorUserId);
-      await pool.query(
-        `INSERT INTO content_access_grants_webapp (
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`
+        INSERT INTO content_access_grants_webapp (
           integrator_grant_id, platform_user_id, integrator_user_id, content_id, purpose,
           token_hash, expires_at, revoked_at, meta_json, created_at
-        ) VALUES ($1, $2, $3::bigint, $4, $5, $6, $7::timestamptz, $8::timestamptz, $9::jsonb, $10::timestamptz)
+        ) VALUES (
+          ${params.integratorGrantId}, ${platformUserId}, ${params.integratorUserId}::bigint, ${params.contentId},
+          ${params.purpose}, ${params.tokenHash ?? null}, ${params.expiresAt}::timestamptz,
+          ${params.revokedAt ?? null}::timestamptz, ${JSON.stringify(params.metaJson ?? {})}::jsonb,
+          ${params.createdAt}::timestamptz
+        )
         ON CONFLICT (integrator_grant_id) DO UPDATE SET
           platform_user_id = COALESCE(EXCLUDED.platform_user_id, content_access_grants_webapp.platform_user_id),
           integrator_user_id = EXCLUDED.integrator_user_id,
@@ -245,24 +235,12 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
           expires_at = EXCLUDED.expires_at,
           revoked_at = EXCLUDED.revoked_at,
           meta_json = EXCLUDED.meta_json`,
-        [
-          params.integratorGrantId,
-          platformUserId,
-          params.integratorUserId,
-          params.contentId,
-          params.purpose,
-          params.tokenHash ?? null,
-          params.expiresAt,
-          params.revokedAt ?? null,
-          JSON.stringify(params.metaJson ?? {}),
-          params.createdAt,
-        ]
       );
     },
 
     async listRulesByIntegratorUserId(integratorUserId: string) {
       const pool = getPool();
-      const r = await pool.query<{
+      const r = await runWebappSql<{
         integrator_rule_id: string;
         integrator_user_id: string;
         category: string;
@@ -288,15 +266,16 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         created_at: string;
         updated_at: string;
       }>(
-        `SELECT integrator_rule_id, integrator_user_id::text, category, is_enabled, schedule_type,
+        getWebappSqlDb(),
+        sql`
+        SELECT integrator_rule_id, integrator_user_id::text, category, is_enabled, schedule_type,
                 timezone, interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode,
                 linked_object_type, linked_object_id, custom_title, custom_text,
                 schedule_data, reminder_intent, display_title, display_description,
                 quiet_hours_start_minute, quiet_hours_end_minute,
                 notification_topic_code,
                 created_at, updated_at
-         FROM reminder_rules WHERE integrator_user_id = $1::bigint ORDER BY category`,
-        [integratorUserId]
+         FROM reminder_rules WHERE integrator_user_id = ${integratorUserId}::bigint ORDER BY category`,
       );
       const warmupsSectionSlugs = await loadWarmupsSectionSlugs(pool);
       const deepLinkOpts = { warmupsSectionSlugs };
@@ -340,7 +319,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
 
     async getRuleByIntegratorUserIdAndCategory(integratorUserId: string, category: string) {
       const pool = getPool();
-      const r = await pool.query<{
+      const r = await runWebappSql<{
         integrator_rule_id: string;
         integrator_user_id: string;
         category: string;
@@ -366,15 +345,16 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         created_at: string;
         updated_at: string;
       }>(
-        `SELECT integrator_rule_id, integrator_user_id::text, category, is_enabled, schedule_type,
+        getWebappSqlDb(),
+        sql`
+        SELECT integrator_rule_id, integrator_user_id::text, category, is_enabled, schedule_type,
                 timezone, interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode,
                 linked_object_type, linked_object_id, custom_title, custom_text,
                 schedule_data, reminder_intent, display_title, display_description,
                 quiet_hours_start_minute, quiet_hours_end_minute,
                 notification_topic_code,
                 created_at, updated_at
-         FROM reminder_rules WHERE integrator_user_id = $1::bigint AND category = $2`,
-        [integratorUserId, category]
+         FROM reminder_rules WHERE integrator_user_id = ${integratorUserId}::bigint AND category = ${category}`,
       );
       const row = r.rows[0];
       if (!row) return null;
@@ -416,8 +396,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
     },
 
     async listHistoryByIntegratorUserId(integratorUserId: string, limit = 50) {
-      const pool = getPool();
-      const r = await pool.query<{
+      const r = await runWebappSql<{
         integrator_occurrence_id: string;
         integrator_rule_id: string;
         status: string;
@@ -425,12 +404,13 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         error_code: string | null;
         occurred_at: string;
       }>(
-        `SELECT integrator_occurrence_id, integrator_rule_id, status, delivery_channel, error_code, occurred_at
+        getWebappSqlDb(),
+        sql`
+        SELECT integrator_occurrence_id, integrator_rule_id, status, delivery_channel, error_code, occurred_at
          FROM reminder_occurrence_history
-         WHERE integrator_user_id = $1::bigint
+         WHERE integrator_user_id = ${integratorUserId}::bigint
          ORDER BY occurred_at DESC
-         LIMIT $2`,
-        [integratorUserId, limit]
+         LIMIT ${limit}`,
       );
       return r.rows.map((row) => ({
         id: row.integrator_occurrence_id,
@@ -443,15 +423,15 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
     },
 
     async getUnseenCount(platformUserId: string) {
-      const pool = getPool();
       try {
-        const r = await pool.query<{ cnt: string }>(
-          `SELECT COUNT(*)::text AS cnt
+        const r = await runWebappSql<{ cnt: string }>(
+          getWebappSqlDb(),
+          sql`
+          SELECT COUNT(*)::text AS cnt
            FROM reminder_occurrence_history roh
            JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-           WHERE rr.platform_user_id = $1::uuid
+           WHERE rr.platform_user_id = ${platformUserId}::uuid
              AND roh.seen_at IS NULL`,
-          [platformUserId],
         );
         return parseInt(r.rows[0]?.cnt ?? "0", 10);
       } catch {
@@ -461,24 +441,24 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
     },
 
     async getStats(platformUserId: string, days: number) {
-      const pool = getPool();
       try {
-        const r = await pool.query<{
+        const r = await runWebappSql<{
           total: string;
           seen: string;
           unseen: string;
           failed: string;
         }>(
-          `SELECT
+          getWebappSqlDb(),
+          sql`
+          SELECT
              COUNT(*)::text AS total,
              COUNT(*) FILTER (WHERE roh.seen_at IS NOT NULL)::text AS seen,
              COUNT(*) FILTER (WHERE roh.seen_at IS NULL)::text AS unseen,
              COUNT(*) FILTER (WHERE roh.status = 'failed')::text AS failed
            FROM reminder_occurrence_history roh
            JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-           WHERE rr.platform_user_id = $1::uuid
-             AND roh.occurred_at >= now() - make_interval(days => $2)`,
-          [platformUserId, days],
+           WHERE rr.platform_user_id = ${platformUserId}::uuid
+             AND roh.occurred_at >= now() - make_interval(days => ${days})`,
         );
         const row = r.rows[0];
         return {
@@ -494,32 +474,32 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
 
     async markSeen(platformUserId: string, occurrenceIds: string[]) {
       if (occurrenceIds.length === 0) return;
-      const pool = getPool();
-      await pool.query(
-        `UPDATE reminder_occurrence_history
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`
+        UPDATE reminder_occurrence_history
          SET seen_at = now()
-         WHERE integrator_occurrence_id = ANY($1)
+         WHERE integrator_occurrence_id = ANY(${occurrenceIds})
            AND integrator_rule_id IN (
              SELECT integrator_rule_id
              FROM reminder_rules
-             WHERE platform_user_id = $2::uuid
+             WHERE platform_user_id = ${platformUserId}::uuid
            )`,
-        [occurrenceIds, platformUserId],
       );
     },
 
     async markAllSeen(platformUserId: string) {
-      const pool = getPool();
-      await pool.query(
-        `UPDATE reminder_occurrence_history
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`
+        UPDATE reminder_occurrence_history
          SET seen_at = now()
          WHERE seen_at IS NULL
            AND integrator_rule_id IN (
              SELECT integrator_rule_id
              FROM reminder_rules
-             WHERE platform_user_id = $1::uuid
+             WHERE platform_user_id = ${platformUserId}::uuid
            )`,
-        [platformUserId],
       );
     },
   };

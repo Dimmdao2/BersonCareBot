@@ -1,4 +1,5 @@
-import { getPool } from "@/infra/db/client";
+import { sql } from "drizzle-orm";
+import { getWebappSqlDb, runWebappSql, runWebappTransaction } from "@/infra/db/runWebappSql";
 import type {
   WebPushOnlyDueOccurrenceRow,
   WebPushOnlyReminderRuleRow,
@@ -92,25 +93,23 @@ const RULE_SELECT = `
 
 /** Drop pending rows after schedule change so old catch-up slots never dispatch. */
 export async function cancelWebPushOnlyPendingOccurrencesForRule(integratorRuleId: string): Promise<number> {
-  const pool = getPool();
-  const r = await pool.query(
-    `DELETE FROM webapp_reminder_occurrences
-     WHERE integrator_rule_id = $1
+  const r = await runWebappSql(
+    getWebappSqlDb(),
+    sql`DELETE FROM webapp_reminder_occurrences
+     WHERE integrator_rule_id = ${integratorRuleId}
        AND status IN ('planned', 'queued')`,
-    [integratorRuleId],
   );
   return r.rowCount ?? 0;
 }
 
 /** Legacy catch-up rows: pending slot older than grace window (cron runs every minute). */
 export async function expireOrphanedWebPushOnlyPendingOccurrences(nowIso: string): Promise<number> {
-  const pool = getPool();
-  const r = await pool.query(
-    `UPDATE webapp_reminder_occurrences
+  const r = await runWebappSql(
+    getWebappSqlDb(),
+    sql`UPDATE webapp_reminder_occurrences
      SET status = 'failed', failed_at = now(), error_code = 'orphaned_past_slot', updated_at = now()
      WHERE status IN ('planned', 'queued')
-       AND planned_at < $1::timestamptz - interval '3 minutes'`,
-    [nowIso],
+       AND planned_at < ${nowIso}::timestamptz - interval '3 minutes'`,
   );
   return r.rowCount ?? 0;
 }
@@ -118,29 +117,27 @@ export async function expireOrphanedWebPushOnlyPendingOccurrences(nowIso: string
 export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
   return {
     async listEnabledWebPushOnlyRules(nowIso) {
-      const pool = getPool();
-      const res = await pool.query<Parameters<typeof mapRuleRow>[0]>(
-        `SELECT ${RULE_SELECT}
+      const res = await runWebappSql<Parameters<typeof mapRuleRow>[0]>(
+        getWebappSqlDb(),
+        sql`SELECT ${sql.raw(RULE_SELECT)}
          FROM reminder_rules rr
          INNER JOIN platform_users pu ON pu.id = rr.platform_user_id
          WHERE rr.integrator_user_id IS NULL
            AND rr.platform_user_id IS NOT NULL
            AND rr.is_enabled = true
-           AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= $1::timestamptz)`,
-        [nowIso],
+           AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= ${nowIso}::timestamptz)`,
       );
       return res.rows.map(mapRuleRow);
     },
 
     async getRuleByIntegratorRuleId(integratorRuleId) {
-      const pool = getPool();
-      const res = await pool.query<Parameters<typeof mapRuleRow>[0]>(
-        `SELECT ${RULE_SELECT}
+      const res = await runWebappSql<Parameters<typeof mapRuleRow>[0]>(
+        getWebappSqlDb(),
+        sql`SELECT ${sql.raw(RULE_SELECT)}
          FROM reminder_rules rr
-         WHERE rr.integrator_rule_id = $1
+         WHERE rr.integrator_rule_id = ${integratorRuleId}
            AND rr.integrator_user_id IS NULL
          LIMIT 1`,
-        [integratorRuleId],
       );
       const row = res.rows[0];
       return row ? mapRuleRow(row) : null;
@@ -148,16 +145,15 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
 
     async upsertPlannedOccurrences(platformUserId, integratorRuleId, drafts) {
       if (drafts.length === 0) return 0;
-      const pool = getPool();
       let inserted = 0;
       for (const d of drafts) {
-        const r = await pool.query(
-          `INSERT INTO webapp_reminder_occurrences (
+        const r = await runWebappSql(
+          getWebappSqlDb(),
+          sql`INSERT INTO webapp_reminder_occurrences (
              integrator_rule_id, platform_user_id, occurrence_key, planned_at, status, updated_at
-           ) VALUES ($1, $2::uuid, $3, $4::timestamptz, 'planned', now())
+           ) VALUES (${integratorRuleId}, ${platformUserId}::uuid, ${d.occurrenceKey}, ${d.plannedAt}::timestamptz, 'planned', now())
            ON CONFLICT (integrator_rule_id, occurrence_key) DO NOTHING
            RETURNING id`,
-          [integratorRuleId, platformUserId, d.occurrenceKey, d.plannedAt],
         );
         if (r.rowCount && r.rowCount > 0) inserted += 1;
       }
@@ -165,44 +161,40 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
     },
 
     async claimDueOccurrences(nowIso, limit) {
-      const pool = getPool();
       const lim = Math.max(1, Math.trunc(limit));
-      await pool.query(
-        `UPDATE webapp_reminder_occurrences
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`UPDATE webapp_reminder_occurrences
          SET status = 'planned', updated_at = now()
          WHERE status = 'queued'
-           AND updated_at < $1::timestamptz - interval '10 minutes'`,
-        [nowIso],
+           AND updated_at < ${nowIso}::timestamptz - interval '10 minutes'`,
       );
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        const sel = await client.query<{
+      return runWebappTransaction(async (tx) => {
+        const sel = await runWebappSql<{
           id: string;
           integrator_rule_id: string;
           platform_user_id: string;
           occurrence_key: string;
           planned_at: string;
         }>(
-          `SELECT o.id::text, o.integrator_rule_id, o.platform_user_id::text, o.occurrence_key, o.planned_at::text
+          tx,
+          sql`SELECT o.id::text, o.integrator_rule_id, o.platform_user_id::text, o.occurrence_key, o.planned_at::text
            FROM webapp_reminder_occurrences o
            INNER JOIN platform_users pu ON pu.id = o.platform_user_id
            WHERE o.status = 'planned'
-             AND o.planned_at <= $1::timestamptz
-             AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= $1::timestamptz)
+             AND o.planned_at <= ${nowIso}::timestamptz
+             AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= ${nowIso}::timestamptz)
            ORDER BY o.planned_at ASC
-           LIMIT $2
+           LIMIT ${lim}
            FOR UPDATE SKIP LOCKED`,
-          [nowIso, lim],
         );
         const ids = sel.rows.map((r) => r.id);
         if (ids.length > 0) {
-          await client.query(
-            `UPDATE webapp_reminder_occurrences SET status = 'queued', updated_at = now() WHERE id = ANY($1::uuid[])`,
-            [ids],
+          await runWebappSql(
+            tx,
+            sql`UPDATE webapp_reminder_occurrences SET status = 'queued', updated_at = now() WHERE id = ANY(${ids})`,
           );
         }
-        await client.query("COMMIT");
         return sel.rows.map(
           (r): WebPushOnlyDueOccurrenceRow => ({
             id: r.id,
@@ -212,31 +204,24 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
             plannedAt: r.planned_at,
           }),
         );
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
 
     async markOccurrenceSent(occurrenceId) {
-      const pool = getPool();
-      await pool.query(
-        `UPDATE webapp_reminder_occurrences
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`UPDATE webapp_reminder_occurrences
          SET status = 'sent', sent_at = now(), updated_at = now()
-         WHERE id = $1::uuid`,
-        [occurrenceId],
+         WHERE id = ${occurrenceId}::uuid`,
       );
     },
 
     async markOccurrenceFailed(occurrenceId, errorCode) {
-      const pool = getPool();
-      await pool.query(
-        `UPDATE webapp_reminder_occurrences
-         SET status = 'failed', failed_at = now(), error_code = $2, updated_at = now()
-         WHERE id = $1::uuid`,
-        [occurrenceId, errorCode.slice(0, 120)],
+      await runWebappSql(
+        getWebappSqlDb(),
+        sql`UPDATE webapp_reminder_occurrences
+         SET status = 'failed', failed_at = now(), error_code = ${errorCode.slice(0, 120)}, updated_at = now()
+         WHERE id = ${occurrenceId}::uuid`,
       );
     },
 
@@ -245,21 +230,20 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
     },
 
     async resolveLinkedCatalogTitle(linkedObjectType, linkedObjectId) {
-      const pool = getPool();
       if (linkedObjectType === "content_page") {
-        const res = await pool.query<{ title: string }>(
-          `SELECT title FROM content_pages
-           WHERE slug = $1 AND is_published = true AND deleted_at IS NULL
+        const res = await runWebappSql<{ title: string }>(
+          getWebappSqlDb(),
+          sql`SELECT title FROM content_pages
+           WHERE slug = ${linkedObjectId} AND is_published = true AND deleted_at IS NULL
            LIMIT 1`,
-          [linkedObjectId],
         );
         const title = res.rows[0]?.title?.trim();
         return title && title.length > 0 ? title : null;
       }
       if (linkedObjectType === "content_section") {
-        const res = await pool.query<{ title: string }>(
-          `SELECT title FROM content_sections WHERE slug = $1 LIMIT 1`,
-          [linkedObjectId],
+        const res = await runWebappSql<{ title: string }>(
+          getWebappSqlDb(),
+          sql`SELECT title FROM content_sections WHERE slug = ${linkedObjectId} LIMIT 1`,
         );
         const title = res.rows[0]?.title?.trim();
         return title && title.length > 0 ? title : null;

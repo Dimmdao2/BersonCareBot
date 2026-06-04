@@ -155,3 +155,12 @@
 - **Проверки:** `pnpm --dir apps/integrator run typecheck`, `test` — **1028 passed**, 6 skipped; webapp `tsc --noEmit`; vitest fast по файлам этапа 3 — **23 passed**; `rg` по `apps/*/src/infra` — нет `client.query`/`pool.query` с `pg_advisory` в scope P3.
 - **Остаток:** сырой `pg_advisory_xact_lock` в `modules/auth/*RateLimit.ts` и `publicBookingRateLimit.ts` — **Wave 2 этап 7**.
 - **План:** `docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_03_advisory_locks.plan.md` — `status: completed`, секция «Закрытие».
+
+### Wave 2 — этап 4 (webapp напоминания) — выполнено (2026-06-05)
+
+- **Инфра:** `apps/webapp/src/infra/db/runWebappSql.ts` — `runWebappSql`, `runWebappTransaction`, тип `WebappSqlTransactionExecutor` с `tx.rollback()` (ранние выходы journal/rules/delete без throw).
+- **Репозитории:** `pgReminderRules.ts`, `pgReminderJournal.ts`, `pgWebPushOnlyReminders.ts` (включая `cancelWebPushOnlyPendingOccurrencesForRule`, claim `FOR UPDATE SKIP LOCKED`); `pgReminderProjection.ts` — upsert/read/mark seen через `execute(sql)`; `pgReminderTransactionalEmailCooldown.ts` — Drizzle ORM на `email_send_cooldowns`.
+- **Ограничение:** в `pgReminderProjection` остаётся `getPool()` только для вызовов `findCanonicalUserIdByIntegratorId` / `loadWarmupsSectionSlugs` (внешние хелперы, без `pool.query` в SQL projection).
+- **Тесты (vitest `--project fast`, 8 файлов):** **36 passed** — PG: `pgReminderProjection.pg.test.ts`, `pgReminderRules.test.ts`, `pgReminderJournal.pg.test.ts`, `pgWebPushOnlyReminders.pg.test.ts`, `pgReminderTransactionalEmailCooldown.test.ts`; in-memory/contract: `pgReminderProjection.test.ts`, `pgWebPushOnlyReminders.test.ts`, `inMemoryReminderJournal.test.ts`.
+- **Проверки:** `pnpm exec tsc --noEmit` (webapp); `rg 'pool\.query|client\.query'` по `apps/webapp/src/infra/repos/pgReminder*.ts` и `pgWebPushOnlyReminders.ts` — **0**; `RAW_SQL_INVENTORY.md` — P4 done для projection/rules/journal/webpush/cooldown.
+- **План:** [wave2_phase_04_webapp_reminders.plan.md](./plans/wave2_phase_04_webapp_reminders.plan.md) — `status: completed`, todos и DoD закрыты.
