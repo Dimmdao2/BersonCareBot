@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { OutgoingDeliveryKind } from '../../delivery/deliveryContract.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 export type OutgoingDeliveryQueueRow = {
   id: string;
@@ -34,8 +36,9 @@ export async function enqueueOutgoingDeliveryIfAbsent(
   input: EnqueueOutgoingDeliveryInput,
 ): Promise<boolean> {
   const maxAttempts = Math.max(1, Math.trunc(input.maxAttempts ?? 6));
-  const res = await db.query<{ inserted: boolean }>(
-    `INSERT INTO public.outgoing_delivery_queue (
+  const res = await runIntegratorSql<{ inserted: boolean }>(
+    db,
+    sql`INSERT INTO public.outgoing_delivery_queue (
        event_id,
        kind,
        channel,
@@ -44,10 +47,9 @@ export async function enqueueOutgoingDeliveryIfAbsent(
        attempt_count,
        max_attempts,
        next_retry_at
-     ) VALUES ($1, $2, $3, $4::jsonb, 'pending', 0, $5, now())
+     ) VALUES (${input.eventId}, ${input.kind}, ${input.channel}, ${JSON.stringify(input.payloadJson)}::jsonb, 'pending', 0, ${maxAttempts}, now())
      ON CONFLICT (event_id) DO NOTHING
      RETURNING true AS inserted`,
-    [input.eventId, input.kind, input.channel, JSON.stringify(input.payloadJson), maxAttempts],
   );
   return Boolean(res.rows[0]?.inserted);
 }
@@ -57,23 +59,23 @@ export async function resetStaleOutgoingDeliveryProcessing(
   staleAfterMinutes = 10,
 ): Promise<number> {
   const m = Math.max(1, Math.trunc(staleAfterMinutes));
-  const res = await db.query<{ id: string }>(
-    `UPDATE public.outgoing_delivery_queue
+  const res = await runIntegratorSql<{ id: string }>(
+    db,
+    sql`UPDATE public.outgoing_delivery_queue
      SET status = 'failed_retryable',
          next_retry_at = now(),
          updated_at = now()
      WHERE status = 'processing'
        AND last_attempt_at IS NOT NULL
-       AND last_attempt_at < now() - (($1::text || ' minutes')::interval)
+       AND last_attempt_at < now() - ((${String(m)}::text || ' minutes')::interval)
      RETURNING id`,
-    [String(m)],
   );
   return res.rows.length;
 }
 
 export async function claimDueOutgoingDeliveries(db: DbPort, limit: number): Promise<OutgoingDeliveryQueueRow[]> {
   const lim = Math.max(1, Math.trunc(limit));
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     id: string;
     event_id: string;
     kind: string;
@@ -88,13 +90,14 @@ export async function claimDueOutgoingDeliveries(db: DbPort, limit: number): Pro
     dead_at: string | null;
     last_error: string | null;
   }>(
-    `WITH due AS (
+    db,
+    sql`WITH due AS (
        SELECT id
        FROM public.outgoing_delivery_queue
        WHERE status IN ('pending', 'failed_retryable')
          AND next_retry_at <= now()
        ORDER BY next_retry_at ASC
-       LIMIT $1
+       LIMIT ${lim}
        FOR UPDATE SKIP LOCKED
      )
      UPDATE public.outgoing_delivery_queue q
@@ -118,7 +121,6 @@ export async function claimDueOutgoingDeliveries(db: DbPort, limit: number): Pro
        q.sent_at::text,
        q.dead_at::text,
        q.last_error`,
-    [lim],
   );
   return res.rows.map((r) => ({
     id: r.id,
@@ -138,26 +140,26 @@ export async function claimDueOutgoingDeliveries(db: DbPort, limit: number): Pro
 }
 
 export async function markOutgoingDeliverySent(db: DbPort, id: string): Promise<void> {
-  await db.query(
-    `UPDATE public.outgoing_delivery_queue
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.outgoing_delivery_queue
      SET status = 'sent',
          sent_at = now(),
          updated_at = now(),
          last_error = NULL
-     WHERE id = $1`,
-    [id],
+     WHERE id = ${id}`,
   );
 }
 
 export async function markOutgoingDeliveryDead(db: DbPort, id: string, lastError: string | null): Promise<void> {
-  await db.query(
-    `UPDATE public.outgoing_delivery_queue
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.outgoing_delivery_queue
      SET status = 'dead',
          dead_at = now(),
          updated_at = now(),
-         last_error = $2
-     WHERE id = $1`,
-    [id, lastError],
+         last_error = ${lastError}
+     WHERE id = ${id}`,
   );
 }
 
@@ -168,13 +170,13 @@ export async function rescheduleOutgoingDeliveryRetry(
   lastError: string | null,
 ): Promise<void> {
   const sec = Math.max(1, Math.trunc(delaySeconds));
-  await db.query(
-    `UPDATE public.outgoing_delivery_queue
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.outgoing_delivery_queue
      SET status = 'failed_retryable',
-         next_retry_at = now() + (($1::text || ' seconds')::interval),
+         next_retry_at = now() + ((${String(sec)}::text || ' seconds')::interval),
          updated_at = now(),
-         last_error = $2
-     WHERE id = $3`,
-    [String(sec), lastError, id],
+         last_error = ${lastError}
+     WHERE id = ${id}`,
   );
 }

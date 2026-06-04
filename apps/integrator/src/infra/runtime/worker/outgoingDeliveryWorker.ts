@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort, DbWritePort, DeliverySendResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
 import {
   retryDelaySecondsAfterFailure,
@@ -23,6 +24,7 @@ import {
   type DoctorBroadcastMenuWorkerDeps,
 } from './doctorBroadcastIntentMenu.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../../db/repos/notificationDeliveryAttempts.js';
+import { runIntegratorSql } from '../../db/runIntegratorSql.js';
 
 export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
@@ -108,7 +110,7 @@ async function incrementBroadcastAuditErrorIfDoctorBroadcast(
   if (row.kind !== DOCTOR_BROADCAST_INTENT_QUEUE_KIND) return;
   const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
   if (!auditId) return;
-  await db.query(`UPDATE public.broadcast_audit SET error_count = error_count + 1 WHERE id = $1::uuid`, [auditId]);
+  await runIntegratorSql(db, sql`UPDATE public.broadcast_audit SET error_count = error_count + 1 WHERE id = ${auditId}::uuid`);
 }
 
 async function readOperatorAlertAlreadySent(incidentId: string): Promise<boolean> {
@@ -117,9 +119,9 @@ async function readOperatorAlertAlreadySent(incidentId: string): Promise<boolean
 }
 
 async function readReminderOccurrenceStatus(db: DbPort, occurrenceId: string): Promise<string | null> {
-  const res = await db.query<{ status: string }>(
-    `SELECT status::text AS status FROM user_reminder_occurrences WHERE id = $1 LIMIT 1`,
-    [occurrenceId],
+  const res = await runIntegratorSql<{ status: string }>(
+    db,
+    sql`SELECT status::text AS status FROM user_reminder_occurrences WHERE id = ${occurrenceId} LIMIT 1`,
   );
   return typeof res.rows[0]?.status === 'string' ? res.rows[0]!.status : null;
 }
@@ -416,9 +418,7 @@ export async function processOutgoingDeliveryRow(
       await dispatchOutgoing(toSend);
       await recordMessengerQueueDeliveryAttempt(db, row, toSend, { status: 'success' });
       await markOutgoingDeliverySent(db, row.id);
-      await db.query(`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = $1::uuid`, [
-        broadcastAuditId,
-      ]);
+      await runIntegratorSql(db, sql`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = ${broadcastAuditId}::uuid`);
       logger.info(
         {
           broadcastAuditId,

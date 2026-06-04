@@ -1,12 +1,23 @@
 /* eslint-disable no-secrets/no-secrets -- test titles reference exported symbol names */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { drizzleSqlFragmentToApproximateSql } from '../drizzleSqlDebugText.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
   recordMessengerChannelSkipsBestEffort,
   recordMessengerNotEnqueuedSkipsBestEffort,
   recordNotificationDeliveryAttemptBestEffort,
 } from './notificationDeliveryAttempts.js';
 
+vi.mock('../runIntegratorSql.js', () => ({
+  runIntegratorSql: vi.fn().mockResolvedValue({ rows: [] }),
+}));
+
 describe('notificationDeliveryAttempts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(runIntegratorSql).mockResolvedValue({ rows: [] });
+  });
+
   it('recordNotificationDeliveryAttemptBestEffort inserts without throwing', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     await recordNotificationDeliveryAttemptBestEffort({ query } as never, {
@@ -15,7 +26,8 @@ describe('notificationDeliveryAttempts', () => {
       integratorUserId: '42',
       occurrenceId: '00000000-0000-4000-8000-000000000099',
     });
-    expect(query).toHaveBeenCalledOnce();
+    expect(query).not.toHaveBeenCalled();
+    expect(runIntegratorSql).toHaveBeenCalledOnce();
   });
 
   it('recordMessengerChannelSkipsBestEffort writes telegram/max skips only', async () => {
@@ -30,8 +42,10 @@ describe('notificationDeliveryAttempts', () => {
         { channel: 'web_push', reason: 'no_active_subscriptions' },
       ],
     });
-    expect(query).toHaveBeenCalledOnce();
-    expect(String(query.mock.calls[0]?.[0])).toContain('notification_delivery_attempts');
+    expect(query).not.toHaveBeenCalled();
+    expect(runIntegratorSql).toHaveBeenCalledOnce();
+    const fragment = vi.mocked(runIntegratorSql).mock.calls[0]?.[1];
+    expect(drizzleSqlFragmentToApproximateSql(fragment)).toContain('notification_delivery_attempts');
   });
 
   it('recordMessengerNotEnqueuedSkipsBestEffort skips channels already in resolution', async () => {
@@ -45,6 +59,7 @@ describe('notificationDeliveryAttempts', () => {
       alreadySkippedChannels: new Set(['telegram', 'max']),
     });
     expect(query).not.toHaveBeenCalled();
+    expect(runIntegratorSql).not.toHaveBeenCalled();
   });
 
   it('recordMessengerNotEnqueuedSkipsBestEffort records max when only telegram was skipped in resolution', async () => {
@@ -57,7 +72,9 @@ describe('notificationDeliveryAttempts', () => {
       sendChannels: [],
       alreadySkippedChannels: new Set(['telegram']),
     });
-    expect(query).toHaveBeenCalledOnce();
-    expect(query.mock.calls[0]?.[1]?.[3]).toBe('max');
+    expect(query).not.toHaveBeenCalled();
+    expect(runIntegratorSql).toHaveBeenCalledOnce();
+    const fragment = vi.mocked(runIntegratorSql).mock.calls[0]?.[1];
+    expect(drizzleSqlFragmentToApproximateSql(fragment)).toContain('notification_delivery_attempts');
   });
 });

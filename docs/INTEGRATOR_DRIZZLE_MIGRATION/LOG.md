@@ -105,3 +105,16 @@
 - Повторная верификация: все **5** планов (`integrator_drizzle_migration_master` + `phase_1` … `phase_4`) — **`status: completed`**, todos и DoD-чеклисты закрыты; **`pnpm --dir apps/integrator run typecheck`** и **`test`** — зелёные (1005 passed).
 - **`git mv`** из `.cursor/plans/` в **`.cursor/plans/archive/`**; относительные ссылки на `apps/` / `docs/` в теле планов поправлены (`../../../`).
 - Индекс: [`docs/README.md`](../README.md), [`docs/TODO.md`](../TODO.md), [`.cursor/plans/archive/README.md`](../../.cursor/plans/archive/README.md).
+
+## 2026-06-05
+
+### Wave 2 — этап 1 (integrator tail SQL) — выполнено
+
+- **Scope-факт:** `rg` по `apps/integrator/src/infra/db/repos`, `integrations`, `config`, `infra/runtime` показал целевые остатки фазы 1 в `outgoingDeliveryQueue.ts`, `notificationDeliveryAttempts.ts`, `messengerPhoneBindAudit.ts`, `settingsSyncRoute.ts`, `bookingProfilesRepo.ts`, `outgoingDeliveryWorker.ts`. Оставшиеся `client.query` после этапа — только advisory-lock зона **фазы 3** (`schedulerLocks.ts`, `rubitimeApiThrottle.ts`) и тестовый `.query(true)` в nock.
+- **Очередь доставки:** `outgoingDeliveryQueue.ts` переведён с `DbPort.query` на `runIntegratorSql` + `drizzle-orm sql`; claim сохранён как CTE с `FOR UPDATE SKIP LOCKED`, без изменения статусов/сортировки/retry policy.
+- **Worker доставки:** `outgoingDeliveryWorker.ts` перевёл точечные SQL-чтения/апдейты (`user_reminder_occurrences`, `broadcast_audit.sent_count/error_count`) на `runIntegratorSql`; `dispatchOutgoing`, retry/dead-finalize и `attachMenu` семантика не менялись.
+- **Rubitime legacy profiles:** `bookingProfilesRepo.ts` переведён на `runIntegratorSql` + `sql` поверх текущих `integrator.rubitime_*`; дедуп/перевод на `public.booking_*` не начинался.
+- **Settings mirror:** `settingsSyncRoute.ts` upsert `integrator.system_settings` переведён на `runIntegratorSql` + `sql`; HTTP sync, зеркало и cache invalidation (`app_base_url`, timezone, Google, SMTP, verbose log, staff ids) сохранены.
+- **Audit/attempt repos:** `messengerPhoneBindAudit.ts` и `notificationDeliveryAttempts.ts` переведены на `runIntegratorSql`; unique violation helper учитывает `cause.code` от Drizzle/pg wrapper.
+- **Тесты:** обновлены unit-тесты `settingsSyncRoute.test.ts`, `notificationDeliveryAttempts.test.ts`, `outgoingDeliveryWorker.test.ts` на seam `runIntegratorSql`; добавлены `outgoingDeliveryQueue.test.ts` (idempotent enqueue, stale reset, claim `FOR UPDATE SKIP LOCKED`, sent/dead/retry statuses) и `bookingProfilesRepo.test.ts` (legacy `rubitime_*`, active-only lookup, coalesced unique constraint, отсутствие `public.booking_*`). Проверки зелёные: `pnpm --dir apps/integrator run typecheck`; `pnpm --dir apps/integrator run test` — **1016 passed, 6 skipped**. Локально есть предупреждение окружения: Node `v20.18.2` при требовании проекта `>=22`.
+- **План:** `docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_01_integrator_tail.plan.md` — `status: completed`, todos и DoD закрыты.

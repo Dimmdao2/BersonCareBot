@@ -8,7 +8,9 @@
  * for **v1** M2M only. Очная запись v2 получает ID из webapp-каталога и не использует этот
  * lookup в hot path. Сохраняется для online v1 и отката / совместимости.
  */
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { runIntegratorSql } from '../../../infra/db/runIntegratorSql.js';
 
 // ---- Branch ----
 
@@ -22,14 +24,14 @@ export type RubitimeBranch = {
 };
 
 export async function listBranches(db: DbPort): Promise<RubitimeBranch[]> {
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     id: string;
     rubitime_branch_id: number;
     city_code: string;
     title: string;
     address: string;
     is_active: boolean;
-  }>(`SELECT id, rubitime_branch_id, city_code, title, address, is_active
+  }>(db, sql`SELECT id, rubitime_branch_id, city_code, title, address, is_active
       FROM rubitime_branches
       ORDER BY title`);
   return res.rows.map((r) => ({
@@ -46,7 +48,7 @@ export async function upsertBranch(
   db: DbPort,
   input: { rubitimeBranchId: number; cityCode: string; title: string; address?: string },
 ): Promise<RubitimeBranch> {
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     id: string;
     rubitime_branch_id: number;
     city_code: string;
@@ -54,8 +56,9 @@ export async function upsertBranch(
     address: string;
     is_active: boolean;
   }>(
-    `INSERT INTO rubitime_branches (rubitime_branch_id, city_code, title, address, is_active, updated_at)
-     VALUES ($1, $2, $3, $4, TRUE, NOW())
+    db,
+    sql`INSERT INTO rubitime_branches (rubitime_branch_id, city_code, title, address, is_active, updated_at)
+     VALUES (${input.rubitimeBranchId}, ${input.cityCode}, ${input.title}, ${input.address ?? ''}, TRUE, NOW())
      ON CONFLICT (rubitime_branch_id) DO UPDATE
        SET city_code  = EXCLUDED.city_code,
            title      = EXCLUDED.title,
@@ -63,7 +66,6 @@ export async function upsertBranch(
            is_active  = TRUE,
            updated_at = NOW()
      RETURNING id, rubitime_branch_id, city_code, title, address, is_active`,
-    [input.rubitimeBranchId, input.cityCode, input.title, input.address ?? ''],
   );
   const r = res.rows[0];
   if (!r) throw new Error('upsertBranch: no row returned');
@@ -78,9 +80,9 @@ export async function upsertBranch(
 }
 
 export async function deactivateBranch(db: DbPort, id: number): Promise<void> {
-  await db.query(
-    `UPDATE rubitime_branches SET is_active = FALSE, updated_at = NOW() WHERE id = $1`,
-    [id],
+  await runIntegratorSql(
+    db,
+    sql`UPDATE rubitime_branches SET is_active = FALSE, updated_at = NOW() WHERE id = ${id}`,
   );
 }
 
@@ -96,14 +98,14 @@ export type RubitimeService = {
 };
 
 export async function listServices(db: DbPort): Promise<RubitimeService[]> {
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     id: string;
     rubitime_service_id: number;
     title: string;
     category_code: string;
     duration_minutes: number;
     is_active: boolean;
-  }>(`SELECT id, rubitime_service_id, title, category_code, duration_minutes, is_active
+  }>(db, sql`SELECT id, rubitime_service_id, title, category_code, duration_minutes, is_active
       FROM rubitime_services
       ORDER BY title`);
   return res.rows.map((r) => ({
@@ -120,7 +122,7 @@ export async function upsertService(
   db: DbPort,
   input: { rubitimeServiceId: number; title: string; categoryCode: string; durationMinutes: number },
 ): Promise<RubitimeService> {
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     id: string;
     rubitime_service_id: number;
     title: string;
@@ -128,8 +130,9 @@ export async function upsertService(
     duration_minutes: number;
     is_active: boolean;
   }>(
-    `INSERT INTO rubitime_services (rubitime_service_id, title, category_code, duration_minutes, is_active, updated_at)
-     VALUES ($1, $2, $3, $4, TRUE, NOW())
+    db,
+    sql`INSERT INTO rubitime_services (rubitime_service_id, title, category_code, duration_minutes, is_active, updated_at)
+     VALUES (${input.rubitimeServiceId}, ${input.title}, ${input.categoryCode}, ${input.durationMinutes}, TRUE, NOW())
      ON CONFLICT (rubitime_service_id) DO UPDATE
        SET title            = EXCLUDED.title,
            category_code    = EXCLUDED.category_code,
@@ -137,7 +140,6 @@ export async function upsertService(
            is_active        = TRUE,
            updated_at       = NOW()
      RETURNING id, rubitime_service_id, title, category_code, duration_minutes, is_active`,
-    [input.rubitimeServiceId, input.title, input.categoryCode, input.durationMinutes],
   );
   const r = res.rows[0];
   if (!r) throw new Error('upsertService: no row returned');
@@ -152,9 +154,9 @@ export async function upsertService(
 }
 
 export async function deactivateService(db: DbPort, id: number): Promise<void> {
-  await db.query(
-    `UPDATE rubitime_services SET is_active = FALSE, updated_at = NOW() WHERE id = $1`,
-    [id],
+  await runIntegratorSql(
+    db,
+    sql`UPDATE rubitime_services SET is_active = FALSE, updated_at = NOW() WHERE id = ${id}`,
   );
 }
 
@@ -168,12 +170,12 @@ export type RubitimeCooperator = {
 };
 
 export async function listCooperators(db: DbPort): Promise<RubitimeCooperator[]> {
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     id: string;
     rubitime_cooperator_id: number;
     title: string;
     is_active: boolean;
-  }>(`SELECT id, rubitime_cooperator_id, title, is_active
+  }>(db, sql`SELECT id, rubitime_cooperator_id, title, is_active
       FROM rubitime_cooperators
       ORDER BY title`);
   return res.rows.map((r) => ({
@@ -188,20 +190,20 @@ export async function upsertCooperator(
   db: DbPort,
   input: { rubitimeCooperatorId: number; title: string },
 ): Promise<RubitimeCooperator> {
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     id: string;
     rubitime_cooperator_id: number;
     title: string;
     is_active: boolean;
   }>(
-    `INSERT INTO rubitime_cooperators (rubitime_cooperator_id, title, is_active, updated_at)
-     VALUES ($1, $2, TRUE, NOW())
+    db,
+    sql`INSERT INTO rubitime_cooperators (rubitime_cooperator_id, title, is_active, updated_at)
+     VALUES (${input.rubitimeCooperatorId}, ${input.title}, TRUE, NOW())
      ON CONFLICT (rubitime_cooperator_id) DO UPDATE
        SET title      = EXCLUDED.title,
            is_active  = TRUE,
            updated_at = NOW()
      RETURNING id, rubitime_cooperator_id, title, is_active`,
-    [input.rubitimeCooperatorId, input.title],
   );
   const r = res.rows[0];
   if (!r) throw new Error('upsertCooperator: no row returned');
@@ -214,9 +216,9 @@ export async function upsertCooperator(
 }
 
 export async function deactivateCooperator(db: DbPort, id: number): Promise<void> {
-  await db.query(
-    `UPDATE rubitime_cooperators SET is_active = FALSE, updated_at = NOW() WHERE id = $1`,
-    [id],
+  await runIntegratorSql(
+    db,
+    sql`UPDATE rubitime_cooperators SET is_active = FALSE, updated_at = NOW() WHERE id = ${id}`,
   );
 }
 
@@ -254,13 +256,14 @@ export async function resolveBookingProfile(
   query: { type: 'online' | 'in_person'; category: string; city?: string },
 ): Promise<ResolvedProfileParams | null> {
   const cityParam = query.type === 'in_person' ? (query.city ?? null) : null;
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     rubitime_branch_id: number;
     rubitime_service_id: number;
     rubitime_cooperator_id: number;
     duration_minutes: number;
   }>(
-    `SELECT
+    db,
+    sql`SELECT
        b.rubitime_branch_id,
        s.rubitime_service_id,
        c.rubitime_cooperator_id,
@@ -269,15 +272,14 @@ export async function resolveBookingProfile(
      JOIN rubitime_branches     b ON b.id = p.branch_id
      JOIN rubitime_services     s ON s.id = p.service_id
      JOIN rubitime_cooperators  c ON c.id = p.cooperator_id
-     WHERE p.booking_type  = $1
-       AND p.category_code = $2
-       AND COALESCE(p.city_code, '') = COALESCE($3, '')
+     WHERE p.booking_type  = ${query.type}
+       AND p.category_code = ${query.category}
+       AND COALESCE(p.city_code, '') = COALESCE(${cityParam}, '')
        AND p.is_active  = TRUE
        AND b.is_active  = TRUE
        AND s.is_active  = TRUE
        AND c.is_active  = TRUE
      LIMIT 1`,
-    [query.type, query.category, cityParam],
   );
 
   const r = res.rows[0];
@@ -296,12 +298,13 @@ export async function resolveBookingProfile(
 export async function pickAnyActiveRubitimeScheduleTriple(
   db: DbPort,
 ): Promise<{ branchId: number; cooperatorId: number; serviceId: number } | null> {
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     rubitime_branch_id: number;
     rubitime_service_id: number;
     rubitime_cooperator_id: number;
   }>(
-    `SELECT
+    db,
+    sql`SELECT
        b.rubitime_branch_id,
        s.rubitime_service_id,
        c.rubitime_cooperator_id
@@ -323,7 +326,7 @@ export async function pickAnyActiveRubitimeScheduleTriple(
 }
 
 export async function listBookingProfiles(db: DbPort): Promise<RubitimeBookingProfile[]> {
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     id: string;
     booking_type: string;
     category_code: string;
@@ -340,7 +343,8 @@ export async function listBookingProfiles(db: DbPort): Promise<RubitimeBookingPr
     service_title: string;
     cooperator_title: string;
   }>(
-    `SELECT
+    db,
+    sql`SELECT
        p.id, p.booking_type, p.category_code, p.city_code,
        p.branch_id, p.service_id, p.cooperator_id, p.is_active,
        b.rubitime_branch_id, b.title AS branch_title,
@@ -382,10 +386,11 @@ export async function upsertBookingProfile(
     cooperatorId: number;
   },
 ): Promise<{ id: number }> {
-  const res = await db.query<{ id: string }>(
-    `INSERT INTO rubitime_booking_profiles
+  const res = await runIntegratorSql<{ id: string }>(
+    db,
+    sql`INSERT INTO rubitime_booking_profiles
        (booking_type, category_code, city_code, branch_id, service_id, cooperator_id, is_active, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW())
+     VALUES (${input.bookingType}, ${input.categoryCode}, ${input.cityCode}, ${input.branchId}, ${input.serviceId}, ${input.cooperatorId}, TRUE, NOW())
      ON CONFLICT ON CONSTRAINT rubitime_booking_profiles_booking_type_category_code_coalesce_ci_key
      DO UPDATE
        SET branch_id     = EXCLUDED.branch_id,
@@ -394,14 +399,6 @@ export async function upsertBookingProfile(
            is_active     = TRUE,
            updated_at    = NOW()
      RETURNING id`,
-    [
-      input.bookingType,
-      input.categoryCode,
-      input.cityCode,
-      input.branchId,
-      input.serviceId,
-      input.cooperatorId,
-    ],
   );
   const r = res.rows[0];
   if (!r) throw new Error('upsertBookingProfile: no row returned');
@@ -419,10 +416,11 @@ export async function upsertBookingProfileByIndex(
     cooperatorId: number;
   },
 ): Promise<{ id: number }> {
-  const res = await db.query<{ id: string }>(
-    `INSERT INTO rubitime_booking_profiles
+  const res = await runIntegratorSql<{ id: string }>(
+    db,
+    sql`INSERT INTO rubitime_booking_profiles
        (booking_type, category_code, city_code, branch_id, service_id, cooperator_id, is_active, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW())
+     VALUES (${input.bookingType}, ${input.categoryCode}, ${input.cityCode}, ${input.branchId}, ${input.serviceId}, ${input.cooperatorId}, TRUE, NOW())
      ON CONFLICT (booking_type, category_code, COALESCE(city_code, ''))
      DO UPDATE
        SET branch_id     = EXCLUDED.branch_id,
@@ -431,14 +429,6 @@ export async function upsertBookingProfileByIndex(
            is_active     = TRUE,
            updated_at    = NOW()
      RETURNING id`,
-    [
-      input.bookingType,
-      input.categoryCode,
-      input.cityCode,
-      input.branchId,
-      input.serviceId,
-      input.cooperatorId,
-    ],
   );
   const r = res.rows[0];
   // eslint-disable-next-line no-secrets/no-secrets
@@ -447,8 +437,8 @@ export async function upsertBookingProfileByIndex(
 }
 
 export async function deactivateBookingProfile(db: DbPort, id: number): Promise<void> {
-  await db.query(
-    `UPDATE rubitime_booking_profiles SET is_active = FALSE, updated_at = NOW() WHERE id = $1`,
-    [id],
+  await runIntegratorSql(
+    db,
+    sql`UPDATE rubitime_booking_profiles SET is_active = FALSE, updated_at = NOW() WHERE id = ${id}`,
   );
 }

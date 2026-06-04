@@ -8,10 +8,16 @@ vi.mock('../../db/repos/outgoingDeliveryQueue.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../../db/runIntegratorSql.js', () => ({
+  runIntegratorSql: vi.fn().mockResolvedValue({ rows: [{ status: 'queued' }] }),
+}));
+
 import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
 import { processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
 import { markOutgoingDeliverySent } from '../../db/repos/outgoingDeliveryQueue.js';
 import * as doctorBroadcastIntentMenu from './doctorBroadcastIntentMenu.js';
+import { drizzleSqlFragmentToApproximateSql } from '../../db/drizzleSqlDebugText.js';
+import { runIntegratorSql } from '../../db/runIntegratorSql.js';
 
 function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDeliveryQueueRow {
   return {
@@ -35,6 +41,7 @@ function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDelivery
 describe('reminder_dispatch outgoing delivery row', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(runIntegratorSql).mockResolvedValue({ rows: [{ status: 'queued' }] });
   });
 
   it('max: stale delete then send; logs maxMessageId on success', async () => {
@@ -44,9 +51,7 @@ describe('reminder_dispatch outgoing delivery row', () => {
       return {};
     });
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const db = {
-      query: vi.fn().mockResolvedValue({ rows: [{ status: 'queued' }] }),
-    };
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         channel: 'max',
@@ -90,9 +95,7 @@ describe('reminder_dispatch outgoing delivery row', () => {
       return {};
     });
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const db = {
-      query: vi.fn().mockResolvedValue({ rows: [{ status: 'queued' }] }),
-    };
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         channel: 'telegram',
@@ -133,9 +136,7 @@ describe('reminder_dispatch outgoing delivery row', () => {
       return {};
     });
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const db = {
-      query: vi.fn().mockResolvedValue({ rows: [{ status: 'queued' }] }),
-    };
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         channel: 'telegram',
@@ -173,9 +174,7 @@ describe('reminder_dispatch outgoing delivery row', () => {
       return {};
     });
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const db = {
-      query: vi.fn().mockResolvedValue({ rows: [{ status: 'queued' }] }),
-    };
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         channel: 'max',
@@ -211,9 +210,7 @@ describe('reminder_dispatch outgoing delivery row', () => {
       return {};
     });
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const db = {
-      query: vi.fn().mockResolvedValue({ rows: [{ status: 'queued' }] }),
-    };
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         channel: 'max',
@@ -253,9 +250,7 @@ describe('reminder_dispatch outgoing delivery row', () => {
       return {};
     });
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const db = {
-      query: vi.fn().mockResolvedValue({ rows: [{ status: 'queued' }] }),
-    };
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         channel: 'telegram',
@@ -294,16 +289,16 @@ describe('reminder_dispatch outgoing delivery row', () => {
   it('skips dead-finalize reminder writes when occurrence is already missing', async () => {
     const dispatchOutgoing = vi.fn().mockRejectedValue(new Error('provider hard-fail'));
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const db = {
-      query: vi
-        .fn()
-        // First read (before send): queued
-        .mockResolvedValueOnce({ rows: [{ status: 'queued' }] })
-        // Second read (finalize dead): occurrence deleted meanwhile
-        .mockResolvedValueOnce({ rows: [] })
-        // markOutgoingDeliveryDead and other writes
-        .mockResolvedValue({ rows: [] }),
-    };
+    vi.mocked(runIntegratorSql)
+      // First read (before send): queued
+      .mockResolvedValueOnce({ rows: [{ status: 'queued' }] })
+      // Notification delivery attempt best-effort insert
+      .mockResolvedValueOnce({ rows: [] })
+      // markOutgoingDeliveryDead
+      .mockResolvedValueOnce({ rows: [] })
+      // Second read (finalize dead): occurrence deleted meanwhile
+      .mockResolvedValueOnce({ rows: [] });
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         id: 'q-missing-occ',
@@ -343,14 +338,13 @@ describe('reminder_dispatch outgoing delivery row', () => {
 describe('doctor_broadcast_intent outgoing delivery row', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(runIntegratorSql).mockResolvedValue({ rows: [{ status: 'queued' }] });
   });
 
   it('success: dispatch, mark sent, increment broadcast_audit.sent_count', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue({});
     const auditId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-    const db = {
-      query: vi.fn().mockResolvedValue({ rows: [] }),
-    };
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         kind: 'doctor_broadcast_intent',
@@ -378,15 +372,16 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
     );
     expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
     expect(markOutgoingDeliverySent).toHaveBeenCalled();
-    expect(db.query).toHaveBeenCalledWith(
-      expect.stringContaining('broadcast_audit'),
-      expect.arrayContaining([auditId]),
-    );
+    const sqlText = vi.mocked(runIntegratorSql).mock.calls
+      .map((c) => drizzleSqlFragmentToApproximateSql(c[1]))
+      .join('\n');
+    expect(sqlText).toContain('broadcast_audit');
+    expect(runIntegratorSql).toHaveBeenCalled();
   });
 
   it('missing broadcastAuditId: marks dead without dispatch', async () => {
     const dispatchOutgoing = vi.fn();
-    const db = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         kind: 'doctor_broadcast_intent',
@@ -406,8 +401,10 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
       { db: db as never, writePort: { writeDb: vi.fn() } as never, dispatchOutgoing },
     );
     expect(dispatchOutgoing).not.toHaveBeenCalled();
-    const sql = db.query.mock.calls.map((c) => String(c[0])).join('\n');
-    expect(sql).toContain('dead');
+    const sqlText = vi.mocked(runIntegratorSql).mock.calls
+      .map((c) => drizzleSqlFragmentToApproximateSql(c[1]))
+      .join('\n');
+    expect(sqlText).toContain("status = 'dead'");
   });
 
   it('calls menu enricher when doctorBroadcastMenu deps provided', async () => {
@@ -422,9 +419,7 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
     );
     const dispatchOutgoing = vi.fn().mockResolvedValue({});
     const auditId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-    const db = {
-      query: vi.fn().mockResolvedValue({ rows: [] }),
-    };
+    const db = {};
     await processOutgoingDeliveryRow(
       baseRow({
         kind: 'doctor_broadcast_intent',

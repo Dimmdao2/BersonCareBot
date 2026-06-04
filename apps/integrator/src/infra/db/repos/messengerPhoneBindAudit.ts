@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import type { MessengerBindAuditCandidateSummary, MessengerBindAuditInitiatorSummary, MessengerPhoneBindDb } from '@bersoncare/platform-merge';
 import {
   buildMessengerBindBlockedRelayLines,
@@ -13,6 +14,7 @@ import {
   relayMessengerPhoneBindAdminIncident,
   type MessengerPhoneBindIncidentTopic,
 } from '../adminIncidentAlertRelay.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 /**
  * Inserts/updates `public.admin_audit_log` for messenger phone-bind failures.
@@ -21,7 +23,9 @@ import {
  */
 
 function isPgUniqueViolation(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: unknown }).code === '23505';
+  if (typeof err !== 'object' || err === null) return false;
+  const e = err as { code?: unknown; cause?: { code?: unknown } };
+  return e.code === '23505' || e.cause?.code === '23505';
 }
 
 /**
@@ -90,49 +94,49 @@ export async function recordMessengerPhoneBindBlocked(input: {
   try {
     await input.db.tx(async (tx) => {
       if (conflictKey) {
-        const existing = await tx.query<{ id: string; repeat_count: number }>(
-          `SELECT id::text, repeat_count FROM public.admin_audit_log
-           WHERE conflict_key = $1 AND resolved_at IS NULL
+        const existing = await runIntegratorSql<{ id: string; repeat_count: number }>(
+          tx,
+          sql`SELECT id::text, repeat_count FROM public.admin_audit_log
+           WHERE conflict_key = ${conflictKey} AND resolved_at IS NULL
            FOR UPDATE
            LIMIT 1`,
-          [conflictKey],
         );
         if (existing.rows[0]) {
-          await tx.query(
-            `UPDATE public.admin_audit_log
-             SET details = details || $2::jsonb,
+          await runIntegratorSql(
+            tx,
+            sql`UPDATE public.admin_audit_log
+             SET details = details || ${JSON.stringify(baseDetails)}::jsonb,
                  repeat_count = repeat_count + 1,
                  last_seen_at = now(),
                  status = 'error'
-             WHERE id = $1::uuid`,
-            [existing.rows[0].id, JSON.stringify(baseDetails)],
+             WHERE id = ${existing.rows[0].id}::uuid`,
           );
         } else {
           try {
-            await tx.query(
-              `INSERT INTO public.admin_audit_log (actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
-               VALUES (NULL, 'messenger_phone_bind_blocked', $1, $2, $3::jsonb, 'error', 1, now())`,
-              [candidateIds[0] ?? null, conflictKey, JSON.stringify(baseDetails)],
+            await runIntegratorSql(
+              tx,
+              sql`INSERT INTO public.admin_audit_log (actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
+               VALUES (NULL, 'messenger_phone_bind_blocked', ${candidateIds[0] ?? null}, ${conflictKey}, ${JSON.stringify(baseDetails)}::jsonb, 'error', 1, now())`,
             );
             insertedFirst = true;
           } catch (err) {
             if (!isPgUniqueViolation(err)) throw err;
-            await tx.query(
-              `UPDATE public.admin_audit_log
-               SET details = details || $2::jsonb,
+            await runIntegratorSql(
+              tx,
+              sql`UPDATE public.admin_audit_log
+               SET details = details || ${JSON.stringify(baseDetails)}::jsonb,
                    repeat_count = repeat_count + 1,
                    last_seen_at = now(),
                    status = 'error'
-               WHERE conflict_key = $1 AND resolved_at IS NULL`,
-              [conflictKey, JSON.stringify(baseDetails)],
+               WHERE conflict_key = ${conflictKey} AND resolved_at IS NULL`,
             );
           }
         }
       } else {
-        await tx.query(
-          `INSERT INTO public.admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
-           VALUES (NULL, 'messenger_phone_bind_anomaly', $1, NULL, $2::jsonb, 'error')`,
-          [candidateIds[0] ?? null, JSON.stringify(baseDetails)],
+        await runIntegratorSql(
+          tx,
+          sql`INSERT INTO public.admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
+           VALUES (NULL, 'messenger_phone_bind_anomaly', ${candidateIds[0] ?? null}, NULL, ${JSON.stringify(baseDetails)}::jsonb, 'error')`,
         );
         insertedFirst = true;
       }

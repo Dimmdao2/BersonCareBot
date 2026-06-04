@@ -4,7 +4,13 @@ import Fastify from 'fastify';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import * as appTimezone from '../../config/appTimezone.js';
 import * as messengerStaffIds from '../../infra/db/messengerStaffIds.js';
+import { drizzleSqlFragmentToApproximateSql } from '../../infra/db/drizzleSqlDebugText.js';
+import { runIntegratorSql } from '../../infra/db/runIntegratorSql.js';
 import { registerBersoncareSettingsSyncRoute } from './settingsSyncRoute.js';
+
+vi.mock('../../infra/db/runIntegratorSql.js', () => ({
+  runIntegratorSql: vi.fn().mockResolvedValue({ rows: [] }),
+}));
 
 const TEST_SECRET = 'test-shared-secret-16chars';
 
@@ -24,6 +30,8 @@ function makeHeaders(rawBody: string, secret = TEST_SECRET) {
 describe('POST /api/integrator/settings/sync', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.mocked(runIntegratorSql).mockResolvedValue({ rows: [] });
   });
 
   function makeDbPort(mockQuery: ReturnType<typeof vi.fn>): DbPort {
@@ -58,9 +66,10 @@ describe('POST /api/integrator/settings/sync', () => {
 
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ ok: true });
-    expect(query).toHaveBeenCalledTimes(1);
-    const sql = query.mock.calls[0]?.[0] as string | undefined;
-    expect(sql).toContain('INSERT INTO system_settings');
+    expect(query).not.toHaveBeenCalled();
+    expect(runIntegratorSql).toHaveBeenCalledTimes(1);
+    const fragment = vi.mocked(runIntegratorSql).mock.calls[0]?.[1];
+    expect(drizzleSqlFragmentToApproximateSql(fragment)).toContain('INSERT INTO system_settings');
   });
 
   it('invalidates app display timezone cache when key is app_display_timezone', async () => {
@@ -88,6 +97,7 @@ describe('POST /api/integrator/settings/sync', () => {
 
     expect(res.statusCode).toBe(200);
     expect(invalidateSpy).toHaveBeenCalledTimes(1);
+    expect(runIntegratorSql).toHaveBeenCalledTimes(1);
   });
 
   it('invalidates messenger staff ids cache when doctor_telegram_ids syncs', async () => {
@@ -115,6 +125,7 @@ describe('POST /api/integrator/settings/sync', () => {
 
     expect(res.statusCode).toBe(200);
     expect(invalidateSpy).toHaveBeenCalledWith('doctor_telegram_ids');
+    expect(runIntegratorSql).toHaveBeenCalledTimes(1);
   });
 
   it('returns 401 for invalid signature', async () => {
@@ -145,5 +156,6 @@ describe('POST /api/integrator/settings/sync', () => {
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.body)).toEqual({ ok: false, error: 'invalid_signature' });
     expect(query).not.toHaveBeenCalled();
+    expect(runIntegratorSql).not.toHaveBeenCalled();
   });
 });

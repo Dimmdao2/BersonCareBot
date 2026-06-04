@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { DbPort } from '../../kernel/contracts/index.js';
@@ -9,6 +10,7 @@ import { invalidateAppDisplayTimezoneCache } from '../../config/appTimezone.js';
 import { invalidateGoogleCalendarConfigCache } from '../google-calendar/runtimeConfig.js';
 import { invalidateMessengerStaffIdsCacheForSettingKey } from '../../infra/db/messengerStaffIds.js';
 import { invalidateOperationalVerboseLogCache } from '../../infra/db/repos/operationalVerboseLog.js';
+import { runIntegratorSql } from '../../infra/db/runIntegratorSql.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -82,14 +84,14 @@ export async function registerBersoncareSettingsSyncRoute(
     const { key, scope, valueJson, updatedBy } = parsed.data;
 
     try {
-      await db.query(
-        `INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
-         VALUES ($1, $2, $3::jsonb, NOW(), $4)
+      await runIntegratorSql(
+        db,
+        sql`INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
+         VALUES (${key}, ${scope}, ${JSON.stringify(valueJson)}::jsonb, NOW(), ${updatedBy ?? null})
          ON CONFLICT (key, scope) DO UPDATE SET
            value_json = EXCLUDED.value_json,
            updated_at = NOW(),
            updated_by = EXCLUDED.updated_by`,
-        [key, scope, JSON.stringify(valueJson), updatedBy ?? null],
       );
     } catch (err) {
       logger.error({ err }, 'bersoncare settings/sync: upsert failed');

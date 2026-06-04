@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 export type IntegratorNotificationDeliveryChannel = 'telegram' | 'max';
 
@@ -40,25 +42,25 @@ export async function recordNotificationDeliveryAttemptBestEffort(
 ): Promise<void> {
   try {
     const metadataJson = JSON.stringify(input.metadata ?? {});
-    await db.query(
-      `INSERT INTO public.notification_delivery_attempts (
+    await runIntegratorSql(
+      db,
+      sql`INSERT INTO public.notification_delivery_attempts (
         integrator_user_id, topic_code, intent_type, channel, status, reason,
         provider_status_code, event_id, occurrence_id, recipient_ref, error_message, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::uuid, $10, $11, $12::jsonb)`,
-      [
-        input.integratorUserId ?? null,
-        input.topicCode ?? null,
-        input.intentType ?? null,
-        input.channel,
-        input.status,
-        input.reason ?? null,
-        input.providerStatusCode ?? null,
-        input.eventId ?? null,
-        parseOccurrenceUuid(input.occurrenceId),
-        input.recipientRef ?? null,
-        input.errorMessage ?? null,
-        metadataJson,
-      ],
+      ) VALUES (
+        ${input.integratorUserId ?? null},
+        ${input.topicCode ?? null},
+        ${input.intentType ?? null},
+        ${input.channel},
+        ${input.status},
+        ${input.reason ?? null},
+        ${input.providerStatusCode ?? null},
+        ${input.eventId ?? null},
+        ${parseOccurrenceUuid(input.occurrenceId)}::uuid,
+        ${input.recipientRef ?? null},
+        ${input.errorMessage ?? null},
+        ${metadataJson}::jsonb
+      )`,
     );
   } catch (err) {
     logger.warn(
