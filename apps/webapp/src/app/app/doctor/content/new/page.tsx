@@ -7,7 +7,9 @@ import {
   type PatientHomeCmsReturnQuery,
 } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { HELP_SECTION_SLUG, isHelpSectionSlug, isSystemParentCode } from "@/modules/content-sections/types";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
+import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { ContentForm } from "../ContentForm";
@@ -119,7 +121,7 @@ export default async function DoctorContentNewPage({
       variant="doctor"
       backHref={patientHomeContext?.returnTo ?? "/app/doctor/content"}
     >
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className={cn(doctorSectionCardClass, "gap-4")}>
         {loadError ? (
           <DataLoadFailureNotice
             digest={loadError.digest}

@@ -40,6 +40,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ClinicalTestForm } from "./ClinicalTestForm";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
+import {
+  doctorCatalogListEmptyClass,
+  doctorCatalogListEmptyTilesClass,
+  doctorCatalogRowActiveClass,
+  doctorCatalogRowClass,
+} from "@/shared/ui/doctorVisual";
 
 export type ClinicalTestsViewMode = "tiles" | "list";
 export type ClinicalTestTitleSort = "asc" | "desc";
@@ -258,7 +264,7 @@ function ClinicalTestsContent({
     opts: { activeId: string | null; onRowSelect: (id: string) => void },
   ) =>
     list.length === 0 ? (
-      <p className="px-2 pb-2 text-sm text-muted-foreground">Нет тестов по заданным фильтрам.</p>
+      <p className={doctorCatalogListEmptyClass}>Нет тестов по заданным фильтрам.</p>
     ) : (
       <ul className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
         {list.map((t) => {
@@ -269,11 +275,7 @@ function ClinicalTestsContent({
                 <button
                   type="button"
                   onClick={() => opts.onRowSelect(t.id)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted",
-                    active &&
-                      "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
-                  )}
+                  className={cn(doctorCatalogRowClass, active && doctorCatalogRowActiveClass)}
                 >
                   {mediaThumbRow(t)}
                   <span className="line-clamp-2">{t.title}</span>
@@ -290,7 +292,7 @@ function ClinicalTestsContent({
     opts: { activeId: string | null; onTileSelect: (id: string) => void; columns: number },
   ) =>
     list.length === 0 ? (
-      <p className="px-2 text-sm text-muted-foreground">Нет тестов по заданным фильтрам.</p>
+      <p className={doctorCatalogListEmptyTilesClass}>Нет тестов по заданным фильтрам.</p>
     ) : (
       <VirtualizedItemGrid
         items={list}

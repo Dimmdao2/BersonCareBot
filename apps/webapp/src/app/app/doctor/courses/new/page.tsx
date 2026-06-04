@@ -2,6 +2,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import {
   parsePatientHomeCmsReturnQuery,
@@ -52,7 +53,7 @@ export default async function DoctorCoursesNewPage({
       backHref={returnContext.returnTo}
       backLabel="Назад"
     >
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className={doctorCatalogEditorSectionClass}>
         {loadError ? (
           <DataLoadFailureNotice
             digest={loadError.digest}

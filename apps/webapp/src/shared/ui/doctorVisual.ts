@@ -33,10 +33,23 @@ export const doctorCatalogRowClass =
 export const doctorCatalogRowActiveClass =
   "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25";
 
+/** Empty state copy in catalog master list (list mode). */
+export const doctorCatalogListEmptyClass = "px-2 pb-2 text-sm text-muted-foreground";
+
+/** Empty state copy in catalog tile grid. */
+export const doctorCatalogListEmptyTilesClass = "px-2 text-sm text-muted-foreground";
+
+/** Standalone catalog editor page shell (new / [id] routes outside split-layout). */
+export const doctorCatalogEditorSectionClass =
+  "flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm";
+
 /** Compact history/event row inside panels. */
 export const doctorHistoryRowClass = "rounded-md border border-border/60 bg-muted/10 px-2 py-1.5";
 
 // -- Typography ---------------------------------------------------------------
+
+/** Page title (h1 in AppShell content or standalone page headers). */
+export const doctorPageTitleClass = "text-base font-semibold tracking-tight text-foreground";
 
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass = "text-sm font-semibold text-foreground";

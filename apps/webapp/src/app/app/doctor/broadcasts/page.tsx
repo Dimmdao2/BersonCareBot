@@ -9,6 +9,12 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { listBroadcastAuditAction } from "./actions";
 import { BroadcastForm } from "./BroadcastForm";
 import { BroadcastAuditLog } from "./BroadcastAuditLog";
+import {
+  doctorInlineLinkClass,
+  doctorPageStackClass,
+  doctorSectionCardClass,
+  doctorSectionTitleClass,
+} from "@/shared/ui/doctorVisual";
 
 export default async function DoctorBroadcastsPage() {
   const session = await requireDoctorAccess();
@@ -16,20 +22,20 @@ export default async function DoctorBroadcastsPage() {
 
   return (
     <AppShell title="Рассылки" user={session.user} variant="doctor">
-      <div className="flex flex-col gap-6">
+      <div className={doctorPageStackClass}>
         <p className="text-sm text-muted-foreground">
           После отправки сообщения ставятся в очередь доставки; счётчики в журнале обновляются по мере работы воркера.{" "}
-          <Link href="/app/doctor/broadcasts/archive" className="underline underline-offset-2">
+          <Link href="/app/doctor/broadcasts/archive" className={doctorInlineLinkClass}>
             Архив ошибок доставки
           </Link>
         </p>
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <h2 className="mb-4 text-base font-semibold">Новая рассылка</h2>
+        <section className={doctorSectionCardClass}>
+          <h2 className={`mb-3 ${doctorSectionTitleClass}`}>Новая рассылка</h2>
           <BroadcastForm />
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <h2 className="mb-4 text-base font-semibold">Журнал рассылок</h2>
+        <section className={doctorSectionCardClass}>
+          <h2 className={`mb-3 ${doctorSectionTitleClass}`}>Журнал рассылок</h2>
           <BroadcastAuditLog entries={auditEntries} />
         </section>
       </div>

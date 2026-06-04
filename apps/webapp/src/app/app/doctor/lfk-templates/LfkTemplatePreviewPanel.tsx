@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
+import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
 import type { Template, TemplateExercise } from "@/modules/lfk-templates/types";
 import { lfkExerciseSideRu } from "@/modules/lfk-templates/lfkExerciseSide";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
@@ -57,7 +58,7 @@ export function LfkTemplatePreviewPanel({ template }: { template: Template }) {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 className="min-w-0 flex-1 text-lg font-semibold leading-tight">{template.title}</h2>
+        <h2 className={cn("min-w-0 flex-1 leading-tight", doctorSectionTitleClass)}>{template.title}</h2>
         <LfkTemplateStatusBadge status={template.status} className="shrink-0" />
       </div>
       {template.description?.trim() ? (

@@ -4,6 +4,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { listMediaDeleteErrors } from "@/infra/repos/s3MediaStorage";
 import { AppShell } from "@/shared/ui/AppShell";
 import { PageSection } from "@/components/common/layout/PageSection";
+import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
 
 const CONTENT_LIBRARY = "/app/doctor/content/library";
 
@@ -21,7 +22,7 @@ export default async function MediaDeleteErrorsPage() {
           <Link href={CONTENT_LIBRARY} className="text-sm text-primary underline">
             ← Библиотека файлов
           </Link>
-          <h2 className="m-0 text-lg font-semibold">Очередь удаления: сбои S3 ({total})</h2>
+          <h2 className={`m-0 ${doctorSectionTitleClass}`}>Очередь удаления: сбои S3 ({total})</h2>
         </div>
         <p className="text-sm text-muted-foreground">
           Файлы в статусе очереди на удаление, где повторные попытки удаления из хранилища не прошли.

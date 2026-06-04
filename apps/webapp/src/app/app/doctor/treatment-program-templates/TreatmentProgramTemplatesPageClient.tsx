@@ -13,6 +13,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
+import { doctorCatalogListEmptyClass } from "@/shared/ui/doctorVisual";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
@@ -220,7 +221,7 @@ export function TreatmentProgramTemplatesPageClient({
 
   const renderRows = (onPick: (t: TreatmentProgramTemplate) => void, activeId: string | null) =>
     displayList.length === 0 ? (
-      <p className="text-sm text-muted-foreground">Нет шаблонов по заданным условиям.</p>
+      <p className={doctorCatalogListEmptyClass}>Нет шаблонов по заданным условиям.</p>
     ) : (
       <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {displayList.map((t) => {

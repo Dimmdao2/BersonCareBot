@@ -15,6 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from "../clients/doctorClientCardChrome";
 import type { CalendarAppointmentEvent, CalendarFilterMeta } from "@/modules/booking-calendar/types";
 import type { CalendarCreateActiveFilters } from "@/modules/booking-calendar/calendarCreateFieldMode";
 import {
@@ -145,9 +149,9 @@ function DoctorCalendarEventPanelInner({
 
   if (!selected) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className={doctorClientOverviewPrimaryCardClass}>
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Запись</h2>
+          <h2 className={doctorClientSectionTitleClass}>Запись</h2>
           {mode === "view" ? (
             <Button type="button" size="sm" variant="outline" onClick={openCreateForm}>
               Создать
@@ -217,10 +221,10 @@ function DoctorCalendarEventPanelInner({
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <div className={doctorClientOverviewPrimaryCardClass}>
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold">{selected.patientName ?? "Запись"}</h2>
+          <h2 className={doctorClientSectionTitleClass}>{selected.patientName ?? "Запись"}</h2>
           <p className="text-xs text-muted-foreground">{formatEventAt(selected.startAt, timeZone)}</p>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={onClose}>

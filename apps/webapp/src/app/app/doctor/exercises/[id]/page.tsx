@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
 import { ExerciseForm } from "../ExerciseForm";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -23,7 +24,7 @@ export default async function DoctorExerciseEditPage({ params }: PageProps) {
       variant="doctor"
       backHref="/app/doctor/exercises"
     >
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className={doctorCatalogEditorSectionClass}>
         <ExerciseForm exercise={exercise} externalUsageSnapshot={usage} />
       </section>
     </AppShell>

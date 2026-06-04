@@ -3,6 +3,7 @@ import {
   MATERIAL_RATING_FEEDBACK_REASON_LABELS,
 } from "@/modules/material-rating-feedback/reasonCodes";
 import type { MaterialRatingFeedbackDoctorSummary } from "@/modules/material-rating-feedback/ports";
+import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
 import { MaterialRatingFeedbackDoctorCommentsClient } from "./MaterialRatingFeedbackDoctorCommentsClient";
 
 export function MaterialRatingFeedbackDoctorPanel({
@@ -13,8 +14,8 @@ export function MaterialRatingFeedbackDoctorPanel({
   summary: MaterialRatingFeedbackDoctorSummary;
 }) {
   return (
-    <section className="flex flex-col gap-4 rounded-lg border border-border p-4">
-      <h2 className="text-base font-semibold">Обратная связь (1–3)</h2>
+    <section className={doctorSectionCardClass}>
+      <h2 className={doctorSectionTitleClass}>Обратная связь (1–3)</h2>
 
       {summary.total === 0 ? (
         <p className="text-sm text-muted-foreground">Пока нет отзывов с низкой оценкой.</p>

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
 import { TemplateEditor } from "../TemplateEditor";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -32,7 +33,7 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
       variant="doctor"
       backHref="/app/doctor/lfk-templates"
     >
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className={doctorCatalogEditorSectionClass}>
         <TemplateEditor
           template={template}
           exerciseCatalog={exerciseCatalog}

@@ -16,6 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MediaExerciseUsageEntry, MediaFolderRecord } from "@/modules/media/types";
 import { cn } from "@/lib/utils";
+import { doctorPageStackClass, doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
@@ -351,7 +352,7 @@ export function AutoCreateExercisesClient() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={doctorPageStackClass}>
       <div className="flex flex-wrap items-center gap-2">
         <Link href={EXERCISES_PATH} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
           ← К упражнениям
@@ -359,8 +360,8 @@ export function AutoCreateExercisesClient() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-border bg-card p-3">
-          <h2 className="mb-3 text-sm font-semibold">Медиа</h2>
+        <section className={doctorSectionCardClass}>
+          <h2 className={cn("mb-3", doctorSectionTitleClass)}>Медиа</h2>
           <div className="mb-3 flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="secondary" onClick={selectAllVisible}>
               Выбрать все
@@ -485,8 +486,8 @@ export function AutoCreateExercisesClient() {
           </div>
         </section>
 
-        <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3">
-          <h2 className="text-sm font-semibold">Выбранные</h2>
+        <section className={doctorSectionCardClass}>
+          <h2 className={doctorSectionTitleClass}>Выбранные</h2>
           <p className="text-xs text-muted-foreground">Файлов: {selectedList.length}</p>
           {submitError ? (
             <p className="text-sm text-destructive" role="alert">

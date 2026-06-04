@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
+import { doctorPageStackClass, doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
 
 type ConvRow = {
   conversationId: string;
@@ -94,8 +95,8 @@ export function DoctorSupportInbox() {
   }
 
   return (
-    <section id="doctor-support-inbox" className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Поддержка (чат)</h2>
+    <section id="doctor-support-inbox" className={doctorPageStackClass}>
+      <h2 className={doctorSectionTitleClass}>Поддержка (чат)</h2>
       <div className="flex flex-wrap gap-2" aria-label="Фильтр диалогов">
         <Button type="button" size="sm" variant={!unreadOnly ? "default" : "outline"} onClick={() => setUnreadOnly(false)}>
           Все

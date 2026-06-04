@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from "../clients/doctorClientCardChrome";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { savePatientHomeMoodIconsAction } from "./patientHomeDoctorSettingsActions";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
@@ -58,10 +62,10 @@ export function PatientHomeMoodIconsPanel(props: { initialOptions: readonly Pati
 
   return (
     <section
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+      className={doctorClientOverviewPrimaryCardClass}
       aria-labelledby="patient-home-mood-icons-heading"
     >
-      <h2 id="patient-home-mood-icons-heading" className="text-base font-semibold">
+      <h2 id="patient-home-mood-icons-heading" className={doctorClientSectionTitleClass}>
         Иконки самочувствия на главной
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">

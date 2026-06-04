@@ -7,6 +7,7 @@ import { MaterialContentStatsClient } from "@/app/app/doctor/material-ratings/Ma
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
 import type { MaterialRatingTargetKind } from "@/modules/material-rating/types";
 
 const KIND_LABEL: Record<MaterialRatingTargetKind, string> = {
@@ -75,8 +76,8 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
           const list = grouped[kind];
           if (list.length === 0) return null;
           return (
-            <section key={kind} className="rounded-lg border border-border bg-card p-4 shadow-sm">
-              <h2 className="mb-3 text-base font-semibold">{KIND_LABEL[kind]}</h2>
+            <section key={kind} className={doctorSectionCardClass}>
+              <h2 className={`mb-3 ${doctorSectionTitleClass}`}>{KIND_LABEL[kind]}</h2>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px] text-left text-sm">
                   <thead>

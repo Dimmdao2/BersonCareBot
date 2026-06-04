@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
 
 const variants = {
-  default: "rounded-2xl border border-border bg-card p-4 shadow-sm",
-  compact: "rounded-xl border border-border bg-card p-3",
-  hero: "rounded-2xl border border-border bg-card p-6 shadow-sm",
+  /** Doctor CMS / content hub — §4.1 page-level section. */
+  default: doctorSectionCardClass,
+  compact: doctorSectionCardClass,
+  /** Slightly roomier content hero block (still page-level, no shadow). */
+  hero: "rounded-xl border border-border bg-card p-4 flex flex-col gap-3",
 } as const;
 
 type PageSectionProps = {

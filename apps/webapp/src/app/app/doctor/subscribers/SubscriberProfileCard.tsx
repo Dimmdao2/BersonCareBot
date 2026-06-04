@@ -2,7 +2,6 @@
  * Компактная карточка подписчика: контакты, уведомления, счётчики по журналу сообщений.
  */
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button-variants";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
@@ -11,6 +10,12 @@ import { AdminDangerActions } from "../clients/AdminDangerActions";
 import { DoctorNotesPanel } from "../clients/DoctorNotesPanel";
 import { ClientBookingHistoryPanel } from "../clients/ClientBookingHistoryPanel";
 import { SubscriberBlockPanel } from "../clients/SubscriberBlockPanel";
+import {
+  doctorClientBackLinkClass,
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from "../clients/doctorClientCardChrome";
+import { doctorInlineLinkClass } from "@/shared/ui/doctorVisual";
 
 type Props = {
   profile: ClientProfile;
@@ -45,13 +50,13 @@ export function SubscriberProfileCard({
 
   return (
     <>
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4" id="doctor-subscriber-compact-contacts">
-        <h2>Контакты</h2>
+      <section className={doctorClientOverviewPrimaryCardClass} id="doctor-subscriber-compact-contacts">
+        <h2 className={doctorClientSectionTitleClass}>Контакты</h2>
         {identity.phone ? (
           tel ? (
             <p>
               Телефон:{" "}
-              <a href={tel} className="font-medium text-primary underline">
+              <a href={tel} className={doctorInlineLinkClass}>
                 {identity.phone}
               </a>
             </p>
@@ -70,7 +75,7 @@ export function SubscriberProfileCard({
                   href={ch.openUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary underline"
+                  className={doctorInlineLinkClass}
                 >
                   {ch.title}
                 </a>
@@ -84,8 +89,8 @@ export function SubscriberProfileCard({
         </ul>
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4" id="doctor-subscriber-notifications-summary">
-        <h2>Уведомления</h2>
+      <section className={doctorClientOverviewPrimaryCardClass} id="doctor-subscriber-notifications-summary">
+        <h2 className={doctorClientSectionTitleClass}>Уведомления</h2>
         <ul className="list-none p-0 text-sm">
           {channelCards.map((ch) => (
             <li key={`n-${ch.code}`}>
@@ -95,8 +100,8 @@ export function SubscriberProfileCard({
         </ul>
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4" id="doctor-subscriber-channel-msg-counts">
-        <h2>Сообщения специалиста (журнал)</h2>
+      <section className={doctorClientOverviewPrimaryCardClass} id="doctor-subscriber-channel-msg-counts">
+        <h2 className={doctorClientSectionTitleClass}>Сообщения специалиста (журнал)</h2>
         {Object.keys(counts).length === 0 ? (
           <p className="text-muted-foreground text-sm">Нет данных по каналам в последних сообщениях.</p>
         ) : (
@@ -110,9 +115,9 @@ export function SubscriberProfileCard({
         )}
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <h2>Чат поддержки</h2>
-        <Link href="/app/doctor/messages" className="text-primary underline" id="doctor-open-support-chat-link">
+      <section className={doctorClientOverviewPrimaryCardClass}>
+        <h2 className={doctorClientSectionTitleClass}>Чат поддержки</h2>
+        <Link href="/app/doctor/messages" className={doctorInlineLinkClass} id="doctor-open-support-chat-link">
           Открыть раздел сообщений
         </Link>
       </section>
@@ -129,10 +134,7 @@ export function SubscriberProfileCard({
       ) : null}
 
       <p>
-        <Link
-          href={listBasePath}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
-        >
+        <Link href={listBasePath} className={cn(doctorClientBackLinkClass, "shrink-0")}>
           К списку подписчиков
         </Link>
       </p>

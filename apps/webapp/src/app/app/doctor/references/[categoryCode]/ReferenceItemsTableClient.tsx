@@ -44,6 +44,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { doctorPageTitleClass } from "@/shared/ui/doctorVisual";
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
@@ -532,7 +533,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
         )}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="min-w-0 truncate text-lg font-semibold">{categoryTitle}</h1>
+          <h1 className={`min-w-0 truncate ${doctorPageTitleClass}`}>{categoryTitle}</h1>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Input
               value={searchRaw}

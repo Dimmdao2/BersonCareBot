@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
+import { doctorCatalogListEmptyClass } from "@/shared/ui/doctorVisual";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
@@ -135,7 +136,7 @@ export function TestSetsPageClient({
 
   const renderRows = (onPick: (s: TestSet) => void, activeId: string | null) =>
     displayList.length === 0 ? (
-      <p className="text-sm text-muted-foreground">Нет наборов по заданным условиям.</p>
+      <p className={doctorCatalogListEmptyClass}>Нет наборов по заданным условиям.</p>
     ) : (
       <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {displayList.map((s) => {

@@ -22,6 +22,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Shield, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CMS_UNASSIGNED_SECTION_SLUG } from "@/modules/content-sections/types";
+import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
 import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
 import { setContentPageRequiresAuth } from "./contentPageAuthActions";
 import { reorderContentPagesInSection } from "./reorderContentPages";
@@ -231,7 +232,7 @@ export function ContentPagesSectionList({
         {showSectionHeading ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+              <h3 className={`m-0 ${doctorSectionTitleClass}`}>{sectionTitle}</h3>
               {sectionSettingsHref ?
                 <Link
                   href={sectionSettingsHref}
@@ -304,7 +305,7 @@ export function ContentPagesSectionList({
       {showSectionHeading ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+            <h3 className={`m-0 ${doctorSectionTitleClass}`}>{sectionTitle}</h3>
             {sectionSettingsHref ?
               <Link
                 href={sectionSettingsHref}

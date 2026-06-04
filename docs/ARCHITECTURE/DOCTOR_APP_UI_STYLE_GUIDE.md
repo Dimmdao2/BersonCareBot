@@ -753,6 +753,16 @@ export const doctorCatalogRowClass =
 export const doctorCatalogRowActiveClass =
   "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25";
 
+/** Пустой master-list (list mode). */
+export const doctorCatalogListEmptyClass = "px-2 pb-2 text-sm text-muted-foreground";
+
+/** Пустая tile-сетка каталога. */
+export const doctorCatalogListEmptyTilesClass = "px-2 text-sm text-muted-foreground";
+
+/** Standalone editor page (`new` / `[id]` вне split-layout). */
+export const doctorCatalogEditorSectionClass =
+  "flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm";
+
 /** Хроника / мини-событие внутри панели. */
 export const doctorHistoryRowClass =
   "rounded-md border border-border/60 bg-muted/10 px-2 py-1.5";

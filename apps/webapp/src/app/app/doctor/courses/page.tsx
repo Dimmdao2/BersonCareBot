@@ -17,6 +17,11 @@ import {
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
 import { DoctorCatalogArchiveScopeSelect } from "@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect";
+import {
+  doctorEmptyStateClass,
+  doctorHoverLinkClass,
+  doctorSectionCardClass,
+} from "@/shared/ui/doctorVisual";
 
 function statusLabel(status: CourseStatus): string {
   switch (status) {
@@ -77,7 +82,7 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
           </Link>
         }
       />
-      <section className="mt-4 flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+      <section className={`mt-3 ${doctorSectionCardClass}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">Курсы</p>
         </div>
@@ -88,7 +93,7 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
           />
         ) : null}
         {courses.length === 0 && !loadError ? (
-          <p className="text-sm text-muted-foreground">Нет курсов по выбранному фильтру.</p>
+          <p className={doctorEmptyStateClass}>Нет курсов по выбранному фильтру.</p>
         ) : null}
         {courses.length > 0 ? (
           <ul className="divide-y divide-border rounded-lg border border-border">
@@ -97,7 +102,7 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
                 <div className="min-w-0">
                   <Link
                     href={`/app/doctor/courses/${encodeURIComponent(c.id)}`}
-                    className="truncate font-medium text-foreground underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className={`truncate font-medium text-foreground focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${doctorHoverLinkClass}`}
                   >
                     {c.title}
                   </Link>

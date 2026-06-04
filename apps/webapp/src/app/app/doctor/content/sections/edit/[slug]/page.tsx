@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
+import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
 import { SectionForm } from "../../SectionForm";
 
 type Props = {
@@ -22,7 +24,7 @@ export default async function DoctorContentSectionEditPage({ params }: Props) {
 
   return (
     <AppShell title="Редактировать раздел" user={session.user} variant="doctor" backHref="/app/doctor/content/sections">
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className={cn(doctorSectionCardClass, "gap-4")}>
         <SectionForm
           section={{
             slug: row.slug,

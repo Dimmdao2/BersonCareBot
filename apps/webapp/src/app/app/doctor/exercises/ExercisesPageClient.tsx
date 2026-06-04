@@ -22,9 +22,16 @@ import {
   writeDoctorCatalogViewPreference,
 } from "@/shared/lib/doctorCatalogViewPreference";
 import {
+  doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
+import {
+  doctorCatalogListEmptyClass,
+  doctorCatalogListEmptyTilesClass,
+  doctorCatalogRowActiveClass,
+  doctorCatalogRowClass,
+} from "@/shared/ui/doctorVisual";
 import type { DoctorCatalogToolbarLayout } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
@@ -113,8 +120,8 @@ function CreateExerciseMenu({ triggerId, onNewExercise }: CreateExerciseMenuProp
       <DropdownMenuTrigger
         id={triggerId}
         className={cn(
-          buttonVariants({ variant: "default", size: "sm" }),
-          "box-border h-[32px] min-h-[32px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5 data-popup-open:bg-primary/90 dark:data-popup-open:bg-primary/85",
+          doctorCatalogToolbarPrimaryActionClassName,
+          "data-popup-open:bg-primary/90 dark:data-popup-open:bg-primary/85",
         )}
         type="button"
       >
@@ -234,7 +241,7 @@ function ExercisesContent({
     opts: { activeId: string | null; onRowSelect: (id: string) => void },
   ) =>
     list.length === 0 ? (
-      <p className="px-2 pb-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
+      <p className={doctorCatalogListEmptyClass}>Нет упражнений по заданным фильтрам.</p>
     ) : (
       <ul className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
         {list.map((ex) => {
@@ -245,11 +252,7 @@ function ExercisesContent({
                 <button
                   type="button"
                   onClick={() => opts.onRowSelect(ex.id)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted",
-                    active &&
-                      "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
-                  )}
+                  className={cn(doctorCatalogRowClass, active && doctorCatalogRowActiveClass)}
                 >
                   {mediaNode(ex)}
                   <span className="line-clamp-2">{ex.title}</span>
@@ -266,7 +269,7 @@ function ExercisesContent({
     opts: { activeId: string | null; onTileSelect: (id: string) => void; columns: number },
   ) =>
     list.length === 0 ? (
-      <p className="px-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
+      <p className={doctorCatalogListEmptyTilesClass}>Нет упражнений по заданным фильтрам.</p>
     ) : (
       <VirtualizedItemGrid
         items={list}

@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
+import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import { ContentForm } from "../../ContentForm";
 
@@ -44,7 +46,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
 
   return (
     <AppShell title="Редактировать страницу" user={session.user} variant="doctor" backHref="/app/doctor/content">
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className={cn(doctorSectionCardClass, "gap-4")}>
         {loadError ? (
           <DataLoadFailureNotice
             digest={loadError.digest}

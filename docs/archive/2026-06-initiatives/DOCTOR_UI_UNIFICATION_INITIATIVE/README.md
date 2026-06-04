@@ -52,6 +52,8 @@
 | 2 | **done** (2026-06-04) — `appointments`, `analytics/clients`, `online-intake`; см. [`LOG.md`](LOG.md) |
 | 3A | **done** (2026-06-04) — shell карточки клиента; см. [`LOG.md`](LOG.md) |
 | 3B | **done** (2026-06-04) — вкладки и панели клиента; см. [`LOG.md`](LOG.md) |
-| 4–5 | pending |
+| 4A | **done** (2026-06-04) — каталоги doctor; см. [`LOG.md`](LOG.md) |
+| 4B | **done** (2026-06-04) — CMS, media, tail routes; `admin/booking/**` → cancelled (BOOKING_REWORK); см. [`LOG.md`](LOG.md) |
+| 5 | pending |
 
-**Граница 3B / 4:** карточка клиента и `clients/**` панели на chrome; каталоги и хвостовые маршруты — фазы 4A/4B (`SubscriberProfileCard` — 4B).
+**Граница 4A / 4B:** split-каталоги и editor shells на `doctorVisual`; CMS, media, хвостовые маршруты — 4B.

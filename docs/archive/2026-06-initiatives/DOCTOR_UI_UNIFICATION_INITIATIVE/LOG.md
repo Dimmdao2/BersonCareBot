@@ -274,3 +274,101 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 
 - `SubscriberProfileCard` (фаза 4B в AUDIT).
 - Полный `pnpm run ci`.
+
+---
+
+## 2026-06-04 — Фаза 4A (каталоги)
+
+### Сделано
+
+- `doctorVisual.ts`: `doctorCatalogListEmptyClass`, `doctorCatalogListEmptyTilesClass`, `doctorCatalogEditorSectionClass` (уже были `doctorCatalogRow*`).
+- Шесть split-каталогов: единые empty states; exercises/recommendations/clinical — `doctorCatalogRowClass` + active; exercises create menu → `doctorCatalogToolbarPrimaryActionClassName`.
+- Editor pages: `doctorCatalogEditorSectionClass` на exercises/lfk/courses new+[id].
+- `/app/doctor/courses`: `doctorSectionCardClass`, toolbar primary, empty/link constants.
+- `AutoCreateExercisesClient`, `LfkTemplatePreviewPanel` — section/title constants.
+- `TreatmentProgramInstanceDetailClient` (в scope каталога instance): primary card sections (фаза 3B overlap, зафиксировано в 4A audit).
+
+### Проверки
+
+```bash
+for d in exercises recommendations lfk-templates treatment-program-templates test-sets clinical-tests; do
+  rg -l "DoctorCatalogFiltersToolbar|CatalogSplitLayout" apps/webapp/src/app/app/doctor/$d
+done
+
+rg "rounded-lg border border-border bg-card p-4 shadow-sm" \
+  apps/webapp/src/app/app/doctor/exercises apps/webapp/src/app/app/doctor/lfk-templates apps/webapp/src/app/app/doctor/courses
+# → (пусто)
+
+pnpm exec vitest run \
+  src/app/app/doctor/exercises/ExerciseForm.test.tsx \
+  src/app/app/doctor/recommendations/RecommendationForm.test.tsx \
+  src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx \
+  src/app/app/doctor/test-sets/TestSetForm.test.tsx
+# Tests 10 passed
+
+pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
+```
+
+### Manual visual checklist (фаза 4A)
+
+| Экран | Desktop 1366 | Mobile 390 | Примечание |
+|-------|--------------|------------|------------|
+| Каталоги split (6) | pending | pending | toolbar, list/tile active, back |
+| `/app/doctor/courses` | pending | pending | list + toolbar |
+| Editor `new`/`[id]` | pending | pending | shell без лишней тени на page-section |
+
+### Намеренно не делали
+
+- Полный проход `TreatmentProgramConstructorClient` (§12) — отдельный объём; split-list каталога закрыт.
+- Полный `pnpm run ci`.
+
+---
+
+## 2026-06-04 — Фаза 4B (CMS, media, хвостовые маршруты)
+
+### Сделано
+
+- `doctorVisual.ts`: `doctorPageTitleClass`; `PageSection` → `doctorSectionCardClass` (CMS hub/hero).
+- CMS: `content/page`, forms (`new`, `edit/[id]`, sections `new`/`edit`), `ContentPagesSectionList`, `ContentPreview` (h3), library + delete-errors headings.
+- Media: library через `PageSection`; `MediaCard` уже §11 — без правок.
+- Tail: `broadcasts/page`, `SubscriberProfileCard`, `DoctorCalendarEventPanel`, `PatientHomeMoodIconsPanel`, `material-ratings` + `MaterialRatingFeedbackDoctorPanel`, `DefaultPromoProgramClient`, `DoctorSupportInbox`, references h1 → `doctorPageTitleClass`.
+- Ops/comms low-debt routes: `rg` без `rounded-2xl` в `doctor/**`; analytics/notifications, system-health, audit-log, health-archive, usage — **completed** в AUDIT без правок кода.
+
+### Проверки
+
+```bash
+rg "rounded-2xl" apps/webapp/src/app/app/doctor
+# → (пусто)
+
+rg "rounded-lg border border-border bg-card p-4 shadow-sm" apps/webapp/src/app/app/doctor/content
+# → (пусто)
+
+pnpm exec vitest run \
+  src/app/app/doctor/broadcasts/BroadcastForm.test.tsx \
+  src/app/app/doctor/broadcasts/BroadcastAuditLog.test.tsx \
+  src/app/app/doctor/content/ContentPagesSidebar.test.tsx \
+  src/app/app/doctor/messages/DoctorSupportInbox.test.tsx \
+  src/app/app/doctor/content/MediaLibraryPickerDialog.test.tsx
+# 27 tests passed
+
+pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
+```
+
+### Manual visual checklist (фаза 4B)
+
+| Экран | Desktop 1366 | Mobile 390 | Примечание |
+|-------|--------------|------------|------------|
+| `/app/doctor/content` hub | pending | pending | sidebar + main h2 |
+| `/app/doctor/content/library` | pending | pending | grid + picker dialog |
+| `/app/doctor/broadcasts` | pending | pending | две §4.1 секции |
+| `/app/doctor/calendar` | pending | pending | event panel |
+| `/app/doctor/subscribers/[userId]` | pending | pending | entity sections |
+| `/app/doctor/messages` | pending | pending | inbox stack |
+
+### Намеренно не делали / cancelled
+
+- `admin/booking/**` — **cancelled**: [`BOOKING_REWORK_INITIATIVE`](../../BOOKING_REWORK_INITIATIVE/ROADMAP.md) Stage 1+ владеет IA/UI записи.
+- `admin/app-settings`, `admin/auth`, `admin/integrations`, `admin/technical` — **cancelled**: admin forms вне doctor-unification scope.
+- `booking-merge` — **cancelled**: booking ops, согласование с BOOKING_REWORK.
+- `ContentPreview` h4 (заголовок страницы в превью) — оставлен `text-lg` как симуляция patient view.
+- Полный `pnpm run ci` (фаза 5).

@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { doctorPageTitleClass } from "@/shared/ui/doctorVisual";
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
@@ -270,7 +271,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
           DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
         )}
       >
-        <h1 className="text-lg font-semibold">Виды измерений (клинические тесты)</h1>
+        <h1 className={doctorPageTitleClass}>Виды измерений (клинические тесты)</h1>
         <p className="text-sm text-muted-foreground">
           Системный справочник для строк измерений в форме теста. Код генерируется при создании и не меняется; здесь
           можно править подписи и порядок в списке.

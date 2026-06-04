@@ -5,6 +5,7 @@ import { PageSection } from "@/components/common/layout/PageSection";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import type { ContentSectionRow } from "@/modules/content-sections/ports";
 import {
@@ -194,7 +195,7 @@ export default async function DoctorContentPage({ searchParams }: Props) {
           />
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <h2 className="m-0 text-lg font-semibold">{mainHeading}</h2>
+              <h2 className={`m-0 ${doctorSectionTitleClass}`}>{mainHeading}</h2>
               <div className="flex flex-wrap items-center gap-2">
                 {validSystemParent !== undefined && activeSectionSlug === null ? (
                   <>

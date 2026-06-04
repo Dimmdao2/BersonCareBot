@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
 import { TemplateEditor } from "../TemplateEditor";
 
 export function LfkTemplateNewStandalone({
@@ -11,7 +12,7 @@ export function LfkTemplateNewStandalone({
 }) {
   const router = useRouter();
   return (
-    <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+    <section className={doctorCatalogEditorSectionClass}>
       <TemplateEditor
         template={null}
         exerciseCatalog={exerciseCatalog}

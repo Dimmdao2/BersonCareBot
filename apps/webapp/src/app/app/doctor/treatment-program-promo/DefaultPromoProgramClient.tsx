@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -106,7 +107,7 @@ export function DefaultPromoProgramClient(props: {
         </Button>
       </div>
       <div className="border-t border-border pt-6">
-        <h2 className="mb-2 text-base font-semibold">Статистика (promo)</h2>
+        <h2 className={`mb-2 ${doctorSectionTitleClass}`}>Статистика (promo)</h2>
         <ul className="m-0 list-none space-y-1 p-0 text-sm text-muted-foreground">
           <li>Активных экземпляров: {stats.activePromo}</li>
           <li>Завершённых экземпляров: {stats.completedPromo}</li>

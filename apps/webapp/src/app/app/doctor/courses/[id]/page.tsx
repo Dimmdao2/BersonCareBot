@@ -5,6 +5,7 @@ import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { COURSE_LESSON_SECTIONS, type CourseUsageSnapshot } from "@/modules/courses/types";
 import { AppShell } from "@/shared/ui/AppShell";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import { DoctorCourseEditForm } from "./DoctorCourseEditForm";
 
@@ -74,7 +75,7 @@ export default async function DoctorCourseEditPage(props: PageProps) {
 
   return (
     <AppShell title={course.title} user={session.user} variant="doctor" backHref="/app/doctor/courses">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+      <section className={doctorCatalogEditorSectionClass}>
         <p className="font-mono text-xs text-muted-foreground">{course.id}</p>
         {loadError ? (
           <DataLoadFailureNotice
