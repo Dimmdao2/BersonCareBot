@@ -17,7 +17,7 @@
 - **Валидация перед INSERT в `delivery_attempt_logs`:** в `messageLogs.ts` отсекаются строки с невалидными `channel` / `status` / `attempt` (до вызова Drizzle), чтобы не полагаться на небезопасные приведения типов.
 - **Проверки:** `pnpm --dir apps/integrator run typecheck`, `pnpm --dir apps/integrator run test`.
 - **Тесты:** заглушка `stubIntegratorDrizzleForTests.ts` для writePort/unit-тестов с мок-`DbPort`.
-- **На момент записи P1:** `mergeIntegratorUsers.ts` и прочий «тяжёлый» SQL **не входили** в scope этапа 1; их перенос запланирован как **этап 4** мастер-плана. Фактическое состояние после P4 — см. раздел **«Этап 4»** ниже (там же инвентаризация конструкций).
+- **На момент записи мастер-плана этапа 1:** `mergeIntegratorUsers.ts` и прочий «тяжёлый» SQL **не входили** в scope; перенос — **мастер-план этап 4 (complex SQL)** (см. раздел **«Этап 4 (P4 — сложный SQL)»** ниже). Не путать с **Wave 2 этап 4** (webapp reminders).
 
 ### Этап 2 (outbox + job queue) — выполнено
 
@@ -84,13 +84,14 @@
 
 ### Инструментальные проверки (репозиторий)
 
-- В корневом **`eslint.config.mjs`** **нет** отдельного правила, запрещающего **`db.query(...)`** по всему `apps/integrator` (только ограничения `no-restricted-imports` для `domain` / `telegram` / `worker`). Контроль канона SQL для переведённых репо — **DoD этапных планов** и ревью; автоматический запрет на весь пакет не вводился, чтобы не ломать миграции, скрипты и осознанный backlog (`outgoingDeliveryQueue`, `projectionHealth` и др.).
+- В корневом **`eslint.config.mjs`** **нет** отдельного правила, запрещающего **`db.query(...)`** по всему `apps/integrator` (только ограничения `no-restricted-imports` для `domain` / `telegram` / `worker`). Контроль канона SQL — **DoD этапных планов** и ревью; осознанный backlog — мелкие repos/config (Wave 2 P1+), `projectionHealthCore` (`db.query` в едином core), `migrate.ts`, скрипты.
 
-### Закрытие инициативы
+### Закрытие инициативы (мастер-план P1–P4)
 
-- Этапы **P1–P4** и **мастер-план** закрыты; целевые репозитории плана не используют для своей доменной логики строковый **`db.query(...)`** (Drizzle API и/или **`runIntegratorSql` / `execute(sql)`**).
+- Этапы **P1–P4** и **мастер-план** закрыты; целевые репозитории мастера не используют для доменной логики строковый **`db.query(...)`** (Drizzle API и/или **`runIntegratorSql` / `execute(sql)`**).
 - После выравнивания: **`pnpm --dir apps/integrator run lint`**, **`typecheck`**, **`test`** — зелёные.
-- Вне scope этой инициативы (отдельный backlog при необходимости): **`outgoingDeliveryQueue.ts`**, **`platformUserDeliveryPhone.ts`**, **`canonicalUserId.ts`**, **`linkedPhoneSource.ts`**, а также скрипты/health вне списка мастера (`projectionHealth`, `projection-health.mjs` и т.п.).
+- **Wave 2 (2026-06-05):** этапы **1–4** закрыты отдельно — см. § ниже. **`outgoingDeliveryQueue`** и **`bookingProfilesRepo`** переведены в **Wave 2 этап 1** (не backlog).
+- Backlog после мастера + Wave 2 P1: мелкие integrator repos/config с `db.query` (§ Wave 2 этап 1 backlog); auth advisory locks → Wave 2 этап 7; медиа SQL → этап 5.
 
 ### Wave 2 — план и инвентаризация (документация)
 
@@ -108,9 +109,10 @@
 
 ## 2026-06-05
 
-### Wave 2 — этап 1 (integrator tail SQL) — выполнено
+### Wave 2 — этап 1 (integrator tail SQL) — выполнено (ядро; 2026-06-05)
 
-- **Scope-факт:** `rg` по `apps/integrator/src/infra/db/repos`, `integrations`, `config`, `infra/runtime` показал целевые остатки фазы 1 в `outgoingDeliveryQueue.ts`, `notificationDeliveryAttempts.ts`, `messengerPhoneBindAudit.ts`, `settingsSyncRoute.ts`, `bookingProfilesRepo.ts`, `outgoingDeliveryWorker.ts`. Оставшиеся `client.query` после этапа — только advisory-lock зона **фазы 3** (`schedulerLocks.ts`, `rubitimeApiThrottle.ts`) и тестовый `.query(true)` в nock.
+- **Scope-факт (переведено):** `outgoingDeliveryQueue.ts`, `notificationDeliveryAttempts.ts`, `messengerPhoneBindAudit.ts`, `settingsSyncRoute.ts`, `bookingProfilesRepo.ts`, `outgoingDeliveryWorker.ts` (точечный SQL). Оставшиеся `client.query` после этапов 1–3 — advisory **фаза 3** (`schedulerLocks`, `rubitimeApiThrottle` throttle row) и тестовый nock.
+- **Backlog Wave 2 P1+ (не входило в закрытие):** `platformUserDeliveryPhone`, `canonicalUserId`, `linkedPhoneSource`, `resolvePlatformUserIdForRubitimeBooking`, `patientHomeMorningPing`, `idempotencyKeys`, `adminStats`, `integrationDataQualityIncidents`, `branchTimezone`, `adminIncidentAlertRelay`, `smtpOutbound`, `messengerStaffIds`, `operationalVerboseLog` — по-прежнему `db.query`; см. [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) §1.2.
 - **Очередь доставки:** `outgoingDeliveryQueue.ts` переведён с `DbPort.query` на `runIntegratorSql` + `drizzle-orm sql`; claim сохранён как CTE с `FOR UPDATE SKIP LOCKED`, без изменения статусов/сортировки/retry policy.
 - **Worker доставки:** `outgoingDeliveryWorker.ts` перевёл точечные SQL-чтения/апдейты (`user_reminder_occurrences`, `broadcast_audit.sent_count/error_count`) на `runIntegratorSql`; `dispatchOutgoing`, retry/dead-finalize и `attachMenu` семантика не менялись.
 - **Rubitime legacy profiles:** `bookingProfilesRepo.ts` переведён на `runIntegratorSql` + `sql` поверх текущих `integrator.rubitime_*`; дедуп/перевод на `public.booking_*` не начинался.

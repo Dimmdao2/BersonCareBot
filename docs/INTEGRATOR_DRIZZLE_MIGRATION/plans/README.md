@@ -4,7 +4,7 @@
 
 | Этап | Файл плана | Статус |
 |------|------------|--------|
-| 1 — хвост интегратора | [wave2_phase_01_integrator_tail.plan.md](./wave2_phase_01_integrator_tail.plan.md) | completed |
+| 1 — хвост интегратора | [wave2_phase_01_integrator_tail.plan.md](./wave2_phase_01_integrator_tail.plan.md) | completed (ядро; мелкие repos — backlog P1+) |
 | 2 — projection health + CLI | [wave2_phase_02_projection_health_sync.plan.md](./wave2_phase_02_projection_health_sync.plan.md) | completed |
 | 3 — advisory locks | [wave2_phase_03_advisory_locks.plan.md](./wave2_phase_03_advisory_locks.plan.md) | completed |
 | 4 — webapp напоминания | [wave2_phase_04_webapp_reminders.plan.md](./wave2_phase_04_webapp_reminders.plan.md) | completed |
@@ -24,6 +24,7 @@
 - **Drizzle builder для projection health:** не входит в DoD этапа 2. Цель этапа — единые цифры CLI/HTTP; builder-миграция агрегатов допускается отдельным follow-up.
 - **Advisory в медиа:** этап 3 трогает только lock wrapper/семантику advisory. Остальной SQL `s3MediaStorage` и медиа-репозиториев остаётся этапу 5.
 - **Webapp reminders scope:** этап 4 включает все reminder repos с `pool.query` / `client.query`, включая `pgWebPushOnlyReminders.ts` и `pgReminderTransactionalEmailCooldown.ts`.
+- **Integrator tail (этап 1):** закрыт по **ядру** (очередь, booking profiles, settings sync, audit/attempts, worker SQL); полный список «мелких repos» из ранней декомпозиции — **backlog P1+**, не блокирует `status: completed` (см. план §Закрытие).
 - **Auth scope:** этап 7 меняет только ветки с сырой SQL; modules не импортируют infra напрямую, новые SQL-порты идут через существующую DI/ports схему.
 - **Этап 8:** исполняется под-PR/под-задачами: `platform-merge`, `booking-rubitime-sync`, `media-worker`, scripts. Не делать одним большим PR без промежуточной проверки.
 

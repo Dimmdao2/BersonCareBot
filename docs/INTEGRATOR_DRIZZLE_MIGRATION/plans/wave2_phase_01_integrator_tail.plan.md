@@ -1,6 +1,6 @@
 ---
 name: Wave2 Phase01 Integrator tail SQL
-overview: Убрать остатки сырого DbPort.query/pg-строк в apps/integrator для outgoing_delivery_queue, bookingProfilesRepo и мелких repos-чтений; claim-ветки очередей сохранять через execute(sql), если builder не доказывает эквивалентность.
+overview: "Wave 2 I: перевести ядро integrator tail (очередь доставки, bookingProfilesRepo, settings sync, audit/attempts, worker SQL) на runIntegratorSql; мелкие repos/config reads — отдельный backlog (см. Закрытие)."
 status: completed
 isProject: false
 todos:
@@ -14,8 +14,11 @@ todos:
     content: "bookingProfilesRepo.ts: поэтапно заменить db.query на getIntegratorDrizzleSession + builder/+sql поверх текущих integrator.rubitime_*; cutover на public.booking_* и дедуп rubitime_* НЕ входят в этап."
     status: completed
   - id: p01-small-repos
-    content: "Мелкие repos/config reads (messengerPhoneBindAudit, platformUserDeliveryPhone, patientHomeMorningPing, idempotencyKeys, adminStats, linkedPhoneSource, resolvePlatformUserIdForRubitimeBooking, canonicalUserId, integrationDataQualityIncidents, appBaseUrl/appTimezone/runtimeConfig/adminIncidentAlertRelay/branchTimezone): Drizzle select; динамику — whitelist + sql фрагменты."
-    status: completed
+    content: "Мелкие repos/config reads — полный перенос вынесен из фактического scope закрытия; см. todo p01-small-repos-backlog и Закрытие."
+    status: cancelled
+  - id: p01-small-repos-backlog
+    content: "Backlog (не блокирует закрытие этапа): platformUserDeliveryPhone, canonicalUserId, linkedPhoneSource, resolvePlatformUserIdForRubitimeBooking, patientHomeMorningPing, idempotencyKeys, adminStats, integrationDataQualityIncidents, branchTimezone, adminIncidentAlertRelay, smtpOutbound, messengerStaffIds, operationalVerboseLog — остаются db.query; перенос при касании или отдельный под-этап Wave 2+."
+    status: cancelled
   - id: p01-settings-sync-route
     content: "settingsSyncRoute.ts: insert onConflict через Drizzle; HTTP sync и зеркало integrator.system_settings сохраняются, проверяются инвалидации кэшей и правила system-settings-integrator-mirror."
     status: completed
@@ -32,9 +35,10 @@ todos:
 
 ## Definition of Done
 
-- [x] В перечисленных файлах этапа нет «случайного» строкового `db.query`, кроме явно задокументированных исключений (мигратор, execute(sql) для claim).
+- [x] **Фактический scope (ядро):** `outgoingDeliveryQueue`, `outgoingDeliveryWorker` (точечный SQL), `bookingProfilesRepo`, `settingsSyncRoute`, `messengerPhoneBindAudit`, `notificationDeliveryAttempts` — без строкового `DbPort.query` в доменной логике; claim — `runIntegratorSql` + `execute(sql)`.
+- [x] Остатки `db.query` в мелких repos/config (см. backlog) задокументированы в LOG и [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md), не помечены как «сделано».
 - [x] `pnpm --dir apps/integrator run typecheck` и `pnpm --dir apps/integrator run test` зелёные.
-- [x] В [LOG.md](../LOG.md) кратко зафиксирован итог этапа и известные остатки/backlog.
+- [x] В [LOG.md](../LOG.md) кратко зафиксирован итог этапа и backlog мелких repos.
 
 ## Scope
 
@@ -81,12 +85,8 @@ todos:
 
 ### 6. Small repos / config reads
 
-- [x] `messengerPhoneBindAudit.ts`: Drizzle upsert/increment внутри переданной tx.
-- [x] `platformUserDeliveryPhone.ts`, `canonicalUserId.ts`, `linkedPhoneSource.ts`, `resolvePlatformUserIdForRubitimeBooking.ts`: прямые `select` с тестом на null/not-found.
-- [x] `patientHomeMorningPing.ts` repo + handler: сохранить фильтры получателей и чтение settings.
-- [x] `idempotencyKeys.ts`: whitelist динамических частей + тест на неизвестный scope/table.
-- [x] `adminStats.ts`, `integrationDataQualityIncidents.ts`: агрегаты через builder или `sql`, snapshot формы ответа не менять.
-- [x] `appBaseUrl.ts`, `appTimezone.ts`, `runtimeConfig.ts`, `adminIncidentAlertRelay.ts`, `branchTimezone.ts`: сохранить TTL/cache invalidation и fallback на env там, где он уже есть.
+- [x] `messengerPhoneBindAudit.ts`: `runIntegratorSql` upsert/increment внутри переданной tx.
+- [ ] **Backlog (вне фактического закрытия):** `platformUserDeliveryPhone`, `canonicalUserId`, `linkedPhoneSource`, `resolvePlatformUserIdForRubitimeBooking`, `patientHomeMorningPing` (+ handler), `idempotencyKeys`, `adminStats`, `integrationDataQualityIncidents`, `branchTimezone`, `adminIncidentAlertRelay`, `smtpOutbound`, `messengerStaffIds`, `operationalVerboseLog` — по-прежнему `db.query`; см. LOG § Wave 2 этап 1 backlog.
 
 ### 7. `settingsSyncRoute.ts`
 
@@ -114,6 +114,14 @@ todos:
 - Если для `bookingProfilesRepo.ts` требуется читать `public.booking_*`, остановиться и оформить отдельный дедуп/cutover план.
 - Если claim очереди требует изменения индекса, порядка сортировки или статусов, остановиться и вынести в queue-hardening план.
 - Если settings sync хочется удалить из-за unified DB, остановиться: это не scope этапа 1.
+
+## Закрытие (2026-06-05)
+
+- **Сделано:** `outgoingDeliveryQueue`, `outgoingDeliveryWorker`, `bookingProfilesRepo`, `settingsSyncRoute`, `messengerPhoneBindAudit`, `notificationDeliveryAttempts` → `runIntegratorSql` / `execute(sql)`.
+- **Backlog:** мелкие repos и config reads из §6 (см. todo `p01-small-repos-backlog`) — остаются на `db.query`.
+- **Тесты:** `outgoingDeliveryQueue.test.ts`, `bookingProfilesRepo.test.ts`, обновления worker/settings/attempts — **1016 passed** (integrator test на дату закрытия).
+- **Проверки:** `pnpm --dir apps/integrator run typecheck` && `pnpm --dir apps/integrator run test`; `rg` по ядру scope — без необъяснённого `db.query` в переведённых файлах.
+- **Документация:** [LOG.md](../LOG.md) § Wave 2 этап 1; [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) — **Wave 2 P1 done** для переведённых строк.
 
 ## Лог выполнения
 

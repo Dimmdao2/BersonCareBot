@@ -85,3 +85,10 @@ todos:
 
 - Если compiled CLI требует нового packaging/build контракта, остановиться и обновить deploy/runbook до кода.
 - Если сравнение CLI/HTTP показывает разные цифры на одной БД, не закрывать этап даже при зелёных тестах.
+
+## Закрытие (2026-06-05)
+
+- **Core:** `projectionHealthCore.ts` — единый расчёт; `projectionHealth.ts` — thin wrapper; CLI — `src/infra/scripts/projection-health.ts`; `scripts/projection-health.mjs` — compatibility wrapper **без SQL**.
+- **SQL:** агрегаты в core по-прежнему через `db.query` (пул integrator); Drizzle `groupBy` — **cancelled** (todo `p02-drizzle-deferred`).
+- **Проверки:** `routes.projectionHealth.test.ts`, `projection-health.test.ts`; integrator test **1021 passed** (на дату закрытия); `pnpm --dir apps/integrator run build` — compiled CLI в `dist`.
+- **Документация:** [LOG.md](../LOG.md) § Wave 2 этап 2; [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) — **Wave 2 P2 done** (единый core, не «расхождение с mjs»).

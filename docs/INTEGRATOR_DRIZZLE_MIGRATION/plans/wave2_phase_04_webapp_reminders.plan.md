@@ -8,7 +8,7 @@ todos:
     content: "Зафиксировать контракты портов modules/reminders (или соседних) — входы/выходы без изменения публичного API маршрутов."
     status: completed
   - id: p04-projection
-    content: "pgReminderProjection.ts: миграция read/write на Drizzle; интеграционные проверки рассинхрона integrator_user_id."
+    content: "pgReminderProjection.ts: миграция read/write на runWebappSql; unit-тесты canonical lookup и idempotency (pgReminderProjection.pg.test.ts), без DB integration рассинхрона."
     status: completed
   - id: p04-rules-journal
     content: "pgReminderRules.ts, pgReminderJournal.ts: транзакции BEGIN/COMMIT через drizzle transaction; snooze и множественные апдейты — тесты на порядок операций."

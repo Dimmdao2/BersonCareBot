@@ -42,9 +42,9 @@
 
 | Ранг | Размер | Фаза | Область | Связь с мастер-планом | Комментарий |
 |------|--------|------|---------|------------------------|-------------|
-| 1 | M | **I** | Integrator: `outgoingDeliveryQueue`, `bookingProfilesRepo`, оставшиеся простые `db.query` в repos + config reads | **После P1–P4** — хвост не вошедший в этапы | `bookingProfilesRepo` — высокий функциональный риск (Rubitime, дубли каталогов); см. [LOG](./LOG.md), [TODO](../TODO.md). |
-| 2 | S | **II** | `projectionHealth.ts` ↔ `scripts/projection-health.mjs` — одна логика | Вне этапов P2 (скрипт оставался) | Сначала **унификация** цифр (DoD фазы); перенос агрегатов на Drizzle `groupBy` — после закрытия расхождений с CLI и отдельной постановки. |
-| 3 | M | **III** | Advisory locks: integrator (`rubitimeApiThrottle`, `schedulerLocks`) + webapp (`userLifecycleLock`, multipart, intake, diary purge) | Частично пересекается с «сложным SQL», но отдельный риск session/transaction | Документировать тип блокировки (`xact` vs session) при переносе. |
+| 1 | M | **I** | Integrator: `outgoingDeliveryQueue`, `bookingProfilesRepo`, settings sync, audit/attempts, worker SQL | **После мастера P1–P4** | **Done (2026-06-05):** ядро на `runIntegratorSql`; мелкие repos/config — backlog P1+ ([LOG](./LOG.md), [wave2_phase_01](./plans/wave2_phase_01_integrator_tail.plan.md)). |
+| 2 | S | **II** | `projectionHealth.ts` ↔ CLI — один канон метрик | Вне мастера P2 | **Done (2026-06-05):** `projectionHealthCore.ts`; builder `groupBy` — backlog ([wave2_phase_02](./plans/wave2_phase_02_projection_health_sync.plan.md)). |
+| 3 | M | **III** | Advisory locks: integrator + webapp (см. план) | Частично «сложный SQL» | **Done (2026-06-05):** `pgAdvisoryLock`; auth rate limits → фаза **VII** ([wave2_phase_03](./plans/wave2_phase_03_advisory_locks.plan.md)). |
 | 4 | L | **IV** | Webapp: напоминания `pgReminder*` | Вне integrator master | **Done (2026-06-05):** `runWebappSql` + Drizzle; см. [LOG](./LOG.md), [wave2_phase_04](./plans/wave2_phase_04_webapp_reminders.plan.md). |
 | 5 | L | **V** | Webapp: медиа (S3, transcode, multipart, preview worker) | Вне integrator master | Advisory + статусы + внешний S3 — высокий регрессионный риск. |
 | 6 | L | **VI** | Webapp: LFK каталог / дневник / назначения | Вне integrator master | Динамические list-SQL — последним слоем после стабилизации CRUD. |
