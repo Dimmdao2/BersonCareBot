@@ -1,11 +1,11 @@
 # План перехода оставшегося сырого SQL на Drizzle (Wave 2)
 
 **Дата:** 2026-05-15 (обновление оценки и приоритетов)  
-**Связанные документы:** [инвентаризация](./RAW_SQL_INVENTORY.md), [лог](./LOG.md), [аудит тестов закрытых фаз](./TEST_BEHAVIOR_AUDIT.md), **поэтапные планы Wave 2** ([`plans/README.md`](./plans/README.md)), закрытый мастер-план P1–P4 [integrator_drizzle_migration_master.plan.md](../../.cursor/plans/integrator_drizzle_migration_master.plan.md) (в т.ч. раздел **Wave 2** и todo `wave-2-doc-sync`).
+**Связанные документы:** [инвентаризация](./RAW_SQL_INVENTORY.md), [лог](./LOG.md), [аудит тестов закрытых фаз](./TEST_BEHAVIOR_AUDIT.md), **поэтапные планы Wave 2** ([`plans/README.md`](./plans/README.md)), закрытый мастер-план P1–P4 [integrator_drizzle_migration_master.plan.md](../../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md) (в т.ч. раздел **Wave 2** и todo `wave-2-doc-sync`).
 
 ## Контекст: что уже сделано
 
-Мастер-план **P1–P4 по интегратору закрыт** (`status: completed` в YAML мастера): простые репозитории, projection outbox + job queue, доменные repos, сложный SQL (`messageThreads`, `channelUsers`, `mergeIntegratorUsers` и т.д. по [карте мастера](../../.cursor/plans/integrator_drizzle_migration_master.plan.md)).
+Мастер-план **P1–P4 по интегратору закрыт** (`status: completed` в YAML мастера): простые репозитории, projection outbox + job queue, доменные repos, сложный SQL (`messageThreads`, `channelUsers`, `mergeIntegratorUsers` и т.д. по [карте мастера](../../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md)).
 
 **Этот документ** описывает **следующую волну** — всё, что **по-прежнему** использует сырой `db.query` / `pool.query` / `client.query` (см. инвентаризацию), плюс осознанное сохранение `execute(sql\`…\`)` / `runIntegratorSql` там, где ORM не окупается.
 

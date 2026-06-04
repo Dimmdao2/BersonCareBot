@@ -8,7 +8,7 @@
 ## Каноны
 
 - Дизайн: [`DOCTOR_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md) §A–§C.
-- План: [`.cursor/plans/doctor_ui_visual_style_pass.plan.md`](../../.cursor/plans/doctor_ui_visual_style_pass.plan.md).
+- План: [`.cursor/plans/archive/doctor_ui_visual_style_pass.plan.md`](../../.cursor/plans/archive/doctor_ui_visual_style_pass.plan.md).
 - Правило агентов: [`.cursor/rules/doctor-ui-shared-primitives.mdc`](../../.cursor/rules/doctor-ui-shared-primitives.mdc).
 - Density (не откатывать): [`APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_UI_DENSITY_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_UI_DENSITY_PLAN.md).
 

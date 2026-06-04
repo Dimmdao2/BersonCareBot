@@ -74,7 +74,7 @@
 - Гайд §20: формулировка про `doctorMetricValueClass` приведена к фактическому (константа экспортируется и применена).
 - Правило `doctor-ui-shared-primitives.mdc`: добавлен блок self-check по §A–§C (визуальный язык, шкала §B.1, контролы 32px, радиусы, состояния, KPI-константа) + rg на chrome-размеры.
 - Финальный `pnpm run ci` — **exit 0** (lint, typecheck, test, build, audit). Warning про node engine (v20 vs >=22) — окружение, не относится к правкам.
-- Frontmatter плана `.cursor/plans/doctor_ui_visual_style_pass.plan.md` закрыт (`status: completed`, все todos `completed`).
+- Frontmatter плана `.cursor/plans/archive/doctor_ui_visual_style_pass.plan.md` закрыт (`status: completed`, все todos `completed`).
 - В рабочем дереве присутствует отдельный несвязанный diff `apps/webapp/src/infra/repos/pgRubitimeMapping.ts` (вне scope этой инициативы). Он сознательно не изменялся в рамках style pass.
 
 **Закрытие фазы 6:** done. Инициатива закрыта.

@@ -47,17 +47,17 @@ isProject: false
 
 ## Scope
 
-**Разрешено:** файлы ниже + расширение [`apps/integrator/src/infra/db/drizzle.ts`](../../apps/integrator/src/infra/db/drizzle.ts) + новый код схемы в выбранном месте (см. мастер) + связанные `*.test.ts`.
+**Разрешено:** файлы ниже + расширение [`apps/integrator/src/infra/db/drizzle.ts`](../../../apps/integrator/src/infra/db/drizzle.ts) + новый код схемы в выбранном месте (см. мастер) + связанные `*.test.ts`.
 
-- [`subscriptions.ts`](../../apps/integrator/src/infra/db/repos/subscriptions.ts)
-- [`topics.ts`](../../apps/integrator/src/infra/db/repos/topics.ts)
-- [`bookingCalendarMap.ts`](../../apps/integrator/src/infra/db/repos/bookingCalendarMap.ts)
-- [`mailingLogs.ts`](../../apps/integrator/src/infra/db/repos/mailingLogs.ts)
-- [`messageLogs.ts`](../../apps/integrator/src/infra/db/repos/messageLogs.ts) → БД `delivery_attempt_logs`
+- [`subscriptions.ts`](../../../apps/integrator/src/infra/db/repos/subscriptions.ts)
+- [`topics.ts`](../../../apps/integrator/src/infra/db/repos/topics.ts)
+- [`bookingCalendarMap.ts`](../../../apps/integrator/src/infra/db/repos/bookingCalendarMap.ts)
+- [`mailingLogs.ts`](../../../apps/integrator/src/infra/db/repos/mailingLogs.ts)
+- [`messageLogs.ts`](../../../apps/integrator/src/infra/db/repos/messageLogs.ts) → БД `delivery_attempt_logs`
 
 **Вне scope:** `projectionOutbox`, `jobQueue`, любые репозитории вне списка.
 
-**Исторически вне этапа 1:** merge пользователей — [`mergeIntegratorUsers.ts`](../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts) — перенос на **`runIntegratorSql`** выполнен в **этапе 4** мастер-плана (см. [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md)).
+**Исторически вне этапа 1:** merge пользователей — [`mergeIntegratorUsers.ts`](../../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts) — перенос на **`runIntegratorSql`** выполнен в **этапе 4** мастер-плана (см. [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md)).
 
 ## Порядок работ (обязательный)
 
@@ -67,8 +67,8 @@ isProject: false
 
 ### 1. Схема Drizzle
 
-- [x] Сверить физические имена таблиц и колонок с [`apps/webapp/db/schema/schema.ts`](../../apps/webapp/db/schema/schema.ts) и/или dump integrator DDL (`docs/ARCHITECTURE/DB_DUMPS/` при необходимости).
-- [x] Добавить таблицы в регистрируемый schema-object для [`getIntegratorDrizzle()`](../../apps/integrator/src/infra/db/drizzle.ts).
+- [x] Сверить физические имена таблиц и колонок с [`apps/webapp/db/schema/schema.ts`](../../../apps/webapp/db/schema/schema.ts) и/или dump integrator DDL (`docs/ARCHITECTURE/DB_DUMPS/` при необходимости).
+- [x] Добавить таблицы в регистрируемый schema-object для [`getIntegratorDrizzle()`](../../../apps/integrator/src/infra/db/drizzle.ts).
 - [x] Проверка второго канала записи (`rg` по `user_subscriptions`, `booking_calendar_map`, `mailing_logs`, `delivery_attempt_logs`): кроме merge в **этапе 4** (`mergeIntegratorUsers`) — отдельный канал не вводился.
 
 ### 2. Пер-компонентный перевод
@@ -83,7 +83,7 @@ isProject: false
 
 - [x] `pnpm --dir apps/integrator run typecheck`
 - [x] `pnpm --dir apps/integrator run test` (или узкий поднабор `--run path/to/file` при итерациях между правками; перед merge этапа — полный интеграторский test как в процессе команды).
-- [x] Запись в [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md): что переведено, какие таблицы в schema.
+- [x] Запись в [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md): что переведено, какие таблицы в schema.
 
 ## Definition of Done (этап 1)
 

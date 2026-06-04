@@ -1,18 +1,17 @@
 # Онлайн-запись: реабилитация и нутрициология
 
-Инициатива: **запись пациента на онлайн-консультации** по направлениям **реабилитация** и **нутрициология** — отдельный продуктовый и технический контур, **не** опирающийся на Rubitime (очередь слотов через `rubitime_booking_profiles` / M2M v1 к `/rubitime/slots`).
+**Статус (2026-06): инициатива автозаписи отменена.**
 
-## Зафиксированный разрыв (prod-симптом)
+Продуктовое решение: **не** делать онлайн-автозапись по реабилитации и нутрициологии (ни Rubitime, ни отдельный контур слотов). Пациент обращается **через запрос** (существующие каналы поддержки/заявки), не через выбор слотов в кабинете.
 
-В логах webapp при попытках онлайн-записи появляется `slots_mapping_not_configured` / `[booking/slots] getSlots failed`, потому что запрос уходит в интеграторный путь слотов Rubitime. **Онлайн-консультации по этим категориям не должны идти в Rubitime** — текущее поведение считается ошибкой маршрутизации/модели, а не «не настроили маппинг».
+Исторический контекст: в логах prod (14–15.05.2026) при попытках автозаписи уходили запросы в Rubitime → `slots_mapping_not_configured`; это больше не трактуется как задача на доработку интеграции.
 
-## Документы инициативы
+## Документы
 
-- **Журнал исполнения:** [`LOG.md`](LOG.md)
-- **Структура целевого решения (ТЗ, этапы, контракты):** *будет добавлена позже владельцем инициативы.*
+- **Журнал:** [`LOG.md`](LOG.md)
+- Чеклист prod-логов (архив): [`.cursor/plans/archive/production_log_findings_2026-05-14.plan.md`](../../.cursor/plans/archive/production_log_findings_2026-05-14.plan.md) (пункт `online-consult-slots-rubitime-misroute` — cancelled)
 
-## Связанные материалы репозитория
+## Связанные материалы
 
-- Текущий Rubitime-пайплайн (вебхук, события): [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
-- Чеклист по логам prod (см. пункты слотов / v1): [`.cursor/plans/production_log_findings_2026-05-14.plan.md`](../../.cursor/plans/production_log_findings_2026-05-14.plan.md)
-- Legacy-маппинг v1 → Rubitime IDs: `apps/integrator/src/integrations/rubitime/bookingScheduleMapping.ts`, `LEGACY_BOOKING_PROFILES.md`
+- Запись очная / BOOKING_REWORK: [`docs/BOOKING_REWORK_INITIATIVE/README.md`](../BOOKING_REWORK_INITIATIVE/README.md)
+- Rubitime-пайплайн: [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)

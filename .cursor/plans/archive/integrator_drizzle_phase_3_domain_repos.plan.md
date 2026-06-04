@@ -42,17 +42,17 @@ isProject: false
 
 **Разрешено**
 
-- [`reminders.ts`](../../apps/integrator/src/infra/db/repos/reminders.ts)
-- [`bookingRecords.ts`](../../apps/integrator/src/infra/db/repos/bookingRecords.ts)
-- [`bookingRecords.sql.test.ts`](../../apps/integrator/src/infra/db/repos/bookingRecords.sql.test.ts)
-- [`publicAppointmentRecordSync.ts`](../../apps/integrator/src/infra/db/repos/publicAppointmentRecordSync.ts)
+- [`reminders.ts`](../../../apps/integrator/src/infra/db/repos/reminders.ts)
+- [`bookingRecords.ts`](../../../apps/integrator/src/infra/db/repos/bookingRecords.ts)
+- [`bookingRecords.sql.test.ts`](../../../apps/integrator/src/infra/db/repos/bookingRecords.sql.test.ts)
+- [`publicAppointmentRecordSync.ts`](../../../apps/integrator/src/infra/db/repos/publicAppointmentRecordSync.ts)
 
 **Вне scope:** `messageThreads`, `channelUsers`, `mergeIntegratorUsers`, скрипты rubitime CLI кроме прямых импортов только если ломается сборка после смены сигнатур (тогда точечный фикс).
 
 ## Риски и проверки
 
-- **Reminder rules / occurrences:** согласовать с типами из [`kernel/contracts/reminders`](../../apps/integrator/src/kernel/contracts/reminders.ts) и фактическими JOIN/фильтрами времени UTC.
-- **Booking records:** тест [`bookingRecords.sql.test.ts`](../../apps/integrator/src/infra/db/repos/bookingRecords.sql.test.ts) — обновить только если меняются наблюдаемые строки SQL; цель перевода Drizzle сохранить поведение, не текст тестового матча.
+- **Reminder rules / occurrences:** согласовать с типами из [`kernel/contracts/reminders`](../../../apps/integrator/src/kernel/contracts/reminders.ts) и фактическими JOIN/фильтрами времени UTC.
+- **Booking records:** тест [`bookingRecords.sql.test.ts`](../../../apps/integrator/src/infra/db/repos/bookingRecords.sql.test.ts) — обновить только если меняются наблюдаемые строки SQL; цель перевода Drizzle сохранить поведение, не текст тестового матча.
 - **Public appointment sync:** проверить идempotентность UPSERT/delete и любые ограничения FK на записи синхронизации.
 
 ## Чек-лист по шагам

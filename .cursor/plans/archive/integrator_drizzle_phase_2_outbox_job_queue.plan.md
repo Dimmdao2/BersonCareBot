@@ -55,9 +55,9 @@ isProject: false
 
 **Разрешено**
 
-- [`projectionOutbox.ts`](../../apps/integrator/src/infra/db/repos/projectionOutbox.ts)
-- [`jobQueue.ts`](../../apps/integrator/src/infra/db/repos/jobQueue.ts)
-- Тесты: [`projectionOutbox.test.ts`](../../apps/integrator/src/infra/db/repos/projectionOutbox.test.ts), [`writePort.*.test.ts`](../../apps/integrator/src/infra/db/writePort.userUpsert.test.ts) только если упоминают SQL этих модулей
+- [`projectionOutbox.ts`](../../../apps/integrator/src/infra/db/repos/projectionOutbox.ts)
+- [`jobQueue.ts`](../../../apps/integrator/src/infra/db/repos/jobQueue.ts)
+- Тесты: [`projectionOutbox.test.ts`](../../../apps/integrator/src/infra/db/repos/projectionOutbox.test.ts), [`writePort.*.test.ts`](../../../apps/integrator/src/infra/db/writePort.userUpsert.test.ts) только если упоминают SQL этих модулей
 - Drizzle регистрация + schema
 
 **Вне scope**
@@ -67,7 +67,7 @@ isProject: false
 
 ## Постаудит (выполнено после закрытия этапа 2)
 
-- Единая запись в `rubitime_create_retry_jobs` для отмены напоминаний: `cancelPendingBookingReminderJobsByBookingId` в [`jobQueue.ts`](../../apps/integrator/src/infra/db/repos/jobQueue.ts), вызов из [`recordM2mRoute.ts`](../../apps/integrator/src/integrations/rubitime/recordM2mRoute.ts) вместо сырого `db.query(UPDATE …)`.
+- Единая запись в `rubitime_create_retry_jobs` для отмены напоминаний: `cancelPendingBookingReminderJobsByBookingId` в [`jobQueue.ts`](../../../apps/integrator/src/infra/db/repos/jobQueue.ts), вызов из [`recordM2mRoute.ts`](../../../apps/integrator/src/integrations/rubitime/recordM2mRoute.ts) вместо сырого `db.query(UPDATE …)`.
 - Тестовые моки: `stubIntegratorDrizzleForTests` — `insert(table)`; capture только при `table === projectionOutbox`.
 - Удалены неиспользуемые ветки `projection_outbox` в `db.query` моках writePort-тестов (enqueue идёт через Drizzle).
 

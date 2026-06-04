@@ -1,5 +1,6 @@
 ---
 name: Phone messenger bind bot UX
+status: completed
 overview: "Бот после PWA phoneauth: user.phone.link до success, меню вместо contact-клавиатуры, cancel без confirmQuestion, Max parity. Реализовано вместе с планом A (finish); автотесты + pnpm run ci — green; ручной E2E — LOG §Приёмка A+B."
 todos:
   - id: phase-0-repro-baseline
@@ -115,7 +116,7 @@ flowchart LR
 ## Шаг 1. `executeAction`: writes first + guard
 
 1. M2M `completePhoneMessengerBind` ok.
-2. **Сначала** sequential `writeDb`: `user.phone.link`, `user.state.set` → `idle` (как [channelLink.complete](archive/phone_bind_mismatch_ux.plan.md)).
+2. **Сначала** sequential `writeDb`: `user.phone.link`, `user.state.set` → `idle` (как [channelLink.complete](phone_bind_mismatch_ux.plan.md)).
 3. Результат:
    - `userPhoneLinkApplied === true` → success path (шаг 2–3).
    - `false` + `phoneLinkReason` → `phoneAuthFailed` / mismatch / conflict templates, **без** success и меню.

@@ -34,9 +34,9 @@ isProject: false
 
 **Разрешено**
 
-- [`messageThreads.ts`](../../apps/integrator/src/infra/db/repos/messageThreads.ts) + [`messageThreads.test.ts`](../../apps/integrator/src/infra/db/repos/messageThreads.test.ts)
-- [`channelUsers.ts`](../../apps/integrator/src/infra/db/repos/channelUsers.ts) + [`channelUsers.test.ts`](../../apps/integrator/src/infra/db/repos/channelUsers.test.ts)
-- [`mergeIntegratorUsers.ts`](../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts) + [`mergeIntegratorUsers.test.ts`](../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.test.ts)
+- [`messageThreads.ts`](../../../apps/integrator/src/infra/db/repos/messageThreads.ts) + [`messageThreads.test.ts`](../../../apps/integrator/src/infra/db/repos/messageThreads.test.ts)
+- [`channelUsers.ts`](../../../apps/integrator/src/infra/db/repos/channelUsers.ts) + [`channelUsers.test.ts`](../../../apps/integrator/src/infra/db/repos/channelUsers.test.ts)
+- [`mergeIntegratorUsers.ts`](../../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts) + [`mergeIntegratorUsers.test.ts`](../../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.test.ts)
 - Drizzle schema / регистрация таблиц, участвующих только в этих путях
 
 **Вне scope:** любые изменения продуктовой семантики merge (правила победителя пользователя), кроме багфиксов, явно найденных при переводе.

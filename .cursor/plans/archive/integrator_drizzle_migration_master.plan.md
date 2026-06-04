@@ -55,26 +55,26 @@ isProject: true
 
 ## Стратегия схемы Drizzle (обязательное решение до массового кода)
 
-Единый PostgreSQL с таблицами, часть которых уже описана в [`apps/webapp/db/schema/schema.ts`](../../apps/webapp/db/schema/schema.ts) (например `projectionOutbox`, `userSubscriptions`). Integrator сегодня **не** зависит от webapp-пакета.
+Единый PostgreSQL с таблицами, часть которых уже описана в [`apps/webapp/db/schema/schema.ts`](../../../apps/webapp/db/schema/schema.ts) (например `projectionOutbox`, `userSubscriptions`). Integrator сегодня **не** зависит от webapp-пакета.
 
 **Статус выбора:** см. подраздел «Решение (зафиксировано, этап 1)» ниже. Исторические варианты:
 
-- **Предпочтительно (backlog):** вынести минимальный набор `pgTable` для integrator-путей в отдельный workspace-пакет (по образцу [`packages/operator-db-schema`](../../packages/operator-db-schema)), чтобы не подтягивать webapp и не дублировать колонки вручную в двух местах без процесса синхронизации.
+- **Предпочтительно (backlog):** вынести минимальный набор `pgTable` для integrator-путей в отдельный workspace-пакет (по образцу [`packages/operator-db-schema`](../../../packages/operator-db-schema)), чтобы не подтягивать webapp и не дублировать колонки вручную в двух местах без процесса синхронизации.
 - **Принято для этапа 1:** явно дублировать узкие определения в `apps/integrator/` с чеклистом «поле к полю совпадает с каноническим DDL / webapp schema» для каждой таблицы.
 
-Расширить [`apps/integrator/src/infra/db/drizzle.ts`](../../apps/integrator/src/infra/db/drizzle.ts): зарегистрировать новые таблицы в объекте `schema`, сохранить один пул (`db` из `client.ts`).
+Расширить [`apps/integrator/src/infra/db/drizzle.ts`](../../../apps/integrator/src/infra/db/drizzle.ts): зарегистрировать новые таблицы в объекте `schema`, сохранить один пул (`db` из `client.ts`).
 
 ### Решение (зафиксировано, этап 1)
 
-- **Выбран вариант «локальный дубль»:** `apps/integrator/src/infra/db/schema/integratorPublicProduct.ts` + регистрация в [`integratorDrizzleSchema.ts`](../../apps/integrator/src/infra/db/integratorDrizzleSchema.ts); integrator **не** зависит от пакета webapp.
+- **Выбран вариант «локальный дубль»:** `apps/integrator/src/infra/db/schema/integratorPublicProduct.ts` + регистрация в [`integratorDrizzleSchema.ts`](../../../apps/integrator/src/infra/db/integratorDrizzleSchema.ts); integrator **не** зависит от пакета webapp.
 - **Workspace-пакет** для общих `pgTable` остаётся предпочтительным направлением на будущее, когда дублирование выйдет за пределы узкого набора таблиц — до этого чеклист «поле к полю с `schema.ts` / DDL» обязателен при любых правках.
-- Подробности и риски: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md).
+- Подробности и риски: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md).
 
 ## Границы scope (разрешено / вне scope)
 
 **Разрешено**
 
-- [`apps/integrator/src/infra/db/`](../../apps/integrator/src/infra/db/) (в т.ч. `drizzle.ts`, новые файлы schema при выбранном варианте).
+- [`apps/integrator/src/infra/db/`](../../../apps/integrator/src/infra/db/) (в т.ч. `drizzle.ts`, новые файлы schema при выбранном варианте).
 - Новый или существующий workspace-пакет `packages/*` **только** для Drizzle-схем, если принято решение о выносе.
 - Тесты существующих `*.test.ts` рядом с репозиториями; при необходимости — узкие правки моков `getIntegratorDrizzle`.
 
@@ -98,13 +98,13 @@ isProject: true
 - [x] Принято и описано решение по общей Drizzle-схеме для integrator таблиц; `getIntegratorDrizzle` покрывает все переведённые таблицы этапов 1–4.
 - [x] Все четыре этапных плана переведены в завершённые состояния (`todos`, чеклисты, **`status: completed` в YAML**, LOG).
 - [x] `pnpm --dir apps/integrator run typecheck` и `pnpm --dir apps/integrator run test` зелёные после финального этапа.
-- [x] В [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) зафиксированы решения по схеме, риски оставшегося сырого SQL (если есть) и краткий итог по этапам.
-- [x] Документация Wave 2 и ссылки из корневого [`docs/README.md`](../../docs/README.md) согласованы с закрытием мастера (todo **`wave-2-doc-sync`**).
+- [x] В [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) зафиксированы решения по схеме, риски оставшегося сырого SQL (если есть) и краткий итог по этапам.
+- [x] Документация Wave 2 и ссылки из корневого [`docs/README.md`](../../../docs/README.md) согласованы с закрытием мастера (todo **`wave-2-doc-sync`**).
 
 ## Следующая волна (Wave 2) — вне закрытого scope P1–P4
 
 Оставшийся сырой SQL (`db.query` / `pool.query`), webapp `infra/repos`, worker и скрипты — **не продолжение этого мастер-плана**, а отдельная очередь работ:
 
-- План фаз и рисков: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md)
-- Построчная инвентаризация: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md)
-- Журнал: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) (раздел **Wave 2**)
+- План фаз и рисков: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md)
+- Построчная инвентаризация: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md)
+- Журнал: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) (раздел **Wave 2**)

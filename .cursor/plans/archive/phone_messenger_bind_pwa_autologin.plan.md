@@ -1,5 +1,6 @@
 ---
 name: Phone messenger bind PWA autologin
+status: completed
 overview: "Автовход в PWA после контакта: poll otp_ready → POST messenger-bind/finish → сессия. Реализовано вместе с планом B (бот: меню, cancel); автотесты + pnpm run ci — green; ручной E2E — LOG §Приёмка A+B."
 todos:
   - id: phase-0-repro-baseline

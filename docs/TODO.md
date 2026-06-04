@@ -6,8 +6,8 @@
 
 - **Репозиторий** vs **домашний каталог Cursor:** планы **в монорепо** — `<репо>/.cursor/plans/` (см. ниже и [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md)); планы **на машине** — `~/.cursor/plans`. Не смешивать: пояснение в начале [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md). Закрытый план MAX/TG pre-prod (integrator): [`.cursor/plans/archive/max_tg_pre-prod_automation.plan.md`](../.cursor/plans/archive/max_tg_pre-prod_automation.plan.md) · журнал [`ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md`](ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md).
 
-- **Закрытые планы (корень репозитория, 2026-05-15):** Integrator → Drizzle — `.cursor/plans/integrator_drizzle_migration_master.plan.md` + `integrator_drizzle_phase_*.plan.md` (во frontmatter **`status: completed`**); журнал [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](INTEGRATOR_DRIZZLE_MIGRATION/LOG.md). Физический перенос в **`.cursor/plans/archive/`** — по процессу, см. [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md) §«Корень `.cursor/plans/`».
-- **Архив закрытых планов (репозиторий):** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md) (в т.ч. `telegram_menu_reply_admin.plan.md` — меню Telegram админ/пользователь 2026-05; **`rubitime_catalog_ux_fix.plan.md`** — UX редактирования услуг в `RubitimeSection`, 2026-06-02).
+- **Закрытые планы (архив, 2026-05-15 / перенос 2026-06-04):** Integrator → Drizzle — [`.cursor/plans/archive/integrator_drizzle_migration_master.plan.md`](../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md) + `integrator_drizzle_phase_*.plan.md` (**`status: completed`**); журнал [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](INTEGRATOR_DRIZZLE_MIGRATION/LOG.md).
+- **Архив закрытых планов (репозиторий):** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md) (в т.ч. `telegram_menu_reply_admin.plan.md` — меню Telegram админ/пользователь 2026-05; **`rubitime_catalog_ux_fix.plan.md`** — UX редактирования услуг в `RubitimeSection`, 2026-06-02; **`production_log_findings_2026-05-14.plan.md`** — journalctl webapp/api, HLS/Rubitime/ops, 2026-06).
 - **Отложенные работы (не сейчас):** [`docs/TODO_NOT_NOW/`](TODO_NOT_NOW/README.md) — реестр черновиков; планы с `status: draft` (см. § «Черновики» в archive README). Пример: [public_landing_metadata](TODO_NOT_NOW/public_landing_metadata.md).
 - **Архив закрытых планов (домашний каталог Cursor):** `~/.cursor/plans/archive/2026-05-01-closed/`, `~/.cursor/plans/archive/2026-05-14-closed/` (корень `~/.cursor/plans/*.plan.md` — только открытые или без полностью закрытого набора structured `todos`).
 - **Архивные инициативы docs:** `docs/archive/2026-05-initiatives/` (в т.ч. WEBAPP Drizzle unification, Patient Reminder UX, страница программы, LFK expand — оглавление в [docs/README.md](README.md) §Архив).
@@ -19,6 +19,12 @@
 - **Дополнительно:** вкладка, открытая **до** деплоя, держит старый JS; после переключения трафика на новый билд первый же сабмит может ударить в новый процесс со старым ID — пользователю достаточно **полного обновления страницы** (это ожидаемо, не баг приложения). Blue/green не отменяет этот эффект для долго открытых вкладок, но **убирает смешение версий между запросами одной сессии**.
 - **TODO:** ввести для **bersoncarebot-webapp-prod** (и при необходимости staging) схему **blue/green** или эквивалент: на время переключения трафика не смешивать старый и новый deployment за одним виртуальным хостом; зафиксировать шаги в `deploy/` / `SERVER CONVENTIONS` / runbook; при наличии CDN — согласовать инвалидацию кэша статики с cutover.
 - **Связь:** сообщение Next.js [failed-to-find-server-action](https://nextjs.org/docs/messages/failed-to-find-server-action); шум с литералом `"x"` в логах может быть отдельно от ботов, но смешение версий — реальный prod-риск при rolling без стиковости.
+- **Prod-разбор (закрыт):** [`.cursor/plans/archive/production_log_findings_2026-05-14.plan.md`](../.cursor/plans/archive/production_log_findings_2026-05-14.plan.md); runbook на хосте — [`deploy/HOST_DEPLOY_README.md`](../deploy/HOST_DEPLOY_README.md) («Кэширование», «Журнал webapp: 143 и Server Actions»).
+
+## Инфра / Node на хосте (post-prod)
+
+- **Node.js:** в корневом `package.json` задано `"engines": { "node": ">=22" }` — при планировании обновления образа хоста держать runtime webapp/integrator на Node 22+.
+- **AWS SDK v2:** предупреждение в логах о поддержке в Node 22+ до **2027** — отслеживать при миграции зависимостей S3/медиа; отдельного срочного тикета нет (закрыто в prod-log plan 2026-06).
 
 ## Медиа / видео — авторизация и права на поток (post-prod)
 
@@ -50,7 +56,7 @@
 
 - **Проблема:** в unified PostgreSQL интегратор всё ещё держит **параллельный справочник** `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles` (surrogate `id`, v1-профили) и **signed M2M** `POST/GET /api/bersoncare/rubitime/admin/*` (`adminM2mRoute.ts` + `bookingProfilesRepo.ts`), дублируя **канон** в webapp: `public.booking_*`, `public.branches` и админку `/api/admin/booking-catalog/*`.
 - **Уже сделано (2026-05):** разрешение IANA для слотов/ингеста — **`public.booking_branches` / `public.branches`**, не `integrator.rubitime_branches.timezone` (`apps/integrator/src/infra/db/branchTimezone.ts`).
-- **TODO (крупный рефакторинг):** перевести чтение **v1** (`resolveBookingProfile`, `pickAnyActiveRubitimeScheduleTriple`, operator health) на **каталог webapp** или зафиксировать **отказ от v1** в пользу только M2M v2; переподключить или удалить **integrator admin M2M** к записям в `public` (без второй копии данных); миграция/бэкфилл профилей; затем DDL — дроп или опустошение `integrator.rubitime_*` после cutover. Связка с Drizzle-репозиториями: `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`, планы `integrator_drizzle_phase_*.plan.md`.
+- **TODO (крупный рефакторинг):** перевести чтение **v1** (`resolveBookingProfile`, `pickAnyActiveRubitimeScheduleTriple`, operator health) на **каталог webapp** или зафиксировать **отказ от v1** в пользу только M2M v2; переподключить или удалить **integrator admin M2M** к записям в `public` (без второй копии данных); миграция/бэкфилл профилей; затем DDL — дроп или опустошение `integrator.rubitime_*` после cutover. Связка с Drizzle-репозиториями: `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`, планы `.cursor/plans/archive/integrator_drizzle_phase_*.plan.md`.
 
 ## Doctor catalogs — черновики отдельно от архива
 

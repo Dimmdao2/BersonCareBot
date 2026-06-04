@@ -39,8 +39,8 @@
 
 | Документ | Назначение |
 |----------|------------|
-| [`.cursor/plans/phone_messenger_bind_pwa_autologin.plan.md`](../../.cursor/plans/phone_messenger_bind_pwa_autologin.plan.md) | План A — `messenger-bind/finish`, `PhoneMessengerAuthFlow` |
-| [`.cursor/plans/phone_messenger_bind_bot_ux.plan.md`](../../.cursor/plans/phone_messenger_bind_bot_ux.plan.md) | План B — integrator writes-first, меню, cancel |
+| [`.cursor/plans/archive/phone_messenger_bind_pwa_autologin.plan.md`](../../.cursor/plans/archive/phone_messenger_bind_pwa_autologin.plan.md) | План A — `messenger-bind/finish`, `PhoneMessengerAuthFlow` |
+| [`.cursor/plans/archive/phone_messenger_bind_bot_ux.plan.md`](../../.cursor/plans/archive/phone_messenger_bind_bot_ux.plan.md) | План B — integrator writes-first, меню, cancel |
 | [`../OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md`](../OPERATIONS/PHONE_MESSENGER_AUTH_RUNBOOK.md) | Операционный runbook + deploy checklist |
 | [`LOG.md`](LOG.md) §«Приёмка A+B» | Ручной smoke (5 кейсов, ☐ до деплоя) |
 

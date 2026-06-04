@@ -493,6 +493,21 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 
 Ожидание: у ответа HTML — нет многодневного публичного `max-age` «для всего сайта»; у чанка — `immutable` (или эквивалентно долгий `max-age` вместе с `immutable`).
 
+**Журнал webapp: `status=143` и Server Actions (prod, проверено 2026-06):**
+
+- **`status=143` / `Failed with result 'exit-code'`** у `bersoncarebot-webapp-prod.service` — норма при **SIGTERM** при `systemctl restart` / деплое: в journal за несколько недель 143 идёт только в цепочке `Stopping` → `Started`, не как «падение» процесса. Не алертить отдельно от реальных crash/restart-loop.
+- **`Failed to find Server Action "…"`** в логах webapp: часть строк — боты/сканеры; смешение **двух билдов** за одним vhost — риск при rolling без blue/green ([`docs/TODO.md`](../docs/TODO.md) §«Деплой webapp — blue/green»). Вкладка, открытая **до** деплоя, может слать старый ID экшена — пользователю достаточно **полного обновления** страницы.
+- Закрытый чеклист по логам 14–15.05.2026: [`.cursor/plans/archive/production_log_findings_2026-05-14.plan.md`](../.cursor/plans/archive/production_log_findings_2026-05-14.plan.md).
+
+Проверка 143 (14 дней, на хосте):
+
+```bash
+journalctl -u bersoncarebot-webapp-prod.service --since "14 days ago" --no-pager \
+  | grep -E 'Stopping|status=143|Started' | tail -40
+journalctl -u bersoncarebot-webapp-prod.service -p err --since "14 days ago" --no-pager
+journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-pager
+```
+
 ### Важно
 
 - nginx слушает `80` и `443`;

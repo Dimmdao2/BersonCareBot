@@ -35,7 +35,7 @@
 | 3 | «Отмена» / «Вернуться в меню» в phoneauth | «Отправить ваш вопрос Дмитрию?» (catch-all `menu.default`) |
 | 4 | `profile_bind` с сессией | Ожидаемо: poll `consumed`, без OTP (не регрессить) |
 
-**Планы:** `.cursor/plans/phone_messenger_bind_pwa_autologin.plan.md` (A), `.cursor/plans/phone_messenger_bind_bot_ux.plan.md` (B).
+**Планы:** `.cursor/plans/archive/phone_messenger_bind_pwa_autologin.plan.md` (A), `.cursor/plans/archive/phone_messenger_bind_bot_ux.plan.md` (B).
 
 ## 2026-05-27 — План A: PWA автовход после контакта (messenger-bind/finish)
 
