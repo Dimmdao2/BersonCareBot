@@ -22,11 +22,11 @@ describe("createAdminPlatformUserStatsService", () => {
       iana: "UTC",
       preset: "week",
     });
-    expect(r.summary.newUsers).toBe(0);
+    expect(r.summary.registrations).toBe(0);
     expect(r.summary.merges).toBe(0);
     expect(r.summary.combined).toBe(0);
     expect(r.series.length).toBe(7);
-    expect(r.series[0]?.newUsers).toBe(0);
+    expect(r.series[0]?.registrations).toBe(0);
     expect(r.series[0]?.merges).toBe(0);
   });
 

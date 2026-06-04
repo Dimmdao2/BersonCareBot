@@ -70,8 +70,8 @@ export function AdminPlatformRegistrationStatsClient({ period, ready }: Props) {
         <>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <div className="text-muted-foreground text-xs">Новые аккаунты</div>
-              <div className="text-2xl font-semibold tabular-nums">{data.summary.newUsers}</div>
+              <div className="text-muted-foreground text-xs">Регистрации</div>
+              <div className="text-2xl font-semibold tabular-nums">{data.summary.registrations}</div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
               <div className="text-muted-foreground text-xs">Слияния</div>

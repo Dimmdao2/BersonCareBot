@@ -76,8 +76,8 @@ describe("GET /api/admin/platform-user-registration-stats", () => {
       toDay: "2026-05-16",
       startUtcIso: "2026-05-09T21:00:00.000Z",
       endExclusiveUtcIso: "2026-05-16T21:00:00.000Z",
-      summary: { newUsers: 2, merges: 1, combined: 3 },
-      series: [{ day: "2026-05-16", newUsers: 2, merges: 1 }],
+      summary: { registrations: 2, merges: 1, combined: 3 },
+      series: [{ day: "2026-05-16", registrations: 2, merges: 1 }],
     });
     const res = await GET(new Request("http://localhost/api/admin/platform-user-registration-stats"));
     expect(res.status).toBe(200);
@@ -100,7 +100,7 @@ describe("GET /api/admin/platform-user-registration-stats", () => {
       toDay: "y",
       startUtcIso: "a",
       endExclusiveUtcIso: "b",
-      summary: { newUsers: 0, merges: 0, combined: 0 },
+      summary: { registrations: 0, merges: 0, combined: 0 },
       series: [],
     });
     await GET(new Request("http://localhost/api/admin/platform-user-registration-stats?preset=today"));

@@ -4,8 +4,8 @@ export type AdminStatsTimePreset = "week" | "month" | "custom";
 export type AdminRegistrationDayPoint = {
   /** YYYY-MM-DD в календаре `iana` */
   day: string;
-  /** Новые строки `platform_users` (клиенты) с `created_at` в этот локальный день */
-  newUsers: number;
+  /** Регистрации (`created_at`) без строк, merged в этом же окне аналитики */
+  registrations: number;
   /** Слияния: `merged_at` в этот локальный день */
   merges: number;
 };
@@ -17,9 +17,9 @@ export type AdminRegistrationStatsPayload = {
   startUtcIso: string;
   endExclusiveUtcIso: string;
   summary: {
-    newUsers: number;
+    registrations: number;
     merges: number;
-    /** newUsers + merges */
+    /** registrations + merges */
     combined: number;
   };
   series: AdminRegistrationDayPoint[];

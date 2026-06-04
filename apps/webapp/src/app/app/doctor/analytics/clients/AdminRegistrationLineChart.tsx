@@ -29,13 +29,13 @@ export function AdminRegistrationLineChart({ series }: { series: AdminRegistrati
   const period = chartPeriodForPointCount(series.length);
   const data = series.map((p) => ({
     full: p.day,
-    newUsers: p.newUsers,
+    registrations: p.registrations,
     merges: p.merges,
   }));
   const yMax = Math.max(
     1,
-    ...series.flatMap((s) => [s.newUsers, s.merges]),
-    ...series.map((s) => s.newUsers + s.merges),
+    ...series.flatMap((s) => [s.registrations, s.merges]),
+    ...series.map((s) => s.registrations + s.merges),
   );
 
   return (
@@ -64,7 +64,7 @@ export function AdminRegistrationLineChart({ series }: { series: AdminRegistrati
           <Tooltip
             formatter={(value, name) => {
               const v = typeof value === "number" ? value : Number(value);
-              const label = name === "newUsers" ? "Новые" : "Мержи";
+              const label = name === "registrations" ? "Регистрации" : "Слияния";
               return [`${Number.isFinite(v) ? v : "—"}`, label];
             }}
             labelFormatter={(_, payload) => {
@@ -80,12 +80,12 @@ export function AdminRegistrationLineChart({ series }: { series: AdminRegistrati
           <Legend
             verticalAlign="bottom"
             wrapperStyle={{ paddingTop: 8 }}
-            formatter={(value) => (value === "newUsers" ? "Новые аккаунты" : "Слияния")}
+            formatter={(value) => (value === "registrations" ? "Регистрации" : "Слияния")}
           />
           <Line
             type="monotone"
-            name="newUsers"
-            dataKey="newUsers"
+            name="registrations"
+            dataKey="registrations"
             stroke={STROKE_NEW}
             strokeWidth={2}
             dot={{ r: 3, fill: STROKE_NEW, strokeWidth: 0 }}

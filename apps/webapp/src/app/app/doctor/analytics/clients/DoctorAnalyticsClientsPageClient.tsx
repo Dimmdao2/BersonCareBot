@@ -124,10 +124,12 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
             tone="warning"
           />
         </DoctorMetricList>
-        <div className="mt-3 rounded-xl border border-border/60 bg-card p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Каналы связи</p>
-          <div className="mt-3">
-            <ClientContactPieChart breakdown={clients.contactBreakdown} />
+        <div className="mt-3 w-full shrink-0 lg:w-1/3 lg:max-w-xs">
+          <div className="rounded-lg border border-border/60 bg-card p-3 overflow-visible">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Каналы связи</p>
+            <div className="mt-2 overflow-visible">
+              <ClientContactPieChart breakdown={clients.contactBreakdown} />
+            </div>
           </div>
         </div>
       </DoctorSection>

@@ -6,9 +6,9 @@ export type AdminPlatformUserStatsPort = {
     /** Все календарные дни от from до to (YYYY-MM-DD) в `iana` для выравнивания ряда */
     dayKeys: string[];
   }): Promise<{
-    newUsersTotal: number;
+    registrationsTotal: number;
     mergesTotal: number;
-    newByDay: Map<string, number>;
+    registrationsByDay: Map<string, number>;
     mergesByDay: Map<string, number>;
   }>;
 

@@ -35,7 +35,7 @@ export function createAdminPlatformUserStatsService(port: AdminPlatformUserStats
 
       const series = dayKeys.map((day) => ({
         day,
-        newUsers: raw.newByDay.get(day) ?? 0,
+        registrations: raw.registrationsByDay.get(day) ?? 0,
         merges: raw.mergesByDay.get(day) ?? 0,
       }));
 
@@ -46,9 +46,9 @@ export function createAdminPlatformUserStatsService(port: AdminPlatformUserStats
         startUtcIso,
         endExclusiveUtcIso,
         summary: {
-          newUsers: raw.newUsersTotal,
+          registrations: raw.registrationsTotal,
           merges: raw.mergesTotal,
-          combined: raw.newUsersTotal + raw.mergesTotal,
+          combined: raw.registrationsTotal + raw.mergesTotal,
         },
         series,
       };

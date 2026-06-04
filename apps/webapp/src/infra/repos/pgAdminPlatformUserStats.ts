@@ -6,12 +6,16 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
     async getRegistrationStats({ iana, startUtcIso, endExclusiveUtcIso, dayKeys: _dayKeys }) {
       const pool = getPool();
 
-      const [totNew, totMerge, byNew, byMerge] = await Promise.all([
+      const [totRegistrations, totMerge, byRegistrations, byMerge] = await Promise.all([
         pool.query<{ c: string }>(
           `SELECT count(*)::text AS c
            FROM platform_users
            WHERE role = 'client'
-             AND created_at >= $1::timestamptz AND created_at < $2::timestamptz`,
+             AND created_at >= $1::timestamptz AND created_at < $2::timestamptz
+             AND NOT (
+               merged_at IS NOT NULL
+               AND merged_at >= $1::timestamptz AND merged_at < $2::timestamptz
+             )`,
           [startUtcIso, endExclusiveUtcIso],
         ),
         pool.query<{ c: string }>(
@@ -27,6 +31,10 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
            FROM platform_users
            WHERE role = 'client'
              AND created_at >= $2::timestamptz AND created_at < $3::timestamptz
+             AND NOT (
+               merged_at IS NOT NULL
+               AND merged_at >= $2::timestamptz AND merged_at < $3::timestamptz
+             )
            GROUP BY 1`,
           [iana, startUtcIso, endExclusiveUtcIso],
         ),
@@ -41,19 +49,19 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
         ),
       ]);
 
-      const newUsersTotal = Number.parseInt(totNew.rows[0]?.c ?? "0", 10) || 0;
+      const registrationsTotal = Number.parseInt(totRegistrations.rows[0]?.c ?? "0", 10) || 0;
       const mergesTotal = Number.parseInt(totMerge.rows[0]?.c ?? "0", 10) || 0;
 
-      const newByDay = new Map<string, number>();
-      for (const row of byNew.rows) {
-        if (row.d) newByDay.set(row.d, row.c);
+      const registrationsByDay = new Map<string, number>();
+      for (const row of byRegistrations.rows) {
+        if (row.d) registrationsByDay.set(row.d, row.c);
       }
       const mergesByDay = new Map<string, number>();
       for (const row of byMerge.rows) {
         if (row.d) mergesByDay.set(row.d, row.c);
       }
 
-      return { newUsersTotal, mergesTotal, newByDay, mergesByDay };
+      return { registrationsTotal, mergesTotal, registrationsByDay, mergesByDay };
     },
 
     async getSubscriberBindingStats({ iana, startUtcIso, endExclusiveUtcIso }) {

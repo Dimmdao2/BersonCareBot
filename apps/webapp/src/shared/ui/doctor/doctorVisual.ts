@@ -54,8 +54,18 @@ export const doctorPageTitleClass = "text-base font-semibold tracking-tight text
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass = "text-sm font-semibold text-foreground";
 
-/** KPI / large numeric metric value (single canonical metric size, §B.1). */
-export const doctorMetricValueClass = "text-2xl font-semibold tabular-nums text-foreground";
+/** KPI numeric value on compact stat cards (dashboard, analytics). */
+export const doctorMetricValueClass = "text-xl font-semibold tabular-nums leading-tight text-foreground";
+
+/** KPI stat card label (uppercase, compact). */
+export const doctorMetricLabelClass =
+  "text-[10px] font-medium uppercase leading-snug tracking-wide text-muted-foreground line-clamp-3";
+
+/** Shell for KPI stat cards (`DoctorStatCard`). */
+export const doctorStatCardShellClass = "rounded-lg border border-border/60 bg-card p-2.5 min-w-0";
+
+export const doctorStatCardShellWarningClass =
+  "rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 min-w-0";
 
 /** Section subtitle and helper text under headings. */
 export const doctorSectionSubtitleClass = "text-xs text-muted-foreground";
@@ -73,8 +83,9 @@ export const doctorEmptyStateClass = "flex flex-col gap-2 text-sm text-muted-for
 
 // -- Grids --------------------------------------------------------------------
 
-/** KPI cards grid (dashboard/analytics). */
-export const doctorStatCardGridClass = "grid gap-3 sm:grid-cols-2 xl:grid-cols-4";
+/** KPI cards grid (dashboard/analytics): 3 per row on mobile, denser on wide screens. */
+export const doctorStatCardGridClass =
+  "grid grid-cols-3 gap-2 md:gap-2.5 xl:grid-cols-4 2xl:grid-cols-5";
 
 /** Media card grid (doctor content library). */
 export const doctorMediaCardGridClass = "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
