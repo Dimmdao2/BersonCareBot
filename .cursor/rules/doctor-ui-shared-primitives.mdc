@@ -1,0 +1,53 @@
+---
+description: Doctor UI — reuse style guide, doctorVisual and shared primitives before custom chrome
+alwaysApply: true
+---
+
+# Doctor UI Shared Primitives
+
+При работе с кабинетом врача/админа (`apps/webapp/src/app/app/doctor/**`) и связанными shared-компонентами сначала использовать канон дизайн-системы проекта, а не локальные одноразовые обёртки.
+
+## Источники по умолчанию (порядок чтения)
+
+1. [`docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md`](docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md) — паттерны секций, списков, каталогов, карточки клиента, диалоги, KPI, mobile.
+2. [`apps/webapp/src/shared/ui/doctorVisual.ts`](apps/webapp/src/shared/ui/doctorVisual.ts) — page-level class constants (`doctorSectionCardClass`, `doctorSectionTitleClass`, `doctorEmptyStateClass`, catalog rows, …).
+3. [`apps/webapp/src/app/app/doctor/clients/doctorClientCardChrome.ts`](apps/webapp/src/app/app/doctor/clients/doctorClientCardChrome.ts) — shell и панели карточки клиента (entity-card), без дубля в `doctorVisual`.
+4. [`apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts`](apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts) — контейнер страницы, sticky toolbar каталога.
+5. [`apps/webapp/src/shared/ui/doctor/`](apps/webapp/src/shared/ui/doctor/) — каталог, toolbar, `DoctorSection` / `DoctorSectionHeader` / `DoctorEmptyState` / `DoctorMetricList`.
+6. [`apps/webapp/src/components/ui/*`](apps/webapp/src/components/ui/) — shadcn/base-ui (Button, Dialog, Card, Select, …).
+7. Журнал унификации (исключения, cancelled routes): [`docs/archive/2026-06-initiatives/DOCTOR_UI_UNIFICATION_INITIATIVE/README.md`](docs/archive/2026-06-initiatives/DOCTOR_UI_UNIFICATION_INITIATIVE/README.md).
+
+Плотность UI **не откатывать** — см. [`docs/APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_UI_DENSITY_PLAN.md`](docs/APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_UI_DENSITY_PLAN.md).
+
+## Обязательные правила
+
+- **Reuse-first:** перед новой секцией/списком/тулбаром проверить гайд §3–§8 и `doctorVisual` / `shared/ui/doctor/`.
+- **Не** добавлять локальные «самописные» карточки, заголовки и empty states, если покрывает `DoctorSection`, `DoctorEmptyState` или константы из `doctorVisual.ts`.
+- **Page-level секции:** `doctorSectionCardClass` (или `<DoctorSection>`) — `rounded-xl`, `p-3`, `gap-3`, **без** `shadow-sm` и **без** `rounded-2xl`.
+- **Заголовки:** `doctorSectionTitleClass` / `doctorPageTitleClass` / `doctorClientSectionTitleClass` — **запрещены** голые `<h2>` / `<h3>` без `className`.
+- **Карточка клиента:** только chrome из `doctorClientCardChrome.ts`; вкладки и overview — primary/secondary/stacked по гайду §9.
+- **Каталоги (split-layout):** эталон — `exercises/ExercisesPageClient.tsx`; стек `DoctorCatalogPageLayout` + `DoctorCatalogFiltersToolbar` + `CatalogSplitLayout`; primary action — `doctorCatalogToolbarPrimaryActionClassName`.
+- **Диалоги:** shadcn `Dialog` с шириной из гайда §14; не inline-раскрытие деструктивных действий вне Dialog.
+- **Кнопки:** primary — `default` / `size="sm"`; **не** `ghost` как основное действие (гайд §16).
+- **Select:** при нечитаемом `value` — `displayLabel` на `SelectTrigger` (см. `.cursor/rules/ui-select-trigger-display-label.mdc`).
+
+## Области вне этого канона (не унифицировать здесь)
+
+- `admin/booking/**`, `booking-merge` — владеет [`BOOKING_REWORK_INITIATIVE`](docs/BOOKING_REWORK_INITIATIVE/ROADMAP.md).
+- `admin/app-settings`, `admin/auth`, `admin/integrations`, `admin/technical` — отдельные admin forms.
+- Пациентский UI (`/app/patient/**`) — [`PATIENT_APP_UI_STYLE_GUIDE.md`](docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md) и `.cursor/rules/patient-ui-shared-primitives.mdc`.
+
+## CMS медиа-пикер
+
+Модалки выбора файла из библиотеки — `.cursor/rules/cms-unified-media-picker-layout.mdc` (`MediaPickerShell` / `MediaPickerPanel`).
+
+## Когда кастом допустим
+
+Только при явной продуктовой причине и отсутствии паттерна в гайде; кратко зафиксировать в LOG соответствующей инициативы или в PR. Новые npm-зависимости ради UI — не добавлять.
+
+## Быстрая самопроверка перед сдачей
+
+```bash
+rg "rounded-2xl|<h2>[^<]" apps/webapp/src/app/app/doctor --glob "*.tsx"
+rg "doctorSectionCardClass|DoctorSection|doctorClientCardChrome" apps/webapp/src/app/app/doctor/<зона>
+```

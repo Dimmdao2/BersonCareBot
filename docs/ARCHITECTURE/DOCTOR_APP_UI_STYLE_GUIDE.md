@@ -5,7 +5,7 @@
 **Каркас страницы:** `apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts`  
 **Shared UI-примитивы каталога:** `apps/webapp/src/shared/ui/doctor/`  
 **Хром клиентской карточки:** `apps/webapp/src/app/app/doctor/clients/doctorClientCardChrome.ts`  
-**Companion-файл констант:** создать `apps/webapp/src/shared/ui/doctorVisual.ts`
+**Companion-файл констант:** `apps/webapp/src/shared/ui/doctorVisual.ts`
 
 ---
 
@@ -131,10 +131,10 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 └── Вложенный элемент внутри списка→ §5
 ```
 
-**Антипаттерны, которые нужно исправить:**
-- `rounded-2xl` в `analytics/clients/page.tsx` и `appointments/page.tsx` → заменить на `rounded-xl`
-- `rounded-lg border border-border bg-card p-4 shadow-sm` в `online-intake` → `rounded-xl`, убрать `shadow-sm`
-- `p-4` в секциях на странице без stat-карточек → `p-3`
+**Антипаттерны (не вводить в новом коде; при ревью — исправлять):**
+- `rounded-2xl` в page-level секциях → `doctorSectionCardClass` / `rounded-xl`
+- `rounded-lg border border-border bg-card p-4 shadow-sm` на page-section без stat-карточек → `doctorSectionCardClass`, без лишнего `shadow-sm`
+- `p-4` в page-level секциях без stat-карточек → `p-3`
 
 ---
 
@@ -721,7 +721,9 @@ ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibol
 
 ## 20. Companion-файл doctorVisual.ts
 
-Создать `apps/webapp/src/shared/ui/doctorVisual.ts`:
+Канонический файл: `apps/webapp/src/shared/ui/doctorVisual.ts` (импортировать константы, не копировать строки классов в route-компоненты). Агентам: `.cursor/rules/doctor-ui-shared-primitives.mdc`.
+
+Содержимое (синхронизировать при добавлении экспортов):
 
 ```ts
 import { cn } from "@/lib/utils";
@@ -793,6 +795,17 @@ export const doctorStatCardGridClass = "grid gap-3 sm:grid-cols-2 xl:grid-cols-4
 
 /** Сетка медиакарточек библиотеки. */
 export const doctorMediaCardGridClass = "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+
+// ── Лэйаут-хелперы ───────────────────────────────────────────────────────────
+
+/** Заголовок страницы (h1) в AppShell или standalone-header. */
+export const doctorPageTitleClass = "text-base font-semibold tracking-tight text-foreground";
+
+/** Вертикальный стек контента doctor-страницы. */
+export const doctorPageStackClass = "flex flex-col gap-3";
+
+/** Стек заголовка внутри page-level секции. */
+export const doctorSectionHeaderStackClass = "flex flex-col gap-0.5";
 
 ```
 

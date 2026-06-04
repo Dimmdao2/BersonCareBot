@@ -372,3 +372,71 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 - `booking-merge` — **cancelled**: booking ops, согласование с BOOKING_REWORK.
 - `ContentPreview` h4 (заголовок страницы в превью) — оставлен `text-lg` как симуляция patient view.
 - Полный `pnpm run ci` (фаза 5).
+
+---
+
+## 2026-06-04 — Фаза 5 (финализация)
+
+### Сделано
+
+- `DOCTOR_APP_UI_STYLE_GUIDE.md`:
+  - Заголовок: убрано «создать» из ссылки на `doctorVisual.ts` (файл уже существует с фазы 1).
+  - §20: добавлены три реально присутствующих в файле экспорта, не задокументированных изначально — `doctorPageTitleClass`, `doctorPageStackClass`, `doctorSectionHeaderStackClass`.
+- `docs/README.md`: добавлена ссылка на `ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md` рядом со строкой `PATIENT_APP_UI_STYLE_GUIDE.md`.
+- `README.md` (инициатива): статус фазы 5 → `done`.
+- Финальный `pnpm run ci` (см. раздел Проверки ниже).
+
+### Верификация AUDIT.md
+
+- Все строки раздела 8 (78/78 маршрутов) имеют статус `completed` или `cancelled`; `n/a` — только `/app/doctor/stats` (redirect, не страница).
+- Все строки детальных таблиц (разделы 1–7) — `completed` или `cancelled`.
+- `rg "pending" AUDIT.md` — совпадения только в описательном тексте таблицы, не в строках статусов.
+
+### rg-проверки по Definition of Done
+
+```bash
+# rounded-2xl полностью убран из doctor-дерева
+rg "rounded-2xl" apps/webapp/src/app/app/doctor --glob "*.tsx"
+# → (пусто)
+
+# Ссылка на гайд во всех нужных точках
+rg "DOCTOR_APP_UI_STYLE_GUIDE" docs/README.md docs/ARCHITECTURE docs/archive/2026-06-initiatives/DOCTOR_UI_UNIFICATION_INITIATIVE
+# → docs/README.md + AUDIT.md + README.md инициативы + LOG.md + сам файл гайда
+```
+
+### Финальный pnpm run ci
+
+```
+pnpm install --frozen-lockfile && pnpm run ci
+# exit 0
+```
+
+### Manual visual checklist — итоговый (code-level)
+
+Ручные браузерные прогоны по doctor-маршрутам требуют авторизованной сессии. Отметки `pending` означают, что code-level аудит завершён (нет `rounded-2xl`, голых `h2`, нелегитимного `shadow-sm`), но живое пиксельное подтверждение — за ответственным за деплой.
+
+| Экран | Code audit | Примечание |
+|-------|------------|------------|
+| `/app/doctor` | ✓ (фаза 1/2) | DoctorSection, DoctorMetricList, DoctorEmptyState |
+| `/app/doctor/appointments` | ✓ (фаза 2) | DoctorSection, DoctorSectionTitle, DoctorEmptyState |
+| `/app/doctor/analytics/clients` | ✓ (фаза 2) | DoctorSection, DoctorMetricList |
+| `/app/doctor/online-intake` | ✓ (фаза 2) | doctorSectionItemClass, DoctorEmptyState |
+| `/app/doctor/clients/[userId]` | ✓ (фаза 3A/3B) | doctorClientCardChrome, chrome-константы |
+| Каталоги (6 split + courses) | ✓ (фаза 4A) | DoctorCatalogFiltersToolbar, doctorCatalogRowClass |
+| CMS, media, tail routes | ✓ (фаза 4B) | doctorPageTitleClass, DoctorSection, DoctoremptyState |
+
+### Принятые исключения (финально зафиксированы)
+
+| Область | Решение | Причина |
+|---------|---------|---------|
+| `admin/booking/**` | cancelled | BOOKING_REWORK_INITIATIVE владеет этой поверхностью |
+| `admin/app-settings`, `admin/auth`, `admin/integrations`, `admin/technical` | cancelled | admin forms вне doctor-unification scope |
+| `booking-merge` | cancelled | booking ops, согласование с BOOKING_REWORK |
+| `ContentPreview` h4 | no-change | симуляция patient view |
+| Manual browser checklist | code-only | требует авторизованной doctor-сессии |
+
+### Намеренно не делали
+
+- Переписывание бизнес-логики, API, БД, миграций.
+- Расширение `PATIENT_APP_UI_STYLE_GUIDE` или пациентского UI.
+- Новые npm-зависимости.

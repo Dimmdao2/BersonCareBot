@@ -7,6 +7,7 @@
 | Документ | Назначение |
 |----------|------------|
 | [`docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md`](../../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md) | Целевые паттерны (секции, каталоги, карточка клиента, диалоги) |
+| [`.cursor/rules/doctor-ui-shared-primitives.mdc`](../../../../.cursor/rules/doctor-ui-shared-primitives.mdc) | Обязательные указания для агентов при правках `/app/doctor/**` |
 | [`AUDIT.md`](AUDIT.md) | Baseline-таблица отклонений по маршрутам и ключевым компонентам |
 | [`LOG.md`](LOG.md) | Журнал исполнения по фазам и manual visual checklist |
 | План фаз 0–5 | Файл `doctor-ui-unification-phases_1146e22e.plan.md` в Cursor plans (`~/.cursor/plans/`); перенос в `.cursor/plans/archive/` — по закрытию инициативы |
@@ -54,6 +55,6 @@
 | 3B | **done** (2026-06-04) — вкладки и панели клиента; см. [`LOG.md`](LOG.md) |
 | 4A | **done** (2026-06-04) — каталоги doctor; см. [`LOG.md`](LOG.md) |
 | 4B | **done** (2026-06-04) — CMS, media, tail routes; `admin/booking/**` → cancelled (BOOKING_REWORK); см. [`LOG.md`](LOG.md) |
-| 5 | pending |
+| 5 | **done** (2026-06-04) — `docs/README.md` ссылка, гайд синхронизирован, `pnpm run ci` успешен; см. [`LOG.md`](LOG.md) |
 
 **Граница 4A / 4B:** split-каталоги и editor shells на `doctorVisual`; CMS, media, хвостовые маршруты — 4B.

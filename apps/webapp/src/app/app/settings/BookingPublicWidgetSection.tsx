@@ -62,9 +62,11 @@ export function BookingPublicWidgetSection() {
 
   useEffect(() => {
     if (!branchId || !serviceId) {
-      setBranchServiceId("");
-      setCityCode("");
-      setResolveError(null);
+      startTransition(() => {
+        setBranchServiceId("");
+        setCityCode("");
+        setResolveError(null);
+      });
       return;
     }
     startTransition(async () => {

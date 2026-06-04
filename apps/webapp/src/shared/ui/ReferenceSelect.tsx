@@ -65,6 +65,14 @@ export function ReferenceSelect({
   const rootRef = useRef<HTMLDivElement>(null);
   const listboxRef = useRef<HTMLUListElement>(null);
 
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (blurTimerRef.current !== null) clearTimeout(blurTimerRef.current);
+    };
+  }, []);
+
   const blurInput = useCallback(() => {
     queueMicrotask(() => {
       rootRef.current?.querySelector<HTMLInputElement>('input[data-slot="input"]')?.blur();
@@ -178,7 +186,7 @@ export function ReferenceSelect({
           setQuery(showAllOnFocus || !searchable ? "" : selectedLabel);
         }}
         onBlur={() => {
-          setTimeout(() => setOpen(false), 150);
+          blurTimerRef.current = setTimeout(() => setOpen(false), 150);
         }}
         className={cn("w-full", !searchable && "cursor-pointer caret-transparent")}
         readOnly={!searchable}
