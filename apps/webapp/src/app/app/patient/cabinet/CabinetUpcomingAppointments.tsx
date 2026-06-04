@@ -1,10 +1,10 @@
 "use client";
 
 import type { AppointmentSummary } from "@/modules/appointments/service";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/shared/ui/patient/primitives/tooltip";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { AppointmentStatusBadge } from "./AppointmentStatusBadge";
 
 type Props = {

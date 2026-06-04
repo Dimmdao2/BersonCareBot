@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { Label } from "@/components/ui/label";
+import { Label } from "@/shared/ui/patient/primitives/label";
 import { cn } from "@/lib/utils";
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
@@ -10,7 +10,7 @@ import {
   hourMinuteToInterval,
   intervalToHourMinute,
 } from "@/modules/reminders/reminderIntervalBounds";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 export type PatientDurationHmWheelsProps = {
   value: number;

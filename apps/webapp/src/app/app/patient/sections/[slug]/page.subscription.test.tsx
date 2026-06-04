@@ -13,8 +13,8 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-vi.mock("@/shared/ui/AppShell", () => ({
-  AppShell: ({
+vi.mock("@/shared/ui/patient/PatientAppShell", () => ({
+  PatientAppShell: ({
     children,
     title,
     patientTitleBadge,

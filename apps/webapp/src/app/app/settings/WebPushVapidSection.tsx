@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import { patchAdminSetting } from "./patchAdminSetting";
 
 export type WebPushVapidSectionProps = {

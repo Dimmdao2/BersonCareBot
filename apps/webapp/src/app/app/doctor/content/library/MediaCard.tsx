@@ -3,8 +3,8 @@
 import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { canRenderInlineImage } from "./mediaPreview";
 import type { MediaPreviewStatus } from "@/modules/media/types";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 
 type MediaItem = {
   id: string;

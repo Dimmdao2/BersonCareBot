@@ -1,0 +1,32 @@
+/** Landing page CSS — loaded from app/page.tsx only. */
+
+html:has([data-landing-public]) {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has([data-landing-public]) {
+    scroll-behavior: auto;
+  }
+}
+
+@keyframes landingHeroSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.landing-hero-slide-in {
+  animation: landingHeroSlideIn ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-slide-in {
+    animation: none;
+  }
+}

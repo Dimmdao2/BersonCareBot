@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import type { SessionUser } from "@/shared/types/session";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,7 @@ import {
   patientMutedTextClass,
   patientSurfaceNeutralClass,
   patientPrimaryActionClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { DEFAULT_PATIENT_BOOKING_URL } from "@/modules/system-settings/patientMaintenance";
 
 export type PatientMaintenanceScreenProps = {
@@ -37,8 +37,8 @@ export function PatientMaintenanceScreen({
   const safeExternal = isSafeExternalHref(hrefCandidate) ? hrefCandidate : DEFAULT_PATIENT_BOOKING_URL;
 
   return (
-    <AppShell
-      variant="patient"
+    <PatientAppShell
+     
       title="Приложение в разработке"
       user={user}
       patientHideBottomNav
@@ -92,6 +92,6 @@ export function PatientMaintenanceScreen({
           )}
         </section>
       </div>
-    </AppShell>
+    </PatientAppShell>
   );
 }

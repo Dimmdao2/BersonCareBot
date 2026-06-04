@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, Dna, Dumbbell } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCity } from "@/modules/booking-catalog/types";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 import {
   bookingChoiceRowClass,

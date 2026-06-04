@@ -3,9 +3,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { cn } from "@/lib/utils";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
-import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
+import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
 import { ContentForm } from "../../ContentForm";
 
 type Props = {
@@ -45,7 +45,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
   const isDev = process.env.NODE_ENV === "development";
 
   return (
-    <AppShell title="Редактировать страницу" user={session.user} variant="doctor" backHref="/app/doctor/content">
+    <DoctorAppShell title="Редактировать страницу" user={session.user} backHref="/app/doctor/content">
       <section className={cn(doctorSectionCardClass, "gap-4")}>
         {loadError ? (
           <DataLoadFailureNotice
@@ -55,6 +55,6 @@ export default async function DoctorContentEditPage({ params }: Props) {
         ) : null}
         <ContentForm key={`${page.id}-${page.slug}`} page={page} sections={sections} publishedCourses={publishedCourses} materialRatingSummary={materialRatingSummary} />
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

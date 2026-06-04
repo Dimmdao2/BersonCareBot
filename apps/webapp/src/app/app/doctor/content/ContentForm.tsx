@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { MarkdownEditorToastUi } from "@/shared/ui/doctor/markdown/MarkdownEditorToastUi";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import {
   HELP_CANONICAL_ARTICLE_IA,

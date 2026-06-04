@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { patchAdminSetting } from "./patchAdminSetting";
 

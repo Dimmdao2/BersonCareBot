@@ -1,0 +1,591 @@
+/** @vitest-environment jsdom */
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
+import type { PrefetchedPublicAuthConfig } from "@/shared/ui/patient/auth/AuthFlowV2";
+import { AuthBootstrap } from "./AuthBootstrap";
+
+function browserPrefetchOauthDisabled(): PrefetchedPublicAuthConfig {
+  return {
+    oauthProviders: { yandex: false, google: false, apple: false },
+    telegramBotUsername: null,
+    maxBotOpenUrl: null,
+    fetchedAt: Date.now(),
+  };
+}
+
+function neverResolvingAbortableFetch(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return new Promise((_resolve, reject) => {
+    const signal = init?.signal;
+    if (signal instanceof AbortSignal) {
+      signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+    }
+  });
+}
+
+const mockReplace = vi.fn();
+const mockRefresh = vi.fn();
+const mockUseSearchParams = vi.fn(() => new URLSearchParams("ctx=bot"));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace, refresh: mockRefresh }),
+  useSearchParams: () => mockUseSearchParams(),
+}));
+
+describe("AuthBootstrap", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockReplace.mockClear();
+    mockRefresh.mockClear();
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("ctx=bot"));
+    window.history.pushState({}, "", "/?ctx=bot");
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+  });
+
+  it.skip("в обычном браузере без ctx после таймаута показывает телефонный флоу", async () => {
+    // Отключено: по политике miniapp-аудита на `/app` не включаем телефонный AuthFlowV2 из этого сценария.
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    render(<AuthBootstrap entryClassification="browser_interactive" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+
+    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
+  });
+
+  it("при устаревшем bot-cookie в обычном браузере сбрасывает cookie и показывает веб-вход (телефон)", async () => {
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    (window as Window & { Telegram?: { WebApp?: { platform: string; initData?: string } } }).Telegram = {
+      WebApp: { platform: "web", initData: "" },
+    };
+
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
+    expect(mockRefresh).not.toHaveBeenCalled();
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+  });
+
+  it("при устаревшем bot-cookie без window.Telegram сразу сбрасывает cookie и показывает веб-вход", async () => {
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
+    expect(mockRefresh).not.toHaveBeenCalled();
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+  });
+
+  it("сбрасывает cookie-derived miniapp в обычной PWA и показывает веб-вход", async () => {
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app");
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+
+    render(
+      <AuthBootstrap entryClassification="telegram_miniapp" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+  });
+
+  it("после stale bot-cookie не теряет email/token link и выполняет exchange", async () => {
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=signed-email-token"));
+    window.history.pushState({}, "", "/app?t=signed-email-token");
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("/api/auth/exchange")) {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toEqual({ token: "signed-email-token" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthBootstrap entryClassification="telegram_miniapp" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1800);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/exchange",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockReplace).toHaveBeenCalledWith("/app/patient");
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+  });
+
+  it("в обычном браузере без ctx не ждёт grace MAX bridge и показывает веб-вход", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
+  });
+
+  it("в обычном браузере с загруженным MAX bridge не зависает в miniapp-ожидании", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    (window as Window & { WebApp?: { ready?: () => void; initData?: string } }).WebApp = {
+      ready: () => undefined,
+      initData: "",
+    };
+
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={browserPrefetchOauthDisabled()} />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+
+    expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
+  });
+
+  it("в обычном браузере с ?t=dev:admin&switch=1 без Telegram.WebApp обменивает токен после TOKEN_FALLBACK_MS", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=dev:admin&switch=1"));
+    window.history.pushState({}, "", "/?t=dev:admin&switch=1");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("/api/auth/exchange")) {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toEqual({ token: "dev:admin" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "admin", redirectTo: "/app/doctor" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="token_exchange" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/exchange",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockReplace).toHaveBeenCalled();
+  });
+
+  it("при max_miniapp с ?t= без initData после cap вызывает обмен JWT (резерв integrator)", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=signed-entry-token"));
+    window.history.pushState({}, "", "/app/max?t=signed-entry-token");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("/api/auth/exchange")) {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toEqual({ token: "signed-entry-token" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="max_miniapp" routeBoundMiniappEntry />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/exchange",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockReplace).toHaveBeenCalled();
+  });
+
+  it("при telegram_miniapp с ?t= без initData после cap вызывает обмен JWT (email/link fallback)", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=signed-entry-token"));
+    window.history.pushState({}, "", "/app/tg?t=signed-entry-token");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("/api/auth/exchange")) {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toEqual({ token: "signed-entry-token" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="telegram_miniapp" routeBoundMiniappEntry />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/exchange",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockReplace).toHaveBeenCalled();
+  });
+
+  it("при ctx=bot не показывает телефонный флоу после таймаута initData и даёт Повторить", async () => {
+    render(<AuthBootstrap entryClassification="telegram_miniapp" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+
+    expect(screen.queryByLabelText("Номер телефона")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(screen.getByText(/Не удалось получить данные для входа/i)).toBeInTheDocument();
+  });
+
+  it("при ошибке telegram-init в ctx=bot показывает Повторить и повторяет POST после retry", async () => {
+    vi.useRealTimers();
+    (window as Window & { Telegram?: { WebApp?: { initData: string } } }).Telegram = {
+      WebApp: { initData: "fake-init-data" },
+    };
+    let telegramInitPosts = 0;
+    let telegramInitShouldFail = true;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("telegram-init")) {
+        telegramInitPosts += 1;
+        if (telegramInitShouldFail) {
+          return new Response(JSON.stringify({ ok: false, error: "access_denied" }), { status: 403 });
+        }
+      }
+      if (url.includes("telegram-login/config")) {
+        return new Response(JSON.stringify({ ok: true, botUsername: "testcarebot" }), { status: 200 });
+      }
+      if (url.includes("alternatives-config")) {
+        return new Response(JSON.stringify({ ok: true, maxBotOpenUrl: "https://max.ru/test_bot" }), { status: 200 });
+      }
+      return new Response(
+        JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="telegram_miniapp" />);
+
+    await waitFor(
+      () => {
+        expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+      },
+      { timeout: 4000 },
+    );
+    expect(screen.getByText(/Активируйте бота/i)).toBeInTheDocument();
+    expect(telegramInitPosts).toBeGreaterThanOrEqual(1);
+
+    await act(async () => {
+      telegramInitShouldFail = false;
+      fireEvent.click(screen.getByRole("button", { name: /повторить/i }));
+    });
+
+    await waitFor(
+      () => {
+        expect(telegramInitPosts).toBeGreaterThanOrEqual(2);
+      },
+      { timeout: 4000 },
+    );
+    vi.useFakeTimers();
+  });
+
+  it("при зависшем telegram-init сбрасывает miniapp-marker и переводит на обычный вход", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app/tg");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    (window as Window & { Telegram?: { WebApp?: { initData: string } } }).Telegram = {
+      WebApp: { initData: "stuck-init-data" },
+    };
+
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("telegram-init")) {
+        return neverResolvingAbortableFetch(input, init);
+      }
+      return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthBootstrap
+        entryClassification="telegram_miniapp"
+        routeBoundMiniappEntry
+        initialPublicAuthConfig={browserPrefetchOauthDisabled()}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(12_500);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/telegram-init",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+    expect(mockReplace).toHaveBeenCalledWith("/app");
+  });
+
+  it("при зависшем exchange по miniapp ?t= переводит на обычный вход без продления одноразового токена", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=signed-entry-token&next=/app/patient"));
+    window.history.pushState({}, "", "/app/tg?t=signed-entry-token&next=/app/patient");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("/api/auth/exchange")) {
+        return neverResolvingAbortableFetch(input, init);
+      }
+      return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthBootstrap
+        entryClassification="telegram_miniapp"
+        routeBoundMiniappEntry
+        initialPublicAuthConfig={browserPrefetchOauthDisabled()}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/exchange",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+    expect(mockReplace).toHaveBeenCalledWith("/app?next=%2Fapp%2Fpatient");
+  });
+
+  it("на max_miniapp при наличии TG и MAX initData сначала вызывает max-init", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app/max");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    (window as Window & { Telegram?: { WebApp?: { initData: string } } }).Telegram = {
+      WebApp: { initData: "tg-both" },
+    };
+    (window as Window & { WebApp?: { ready: () => void; initData: string } }).WebApp = {
+      ready: () => undefined,
+      initData: "max-both",
+    };
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("max-init")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ initData: "max-both" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("telegram-init")) {
+        return new Response(JSON.stringify({ ok: false, error: "unexpected" }), { status: 500 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="max_miniapp" routeBoundMiniappEntry />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(
+      (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>).some((c) =>
+        String(c[0]).includes("max-init"),
+      ),
+    ).toBe(true);
+    expect(
+      (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>).some((c) =>
+        String(c[0]).includes("telegram-init"),
+      ),
+    ).toBe(false);
+  });
+
+  it("на telegram_miniapp при наличии TG и MAX initData сначала вызывает telegram-init", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app/tg");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    (window as Window & { Telegram?: { WebApp?: { initData: string } } }).Telegram = {
+      WebApp: { initData: "tg-both" },
+    };
+    (window as Window & { WebApp?: { ready: () => void; initData: string } }).WebApp = {
+      ready: () => undefined,
+      initData: "max-both",
+    };
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("telegram-init")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ initData: "tg-both" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("max-init")) {
+        return new Response(JSON.stringify({ ok: false, error: "unexpected" }), { status: 500 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="telegram_miniapp" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(
+      (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>).some((c) =>
+        String(c[0]).includes("telegram-init"),
+      ),
+    ).toBe(true);
+    expect(
+      (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>).some((c) =>
+        String(c[0]).includes("max-init"),
+      ),
+    ).toBe(false);
+  });
+
+  it("route-bound max miniapp не показывает телефон до cap при EARLY_UI_V2", async () => {
+    const prev = process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2;
+    process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2 = "1";
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app/max");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+
+    render(<AuthBootstrap entryClassification="max_miniapp" routeBoundMiniappEntry />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+
+    expect(screen.queryByLabelText("Номер телефона")).not.toBeInTheDocument();
+
+    if (prev === undefined) delete process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2;
+    else process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2 = prev;
+  });
+
+  it("route-bound max без initData и без ?t= после cap не вызывает exchange и даёт Повторить", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app/max");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="max_miniapp" routeBoundMiniappEntry />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>;
+    expect(calls.some((c) => String(c[0]).includes("/api/auth/exchange"))).toBe(false);
+    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+  });
+
+  it("public prefetched config without telegram does not render Telegram Login button", async () => {
+    // ensure prefetchedPublicAuth with null telegram is respected by the client UI
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={{
+        oauthProviders: { yandex: false, google: false, apple: false },
+        telegramBotUsername: null,
+        maxBotOpenUrl: null,
+        fetchedAt: Date.now(),
+      }} />,
+    );
+
+    // small advance to allow any effects to run
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(screen.queryByLabelText("Войти через Telegram")).toBeNull();
+  });
+});

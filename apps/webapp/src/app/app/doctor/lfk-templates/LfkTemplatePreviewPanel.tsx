@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { cn } from "@/lib/utils";
-import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
+import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import type { Template, TemplateExercise } from "@/modules/lfk-templates/types";
 import { lfkExerciseSideRu } from "@/modules/lfk-templates/lfkExerciseSide";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { exerciseMediaToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
 
 function TemplateExercisePreviewRow({ line }: { line: TemplateExercise }) {

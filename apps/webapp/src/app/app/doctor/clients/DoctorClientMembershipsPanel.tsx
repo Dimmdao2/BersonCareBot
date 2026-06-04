@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import { PatientPackageCard, type PatientPackageCardRow } from "./PatientPackageCard";
 
 type AppointmentOption = { id: string; label: string };

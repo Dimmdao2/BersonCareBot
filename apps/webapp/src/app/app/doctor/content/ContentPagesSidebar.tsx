@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Separator } from "@/components/ui/separator";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
+import { Separator } from "@/shared/ui/doctor/primitives/separator";
 import { cn } from "@/lib/utils";
 import { HELP_SECTION_SLUG, SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
 

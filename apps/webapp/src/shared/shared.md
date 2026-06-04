@@ -2,7 +2,7 @@
 
 Общие сущности, используемые в разных частях вебаппа.
 
-- **ui/** — переиспользуемые компоненты интерфейса: оболочка страницы (AppShell), блок входа (AuthBootstrap), карточка раздела (FeatureCard). Стили задаются классами из `app/globals.css`.
+- **ui/** — product UI: `ui/patient/**` (PatientAppShell, auth, primitives) и `ui/doctor/**` (DoctorAppShell, catalog, primitives). CSS: `app/styles/patient.css` / `doctor.css`.
 - **types/** — общие типы (сессия, пользователь и т.д.).
 - **utils/** — вспомогательные функции.
 

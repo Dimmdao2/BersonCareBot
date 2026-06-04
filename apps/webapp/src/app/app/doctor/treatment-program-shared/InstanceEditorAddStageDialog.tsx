@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
@@ -9,9 +9,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import type { TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
 import { isProgramInstanceEditLocked } from "./programInstanceMutationGuard";
 import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";

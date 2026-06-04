@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ClipboardList } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type {
   TreatmentProgramTemplate,
   TreatmentProgramTemplateDetail,
@@ -13,7 +13,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
-import { doctorCatalogListEmptyClass } from "@/shared/ui/doctorVisual";
+import { doctorCatalogListEmptyClass } from "@/shared/ui/doctor/doctorVisual";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
@@ -23,10 +23,10 @@ import {
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
+import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
 import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
 import {
   TreatmentProgramConstructorClient,
@@ -34,10 +34,10 @@ import {
 } from "./[id]/TreatmentProgramConstructorClient";
 import { NewTemplateForm } from "./new/NewTemplateForm";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { templateListPreviewToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { templateListPreviewToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { TreatmentProgramTemplateStatusBadge } from "./TreatmentProgramTemplateStatusBadge";
 
 /** Краткая строка счётчиков + подпись для aria (список шаблонов). */

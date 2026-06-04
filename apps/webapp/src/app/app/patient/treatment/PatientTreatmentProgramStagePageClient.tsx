@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ScrollText } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/patient/primitives/collapsible";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { formatTreatmentProgramStageStatusRu } from "@/modules/treatment-program/types";
 import {
@@ -31,7 +31,7 @@ import {
   patientInnerPageStackClass,
   patientPillClass,
   patientSurfaceWarningClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
 import { DateTime } from "luxon";

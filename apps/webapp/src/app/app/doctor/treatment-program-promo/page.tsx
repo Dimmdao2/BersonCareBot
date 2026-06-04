@@ -1,7 +1,7 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { DefaultPromoProgramClient } from "./DefaultPromoProgramClient";
 
 export default async function DoctorTreatmentProgramPromoPage() {
@@ -22,7 +22,7 @@ export default async function DoctorTreatmentProgramPromoPage() {
   ]);
 
   return (
-    <AppShell title="Промо-программа" user={session.user} variant="doctor" backHref="/app/doctor">
+    <DoctorAppShell title="Промо-программа" user={session.user} backHref="/app/doctor">
       <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
         <h1 className="mb-2 text-xl font-semibold">Промо-программа по умолчанию</h1>
         <p className="mb-6 text-sm text-muted-foreground">
@@ -35,6 +35,6 @@ export default async function DoctorTreatmentProgramPromoPage() {
           stats={{ activePromo, completedPromo }}
         />
       </div>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

@@ -1,14 +1,14 @@
 import { routePaths } from "@/app-layer/routes/paths";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patient/patientVisual";
 import { WebPushOptInControls } from "./WebPushOptInControls";
 
 export default async function PatientInstallPage() {
   const session = await requirePatientAccess(routePaths.patientInstall);
   return (
-    <AppShell title="Установить приложение" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
+    <PatientAppShell title="Установить приложение" user={session.user} backHref={routePaths.patient} backLabel="Меню">
       <section className={cn(patientSectionSurfaceClass, "!gap-4 !p-6")}>
         <h2 className="text-base font-semibold">Установка на устройство</h2>
         <p className={patientMutedTextClass}>
@@ -24,6 +24,6 @@ export default async function PatientInstallPage() {
         </p>
         <WebPushOptInControls />
       </section>
-    </AppShell>
+    </PatientAppShell>
   );
 }

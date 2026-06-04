@@ -1,14 +1,14 @@
 "use client";
 
 import { Bell } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Card } from "@/shared/ui/patient/primitives/card";
 import { cn } from "@/lib/utils";
 import type { LfkComplex, LfkComplexExerciseLine } from "@/modules/diaries/types";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { lfkCoverToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import { patientCardCompactClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { MediaThumb } from "@/shared/ui/patient/media/MediaThumb";
+import { lfkCoverToPreviewUi } from "@/shared/ui/patient/media/mediaPreviewUiModel";
+import { patientCardCompactClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 export type LfkComplexCardProps = {
   complex: Pick<

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctorVisual";
+import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
 import type { TodayPendingProgramTestItem } from "./mapPendingProgramTestsForToday";
 
 type Props = {

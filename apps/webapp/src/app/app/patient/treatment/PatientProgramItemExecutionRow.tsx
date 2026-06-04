@@ -7,7 +7,7 @@ import {
   type ProgramItemLastDoneSummary,
 } from "@/app/app/patient/treatment/programItemExecutionDisplay";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass, patientMutedTextStrongClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, patientMutedTextStrongClass } from "@/shared/ui/patient/patientVisual";
 
 function ExecutionDots(props: {
   variant: "green" | "gray";

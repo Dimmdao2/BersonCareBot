@@ -1,14 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
-import { InlineEditField } from "@/shared/ui/InlineEditField";
-import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
+import { InlineEditField } from "@/shared/ui/patient/InlineEditField";
+import { EmailAccountPanel } from "@/shared/ui/patient/EmailAccountPanel";
 import {
   patientHeroBookingSectionClass,
   patientMutedTextClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 import { updateDisplayName } from "./actions";
 

@@ -2,8 +2,8 @@
 
 import type { AppointmentRecordStatus } from "@/modules/appointments/service";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/patient/primitives/tooltip";
 
 type Props = {
   status: AppointmentRecordStatus;

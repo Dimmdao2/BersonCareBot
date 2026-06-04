@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import { FeatureCard } from "@/shared/ui/FeatureCard";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { FeatureCard } from "@/shared/ui/patient/FeatureCard";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { PatientSectionSubscriptionCallout } from "../PatientSectionSubscriptionCallout";
 import type { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
 import type { ContentPageRow } from "@/infra/repos/pgContentPages";

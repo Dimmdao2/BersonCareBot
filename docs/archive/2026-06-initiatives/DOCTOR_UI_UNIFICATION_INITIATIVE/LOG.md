@@ -408,8 +408,10 @@ rg "DOCTOR_APP_UI_STYLE_GUIDE" docs/README.md docs/ARCHITECTURE docs/archive/202
 
 ```
 pnpm install --frozen-lockfile && pnpm run ci
-# exit 0
+# exit 0 (2026-06-04, сессия закрытия фазы 5)
 ```
+
+Повторный полный `pnpm run ci` перед merge/push — по барьеру репозитория (`.cursor/rules/pre-push-ci.mdc`); при необходимости прогоняется в отдельной сессии на актуальном дереве.
 
 ### Manual visual checklist — итоговый (code-level)
 
@@ -423,7 +425,7 @@ pnpm install --frozen-lockfile && pnpm run ci
 | `/app/doctor/online-intake` | ✓ (фаза 2) | doctorSectionItemClass, DoctorEmptyState |
 | `/app/doctor/clients/[userId]` | ✓ (фаза 3A/3B) | doctorClientCardChrome, chrome-константы |
 | Каталоги (6 split + courses) | ✓ (фаза 4A) | DoctorCatalogFiltersToolbar, doctorCatalogRowClass |
-| CMS, media, tail routes | ✓ (фаза 4B) | doctorPageTitleClass, DoctorSection, DoctoremptyState |
+| CMS, media, tail routes | ✓ (фаза 4B) | doctorPageTitleClass, DoctorSection, DoctorEmptyState |
 
 ### Принятые исключения (финально зафиксированы)
 
@@ -433,10 +435,25 @@ pnpm install --frozen-lockfile && pnpm run ci
 | `admin/app-settings`, `admin/auth`, `admin/integrations`, `admin/technical` | cancelled | admin forms вне doctor-unification scope |
 | `booking-merge` | cancelled | booking ops, согласование с BOOKING_REWORK |
 | `ContentPreview` h4 | no-change | симуляция patient view |
-| Manual browser checklist | code-only | требует авторизованной doctor-сессии |
+| Manual browser checklist | частично / первично принят | полная постраничная — вне phased-плана (см. закрытие инициативы) |
 
 ### Намеренно не делали
 
 - Переписывание бизнес-логики, API, БД, миграций.
 - Расширение `PATIENT_APP_UI_STYLE_GUIDE` или пациентского UI.
 - Новые npm-зависимости.
+
+---
+
+## 2026-06-04 — Закрытие инициативы
+
+### Решение
+
+- Phased-план **doctor UI unification** считается **выполненным**; активный Cursor-план снят с учёта (архив: `.cursor/plans/archive/doctor-ui-unification-phases_1146e22e.plan.md`).
+- **Ручная browser-проходка:** частично (code-level ✓, выборочные экраны); **первично принята** для закрытия инициативы. Детальная отработка по каждому маршруту (таблица §10 `AUDIT.md`, критерии в архивном plan) — **не блокер**; будет вестись **отдельно** в рамках более глобальной постраничной работы над UI.
+- Канон для следующих правок: `DOCTOR_APP_UI_STYLE_GUIDE.md` + `doctorVisual.ts` / shared primitives; не возвращать phased-план в активный Build.
+
+### Проверки при закрытии
+
+- `AUDIT.md` §8: 78/78 — `completed` / `cancelled` / `n/a`.
+- `rg "rounded-2xl" apps/webapp/src/app/app/doctor --glob "*.tsx"` — пусто.

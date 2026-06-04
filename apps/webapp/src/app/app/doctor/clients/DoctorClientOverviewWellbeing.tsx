@@ -1,7 +1,7 @@
 "use client";
 
 import { lazy, Suspense, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
 import {
   doctorClientOverviewSecondaryCardClass,

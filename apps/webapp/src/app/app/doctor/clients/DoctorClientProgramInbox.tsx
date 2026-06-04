@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { MessageSquare, ImageIcon } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import type { DoctorClientProgramInboxRow } from "@/modules/doctor-client-card/types";
 import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
 import { doctorClientStackedCardClass } from "./doctorClientCardChrome";

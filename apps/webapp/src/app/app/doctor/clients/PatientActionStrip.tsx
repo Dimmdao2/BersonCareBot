@@ -1,7 +1,7 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import type { DoctorClientProgramCardAggregates } from "@/modules/doctor-client-card/types";
 import type { DoctorClientTabId } from "@/modules/doctor-client-card/types";
 import { cn } from "@/lib/utils";

@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientButtonPrimaryClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientButtonPrimaryClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import type { BookingCategory, BookingSlot } from "@/modules/patient-booking/types";
 import { BookingCalendar } from "../../../cabinet/BookingCalendar";
 import { BookingSlotList } from "../../../cabinet/BookingSlotList";

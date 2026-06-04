@@ -13,7 +13,7 @@ vi.mock("./InstanceEditorDraftContext", () => ({
   useInstanceEditorDraft: () => ({ addItemCreate }),
 }));
 
-vi.mock("@/shared/ui/ReferenceSelect", () => ({
+vi.mock("@/shared/ui/doctor/ReferenceSelect", () => ({
   ReferenceSelect: (props: {
     id?: string;
     value?: string | null;

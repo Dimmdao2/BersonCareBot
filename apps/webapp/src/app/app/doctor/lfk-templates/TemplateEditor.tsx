@@ -33,10 +33,10 @@ import toast from "react-hot-toast";
 import { LFK_EXERCISE_SIDE_SELECT_OPTIONS, parseLfkExerciseSide } from "@/modules/lfk-templates/lfkExerciseSide";
 import type { Template } from "@/modules/lfk-templates/types";
 import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   Dialog,
   DialogContent,
@@ -44,7 +44,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/doctor/primitives/dialog";
 import type { LfkTemplateUsageSnapshot } from "@/modules/lfk-templates/types";
 import {
   archiveDoctorLfkTemplate,
@@ -65,10 +65,10 @@ import {
 import { editorLinesToTemplateExerciseInputs } from "./templateExercisePayload";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
-import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import { PickerSearchField } from "@/shared/ui/PickerSearchField";
+import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { exerciseMediaToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+import { PickerSearchField } from "@/shared/ui/doctor/PickerSearchField";
 import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
 
 type ExerciseOption = { id: string; title: string; firstMedia: ExerciseMedia | null };

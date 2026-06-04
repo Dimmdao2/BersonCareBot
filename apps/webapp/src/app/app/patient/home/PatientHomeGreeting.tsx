@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass } from "@/shared/ui/patient/patientVisual";
 
 /** Тот же вид, что у приветствия на главной (не стиль заголовка шапки). */
 export const PATIENT_HOME_GREETING_TITLE_CLASS =

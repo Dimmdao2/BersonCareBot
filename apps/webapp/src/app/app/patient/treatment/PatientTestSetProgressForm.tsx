@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { patientTestQualDecisionSelectItems } from "@/shared/ui/selectOpaqueValueLabels";
+import { Input } from "@/shared/ui/patient/primitives/input";
+import { Label } from "@/shared/ui/patient/primitives/label";
+import { Textarea } from "@/shared/ui/patient/primitives/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/patient/primitives/select";
+import { patientTestQualDecisionSelectItems } from "@/shared/ui/patient/selectOpaqueValueLabels";
 import type { PatientTestSetPageServerSnapshot, PatientTestSetSubmittedAttemptDetail } from "@/modules/treatment-program/progress-service";
 import type {
   NormalizedTestDecision,
@@ -21,10 +21,10 @@ import {
   patientFormSurfaceClass,
   patientMutedTextClass,
   PatientShimmerPanel,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/patient/primitives/collapsible";
 
 function AttemptHistoryCollapsibleList(props: {
   bundles: PatientTestSetSubmittedAttemptDetail[];

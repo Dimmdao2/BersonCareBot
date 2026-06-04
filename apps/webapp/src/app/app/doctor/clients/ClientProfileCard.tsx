@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/doctor/primitives/tabs";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
@@ -46,7 +46,7 @@ import {
   doctorClientTabsListClass,
   doctorClientTabsScrollClass,
 } from "./doctorClientCardChrome";
-import { doctorPageStackClass } from "@/shared/ui/doctorVisual";
+import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 
 const EMPTY_AGGREGATES: DoctorClientProgramCardAggregates = {
   newCommentsCount: 0,

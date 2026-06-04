@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StylesConfig } from "react-select";
 import TimezoneSelect, { type ITimezone, type ITimezoneOption } from "react-timezone-select";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Label } from "@/shared/ui/patient/primitives/label";
 import { cn } from "@/lib/utils";
 import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
 import { mergePatientTimezoneSelectLabels } from "@/shared/timezone/patientTimezoneSelectLabels";
-import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { useMobileViewport } from "@/app/app/patient/cabinet/useMobileViewport";
 import { PATIENT_CALENDAR_TZ_BOOTSTRAP_EVENT } from "../PatientCalendarTimezoneBootstrap";
 

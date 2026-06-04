@@ -1,6 +1,6 @@
 import { Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
 import type { DiaryWarmupDayModel } from "@/modules/patient-diary/loadPatientDiaryWeekActivity";
 
 export type PatientDiaryWarmupWeekBarsProps = {

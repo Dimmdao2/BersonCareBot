@@ -1,6 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { LfkTemplateNewStandalone } from "./LfkTemplateNewStandalone";
 
 export default async function DoctorLfkTemplateNewPage() {
@@ -14,13 +14,13 @@ export default async function DoctorLfkTemplateNewPage() {
   }));
 
   return (
-    <AppShell
+    <DoctorAppShell
       title="Новый комплекс"
       user={session.user}
-      variant="doctor"
+     
       backHref="/app/doctor/lfk-templates"
     >
       <LfkTemplateNewStandalone exerciseCatalog={exerciseCatalog} />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

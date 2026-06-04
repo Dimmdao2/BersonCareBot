@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
@@ -9,7 +9,7 @@ import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMess
 import { CabinetBookingActions } from "@/app/app/patient/cabinet/CabinetBookingActions";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 import { cn } from "@/lib/utils";
-import { patientListItemClass, patientMutedTextClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
+import { patientListItemClass, patientMutedTextClass, patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
 
 /** Тон карточки «Следующее напоминание» на главной — без фиксированной высоты (список записей). */
 const bookingReminderSectionSurfaceClass = cn(

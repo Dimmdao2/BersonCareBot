@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Input } from "@/shared/ui/patient/primitives/input";
 import { publicBookPaths } from "@/shared/publicBook/paths";
 import toast from "react-hot-toast";
 

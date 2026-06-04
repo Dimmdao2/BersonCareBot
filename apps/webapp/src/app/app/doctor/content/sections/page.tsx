@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { PageSection } from "@/components/common/layout/PageSection";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { cn } from "@/lib/utils";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
-import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
 import { ContentSectionsListClient } from "./ContentSectionsListClient";
 
 export default async function DoctorContentSectionsPage() {
@@ -48,7 +48,7 @@ export default async function DoctorContentSectionsPage() {
   }));
 
   return (
-    <AppShell title="Разделы контента" user={session.user} variant="doctor" backHref="/app/doctor/content">
+    <DoctorAppShell title="Разделы контента" user={session.user} backHref="/app/doctor/content">
       <PageSection id="doctor-content-sections-section" as="section" className="flex flex-col gap-4">
         {loadError ? (
           <DataLoadFailureNotice
@@ -68,6 +68,6 @@ export default async function DoctorContentSectionsPage() {
           <ContentSectionsListClient initialSections={initialSections} />
         </div>
       </PageSection>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

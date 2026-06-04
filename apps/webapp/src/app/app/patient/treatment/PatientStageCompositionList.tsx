@@ -30,7 +30,7 @@ import {
   patientCompositionGroupTitleClass,
   patientCompositionListThumbSlotClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import type { PatientProgramItemNavMode } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
 import { sortProgramCompositionItemsByOrderThenId } from "@/app/app/patient/treatment/programCompositionOrder";
 

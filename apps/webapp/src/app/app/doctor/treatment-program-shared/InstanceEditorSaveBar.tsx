@@ -1,7 +1,7 @@
 "use client";
 
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { isProgramInstanceEditLocked } from "./programInstanceMutationGuard";
 import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
 

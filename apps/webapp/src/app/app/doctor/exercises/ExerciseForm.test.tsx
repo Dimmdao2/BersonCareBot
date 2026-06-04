@@ -13,7 +13,7 @@ vi.mock("@/app/app/doctor/content/MediaLibraryPickerDialog", () => ({
   MediaLibraryPickerDialog: () => <div data-testid="media-picker" />,
 }));
 
-vi.mock("@/shared/ui/ReferenceMultiSelect", () => ({
+vi.mock("@/shared/ui/doctor/ReferenceMultiSelect", () => ({
   ReferenceMultiSelect: ({ value, name }: { value: readonly string[]; name?: string }) => (
     <>
       {name
@@ -24,7 +24,7 @@ vi.mock("@/shared/ui/ReferenceMultiSelect", () => ({
   ),
 }));
 
-vi.mock("@/shared/ui/ReferenceSelect", () => ({
+vi.mock("@/shared/ui/doctor/ReferenceSelect", () => ({
   ReferenceSelect: ({ value, name }: { value: string | null; name?: string }) => (
     <>
       {name ? <input type="hidden" name={name} value={value ?? ""} /> : null}

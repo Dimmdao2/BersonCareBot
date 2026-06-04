@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import type { LfkComplex, LfkComplexExerciseLine } from "@/modules/diaries/types";
 import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
-import { patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
+import { patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
 import { LfkComplexCard } from "./LfkComplexCard";
 
 export function LfkDiarySectionClient({

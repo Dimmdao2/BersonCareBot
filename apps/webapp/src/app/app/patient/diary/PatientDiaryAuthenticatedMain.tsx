@@ -5,7 +5,7 @@ import {
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { DiaryTabsClient } from "./DiaryTabsClient";
 import { PatientWarmupWeekImpactBanner } from "@/modules/diaries/components/PatientWarmupWeekImpactBanner";
 import { PatientWellbeingWeekChart } from "@/modules/diaries/components/PatientWellbeingWeekChart";

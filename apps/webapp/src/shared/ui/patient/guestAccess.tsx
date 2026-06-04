@@ -2,7 +2,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
 import { patientSessionSnapshotHasPhone } from "@/modules/platform-access";
 import type { AppSession } from "@/shared/types/session";
-import { GuestPlaceholder } from "@/shared/ui/GuestPlaceholder";
+import { GuestPlaceholder } from "@/shared/ui/patient/GuestPlaceholder";
 
 /** Блок для страницы записи без сессии или без телефона (EXEC I.10). Без inline-формы телефона. */
 export function CabinetGuestAccess({ session }: { session: AppSession | null }) {

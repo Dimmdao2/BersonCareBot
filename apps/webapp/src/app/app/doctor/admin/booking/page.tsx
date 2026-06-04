@@ -6,7 +6,7 @@ import { BookingCatalogHelp } from "@/app/app/settings/BookingCatalogHelp";
 import { BookingSoloLocationsSection } from "@/app/app/settings/BookingSoloLocationsSection";
 import { BookingSoloServicesSection } from "@/app/app/settings/BookingSoloServicesSection";
 import { BookingSoloAvailabilitySection } from "@/app/app/settings/BookingSoloAvailabilitySection";
-import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 function parseAdminBoolean(valueJson: unknown): boolean {
   if (valueJson === true) return true;

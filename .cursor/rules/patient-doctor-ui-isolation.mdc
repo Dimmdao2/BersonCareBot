@@ -1,0 +1,39 @@
+# Patient / Doctor UI Isolation
+
+При правках patient или doctor product zones соблюдать физическое разделение UI и CSS.
+
+## CSS
+
+| Файл | Подключение |
+|------|-------------|
+| `app/styles/tailwind-engine.css` | `app/layout.tsx` (Tailwind + shadcn `:root`) |
+| `app/styles/patient.css` | `app/app/layout.tsx`, `app/book/layout.tsx` |
+| `app/styles/doctor.css` | `app/app/doctor/layout.tsx`, `app/app/settings/layout.tsx` |
+| `app/styles/landing.css` | `app/page.tsx` |
+
+**Запрещено:** импорт `globals.css`, дублирование `patient.css` в `app/patient/layout.tsx`.
+
+## UI trees
+
+- Patient: `shared/ui/patient/**` + `@/shared/ui/patient/primitives/*`
+- Doctor/settings: `shared/ui/doctor/**` + `@/shared/ui/doctor/primitives/*`
+- Shells: `PatientAppShell`, `DoctorAppShell` (не общий `AppShell`)
+
+## ESLint
+
+Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
+
+- Patient routes/modules **и** `shared/ui/patient/**`: не импортируют `@/shared/ui/doctor/**` или `@/components/ui/**`
+- Doctor routes/settings **и** `shared/ui/doctor/**`: не импортируют `@/shared/ui/patient/**` или `@/components/ui/**`
+
+Исключение: `app/layout.tsx` — `TooltipProvider` из `@/shared/ui/patient/primitives/tooltip`.
+
+## Канон
+
+- Patient UI: `docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`, `.cursor/rules/patient-ui-shared-primitives.mdc`
+- Doctor UI: `docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md`, `.cursor/rules/doctor-ui-shared-primitives.mdc`
+- Инициатива split: `docs/archive/2026-06-initiatives/PATIENT_DOCTOR_UI_SPLIT_INITIATIVE/`
+
+## Новые компоненты
+
+Копировать shadcn из `components/ui/` в нужную `*/primitives/`; cross-import между patient и doctor **запрещён**.

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import { paymentStatusLabel, timelineEventTitle } from "@/modules/client-history/labels";
 
 type PaymentSummary = {

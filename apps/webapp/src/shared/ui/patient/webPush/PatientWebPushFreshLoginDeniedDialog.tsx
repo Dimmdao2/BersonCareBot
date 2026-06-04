@@ -6,7 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/patient/primitives/dialog";
 import { cn } from "@/lib/utils";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
@@ -17,7 +17,7 @@ import {
   patientMutedTextClass,
   patientPortalModalSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 /** После свежего входа при system-denied — короткий призыв включить уведомления в настройках ОС. */
 export function PatientWebPushFreshLoginDeniedDialog() {

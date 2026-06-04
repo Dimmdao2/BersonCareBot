@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { Phone, Send } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import { pluralizeRu } from "@/shared/lib/pluralize";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import { ClientsFilters } from "./ClientsFilters";
 import { doctorClientListRowLinkClass } from "./doctorClientCardChrome";
-import { doctorHoverLinkClass, doctorListItemOuterClass } from "@/shared/ui/doctorVisual";
+import { doctorHoverLinkClass, doctorListItemOuterClass } from "@/shared/ui/doctor/doctorVisual";
 
 type ClientsScope = "all" | "appointments" | "archived";
 

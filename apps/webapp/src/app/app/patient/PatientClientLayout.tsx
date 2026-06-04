@@ -7,7 +7,7 @@ import { MiniAppShareContactGate } from "@/shared/ui/patient/MiniAppShareContact
 import { PatientCalendarTimezoneBootstrap } from "./PatientCalendarTimezoneBootstrap";
 import { PatientWebPushProvider } from "@/shared/lib/webPush/PatientWebPushContext";
 import { PatientWebPushBootstrap } from "@/shared/ui/patient/webPush/PatientWebPushBootstrap";
-import { PwaAppAccessGate } from "@/shared/ui/pwa/PwaAppAccessGate";
+import { PwaAppAccessGate } from "@/shared/ui/patient/pwa/PwaAppAccessGate";
 import { PatientAnalyticsReporter } from "@/shared/ui/patient/PatientAnalyticsReporter";
 
 const allowPatientBrowserAccess = process.env.NODE_ENV !== "production";

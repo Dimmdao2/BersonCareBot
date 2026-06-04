@@ -1,10 +1,31 @@
 # ui
 
-Компоненты интерфейса, общие для страниц приложения.
+Product-specific UI lives in isolated trees — **не** в корне `shared/ui/`.
 
-- **AppShell** — оболочка страницы: контейнер, верхняя панель и область контента. Вариант по умолчанию: заголовок, кнопка «Назад», имя/роль, «Настройки». Вариант `variant="patient"`: шапка в одну линию (стрелка назад | BERSONCARE → меню | гамбургер → боковое меню: профиль, безопасность, уведомления, поддержка, справка). Используется на всех страницах после входа.
-- **PatientHeader** — шапка пациента: кнопка «Назад» (переход по истории браузера), заголовок BERSONCARE (ссылка на меню), кнопка-гамбургер с боковым меню справа. Клиентский компонент, подключается через AppShell при `variant="patient"`.
-- **AuthBootstrap** — блок входа: при классификации `token_exchange` и токене в URL — обмен на сессию и редирект; в ветке miniapp — initData → при необходимости резервный `?t=` после cap. Показывается на **`/app`**, **`/app/tg`**, **`/app/max`** неавторизованному пользователю (через `AppEntryRsc` / `AppEntryLoginContent`).
-- **FeatureCard** — карточка раздела: заголовок, описание, статус (доступно / скоро / заблокировано), опционально ссылка. Компактный вариант — только заголовок. Используется на **`/app/patient/sections`** и **`/app/patient/sections/[slug]`** (каталог разделов и страница раздела).
+## Patient (`shared/ui/patient/**`)
 
-Внешний вид задаётся классами из `app/globals.css`.
+- **PatientAppShell** — оболочка `#app-shell-patient` (top/bottom chrome, main).
+- **patient/shell/** — `PatientTopNav`, `PatientBottomNav`, `PatientHeader`, …
+- **patient/primitives/** — fork shadcn (`button`, `dialog`, `select`, …).
+- **patient/patientVisual.ts** — классы и токены patient UI.
+- **AuthBootstrap**, **FeatureCard** — в `patient/` и `patient/auth/`.
+
+Стили: `app/styles/patient.css` (подключается из `app/app/layout.tsx`).
+
+## Doctor (`shared/ui/doctor/**`)
+
+- **DoctorAppShell** — контейнер `#app-shell-doctor` (шапка/меню в `DoctorWorkspaceShell`).
+- **doctor/shell/** — `DoctorHeader`, `DoctorWorkspaceShell`, …
+- **doctor/catalog/** — split-layout каталогов.
+- **doctor/primitives/** — fork shadcn для doctor/settings.
+- **doctor/doctorVisual.ts** — классы doctor UI.
+
+Стили: `app/styles/doctor.css`.
+
+## Общее
+
+- **tailwind-engine.css** — Tailwind + shadcn tokens (`app/layout.tsx`).
+- **`components/ui/`** — источник для копирования в primitives; **не** импортировать из product routes.
+- Инфра в корне `shared/ui/`: `PlatformProvider`, `BuildVersionWatcher`, `TelegramMiniAppScript` (root layout).
+
+См. `.cursor/rules/patient-doctor-ui-isolation.mdc`.

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
 import { ExerciseForm } from "../ExerciseForm";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -18,15 +18,15 @@ export default async function DoctorExerciseEditPage({ params }: PageProps) {
   const usage = await deps.lfkExercises.getExerciseUsage(exercise.id);
 
   return (
-    <AppShell
+    <DoctorAppShell
       title="Редактирование упражнения"
       user={session.user}
-      variant="doctor"
+     
       backHref="/app/doctor/exercises"
     >
       <section className={doctorCatalogEditorSectionClass}>
         <ExerciseForm exercise={exercise} externalUsageSnapshot={usage} />
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

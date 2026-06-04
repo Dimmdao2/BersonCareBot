@@ -6,7 +6,7 @@ import {
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import {
   appointmentStatusLabel,
   formatAmountMinor,

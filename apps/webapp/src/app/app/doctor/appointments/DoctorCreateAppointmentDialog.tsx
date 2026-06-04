@@ -7,16 +7,16 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 import { BookingPatientSearchPicker, type BookingPatientPick } from "@/app/app/doctor/admin/booking/BookingPatientSearchPicker";
 
 type ServiceOption = { id: string; title: string };

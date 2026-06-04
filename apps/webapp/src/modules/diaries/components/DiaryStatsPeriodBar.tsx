@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { SegmentControl } from "@/components/common/controls/SegmentControl";
 
 export type DiaryStatsPeriod = "week" | "month" | "all";

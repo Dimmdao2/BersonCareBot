@@ -2,14 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { ExerciseLoadType, ExerciseMedia } from "@/modules/lfk-exercises/types";
 import type { Template } from "@/modules/lfk-templates/types";
 import { cn } from "@/lib/utils";
 import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
-import { doctorCatalogListEmptyClass } from "@/shared/ui/doctorVisual";
+import { doctorCatalogListEmptyClass } from "@/shared/ui/doctor/doctorVisual";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import {
   DoctorCatalogFiltersForm,
@@ -17,18 +17,18 @@ import {
 } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
-import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
+import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
 import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { exerciseMediaToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
 import { buildLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
 import { TemplateEditor } from "./TemplateEditor";
@@ -37,7 +37,7 @@ import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatal
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctorWorkspaceLayout";
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 type Props = {
   templates: Template[];

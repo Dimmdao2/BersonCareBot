@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type PurchaseRow = {
   id: string;

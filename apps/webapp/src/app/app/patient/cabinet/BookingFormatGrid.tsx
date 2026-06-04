@@ -1,9 +1,9 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
-import { patientSectionTitleClass } from "@/shared/ui/patientVisual";
+import { patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
 import type { BookingSelection } from "./useBookingSelection";
 
 type Props = {

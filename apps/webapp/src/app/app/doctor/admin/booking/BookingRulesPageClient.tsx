@@ -1,6 +1,6 @@
 "use client";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/doctor/primitives/tabs";
 import { BookingPoliciesSection } from "@/app/app/settings/BookingPoliciesSection";
 import { BookingEventNotificationsSection } from "@/app/app/settings/BookingEventNotificationsSection";
 import { BookingPackagePastUnlinkSetting } from "@/app/app/settings/BookingPackagePastUnlinkSetting";

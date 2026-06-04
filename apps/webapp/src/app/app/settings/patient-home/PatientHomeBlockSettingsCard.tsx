@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { EllipsisVertical } from "lucide-react";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +12,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/ui/doctor/primitives/dropdown-menu";
 import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
 import { canManageItemsForBlock, supportsConfigurablePatientHomeBlockIcon } from "@/modules/patient-home/blocks";
 import type { PatientHomeBlock } from "@/modules/patient-home/ports";

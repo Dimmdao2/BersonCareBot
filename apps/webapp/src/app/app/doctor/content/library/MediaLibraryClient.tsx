@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/doctor/primitives/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,21 +20,21 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
+} from "@/shared/ui/doctor/primitives/dropdown-menu";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { libraryMultipartAbort, libraryMultipartUpload } from "./libraryMultipartUpload";
-import { UploadRequestError, uploadWithProgress } from "@/shared/ui/media/uploadWithProgress";
+import { UploadRequestError, uploadWithProgress } from "@/shared/ui/doctor/media/uploadWithProgress";
 import { MediaCard } from "./MediaCard";
 import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { MediaLightbox } from "./MediaLightbox";
 import { canRenderInlineImage } from "./mediaPreview";
 import type { MediaPreviewStatus } from "@/modules/media/types";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { MediaLibraryFolderScopeSelect } from "@/shared/ui/media/MediaLibraryFolderScopeSelect";
-import { buildCrumbsForMediaFolder } from "@/shared/ui/media/mediaFolderScopeUtils";
-import { useFlatMediaFolders } from "@/shared/ui/media/useFlatMediaFolders";
-import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { MediaLibraryFolderScopeSelect } from "@/shared/ui/doctor/media/MediaLibraryFolderScopeSelect";
+import { buildCrumbsForMediaFolder } from "@/shared/ui/doctor/media/mediaFolderScopeUtils";
+import { useFlatMediaFolders } from "@/shared/ui/doctor/media/useFlatMediaFolders";
+import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
 type SortBy = "date" | "size" | "type" | "name";

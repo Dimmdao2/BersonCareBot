@@ -7,8 +7,9 @@ import { SPECIALIST_PUBLIC_SITE_HREF } from "@/modules/help-content/specialistPu
 const pagePath = join(import.meta.dirname, "page.tsx");
 
 describe("patient/about page (contract)", () => {
-  it("uses AppShell with back to help and PatientAboutSiteLink", () => {
+  it("uses PatientAppShell with back to help and PatientAboutSiteLink", () => {
     const src = readFileSync(pagePath, "utf8");
+    expect(src).toContain("PatientAppShell");
     expect(src).toContain("PatientAboutSiteLink");
     expect(src).toContain("routePaths.patientHelp");
     expect(src).toContain('title="О специалисте"');

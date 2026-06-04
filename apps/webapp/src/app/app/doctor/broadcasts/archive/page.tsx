@@ -1,13 +1,13 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { BroadcastDeliveryArchiveClient } from "../BroadcastDeliveryArchiveClient";
 
 export default async function DoctorBroadcastDeliveryArchivePage() {
   const session = await requireDoctorAccess();
 
   return (
-    <AppShell title="Архив доставки рассылок" user={session.user} variant="doctor">
+    <DoctorAppShell title="Архив доставки рассылок" user={session.user}>
       <BroadcastDeliveryArchiveClient />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

@@ -1,6 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { RECOMMENDATION_TYPE_CATEGORY_CODE } from "@/modules/recommendations/recommendationDomain";
 import { RecommendationForm } from "../RecommendationForm";
 import { RECOMMENDATIONS_PATH } from "../paths";
@@ -12,8 +12,8 @@ export default async function NewRecommendationPage() {
     RECOMMENDATION_TYPE_CATEGORY_CODE,
   );
   return (
-    <AppShell title="Новая рекомендация" user={session.user} variant="doctor" backHref={RECOMMENDATIONS_PATH}>
+    <DoctorAppShell title="Новая рекомендация" user={session.user} backHref={RECOMMENDATIONS_PATH}>
       <RecommendationForm domainCatalogItems={domainCatalogItems} />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

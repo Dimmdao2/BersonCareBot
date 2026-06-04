@@ -2,20 +2,20 @@
 
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Input } from "@/shared/ui/patient/primitives/input";
+import { Textarea } from "@/shared/ui/patient/primitives/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+} from "@/shared/ui/patient/primitives/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
 import { markLfkSession } from "./actions";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type Complex = { id: string; title: string };
 

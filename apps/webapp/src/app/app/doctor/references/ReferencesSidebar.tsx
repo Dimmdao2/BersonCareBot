@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { cn } from "@/lib/utils";
 import type { ReferenceCategory } from "@/modules/references/types";
 

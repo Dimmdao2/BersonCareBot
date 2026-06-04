@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
 import {
@@ -29,12 +29,12 @@ import {
   patientMutedTextClass,
   patientPillClass,
   patientSimpleCompleteDoneButtonToneClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { patientTreatmentProgramListItemClass } from "@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass";
 import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
 import { usePostMarkItemViewedWhenVisible } from "@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible";
 import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
-import { MaterialRatingBlock } from "@/shared/ui/material-rating/MaterialRatingBlock";
+import { MaterialRatingBlock } from "@/shared/ui/patient/material-rating/MaterialRatingBlock";
 
 export function PatientInstanceStageItemCard(props: {
   instanceId: string;

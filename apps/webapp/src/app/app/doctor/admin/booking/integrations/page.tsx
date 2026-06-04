@@ -2,7 +2,7 @@ import { BookingEngineSection } from "@/app/app/settings/BookingEngineSection";
 import { BookingRubitimeMappingSection } from "@/app/app/settings/BookingRubitimeMappingSection";
 import { RubitimeSection } from "@/app/app/settings/RubitimeSection";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
+import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
 export default function DoctorAdminBookingIntegrationsPage() {
   return (

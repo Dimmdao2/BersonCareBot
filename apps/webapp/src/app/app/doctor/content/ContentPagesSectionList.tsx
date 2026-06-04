@@ -20,9 +20,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Shield, ShieldOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { CMS_UNASSIGNED_SECTION_SLUG } from "@/modules/content-sections/types";
-import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
+import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
 import { setContentPageRequiresAuth } from "./contentPageAuthActions";
 import { reorderContentPagesInSection } from "./reorderContentPages";

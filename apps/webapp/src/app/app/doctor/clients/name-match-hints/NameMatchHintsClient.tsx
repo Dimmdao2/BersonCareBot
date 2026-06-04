@@ -5,10 +5,10 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import { doctorClientSectionTitleClass } from "../doctorClientCardChrome";
-import { doctorHoverLinkClass } from "@/shared/ui/doctorVisual";
+import { doctorHoverLinkClass } from "@/shared/ui/doctor/doctorVisual";
 
 type Member = {
   id: string;

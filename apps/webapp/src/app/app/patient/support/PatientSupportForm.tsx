@@ -3,13 +3,13 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Input } from "@/shared/ui/patient/primitives/input";
+import { Textarea } from "@/shared/ui/patient/primitives/textarea";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 const MAX_LEN = 4000;
 

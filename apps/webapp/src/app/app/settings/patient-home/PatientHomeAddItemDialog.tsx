@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogClose,
@@ -11,8 +11,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
 import { patientHomeBlockItemTargetTypeLabelRu } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import {

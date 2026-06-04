@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
 
 type SupportSettingsResponse = {

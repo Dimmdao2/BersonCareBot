@@ -6,17 +6,17 @@
  */
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import "./globals.css";
+import "./styles/tailwind-engine.css";
 import { Geist, Roboto } from "next/font/google";
 import { ClientToaster } from "@/components/ClientToaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/shared/ui/patient/primitives/tooltip";
 import { cn } from "@/lib/utils";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { BUILD_ID_META_NAME } from "@/shared/lib/reloadConstants";
 import { PlatformProvider } from "@/shared/ui/PlatformProvider";
 import { BuildVersionWatcher } from "@/shared/ui/BuildVersionWatcher";
 import { HorizontalOverflowProbe } from "@/shared/ui/dev/HorizontalOverflowProbe";
-import { PWA_APP_ROOT_CLASS } from "@/shared/lib/pwaLayoutClasses";
+import { PWA_APP_ROOT_CLASS } from "@/shared/ui/patient/pwaLayoutClasses";
 import { TelegramMiniAppScript } from "@/shared/ui/TelegramMiniAppScript";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });

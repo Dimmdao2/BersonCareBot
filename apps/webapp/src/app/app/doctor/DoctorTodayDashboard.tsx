@@ -5,7 +5,7 @@ import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { doctorInlineLinkClass, doctorPageStackClass, doctorSectionItemClass } from "@/shared/ui/doctorVisual";
+import { doctorInlineLinkClass, doctorPageStackClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayPendingProgramTestsSection } from "./DoctorTodayPendingProgramTestsSection";

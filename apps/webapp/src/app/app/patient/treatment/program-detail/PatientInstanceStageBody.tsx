@@ -16,7 +16,7 @@ import {
   patientBodyTextClass,
   patientMutedTextClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { patientTreatmentProgramListItemClass } from "@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass";
 import { sortByOrderThenId } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
 import { PatientStageHeaderFields } from "@/app/app/patient/treatment/program-detail/PatientStageHeaderFields";

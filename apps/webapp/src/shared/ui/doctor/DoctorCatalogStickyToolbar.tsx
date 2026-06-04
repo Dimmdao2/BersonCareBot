@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export type DoctorCatalogStickyToolbarProps = {
   children: ReactNode;

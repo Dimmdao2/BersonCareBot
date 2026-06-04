@@ -1,6 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { buildTreatmentProgramLibraryPickers } from "./buildTreatmentProgramLibraryPickers";
 import { TreatmentProgramTemplatesPageClient } from "./TreatmentProgramTemplatesPageClient";
 import {
@@ -58,7 +58,7 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const initialTitleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
   return (
-    <AppShell title="Шаблоны программ" user={session.user} variant="doctor" backHref="/app/doctor">
+    <DoctorAppShell title="Шаблоны программ" user={session.user} backHref="/app/doctor">
       <TreatmentProgramTemplatesPageClient
         templates={items}
         library={library}
@@ -66,6 +66,6 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
         filters={{ q, listPubArch }}
         initialTitleSort={initialTitleSort}
       />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

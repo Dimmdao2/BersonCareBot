@@ -3,7 +3,7 @@ import {
   MATERIAL_RATING_FEEDBACK_REASON_LABELS,
 } from "@/modules/material-rating-feedback/reasonCodes";
 import type { MaterialRatingFeedbackDoctorSummary } from "@/modules/material-rating-feedback/ports";
-import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
+import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { MaterialRatingFeedbackDoctorCommentsClient } from "./MaterialRatingFeedbackDoctorCommentsClient";
 
 export function MaterialRatingFeedbackDoctorPanel({

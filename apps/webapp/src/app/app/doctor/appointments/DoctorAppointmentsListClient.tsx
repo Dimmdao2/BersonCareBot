@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { AppointmentRow } from "@/modules/doctor-appointments/ports";
-import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
+import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorAppointmentActions } from "./DoctorAppointmentActions";
 
 type Props = {

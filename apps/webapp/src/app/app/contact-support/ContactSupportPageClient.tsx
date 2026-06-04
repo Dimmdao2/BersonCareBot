@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AppShell } from "@/shared/ui/AppShell";
-import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { LegalFooterLinks } from "@/shared/ui/patient/LegalFooterLinks";
 import { PatientSupportForm } from "@/app/app/patient/support/PatientSupportForm";
-import { readAuthFlowPending } from "@/shared/ui/auth/authFlowPendingStorage";
+import { readAuthFlowPending } from "@/shared/ui/patient/auth/authFlowPendingStorage";
 import { cn } from "@/lib/utils";
 import {
   patientCardClass,
   patientInlineLinkClass,
   patientMutedTextClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 function backNavFromSearchParams(initialFrom?: string | null): { href: string; label: string } {
   const from = initialFrom ?? "";
@@ -49,10 +49,10 @@ export default function LoginContactSupportPageClient({ initialFrom }: Props) {
     pending?.mode === "register_verify" || pending?.mode === "password_reset" ? pending.email ?? "" : "";
 
   return (
-    <AppShell
+    <PatientAppShell
       title="BersonCare"
       user={null}
-      variant="patient"
+     
       backHref={nav.href}
       backLabel={nav.label}
       patientHideHome
@@ -75,6 +75,6 @@ export default function LoginContactSupportPageClient({ initialFrom }: Props) {
         </p>
       </section>
       <LegalFooterLinks className="mt-8" />
-    </AppShell>
+    </PatientAppShell>
   );
 }

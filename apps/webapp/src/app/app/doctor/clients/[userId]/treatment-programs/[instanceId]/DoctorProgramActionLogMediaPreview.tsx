@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
-import { PatientMediaPlaybackVideo } from "@/shared/ui/media/PatientMediaPlaybackVideo";
+import { DoctorMediaPlaybackVideo } from "@/shared/ui/doctor/media/DoctorMediaPlaybackVideo";
 
 export function DoctorProgramActionLogMediaPreview(props: { mediaFileId: string }) {
   const { mediaFileId } = props;
@@ -34,7 +34,7 @@ export function DoctorProgramActionLogMediaPreview(props: { mediaFileId: string 
   if (isVideo) {
     return (
       <div className="mt-1 max-w-xs">
-        <PatientMediaPlaybackVideo
+        <DoctorMediaPlaybackVideo
           mediaId={mediaFileId}
           mp4Url={`/api/media/${encodeURIComponent(mediaFileId)}`}
           title="Видео пациента"

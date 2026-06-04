@@ -3,8 +3,8 @@
 import type { ReactNode } from "react";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Input } from "@/components/ui/input";
-import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";

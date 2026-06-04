@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { routePaths } from "@/app-layer/routes/paths";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { cn } from "@/lib/utils";
-import { patientHeroBookingCardChromeClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientHeroBookingCardChromeClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 export const REMINDER_DELIVERY_CHANNELS_NOTICE =
   "Уведомления приходят в доступные каналы, если они включены";

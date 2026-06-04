@@ -1,9 +1,9 @@
 "use client";
 
 import { ImageOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { NoContextMenuVideo } from "@/shared/ui/doctor/media/NoContextMenuVideo";
+import { Dialog, DialogContent, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
 import { cn } from "@/lib/utils";
 import { canRenderInlineImage } from "./mediaPreview";
 import type { MediaPreviewStatus } from "@/modules/media/types";

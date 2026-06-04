@@ -6,8 +6,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import {
   omitDisabledInstanceStageItemsForPatientApi,
   selectCurrentWorkingStageForPatientDetail,
@@ -40,18 +40,18 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const session = await getOptionalPatientSession();
   if (!session) {
     return (
-      <AppShell title="Пункт программы" user={null} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы" variant="patient">
+      <PatientAppShell title="Пункт программы" user={null} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы">
         <p className={patientMutedTextClass}>Войдите для доступа.</p>
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
   const dataGate = await patientRscPersonalDataGate(session, routePaths.patientTreatmentPrograms);
   if (dataGate === "guest") {
     return (
-      <AppShell title="Пункт программы" user={session.user} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы" variant="patient">
+      <PatientAppShell title="Пункт программы" user={session.user} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы">
         <p className={patientMutedTextClass}>Раздел доступен после входа.</p>
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
@@ -139,12 +139,12 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const backHref = routePaths.patientTreatmentProgram(instanceId, itemLinksPlanTab);
 
   return (
-    <AppShell
+    <PatientAppShell
       title={title}
       user={session.user}
       backHref={backHref}
       backLabel="План"
-      variant="patient"
+     
       patientSuppressShellTitle
     >
       <PatientProgramStageItemPageClient
@@ -161,6 +161,6 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
         programCommentsInteraction={programCommentsInteraction}
         programMediaInteraction={programMediaInteraction}
       />
-    </AppShell>
+    </PatientAppShell>
   );
 }

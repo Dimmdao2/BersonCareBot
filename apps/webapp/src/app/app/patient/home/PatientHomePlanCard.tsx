@@ -7,7 +7,7 @@ import {
   patientHomePlanCardTitleCompactClass,
   patientIconLeadingClass,
 } from "./patientHomeCardStyles";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
 

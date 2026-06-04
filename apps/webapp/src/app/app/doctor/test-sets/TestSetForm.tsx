@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
@@ -11,17 +11,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { cn } from "@/lib/utils";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import { PickerSearchField } from "@/shared/ui/PickerSearchField";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+import { PickerSearchField } from "@/shared/ui/doctor/PickerSearchField";
 import { archiveDoctorTestSet, fetchDoctorTestSetUsageSnapshot, saveDoctorTestSet, unarchiveDoctorTestSet } from "./actions";
 import type { ArchiveTestSetState, SaveTestSetState, UnarchiveTestSetState } from "./actionsShared";
 import { rowsFromTestSet, TestSetItemsForm, type TestSetEditorItemRow } from "./TestSetItemsForm";

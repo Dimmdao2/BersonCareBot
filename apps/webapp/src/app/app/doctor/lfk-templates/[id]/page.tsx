@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
 import { TemplateEditor } from "../TemplateEditor";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -27,10 +27,10 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
   }));
 
   return (
-    <AppShell
+    <DoctorAppShell
       title="Конструктор комплекса"
       user={session.user}
-      variant="doctor"
+     
       backHref="/app/doctor/lfk-templates"
     >
       <section className={doctorCatalogEditorSectionClass}>
@@ -40,6 +40,6 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
           externalUsageSnapshot={usage}
         />
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

@@ -3,15 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
-import { Button } from "@/components/ui/button";
+import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 
 type TemplateOption = { id: string; title: string };
 

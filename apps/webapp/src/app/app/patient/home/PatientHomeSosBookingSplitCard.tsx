@@ -9,7 +9,7 @@ import {
   patientButtonDangerOutlineClass,
   patientButtonGhostLinkClass,
   patientButtonSuccessClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 
 const splitHeadingClass =

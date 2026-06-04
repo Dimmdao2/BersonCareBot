@@ -6,8 +6,8 @@ import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { resolvePatientCanViewContent } from "@/modules/platform-access";
 import { isHelpSectionSlug } from "@/modules/content-sections/types";
-import { AppShell } from "@/shared/ui/AppShell";
-import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";
 import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
 import { parseApiMediaIdFromHref, parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import { HELP_CANONICAL_ARTICLE_SLUG_BOOKING } from "@/modules/help-content/canonicalSlugs";
@@ -64,12 +64,12 @@ export default async function PatientHelpArticlePage({ params }: Props) {
       : null;
 
   return (
-    <AppShell
+    <PatientAppShell
       title=""
       user={session?.user ?? null}
       backHref={routePaths.patientHelp}
       backLabel="Справка"
-      variant="patient"
+     
       patientSuppressShellTitle
     >
       {slug === HELP_CANONICAL_ARTICLE_SLUG_BOOKING ? <HelpBookingAboutLink /> : null}
@@ -89,6 +89,6 @@ export default async function PatientHelpArticlePage({ params }: Props) {
           orderedDailyWarmupPages={[]}
         />
       </Suspense>
-    </AppShell>
+    </PatientAppShell>
   );
 }

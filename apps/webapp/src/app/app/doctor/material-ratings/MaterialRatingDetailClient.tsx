@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { MaterialRatingDetailPreset } from "@/modules/material-rating/detailTimeRange";
 import type { MaterialRatingDoctorDetailDay, MaterialRatingDoctorDetailRater } from "@/modules/material-rating/types";
 

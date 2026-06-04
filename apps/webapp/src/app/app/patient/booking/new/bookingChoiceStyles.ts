@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { patientHeroBookingSectionClass } from "@/shared/ui/patientVisual";
+import { patientHeroBookingSectionClass } from "@/shared/ui/patient/patientVisual";
 
 /** Обёртка блока выбора (город/онлайн, услуги): см. {@link patientHeroBookingSectionClass}. */
 export const bookingChoiceSectionClass = patientHeroBookingSectionClass;

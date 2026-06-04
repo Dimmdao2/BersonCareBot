@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Flame, Info } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/patient/primitives/popover";
 import type { PatientHomeProgressDisplay } from "@/modules/patient-home/patientHomeProgressMetrics";
 import {
   patientHomeBlockHeadingClass,

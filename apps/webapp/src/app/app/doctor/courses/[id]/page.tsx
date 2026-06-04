@@ -4,9 +4,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { COURSE_LESSON_SECTIONS, type CourseUsageSnapshot } from "@/modules/courses/types";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
-import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
+import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
 import { DoctorCourseEditForm } from "./DoctorCourseEditForm";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -74,7 +74,7 @@ export default async function DoctorCourseEditPage(props: PageProps) {
   const isDev = process.env.NODE_ENV === "development";
 
   return (
-    <AppShell title={course.title} user={session.user} variant="doctor" backHref="/app/doctor/courses">
+    <DoctorAppShell title={course.title} user={session.user} backHref="/app/doctor/courses">
       <section className={doctorCatalogEditorSectionClass}>
         <p className="font-mono text-xs text-muted-foreground">{course.id}</p>
         {loadError ? (
@@ -96,6 +96,6 @@ export default async function DoctorCourseEditPage(props: PageProps) {
           />
         )}
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

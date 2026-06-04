@@ -1,14 +1,14 @@
 "use client";
 
 import type { ComponentProps, ReactNode } from "react";
-import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
 import { cn } from "@/lib/utils";
 import {
   patientModalBodyScrollClass,
   patientModalDialogContentShellClass,
   patientModalDialogTitleClass,
   patientModalHeaderBarClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 export type PatientModalDialogContentProps = Omit<ComponentProps<typeof DialogContent>, "children"> & {
   title: ReactNode;

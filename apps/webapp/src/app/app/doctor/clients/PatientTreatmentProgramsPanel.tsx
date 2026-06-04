@@ -5,15 +5,15 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 
 type TemplateOption = { id: string; title: string };
 

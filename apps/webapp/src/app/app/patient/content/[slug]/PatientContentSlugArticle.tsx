@@ -3,16 +3,16 @@ import { Clock3 } from "lucide-react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
-import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+import { MarkdownContent } from "@/shared/ui/patient/markdown/MarkdownContent";
 import { resolveMediaPlaybackPayload } from "@/app-layer/media/resolveMediaPlaybackPayload";
-import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
+import { ContentHeroImage } from "@/shared/ui/patient/media/ContentHeroImage";
 import {
   patientCardClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
   patientProgramItemHeroTitleClass,
   patientSectionSurfaceClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import {
   patientDailyWarmupDetailHeroGeometryClass,
   patientDailyWarmupDetailHeroTextColumnClass,

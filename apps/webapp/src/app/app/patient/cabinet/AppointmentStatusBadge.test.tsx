@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { AppointmentStatusBadge } from "./AppointmentStatusBadge";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/shared/ui/patient/primitives/tooltip";
 
 describe("AppointmentStatusBadge", () => {
   it("returns null in history mode for non-cancelled non-rescheduled", () => {

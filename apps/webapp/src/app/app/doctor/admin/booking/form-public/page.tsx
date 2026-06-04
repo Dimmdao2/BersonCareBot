@@ -1,7 +1,7 @@
 import { BookingSoloFormFieldsSection } from "@/app/app/settings/BookingSoloFormFieldsSection";
 import { BookingPublicWidgetSection } from "@/app/app/settings/BookingPublicWidgetSection";
 import { BookingPublicAttributionSection } from "@/app/app/settings/BookingPublicAttributionSection";
-import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export default function DoctorAdminBookingFormPublicPage() {
   return (

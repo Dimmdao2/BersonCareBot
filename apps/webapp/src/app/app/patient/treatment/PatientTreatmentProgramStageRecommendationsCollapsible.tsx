@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { ChevronDown, Shield } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/patient/primitives/collapsible";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { isPersistentRecommendation } from "@/modules/treatment-program/stage-semantics";
@@ -17,7 +17,7 @@ import {
   patientRecommendationCollapsiblePanelClass,
   patientRecommendationCollapsibleTriggerClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];

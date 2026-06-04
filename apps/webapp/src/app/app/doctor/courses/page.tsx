@@ -3,9 +3,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import type { CourseStatus } from "@/modules/courses/types";
-import { AppShell } from "@/shared/ui/AppShell";
-import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
-import { Badge } from "@/components/ui/badge";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { cn } from "@/lib/utils";
 import {
   parseTemplateCourseCatalogListStatus,
@@ -21,7 +21,7 @@ import {
   doctorEmptyStateClass,
   doctorHoverLinkClass,
   doctorSectionCardClass,
-} from "@/shared/ui/doctorVisual";
+} from "@/shared/ui/doctor/doctorVisual";
 
 function statusLabel(status: CourseStatus): string {
   switch (status) {
@@ -69,7 +69,7 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
   const isDev = process.env.NODE_ENV === "development";
 
   return (
-    <AppShell title="Курсы" user={session.user} variant="doctor" backHref="/app/doctor">
+    <DoctorAppShell title="Курсы" user={session.user} backHref="/app/doctor">
       <DoctorCatalogFiltersToolbar
         filters={
           <DoctorCatalogToolbarFiltersSlot>
@@ -121,6 +121,6 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
           </ul>
         ) : null}
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

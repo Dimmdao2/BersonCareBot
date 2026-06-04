@@ -19,7 +19,7 @@ import {
   patientMutedTextClass,
   patientSectionTitleClass,
   patientInnerPageStackClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];

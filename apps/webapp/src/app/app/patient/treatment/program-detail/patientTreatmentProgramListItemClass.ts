@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { patientListItemClass } from "@/shared/ui/patientVisual";
+import { patientListItemClass } from "@/shared/ui/patient/patientVisual";
 
 /**
  * Строки списков на странице программы лечения и на странице этапа (тот же клиентский модуль).

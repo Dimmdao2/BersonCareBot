@@ -1,6 +1,6 @@
 "use client";
 
-import { SegmentRouteError } from "@/shared/ui/SegmentRouteError";
+import { SegmentRouteError } from "@/shared/ui/doctor/SegmentRouteError";
 
 export default function DoctorSegmentError(props: {
   error: Error & { digest?: string };

@@ -2,14 +2,14 @@ import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { AppShell } from "@/shared/ui/AppShell";
-import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { ConnectMessengersBlock } from "@/shared/ui/patient/ConnectMessengersBlock";
 import {
   patientInnerPageStackClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 import { LogoutSection } from "./LogoutSection";
 import { PatientCalendarTimezoneSection } from "./PatientCalendarTimezoneSection";
@@ -37,7 +37,7 @@ export default async function PatientProfilePage() {
     ".";
 
   return (
-    <AppShell title="Мой профиль" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
+    <PatientAppShell title="Мой профиль" user={session.user} backHref={routePaths.patient} backLabel="Меню">
       <div className={patientInnerPageStackClass}>
         <PatientProfileHero
           displayName={session.user.displayName ?? ""}
@@ -83,6 +83,6 @@ export default async function PatientProfilePage() {
 
         <LogoutSection />
       </div>
-    </AppShell>
+    </PatientAppShell>
   );
 }

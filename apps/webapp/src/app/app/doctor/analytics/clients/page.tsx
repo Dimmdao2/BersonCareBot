@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { AdminPlatformRegistrationStatsClient } from "./AdminPlatformRegistrationStatsClient";
@@ -26,7 +26,7 @@ export default async function DoctorAnalyticsClientsPage() {
   const calendarTodayYmd = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
 
   return (
-    <AppShell title="По клиентам" user={session.user} variant="doctor">
+    <DoctorAppShell title="По клиентам" user={session.user}>
       <div className="grid gap-3 lg:grid-cols-2">
         <AdminPlatformSubscriberStatsClient calendarTodayYmd={calendarTodayYmd} />
         <AdminPlatformRegistrationStatsClient calendarTodayYmd={calendarTodayYmd} />
@@ -81,6 +81,6 @@ export default async function DoctorAnalyticsClientsPage() {
           />
         </DoctorMetricList>
       </DoctorSection>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

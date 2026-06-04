@@ -2,13 +2,13 @@
 
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { Camera } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import {
   ProgramItemSubmissionSourceDialog,
   type ProgramItemSubmissionSourceDialogHandle,
 } from "@/app/app/patient/treatment/ProgramItemSubmissionSourceDialog";
 import { cn } from "@/lib/utils";
-import { patientPrimaryActionClass } from "@/shared/ui/patientVisual";
+import { patientPrimaryActionClass } from "@/shared/ui/patient/patientVisual";
 
 export type ProgramItemDiscussionMediaPickerHandle = {
   openPicker: () => void;

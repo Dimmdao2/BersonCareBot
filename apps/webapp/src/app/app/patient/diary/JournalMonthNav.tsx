@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { patientBodyTextClass, patientSecondaryActionClass } from "@/shared/ui/patientVisual";
+import { patientBodyTextClass, patientSecondaryActionClass } from "@/shared/ui/patient/patientVisual";
 import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 
 function shiftMonthYm(monthYm: string, delta: number): string {

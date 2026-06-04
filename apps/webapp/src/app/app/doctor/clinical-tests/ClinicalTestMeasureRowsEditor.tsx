@@ -19,10 +19,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { CreatableComboboxInput, type CreatableComboboxItem } from "@/shared/ui/CreatableComboboxInput";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { CreatableComboboxInput, type CreatableComboboxItem } from "@/shared/ui/doctor/CreatableComboboxInput";
 import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from "@/modules/tests/measureKindsClientEvent";
 
 export type ClinicalTestMeasureRowModel = {

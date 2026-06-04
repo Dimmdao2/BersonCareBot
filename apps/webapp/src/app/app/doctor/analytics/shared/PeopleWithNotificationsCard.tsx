@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import type { ReminderPeopleWithNotificationsStats } from "@/app-layer/stats/reminderNotificationPeopleShared";
 import { reminderPeopleChannelSegmentColor } from "@/app-layer/stats/reminderNotificationPeopleShared";
 import {

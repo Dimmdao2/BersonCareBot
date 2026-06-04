@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { parseRecommendationCatalogSsrQuery } from "@/modules/recommendations/recommendationCatalogSsrQuery";
 import {
   RECOMMENDATION_TYPE_CATEGORY_CODE,
@@ -65,10 +65,10 @@ export default async function EditRecommendationPage({ params, searchParams }: P
   const backHref = backParams.toString() ? `${RECOMMENDATIONS_PATH}?${backParams.toString()}` : RECOMMENDATIONS_PATH;
 
   return (
-    <AppShell
+    <DoctorAppShell
       title="Редактирование рекомендации"
       user={session.user}
-      variant="doctor"
+     
       backHref={backHref}
     >
       <RecommendationForm
@@ -78,6 +78,6 @@ export default async function EditRecommendationPage({ params, searchParams }: P
         backHref={backHref}
         workspaceListPreserve={workspaceListPreserve}
       />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

@@ -4,7 +4,7 @@ import {
   doctorSectionCardClass,
   doctorSectionHeaderStackClass,
   doctorSectionTitleClass,
-} from "@/shared/ui/doctorVisual";
+} from "@/shared/ui/doctor/doctorVisual";
 
 type DoctorSectionProps = ComponentPropsWithoutRef<"section">;
 

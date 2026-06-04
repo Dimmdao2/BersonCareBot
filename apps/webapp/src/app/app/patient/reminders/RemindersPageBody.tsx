@@ -2,7 +2,7 @@ import { DateTime } from "luxon";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ReminderRule } from "@/modules/reminders/types";
 import { cn } from "@/lib/utils";
-import { patientInnerPageStackClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientInnerPageStackClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";

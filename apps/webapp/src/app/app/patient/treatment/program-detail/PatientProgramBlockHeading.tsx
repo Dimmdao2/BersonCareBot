@@ -2,7 +2,7 @@
 
 import type { ComponentType, ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { patientSectionTitleClass } from "@/shared/ui/patientVisual";
+import { patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
 
 /** Единый заголовок секции (после hero): иконка слева, заголовок, опционально действие справа. */
 export function PatientProgramBlockHeading(props: {

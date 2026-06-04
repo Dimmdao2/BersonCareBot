@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
 import type { PatientHomeBlockRuntimeStatus } from "@/modules/patient-home/patientHomeRuntimeStatus";
 import { cn } from "@/lib/utils";

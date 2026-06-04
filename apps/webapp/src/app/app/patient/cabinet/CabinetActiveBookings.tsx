@@ -1,8 +1,8 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
@@ -10,7 +10,7 @@ import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMess
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
 import { CabinetBookingActions } from "./CabinetBookingActions";
 import { cn } from "@/lib/utils";
-import { patientCardClass, patientInlineLinkClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientCardClass, patientInlineLinkClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   bookings: PatientBookingRecord[];

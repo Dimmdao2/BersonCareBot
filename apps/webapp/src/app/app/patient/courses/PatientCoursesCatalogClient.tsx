@@ -12,7 +12,7 @@ import {
   patientMutedTextClass,
   patientPrimaryActionClass,
   patientSecondaryActionClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 function formatPrice(minor: number, currency: string): string {
   const major = minor / 100;

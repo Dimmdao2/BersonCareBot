@@ -16,8 +16,8 @@ vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
 }));
 
-vi.mock("@/shared/ui/AppShell", () => ({
-  AppShell: ({
+vi.mock("@/shared/ui/patient/PatientAppShell", () => ({
+  PatientAppShell: ({
     children,
     patientSuppressShellTitle,
   }: {

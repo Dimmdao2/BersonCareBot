@@ -1,10 +1,10 @@
 "use client";
 
-import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+import { MarkdownContent } from "@/shared/ui/doctor/markdown/MarkdownContent";
 import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
-import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
-import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
-import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
+import { ContentHeroImage } from "@/shared/ui/doctor/media/ContentHeroImage";
+import { NoContextMenuVideo } from "@/shared/ui/doctor/media/NoContextMenuVideo";
+import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
 type Props = {
   title: string;

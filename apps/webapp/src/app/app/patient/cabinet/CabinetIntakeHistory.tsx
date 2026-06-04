@@ -1,7 +1,7 @@
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
 import type { IntakeRequest } from "@/modules/online-intake/types";
 import { cn } from "@/lib/utils";
-import { patientCardCompactClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientCardCompactClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Отправлена",

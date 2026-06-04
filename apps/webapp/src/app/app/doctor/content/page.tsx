@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { PageSection } from "@/components/common/layout/PageSection";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
-import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
 import type { ContentSectionRow } from "@/modules/content-sections/ports";
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
@@ -162,7 +162,7 @@ export default async function DoctorContentPage({ searchParams }: Props) {
 
   if (loadError) {
     return (
-      <AppShell title="Контент" user={session.user} variant="doctor">
+      <DoctorAppShell title="Контент" user={session.user}>
         <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
             <ContentPagesSidebar
@@ -179,12 +179,12 @@ export default async function DoctorContentPage({ searchParams }: Props) {
             </div>
           </div>
         </PageSection>
-      </AppShell>
+      </DoctorAppShell>
     );
   }
 
   return (
-    <AppShell title="Контент" user={session.user} variant="doctor">
+    <DoctorAppShell title="Контент" user={session.user}>
       <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
           <ContentPagesSidebar
@@ -284,6 +284,6 @@ export default async function DoctorContentPage({ searchParams }: Props) {
           </div>
         </div>
       </PageSection>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
-import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
 import { TemplateEditor } from "../TemplateEditor";
 
 export function LfkTemplateNewStandalone({

@@ -22,8 +22,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
 }));
 
-vi.mock("@/shared/ui/AppShell", () => ({
-  AppShell: ({ children, title }: { children: React.ReactNode; title: string }) => (
+vi.mock("@/shared/ui/patient/PatientAppShell", () => ({
+  PatientAppShell: ({ children, title }: { children: React.ReactNode; title: string }) => (
     <div>
       <span data-testid="shell-title">{title}</span>
       {children}

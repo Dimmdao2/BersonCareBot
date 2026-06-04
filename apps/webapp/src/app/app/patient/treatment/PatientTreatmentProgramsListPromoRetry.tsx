@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 
 /** Повтор загрузки promo/active после сбоя ensure на сервере. */

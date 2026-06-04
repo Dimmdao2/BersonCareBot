@@ -2,7 +2,7 @@
 
 import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { SupportContactLink } from "@/shared/ui/SupportContactLink";
+import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
 
 type Props = { href: string };
 

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { patientBodyTextClass, patientChatMetaLineClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientBodyTextClass, patientChatMetaLineClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import {
   formatChatMessageTimeRu,
   formatChatRelativeDateLabelRu,

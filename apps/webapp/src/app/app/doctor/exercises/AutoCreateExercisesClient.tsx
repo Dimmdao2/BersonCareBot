@@ -4,32 +4,32 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Check } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+} from "@/shared/ui/doctor/primitives/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/doctor/primitives/tooltip";
 import type { MediaExerciseUsageEntry, MediaFolderRecord } from "@/modules/media/types";
 import { cn } from "@/lib/utils";
-import { doctorPageStackClass, doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
-import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import { buildAdminMediaListUrl } from "@/shared/ui/media/useMediaLibraryPickerItems";
-import { MediaPickerListFooter } from "@/shared/ui/media/MediaPickerListFooter";
-import { useMediaPickerFilteredList } from "@/shared/ui/media/useMediaPickerFilteredList";
+import { doctorPageStackClass, doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+import { buildAdminMediaListUrl } from "@/shared/ui/doctor/media/useMediaLibraryPickerItems";
+import { MediaPickerListFooter } from "@/shared/ui/doctor/media/MediaPickerListFooter";
+import { useMediaPickerFilteredList } from "@/shared/ui/doctor/media/useMediaPickerFilteredList";
 
 import {
   type MediaLibraryListSortPreset,
   MEDIA_LIBRARY_LIST_SORT_OPTIONS,
   mediaLibraryListSortLabel,
   parseMediaLibraryListSortPreset,
-} from "@/shared/ui/media/mediaLibraryListSortOptions";
+} from "@/shared/ui/doctor/media/mediaLibraryListSortOptions";
 import { bulkCreateExercisesFromMedia } from "./actions";
 import { EXERCISES_PATH } from "./exercisesPaths";
 import { exerciseMediaTypeFromPick, exerciseTitleFromLibraryItem } from "./exerciseMediaFromLibrary";

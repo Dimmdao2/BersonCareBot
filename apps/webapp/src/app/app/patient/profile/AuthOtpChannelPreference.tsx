@@ -3,12 +3,12 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/shared/ui/patient/primitives/label";
+import { RadioGroup, RadioGroupItem } from "@/shared/ui/patient/primitives/radio-group";
 import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import { setPreferredAuthOtpChannelAction } from "./actions";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 export type AuthOtpOption = { code: OtpUiChannel; label: string };
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
-import { getDoctorSectionItemClass } from "@/shared/ui/doctorVisual";
+import { getDoctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
 import type { SpecialistTaskRow as Task } from "@/modules/specialist-tasks/types";
 import { isSpecialistTaskOverdue } from "@/modules/specialist-tasks/taskPriority";
 

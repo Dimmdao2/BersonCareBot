@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { MoreVerticalIcon, PlusIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import {
   Dialog,
   DialogContent,
@@ -12,29 +12,29 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/patient/primitives/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/shared/ui/patient/primitives/dropdown-menu";
+import { Input } from "@/shared/ui/patient/primitives/input";
+import { Textarea } from "@/shared/ui/patient/primitives/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/patient/primitives/select";
 import { NumericChipGroup } from "@/components/common/controls/NumericChipGroup";
 import { notifyDiarySymptomEntrySaved } from "@/modules/diaries/symptomDiaryClientEvents";
 import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./symptomEntryDedup";
 import { addSymptomEntry, archiveSymptomTracking, renameSymptomTracking } from "./actions";
 import { cn } from "@/lib/utils";
-import { patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
-import { symptomTrackingEntryTypeSelectItems } from "@/shared/ui/selectOpaqueValueLabels";
+import { patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { symptomTrackingEntryTypeSelectItems } from "@/shared/ui/patient/selectOpaqueValueLabels";
 
 export function SymptomTrackingRow({ id, title }: { id: string; title: string }) {
   const router = useRouter();

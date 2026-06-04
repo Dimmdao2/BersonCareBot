@@ -6,7 +6,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 import {
   calendarCreateFieldLabel,
   resolveCalendarCreateFieldMode,

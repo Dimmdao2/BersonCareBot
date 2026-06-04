@@ -5,7 +5,7 @@ import {
   RECOMMENDATION_TYPE_CATEGORY_CODE,
   referenceItemsToRecommendationDomainFilterDto,
 } from "@/modules/recommendations/recommendationDomain";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import {
   parseRecommendationListFilterScope,
@@ -72,7 +72,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   );
 
   return (
-    <AppShell title="Рекомендации" user={session.user} variant="doctor" backHref="/app/doctor">
+    <DoctorAppShell title="Рекомендации" user={session.user} backHref="/app/doctor">
       <RecommendationsPageClient
         initialItems={items}
         initialSelectedId={initialSelectedId}
@@ -91,6 +91,6 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
           domain: catalogQuery.domainCodeForCatalog,
         }}
       />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

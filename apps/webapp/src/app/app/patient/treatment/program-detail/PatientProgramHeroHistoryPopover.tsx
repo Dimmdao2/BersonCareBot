@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/patient/primitives/popover";
 import { Info } from "lucide-react";
 import type { TreatmentProgramEventRow, TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { formatTreatmentProgramEventTypeRu } from "@/modules/treatment-program/types";

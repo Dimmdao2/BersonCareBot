@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { TestSetForm } from "../TestSetForm";
 import { TEST_SETS_PATH } from "../paths";
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { cn } from "@/lib/utils";
 import { clinicalTestLibraryRows } from "../clinicalTestLibraryRows";
 
@@ -22,7 +22,7 @@ export default async function EditTestSetPage({ params }: PageProps) {
   const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
 
   return (
-    <AppShell title="Набор тестов" user={session.user} variant="doctor" backHref={TEST_SETS_PATH}>
+    <DoctorAppShell title="Набор тестов" user={session.user} backHref={TEST_SETS_PATH}>
       <div className="flex flex-col gap-8">
         <p className="text-sm text-muted-foreground">
           <Link
@@ -35,6 +35,6 @@ export default async function EditTestSetPage({ params }: PageProps) {
         </p>
         <TestSetForm testSet={testSet} externalUsageSnapshot={usage} clinicalTestsLibrary={clinicalTestsLibrary} />
       </div>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

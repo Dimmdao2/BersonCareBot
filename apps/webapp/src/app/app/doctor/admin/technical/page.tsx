@@ -2,7 +2,7 @@ import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPag
 import { loadAdminSettingsPageData } from "@/app/app/settings/adminSettingsData";
 import { AdminSettingsSection } from "@/app/app/settings/AdminSettingsSection";
 import { AdminIncidentAlertsSection } from "@/app/app/settings/AdminIncidentAlertsSection";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export default async function DoctorAdminTechnicalPage() {
   await requireAdminDoctorPage();

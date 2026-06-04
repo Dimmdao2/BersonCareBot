@@ -1,7 +1,7 @@
 "use client";
 
 import { PatientBindPhoneClient } from "@/app/app/patient/bind-phone/PatientBindPhoneClient";
-import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   telegramId: string;

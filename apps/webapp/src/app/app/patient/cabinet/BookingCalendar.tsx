@@ -1,8 +1,8 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   availableDates: string[];

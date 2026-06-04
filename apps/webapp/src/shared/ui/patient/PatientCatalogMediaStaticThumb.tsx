@@ -3,8 +3,8 @@
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { recommendationMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { MediaThumb } from "@/shared/ui/patient/media/MediaThumb";
+import { recommendationMediaItemToPreviewUi } from "@/shared/ui/patient/media/mediaPreviewUiModel";
 
 export type PatientCatalogMediaStaticThumbProps = {
   media: RecommendationMediaItem | null;

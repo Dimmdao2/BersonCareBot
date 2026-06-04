@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass, patientSectionSurfaceClass } from "@/shared/ui/patient/patientVisual";
 
 /** Ссылка со статьи справки `booking` на короткую страницу `/app/patient/about`. */
 export function HelpBookingAboutLink() {

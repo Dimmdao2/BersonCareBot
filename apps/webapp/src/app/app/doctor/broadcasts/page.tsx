@@ -5,7 +5,7 @@
  */
 import Link from "next/link";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { listBroadcastAuditAction } from "./actions";
 import { BroadcastForm } from "./BroadcastForm";
 import { BroadcastAuditLog } from "./BroadcastAuditLog";
@@ -14,14 +14,14 @@ import {
   doctorPageStackClass,
   doctorSectionCardClass,
   doctorSectionTitleClass,
-} from "@/shared/ui/doctorVisual";
+} from "@/shared/ui/doctor/doctorVisual";
 
 export default async function DoctorBroadcastsPage() {
   const session = await requireDoctorAccess();
   const auditEntries = await listBroadcastAuditAction(50);
 
   return (
-    <AppShell title="Рассылки" user={session.user} variant="doctor">
+    <DoctorAppShell title="Рассылки" user={session.user}>
       <div className={doctorPageStackClass}>
         <p className="text-sm text-muted-foreground">
           После отправки сообщения ставятся в очередь доставки; счётчики в журнале обновляются по мере работы воркера.{" "}
@@ -39,6 +39,6 @@ export default async function DoctorBroadcastsPage() {
           <BroadcastAuditLog entries={auditEntries} />
         </section>
       </div>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

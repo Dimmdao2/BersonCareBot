@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
 import type { CabinetInfoLinkTile } from "@/modules/help-content/cabinetInfoLinkTiles";
 import { cn } from "@/lib/utils";
-import { patientCardClass, patientInfoLinkTileClass } from "@/shared/ui/patientVisual";
+import { patientCardClass, patientInfoLinkTileClass } from "@/shared/ui/patient/patientVisual";
 
 export function CabinetInfoLinksCard({ tiles }: { tiles: CabinetInfoLinkTile[] }) {
   return (

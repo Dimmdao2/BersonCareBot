@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { ProductAnalyticsSection } from "./ProductAnalyticsSection";
 
 export default async function DoctorUsageAnalyticsPage() {
@@ -10,8 +10,8 @@ export default async function DoctorUsageAnalyticsPage() {
   }
 
   return (
-    <AppShell title="Использование" user={session.user} variant="doctor">
+    <DoctorAppShell title="Использование" user={session.user}>
       <ProductAnalyticsSection />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

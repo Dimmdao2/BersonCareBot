@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/doctor/primitives/collapsible";
 import type { DoctorClientActiveProgramTreeModel } from "@/modules/doctor-client-card/types";
 import { cn } from "@/lib/utils";
 import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";

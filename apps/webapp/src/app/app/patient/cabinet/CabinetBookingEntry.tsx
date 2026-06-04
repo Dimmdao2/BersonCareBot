@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientCardClass, patientPrimaryActionClass } from "@/shared/ui/patientVisual";
+import { patientCardClass, patientPrimaryActionClass } from "@/shared/ui/patient/patientVisual";
 
 export function CabinetBookingEntry() {
   return (

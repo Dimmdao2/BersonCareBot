@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { routePaths } from "@/app-layer/routes/paths";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { restorePatientWebPushSubscription, subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
 import { reportWebPushSubscribeFailure } from "@/shared/lib/webPush/webPushSubscribeFeedback";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   deliveryChannelLabels: string[];

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { BookOpen, ClipboardList, ImageIcon, Plus, Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
 import {
   Dialog,
@@ -13,16 +13,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/treatment-program/errors";
 import {
   treatmentProgramGroupSelectNoneItemValue,
   treatmentProgramGroupSelectNoneLabel,
-} from "@/shared/ui/selectOpaqueValueLabels";
+} from "@/shared/ui/doctor/selectOpaqueValueLabels";
 import type {
   TreatmentProgramItemType,
   TreatmentProgramLibraryPickType,

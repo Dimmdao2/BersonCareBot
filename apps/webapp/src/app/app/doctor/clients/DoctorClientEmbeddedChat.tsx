@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
 import { useDoctorPatientSupportChat } from "./useDoctorPatientSupportChat";
 import { doctorClientStackedCardClass } from "./doctorClientCardChrome";

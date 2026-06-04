@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/shared/ui/patient/primitives/input";
+import { Textarea } from "@/shared/ui/patient/primitives/textarea";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCategory } from "@/modules/patient-booking/types";
 import type { BookingSlot, PatientBookingRecord } from "@/modules/patient-booking/types";
@@ -22,7 +22,7 @@ import {
   patientFormSurfaceClass,
   patientMutedTextClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 type FormField = {
   fieldKey: string;

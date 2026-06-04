@@ -18,7 +18,7 @@ import {
   patientHeroPrimaryActionClass,
   patientHeroWarmupDoneCtaClass,
   patientMutedTextClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 
 type Props = {

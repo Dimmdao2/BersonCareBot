@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PatientMediaPlaybackVideo } from "@/shared/ui/media/PatientMediaPlaybackVideo";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
+import { PatientMediaPlaybackVideo } from "@/shared/ui/patient/media/PatientMediaPlaybackVideo";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { cn } from "@/lib/utils";
-import { patientBodyTextClass } from "@/shared/ui/patientVisual";
+import { patientBodyTextClass } from "@/shared/ui/patient/patientVisual";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 

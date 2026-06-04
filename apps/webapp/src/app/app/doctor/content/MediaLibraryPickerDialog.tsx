@@ -2,21 +2,21 @@
 
 import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/ui/doctor/primitives/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
+import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
 import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { fetchAdminMediaListItem } from "@/shared/ui/media/fetchAdminMediaListItem";
-import { mediaLibraryPickerSelectionToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import { MediaPickerPanel } from "@/shared/ui/media/MediaPickerPanel";
-import { MediaPickerShell } from "@/shared/ui/media/MediaPickerShell";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { fetchAdminMediaListItem } from "@/shared/ui/doctor/media/fetchAdminMediaListItem";
+import { mediaLibraryPickerSelectionToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+import { MediaPickerPanel } from "@/shared/ui/doctor/media/MediaPickerPanel";
+import { MediaPickerShell } from "@/shared/ui/doctor/media/MediaPickerShell";
 
 export type MediaLibraryPickerKind = "image" | "video" | "image_or_video";
 

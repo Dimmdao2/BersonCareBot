@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
+import { Input } from "@/shared/ui/patient/primitives/input";
+import { Label } from "@/shared/ui/patient/primitives/label";
+import { RadioGroup, RadioGroupItem } from "@/shared/ui/patient/primitives/radio-group";
 import { cn } from "@/lib/utils";
-import { patientButtonPrimaryClass, patientFormSurfaceClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientButtonPrimaryClass, patientFormSurfaceClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 export type ProgramItemCompleteDialogPayload = {
   perceivedDifficulty: "easy" | "medium" | "hard";

@@ -6,6 +6,7 @@
  */
 
 import type { Metadata } from "next";
+import "./styles/landing.css";
 import { FeatureGrid } from "@/components/landing/FeatureGrid";
 import { FinalCta } from "@/components/landing/FinalCta";
 import { HeroSection } from "@/components/landing/HeroSection";

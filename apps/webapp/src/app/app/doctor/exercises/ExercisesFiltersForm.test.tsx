@@ -19,7 +19,7 @@ vi.stubGlobal(
   ),
 );
 
-vi.mock("@/shared/ui/ReferenceSelect", () => ({
+vi.mock("@/shared/ui/doctor/ReferenceSelect", () => ({
   ReferenceSelect: () => <div data-testid="mock-ref-select" />,
 }));
 

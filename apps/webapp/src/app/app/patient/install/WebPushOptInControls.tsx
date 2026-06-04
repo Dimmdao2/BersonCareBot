@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { probePushSupported } from "@/shared/lib/webPush/pushCapability";
 import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
 import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";

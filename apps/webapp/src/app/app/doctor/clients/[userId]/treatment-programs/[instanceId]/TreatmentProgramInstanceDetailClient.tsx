@@ -5,12 +5,12 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Activity, BookOpen, ChevronDown, ClipboardList, Layers, MessageSquare } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/doctor/primitives/collapsible";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStatus,
@@ -44,12 +44,12 @@ import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
 } from "@/app/app/doctor/clients/doctorClientCardChrome";
-import { doctorHistoryRowClass } from "@/shared/ui/doctorVisual";
+import { doctorHistoryRowClass } from "@/shared/ui/doctor/doctorVisual";
 import {
   doctorRecommendationActionabilitySelectItems,
   treatmentProgramGroupSelectNoneItemValue,
   treatmentProgramGroupSelectNoneLabel,
-} from "@/shared/ui/selectOpaqueValueLabels";
+} from "@/shared/ui/doctor/selectOpaqueValueLabels";
 import { formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
 import { CommentBlock } from "@/components/comments/CommentBlock";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
@@ -97,7 +97,7 @@ import {
 } from "@/app/app/doctor/treatment-program-shared/InstanceAddLibraryItemDialog";
 import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
 import { doctorProgramTestResultDomId } from "@/app/app/doctor/treatment-program-shared/doctorProgramTestResultDomId";
-import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
+import { DoctorCatalogMediaStaticThumb } from "@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb";
 import { primaryMediaForStageItem } from "@/app/app/patient/treatment/stageItemSnapshot";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
@@ -325,7 +325,7 @@ function DoctorInstanceStageItemPreviewBlock(props: { item: InstanceStageItemT }
     );
   }
   return (
-    <PatientCatalogMediaStaticThumb
+    <DoctorCatalogMediaStaticThumb
       media={media}
       frameClassName={frameThumb}
       sizes="70px"

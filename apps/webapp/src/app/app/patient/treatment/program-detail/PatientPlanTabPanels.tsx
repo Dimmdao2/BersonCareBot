@@ -6,7 +6,7 @@ import type { InstanceStageRow } from "@/app/app/patient/treatment/program-detai
 import { PatientProgramStagesTimeline } from "@/app/app/patient/treatment/program-detail/PatientProgramStagesTimeline";
 import { PatientProgramPassageStatisticsSection } from "@/app/app/patient/treatment/program-detail/PatientProgramPassageStatisticsSection";
 import { PatientProgramControlCard } from "@/app/app/patient/treatment/program-detail/PatientProgramControlCard";
-import { PatientLoadingPatternBody, patientInnerPageStackClass } from "@/shared/ui/patientVisual";
+import { PatientLoadingPatternBody, patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 

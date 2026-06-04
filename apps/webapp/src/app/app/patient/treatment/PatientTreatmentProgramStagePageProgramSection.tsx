@@ -26,9 +26,9 @@ import {
   patientSecondaryActionClass,
   patientSectionTitleClass,
   patientSimpleCompleteDoneButtonToneClass,
-} from "@/shared/ui/patientVisual";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+} from "@/shared/ui/patient/patientVisual";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/patient/primitives/popover";
+import { MarkdownContent } from "@/shared/ui/patient/markdown/MarkdownContent";
 import { cn } from "@/lib/utils";
 import {
   buildProgramCompositionSegments,

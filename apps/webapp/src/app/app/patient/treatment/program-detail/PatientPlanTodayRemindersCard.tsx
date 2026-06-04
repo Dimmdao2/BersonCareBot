@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import Link from "next/link";
 import { Bell, ChevronDown } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/patient/primitives/collapsible";
 import { cn } from "@/lib/utils";
-import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
 
 const scheduleCardChrome = cn(
   "overflow-visible rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",

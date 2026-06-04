@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Textarea } from "@/shared/ui/patient/primitives/textarea";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
 import { notifyPatientSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 import { cn } from "@/lib/utils";
-import { PatientShimmerPanel, patientCardClass, patientChatComposerTextareaClass, patientInnerPageStackClass, patientMutedTextClass, patientPrimaryActionClass } from "@/shared/ui/patientVisual";
+import { PatientShimmerPanel, patientCardClass, patientChatComposerTextareaClass, patientInnerPageStackClass, patientMutedTextClass, patientPrimaryActionClass } from "@/shared/ui/patient/patientVisual";
 
 export function PatientMessagesClient() {
   const [conversationId, setConversationId] = useState<string | null>(null);

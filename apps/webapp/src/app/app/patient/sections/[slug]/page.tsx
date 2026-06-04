@@ -14,7 +14,7 @@ import {
   canViewPatientAuthOnlySection,
   filterPatientSectionPages,
 } from "@/modules/platform-access";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { PatientSectionPageBody } from "./PatientSectionPageBody";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -87,12 +87,12 @@ export default async function PatientSectionPage({ params }: Props) {
   }
 
   return (
-    <AppShell
+    <PatientAppShell
       title={section.title}
       user={session?.user ?? null}
       backHref={routePaths.patient}
       backLabel="Меню"
-      variant="patient"
+     
       patientTitleBadge={subscriptionSectionPresentation?.badgeLabel}
     >
       <PatientSectionPageBody
@@ -101,6 +101,6 @@ export default async function PatientSectionPage({ params }: Props) {
         pages={pages}
         courseHighlightByLinkedId={courseHighlightByLinkedId}
       />
-    </AppShell>
+    </PatientAppShell>
   );
 }

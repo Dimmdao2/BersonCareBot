@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { cn } from "@/lib/utils";
 import type { TemplateStatus } from "@/modules/lfk-templates/types";
 

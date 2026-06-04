@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Input } from "@/shared/ui/patient/primitives/input";
 import type { BookingSelection } from "./useBookingSelection";
 import type { BookingSlot } from "@/modules/patient-booking/types";
 import { useCreateBooking } from "./useCreateBooking";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   selection: BookingSelection | null;

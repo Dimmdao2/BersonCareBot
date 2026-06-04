@@ -2,24 +2,24 @@
 
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
 import {
   CLINICAL_TEST_SCHEMA_TYPES,
@@ -31,8 +31,8 @@ import {
 import { buildClinicalAssessmentKindSelectOptions } from "@/modules/tests/clinicalTestAssessmentKind";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
-import { ReferenceMultiSelect } from "@/shared/ui/ReferenceMultiSelect";
+import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
+import { ReferenceMultiSelect } from "@/shared/ui/doctor/ReferenceMultiSelect";
 import { archiveClinicalTest, fetchDoctorClinicalTestUsageSnapshot, saveClinicalTest, unarchiveClinicalTest } from "./actions";
 import type {
   ArchiveClinicalTestState,

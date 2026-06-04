@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { PlusIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { NumericChipGroup } from "@/components/common/controls/NumericChipGroup";
 import {
   Select,
@@ -11,8 +11,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+} from "@/shared/ui/patient/primitives/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
 import { addSymptomEntry } from "./symptoms/actions";
 import { notifyDiarySymptomEntrySaved } from "@/modules/diaries/symptomDiaryClientEvents";
 import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./symptoms/symptomEntryDedup";

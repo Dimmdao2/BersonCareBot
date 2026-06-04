@@ -7,7 +7,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { loadAdminRegistrationFailureAttention } from "@/app-layer/product-analytics/loadAdminRegistrationFailureAttention";
 import { loadAdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
 import { loadDoctorTodayDashboard } from "./loadDoctorTodayDashboard";
 
@@ -38,7 +38,7 @@ export default async function DoctorPage() {
       : [undefined, undefined];
 
   return (
-    <AppShell title="Сегодня" user={session.user} variant="doctor">
+    <DoctorAppShell title="Сегодня" user={session.user}>
       <DoctorTodayDashboard
         data={data}
         kpiStats={kpiStats}
@@ -47,6 +47,6 @@ export default async function DoctorPage() {
         adminRegistrationFailureBanner={adminRegistrationFailureBanner}
         showAnalyticsLink={session.user.role === "admin"}
       />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

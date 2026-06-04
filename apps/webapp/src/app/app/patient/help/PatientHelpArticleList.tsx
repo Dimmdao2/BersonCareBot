@@ -2,7 +2,7 @@ import Link from "next/link";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import type { HelpArticleListItem } from "@/modules/help-content/ports";
-import { patientInlineLinkClass, patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass, patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patient/patientVisual";
 
 export function PatientHelpArticleList({ articles }: { articles: HelpArticleListItem[] }) {
   if (articles.length === 0) {

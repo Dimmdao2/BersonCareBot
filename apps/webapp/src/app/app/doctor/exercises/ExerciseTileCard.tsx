@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
 import type { Exercise } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { exerciseMediaToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 
 type Props = {
   exercise: Exercise;

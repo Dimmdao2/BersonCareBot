@@ -3,10 +3,10 @@
 import { useCallback, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientInlineLinkClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 

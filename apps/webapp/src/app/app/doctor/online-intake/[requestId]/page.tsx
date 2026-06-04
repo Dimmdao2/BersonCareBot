@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorOnlineIntakeClient } from "../DoctorOnlineIntakeClient";
 
 type Props = { params: Promise<{ requestId: string }> };
@@ -15,9 +15,9 @@ export default async function DoctorOnlineIntakeRequestPage({ params }: Props) {
   const { requestId } = await params;
 
   return (
-    <AppShell title="Онлайн-заявки пациентов" user={session.user} variant="doctor">
+    <DoctorAppShell title="Онлайн-заявки пациентов" user={session.user}>
       <h1 className="text-base font-semibold tracking-tight text-foreground">Онлайн-заявки пациентов</h1>
       <DoctorOnlineIntakeClient initialOpenRequestId={requestId} />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

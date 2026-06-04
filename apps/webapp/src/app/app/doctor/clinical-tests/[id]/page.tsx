@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { ClinicalTestForm } from "../ClinicalTestForm";
 import { CLINICAL_TESTS_PATH } from "../paths";
 import {
@@ -27,8 +27,8 @@ export default async function EditClinicalTestPage({ params }: PageProps) {
   );
 
   return (
-    <AppShell title="Редактирование теста" user={session.user} variant="doctor" backHref={CLINICAL_TESTS_PATH}>
+    <DoctorAppShell title="Редактирование теста" user={session.user} backHref={CLINICAL_TESTS_PATH}>
       <ClinicalTestForm test={test} externalUsageSnapshot={usage} assessmentKindSelectOptions={assessmentKindSelectOptions} />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

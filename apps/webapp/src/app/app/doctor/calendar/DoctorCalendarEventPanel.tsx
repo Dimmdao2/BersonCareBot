@@ -4,17 +4,17 @@ import Link from "next/link";
 import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { DateTime } from "luxon";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,

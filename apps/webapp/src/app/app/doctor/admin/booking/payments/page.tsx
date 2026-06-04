@@ -2,7 +2,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { parseBookingPaymentSettingsValue } from "@/modules/payments/bookingPaymentSettings";
 import { BookingPaymentsSection } from "@/app/app/settings/BookingPaymentsSection";
 import { BookingPrepaymentSection } from "@/app/app/settings/BookingPrepaymentSection";
-import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export default async function DoctorAdminBookingPaymentsPage() {
   const deps = buildAppDeps();

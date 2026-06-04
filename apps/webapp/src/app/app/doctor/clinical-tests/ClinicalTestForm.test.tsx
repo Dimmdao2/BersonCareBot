@@ -9,7 +9,7 @@ import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "@/modules/tests/types";
 import type { ArchiveClinicalTestState, SaveClinicalTestState } from "./actionsShared";
 import { ClinicalTestForm } from "./ClinicalTestForm";
 
-vi.mock("@/shared/ui/ReferenceMultiSelect", () => ({
+vi.mock("@/shared/ui/doctor/ReferenceMultiSelect", () => ({
   ReferenceMultiSelect: () => <div data-testid="region-multi" />,
 }));
 

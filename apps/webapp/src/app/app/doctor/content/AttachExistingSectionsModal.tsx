@@ -8,8 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Plus } from "lucide-react";
 import type { SystemParentCode } from "@/modules/content-sections/types";
 import { attachArticleSectionToSystemFolder } from "./sections/actions";

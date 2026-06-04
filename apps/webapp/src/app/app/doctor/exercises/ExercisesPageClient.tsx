@@ -4,13 +4,13 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Suspense, use, useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { ChevronDown } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/ui/doctor/primitives/dropdown-menu";
 import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import type { Exercise, ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
@@ -31,18 +31,18 @@ import {
   doctorCatalogListEmptyTilesClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
-} from "@/shared/ui/doctorVisual";
+} from "@/shared/ui/doctor/doctorVisual";
 import type { DoctorCatalogToolbarLayout } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctorWorkspaceLayout";
-import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
-import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
-import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
+import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
+import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 import { archiveExerciseInline, saveExerciseInline, unarchiveExerciseInline } from "./actionsInline";
 import { ExerciseTileCard } from "./ExerciseTileCard";

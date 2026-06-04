@@ -1,7 +1,7 @@
 "use client";
 
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientTreatmentProgramStagePageClient } from "@/app/app/patient/treatment/PatientTreatmentProgramStagePageClient";
 

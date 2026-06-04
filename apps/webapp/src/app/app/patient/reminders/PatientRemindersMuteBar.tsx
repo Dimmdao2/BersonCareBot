@@ -3,13 +3,13 @@
 import { useTransition } from "react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import {
   patientMutedTextClass,
   PatientShimmerLine,
   patientSurfaceWarningClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 function tomorrowMorningIso(hour = 8): string {
   const d = new Date();

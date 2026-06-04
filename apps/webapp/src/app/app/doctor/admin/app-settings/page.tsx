@@ -5,7 +5,7 @@ import { EmailSmtpSection } from "@/app/app/settings/EmailSmtpSection";
 import { VideoSystemSettingsSection } from "@/app/app/settings/VideoSystemSettingsSection";
 import { WebPushVapidSection } from "@/app/app/settings/WebPushVapidSection";
 import { NotificationsTopicsSection } from "@/app/app/settings/NotificationsTopicsSection";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export default async function DoctorAdminAppSettingsPage() {
   await requireAdminDoctorPage();

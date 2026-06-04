@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { SmsCodeForm } from "@/shared/ui/auth/SmsCodeForm";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Switch } from "@/shared/ui/patient/primitives/switch";
+import { Label } from "@/shared/ui/patient/primitives/label";
+import { SmsCodeForm } from "@/shared/ui/patient/auth/SmsCodeForm";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   phoneMasked: string | null;

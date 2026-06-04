@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { MarkdownEditorToastUi } from "@/shared/ui/doctor/markdown/MarkdownEditorToastUi";
 import {
   buildRecommendationDomainSelectOptions,
   type RecommendationDomain,
@@ -20,8 +20,8 @@ import {
 import type { ReferenceItem } from "@/modules/references/types";
 import type { Recommendation, RecommendationUsageSnapshot } from "@/modules/recommendations/types";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
-import { ReferenceMultiSelect } from "@/shared/ui/ReferenceMultiSelect";
+import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
+import { ReferenceMultiSelect } from "@/shared/ui/doctor/ReferenceMultiSelect";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import {

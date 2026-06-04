@@ -25,7 +25,7 @@ import {
 } from "@/app/app/patient/treatment/normalizeTreatmentProgramChecklistMaps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { parsePatientPlanTab, type PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
-import { patientInnerPageStackClass } from "@/shared/ui/patientVisual";
+import { patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
 import { DateTime } from "luxon";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import { flatExecIds, flatTestSlots } from "@/app/app/patient/treatment/patientProgramItemNavLists";

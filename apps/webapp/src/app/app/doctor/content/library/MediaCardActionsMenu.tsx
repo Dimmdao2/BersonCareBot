@@ -12,7 +12,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/ui/doctor/primitives/dropdown-menu";
 
 export type MediaItemForMenu = {
   id: string;

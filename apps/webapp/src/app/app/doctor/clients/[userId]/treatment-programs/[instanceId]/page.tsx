@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { buildTreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers";
 import {
@@ -98,12 +98,12 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
   });
 
   return (
-    <AppShell
+    <DoctorAppShell
       title={detail.title}
       user={session.user}
       backHref={backHref}
       backLabel="Карточка клиента"
-      variant="doctor"
+     
     >
       <TreatmentProgramInstanceDetailClient
         patientProfileHref={backHref}
@@ -121,6 +121,6 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
         initialOpenDiscussionItemId={initialOpenDiscussionItemId}
         initialFocusTestResultId={initialFocusTestResultId}
       />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

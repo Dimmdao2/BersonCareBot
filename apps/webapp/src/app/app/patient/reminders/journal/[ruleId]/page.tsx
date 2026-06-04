@@ -2,11 +2,11 @@ import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { AppShell } from "@/shared/ui/AppShell";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Card, CardContent } from "@/shared/ui/patient/primitives/card";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = { params: Promise<{ ruleId: string }> };
 
@@ -24,27 +24,27 @@ export default async function PatientReminderJournalPage({ params }: Props) {
 
   if (!deps.reminderJournal) {
     return (
-      <AppShell
+      <PatientAppShell
         title="Журнал"
         user={session.user}
         backHref={routePaths.patientReminders}
         backLabel="Напоминания"
-        variant="patient"
+       
       >
         <p className={patientMutedTextClass}>Журнал недоступен в этой среде.</p>
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
   const entries = await deps.reminderJournal.listByRule(ruleId, session.user.userId);
 
   return (
-    <AppShell
+    <PatientAppShell
       title="Журнал напоминания"
       user={session.user}
       backHref={routePaths.patientReminders}
       backLabel="Напоминания"
-      variant="patient"
+     
     >
       <p className={cn(patientMutedTextClass, "mb-4")}>
         События за всё время по выбранному правилу (отметки из бота и приложения).
@@ -88,6 +88,6 @@ export default async function PatientReminderJournalPage({ params }: Props) {
           К списку напоминаний
         </Link>
       </p>
-    </AppShell>
+    </PatientAppShell>
   );
 }

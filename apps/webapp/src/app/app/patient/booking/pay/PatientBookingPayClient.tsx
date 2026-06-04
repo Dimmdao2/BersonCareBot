@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientButtonPrimaryClass, patientCardClass } from "@/shared/ui/patientVisual";
+import { patientButtonPrimaryClass, patientCardClass } from "@/shared/ui/patient/patientVisual";
 import toast from "react-hot-toast";
 
 type Props = { bookingId: string };

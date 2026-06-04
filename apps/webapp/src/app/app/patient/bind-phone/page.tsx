@@ -12,14 +12,14 @@ import { getPool } from "@/infra/db/client";
 import { patientSessionSnapshotHasPhone, resolvePlatformAccessContext } from "@/modules/platform-access";
 import { resolveSkipBindPhoneSurface } from "./resolveSkipBindPhoneSurface";
 import Link from "next/link";
-import { AppShell } from "@/shared/ui/AppShell";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { cn } from "@/lib/utils";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { PatientBindPhoneBrowser } from "./PatientBindPhoneBrowser";
 import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
 
@@ -71,12 +71,12 @@ export default async function BindPhonePage({ searchParams }: Props) {
     nextTrimmed === routePaths.profile || nextTrimmed.startsWith(`${routePaths.profile}/`);
 
   return (
-    <AppShell
+    <PatientAppShell
       title="Привязка телефона"
       user={session.user}
       backHref={backFromProfile ? routePaths.profile : routePaths.patient}
       backLabel={backFromProfile ? "Профиль" : "Меню"}
-      variant="patient"
+     
       patientHideHome={isBotMiniApp}
       patientHideRightIcons={isBotMiniApp}
     >
@@ -118,6 +118,6 @@ export default async function BindPhonePage({ searchParams }: Props) {
           </div>
         ) : null}
       </div>
-    </AppShell>
+    </PatientAppShell>
   );
 }

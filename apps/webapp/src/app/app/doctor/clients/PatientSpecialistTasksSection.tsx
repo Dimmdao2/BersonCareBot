@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import { doctorClientOverviewPrimaryCardClass, doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 import { SpecialistTaskFormDialog } from "./SpecialistTaskFormDialog";

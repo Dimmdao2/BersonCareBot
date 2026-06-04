@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import { DIARY_SYMPTOM_ENTRY_SAVED_EVENT } from "@/modules/diaries/symptomDiaryClientEvents";

@@ -10,11 +10,11 @@ import {
   patientBadgeWarningClass,
   patientBadgeDangerClass,
   patientBadgeDurationClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 /**
  * Стили карточек главной пациента «Сегодня» по `VISUAL_SYSTEM_SPEC.md` §10.x.
- * Используют patient-токены из `globals.css#app-shell-patient`.
+ * Используют patient-токены из `patient.css#app-shell-patient`.
  *
  * Базовый `patientHomeCardClass` сохранён для обратной совместимости с компонентами,
  * которые ещё не адаптированы к §10.x вариантам. Новые карточки используют
@@ -128,7 +128,7 @@ export {
   patientBadgeWarningClass,
   patientBadgeDangerClass,
   patientBadgeDurationClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 /** `ring-inset` (а не `border`) — чтобы pill совпадал по внешнему размеру с cover-badge useful_post. */
 export const patientHomeHeroBadgeClass = cn(

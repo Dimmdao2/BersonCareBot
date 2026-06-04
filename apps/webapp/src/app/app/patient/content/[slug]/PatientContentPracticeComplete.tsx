@@ -8,7 +8,7 @@ import { Check, CheckCircle2 } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import { appLoginWithNextHref } from "@/app/app/patient/home/patientHomeGuestNav";
 import { PatientHomeMoodScoreRow } from "@/app/app/patient/home/PatientHomeMoodScoreRow";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import type { PracticeSource } from "@/modules/patient-practice/types";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ import {
   patientSectionTitleClass,
   patientSimpleCompleteDoneButtonToneClass,
   patientSurfaceSuccessClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   contentPageId: string;

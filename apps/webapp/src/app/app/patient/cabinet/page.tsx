@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { CabinetGuestAccess } from "@/shared/ui/patient/guestAccess";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 
 export const dynamic = "force-dynamic";
 
@@ -16,15 +16,15 @@ export default async function PatientCabinetPage() {
 
   if (dataGate === "guest") {
     return (
-      <AppShell
+      <PatientAppShell
         title="Запись"
         user={session?.user ?? null}
         backHref={routePaths.patient}
         backLabel="Меню"
-        variant="patient"
+       
       >
         <CabinetGuestAccess session={session} />
-      </AppShell>
+      </PatientAppShell>
     );
   }
 

@@ -5,9 +5,9 @@ import {
   PATIENT_SHELL_DESKTOP_MAX_CLASS,
   PATIENT_SHELL_MOBILE_MAX_CLASS,
   patientShellMaxWidthDataAttribute,
-} from "@/shared/lib/pwaLayoutClasses";
+} from "@/shared/ui/patient/pwaLayoutClasses";
 
-/** Классы из `globals.css` (#app-shell-patient); не дублировать keyframes в route-файлах. */
+/** Классы из `patient.css` (#app-shell-patient); не дублировать keyframes в route-файлах. */
 export const patientShimmerSheenClass = "patient-shimmer-sheen patient-shimmer-sheen-motion";
 
 type DivProps = Omit<React.ComponentProps<"div">, "children">;

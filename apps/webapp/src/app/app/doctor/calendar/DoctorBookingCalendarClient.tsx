@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { DateTime } from "luxon";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";

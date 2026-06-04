@@ -2,13 +2,13 @@
 
 import { type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/patient/primitives/collapsible";
 import { cn } from "@/lib/utils";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
-import { patientCardClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientCardClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import type { CabinetPastRow } from "./cabinetPastBookingsMerge";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
 

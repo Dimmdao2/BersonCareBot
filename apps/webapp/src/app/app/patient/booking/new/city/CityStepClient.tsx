@@ -1,10 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCity } from "@/modules/booking-catalog/types";
-import { patientInfoLinkTileClass, patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { patientInfoLinkTileClass, patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patient/patientVisual";
 
 function sortCitiesForDisplay(cities: BookingCity[]): BookingCity[] {
   return [...cities].sort(

@@ -2,25 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { apiJson } from "@/app/app/settings/bookingSoloAdminApi";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+} from "@/shared/ui/doctor/primitives/select";
+import { Switch } from "@/shared/ui/doctor/primitives/switch";
 import type {
   RubitimeMappingRow,
   RubitimeMappingStatusCode,
@@ -29,7 +29,7 @@ import type {
 } from "@/modules/rubitime-mapping/types";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
-import { getDoctorSectionItemClass } from "@/shared/ui/doctorVisual";
+import { getDoctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
 import { cn } from "@/lib/utils";
 
 const MAPPING_BASE = "/api/admin/booking-engine/rubitime-mapping";

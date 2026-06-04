@@ -7,7 +7,7 @@ import { PatientContentMaterialRating } from "./PatientContentMaterialRating";
 
 const PAGE_ID = "550e8400-e29b-41d4-a716-446655440099";
 
-vi.mock("@/shared/ui/material-rating/MaterialRatingBlock", () => ({
+vi.mock("@/shared/ui/patient/material-rating/MaterialRatingBlock", () => ({
   MaterialRatingBlock: (props: {
     onLowRatingSaved?: (stars: number) => void;
   }) => (

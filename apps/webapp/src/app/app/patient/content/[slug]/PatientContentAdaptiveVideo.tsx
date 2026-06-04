@@ -6,4 +6,4 @@
 export {
   PatientMediaPlaybackVideo as PatientContentAdaptiveVideo,
   type PatientMediaPlaybackVideoProps as PatientContentAdaptiveVideoProps,
-} from "@/shared/ui/media/PatientMediaPlaybackVideo";
+} from "@/shared/ui/patient/media/PatientMediaPlaybackVideo";

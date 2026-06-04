@@ -1,9 +1,9 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctorVisual";
-import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
+import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
 import {
   parsePatientHomeCmsReturnQuery,
   PATIENT_HOME_CMS_DEFAULT_RETURN_PATH,
@@ -46,10 +46,10 @@ export default async function DoctorCoursesNewPage({
   const isDev = process.env.NODE_ENV === "development";
 
   return (
-    <AppShell
+    <DoctorAppShell
       title="Новый курс (черновик)"
       user={session.user}
-      variant="doctor"
+     
       backHref={returnContext.returnTo}
       backLabel="Назад"
     >
@@ -62,6 +62,6 @@ export default async function DoctorCoursesNewPage({
         ) : null}
         <DoctorCourseDraftCreateForm templates={templates} returnContext={returnContext} />
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

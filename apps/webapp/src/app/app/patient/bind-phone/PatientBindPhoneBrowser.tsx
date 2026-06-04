@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { routePaths } from "@/app-layer/routes/paths";
-import { PhoneMessengerAuthFlow } from "@/shared/ui/auth/PhoneMessengerAuthFlow";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { PhoneMessengerAuthFlow } from "@/shared/ui/patient/auth/PhoneMessengerAuthFlow";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   supportContactHref: string;

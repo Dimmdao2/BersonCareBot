@@ -2,8 +2,8 @@
 
 import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import { cn } from "@/lib/utils";
 import { DOCTOR_CATALOG_TOOLBAR_FILTER_WRAP_CLASS } from "@/shared/ui/doctor/doctorCatalogToolbarFilterClasses";
 

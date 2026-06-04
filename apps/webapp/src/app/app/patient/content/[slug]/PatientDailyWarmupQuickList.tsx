@@ -7,7 +7,7 @@ import {
   patientCompositionCurrentRowChromeClass,
   patientCompositionListThumbSlotClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 export type PatientDailyWarmupListItem = {
   slug: string;

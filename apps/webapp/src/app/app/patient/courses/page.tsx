@@ -7,8 +7,8 @@ import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { patientClientBusinessGate } from "@/modules/platform-access/patientClientBusinessGate";
 import { cn } from "@/lib/utils";
-import { AppShell } from "@/shared/ui/AppShell";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { PatientCoursesCatalogClient } from "./PatientCoursesCatalogClient";
 
 type PageProps = { searchParams: Promise<{ highlight?: string | string[] }> };
@@ -31,12 +31,12 @@ export default async function PatientCoursesPage({ searchParams }: PageProps) {
   }
 
   return (
-    <AppShell
+    <PatientAppShell
       title="Курсы"
       user={session?.user ?? null}
       backHref={routePaths.patient}
       backLabel="Меню"
-      variant="patient"
+     
     >
       <p className={cn(patientMutedTextClass, "mb-4")}>
         После записи вы получите программу лечения с этапами и материалами — как при назначении врача.
@@ -47,6 +47,6 @@ export default async function PatientCoursesPage({ searchParams }: PageProps) {
         loggedIn={loggedIn}
         highlightCourseId={highlightCourseId}
       />
-    </AppShell>
+    </PatientAppShell>
   );
 }

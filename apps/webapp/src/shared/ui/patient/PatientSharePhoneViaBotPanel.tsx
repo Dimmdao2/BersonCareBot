@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
-import { SupportContactLink } from "@/shared/ui/SupportContactLink";
+import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
 
 export type PatientSharePhonePanelMode = "blocked" | "timed_out" | "session_lost" | "me_unavailable";
 

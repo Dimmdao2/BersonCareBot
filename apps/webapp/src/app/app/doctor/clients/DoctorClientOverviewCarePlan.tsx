@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { Activity, BookOpen, ChevronRight, ClipboardList, FileText } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import {
   primaryMediaForStageItem,
   primaryMediaForTestSnapshotLine,
@@ -14,7 +14,7 @@ import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePl
 import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
 import type { TreatmentProgramItemType } from "@/modules/treatment-program/types";
 import type { DoctorClientOverviewCarePlanModel } from "@/modules/doctor-client-card/types";
-import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
+import { DoctorCatalogMediaStaticThumb } from "@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb";
 import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
 import {
   doctorClientInsetListRowClass,
@@ -157,7 +157,7 @@ export function DoctorClientOverviewCarePlan({
                     {rowHref ? (
                       <Link href={rowHref} className={cn(doctorClientInsetListRowClass, "group")}>
                         {media ? (
-                          <PatientCatalogMediaStaticThumb
+                          <DoctorCatalogMediaStaticThumb
                             media={media}
                             frameClassName="size-11 shrink-0 rounded-md border border-border"
                             sizes="44px"
@@ -181,7 +181,7 @@ export function DoctorClientOverviewCarePlan({
                       </Link>
                     ) : (
                       <div className={doctorClientInsetListRowClass}>
-                        <PatientCatalogMediaStaticThumb
+                        <DoctorCatalogMediaStaticThumb
                           media={media}
                           frameClassName="size-11 shrink-0 rounded-md border border-border"
                           sizes="44px"

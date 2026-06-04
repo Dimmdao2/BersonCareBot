@@ -10,9 +10,9 @@ import { listDailyWarmupPagesForHome, type DailyWarmupListEntry } from "@/module
 import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { resolvePatientCanViewContent } from "@/modules/platform-access";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { PatientBackToSectionShellRow } from "@/shared/ui/patient/PatientBackToSectionShellRow";
-import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
+import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";
 import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
 import { parseApiMediaIdFromHref, parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import { PatientContentSlugArticle } from "./PatientContentSlugArticle";
@@ -88,12 +88,12 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
       : null;
 
   return (
-    <AppShell
+    <PatientAppShell
       title=""
       user={session?.user ?? null}
       backHref={backNav.backHref}
       backLabel={backNav.backLabel}
-      variant="patient"
+     
       patientSuppressShellTitle
       patientShellAboveTitleSlot={
         backNav.showBackToSectionRow ?
@@ -117,6 +117,6 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           orderedDailyWarmupPages={orderedDailyWarmupPages}
         />
       </Suspense>
-    </AppShell>
+    </PatientAppShell>
   );
 }

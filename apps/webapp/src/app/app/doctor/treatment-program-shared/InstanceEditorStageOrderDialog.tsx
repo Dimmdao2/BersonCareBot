@@ -2,7 +2,7 @@
 
 import { arrayMove } from "@dnd-kit/sortable";
 import { useCallback, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/doctor/primitives/dialog";
 import type { TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
 import { isProgramInstanceEditLocked } from "./programInstanceMutationGuard";
 import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";

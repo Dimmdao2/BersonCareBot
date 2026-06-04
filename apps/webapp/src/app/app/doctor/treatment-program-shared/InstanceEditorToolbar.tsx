@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import type { TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
 import { isProgramInstanceEditLocked } from "./programInstanceMutationGuard";

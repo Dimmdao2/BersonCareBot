@@ -7,8 +7,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { PATIENT_PLAN_TAB_UI_LABEL } from "@/app-layer/routes/navigation";
 import { routePaths } from "@/app-layer/routes/paths";
-import { AppShell } from "@/shared/ui/AppShell";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
 import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
@@ -27,18 +27,18 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   const session = await getOptionalPatientSession();
   if (!session) {
     return (
-      <AppShell title="Программа" user={null} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы" variant="patient">
+      <PatientAppShell title="Программа" user={null} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы">
         <p className={patientMutedTextClass}>Войдите для доступа.</p>
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
   const dataGate = await patientRscPersonalDataGate(session, routePaths.patientTreatmentPrograms);
   if (dataGate === "guest") {
     return (
-      <AppShell title="Программа" user={session.user} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы" variant="patient">
+      <PatientAppShell title="Программа" user={session.user} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы">
         <p className={patientMutedTextClass}>Раздел доступен после входа.</p>
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
@@ -115,12 +115,12 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
     : null;
 
   return (
-    <AppShell
+    <PatientAppShell
       title={PATIENT_PLAN_TAB_UI_LABEL}
       user={session.user}
       backHref={routePaths.patientTreatmentPrograms}
       backLabel={PATIENT_PLAN_TAB_UI_LABEL}
-      variant="patient"
+     
     >
       <PatientTreatmentProgramDetailClient
         initial={detail}
@@ -135,6 +135,6 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
         programCommentsInteraction={programInteraction.comments}
         programMediaInteraction={programInteraction.media}
       />
-    </AppShell>
+    </PatientAppShell>
   );
 }

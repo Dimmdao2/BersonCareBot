@@ -6,10 +6,10 @@
 
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { PurchasesGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { cn } from "@/lib/utils";
-import { patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { patientSectionSurfaceClass } from "@/shared/ui/patient/patientVisual";
 import { PatientPurchasesClient } from "./PatientPurchasesClient";
 import { PatientBookingHistorySection } from "../profile/PatientBookingHistorySection";
 
@@ -18,25 +18,25 @@ export default async function PurchasesPage() {
   const session = await getOptionalPatientSession();
   if (!session) {
     return (
-      <AppShell title="Мои покупки" user={null} backHref="/app/patient" backLabel="Меню" variant="patient">
+      <PatientAppShell title="Мои покупки" user={null} backHref="/app/patient" backLabel="Меню">
         <PurchasesGuestAccess session={null} />
-      </AppShell>
+      </PatientAppShell>
     );
   }
   const dataGate = await patientRscPersonalDataGate(session, routePaths.purchases);
   if (dataGate === "guest") {
     return (
-      <AppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
+      <PatientAppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню">
         <PurchasesGuestAccess session={session} rscGuestTier />
-      </AppShell>
+      </PatientAppShell>
     );
   }
   return (
-    <AppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
+    <PatientAppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню">
       <section id="patient-purchases-items-section" className={cn(patientSectionSurfaceClass, "!gap-6")}>
         <PatientPurchasesClient />
       </section>
       <PatientBookingHistorySection mode="payments" />
-    </AppShell>
+    </PatientAppShell>
   );
 }

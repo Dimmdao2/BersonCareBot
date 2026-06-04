@@ -8,7 +8,7 @@ import {
   patientCardClass,
   patientMutedTextClass,
   PatientShimmerPanel,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { PatientProgramBlockHeading } from "@/app/app/patient/treatment/program-detail/PatientProgramBlockHeading";
 import { TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";

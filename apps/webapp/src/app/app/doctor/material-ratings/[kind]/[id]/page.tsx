@@ -4,7 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { MATERIAL_RATING_TARGET_KINDS } from "@/modules/material-rating/types";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 
 import { MaterialRatingDetailClient } from "@/app/app/doctor/material-ratings/MaterialRatingDetailClient";
 import { MaterialRatingFeedbackDoctorPanel } from "@/app/app/doctor/material-ratings/MaterialRatingFeedbackDoctorPanel";
@@ -46,10 +46,10 @@ export default async function DoctorMaterialRatingDetailPage({ params }: Props) 
   }
 
   return (
-    <AppShell
+    <DoctorAppShell
       title={`Статистика · ${titleSuffix}`}
       user={session.user}
-      variant="doctor"
+     
       backHref="/app/doctor/material-ratings"
       backLabel="К сводке"
     >
@@ -59,6 +59,6 @@ export default async function DoctorMaterialRatingDetailPage({ params }: Props) 
           <MaterialRatingFeedbackDoctorPanel contentPageId={id} summary={feedbackSummary} />
         : null}
       </div>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

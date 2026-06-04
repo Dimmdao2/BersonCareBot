@@ -4,13 +4,13 @@ import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 import { buildProfileNotificationTopicModels } from "@/modules/patient-notifications/profileTopicChannelsModel";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import {
   patientInnerPageStackClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { PatientNotificationChannelsStatus } from "./PatientNotificationChannelsStatus";
 import { PatientNotificationsTopicsSection } from "./PatientNotificationsTopicsSection";
 
@@ -49,12 +49,12 @@ export default async function PatientNotificationsPage() {
   const hasMessengerOrEmail = hasTelegram || hasMax || (hasEmail && emailVerified);
 
   return (
-    <AppShell
+    <PatientAppShell
       title="Настройка уведомлений"
       user={session.user}
       backHref={routePaths.profile}
       backLabel="Назад"
-      variant="patient"
+     
     >
       <div className={patientInnerPageStackClass}>
         <section className={patientSectionSurfaceClass}>
@@ -86,6 +86,6 @@ export default async function PatientNotificationsPage() {
           />
         </section>
       </div>
-    </AppShell>
+    </PatientAppShell>
   );
 }

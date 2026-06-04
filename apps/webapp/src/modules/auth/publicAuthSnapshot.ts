@@ -16,7 +16,7 @@ import {
   getYandexOauthRedirectUri,
 } from "@/modules/system-settings/integrationRuntime";
 import { getLoginAlternativesPublicConfig } from "@/modules/auth/loginAlternativesConfig";
-import type { PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
+import type { PrefetchedPublicAuthConfig } from "@/shared/ui/patient/auth/AuthFlowV2";
 
 export async function buildPrefetchedPublicAuthConfig(): Promise<PrefetchedPublicAuthConfig> {
   const [yId, ySec, yRedir, gId, gSec, gLogin, aId, aRedir, aTeam, aKid, aPem, alt] = await Promise.all([

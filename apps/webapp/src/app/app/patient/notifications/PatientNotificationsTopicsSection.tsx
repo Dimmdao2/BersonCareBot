@@ -6,7 +6,7 @@ import {
   type ProfileNotificationTopicModel,
 } from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { PatientNotificationsTopicMatrix } from "./PatientNotificationsTopicMatrix";
 
 type Props = {

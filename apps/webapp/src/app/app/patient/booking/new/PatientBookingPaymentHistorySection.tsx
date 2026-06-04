@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { patientListItemClass, patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
+import { patientListItemClass, patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
 
 type HistoryRow = {
   id: string;

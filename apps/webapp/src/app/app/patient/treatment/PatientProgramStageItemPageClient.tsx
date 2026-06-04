@@ -14,12 +14,12 @@ import {
 } from "@/modules/treatment-program/stage-semantics";
 import { routePaths } from "@/app-layer/routes/paths";
 import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
-import { MaterialRatingBlock } from "@/shared/ui/material-rating/MaterialRatingBlock";
+import { MaterialRatingBlock } from "@/shared/ui/patient/material-rating/MaterialRatingBlock";
 import type { PatientProgramItemNavMode } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { resolvePatientProgramItemPage } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
-import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
-import { PatientMediaPlaybackVideo } from "@/shared/ui/media/PatientMediaPlaybackVideo";
+import { MarkdownContent } from "@/shared/ui/patient/markdown/MarkdownContent";
+import { PatientMediaPlaybackVideo } from "@/shared/ui/patient/media/PatientMediaPlaybackVideo";
 import { parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import {
   mergeLastActivityDisplayedIso,
@@ -45,13 +45,13 @@ import {
   patientSectionTitleClass,
   patientSectionTitleNormalClass,
   patientSimpleCompleteDoneButtonToneClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 import {
   PATIENT_SHELL_CONTAINER_CLASS,
   PATIENT_SHELL_MOBILE_MAX_CLASS,
   patientShellMaxWidthDataAttribute,
-} from "@/shared/lib/pwaLayoutClasses";
+} from "@/shared/ui/patient/pwaLayoutClasses";
 import {
   normalizeChecklistCountMap,
   normalizeChecklistLastMap,

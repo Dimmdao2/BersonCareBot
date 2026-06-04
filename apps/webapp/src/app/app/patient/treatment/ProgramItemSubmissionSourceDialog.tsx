@@ -2,12 +2,12 @@
 
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { Camera, FolderOpen, ImageIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
 import { PROGRAM_SUBMISSION_FILE_INPUT_ACCEPT } from "@/modules/media/programSubmissionUploadLimits";
 import { uploadProgramSubmissionToDiscussion } from "@/app/app/patient/treatment/uploadProgramSubmissionToDiscussion";
 import { cn } from "@/lib/utils";
-import { patientPrimaryActionClass } from "@/shared/ui/patientVisual";
+import { patientPrimaryActionClass } from "@/shared/ui/patient/patientVisual";
 
 export type ProgramItemSubmissionSourceDialogHandle = {
   open: () => void;

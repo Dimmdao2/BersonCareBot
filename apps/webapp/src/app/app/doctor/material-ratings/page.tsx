@@ -6,8 +6,8 @@ import type { ReactNode } from "react";
 import { MaterialContentStatsClient } from "@/app/app/doctor/material-ratings/MaterialContentStatsClient";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import type { MaterialRatingTargetKind } from "@/modules/material-rating/types";
 
 const KIND_LABEL: Record<MaterialRatingTargetKind, string> = {
@@ -65,7 +65,7 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
   const basePath = "/app/doctor/material-ratings";
 
   return (
-    <AppShell title="По контенту" user={session.user} variant="doctor" backHref="/app/doctor/content" backLabel="Материалы">
+    <DoctorAppShell title="По контенту" user={session.user} backHref="/app/doctor/content" backLabel="Материалы">
       <div className="flex flex-col gap-6">
         <MaterialContentStatsClient />
         <p className="text-xs text-muted-foreground">
@@ -162,6 +162,6 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
           ) : null}
         </div>
       </div>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

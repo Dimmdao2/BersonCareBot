@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Switch } from "@/shared/ui/doctor/primitives/switch";
 import { patchAdminSetting } from "./patchAdminSetting";
 import {
   ADMIN_INCIDENT_V1_TOPIC_KEYS,

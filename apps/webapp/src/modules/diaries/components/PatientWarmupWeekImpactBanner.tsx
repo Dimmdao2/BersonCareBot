@@ -7,7 +7,7 @@ import {
   patientSurfaceNeutralClass,
   patientSurfaceSuccessClass,
   patientSurfaceWarningClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 function formatDeltaAbsRu(delta: number): string {
   return Math.abs(delta).toFixed(1).replace(".", ",");

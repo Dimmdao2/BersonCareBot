@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { applyContentLifecycle, type LifecycleState } from "./lifecycleActions";
 
 type Row = {

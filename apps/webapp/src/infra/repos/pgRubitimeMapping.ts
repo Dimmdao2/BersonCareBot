@@ -301,7 +301,12 @@ async function listSsaDuplicatesInternal(organizationId: string): Promise<Rubiti
 
   const groups: RubitimeSsaDuplicateGroup[] = [];
   for (const [key, groupRows] of grouped) {
-    if (groupRows.length < 2) continue;
+    // Actionable duplicates are rows that still affect runtime:
+    // active rows or rows that still keep an external mapping link.
+    const actionableRows = groupRows.filter(
+      (row) => row.isActive || rubitimeIdBySsaId.has(row.id) || legacyBySsaId.has(row.id),
+    );
+    if (actionableRows.length < 2) continue;
     const [branchId, serviceId, specialistId] = key.split(":");
     const branch = branchById.get(branchId);
     const service = serviceById.get(serviceId);
@@ -309,7 +314,7 @@ async function listSsaDuplicatesInternal(organizationId: string): Promise<Rubiti
     if (!branch || !service) continue;
 
     const recommendedKeepSsaId = pickPreferredSsaId(
-      groupRows.map((row) => ({ id: row.id, createdAt: row.createdAt, isActive: row.isActive })),
+      actionableRows.map((row) => ({ id: row.id, createdAt: row.createdAt, isActive: row.isActive })),
       legacyBySsaId,
     );
     if (!recommendedKeepSsaId) continue;
@@ -322,7 +327,7 @@ async function listSsaDuplicatesInternal(organizationId: string): Promise<Rubiti
       specialistId,
       specialistName: specialist?.fullName ?? null,
       recommendedKeepSsaId,
-      rows: [...groupRows]
+      rows: [...actionableRows]
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
         .map((row) => ({
           ssaId: row.id,

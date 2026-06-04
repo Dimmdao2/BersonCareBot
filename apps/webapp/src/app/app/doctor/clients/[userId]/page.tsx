@@ -3,7 +3,7 @@
  */
 import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { ClientProfileCard } from "../ClientProfileCard";
 import { loadDoctorClientProfileCardProps } from "../loadDoctorClientProfileCardProps";
 
@@ -33,12 +33,12 @@ export default async function DoctorClientProfilePage({
   const { props } = loaded;
 
   return (
-    <AppShell
+    <DoctorAppShell
       title={props.profile.identity.displayName}
       user={session.user}
       backHref={props.listBasePath}
       backLabel="Клиенты"
-      variant="doctor"
+     
     >
       <ClientProfileCard
         {...props}
@@ -47,6 +47,6 @@ export default async function DoctorClientProfilePage({
         canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
         canEditClientProfile={session.user.role === "admin" && Boolean(session.adminMode)}
       />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

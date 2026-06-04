@@ -2,9 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { listMediaDeleteErrors } from "@/infra/repos/s3MediaStorage";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { PageSection } from "@/components/common/layout/PageSection";
-import { doctorSectionTitleClass } from "@/shared/ui/doctorVisual";
+import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
 const CONTENT_LIBRARY = "/app/doctor/content/library";
 
@@ -16,7 +16,7 @@ export default async function MediaDeleteErrorsPage() {
   const { items, total } = await listMediaDeleteErrors(100);
 
   return (
-    <AppShell title="Ошибки удаления в S3" user={session.user} variant="doctor">
+    <DoctorAppShell title="Ошибки удаления в S3" user={session.user}>
       <PageSection id="media-delete-errors-section" as="section" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <Link href={CONTENT_LIBRARY} className="text-sm text-primary underline">
@@ -57,6 +57,6 @@ export default async function MediaDeleteErrorsPage() {
           </div>
         )}
       </PageSection>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

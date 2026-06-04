@@ -1,7 +1,7 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { parseHealthArchiveProbeParam } from "@/app/app/settings/adminSettingsData";
 import { HealthFailureArchiveSection } from "@/app/app/settings/HealthFailureArchiveSection";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export default async function DoctorHealthArchivePage({
   searchParams,

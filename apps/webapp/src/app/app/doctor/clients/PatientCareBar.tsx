@@ -1,13 +1,13 @@
 "use client";
 
 import { MoreHorizontal } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/ui/doctor/primitives/dropdown-menu";
 import type { ClientIdentity } from "@/modules/doctor-clients/ports";
 import type { AppointmentSummary } from "@/modules/appointments/service";
 import type { SpecialistTaskPatientSummary } from "@/modules/specialist-tasks/types";
@@ -20,7 +20,7 @@ import {
   doctorClientStatusPillDestructiveClass,
   doctorClientStatusPillMutedClass,
 } from "./doctorClientCardChrome";
-import { doctorInlineLinkClass } from "@/shared/ui/doctorVisual";
+import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 
 type PatientCareBarProps = {
   identity: ClientIdentity;

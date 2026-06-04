@@ -9,10 +9,10 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { patientGreetingPersonalizedName } from "@/modules/patient-home/patientGreetingPersonalizedName";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
-import { AppShell } from "@/shared/ui/AppShell";
-import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { LegalFooterLinks } from "@/shared/ui/patient/LegalFooterLinks";
 import { Suspense } from "react";
-import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
+import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";
 import {
   greetingPrefixFromHour,
   PatientHomeGreetingMobileHeader,
@@ -32,10 +32,10 @@ export default async function PatientHomePage() {
   const timeOfDayPrefix = greetingPrefixFromHour(DateTime.now().setZone(appTz).hour);
 
   return (
-    <AppShell
+    <PatientAppShell
       title=""
       user={session.user}
-      variant="patient-wide"
+     
       patientSuppressShellTitle
       patientMobileHeaderSlot={
         <PatientHomeGreetingMobileHeader
@@ -52,6 +52,6 @@ export default async function PatientHomePage() {
         />
       </Suspense>
       <LegalFooterLinks className="mt-3 pb-2" />
-    </AppShell>
+    </PatientAppShell>
   );
 }

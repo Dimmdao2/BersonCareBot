@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 import { cn } from "@/lib/utils";
-import { doctorEmptyStateClass } from "@/shared/ui/doctorVisual";
+import { doctorEmptyStateClass } from "@/shared/ui/doctor/doctorVisual";
 
 type DoctorEmptyStateProps = ComponentPropsWithoutRef<"div">;
 

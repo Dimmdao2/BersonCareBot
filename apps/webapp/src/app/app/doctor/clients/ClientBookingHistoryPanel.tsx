@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
-import { Textarea } from "@/components/ui/textarea";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   appointmentStatusLabel,
   formatAmountMinor,

@@ -14,8 +14,8 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
 import { PatientPlanTodayRemindersCard } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
 import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
-import { AppShell } from "@/shared/ui/AppShell";
-import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";
 import { buildDiaryPlanReminderStrip } from "@/modules/patient-diary/buildDiaryPlanReminderStrip";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { PatientDiaryAuthenticatedMain } from "./PatientDiaryAuthenticatedMain";
@@ -29,15 +29,15 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
   const dataGate = await patientRscPersonalDataGate(session, routePaths.diary);
   if (dataGate === "guest") {
     return (
-      <AppShell
+      <PatientAppShell
         title={PATIENT_DIARY_UI_LABEL}
         user={session?.user ?? null}
         backHref="/app/patient"
         backLabel="Меню"
-        variant="patient"
+       
       >
         <DiarySectionGuestAccess session={session} returnTo={routePaths.diary} />
-      </AppShell>
+      </PatientAppShell>
     );
   }
   const s = session!;
@@ -49,12 +49,12 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
   const planReminderStrip = await buildDiaryPlanReminderStrip(deps, s.user.userId, canViewAuthOnlyContent);
 
   return (
-    <AppShell
+    <PatientAppShell
       title={PATIENT_DIARY_UI_LABEL}
       user={s.user}
       backHref="/app/patient"
       backLabel="Меню"
-      variant="patient"
+     
       patientShellAboveTitleSlot={
         <PatientPlanTodayRemindersCard {...planReminderStrip} />
       }
@@ -62,6 +62,6 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
         <PatientDiaryAuthenticatedMain userId={s.user.userId} week={week} />
       </Suspense>
-    </AppShell>
+    </PatientAppShell>
   );
 }

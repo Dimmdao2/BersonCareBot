@@ -10,7 +10,7 @@
 | [`.cursor/rules/doctor-ui-shared-primitives.mdc`](../../../../.cursor/rules/doctor-ui-shared-primitives.mdc) | Обязательные указания для агентов при правках `/app/doctor/**` |
 | [`AUDIT.md`](AUDIT.md) | Baseline-таблица отклонений по маршрутам и ключевым компонентам |
 | [`LOG.md`](LOG.md) | Журнал исполнения по фазам и manual visual checklist |
-| План фаз 0–5 | Файл `doctor-ui-unification-phases_1146e22e.plan.md` в Cursor plans (`~/.cursor/plans/`); перенос в `.cursor/plans/archive/` — по закрытию инициативы |
+| План фаз 0–5 (архив) | [`.cursor/plans/archive/doctor-ui-unification-phases_1146e22e.plan.md`](../../../../.cursor/plans/archive/doctor-ui-unification-phases_1146e22e.plan.md) — **закрыт**, не держать активным в Cursor Build |
 
 ## Контекст density (не откатывать)
 
@@ -55,6 +55,14 @@
 | 3B | **done** (2026-06-04) — вкладки и панели клиента; см. [`LOG.md`](LOG.md) |
 | 4A | **done** (2026-06-04) — каталоги doctor; см. [`LOG.md`](LOG.md) |
 | 4B | **done** (2026-06-04) — CMS, media, tail routes; `admin/booking/**` → cancelled (BOOKING_REWORK); см. [`LOG.md`](LOG.md) |
-| 5 | **done** (2026-06-04) — `docs/README.md` ссылка, гайд синхронизирован, `pnpm run ci` успешен; см. [`LOG.md`](LOG.md) |
+| 5 | **done** (2026-06-04) — `docs/README.md` ссылка, гайд §20, code-level DoD; `pnpm run ci` — exit 0 в сессии закрытия (повтор перед push — по pre-push); см. [`LOG.md`](LOG.md) |
 
 **Граница 4A / 4B:** split-каталоги и editor shells на `doctorVisual`; CMS, media, хвостовые маршруты — 4B.
+
+## Закрытие инициативы (2026-06-04)
+
+Инициатива **закрыта**. План фаз 0–5 выполнен: foundation (`doctorVisual.ts`, wrappers), массовое выравнивание doctor UI по `AUDIT.md`, гайд и оглавление синхронизированы.
+
+**Ручная visual-проходка:** сделана **частично**, на уровне code-level и выборочных экранов — **первично принята**. Полная пиксельная отработка **каждой страницы** (desktop/mobile, density, actions) выносится в **отдельные задачи** по мере глобальной работы над интерфейсом; опираться на [`DOCTOR_APP_UI_STYLE_GUIDE.md`](../../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md) и `.cursor/rules/doctor-ui-shared-primitives.mdc`, не на активный phased-план.
+
+**Дальнейшая работа:** точечные/постраничные улучшения doctor UI — вне scope этой инициативы; `AUDIT.md` остаётся снимком закрытия, новые отклонения фиксировать в LOG соответствующей задачи или новой инициативы.

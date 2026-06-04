@@ -10,8 +10,8 @@ vi.mock("./actions", () => ({
   saveContentPage: saveContentPageMock,
 }));
 
-vi.mock("@/shared/ui/markdown/MarkdownEditorToastUi", async () => {
-  const { MarkdownEditor } = await import("@/shared/ui/markdown/MarkdownEditor");
+vi.mock("@/shared/ui/doctor/markdown/MarkdownEditorToastUi", async () => {
+  const { MarkdownEditor } = await import("@/shared/ui/doctor/markdown/MarkdownEditor");
   return {
     MarkdownEditorToastUi: (props: { name: string; defaultValue?: string }) => (
       <MarkdownEditor name={props.name} defaultValue={props.defaultValue ?? ""} />

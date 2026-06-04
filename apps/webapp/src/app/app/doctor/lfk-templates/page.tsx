@@ -7,7 +7,7 @@ import {
   exerciseLoadTypeWriteAllowSet,
   parseExerciseLoadQueryParam,
 } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import {
   lfkTemplateFilterFromPubArch,
   parseDoctorCatalogPubArchQuery,
@@ -63,7 +63,7 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   }));
 
   return (
-    <AppShell title="Комплексы" user={session.user} variant="doctor" backHref="/app/doctor">
+    <DoctorAppShell title="Комплексы" user={session.user} backHref="/app/doctor">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Загрузка…</p>}>
         <LfkTemplatesPageClient
           templates={rawList}
@@ -79,6 +79,6 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
           initialTitleSort={initialTitleSort}
         />
       </Suspense>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

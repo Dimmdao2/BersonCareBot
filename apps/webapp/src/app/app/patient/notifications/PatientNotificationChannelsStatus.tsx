@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
@@ -11,7 +11,7 @@ import type { WebPushUiStatus } from "@/shared/lib/webPush/pushOnboardingEligibi
 import { restorePatientWebPushSubscription, subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
 import { unsubscribePatientWebPush } from "@/shared/lib/webPush/unsubscribePatientWebPush";
 import { reportWebPushSubscribeFailure } from "@/shared/lib/webPush/webPushSubscribeFeedback";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 const PUSH_STATUS: Record<WebPushUiStatus, string> = {
   unsupported: "Не поддерживается на этом устройстве",

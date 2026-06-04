@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 import type { DoctorSupplementaryContact } from "@/modules/platform-user-contacts/bookingContactUpsert";
 import type { PlatformUserContactType } from "@/modules/platform-user-contacts/types";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";

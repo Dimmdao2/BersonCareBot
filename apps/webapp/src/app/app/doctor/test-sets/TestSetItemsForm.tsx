@@ -19,10 +19,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import {
   Dialog,
   DialogContent,
@@ -30,13 +30,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/doctor/primitives/dialog";
 import type { ClinicalTestMediaItem, TestSet } from "@/modules/tests/types";
 import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import { PickerSearchField } from "@/shared/ui/PickerSearchField";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { PickerSearchField } from "@/shared/ui/doctor/PickerSearchField";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 
 export type TestSetEditorItemRow = {
   sortId: string;

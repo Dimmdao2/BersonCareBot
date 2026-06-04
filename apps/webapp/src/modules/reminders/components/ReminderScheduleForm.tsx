@@ -1,9 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
 import { PatientDurationHmWheels } from "@/shared/ui/patient/PatientDurationHmWheels";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/shared/ui/patient/primitives/input";
+import { Label } from "@/shared/ui/patient/primitives/label";
 import { cn } from "@/lib/utils";
 import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
 import type { ReminderDayFilter } from "@/modules/reminders/scheduleSlots";
@@ -16,7 +16,7 @@ import {
 import {
   patientHeroBookingCardChromeClass,
   patientSectionTitleNormalClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import type { ReminderScheduleFieldInvalid } from "@/modules/reminders/reminderFormAria";
 
 const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;

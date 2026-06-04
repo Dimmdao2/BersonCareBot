@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { BOOKING_FORM_MAX_WIDTH_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { BOOKING_FORM_MAX_WIDTH_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export type BookingPatientPick = {
   id: string;

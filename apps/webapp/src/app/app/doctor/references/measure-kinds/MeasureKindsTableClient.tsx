@@ -19,8 +19,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import {
   Dialog,
   DialogContent,
@@ -28,13 +28,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/doctor/primitives/dialog";
 import { cn } from "@/lib/utils";
-import { doctorPageTitleClass } from "@/shared/ui/doctorVisual";
+import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from "@/modules/tests/measureKindsClientEvent";
 
 type MeasureKindsJsonBody = { ok?: boolean; error?: string; items?: unknown; item?: unknown };

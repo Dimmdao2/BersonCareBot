@@ -4,7 +4,7 @@ import Link from "next/link";
 import { MessageCircle } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
-import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
 
 /** Компактная ссылка «Поддержка» в одной строке с блоком расписания. */
 export function PatientPlanSupportCard(props: { messagesHref?: string }) {

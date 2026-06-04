@@ -5,10 +5,10 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { cn } from "@/lib/utils";
-import { AppShell } from "@/shared/ui/AppShell";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import {
   parseOffset,
   parseStatsPeriod,
@@ -27,19 +27,19 @@ export default async function LfkJournalPage({
   const dataGate = await patientRscPersonalDataGate(session, routePaths.diaryLfkJournal);
   if (dataGate === "guest") {
     return (
-      <AppShell
+      <PatientAppShell
         title="Журнал ЛФК"
         user={session?.user ?? null}
         backHref={routePaths.diary}
         backLabel={PATIENT_DIARY_UI_LABEL}
-        variant="patient"
+       
       >
         <DiarySectionGuestAccess
           session={session}
           returnTo={routePaths.diaryLfkJournal}
           title="Журнал ЛФК"
         />
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
@@ -67,12 +67,12 @@ export default async function LfkJournalPage({
 
   if (complexes.length === 0) {
     return (
-      <AppShell
+      <PatientAppShell
         title="Журнал ЛФК"
         user={s.user}
         backHref={routePaths.diary}
         backLabel={PATIENT_DIARY_UI_LABEL}
-        variant="patient"
+       
       >
         <p className={patientMutedTextClass}>Создайте комплекс, чтобы вести журнал занятий.</p>
         <Link
@@ -81,7 +81,7 @@ export default async function LfkJournalPage({
         >
           К статистике
         </Link>
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
@@ -99,12 +99,12 @@ export default async function LfkJournalPage({
   });
 
   return (
-    <AppShell
+    <PatientAppShell
       title="Журнал ЛФК"
       user={s.user}
       backHref={`${routePaths.diary}?tab=lfk`}
       backLabel={PATIENT_DIARY_UI_LABEL}
-      variant="patient"
+     
     >
       <LfkJournalClient
         sessions={sessions}
@@ -114,6 +114,6 @@ export default async function LfkJournalPage({
         period={period}
         offset={offset}
       />
-    </AppShell>
+    </PatientAppShell>
   );
 }

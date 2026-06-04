@@ -5,13 +5,13 @@
  */
 
 import { Suspense } from "react";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { cn } from "@/lib/utils";
-import { patientHeroBookingSectionClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
-import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
-import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
+import { patientHeroBookingSectionClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { AuthBootstrap } from "@/shared/ui/patient/AuthBootstrap";
+import { LegalFooterLinks } from "@/shared/ui/patient/LegalFooterLinks";
 import type { MessengerSurfaceHint } from "@/shared/lib/platform";
-import type { PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
+import type { PrefetchedPublicAuthConfig } from "@/shared/ui/patient/auth/AuthFlowV2";
 import type { UnauthenticatedAppEntryClassification } from "@/modules/auth/appEntryClassification";
 
 type AppEntryLoginContentProps = {

@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/doctor/primitives/dialog";
 import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
 
 type Props = {

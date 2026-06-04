@@ -2,12 +2,12 @@
 
 import DOMPurify from "isomorphic-dompurify";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { InPersonServiceListItem } from "@/modules/patient-booking/inPersonServicesCatalog";
-import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { MarkdownContent } from "@/shared/ui/patient/markdown/MarkdownContent";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { bookingChoiceRowClass, bookingChoiceSectionClass } from "../bookingChoiceStyles";
 
 function looksLikeHtmlMarkup(s: string): boolean {

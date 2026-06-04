@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "@/shared/ui/patient/primitives/switch";
 import type { ProfileNotificationTopicModel } from "@/modules/patient-notifications/profileTopicChannelsModel";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import {
   setNotificationTopicMasterEnabled,
   setTopicChannelNotificationEnabled,

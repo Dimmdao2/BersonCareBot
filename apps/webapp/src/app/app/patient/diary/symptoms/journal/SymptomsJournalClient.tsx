@@ -5,7 +5,7 @@ import { useState, useTransition, useMemo } from "react";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -13,29 +13,29 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/patient/primitives/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/shared/ui/patient/primitives/dropdown-menu";
+import { Input } from "@/shared/ui/patient/primitives/input";
+import { Textarea } from "@/shared/ui/patient/primitives/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/patient/primitives/select";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import type { SymptomEntry } from "@/modules/diaries/types";
 import { JournalMonthNav } from "../../JournalMonthNav";
 import { deleteSymptomJournalEntry, updateSymptomJournalEntry } from "../actions";
 import { isSymptomJournalEntryEditable } from "../symptomJournalEditWindow";
-import { patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");

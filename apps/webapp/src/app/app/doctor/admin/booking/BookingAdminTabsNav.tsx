@@ -7,7 +7,7 @@ import {
   BOOKING_ADMIN_TABS,
   bookingAdminTabFromPathname,
 } from "@/app/app/doctor/admin/booking/bookingAdminTabs";
-import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export function BookingAdminTabsNav() {
   const pathname = usePathname();

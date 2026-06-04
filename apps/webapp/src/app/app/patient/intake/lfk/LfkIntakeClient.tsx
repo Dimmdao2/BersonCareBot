@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Textarea } from "@/components/ui/textarea";
+import { Textarea } from "@/shared/ui/patient/primitives/textarea";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import {
@@ -16,7 +16,7 @@ import {
   patientSectionTitleClass,
   patientSurfaceDangerClass,
   patientSurfaceSuccessClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 type State = "form" | "submitting" | "success" | "error";
 

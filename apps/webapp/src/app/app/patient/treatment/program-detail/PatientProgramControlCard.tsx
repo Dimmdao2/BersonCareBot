@@ -9,7 +9,7 @@ import {
   patientMutedTextClass,
   patientSectionTitleClass,
   patientSurfaceWarningClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { routePaths } from "@/app-layer/routes/paths";
 import { ruDaysWordN } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
-import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
+import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
 
 type Props = {
   idPrefix: string;

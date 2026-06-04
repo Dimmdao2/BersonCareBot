@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
-import { PinInput } from "@/shared/ui/auth/PinInput";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { PinInput } from "@/shared/ui/patient/auth/PinInput";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 
 type PinSectionProps = {
   /** На сервере: есть ли уже PIN у пользователя. */

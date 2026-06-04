@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { cn } from "@/lib/utils";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { notifyDoctorSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";

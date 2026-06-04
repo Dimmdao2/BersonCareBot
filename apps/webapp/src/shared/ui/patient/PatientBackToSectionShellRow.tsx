@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   sectionSlug: string;

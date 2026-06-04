@@ -1,11 +1,11 @@
 "use client";
 
 import { ChevronLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import { usePatientShellGoBack } from "@/shared/hooks/usePatientShellGoBack";
-import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
-import { patientSectionTitleClass } from "@/shared/ui/patientVisual";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
+import { patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   title: string;

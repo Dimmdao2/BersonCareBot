@@ -1,6 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import { parseRecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { parseDoctorCatalogRegionQueryParam, resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
@@ -64,7 +64,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         .catch(() => ({ exercise: null, usage: null }))
     : Promise.resolve({ exercise: null, usage: null });
   return (
-    <AppShell title="Упражнения ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
+    <DoctorAppShell title="Упражнения ЛФК" user={session.user} backHref="/app/doctor">
       <ExercisesPageClient
         listPromise={listPromise}
         doctorExerciseSelectionPromise={doctorExerciseSelectionPromise}
@@ -79,6 +79,6 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
           listStatus,
         }}
       />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

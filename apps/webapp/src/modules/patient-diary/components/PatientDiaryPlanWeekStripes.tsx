@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
 import type { DiaryPlanDayModel } from "@/modules/patient-diary/loadPatientDiaryWeekActivity";
 
 export type PatientDiaryPlanWeekStripesProps = {

@@ -1,6 +1,6 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { NotificationsAnalyticsClient } from "@/app/app/doctor/analytics/notifications/NotificationsAnalyticsClient";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export default async function DoctorAnalyticsNotificationsPage() {
   await requireAdminDoctorPage();

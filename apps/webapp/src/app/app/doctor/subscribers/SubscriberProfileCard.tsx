@@ -15,7 +15,7 @@ import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
 } from "../clients/doctorClientCardChrome";
-import { doctorInlineLinkClass } from "@/shared/ui/doctorVisual";
+import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 
 type Props = {
   profile: ClientProfile;

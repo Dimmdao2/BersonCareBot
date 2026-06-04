@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { cn } from "@/lib/utils";
 

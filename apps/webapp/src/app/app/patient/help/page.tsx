@@ -4,9 +4,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { listHelpArticlesForPatient } from "@/modules/help-content/listHelpArticles";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass, patientSectionSurfaceClass } from "@/shared/ui/patient/patientVisual";
 import { HelpSupportLink } from "./HelpSupportLink";
 import { PatientHelpArticleList } from "./PatientHelpArticleList";
 
@@ -21,7 +21,7 @@ export default async function PatientHelpPage() {
   ]);
 
   return (
-    <AppShell title="Справка" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
+    <PatientAppShell title="Справка" user={session.user} backHref={routePaths.patient} backLabel="Меню">
       <div className="flex flex-col gap-4">
         <PatientHelpArticleList articles={articles} />
         <section className={cn(patientSectionSurfaceClass, "!gap-3 !p-4")}>
@@ -45,6 +45,6 @@ export default async function PatientHelpPage() {
           <HelpSupportLink href={supportUrl} />
         </section>
       </div>
-    </AppShell>
+    </PatientAppShell>
   );
 }

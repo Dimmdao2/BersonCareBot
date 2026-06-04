@@ -2,9 +2,9 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/patient/primitives/tabs";
 import { cn } from "@/lib/utils";
-import { patientInnerPageStackClass } from "@/shared/ui/patientVisual";
+import { patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
 
 type TabKey = "symptoms" | "lfk";
 

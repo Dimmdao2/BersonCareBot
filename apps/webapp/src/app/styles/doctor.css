@@ -1,0 +1,89 @@
+/** Doctor product zone CSS — loaded from doctor and settings layouts. */
+
+#app-shell-doctor {
+  /* Anchor for future doctor-specific design tokens. */
+}
+
+.doctor-difficulty-1to10-range {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: color-mix(in srgb, var(--muted) 88%, var(--border));
+}
+.doctor-difficulty-1to10-range:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.doctor-difficulty-1to10-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 88%, var(--background));
+  border: 2px solid var(--primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  margin-top: -7px;
+}
+.doctor-difficulty-1to10-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: transparent;
+}
+.doctor-difficulty-1to10-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 88%, var(--background));
+  border: 2px solid var(--primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.doctor-difficulty-1to10-range::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--muted) 88%, var(--border));
+}
+.doctor-difficulty-1to10-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--doctor-diff-1to10-fill, hsl(215 42% 78% / 0.55));
+}
+
+.markdown-preview {
+  --markdown-preview-heading-font-weight: 500;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+.markdown-preview p {
+  margin: 0 0 0.5em;
+}
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 0 0 0.5em 1.25rem;
+  padding: 0;
+}
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3 {
+  margin: 0.75em 0 0.35em;
+  font-weight: var(--markdown-preview-heading-font-weight);
+}
+.markdown-preview a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.markdown-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9em;
+}
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid var(--border);
+  padding: 0.35em 0.5em;
+}

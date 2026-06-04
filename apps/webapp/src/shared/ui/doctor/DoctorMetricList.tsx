@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 import { cn } from "@/lib/utils";
-import { doctorStatCardGridClass } from "@/shared/ui/doctorVisual";
+import { doctorStatCardGridClass } from "@/shared/ui/doctor/doctorVisual";
 
 type DoctorMetricListProps = ComponentPropsWithoutRef<"div">;
 

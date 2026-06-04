@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/app/doctor/exercises",
 }));
 
-vi.mock("@/shared/ui/ReferenceSelect", () => ({
+vi.mock("@/shared/ui/doctor/ReferenceSelect", () => ({
   ReferenceSelect: (props: { id?: string; onChange?: (code: string | null) => void }) => (
     <button
       type="button"

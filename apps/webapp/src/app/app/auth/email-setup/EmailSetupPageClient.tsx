@@ -3,21 +3,21 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AppShell } from "@/shared/ui/AppShell";
-import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { LegalFooterLinks } from "@/shared/ui/patient/LegalFooterLinks";
+import { Button } from "@/shared/ui/patient/primitives/button";
+import { Input } from "@/shared/ui/patient/primitives/input";
 import { cn } from "@/lib/utils";
 import {
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
-} from "@/shared/ui/auth/loginChrome";
+} from "@/shared/ui/patient/auth/loginChrome";
 import {
   patientCardClass,
   patientInlineLinkClass,
   patientMutedTextClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 const ALREADY_HAS_LOGIN_MESSAGE = "Доступ по этой почте уже настроен. Войдите с паролем.";
 const NETWORK_ERROR_MESSAGE =
@@ -177,10 +177,10 @@ export default function EmailSetupPageClient({ initialToken }: Props) {
   }
 
   return (
-    <AppShell
+    <PatientAppShell
       title="BersonCare"
       user={null}
-      variant="patient"
+     
       backHref="/app"
       backLabel="К входу"
       patientHideHome
@@ -307,6 +307,6 @@ export default function EmailSetupPageClient({ initialToken }: Props) {
         ) : null}
       </section>
       <LegalFooterLinks className="mt-8" />
-    </AppShell>
+    </PatientAppShell>
   );
 }

@@ -14,7 +14,7 @@ import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessenge
 import toast from "react-hot-toast";
 import { PatientSharePhoneViaBotPanel } from "@/shared/ui/patient/PatientSharePhoneViaBotPanel";
 import { PatientBrowserMessengerBindPanel } from "./PatientBrowserMessengerBindPanel";
-import { patientMutedTextClass, PatientShimmerPanel } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, PatientShimmerPanel } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   telegramId: string;

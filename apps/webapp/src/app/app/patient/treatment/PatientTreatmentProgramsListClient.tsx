@@ -23,7 +23,7 @@ import {
   patientMutedTextClass,
   patientInnerPageStackClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { PatientPlanPersonalProgramCtaCard } from "@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard";
 import { PatientTreatmentProgramsListPromoRetry } from "./PatientTreatmentProgramsListPromoRetry";
 

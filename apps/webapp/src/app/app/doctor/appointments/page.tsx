@@ -5,7 +5,7 @@
  */
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorAppointmentsListClient } from "./DoctorAppointmentsListClient";
 import { DoctorAppointmentsToolbar } from "./DoctorAppointmentsToolbar";
 import { BookingScheduleBlocksSection } from "@/app/app/settings/BookingScheduleBlocksSection";
@@ -32,7 +32,7 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
       : [];
 
   return (
-    <AppShell title="Записи" user={session.user} variant="doctor">
+    <DoctorAppShell title="Записи" user={session.user}>
       <div className="space-y-4">
         <DoctorAppointmentsToolbar tab={tab} isAdmin={isAdmin} />
 
@@ -53,6 +53,6 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
           </p>
         )}
       </div>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

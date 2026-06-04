@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { TreatmentProgramConstructorClient } from "./TreatmentProgramConstructorClient";
 import { buildTreatmentProgramLibraryPickers } from "../buildTreatmentProgramLibraryPickers";
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "../paths";
@@ -48,10 +48,10 @@ export default async function TreatmentProgramTemplateEditorPage(props: PageProp
   });
 
   return (
-    <AppShell
+    <DoctorAppShell
       title={detail.title}
       user={session.user}
-      variant="doctor"
+     
       backHref={TREATMENT_PROGRAM_TEMPLATES_PATH}
     >
       <TreatmentProgramConstructorClient
@@ -60,6 +60,6 @@ export default async function TreatmentProgramTemplateEditorPage(props: PageProp
         library={library}
         externalUsageSnapshot={usage}
       />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

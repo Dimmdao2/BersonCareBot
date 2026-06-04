@@ -1,7 +1,7 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { AdminAuditLogSection } from "@/app/app/settings/AdminAuditLogSection";
 import { AdminAuthRegistrationEventsSection } from "@/app/app/doctor/audit-log/AdminAuthRegistrationEventsSection";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export default async function DoctorAuditLogPage() {
   await requireAdminDoctorPage();

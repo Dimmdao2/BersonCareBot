@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 import { savePatientHomeRepeatCooldownsAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,

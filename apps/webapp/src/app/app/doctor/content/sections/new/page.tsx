@@ -5,8 +5,8 @@ import {
 } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { isSystemParentCode } from "@/modules/content-sections/types";
 import { cn } from "@/lib/utils";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { SectionForm } from "../SectionForm";
 
 type PageProps = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
@@ -37,10 +37,10 @@ export default async function DoctorContentSectionNewPage({ searchParams }: Page
   const initialSystemParentCode = isSystemParentCode(rawParent) ? rawParent : null;
 
   return (
-    <AppShell
+    <DoctorAppShell
       title="Новый раздел"
       user={session.user}
-      variant="doctor"
+     
       backHref={patientHomeContext?.returnTo ?? "/app/doctor/content/sections"}
     >
       <section className={cn(doctorSectionCardClass, "gap-4")}>
@@ -51,6 +51,6 @@ export default async function DoctorContentSectionNewPage({ searchParams }: Page
           patientHomeContext={patientHomeContext ?? undefined}
         />
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

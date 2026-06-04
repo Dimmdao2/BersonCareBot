@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import type { SessionUser } from "@/shared/types/session";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
 
 type Props = {
   title: string;
@@ -35,12 +35,12 @@ export function BookingWizardShell({
   /** На последнем шаге тоже показываем «Назад», если передан `backHref` (например к выбору слота). */
   const showWizardBack = Boolean(backHref && step > 1);
   return (
-    <AppShell
+    <PatientAppShell
       title={title}
       user={user}
       backHref={backHref ?? undefined}
       backLabel="Назад"
-      variant="patient"
+     
       patientSuppressShellTitle={suppressShellTitle}
       patientShellTitleSlot={shellTitleSlot}
       patientShellAboveTitleSlot={shellAboveTitleSlot}
@@ -65,6 +65,6 @@ export function BookingWizardShell({
         </p>
       </div>
       <div className={patientInnerPageStackClass}>{children}</div>
-    </AppShell>
+    </PatientAppShell>
   );
 }

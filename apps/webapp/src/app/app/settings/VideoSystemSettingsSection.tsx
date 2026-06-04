@@ -2,21 +2,21 @@
 
 import { useCallback, useState, useTransition } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import {
   VIDEO_PRESIGN_TTL_MAX_SEC,
   VIDEO_PRESIGN_TTL_MIN_SEC,
 } from "@/modules/media/videoPresignTtlConstants";
-import { videoDeliveryStrategySelectItems } from "@/shared/ui/selectOpaqueValueLabels";
+import { videoDeliveryStrategySelectItems } from "@/shared/ui/doctor/selectOpaqueValueLabels";
 import { patchAdminSetting } from "./patchAdminSetting";
 
 export type VideoDefaultDeliveryUi = "mp4" | "hls" | "auto";

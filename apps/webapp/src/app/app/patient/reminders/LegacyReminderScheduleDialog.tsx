@@ -3,21 +3,21 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/patient/primitives/dialog";
 import {
   Sheet,
   SheetContent,
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
+} from "@/shared/ui/patient/primitives/sheet";
 import type { UpdateRuleData } from "@/modules/reminders/service";
 import type { ReminderRule } from "@/modules/reminders/types";
 import { scheduleInvalidFromError } from "@/modules/reminders/reminderFormAria";
@@ -45,7 +45,7 @@ import {
 import { ReminderScheduleForm } from "@/modules/reminders/components/ReminderScheduleForm";
 import { patchPatientReminderScheduleBundle } from "@/app/app/patient/reminders/actions";
 import { cn } from "@/lib/utils";
-import { patientPortalModalSurfaceClass } from "@/shared/ui/patientVisual";
+import { patientPortalModalSurfaceClass } from "@/shared/ui/patient/patientVisual";
 
 function subscribeMobileViewport(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {

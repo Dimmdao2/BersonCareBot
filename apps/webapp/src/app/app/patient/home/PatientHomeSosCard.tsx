@@ -8,7 +8,7 @@ import {
   patientHomeSosSubtitleClampClass,
   patientIconLeadingDangerClass,
 } from "./patientHomeCardStyles";
-import { patientButtonDangerOutlineClass } from "@/shared/ui/patientVisual";
+import { patientButtonDangerOutlineClass } from "@/shared/ui/patient/patientVisual";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
 

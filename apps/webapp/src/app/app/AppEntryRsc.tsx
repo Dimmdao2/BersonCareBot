@@ -15,7 +15,7 @@ import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getMessengerSurfaceHint, getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import type { MessengerSurfaceHint } from "@/shared/lib/platform";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { AppEntryLoginContent } from "./AppEntryLoginContent";
 
 export type AppEntrySearchParams = { next?: string; t?: string; token?: string; switch?: string };
@@ -65,10 +65,10 @@ export async function AppEntryRsc({
     routeBoundMessengerSurface ?? (platformEntry === "bot" ? messengerSurface : null);
 
   return (
-    <AppShell
+    <PatientAppShell
       title="BersonCare"
       user={null}
-      variant="patient"
+     
       patientHideHome
       patientHideRightIcons
       patientBrandTitleBar
@@ -83,6 +83,6 @@ export async function AppEntryRsc({
         entryClassification={entryClassification}
         routeBoundMiniappEntry={routeBoundMessengerSurface != null}
       />
-    </AppShell>
+    </PatientAppShell>
   );
 }

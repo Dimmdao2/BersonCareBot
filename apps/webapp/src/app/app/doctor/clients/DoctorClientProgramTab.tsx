@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
 import { DoctorClientProgramInbox } from "./DoctorClientProgramInbox";
 import { groupPendingProgramTestEvaluations } from "./groupPendingProgramTestEvaluations";

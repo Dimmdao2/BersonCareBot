@@ -1,5 +1,5 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import {
   parseDoctorCatalogPubArchQuery,
   testSetListFilterFromPubArch,
@@ -46,7 +46,7 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
     initialSelectedId != null ? await deps.testSets.getTestSetUsage(initialSelectedId) : null;
 
   return (
-    <AppShell title="Наборы тестов" user={session.user} variant="doctor" backHref="/app/doctor">
+    <DoctorAppShell title="Наборы тестов" user={session.user} backHref="/app/doctor">
       <TestSetsPageClient
         initialSets={items}
         initialSelectedId={initialSelectedId}
@@ -59,6 +59,6 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
           listPubArch,
         }}
       />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

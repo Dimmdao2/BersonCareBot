@@ -94,4 +94,103 @@ export default [
       "no-restricted-imports": "off",
     },
   },
+
+  // ─── Patient / doctor UI isolation (PATIENT_DOCTOR_UI_SPLIT_INITIATIVE) ───
+  {
+    files: [
+      "src/app/app/patient/**/*.tsx",
+      "src/app/app/patient/**/*.ts",
+      "src/app/app/AppEntryRsc.tsx",
+      "src/app/app/AppEntryLoginContent.tsx",
+      "src/app/app/contact-support/**/*.tsx",
+      "src/app/app/contact-support/**/*.ts",
+      "src/app/app/auth/**/*.tsx",
+      "src/app/app/auth/**/*.ts",
+      "src/app/book/**/*.tsx",
+      "src/app/book/**/*.ts",
+      "src/modules/reminders/**/*.tsx",
+      "src/modules/reminders/**/*.ts",
+      "src/modules/patient-diary/**/*.tsx",
+      "src/modules/patient-diary/**/*.ts",
+      "src/modules/diaries/components/PatientWarmupWeekImpactBanner.tsx",
+      "src/modules/diaries/components/DiaryStatsPeriodBar.tsx",
+      "src/modules/diaries/components/SymptomChart.tsx",
+      "src/modules/diaries/components/LfkStatsTable.tsx",
+      "src/modules/messaging/components/ChatView.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@/shared/ui/doctor/**"],
+            message: "Patient zone must not import doctor shared UI. Use @/shared/ui/patient/** instead.",
+          },
+          {
+            group: ["@/components/ui/**"],
+            message: "Patient zone must use @/shared/ui/patient/primitives/** instead of @/components/ui/**.",
+          },
+        ],
+      }],
+    },
+  },
+
+  {
+    files: [
+      "src/app/app/doctor/**/*.tsx",
+      "src/app/app/doctor/**/*.ts",
+      "src/app/app/settings/**/*.tsx",
+      "src/app/app/settings/**/*.ts",
+      "src/modules/messaging/components/DoctorChatPanel.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@/shared/ui/patient/**"],
+            message: "Doctor zone must not import patient shared UI. Use @/shared/ui/doctor/** instead.",
+          },
+          {
+            group: ["@/components/ui/**"],
+            message: "Doctor zone must use @/shared/ui/doctor/primitives/** instead of @/components/ui/**.",
+          },
+        ],
+      }],
+    },
+  },
+
+  {
+    files: ["src/shared/ui/patient/**/*.tsx", "src/shared/ui/patient/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@/shared/ui/doctor/**"],
+            message: "Patient shared UI must not import doctor shared UI.",
+          },
+          {
+            group: ["@/components/ui/**"],
+            message: "Patient shared UI must use @/shared/ui/patient/primitives/**.",
+          },
+        ],
+      }],
+    },
+  },
+
+  {
+    files: ["src/shared/ui/doctor/**/*.tsx", "src/shared/ui/doctor/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@/shared/ui/patient/**"],
+            message: "Doctor shared UI must not import patient shared UI.",
+          },
+          {
+            group: ["@/components/ui/**"],
+            message: "Doctor shared UI must use @/shared/ui/doctor/primitives/**.",
+          },
+        ],
+      }],
+    },
+  },
 ];

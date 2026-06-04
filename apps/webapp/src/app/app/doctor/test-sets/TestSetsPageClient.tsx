@@ -1,20 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
-import { doctorCatalogListEmptyClass } from "@/shared/ui/doctorVisual";
+import { doctorCatalogListEmptyClass } from "@/shared/ui/doctor/doctorVisual";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
-import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
+import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
@@ -34,10 +34,10 @@ import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatal
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctorWorkspaceLayout";
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { TestSetForm } from "./TestSetForm";
 import { TestSetMasterListStatusBadge } from "./TestSetMasterListStatusBadge";

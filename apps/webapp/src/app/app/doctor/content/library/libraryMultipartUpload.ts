@@ -1,4 +1,4 @@
-import { putPartWithProgress, UploadRequestError } from "@/shared/ui/media/uploadWithProgress";
+import { putPartWithProgress, UploadRequestError } from "@/shared/ui/doctor/media/uploadWithProgress";
 import { beginBusy, endBusy } from "@/shared/lib/busyRegistry";
 
 export async function libraryMultipartAbort(sessionId: string): Promise<void> {

@@ -6,17 +6,17 @@ import { useState, useTransition } from "react";
 import { Activity, Dumbbell, FileText, Flame, Sparkles, Trash2 } from "lucide-react";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { routePaths } from "@/app-layer/routes/paths";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/shared/ui/patient/primitives/badge";
+import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
 import {
   patientHeroBookingSectionClass,
   patientListItemClass,
   patientMutedTextClass,
   patientSectionTitleNormalClass,
-} from "@/shared/ui/patientVisual";
-import { Switch } from "@/components/ui/switch";
+} from "@/shared/ui/patient/patientVisual";
+import { Switch } from "@/shared/ui/patient/primitives/switch";
 import toast from "react-hot-toast";
 import {
   Dialog,
@@ -25,7 +25,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/ui/patient/primitives/dialog";
 import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
 import type { ReminderRule, ReminderCategory } from "@/modules/reminders/types";
 import { clampIntervalMinutes } from "@/modules/reminders/reminderIntervalBounds";

@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { cn } from "@/lib/utils";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
-import { doctorSectionItemClass } from "@/shared/ui/doctorVisual";
+import { doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 
 type IntakeItem = {

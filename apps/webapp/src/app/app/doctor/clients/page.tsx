@@ -5,9 +5,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorClientsPanel } from "./DoctorClientsPanel";
-import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
+import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 
 type ClientsScope = "all" | "appointments" | "archived";
 
@@ -71,7 +71,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
   );
 
   return (
-    <AppShell title="Клиенты" user={session.user} variant="doctor">
+    <DoctorAppShell title="Клиенты" user={session.user}>
       <section
         id="doctor-clients-list-section"
         className={doctorSectionCardClass}
@@ -83,6 +83,6 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
           showAdminNameMatchHintsLink={session.user.role === "admin" && Boolean(session.adminMode)}
         />
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

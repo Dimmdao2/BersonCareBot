@@ -1,6 +1,6 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { BookingMergeCandidatesSection } from "@/app/app/settings/BookingMergeCandidatesSection";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export default async function DoctorBookingMergePage() {
   await requireAdminDoctorPage();

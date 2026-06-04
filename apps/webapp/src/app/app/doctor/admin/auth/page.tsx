@@ -1,7 +1,7 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { loadAdminSettingsPageData } from "@/app/app/settings/adminSettingsData";
 import { AuthProvidersSection } from "@/app/app/settings/AuthProvidersSection";
-import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 export default async function DoctorAdminAuthPage() {
   await requireAdminDoctorPage();

@@ -21,9 +21,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { EllipsisVertical, Eye, EyeOff, Shield, ShieldOff } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +32,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/shared/ui/doctor/primitives/dropdown-menu";
 import { reorderContentSections } from "./reorderContentSections";
 import { setSectionRequiresAuth, setSectionVisibility } from "./sectionVisibilityActions";
 import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";

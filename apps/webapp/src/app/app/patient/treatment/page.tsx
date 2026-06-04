@@ -8,8 +8,8 @@ import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-lay
 import { PATIENT_PLAN_TAB_UI_LABEL } from "@/app-layer/routes/navigation";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientTreatmentProgramEntry } from "@/modules/treatment-program/patientTreatmentProgramEntry";
-import { AppShell } from "@/shared/ui/AppShell";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { PatientTreatmentProgramsListClient } from "./PatientTreatmentProgramsListClient";
 
 export const dynamic = "force-dynamic";
@@ -18,18 +18,18 @@ export default async function PatientTreatmentProgramsPage() {
   const session = await getOptionalPatientSession();
   if (!session) {
     return (
-      <AppShell title="Программы лечения" user={null} backHref={routePaths.patient} backLabel="Меню" variant="patient">
+      <PatientAppShell title="Программы лечения" user={null} backHref={routePaths.patient} backLabel="Меню">
         <p className={patientMutedTextClass}>Войдите, чтобы увидеть назначенные программы.</p>
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
   const dataGate = await patientRscPersonalDataGate(session, routePaths.patientTreatmentPrograms);
   if (dataGate === "guest") {
     return (
-      <AppShell title="Программы лечения" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
+      <PatientAppShell title="Программы лечения" user={session.user} backHref={routePaths.patient} backLabel="Меню">
         <p className={patientMutedTextClass}>Раздел доступен после входа.</p>
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
@@ -41,13 +41,13 @@ export default async function PatientTreatmentProgramsPage() {
   }
 
   return (
-    <AppShell title={PATIENT_PLAN_TAB_UI_LABEL} user={session.user} variant="patient">
+    <PatientAppShell title={PATIENT_PLAN_TAB_UI_LABEL} user={session.user}>
       <PatientTreatmentProgramsListClient
         hero={null}
         archived={entry.archived}
         messagesHref={routePaths.patientMessages}
         promoEnsureFailed={entry.promoEnsureFailed}
       />
-    </AppShell>
+    </PatientAppShell>
   );
 }

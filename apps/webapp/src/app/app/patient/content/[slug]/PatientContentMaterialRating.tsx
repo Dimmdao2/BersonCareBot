@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { MaterialRatingBlock } from "@/shared/ui/material-rating/MaterialRatingBlock";
+import { MaterialRatingBlock } from "@/shared/ui/patient/material-rating/MaterialRatingBlock";
 import { PatientWarmupRatingFeedbackDialog } from "./PatientWarmupRatingFeedbackDialog";
 
 export function PatientContentMaterialRating(props: {

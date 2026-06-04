@@ -2,18 +2,18 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Input } from "@/components/ui/input";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-} from "@/components/ui/select";
+} from "@/shared/ui/doctor/primitives/select";
 import { publicBookPaths } from "@/shared/publicBook/paths";
-import { BOOKING_FORM_MAX_WIDTH_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { BOOKING_FORM_MAX_WIDTH_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 const OVERVIEW = "/api/admin/booking-engine/overview";
 const RESOLVE = "/api/admin/booking-engine/resolve-branch-service";

@@ -14,7 +14,7 @@ import {
   patientInnerHeroTitleTypographyClass,
   patientLineClamp2Class,
   patientMutedTextClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import { PatientProgramHeroHistoryPopover } from "@/app/app/patient/treatment/program-detail/PatientProgramHeroHistoryPopover";
 import { ruPassedStagesWord } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";

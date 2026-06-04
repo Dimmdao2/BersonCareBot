@@ -2,7 +2,7 @@
 
 import { DateTime } from "luxon";
 import type { PatientMoodScore, PatientMoodWeekMark } from "@/modules/patient-mood/types";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 import {
   buildPatientHomeWellbeingWeekStripChart,

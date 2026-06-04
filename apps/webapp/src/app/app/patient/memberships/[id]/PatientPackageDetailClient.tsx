@@ -7,7 +7,7 @@ import {
   patientCardClass,
   patientMutedTextClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+} from "@/shared/ui/patient/patientVisual";
 
 type PackageDetail = {
   package: {

@@ -10,7 +10,7 @@ import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
 import { RECOMMENDATION_TYPE_CATEGORY_CODE } from "@/modules/recommendations/recommendationDomain";
 import type { ReferenceItem } from "@/modules/references/types";
 
-vi.mock("@/shared/ui/ReferenceMultiSelect", () => ({
+vi.mock("@/shared/ui/doctor/ReferenceMultiSelect", () => ({
   ReferenceMultiSelect: () => <div data-testid="region-multi" />,
 }));
 

@@ -3,19 +3,19 @@
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DoctorDifficulty1to10Slider } from "@/shared/ui/doctor/DoctorDifficulty1to10Slider";
-import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
-import { ReferenceMultiSelect } from "@/shared/ui/ReferenceMultiSelect";
-import { Button } from "@/components/ui/button";
+import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
+import { ReferenceMultiSelect } from "@/shared/ui/doctor/ReferenceMultiSelect";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from "@/shared/ui/doctor/primitives/dialog";
+import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import type { Exercise, ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
@@ -29,7 +29,7 @@ import {
   exerciseUsageSections,
   type ExerciseUsageSection,
 } from "./exerciseUsageSummaryText";
-import { MaterialRatingBlock } from "@/shared/ui/material-rating/MaterialRatingBlock";
+import { MaterialRatingBlock } from "@/shared/ui/doctor/material-rating/MaterialRatingBlock";
 
 function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
   if (sections.length === 0) {

@@ -3,7 +3,7 @@
  */
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 
 const ADDRESS_IFRAME_SRC = "https://dmitryberson.ru/adress";
 
@@ -11,12 +11,12 @@ export default async function PatientAddressPage() {
   const session = await getOptionalPatientSession();
 
   return (
-    <AppShell
+    <PatientAppShell
       title="Адрес кабинета"
       user={session?.user ?? null}
       backHref={routePaths.patient}
       backLabel="Меню"
-      variant="patient"
+     
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <iframe
@@ -27,6 +27,6 @@ export default async function PatientAddressPage() {
           referrerPolicy="no-referrer-when-downgrade"
         />
       </div>
-    </AppShell>
+    </PatientAppShell>
   );
 }

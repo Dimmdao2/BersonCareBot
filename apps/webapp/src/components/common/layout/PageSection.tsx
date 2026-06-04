@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
+import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 
 const variants = {
   /** Doctor CMS / content hub — §4.1 page-level section. */

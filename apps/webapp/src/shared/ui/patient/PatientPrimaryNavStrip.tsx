@@ -17,7 +17,7 @@ import {
 } from "@/app-layer/routes/navigation";
 import { cn } from "@/lib/utils";
 import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
-import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
 import { PatientNavCountBadge } from "@/shared/ui/patient/PatientNavCountBadge";
 
 const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof Home> = {

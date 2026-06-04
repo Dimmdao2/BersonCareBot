@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
+import { Label } from "@/shared/ui/doctor/primitives/label";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
-import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
+import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { DoctorProgramDiscussionMessagesPanel } from "./DoctorProgramDiscussionMessagesPanel";
 import { sendDoctorProgramDiscussionReply } from "./doctorProgramDiscussionReply";

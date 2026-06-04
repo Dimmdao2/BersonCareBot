@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
 import type { ReferenceItem } from "@/modules/references/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type {
@@ -19,19 +19,19 @@ import {
   writeDoctorCatalogViewPreference,
 } from "@/shared/lib/doctorCatalogViewPreference";
 import { type RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { recommendationMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { recommendationMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
 import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
+import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
 import {
   DoctorCatalogFiltersForm,
   type DoctorCatalogTertiaryFilter,
@@ -40,7 +40,7 @@ import {
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctorWorkspaceLayout";
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { RecommendationForm } from "./RecommendationForm";
 import { archiveRecommendationInline, saveRecommendationInline, unarchiveRecommendationInline } from "./actionsInline";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
@@ -50,7 +50,7 @@ import {
   doctorCatalogListEmptyTilesClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
-} from "@/shared/ui/doctorVisual";
+} from "@/shared/ui/doctor/doctorVisual";
 export type RecommendationsViewMode = "tiles" | "list";
 export type RecommendationTitleSort = "asc" | "desc";
 

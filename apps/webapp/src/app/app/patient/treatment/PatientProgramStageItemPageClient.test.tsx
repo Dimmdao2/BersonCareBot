@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
 }));
 
-vi.mock("@/shared/ui/material-rating/MaterialRatingBlock", () => ({
+vi.mock("@/shared/ui/patient/material-rating/MaterialRatingBlock", () => ({
   MaterialRatingBlock: () => null,
 }));
 

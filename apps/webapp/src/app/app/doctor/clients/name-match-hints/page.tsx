@@ -4,7 +4,7 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { NameMatchHintsClient } from "./NameMatchHintsClient";
 
 const CLIENTS = "/app/doctor/clients";
@@ -17,13 +17,13 @@ export default async function NameMatchHintsPage() {
   }
 
   return (
-    <AppShell title="Кандидаты по ФИО (admin)" user={session.user} variant="doctor">
+    <DoctorAppShell title="Кандидаты по ФИО (admin)" user={session.user}>
       <div className="mb-2 px-4">
         <Link href={CLIENTS_ALL} className="text-sm text-primary underline-offset-4 hover:underline">
           ← К списку клиентов (все подписчики)
         </Link>
       </div>
       <NameMatchHintsClient clientsListBase={CLIENTS} />
-    </AppShell>
+    </DoctorAppShell>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { ReferenceItem } from "@/modules/references/types";
@@ -13,19 +13,19 @@ import {
   readDoctorCatalogViewPreference,
   writeDoctorCatalogViewPreference,
 } from "@/shared/lib/doctorCatalogViewPreference";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
+import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
 import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
+import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { archiveClinicalTestInline, saveClinicalTestInline, unarchiveClinicalTestInline } from "./actionsInline";
 import {
@@ -35,8 +35,8 @@ import {
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctorWorkspaceLayout";
-import { Card, CardContent } from "@/components/ui/card";
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
 import { ClinicalTestForm } from "./ClinicalTestForm";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
@@ -45,7 +45,7 @@ import {
   doctorCatalogListEmptyTilesClass,
   doctorCatalogRowActiveClass,
   doctorCatalogRowClass,
-} from "@/shared/ui/doctorVisual";
+} from "@/shared/ui/doctor/doctorVisual";
 
 export type ClinicalTestsViewMode = "tiles" | "list";
 export type ClinicalTestTitleSort = "asc" | "desc";

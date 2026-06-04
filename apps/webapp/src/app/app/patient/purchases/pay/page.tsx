@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { AppShell } from "@/shared/ui/AppShell";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { PatientProductPayClient } from "./PatientProductPayClient";
 
 export default async function PatientProductPayPage({
@@ -28,13 +28,13 @@ export default async function PatientProductPayPage({
   if (!detail?.purchase.paymentIntentId) redirect(routePaths.purchases);
 
   return (
-    <AppShell title="Оплата" user={session.user} backHref={routePaths.purchases} backLabel="Назад" variant="patient">
+    <PatientAppShell title="Оплата" user={session.user} backHref={routePaths.purchases} backLabel="Назад">
       <PatientProductPayClient
         purchaseId={detail.purchase.id}
         intentId={detail.purchase.paymentIntentId}
         title={detail.purchase.title}
         amountMinor={detail.purchase.priceMinor}
       />
-    </AppShell>
+    </PatientAppShell>
   );
 }

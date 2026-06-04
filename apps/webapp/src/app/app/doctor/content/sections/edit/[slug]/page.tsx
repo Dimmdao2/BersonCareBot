@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { cn } from "@/lib/utils";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { SectionForm } from "../../SectionForm";
 
 type Props = {
@@ -23,7 +23,7 @@ export default async function DoctorContentSectionEditPage({ params }: Props) {
   if (!row) notFound();
 
   return (
-    <AppShell title="Редактировать раздел" user={session.user} variant="doctor" backHref="/app/doctor/content/sections">
+    <DoctorAppShell title="Редактировать раздел" user={session.user} backHref="/app/doctor/content/sections">
       <section className={cn(doctorSectionCardClass, "gap-4")}>
         <SectionForm
           section={{
@@ -41,6 +41,6 @@ export default async function DoctorContentSectionEditPage({ params }: Props) {
           pagesInSection={pagesInSection}
         />
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }

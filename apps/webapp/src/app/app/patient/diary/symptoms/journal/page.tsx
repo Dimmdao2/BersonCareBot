@@ -5,10 +5,10 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { cn } from "@/lib/utils";
-import { AppShell } from "@/shared/ui/AppShell";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import {
   parseOffset,
   parseStatsPeriod,
@@ -28,19 +28,19 @@ export default async function SymptomsJournalPage({
   const dataGate = await patientRscPersonalDataGate(session, routePaths.diarySymptomsJournal);
   if (dataGate === "guest") {
     return (
-      <AppShell
+      <PatientAppShell
         title="Журнал симптомов"
         user={session?.user ?? null}
         backHref={routePaths.diary}
         backLabel={PATIENT_DIARY_UI_LABEL}
-        variant="patient"
+       
       >
         <DiarySectionGuestAccess
           session={session}
           returnTo={routePaths.diarySymptomsJournal}
           title="Журнал симптомов"
         />
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
@@ -73,12 +73,12 @@ export default async function SymptomsJournalPage({
 
   if (trackings.length === 0) {
     return (
-      <AppShell
+      <PatientAppShell
         title="Журнал симптомов"
         user={s.user}
         backHref={routePaths.diary}
         backLabel={PATIENT_DIARY_UI_LABEL}
-        variant="patient"
+       
       >
         <p className={patientMutedTextClass}>Отслеживания симптомов для журнала назначает врач.</p>
         <Link
@@ -87,7 +87,7 @@ export default async function SymptomsJournalPage({
         >
           К статистике
         </Link>
-      </AppShell>
+      </PatientAppShell>
     );
   }
 
@@ -108,12 +108,12 @@ export default async function SymptomsJournalPage({
   });
 
   return (
-    <AppShell
+    <PatientAppShell
       title="Журнал симптомов"
       user={s.user}
       backHref={`${routePaths.diary}?tab=symptoms`}
       backLabel={PATIENT_DIARY_UI_LABEL}
-      variant="patient"
+     
     >
       <SymptomsJournalClient
         entries={entries}
@@ -123,6 +123,6 @@ export default async function SymptomsJournalPage({
         period={period}
         offset={offset}
       />
-    </AppShell>
+    </PatientAppShell>
   );
 }

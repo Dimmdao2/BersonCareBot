@@ -3,11 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/patient/primitives/button";
 import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
-import { SupportContactLink } from "@/shared/ui/SupportContactLink";
+import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientMutedTextClass, PatientShimmerLine } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass, patientMutedTextClass, PatientShimmerLine } from "@/shared/ui/patient/patientVisual";
 
 const POLL_MS = 4000;
 

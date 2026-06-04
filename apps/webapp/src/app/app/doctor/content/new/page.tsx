@@ -8,10 +8,10 @@ import {
 } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { HELP_SECTION_SLUG, isHelpSectionSlug, isSystemParentCode } from "@/modules/content-sections/types";
 import { cn } from "@/lib/utils";
-import { AppShell } from "@/shared/ui/AppShell";
-import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
-import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
-import { buttonVariants } from "@/components/ui/button-variants";
+import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
+import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { ContentForm } from "../ContentForm";
 
 function pick(sp: Record<string, string | string[] | undefined>, key: string): string | undefined {
@@ -115,10 +115,10 @@ export default async function DoctorContentNewPage({
     ) : null;
 
   return (
-    <AppShell
+    <DoctorAppShell
       title="Новая страница"
       user={session.user}
-      variant="doctor"
+     
       backHref={patientHomeContext?.returnTo ?? "/app/doctor/content"}
     >
       <section className={cn(doctorSectionCardClass, "gap-4")}>
@@ -139,6 +139,6 @@ export default async function DoctorContentNewPage({
           />
         ) : null}
       </section>
-    </AppShell>
+    </DoctorAppShell>
   );
 }
