@@ -2,6 +2,10 @@ import Link from "next/link";
 import type { AdminRegistrationFailureAttention } from "@/app-layer/product-analytics/loadAdminRegistrationFailureAttention";
 import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
+import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
+import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import { doctorInlineLinkClass, doctorPageStackClass, doctorSectionItemClass } from "@/shared/ui/doctorVisual";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayPendingProgramTestsSection } from "./DoctorTodayPendingProgramTestsSection";
@@ -35,10 +39,10 @@ export function DoctorTodayDashboard({
   const proactiveAttentionCount = data.proactiveInsightsTotal;
 
   return (
-    <div id="doctor-today-dashboard" className="flex flex-col gap-3">
+    <div id="doctor-today-dashboard" className={doctorPageStackClass}>
       {adminHealthBanner?.show ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-          <Link href={adminHealthBanner.href} className="font-medium text-primary underline underline-offset-2">
+          <Link href={adminHealthBanner.href} className={`${doctorInlineLinkClass} font-medium`}>
             {adminHealthBanner.title}
           </Link>
         </div>
@@ -47,7 +51,7 @@ export function DoctorTodayDashboard({
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
           <Link
             href={adminRegistrationFailureBanner.href}
-            className="font-medium text-primary underline underline-offset-2"
+            className={`${doctorInlineLinkClass} font-medium`}
           >
             {adminRegistrationFailureBanner.title}
           </Link>
@@ -65,18 +69,14 @@ export function DoctorTodayDashboard({
           <Link
             id="doctor-today-link-stats"
             href="/app/doctor/analytics/clients"
-            className="shrink-0 text-sm text-primary underline underline-offset-2"
+            className={`${doctorInlineLinkClass} shrink-0 text-sm`}
           >
             Аналитика по клиентам
           </Link>
         ) : null}
       </header>
 
-      <section
-        id="doctor-today-kpi"
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-        aria-label="Показатели"
-      >
+      <DoctorMetricList id="doctor-today-kpi" aria-label="Показатели">
         <DoctorStatCard
           id="doctor-today-kpi-appointments-today"
           title="Записи сегодня"
@@ -100,16 +100,13 @@ export function DoctorTodayDashboard({
           value={kpiStats.clients.newClients7dWithNoChannels}
           tone={kpiStats.clients.newClients7dWithNoChannels > 0 ? "warning" : "neutral"}
         />
-      </section>
+      </DoctorMetricList>
 
-      <section
-        id="doctor-today-section-attention"
-        className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2"
-      >
-        <h2 className="text-sm font-semibold text-foreground">Требует внимания</h2>
+      <DoctorSection id="doctor-today-section-attention" className="gap-2">
+        <DoctorSectionTitle>Требует внимания</DoctorSectionTitle>
         <ul className="m-0 list-none space-y-1.5 p-0 text-sm">
           <li>
-            <Link href="/app/doctor/online-intake" className="text-primary underline underline-offset-2">
+            <Link href="/app/doctor/online-intake" className={doctorInlineLinkClass}>
               Онлайн-заявки
             </Link>
             {intakeAttentionCount > 0 ? (
@@ -119,7 +116,7 @@ export function DoctorTodayDashboard({
             )}
           </li>
           <li>
-            <Link href="/app/doctor/messages" className="text-primary underline underline-offset-2">
+            <Link href="/app/doctor/messages" className={doctorInlineLinkClass}>
               Сообщения
             </Link>
             {messagesAttentionCount > 0 ? (
@@ -129,7 +126,7 @@ export function DoctorTodayDashboard({
             )}
           </li>
           <li>
-            <a href="#doctor-today-section-pending-tests" className="text-primary underline underline-offset-2">
+            <a href="#doctor-today-section-pending-tests" className={doctorInlineLinkClass}>
               Тесты к проверке
             </a>
             {pendingTestsAttentionCount > 0 ? (
@@ -139,7 +136,7 @@ export function DoctorTodayDashboard({
             )}
           </li>
           <li>
-            <a href="#doctor-today-section-proactive-insights" className="text-primary underline underline-offset-2">
+            <a href="#doctor-today-section-proactive-insights" className={doctorInlineLinkClass}>
               Сигналы пациентов
             </a>
             {proactiveAttentionCount > 0 ? (
@@ -149,7 +146,7 @@ export function DoctorTodayDashboard({
             )}
           </li>
         </ul>
-      </section>
+      </DoctorSection>
 
       <DoctorGlobalTasksSection initialTasks={data.globalOpenTasks} />
 
@@ -165,39 +162,36 @@ export function DoctorTodayDashboard({
         truncated={data.pendingProgramTestsTruncated}
       />
 
-      <section
-        id="doctor-today-section-on-support"
-        className="rounded-xl border border-border bg-card p-3 flex flex-col gap-3"
-      >
-        <div className="flex flex-col gap-0.5">
-          <h2 className="text-sm font-semibold text-foreground">На сопровождении</h2>
+      <DoctorSection id="doctor-today-section-on-support">
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>На сопровождении</DoctorSectionTitle>
           {data.onSupportCount > 0 ? (
             <p className="text-xs text-muted-foreground" id="doctor-today-on-support-count">
               Клиентов: {data.onSupportCount}
             </p>
           ) : null}
-        </div>
+        </DoctorSectionHeader>
         {data.onSupportCount === 0 ? (
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <DoctorEmptyState>
             <p>Клиентов на сопровождении нет</p>
             <div className="flex flex-col gap-1">
-              <Link href={ON_SUPPORT_LIST_HREF} className="text-primary underline underline-offset-2 w-fit">
+              <Link href={ON_SUPPORT_LIST_HREF} className={`${doctorInlineLinkClass} w-fit`}>
                 Список клиентов
               </Link>
               <Link
                 href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
-                className="text-primary underline underline-offset-2 w-fit text-xs"
+                className={`${doctorInlineLinkClass} w-fit text-xs`}
               >
                 Программа без сопровождения
               </Link>
             </div>
-          </div>
+          </DoctorEmptyState>
         ) : (
           <>
             <ul className="m-0 list-none space-y-2 p-0">
               {data.onSupportClients.map((c) => (
                 <li key={c.userId} id={`doctor-today-on-support-${c.userId}`} className="text-sm">
-                  <Link href={c.href} className="font-medium text-primary underline underline-offset-2">
+                  <Link href={c.href} className={`${doctorInlineLinkClass} font-medium`}>
                     {c.displayName}
                   </Link>
                 </li>
@@ -207,7 +201,7 @@ export function DoctorTodayDashboard({
               {data.onSupportListTruncated ? (
                 <Link
                   href={ON_SUPPORT_LIST_HREF}
-                  className="text-sm text-primary underline underline-offset-2"
+                  className={`${doctorInlineLinkClass} text-sm`}
                   id="doctor-today-on-support-all"
                 >
                   Все на сопровождении
@@ -215,34 +209,31 @@ export function DoctorTodayDashboard({
               ) : null}
               <Link
                 href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
-                className="text-xs text-primary underline underline-offset-2 w-fit"
+                className={`${doctorInlineLinkClass} w-fit text-xs`}
               >
                 Программа без сопровождения
               </Link>
             </p>
           </>
         )}
-      </section>
+      </DoctorSection>
 
-      <section
-        id="doctor-today-section-today-appointments"
-        className="rounded-xl border border-border bg-card p-3 flex flex-col gap-3"
-      >
-        <h2 className="text-sm font-semibold text-foreground">Записи сегодня</h2>
+      <DoctorSection id="doctor-today-section-today-appointments">
+        <DoctorSectionTitle>Записи сегодня</DoctorSectionTitle>
         {data.todayAppointments.length === 0 ? (
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <DoctorEmptyState>
             <p>На сегодня записей нет</p>
-            <Link href="/app/doctor/appointments" className="text-primary underline underline-offset-2 w-fit">
+            <Link href="/app/doctor/appointments" className={`${doctorInlineLinkClass} w-fit`}>
               Открыть записи
             </Link>
-          </div>
+          </DoctorEmptyState>
         ) : (
           <ul className="m-0 list-none space-y-2 p-0">
             {data.todayAppointments.map((a) => (
               <li
                 key={a.id}
                 id={`doctor-today-today-appt-${a.id}`}
-                className="rounded-lg border border-border/70 bg-background/40 p-3 text-sm"
+                className={doctorSectionItemClass}
               >
                 {a.scheduleProvenancePrefix ? (
                   <p className="text-xs text-muted-foreground mb-1">{a.scheduleProvenancePrefix}</p>
@@ -258,7 +249,7 @@ export function DoctorTodayDashboard({
                   {a.branchName ? ` · ${a.branchName}` : ""}
                 </p>
                 <p className="mt-2">
-                  <Link href={a.href} className="text-primary underline underline-offset-2">
+                  <Link href={a.href} className={doctorInlineLinkClass}>
                     {a.ctaLabel}
                   </Link>
                 </p>
@@ -266,24 +257,24 @@ export function DoctorTodayDashboard({
             ))}
           </ul>
         )}
-      </section>
+      </DoctorSection>
 
-      <section id="doctor-today-section-intake" className="rounded-xl border border-border bg-card p-3 flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-foreground">Новые онлайн-заявки</h2>
+      <DoctorSection id="doctor-today-section-intake">
+        <DoctorSectionTitle>Новые онлайн-заявки</DoctorSectionTitle>
         {data.newIntakeRequests.length === 0 ? (
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <DoctorEmptyState>
             <p>Новых заявок нет</p>
-            <Link href="/app/doctor/online-intake" className="text-primary underline underline-offset-2 w-fit">
+            <Link href="/app/doctor/online-intake" className={`${doctorInlineLinkClass} w-fit`}>
               Открыть все заявки
             </Link>
-          </div>
+          </DoctorEmptyState>
         ) : (
           <ul className="m-0 list-none space-y-2 p-0">
             {data.newIntakeRequests.map((r) => (
               <li
                 key={r.id}
                 id={`doctor-today-intake-${r.id}`}
-                className="rounded-lg border border-border/70 bg-background/40 p-3 text-sm"
+                className={doctorSectionItemClass}
               >
                 <p className="font-medium text-foreground">{r.patientName}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Тел.: {r.patientPhone}</p>
@@ -294,7 +285,7 @@ export function DoctorTodayDashboard({
                   <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-muted-foreground">{r.summaryPreview}</p>
                 ) : null}
                 <p className="mt-2">
-                  <Link href={r.href} className="text-primary underline underline-offset-2">
+                  <Link href={r.href} className={doctorInlineLinkClass}>
                     Открыть заявку
                   </Link>
                 </p>
@@ -302,31 +293,31 @@ export function DoctorTodayDashboard({
             ))}
           </ul>
         )}
-      </section>
+      </DoctorSection>
 
-      <section id="doctor-today-section-messages" className="rounded-xl border border-border bg-card p-3 flex flex-col gap-3">
-        <div className="flex flex-col gap-0.5">
-          <h2 className="text-sm font-semibold text-foreground">Непрочитанные сообщения</h2>
+      <DoctorSection id="doctor-today-section-messages">
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Непрочитанные сообщения</DoctorSectionTitle>
           {data.unreadTotal > 0 ? (
             <p className="text-xs text-muted-foreground" id="doctor-today-messages-total">
               Всего непрочитанных: {data.unreadTotal}
             </p>
           ) : null}
-        </div>
+        </DoctorSectionHeader>
         {data.unreadConversations.length === 0 ? (
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <DoctorEmptyState>
             <p>Непрочитанных сообщений нет</p>
-            <Link href="/app/doctor/messages" className="text-primary underline underline-offset-2 w-fit">
+            <Link href="/app/doctor/messages" className={`${doctorInlineLinkClass} w-fit`}>
               Открыть все сообщения
             </Link>
-          </div>
+          </DoctorEmptyState>
         ) : (
           <ul className="m-0 list-none space-y-2 p-0">
             {data.unreadConversations.map((c) => (
               <li
                 key={c.conversationId}
                 id={`doctor-today-msg-${c.conversationId}`}
-                className="rounded-lg border border-border/70 bg-background/40 p-3 text-sm"
+                className={doctorSectionItemClass}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="font-medium text-foreground">{c.displayName}</p>
@@ -342,7 +333,7 @@ export function DoctorTodayDashboard({
                   <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-muted-foreground">{c.lastMessagePreview}</p>
                 ) : null}
                 <p className="mt-2">
-                  <Link href={c.href} className="text-primary underline underline-offset-2">
+                  <Link href={c.href} className={doctorInlineLinkClass}>
                     Открыть сообщения
                   </Link>
                 </p>
@@ -350,23 +341,20 @@ export function DoctorTodayDashboard({
             ))}
           </ul>
         )}
-      </section>
+      </DoctorSection>
 
-      <section
-        id="doctor-today-section-upcoming"
-        className="rounded-xl border border-border bg-card p-3 flex flex-col gap-3"
-      >
-        <h2 className="text-sm font-semibold text-foreground">Ближайшие записи</h2>
+      <DoctorSection id="doctor-today-section-upcoming">
+        <DoctorSectionTitle>Ближайшие записи</DoctorSectionTitle>
         {data.upcomingAppointments.length === 0 ? (
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <DoctorEmptyState>
             <p>Ближайших записей на неделе нет</p>
             <Link
               href="/app/doctor/appointments?view=future"
-              className="text-primary underline underline-offset-2 w-fit"
+              className={`${doctorInlineLinkClass} w-fit`}
             >
               Все записи
             </Link>
-          </div>
+          </DoctorEmptyState>
         ) : (
           <>
             <ul className="m-0 list-none space-y-2 p-0">
@@ -374,7 +362,7 @@ export function DoctorTodayDashboard({
                 <li
                   key={a.id}
                   id={`doctor-today-upcoming-appt-${a.id}`}
-                  className="rounded-lg border border-border/70 bg-background/40 p-3 text-sm"
+                  className={doctorSectionItemClass}
                 >
                   {a.scheduleProvenancePrefix ? (
                     <p className="text-xs text-muted-foreground mb-1">{a.scheduleProvenancePrefix}</p>
@@ -390,7 +378,7 @@ export function DoctorTodayDashboard({
                     {a.branchName ? ` · ${a.branchName}` : ""}
                   </p>
                   <p className="mt-2">
-                    <Link href={a.href} className="text-primary underline underline-offset-2">
+                    <Link href={a.href} className={doctorInlineLinkClass}>
                       {a.ctaLabel}
                     </Link>
                   </p>
@@ -400,14 +388,14 @@ export function DoctorTodayDashboard({
             <p>
               <Link
                 href="/app/doctor/appointments?view=future"
-                className="text-sm text-primary underline underline-offset-2"
+                className={`${doctorInlineLinkClass} text-sm`}
               >
                 Все записи
               </Link>
             </p>
           </>
         )}
-      </section>
+      </DoctorSection>
     </div>
   );
 }

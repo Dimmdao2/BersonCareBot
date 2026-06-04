@@ -16,5 +16,8 @@ export const doctorClientInsetListRowClass =
 
 export const doctorClientStackedCardClass = "rounded-lg border border-border bg-card p-3 shadow-sm";
 
+/** Two-column overview grid inside client card (§9e). */
+export const doctorClientOverviewGridClass = "grid gap-4 p-4 md:grid-cols-2";
+
 /** @deprecated Используйте primary/secondary overview классы. */
 export const doctorClientOverviewCardClass = doctorClientOverviewPrimaryCardClass;

@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctorVisual";
 import type { TodayPendingProgramTestItem } from "./mapPendingProgramTestsForToday";
 
 type Props = {
@@ -9,20 +12,19 @@ type Props = {
 
 export function DoctorTodayPendingProgramTestsSection({ items, totalAttempts, truncated }: Props) {
   return (
-    <section
-      id="doctor-today-section-pending-tests"
-      className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3"
-    >
-      <div className="flex flex-col gap-0.5">
-        <h2 className="text-sm font-semibold text-foreground">К проверке</h2>
+    <DoctorSection id="doctor-today-section-pending-tests" className="gap-2">
+      <DoctorSectionHeader>
+        <DoctorSectionTitle>К проверке</DoctorSectionTitle>
         {totalAttempts > 0 ? (
           <p className="text-xs text-muted-foreground" id="doctor-today-pending-tests-count">
             Попыток без оценки: {totalAttempts}
           </p>
         ) : null}
-      </div>
+      </DoctorSectionHeader>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Нет тестов, ожидающих оценки</p>
+        <DoctorEmptyState>
+          <p>Нет тестов, ожидающих оценки</p>
+        </DoctorEmptyState>
       ) : (
         <>
           <ul className="m-0 list-none space-y-2 p-0">
@@ -30,7 +32,7 @@ export function DoctorTodayPendingProgramTestsSection({ items, totalAttempts, tr
               <li
                 key={item.attemptId}
                 id={`doctor-today-pending-test-${item.attemptId}`}
-                className="rounded-lg border border-border/70 bg-background/40 p-3 text-sm"
+                className={doctorSectionItemClass}
               >
                 <p className="font-medium text-foreground">{item.patientDisplayName}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
@@ -40,7 +42,7 @@ export function DoctorTodayPendingProgramTestsSection({ items, totalAttempts, tr
                   {item.submittedAtLabel} · без оценки: {item.pendingCount}
                 </p>
                 <p className="mt-2">
-                  <Link href={item.href} className="text-primary underline underline-offset-2">
+                  <Link href={item.href} className={doctorInlineLinkClass}>
                     Оценить
                   </Link>
                 </p>
@@ -52,6 +54,6 @@ export function DoctorTodayPendingProgramTestsSection({ items, totalAttempts, tr
           ) : null}
         </>
       )}
-    </section>
+    </DoctorSection>
   );
 }

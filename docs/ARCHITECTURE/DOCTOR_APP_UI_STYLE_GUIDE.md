@@ -448,7 +448,7 @@ article.rounded-lg.border.border-border.bg-card.shadow-sm
 Сетка панелей внутри overview-таба:
 
 ```tsx
-<div className="grid gap-4 p-4 md:grid-cols-2">
+<div className={doctorClientOverviewGridClass}>
   <section className={doctorClientOverviewPrimaryCardClass}>…</section>
   <section className={doctorClientOverviewSecondaryCardClass}>…</section>
 </div>
@@ -475,6 +475,7 @@ article.rounded-lg.border.border-border.bg-card.shadow-sm
 ### 9g. Хром-константы (doctorClientCardChrome.ts)
 
 ```ts
+doctorClientOverviewGridClass          // overview two-column grid (§9e)
 doctorClientOverviewPrimaryCardClass   // panel level 2, primary
 doctorClientOverviewSecondaryCardClass // panel level 2, secondary/muted
 doctorClientStackedCardClass           // panel level 2, compact stacked
@@ -771,11 +772,9 @@ export const doctorStatCardGridClass = "grid gap-3 sm:grid-cols-2 xl:grid-cols-4
 /** Сетка медиакарточек библиотеки. */
 export const doctorMediaCardGridClass = "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
 
-/** Overview-сетка карточки клиента. */
-export const doctorClientOverviewGridClass = "grid gap-4 p-4 md:grid-cols-2";
 ```
 
-Клиентские панели (уровень 2) — в `doctorClientCardChrome.ts` (уже существует).
+Overview-сетка и панели уровня 2 — в `doctorClientCardChrome.ts` (`doctorClientOverviewGridClass`, primary/secondary/stacked).
 
 ---
 

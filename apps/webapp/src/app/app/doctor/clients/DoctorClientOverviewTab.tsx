@@ -6,7 +6,11 @@ import { DoctorClientOverviewRecentProgramChanges } from "./DoctorClientOverview
 import { DoctorClientOverviewWellbeing } from "./DoctorClientOverviewWellbeing";
 import { DoctorClientOverviewProactiveSignals } from "./DoctorClientOverviewProactiveSignals";
 import { PatientSpecialistTasksSection } from "./PatientSpecialistTasksSection";
-import { doctorClientOverviewPrimaryCardClass, doctorClientSectionTitleClass } from "./doctorClientCardChrome";
+import {
+  doctorClientOverviewGridClass,
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from "./doctorClientCardChrome";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
 import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
 import type {
@@ -41,7 +45,7 @@ export function DoctorClientOverviewTab({
   onNavigateProgram,
 }: Props) {
   return (
-    <div className="grid gap-4 p-4 md:grid-cols-2">
+    <div className={doctorClientOverviewGridClass}>
       <DoctorClientOverviewCarePlan
         userId={userId}
         profileListScope={profileListScope}

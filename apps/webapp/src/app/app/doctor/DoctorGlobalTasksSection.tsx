@@ -2,6 +2,8 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
 import { SpecialistTaskFormDialog } from "./clients/SpecialistTaskFormDialog";
 import { SpecialistTaskRow as TaskRow } from "./clients/SpecialistTaskRow";
@@ -35,19 +37,18 @@ export function DoctorGlobalTasksSection({ initialTasks }: { initialTasks: Speci
   }
 
   return (
-    <section
-      id="doctor-today-global-tasks"
-      className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3"
-    >
+    <DoctorSection id="doctor-today-global-tasks" className="gap-2">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">Мои задачи</h2>
+        <DoctorSectionTitle>Мои задачи</DoctorSectionTitle>
         <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
           Новая
         </Button>
       </div>
       {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
       {tasks.length === 0 && !loadError ? (
-        <p className="text-sm text-muted-foreground">Нет открытых задач</p>
+        <DoctorEmptyState>
+          <p>Нет открытых задач</p>
+        </DoctorEmptyState>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {tasks.map((task) => (
@@ -83,6 +84,6 @@ export function DoctorGlobalTasksSection({ initialTasks }: { initialTasks: Speci
           }}
         />
       ) : null}
-    </section>
+    </DoctorSection>
   );
 }
