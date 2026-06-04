@@ -112,6 +112,16 @@
   }
 }
 
+@media ((max-width: 767px) or (max-height: 599px)) {
+  #patient-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+  }
+}
+
 #app-shell-patient > main#app-shell-content {
   background-color: #ffffff;
 }

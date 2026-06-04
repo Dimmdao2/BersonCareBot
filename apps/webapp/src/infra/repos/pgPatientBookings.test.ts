@@ -198,6 +198,14 @@ describe("pgPatientBookingsPort", () => {
     expect(rows[0]!.cityCodeSnapshot).toBe("moscow");
   });
 
+  it("listUpcomingByUser filters stale creating duplicates against finalized rows", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
+    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("status = 'creating'");
+    expect(sql).toContain("COALESCE(newer.category, '') = COALESCE(patient_bookings.category, '')");
+  });
+
   it("listHistoryByUser returns mixed legacy and v2 rows (dual-read history)", async () => {
     const leg = legacyRow("leg-h");
     const v2 = v2Row("v2-h");

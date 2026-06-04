@@ -482,7 +482,22 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
        WHERE platform_user_id = $1
          AND status IN ('creating', 'awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
          AND slot_start >= $2::timestamptz
-       ORDER BY slot_start ASC`,
+         AND NOT (
+           status = 'creating'
+           AND EXISTS (
+             SELECT 1
+             FROM patient_bookings newer
+             WHERE newer.platform_user_id = patient_bookings.platform_user_id
+               AND newer.id <> patient_bookings.id
+               AND newer.status IN ('awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
+               AND newer.slot_start = patient_bookings.slot_start
+               AND newer.slot_end = patient_bookings.slot_end
+               AND COALESCE(newer.branch_service_id::text, '') = COALESCE(patient_bookings.branch_service_id::text, '')
+               AND COALESCE(newer.booking_type, '') = COALESCE(patient_bookings.booking_type, '')
+               AND COALESCE(newer.category, '') = COALESCE(patient_bookings.category, '')
+           )
+         )
+       ORDER BY slot_start ASC, created_at DESC`,
       [userId, nowIso],
     );
     return result.rows.map(mapRow);

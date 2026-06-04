@@ -277,6 +277,19 @@ function normalizeRubitimeContactEmail(email: string | null | undefined): string
   return trimmed;
 }
 
+function isActiveEmailNormalizedUniqueViolation(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const code = "code" in err ? String((err as { code?: unknown }).code ?? "") : "";
+  if (code !== "23505") return false;
+  const constraint =
+    "constraint" in err ? String((err as { constraint?: unknown }).constraint ?? "") : "";
+  const message = "message" in err ? String((err as { message?: unknown }).message ?? "") : "";
+  return (
+    constraint === "uq_platform_users_email_normalized_active" ||
+    message.includes("uq_platform_users_email_normalized_active")
+  );
+}
+
 async function ensureAppointmentClientTx(
   client: PoolClient,
   params: {
@@ -370,6 +383,7 @@ async function ensureAppointmentClientTx(
   const userId = await mergeCandidates(client, uniq, "projection");
 
   let contactEmailSetup: { emailNormalized: string } | undefined;
+  let emailForUpdate: string | null = emailNorm;
   if (emailNorm) {
     const emailNormalized = emailNorm.trim().toLowerCase();
     const prev = await client.query<{ email_normalized: string | null }>(
@@ -378,14 +392,28 @@ async function ensureAppointmentClientTx(
     );
     const prevNorm = prev.rows[0]?.email_normalized ?? null;
     if (prevNorm !== emailNormalized) {
-      contactEmailSetup = { emailNormalized };
+      const conflict = await client.query<{ id: string }>(
+        `SELECT id FROM platform_users
+         WHERE id <> $1::uuid
+           AND email_normalized = $2::text
+           AND merged_into_id IS NULL
+         LIMIT 1`,
+        [userId, emailNormalized],
+      );
+      if (conflict.rows[0]) {
+        emailForUpdate = null;
+        console.warn("[ensureClientFromAppointmentProjection] skip email update due active-email conflict", {
+          platformUserId: userId,
+          conflictingUserId: conflict.rows[0].id,
+        });
+      } else {
+        contactEmailSetup = { emailNormalized };
+      }
     }
   }
 
-  // Existing user: enrich contact email / trusted Rubitime phone; never overwrite display/FIO from Rubitime.
-  await client.query(
-    `UPDATE platform_users SET
-       email = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE email END,
+  const updateSql = `UPDATE platform_users SET
+      email = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE email END,
        email_normalized = CASE
          WHEN $2::text IS NOT NULL AND trim($2::text) <> ''
               AND lower(trim($2::text)) IS DISTINCT FROM lower(trim(coalesce(email, '')))
@@ -406,14 +434,33 @@ async function ensureAppointmentClientTx(
          ELSE patient_phone_trust_at
        END,
        updated_at = now()
-     WHERE id = $1::uuid`,
-    [
-      userId,
-      emailNorm,
-      params.integratorUserId?.trim() ?? null,
-      params.phoneNormalized,
-    ],
-  );
+     WHERE id = $1::uuid`;
+  const updateParams: (string | null)[] = [
+    userId,
+    emailForUpdate,
+    params.integratorUserId?.trim() ?? null,
+    params.phoneNormalized,
+  ];
+  try {
+    // Existing user: enrich contact email / trusted Rubitime phone; never overwrite display/FIO from Rubitime.
+    await client.query(updateSql, updateParams);
+  } catch (err) {
+    if (emailForUpdate && isActiveEmailNormalizedUniqueViolation(err)) {
+      contactEmailSetup = undefined;
+      emailForUpdate = null;
+      console.warn("[ensureClientFromAppointmentProjection] fallback skip email update after unique violation", {
+        platformUserId: userId,
+      });
+      await client.query(updateSql, [
+        userId,
+        null,
+        params.integratorUserId?.trim() ?? null,
+        params.phoneNormalized,
+      ]);
+    } else {
+      throw err;
+    }
+  }
 
   return { userId, contactEmailSetup };
 }

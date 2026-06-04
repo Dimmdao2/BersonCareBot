@@ -122,4 +122,83 @@ describe("ensureClientFromAppointmentProjection (Rubitime PHASE_01)", () => {
     expect(updateSql).toContain("phone_normalized = COALESCE");
     expect(updateSql).toContain("patient_phone_trust_at");
   });
+
+  it("skips email rewrite when normalized email is already used by another active user", async () => {
+    installPool(async (sql, params) => {
+      if (sql.includes("FROM platform_users WHERE phone_normalized")) {
+        return { rows: [{ id: "existing-phone-user" }] };
+      }
+      if (sql.includes("SELECT email_normalized FROM platform_users")) {
+        return { rows: [{ email_normalized: "old@example.com" }] };
+      }
+      if (sql.includes("email_normalized = $2::text")) {
+        expect(params).toEqual(["existing-phone-user", "taken@example.com"]);
+        return { rows: [{ id: "another-user" }] };
+      }
+      if (sql.includes("UPDATE platform_users SET")) {
+        expect(params).toEqual([
+          "existing-phone-user",
+          null,
+          null,
+          "+79992223344",
+        ]);
+      }
+      return { rows: [] };
+    });
+
+    const result = await pgUserProjectionPort.ensureClientFromAppointmentProjection({
+      phoneNormalized: "+79992223344",
+      email: "taken@example.com",
+      displayName: "Ignored For Existing",
+    });
+
+    expect(result.platformUserId).toBe("existing-phone-user");
+    expect(result.contactEmailSetup).toBeUndefined();
+  });
+
+  it("retries without email when update hits active-email unique race", async () => {
+    let updateCalls = 0;
+    installPool(async (sql, params) => {
+      if (sql.includes("FROM platform_users WHERE phone_normalized")) {
+        return { rows: [{ id: "existing-phone-user" }] };
+      }
+      if (sql.includes("SELECT email_normalized FROM platform_users")) {
+        return { rows: [{ email_normalized: "old@example.com" }] };
+      }
+      if (sql.includes("email_normalized = $2::text")) {
+        return { rows: [] };
+      }
+      if (sql.includes("UPDATE platform_users SET")) {
+        updateCalls += 1;
+        if (updateCalls === 1) {
+          expect(params).toEqual([
+            "existing-phone-user",
+            "race@example.com",
+            null,
+            "+79993334455",
+          ]);
+          throw {
+            code: "23505",
+            constraint: "uq_platform_users_email_normalized_active",
+          };
+        }
+        expect(params).toEqual([
+          "existing-phone-user",
+          null,
+          null,
+          "+79993334455",
+        ]);
+      }
+      return { rows: [] };
+    });
+
+    const result = await pgUserProjectionPort.ensureClientFromAppointmentProjection({
+      phoneNormalized: "+79993334455",
+      email: "race@example.com",
+    });
+
+    expect(result.platformUserId).toBe("existing-phone-user");
+    expect(result.contactEmailSetup).toBeUndefined();
+    expect(updateCalls).toBe(2);
+  });
 });

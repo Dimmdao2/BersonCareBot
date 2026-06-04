@@ -110,27 +110,27 @@ describe("createS3MediaStoragePort", () => {
   // ----- deleteHard -----
 
   it("deleteHard queues pending_delete for S3-backed file (no immediate s3 delete)", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [] })
+    connectQueryMock
+      .mockResolvedValueOnce(undefined) // advisory lock
       .mockResolvedValueOnce({ rows: [{ stored_path: "media/x/f.mp4", s3_key: "media/x/f.mp4", status: "ready" }] })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // update pending_delete
+      .mockResolvedValueOnce(undefined); // advisory unlock
     const port = createS3MediaStoragePort();
     const deleted = await port.deleteHard("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
     expect(deleted).toBe(true);
     expect(s3DeleteObjectMock).not.toHaveBeenCalled();
-    const updateSql = String(queryMock.mock.calls[2]![0]);
+    const updateSql = String(connectQueryMock.mock.calls[2]![0]);
     expect(updateSql).toContain("pending_delete");
   });
 
   it("deleteHard removes DB row when row has no s3_key", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [] })
+    connectQueryMock
+      .mockResolvedValueOnce(undefined) // advisory lock
       .mockResolvedValueOnce({
         rows: [{ stored_path: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", s3_key: null, status: "ready" }],
       })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // delete row
+      .mockResolvedValueOnce(undefined); // advisory unlock
     const port = createS3MediaStoragePort();
     const deleted = await port.deleteHard("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
     expect(deleted).toBe(true);
@@ -139,10 +139,10 @@ describe("createS3MediaStoragePort", () => {
 
   it("deleteHard returns false when record not found", async () => {
     // lock -> select none -> unlock
-    queryMock
+    connectQueryMock
+      .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce(undefined);
     const port = createS3MediaStoragePort();
     const deleted = await port.deleteHard("ffffffff-ffff-4fff-8fff-ffffffffffff");
     expect(deleted).toBe(false);
