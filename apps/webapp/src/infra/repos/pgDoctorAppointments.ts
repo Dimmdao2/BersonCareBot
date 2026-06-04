@@ -80,6 +80,7 @@ function mapListRows(
       rubitimeNameIfDifferent: rubitimeHint,
       time: "",
       recordAtIso: row.record_at ? row.record_at.toISOString() : null,
+      dateKey: "",
       type: (payload.service_title && payload.service_title.trim()) || "Запись",
       status: row.status,
       link,
@@ -134,6 +135,22 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
            AND ar.record_at >= date_trunc('month', NOW())
            AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
          ORDER BY ar.record_at ASC`
+        );
+      } else if (filter.kind === "past") {
+        const limit = filter.limit ?? 50;
+        const offset = filter.offset ?? 0;
+        result = await pool.query(
+          `${LIST_SELECT}
+         FROM appointment_records ar
+         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
+         LEFT JOIN branches b ON ar.branch_id = b.id
+         WHERE ar.deleted_at IS NULL
+           AND ar.record_at IS NOT NULL
+           AND ar.record_at < NOW()
+           AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
+         ORDER BY ar.record_at DESC
+         LIMIT $1 OFFSET $2`,
+          [limit, offset],
         );
       } else {
         result = await pool.query(

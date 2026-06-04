@@ -60,12 +60,6 @@ const CLUSTER_PATIENTS_WORK: DoctorMenuCluster = {
     },
     { id: "appointments", label: "Записи", href: "/app/doctor/appointments" },
     { id: "calendar", label: "Календарь", href: "/app/doctor/calendar" },
-    {
-      id: "booking-merge",
-      label: "Мердж пациентов",
-      href: "/app/doctor/booking-merge",
-      requiresAdminMode: true,
-    },
   ],
 };
 
@@ -204,7 +198,7 @@ const CLUSTER_ADMINISTRATION: DoctorMenuCluster = {
     },
     {
       id: "admin-booking",
-      label: "Запись",
+      label: "Настройки записи",
       href: "/app/doctor/admin/booking",
       requiresAdminMode: true,
     },
@@ -212,6 +206,12 @@ const CLUSTER_ADMINISTRATION: DoctorMenuCluster = {
       id: "admin-technical",
       label: "Технические режимы",
       href: "/app/doctor/admin/technical",
+      requiresAdminMode: true,
+    },
+    {
+      id: "booking-merge",
+      label: "Мердж пациентов",
+      href: "/app/doctor/booking-merge",
       requiresAdminMode: true,
     },
   ],

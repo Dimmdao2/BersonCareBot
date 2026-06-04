@@ -1,103 +1,58 @@
 /**
- * Список записей кабинета специалиста («/app/doctor/appointments»).
- * Query `view`: по умолчанию записи на сегодня; `future` | `month` | `cancellationsMonth` — как плитки дашборда.
+ * Рабочий экран «Записи» для специалиста.
+ * tab=appointments (default): список записей по датам + переключатель будущие/архив.
+ * tab=schedule: настройка рабочего расписания (только admin).
  */
-import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import type { DoctorAppointmentsListFilter } from "@/modules/doctor-appointments/ports";
 import { AppShell } from "@/shared/ui/AppShell";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
-import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { doctorHoverLinkClass, doctorInlineLinkClass } from "@/shared/ui/doctorVisual";
-import { DoctorAppointmentActions } from "./DoctorAppointmentActions";
-
-function parseListFilter(view: string | undefined): DoctorAppointmentsListFilter {
-  if (view === "future") return { kind: "futureActive" };
-  if (view === "month") return { kind: "recordsInCalendarMonth" };
-  if (view === "cancellationsMonth") return { kind: "cancellationsInCalendarMonth" };
-  return { kind: "range", range: "today" };
-}
-
-function listSectionTitle(view: string | undefined): string {
-  switch (view) {
-    case "future":
-      return "Активные будущие записи";
-    case "month":
-      return "Все записи за текущий месяц (по дате приёма)";
-    case "cancellationsMonth":
-      return "Отмены за текущий месяц (по дате фиксации отмены)";
-    default:
-      return "Ближайшие записи";
-  }
-}
+import { DoctorAppointmentsListClient } from "./DoctorAppointmentsListClient";
+import { DoctorAppointmentsToolbar } from "./DoctorAppointmentsToolbar";
+import { BookingScheduleBlocksSection } from "@/app/app/settings/BookingScheduleBlocksSection";
+import { BookingScheduleSlotsProbeSection } from "@/app/app/settings/BookingScheduleSlotsProbeSection";
+import { BookingSoloScheduleSection } from "@/app/app/settings/BookingSoloScheduleSection";
 
 type Props = {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ tab?: string; view?: string }>;
 };
 
 export default async function DoctorAppointmentsPage({ searchParams }: Props) {
   const session = await requireDoctorAccess();
-  const deps = buildAppDeps();
   const params = await searchParams;
-  const view = params.view;
-  const listFilter = parseListFilter(view);
-  const [appointments, stats] = await Promise.all([
-    deps.doctorAppointments.listAppointmentsForSpecialist(listFilter),
-    deps.doctorAppointments.getAppointmentStats({ range: "today" }),
-  ]);
+  const tab = params.tab === "schedule" ? "schedule" : "appointments";
+  const view = params.view === "past" ? "past" : "future";
+  const isAdmin = session.user.role === "admin";
+
+  const deps = buildAppDeps();
+  const appointments =
+    tab === "appointments"
+      ? await deps.doctorAppointments.listAppointmentsForSpecialist(
+          view === "past" ? { kind: "past", limit: 50, offset: 0 } : { kind: "futureActive" },
+        )
+      : [];
 
   return (
     <AppShell title="Записи" user={session.user} variant="doctor">
-      <DoctorSection id="doctor-appointments-stats-section">
-        <DoctorSectionTitle>Статистика (сегодня)</DoctorSectionTitle>
-        <p className="text-muted-foreground text-sm">
-          Сводка ниже — по окну «сегодня». Список может быть в другом режиме — см. заголовок блока записей.
-        </p>
-        <ul id="doctor-appointments-stats-list" className="m-0 list-none space-y-1.5 p-0 text-sm">
-          <li id="doctor-appointments-stats-total">Записей (сегодня, все статусы кроме soft-delete): {stats.total}</li>
-          <li id="doctor-appointments-stats-cancellations-30d">Отмен за 30 дн.: {stats.cancellations30d}</li>
-          <li id="doctor-appointments-stats-reschedules">Переносов (с reschedule_count &gt; 0, сегодня): {stats.reschedules}</li>
-        </ul>
-      </DoctorSection>
-      <DoctorSection id="doctor-appointments-upcoming-section">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <DoctorSectionTitle>{listSectionTitle(view)}</DoctorSectionTitle>
-          <Link href="/app/doctor/calendar" className={doctorHoverLinkClass}>
-            Календарь
-          </Link>
-        </div>
-        {appointments.length === 0 ? (
-          <DoctorEmptyState><p>Нет записей на выбранный период.</p></DoctorEmptyState>
+      <div className="space-y-4">
+        <DoctorAppointmentsToolbar tab={tab} isAdmin={isAdmin} />
+
+        {tab === "appointments" ? (
+          <DoctorAppointmentsListClient
+            appointments={appointments}
+            view={view}
+          />
+        ) : isAdmin ? (
+          <div className="space-y-4">
+            <BookingSoloScheduleSection />
+            <BookingScheduleBlocksSection soloUx />
+            <BookingScheduleSlotsProbeSection />
+          </div>
         ) : (
-          <ul id="doctor-appointments-upcoming-list" className="m-0 list-none space-y-2 p-0">
-            {appointments.map((a) => {
-              const uid = a.clientUserId?.trim() ?? "";
-              const hasClient = uid.length > 0;
-              const clientHref = hasClient
-                ? doctorClientProfileHref(uid, { profileListScope: "appointments" })
-                : "/app/doctor/appointments";
-              return (
-              <li key={a.id} id={`doctor-appointments-item-${a.id}`} className="rounded-lg border border-border bg-card p-3 text-sm">
-                <div className="flex flex-col gap-2">
-                  {a.scheduleProvenancePrefix ? (
-                    <p className="text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</p>
-                  ) : null}
-                  <Link href={clientHref} className={doctorInlineLinkClass}>
-                    {a.time} — {a.clientLabel} ({a.type}, {a.status})
-                  </Link>
-                  {a.rubitimeNameIfDifferent ? (
-                    <p className="text-xs text-muted-foreground">В Rubitime: {a.rubitimeNameIfDifferent}</p>
-                  ) : null}
-                  <DoctorAppointmentActions recordId={a.id} />
-                </div>
-              </li>
-            );
-            })}
-          </ul>
+          <p className="text-sm text-muted-foreground">
+            Управление расписанием доступно только администратору.
+          </p>
         )}
-      </DoctorSection>
+      </div>
     </AppShell>
   );
 }

@@ -176,7 +176,7 @@ export function RubitimeSection() {
           {loading ? "Загрузка..." : "Обновить"}
         </Button>
       </CardHeader>
-      <CardContent className="flex flex-col gap-6">
+      <CardContent className="flex flex-col gap-4">
         {catalogUnavailable && (
           <p className="text-sm text-destructive">
             Каталог недоступен (нет подключения к БД или миграции 046). Проверьте DATABASE_URL и миграции.
@@ -190,149 +190,157 @@ export function RubitimeSection() {
           (branch / cooperator / service) показаны для сверки с кабинетом Rubitime.
         </p>
 
-        {/* Cities */}
-        <section className="flex flex-col gap-2">
-          <p className="text-sm font-semibold">Города</p>
-          {cities.map((c) => (
-            <div
-              key={c.id}
-              className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"
-            >
-              <span>
-                <span className="font-mono">{c.code}</span> — {c.title}
-                {!c.isActive && <span className="ml-1 text-muted-foreground">(неактивен)</span>}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => deleteEntity("cities", c.id)}
-                disabled={isPending}
-              >
-                ✕
-              </Button>
-            </div>
-          ))}
-          <CityForm onDone={() => void loadAll()} />
-        </section>
-
-        {/* Branches */}
-        <section className="flex flex-col gap-2">
-          <p className="text-sm font-semibold">Филиалы</p>
-          {branches.map((b) => (
-            <div
-              key={b.id}
-              className="flex flex-col gap-0.5 rounded-md border border-border px-3 py-2 text-xs"
-            >
-              <div className="flex items-center justify-between">
-                <span>
-                  <span className="font-mono">rubitime_branch_id: {b.rubitimeBranchId}</span>
-                  {" — "}
-                  {b.title}
-                  {!b.isActive && <span className="ml-1 text-muted-foreground">(неактивен)</span>}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => deleteEntity("branches", b.id)}
-                  disabled={isPending}
+        <div className="grid gap-4 xl:grid-cols-2">
+          {/* Cities */}
+          <section className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/30 p-3">
+            <p className="text-sm font-semibold">Города</p>
+            <div className="grid gap-2 2xl:grid-cols-2">
+              {cities.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"
                 >
-                  ✕
-                </Button>
-              </div>
-              <span className="text-muted-foreground">
-                city_id: {b.cityId}
-                {b.address ? ` · ${b.address}` : ""}
-              </span>
-              <BranchTimezoneEditor
-                key={`${b.id}-${b.updatedAt}`}
-                branch={b}
-                onSaved={() => void loadAll()}
-              />
-            </div>
-          ))}
-          <BranchForm cities={cities} onDone={() => void loadAll()} />
-        </section>
-
-        {/* Specialists — до услуг, как в BookingCatalogHelp */}
-        <section className="flex flex-col gap-2">
-          <p className="text-sm font-semibold">Специалисты</p>
-          {specialists.map((sp) => {
-            const br = branches.find((x) => x.id === sp.branchId);
-            return (
-              <div
-                key={sp.id}
-                className="flex flex-col gap-0.5 rounded-md border border-border px-3 py-2 text-xs"
-              >
-                <div className="flex items-center justify-between">
                   <span>
-                    <span className="font-mono">rubitime_cooperator_id: {sp.rubitimeCooperatorId}</span>
-                    {" — "}
-                    {sp.fullName}
-                    {!sp.isActive && <span className="ml-1 text-muted-foreground">(неактивен)</span>}
+                    <span className="font-mono">{c.code}</span> — {c.title}
+                    {!c.isActive && <span className="ml-1 text-muted-foreground">(неактивен)</span>}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => deleteEntity("specialists", sp.id)}
+                    onClick={() => deleteEntity("cities", c.id)}
                     disabled={isPending}
                   >
                     ✕
                   </Button>
                 </div>
-                <span className="text-muted-foreground">
-                  branch: {br?.title ?? sp.branchId}
-                </span>
-              </div>
-            );
-          })}
-          <SpecialistForm branches={branches} onDone={() => void loadAll()} />
-        </section>
-
-        {/* Services */}
-        <section className="flex flex-col gap-2">
-          <p className="text-sm font-semibold">Услуги (глобальный каталог)</p>
-          {services.map((s) => (
-            <div
-              key={s.id}
-              id={`rubitime-catalog-service-${s.id}`}
-              className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-xs"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span>
-                  {s.title} · {s.durationMinutes} мин · {formatPriceMinor(s.priceMinor)}
-                  {!s.isActive && <span className="ml-1 text-muted-foreground">(неактивна)</span>}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => deleteEntity("services", s.id)}
-                  disabled={isPending}
-                >
-                  ✕
-                </Button>
-              </div>
-              <ServiceEditor
-                key={`${s.id}-${s.updatedAt}`}
-                service={s}
-                onSaved={() => void loadAll()}
-                isExpanded={expandedServiceId === s.id}
-                onExpand={() => {
-                  setFocusServiceId(null);
-                  setExpandedServiceId(s.id);
-                }}
-                onCollapse={collapseServiceEditor}
-                linkedBranchServiceCount={linkCountByServiceId.get(s.id) ?? 0}
-                autoFocusOnExpand={focusServiceId === s.id}
-                onAutoFocusHandled={clearFocusService}
-              />
+              ))}
             </div>
-          ))}
-          <ServiceForm onDone={() => void loadAll()} />
-        </section>
+            <CityForm onDone={() => void loadAll()} />
+          </section>
+
+          {/* Branches */}
+          <section className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/30 p-3">
+            <p className="text-sm font-semibold">Филиалы</p>
+            <div className="grid gap-2">
+              {branches.map((b) => (
+                <div
+                  key={b.id}
+                  className="flex flex-col gap-0.5 rounded-md border border-border px-3 py-2 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span>
+                      <span className="font-mono">rubitime_branch_id: {b.rubitimeBranchId}</span>
+                      {" — "}
+                      {b.title}
+                      {!b.isActive && <span className="ml-1 text-muted-foreground">(неактивен)</span>}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => deleteEntity("branches", b.id)}
+                      disabled={isPending}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                  <span className="text-muted-foreground">
+                    city_id: {b.cityId}
+                    {b.address ? ` · ${b.address}` : ""}
+                  </span>
+                  <BranchTimezoneEditor
+                    key={`${b.id}-${b.updatedAt}`}
+                    branch={b}
+                    onSaved={() => void loadAll()}
+                  />
+                </div>
+              ))}
+            </div>
+            <BranchForm cities={cities} onDone={() => void loadAll()} />
+          </section>
+
+          {/* Specialists — до услуг, как в BookingCatalogHelp */}
+          <section className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/30 p-3">
+            <p className="text-sm font-semibold">Специалисты</p>
+            <div className="grid gap-2">
+              {specialists.map((sp) => {
+                const br = branches.find((x) => x.id === sp.branchId);
+                return (
+                  <div
+                    key={sp.id}
+                    className="flex flex-col gap-0.5 rounded-md border border-border px-3 py-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>
+                        <span className="font-mono">rubitime_cooperator_id: {sp.rubitimeCooperatorId}</span>
+                        {" — "}
+                        {sp.fullName}
+                        {!sp.isActive && <span className="ml-1 text-muted-foreground">(неактивен)</span>}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => deleteEntity("specialists", sp.id)}
+                        disabled={isPending}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                    <span className="text-muted-foreground">
+                      branch: {br?.title ?? sp.branchId}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <SpecialistForm branches={branches} onDone={() => void loadAll()} />
+          </section>
+
+          {/* Services */}
+          <section className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/30 p-3 xl:col-span-2">
+            <p className="text-sm font-semibold">Услуги (глобальный каталог)</p>
+            {services.map((s) => (
+              <div
+                key={s.id}
+                id={`rubitime-catalog-service-${s.id}`}
+                className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span>
+                    {s.title} · {s.durationMinutes} мин · {formatPriceMinor(s.priceMinor)}
+                    {!s.isActive && <span className="ml-1 text-muted-foreground">(неактивна)</span>}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => deleteEntity("services", s.id)}
+                    disabled={isPending}
+                  >
+                    ✕
+                  </Button>
+                </div>
+                <ServiceEditor
+                  key={`${s.id}-${s.updatedAt}`}
+                  service={s}
+                  onSaved={() => void loadAll()}
+                  isExpanded={expandedServiceId === s.id}
+                  onExpand={() => {
+                    setFocusServiceId(null);
+                    setExpandedServiceId(s.id);
+                  }}
+                  onCollapse={collapseServiceEditor}
+                  linkedBranchServiceCount={linkCountByServiceId.get(s.id) ?? 0}
+                  autoFocusOnExpand={focusServiceId === s.id}
+                  onAutoFocusHandled={clearFocusService}
+                />
+              </div>
+            ))}
+            <ServiceForm onDone={() => void loadAll()} />
+          </section>
+        </div>
       </CardContent>
     </Card>
   );
@@ -379,7 +387,7 @@ function CityForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm font-medium">Добавить / обновить город</p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <input
           className="input-base"
           placeholder="Код (moscow, spb)"
@@ -518,7 +526,7 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm font-medium">Добавить / обновить филиал</p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <select
           className="input-base"
           value={cityCode}
@@ -540,21 +548,21 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
           disabled={isPending}
         />
         <input
-          className="input-base col-span-2"
+          className="input-base sm:col-span-2"
           placeholder="Название филиала"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={isPending}
         />
         <input
-          className="input-base col-span-2"
+          className="input-base sm:col-span-2"
           placeholder="Адрес (необязательно)"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           disabled={isPending}
         />
         <input
-          className="input-base col-span-2 font-mono text-[11px]"
+          className="input-base sm:col-span-2 font-mono text-[11px]"
           placeholder="Europe/Moscow"
           value={timezone}
           onChange={(e) => setTimezone(e.target.value)}
@@ -677,10 +685,10 @@ function ServiceEditor({
 
   return (
     <div className="mt-1 flex flex-col gap-1">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <input
           ref={titleInputRef}
-          className="input-base col-span-2"
+          className="input-base sm:col-span-2"
           placeholder="Название"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -705,7 +713,7 @@ function ServiceEditor({
           disabled={isPending}
         />
         <input
-          className="input-base col-span-2"
+          className="input-base sm:col-span-2"
           placeholder="Описание (необязательно)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -781,9 +789,9 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm font-medium">Добавить услугу</p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <input
-          className="input-base col-span-2"
+          className="input-base sm:col-span-2"
           placeholder="Название"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -808,7 +816,7 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
           disabled={isPending}
         />
         <input
-          className="input-base col-span-2"
+          className="input-base sm:col-span-2"
           placeholder="Описание (необязательно)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -873,9 +881,9 @@ function SpecialistForm({
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm font-medium">Добавить / обновить специалиста</p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <select
-          className="input-base col-span-2"
+          className="input-base sm:col-span-2"
           value={branchId}
           onChange={(e) => setBranchId(e.target.value)}
           disabled={isPending}
@@ -902,7 +910,7 @@ function SpecialistForm({
           disabled={isPending}
         />
         <input
-          className="input-base col-span-2"
+          className="input-base sm:col-span-2"
           placeholder="Описание (необязательно)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}

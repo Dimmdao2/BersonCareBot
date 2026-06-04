@@ -19,6 +19,7 @@ function appt(partial: Partial<AppointmentRow> & Pick<AppointmentRow, "id">): Ap
     rubitimeNameIfDifferent: null,
     time: "",
     recordAtIso: null,
+    dateKey: "",
     type: "",
     status: "",
     link: null,

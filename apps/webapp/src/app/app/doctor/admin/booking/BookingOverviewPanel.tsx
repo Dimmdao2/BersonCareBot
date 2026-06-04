@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BOOKING_ADMIN_BASE } from "@/app/app/doctor/admin/booking/bookingAdminTabs";
 import type { BookingAdminOverviewData } from "@/app/app/doctor/admin/booking/loadBookingAdminOverview";
 import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
@@ -39,30 +37,6 @@ export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData 
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Быстрые действия</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-1 text-sm">
-            <Link href={`${BOOKING_ADMIN_BASE}/locations`} className="text-primary hover:underline">
-              Добавить локацию
-            </Link>
-            <Link href={`${BOOKING_ADMIN_BASE}/services`} className="text-primary hover:underline">
-              Добавить услугу
-            </Link>
-            <Link href={`${BOOKING_ADMIN_BASE}/schedule`} className="text-primary hover:underline">
-              Настроить расписание
-            </Link>
-            <Link href={`${BOOKING_ADMIN_BASE}/schedule`} className="text-primary hover:underline">
-              Проверить слоты
-            </Link>
-            {stats.bridgeEnabled ? (
-              <Link href={`${BOOKING_ADMIN_BASE}/integrations`} className="text-primary hover:underline">
-                Rubitime-маппинг
-              </Link>
-            ) : null}
-          </CardContent>
-        </Card>
       </div>
 
       {warnings.length > 0 ? (

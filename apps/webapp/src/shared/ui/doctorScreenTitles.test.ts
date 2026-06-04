@@ -68,9 +68,17 @@ describe("getDoctorScreenTitle", () => {
     expect(getDoctorScreenTitle("/app/doctor/unknown-section")).toBe("Кабинет");
   });
   it("returns booking admin titles for subpaths", () => {
-    expect(getDoctorScreenTitle("/app/doctor/admin/booking")).toBe("Запись");
-    expect(getDoctorScreenTitle("/app/doctor/admin/booking/locations")).toBe("Запись — Локации");
-    expect(getDoctorScreenTitle("/app/doctor/admin/booking/catalog")).toBe("Запись — Локации");
-    expect(getDoctorScreenTitle("/app/doctor/admin/booking/operations")).toBe("Запись — Операции");
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking")).toBe("Настройки записи");
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking/form-public")).toBe(
+      "Настройки записи — Форма и публичная запись",
+    );
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking/payments")).toBe("Настройки записи — Оплата");
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking/integrations")).toBe(
+      "Настройки записи — Интеграция Rubitime",
+    );
+    // Legacy и несуществующие маршруты → overview
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking/catalog")).toBe("Настройки записи");
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking/locations")).toBe("Настройки записи");
+    expect(getDoctorScreenTitle("/app/doctor/admin/booking/operations")).toBe("Настройки записи");
   });
 });

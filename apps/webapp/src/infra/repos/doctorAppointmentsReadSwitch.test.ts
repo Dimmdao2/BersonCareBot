@@ -7,7 +7,7 @@ import type { DoctorAppointmentsPort } from "@/modules/doctor-appointments/ports
 
 function mockPort(tag: string): DoctorAppointmentsPort {
   return {
-    listAppointmentsForSpecialist: vi.fn(async () => [{ id: tag, clientUserId: "", clientLabel: tag, time: "", recordAtIso: null, type: "", status: "", link: null, cancellationCountForClient: 0, branchName: null, rubitimeNameIfDifferent: null }]),
+    listAppointmentsForSpecialist: vi.fn(async () => [{ id: tag, clientUserId: "", clientLabel: tag, time: "", recordAtIso: null, dateKey: "", type: "", status: "", link: null, cancellationCountForClient: 0, branchName: null, rubitimeNameIfDifferent: null }]),
     getAppointmentStats: vi.fn(async () => ({ total: 1, cancellations: 0, cancellations30d: 0, reschedules: 0 })),
     getDashboardAppointmentMetrics: vi.fn(async () => ({
       futureActiveCount: 1,

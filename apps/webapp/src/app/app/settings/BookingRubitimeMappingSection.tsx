@@ -25,6 +25,7 @@ import type {
   RubitimeMappingRow,
   RubitimeMappingStatusCode,
   RubitimeSsaDuplicateGroup,
+  RubitimeSsaDuplicateRow,
 } from "@/modules/rubitime-mapping/types";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
@@ -80,6 +81,20 @@ function formatIsoDate(iso: string): string {
   const dt = new Date(iso);
   if (Number.isNaN(dt.getTime())) return iso;
   return dt.toLocaleString("ru-RU");
+}
+
+function pluralizeRu(count: number, one: string, few: string, many: string): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+function duplicateRowSummary(row: RubitimeSsaDuplicateRow): string {
+  const mapping = row.hasMapping ? "есть связь Rubitime" : "без связи Rubitime";
+  const state = row.isActive ? "включена" : "отключена";
+  return `${mapping}, ${state}, создана ${formatIsoDate(row.createdAt)}`;
 }
 
 export function BookingRubitimeMappingSection() {
@@ -333,14 +348,21 @@ export function BookingRubitimeMappingSection() {
 
       <DoctorSection>
         <DoctorSectionHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-          <DoctorSectionTitle>Дубли доступности (SSA)</DoctorSectionTitle>
+          <DoctorSectionTitle>Повторяющиеся связи локация × услуга</DoctorSectionTitle>
           <div className="flex items-center gap-2">
-            <Badge variant={duplicateGroupsCount > 0 ? "outline" : "secondary"}>{duplicateGroupsCount}</Badge>
+            <Badge variant={duplicateGroupsCount > 0 ? "outline" : "secondary"}>
+              {duplicateGroupsCount}{" "}
+              {pluralizeRu(duplicateGroupsCount, "группа", "группы", "групп")}
+            </Badge>
             <Button variant="default" size="sm" onClick={() => void loadDuplicates()} disabled={duplicatesLoading}>
               {duplicatesLoading ? "Загрузка…" : "Обновить"}
             </Button>
           </div>
         </DoctorSectionHeader>
+        <p className="text-sm text-muted-foreground">
+          Группа — это одна локация и услуга, для которых в базе есть несколько внутренних строк доступности. После
+          очистки останется выбранная связь, остальные будут отключены.
+        </p>
 
         {duplicateLoadError ? <p className="text-sm text-destructive">{duplicateLoadError}</p> : null}
         {duplicateActionError ? <p className="text-sm text-destructive">{duplicateActionError}</p> : null}
@@ -353,8 +375,8 @@ export function BookingRubitimeMappingSection() {
               <thead className="bg-muted/50">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">Пара</th>
-                  <th className="px-3 py-2 text-left font-medium">Записи</th>
-                  <th className="px-3 py-2 text-left font-medium">Оставить</th>
+                  <th className="px-3 py-2 text-left font-medium">Найденные связи</th>
+                  <th className="px-3 py-2 text-left font-medium">Какая связь останется</th>
                   <th className="px-3 py-2 text-right font-medium">Действие</th>
                 </tr>
               </thead>
@@ -372,19 +394,29 @@ export function BookingRubitimeMappingSection() {
                           {group.branchTitle} · {group.serviceTitle}
                         </p>
                         <p className="text-xs text-muted-foreground">{group.specialistName ?? "Без специалиста"}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {group.rows.length}{" "}
+                          {pluralizeRu(group.rows.length, "строка", "строки", "строк")} для одной пары
+                        </p>
                       </td>
                       <td className="px-3 py-2">
                         <ul className="m-0 list-none space-y-1 p-0">
                           {group.rows.map((row) => (
                             <li key={row.ssaId} className="flex flex-wrap items-center gap-2 text-xs">
-                              <span className="font-mono text-[11px]">{row.ssaId}</span>
                               <Badge variant={row.isActive ? "secondary" : "outline"}>
-                                {row.isActive ? "active" : "inactive"}
+                                {row.isActive ? "Включена" : "Отключена"}
                               </Badge>
                               <Badge variant={row.hasMapping ? "secondary" : "outline"}>
-                                {row.hasMapping ? `mapped ${row.rubitimeServiceId ?? ""}`.trim() : "no mapping"}
+                                {row.hasMapping ? "Есть связь Rubitime" : "Без связи Rubitime"}
                               </Badge>
+                              {row.ssaId === group.recommendedKeepSsaId ? (
+                                <Badge variant="outline">Рекомендуется оставить</Badge>
+                              ) : null}
                               <span className="text-muted-foreground">{formatIsoDate(row.createdAt)}</span>
+                              {row.rubitimeServiceId ? (
+                                <span className="text-muted-foreground">Rubitime #{row.rubitimeServiceId}</span>
+                              ) : null}
+                              <span className="font-mono text-[11px] text-muted-foreground">ID {row.ssaId}</span>
                             </li>
                           ))}
                         </ul>
@@ -400,18 +432,15 @@ export function BookingRubitimeMappingSection() {
                         >
                           <SelectTrigger
                             displayLabel={
-                              selected
-                                ? `${selected.ssaId} · ${selected.hasMapping ? "mapped" : "no mapping"}`
-                                : selectedKeep
+                              selected ? duplicateRowSummary(selected) : selectedKeep
                             }
                           >
-                            <SelectValue placeholder="Выберите SSA" />
+                            <SelectValue placeholder="Выберите связь" />
                           </SelectTrigger>
                           <SelectContent>
                             {group.rows.map((row) => (
-                              <SelectItem key={row.ssaId} value={row.ssaId}>
-                                {row.ssaId} · {row.hasMapping ? "mapped" : "no mapping"} ·{" "}
-                                {row.isActive ? "active" : "inactive"}
+                              <SelectItem key={row.ssaId} value={row.ssaId} label={duplicateRowSummary(row)}>
+                                {duplicateRowSummary(row)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -424,7 +453,7 @@ export function BookingRubitimeMappingSection() {
                           disabled={running}
                           onClick={() => void resolveDuplicateGroup(group)}
                         >
-                          {running ? "Чищу…" : "Оставить выбранную"}
+                          {running ? "Очищаю…" : "Очистить дубли"}
                         </Button>
                       </td>
                     </tr>

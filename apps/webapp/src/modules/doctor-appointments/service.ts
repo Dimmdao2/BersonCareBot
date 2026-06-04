@@ -12,10 +12,13 @@ export function createDoctorAppointmentsService(deps: DoctorAppointmentsServiceD
       const rows = await deps.appointmentsPort.listAppointmentsForSpecialist(filter);
       const tz = await getAppDisplayTimeZone();
       return rows.map((row) => {
+        const dateKey = row.recordAtIso
+          ? new Intl.DateTimeFormat("sv-SE", { timeZone: tz }).format(new Date(row.recordAtIso))
+          : "";
         if (row.recordAtIso) {
-          return { ...row, time: formatDoctorAppointmentRecordAt(row.recordAtIso, tz) };
+          return { ...row, time: formatDoctorAppointmentRecordAt(row.recordAtIso, tz), dateKey };
         }
-        return row;
+        return { ...row, dateKey };
       });
     },
     async getAppointmentStats(filter: Parameters<DoctorAppointmentsPort["getAppointmentStats"]>[0]) {

@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gt, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, lt, lte, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   beAppointments,
@@ -91,6 +91,7 @@ function mapListRow(row: ListRow): AppointmentRow {
     rubitimeNameIfDifferent: null,
     time: "",
     recordAtIso: row.startAt,
+    dateKey: "",
     type: row.serviceTitle?.trim() || "Запись",
     status: appointmentStatusLabel(row.status as AppointmentStatus),
     link: null,
@@ -166,6 +167,20 @@ export function createPgDoctorCanonicalAppointmentsPort(
             ),
           )
           .orderBy(asc(beAppointments.startAt));
+      } else if (filter.kind === "past") {
+        const nowIso = new Date().toISOString();
+        const limit = filter.limit ?? 50;
+        const offset = filter.offset ?? 0;
+        rows = await db
+          .select(listSelect)
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+          .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .where(and(base, lt(beAppointments.startAt, nowIso)))
+          .orderBy(desc(beAppointments.startAt))
+          .limit(limit)
+          .offset(offset);
       } else {
         rows = await db
           .select(listSelect)

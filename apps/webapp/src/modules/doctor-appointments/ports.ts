@@ -13,7 +13,9 @@ export type DoctorAppointmentsListFilter =
   | { kind: "range"; range: DoctorAppointmentsStatsRange }
   | { kind: "futureActive" }
   | { kind: "recordsInCalendarMonth" }
-  | { kind: "cancellationsInCalendarMonth" };
+  | { kind: "cancellationsInCalendarMonth" }
+  /** Прошедшие записи с пагинацией для архива. */
+  | { kind: "past"; limit?: number; offset?: number };
 
 /** Строка записи в списке специалиста. */
 export type AppointmentRow = {
@@ -23,6 +25,8 @@ export type AppointmentRow = {
   time: string;
   /** Момент записи (UTC ISO); если задан, сервис пересчитывает `time` в бизнес-таймзоне. */
   recordAtIso: string | null;
+  /** Дата записи в бизнес-таймзоне (YYYY-MM-DD); "" если recordAtIso == null. Для группировки по датам. */
+  dateKey: string;
   type: string;
   status: string;
   link: string | null;

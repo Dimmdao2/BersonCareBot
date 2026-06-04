@@ -106,7 +106,9 @@ describe("BookingRubitimeMappingSection", () => {
   it("renders mapping section with summary and configure action", async () => {
     render(<BookingRubitimeMappingSection />);
     expect(await screen.findByText("Связи локация × услуга")).toBeInTheDocument();
-    expect(await screen.findByText("Дубли доступности (SSA)")).toBeInTheDocument();
+    expect(await screen.findByText("Повторяющиеся связи локация × услуга")).toBeInTheDocument();
+    expect(await screen.findByText("1 группа")).toBeInTheDocument();
+    expect(await screen.findByText("2 строки для одной пары")).toBeInTheDocument();
     expect(screen.getByText("Всего пар")).toBeInTheDocument();
     expect(screen.getByText("Проблемы")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Настроить" })).toBeInTheDocument();

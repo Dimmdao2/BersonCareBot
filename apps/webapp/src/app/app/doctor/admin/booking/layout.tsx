@@ -8,7 +8,7 @@ export default async function DoctorAdminBookingLayout({ children }: { children:
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <h1 className="text-xl font-semibold">Запись</h1>
+      <h1 className="text-xl font-semibold">Настройки записи</h1>
       <BookingAdminTabsNav />
       {children}
     </div>

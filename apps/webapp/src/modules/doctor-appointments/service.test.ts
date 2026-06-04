@@ -17,6 +17,7 @@ describe("doctor-appointments service", () => {
             clientLabel: "Иван",
             time: "10:00",
             recordAtIso: null,
+            dateKey: "",
             type: "Консультация",
             status: "подтверждена",
             link: null,
@@ -69,6 +70,7 @@ describe("doctor-appointments service", () => {
             clientLabel: "Пётр",
             time: "",
             recordAtIso: "2026-01-15T07:00:00.000Z",
+            dateKey: "",
             type: "Сеанс",
             status: "created",
             link: null,
@@ -90,6 +92,46 @@ describe("doctor-appointments service", () => {
     const list = await svc.listAppointmentsForSpecialist({ kind: "range", range: "today" });
     expect(list).toHaveLength(1);
     expect(list[0].time).toBe("10:00 15.01");
+  });
+
+  it("listAppointmentsForSpecialist sets dateKey from recordAtIso in business timezone", async () => {
+    const portWithIso: DoctorAppointmentsPort = {
+      async listAppointmentsForSpecialist() {
+        return [
+          {
+            id: "apt-3",
+            clientUserId: "user-3",
+            clientLabel: "Мария",
+            time: "",
+            recordAtIso: "2026-01-15T07:00:00.000Z",
+            dateKey: "",
+            type: "Сеанс",
+            status: "created",
+            link: null,
+            cancellationCountForClient: 0,
+            branchName: null,
+            rubitimeNameIfDifferent: null,
+          },
+        ];
+      },
+      async getAppointmentStats() {
+        return { total: 0, cancellations: 0, cancellations30d: 0, reschedules: 0 };
+      },
+      async getDashboardAppointmentMetrics() {
+        return { futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0 };
+      },
+    };
+
+    const svc = createDoctorAppointmentsService({ appointmentsPort: portWithIso });
+    const list = await svc.listAppointmentsForSpecialist({ kind: "range", range: "today" });
+    expect(list).toHaveLength(1);
+    // 2026-01-15T07:00:00.000Z = 2026-01-15 10:00 в Europe/Moscow (UTC+3)
+    expect(list[0].dateKey).toBe("2026-01-15");
+  });
+
+  it("listAppointmentsForSpecialist sets empty dateKey when recordAtIso is null", async () => {
+    const list = await service.listAppointmentsForSpecialist({ kind: "range", range: "today" });
+    expect(list[0].dateKey).toBe("");
   });
 
   it("getAppointmentStats returns port result", async () => {

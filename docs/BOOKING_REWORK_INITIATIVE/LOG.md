@@ -1,5 +1,62 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-04 — Этап 5: агентская реализация (код + документация)
+
+**Контекст:** реализация принятой IA по замечаниям владельца. Базис — блок «Принято владельцем» и «Решения владельца» ниже. Агентская часть выполнена, ожидает ручного прохода и подписи. Чек-лист: [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md).
+
+### Сделано (код)
+
+**Блок A — Admin «Настройки записи»:**
+- `bookingAdminTabs.ts`: 12 вкладок → 4 (`overview`, `form-public`, `payments`, `integrations`); legacy `/catalog` → alias на overview.
+- `layout.tsx`: заголовок «Запись» → «Настройки записи».
+- `page.tsx` (overview): прокрутка — `BookingCatalogHelp` (runbook с якорными ссылками) → `BookingOverviewPanel` → `BookingSoloLocationsSection` → grid(services, availability) → `BookingRulesPageClient`.
+- `BookingOverviewPanel`: удалена карточка «Быстрые действия».
+- `BookingCatalogHelp`: все шаги runbook — кликабельные ссылки.
+- `form-public/page.tsx`: создан (форма + виджет + attribution).
+- Удалены route-папки: `locations/`, `services/`, `availability/`, `schedule/`, `form/`, `rules/`, `memberships/`, `public/`, `operations/`.
+
+**Блок B — Навигация:**
+- `doctorNavLinks.ts`: `admin-booking` метка «Запись» → «Настройки записи»; `booking-merge` перенесён из «Работа с пациентами» в «Администрирование».
+- `doctorScreenTitles.ts`: все шаблоны заголовков обновлены; `doctorScreenTitles.test.ts` обновлён под 4-вкладочную структуру.
+
+**Блок C — Страница «Записи» врача:**
+- `ports.ts`: `AppointmentRow.dateKey`, `DoctorAppointmentsListFilter { kind: "past"; limit?; offset? }`.
+- `service.ts`: `dateKey` вычисляется из `recordAtIso` в `Intl.DateTimeFormat("sv-SE", { timeZone })`.
+- `pgDoctorAppointments.ts` (legacy) + `pgDoctorCanonicalAppointments.ts` (Drizzle): реализован `case "past"` с `ORDER BY DESC`, `LIMIT/OFFSET`.
+- `DoctorAppointmentsListClient.tsx`: группировка по `dateKey`; sort ASC для `future`, DESC для `past`; ленивая подгрузка архива через `GET /api/doctor/appointments/list`.
+- `DoctorCreateAppointmentDialog.tsx`: dialog — пациент + услуга + локация + datetime → POST `/api/doctor/booking-engine/appointments/manual`.
+- `DoctorAppointmentsToolbar.tsx`: вкладки «Записи» / «Расписание» (schedule — только admin); кнопка «Создать запись».
+- `appointments/page.tsx`: RSC; `?tab=` + `?view=`; schedule sections в guard `role=admin`.
+- `GET /api/doctor/appointments/list`: новый endpoint, auth-guard, пагинация.
+
+**Исправления после аудита кода:**
+- Удалены неиспользуемые `useRouter`/`router` и prop `isAdmin` из `DoctorAppointmentsListClient`.
+- Удалён неиспользуемый `useRef` из `DoctorCreateAppointmentDialog`.
+- Исправлен порядок сортировки групп в архиве (ASC → DESC).
+- Обновлён `doctorScreenTitles.test.ts` (тест для старых вкладок упал → исправлен).
+- Удалён мёртвый код `BookingOperationsPageClient.tsx`.
+
+### Сделано (документация)
+
+- `DOCTOR_CABINET_NAVIGATION.md`: обновлены кластер «Администрирование» (строка 25), маршрут `/appointments` (строка 35, новые params), admin booking (строка 47, 4 вкладки вместо 9).
+- `INVENTORY_AND_IA.md`: добавлена §1a «Навигация после этапа 5».
+- `ACCEPTANCE_STAGE5.md`: создан.
+- `ROADMAP.md`: этап 5 `pending` → `in_progress`; §11 — ссылка на ACCEPTANCE_STAGE5.
+
+### Авто-проверки
+
+- vitest: 42/42 (fast); `tsc --noEmit`: 0 ошибок; `eslint --max-warnings=0`: 0 предупреждений.
+
+### Не делали / defer / открытые вопросы
+
+- Создание абонементов на `/appointments` — не реализовано; ожидает решения владельца.
+- Nav label «Записи» vs «Запись» — открытый вопрос.
+- Touch long-press / resize smoke — defer из этапа 4.
+- Warning при resize ≠ длительность услуги — defer (решение владельца §«Решения»).
+- Ops: prod cutover `booking_doctor_appointments_read_source=canonical` — отдельный ops-журнал.
+
+---
+
 ## 2026-06-04 — Этап 5: проход UI владельца (замечания, кабинет записи)
 
 **Контекст:** ручной просмотр `/app/doctor/admin/booking` (вкладка «Обзор» и навигация по 12 вкладкам). Этап 5 в ROADMAP — `pending`; инициатива не закрывается без явного «Новый интерфейс записи принят».
@@ -43,12 +100,33 @@
 
 **Расписание (рабочие часы, исключения):** настройка — в «Обзор и настройка» или подрежим календаря; **просмотр/редактирование дня** — в рабочей зоне с календарём, не отдельная admin-вкладка «Расписание».
 
-### Открытые вопросы (реализация)
+### Решения владельца (2026-06-04, ответы на вопросы реализации)
 
-- Точный **маршрут** рабочей «Запись»: только расширение `/app/doctor/calendar` или отдельный `/app/doctor/appointments` + редиректы.
-- **Правила** на экране настройки: одна прокрутка vs внутренние табы.
-- **Каталог абонементов** (CRUD пакетов): только настройки vs дубль в doctor — подтвердить при реализации.
-- Редиректы legacy URL admin booking; `ACCEPTANCE_STAGE5.md`.
+| Тема | Решение |
+|------|---------|
+| Календарь vs «Запись» | **Отдельно.** Календарь не в правую колонку списка — на экран не влезает. |
+| Admin nav | Пункт **«Настройки записи»** (не «Запись»). |
+| Ручное создание / перенос / отмена | Только **работа врача** → страница **«Запись»** (`/app/doctor/appointments` или переименование), не admin. |
+| Список слева | Без выбранной записи — нормальные **фильтры** (дни/даты); по умолчанию **будущие**, сгруппированные **по датам**; отдельно **архив** (прошедшие). |
+| Настройка расписания (часы, исключения) | У **врача**, не в admin «Настройки записи». |
+| «Обзор и настройка» (admin) | Одна **прокрутка**; на desktop блоки в **два ряда**, где нет широких таблиц. |
+| Правила абонементов (past unlink и т.п.) | Остаются в **настройках записи** (редко меняются). |
+| **Создание** абонементов (регулярная работа) | На **странице «Запись» врача**, не в admin. |
+| Legacy URL admin booking | **Не нужны** редиректы. |
+| Мердж пациентов | **Убрать** из главного меню врача; это **админская** задача, не отдельная вкладка «настройки записи» — разместить в общей **админ-зоне** (куда именно — при реализации). |
+| `ACCEPTANCE_STAGE1` (старый список 12 вкладок) | Пометить как архив: приёмка перенесена в этап 5; пункт навигации stage1 считать закрытым как historical baseline. |
+| Warning при resize (duration ≠ service default) | Пока **не делать**; оставить в defer без блокировки этапа 5. |
+
+**Уточнённая карта (код ещё не совпадает):**
+
+- **Admin:** «Настройки записи» — обзор+каталог+правила (вкл. правила абонементов), форма+публичная, оплата, Rubitime. **Без** расписания, **без** операций, **без** мерджа.
+- **Врач:** «Календарь» (отдельно); «Запись» — список+фильтры+архив, панель действий, ручной lifecycle, **создание абонементов**; **настройка расписания** — у врача (маршрут уточнить: календарь toolbar vs подраздел «Запись»).
+
+### Открытые вопросы (осталось)
+
+- Где именно в **админке** (не booking): «Мердж пациентов» — `admin/integrations`, `admin/technical`, отдельный пункт «Администрирование»?
+- **Настройка расписания** у врача: отдельная вкладка внутри «Запись», кнопка из календаря, или оба?
+- Переименование nav: «Записи» → «Запись» и слияние с текущим `/appointments`?
 
 ---
 

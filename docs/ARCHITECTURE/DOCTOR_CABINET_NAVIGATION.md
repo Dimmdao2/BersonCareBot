@@ -1,6 +1,6 @@
 # Навигация кабинета специалиста (webapp)
 
-**Актуально с 2026-05.** Источник правды в коде: `apps/webapp/src/shared/ui/doctorNavLinks.ts`, заголовки экранов — `doctorScreenTitles.ts`.
+**Актуально с 2026-06 (этап 5).** Источник правды в коде: `apps/webapp/src/shared/ui/doctorNavLinks.ts`, заголовки экранов — `doctorScreenTitles.ts`.
 
 ## `/app/settings`
 
@@ -22,7 +22,7 @@
 | Контент | Главная пациента, материалы, библиотека файлов |
 | Аналитика *(admin)* | По клиентам, по контенту, по уведомлениям, Использование |
 | Система *(admin)* | Здоровье системы, архив сбоев, журнал операций |
-| Администрирование *(admin)* | Настройки приложения, авторизация, интеграции, запись/Rubitime, технические режимы |
+| Администрирование *(admin)* | Настройки приложения, авторизация, интеграции, **Настройки записи**, технические режимы, **Мердж пациентов** |
 
 Пункты с `requiresAdminMode: true` видны только при `role === admin`.
 
@@ -32,7 +32,7 @@
 |------------|-----|------------|
 | Сегодня (рабочий inbox) | `/app/doctor` | KPI + очереди; см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md) |
 | Календарь записей | `/app/doctor/calendar` | Read switch: `appointment_records` (default) или `be_appointments` (`booking_doctor_appointments_read_source`); API `/api/doctor/booking-engine/calendar` (`readSource`, `freeSlotsEnabled`) |
-| Список записей | `/app/doctor/appointments` | Канон `be_appointments` (`pgDoctorCanonicalAppointments`); `?view=future\|month\|cancellationsMonth` |
+| Список записей | `/app/doctor/appointments` | `?tab=appointments\|schedule` · `?view=future\|past`; tab=**schedule** — только admin; RSC fetch через `DoctorAppointmentsReadSwitch`; API пагинации архива: `GET /api/doctor/appointments/list?view=past&offset=N` |
 | Аналитика по клиентам | `/app/doctor/analytics/clients` | Бывш. `/app/doctor/stats`; графики регистраций/подписчиков |
 | Статистика (legacy URL) | `/app/doctor/stats` | **Редирект** → `analytics/clients` |
 | По контенту | `/app/doctor/material-ratings` | Оценки материалов |
@@ -44,7 +44,7 @@
 | Параметры приложения | `/app/doctor/admin/app-settings` | |
 | Авторизация | `/app/doctor/admin/auth` | |
 | Интеграции | `/app/doctor/admin/integrations` | |
-| Запись | `/app/doctor/admin/booking` | URL-вкладки (`bookingAdminTabs.ts`): обзор, каталог BE, доступность, расписание, форма, правила, оплата, публичная, операции; API `/api/admin/booking-engine/*`; read sources, working hours, schedule blocks |
+| Настройки записи | `/app/doctor/admin/booking` | **4 вкладки** (`bookingAdminTabs.ts`): «Обзор и настройка» (локации, услуги, доступность, правила абонементов), «Форма и публичная запись», «Оплата», «Интеграция Rubitime»; API `/api/admin/booking-engine/*`; расписание — у врача (`/appointments?tab=schedule`) |
 | Запись → Интеграции (Rubitime catalog v2) | `/app/doctor/admin/booking/integrations` | **`RubitimeSection`** — справочник `booking_*` через `/api/admin/booking-catalog/*` (город → филиал → услуга → специалист → branch-service); inline PATCH услуг, форма «Создать услугу»; план [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md) |
 | Технические режимы | `/app/doctor/admin/technical` | |
 

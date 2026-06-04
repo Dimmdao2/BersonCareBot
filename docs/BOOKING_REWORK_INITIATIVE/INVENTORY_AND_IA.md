@@ -7,6 +7,39 @@
 
 ---
 
+## 1a. Навигация после этапа 5 (актуально, 2026-06-04)
+
+> §1 ниже — исторический baseline этапа 0; актуальная структура описана здесь.
+
+### Настройки записи (`/app/doctor/admin/booking`) — 4 вкладки
+
+| # | Вкладка | Маршрут | Основные компоненты |
+|---|---------|---------|---------------------|
+| 1 | Обзор и настройка | `/app/doctor/admin/booking` | `BookingCatalogHelp` (runbook с якорными ссылками), `BookingOverviewPanel` (stats), `BookingSoloLocationsSection`, `BookingSoloServicesSection`, `BookingSoloAvailabilitySection`, `BookingRulesPageClient` |
+| 2 | Форма и публичная запись | `…/form-public` | `BookingSoloFormFieldsSection`, `BookingPublicWidgetSection`, `BookingPublicAttributionSection` |
+| 3 | Оплата | `…/payments` | `BookingPaymentsSection`, `BookingPrepaymentSection` |
+| 4 | Интеграция Rubitime | `…/integrations` | `BookingEngineSection mode="integrations"`, `RubitimeSection` |
+
+Удалены route-папки: `locations/`, `services/`, `availability/`, `schedule/`, `form/`, `rules/`, `memberships/`, `public/`, `operations/`.  
+Legacy `/catalog` редиректит на overview (`LEGACY_TAB_ALIASES`).
+
+### Рабочая зона «Записи» (`/app/doctor/appointments`)
+
+| Параметр | Значения | Описание |
+|----------|----------|----------|
+| `?tab=` | `appointments` (default) \| `schedule` | `schedule` — только `role=admin` |
+| `?view=` | `future` (default) \| `past` | Только для tab=appointments |
+
+Компоненты: `DoctorAppointmentsToolbar`, `DoctorAppointmentsListClient` (группировка по `dateKey`, sort: asc для future, desc для past; ленивая подгрузка архива через `GET /api/doctor/appointments/list`), `DoctorCreateAppointmentDialog`.  
+Tab=schedule: `BookingSoloScheduleSection`, `BookingScheduleBlocksSection`, `BookingScheduleSlotsProbeSection`.
+
+### Меню (`doctorNavLinks.ts`) — ключевые изменения этапа 5
+
+- Кластер «Администрирование»: пункт переименован «Запись» → **«Настройки записи»**.
+- «Мердж пациентов» (`booking-merge`) перенесён из кластера «Работа с пациентами» → «Администрирование» (`requiresAdminMode: true`).
+
+---
+
 ## 1. Текущая навигация
 
 Базовый путь: `/app/doctor/admin/booking`  
@@ -133,29 +166,30 @@ API админки записи: `/api/admin/booking-engine/*` (канон), `/a
 
 **Принято владельцем (этап 5, 2026-06-04):** см. [`LOG.md`](LOG.md) §«Принято владельцем». Код ещё на 12 вкладках — целевая IA ниже.
 
-**Настройки** — `/app/doctor/admin/booking` (только конфигурация):
+**Admin (пункт меню «Настройки записи»)** — `/app/doctor/admin/booking`:
 
 ```text
 /app/doctor/admin/booking
-├── Обзор и настройка              ← runbook (ссылки в шагах), метрики, локации, услуги, доступность, правила
+├── Обзор и настройка    ← прокрутка, 2 колонки на desktop: runbook, локации, услуги, доступность,
+│                          правила записи + правила абонементов (редкие политики)
 ├── Форма и публичная запись
 ├── Оплата
 └── Интеграция Rubitime
 ```
 
-**Работа врача** — не в admin booking:
+**Не в настройках записи:** расписание (часы/исключения), ручной lifecycle, мердж пациентов, ежедневное создание абонементов.
+
+**Врач (обычный режим, не admin booking):**
 
 ```text
-/app/doctor/calendar (и/или единая рабочая «Запись»)
-├── Календарь / сетка + рабочее время
-├── Список актуальных записей (слева) + панель действий (справа)
-└── Клик по записи → детали + перенос / отмена / …
-
-/app/doctor/clients/[id]  (и смежные зоны кабинета)
-└── Абонементы и продукты пациента (продажа, списание, отвязка) — не admin «Операции»
+/app/doctor/calendar              ← отдельно: сетка, DnD, деталь записи
+/app/doctor/appointments          ← «Запись»: список (будущие по датам + архив + фильтры),
+│                                   справа действия; создание/перенос/отмена; создание абонементов
+│                                   (настройка расписания — здесь или из календаря, TBD)
+/app/doctor/clients/[id]          ← работа с абонементом пациента (списание, отвязка, сеансы)
 ```
 
-**Убрать из продукта:** вкладка «Операции» в настройках; термин «операции» как название вкладки. Manual lifecycle → рабочая «Запись»; merge → существующий пункт «Объединение пациентов».
+**Убрать:** «Мердж пациентов» из главного меню врача → перенести в общую админ-зону (не вкладка booking). Legacy URL редиректы — не делать.
 
 ```text
 /app/doctor/admin/booking

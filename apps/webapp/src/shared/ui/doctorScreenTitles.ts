@@ -17,7 +17,7 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/admin/app-settings": "Настройки приложения",
     "/app/doctor/admin/auth": "Авторизация",
     "/app/doctor/admin/integrations": "Интеграции",
-    "/app/doctor/admin/booking": "Запись",
+    "/app/doctor/admin/booking": "Настройки записи",
     "/app/doctor/admin/technical": "Технические режимы",
     "/app/doctor/clients": "Клиенты",
     "/app/doctor/appointments": "Записи",
@@ -56,8 +56,8 @@ export function getDoctorScreenTitle(pathname: string): string {
   if (p === BOOKING_ADMIN_BASE || p.startsWith(`${BOOKING_ADMIN_BASE}/`)) {
     const tabId = bookingAdminTabFromPathname(p);
     const tab = BOOKING_ADMIN_TABS.find((t) => t.id === tabId);
-    if (tab && tab.id !== "overview") return `Запись — ${tab.label}`;
-    return "Запись";
+    if (tab && tab.id !== "overview") return `Настройки записи — ${tab.label}`;
+    return "Настройки записи";
   }
 
   if (p === "/app/doctor/subscribers") return "Клиенты";
