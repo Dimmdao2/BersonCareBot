@@ -259,7 +259,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
   const selectedPkg = packages.find((p) => p.id === consumePackageId);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {compact.length === 0 ? (

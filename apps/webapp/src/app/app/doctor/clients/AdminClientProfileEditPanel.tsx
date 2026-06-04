@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 
 type Props = {
   userId: string;
@@ -123,7 +124,7 @@ export function AdminClientProfileEditPanel({
       aria-labelledby={embedded ? undefined : "admin-client-profile-edit-heading"}
     >
       {embedded ? null : (
-        <h2 id="admin-client-profile-edit-heading" className="text-base font-semibold">
+        <h2 id="admin-client-profile-edit-heading" className={doctorClientSectionTitleClass}>
           Данные клиента (админ)
         </h2>
       )}

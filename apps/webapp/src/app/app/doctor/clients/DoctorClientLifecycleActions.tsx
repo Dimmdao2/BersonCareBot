@@ -3,6 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from "./doctorClientCardChrome";
 
 /** Ответ успешного POST permanent-delete (фрагмент `details` из strict purge). */
 type PermanentDeleteDetails = {
@@ -198,10 +203,10 @@ export function DoctorClientLifecycleActions({
 
   return (
     <section
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-3 border-amber-500/30"
+      className={cn(doctorClientOverviewPrimaryCardClass, "border-amber-500/30")}
       aria-labelledby="doctor-client-lifecycle-heading"
     >
-      <h2 id="doctor-client-lifecycle-heading" className="text-base font-semibold">
+      <h2 id="doctor-client-lifecycle-heading" className={doctorClientSectionTitleClass}>
         Учётная запись
       </h2>
       <p className="text-muted-foreground text-sm">

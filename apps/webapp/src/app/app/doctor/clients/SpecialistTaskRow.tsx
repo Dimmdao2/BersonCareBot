@@ -3,6 +3,7 @@
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getDoctorSectionItemClass } from "@/shared/ui/doctorVisual";
 import type { SpecialistTaskRow as Task } from "@/modules/specialist-tasks/types";
 import { isSpecialistTaskOverdue } from "@/modules/specialist-tasks/taskPriority";
 
@@ -27,8 +28,8 @@ export function SpecialistTaskRow({ task, onComplete, onEdit, busy }: Props) {
   return (
     <li
       className={cn(
-        "flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between",
-        overdue || task.isImportant ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/15",
+        "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between",
+        getDoctorSectionItemClass(overdue || task.isImportant ? "urgent" : "neutral"),
       )}
     >
       <div className="min-w-0 flex-1">

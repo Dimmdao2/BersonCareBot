@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 import { cn } from "@/lib/utils";
 import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
 import {
@@ -515,7 +516,7 @@ export function AdminMergeAccountsPanel({
 
   return (
     <div className="flex flex-col gap-3" role="region" aria-labelledby="admin-merge-accounts-heading">
-      <h2 id="admin-merge-accounts-heading" className="text-base font-semibold">
+      <h2 id="admin-merge-accounts-heading" className={doctorClientSectionTitleClass}>
         Объединение учётных записей (admin)
       </h2>
 

@@ -7,6 +7,8 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { doctorClientSectionTitleClass } from "../doctorClientCardChrome";
+import { doctorHoverLinkClass } from "@/shared/ui/doctorVisual";
 
 type Member = {
   id: string;
@@ -117,7 +119,7 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
 
       {orderedGroups && orderedGroups.length > 0 ? (
         <section className="space-y-3" aria-labelledby="name-hints-ordered-heading">
-          <h2 id="name-hints-ordered-heading" className="text-base font-semibold">
+          <h2 id="name-hints-ordered-heading" className={doctorClientSectionTitleClass}>
             Кандидаты: одинаковое имя и фамилия (порядок полей как в базе)
           </h2>
           <ul className="space-y-4 list-none p-0 m-0">
@@ -134,7 +136,7 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
                     <li key={m.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
                       <Link
                         href={clientProfileHref(clientsListBase, m.id)}
-                        className={cn("font-medium text-primary underline-offset-4 hover:underline")}
+                        className={cn("font-medium", doctorHoverLinkClass)}
                       >
                         {m.displayName}
                       </Link>
@@ -158,7 +160,7 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
 
       {swappedPairs && swappedPairs.length > 0 ? (
         <section className="space-y-3" aria-labelledby="name-hints-swapped-heading">
-          <h2 id="name-hints-swapped-heading" className="text-base font-semibold">
+          <h2 id="name-hints-swapped-heading" className={doctorClientSectionTitleClass}>
             Кандидаты: те же токены в полях имя/фамилия, возможно переставлены
           </h2>
           <ul className="m-0 list-none space-y-3 p-0">
@@ -168,7 +170,7 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
                   <div>
                     <Link
                       href={clientProfileHref(clientsListBase, p.userA.id)}
-                      className="font-medium text-primary underline-offset-4 hover:underline"
+                      className={cn("font-medium", doctorHoverLinkClass)}
                     >
                       {p.userA.displayName}
                     </Link>
@@ -181,7 +183,7 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
                   <div>
                     <Link
                       href={clientProfileHref(clientsListBase, p.userB.id)}
-                      className="font-medium text-primary underline-offset-4 hover:underline"
+                      className={cn("font-medium", doctorHoverLinkClass)}
                     >
                       {p.userB.displayName}
                     </Link>

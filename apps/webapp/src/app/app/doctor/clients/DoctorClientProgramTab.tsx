@@ -63,7 +63,7 @@ export function DoctorClientProgramTab({
     <div className="flex flex-col gap-0">
       {hasUrgent ? (
         <section className={doctorClientTabSectionClass}>
-          <div className={`${doctorClientUrgentZoneClass} flex flex-col gap-6`}>
+          <div className={`${doctorClientUrgentZoneClass} flex flex-col gap-3`}>
             {inboxCount > 0 ? (
               <div id="doctor-client-section-program-inbox">
                 <div className="mb-3 flex flex-wrap items-center gap-2">

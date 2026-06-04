@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from "./doctorClientCardChrome";
 
 type Props = {
   userId: string;
@@ -38,10 +42,12 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
   return (
     <section
       id="doctor-subscriber-block-section"
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4"
+      className={doctorClientOverviewPrimaryCardClass}
       aria-labelledby="doctor-block-heading"
     >
-      <h2 id="doctor-block-heading">Блокировка чата поддержки</h2>
+      <h2 id="doctor-block-heading" className={doctorClientSectionTitleClass}>
+        Блокировка чата поддержки
+      </h2>
       <p className="text-muted-foreground text-sm">
         При блокировке пациент не сможет отправлять сообщения в чат поддержки из приложения.
       </p>

@@ -21,7 +21,7 @@ export function DoctorClientCommunicationsTab({
 }: Props) {
   return (
     <section id="doctor-client-section-communications" className={doctorClientTabSectionClass}>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <h3 className={doctorClientSectionTitleClass}>Чат поддержки</h3>
         <DoctorClientEmbeddedChat patientUserId={patientUserId} onUnreadChange={onUnreadChange} />
 

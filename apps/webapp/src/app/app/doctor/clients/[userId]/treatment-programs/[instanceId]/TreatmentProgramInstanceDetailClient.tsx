@@ -41,6 +41,11 @@ import {
 } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from "@/app/app/doctor/clients/doctorClientCardChrome";
+import { doctorHistoryRowClass } from "@/shared/ui/doctorVisual";
+import {
   doctorRecommendationActionabilitySelectItems,
   treatmentProgramGroupSelectNoneItemValue,
   treatmentProgramGroupSelectNoneLabel,
@@ -1064,7 +1069,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
         <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-left">
-          <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-summary">
+          <section className={doctorClientOverviewPrimaryCardClass} id="doctor-program-instance-summary">
             <ProgramInstanceCompleteControl instanceId={detail.id} status={detail.status} onPatched={refresh} />
           </section>
 
@@ -1129,8 +1134,8 @@ function TreatmentProgramInstanceDetailClientBody(props: {
             </div>
           </section>
 
-          <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-action-log">
-            <h3 className="text-base font-semibold">Журнал выполнения</h3>
+          <section className={doctorClientOverviewPrimaryCardClass} id="doctor-program-instance-action-log">
+            <h3 className={doctorClientSectionTitleClass}>Журнал выполнения</h3>
             {actionLog.length === 0 ? (
               <p className="mt-3 text-sm text-muted-foreground">Пока нет записей в журнале.</p>
             ) : (
@@ -1143,7 +1148,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
                   return (
                     <li
                       key={row.id}
-                      className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5"
+                      className={doctorHistoryRowClass}
                     >
                       <span className="text-xs text-muted-foreground">
                         {formatBookingDateTimeShortStyleRu(row.createdAt, appDisplayTimeZone)}
@@ -1192,10 +1197,10 @@ function TreatmentProgramInstanceDetailClientBody(props: {
             )}
           </section>
 
-          <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-events">
-            <h3 className="text-base font-semibold">История правок программы</h3>
+          <section className={doctorClientOverviewPrimaryCardClass} id="doctor-program-instance-events">
+            <h3 className={doctorClientSectionTitleClass}>История правок программы</h3>
             <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
-              <li className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
+              <li className={doctorHistoryRowClass}>
                 <span className="text-xs text-muted-foreground">
                   {formatBookingDateTimeShortStyleRu(detail.createdAt, appDisplayTimeZone)}
                 </span>
@@ -1239,8 +1244,8 @@ function TreatmentProgramInstanceDetailClientBody(props: {
           </section>
 
           {testResults.length > 0 ? (
-            <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-test-results">
-              <h3 className="text-base font-semibold">Результаты тестов</h3>
+            <section className={doctorClientOverviewPrimaryCardClass} id="doctor-program-instance-test-results">
+              <h3 className={doctorClientSectionTitleClass}>Результаты тестов</h3>
               <ul className="mt-3 space-y-3 text-sm">
                 {groupTestResultsByAttempt(testResults).map((g) => {
                   const pending = g.results.filter((x) => !x.decidedBy).length;

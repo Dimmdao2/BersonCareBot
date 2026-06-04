@@ -475,6 +475,18 @@ article.rounded-lg.border.border-border.bg-card.shadow-sm
 ### 9g. Хром-константы (doctorClientCardChrome.ts)
 
 ```ts
+// Shell (§9, §5f)
+doctorClientProfileCardClass           // article outer shell
+doctorClientProfileStickyShellClass    // sticky care bar + action strip
+doctorClientEntityHeaderClass          // PatientCareBar
+doctorClientActionStripClass           // chips strip (only if chips.length > 0)
+doctorClientTabsScrollClass            // tabs overflow row
+doctorClientTabTriggerClass            // TabsTrigger
+doctorClientBackLinkClass              // back to list CTA
+doctorClientListRowLinkClass           // §5f list row inner Link
+doctorClientPanelStackClass            // flex flex-col gap-3 inside tab/panel
+
+// Tab / overview panels (§9d–§9e)
 doctorClientOverviewGridClass          // overview two-column grid (§9e)
 doctorClientOverviewPrimaryCardClass   // panel level 2, primary
 doctorClientOverviewSecondaryCardClass // panel level 2, secondary/muted

@@ -7,7 +7,6 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
-import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
 import type {
@@ -38,6 +37,16 @@ import { DoctorClientCommunicationsTab } from "./DoctorClientCommunicationsTab";
 import { DoctorClientRecordsTab } from "./DoctorClientRecordsTab";
 import { DoctorClientAccountTab } from "./DoctorClientAccountTab";
 import { DoctorClientCardAdminSection } from "./DoctorClientCardAdminSection";
+import {
+  doctorClientBackLinkClass,
+  doctorClientBlockedBannerClass,
+  doctorClientProfileCardClass,
+  doctorClientProfileStickyShellClass,
+  doctorClientTabTriggerClass,
+  doctorClientTabsListClass,
+  doctorClientTabsScrollClass,
+} from "./doctorClientCardChrome";
+import { doctorPageStackClass } from "@/shared/ui/doctorVisual";
 
 const EMPTY_AGGREGATES: DoctorClientProgramCardAggregates = {
   newCommentsCount: 0,
@@ -169,11 +178,11 @@ function ClientProfileCardInner({
     } satisfies WellbeingWeekChartModel);
 
   return (
-    <div id={`doctor-client-profile-page-${userId}`} className="flex flex-col gap-3">
+    <div id={`doctor-client-profile-page-${userId}`} className={doctorPageStackClass}>
       {identity.isBlocked ? (
         <div
           id="doctor-client-blocked-banner"
-          className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm"
+          className={doctorClientBlockedBannerClass}
           role="status"
         >
           Подписчик заблокирован для отправки сообщений в чат поддержки
@@ -183,9 +192,9 @@ function ClientProfileCardInner({
 
       <article
         id={`doctor-client-profile-card-${userId}`}
-        className="rounded-lg border border-border bg-card shadow-sm"
+        className={doctorClientProfileCardClass}
       >
-        <div className="md:sticky md:top-[var(--doctor-sticky-offset,0px)] md:z-10">
+        <div className={doctorClientProfileStickyShellClass}>
           <PatientCareBar
             identity={identity}
             firstUpcoming={firstUpcoming}
@@ -210,23 +219,23 @@ function ClientProfileCardInner({
           onValueChange={(v) => setActiveTab(v as DoctorClientTabId)}
           className="gap-0"
         >
-          <div className="overflow-x-auto border-b border-border bg-card px-2">
-            <TabsList variant="line" className="h-auto w-max min-w-full justify-start gap-0 bg-transparent p-0">
-              <TabsTrigger value="overview" className="rounded-none px-3 py-2">
+          <div className={doctorClientTabsScrollClass}>
+            <TabsList variant="line" className={doctorClientTabsListClass}>
+              <TabsTrigger value="overview" className={doctorClientTabTriggerClass}>
                 Обзор
               </TabsTrigger>
-              <TabsTrigger value="program" className="rounded-none px-3 py-2">
+              <TabsTrigger value="program" className={doctorClientTabTriggerClass}>
                 Программа
                 <ProgramTabBadge count={programBadge} />
               </TabsTrigger>
-              <TabsTrigger value="communications" className="rounded-none px-3 py-2">
+              <TabsTrigger value="communications" className={doctorClientTabTriggerClass}>
                 Коммуникации
                 <ProgramTabBadge count={chatUnreadCount} />
               </TabsTrigger>
-              <TabsTrigger value="records" className="rounded-none px-3 py-2">
+              <TabsTrigger value="records" className={doctorClientTabTriggerClass}>
                 Записи
               </TabsTrigger>
-              <TabsTrigger value="account" className="rounded-none px-3 py-2">
+              <TabsTrigger value="account" className={doctorClientTabTriggerClass}>
                 Учётка
               </TabsTrigger>
             </TabsList>
@@ -298,9 +307,7 @@ function ClientProfileCardInner({
         <Link
           id="doctor-client-back-link"
           href={listBasePath}
-          className={cn(
-            "inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-muted",
-          )}
+          className={doctorClientBackLinkClass}
         >
           {backLabel}
         </Link>

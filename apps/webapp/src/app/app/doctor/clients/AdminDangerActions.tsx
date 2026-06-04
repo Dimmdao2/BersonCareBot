@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from "./doctorClientCardChrome";
 
 type Props = {
   userId: string;
@@ -38,8 +43,11 @@ export function AdminDangerActions({ userId, sampleIntegratorRecordId }: Props) 
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4 border-destructive/40" aria-labelledby="admin-danger-heading">
-      <h2 id="admin-danger-heading" className="text-destructive">
+    <section
+      className={cn(doctorClientOverviewPrimaryCardClass, "border-destructive/40")}
+      aria-labelledby="admin-danger-heading"
+    >
+      <h2 id="admin-danger-heading" className={cn(doctorClientSectionTitleClass, "text-destructive")}>
         Администратор
       </h2>
       <p className="text-muted-foreground text-sm">

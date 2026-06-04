@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { pluralizeRu } from "@/shared/lib/pluralize";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import { ClientsFilters } from "./ClientsFilters";
+import { doctorClientListRowLinkClass } from "./doctorClientCardChrome";
+import { doctorHoverLinkClass, doctorListItemOuterClass } from "@/shared/ui/doctorVisual";
 
 type ClientsScope = "all" | "appointments" | "archived";
 
@@ -149,7 +151,7 @@ export function DoctorClientsPanel({
       <form
         id="doctor-clients-search-form"
         onSubmit={(e) => e.preventDefault()}
-        className="flex flex-col gap-4 mb-2"
+        className="mb-2 flex flex-col gap-3"
       >
         <div className="flex flex-wrap gap-2">
           <Button
@@ -214,7 +216,7 @@ export function DoctorClientsPanel({
         <p className="text-sm">
           <Link
             href="/app/doctor/clients/name-match-hints"
-            className="text-primary underline-offset-4 hover:underline font-medium"
+            className={doctorHoverLinkClass}
           >
             Кандидаты по совпадению ФИО (справочно)
           </Link>
@@ -226,11 +228,11 @@ export function DoctorClientsPanel({
       ) : (
         <ul id="doctor-clients-list" className="m-0 list-none space-y-1.5 p-0">
           {filtered.map((c) => (
-            <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="rounded-lg border border-border bg-card p-0">
+            <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className={doctorListItemOuterClass}>
               <Link
                 id={`doctor-clients-card-${c.userId}`}
                 href={clientRowHref(c, basePath, scope)}
-                className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
+                className={doctorClientListRowLinkClass}
               >
                 <div className="min-w-0">
                   <span className="text-sm font-semibold text-foreground">{c.displayName}</span>

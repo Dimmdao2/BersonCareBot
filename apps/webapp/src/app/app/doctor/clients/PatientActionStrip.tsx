@@ -5,6 +5,12 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import type { DoctorClientProgramCardAggregates } from "@/modules/doctor-client-card/types";
 import type { DoctorClientTabId } from "@/modules/doctor-client-card/types";
 import { cn } from "@/lib/utils";
+import {
+  doctorClientActionChipClass,
+  doctorClientActionStripChipsClass,
+  doctorClientActionStripClass,
+  doctorClientTabBadgeClass,
+} from "./doctorClientCardChrome";
 
 type ChipVariant = "default" | "destructive" | "outline" | "secondary";
 
@@ -91,30 +97,25 @@ export function PatientActionStrip({
     });
   }
 
+  if (chips.length === 0) return null;
+
   return (
-    <div className="border-b border-border bg-muted/25 px-4 py-2.5">
-      {chips.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Срочных задач нет</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-medium text-muted-foreground">Сейчас</p>
-          <div className="-mx-1 flex gap-2 overflow-x-auto overscroll-x-contain pb-0.5 [-webkit-overflow-scrolling:touch]">
-            {chips.map((chip) => (
-              <button
-                key={chip.key}
-                type="button"
-                className={cn(
-                  buttonVariants({ variant: chip.variant, size: "sm" }),
-                  "shrink-0 whitespace-nowrap",
-                )}
-                onClick={chip.onClick}
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className={doctorClientActionStripClass}>
+      <div className={doctorClientActionStripChipsClass}>
+        {chips.map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            className={cn(
+              buttonVariants({ variant: chip.variant, size: "sm" }),
+              doctorClientActionChipClass,
+            )}
+            onClick={chip.onClick}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -129,7 +130,7 @@ export function programTabBadgeCount(
 export function ProgramTabBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1 text-[10px] tabular-nums">
+    <Badge variant="secondary" className={doctorClientTabBadgeClass}>
       {count}
     </Badge>
   );

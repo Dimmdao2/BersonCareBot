@@ -194,3 +194,83 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 | `/app/doctor/appointments` | pending | pending | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
 | `/app/doctor/analytics/clients` | pending | pending | Нужен ручной браузерный прогон под авторизованной admin-сессией |
 | `/app/doctor/online-intake` | pending | pending | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
+
+---
+
+## 2026-06-04 — Фаза 3A (client card shell)
+
+### Сделано
+
+- `doctorClientCardChrome.ts`: константы shell §9 (article, sticky, header, action strip, tabs, back link, §5f list row).
+- `ClientProfileCard.tsx`, `PatientCareBar.tsx`, `PatientActionStrip.tsx` — переведены на chrome; strip скрывается без attention-chips (§9b).
+- `DoctorClientsPanel.tsx` — список на `doctorListItemOuterClass` + `doctorClientListRowLinkClass`, `gap-3` в форме поиска.
+- `DOCTOR_APP_UI_STYLE_GUIDE.md` §9g — перечень shell-констант.
+
+### Проверки
+
+```bash
+pnpm exec vitest run \
+  src/app/app/doctor/clients/ClientProfileCard.anchorTab.test.tsx \
+  src/app/app/doctor/clients/ClientProfileCard.backLink.test.tsx
+# Tests 15 passed (15)
+pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
+```
+
+### Manual visual checklist (фаза 3A)
+
+| Экран | Desktop 1366 | Mobile 390 | Примечание |
+|-------|--------------|------------|------------|
+| `/app/doctor/clients/[userId]` | pending | pending | sticky header, overflow tabs, strip только при chips |
+| `/app/doctor/clients` | pending | pending | compact list rows |
+
+### Намеренно не делали
+
+- Вкладки overview/program/records (фаза 3B).
+- `SubscriberProfileCard` (отдельный compact UX; 3B по audit).
+- Полный `pnpm run ci`.
+
+---
+
+## 2026-06-04 — Фаза 3B (client card tabs и панели)
+
+### Сделано
+
+- Панели с `rounded-2xl` → `doctorClientOverviewPrimaryCardClass` (+ tone borders для lifecycle/danger).
+- Заголовки `h2`/`h3` → `doctorClientSectionTitleClass` (admin, booking, notes, block, name-match-hints, program detail).
+- `DoctorNotesPanel` / `ClientBookingHistoryPanel`: режим `embedded` без двойного chrome в overview/records tabs.
+- Табы: `gap-3` в program urgent zone, communications, memberships, treatment programs list.
+- `SpecialistTaskRow` → `getDoctorSectionItemClass` (§5b).
+- `TreatmentProgramInstanceDetailClient`: секции summary/log/events/tests на primary chrome; timeline rows → `doctorHistoryRowClass`.
+- `/app/doctor/clients` list page → `doctorSectionCardClass`.
+- `DoctorClientCardAdminSection` → `doctorClientProfileCardClass` + panel stack.
+
+### Проверки
+
+```bash
+rg "rounded-2xl|<h2>[^<]" apps/webapp/src/app/app/doctor/clients --glob "*.tsx"
+# → (пусто)
+
+pnpm exec vitest run \
+  src/app/app/doctor/clients/ClientProfileCard.*.test.tsx \
+  src/app/app/doctor/clients/DoctorClientActiveProgramPanel.test.tsx \
+  src/app/app/doctor/clients/AdminMergeAccountsPanel.test.tsx \
+  src/app/app/doctor/clients/PatientTreatmentProgramsPanel.test.tsx \
+  src/app/app/doctor/clients/DoctorClientsPanel.test.tsx \
+  "src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.phase2.test.tsx"
+# 31 tests passed
+
+pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
+```
+
+### Manual visual checklist (фаза 3B)
+
+| Экран | Desktop 1366 | Mobile 390 | Примечание |
+|-------|--------------|------------|------------|
+| `/app/doctor/clients/[userId]` overview/program/records | pending | pending | нет двойных карточек в notes/booking |
+| `/app/doctor/clients/[userId]/treatment-programs/[id]` | pending | pending | панели конструктора |
+| `/app/doctor/clients/name-match-hints` | pending | pending | заголовки секций |
+
+### Намеренно не делали
+
+- `SubscriberProfileCard` (фаза 4B в AUDIT).
+- Полный `pnpm run ci`.

@@ -36,7 +36,7 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
       </section>
 
       <section id="doctor-client-section-appointments" className={doctorClientTabSectionClass}>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {upcomingAppointments.length === 0 ? (
             <p className="text-muted-foreground">Нет предстоящих записей.</p>
           ) : (
@@ -86,7 +86,7 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
       </section>
 
       <div className={doctorClientTabSectionClass}>
-        <ClientBookingHistoryPanel userId={userId} />
+        <ClientBookingHistoryPanel userId={userId} embedded />
       </div>
 
       <section id="doctor-client-section-symptoms" className={doctorClientTabSectionClass}>

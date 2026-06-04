@@ -71,7 +71,7 @@ export function DoctorClientOverviewTab({
           Заметки
         </summary>
         <div className="mt-3">
-          <DoctorNotesPanel userId={userId} />
+          <DoctorNotesPanel userId={userId} embedded />
         </div>
       </details>
     </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 import { Button } from "@/components/ui/button";
 import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
 import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
@@ -86,7 +87,7 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
 
   return (
     <div className="flex flex-col gap-3" aria-labelledby="admin-client-audit-history-heading">
-      <h2 id="admin-client-audit-history-heading" className="text-base font-semibold">
+      <h2 id="admin-client-audit-history-heading" className={doctorClientSectionTitleClass}>
         История операций (audit)
       </h2>
       {openConflictsHere.length > 0 ? (

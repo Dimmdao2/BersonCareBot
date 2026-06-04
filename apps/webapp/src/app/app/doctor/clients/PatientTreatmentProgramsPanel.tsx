@@ -164,7 +164,7 @@ export function PatientTreatmentProgramsPanel(props: {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div>
         <Button type="button" onClick={openModal} disabled={disabled}>
           Назначить программу лечения

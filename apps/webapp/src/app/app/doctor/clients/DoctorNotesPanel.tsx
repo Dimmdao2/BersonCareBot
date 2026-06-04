@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientPanelStackClass,
+  doctorClientSectionTitleClass,
+} from "./doctorClientCardChrome";
 
 type Note = {
   id: string;
@@ -11,9 +16,11 @@ type Note = {
 
 type Props = {
   userId: string;
+  /** Внутри overview `<details>` — без внешней карточки и заголовка. */
+  embedded?: boolean;
 };
 
-export function DoctorNotesPanel({ userId }: Props) {
+export function DoctorNotesPanel({ userId, embedded = false }: Props) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -64,9 +71,8 @@ export function DoctorNotesPanel({ userId }: Props) {
     }
   }
 
-  return (
-    <section id="doctor-client-notes-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4" aria-labelledby="doctor-notes-heading">
-      <h2 id="doctor-notes-heading">Заметки врача</h2>
+  const body = (
+    <>
       {loading ? <p className="text-muted-foreground">Загрузка…</p> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ul id="doctor-notes-list" className="m-0 list-none space-y-2 p-0">
@@ -96,6 +102,27 @@ export function DoctorNotesPanel({ userId }: Props) {
           {saving ? "Сохранение…" : "Добавить заметку"}
         </Button>
       </form>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div id="doctor-client-notes-section" className={doctorClientPanelStackClass}>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <section
+      id="doctor-client-notes-section"
+      className={doctorClientOverviewPrimaryCardClass}
+      aria-labelledby="doctor-notes-heading"
+    >
+      <h2 id="doctor-notes-heading" className={doctorClientSectionTitleClass}>
+        Заметки врача
+      </h2>
+      {body}
     </section>
   );
 }

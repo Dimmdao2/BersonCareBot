@@ -50,6 +50,8 @@
 | 0 | **done** (2026-06-04) — см. [`LOG.md`](LOG.md) |
 | 1 | **done** (2026-06-04) — `doctorVisual.ts`, wrappers, пилот на «Сегодня»; см. [`LOG.md`](LOG.md) |
 | 2 | **done** (2026-06-04) — `appointments`, `analytics/clients`, `online-intake`; см. [`LOG.md`](LOG.md) |
-| 3–5 | pending |
+| 3A | **done** (2026-06-04) — shell карточки клиента; см. [`LOG.md`](LOG.md) |
+| 3B | **done** (2026-06-04) — вкладки и панели клиента; см. [`LOG.md`](LOG.md) |
+| 4–5 | pending |
 
-**Граница 2 / 3:** фазы 1–2 закрыли foundation + high-impact (`/app/doctor`, `appointments`, `analytics/clients`, `online-intake`); следующий этап — client shell/tabs (3A/3B).
+**Граница 3B / 4:** карточка клиента и `clients/**` панели на chrome; каталоги и хвостовые маршруты — фазы 4A/4B (`SubscriberProfileCard` — 4B).

@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DoctorClientsPanel } from "./DoctorClientsPanel";
+import { doctorSectionCardClass } from "@/shared/ui/doctorVisual";
 
 type ClientsScope = "all" | "appointments" | "archived";
 
@@ -73,7 +74,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
     <AppShell title="Клиенты" user={session.user} variant="doctor">
       <section
         id="doctor-clients-list-section"
-        className="rounded-xl border border-border/60 bg-background p-4 shadow-sm flex flex-col gap-4"
+        className={doctorSectionCardClass}
       >
         <DoctorClientsPanel
           allClients={allClients}

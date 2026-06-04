@@ -14,6 +14,11 @@ import {
 } from "@/modules/client-history/labels";
 import { isRefundEventType } from "@/modules/client-history/clientHistoryUtils";
 import { AppointmentStaffCommentsSection } from "./AppointmentStaffCommentsSection";
+import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientPanelStackClass,
+  doctorClientSectionTitleClass,
+} from "./doctorClientCardChrome";
 
 type TimelineItem = {
   id: string;
@@ -71,9 +76,11 @@ type Tab = "timeline" | "payments" | "visits";
 
 type Props = {
   userId: string;
+  /** Внутри tab section — без внешней карточки. */
+  embedded?: boolean;
 };
 
-export function ClientBookingHistoryPanel({ userId }: Props) {
+export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
   const [tab, setTab] = useState<Tab>("timeline");
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
@@ -160,14 +167,12 @@ export function ClientBookingHistoryPanel({ userId }: Props) {
     return parts.join(" · ");
   }
 
-  return (
-    <section
-      id="doctor-client-section-booking-history"
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4"
-      aria-labelledby="doctor-booking-history-heading"
-    >
+  const content = (
+    <>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="doctor-booking-history-heading">История записи</h2>
+        <h2 id="doctor-booking-history-heading" className={doctorClientSectionTitleClass}>
+          История записи
+        </h2>
         <div className="flex flex-wrap gap-1">
           {(["timeline", "payments", "visits"] as const).map((t) => (
             <Button
@@ -307,6 +312,24 @@ export function ClientBookingHistoryPanel({ userId }: Props) {
           )}
         </ul>
       ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div id="doctor-client-section-booking-history" className={doctorClientPanelStackClass}>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <section
+      id="doctor-client-section-booking-history"
+      className={doctorClientOverviewPrimaryCardClass}
+      aria-labelledby="doctor-booking-history-heading"
+    >
+      {content}
     </section>
   );
 }

@@ -14,6 +14,13 @@ import type { SpecialistTaskPatientSummary } from "@/modules/specialist-tasks/ty
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { cn } from "@/lib/utils";
 import { DoctorClientSupportCareBar } from "./DoctorClientSupportCareBar";
+import {
+  doctorClientDisplayNameClass,
+  doctorClientEntityHeaderClass,
+  doctorClientStatusPillDestructiveClass,
+  doctorClientStatusPillMutedClass,
+} from "./doctorClientCardChrome";
+import { doctorInlineLinkClass } from "@/shared/ui/doctorVisual";
 
 type PatientCareBarProps = {
   identity: ClientIdentity;
@@ -35,7 +42,7 @@ function UpcomingAppointment({ appointment }: { appointment: AppointmentSummary 
           href={appointment.link}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-primary underline underline-offset-2"
+          className={doctorInlineLinkClass}
         >
           {appointment.label}
         </a>
@@ -59,30 +66,24 @@ export function PatientCareBar({
     identity.displayName?.trim() !== "" ? identity.displayName.trim() : "Имя не указано";
 
   return (
-    <header
-      className={cn("border-b border-border bg-card px-4 py-3")}
-    >
+    <header className={doctorClientEntityHeaderClass}>
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p id="doctor-client-display-name" className="min-w-0 text-base font-semibold text-foreground">
+              <p id="doctor-client-display-name" className={doctorClientDisplayNameClass}>
                 {displayHeading}
               </p>
               {identity.isArchived ? (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
-                  Архив
-                </span>
+                <span className={doctorClientStatusPillMutedClass}>Архив</span>
               ) : null}
               {identity.isBlocked ? (
-                <span className="rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-destructive">
-                  Блок
-                </span>
+                <span className={doctorClientStatusPillDestructiveClass}>Блок</span>
               ) : null}
             </div>
             {tel ? (
               <p className="text-sm">
-                <a href={tel} className="font-medium text-primary underline underline-offset-2">
+                <a href={tel} className={doctorInlineLinkClass}>
                   {identity.phone}
                 </a>
               </p>
@@ -103,7 +104,7 @@ export function PatientCareBar({
             {taskSummary && taskSummary.openCount > 0 ? (
               <button
                 type="button"
-                className="mt-2 w-full text-left text-xs text-primary underline underline-offset-2"
+                className={cn("mt-2 w-full text-left text-xs", doctorInlineLinkClass)}
                 onClick={() => onNavigateAnchor("doctor-client-section-tasks")}
               >
                 Задачи: {taskSummary.openCount} невып.
@@ -173,7 +174,7 @@ export function PatientCareBar({
         {taskSummary && taskSummary.openCount > 0 ? (
           <button
             type="button"
-            className="text-left text-sm text-primary underline underline-offset-2 md:hidden"
+            className={cn("text-left text-sm md:hidden", doctorInlineLinkClass)}
             onClick={() => onNavigateAnchor("doctor-client-section-tasks")}
           >
             Задачи: {taskSummary.openCount} невып.
