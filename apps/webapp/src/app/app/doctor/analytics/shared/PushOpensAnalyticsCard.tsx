@@ -50,7 +50,7 @@ function KpiMini({
   return (
     <div className={`rounded-md border border-border/60 bg-card px-3 py-2 ${border}`}>
       <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold tabular-nums leading-tight">{value}</p>
+      <p className="text-base font-semibold tabular-nums leading-tight">{value}</p>
     </div>
   );
 }

@@ -91,7 +91,7 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
 
           <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
             <p
-              className="min-w-0 truncate text-center text-[13px] font-normal text-muted-foreground"
+              className="min-w-0 truncate text-center text-sm font-normal text-muted-foreground"
               title={title}
             >
               {title}

@@ -97,7 +97,7 @@ function SortableQuoteRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex flex-col gap-2 rounded-xl border border-border/80 bg-card px-2 py-2 shadow-sm"
+      className="flex flex-col gap-2 rounded-xl border border-border/80 bg-card px-2 py-2"
     >
       <div className="flex items-start gap-2">
         <DragHandle listeners={listeners as never} attributes={attributes as never} />

@@ -2,10 +2,13 @@
 
 Единый стандарт для визуальной разработки кабинета врача/администратора (`/app/doctor/**`).
 
-**Каркас страницы:** `apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts`  
+**Каркас страницы:** `apps/webapp/src/shared/ui/doctor/doctorWorkspaceLayout.ts`  
 **Shared UI-примитивы каталога:** `apps/webapp/src/shared/ui/doctor/`  
 **Хром клиентской карточки:** `apps/webapp/src/app/app/doctor/clients/doctorClientCardChrome.ts`  
-**Companion-файл констант:** `apps/webapp/src/shared/ui/doctorVisual.ts`
+**Companion-файл констант:** `apps/webapp/src/shared/ui/doctor/doctorVisual.ts`  
+**Зональные токены:** `apps/webapp/src/app/styles/doctor.css` (`#app-shell-doctor`)
+
+> **Как читать гайд.** §A–§C — визуальный язык, единая шкала и общий стиль компонентов (целевой дизайн, эталон — экран упражнений). §1–§21 — конкретные паттерны экранов и константы. При конфликте величин приоритет у §B (единая шкала).
 
 ---
 
@@ -17,6 +20,163 @@
 4. **Единая плотность** внутри одного экрана: не смешивать `DoctorStatCard` (крупное число) с компактными строками списка без промежуточного уровня.
 5. **h2 всегда со стилем.** Голый `<h2>` без класса запрещён — браузерный default ломает иерархию.
 6. **Двухуровневая модель карточек.** Секции на странице и панели внутри карточки выглядят по-разному — см. §4.
+7. **Единая шкала важнее локального вкуса.** В кабинете не должно быть «то слишком мелко, то слишком крупно»: разрешён фиксированный набор размеров текста и контролов — см. §B. Любой новый размер вне набора — это баг.
+8. **Один визуальный язык.** Фон кабинета белый; глубина — через тонкие границы и лёгкие поверхности, не через тени и заливку фона — см. §A.
+
+---
+
+## A. Визуальный язык (дизайн-система кабинета)
+
+Кабинет врача — **светлый клинический рабочий интерфейс**, а не дженерик-админка. Цельность достигается не цветом фона, а согласованными поверхностями, спокойной палитрой и строгой иерархией.
+
+### A.1. Фон и глубина
+
+- Фон кабинета — **чисто белый** (`#ffffff`). Не заливать рабочую область серым.
+- Глубину дают **тонкие границы** и **лёгкие вложенные поверхности**, а не тени.
+- `shadow-sm` — только для отдельно «плавающих» элементов (медиакарточки §11, card-internal панели §4 уровня 2). На page-секциях теней нет.
+
+### A.2. Палитра
+
+Базовые токены живут в `apps/webapp/src/app/styles/tailwind-engine.css` (`:root`), зональные — в `doctor.css` (`#app-shell-doctor`). Целевые роли:
+
+| Роль | Назначение | Источник токена |
+|---|---|---|
+| Page / card | белая база | `--background`, `--card` |
+| Subtle surface | вложенные панели, инсет-строки | `bg-muted/15`, `#f7f9fc` |
+| Border | разделение поверхностей | `--border` (`#e3e8f0`) |
+| Text primary | основной текст | `--foreground` |
+| Text secondary | подписи, мета | `--muted-foreground` |
+| Primary | акцент, активное, ссылки | `--primary` (медицинский синий) |
+| Primary soft | hover/active фон акцентных элементов | `bg-primary/10…/15` |
+| Success / Warning / Danger | статусы | мягкие, не кислотные (§17) |
+
+**Правило:** не вводить произвольные hex в компонентах. Цвет берётся из токена/Tailwind-семантики. Хардкод-цвета навигации (например захардкоженные синие в active-пунктах меню) — мигрировать на `--primary`/`primary soft`.
+
+### A.3. Радиусы поверхностей — 4 уровня
+
+| Уровень | Радиус |
+|---|---|
+| Page section | `rounded-xl` |
+| Панель внутри карточки | `rounded-lg` |
+| Строка списка / item | `rounded-md` |
+| Контрол (input/button) | `rounded-md` |
+
+`rounded-2xl` — запрещён.
+
+### A.4. Состояния (единая система)
+
+Все интерактивные элементы используют один словарь состояний:
+
+| Состояние | Оформление |
+|---|---|
+| Hover (нейтральный) | `hover:bg-muted` / `hover:bg-muted/50` |
+| Active / selected | `bg-primary/15 text-primary` + (для строк каталога) `border-primary/25`; для тайла — `ring-1 ring-primary/50` |
+| Focus-visible | `focus-visible:ring-2 focus-visible:ring-ring` (контролы — `ring-3 ring-ring/50`) |
+| Warning | `border-destructive/40 bg-destructive/5` |
+| Unsaved / amber | `border-amber-500/40 bg-amber-500/5` |
+| Disabled | `opacity-50 pointer-events-none` |
+
+Не изобретать новые active/hover-цвета на конкретной странице — брать из этой таблицы и §17.
+
+---
+
+## B. Единая шкала (typography · controls · density)
+
+Главная причина «то мелко, то крупно» — расползание размеров. Здесь зафиксирован **закрытый** набор.
+
+### B.1. Типографика — закрытый набор ролей
+
+Основные роли (вся chrome-типографика — только отсюда):
+
+| Роль | Класс | px |
+|---|---|---|
+| Page title (h1) | `text-base font-semibold tracking-tight` | 16 |
+| Section title (h2/h3) | `text-sm font-semibold` | 14 |
+| Body / первичная строка | `text-sm` (+ `font-medium` для первичной) | 14 |
+| Secondary / meta | `text-xs text-muted-foreground` | 12 |
+| Metric (KPI) | `text-2xl font-semibold tabular-nums` | 24 |
+
+**Micro-роль (узкое исключение, 10–11px).** Разрешена **только** для плотных, нечитаемых-как-абзац подписей: статус-бейджи/пилюли (`Badge`, статус каталога), ячейки календаря, оси/тултипы графиков, технические mono-дампы. Класс: `text-[10px]` / `text-[11px]`. Micro-роль **не** применять к заголовкам, строкам сущностей, кнопкам и основному тексту.
+
+**Запрещено в `/app/doctor/**` (chrome):** `text-[13px]`, `text-lg`, `text-xl`, `text-3xl`, а также `text-2xl` вне роли Metric.
+
+Миграция текущего кода: header-заголовок `text-[13px]` → `text-sm`; KPI-число `text-3xl` → `text-2xl`; прочие крупные числа-метрики `text-lg`/`text-xl` → роль Metric (`text-2xl`) или `text-base` для строчных; заголовки-`text-lg` → `text-base`; page-заголовки admin/ops `text-xl` → `text-base`.
+
+### B.2. Контролы — базовый рост 32px
+
+| Контрол | Высота | Радиус |
+|---|---|---|
+| Input / Select / база тулбара | `h-8` (32) | `rounded-md` |
+| Button база doctor (`sm`) | `h-8` (32) | `rounded-md` |
+| Button главный CTA (`lg`, редко) | `h-10` (40) | `rounded-md` |
+| Header icon-кнопки (исключение, тач-таргет) | `size-10` (40) | — |
+
+- В одной строке формы/тулбара поле и кнопка совпадают по высоте (32) и радиусу (`rounded-md`).
+- `default`-кнопку (36px) в doctor-зоне не плодить: основное действие — `size="sm"` либо `doctorCatalogToolbarPrimaryActionClassName` (тоже 32px).
+- Эталон 32px-контролов: тулбар и view-toggle в каталоге упражнений (`DoctorCatalogMasterListHeader`, `doctorCatalogToolbarPrimaryActionClassName`).
+
+### B.3. Плотность — один ритм
+
+- Между блоками страницы — `gap-3` (12px), дефолт.
+- Внутри секции — `gap-2` / `gap-3`.
+- Page padding — `px-3 pt-3 pb-6` (не увеличивать).
+- **Запрещено** на admin/ops-страницах: `space-y-6`, `gap-6`, `mb-6`.
+
+---
+
+## C. Общий стиль компонентов (эталон — экран упражнений)
+
+`exercises/ExercisesPageClient.tsx` + его стек — **референс визуального качества** для всего кабинета. Любой новый компонент сверять с этими образцами.
+
+### C.1. Что делает экран упражнений эталоном
+
+- Чистый split-layout: левая колонка-список в рамке, правая — форма на едином `bg-card` без двойного контура.
+- Спокойные тайлы одинакового размера, превью `object-cover`, заголовок в 2 строки.
+- Явное, но негромкое active-состояние (`ring`/`primary soft`), а не жирная заливка.
+- Контролы тулбара и переключателей строго 32px, один радиус.
+- Нет «случайных» теней, крупных заголовков и разнородных отступов.
+
+### C.2. Левая колонка (master-list) — `CatalogLeftPane`
+
+```
+aside: flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card
+  headerSlot: shrink-0 px-2 pb-1 pt-1.5     // DoctorCatalogMasterListHeader
+  body:       min-h-0 flex-1 overflow-hidden // список, внутренний скролл
+```
+
+- Контур — **один** `rounded-lg border border-border`, без `shadow`.
+- Шапка списка (`DoctorCatalogMasterListHeader`): слева сортировка/scope, справа счётчик `text-xs text-muted-foreground` + view-toggle `size-[32px]`.
+
+### C.3. Правая колонка (detail) — `CatalogRightPane`
+
+- Один фон `bg-card`, **без** `Card`/`ring`/`border`/`shadow` — чтобы не дублировать контур левой колонки.
+- Контент-область: `overflow-y-auto px-6 py-6` (форма по §13).
+
+### C.4. Tile-карточка — `ExerciseTileCard`
+
+```tsx
+<Card size="sm" className={cn(
+  "h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5",
+  isActive && "ring-1 ring-primary/50 ring-offset-1 ring-offset-background",
+)}>
+  <CardContent className="flex h-full flex-col gap-1 py-px group-data-[size=sm]/card:px-1.5">
+    <div className="w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30 aspect-square">
+      <MediaThumb className="h-full w-full" imgClassName="h-full w-full object-cover" sizes="160px" />
+    </div>
+    <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">{title}</p>
+  </CardContent>
+</Card>
+```
+
+Правила тайла: одинаковая высота в сетке, превью `object-cover`, заголовок `text-xs` в 2 строки, active — только `ring`, не заливка.
+
+### C.5. Строка списка (list-режим)
+
+`doctorCatalogRowClass` + `doctorCatalogRowActiveClass` (§5e): нейтральный hover, active — `primary soft` + `border-primary/25`. Тач-цель строки ≥ 32px.
+
+### C.6. Применимость
+
+Каталоги (рекомендации, ЛФК-шаблоны, шаблоны программ, наборы тестов, клинические тесты, курсы) — **точные копии** этого стека. Не-каталожные экраны берут из эталона: контур-поверхности (один border, без лишних теней), 32px-контролы, active/hover из §A.4, шкалу из §B.
 
 ---
 
@@ -37,23 +197,24 @@ DOCTOR_PAGE_CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-3 pt-3 pb-6"
 
 ## 2. Типографика
 
-Иерархия текста в кабинете врача:
+Иерархия текста в кабинете врача. Базовые роли — закрытый набор из §B.1; ниже — их применение и вспомогательные стили ссылок:
 
 | Роль | Тег | Класс |
 |---|---|---|
-| Заголовок страницы (h1 в шапке редактора/toolbar) | `h1` | `text-base font-semibold tracking-tight text-foreground` |
+| Заголовок страницы (h1) | `h1` | `text-base font-semibold tracking-tight text-foreground` |
 | Заголовок секции / панели | `h2` или `h3` | `text-sm font-semibold text-foreground` |
 | Первичная строка сущности | `p` | `text-sm font-medium text-foreground` |
 | Обычный текст | `p` | `text-sm text-foreground` |
-| Вспомогательный текст | `p` | `text-xs text-muted-foreground` |
-| Micro-label / бейдж-подпись | `span` | `text-[10px] text-muted-foreground` |
-| Числовая метрика (крупная) | `p` | `text-3xl font-semibold tabular-nums` |
+| Вспомогательный текст / micro-label / бейдж-подпись | `p` / `span` | `text-xs text-muted-foreground` |
+| Числовая метрика (крупная, KPI) | `p` | `text-2xl font-semibold tabular-nums` |
 | Числовая метрика (строчная) | `span` | `font-semibold tabular-nums text-foreground` |
 | Inline-link | `Link/a` | `text-primary underline underline-offset-2` |
 | Hover-link (secondary) | `Link/a` | `text-primary underline-offset-4 hover:underline font-medium` |
 | Строка с адресом / телефон | `a` | `font-medium text-primary underline underline-offset-2` |
 
-**Запрещено:** голый `<h2>`, `<h3>` без className.
+**Запрещено:** голый `<h2>`, `<h3>` без className; chrome-размеры вне набора §B.1 (`text-[13px]`, `text-lg`, `text-xl`, `text-3xl`, `text-2xl` вне KPI).
+
+> Миграция: `text-3xl` (KPI) приводится к `text-2xl`; chrome-`text-[13px]`/`text-lg`/`text-xl` приводятся к `text-sm`/`text-base` по роли. `text-[10px]`/`text-[11px]` сохраняются только в micro-роли (§B.1).
 
 ---
 
@@ -230,8 +391,9 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 ```
 
 Импорт: `apps/webapp/src/app/app/doctor/analytics/clients/DoctorStatCard.tsx`  
-Внутри: `p-4`, `text-3xl font-semibold tabular-nums`, `rounded-xl border bg-card`.  
-Tone `warning`: `border-destructive/40 bg-destructive/5`.
+Внутри: `p-4`, метрика по роли §B.1 (`text-2xl font-semibold tabular-nums`), `rounded-xl border bg-card`.  
+Tone `warning`: `border-destructive/40 bg-destructive/5`.  
+Подпись карточки — `text-xs text-muted-foreground` (не `text-[10px]`).
 
 **Правило:** KPI-сетку не смешивают в одном gap-потоке с секциями уровня 1 без явного разделителя.
 
@@ -392,7 +554,7 @@ article.rounded-lg.border.border-border.bg-card.shadow-sm
 ```
 
 Имя клиента: `text-base font-semibold text-foreground`  
-Статус-пилюля (архив/блок): `rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground`
+Статус-пилюля (архив/блок): `rounded bg-muted px-1.5 py-0.5 text-xs font-medium uppercase text-muted-foreground` (минимальный размер по §B.1 — `text-xs`)
 
 ### 9b. Quick Action Chips (PatientActionStrip)
 
@@ -680,8 +842,10 @@ rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium ta
 
 Счётчик в кнопке (на светлом фоне кнопки):
 ```
-ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-primary
+ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-xs font-semibold tabular-nums text-primary
 ```
+
+> Для бейджей/счётчиков базовый размер — `text-xs`; micro-исключение `text-[10px]`/`text-[11px]` допустимо для плотных счётчиков и календарных/графиковых подписей (§B.1).
 
 ---
 
@@ -721,7 +885,9 @@ ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibol
 
 ## 20. Companion-файл doctorVisual.ts
 
-Канонический файл: `apps/webapp/src/shared/ui/doctorVisual.ts` (импортировать константы, не копировать строки классов в route-компоненты). Агентам: `.cursor/rules/doctor-ui-shared-primitives.mdc`.
+Канонический файл: `apps/webapp/src/shared/ui/doctor/doctorVisual.ts` (импортировать константы, не копировать строки классов в route-компоненты). Зональные токены палитры — `apps/webapp/src/app/styles/doctor.css` (`#app-shell-doctor`). Каркас/липкие классы — `apps/webapp/src/shared/ui/doctor/doctorWorkspaceLayout.ts`. Агентам: `.cursor/rules/doctor-ui-shared-primitives.mdc`.
+
+> `doctorVisual.ts` экспортирует `doctorMetricValueClass = "text-2xl font-semibold tabular-nums text-foreground"` — единый размер KPI/крупных чисел (применён в `DoctorStatCard`); локальные `text-3xl` для метрик не использовать.
 
 Содержимое (синхронизировать при добавлении экспортов):
 
@@ -831,3 +997,11 @@ Overview-сетка и панели уровня 2 — в `doctorClientCardChrom
 - [ ] Тон строки задачи/события — по §5b, не ad-hoc цвет
 - [ ] Карточка сущности (если нужна) — по §9, используя `doctorClientCardChrome.ts`
 - [ ] График — через shadcn Card + recharts по §7 (не кастомный контейнер)
+- [ ] Размеры текста — только из набора §B.1 (нет `text-[13px]`/`text-lg`/`text-xl`/`text-3xl`; `text-[10px]`/`text-[11px]` только в micro-роли)
+- [ ] Контролы (input/button) — базовый `h-8` + `rounded-md`; поле и кнопка в одной строке совпадают по высоте (§B.2)
+- [ ] KPI-число — `text-2xl` (не `text-3xl`)
+- [ ] Нет `rounded-2xl`, `space-y-6`, `gap-6`, `mb-6` в doctor-зоне (§A.3, §B.3)
+- [ ] Page-заголовок — `text-base` на всех маршрутах, включая admin/ops
+- [ ] Цвет — из токена/семантики; нет хардкод-hex в навигации и active-состояниях (§A.2)
+- [ ] active/hover/focus — из словаря §A.4 (active — `ring`/`primary soft`, не жирная заливка)
+- [ ] Каталог/master-detail — стек по §C (один border у колонки, правая панель без двойного контура)

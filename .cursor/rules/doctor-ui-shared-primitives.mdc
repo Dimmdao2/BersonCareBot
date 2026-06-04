@@ -45,9 +45,19 @@ alwaysApply: true
 
 Только при явной продуктовой причине и отсутствии паттерна в гайде; кратко зафиксировать в LOG соответствующей инициативы или в PR. Новые npm-зависимости ради UI — не добавлять.
 
+## Единый визуальный язык и шкала (гайд §A–§C)
+
+- Фон кабинета белый; глубина — тонкие границы/лёгкие поверхности, не тени (§A). `shadow-*` — только floating (медиакарточки §11, поповеры, drag), **не** на page-level секциях/KPI.
+- Chrome-типографика — закрытый набор §B.1: page-title `text-base`, section `text-sm`, body `text-sm`, meta `text-xs`, KPI `doctorMetricValueClass` (`text-2xl`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Запрещено: `text-[13px]`, `text-lg`, `text-xl`, `text-3xl`.
+- Контролы: input/select-триггер/база кнопки — `h-8`/`h-[32px]` + `rounded-md`; поле и кнопка/select в одной строке совпадают.
+- Радиусы 4 уровня (§A.3): page `rounded-xl`, панель `rounded-lg`, строка/контрол `rounded-md`; `rounded-2xl` запрещён.
+- active/hover/focus — словарь §A.4 (active = `bg-primary/15 text-primary`/`ring`, не жирная заливка и не хардкод-hex).
+- KPI-метрика — `doctorMetricValueClass` из `doctorVisual.ts`, не локальный `text-3xl`.
+
 ## Быстрая самопроверка перед сдачей
 
 ```bash
 rg "rounded-2xl|<h2>[^<]" apps/webapp/src/app/app/doctor --glob "*.tsx"
+rg "text-\[13px\]|text-lg|text-xl|text-3xl" apps/webapp/src/app/app/doctor apps/webapp/src/shared/ui/doctor --glob "*.tsx"
 rg "doctorSectionCardClass|DoctorSection|doctorClientCardChrome" apps/webapp/src/app/app/doctor/<зона>
 ```

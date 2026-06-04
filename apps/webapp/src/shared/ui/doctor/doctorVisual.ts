@@ -54,6 +54,9 @@ export const doctorPageTitleClass = "text-base font-semibold tracking-tight text
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass = "text-sm font-semibold text-foreground";
 
+/** KPI / large numeric metric value (single canonical metric size, §B.1). */
+export const doctorMetricValueClass = "text-2xl font-semibold tabular-nums text-foreground";
+
 /** Section subtitle and helper text under headings. */
 export const doctorSectionSubtitleClass = "text-xs text-muted-foreground";
 

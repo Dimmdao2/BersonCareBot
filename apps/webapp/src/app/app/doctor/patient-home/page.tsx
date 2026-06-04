@@ -2,6 +2,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { parsePatientHomeDailyPracticeTarget } from "@/modules/patient-home/todayConfig";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { PatientHomeBlocksSettingsPageClient } from "@/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient";
 import { PatientHomePracticeTargetPanel } from "@/app/app/settings/patient-home/PatientHomePracticeTargetPanel";
 import { PatientHomeMorningPingPanel } from "@/app/app/settings/patient-home/PatientHomeMorningPingPanel";
@@ -86,8 +87,8 @@ export default async function DoctorPatientHomeSettingsPage() {
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Главная пациента</h1>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h1 className={doctorPageTitleClass}>Главная пациента</h1>
       </div>
       <div className="mb-6">
         <PatientHomePracticeTargetPanel initialTarget={initialPracticeTarget} />

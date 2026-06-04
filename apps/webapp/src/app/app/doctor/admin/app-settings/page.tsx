@@ -6,6 +6,7 @@ import { VideoSystemSettingsSection } from "@/app/app/settings/VideoSystemSettin
 import { WebPushVapidSection } from "@/app/app/settings/WebPushVapidSection";
 import { NotificationsTopicsSection } from "@/app/app/settings/NotificationsTopicsSection";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
 export default async function DoctorAdminAppSettingsPage() {
   await requireAdminDoctorPage();
@@ -13,8 +14,8 @@ export default async function DoctorAdminAppSettingsPage() {
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <h1 className="mb-6 text-xl font-semibold">Настройки приложения</h1>
-      <div className="space-y-6">
+      <h1 className={`mb-3 ${doctorPageTitleClass}`}>Настройки приложения</h1>
+      <div className="space-y-4">
         <AppParametersSection {...data.appParametersConfig} />
         <EmailSmtpSection {...data.smtpOutboundUi} />
         <VideoSystemSettingsSection {...data.videoSystemSettingsProps} />

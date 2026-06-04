@@ -94,7 +94,7 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
         Справочный отчёт для ручной проверки. Совпадения по ФИО не означают, что записи относятся к одному человеку.
       </p>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input
             type="checkbox"

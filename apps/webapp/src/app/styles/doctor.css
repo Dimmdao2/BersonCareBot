@@ -1,7 +1,12 @@
 /** Doctor product zone CSS — loaded from doctor and settings layouts. */
 
 #app-shell-doctor {
-  /* Anchor for future doctor-specific design tokens. */
+  /* Doctor visual identity tokens (white background; depth via borders/soft surfaces). */
+  --doctor-surface-subtle: #f7f9fc;
+  --doctor-border-soft: color-mix(in srgb, var(--border) 75%, transparent);
+  --doctor-nav-active-bg: color-mix(in srgb, var(--primary) 12%, #ffffff);
+  --doctor-nav-active-fg: var(--primary);
+  --doctor-nav-hover-bg: var(--muted);
 }
 
 .doctor-difficulty-1to10-range {

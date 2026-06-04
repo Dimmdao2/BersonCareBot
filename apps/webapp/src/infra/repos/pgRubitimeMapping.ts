@@ -491,10 +491,18 @@ async function linkMappingInternal(
     .limit(1);
   if (!serviceRows[0]) throw new Error("service_not_found");
 
+  const [legacyBranch, legacySpecialist] = await Promise.all([
+    deps.bookingCatalogPort.getBranchById(input.legacyBranchId),
+    deps.bookingCatalogPort.getSpecialistById(input.legacySpecialistId),
+  ]);
+  if (!legacyBranch) throw new Error("branch_not_found");
+  if (!legacySpecialist) throw new Error("specialist_not_found");
+  if (legacySpecialist.branchId !== legacyBranch.id) throw new Error("specialist_branch_mismatch");
+
   const branchService = await deps.bookingCatalogPort.upsertBranchServiceAdmin({
-    branchId: input.legacyBranchId,
+    branchId: legacyBranch.id,
     serviceId: input.legacyServiceId,
-    specialistId: input.legacySpecialistId,
+    specialistId: legacySpecialist.id,
     rubitimeServiceId: input.rubitimeServiceId.trim(),
     isActive: input.isActive ?? true,
     sortOrder: 0,
@@ -512,30 +520,80 @@ async function linkMappingInternal(
   });
 
   const now = new Date().toISOString();
-  await db
-    .insert(beExternalEntityMappings)
-    .values({
-      organizationId: input.organizationId,
-      entityType: "availability",
-      canonicalId: ssa.id,
-      externalSystem: "rubitime",
-      externalId: input.rubitimeServiceId.trim(),
-      metadata: { legacy_branch_service_id: branchService.id },
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        beExternalEntityMappings.externalSystem,
-        beExternalEntityMappings.entityType,
-        beExternalEntityMappings.externalId,
-      ],
-      set: {
-        canonicalId: ssa.id,
-        metadata: { legacy_branch_service_id: branchService.id },
+  await Promise.all([
+    db
+      .insert(beExternalEntityMappings)
+      .values({
+        organizationId: input.organizationId,
+        entityType: "branch",
+        canonicalId: input.branchId,
+        externalSystem: "rubitime",
+        externalId: legacyBranch.rubitimeBranchId,
+        metadata: {},
+        createdAt: now,
         updatedAt: now,
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: [
+          beExternalEntityMappings.externalSystem,
+          beExternalEntityMappings.entityType,
+          beExternalEntityMappings.externalId,
+        ],
+        set: {
+          canonicalId: input.branchId,
+          metadata: {},
+          updatedAt: now,
+        },
+      }),
+    db
+      .insert(beExternalEntityMappings)
+      .values({
+        organizationId: input.organizationId,
+        entityType: "specialist",
+        canonicalId: input.specialistId,
+        externalSystem: "rubitime",
+        externalId: legacySpecialist.rubitimeCooperatorId,
+        metadata: {},
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          beExternalEntityMappings.externalSystem,
+          beExternalEntityMappings.entityType,
+          beExternalEntityMappings.externalId,
+        ],
+        set: {
+          canonicalId: input.specialistId,
+          metadata: {},
+          updatedAt: now,
+        },
+      }),
+    db
+      .insert(beExternalEntityMappings)
+      .values({
+        organizationId: input.organizationId,
+        entityType: "availability",
+        canonicalId: ssa.id,
+        externalSystem: "rubitime",
+        externalId: input.rubitimeServiceId.trim(),
+        metadata: { legacy_branch_service_id: branchService.id },
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          beExternalEntityMappings.externalSystem,
+          beExternalEntityMappings.entityType,
+          beExternalEntityMappings.externalId,
+        ],
+        set: {
+          canonicalId: ssa.id,
+          metadata: { legacy_branch_service_id: branchService.id },
+          updatedAt: now,
+        },
+      }),
+  ]);
 
   return { branchServiceId: branchService.id, ssaId: ssa.id };
 }

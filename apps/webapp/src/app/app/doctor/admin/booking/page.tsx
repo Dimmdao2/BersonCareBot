@@ -30,7 +30,7 @@ export default async function DoctorAdminBookingOverviewPage() {
   const allowPastUnlink = parseAdminBoolean(settingRow?.valueJson ?? null);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <BookingCatalogHelp />
       <BookingOverviewPanel data={overview} />
 

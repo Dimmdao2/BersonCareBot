@@ -20,7 +20,7 @@ export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: P
     <section className="rounded-xl border border-border bg-muted/10 p-4">
       <h3 className={`m-0 ${doctorSectionTitleClass}`}>Предпросмотр для пациента</h3>
       <article className="mt-3 flex flex-col gap-3 rounded-lg border border-border bg-background p-4">
-        <h4 className="m-0 text-lg font-semibold">{title.trim() || "Заголовок страницы"}</h4>
+        <h4 className="m-0 text-base font-semibold">{title.trim() || "Заголовок страницы"}</h4>
         {summary.trim() ? <p className="m-0 text-sm text-muted-foreground">{summary.trim()}</p> : null}
         {imageUrl.trim() ? (
           <ContentHeroImage

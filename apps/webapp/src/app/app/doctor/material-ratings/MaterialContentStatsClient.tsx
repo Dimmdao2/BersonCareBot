@@ -80,7 +80,7 @@ function KpiCard({
   return (
     <div className={`rounded-lg border border-border/60 bg-card p-3 ${borderClass}`}>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-bold tabular-nums leading-tight">{value}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums leading-tight">{value}</p>
       {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
     </div>
   );

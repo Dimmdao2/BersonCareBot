@@ -66,7 +66,7 @@ const SHEET_LINK_CLASS = cn(
 
 const CLUSTER_TRIGGER_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
-  "flex h-auto w-full items-center justify-start gap-2 rounded-t-md bg-white px-3 py-2 text-left text-sm font-semibold text-foreground hover:bg-zinc-100/90",
+  "flex h-auto w-full items-center justify-start gap-2 rounded-t-md bg-card px-3 py-2 text-left text-sm font-semibold text-foreground hover:bg-muted",
 );
 
 /** Читает набор открытых кластеров: новый JSON-массив, иначе миграция со старого одного id. `null` — оставить начальный state. */
@@ -176,7 +176,7 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
         className={cn(
           linkClass,
           isDoctorNavItemActive(item.href, pathname) &&
-            "bg-[#7ea1d1] font-normal text-foreground hover:bg-[#7ea1d1] focus-visible:bg-[#7ea1d1]",
+            "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
         )}
       >
         <span className="flex min-w-0 flex-1 items-center justify-between gap-2">

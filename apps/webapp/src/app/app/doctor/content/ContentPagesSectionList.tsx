@@ -89,7 +89,7 @@ function SortablePageRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2 shadow-sm"
+      className="flex items-center gap-2 rounded-xl border border-border/80 bg-card px-2 py-2"
     >
       <DragHandle listeners={listeners as never} attributes={attributes as never} />
       <div className="min-w-0 flex-1">

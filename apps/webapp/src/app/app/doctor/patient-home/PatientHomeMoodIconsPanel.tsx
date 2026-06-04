@@ -81,7 +81,7 @@ export function PatientHomeMoodIconsPanel(props: { initialOptions: readonly Pati
               {r.imageUrl ?
                 // eslint-disable-next-line @next/next/no-img-element -- doctor preview for selected CMS media URL
                 <img src={r.imageUrl} alt="" className="size-full object-cover" loading="lazy" />
-              : <span className="text-lg font-semibold text-muted-foreground">{r.score}</span>}
+              : <span className="text-base font-semibold text-muted-foreground">{r.score}</span>}
             </div>
             <div className="text-xs font-semibold text-foreground">{r.score}</div>
             <div className="flex justify-center">

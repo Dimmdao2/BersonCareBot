@@ -60,7 +60,7 @@ export function ReminderSendsHourlyClockChart({ slices }: { slices: HourlyClockS
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-lg font-semibold tabular-nums leading-none">{totalSent}</span>
+          <span className="text-base font-semibold tabular-nums leading-none">{totalSent}</span>
           <span className="mt-0.5 text-[10px] text-muted-foreground">за 24 ч</span>
         </div>
       </div>

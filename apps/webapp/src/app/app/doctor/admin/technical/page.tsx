@@ -3,6 +3,7 @@ import { loadAdminSettingsPageData } from "@/app/app/settings/adminSettingsData"
 import { AdminSettingsSection } from "@/app/app/settings/AdminSettingsSection";
 import { AdminIncidentAlertsSection } from "@/app/app/settings/AdminIncidentAlertsSection";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
 export default async function DoctorAdminTechnicalPage() {
   await requireAdminDoctorPage();
@@ -10,8 +11,8 @@ export default async function DoctorAdminTechnicalPage() {
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <h1 className="mb-6 text-xl font-semibold">Технические режимы</h1>
-      <div className="space-y-6">
+      <h1 className={`mb-3 ${doctorPageTitleClass}`}>Технические режимы</h1>
+      <div className="space-y-4">
         <AdminSettingsSection
           devMode={diagnostics.devMode}
           debugForwardToAdmin={diagnostics.debugForwardToAdmin}

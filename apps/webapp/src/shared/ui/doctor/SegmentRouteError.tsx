@@ -77,7 +77,7 @@ export function SegmentRouteError({
       className="flex min-h-[40vh] flex-col items-center justify-center gap-4 p-6 text-center"
       role="alert"
     >
-      <h2 className="text-lg font-semibold">Что-то пошло не так</h2>
+      <h2 className="text-base font-semibold">Что-то пошло не так</h2>
       <p className="max-w-md text-sm text-muted-foreground">{message}</p>
       {error.digest ? (
         <p className="text-xs text-muted-foreground">Код: {error.digest}</p>
