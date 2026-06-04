@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { pgAdvisoryXactLock } from "@/infra/db/pgAdvisoryLock";
 
 const LOCK_PREFIX = "multipart_session:";
 
@@ -14,7 +15,7 @@ export async function withMultipartSessionLock<T>(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [`${LOCK_PREFIX}${sessionId}`]);
+    await pgAdvisoryXactLock(client, `${LOCK_PREFIX}${sessionId}`);
     const out = await fn(client);
     await client.query("COMMIT");
     return out;

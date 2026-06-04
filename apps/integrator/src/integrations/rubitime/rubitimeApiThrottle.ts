@@ -1,11 +1,13 @@
 import { db } from '../../infra/db/client.js';
+import {
+  pgSessionAdvisoryLock,
+  pgSessionAdvisoryUnlock,
+  RUBITIME_API_ADVISORY_LOCK_KEY,
+} from '../../infra/db/pgAdvisoryLock.js';
 import { logger } from '../../infra/observability/logger.js';
 
 /** Rubitime FAQ: min 5s between requests; use 5.5s margin. */
 export const RUBITIME_MIN_API_INTERVAL_MS = 5500;
-
-/** pg_advisory_lock int key — must not collide with other app uses. */
-const RUBITIME_API_ADVISORY_LOCK_KEY = 58220114;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -28,7 +30,7 @@ export async function withRubitimeApiThrottle<T>(fn: () => Promise<T>): Promise<
 
   const client = await db.connect();
   try {
-    await client.query('SELECT pg_advisory_lock($1)', [RUBITIME_API_ADVISORY_LOCK_KEY]);
+    await pgSessionAdvisoryLock(client, RUBITIME_API_ADVISORY_LOCK_KEY);
     try {
       const res = await client.query<{ last_completed_at: Date }>(
         'SELECT last_completed_at FROM rubitime_api_throttle WHERE id = 1',
@@ -54,7 +56,7 @@ export async function withRubitimeApiThrottle<T>(fn: () => Promise<T>): Promise<
         );
       }
     } finally {
-      await client.query('SELECT pg_advisory_unlock($1)', [RUBITIME_API_ADVISORY_LOCK_KEY]);
+      await pgSessionAdvisoryUnlock(client, RUBITIME_API_ADVISORY_LOCK_KEY);
     }
   } finally {
     client.release();

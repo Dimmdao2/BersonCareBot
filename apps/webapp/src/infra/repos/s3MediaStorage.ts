@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
+import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from "@/infra/db/pgAdvisoryLock";
 import { logger } from "@/infra/logging/logger";
 import {
   pgCreateFolder,
@@ -444,28 +445,33 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
     async deleteHard(mediaId: string) {
       const pool = getPool();
-      await pool.query(`SELECT pg_advisory_lock(hashtext($1))`, [mediaId]);
+      const client = await pool.connect();
       try {
-        const sel = await pool.query<{ s3_key: string | null; status: string | null }>(
-          `SELECT s3_key, status FROM media_files WHERE id = $1::uuid`,
-          [mediaId],
-        );
-        const row = sel.rows[0];
-        if (!row) return false;
+        await pgSessionAdvisoryLock(client, mediaId);
+        try {
+          const sel = await client.query<{ s3_key: string | null; status: string | null }>(
+            `SELECT s3_key, status FROM media_files WHERE id = $1::uuid`,
+            [mediaId],
+          );
+          const row = sel.rows[0];
+          if (!row) return false;
 
-        if (row.status === "pending_delete") {
+          if (row.status === "pending_delete") {
+            return true;
+          }
+
+          if (!row.s3_key) {
+            const del = await client.query(`DELETE FROM media_files WHERE id = $1::uuid`, [mediaId]);
+            return (del.rowCount ?? 0) > 0;
+          }
+
+          await client.query(`UPDATE media_files SET status = 'pending_delete' WHERE id = $1::uuid`, [mediaId]);
           return true;
+        } finally {
+          await pgSessionAdvisoryUnlock(client, mediaId);
         }
-
-        if (!row.s3_key) {
-          const del = await pool.query(`DELETE FROM media_files WHERE id = $1::uuid`, [mediaId]);
-          return (del.rowCount ?? 0) > 0;
-        }
-
-        await pool.query(`UPDATE media_files SET status = 'pending_delete' WHERE id = $1::uuid`, [mediaId]);
-        return true;
       } finally {
-        await pool.query(`SELECT pg_advisory_unlock(hashtext($1))`, [mediaId]);
+        client.release();
       }
     },
   };

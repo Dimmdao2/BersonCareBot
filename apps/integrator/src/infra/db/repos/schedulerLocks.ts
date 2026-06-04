@@ -1,4 +1,5 @@
 import { db } from '../client.js';
+import { pgSessionAdvisoryUnlock, pgTrySessionAdvisoryLock } from '../pgAdvisoryLock.js';
 import { logger } from '../../observability/logger.js';
 
 export type DbLockHandle = {
@@ -8,8 +9,8 @@ export type DbLockHandle = {
 export async function tryAcquireSchedulerLock(key: number): Promise<DbLockHandle | null> {
   const client = await db.connect();
   try {
-    const result = await client.query<{ locked: boolean }>('SELECT pg_try_advisory_lock($1) AS locked', [key]);
-    if (result.rows[0]?.locked !== true) {
+    const locked = await pgTrySessionAdvisoryLock(client, key);
+    if (!locked) {
       client.release();
       return null;
     }
@@ -17,7 +18,7 @@ export async function tryAcquireSchedulerLock(key: number): Promise<DbLockHandle
     return {
       release: async () => {
         try {
-          await client.query('SELECT pg_advisory_unlock($1)', [key]);
+          await pgSessionAdvisoryUnlock(client, key);
         } catch (err) {
           logger.error({ err }, 'Failed to release scheduler lock');
         } finally {

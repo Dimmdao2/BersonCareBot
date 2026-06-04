@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/infra/db/client";
+import { pgAdvisoryXactLockShared } from "@/infra/db/pgAdvisoryLock";
 import { resolveMediaFileForLfkAttachment } from "@/infra/repos/pgMediaFileIntakeResolve";
 import type { OnlineIntakePort, ListIntakeQuery } from "@/modules/online-intake/ports";
 import type {
@@ -127,7 +128,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        await client.query(`SELECT pg_advisory_xact_lock_shared(hashtext($1::text))`, [input.userId]);
+        await pgAdvisoryXactLockShared(client, input.userId);
         const id = randomUUID();
         const summary = input.description.slice(0, 200);
 
@@ -191,7 +192,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        await client.query(`SELECT pg_advisory_xact_lock_shared(hashtext($1::text))`, [input.userId]);
+        await pgAdvisoryXactLockShared(client, input.userId);
         const id = randomUUID();
         const summary = input.description.slice(0, 200);
 

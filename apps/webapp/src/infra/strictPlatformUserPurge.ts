@@ -3,6 +3,7 @@ import { env } from "@/config/env";
 import { isS3MediaEnabled } from "@/config/env";
 import { writeAuditLog } from "@/infra/adminAuditLog";
 import { getPool } from "@/infra/db/client";
+import { pgAdvisoryXactLock } from "@/infra/db/pgAdvisoryLock";
 import {
   collectPurgeArtifactKeys,
   deleteIntegratorPhoneDataWithResult,
@@ -283,7 +284,7 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [userSnapshot.id]);
+    await pgAdvisoryXactLock(client, userSnapshot.id);
     artifact = await collectPurgeArtifactKeys(client, userSnapshot.id);
     messengerBindings = await fetchMessengerBindingsForIntegratorCleanup(client, userSnapshot.id);
     await runWebappPurgeCoreInTransaction(client, userSnapshot);

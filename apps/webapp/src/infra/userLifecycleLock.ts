@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { pgAdvisoryXactLock, pgAdvisoryXactLockShared } from "@/infra/db/pgAdvisoryLock";
 
 /** Exclusive: purge / manual merge. Shared: user-owned media presign + intake attachment writes. */
 export type UserLifecycleLockMode = "exclusive" | "shared";
@@ -20,8 +21,8 @@ export async function withTwoUserLifecycleLocksExclusive<T>(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [x]);
-    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [y]);
+    await pgAdvisoryXactLock(client, x);
+    await pgAdvisoryXactLock(client, y);
     const out = await fn(client);
     await client.query("COMMIT");
     return out;
@@ -47,9 +48,9 @@ export async function withUserLifecycleLock<T>(
   try {
     await client.query("BEGIN");
     if (mode === "exclusive") {
-      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [userId]);
+      await pgAdvisoryXactLock(client, userId);
     } else {
-      await client.query(`SELECT pg_advisory_xact_lock_shared(hashtext($1::text))`, [userId]);
+      await pgAdvisoryXactLockShared(client, userId);
     }
     const out = await fn(client);
     await client.query("COMMIT");

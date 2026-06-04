@@ -128,3 +128,30 @@
 - **Drizzle builder отложен:** агрегаты `projection_outbox` остались параметризованным raw SQL внутри одного core. Это сознательно соответствует DoD этапа 2: убрать расхождение CLI/HTTP без изменения release-gate semantics.
 - **Проверки:** `rg` подтвердил, что `scripts/projection-health.mjs` больше не содержит `projection_outbox` SQL; добавлен in-process route smoke `routes.projectionHealth.test.ts` для `GET /health/projection` (200 snapshot + 503 fallback) и CLI тесты на stdout/exit-code; `pnpm --dir apps/integrator run lint`, `typecheck`, `test` — зелёные (`test`: **1021 passed, 6 skipped**); `pnpm --dir apps/integrator run build` — зелёный и подтвердил compiled CLI в `dist`. Локально сохраняется предупреждение окружения: Node `v20.18.2` при требовании проекта `>=22`.
 - **План:** `docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_02_projection_health_sync.plan.md` — `status: completed`, todos и DoD закрыты.
+
+### Wave 2 — этап 3 (advisory locks) — выполнено
+
+- **Общий канон:** advisory lock/unlock через `drizzle-orm` `execute(sql\`…\`)` на **том же** `PoolClient`, что и окружающий SQL (`db.connect()` / `pool.connect()`). На dedicated client это `drizzle(client).execute(sql)` — эквивалент `getIntegratorDrizzleSession(port).execute(sql)` внутри TX, но без `DbPort`. Хелперы: `apps/integrator/src/infra/db/pgAdvisoryLock.ts`, `apps/webapp/src/infra/db/pgAdvisoryLock.ts`.
+- **Integrator:** `rubitimeApiThrottle.ts` — session `pg_advisory_lock` / `unlock` (int key `58220114`, тот же `connect()` + `finally`); `schedulerLocks.ts` — `pg_try_advisory_lock` / `pg_advisory_unlock` на dedicated client.
+- **Webapp:** `userLifecycleLock.ts`, `multipartSessionLock.ts`, `pgOnlineIntake.ts` (только shared xact lock), `strictPlatformUserPurge.ts`, `s3MediaStorage.ts` (только session lock/unlock в `deleteHard`); `pgDiaryPurge.ts` — purge обёрнут в `withUserLifecycleLock(..., "exclusive")` (раньше транзакция без advisory; ключ `hashtext(platform_user_id::text)` как у strict purge).
+- **Вне этапа 3 (осознанно):** `modules/auth/*RateLimit.ts`, `publicBookingRateLimit.ts` — этап 7 Wave 2; остальной SQL в `s3MediaStorage.ts` — этап 5.
+
+#### Семантика блокировок (session vs transaction)
+
+| Файл | Тип | Ключ | Release |
+|------|-----|------|---------|
+| `rubitimeApiThrottle.ts` | session `pg_advisory_lock` | int `58220114` | `pg_advisory_unlock` в inner `finally` до `client.release()` |
+| `schedulerLocks.ts` | session `pg_try_advisory_lock` | int (scheduler slot) | `release()` handle → unlock + `client.release()` |
+| `userLifecycleLock.ts` | xact exclusive/shared | `hashtext(userId::text)` | автоматически при `COMMIT`/`ROLLBACK` |
+| `multipartSessionLock.ts` | xact exclusive | `hashtext('multipart_session:' \|\| id)` | при завершении tx |
+| `pgOnlineIntake.ts` | xact shared | `hashtext(userId::text)` | при завершении tx |
+| `pgDiaryPurge.ts` | xact exclusive (via lifecycle lock) | `hashtext(userId::text)` | при завершении tx |
+| `strictPlatformUserPurge.ts` | xact exclusive | `hashtext(userId::text)` | при завершении tx |
+| `s3MediaStorage.deleteHard` | session | `hashtext(mediaId)` | `unlock` в `finally` на **том же** `PoolClient`, что lock и DML |
+
+**Чеклист ревью для новых locks:** не менять ключ/hash без ADR; session-lock только на одном `PoolClient` (не смешивать `pool.query` между lock и unlock); xact-lock только внутри уже открытой транзакции; `pg_try_*` не заменять на blocking без причины; не дублировать int-ключи Rubitime/scheduler.
+
+- **Постаудит / дожим (2026-06-05):** `s3MediaStorage.deleteHard` — lock+DML на одном `PoolClient` (убран `drizzle(pool)` для session-lock). Тесты: integrator `pgAdvisoryLock.test.ts`, `schedulerLocks.test.ts`, `rubitimeApiThrottle.test.ts` (ключ `RUBITIME_API_ADVISORY_LOCK_KEY` = 58220114); webapp `pgAdvisoryLock.test.ts`, `userLifecycleLock.test.ts`, `multipartSessionLock.test.ts`, `pgDiaryPurge.test.ts`, `pgOnlineIntake.advisoryLock.test.ts`, `strictPlatformUserPurge.test.ts`. `RAW_SQL_INVENTORY.md` — строки P3 помечены **Wave 2 P3 done**.
+- **Проверки:** `pnpm --dir apps/integrator run typecheck`, `test` — **1028 passed**, 6 skipped; webapp `tsc --noEmit`; vitest fast по файлам этапа 3 — **23 passed**; `rg` по `apps/*/src/infra` — нет `client.query`/`pool.query` с `pg_advisory` в scope P3.
+- **Остаток:** сырой `pg_advisory_xact_lock` в `modules/auth/*RateLimit.ts` и `publicBookingRateLimit.ts` — **Wave 2 этап 7**.
+- **План:** `docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_03_advisory_locks.plan.md` — `status: completed`, секция «Закрытие».

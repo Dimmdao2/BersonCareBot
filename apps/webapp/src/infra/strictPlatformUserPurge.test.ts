@@ -14,6 +14,11 @@ const deleteIntegratorResultMock = vi.fn();
 const resolveIntegratorIdsMock = vi.fn();
 const poolQueryMock = vi.fn();
 const clientQueryMock = vi.fn();
+const pgAdvisoryXactLockMock = vi.fn();
+
+vi.mock("@/infra/db/pgAdvisoryLock", () => ({
+  pgAdvisoryXactLock: (...a: unknown[]) => pgAdvisoryXactLockMock(...a),
+}));
 
 vi.mock("@/config/env", () => ({
   env: {},
@@ -111,6 +116,9 @@ describe("runStrictPurgePlatformUser", () => {
   it("runs BEGIN → exclusive lock → collect keys → core → COMMIT", async () => {
     const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
     const order: string[] = [];
+    pgAdvisoryXactLockMock.mockImplementation(async () => {
+      order.push("lock");
+    });
     clientQueryMock.mockImplementation((sql: string) => {
       order.push(sql);
       return Promise.resolve({ rows: [], rowCount: 0 });
@@ -120,11 +128,12 @@ describe("runStrictPurgePlatformUser", () => {
 
     expect(r.ok).toBe(true);
     const beginIdx = order.indexOf("BEGIN");
-    const lockIdx = order.findIndex((s) => s.includes("pg_advisory_xact_lock") && !s.includes("shared"));
+    const lockIdx = order.indexOf("lock");
     const commitIdx = order.indexOf("COMMIT");
     expect(beginIdx).toBeGreaterThanOrEqual(0);
     expect(lockIdx).toBeGreaterThan(beginIdx);
     expect(commitIdx).toBeGreaterThan(lockIdx);
+    expect(pgAdvisoryXactLockMock).toHaveBeenCalledWith(expect.anything(), uid);
     expect(collectKeysMock).toHaveBeenCalled();
     expect(runCoreMock).toHaveBeenCalled();
   });
