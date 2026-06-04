@@ -78,13 +78,18 @@ describe("decodeWebPushVapidBase64Url / material validators", () => {
     expect(buf && isValidVapidP256PublicKeyMaterial(buf)).toBe(true);
   });
 
-  it("validates 32-byte private", () => {
-    const ecdh = createECDH("prime256v1");
-    ecdh.generateKeys();
-    const raw = Buffer.from(ecdh.getPrivateKey());
-    const s = raw.toString("base64url");
-    const buf = decodeWebPushVapidBase64Url(s);
-    expect(buf && isValidVapidP256PrivateKeyMaterial(buf)).toBe(true);
+  it("validates P-256 private (32 bytes or 31 without leading zero padding)", () => {
+    const { privateKey } = sampleP256KeyPair();
+    const buf = decodeWebPushVapidBase64Url(privateKey);
+    expect(buf).not.toBeNull();
+    expect(isValidVapidP256PrivateKeyMaterial(buf!)).toBe(true);
+  });
+
+  it("accepts 31-byte private after base64url round-trip", () => {
+    const raw31 = Buffer.concat([Buffer.alloc(1, 0), Buffer.alloc(30, 0xab)]);
+    const buf = decodeWebPushVapidBase64Url(raw31.toString("base64url"));
+    expect(buf?.length).toBe(31);
+    expect(isValidVapidP256PrivateKeyMaterial(buf!)).toBe(true);
   });
 });
 

@@ -36,8 +36,9 @@ export function isValidVapidP256PublicKeyMaterial(buf: Buffer): boolean {
   return false;
 }
 
+/** P-256 private scalar: 32 bytes, or 31 when OpenSSL omits a leading zero byte. */
 export function isValidVapidP256PrivateKeyMaterial(buf: Buffer): boolean {
-  return buf.length === 32;
+  return buf.length === 32 || buf.length === 31;
 }
 
 /** True if stored `value_json` already has a non-empty `privateKey` (merge target for empty PATCH). */
