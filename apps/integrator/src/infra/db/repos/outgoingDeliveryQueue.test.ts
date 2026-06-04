@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- test names and SQL fragments reference queue columns */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { drizzleSqlFragmentToApproximateSql } from '../drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
