@@ -15,6 +15,11 @@ import {
 } from "../../../db/schema/bookingScheduling";
 import { systemSettings } from "../../../db/schema/schema";
 import { buildSlotsForContext } from "@/modules/booking-scheduling/service";
+import {
+  legacyBranchServiceIdBySsaFromMappings,
+  legacyBranchServiceIdForSsaId,
+  pickPreferredSsaId,
+} from "@/modules/booking-scheduling/ssaResolve";
 import type { BookingSchedulingPort, CanonicalBookingContext } from "@/modules/booking-scheduling/ports";
 
 const ACTIVE_APPOINTMENT_STATUSES = [
@@ -87,28 +92,36 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         ssaConds.push(eq(beSpecialistServiceAvailability.specialistId, specialistId));
       }
       const ssaRows = await db
-        .select({ id: beSpecialistServiceAvailability.id })
+        .select({
+          id: beSpecialistServiceAvailability.id,
+          createdAt: beSpecialistServiceAvailability.createdAt,
+        })
         .from(beSpecialistServiceAvailability)
-        .where(and(...ssaConds))
-        .orderBy(asc(beSpecialistServiceAvailability.createdAt))
-        .limit(1);
-      const ssaId = ssaRows[0]?.id;
-      if (!ssaId) return null;
+        .where(and(...ssaConds));
+      if (ssaRows.length === 0) return null;
 
       const mapRows = await db
-        .select({ metadata: beExternalEntityMappings.metadata })
+        .select({
+          canonicalId: beExternalEntityMappings.canonicalId,
+          metadata: beExternalEntityMappings.metadata,
+        })
         .from(beExternalEntityMappings)
         .where(
           and(
             eq(beExternalEntityMappings.organizationId, organizationId),
             eq(beExternalEntityMappings.entityType, "availability"),
-            eq(beExternalEntityMappings.canonicalId, ssaId),
+            inArray(
+              beExternalEntityMappings.canonicalId,
+              ssaRows.map((r) => r.id),
+            ),
           ),
-        )
-        .limit(1);
-      const legacyId = mapRows[0]?.metadata as { legacy_branch_service_id?: string } | null | undefined;
-      const id = legacyId?.legacy_branch_service_id;
-      return typeof id === "string" && id.length > 0 ? id : null;
+        );
+      const legacyBySsa = legacyBranchServiceIdBySsaFromMappings(mapRows);
+      const pickedId = pickPreferredSsaId(
+        ssaRows.map((r) => ({ id: r.id, createdAt: r.createdAt, isActive: true })),
+        legacyBySsa,
+      );
+      return legacyBranchServiceIdForSsaId(pickedId, legacyBySsa);
     },
 
     async listServicesByCityCode(organizationId, cityCode) {

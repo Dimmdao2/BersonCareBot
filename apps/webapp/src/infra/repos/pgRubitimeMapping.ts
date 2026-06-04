@@ -1,14 +1,22 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import type { BookingCatalogPort } from "@/modules/booking-catalog/ports";
 import type { ServiceAvailabilityPort } from "@/modules/booking-engine/ports";
 import type { BookingSchedulingPort } from "@/modules/booking-scheduling/ports";
+import {
+  legacyBranchServiceIdBySsaFromMappings,
+  pickPreferredSsaId,
+} from "@/modules/booking-scheduling/ssaResolve";
 import { computeRubitimeMappingStatus } from "@/modules/rubitime-mapping/computeStatus";
 import type { ListRubitimeMappingQuery, RubitimeMappingPort } from "@/modules/rubitime-mapping/ports";
 import type {
   LinkRubitimeMappingInput,
   LinkRubitimeMappingResult,
+  ResolveRubitimeSsaDuplicateInput,
+  ResolveRubitimeSsaDuplicateResult,
+  RubitimeSsaDuplicateGroup,
+  RubitimeSsaDuplicateSummary,
   RubitimeMappingRow,
   RubitimeMappingSummary,
 } from "@/modules/rubitime-mapping/types";
@@ -46,6 +54,12 @@ export function createPgRubitimeMappingPort(deps: {
     },
     linkMapping(input) {
       return linkMappingInternal(input, deps);
+    },
+    listSsaDuplicates(input) {
+      return listSsaDuplicatesInternal(input.organizationId);
+    },
+    resolveSsaDuplicate(input) {
+      return resolveSsaDuplicateInternal(input);
     },
   };
 }
@@ -100,10 +114,27 @@ async function listMappingsInternal(
 
   const defaultSpecialist = specialists[0] ?? null;
   const locationPairKeys = new Set(locationRows.map((r) => `${r.branchId}:${r.serviceId}`));
-  const ssaByPair = new Map<string, (typeof ssaRows)[0]>();
+  const legacyIdBySsa = legacyBranchServiceIdBySsaFromMappings(
+    entityMaps
+      .filter((m) => m.entityType === "availability")
+      .map((m) => ({ canonicalId: m.canonicalId, metadata: m.metadata })),
+  );
+  const ssaGrouped = new Map<string, (typeof ssaRows)[number][]>();
   for (const row of ssaRows) {
     if (!row.branchId) continue;
-    ssaByPair.set(`${row.branchId}:${row.serviceId}`, row);
+    const pairKey = `${row.branchId}:${row.serviceId}`;
+    const list = ssaGrouped.get(pairKey) ?? [];
+    list.push(row);
+    ssaGrouped.set(pairKey, list);
+  }
+  const ssaByPair = new Map<string, (typeof ssaRows)[0]>();
+  for (const [pairKey, list] of ssaGrouped) {
+    const pickedId = pickPreferredSsaId(
+      list.map((r) => ({ id: r.id, createdAt: r.createdAt, isActive: r.isActive })),
+      legacyIdBySsa,
+    );
+    const picked = list.find((r) => r.id === pickedId);
+    if (picked) ssaByPair.set(pairKey, picked);
   }
 
   const canonicalBranchRubitime = new Map<string, string>();
@@ -114,13 +145,6 @@ async function listMappingsInternal(
   for (const m of entityMaps) {
     if (m.entityType === "specialist") canonicalSpecialistRubitime.set(m.canonicalId, m.externalId);
   }
-  const legacyIdBySsa = new Map<string, string>();
-  for (const m of entityMaps) {
-    if (m.entityType !== "availability") continue;
-    const legacyId = (m.metadata as { legacy_branch_service_id?: string } | null)?.legacy_branch_service_id;
-    if (legacyId) legacyIdBySsa.set(m.canonicalId, legacyId);
-  }
-
   const legacyById = new Map<string, LegacyBranchServiceRow>();
   const legacyRes = await pool.query<LegacyBranchServiceRow>(
     `SELECT
@@ -220,6 +244,223 @@ async function listMappingsInternal(
   }
 
   return { total: rows.length, mappedOk, problems, rows };
+}
+
+async function listSsaDuplicatesInternal(organizationId: string): Promise<RubitimeSsaDuplicateSummary> {
+  const db = getDrizzle();
+  const [ssaRows, branches, services, specialists] = await Promise.all([
+    db
+      .select()
+      .from(beSpecialistServiceAvailability)
+      .where(and(eq(beSpecialistServiceAvailability.organizationId, organizationId), isNull(beSpecialistServiceAvailability.roomId))),
+    db.select().from(beBranches).where(eq(beBranches.organizationId, organizationId)),
+    db.select().from(beClinicServices).where(eq(beClinicServices.organizationId, organizationId)),
+    db.select().from(beSpecialists).where(eq(beSpecialists.organizationId, organizationId)),
+  ]);
+
+  const scopeRows = ssaRows.filter((row) => Boolean(row.branchId));
+  if (scopeRows.length === 0) return { totalGroups: 0, groups: [] };
+
+  const mapRows = await db
+    .select({
+      canonicalId: beExternalEntityMappings.canonicalId,
+      externalId: beExternalEntityMappings.externalId,
+      metadata: beExternalEntityMappings.metadata,
+    })
+    .from(beExternalEntityMappings)
+    .where(
+      and(
+        eq(beExternalEntityMappings.organizationId, organizationId),
+        eq(beExternalEntityMappings.entityType, "availability"),
+        eq(beExternalEntityMappings.externalSystem, "rubitime"),
+        inArray(
+          beExternalEntityMappings.canonicalId,
+          scopeRows.map((row) => row.id),
+        ),
+      ),
+    );
+
+  const rubitimeIdBySsaId = new Map<string, string>();
+  for (const row of mapRows) {
+    rubitimeIdBySsaId.set(row.canonicalId, row.externalId);
+  }
+  const legacyBySsaId = legacyBranchServiceIdBySsaFromMappings(mapRows);
+
+  const branchById = new Map(branches.map((row) => [row.id, row]));
+  const serviceById = new Map(services.map((row) => [row.id, row]));
+  const specialistById = new Map(specialists.map((row) => [row.id, row]));
+
+  const grouped = new Map<string, (typeof scopeRows)[number][]>();
+  for (const row of scopeRows) {
+    if (!row.branchId) continue;
+    const key = `${row.branchId}:${row.serviceId}:${row.specialistId}`;
+    const current = grouped.get(key) ?? [];
+    current.push(row);
+    grouped.set(key, current);
+  }
+
+  const groups: RubitimeSsaDuplicateGroup[] = [];
+  for (const [key, groupRows] of grouped) {
+    if (groupRows.length < 2) continue;
+    const [branchId, serviceId, specialistId] = key.split(":");
+    const branch = branchById.get(branchId);
+    const service = serviceById.get(serviceId);
+    const specialist = specialistById.get(specialistId);
+    if (!branch || !service) continue;
+
+    const recommendedKeepSsaId = pickPreferredSsaId(
+      groupRows.map((row) => ({ id: row.id, createdAt: row.createdAt, isActive: row.isActive })),
+      legacyBySsaId,
+    );
+    if (!recommendedKeepSsaId) continue;
+
+    groups.push({
+      branchId,
+      branchTitle: branch.title,
+      serviceId,
+      serviceTitle: service.title,
+      specialistId,
+      specialistName: specialist?.fullName ?? null,
+      recommendedKeepSsaId,
+      rows: [...groupRows]
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((row) => ({
+          ssaId: row.id,
+          specialistId: row.specialistId,
+          specialistName: specialistById.get(row.specialistId)?.fullName ?? null,
+          isActive: row.isActive,
+          createdAt: row.createdAt,
+          cityCode: row.cityCode ?? null,
+          hasMapping: rubitimeIdBySsaId.has(row.id),
+          rubitimeServiceId: rubitimeIdBySsaId.get(row.id) ?? null,
+          legacyBranchServiceId: legacyBySsaId.get(row.id) ?? null,
+        })),
+    });
+  }
+
+  groups.sort((a, b) => {
+    const byBranch = a.branchTitle.localeCompare(b.branchTitle, "ru");
+    if (byBranch !== 0) return byBranch;
+    const byService = a.serviceTitle.localeCompare(b.serviceTitle, "ru");
+    if (byService !== 0) return byService;
+    return (a.specialistName ?? "").localeCompare(b.specialistName ?? "", "ru");
+  });
+
+  return { totalGroups: groups.length, groups };
+}
+
+async function resolveSsaDuplicateInternal(
+  input: ResolveRubitimeSsaDuplicateInput,
+): Promise<ResolveRubitimeSsaDuplicateResult> {
+  const db = getDrizzle();
+  const rows = await db
+    .select()
+    .from(beSpecialistServiceAvailability)
+    .where(
+      and(
+        eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
+        eq(beSpecialistServiceAvailability.branchId, input.branchId),
+        eq(beSpecialistServiceAvailability.serviceId, input.serviceId),
+        eq(beSpecialistServiceAvailability.specialistId, input.specialistId),
+        isNull(beSpecialistServiceAvailability.roomId),
+      ),
+    );
+
+  if (rows.length === 0) throw new Error("ssa_not_found");
+  const keep = rows.find((row) => row.id === input.keepSsaId);
+  if (!keep) throw new Error("keep_ssa_not_found");
+
+  const now = new Date().toISOString();
+  const siblingIds = rows.map((row) => row.id);
+  const mapRows = await db
+    .select({
+      canonicalId: beExternalEntityMappings.canonicalId,
+      externalId: beExternalEntityMappings.externalId,
+      metadata: beExternalEntityMappings.metadata,
+      updatedAt: beExternalEntityMappings.updatedAt,
+    })
+    .from(beExternalEntityMappings)
+    .where(
+      and(
+        eq(beExternalEntityMappings.organizationId, input.organizationId),
+        eq(beExternalEntityMappings.entityType, "availability"),
+        eq(beExternalEntityMappings.externalSystem, "rubitime"),
+        inArray(beExternalEntityMappings.canonicalId, siblingIds),
+      ),
+    );
+
+  let transferredMapping = false;
+  const keepHasMapping = mapRows.some((row) => row.canonicalId === input.keepSsaId);
+  if ((input.transferMappingToKeep ?? true) && !keepHasMapping) {
+    const source = [...mapRows]
+      .filter((row) => row.canonicalId !== input.keepSsaId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    if (source) {
+      await db
+        .insert(beExternalEntityMappings)
+        .values({
+          organizationId: input.organizationId,
+          entityType: "availability",
+          canonicalId: input.keepSsaId,
+          externalSystem: "rubitime",
+          externalId: source.externalId,
+          metadata: source.metadata,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [
+            beExternalEntityMappings.externalSystem,
+            beExternalEntityMappings.entityType,
+            beExternalEntityMappings.externalId,
+          ],
+          set: {
+            canonicalId: input.keepSsaId,
+            metadata: source.metadata,
+            updatedAt: now,
+          },
+        });
+      transferredMapping = true;
+    }
+  }
+
+  if (!keep.isActive) {
+    await db
+      .update(beSpecialistServiceAvailability)
+      .set({ isActive: true, updatedAt: now })
+      .where(eq(beSpecialistServiceAvailability.id, input.keepSsaId));
+  }
+
+  const deactivatedIds = rows.filter((row) => row.id !== input.keepSsaId && row.isActive).map((row) => row.id);
+  if (deactivatedIds.length > 0) {
+    await db
+      .update(beSpecialistServiceAvailability)
+      .set({ isActive: false, updatedAt: now })
+      .where(inArray(beSpecialistServiceAvailability.id, deactivatedIds));
+  }
+
+  const dropMappingIds = rows.filter((row) => row.id !== input.keepSsaId).map((row) => row.id);
+  if (dropMappingIds.length > 0) {
+    await db
+      .delete(beExternalEntityMappings)
+      .where(
+        and(
+          eq(beExternalEntityMappings.organizationId, input.organizationId),
+          eq(beExternalEntityMappings.entityType, "availability"),
+          eq(beExternalEntityMappings.externalSystem, "rubitime"),
+          inArray(beExternalEntityMappings.canonicalId, dropMappingIds),
+        ),
+      );
+  }
+
+  return {
+    branchId: input.branchId,
+    serviceId: input.serviceId,
+    specialistId: input.specialistId,
+    keepSsaId: input.keepSsaId,
+    deactivatedIds,
+    transferredMapping,
+  };
 }
 
 async function linkMappingInternal(

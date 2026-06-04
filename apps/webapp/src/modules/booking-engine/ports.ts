@@ -126,10 +126,13 @@ export type ServiceAvailabilityPort = {
 
 export type BookingEnginePort = {
   getAppointment(id: string): Promise<BeAppointment | null>;
+  getRubitimeAppointmentId?(input: { organizationId: string; appointmentId: string }): Promise<string | null>;
   /** Status immediately before transition to `charged_to_package` (for package refund revert). */
   getStatusBeforePackageCharge(appointmentId: string): Promise<AppointmentStatus | null>;
   createAppointment(input: CreateAppointmentInput): Promise<BeAppointment>;
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<BeAppointment>;
+  /** Hard delete is used only for immediate create rollback before side-effects. */
+  deleteAppointmentHard?(input: { organizationId: string; appointmentId: string }): Promise<boolean>;
   upsertRubitimeAppointmentMapping(input: {
     organizationId: string;
     appointmentId: string;

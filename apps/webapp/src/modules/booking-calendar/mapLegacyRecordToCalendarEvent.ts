@@ -75,6 +75,12 @@ export function mapLegacyRecordToCalendarEvent(row: LegacyAppointmentRecordRow):
     patientName,
     patientPhone: row.phone_normalized?.trim() || null,
     bookingStatus: row.status,
+    rubitimeId: row.integrator_record_id,
+    rubitimeManageUrl:
+      (typeof payload.link === "string" && payload.link.trim()) ||
+      (typeof payload.url === "string" && payload.url.trim()) ||
+      (typeof payload.record_url === "string" && payload.record_url.trim()) ||
+      null,
     paymentStatus: null,
     prepaymentPending: false,
     packageUsageRef: row.package_usage_ref?.trim() || null,

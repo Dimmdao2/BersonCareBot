@@ -19,6 +19,49 @@ describe("BookingRubitimeMappingSection", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/rubitime-mapping/duplicates")) {
+          return Promise.resolve(
+            jsonFetchResponse({
+              ok: true,
+              totalGroups: 1,
+              groups: [
+                {
+                  branchId: "550e8400-e29b-41d4-a716-446655440001",
+                  branchTitle: "Москва",
+                  serviceId: "550e8400-e29b-41d4-a716-446655440002",
+                  serviceTitle: "Приём",
+                  specialistId: "550e8400-e29b-41d4-a716-446655440007",
+                  specialistName: "Дмитрий Берсон",
+                  recommendedKeepSsaId: "550e8400-e29b-41d4-a716-446655440008",
+                  rows: [
+                    {
+                      ssaId: "550e8400-e29b-41d4-a716-446655440008",
+                      specialistId: "550e8400-e29b-41d4-a716-446655440007",
+                      specialistName: "Дмитрий Берсон",
+                      isActive: true,
+                      createdAt: "2026-06-04T12:20:38.758Z",
+                      cityCode: "moscow",
+                      hasMapping: true,
+                      rubitimeServiceId: "67452",
+                      legacyBranchServiceId: "22e2e533-858c-41d1-bef9-4c2cd43bb527",
+                    },
+                    {
+                      ssaId: "550e8400-e29b-41d4-a716-446655440009",
+                      specialistId: "550e8400-e29b-41d4-a716-446655440007",
+                      specialistName: "Дмитрий Берсон",
+                      isActive: true,
+                      createdAt: "2026-06-04T12:11:46.927Z",
+                      cityCode: "moscow",
+                      hasMapping: false,
+                      rubitimeServiceId: null,
+                      legacyBranchServiceId: null,
+                    },
+                  ],
+                },
+              ],
+            }),
+          );
+        }
         if (typeof url === "string" && url.includes("/rubitime-mapping")) {
           return Promise.resolve(
             jsonFetchResponse({
@@ -63,6 +106,7 @@ describe("BookingRubitimeMappingSection", () => {
   it("renders mapping section with summary and configure action", async () => {
     render(<BookingRubitimeMappingSection />);
     expect(await screen.findByText("Связи локация × услуга")).toBeInTheDocument();
+    expect(await screen.findByText("Дубли доступности (SSA)")).toBeInTheDocument();
     expect(screen.getByText("Всего пар")).toBeInTheDocument();
     expect(screen.getByText("Проблемы")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Настроить" })).toBeInTheDocument();

@@ -25,6 +25,8 @@ function legacyEvent(overrides: Partial<CalendarAppointmentEvent> = {}): Calenda
     patientName: "Иван",
     patientPhone: "+79001234567",
     bookingStatus: "created",
+    rubitimeId: "rt-legacy-1",
+    rubitimeManageUrl: null,
     paymentStatus: null,
     prepaymentPending: false,
     packageUsageRef: null,

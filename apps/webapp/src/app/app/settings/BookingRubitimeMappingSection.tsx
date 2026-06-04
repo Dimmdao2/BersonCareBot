@@ -21,7 +21,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { RubitimeMappingRow, RubitimeMappingStatusCode } from "@/modules/rubitime-mapping/types";
+import type {
+  RubitimeMappingRow,
+  RubitimeMappingStatusCode,
+  RubitimeSsaDuplicateGroup,
+} from "@/modules/rubitime-mapping/types";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { getDoctorSectionItemClass } from "@/shared/ui/doctorVisual";
@@ -29,6 +33,7 @@ import { cn } from "@/lib/utils";
 
 const MAPPING_BASE = "/api/admin/booking-engine/rubitime-mapping";
 const CATALOG_BASE = "/api/admin/booking-catalog";
+const DUPLICATES_BASE = "/api/admin/booking-engine/rubitime-mapping/duplicates";
 
 type CatalogBranch = { id: string; title: string; isActive: boolean };
 type CatalogService = { id: string; title: string; durationMinutes: number; isActive: boolean };
@@ -67,6 +72,16 @@ function statusTone(status: RubitimeMappingStatusCode, issues: string[]): "defau
   return "urgent";
 }
 
+function duplicateGroupKey(group: Pick<RubitimeSsaDuplicateGroup, "branchId" | "serviceId" | "specialistId">): string {
+  return `${group.branchId}:${group.serviceId}:${group.specialistId}`;
+}
+
+function formatIsoDate(iso: string): string {
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return iso;
+  return dt.toLocaleString("ru-RU");
+}
+
 export function BookingRubitimeMappingSection() {
   const [rows, setRows] = useState<RubitimeMappingRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -88,6 +103,13 @@ export function BookingRubitimeMappingSection() {
   const [legacyServiceId, setLegacyServiceId] = useState("");
   const [legacySpecialistId, setLegacySpecialistId] = useState("");
   const [rubitimeServiceId, setRubitimeServiceId] = useState("");
+  const [duplicateGroups, setDuplicateGroups] = useState<RubitimeSsaDuplicateGroup[]>([]);
+  const [duplicateGroupsCount, setDuplicateGroupsCount] = useState(0);
+  const [duplicateLoadError, setDuplicateLoadError] = useState<string | null>(null);
+  const [duplicateActionError, setDuplicateActionError] = useState<string | null>(null);
+  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
+  const [resolvingGroupKey, setResolvingGroupKey] = useState<string | null>(null);
+  const [keepByGroupKey, setKeepByGroupKey] = useState<Record<string, string>>({});
 
   const loadCatalog = useCallback(async () => {
     const [bRes, sRes, spRes, bsRes] = await Promise.all([
@@ -125,6 +147,34 @@ export function BookingRubitimeMappingSection() {
     }
   }, [problemsOnly]);
 
+  const loadDuplicates = useCallback(async () => {
+    setDuplicatesLoading(true);
+    setDuplicateLoadError(null);
+    try {
+      const data = await apiJson<{
+        ok: boolean;
+        totalGroups: number;
+        groups: RubitimeSsaDuplicateGroup[];
+      }>(DUPLICATES_BASE);
+      setDuplicateGroups(data.groups);
+      setDuplicateGroupsCount(data.totalGroups);
+      setKeepByGroupKey((prev) => {
+        const next: Record<string, string> = {};
+        for (const group of data.groups) {
+          const key = duplicateGroupKey(group);
+          const existing = prev[key];
+          const keepExists = group.rows.some((row) => row.ssaId === existing);
+          next[key] = keepExists && existing ? existing : group.recommendedKeepSsaId;
+        }
+        return next;
+      });
+    } catch (e) {
+      setDuplicateLoadError(e instanceof Error ? e.message : "duplicates_load_failed");
+    } finally {
+      setDuplicatesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadMappings();
   }, [loadMappings]);
@@ -132,6 +182,10 @@ export function BookingRubitimeMappingSection() {
   useEffect(() => {
     void loadCatalog();
   }, [loadCatalog]);
+
+  useEffect(() => {
+    void loadDuplicates();
+  }, [loadDuplicates]);
 
   const specialistsForBranch = useMemo(
     () => legacySpecialists.filter((s) => s.branchId === legacyBranchId),
@@ -175,6 +229,31 @@ export function BookingRubitimeMappingSection() {
         setActionError(e instanceof Error ? e.message : "link_failed");
       }
     });
+  }
+
+  async function resolveDuplicateGroup(group: RubitimeSsaDuplicateGroup) {
+    const key = duplicateGroupKey(group);
+    const keepSsaId = keepByGroupKey[key] ?? group.recommendedKeepSsaId;
+    setDuplicateActionError(null);
+    setResolvingGroupKey(key);
+    try {
+      await apiJson(`${DUPLICATES_BASE}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: group.branchId,
+          serviceId: group.serviceId,
+          specialistId: group.specialistId,
+          keepSsaId,
+          transferMappingToKeep: true,
+        }),
+      });
+      await Promise.all([loadMappings(), loadDuplicates()]);
+    } catch (e) {
+      setDuplicateActionError(e instanceof Error ? e.message : "duplicates_resolve_failed");
+    } finally {
+      setResolvingGroupKey(null);
+    }
   }
 
   return (
@@ -249,6 +328,111 @@ export function BookingRubitimeMappingSection() {
               </li>
             ))}
           </ul>
+        )}
+      </DoctorSection>
+
+      <DoctorSection>
+        <DoctorSectionHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+          <DoctorSectionTitle>Дубли доступности (SSA)</DoctorSectionTitle>
+          <div className="flex items-center gap-2">
+            <Badge variant={duplicateGroupsCount > 0 ? "outline" : "secondary"}>{duplicateGroupsCount}</Badge>
+            <Button variant="default" size="sm" onClick={() => void loadDuplicates()} disabled={duplicatesLoading}>
+              {duplicatesLoading ? "Загрузка…" : "Обновить"}
+            </Button>
+          </div>
+        </DoctorSectionHeader>
+
+        {duplicateLoadError ? <p className="text-sm text-destructive">{duplicateLoadError}</p> : null}
+        {duplicateActionError ? <p className="text-sm text-destructive">{duplicateActionError}</p> : null}
+
+        {duplicateGroups.length === 0 && !duplicatesLoading ? (
+          <DoctorEmptyState>Дубликаты не найдены.</DoctorEmptyState>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border/70">
+            <table className="w-full min-w-[940px] border-collapse text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Пара</th>
+                  <th className="px-3 py-2 text-left font-medium">Записи</th>
+                  <th className="px-3 py-2 text-left font-medium">Оставить</th>
+                  <th className="px-3 py-2 text-right font-medium">Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                {duplicateGroups.map((group) => {
+                  const key = duplicateGroupKey(group);
+                  const selectedKeep = keepByGroupKey[key] ?? group.recommendedKeepSsaId;
+                  const rowById = new Map(group.rows.map((row) => [row.ssaId, row]));
+                  const selected = rowById.get(selectedKeep) ?? null;
+                  const running = resolvingGroupKey === key;
+                  return (
+                    <tr key={key} className="border-t border-border/70 align-top">
+                      <td className="px-3 py-2">
+                        <p className="font-medium text-foreground">
+                          {group.branchTitle} · {group.serviceTitle}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{group.specialistName ?? "Без специалиста"}</p>
+                      </td>
+                      <td className="px-3 py-2">
+                        <ul className="m-0 list-none space-y-1 p-0">
+                          {group.rows.map((row) => (
+                            <li key={row.ssaId} className="flex flex-wrap items-center gap-2 text-xs">
+                              <span className="font-mono text-[11px]">{row.ssaId}</span>
+                              <Badge variant={row.isActive ? "secondary" : "outline"}>
+                                {row.isActive ? "active" : "inactive"}
+                              </Badge>
+                              <Badge variant={row.hasMapping ? "secondary" : "outline"}>
+                                {row.hasMapping ? `mapped ${row.rubitimeServiceId ?? ""}`.trim() : "no mapping"}
+                              </Badge>
+                              <span className="text-muted-foreground">{formatIsoDate(row.createdAt)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Select
+                          value={selectedKeep}
+                          onValueChange={(value) => {
+                            if (!value) return;
+                            setKeepByGroupKey((prev) => ({ ...prev, [key]: value }));
+                            setDuplicateActionError(null);
+                          }}
+                        >
+                          <SelectTrigger
+                            displayLabel={
+                              selected
+                                ? `${selected.ssaId} · ${selected.hasMapping ? "mapped" : "no mapping"}`
+                                : selectedKeep
+                            }
+                          >
+                            <SelectValue placeholder="Выберите SSA" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {group.rows.map((row) => (
+                              <SelectItem key={row.ssaId} value={row.ssaId}>
+                                {row.ssaId} · {row.hasMapping ? "mapped" : "no mapping"} ·{" "}
+                                {row.isActive ? "active" : "inactive"}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          disabled={running}
+                          onClick={() => void resolveDuplicateGroup(group)}
+                        >
+                          {running ? "Чищу…" : "Оставить выбранную"}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </DoctorSection>
 

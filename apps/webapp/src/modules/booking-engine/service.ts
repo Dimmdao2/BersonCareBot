@@ -41,6 +41,13 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
       return port.getAppointment(id);
     },
 
+    async getRubitimeAppointmentId(input) {
+      assertUuid(input.organizationId, "organizationId");
+      assertUuid(input.appointmentId, "appointmentId");
+      if (!port.getRubitimeAppointmentId) return null;
+      return port.getRubitimeAppointmentId(input);
+    },
+
     async getStatusBeforePackageCharge(appointmentId) {
       assertUuid(appointmentId, "appointmentId");
       return port.getStatusBeforePackageCharge(appointmentId);
@@ -63,6 +70,13 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
       if (!current) throw new Error("Запись не найдена");
       assertValidAppointmentStatusTransition(current.status, input.toStatus);
       return port.transitionAppointmentStatus(input);
+    },
+
+    async deleteAppointmentHard(input: { organizationId: string; appointmentId: string }) {
+      assertUuid(input.organizationId, "organizationId");
+      assertUuid(input.appointmentId, "appointmentId");
+      if (!port.deleteAppointmentHard) return false;
+      return port.deleteAppointmentHard(input);
     },
 
     async upsertRubitimeAppointmentMapping(input) {

@@ -277,8 +277,6 @@ import { createPgRubitimeMappingPort } from "@/infra/repos/pgRubitimeMapping";
 import { createRubitimeMappingService } from "@/modules/rubitime-mapping/service";
 import { createBookingCalendarService } from "@/modules/booking-calendar/service";
 import { createPgBookingCalendarPort } from "@/infra/repos/pgBookingCalendar";
-import { createPgBookingCalendarLegacyCalendarPort } from "@/infra/repos/pgBookingCalendarLegacy";
-import { createBookingCalendarReadSwitchPort } from "@/infra/repos/bookingCalendarReadSwitch";
 import { createClientHistoryService } from "@/modules/client-history/service";
 import { createPgClientHistoryPort } from "@/infra/repos/pgClientHistory";
 import { inMemoryClientHistoryPort } from "@/infra/repos/inMemoryClientHistory";
@@ -452,30 +450,24 @@ const rubitimeMappingPort =
 const rubitimeMappingService = rubitimeMappingPort
   ? createRubitimeMappingService(rubitimeMappingPort)
   : null;
-const bookingCalendarCanonicalPort = !inMemoryRepos ? createPgBookingCalendarPort() : null;
-const bookingCalendarLegacyPort = !inMemoryRepos ? createPgBookingCalendarLegacyCalendarPort() : null;
-const bookingCalendarPort =
-  bookingCalendarCanonicalPort && bookingCalendarLegacyPort
-    ? createBookingCalendarReadSwitchPort({
-        legacyPort: bookingCalendarLegacyPort,
-        canonicalPort: bookingCalendarCanonicalPort,
-        resolveReadSource: async () => {
-          if (inMemoryRepos) return "rubitime_legacy";
-          const row = await systemSettingsService.getSetting("booking_doctor_appointments_read_source", "admin");
-          return parseDoctorAppointmentsReadSource(row?.valueJson ?? null);
-        },
-      })
-    : bookingCalendarCanonicalPort;
+const bookingCalendarPort = !inMemoryRepos ? createPgBookingCalendarPort() : null;
 const bookingCalendarService =
   bookingCalendarPort && bookingSchedulingPort
     ? createBookingCalendarService({
         calendarPort: bookingCalendarPort,
         listScheduleBlocks: (input) => bookingSchedulingPort.listScheduleBlocks(input),
         schedulingPort: bookingSchedulingPort,
-        resolveCalendarReadSource: async () => {
-          if (inMemoryRepos) return "rubitime_legacy";
-          const row = await systemSettingsService.getSetting("booking_doctor_appointments_read_source", "admin");
-          return parseDoctorAppointmentsReadSource(row?.valueJson ?? null);
+        resolveShowWorkingHours: async () => {
+          if (inMemoryRepos) return true;
+          const row = await systemSettingsService.getSetting("booking_calendar_show_working_hours", "admin");
+          const raw =
+            row?.valueJson && typeof row.valueJson === "object"
+              ? (row.valueJson as { value?: unknown }).value
+              : null;
+          if (typeof raw === "boolean") return raw;
+          if (raw === "true" || raw === 1) return true;
+          if (raw === "false" || raw === 0) return false;
+          return true;
         },
       })
     : null;

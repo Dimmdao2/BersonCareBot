@@ -68,17 +68,10 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged }: Props) 
   const [open, setOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
-  const [notes, setNotes] = useState(pkg.notes ?? "");
+  const [notesDraft, setNotesDraft] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  useEffect(() => {
-    setNotes(pkg.notes ?? "");
-  }, [pkg.notes]);
-
-  useEffect(() => {
-    setHistory(null);
-    setHistoryOpen(false);
-  }, [pkg.id]);
+  const notes = notesDraft ?? (pkg.notes ?? "");
 
   const soldLabel = formatDate(pkg.soldAt);
   const validLabel = formatDate(pkg.validUntil);
@@ -117,6 +110,7 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged }: Props) 
         onError?.(json.error ?? "notes_failed");
         return;
       }
+      setNotesDraft(null);
       setHistory(null);
       onError?.(null);
       onChanged?.();
@@ -157,7 +151,7 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged }: Props) 
         <Input
           id={`notes-${pkg.id}`}
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => setNotesDraft(e.target.value)}
           onBlur={saveNotes}
           disabled={pending}
         />

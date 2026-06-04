@@ -2,7 +2,6 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createBookingCalendarService } from "./service";
 import type { BookingCalendarPort } from "./ports";
 import type { BookingSchedulingPort } from "@/modules/booking-scheduling/ports";
-import type { CalendarAppointmentEvent } from "./types";
 
 describe("booking-calendar service", () => {
   const mockPort: BookingCalendarPort = {
@@ -26,6 +25,8 @@ describe("booking-calendar service", () => {
         patientName: "Иван",
         patientPhone: "+79001234567",
         bookingStatus: "confirmed",
+        rubitimeId: null,
+        rubitimeManageUrl: null,
         paymentStatus: null,
         prepaymentPending: false,
         packageUsageRef: null,
@@ -41,11 +42,7 @@ describe("booking-calendar service", () => {
       rooms: [],
       services: [{ id: "svc1", label: "Приём", durationMinutes: 60 }],
     })),
-    resolveSchedulingForSlots: vi.fn(async () => ({
-      durationMinutes: 60,
-      roomId: null,
-      branchTimezone: "Europe/Moscow",
-    })),
+    resolveSchedulingForSlots: vi.fn(async () => null),
   };
 
   const listScheduleBlocks = vi.fn(async () => [
@@ -66,14 +63,12 @@ describe("booking-calendar service", () => {
     resolveCanonicalFromBranchService: vi.fn(),
     resolveLegacyBranchServiceId: vi.fn(),
     listServicesByCityCode: vi.fn(),
-    getSlots: vi.fn(async () => [
-      {
-        date: "2026-05-30",
-        slots: [{ startAt: "2026-05-30T11:00:00.000Z", endAt: "2026-05-30T12:00:00.000Z" }],
-      },
-    ]),
+    getSlots: vi.fn(async () => []),
     listBusyIntervals: vi.fn(),
-    listWorkingHours: vi.fn(),
+    listWorkingHours: vi.fn(async () => [
+      { weekday: 6, startMinute: 9 * 60, endMinute: 12 * 60 },
+      { weekday: 6, startMinute: 13 * 60, endMinute: 18 * 60 },
+    ]),
     getBufferMinutes: vi.fn(),
     listScheduleBlocks: vi.fn(),
     createScheduleBlock: vi.fn(),
@@ -101,14 +96,17 @@ describe("booking-calendar service", () => {
       organizationId: "org1",
       rangeStart: "2026-05-30T00:00:00.000Z",
       rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
       specialistId: "s1",
+      branchId: "b1",
     });
-    expect(result.events).toHaveLength(2);
     expect(result.events.some((e) => e.kind === "appointment")).toBe(true);
     expect(result.events.some((e) => e.kind === "block")).toBe(true);
+    expect(result.events.some((e) => e.kind === "working")).toBe(true);
+    expect(result.events.some((e) => e.kind === "break")).toBe(true);
     expect(result.filters.services).toHaveLength(1);
     expect(result.readSource).toBe("canonical");
-    expect(result.freeSlotsEnabled).toBe(true);
+    expect(result.showWorkingHours).toBe(true);
   });
 
   it("filters blocks by branch", async () => {
@@ -129,117 +127,31 @@ describe("booking-calendar service", () => {
       organizationId: "org1",
       rangeStart: "2026-05-30T00:00:00.000Z",
       rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
       branchId: "b1",
     });
     expect(result.events.filter((e) => e.kind === "block")).toHaveLength(0);
   });
 
-  it("includes free slots when filters and includeFreeSlots set", async () => {
-    const result = await service.getCalendar({
-      organizationId: "org1",
-      rangeStart: "2026-05-30T00:00:00.000Z",
-      rangeEnd: "2026-05-31T00:00:00.000Z",
-      specialistId: "s1",
-      branchId: "b1",
-      serviceId: "svc1",
-      includeFreeSlots: true,
-    });
-    expect(result.events.some((e) => e.kind === "freeSlot")).toBe(true);
-    expect(schedulingPort.getSlots).toHaveBeenCalled();
-  });
-
-  it("skips free slots when read source is rubitime_legacy", async () => {
-    const isolatedScheduling: BookingSchedulingPort = {
-      resolveCanonicalFromBranchService: vi.fn(),
-    resolveLegacyBranchServiceId: vi.fn(),
-      listServicesByCityCode: vi.fn(),
-      getSlots: vi.fn(async () => []),
-      listBusyIntervals: vi.fn(),
-      listWorkingHours: vi.fn(),
-      getBufferMinutes: vi.fn(),
-      listScheduleBlocks: vi.fn(),
-      createScheduleBlock: vi.fn(),
-      deleteScheduleBlock: vi.fn(),
-      listWorkingHoursAdmin: vi.fn(),
-      createWorkingHours: vi.fn(),
-      updateWorkingHours: vi.fn(),
-      deactivateWorkingHours: vi.fn(),
-      upsertBufferMinutes: vi.fn(),
-      getMinNoticeHours: vi.fn(async () => 0),
-    };
-    const isolatedRubitimeService = createBookingCalendarService({
+  it("hides working and break layers when setting is disabled", async () => {
+    const noBgService = createBookingCalendarService({
       calendarPort: mockPort,
       listScheduleBlocks,
-      schedulingPort: isolatedScheduling,
-      resolveCalendarReadSource: async () => "rubitime_legacy",
+      schedulingPort,
+      resolveShowWorkingHours: async () => false,
     });
-    const result = await isolatedRubitimeService.getCalendar({
+    const result = await noBgService.getCalendar({
       organizationId: "org1",
       rangeStart: "2026-05-30T00:00:00.000Z",
       rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
       specialistId: "s1",
       branchId: "b1",
-      serviceId: "svc1",
-      includeFreeSlots: true,
     });
-    expect(result.events.some((e) => e.kind === "freeSlot")).toBe(false);
-    expect(result.freeSlotsEnabled).toBe(false);
-    expect(result.readSource).toBe("rubitime_legacy");
-    expect(isolatedScheduling.getSlots).not.toHaveBeenCalled();
-  });
-
-  it("soft-filters legacy appointments by branch when filter is active", async () => {
-    const legacyPort: BookingCalendarPort = {
-      ...mockPort,
-      listAppointmentsInRange: vi.fn(async () => [
-        legacyEvent({ id: "a-match", branchId: "b1", patientPhone: "+79001111111" }),
-        legacyEvent({ id: "a-skip", branchId: "b2", patientPhone: "+79002222222" }),
-      ]),
-    };
-    function legacyEvent(overrides: Partial<CalendarAppointmentEvent>): CalendarAppointmentEvent {
-      return {
-        kind: "appointment",
-        id: "a1",
-        startAt: "2026-05-30T08:00:00.000Z",
-        endAt: "2026-05-30T09:00:00.000Z",
-        status: "confirmed",
-        source: "rubitime_legacy",
-        specialistId: null,
-        specialistName: null,
-        branchId: "b1",
-        branchTitle: "Филиал",
-        roomId: null,
-        roomTitle: null,
-        serviceId: null,
-        serviceTitle: null,
-        platformUserId: null,
-        patientName: "Иван",
-        patientPhone: "+79001234567",
-        bookingStatus: "created",
-        paymentStatus: null,
-        prepaymentPending: false,
-        packageUsageRef: null,
-        packageTitle: null,
-        rescheduleCount: 0,
-        originalStartAt: null,
-        formComments: [],
-        ...overrides,
-      };
-    }
-    const rubitimeService = createBookingCalendarService({
-      calendarPort: legacyPort,
-      listScheduleBlocks,
-      schedulingPort,
-      resolveCalendarReadSource: async () => "rubitime_legacy",
-    });
-    const result = await rubitimeService.getCalendar({
-      organizationId: "org1",
-      rangeStart: "2026-05-30T00:00:00.000Z",
-      rangeEnd: "2026-05-31T00:00:00.000Z",
-      branchId: "b1",
-    });
-    const appointments = result.events.filter((e) => e.kind === "appointment");
-    expect(appointments).toHaveLength(1);
-    expect(appointments[0]!.id).toBe("a-match");
+    expect(result.events.some((e) => e.kind === "working")).toBe(false);
+    expect(result.events.some((e) => e.kind === "break")).toBe(false);
+    expect(result.events.some((e) => e.kind === "appointment")).toBe(true);
+    expect(result.events.some((e) => e.kind === "block")).toBe(true);
+    expect(result.showWorkingHours).toBe(false);
   });
 });

@@ -18,6 +18,22 @@ const bodySchema = z.object({
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+const RUBITIME_CONFLICT_ERRORS = new Set([
+  "slot_already_taken",
+  "duplicate_local_booking_id",
+  "rubitime_slot_conflict",
+  "external_slot_taken",
+]);
+
+function isExternalSlotConflict(error: string): boolean {
+  return RUBITIME_CONFLICT_ERRORS.has(error);
+}
+
+function isSlotOverlapError(err: unknown): boolean {
+  if (err instanceof Error && err.message === "slot_overlap") return true;
+  return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
+}
+
 export async function POST(request: Request, context: RouteContext) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
@@ -30,24 +46,88 @@ export async function POST(request: Request, context: RouteContext) {
   if (!deps.bookingAppointmentLifecycle) {
     return NextResponse.json({ ok: false, error: "lifecycle_unavailable" }, { status: 503 });
   }
+  const beforeAppointment = await gate.ctx.service.getAppointment(appointmentId);
+  if (!beforeAppointment) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
   const actorType = gate.ctx.session.user.role === "admin" ? "admin" : "specialist";
-  const result = await deps.bookingAppointmentLifecycle.staffReschedule({
-    appointmentId,
-    organizationId: gate.ctx.organizationId,
-    actorType,
-    actorId: gate.ctx.session.user.userId,
-    newStartAt: parsed.data.newStartAt,
-    newEndAt: parsed.data.newEndAt,
-    durationMinutes: parsed.data.durationMinutes,
-    reason: parsed.data.reason,
-    staffComment: parsed.data.staffComment,
-    branchId: parsed.data.branchId,
-    specialistId: parsed.data.specialistId,
-    serviceId: parsed.data.serviceId,
-    manualOverride: true,
-  });
+  const syncPort = createBookingSyncPort();
+  const bookingRow = deps.patientBooking
+    ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
+    : null;
+  const rubitimeId =
+    bookingRow?.rubitimeId ??
+    (gate.ctx.service.getRubitimeAppointmentId
+      ? await gate.ctx.service.getRubitimeAppointmentId({
+          organizationId: gate.ctx.organizationId,
+          appointmentId,
+        })
+      : null);
+  let syncedExternally = false;
+  const rollbackExternalReschedule = async () => {
+    if (!syncedExternally || !rubitimeId || !syncPort.updateRecord) return;
+    try {
+      await syncPort.updateRecord({
+        rubitimeId,
+        slotStart: beforeAppointment.startAt,
+        slotEnd: beforeAppointment.endAt,
+      });
+    } catch {
+      // Best-effort external rollback when canonical reschedule is rejected.
+    }
+  };
+  if (rubitimeId && syncPort.updateRecord) {
+    try {
+      await syncPort.updateRecord({
+        rubitimeId,
+        slotStart: parsed.data.newStartAt,
+        slotEnd: parsed.data.newEndAt,
+      });
+      syncedExternally = true;
+    } catch (syncErr) {
+      const syncCode = syncErr instanceof Error ? syncErr.message : "rubitime_update_failed";
+      if (isExternalSlotConflict(syncCode)) {
+        return NextResponse.json(
+          { ok: false, error: "external_slot_taken", hint: "refresh_calendar" },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ ok: false, error: "rubitime_sync_failed" }, { status: 502 });
+    }
+  }
+  let result:
+    | Awaited<ReturnType<typeof deps.bookingAppointmentLifecycle.staffReschedule>>
+    | null = null;
+  try {
+    result = await deps.bookingAppointmentLifecycle.staffReschedule({
+      appointmentId,
+      organizationId: gate.ctx.organizationId,
+      actorType,
+      actorId: gate.ctx.session.user.userId,
+      newStartAt: parsed.data.newStartAt,
+      newEndAt: parsed.data.newEndAt,
+      durationMinutes: parsed.data.durationMinutes,
+      reason: parsed.data.reason,
+      staffComment: parsed.data.staffComment,
+      branchId: parsed.data.branchId,
+      specialistId: parsed.data.specialistId,
+      serviceId: parsed.data.serviceId,
+      manualOverride: true,
+    });
+  } catch (err) {
+    await rollbackExternalReschedule();
+    if (isSlotOverlapError(err)) {
+      return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    }
+    if (err instanceof Error && err.message === "appointment_not_found") {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: false, error: "reschedule_failed" }, { status: 500 });
+  }
   if (!result.ok) {
-    return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
+    await rollbackExternalReschedule();
+    const status = result.error === "not_found" ? 404 : 400;
+    return NextResponse.json({ ok: false, error: result.error }, { status });
   }
   const { loadBookingLifecycleNotificationsFromSystemSettings } = await import(
     "@/modules/booking-notifications/settings"
@@ -61,10 +141,8 @@ export async function POST(request: Request, context: RouteContext) {
     organizationId: gate.ctx.organizationId,
     appointment: result.appointment,
     reschedulePolicy: result.reschedulePolicy,
-    syncPort: createBookingSyncPort(),
-    bookingRow: deps.patientBooking
-      ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
-      : null,
+    syncPort,
+    bookingRow,
     lifecycleNotificationSettings,
   });
   if (deps.payments) {

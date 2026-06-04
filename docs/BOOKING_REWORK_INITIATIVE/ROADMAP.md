@@ -74,7 +74,7 @@ Rubitime-дубли специалистов не должны попадать 
 | 1 | Новый кабинет записи: solo UX | `in_progress` | Пересобрать основные вкладки записи вокруг локаций, услуг, доступности, расписания и формы | `/app/doctor/admin/booking`, `Booking*Section` |
 | 2 | Rubitime-маппинг как адаптер | `done` | 2.0–2.3a в коде; 2.3b slots cutover — ops; appointments read-source → этап 4 | [`STAGE2_DECOMPOSITION.md`](STAGE2_DECOMPOSITION.md), [`ACCEPTANCE_STAGE2.md`](ACCEPTANCE_STAGE2.md), [`LOG.md`](LOG.md) |
 | 3 | Абонементы: UX и корректное списание | `done` | Доработать индивидуальные абонементы, комментарии, список сеансов, отвязку и списание | [`STAGE3_DECOMPOSITION.md`](STAGE3_DECOMPOSITION.md), [`ACCEPTANCE_STAGE3.md`](ACCEPTANCE_STAGE3.md), memberships |
-| 4 | Интерактивный календарь | `pending` | Сделать календарь рабочим инструментом: details, drag/drop, resize, отмены рядом | `/app/doctor/calendar`, calendar API |
+| 4 | Интерактивный календарь | `done` | Calendar lib, canonical feed, working/break, DnD, Rubitime rollback, poll | [`STAGE4_DECOMPOSITION.md`](STAGE4_DECOMPOSITION.md), [`ACCEPTANCE_STAGE4.md`](ACCEPTANCE_STAGE4.md), `/app/doctor/calendar` |
 | 5 | Полный проход UI и приемка | `pending` | Довести интерфейс по замечаниям владельца и закрыть инициативу только после принятия | все экраны записи |
 
 ## 6. Этап 0 — Инвентаризация и IA
@@ -622,6 +622,11 @@ UI:
 
 ## 10. Этап 4 — Интерактивный Календарь
 
+**Исполнение:** [`STAGE4_DECOMPOSITION.md`](STAGE4_DECOMPOSITION.md) (блоки 4.0–4.8) · **приёмка:** [`ACCEPTANCE_STAGE4.md`](ACCEPTANCE_STAGE4.md).
+**Статус этапа:** `done` (код + targeted auto-checks, 2026-06-04). Ops: staging read-source cutover сделан; prod cutover — defer (см. [`LOG.md`](LOG.md)).
+
+**Зафиксировано (2026-06-04):** читать записи только из нашей БД; фон — рабочее время и перерывы из канона (не слоты Rubitime), с настройкой **`booking_calendar_show_working_hours`** (можно скрыть); готовая calendar-библиотека с DnD/resize/long-press; при конфликте Rubitime — откат + обновление календаря (webhook/poll).
+
 ### Цель
 
 Сделать календарь рабочим инструментом врача/админа, а не только read-only сеткой.
@@ -651,7 +656,7 @@ UI:
 - учитывать длительность;
 - учитывать занятость и исключения;
 - после сохранения писать lifecycle event;
-- при включенном Rubitime sync обновлять Rubitime best-effort или через выбранный переходный режим.
+- при включенном Rubitime sync обновлять Rubitime синхронно; при conflict откатывать локальный create/reschedule и возвращать понятную ошибку.
 
 Если перенос нарушает правила:
 
@@ -729,9 +734,11 @@ Resize за край должен:
 - Активная запись и отмененная запись на то же время отображаются рядом, а не друг на друге.
 - Несколько отмен на одно время открываются списком.
 - Шапка корректна в day/week/month.
-- Календарь работает при `rubitime_legacy` read-source и при `canonical` read-source или явно показывает ограничения режима.
+- Календарь врача работает на canonical read-source; после smoke этапа 4 переключатель `booking_doctor_appointments_read_source` переводится в `canonical` для списка записей/KPI.
 
 ## 11. Этап 5 — Полный Проход UI и Приемка
+
+**Статус:** `pending`. Замечания владельца по кабинету записи (2026-06-04) — [`LOG.md`](LOG.md) §«Этап 5: проход UI владельца».
 
 ### Цель
 
@@ -763,6 +770,21 @@ Resize за край должен:
 - перенос записи;
 - resize длительности;
 - отмены и повторное занятие того же времени.
+
+### Работы агента (до подписи владельца)
+
+По принятой IA в LOG §«Принято владельцем»:
+
+1. **Admin booking → 4 вкладки** — обзор+каталог+правила; форма+публичная; оплата; Rubitime; редиректы legacy URL; убрать вкладки «Операции», «Расписание», «Абонементы» из admin nav.
+2. **Рабочая «Запись»** — перенос lifecycle с admin `/operations` в кабинет врача: список записей + панель действий (split), деталь записи по клику; связка с календарём/расписанием дня.
+3. **Абонементы** — ежедневная работа в карточке клиента; каталог офферов — по решению при реализации (настройки или doctor).
+4. **Обзор** — убрать «Быстрые действия»; ссылки в `BookingCatalogHelp`.
+5. **Defer этапа 4** — touch; предупреждение resize ≠ длительность услуги.
+6. **Документы** — `ACCEPTANCE_STAGE5.md`, `DOCTOR_CABINET_NAVIGATION.md`, `INVENTORY_AND_IA.md`.
+7. **Авто-проверки** — vitest/lint по затронутым маршрутам.
+8. **Ops:** prod read-source cutover — LOG.
+
+**Только владелец:** полный чек-лист §«Обязательный полный проход» + календарь/patient/Rubitime E2E + формулировка «Новый интерфейс записи принят».
 
 ### Критерии Закрытия Инициативы
 

@@ -8,6 +8,7 @@ export type CalendarFilters = {
   organizationId: string;
   rangeStart: string;
   rangeEnd: string;
+  timeZone?: string;
   specialistId?: string | null;
   branchId?: string | null;
   roomId?: string | null;
@@ -45,6 +46,8 @@ export type CalendarAppointmentEvent = {
   patientName: string | null;
   patientPhone: string | null;
   bookingStatus: string | null;
+  rubitimeId: string | null;
+  rubitimeManageUrl: string | null;
   paymentStatus: string | null;
   prepaymentPending: boolean;
   packageUsageRef: string | null;
@@ -66,6 +69,26 @@ export type CalendarBlockEvent = {
   roomId: string | null;
 };
 
+export type CalendarWorkingEvent = {
+  kind: "working";
+  id: string;
+  startAt: string;
+  endAt: string;
+  specialistId: string | null;
+  branchId: string | null;
+  roomId: string | null;
+};
+
+export type CalendarBreakEvent = {
+  kind: "break";
+  id: string;
+  startAt: string;
+  endAt: string;
+  specialistId: string | null;
+  branchId: string | null;
+  roomId: string | null;
+};
+
 export type CalendarFreeSlotEvent = {
   kind: "freeSlot";
   id: string;
@@ -76,11 +99,16 @@ export type CalendarFreeSlotEvent = {
   serviceId: string;
 };
 
-export type CalendarEvent = CalendarAppointmentEvent | CalendarBlockEvent | CalendarFreeSlotEvent;
+export type CalendarEvent =
+  | CalendarAppointmentEvent
+  | CalendarBlockEvent
+  | CalendarWorkingEvent
+  | CalendarBreakEvent
+  | CalendarFreeSlotEvent;
 
 export type CalendarAggregate = {
   events: CalendarEvent[];
   filters: CalendarFilterMeta;
   readSource: CalendarReadSource;
-  freeSlotsEnabled: boolean;
+  showWorkingHours: boolean;
 };

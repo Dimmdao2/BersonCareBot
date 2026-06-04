@@ -32,11 +32,11 @@ export async function GET(request: Request) {
       organizationId: gate.ctx.organizationId,
       rangeStart: parsed.rangeStart,
       rangeEnd: parsed.rangeEnd,
+      timeZone,
       specialistId: parsed.specialistId,
       branchId: parsed.branchId,
       roomId: parsed.roomId,
       serviceId: parsed.serviceId,
-      includeFreeSlots: parsed.includeFreeSlots,
     });
     return NextResponse.json({
       ok: true,

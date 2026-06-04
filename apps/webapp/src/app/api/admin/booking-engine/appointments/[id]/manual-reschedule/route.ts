@@ -18,6 +18,11 @@ const bodySchema = z.object({
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+function isSlotOverlapError(err: unknown): boolean {
+  if (err instanceof Error && err.message === "slot_overlap") return true;
+  return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
+}
+
 export async function POST(request: Request, context: RouteContext) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
@@ -30,23 +35,37 @@ export async function POST(request: Request, context: RouteContext) {
   if (!deps.bookingAppointmentLifecycle) {
     return NextResponse.json({ ok: false, error: "lifecycle_unavailable" }, { status: 503 });
   }
-  const result = await deps.bookingAppointmentLifecycle.staffReschedule({
-    appointmentId,
-    organizationId: gate.ctx.organizationId,
-    actorType: "admin",
-    actorId: gate.ctx.session.user.userId,
-    newStartAt: parsed.data.newStartAt,
-    newEndAt: parsed.data.newEndAt,
-    durationMinutes: parsed.data.durationMinutes,
-    reason: parsed.data.reason,
-    staffComment: parsed.data.staffComment,
-    branchId: parsed.data.branchId,
-    specialistId: parsed.data.specialistId,
-    serviceId: parsed.data.serviceId,
-    manualOverride: true,
-  });
+  let result:
+    | Awaited<ReturnType<typeof deps.bookingAppointmentLifecycle.staffReschedule>>
+    | null = null;
+  try {
+    result = await deps.bookingAppointmentLifecycle.staffReschedule({
+      appointmentId,
+      organizationId: gate.ctx.organizationId,
+      actorType: "admin",
+      actorId: gate.ctx.session.user.userId,
+      newStartAt: parsed.data.newStartAt,
+      newEndAt: parsed.data.newEndAt,
+      durationMinutes: parsed.data.durationMinutes,
+      reason: parsed.data.reason,
+      staffComment: parsed.data.staffComment,
+      branchId: parsed.data.branchId,
+      specialistId: parsed.data.specialistId,
+      serviceId: parsed.data.serviceId,
+      manualOverride: true,
+    });
+  } catch (err) {
+    if (isSlotOverlapError(err)) {
+      return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    }
+    if (err instanceof Error && err.message === "appointment_not_found") {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: false, error: "reschedule_failed" }, { status: 500 });
+  }
   if (!result.ok) {
-    return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
+    const status = result.error === "not_found" ? 404 : 400;
+    return NextResponse.json({ ok: false, error: result.error }, { status });
   }
   const { loadBookingLifecycleNotificationsFromSystemSettings } = await import(
     "@/modules/booking-notifications/settings"

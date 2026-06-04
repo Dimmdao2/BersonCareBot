@@ -26,9 +26,9 @@ describe("GET /api/doctor/booking-engine/calendar", () => {
     });
     getCalendarMock.mockResolvedValue({
       events: [],
-      freeSlots: [],
-      readSource: "rubitime_legacy",
-      freeSlotsEnabled: false,
+      readSource: "canonical",
+      showWorkingHours: true,
+      filters: { specialists: [], branches: [], rooms: [], services: [] },
     });
 
     const res = await GET(
@@ -38,12 +38,12 @@ describe("GET /api/doctor/booking-engine/calendar", () => {
       ok?: boolean;
       events?: unknown[];
       readSource?: string;
-      freeSlotsEnabled?: boolean;
+      showWorkingHours?: boolean;
     };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.readSource).toBe("rubitime_legacy");
-    expect(json.freeSlotsEnabled).toBe(false);
+    expect(json.readSource).toBe("canonical");
+    expect(json.showWorkingHours).toBe(true);
     expect(getCalendarMock).toHaveBeenCalled();
   });
 

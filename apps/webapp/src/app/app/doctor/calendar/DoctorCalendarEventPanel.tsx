@@ -60,7 +60,6 @@ type Props = {
   activeFilters: CalendarCreateActiveFilters;
   onClose: () => void;
   onChanged: () => void;
-  legacyReadOnly?: boolean;
 };
 
 type LifecycleResponse = {
@@ -77,6 +76,13 @@ function noneValue() {
   return "__none__";
 }
 
+function panelErrorLabel(error: string | undefined): string {
+  if (!error) return "Ошибка";
+  if (error === "external_slot_taken") return "Время уже занято во внешней записи.";
+  if (error === "slot_overlap") return "Слот уже занят.";
+  return error;
+}
+
 export function DoctorCalendarEventPanel(props: Props) {
   return <DoctorCalendarEventPanelInner key={props.selected?.id ?? "none"} {...props} />;
 }
@@ -89,7 +95,6 @@ function DoctorCalendarEventPanelInner({
   activeFilters,
   onClose,
   onChanged,
-  legacyReadOnly = false,
 }: Props) {
   const [mode, setMode] = useState<"view" | "create" | "reschedule">("view");
   const [cancelType, setCancelType] = useState("free");
@@ -102,15 +107,12 @@ function DoctorCalendarEventPanelInner({
   const [createStart, setCreateStart] = useState("");
   const [createSpecialistId, setCreateSpecialistId] = useState<string | null>(null);
   const [createBranchId, setCreateBranchId] = useState<string | null>(null);
-  const [createRoomId, setCreateRoomId] = useState<string | null>(null);
   const [createServiceId, setCreateServiceId] = useState<string | null>(null);
   const [createPatient, setCreatePatient] = useState<CalendarPatientOption | null>(null);
   const selectedId = selected?.id ?? null;
 
-  const isLegacyEvent = legacyReadOnly || selected?.source === "rubitime_legacy";
-
   useEffect(() => {
-    if (!selectedId || isLegacyEvent) return;
+    if (!selectedId) return;
     let cancelled = false;
     void fetch(`${apiBase}/appointments/${encodeURIComponent(selectedId)}/lifecycle`)
       .then((res) => res.json())
@@ -123,7 +125,7 @@ function DoctorCalendarEventPanelInner({
     return () => {
       cancelled = true;
     };
-  }, [apiBase, isLegacyEvent, selectedId]);
+  }, [apiBase, selectedId]);
 
   const createDurationMinutes = useMemo(() => {
     if (!createServiceId) return null;
@@ -131,13 +133,15 @@ function DoctorCalendarEventPanelInner({
   }, [createServiceId, filterMeta.services]);
 
   const openCreateForm = () => {
-    setCreateSpecialistId(
-      resolveCalendarCreateFieldValue(filterMeta.specialists, activeFilters.specialistId, createSpecialistId),
+    const nextSpecialistId = resolveCalendarCreateFieldValue(
+      filterMeta.specialists,
+      activeFilters.specialistId,
+      createSpecialistId,
     );
+    setCreateSpecialistId(nextSpecialistId ?? filterMeta.specialists[0]?.id ?? null);
     setCreateBranchId(
       resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, createBranchId),
     );
-    setCreateRoomId(resolveCalendarCreateFieldValue(filterMeta.rooms, activeFilters.roomId, createRoomId));
     const nextServiceId = resolveCalendarCreateFieldValue(
       filterMeta.services,
       activeFilters.serviceId,
@@ -172,20 +176,20 @@ function DoctorCalendarEventPanelInner({
             createDurationMinutes={createDurationMinutes}
             createSpecialistId={createSpecialistId}
             createBranchId={createBranchId}
-            createRoomId={createRoomId}
             createServiceId={createServiceId}
             createPatient={createPatient}
             pending={pending}
             message={message}
             onStartChange={setCreateStart}
-            onSpecialistChange={setCreateSpecialistId}
             onBranchChange={setCreateBranchId}
-            onRoomChange={setCreateRoomId}
             onServiceChange={setCreateServiceId}
             onPatientChange={setCreatePatient}
             onCancel={() => setMode("view")}
             onSubmit={() => {
-              if (!createStart || !createDurationMinutes) return;
+              if (!createStart || !createDurationMinutes || !createBranchId || !createServiceId || !createSpecialistId) {
+                setMessage("Заполните филиал, услугу и специалиста.");
+                return;
+              }
               const startAt = new Date(createStart).toISOString();
               const endAt = new Date(
                 new Date(createStart).getTime() + createDurationMinutes * 60_000,
@@ -200,16 +204,17 @@ function DoctorCalendarEventPanelInner({
                     durationMinutes: createDurationMinutes,
                     specialistId: createSpecialistId,
                     branchId: createBranchId,
-                    roomId: createRoomId,
                     serviceId: createServiceId,
                     platformUserId: createPatient?.id ?? null,
                     phoneNormalized: createPatient?.phone?.trim() || null,
                   }),
                 });
                 const json = (await res.json()) as { ok?: boolean; error?: string };
-                setMessage(json.ok ? "Создано" : (json.error ?? "error"));
+                setMessage(json.ok ? "Создано" : panelErrorLabel(json.error));
                 if (json.ok) {
                   setMode("view");
+                  onChanged();
+                } else if (json.error === "external_slot_taken") {
                   onChanged();
                 }
               });
@@ -239,6 +244,16 @@ function DoctorCalendarEventPanelInner({
         {selected.specialistName ? <p>{selected.specialistName}</p> : null}
         {selected.branchTitle ? <p>{selected.branchTitle}</p> : null}
         {selected.roomTitle ? <p>{selected.roomTitle}</p> : null}
+        {selected.rubitimeId ? <p className="text-xs text-muted-foreground">Rubitime ID: {selected.rubitimeId}</p> : null}
+        {selected.rubitimeManageUrl ? (
+          <Link
+            href={selected.rubitimeManageUrl}
+            target="_blank"
+            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Открыть в Rubitime
+          </Link>
+        ) : null}
         {selected.patientPhone ? <p>{selected.patientPhone}</p> : null}
         {selected.platformUserId ? (
           <Link
@@ -289,13 +304,11 @@ function DoctorCalendarEventPanelInner({
         ) : null}
       </div>
 
-      {isLegacyEvent ? null : <BookingStaffPaymentPanel apiBase={apiBase} appointmentId={selected.id} />}
+      <BookingStaffPaymentPanel apiBase={apiBase} appointmentId={selected.id} />
 
-      {isLegacyEvent ? null : (
-        <AppointmentStaffCommentsSection appointmentId={selected.id} onChanged={onChanged} />
-      )}
+      <AppointmentStaffCommentsSection appointmentId={selected.id} onChanged={onChanged} />
 
-      {mode === "reschedule" && !isLegacyEvent ? (
+      {mode === "reschedule" ? (
         <div className="mt-3 space-y-2 border-t border-border pt-3">
           <Label>Начало</Label>
           <Input type="datetime-local" value={newStartLocal} onChange={(e) => setNewStartLocal(e.target.value)} />
@@ -304,7 +317,6 @@ function DoctorCalendarEventPanelInner({
         </div>
       ) : null}
 
-      {isLegacyEvent ? null : (
       <div className="mt-4 flex flex-wrap gap-2">
         {mode !== "reschedule" ? (
           <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setMode("reschedule")}>
@@ -329,9 +341,14 @@ function DoctorCalendarEventPanelInner({
                   body: JSON.stringify({ newStartAt, newEndAt, durationMinutes }),
                 });
                 const json = (await res.json()) as { ok?: boolean; error?: string };
-                setMessage(json.ok ? "Перенесено" : (json.error ?? "error"));
-                if (json.ok) onChanged();
-                else setMode("view");
+                setMessage(json.ok ? "Перенесено" : panelErrorLabel(json.error));
+                if (json.ok) {
+                  onChanged();
+                } else if (json.error === "external_slot_taken") {
+                  onChanged();
+                } else {
+                  setMode("view");
+                }
               });
             }}
           >
@@ -363,7 +380,7 @@ function DoctorCalendarEventPanelInner({
                 body: JSON.stringify({ decisionType: cancelType }),
               });
               const json = (await res.json()) as { ok?: boolean; error?: string };
-              setMessage(json.ok ? "Отменено" : (json.error ?? "error"));
+              setMessage(json.ok ? "Отменено" : panelErrorLabel(json.error));
               if (json.ok) onChanged();
             });
           }}
@@ -371,7 +388,6 @@ function DoctorCalendarEventPanelInner({
           Отменить
         </Button>
       </div>
-      )}
       {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
     </div>
   );
@@ -384,15 +400,12 @@ type CreateFormProps = {
   createDurationMinutes: number | null;
   createSpecialistId: string | null;
   createBranchId: string | null;
-  createRoomId: string | null;
   createServiceId: string | null;
   createPatient: CalendarPatientOption | null;
   pending: boolean;
   message: string | null;
   onStartChange: (v: string) => void;
-  onSpecialistChange: (v: string | null) => void;
   onBranchChange: (v: string | null) => void;
-  onRoomChange: (v: string | null) => void;
   onServiceChange: (v: string | null) => void;
   onPatientChange: (v: CalendarPatientOption | null) => void;
   onCancel: () => void;
@@ -403,13 +416,8 @@ function CreateForm(props: CreateFormProps) {
   const durationLabel =
     props.createDurationMinutes != null ? `${props.createDurationMinutes} мин` : "—";
 
-  const specialistMode = resolveCalendarCreateFieldMode(
-    props.filterMeta.specialists,
-    props.activeFilters.specialistId,
-  );
   const branchMode = resolveCalendarCreateFieldMode(props.filterMeta.branches, props.activeFilters.branchId);
   const serviceMode = resolveCalendarCreateFieldMode(props.filterMeta.services, props.activeFilters.serviceId);
-  const roomMode = resolveCalendarCreateFieldMode(props.filterMeta.rooms, props.activeFilters.roomId);
 
   return (
     <div className="mt-3 space-y-2 border-t border-border pt-3">
@@ -420,14 +428,6 @@ function CreateForm(props: CreateFormProps) {
       />
       <Label>Начало</Label>
       <Input type="datetime-local" value={props.createStart} onChange={(e) => props.onStartChange(e.target.value)} />
-      <DoctorCalendarCreateFormField
-        fieldLabel="Специалист"
-        mode={specialistMode}
-        options={props.filterMeta.specialists}
-        value={props.createSpecialistId}
-        noneLabel="Специалист"
-        onChange={props.onSpecialistChange}
-      />
       <DoctorCalendarCreateFormField
         fieldLabel="Филиал"
         mode={branchMode}
@@ -446,14 +446,6 @@ function CreateForm(props: CreateFormProps) {
       />
       <Label>Длительность</Label>
       <Input readOnly value={durationLabel} aria-label="Длительность" />
-      <DoctorCalendarCreateFormField
-        fieldLabel="Кабинет"
-        mode={roomMode}
-        options={props.filterMeta.rooms}
-        value={props.createRoomId}
-        noneLabel="Кабинет"
-        onChange={props.onRoomChange}
-      />
       <div className="flex gap-2 pt-2">
         <Button type="button" size="sm" disabled={props.pending} onClick={props.onSubmit}>
           Сохранить

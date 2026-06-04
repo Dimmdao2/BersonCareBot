@@ -1,5 +1,81 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-04 — Этап 5: проход UI владельца (замечания, кабинет записи)
+
+**Контекст:** ручной просмотр `/app/doctor/admin/booking` (вкладка «Обзор» и навигация по 12 вкладкам). Этап 5 в ROADMAP — `pending`; инициатива не закрывается без явного «Новый интерфейс записи принят».
+
+### Замечания владельца (IA / UX)
+
+| # | Тема | Замечание | Намеченное действие |
+|---|------|-----------|---------------------|
+| 5.1 | Обзор — дубли ссылок | Отдельный блок «Быстрые действия» (`BookingOverviewPanel`) избыточен: есть `BookingCatalogHelp` («Порядок настройки») с описанием шагов. Ссылки — в **названиях шагов** runbook, не во второй карточке. | Убрать карточку «Быстрые действия»; в `BookingCatalogHelp` сделать пункты списка ссылками на целевые разделы (после слияния вкладок — на якоря/подразделы одного экрана). |
+| 5.2 | Локации + услуги + доступность + правила | Четыре вкладки — лишнее дробление; одна настройка каталога/доступности/политик. | Слить в **один экран** (секции или внутренние табы), вместе с обзором/runbook на **одной вкладке** «Настройка» / «Обзор» (уточнить финальное имя). |
+| 5.3 | Абонементы и продукты vs Операции | Каталог пакетов/продуктов (`/memberships`) и patient-bound блоки на `/operations` (`BookingPatientPackagesSection`, `BookingPatientProductsSection`) логически один домен. | Один экран: каталог офферов + работа с абонементами/продуктами выбранного пациента; на «Операциях» оставить только manual lifecycle, merge и прочее **не** каталожное. |
+| 5.4 | Форма + публичная запись | Две вкладки связаны по смыслу (вопросы записи + виджет/ссылка). | Один экран: `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + attribution. |
+
+**Не затронуто в первом проходе:** Оплата, Интеграция Rubitime, patient/public flow, touch DnD/resize (defer из этапа 4).
+
+### Принято владельцем (2026-06-04, уточнение IA)
+
+**Разделение «настройки» vs «работа»:**
+
+| Зона | Назначение | Не здесь |
+|------|------------|----------|
+| **Настройки записи** (`/app/doctor/admin/booking`) | Как устроена запись: каталог, правила, форма, оплата, Rubitime | Рабочие действия с записями, расписание дня, абонементы пациента |
+| **Рабочая «Запись»** (кабинет врача, рядом с календарём) | После настройки: сетка/календарь, актуальные записи, действия с выбранной записью | Вкладка «Операции» в админке |
+| **Карточка клиента / кабинет врача** | Продажа и работа с абонементами/продуктами, списания, отвязка | Админка «Абонементы» как ежедневный экран |
+
+**Настройки записи — 4 вкладки (принято):**
+
+1. **Обзор и настройка** — runbook (ссылки в шагах), метрики, локации, услуги, доступность, правила.
+2. **Форма и публичная запись**
+3. **Оплата**
+4. **Интеграция Rubitime**
+
+**Рабочая зона «Запись» (принято, без слова «Операции»):**
+
+- Вкладка/раздел в кабинете врача (не в admin booking): **расписание + записи** в одном рабочем месте с календарём (эволюция `/app/doctor/calendar` и связанных экранов).
+- Layout: **слева** — список актуальных записей; **справа** — действия с выбранной записью (создать, перенести, отменить, …).
+- **Клик по записи** — детали + те же действия (не отдельная абстрактная «операция» в меню настроек).
+- Текущая admin-вкладка **«Операции»** (`BookingManualLifecycleSection`, merge) — **убрать из настроек**; lifecycle → рабочая «Запись» / деталь записи; merge пациентов — отдельный пункт кабинета (уже есть «Объединение пациентов» в nav).
+
+**Абонементы и продукты:** каталог офферов может остаться в настройках (если нужен редкий CRUD); **ежедневная работа** — карточка клиента (`DoctorClientMembershipsPanel` и аналоги), не admin `/operations`.
+
+**Расписание (рабочие часы, исключения):** настройка — в «Обзор и настройка» или подрежим календаря; **просмотр/редактирование дня** — в рабочей зоне с календарём, не отдельная admin-вкладка «Расписание».
+
+### Открытые вопросы (реализация)
+
+- Точный **маршрут** рабочей «Запись»: только расширение `/app/doctor/calendar` или отдельный `/app/doctor/appointments` + редиректы.
+- **Правила** на экране настройки: одна прокрутка vs внутренние табы.
+- **Каталог абонементов** (CRUD пакетов): только настройки vs дубль в doctor — подтвердить при реализации.
+- Редиректы legacy URL admin booking; `ACCEPTANCE_STAGE5.md`.
+
+---
+
+## 2026-06-04 — Этап 4: закрытие и синхронизация документации
+
+- Этап 4 переведён в `done`: обновлены статусы и чеклисты в [`ROADMAP.md`](ROADMAP.md), [`STAGE4_DECOMPOSITION.md`](STAGE4_DECOMPOSITION.md), [`ACCEPTANCE_STAGE4.md`](ACCEPTANCE_STAGE4.md), [`README.md`](README.md), [`INVENTORY_AND_IA.md`](INVENTORY_AND_IA.md), `apps/webapp/src/app/api/api.md`.
+- Зафиксированы финальные решения реализации: `manual create` использует sync `createRecord` с rollback (hard delete/fallback cancel), `manual-reschedule` работает без compensating lifecycle-reschedule при Rubitime conflict, UI делает immediate refresh на `external_slot_taken`.
+- Добавлен модульный документ `apps/webapp/src/modules/booking-calendar/booking-calendar.md` (канон feed, refresh policy, API contract).
+- Defer в этап 5 / ops:
+  - manual touch-smoke (long-press/resize на реальном устройстве) — owner acceptance;
+  - предупреждение при resize на длительность ≠ стандарту услуги (UX polish);
+  - prod ops cutover `booking_doctor_appointments_read_source=canonical` после staging smoke.
+
+## 2026-06-04 — Этап 4: ревизия декомпозиции (уточнение)
+
+- Убраны двусмысленные развилки в [`STAGE4_DECOMPOSITION.md`](STAGE4_DECOMPOSITION.md): зафиксированы однозначные решения для `includeFreeSlots` (игнор в doctor route), `readSource=canonical`, поведения toggle `booking_calendar_show_working_hours`, контракта ошибок `409 external_slot_taken`.
+- Уточнены gate'ы 4.0/4.1/4.3/4.7: без временных feature-flag на merge, старый grid удаляется, rollback для `manual-reschedule` описан как compensating reschedule.
+- В [`ACCEPTANCE_STAGE4.md`](ACCEPTANCE_STAGE4.md) добавлены проверки на key allowlist (`ALLOWED_KEYS` + admin settings route) и единый error-contract для `manual`/`manual-reschedule`.
+- `ROADMAP.md` §10 синхронизирован с решениями этапа 4: canonical-only для календаря врача и явный rollback при Rubitime conflict.
+
+## 2026-06-04 — Этап 4: декомпозиция (документы)
+
+- Добавлены [`STAGE4_DECOMPOSITION.md`](STAGE4_DECOMPOSITION.md) (блоки 4.0–4.8) и [`ACCEPTANCE_STAGE4.md`](ACCEPTANCE_STAGE4.md).
+- Решения владельца: UI читает только нашу БД; фон `working`/`break` из канона, без Rubitime free slots; toggle **`booking_calendar_show_working_hours`** (toolbar + admin); npm calendar/DnD + long-press + resize; toolbar solo+локация; Rubitime conflict → rollback + poll refetch; ops `booking_doctor_appointments_read_source=canonical` в 4.8.
+- ROADMAP §10, README — ссылки на план исполнения.
+- Отступление от OWN_BOOKING Q3 (custom grid без npm) — в STAGE4 «продуктовые решения».
+
 ## 2026-06-04 — Синхронизация документации (этап 3)
 
 - Обновлены: `README.md` (инициатива + `docs/README.md`), `ROADMAP.md` §9 и таблица этапов, `STAGE3_DECOMPOSITION.md` (все DoD 3.0–3.6 `[x]`, baseline → «закрыто», полный список vitest), `ACCEPTANCE_STAGE3.md`, `INVENTORY_AND_IA.md` (ключ `booking_allow_doctor_unlink_past_package_sessions`), `memberships.md` (canonical path + ссылка на initiative).

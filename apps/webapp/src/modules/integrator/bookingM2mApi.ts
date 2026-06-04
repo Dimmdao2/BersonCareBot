@@ -275,7 +275,7 @@ export function createBookingSyncPort(): BookingSyncPort {
         patch,
       });
       if (status >= 400 || json.ok !== true) {
-        throw new Error("rubitime_update_failed");
+        throw new Error(integratorErrorCode(json));
       }
     },
 
@@ -286,7 +286,7 @@ export function createBookingSyncPort(): BookingSyncPort {
         payload: input.payload,
       });
       if (status >= 400 || json.ok !== true) {
-        throw new Error("booking_event_failed");
+        throw new Error(integratorErrorCode(json));
       }
     },
   };

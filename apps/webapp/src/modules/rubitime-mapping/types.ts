@@ -49,3 +49,49 @@ export type LinkRubitimeMappingResult = {
   branchServiceId: string;
   ssaId: string;
 };
+
+export type RubitimeSsaDuplicateRow = {
+  ssaId: string;
+  specialistId: string;
+  specialistName: string | null;
+  isActive: boolean;
+  createdAt: string;
+  cityCode: string | null;
+  hasMapping: boolean;
+  rubitimeServiceId: string | null;
+  legacyBranchServiceId: string | null;
+};
+
+export type RubitimeSsaDuplicateGroup = {
+  branchId: string;
+  branchTitle: string;
+  serviceId: string;
+  serviceTitle: string;
+  specialistId: string;
+  specialistName: string | null;
+  recommendedKeepSsaId: string;
+  rows: RubitimeSsaDuplicateRow[];
+};
+
+export type RubitimeSsaDuplicateSummary = {
+  totalGroups: number;
+  groups: RubitimeSsaDuplicateGroup[];
+};
+
+export type ResolveRubitimeSsaDuplicateInput = {
+  organizationId: string;
+  branchId: string;
+  serviceId: string;
+  specialistId: string;
+  keepSsaId: string;
+  transferMappingToKeep?: boolean;
+};
+
+export type ResolveRubitimeSsaDuplicateResult = {
+  branchId: string;
+  serviceId: string;
+  specialistId: string;
+  keepSsaId: string;
+  deactivatedIds: string[];
+  transferredMapping: boolean;
+};

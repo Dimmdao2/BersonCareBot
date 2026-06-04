@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { BE_DEFAULT_ORGANIZATION_ID } from "../../../db/schema/bookingEngine";
 import {
@@ -17,6 +17,10 @@ import {
   beSpecialistServiceAvailability,
   beSpecialists,
 } from "../../../db/schema/bookingEngine";
+import {
+  legacyBranchServiceIdBySsaFromMappings,
+  pickPreferredSsaId,
+} from "@/modules/booking-scheduling/ssaResolve";
 import type { BookingEngineCorePort } from "@/modules/booking-engine/ports";
 import type {
   AppointmentStatus,
@@ -442,6 +446,83 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     async upsertSpecialistServiceAvailability(input) {
       const db = getDrizzle();
       const now = new Date().toISOString();
+
+      const scopeConds = [
+        eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
+        eq(beSpecialistServiceAvailability.specialistId, input.specialistId),
+        eq(beSpecialistServiceAvailability.serviceId, input.serviceId),
+      ];
+      if (input.branchId) {
+        scopeConds.push(eq(beSpecialistServiceAvailability.branchId, input.branchId));
+      } else {
+        scopeConds.push(isNull(beSpecialistServiceAvailability.branchId));
+      }
+
+      const existingRows = await db
+        .select()
+        .from(beSpecialistServiceAvailability)
+        .where(and(...scopeConds, eq(beSpecialistServiceAvailability.isActive, true)));
+
+      let targetId: string | null = null;
+      if (existingRows.length > 0) {
+        const mapRows = await db
+          .select({
+            canonicalId: beExternalEntityMappings.canonicalId,
+            metadata: beExternalEntityMappings.metadata,
+          })
+          .from(beExternalEntityMappings)
+          .where(
+            and(
+              eq(beExternalEntityMappings.organizationId, input.organizationId),
+              eq(beExternalEntityMappings.entityType, "availability"),
+              eq(beExternalEntityMappings.externalSystem, "rubitime"),
+              inArray(
+                beExternalEntityMappings.canonicalId,
+                existingRows.map((r) => r.id),
+              ),
+            ),
+          );
+        const legacyBySsa = legacyBranchServiceIdBySsaFromMappings(mapRows);
+        targetId = pickPreferredSsaId(
+          existingRows.map((r) => ({
+            id: r.id,
+            createdAt: r.createdAt,
+            isActive: r.isActive,
+          })),
+          legacyBySsa,
+        );
+      }
+
+      if (targetId) {
+        const updated = await db
+          .update(beSpecialistServiceAvailability)
+          .set({
+            roomId: input.roomId ?? null,
+            cityCode: input.cityCode ?? null,
+            durationMinutesOverride: input.durationMinutesOverride ?? null,
+            priceMinorOverride: input.priceMinorOverride ?? null,
+            isActive: input.isActive,
+            sortOrder: input.sortOrder,
+            updatedAt: now,
+          })
+          .where(eq(beSpecialistServiceAvailability.id, targetId))
+          .returning();
+        const row = updated[0]!;
+        return {
+          id: row.id,
+          organizationId: row.organizationId,
+          specialistId: row.specialistId,
+          serviceId: row.serviceId,
+          branchId: row.branchId ?? null,
+          roomId: row.roomId ?? null,
+          cityCode: row.cityCode ?? null,
+          durationMinutesOverride: row.durationMinutesOverride ?? null,
+          priceMinorOverride: row.priceMinorOverride ?? null,
+          isActive: row.isActive,
+          sortOrder: row.sortOrder,
+        };
+      }
+
       const inserted = await db
         .insert(beSpecialistServiceAvailability)
         .values({
@@ -565,6 +646,24 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const db = getDrizzle();
       const rows = await db.select().from(beAppointments).where(eq(beAppointments.id, id)).limit(1);
       return rows[0] ? mapAppointment(rows[0]) : null;
+    },
+
+    async getRubitimeAppointmentId(input: { organizationId: string; appointmentId: string }) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ externalId: beExternalEntityMappings.externalId })
+        .from(beExternalEntityMappings)
+        .where(
+          and(
+            eq(beExternalEntityMappings.organizationId, input.organizationId),
+            eq(beExternalEntityMappings.entityType, "appointment"),
+            eq(beExternalEntityMappings.externalSystem, "rubitime"),
+            eq(beExternalEntityMappings.canonicalId, input.appointmentId),
+          ),
+        )
+        .orderBy(desc(beExternalEntityMappings.updatedAt))
+        .limit(1);
+      return rows[0]?.externalId?.trim() || null;
     },
 
     async getStatusBeforePackageCharge(appointmentId) {
@@ -701,6 +800,41 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           .where(eq(beAppointments.id, input.appointmentId))
           .limit(1);
         return mapAppointment(updated[0]!);
+      });
+    },
+
+    async deleteAppointmentHard(input: { organizationId: string; appointmentId: string }) {
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        await tx
+          .delete(bePatientTimelineEvents)
+          .where(
+            and(
+              eq(bePatientTimelineEvents.organizationId, input.organizationId),
+              eq(bePatientTimelineEvents.domain, "appointment"),
+              eq(bePatientTimelineEvents.linkedObjectType, "appointment"),
+              eq(bePatientTimelineEvents.linkedObjectId, input.appointmentId),
+            ),
+          );
+        await tx
+          .delete(beExternalEntityMappings)
+          .where(
+            and(
+              eq(beExternalEntityMappings.organizationId, input.organizationId),
+              eq(beExternalEntityMappings.entityType, "appointment"),
+              eq(beExternalEntityMappings.canonicalId, input.appointmentId),
+            ),
+          );
+        const deleted = await tx
+          .delete(beAppointments)
+          .where(
+            and(
+              eq(beAppointments.organizationId, input.organizationId),
+              eq(beAppointments.id, input.appointmentId),
+            ),
+          )
+          .returning({ id: beAppointments.id });
+        return deleted.length > 0;
       });
     },
 

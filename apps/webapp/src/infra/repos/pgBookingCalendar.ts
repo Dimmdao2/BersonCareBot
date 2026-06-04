@@ -202,6 +202,8 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
 
       const appointmentIds = rows.map((r) => r.id);
       const bookingStatusByAppt = new Map<string, string>();
+      const rubitimeIdByAppt = new Map<string, string | null>();
+      const rubitimeManageUrlByAppt = new Map<string, string | null>();
       const paymentByAppt = new Map<string, string>();
       const packageTitleByAppt = new Map<string, string>();
       const formCommentsByAppt = new Map<string, { label: string; value: string }[]>();
@@ -212,6 +214,8 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
             .select({
               appointmentId: patientBookings.canonicalAppointmentId,
               status: patientBookings.status,
+              rubitimeId: patientBookings.rubitimeId,
+              rubitimeManageUrl: patientBookings.rubitimeManageUrl,
             })
             .from(patientBookings)
             .where(inArray(patientBookings.canonicalAppointmentId, appointmentIds)),
@@ -255,6 +259,8 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
         for (const b of bookingRows) {
           if (b.appointmentId && !bookingStatusByAppt.has(b.appointmentId)) {
             bookingStatusByAppt.set(b.appointmentId, b.status);
+            rubitimeIdByAppt.set(b.appointmentId, b.rubitimeId ?? null);
+            rubitimeManageUrlByAppt.set(b.appointmentId, b.rubitimeManageUrl ?? null);
           }
         }
         for (const p of paymentRows) {
@@ -308,6 +314,8 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           patientName: linkedName ?? attrName,
           patientPhone: row.patientPhone ?? row.phoneNormalized ?? null,
           bookingStatus: bookingStatusByAppt.get(row.id) ?? null,
+          rubitimeId: rubitimeIdByAppt.get(row.id) ?? null,
+          rubitimeManageUrl: rubitimeManageUrlByAppt.get(row.id) ?? null,
           paymentStatus,
           prepaymentPending: isPrepaymentPending(status, paymentStatus),
           packageUsageRef: row.packageUsageRef ?? null,
