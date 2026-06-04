@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { AdminRegistrationStatsPayload, AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
+import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 
 import { AdminRegistrationLineChart } from "./AdminRegistrationLineChart";
 
@@ -92,12 +93,12 @@ export function AdminPlatformRegistrationStatsClient({ calendarTodayYmd }: { cal
   }, [preset, customFrom, customTo, load, calendarTodayYmd]);
 
   return (
-    <section
+    <DoctorSection
       id="doctor-stats-admin-registrations-section"
-      className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-3"
+      className="min-w-0"
     >
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-        <h2>Регистрации и слияния</h2>
+        <DoctorSectionTitle>Регистрации и слияния</DoctorSectionTitle>
         {data ? <p className="text-muted-foreground text-sm">Календарь: {data.iana}</p> : null}
       </div>
 
@@ -188,6 +189,6 @@ export function AdminPlatformRegistrationStatsClient({ calendarTodayYmd }: { cal
           {data.series.length > 0 ? <AdminRegistrationLineChart series={data.series} /> : null}
         </>
       ) : null}
-    </section>
+    </DoctorSection>
   );
 }

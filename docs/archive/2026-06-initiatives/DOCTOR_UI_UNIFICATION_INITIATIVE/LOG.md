@@ -132,3 +132,65 @@ pnpm --dir apps/webapp exec tsc --noEmit
 rg "doctorClientOverviewGridClass" apps/webapp/src
 pnpm --dir apps/webapp exec tsc --noEmit
 ```
+
+---
+
+## 2026-06-04 — Фаза 2 (high-impact screens)
+
+### Сделано
+
+| Файл | Изменение |
+|------|-----------|
+| `appointments/page.tsx` | `rounded-2xl`+`shadow-sm`→`DoctorSection`; голые `<h2>`→`DoctorSectionTitle`; ссылка на календарь — `doctorHoverLinkClass`; `DoctorEmptyState`; ссылки на клиента — `doctorInlineLinkClass` |
+| `analytics/clients/page.tsx` | Две секции `rounded-2xl`→`DoctorSection`; KPI-гриды→`DoctorMetricList`; убран `mb-4`; `gap-4`→`gap-3` в чарт-обёртке |
+| `AdminPlatformRegistrationStatsClient.tsx` | `section rounded-2xl shadow-sm p-4`→`DoctorSection className="min-w-0"`; `<h2>`→`DoctorSectionTitle` |
+| `AdminPlatformSubscriberStatsClient.tsx` | То же |
+| `DoctorOnlineIntakeClient.tsx` | `gap-4`→`gap-3`; `shadow-sm` убран из orphan-card и item-cards; `p-4`→`p-3`; item-cards → `cn(doctorSectionItemClass,"flex flex-col gap-2")`; `DoctorEmptyState` для пустого списка |
+| `online-intake/page.tsx` | `<h1 className="text-lg">`→`text-base font-semibold tracking-tight text-foreground` |
+| `online-intake/[requestId]/page.tsx` | То же |
+| `DoctorTodayDashboard` | Без изменений (фаза 1 уже соответствует: `DoctorMetricList` ↔ `doctorSectionItemClass`) |
+
+### rg-проверки после правок
+
+```bash
+# Ни одного rounded-2xl в целевых файлах
+rg "rounded-2xl" apps/webapp/src/app/app/doctor/appointments/page.tsx \
+  apps/webapp/src/app/app/doctor/analytics/clients/page.tsx \
+  apps/webapp/src/app/app/doctor/analytics/clients/AdminPlatformRegistrationStatsClient.tsx \
+  apps/webapp/src/app/app/doctor/analytics/clients/AdminPlatformSubscriberStatsClient.tsx \
+  apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx
+# → (пусто)
+
+# Ни одного bare <h2>
+rg "<h2>[^<]" <те же файлы>
+# → (пусто)
+
+# Ни одного shadow-sm в item/section контейнерах
+rg "shadow-sm" apps/webapp/src/app/app/doctor/appointments/page.tsx \
+  apps/webapp/src/app/app/doctor/analytics/clients/page.tsx \
+  apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx
+# → (пусто)
+```
+
+### Тесты
+
+```
+pnpm exec vitest run src/app/app/doctor/DoctorTodayDashboard.test.tsx \
+  src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.test.tsx
+# Tests 12 passed (12)
+```
+
+### tsc --noEmit
+
+```
+pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
+```
+
+### Manual visual checklist (фаза 2)
+
+| Экран | Desktop 1366 | Mobile 390 | Примечание |
+|-------|--------------|------------|------------|
+| `/app/doctor` | pending | pending | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
+| `/app/doctor/appointments` | pending | pending | Нужен ручной браузерный прогон под авторизованной doctor-сессией |
+| `/app/doctor/analytics/clients` | pending | pending | Нужен ручной браузерный прогон под авторизованной admin-сессией |
+| `/app/doctor/online-intake` | pending | pending | Нужен ручной браузерный прогон под авторизованной doctor-сессией |

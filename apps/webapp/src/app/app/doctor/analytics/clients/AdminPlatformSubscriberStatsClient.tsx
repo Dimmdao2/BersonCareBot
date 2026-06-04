@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { AdminStatsTimePreset, AdminSubscriberStatsPayload } from "@/modules/admin-platform-stats/types";
+import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 
 import { AdminSubscriberLineChart } from "./AdminSubscriberLineChart";
 
@@ -69,12 +70,12 @@ export function AdminPlatformSubscriberStatsClient({ calendarTodayYmd }: { calen
   }, [preset, customFrom, customTo, load, calendarTodayYmd]);
 
   return (
-    <section
+    <DoctorSection
       id="doctor-stats-admin-subscribers-section"
-      className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-3"
+      className="min-w-0"
     >
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-        <h2>Подписчики</h2>
+        <DoctorSectionTitle>Подписчики</DoctorSectionTitle>
         {data ? <p className="text-muted-foreground text-sm">Календарь: {data.iana}</p> : null}
       </div>
 
@@ -161,6 +162,6 @@ export function AdminPlatformSubscriberStatsClient({ calendarTodayYmd }: { calen
           {data.series.length > 0 ? <AdminSubscriberLineChart series={data.series} /> : null}
         </>
       ) : null}
-    </section>
+    </DoctorSection>
   );
 }

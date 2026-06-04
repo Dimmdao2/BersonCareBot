@@ -8,6 +8,9 @@ import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import type { DoctorAppointmentsListFilter } from "@/modules/doctor-appointments/ports";
 import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import { doctorHoverLinkClass, doctorInlineLinkClass } from "@/shared/ui/doctorVisual";
 import { DoctorAppointmentActions } from "./DoctorAppointmentActions";
 
 function parseListFilter(view: string | undefined): DoctorAppointmentsListFilter {
@@ -47,28 +50,28 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
 
   return (
     <AppShell title="Записи" user={session.user} variant="doctor">
-      <section id="doctor-appointments-stats-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <h2>Статистика (сегодня)</h2>
+      <DoctorSection id="doctor-appointments-stats-section">
+        <DoctorSectionTitle>Статистика (сегодня)</DoctorSectionTitle>
         <p className="text-muted-foreground text-sm">
           Сводка ниже — по окну «сегодня». Список может быть в другом режиме — см. заголовок блока записей.
         </p>
-        <ul id="doctor-appointments-stats-list" className="m-0 list-none space-y-3 p-0">
+        <ul id="doctor-appointments-stats-list" className="m-0 list-none space-y-1.5 p-0 text-sm">
           <li id="doctor-appointments-stats-total">Записей (сегодня, все статусы кроме soft-delete): {stats.total}</li>
           <li id="doctor-appointments-stats-cancellations-30d">Отмен за 30 дн.: {stats.cancellations30d}</li>
           <li id="doctor-appointments-stats-reschedules">Переносов (с reschedule_count &gt; 0, сегодня): {stats.reschedules}</li>
         </ul>
-      </section>
-      <section id="doctor-appointments-upcoming-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      </DoctorSection>
+      <DoctorSection id="doctor-appointments-upcoming-section">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2>{listSectionTitle(view)}</h2>
-          <Link href="/app/doctor/calendar" className="text-sm font-medium text-primary underline-offset-2 hover:underline">
+          <DoctorSectionTitle>{listSectionTitle(view)}</DoctorSectionTitle>
+          <Link href="/app/doctor/calendar" className={doctorHoverLinkClass}>
             Календарь
           </Link>
         </div>
         {appointments.length === 0 ? (
-          <p className="text-muted-foreground">Нет записей на выбранный период.</p>
+          <DoctorEmptyState><p>Нет записей на выбранный период.</p></DoctorEmptyState>
         ) : (
-          <ul id="doctor-appointments-upcoming-list" className="m-0 list-none space-y-3 p-0">
+          <ul id="doctor-appointments-upcoming-list" className="m-0 list-none space-y-2 p-0">
             {appointments.map((a) => {
               const uid = a.clientUserId?.trim() ?? "";
               const hasClient = uid.length > 0;
@@ -76,12 +79,12 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
                 ? doctorClientProfileHref(uid, { profileListScope: "appointments" })
                 : "/app/doctor/appointments";
               return (
-              <li key={a.id} id={`doctor-appointments-item-${a.id}`} className="rounded-lg border border-border bg-card p-3">
+              <li key={a.id} id={`doctor-appointments-item-${a.id}`} className="rounded-lg border border-border bg-card p-3 text-sm">
                 <div className="flex flex-col gap-2">
                   {a.scheduleProvenancePrefix ? (
                     <p className="text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</p>
                   ) : null}
-                  <Link href={clientHref}>
+                  <Link href={clientHref} className={doctorInlineLinkClass}>
                     {a.time} — {a.clientLabel} ({a.type}, {a.status})
                   </Link>
                   {a.rubitimeNameIfDifferent ? (
@@ -94,7 +97,7 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
             })}
           </ul>
         )}
-      </section>
+      </DoctorSection>
     </AppShell>
   );
 }

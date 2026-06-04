@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
+import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { doctorSectionItemClass } from "@/shared/ui/doctorVisual";
 import { doctorClientProfileHref } from "../clients/doctorClientProfileHref";
 
 type IntakeItem = {
@@ -289,7 +291,7 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
     Boolean(detail && detailId && !items.some((i) => i.id === detailId));
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {deepLinkError === "not_found" && (
         <p className="text-sm text-destructive" role="alert">
           Заявка не найдена или недоступна.
@@ -307,7 +309,7 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
       )}
 
       {showOrphanDetail && detail && detailId && (
-        <div className="rounded-lg border border-primary/30 bg-card p-4 shadow-sm flex flex-col gap-2">
+        <div className="rounded-lg border border-primary/30 bg-card p-3 flex flex-col gap-2">
           <p className="text-xs font-medium text-muted-foreground">Заявка по ссылке</p>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium">{detail.patientName}</span>
@@ -346,16 +348,16 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
       {loading && <p className="text-sm text-muted-foreground">Загрузка...</p>}
 
       {!loading && items.length === 0 && !showOrphanDetail && (
-        <p className="text-sm text-muted-foreground">
-          {filter === "open" ? "Открытых заявок нет" : "Заявок нет"}
-        </p>
+        <DoctorEmptyState>
+          <p>{filter === "open" ? "Открытых заявок нет" : "Заявок нет"}</p>
+        </DoctorEmptyState>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         {items.map((item) => (
           <div
             key={item.id}
-            className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-2"
+            className={cn(doctorSectionItemClass, "flex flex-col gap-2")}
           >
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium">{item.patientName}</span>

@@ -49,6 +49,7 @@
 |------|--------|
 | 0 | **done** (2026-06-04) — см. [`LOG.md`](LOG.md) |
 | 1 | **done** (2026-06-04) — `doctorVisual.ts`, wrappers, пилот на «Сегодня»; см. [`LOG.md`](LOG.md) |
-| 2–5 | pending |
+| 2 | **done** (2026-06-04) — `appointments`, `analytics/clients`, `online-intake`; см. [`LOG.md`](LOG.md) |
+| 3–5 | pending |
 
-**Граница 1 / 2:** фаза 1 подключила foundation на `/app/doctor` (дашборд и соседние секции) без закрытия high-impact: в фазе 2 остаются visual checklist, KPI/list density и маршруты `appointments`, `analytics/clients`, `online-intake`.
+**Граница 2 / 3:** фазы 1–2 закрыли foundation + high-impact (`/app/doctor`, `appointments`, `analytics/clients`, `online-intake`); следующий этап — client shell/tabs (3A/3B).

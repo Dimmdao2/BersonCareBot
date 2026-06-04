@@ -9,6 +9,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
+import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { AdminPlatformRegistrationStatsClient } from "./AdminPlatformRegistrationStatsClient";
 import { AdminPlatformSubscriberStatsClient } from "./AdminPlatformSubscriberStatsClient";
 import { DoctorStatCard } from "./DoctorStatCard";
@@ -25,20 +27,17 @@ export default async function DoctorAnalyticsClientsPage() {
 
   return (
     <AppShell title="По клиентам" user={session.user} variant="doctor">
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <AdminPlatformSubscriberStatsClient calendarTodayYmd={calendarTodayYmd} />
         <AdminPlatformRegistrationStatsClient calendarTodayYmd={calendarTodayYmd} />
       </div>
-      <section
-        id="doctor-stats-appointments-section"
-        className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4"
-      >
-        <h2>Записи (неделя)</h2>
+      <DoctorSection id="doctor-stats-appointments-section">
+        <DoctorSectionTitle>Записи (неделя)</DoctorSectionTitle>
         <p className="text-muted-foreground text-sm">
           Интервал: с начала сегодняшнего дня по конец 7-го дня. Учитываются только строки без soft-delete.
           «Всего» включает отменённые слоты в этом окне; «Отмен» — подмножество с учётом фильтра по last_event.
         </p>
-        <div id="doctor-stats-appointments-cards" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <DoctorMetricList id="doctor-stats-appointments-cards">
           <DoctorStatCard id="doctor-stats-appointments-total" title="Всего записей" value={stats.appointments.total} />
           <DoctorStatCard
             id="doctor-stats-appointments-cancellations"
@@ -58,14 +57,11 @@ export default async function DoctorAnalyticsClientsPage() {
             title="Переносов (updated)"
             value={stats.appointments.reschedules}
           />
-        </div>
-      </section>
-      <section
-        id="doctor-stats-clients-section"
-        className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4"
-      >
-        <h2>Клиенты</h2>
-        <div id="doctor-stats-clients-cards" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        </DoctorMetricList>
+      </DoctorSection>
+      <DoctorSection id="doctor-stats-clients-section">
+        <DoctorSectionTitle>Клиенты</DoctorSectionTitle>
+        <DoctorMetricList id="doctor-stats-clients-cards">
           <DoctorStatCard id="doctor-stats-clients-total" title="Всего клиентов" value={stats.clients.total} />
           <DoctorStatCard
             id="doctor-stats-clients-without-channels"
@@ -83,8 +79,8 @@ export default async function DoctorAnalyticsClientsPage() {
             title="С несколькими каналами"
             value={stats.clients.withMultipleChannels}
           />
-        </div>
-      </section>
+        </DoctorMetricList>
+      </DoctorSection>
     </AppShell>
   );
 }

@@ -16,7 +16,7 @@ export default async function DoctorOnlineIntakeRequestPage({ params }: Props) {
 
   return (
     <AppShell title="Онлайн-заявки пациентов" user={session.user} variant="doctor">
-      <h1 className="text-lg font-semibold">Онлайн-заявки пациентов</h1>
+      <h1 className="text-base font-semibold tracking-tight text-foreground">Онлайн-заявки пациентов</h1>
       <DoctorOnlineIntakeClient initialOpenRequestId={requestId} />
     </AppShell>
   );
