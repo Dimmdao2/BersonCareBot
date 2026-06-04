@@ -94,6 +94,8 @@ export const ALLOWED_KEYS = [
   /** Провайдеры оплаты записи: `{ value: { enabled, defaultProviderId, providers[] } }`; секреты merge при PATCH. */
   "booking_payment_providers",
   "booking_lifecycle_notifications",
+  /** Разрешить отвязывать прошедшие записи от абонемента (двойное подтверждение в UI). */
+  "booking_allow_doctor_unlink_past_package_sessions",
   /** Минимальный срок до записи (часы): слоты раньше этого horizon не показываются пациенту. */
   "booking_min_notice_hours",
   /** Пауза (мин) перед повторной отметкой той же разминки дня (`daily_warmup`) на главной; default 60, clamp 5–180. */

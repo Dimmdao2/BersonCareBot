@@ -73,7 +73,7 @@ Rubitime-дубли специалистов не должны попадать 
 | 0 | Инвентаризация и IA | `done` | Зафиксировать текущие экраны, контракты и целевую карту UI | docs, routes, API, data flow |
 | 1 | Новый кабинет записи: solo UX | `in_progress` | Пересобрать основные вкладки записи вокруг локаций, услуг, доступности, расписания и формы | `/app/doctor/admin/booking`, `Booking*Section` |
 | 2 | Rubitime-маппинг как адаптер | `done` | 2.0–2.3a в коде; 2.3b slots cutover — ops; appointments read-source → этап 4 | [`STAGE2_DECOMPOSITION.md`](STAGE2_DECOMPOSITION.md), [`ACCEPTANCE_STAGE2.md`](ACCEPTANCE_STAGE2.md), [`LOG.md`](LOG.md) |
-| 3 | Абонементы: UX и корректное списание | `pending` | Доработать индивидуальные абонементы, комментарии, список сеансов, отвязку и списание | memberships, booking lifecycle |
+| 3 | Абонементы: UX и корректное списание | `done` | Доработать индивидуальные абонементы, комментарии, список сеансов, отвязку и списание | [`STAGE3_DECOMPOSITION.md`](STAGE3_DECOMPOSITION.md), [`ACCEPTANCE_STAGE3.md`](ACCEPTANCE_STAGE3.md), memberships |
 | 4 | Интерактивный календарь | `pending` | Сделать календарь рабочим инструментом: details, drag/drop, resize, отмены рядом | `/app/doctor/calendar`, calendar API |
 | 5 | Полный проход UI и приемка | `pending` | Довести интерфейс по замечаниям владельца и закрыть инициативу только после принятия | все экраны записи |
 
@@ -460,6 +460,10 @@ UI:
 - Все незамаппленные пары явно видны в интеграции.
 
 ## 9. Этап 3 — Абонементы: UX и Корректное Списание
+
+**Статус:** `done` (2026-06-04, код + автотесты; ops smoke Rubitime — по [`ACCEPTANCE_STAGE3.md`](ACCEPTANCE_STAGE3.md)).
+
+**Исполнение:** [`STAGE3_DECOMPOSITION.md`](STAGE3_DECOMPOSITION.md) (блоки 3.0–3.6) · приёмка: [`ACCEPTANCE_STAGE3.md`](ACCEPTANCE_STAGE3.md) · журнал: [`LOG.md`](LOG.md).
 
 ### Цель
 

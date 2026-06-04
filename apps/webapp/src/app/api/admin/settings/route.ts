@@ -36,6 +36,7 @@ import { normalizePatientDefaultPromoTreatmentProgramTemplatePatch } from "@/mod
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
+  "booking_allow_doctor_unlink_past_package_sessions",
   "booking_payment_enabled",
   "video_watermark_enabled",
   "video_playback_api_enabled",

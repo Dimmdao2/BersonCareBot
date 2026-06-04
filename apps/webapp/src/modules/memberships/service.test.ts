@@ -68,6 +68,8 @@ function makePort(overrides: Partial<MembershipsPort> = {}): MembershipsPort {
     appendHistoryEvent: vi.fn(),
     listHistoryForPackage: vi.fn().mockResolvedValue([]),
     setAppointmentPackageUsageRef: vi.fn(),
+    updatePatientPackageNotes: vi.fn(),
+    listPackageAppointmentSessionSources: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -350,6 +352,170 @@ describe("createMembershipsService", () => {
       toStatus: "confirmed",
       payload: { source: "membership_refund" },
     });
+  });
+
+  it("createManualPatientPackage without title uses auto title", async () => {
+    const port = makePort({
+      createManualPatientPackage: vi.fn().mockImplementation(async (input) => ({
+        ...basePkg,
+        title: input.title,
+      })),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    await svc.createManualPatientPackage({
+      organizationId: "org-1",
+      platformUserId: "user-1",
+      priceMinor: 5000,
+      items: [{ serviceId: "svc-1", quantity: 2 }],
+    });
+    expect(port.createManualPatientPackage).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringMatching(/Индивидуальный|2/) }),
+    );
+  });
+
+  it("listPatientPackageSessions excludes past when includePast false", async () => {
+    const pastIso = new Date(Date.now() - 86400000).toISOString();
+    const futureIso = new Date(Date.now() + 86400000).toISOString();
+    const port = makePort({
+      listPackageAppointmentSessionSources: vi.fn().mockResolvedValue([
+        {
+          appointmentId: "appt-past",
+          startsAt: pastIso,
+          endsAt: null,
+          status: "confirmed",
+          branchTitle: null,
+          serviceTitle: "A",
+          serviceId: "svc-1",
+          usages: [],
+        },
+        {
+          appointmentId: "appt-future",
+          startsAt: futureIso,
+          endsAt: null,
+          status: "confirmed",
+          branchTitle: null,
+          serviceTitle: "B",
+          serviceId: "svc-1",
+          usages: [
+            {
+              id: "u1",
+              patientPackageId: "pp-1",
+              patientPackageItemId: "i1",
+              appointmentId: "appt-future",
+              usageKind: "reserve" as const,
+              quantity: 1,
+              comment: null,
+              occurredAt: futureIso,
+            },
+          ],
+        },
+      ]),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine: null });
+    const rows = await svc.listPatientPackageSessions("pp-1", "org-1", {
+      includePast: false,
+      allowPastUnlink: false,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.appointmentId).toBe("appt-future");
+  });
+
+  it("detachAppointmentPackage blocks past when flag off", async () => {
+    const pastStart = new Date(Date.now() - 3600000).toISOString();
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: "appt-past",
+        organizationId: "org-1",
+        startAt: pastStart,
+      }),
+      getStatusBeforePackageCharge: vi.fn(),
+      transitionAppointmentStatus: vi.fn(),
+    };
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockResolvedValue([
+        {
+          id: "u-res",
+          patientPackageId: "pp-1",
+          patientPackageItemId: "i1",
+          appointmentId: "appt-past",
+          usageKind: "reserve" as const,
+          quantity: 1,
+          comment: null,
+          occurredAt: pastStart,
+        },
+      ]),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+    await expect(
+      svc.detachAppointmentPackage({
+        organizationId: "org-1",
+        appointmentId: "appt-past",
+        allowPastUnlink: false,
+        freeCancelHoursBefore: 24,
+        outcome: "release_reserve",
+      }),
+    ).rejects.toThrow("past_unlink_not_allowed");
+  });
+
+  it("detachAppointmentPackage requires confirmPastTwice when past allowed", async () => {
+    const pastStart = new Date(Date.now() - 3600000).toISOString();
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: "appt-past",
+        organizationId: "org-1",
+        startAt: pastStart,
+      }),
+      getStatusBeforePackageCharge: vi.fn(),
+      transitionAppointmentStatus: vi.fn(),
+    };
+    const port = makePort();
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+    await expect(
+      svc.detachAppointmentPackage({
+        organizationId: "org-1",
+        appointmentId: "appt-past",
+        allowPastUnlink: true,
+        freeCancelHoursBefore: 24,
+        outcome: "release_reserve",
+        confirmPastTwice: false,
+      }),
+    ).rejects.toThrow("past_detach_confirmation_required");
+  });
+
+  it("detachAppointmentPackage requires outcome when late", async () => {
+    const futureStart = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: "appt-late",
+        organizationId: "org-1",
+        startAt: futureStart,
+      }),
+      getStatusBeforePackageCharge: vi.fn(),
+      transitionAppointmentStatus: vi.fn(),
+    };
+    const port = makePort({
+      listUsagesForAppointment: vi.fn().mockResolvedValue([
+        {
+          id: "u-res",
+          patientPackageId: "pp-1",
+          patientPackageItemId: "i1",
+          appointmentId: "appt-late",
+          usageKind: "reserve" as const,
+          quantity: 1,
+          comment: null,
+          occurredAt: new Date().toISOString(),
+        },
+      ]),
+    });
+    const svc = createMembershipsService({ port, payments: null, bookingEngine });
+    await expect(
+      svc.detachAppointmentPackage({
+        organizationId: "org-1",
+        appointmentId: "appt-late",
+        allowPastUnlink: false,
+        freeCancelHoursBefore: 48,
+      }),
+    ).rejects.toThrow("late_detach_choice_required");
   });
 
   it("createManualPatientPackage with zero price activates without payment offer", async () => {

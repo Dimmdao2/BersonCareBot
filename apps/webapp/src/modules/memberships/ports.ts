@@ -4,6 +4,7 @@ import type {
   PackageUsageRecord,
   PatientPackageListItem,
   PatientPackageRecord,
+  PatientPackageSessionRow,
   SubscriptionPackageRecord,
 } from "./types";
 
@@ -23,7 +24,7 @@ export type UpsertSubscriptionPackageInput = {
 export type CreateManualPatientPackageInput = {
   organizationId: string;
   platformUserId: string;
-  title: string;
+  title?: string;
   priceMinor: number;
   currency?: string;
   validityDays?: number | null;
@@ -61,7 +62,31 @@ export type MembershipsPort = {
     platformUserId: string;
     subscriptionPackageId: string;
     assignedByPlatformUserId?: string | null;
+    notes?: string | null;
   }): Promise<PatientPackageRecord>;
+
+  updatePatientPackageNotes(
+    id: string,
+    organizationId: string,
+    notes: string | null,
+  ): Promise<PatientPackageRecord | null>;
+
+  listPackageAppointmentSessionSources(
+    patientPackageId: string,
+    organizationId: string,
+    options: { nowIso?: string },
+  ): Promise<
+    Array<{
+      appointmentId: string;
+      startsAt: string;
+      endsAt: string | null;
+      status: string;
+      branchTitle: string | null;
+      serviceTitle: string | null;
+      serviceId: string | null;
+      usages: PackageUsageRecord[];
+    }>
+  >;
 
   setPatientPackageStatus(
     id: string,

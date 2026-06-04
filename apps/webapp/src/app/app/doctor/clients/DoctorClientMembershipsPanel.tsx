@@ -4,43 +4,22 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { doctorClientStackedCardClass } from "./doctorClientCardChrome";
-
-type PackageRow = {
-  id: string;
-  title: string;
-  status: string;
-  soldAt: string | null;
-  paidAmountMinor: number | null;
-  balance: {
-    items: Array<{
-      patientPackageItemId: string;
-      serviceId: string;
-      serviceTitle?: string | null;
-      remaining: number;
-      displayRemaining: number;
-      reserved: number;
-    }>;
-  };
-};
+import { PatientPackageCard, type PatientPackageCardRow } from "./PatientPackageCard";
 
 type AppointmentOption = { id: string; label: string };
 
-const STATUS_LABELS: Record<string, string> = {
-  active: "Активен",
-  awaiting_payment: "Ожидает оплаты",
-  offered: "Предложен",
-};
-
 const ERROR_LABELS: Record<string, string> = {
-  invalid_form: "Проверьте название, цену и состав абонемента.",
+  invalid_form: "Проверьте цену и состав абонемента.",
   appointment_already_linked_to_package:
-    "Запись уже связана с абонементом. Для будущей записи — «Отвязать»; для прошедшей со списанием — «Вернуть».",
+    "Запись уже связана с абонементом. Откройте абонемент и выполните действие в списке записей.",
   appointment_has_consumed_package_session:
-    "У записи уже есть списание. Используйте «Вернуть списанный сеанс».",
+    "У записи уже есть списание. Используйте «Вернуть сеанс» в списке записей абонемента.",
   appointment_not_linked_to_package: "Запись не связана с абонементом.",
   package_no_balance: "Нет доступных сеансов по выбранной позиции.",
   load_failed: "Не удалось загрузить абонементы.",
+  late_detach_choice_required: "Выберите исход поздней отвязки в диалоге.",
+  past_detach_confirmation_required: "Нужно двойное подтверждение для прошедшей записи.",
+  past_unlink_not_allowed: "Отвязка прошедших записей отключена в настройках.",
 };
 
 type Props = {
@@ -49,11 +28,11 @@ type Props = {
 };
 
 export function DoctorClientMembershipsPanel({ platformUserId, appointments = [] }: Props) {
-  const [packages, setPackages] = useState<PackageRow[]>([]);
-  const [title, setTitle] = useState("");
+  const [packages, setPackages] = useState<PatientPackageCardRow[]>([]);
   const [priceRub, setPriceRub] = useState("");
   const [soldDate, setSoldDate] = useState("");
   const [paidRub, setPaidRub] = useState("");
+  const [manualNotes, setManualNotes] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [items, setItems] = useState<Array<{ serviceId: string; quantity: number }>>([]);
@@ -62,11 +41,10 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
   const [catalogId, setCatalogId] = useState("");
   const [catalogSoldDate, setCatalogSoldDate] = useState("");
   const [catalogPaidRub, setCatalogPaidRub] = useState("");
+  const [catalogNotes, setCatalogNotes] = useState("");
   const [consumePackageId, setConsumePackageId] = useState("");
   const [consumeItemId, setConsumeItemId] = useState("");
   const [consumeAppointmentId, setConsumeAppointmentId] = useState("");
-  const [unlinkAppointmentId, setUnlinkAppointmentId] = useState("");
-  const [refundAppointmentId, setRefundAppointmentId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -74,22 +52,22 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
   const servicesApi = "/api/doctor/booking-engine/services";
   const catalogApi = "/api/doctor/booking-engine/packages";
 
-  function showError(code: string | null, linkedAppointmentId?: string) {
+  function showError(code: string | null) {
     if (!code) {
       setError(null);
       return;
     }
     setError(ERROR_LABELS[code] ?? code);
-    if (code === "appointment_already_linked_to_package" && linkedAppointmentId) {
-      setUnlinkAppointmentId(linkedAppointmentId);
-      setRefundAppointmentId(linkedAppointmentId);
-    }
   }
 
   const loadPackages = useCallback(async () => {
     try {
       const res = await fetch(`${apiBase}?platformUserId=${encodeURIComponent(platformUserId)}`);
-      const json = (await res.json()) as { ok?: boolean; packages?: PackageRow[]; error?: string };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        packages?: PatientPackageCardRow[];
+        error?: string;
+      };
       if (!json.ok) {
         showError(json.error ?? "load_failed");
         return;
@@ -133,7 +111,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
     const paidAmountMinor = paidRub
       ? Math.round(Number.parseFloat(paidRub.replace(",", ".")) * 100)
       : priceMinor;
-    if (!title.trim() || items.length === 0 || !Number.isFinite(priceMinor)) {
+    if (items.length === 0 || !Number.isFinite(priceMinor)) {
       showError("invalid_form");
       return;
     }
@@ -144,7 +122,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
         body: JSON.stringify({
           kind: "manual",
           platformUserId,
-          title: title.trim(),
+          notes: manualNotes.trim() || undefined,
           priceMinor,
           items,
           sendForPayment: false,
@@ -158,10 +136,10 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
         showError(json.error ?? "create_failed");
         return;
       }
-      setTitle("");
       setPriceRub("");
       setPaidRub("");
       setSoldDate("");
+      setManualNotes("");
       setItems([]);
       void loadPackages();
     });
@@ -184,6 +162,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
           kind: "catalog",
           platformUserId,
           subscriptionPackageId: catalogId,
+          notes: catalogNotes.trim() || undefined,
           soldAt: catalogSoldDate ? new Date(catalogSoldDate).toISOString() : new Date().toISOString(),
           paidAmountMinor,
           activateImmediately: true,
@@ -197,6 +176,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
       setCatalogId("");
       setCatalogPaidRub("");
       setCatalogSoldDate("");
+      setCatalogNotes("");
       void loadPackages();
     });
   }
@@ -214,41 +194,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) {
-        showError(json.error ?? "consume_failed", consumeAppointmentId || undefined);
-        return;
-      }
-      setError(null);
-      void loadPackages();
-    });
-  }
-
-  function unlinkReserve() {
-    if (!unlinkAppointmentId) return;
-    startTransition(async () => {
-      const res = await fetch(
-        `/api/doctor/booking-engine/appointments/${unlinkAppointmentId}/package/unlink`,
-        { method: "POST" },
-      );
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!json.ok) {
-        showError(json.error ?? "unlink_failed");
-        return;
-      }
-      setError(null);
-      void loadPackages();
-    });
-  }
-
-  function refundConsumed() {
-    if (!refundAppointmentId) return;
-    startTransition(async () => {
-      const res = await fetch(
-        `/api/doctor/booking-engine/appointments/${refundAppointmentId}/package/refund`,
-        { method: "POST" },
-      );
-      const resJson = (await res.json()) as { ok?: boolean; error?: string };
-      if (!resJson.ok) {
-        showError(resJson.error ?? "refund_failed");
+        showError(json.error ?? "consume_failed");
         return;
       }
       setError(null);
@@ -267,20 +213,13 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
       ) : (
         <ul className="m-0 list-none space-y-2 p-0">
           {compact.map((pkg) => (
-            <li key={pkg.id} className={doctorClientStackedCardClass}>
-              <p className="font-medium">{pkg.title}</p>
-              <p className="text-muted-foreground text-xs">
-                {STATUS_LABELS[pkg.status] ?? pkg.status}
-              </p>
-              <ul className="mt-2 space-y-1 text-sm">
-                {pkg.balance.items.map((it) => (
-                  <li key={it.serviceId}>
-                    {it.serviceTitle ?? it.serviceId}: остаток {it.displayRemaining}
-                    {it.reserved > 0 ? ` (зарезервировано ${it.reserved})` : ""}
-                  </li>
-                ))}
-              </ul>
-            </li>
+            <PatientPackageCard
+              key={pkg.id}
+              pkg={pkg}
+              apiBase={apiBase}
+              onError={showError}
+              onChanged={() => void loadPackages()}
+            />
           ))}
         </ul>
       )}
@@ -306,6 +245,12 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
               </option>
             ))}
           </select>
+          <Label htmlFor="pkg-catalog-notes">Комментарий</Label>
+          <Input
+            id="pkg-catalog-notes"
+            value={catalogNotes}
+            onChange={(e) => setCatalogNotes(e.target.value)}
+          />
           <Label htmlFor="pkg-catalog-sold">Дата продажи</Label>
           <Input
             id="pkg-catalog-sold"
@@ -328,16 +273,20 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
       <details className="group">
         <summary className="cursor-pointer text-sm font-medium">Индивидуальный абонемент</summary>
         <div className="mt-3 flex flex-col gap-2">
-          <Label htmlFor="pkg-title">Название</Label>
-          <Input id="pkg-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <Label htmlFor="pkg-manual-notes">Комментарий</Label>
+          <Input
+            id="pkg-manual-notes"
+            value={manualNotes}
+            onChange={(e) => setManualNotes(e.target.value)}
+          />
           <Label htmlFor="pkg-price">Цена, ₽</Label>
           <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <Label htmlFor="pkg-sold">Дата продажи</Label>
           <Input id="pkg-sold" type="date" value={soldDate} onChange={(e) => setSoldDate(e.target.value)} />
           <Label htmlFor="pkg-paid">Оплачено, ₽</Label>
           <Input id="pkg-paid" value={paidRub} onChange={(e) => setPaidRub(e.target.value)} />
-          <div className="flex flex-wrap gap-2 items-end">
-            <div className="flex-1 min-w-[8rem]">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[8rem] flex-1">
               <Label htmlFor="pkg-svc">Услуга</Label>
               <select
                 id="pkg-svc"
@@ -362,7 +311,7 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
             </Button>
           </div>
           {items.length > 0 ? (
-            <p className="text-xs text-muted-foreground">Позиций: {items.length}</p>
+            <p className="text-muted-foreground text-xs">Позиций: {items.length}</p>
           ) : null}
           <Button type="button" size="sm" disabled={pending} onClick={createManual}>
             Сохранить
@@ -424,38 +373,6 @@ export function DoctorClientMembershipsPanel({ platformUserId, appointments = []
           <Button type="button" size="sm" disabled={pending} onClick={manualConsume}>
             Списать
           </Button>
-        </div>
-      </details>
-
-      <details className="group">
-        <summary className="cursor-pointer text-sm font-medium">Отвязать / вернуть сеанс</summary>
-        <div className="mt-3 flex flex-col gap-3">
-          <div>
-            <Label>Отвязать будущий резерв (ID записи)</Label>
-            <div className="mt-1 flex gap-2">
-              <Input
-                value={unlinkAppointmentId}
-                onChange={(e) => setUnlinkAppointmentId(e.target.value)}
-                placeholder={appointments[0]?.id ?? "uuid"}
-              />
-              <Button type="button" size="sm" variant="secondary" disabled={pending} onClick={unlinkReserve}>
-                Отвязать
-              </Button>
-            </div>
-          </div>
-          <div>
-            <Label>Вернуть списанный сеанс (ID записи)</Label>
-            <div className="mt-1 flex gap-2">
-              <Input
-                value={refundAppointmentId}
-                onChange={(e) => setRefundAppointmentId(e.target.value)}
-                placeholder={appointments[0]?.id ?? "uuid"}
-              />
-              <Button type="button" size="sm" variant="secondary" disabled={pending} onClick={refundConsumed}>
-                Вернуть
-              </Button>
-            </div>
-          </div>
         </div>
       </details>
     </div>

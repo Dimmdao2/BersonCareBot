@@ -1,5 +1,40 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-04 — Синхронизация документации (этап 3)
+
+- Обновлены: `README.md` (инициатива + `docs/README.md`), `ROADMAP.md` §9 и таблица этапов, `STAGE3_DECOMPOSITION.md` (все DoD 3.0–3.6 `[x]`, baseline → «закрыто», полный список vitest), `ACCEPTANCE_STAGE3.md`, `INVENTORY_AND_IA.md` (ключ `booking_allow_doctor_unlink_past_package_sessions`), `memberships.md` (canonical path + ссылка на initiative).
+- Ревью UI (после аудита): поздняя отвязка через `beginDetach` (двойной confirm для past); `isPast` в `runDetach` без гонки `pendingDetach`; сброс `history`/`notes` в `PatientPackageCard`.
+- Проверка: vitest fast (пакет этапа 3) + `tsc` webapp — зелёные.
+
+## 2026-06-04 — Этап 3: закрытие пробелов (после аудита)
+
+- UI: collapsible **История** (`GET patient-packages/[id]`), preview комментария, **soldAt / validUntil / оплата** в карточке; кнопка **«Списать как оказанную»** при `canManualConsume`; тексты confirm по типу действия (unlink / refund / charge).
+- Тесты: route `PATCH`/`GET detail`, `sessions?includePast`, `detach`/`unlink`/`refund`; расширен `patient-packages/route.test` (notes, manual без title); `service.test` (past guards, filter past sessions); RTL `PatientPackageSessionsList`, panel (history).
+- Документы: `ACCEPTANCE_STAGE3.md`, `STAGE3_DECOMPOSITION.md`, `ROADMAP` §таблица этапов → **`done`**.
+- Проверка: `vitest` fast 41 passed; `tsc` webapp green.
+
+## 2026-06-04 — Этап 3: реализация 3.0–3.6 (код)
+
+- API: `notes` на catalog offer + optional `title` manual; `PATCH patient-packages/[id]`; `GET .../sessions`; `POST .../package/detach` (+ wrappers unlink/refund); admin mirror тех же routes.
+- Service/repo: `updatePatientPackageNotes`, `listPatientPackageSessions`, `detachAppointmentPackage` (late/past guards), `packageManualTitle`, `packageSessionLinkage`.
+- Settings: `booking_allow_doctor_unlink_past_package_sessions` в `ALLOWED_KEYS` + UI `BookingPackagePastUnlinkSetting` на `/app/doctor/admin/booking/rules`.
+- UI: `PatientPackageCard`, `PatientPackageSessionsList`, рефактор `DoctorClientMembershipsPanel` (без UUID/названия); parity `BookingPatientPackagesSection`.
+- Docs: `memberships.md`, `api.md`.
+- Проверки: vitest fast — `packageManualTitle`, `packageSessionLinkage`, `service.test` (вкл. detach late + auto-title), `DoctorClientMembershipsPanel.test`, `patient-packages/route.test`.
+
+## 2026-06-04 — Этап 3: ревизия декомпозиции (уточнение)
+
+- `STAGE3_DECOMPOSITION.md`: добавлены `Definition of Done` и `Scope boundaries` (что можно/нельзя менять), убраны двусмысленные «опциональные» ветки внутри scope.
+- Зафиксирован единый контракт late detach: `POST .../package/detach` без `outcome` в late-window возвращает `409 late_detach_choice_required`; `unlink/refund` остаются wrappers.
+- Уточнены контракты списка сеансов (`includePast=false|true`), путь UI-компонентов в doctor clients, и команды проверок (`tsc -p tsconfig.json` в `apps/webapp`).
+- `ACCEPTANCE_STAGE3.md`: добавлен блок DoD, явные проверки API (`/sessions`, `/package/detach`) и точный ключ `system_settings` для прошедших отвязок.
+
+## 2026-06-04 — Этап 3: декомпозиция (документы)
+
+- Добавлены [`STAGE3_DECOMPOSITION.md`](STAGE3_DECOMPOSITION.md) (блоки 3.0–3.6, gates, API контракты, `system_settings` ключ §9.6) и [`ACCEPTANCE_STAGE3.md`](ACCEPTANCE_STAGE3.md).
+- ROADMAP §9 и README — ссылки на план исполнения.
+- Решения в декомпозиции: комментарий → `be_patient_packages.notes`; период поздней отвязки → `freeCancelHoursBefore` из `booking-policies`; auto-title для manual без названия в UI.
+
 ## 2026-06-04 — Документация: синхронизация после закрытия этапа 2
 
 - README, ROADMAP §8, STAGE2_DECOMPOSITION (DoD, статус), INVENTORY §5.2–5.3, ACCEPTANCE_STAGE2, `docs/README.md`.

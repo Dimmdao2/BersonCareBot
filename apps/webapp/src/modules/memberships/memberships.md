@@ -12,6 +12,8 @@ Validity: `packageValidity.ts` (auto `expired` when `valid_until` passed).
 
 ## Booking integration
 
+**Canonical-only debit path:** reserve/consume/FEFO и ручные действия staff опираются на **canonical `serviceId`** записи и позиций пакета. Rubitime/legacy — только через mapping (`branch_service_mapping_missing` fail-closed на create/available, этап 2). В UI сеансов абонемента: `mappingStatus` + бейдж «нет связи услуги».
+
 - Create (in_person): optional `patientPackageId` on `POST /api/booking/create`; if omitted and no `productPurchaseId`, **auto FEFO** (`fefoPicker.ts`) among active packages with balance for service; `reserveForAppointment` before `markConfirmed`; skips prepayment when package covers visit. Staff manual create (`POST .../appointments/manual`) uses the same FEFO when `platformUserId` + `serviceId` are set.
 - Calendar: `booking.package_linked` / `booking.package_unlinked` → integrator GCal update only (no patient/doctor notifications). Summary `✅` after status markers; description line `Абонемент от <soldAt>: сеанс n из N`. After consume/penalty ref change, `refreshPackageCalendar` emits `package_linked` (best-effort).
 - Refund: restores balance + clears ref; reverts `charged_to_package` → prior status from history (`visit_confirmed` / `confirmed` / `completed`).
@@ -38,13 +40,17 @@ UI: `PatientMembershipsSection`, `/app/patient/memberships/pay`, `/app/patient/m
 | Method | Path |
 |--------|------|
 | GET/POST | `/api/admin/booking-engine/packages` |
-| GET/POST | `/api/admin/booking-engine/patient-packages` (`?platformUserId=` on GET; manual POST supports `soldAt`, `paidAmountMinor`, `activateImmediately`) |
-| POST | `/api/admin/booking-engine/patient-packages/[id]/consume` |
-| POST | `/api/doctor/booking-engine/appointments/[id]/package/unlink` |
-| POST | `/api/doctor/booking-engine/appointments/[id]/package/refund` |
+| GET/POST | `/api/admin/booking-engine/patient-packages` (`?platformUserId=` on GET; manual POST optional `title`, `notes`; catalog offer `notes`) |
+| PATCH | `.../patient-packages/[id]` — `{ notes: string \| null }` |
+| GET | `.../patient-packages/[id]/sessions?includePast=` — session rows + server `actions` |
+| POST | `.../patient-packages/[id]/consume` |
+| POST | `.../appointments/[id]/package/detach` — `{ outcome?, confirmPastTwice? }` (late → `409 late_detach_choice_required`) |
+| POST | `.../appointments/[id]/package/unlink` / `refund` — thin wrappers → detach |
 
-Same under `/api/doctor/booking-engine/...` where mirrored. UI: `BookingPatientPackagesSection` (admin booking ops), **`DoctorClientMembershipsPanel`** on patient card tab «Записи».
+Same under `/api/doctor/booking-engine/...` where mirrored. Admin setting `booking_allow_doctor_unlink_past_package_sessions` (boolean, scope `admin`) gates past detach in UI/API.
+
+UI: `BookingPatientPackagesSection` (admin booking ops), **`DoctorClientMembershipsPanel`** + `PatientPackageCard` / `PatientPackageSessionsList` on patient card tab «Записи».
 
 ## Docs
 
-`docs/OWN_BOOKING_ENGINE_INITIATIVE/STAGE_CHECKLISTS.md` §Этап 6 · plan `.cursor/plans/archive/own_booking_stage6_memberships.plan.md`
+`docs/OWN_BOOKING_ENGINE_INITIATIVE/STAGE_CHECKLISTS.md` §Этап 6 · plan `.cursor/plans/archive/own_booking_stage6_memberships.plan.md` · **BOOKING rework этап 3:** `docs/BOOKING_REWORK_INITIATIVE/STAGE3_DECOMPOSITION.md`, `ACCEPTANCE_STAGE3.md`, `LOG.md`

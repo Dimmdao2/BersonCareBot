@@ -96,3 +96,32 @@ export type PatientPackageBalanceView = {
 export type PatientPackageListItem = PatientPackageRecord & {
   balance: PatientPackageBalanceView;
 };
+
+export type PatientPackageSessionLinkage =
+  | "reserved"
+  | "consumed"
+  | "penalty"
+  | "released"
+  | "refunded"
+  | "none";
+
+export type PatientPackageSessionMappingStatus = "ok" | "mapping_missing" | "not_applicable";
+
+export type PatientPackageSessionRow = {
+  appointmentId: string;
+  startsAt: string;
+  endsAt: string | null;
+  status: string;
+  branchTitle: string | null;
+  serviceTitle: string;
+  serviceId: string | null;
+  linkage: PatientPackageSessionLinkage;
+  mappingStatus: PatientPackageSessionMappingStatus;
+  isPast: boolean;
+  actions: {
+    canUnlinkReserve: boolean;
+    canRefundConsumed: boolean;
+    canManualConsume: boolean;
+    canOpenInCalendar: boolean;
+  };
+};

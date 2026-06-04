@@ -1,6 +1,6 @@
 # BOOKING_REWORK_INITIATIVE — доработка записи
 
-**Статус:** `in_progress` (этап 0 — `done`; этап 1 — код готов, ожидает приёмку владельца; **этап 2 — `done` в коде** 2026-06-04; 2.3b ops — см. [`LOG.md`](LOG.md))
+**Статус:** `in_progress` (этап 0 — `done`; этап 1 — код готов, ожидает приёмку владельца; **этап 2 — `done`** 2026-06-04; **этап 3 — `done`** 2026-06-04; 2.3b ops — см. [`LOG.md`](LOG.md); далее этап 4 — календарь)
 **Дата старта:** 2026-06-04
 **Владелец постановки:** Дмитрий Берсон
 
@@ -16,7 +16,11 @@
 4. [`ACCEPTANCE_STAGE1.md`](ACCEPTANCE_STAGE1.md) — чек-лист ручной приёмки этапа 1.
 5. [`STAGE2_DECOMPOSITION.md`](STAGE2_DECOMPOSITION.md) — декомпозиция этапа 2 (2.1 / 2.2 / 2.3), UI-канон врача.
 6. [`ACCEPTANCE_STAGE2.md`](ACCEPTANCE_STAGE2.md) — приёмка этапа 2 по подэтапам (**2.0–2.3a закрыты в коде**; 2.3b ops — unchecked).
-7. План этапа 2 (архив): [`.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md`](../../.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md)
+7. [`STAGE3_DECOMPOSITION.md`](STAGE3_DECOMPOSITION.md) — декомпозиция этапа 3 (3.0–3.6): комментарий, сеансы, detach, карточка клиента.
+8. [`ACCEPTANCE_STAGE3.md`](ACCEPTANCE_STAGE3.md) — приёмка этапа 3 (**закрыта в коде** 2026-06-04).
+9. План этапа 2 (архив): [`.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md`](../../.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md)
+
+**Этап 3 (кратко):** комментарий к пакету (`notes`), индивидуальный абонемент без названия в UI, `GET …/sessions`, `POST …/package/detach`, карточка клиента (`PatientPackageCard` / `PatientPackageSessionsList`), настройка `booking_allow_doctor_unlink_past_package_sessions` — см. [`LOG.md`](LOG.md).
 
 ## Основные решения
 

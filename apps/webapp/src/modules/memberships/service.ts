@@ -21,6 +21,14 @@ type BookingEngineService = Pick<
 
 import { parsePatientPackageProductRef } from "./patientPackageProductRef";
 import { isPatientPackageExpired, isPatientPackageWithinValidity } from "./packageValidity";
+import { buildManualPatientPackageTitle } from "./packageManualTitle";
+import {
+  computeAppointmentPackageLinkage,
+  resolvePackageSessionMappingStatus,
+} from "./packageSessionLinkage";
+import type { PatientPackageSessionRow } from "./types";
+
+export type PackageDetachOutcome = "release_reserve" | "charge_as_delivered" | "refund_consumed";
 
 function addValidity(validFrom: string, validityDays: number | null): string | null {
   if (validityDays == null || validityDays <= 0) return null;
@@ -123,7 +131,13 @@ export function createMembershipsService(deps: {
     async createManualPatientPackage(
       input: Parameters<MembershipsPort["createManualPatientPackage"]>[0],
     ) {
-      const pkg = await deps.port.createManualPatientPackage(input);
+      const title =
+        input.title?.trim() ||
+        buildManualPatientPackageTitle({
+          itemCount: input.items.length,
+          soldAtIso: input.soldAt,
+        });
+      const pkg = await deps.port.createManualPatientPackage({ ...input, title });
       await deps.port.appendHistoryEvent({
         organizationId: input.organizationId,
         patientPackageId: pkg.id,
@@ -152,6 +166,7 @@ export function createMembershipsService(deps: {
       platformUserId: string;
       subscriptionPackageId: string;
       assignedByPlatformUserId?: string | null;
+      notes?: string | null;
       soldAt?: string | null;
       paidAmountMinor?: number | null;
       paidCurrency?: string | null;
@@ -726,6 +741,135 @@ export function createMembershipsService(deps: {
       }
 
       return usage;
+    },
+
+    async updatePatientPackageNotes(
+      patientPackageId: string,
+      organizationId: string,
+      notes: string | null,
+    ) {
+      const updated = await deps.port.updatePatientPackageNotes(patientPackageId, organizationId, notes);
+      if (!updated) throw new Error("package_not_found");
+      return withBalance(updated);
+    },
+
+    async listPatientPackageSessions(
+      patientPackageId: string,
+      organizationId: string,
+      options: { includePast: boolean; allowPastUnlink: boolean },
+    ) {
+      const pkg = await deps.port.getPatientPackage(patientPackageId, organizationId);
+      if (!pkg) throw new Error("package_not_found");
+      const packageServiceIds = new Set(pkg.items.map((i) => i.serviceId));
+      const nowIso = new Date().toISOString();
+      const sources = await deps.port.listPackageAppointmentSessionSources(patientPackageId, organizationId, {
+        nowIso,
+      });
+
+      const rows: PatientPackageSessionRow[] = sources.map((src) => {
+        const linkage = computeAppointmentPackageLinkage(src.usages);
+        const isPast = src.startsAt < nowIso;
+        const mappingStatus = resolvePackageSessionMappingStatus({
+          serviceId: src.serviceId,
+          packageServiceIds,
+        });
+        const pastActionsAllowed = !isPast || options.allowPastUnlink;
+        const canUnlinkReserve = pastActionsAllowed && linkage === "reserved";
+        const canRefundConsumed =
+          pastActionsAllowed && (linkage === "consumed" || linkage === "penalty");
+        const canManualConsume =
+          pastActionsAllowed &&
+          linkage === "none" &&
+          src.serviceId != null &&
+          packageServiceIds.has(src.serviceId);
+        return {
+          appointmentId: src.appointmentId,
+          startsAt: src.startsAt,
+          endsAt: src.endsAt,
+          status: src.status,
+          branchTitle: src.branchTitle,
+          serviceTitle: src.serviceTitle ?? "—",
+          serviceId: src.serviceId,
+          linkage,
+          mappingStatus,
+          isPast,
+          actions: {
+            canUnlinkReserve,
+            canRefundConsumed,
+            canManualConsume,
+            canOpenInCalendar: true,
+          },
+        };
+      });
+
+      if (!options.includePast) {
+        return rows.filter((r) => !r.isPast);
+      }
+      return rows;
+    },
+
+    async detachAppointmentPackage(input: {
+      organizationId: string;
+      appointmentId: string;
+      createdByPlatformUserId?: string | null;
+      outcome?: PackageDetachOutcome;
+      confirmPastTwice?: boolean;
+      allowPastUnlink: boolean;
+      freeCancelHoursBefore: number;
+    }) {
+      if (!deps.bookingEngine) throw new Error("appointment_not_found");
+      const appt = await deps.bookingEngine.getAppointment(input.appointmentId);
+      if (!appt || appt.organizationId !== input.organizationId) {
+        throw new Error("appointment_not_found");
+      }
+
+      const usages = await deps.port.listUsagesForAppointment(input.appointmentId, input.organizationId);
+      const linkage = computeAppointmentPackageLinkage(usages);
+      const nowMs = Date.now();
+      const startMs = new Date(appt.startAt).getTime();
+      const isPast = startMs < nowMs;
+      const hoursUntilStart = (startMs - nowMs) / (60 * 60 * 1000);
+      const isLate = hoursUntilStart < input.freeCancelHoursBefore;
+
+      if (isPast && !input.allowPastUnlink) {
+        throw new Error("past_unlink_not_allowed");
+      }
+      if (isPast && input.allowPastUnlink && !input.confirmPastTwice) {
+        throw new Error("past_detach_confirmation_required");
+      }
+      if (isLate && !input.outcome) {
+        throw new Error("late_detach_choice_required");
+      }
+
+      const outcome: PackageDetachOutcome =
+        input.outcome ??
+        (linkage === "reserved"
+          ? "release_reserve"
+          : linkage === "consumed" || linkage === "penalty"
+            ? "refund_consumed"
+            : (() => {
+                throw new Error("appointment_not_linked_to_package");
+              })());
+
+      if (outcome === "release_reserve") {
+        return this.unlinkAppointmentFromPackage({
+          organizationId: input.organizationId,
+          appointmentId: input.appointmentId,
+          createdByPlatformUserId: input.createdByPlatformUserId,
+        });
+      }
+      if (outcome === "refund_consumed") {
+        return this.refundConsumedAppointmentPackage({
+          organizationId: input.organizationId,
+          appointmentId: input.appointmentId,
+          createdByPlatformUserId: input.createdByPlatformUserId,
+        });
+      }
+      return this.consumeForAppointment({
+        organizationId: input.organizationId,
+        appointmentId: input.appointmentId,
+        createdByPlatformUserId: input.createdByPlatformUserId,
+      });
     },
 
     async onVisitConfirmed(appointmentId: string, organizationId: string) {

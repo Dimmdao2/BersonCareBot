@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   bePackageHistoryEvents,
@@ -8,7 +8,7 @@ import {
   bePatientPackages,
   beSubscriptionPackages,
 } from "../../../db/schema/bookingMemberships";
-import { beAppointments } from "../../../db/schema/bookingEngine";
+import { beAppointments, beBranches, beClinicServices } from "../../../db/schema/bookingEngine";
 import type {
   CreateManualPatientPackageInput,
   MembershipsPort,
@@ -290,7 +290,7 @@ export function createPgMembershipsPort(): MembershipsPort {
           organizationId: input.organizationId,
           platformUserId: input.platformUserId,
           status,
-          title: input.title,
+          title: input.title?.trim() || "Индивидуальный",
           priceMinor: input.priceMinor,
           currency: input.currency ?? "RUB",
           validityDays: input.validityDays ?? null,
@@ -342,6 +342,7 @@ export function createPgMembershipsPort(): MembershipsPort {
           validityDays: catalog.validityDays,
           deductionMode: catalog.deductionMode,
           assignedByPlatformUserId: input.assignedByPlatformUserId ?? null,
+          notes: input.notes ?? null,
           createdAt: now,
           updatedAt: now,
         })
@@ -359,6 +360,88 @@ export function createPgMembershipsPort(): MembershipsPort {
       const pkg = await this.getPatientPackage(pkgId, input.organizationId);
       if (!pkg) throw new Error("package_offer_failed");
       return pkg;
+    },
+
+    async updatePatientPackageNotes(id, organizationId, notes) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      const rows = await db
+        .update(bePatientPackages)
+        .set({ notes, updatedAt: now })
+        .where(and(eq(bePatientPackages.id, id), eq(bePatientPackages.organizationId, organizationId)))
+        .returning();
+      const row = rows[0];
+      if (!row) return null;
+      const itemsMap = await loadPackageItems([id]);
+      return mapPatientPackage(row, itemsMap.get(id) ?? []);
+    },
+
+    async listPackageAppointmentSessionSources(patientPackageId, organizationId, options) {
+      const db = getDrizzle();
+      const nowIso = options.nowIso ?? new Date().toISOString();
+      void nowIso;
+
+      const usageRows = await db
+        .select()
+        .from(bePackageUsages)
+        .where(
+          and(
+            eq(bePackageUsages.patientPackageId, patientPackageId),
+            eq(bePackageUsages.organizationId, organizationId),
+            isNotNull(bePackageUsages.appointmentId),
+          ),
+        )
+        .orderBy(asc(bePackageUsages.occurredAt));
+
+      const appointmentIds = [
+        ...new Set(
+          usageRows
+            .map((u) => u.appointmentId)
+            .filter((id): id is string => typeof id === "string" && id.length > 0),
+        ),
+      ];
+      if (appointmentIds.length === 0) return [];
+
+      const apptRows = await db
+        .select({
+          id: beAppointments.id,
+          startAt: beAppointments.startAt,
+          endAt: beAppointments.endAt,
+          status: beAppointments.status,
+          serviceId: beAppointments.serviceId,
+          branchTitle: beBranches.title,
+          serviceTitle: beClinicServices.title,
+        })
+        .from(beAppointments)
+        .leftJoin(beBranches, eq(beAppointments.branchId, beBranches.id))
+        .leftJoin(beClinicServices, eq(beAppointments.serviceId, beClinicServices.id))
+        .where(
+          and(
+            eq(beAppointments.organizationId, organizationId),
+            inArray(beAppointments.id, appointmentIds),
+          ),
+        );
+
+      const usagesByAppointment = new Map<string, PackageUsageRecord[]>();
+      for (const row of usageRows) {
+        if (!row.appointmentId) continue;
+        const list = usagesByAppointment.get(row.appointmentId) ?? [];
+        list.push(mapUsage(row));
+        usagesByAppointment.set(row.appointmentId, list);
+      }
+
+      return apptRows
+        .map((appt) => ({
+          appointmentId: appt.id,
+          startsAt: appt.startAt,
+          endsAt: appt.endAt,
+          status: appt.status,
+          branchTitle: appt.branchTitle,
+          serviceTitle: appt.serviceTitle,
+          serviceId: appt.serviceId,
+          usages: usagesByAppointment.get(appt.id) ?? [],
+        }))
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
     },
 
     async setPatientPackageStatus(id, organizationId, status, patch) {

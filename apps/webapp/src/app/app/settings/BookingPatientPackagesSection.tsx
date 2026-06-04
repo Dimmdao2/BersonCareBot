@@ -24,7 +24,7 @@ const PACKAGE_STATUS_LABELS: Record<string, string> = {
 const ERROR_LABELS: Record<string, string> = {
   platform_user_id_required: "Укажите ID пациента.",
   catalog_package_required: "Выберите абонемент из каталога.",
-  invalid_form: "Проверьте форму: название, цена и состав абонемента обязательны.",
+  invalid_form: "Проверьте форму: цена и состав абонемента обязательны.",
   invalid_body: "Некорректные данные запроса.",
   catalog_not_found: "Абонемент не найден в каталоге.",
   payments_disabled: "Оплата отключена — абонемент создан, но ссылку на оплату выставить нельзя.",
@@ -59,7 +59,8 @@ export function BookingPatientPackagesSection({
   const platformUserId = platformUserIdProp.trim() || platformUserIdLocal;
   const hidePatientIdField = Boolean(platformUserIdProp.trim());
   const [catalogId, setCatalogId] = useState("");
-  const [title, setTitle] = useState("");
+  const [manualNotes, setManualNotes] = useState("");
+  const [catalogNotes, setCatalogNotes] = useState("");
   const [priceRub, setPriceRub] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -138,6 +139,7 @@ export function BookingPatientPackagesSection({
           kind: "catalog",
           platformUserId: platformUserId.trim(),
           subscriptionPackageId: catalogId,
+          notes: catalogNotes.trim() || undefined,
         }),
       });
       const json = await readJsonSafe<{ ok?: boolean; package?: { id: string }; error?: string }>(res);
@@ -156,7 +158,7 @@ export function BookingPatientPackagesSection({
   function createManual() {
     setError(null);
     const priceMinor = Math.round(Number.parseFloat(priceRub.replace(",", ".")) * 100);
-    if (!platformUserId.trim() || !title.trim() || items.length === 0 || !Number.isFinite(priceMinor)) {
+    if (!platformUserId.trim() || items.length === 0 || !Number.isFinite(priceMinor)) {
       setError("invalid_form");
       return;
     }
@@ -167,7 +169,7 @@ export function BookingPatientPackagesSection({
         body: JSON.stringify({
           kind: "manual",
           platformUserId: platformUserId.trim(),
-          title: title.trim(),
+          notes: manualNotes.trim() || undefined,
           priceMinor,
           items,
         }),
@@ -235,13 +237,23 @@ export function BookingPatientPackagesSection({
               </option>
             ))}
           </select>
+          <Input
+            className="mb-2"
+            placeholder="Комментарий"
+            value={catalogNotes}
+            onChange={(e) => setCatalogNotes(e.target.value)}
+          />
           <Button type="button" disabled={pending} onClick={offerCatalog}>
             Назначить
           </Button>
         </div>
         <div className="border-t pt-3">
           <p className="mb-2 text-sm font-medium">Индивидуальный</p>
-          <Input placeholder="Название" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <Input
+            placeholder="Комментарий"
+            value={manualNotes}
+            onChange={(e) => setManualNotes(e.target.value)}
+          />
           <Input className="mt-2" placeholder="Цена ₽" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <div className="mt-2 flex gap-2">
             <select
