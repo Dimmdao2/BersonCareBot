@@ -4,6 +4,7 @@ const rateLimitMock = vi.hoisted(() => vi.fn());
 const resolveUserMock = vi.hoisted(() => vi.fn());
 const createBookingMock = vi.hoisted(() => vi.fn());
 const recordMergeMock = vi.hoisted(() => vi.fn());
+const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/public-booking/publicBookingRateLimit", () => ({
   resolvePublicBookingRateLimitClientKey: () => ({ ok: true, key: "127.0.0.1" }),
@@ -24,6 +25,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     patientBooking: { createBooking: createBookingMock },
     bookingEngine: {
       organization: { getDefaultOrganizationId: async () => "org-1" },
+      catalog: { listSpecialists: async () => [{ id: "sp-1", isActive: true }] },
+    },
+    bookingScheduling: {
+      resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
     },
   }),
 }));
@@ -94,5 +99,32 @@ describe("POST /api/booking/public/create", () => {
       }),
     );
     expect(recordMergeMock).toHaveBeenCalled();
+  });
+
+  it("creates in_person booking with canonical branchId+serviceId", async () => {
+    resolveLegacyBranchServiceIdMock.mockResolvedValue("bs-canonical");
+    const res = await POST(
+      new Request("http://localhost/api/booking/public/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Real-IP": "1.2.3.4" },
+        body: JSON.stringify({
+          type: "in_person",
+          branchId: "550e8400-e29b-41d4-a716-446655440001",
+          serviceId: "550e8400-e29b-41d4-a716-446655440002",
+          cityCode: "moscow",
+          slotStart: "2026-06-01T10:00:00.000Z",
+          slotEnd: "2026-06-01T11:00:00.000Z",
+          contactName: "Иван",
+          contactPhone: "+79001234567",
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(createBookingMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "in_person",
+        branchServiceId: "bs-canonical",
+      }),
+    );
   });
 });

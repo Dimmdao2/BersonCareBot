@@ -9,8 +9,11 @@ export type BookingSelection =
       type: "in_person";
       cityCode: string;
       cityTitle: string;
-      branchServiceId: string;
+      branchId: string;
+      serviceId: string;
       serviceTitle: string;
+      /** Legacy reschedule / cabinet paths */
+      branchServiceId?: string;
     };
 
 export type InPersonDraft = {
@@ -43,7 +46,12 @@ export function useBookingSelection() {
       setSelection(null);
       setInPersonDraft({ cityCode, cityTitle });
     },
-    selectInPersonService(branchServiceId: string, serviceTitle: string) {
+    selectInPersonService(
+      branchId: string,
+      serviceId: string,
+      serviceTitle: string,
+      branchServiceId?: string,
+    ) {
       if (!inPersonDraft) return;
       const { cityCode, cityTitle } = inPersonDraft;
       setInPersonDraft(null);
@@ -51,8 +59,10 @@ export function useBookingSelection() {
         type: "in_person",
         cityCode,
         cityTitle,
-        branchServiceId,
+        branchId,
+        serviceId,
         serviceTitle,
+        ...(branchServiceId ? { branchServiceId } : {}),
       });
     },
     clear() {

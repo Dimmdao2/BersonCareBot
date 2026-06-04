@@ -273,6 +273,8 @@ import { createBookingCatalogService } from "@/modules/booking-catalog/service";
 import { createBookingEngineService } from "@/modules/booking-engine/service";
 import { createPgBookingSchedulingPort } from "@/infra/repos/pgBookingScheduling";
 import { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
+import { createPgRubitimeMappingPort } from "@/infra/repos/pgRubitimeMapping";
+import { createRubitimeMappingService } from "@/modules/rubitime-mapping/service";
 import { createBookingCalendarService } from "@/modules/booking-calendar/service";
 import { createPgBookingCalendarPort } from "@/infra/repos/pgBookingCalendar";
 import { createPgBookingCalendarLegacyCalendarPort } from "@/infra/repos/pgBookingCalendarLegacy";
@@ -437,6 +439,18 @@ const bookingSchedulingPort =
     : null;
 const bookingSchedulingService = bookingSchedulingPort
   ? createBookingSchedulingService(bookingSchedulingPort)
+  : null;
+const rubitimeMappingPort =
+  bookingCatalogPort && bookingSchedulingPort && bookingEngineCorePort && !inMemoryRepos
+    ? createPgRubitimeMappingPort({
+        bookingCatalogPort,
+        resolveLegacyBranchServiceId: (input) => bookingSchedulingPort.resolveLegacyBranchServiceId(input),
+        upsertSpecialistServiceAvailability: (input) =>
+          bookingEngineCorePort.upsertSpecialistServiceAvailability(input),
+      })
+    : null;
+const rubitimeMappingService = rubitimeMappingPort
+  ? createRubitimeMappingService(rubitimeMappingPort)
   : null;
 const bookingCalendarCanonicalPort = !inMemoryRepos ? createPgBookingCalendarPort() : null;
 const bookingCalendarLegacyPort = !inMemoryRepos ? createPgBookingCalendarLegacyCalendarPort() : null;
@@ -1429,6 +1443,7 @@ function _buildAppDeps() {
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
     bookingEnginePort,
     bookingScheduling: bookingSchedulingService,
+    rubitimeMapping: rubitimeMappingService,
     bookingCalendar: bookingCalendarService,
     clientHistory: clientHistoryService,
     bookingForm: bookingFormService,

@@ -5,7 +5,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ServiceStepClient } from "./ServiceStepClient";
 import { routePaths } from "@/app-layer/routes/paths";
-import type { BookingBranchService } from "@/modules/booking-catalog/types";
+import type { InPersonServiceListItem } from "@/modules/patient-booking/inPersonServicesCatalog";
 
 const push = vi.fn();
 const refresh = vi.fn();
@@ -14,28 +14,13 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), refresh, prefetch: vi.fn() }),
 }));
 
-function branchService(overrides: Partial<BookingBranchService> = {}): BookingBranchService {
+function service(overrides: Partial<InPersonServiceListItem> = {}): InPersonServiceListItem {
   return {
-    id: "11111111-1111-4111-8111-111111111111",
-    branchId: "b",
-    serviceId: "s",
-    specialistId: "sp",
-    rubitimeServiceId: "r",
-    isActive: true,
-    sortOrder: 0,
-    createdAt: "",
-    updatedAt: "",
-    service: {
-      id: "s",
-      title: "Реабилитация",
-      description: null,
-      durationMinutes: 60,
-      priceMinor: 0,
-      isActive: true,
-      sortOrder: 0,
-      createdAt: "",
-      updatedAt: "",
-    },
+    id: "550e8400-e29b-41d4-a716-446655440002",
+    title: "Реабилитация",
+    description: null,
+    durationMinutes: 60,
+    priceMinor: 0,
     ...overrides,
   };
 }
@@ -45,13 +30,14 @@ describe("ServiceStepClient", () => {
     push.mockClear();
   });
 
-  it("navigates to slot step with in_person params", async () => {
+  it("navigates to slot step with canonical branchId and serviceId", async () => {
     const user = userEvent.setup();
     render(
       <ServiceStepClient
         cityCode="msk"
         cityTitle="Москва"
-        services={[branchService()]}
+        branchId="550e8400-e29b-41d4-a716-446655440001"
+        services={[service()]}
         catalogError={null}
       />,
     );
@@ -61,12 +47,21 @@ describe("ServiceStepClient", () => {
     expect(url).toContain("type=in_person");
     expect(url).toContain(`cityCode=${encodeURIComponent("msk")}`);
     expect(url).toContain(`cityTitle=${encodeURIComponent("Москва")}`);
-    expect(url).toContain("branchServiceId=11111111-1111-4111-8111-111111111111");
+    expect(url).toContain(`branchId=${encodeURIComponent("550e8400-e29b-41d4-a716-446655440001")}`);
+    expect(url).toContain(`serviceId=${encodeURIComponent("550e8400-e29b-41d4-a716-446655440002")}`);
     expect(url).toContain(`serviceTitle=${encodeURIComponent("Реабилитация")}`);
   });
 
   it("shows empty state when there are no services", () => {
-    render(<ServiceStepClient cityCode="msk" cityTitle="Москва" services={[]} catalogError={null} />);
+    render(
+      <ServiceStepClient
+        cityCode="msk"
+        cityTitle="Москва"
+        branchId="550e8400-e29b-41d4-a716-446655440001"
+        services={[]}
+        catalogError={null}
+      />,
+    );
     expect(screen.getByText(/Нет доступных услуг в этом городе/i)).toBeInTheDocument();
   });
 });

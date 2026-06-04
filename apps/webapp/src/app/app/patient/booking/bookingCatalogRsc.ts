@@ -1,12 +1,23 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { BookingBranchService, BookingCity } from "@/modules/booking-catalog/types";
+import type { BookingCity } from "@/modules/booking-catalog/types";
+import {
+  listInPersonServicesForBranch,
+  resolveActiveBranchForCity,
+  type InPersonServiceListItem,
+} from "@/modules/patient-booking/inPersonServicesCatalog";
 
 export type LoadCitiesResult =
   | { ok: true; cities: BookingCity[] }
   | { ok: false; error: "catalog_unavailable"; cities: [] };
 
-export type LoadServicesResult =
-  | { ok: true; services: BookingBranchService[] }
+export type LoadInPersonServicesResult =
+  | {
+      ok: true;
+      branchId: string;
+      branchTitle: string;
+      cityCode: string;
+      services: InPersonServiceListItem[];
+    }
   | { ok: false; error: "catalog_unavailable" | "city_not_found"; services: [] };
 
 /** RSC: каталог городов (тот же источник, что `GET /api/booking/catalog/cities`). */
@@ -23,20 +34,30 @@ export async function loadBookingCitiesForPatientRsc(): Promise<LoadCitiesResult
   }
 }
 
-/** RSC: услуги города (тот же источник, что `GET /api/booking/catalog/services`). */
-export async function loadBookingServicesForPatientRsc(cityCode: string): Promise<LoadServicesResult> {
+/** RSC: canonical услуги локации по cityCode (первая активная локация города). */
+export async function loadInPersonServicesForCityRsc(cityCode: string): Promise<LoadInPersonServicesResult> {
   const deps = buildAppDeps();
-  if (!deps.bookingCatalog) {
+  if (!deps.bookingEngine) {
     return { ok: false, error: "catalog_unavailable", services: [] };
   }
   try {
-    const services = await deps.bookingCatalog.listServicesByCity(cityCode);
-    return { ok: true, services };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "";
-    if (msg === "city_not_found" || msg === "city_code_required") {
+    const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+    const branch = await resolveActiveBranchForCity(deps, organizationId, cityCode);
+    if (!branch) {
       return { ok: false, error: "city_not_found", services: [] };
     }
+    const listed = await listInPersonServicesForBranch(deps, organizationId, branch.id);
+    if (!listed) {
+      return { ok: false, error: "city_not_found", services: [] };
+    }
+    return {
+      ok: true,
+      branchId: listed.branch.id,
+      branchTitle: listed.branch.title,
+      cityCode: listed.branch.cityCode,
+      services: listed.services,
+    };
+  } catch {
     return { ok: false, error: "catalog_unavailable", services: [] };
   }
 }

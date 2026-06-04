@@ -1,6 +1,6 @@
 # BOOKING_REWORK_INITIATIVE — доработка записи
 
-**Статус:** `in_progress` (этап 0 закрыт, этап 1 — реализация готова к приёмке)
+**Статус:** `in_progress` (этап 0 — `done`; этап 1 — код готов, ожидает приёмку владельца; **этап 2 — `done` в коде** 2026-06-04; 2.3b ops — см. [`LOG.md`](LOG.md))
 **Дата старта:** 2026-06-04
 **Владелец постановки:** Дмитрий Берсон
 
@@ -14,6 +14,9 @@
 2. [`INVENTORY_AND_IA.md`](INVENTORY_AND_IA.md) — инвентаризация текущих вкладок, источники данных, целевая IA, контракты переходного периода (этап 0).
 3. [`LOG.md`](LOG.md) — журнал выполнения этапов.
 4. [`ACCEPTANCE_STAGE1.md`](ACCEPTANCE_STAGE1.md) — чек-лист ручной приёмки этапа 1.
+5. [`STAGE2_DECOMPOSITION.md`](STAGE2_DECOMPOSITION.md) — декомпозиция этапа 2 (2.1 / 2.2 / 2.3), UI-канон врача.
+6. [`ACCEPTANCE_STAGE2.md`](ACCEPTANCE_STAGE2.md) — приёмка этапа 2 по подэтапам (**2.0–2.3a закрыты в коде**; 2.3b ops — unchecked).
+7. План этапа 2 (архив): [`.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md`](../../.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md)
 
 ## Основные решения
 

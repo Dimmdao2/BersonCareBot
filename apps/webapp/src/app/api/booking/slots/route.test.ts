@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const getSlotsMock = vi.hoisted(() => vi.fn());
+const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
@@ -10,6 +11,13 @@ vi.mock("@/modules/auth/service", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientBooking: { getSlots: getSlotsMock },
+    bookingEngine: {
+      organization: { getDefaultOrganizationId: async () => "org-1" },
+      catalog: { listSpecialists: async () => [{ id: "sp-1", isActive: true }] },
+    },
+    bookingScheduling: {
+      resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
+    },
   }),
 }));
 
@@ -44,5 +52,36 @@ describe("GET /api/booking/slots", () => {
     expect(response.status).toBe(404);
     const body = await response.json();
     expect(body.error).toBe("branch_service_not_found");
+  });
+
+  it("resolves canonical branchId+serviceId before getSlots", async () => {
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
+    resolveLegacyBranchServiceIdMock.mockResolvedValue("bs-canonical");
+    getSlotsMock.mockResolvedValue([{ date: "2026-04-01", slots: [] }]);
+    const branchId = "550e8400-e29b-41d4-a716-446655440001";
+    const serviceId = "550e8400-e29b-41d4-a716-446655440002";
+    const response = await GET(
+      new Request(
+        `http://localhost/api/booking/slots?type=in_person&branchId=${branchId}&serviceId=${serviceId}`,
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(resolveLegacyBranchServiceIdMock).toHaveBeenCalled();
+    expect(getSlotsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "in_person", branchServiceId: "bs-canonical" }),
+    );
+  });
+
+  it("returns 404 when canonical mapping missing", async () => {
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
+    resolveLegacyBranchServiceIdMock.mockResolvedValue(null);
+    const response = await GET(
+      new Request(
+        "http://localhost/api/booking/slots?type=in_person&branchId=550e8400-e29b-41d4-a716-446655440001&serviceId=550e8400-e29b-41d4-a716-446655440002",
+      ),
+    );
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.error).toBe("branch_service_mapping_missing");
   });
 });

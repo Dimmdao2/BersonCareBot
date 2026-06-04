@@ -41,19 +41,28 @@ export function useCreateBooking() {
               contactEmail: input.contactEmail,
               formAnswers: input.formAnswers,
             }
-          : {
-              type: "in_person" as const,
-              branchServiceId: input.selection.branchServiceId,
-              cityCode: input.selection.cityCode,
-              slotStart: input.slot.startAt,
-              slotEnd: input.slot.endAt,
-              contactName: input.contactName,
-              contactPhone: input.contactPhone,
-              contactEmail: input.contactEmail,
-              formAnswers: input.formAnswers,
-              ...(input.patientPackageId ? { patientPackageId: input.patientPackageId } : {}),
-              ...(input.productPurchaseId ? { productPurchaseId: input.productPurchaseId } : {}),
-            };
+          : (() => {
+              const inPerson =
+                input.selection.branchId && input.selection.serviceId
+                  ? {
+                      branchId: input.selection.branchId,
+                      serviceId: input.selection.serviceId,
+                    }
+                  : { branchServiceId: input.selection.branchServiceId };
+              return {
+                type: "in_person" as const,
+                ...inPerson,
+                cityCode: input.selection.cityCode,
+                slotStart: input.slot.startAt,
+                slotEnd: input.slot.endAt,
+                contactName: input.contactName,
+                contactPhone: input.contactPhone,
+                contactEmail: input.contactEmail,
+                formAnswers: input.formAnswers,
+                ...(input.patientPackageId ? { patientPackageId: input.patientPackageId } : {}),
+                ...(input.productPurchaseId ? { productPurchaseId: input.productPurchaseId } : {}),
+              };
+            })();
 
       const res = await fetch("/api/booking/create", {
         method: "POST",

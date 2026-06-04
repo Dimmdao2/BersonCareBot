@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { bookingNewHref } from "../../bookingNewHref";
-import { loadBookingServicesForPatientRsc } from "../../bookingCatalogRsc";
+import { loadInPersonServicesForCityRsc } from "../../bookingCatalogRsc";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../../constants";
 import { BookingWizardShell } from "../BookingWizardShell";
 import { ServiceStepClient } from "./ServiceStepClient";
@@ -24,11 +24,12 @@ export default async function BookingNewServicePage({ searchParams }: Props) {
     redirect(routePaths.bookingNew);
   }
 
-  const servicesCatalog = await loadBookingServicesForPatientRsc(cityCode);
+  const servicesCatalog = await loadInPersonServicesForCityRsc(cityCode);
   if (!servicesCatalog.ok && servicesCatalog.error === "city_not_found") {
     redirect(routePaths.bookingNew);
   }
   const catalogServices = servicesCatalog.ok ? servicesCatalog.services : [];
+  const branchId = servicesCatalog.ok ? servicesCatalog.branchId : "";
   const catalogServicesError = servicesCatalog.ok
     ? null
     : "Не удалось загрузить услуги. Попробуйте ещё раз.";
@@ -44,6 +45,7 @@ export default async function BookingNewServicePage({ searchParams }: Props) {
       <ServiceStepClient
         cityCode={cityCode}
         cityTitle={cityTitle}
+        branchId={branchId}
         services={catalogServices}
         catalogError={catalogServicesError}
       />

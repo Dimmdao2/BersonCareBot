@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
-import type { BookingBranchService } from "@/modules/booking-catalog/types";
+import type { InPersonServiceListItem } from "@/modules/patient-booking/inPersonServicesCatalog";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { bookingChoiceRowClass, bookingChoiceSectionClass } from "../bookingChoiceStyles";
@@ -21,7 +21,6 @@ function BookingServiceDescription({ text }: { text: string }) {
 
   const inheritedDescWrap = cn(
     "mt-1 w-full min-w-0 font-normal text-sm leading-snug text-[var(--patient-text-secondary,#475569)] transition-colors",
-    /* при hover/active/focus строки: заголовок белый, описание — светло-серое (#eee) */
     "group-hover:text-[#eee] group-active:text-[#eee] group-focus-visible:text-[#eee]",
     "group-hover:[&_.markdown-preview]:!text-[#eee] group-focus-visible:[&_.markdown-preview]:!text-[#eee] group-active:[&_.markdown-preview]:!text-[#eee]",
     "group-hover:[&_*]:!text-[#eee] group-focus-visible:[&_*]:!text-[#eee] group-active:[&_*]:!text-[#eee]",
@@ -59,7 +58,8 @@ function BookingServiceDescription({ text }: { text: string }) {
 export type ServiceStepClientProps = {
   cityCode: string;
   cityTitle: string;
-  services: BookingBranchService[];
+  branchId: string;
+  services: InPersonServiceListItem[];
   catalogError: string | null;
   slotBasePath?: string;
 };
@@ -67,6 +67,7 @@ export type ServiceStepClientProps = {
 export function ServiceStepClient({
   cityCode,
   cityTitle,
+  branchId,
   services,
   catalogError,
   slotBasePath = routePaths.bookingNewSlot,
@@ -87,17 +88,16 @@ export function ServiceStepClient({
       {!catalogError ? (
         <div className="flex flex-col gap-2">
           {services.map((s) => {
-            const title = s.service?.title ?? "Услуга";
-            const dur = s.service?.durationMinutes;
+            const title = s.title;
+            const dur = s.durationMinutes;
             const label = dur != null ? `${title} (${dur} мин.)` : title;
-            const desc = s.service?.description?.trim();
+            const desc = s.description?.trim();
             return (
               <button
                 key={s.id}
                 type="button"
                 className={cn(
                   bookingChoiceRowClass,
-                  /* строка — font-medium из bookingChoiceRowClass; описание — обычная жирность */
                   "min-h-0 flex-col items-stretch justify-start gap-1 py-3 text-left font-normal",
                 )}
                 onClick={() =>
@@ -105,7 +105,8 @@ export function ServiceStepClient({
                     `${slotBasePath}?type=in_person` +
                       `&cityCode=${encodeURIComponent(cityCode)}` +
                       `&cityTitle=${encodeURIComponent(cityTitle)}` +
-                      `&branchServiceId=${encodeURIComponent(s.id)}` +
+                      `&branchId=${encodeURIComponent(branchId)}` +
+                      `&serviceId=${encodeURIComponent(s.id)}` +
                       `&serviceTitle=${encodeURIComponent(title)}` +
                       (dur != null ? `&durationMinutes=${encodeURIComponent(String(dur))}` : ""),
                   )

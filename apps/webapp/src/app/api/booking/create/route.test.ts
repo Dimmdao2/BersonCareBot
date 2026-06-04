@@ -5,6 +5,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const createBookingMock = vi.hoisted(() => vi.fn());
 const requirePatientBookingTrustedPhoneAccessMock = vi.hoisted(() => vi.fn());
+const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
@@ -21,6 +22,13 @@ vi.mock("@/app-layer/guards/requireRole", async (importOriginal) => {
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientBooking: { createBooking: createBookingMock },
+    bookingEngine: {
+      organization: { getDefaultOrganizationId: async () => "org-1" },
+      catalog: { listSpecialists: async () => [{ id: "sp-1", isActive: true }] },
+    },
+    bookingScheduling: {
+      resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
+    },
   }),
 }));
 
@@ -127,7 +135,37 @@ describe("POST /api/booking/create", () => {
     );
   });
 
-  it("returns 400 for in_person without branchServiceId", async () => {
+  it("creates in_person booking with branchId+serviceId", async () => {
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
+    resolveLegacyBranchServiceIdMock.mockResolvedValue("bs-canonical");
+    createBookingMock.mockResolvedValue({ id: "b3", status: "confirmed" });
+    const response = await POST(
+      new Request("http://localhost/api/booking/create", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "in_person",
+          branchId: "550e8400-e29b-41d4-a716-446655440001",
+          serviceId: "550e8400-e29b-41d4-a716-446655440002",
+          cityCode: "moscow",
+          slotStart: "2026-04-01T07:00:00.000Z",
+          slotEnd: "2026-04-01T08:00:00.000Z",
+          contactName: "Ivan",
+          contactPhone: "+79990001122",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(createBookingMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "in_person",
+        branchServiceId: "bs-canonical",
+        cityCode: "moscow",
+      }),
+    );
+  });
+
+  it("returns 400 for in_person without branchServiceId or branchId+serviceId", async () => {
     getCurrentSessionMock.mockResolvedValue(patientClientSession);
     const response = await POST(new Request("http://localhost/api/booking/create", {
       method: "POST",

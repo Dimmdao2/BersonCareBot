@@ -57,7 +57,32 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
   }
 
   const branchServiceId = attr.branchServiceId;
-  if (branchServiceId && deps.bookingCatalog) {
+  if (branchServiceId && deps.bookingScheduling) {
+    try {
+      const ctx = await deps.bookingScheduling.resolveInPersonContext(branchServiceId);
+      const legacy =
+        deps.bookingCatalog != null
+          ? await deps.bookingCatalog.resolveBranchService(branchServiceId).catch(() => null)
+          : null;
+      const cityCode = legacy?.city.code ?? "";
+      const cityTitle = legacy?.city.title ?? "";
+      const title = legacy?.service.title ?? "";
+      const dur = legacy?.service.durationMinutes ?? 60;
+      if (ctx?.branchId && ctx.serviceId) {
+        redirect(
+          `${publicBookPaths.newSlot}?type=in_person` +
+            `&cityCode=${encodeURIComponent(cityCode)}` +
+            `&cityTitle=${encodeURIComponent(cityTitle)}` +
+            `&branchId=${encodeURIComponent(ctx.branchId)}` +
+            `&serviceId=${encodeURIComponent(ctx.serviceId)}` +
+            `&serviceTitle=${encodeURIComponent(title)}` +
+            `&durationMinutes=${encodeURIComponent(String(dur))}`,
+        );
+      }
+    } catch {
+      // unknown branch service — stay on format step
+    }
+  } else if (branchServiceId && deps.bookingCatalog) {
     try {
       const resolved = await deps.bookingCatalog.resolveBranchService(branchServiceId);
       const title = resolved.service.title;

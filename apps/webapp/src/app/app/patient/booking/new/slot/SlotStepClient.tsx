@@ -13,12 +13,15 @@ import { useBookingSlots } from "../../../cabinet/useBookingSlots";
 
 type InPersonProps = {
   type: "in_person";
-  branchServiceId: string;
   cityCode: string;
   cityTitle: string;
   serviceTitle: string;
   durationMinutes: number;
   appDisplayTimeZone: string;
+  branchId?: string;
+  serviceId?: string;
+  /** Legacy reschedule from existing booking */
+  branchServiceId?: string;
 };
 
 type OnlineProps = {
@@ -48,7 +51,12 @@ function buildConfirmQuery(
   if (props.type === "in_person") {
     q.set("cityCode", props.cityCode);
     q.set("cityTitle", props.cityTitle);
-    q.set("branchServiceId", props.branchServiceId);
+    if (props.branchId && props.serviceId) {
+      q.set("branchId", props.branchId);
+      q.set("serviceId", props.serviceId);
+    } else if (props.branchServiceId) {
+      q.set("branchServiceId", props.branchServiceId);
+    }
     q.set("serviceTitle", props.serviceTitle);
     q.set("durationMinutes", String(props.durationMinutes));
   } else {
@@ -64,18 +72,30 @@ export function SlotStepClient(props: Props) {
   const router = useRouter();
 
   const selection: BookingSelection = useMemo(() => {
-    if (props.type === "in_person") {
+    if (props.type === "online") {
+      return {
+        type: "online",
+        category: props.category as BookingCategory,
+      };
+    }
+    if (props.branchId && props.serviceId) {
       return {
         type: "in_person",
         cityCode: props.cityCode,
         cityTitle: props.cityTitle,
-        branchServiceId: props.branchServiceId,
+        branchId: props.branchId,
+        serviceId: props.serviceId,
         serviceTitle: props.serviceTitle,
       };
     }
     return {
-      type: "online",
-      category: props.category as BookingCategory,
+      type: "in_person",
+      cityCode: props.cityCode,
+      cityTitle: props.cityTitle,
+      branchId: "",
+      serviceId: "",
+      serviceTitle: props.serviceTitle,
+      branchServiceId: props.branchServiceId ?? "",
     };
   }, [props]);
 

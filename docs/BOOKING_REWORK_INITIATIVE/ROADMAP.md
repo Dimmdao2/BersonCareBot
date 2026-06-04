@@ -72,7 +72,7 @@ Rubitime-дубли специалистов не должны попадать 
 |---|------|--------|------|---------------|
 | 0 | Инвентаризация и IA | `done` | Зафиксировать текущие экраны, контракты и целевую карту UI | docs, routes, API, data flow |
 | 1 | Новый кабинет записи: solo UX | `in_progress` | Пересобрать основные вкладки записи вокруг локаций, услуг, доступности, расписания и формы | `/app/doctor/admin/booking`, `Booking*Section` |
-| 2 | Rubitime-маппинг как адаптер | `pending` | Вынести Rubitime-дубли в отдельный mapping UI и подготовить переход к канонической очной записи | `booking_*`, `be_external_entity_mappings`, sync |
+| 2 | Rubitime-маппинг как адаптер | `done` | 2.0–2.3a в коде; 2.3b slots cutover — ops; appointments read-source → этап 4 | [`STAGE2_DECOMPOSITION.md`](STAGE2_DECOMPOSITION.md), [`ACCEPTANCE_STAGE2.md`](ACCEPTANCE_STAGE2.md), [`LOG.md`](LOG.md) |
 | 3 | Абонементы: UX и корректное списание | `pending` | Доработать индивидуальные абонементы, комментарии, список сеансов, отвязку и списание | memberships, booking lifecycle |
 | 4 | Интерактивный календарь | `pending` | Сделать календарь рабочим инструментом: details, drag/drop, resize, отмены рядом | `/app/doctor/calendar`, calendar API |
 | 5 | Полный проход UI и приемка | `pending` | Довести интерфейс по замечаниям владельца и закрыть инициативу только после принятия | все экраны записи |
@@ -375,6 +375,17 @@ UI:
 Задача блока — быстро понять, что пациент реально увидит при записи.
 
 ## 8. Этап 2 — Rubitime-Маппинг Как Адаптер
+
+**Статус этапа:** `done` (код + авто-тесты + CI, 2026-06-04). **2.3b** (read-source cutover на prod) — ops gate; appointments read-source → **этап 4** ([`LOG.md`](LOG.md)).
+
+**Исполнение:** блоки **2.0 → 2.1 → 2.2 → 2.3** — [`STAGE2_DECOMPOSITION.md`](STAGE2_DECOMPOSITION.md). UI — [`DOCTOR_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md). Приёмка — [`ACCEPTANCE_STAGE2.md`](ACCEPTANCE_STAGE2.md). План — [`.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md`](../../.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md).
+
+| Блок | Суть |
+|------|------|
+| 2.0 | Link service: legacy row + SSA + availability mapping (блокер UI) |
+| 2.1 | Mapping UI на вкладке интеграции |
+| 2.2 | Internal adapter, API не ломаем |
+| 2.3 | Canonical `{ branchId, serviceId }` + read-source cutover |
 
 ### Цель
 

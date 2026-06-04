@@ -36,8 +36,10 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
   }
 
   if (type === "in_person") {
+    const branchId = first(raw.branchId)?.trim();
+    const serviceId = first(raw.serviceId)?.trim();
     const branchServiceId = first(raw.branchServiceId)?.trim();
-    if (!branchServiceId) {
+    if ((!branchId || !serviceId) && !branchServiceId) {
       redirect(routePaths.bookingNew);
     }
     const cityCode = first(raw.cityCode) ?? "";
@@ -58,6 +60,8 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
       >
         <SlotStepClient
           type="in_person"
+          branchId={branchId}
+          serviceId={serviceId}
           branchServiceId={branchServiceId}
           cityCode={cityCode}
           cityTitle={cityTitle}

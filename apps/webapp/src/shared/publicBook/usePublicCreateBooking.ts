@@ -40,18 +40,27 @@ export function usePublicCreateBooking() {
               formAnswers: input.formAnswers,
               attribution,
             }
-          : {
-              type: "in_person" as const,
-              branchServiceId: input.selection.branchServiceId,
-              cityCode: input.selection.cityCode,
-              slotStart: input.slot.startAt,
-              slotEnd: input.slot.endAt,
-              contactName: input.contactName,
-              contactPhone: input.contactPhone,
-              contactEmail: input.contactEmail,
-              formAnswers: input.formAnswers,
-              attribution,
-            };
+          : (() => {
+              const inPerson =
+                input.selection.branchId && input.selection.serviceId
+                  ? {
+                      branchId: input.selection.branchId,
+                      serviceId: input.selection.serviceId,
+                    }
+                  : { branchServiceId: input.selection.branchServiceId };
+              return {
+                type: "in_person" as const,
+                ...inPerson,
+                cityCode: input.selection.cityCode,
+                slotStart: input.slot.startAt,
+                slotEnd: input.slot.endAt,
+                contactName: input.contactName,
+                contactPhone: input.contactPhone,
+                contactEmail: input.contactEmail,
+                formAnswers: input.formAnswers,
+                attribution,
+              };
+            })();
 
       const res = await fetch("/api/booking/public/create", {
         method: "POST",

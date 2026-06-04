@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RubitimeSection } from "./RubitimeSection";
 
@@ -62,7 +62,7 @@ describe("RubitimeSection (catalog v2)", () => {
     expect(screen.getByText("Филиалы")).toBeInTheDocument();
     expect(screen.getByText(/Услуги \(глобальный каталог\)/)).toBeInTheDocument();
     expect(screen.getByText("Специалисты")).toBeInTheDocument();
-    expect(screen.getByText(/Связки филиал — услуга/)).toBeInTheDocument();
+    expect(screen.queryByText(/Связки филиал — услуга/)).not.toBeInTheDocument();
   });
 
   it("does not reference legacy booking profiles", () => {
@@ -111,64 +111,6 @@ describe("RubitimeSection (catalog v2)", () => {
         }),
       }),
     );
-  });
-
-  it("does not render a second service save editor in branch-service block", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () =>
-          catalogPayload({
-            services: [sampleService],
-            branchServices: [sampleBranchService],
-          }),
-      }),
-    );
-
-    render(<RubitimeSection />);
-    await screen.findByRole("button", { name: "К услуге" });
-
-    expect(screen.queryAllByRole("button", { name: "Сохранить" })).toHaveLength(0);
-    expect(screen.queryByRole("button", { name: "Сохранить услугу" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Изменить" })).toHaveLength(1);
-  });
-
-  it("«К услуге» scrolls to service anchor and expands editor", async () => {
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () =>
-          catalogPayload({
-            services: [sampleService],
-            branchServices: [sampleBranchService],
-          }),
-      }),
-    );
-
-    render(<RubitimeSection />);
-    await screen.findByRole("button", { name: "К услуге" });
-
-    const serviceCardBefore = document.getElementById(`rubitime-catalog-service-${sampleService.id}`)!;
-    expect(within(serviceCardBefore).queryByRole("button", { name: "Отмена" })).not.toBeInTheDocument();
-
-    const focusSpy = vi.spyOn(HTMLInputElement.prototype, "focus");
-    await userEvent.click(screen.getByRole("button", { name: "К услуге" }));
-
-    await waitFor(() => {
-      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "nearest" });
-    });
-    const serviceCardAfter = document.getElementById(`rubitime-catalog-service-${sampleService.id}`)!;
-    expect(within(serviceCardAfter).getByRole("button", { name: "Отмена" })).toBeInTheDocument();
-    expect(within(serviceCardAfter).getByPlaceholderText("Длительность (мин)")).toBeInTheDocument();
-    await waitFor(() => {
-      expect(focusSpy).toHaveBeenCalled();
-    });
-    focusSpy.mockRestore();
   });
 
   it("shows link impact when price or duration changes and branch links exist", async () => {

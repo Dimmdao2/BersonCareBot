@@ -9,6 +9,8 @@ type InPersonProps = {
   type: "in_person";
   cityCode?: string;
   cityTitle?: string;
+  branchId?: string;
+  serviceId?: string;
   branchServiceId?: string;
   serviceTitle?: string;
   slotStart: string;

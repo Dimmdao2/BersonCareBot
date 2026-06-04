@@ -45,4 +45,19 @@ describe("legacyProjection", () => {
     );
     expect(refs).toEqual({ branchId: "b1", specialistId: "s1", serviceId: "svc1" });
   });
+
+  it("falls back to availability mapping when service entity is missing", () => {
+    const refs = resolveAppointmentCanonicalRefs(
+      {
+        resolveCanonicalId(type, id) {
+          if (type === "branch" && id === "12") return "b1";
+          if (type === "specialist" && id === "7") return "s1";
+          if (type === "availability" && id === "99") return "svc-from-ssa";
+          return null;
+        },
+      },
+      { rubitimeBranchId: "12", rubitimeServiceId: "99", rubitimeCooperatorId: "7" },
+    );
+    expect(refs.serviceId).toBe("svc-from-ssa");
+  });
 });

@@ -62,6 +62,8 @@ type Props = ConfirmStepOptions & {
   type: "in_person" | "online";
   cityCode?: string;
   cityTitle?: string;
+  branchId?: string;
+  serviceId?: string;
   branchServiceId?: string;
   serviceTitle?: string;
   category?: string;
@@ -76,6 +78,8 @@ export function ConfirmStepClient({
   type,
   cityCode,
   cityTitle,
+  branchId,
+  serviceId,
   branchServiceId,
   serviceTitle,
   category,
@@ -136,11 +140,14 @@ export function ConfirmStepClient({
   }, [formFieldsApiPath]);
 
   useEffect(() => {
-    if (type !== "in_person" || !branchServiceId || isReschedule) return;
+    const hasCanonical = Boolean(branchId && serviceId);
+    if (type !== "in_person" || (!hasCanonical && !branchServiceId) || isReschedule) return;
     let cancelled = false;
     startPackagesLoad(() => {
       void (async () => {
-        const q = new URLSearchParams({ branchServiceId });
+        const q = hasCanonical
+          ? new URLSearchParams({ branchId: branchId!, serviceId: serviceId! })
+          : new URLSearchParams({ branchServiceId: branchServiceId! });
         const res = await fetch(`/api/booking/memberships/available?${q.toString()}`);
         const json = (await res.json()) as {
           ok?: boolean;
@@ -159,14 +166,17 @@ export function ConfirmStepClient({
     return () => {
       cancelled = true;
     };
-  }, [type, branchServiceId, isReschedule, startPackagesLoad]);
+  }, [type, branchId, serviceId, branchServiceId, isReschedule, startPackagesLoad]);
 
   useEffect(() => {
-    if (type !== "in_person" || !branchServiceId || isReschedule) return;
+    const hasCanonical = Boolean(branchId && serviceId);
+    if (type !== "in_person" || (!hasCanonical && !branchServiceId) || isReschedule) return;
     let cancelled = false;
     startProductsLoad(() => {
       void (async () => {
-        const q = new URLSearchParams({ branchServiceId });
+        const q = hasCanonical
+          ? new URLSearchParams({ branchId: branchId!, serviceId: serviceId! })
+          : new URLSearchParams({ branchServiceId: branchServiceId! });
         const res = await fetch(`/api/booking/products/available?${q.toString()}`);
         const json = (await res.json()) as {
           ok?: boolean;
@@ -181,23 +191,48 @@ export function ConfirmStepClient({
     return () => {
       cancelled = true;
     };
-  }, [type, branchServiceId, isReschedule, startProductsLoad]);
+  }, [type, branchId, serviceId, branchServiceId, isReschedule, startProductsLoad]);
 
   const selection: BookingSelection | null = useMemo(() => {
-    if (type === "in_person" && cityCode && cityTitle && branchServiceId && serviceTitle) {
+    if (
+      type === "in_person" &&
+      cityCode &&
+      cityTitle &&
+      serviceTitle &&
+      branchId &&
+      serviceId
+    ) {
       return {
         type: "in_person",
         cityCode,
         cityTitle,
-        branchServiceId,
+        branchId,
+        serviceId,
         serviceTitle,
+      };
+    }
+    if (
+      type === "in_person" &&
+      cityCode &&
+      cityTitle &&
+      branchServiceId &&
+      serviceTitle
+    ) {
+      return {
+        type: "in_person",
+        cityCode,
+        cityTitle,
+        branchId: "",
+        serviceId: "",
+        serviceTitle,
+        branchServiceId,
       };
     }
     if (type === "online" && category) {
       return { type: "online", category: category as BookingCategory };
     }
     return null;
-  }, [type, cityCode, cityTitle, branchServiceId, serviceTitle, category]);
+  }, [type, cityCode, cityTitle, branchId, serviceId, branchServiceId, serviceTitle, category]);
 
   const slot: BookingSlot = useMemo(
     () => ({ startAt: slotStart, endAt: slotEnd }),

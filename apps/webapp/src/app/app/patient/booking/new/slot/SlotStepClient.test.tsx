@@ -56,7 +56,8 @@ describe("SlotStepClient", () => {
     render(
       <SlotStepClient
         type="in_person"
-        branchServiceId="11111111-1111-4111-8111-111111111111"
+        branchId="550e8400-e29b-41d4-a716-446655440001"
+        serviceId="550e8400-e29b-41d4-a716-446655440002"
         cityCode="msk"
         cityTitle="Москва"
         serviceTitle="Сеанс"
@@ -76,6 +77,8 @@ describe("SlotStepClient", () => {
     expect(url).toContain(`slotEnd=${encodeURIComponent(slotA.endAt)}`);
     expect(url).toContain("type=in_person");
     expect(url).toContain("cityCode=msk");
+    expect(url).toContain("branchId=");
+    expect(url).toContain("serviceId=");
   });
 
   it("does not render duration selector", () => {

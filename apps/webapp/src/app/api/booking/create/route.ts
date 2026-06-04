@@ -3,6 +3,12 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientBookingTrustedPhoneAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import {
+  InPersonBookingResolveError,
+  resolveInPersonBranchServiceId,
+  resolveInPersonCityCode,
+} from "@/modules/patient-booking/inPersonBookingResolve";
+import { inPersonCreateBodySchema } from "@/modules/patient-booking/inPersonApiSchemas";
 
 const formAnswerSchema = z.object({
   fieldKey: z.string().min(1),
@@ -21,19 +27,7 @@ const onlineBody = z.object({
   formAnswers: z.array(formAnswerSchema).optional(),
 });
 
-const inPersonBody = z.object({
-  type: z.literal("in_person"),
-  branchServiceId: z.string().uuid(),
-  cityCode: z.string().trim().min(1),
-  slotStart: z.string().min(1),
-  slotEnd: z.string().min(1),
-  contactName: z.string().min(1),
-  contactPhone: z.string().min(1),
-  contactEmail: z.string().email().optional(),
-  formAnswers: z.array(formAnswerSchema).optional(),
-  patientPackageId: z.string().uuid().optional(),
-  productPurchaseId: z.string().uuid().optional(),
-});
+const inPersonBody = inPersonCreateBodySchema;
 
 const bodySchema = z.discriminatedUnion("type", [onlineBody, inPersonBody]);
 
@@ -64,23 +58,33 @@ export async function POST(request: Request) {
             contactEmail: body.contactEmail,
             formAnswers: body.formAnswers,
           })
-        : await deps.patientBooking.createBooking({
-            userId: session.user.userId,
-            type: "in_person",
-            branchServiceId: body.branchServiceId,
-            cityCode: body.cityCode,
-            slotStart: body.slotStart,
-            slotEnd: body.slotEnd,
-            contactName: body.contactName,
-            contactPhone: body.contactPhone,
-            contactEmail: body.contactEmail,
-            formAnswers: body.formAnswers,
-            patientPackageId: body.patientPackageId,
-            productPurchaseId: body.productPurchaseId,
-          });
+        : await (async () => {
+            const branchServiceId = await resolveInPersonBranchServiceId(deps, body);
+            const cityCode =
+              body.cityCode?.trim().toLowerCase() ??
+              (await resolveInPersonCityCode(deps, branchServiceId));
+            return deps.patientBooking.createBooking({
+              userId: session.user.userId,
+              type: "in_person",
+              branchServiceId,
+              cityCode,
+              slotStart: body.slotStart,
+              slotEnd: body.slotEnd,
+              contactName: body.contactName,
+              contactPhone: body.contactPhone,
+              contactEmail: body.contactEmail,
+              formAnswers: body.formAnswers,
+              patientPackageId: body.patientPackageId,
+              productPurchaseId: body.productPurchaseId,
+            });
+          })();
     return NextResponse.json({ ok: true, booking }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "create_failed";
+    if (error instanceof InPersonBookingResolveError) {
+      const status = message === "branch_service_mapping_missing" ? 404 : 400;
+      return NextResponse.json({ ok: false, error: message }, { status });
+    }
     if (message === "slot_overlap") {
       return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
     }

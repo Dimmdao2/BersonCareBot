@@ -41,8 +41,10 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
     redirect(publicBookPaths.new);
   }
 
+  const branchId = first(raw.branchId)?.trim();
+  const serviceId = first(raw.serviceId)?.trim();
   const branchServiceId = first(raw.branchServiceId)?.trim();
-  if (!branchServiceId) {
+  if ((!branchId || !serviceId) && !branchServiceId) {
     redirect(publicBookPaths.new);
   }
 
@@ -57,6 +59,8 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
     <PublicBookingShell title="Выберите дату и время" step={3} totalSteps={4} backHref={backHref}>
       <SlotStepClient
         type="in_person"
+        branchId={branchId}
+        serviceId={serviceId}
         branchServiceId={branchServiceId}
         cityCode={cityCode}
         cityTitle={cityTitle}

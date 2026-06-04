@@ -2,7 +2,6 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
   countServicesWithoutAvailability,
   hasScheduleOnUpcomingDays,
-  pickDefaultSpecialist,
 } from "@/app/app/settings/bookingSoloAdminApi";
 import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsReadSource";
 
@@ -99,7 +98,6 @@ export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewDa
   const activeAvailabilityPairs = locationAvailability.filter(
     (row) => row.isActive && activeLocationIds.has(row.branchId),
   ).length;
-  const defaultSpecialist = pickDefaultSpecialist(availabilityOverview.specialists);
 
   const warnings: string[] = [];
   if (activeServices.length > 0 && servicesWithoutAvailability > 0) {
@@ -125,16 +123,13 @@ export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewDa
     warnings.push("Источники записей и слотов настроены по-разному — проверьте интеграцию Rubitime.");
   }
   if (bridgeEnabled && mappingSummary) {
-    if (activeBranches.length > 0 && mappingSummary.branches < activeBranches.length) {
-      warnings.push("Не все активные локации сопоставлены с Rubitime.");
-    }
-    if (activeServices.length > 0 && mappingSummary.services < activeServices.length) {
-      warnings.push("Не все активные услуги сопоставлены с Rubitime.");
-    }
-    if (defaultSpecialist && mappingSummary.specialists < 1) {
-      warnings.push("Специалист не сопоставлен с Rubitime.");
-    }
-    if (activeAvailabilityPairs > 0 && mappingSummary.availabilities < activeAvailabilityPairs) {
+    const deps = buildAppDeps();
+    if (deps.rubitimeMapping) {
+      const mapping = await deps.rubitimeMapping.listMappings({ organizationId, problemsOnly: true });
+      if (mapping.problems > 0) {
+        warnings.push(`Неполный Rubitime-маппинг: ${mapping.problems} пар требуют настройки.`);
+      }
+    } else if (activeAvailabilityPairs > 0 && mappingSummary.availabilities < activeAvailabilityPairs) {
       warnings.push("Не все связи доступности сопоставлены с Rubitime.");
     }
   }

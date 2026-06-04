@@ -4,6 +4,7 @@ const listPatientPackagesForUserMock = vi.hoisted(() => vi.fn());
 const listCatalogPackagesForPatientMock = vi.hoisted(() => vi.fn());
 const getPatientPackageDetailMock = vi.hoisted(() => vi.fn());
 const requirePatientApiBusinessAccessMock = vi.hoisted(() => vi.fn());
+const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app-layer/guards/requireRole")>();
@@ -21,10 +22,14 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listCatalogPackagesForPatient: listCatalogPackagesForPatientMock,
       getPatientPackageDetail: getPatientPackageDetailMock,
     },
-    bookingEngine: { organization: { getDefaultOrganizationId: async () => "org-1" } },
+    bookingEngine: {
+      organization: { getDefaultOrganizationId: async () => "org-1" },
+      catalog: { listSpecialists: async () => [{ id: "sp-1", isActive: true }] },
+    },
     bookingScheduling: {
       resolveInPersonContext: async (id: string) =>
         id === "bs-1" ? { serviceId: "svc-1" } : null,
+      resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
     },
   }),
 }));
@@ -47,6 +52,16 @@ describe("booking membership routes", () => {
     );
     expect(res.status).toBe(200);
     expect(listActivePackagesForBookingMock).toHaveBeenCalledWith("u1", "org-1", "svc-1");
+  });
+
+  it("GET available returns 404 for unmapped canonical pair", async () => {
+    resolveLegacyBranchServiceIdMock.mockResolvedValue(null);
+    const res = await getAvailable(
+      new Request(
+        "http://localhost/api/booking/memberships/available?branchId=550e8400-e29b-41d4-a716-446655440001&serviceId=550e8400-e29b-41d4-a716-446655440002",
+      ),
+    );
+    expect(res.status).toBe(404);
   });
 
   it("GET memberships lists patient packages", async () => {

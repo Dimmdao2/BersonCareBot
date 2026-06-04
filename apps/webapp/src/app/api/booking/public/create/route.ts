@@ -9,6 +9,11 @@ import {
   resolvePublicBookingRateLimitClientKey,
 } from "@/modules/public-booking/publicBookingRateLimit";
 import { publicBookingCreateBodySchema } from "../bookingPublicBodySchema";
+import {
+  InPersonBookingResolveError,
+  resolveInPersonBranchServiceId,
+  resolveInPersonCityCode,
+} from "@/modules/patient-booking/inPersonBookingResolve";
 
 export async function POST(request: Request) {
   const rateKey = resolvePublicBookingRateLimitClientKey(request);
@@ -57,20 +62,26 @@ export async function POST(request: Request) {
             contactEmail: body.contactEmail,
             formAnswers: body.formAnswers,
           })
-        : await deps.patientBooking.createBooking({
-            userId: user.userId,
-            bookingChannel,
-            attribution,
-            type: "in_person",
-            branchServiceId: body.branchServiceId,
-            cityCode: body.cityCode,
-            slotStart: body.slotStart,
-            slotEnd: body.slotEnd,
-            contactName: body.contactName,
-            contactPhone: body.contactPhone,
-            contactEmail: body.contactEmail,
-            formAnswers: body.formAnswers,
-          });
+        : await (async () => {
+            const branchServiceId = await resolveInPersonBranchServiceId(deps, body);
+            const cityCode =
+              body.cityCode?.trim().toLowerCase() ??
+              (await resolveInPersonCityCode(deps, branchServiceId));
+            return deps.patientBooking.createBooking({
+              userId: user.userId,
+              bookingChannel,
+              attribution,
+              type: "in_person",
+              branchServiceId,
+              cityCode,
+              slotStart: body.slotStart,
+              slotEnd: body.slotEnd,
+              contactName: body.contactName,
+              contactPhone: body.contactPhone,
+              contactEmail: body.contactEmail,
+              formAnswers: body.formAnswers,
+            });
+          })();
 
     if (booking.canonicalAppointmentId && deps.bookingEngine) {
       const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
@@ -86,6 +97,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, booking, userId: user.userId }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "create_failed";
+    if (error instanceof InPersonBookingResolveError) {
+      const status = message === "branch_service_mapping_missing" ? 404 : 400;
+      return NextResponse.json({ ok: false, error: message }, { status });
+    }
     if (message === "slot_overlap") {
       return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
     }
