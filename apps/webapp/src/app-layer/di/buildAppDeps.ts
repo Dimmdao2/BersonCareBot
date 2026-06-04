@@ -1197,7 +1197,7 @@ function _buildAppDeps() {
     }),
     doctorStats: createDoctorStatsService({
       getAppointmentStats: (filter) => doctorAppointmentsPort.getAppointmentStats(filter),
-      listClients: (filters) => doctorClientsPort.listClients(filters),
+      getClientContactBreakdown: () => doctorClientsPort.getClientContactBreakdown(),
       getDashboardPatientMetrics: () => doctorClientsPort.getDashboardPatientMetrics(),
       getDashboardAppointmentMetrics: () => doctorAppointmentsPort.getDashboardAppointmentMetrics(),
       countRecentClientsWithoutMessagingChannels: (days) =>

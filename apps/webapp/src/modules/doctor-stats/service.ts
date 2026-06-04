@@ -3,20 +3,24 @@ import type {
   DoctorAppointmentStatsFilter,
   DoctorDashboardAppointmentMetrics,
 } from "@/modules/doctor-appointments/ports";
+import type { ClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
 import type { DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
 
 export type DoctorStatsState = {
   appointments: {
+    pastVisitsInPeriod: number;
+    cancelledVisitsInPeriod: number;
+    bookingsCreatedInPeriod: number;
+    cancellationActionsInPeriod: number;
+    rescheduleActionsInPeriod: number;
     total: number;
-    cancellations: number;
     cancellations30d: number;
-    reschedules: number;
   };
   clients: {
     total: number;
-    withNoChannels: number;
-    withOneChannel: number;
-    withMultipleChannels: number;
+    phoneOnly: number;
+    appGuests: number;
+    contactBreakdown: ClientContactBreakdown;
     /** Созданы за последние 7 суток, без telegram/max (KPI «Сегодня»). */
     newClients7dWithNoChannels: number;
   };
@@ -41,14 +45,15 @@ export type DoctorDashboardMetrics = {
 
 export type DoctorStatsServiceDeps = {
   getAppointmentStats: (filter: DoctorAppointmentStatsFilter) => Promise<{
+    pastVisitsInPeriod: number;
+    cancelledVisitsInPeriod: number;
+    bookingsCreatedInPeriod: number;
+    cancellationActionsInPeriod: number;
+    rescheduleActionsInPeriod: number;
     total: number;
-    cancellations: number;
     cancellations30d: number;
-    reschedules: number;
   }>;
-  listClients: (filters: { hasTelegram?: boolean; hasMax?: boolean }) => Promise<
-    Array<{ userId: string; bindings: { telegramId?: string; maxId?: string } }>
-  >;
+  getClientContactBreakdown: () => Promise<ClientContactBreakdown>;
   getDashboardPatientMetrics: () => Promise<DoctorDashboardPatientMetrics>;
   getDashboardAppointmentMetrics: () => Promise<DoctorDashboardAppointmentMetrics>;
   countRecentClientsWithoutMessagingChannels: (days: number) => Promise<number>;
@@ -57,34 +62,27 @@ export type DoctorStatsServiceDeps = {
 export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
   return {
     async getStats(): Promise<DoctorStatsState> {
-      const [appointmentStats, allClients, newClients7dWithNoChannels] = await Promise.all([
-        deps.getAppointmentStats({ range: "week" }),
-        deps.listClients({}),
+      const [appointmentStats, contactBreakdown, newClients7dWithNoChannels] = await Promise.all([
+        deps.getAppointmentStats({ kind: "range", range: "week" }),
+        deps.getClientContactBreakdown(),
         deps.countRecentClientsWithoutMessagingChannels(7),
       ]);
 
-      let withNoChannels = 0;
-      let withOneChannel = 0;
-      let withMultipleChannels = 0;
-      for (const c of allClients) {
-        const count = [c.bindings.telegramId, c.bindings.maxId].filter(Boolean).length;
-        if (count === 0) withNoChannels++;
-        else if (count === 1) withOneChannel++;
-        else withMultipleChannels++;
-      }
-
       return {
         appointments: {
+          pastVisitsInPeriod: appointmentStats.pastVisitsInPeriod,
+          cancelledVisitsInPeriod: appointmentStats.cancelledVisitsInPeriod,
+          bookingsCreatedInPeriod: appointmentStats.bookingsCreatedInPeriod,
+          cancellationActionsInPeriod: appointmentStats.cancellationActionsInPeriod,
+          rescheduleActionsInPeriod: appointmentStats.rescheduleActionsInPeriod,
           total: appointmentStats.total,
-          cancellations: appointmentStats.cancellations,
           cancellations30d: appointmentStats.cancellations30d,
-          reschedules: appointmentStats.reschedules,
         },
         clients: {
-          total: allClients.length,
-          withNoChannels,
-          withOneChannel,
-          withMultipleChannels,
+          total: contactBreakdown.total,
+          phoneOnly: contactBreakdown.phoneOnly,
+          appGuests: contactBreakdown.appGuests,
+          contactBreakdown,
           newClients7dWithNoChannels,
         },
       };

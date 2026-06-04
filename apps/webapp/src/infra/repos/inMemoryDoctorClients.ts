@@ -7,6 +7,7 @@ import type {
   DoctorDashboardPatientMetrics,
 } from "@/modules/doctor-clients/ports";
 import type { ClientSupportProfile } from "@/modules/doctor-clients/supportPolicy";
+import { emptyClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
 import { matchesDoctorClientSearch } from "@/modules/doctor-clients/clientSearchMatch";
 
 const STUB_CLIENTS: ClientListItem[] = [];
@@ -71,6 +72,10 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
 
   async countRecentClientsWithoutMessagingChannels(_days: number): Promise<number> {
     return 0;
+  },
+
+  async getClientContactBreakdown() {
+    return emptyClientContactBreakdown();
   },
 
   async getPatientClientIdentity(userId: string): Promise<ClientIdentity | null> {

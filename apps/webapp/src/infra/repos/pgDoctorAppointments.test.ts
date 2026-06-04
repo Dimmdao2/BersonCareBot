@@ -3,7 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { queryMock, getPoolMock } = vi.hoisted(() => {
   const query = vi.fn(async (sql: string) => {
     if (sql.includes("AS total")) {
-      return { rows: [{ total: "0", cancellations: "0", reschedules: "0" }] };
+      return {
+        rows: [
+          {
+            total: "0",
+            past_visits: "0",
+            cancelled_visits: "0",
+            cancellation_actions: "0",
+            reschedule_actions: "0",
+          },
+        ],
+      };
     }
     if (sql.includes("AS count")) {
       return { rows: [{ count: "0" }] };
@@ -42,10 +52,12 @@ describe("pgDoctorAppointments cancellation rules", () => {
 
   it("uses the same cancellation exclusion in getAppointmentStats aggregations", async () => {
     const port = createPgDoctorAppointmentsPort();
-    await port.getAppointmentStats({ range: "today" });
+    await port.getAppointmentStats({ kind: "range", range: "today" });
 
     const queries = queryMock.mock.calls.map((call) => String(call[0]));
-    const rangeQuery = queries.find((sql) => sql.includes("COUNT(*) FILTER (WHERE status = 'canceled'"));
+    const rangeQuery = queries.find(
+      (sql) => sql.includes("AS past_visits") && sql.includes("status = 'canceled'"),
+    );
     const last30Query = queries.find((sql) => sql.includes("NOW() - INTERVAL '30 days'"));
 
     expect(rangeQuery).toBeDefined();
@@ -56,12 +68,13 @@ describe("pgDoctorAppointments cancellation rules", () => {
 
   it("getAppointmentStats excludes soft-deleted rows", async () => {
     const port = createPgDoctorAppointmentsPort();
-    await port.getAppointmentStats({ range: "week" });
+    await port.getAppointmentStats({ kind: "range", range: "week" });
 
     const queries = queryMock.mock.calls.map((call) => String(call[0]));
-    const rangeQuery = queries.find((sql) => sql.includes("COUNT(*) FILTER (WHERE status = 'canceled'"));
+    const rangeQuery = queries.find((sql) => sql.includes("AS past_visits"));
     const last30Query = queries.find((sql) => sql.includes("NOW() - INTERVAL '30 days'"));
 
+    expect(rangeQuery).toBeDefined();
     expect(rangeQuery).toContain("deleted_at IS NULL");
     expect(last30Query).toContain("deleted_at IS NULL");
   });

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { emptyClientContactBreakdown } from "./clientContactSegments";
 import { createDoctorClientsService } from "./service";
 import type { DoctorClientsPort } from "./ports";
 
@@ -41,6 +42,9 @@ describe("doctor-clients service", () => {
     },
     async countRecentClientsWithoutMessagingChannels() {
       return 0;
+    },
+    async getClientContactBreakdown() {
+      return emptyClientContactBreakdown();
     },
     async isClientMessagingBlocked() {
       return false;
@@ -188,6 +192,9 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     },
     async countRecentClientsWithoutMessagingChannels() {
       return 0;
+    },
+    async getClientContactBreakdown() {
+      return emptyClientContactBreakdown();
     },
     async isClientMessagingBlocked() {
       return false;

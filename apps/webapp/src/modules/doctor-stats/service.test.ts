@@ -1,24 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
+import { emptyClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
 import { createDoctorStatsService } from "./service";
 
 describe("doctor-stats service", () => {
+  const contactBreakdown = {
+    ...emptyClientContactBreakdown(),
+    total: 3,
+    phoneOnly: 1,
+    appGuests: 1,
+    pie: { ...emptyClientContactBreakdown().pie, telegram_only: 1 },
+  };
+
   const service = createDoctorStatsService({
     getAppointmentStats: async (filter) => ({
-      total: filter.range === "week" ? 5 : 0,
-      cancellations: 1,
+      pastVisitsInPeriod: 4,
+      cancelledVisitsInPeriod: 1,
+      bookingsCreatedInPeriod: 6,
+      cancellationActionsInPeriod: 2,
+      rescheduleActionsInPeriod: 1,
+      total: filter.kind === "range" && filter.range === "week" ? 5 : 0,
       cancellations30d: 2,
-      reschedules: 0,
     }),
-    listClients: async (filters) => {
-      const all = [
-        { userId: "u1", bindings: { telegramId: "tg1", maxId: "m1" } },
-        { userId: "u2", bindings: { telegramId: "tg2" } },
-        { userId: "u3", bindings: {} },
-      ];
-      if (filters.hasTelegram) return all.filter((c) => c.bindings.telegramId);
-      if (filters.hasMax) return all.filter((c) => c.bindings.maxId);
-      return all;
-    },
+    getClientContactBreakdown: async () => contactBreakdown,
     getDashboardPatientMetrics: async () => ({
       totalClients: 10,
       onSupportCount: 3,
@@ -34,12 +37,14 @@ describe("doctor-stats service", () => {
 
   it("getStats returns appointments and clients aggregates", async () => {
     const stats = await service.getStats();
+    expect(stats.appointments.pastVisitsInPeriod).toBe(4);
+    expect(stats.appointments.bookingsCreatedInPeriod).toBe(6);
     expect(stats.appointments.total).toBe(5);
     expect(stats.appointments.cancellations30d).toBe(2);
     expect(stats.clients.total).toBe(3);
-    expect(stats.clients.withNoChannels).toBe(1);
-    expect(stats.clients.withOneChannel).toBe(1);
-    expect(stats.clients.withMultipleChannels).toBe(1);
+    expect(stats.clients.phoneOnly).toBe(1);
+    expect(stats.clients.appGuests).toBe(1);
+    expect(stats.clients.contactBreakdown.pie.telegram_only).toBe(1);
     expect(stats.clients.newClients7dWithNoChannels).toBe(2);
   });
 
@@ -53,30 +58,33 @@ describe("doctor-stats service", () => {
     expect(m.appointments.cancellationsInMonth).toBe(1);
   });
 
-  it("getStats requests clients list only once", async () => {
-    const listClients = vi.fn(async () => [
-      { userId: "u1", bindings: { telegramId: "tg1", maxId: "m1" } },
-      { userId: "u2", bindings: { telegramId: "tg2" } },
-      { userId: "u3", bindings: {} },
-    ]);
+  it("getStats requests contact breakdown only once", async () => {
+    const getClientContactBreakdown = vi.fn(async () => contactBreakdown);
     const optimizedService = createDoctorStatsService({
-      getAppointmentStats: async () => ({ total: 0, cancellations: 0, cancellations30d: 0, reschedules: 0 }),
-      listClients,
+      getAppointmentStats: async () => ({
+        pastVisitsInPeriod: 0,
+        cancelledVisitsInPeriod: 0,
+        bookingsCreatedInPeriod: 0,
+        cancellationActionsInPeriod: 0,
+        rescheduleActionsInPeriod: 0,
+        total: 0,
+        cancellations30d: 0,
+      }),
+      getClientContactBreakdown,
       getDashboardPatientMetrics: async () => ({
         totalClients: 0,
         onSupportCount: 0,
         visitedThisCalendarMonthCount: 0,
       }),
-    getDashboardAppointmentMetrics: async () => ({
-      futureActiveCount: 0,
-      recordsInCalendarMonthTotal: 0,
-      cancellationsInCalendarMonth: 0,
-    }),
-    countRecentClientsWithoutMessagingChannels: async () => 2,
-  });
+      getDashboardAppointmentMetrics: async () => ({
+        futureActiveCount: 0,
+        recordsInCalendarMonthTotal: 0,
+        cancellationsInCalendarMonth: 0,
+      }),
+      countRecentClientsWithoutMessagingChannels: async () => 2,
+    });
 
     await optimizedService.getStats();
-    expect(listClients).toHaveBeenCalledTimes(1);
-    expect(listClients).toHaveBeenCalledWith({});
+    expect(getClientContactBreakdown).toHaveBeenCalledTimes(1);
   });
 });

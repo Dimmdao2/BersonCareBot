@@ -1,9 +1,16 @@
+import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
+
 /** Диапазон для агрегатов `getAppointmentStats` (сегодня / завтра / неделя в `app_display_timezone`). */
 export type DoctorAppointmentsStatsRange = "today" | "tomorrow" | "week";
 
-export type DoctorAppointmentStatsFilter = {
-  range: DoctorAppointmentsStatsRange;
-};
+export type DoctorAppointmentStatsFilter =
+  | { kind: "range"; range: DoctorAppointmentsStatsRange }
+  | {
+      kind: "preset";
+      preset: AdminStatsTimePreset;
+      customFrom?: string;
+      customTo?: string;
+    };
 
 /**
  * Режим списка записей на `/app/doctor/appointments`.
@@ -39,13 +46,22 @@ export type AppointmentRow = {
   rubitimeNameIfDifferent: string | null;
 };
 
-/** Агрегатная статистика по записям. */
+/** Агрегатная статистика по записям за календарное окно (`app_display_timezone`). */
 export type AppointmentStats = {
-  /** Все строки в окне по `record_at`, только не soft-delete (включая отменённые). */
+  /** Прошедшие визиты: `start_at` в окне, уже наступили, без отменённых статусов. */
+  pastVisitsInPeriod: number;
+  /** Слоты в окне со статусом отмены (по времени визита). */
+  cancelledVisitsInPeriod: number;
+  /** Новые записи: `created_at` в окне (дата приёма может быть любой). */
+  bookingsCreatedInPeriod: number;
+  /** Действия «отмена сеанса» (`be_appointment_cancellations.created_at` в окне). */
+  cancellationActionsInPeriod: number;
+  /** Действия «перенос» (`be_appointment_reschedules.created_at` в окне). */
+  rescheduleActionsInPeriod: number;
+  /** Все строки в окне по `start_at` — KPI «Сегодня»: записи на неделю. */
   total: number;
-  cancellations: number;
+  /** Отмены за 30 суток по `updated_at` — KPI «Сегодня». */
   cancellations30d: number;
-  reschedules: number;
 };
 
 /** Метрики записей для дашборда врача (этап 9). Семантика — в DOCTOR_DASHBOARD_METRICS.md. */

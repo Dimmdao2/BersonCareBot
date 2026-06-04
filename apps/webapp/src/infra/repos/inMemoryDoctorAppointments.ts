@@ -13,10 +13,13 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
   },
   async getAppointmentStats(_filter: DoctorAppointmentStatsFilter): Promise<AppointmentStats> {
     return {
+      pastVisitsInPeriod: 0,
+      cancelledVisitsInPeriod: 0,
+      bookingsCreatedInPeriod: 0,
+      cancellationActionsInPeriod: 0,
+      rescheduleActionsInPeriod: 0,
       total: 0,
-      cancellations: 0,
       cancellations30d: 0,
-      reschedules: 0,
     };
   },
   async getDashboardAppointmentMetrics(): Promise<DoctorDashboardAppointmentMetrics> {

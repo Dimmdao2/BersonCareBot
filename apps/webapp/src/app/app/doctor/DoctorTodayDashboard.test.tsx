@@ -43,12 +43,32 @@ function emptyData(): TodayDashboardData {
 }
 
 const emptyKpi = {
-  appointments: { total: 0, cancellations: 0, cancellations30d: 0, reschedules: 0 },
+  appointments: {
+    pastVisitsInPeriod: 0,
+    cancelledVisitsInPeriod: 0,
+    bookingsCreatedInPeriod: 0,
+    cancellationActionsInPeriod: 0,
+    rescheduleActionsInPeriod: 0,
+    total: 0,
+    cancellations30d: 0,
+  },
   clients: {
     total: 0,
-    withNoChannels: 0,
-    withOneChannel: 0,
-    withMultipleChannels: 0,
+    phoneOnly: 0,
+    appGuests: 0,
+    contactBreakdown: {
+      total: 0,
+      phoneOnly: 0,
+      appGuests: 0,
+      pie: {
+        telegram_only: 0,
+        max_only: 0,
+        email_only: 0,
+        telegram_email: 0,
+        max_email: 0,
+        phone_email_no_messenger: 0,
+      },
+    },
     newClients7dWithNoChannels: 0,
   },
 };

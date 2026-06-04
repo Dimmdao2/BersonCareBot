@@ -31,10 +31,13 @@ describe("doctor-appointments service", () => {
     },
     async getAppointmentStats(filter) {
       return {
-        total: filter.range === "today" ? 1 : 0,
-        cancellations: 0,
+        pastVisitsInPeriod: 0,
+        cancelledVisitsInPeriod: 0,
+        bookingsCreatedInPeriod: 0,
+        cancellationActionsInPeriod: 0,
+        rescheduleActionsInPeriod: 0,
+        total: filter.kind === "range" && filter.range === "today" ? 1 : 0,
         cancellations30d: 2,
-        reschedules: 0,
       };
     },
     async getDashboardAppointmentMetrics() {
@@ -81,7 +84,15 @@ describe("doctor-appointments service", () => {
         ];
       },
       async getAppointmentStats() {
-        return { total: 0, cancellations: 0, cancellations30d: 0, reschedules: 0 };
+        return {
+          pastVisitsInPeriod: 0,
+          cancelledVisitsInPeriod: 0,
+          bookingsCreatedInPeriod: 0,
+          cancellationActionsInPeriod: 0,
+          rescheduleActionsInPeriod: 0,
+          total: 0,
+          cancellations30d: 0,
+        };
       },
       async getDashboardAppointmentMetrics() {
         return { futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0 };
@@ -115,7 +126,15 @@ describe("doctor-appointments service", () => {
         ];
       },
       async getAppointmentStats() {
-        return { total: 0, cancellations: 0, cancellations30d: 0, reschedules: 0 };
+        return {
+          pastVisitsInPeriod: 0,
+          cancelledVisitsInPeriod: 0,
+          bookingsCreatedInPeriod: 0,
+          cancellationActionsInPeriod: 0,
+          rescheduleActionsInPeriod: 0,
+          total: 0,
+          cancellations30d: 0,
+        };
       },
       async getDashboardAppointmentMetrics() {
         return { futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0 };
@@ -135,7 +154,7 @@ describe("doctor-appointments service", () => {
   });
 
   it("getAppointmentStats returns port result", async () => {
-    const stats = await service.getAppointmentStats({ range: "today" });
+    const stats = await service.getAppointmentStats({ kind: "range", range: "today" });
     expect(stats.total).toBe(1);
     expect(stats.cancellations30d).toBe(2);
   });

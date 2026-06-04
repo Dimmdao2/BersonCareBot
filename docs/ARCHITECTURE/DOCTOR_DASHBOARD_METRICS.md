@@ -79,7 +79,8 @@
 ## Страница «Аналитика по клиентам» (`/app/doctor/analytics/clients`)
 
 - Legacy URL **`/app/doctor/stats`** — server redirect на `analytics/clients`.
-- Операционные агрегаты `getStats().clients`: **всего**, **без каналов** (все клиенты), с одним/несколькими каналами; блок записей — те же правила, что `getAppointmentStats({ range: 'week' })` (**отмен в окне**, **отмен за 30 дн.**).
+- **Приём (неделя):** `getAppointmentStats({ range: 'week' })` — прошедшие визиты в окне (без отмен), отменённые визиты по слоту, записались по `created_at`, отмены/переносы по `be_appointment_cancellations` / `be_appointment_reschedules.created_at` в окне (канон).
+- **Клиенты:** `getClientContactBreakdown()` — всего, **только телефон** (телефон без мессенджеров и без подтверждённого email), **гости приложения** (нет телефона, email, telegram, max), круговая диаграмма сегментов (только ТГ / Макс / email / ТГ+email / Макс+email / телефон+email).
 
 ### Блок админа: регистрации и слияния
 

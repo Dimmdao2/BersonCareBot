@@ -1,11 +1,16 @@
-import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, lt, lte, notInArray, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import {
+  beAppointmentCancellations,
+  beAppointmentReschedules,
+} from "../../../db/schema/bookingPolicies";
 import {
   beAppointments,
   beBranches,
   beClinicServices,
 } from "../../../db/schema/bookingEngine";
 import { platformUsers } from "../../../db/schema/schema";
+import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
 import { appointmentStatusLabel } from "@/modules/booking-calendar/appointmentStatusLabels";
@@ -206,23 +211,62 @@ export function createPgDoctorCanonicalAppointmentsPort(
       const db = getDrizzle();
       const organizationId = await getDefaultOrganizationId();
       const iana = await getAppDisplayTimeZone();
-      const { from, to } = localDayRangeBoundsIso(filter.range, iana);
+      const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
       const rangeCond = and(
         eq(beAppointments.organizationId, organizationId),
         gte(beAppointments.startAt, from),
-        lte(beAppointments.startAt, to),
+        lt(beAppointments.startAt, toExclusive),
       );
-
-      const [totalRow, cancellationsRow, reschedulesRow, cancel30Row] = await Promise.all([
+      const createdInRangeCond = and(
+        eq(beAppointments.organizationId, organizationId),
+        gte(beAppointments.createdAt, from),
+        lt(beAppointments.createdAt, toExclusive),
+      );
+      const [
+        totalRow,
+        pastVisitsRow,
+        cancelledVisitsRow,
+        bookingsCreatedRow,
+        cancellationActionsRow,
+        rescheduleActionsRow,
+        cancel30Row,
+      ] = await Promise.all([
         db.select({ count: count() }).from(beAppointments).where(rangeCond),
         db
           .select({ count: count() })
           .from(beAppointments)
-          .where(and(rangeCond, inArray(beAppointments.status, [...CANCELLED_STATUSES]))),
+          .where(
+            and(
+              rangeCond,
+              lt(beAppointments.startAt, sql`NOW()`),
+              notInArray(beAppointments.status, [...CANCELLED_STATUSES]),
+            ),
+          ),
         db
           .select({ count: count() })
           .from(beAppointments)
-          .where(and(rangeCond, gt(beAppointments.rescheduleCount, 0))),
+          .where(and(rangeCond, inArray(beAppointments.status, [...CANCELLED_STATUSES]))),
+        db.select({ count: count() }).from(beAppointments).where(createdInRangeCond),
+        db
+          .select({ count: count() })
+          .from(beAppointmentCancellations)
+          .where(
+            and(
+              eq(beAppointmentCancellations.organizationId, organizationId),
+              gte(beAppointmentCancellations.createdAt, from),
+              lt(beAppointmentCancellations.createdAt, toExclusive),
+            ),
+          ),
+        db
+          .select({ count: count() })
+          .from(beAppointmentReschedules)
+          .where(
+            and(
+              eq(beAppointmentReschedules.organizationId, organizationId),
+              gte(beAppointmentReschedules.createdAt, from),
+              lt(beAppointmentReschedules.createdAt, toExclusive),
+            ),
+          ),
         db
           .select({ count: count() })
           .from(beAppointments)
@@ -236,10 +280,13 @@ export function createPgDoctorCanonicalAppointmentsPort(
       ]);
 
       return {
+        pastVisitsInPeriod: pastVisitsRow[0]?.count ?? 0,
+        cancelledVisitsInPeriod: cancelledVisitsRow[0]?.count ?? 0,
+        bookingsCreatedInPeriod: bookingsCreatedRow[0]?.count ?? 0,
+        cancellationActionsInPeriod: cancellationActionsRow[0]?.count ?? 0,
+        rescheduleActionsInPeriod: rescheduleActionsRow[0]?.count ?? 0,
         total: totalRow[0]?.count ?? 0,
-        cancellations: cancellationsRow[0]?.count ?? 0,
         cancellations30d: cancel30Row[0]?.count ?? 0,
-        reschedules: reschedulesRow[0]?.count ?? 0,
       };
     },
 

@@ -1,3 +1,4 @@
+import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
 import { getPool } from "@/infra/db/client";
@@ -173,21 +174,46 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
     async getAppointmentStats(filter: DoctorAppointmentStatsFilter): Promise<AppointmentStats> {
       const pool = getPool();
       const iana = await getAppDisplayTimeZone();
-      const { from, to } = localDayRangeBoundsIso(filter.range, iana);
-      const rangeResult = await pool.query<{
-        total: string;
-        cancellations: string;
-        reschedules: string;
-      }>(
-        `SELECT
-          COUNT(*)::text AS total,
-          COUNT(*) FILTER (WHERE status = 'canceled' AND ${CANCELLATION_LAST_EVENT_EXCLUSION_SQL})::text AS cancellations,
-          COUNT(*) FILTER (WHERE status = 'updated')::text AS reschedules
-         FROM appointment_records
-         WHERE deleted_at IS NULL
-           AND record_at >= $1::timestamptz AND record_at <= $2::timestamptz`,
-        [from, to]
-      );
+      const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
+      const [rangeResult, bookingsCreatedResult] = await Promise.all([
+        pool.query<{
+          total: string;
+          past_visits: string;
+          cancelled_visits: string;
+          cancellation_actions: string;
+          reschedule_actions: string;
+        }>(
+          `SELECT
+            COUNT(*)::text AS total,
+            COUNT(*) FILTER (
+              WHERE record_at < NOW()
+                AND status <> 'canceled'
+            )::text AS past_visits,
+            COUNT(*) FILTER (
+              WHERE status = 'canceled' AND ${CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
+            )::text AS cancelled_visits,
+            COUNT(*) FILTER (
+              WHERE status = 'canceled'
+                AND ${CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
+                AND updated_at >= $1::timestamptz AND updated_at < $2::timestamptz
+            )::text AS cancellation_actions,
+            COUNT(*) FILTER (
+              WHERE status = 'updated'
+                AND updated_at >= $1::timestamptz AND updated_at < $2::timestamptz
+            )::text AS reschedule_actions
+           FROM appointment_records
+           WHERE deleted_at IS NULL
+             AND record_at >= $1::timestamptz AND record_at < $2::timestamptz`,
+          [from, toExclusive],
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count
+           FROM appointment_records
+           WHERE deleted_at IS NULL
+             AND created_at >= $1::timestamptz AND created_at < $2::timestamptz`,
+          [from, toExclusive],
+        ),
+      ]);
       const cancellations30dResult = await pool.query<{ count: string }>(
         `SELECT COUNT(*)::text AS count
          FROM appointment_records
@@ -199,10 +225,13 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
       const row = rangeResult.rows[0];
       const row30 = cancellations30dResult.rows[0];
       return {
+        pastVisitsInPeriod: row ? parseInt(row.past_visits, 10) : 0,
+        cancelledVisitsInPeriod: row ? parseInt(row.cancelled_visits, 10) : 0,
+        bookingsCreatedInPeriod: parseInt(bookingsCreatedResult.rows[0]?.count ?? "0", 10) || 0,
+        cancellationActionsInPeriod: row ? parseInt(row.cancellation_actions, 10) : 0,
+        rescheduleActionsInPeriod: row ? parseInt(row.reschedule_actions, 10) : 0,
         total: row ? parseInt(row.total, 10) : 0,
-        cancellations: row ? parseInt(row.cancellations, 10) : 0,
         cancellations30d: row30 ? parseInt(row30.count, 10) : 0,
-        reschedules: row ? parseInt(row.reschedules, 10) : 0,
       };
     },
 

@@ -8,6 +8,10 @@ import type {
   DoctorClientsPort,
   DoctorDashboardPatientMetrics,
 } from "@/modules/doctor-clients/ports";
+import {
+  accumulateClientContactBreakdown,
+  emptyClientContactBreakdown,
+} from "@/modules/doctor-clients/clientContactSegments";
 import { matchesDoctorClientSearch } from "@/modules/doctor-clients/clientSearchMatch";
 import {
   getClientSupportProfile,
@@ -379,6 +383,42 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async updateClientSupport(params) {
       const { actorId, ...rest } = params;
       return upsertClientSupportProfile({ ...rest, updatedBy: actorId });
+    },
+
+    async getClientContactBreakdown() {
+      const pool = getPool();
+      const rows = await pool.query<{
+        has_telegram: boolean;
+        has_max: boolean;
+        has_verified_email: boolean;
+        has_phone: boolean;
+      }>(
+        `SELECT
+           EXISTS (
+             SELECT 1 FROM user_channel_bindings ucb
+             WHERE ucb.user_id = pu.id AND ucb.channel_code = 'telegram'
+           ) AS has_telegram,
+           EXISTS (
+             SELECT 1 FROM user_channel_bindings ucb
+             WHERE ucb.user_id = pu.id AND ucb.channel_code = 'max'
+           ) AS has_max,
+           (pu.email_verified_at IS NOT NULL) AS has_verified_email,
+           (pu.phone_normalized IS NOT NULL AND btrim(pu.phone_normalized) <> '') AS has_phone
+         FROM platform_users pu
+         WHERE pu.role = 'client'
+           AND pu.merged_into_id IS NULL
+           AND COALESCE(pu.is_archived, false) = false`,
+      );
+      const breakdown = emptyClientContactBreakdown();
+      for (const row of rows.rows) {
+        accumulateClientContactBreakdown(breakdown, {
+          hasTelegram: row.has_telegram,
+          hasMax: row.has_max,
+          hasVerifiedEmail: row.has_verified_email,
+          hasPhone: row.has_phone,
+        });
+      }
+      return breakdown;
     },
   };
 }

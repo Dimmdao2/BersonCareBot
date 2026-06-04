@@ -1,4 +1,5 @@
 import type { ChannelBindings } from "@/shared/types/session";
+import type { ClientContactBreakdown } from "./clientContactSegments";
 import type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./supportPolicy";
 
 /** Фильтры для списка клиентов специалиста. */
@@ -69,6 +70,8 @@ export type DoctorDashboardPatientMetrics = {
 
 export type DoctorClientsPort = {
   listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]>;
+  /** Сегменты контактов для аналитики `/app/doctor/analytics/clients`. */
+  getClientContactBreakdown(): Promise<ClientContactBreakdown>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;
   /** Patient-scoped doctor APIs — `role = 'client'` only; otherwise `null`. */
   getPatientClientIdentity(userId: string): Promise<ClientIdentity | null>;

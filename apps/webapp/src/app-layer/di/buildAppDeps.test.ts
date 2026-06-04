@@ -100,7 +100,7 @@ describe("buildAppDeps", () => {
     expect(typeof deps.doctorAppointments.listAppointmentsForSpecialist).toBe("function");
     expect(typeof deps.doctorAppointments.getAppointmentStats).toBe("function");
     const list = await deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" });
-    const stats = await deps.doctorAppointments.getAppointmentStats({ range: "today" });
+    const stats = await deps.doctorAppointments.getAppointmentStats({ kind: "range", range: "today" });
     expect(Array.isArray(list)).toBe(true);
     expect(stats).toHaveProperty("total");
     expect(stats).toHaveProperty("cancellations30d");
