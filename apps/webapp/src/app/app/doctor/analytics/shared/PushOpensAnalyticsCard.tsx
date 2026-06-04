@@ -9,7 +9,6 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -19,6 +18,7 @@ import {
   formatDisplayZoneDayShortFromBucket,
   formatDisplayZoneHourFromBucket,
 } from "@/shared/datetime/displayTimeZoneFormat";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const STROKE_SENT = "hsl(215 65% 42%)";
 const STROKE_PUSH_OPEN = "hsl(142 50% 38%)";
@@ -112,13 +112,7 @@ export function PushOpensAnalyticsCard({
                 height={44}
               />
               <YAxis width={28} allowDecimals={false} tick={{ fontSize: 9 }} />
-              <Tooltip
-                contentStyle={{
-                  background: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  fontSize: 11,
-                }}
-              />
+              <DoctorRechartsTooltip />
               <Legend wrapperStyle={{ fontSize: 10 }} />
               <Bar dataKey="sent" name="Отправлено" fill={FILL_PUSH_SENT} />
               <Bar dataKey="opened" name="Открыто" fill={FILL_PUSH_OPEN} />
@@ -137,13 +131,7 @@ export function PushOpensAnalyticsCard({
                   minTickGap={20}
                 />
                 <YAxis width={28} allowDecimals={false} tick={{ fontSize: 9 }} />
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    fontSize: 11,
-                  }}
-                />
+                <DoctorRechartsTooltip />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
                 <Line
                   type="monotone"

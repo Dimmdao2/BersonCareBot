@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import type { ClientContactBreakdown, ClientContactPieSegment } from "@/modules/doctor-clients/clientContactSegments";
 import { CLIENT_CONTACT_PIE_SEGMENT_LABELS } from "@/modules/doctor-clients/clientContactSegments";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const SEGMENT_COLORS: Record<ClientContactPieSegment, string> = {
   telegram_only: "hsl(200 70% 48%)",
@@ -49,7 +50,13 @@ function ContactPieTooltip({
   );
 }
 
-export function ClientContactPieChart({ breakdown }: { breakdown: ClientContactBreakdown }) {
+export function ClientContactPieChart({
+  breakdown,
+  onSegmentClick,
+}: {
+  breakdown: ClientContactBreakdown;
+  onSegmentClick?: (segment: ClientContactPieSegment, label: string) => void;
+}) {
   const slices = useMemo(
     () =>
       PIE_ORDER.map((segment) => ({
@@ -68,11 +75,8 @@ export function ClientContactPieChart({ breakdown }: { breakdown: ClientContactB
   const outerRadius = Math.round(CHART_SIZE * 0.4);
 
   return (
-    <div className="flex w-full flex-col items-stretch gap-3">
-      <div
-        className="relative mx-auto w-full max-w-[200px] overflow-visible"
-        style={{ height: CHART_SIZE }}
-      >
+    <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-start lg:gap-4">
+      <div className="relative w-full max-w-[200px] shrink-0 overflow-visible" style={{ height: CHART_SIZE }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart margin={PIE_MARGIN}>
             <Pie
@@ -89,23 +93,31 @@ export function ClientContactPieChart({ breakdown }: { breakdown: ClientContactB
                 <Cell key={s.segment} fill={SEGMENT_COLORS[s.segment]} />
               ))}
             </Pie>
-            <Tooltip content={<ContactPieTooltip />} />
+            <DoctorRechartsTooltip content={<ContactPieTooltip />} />
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <ul className="w-full space-y-1.5 text-xs">
-        {slices.map((s) => (
-          <li key={s.segment} className="flex items-center gap-2 min-w-0">
-            <span
-              className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
-              style={{ background: SEGMENT_COLORS[s.segment] }}
-              aria-hidden
-            />
-            <span className="min-w-0 flex-1 text-muted-foreground">{s.name}</span>
-            <span className="shrink-0 font-semibold tabular-nums text-foreground">{s.value}</span>
-          </li>
-        ))}
-      </ul>
+      <div className="min-w-0 flex-1">
+        <ul className="w-full space-y-1.5 text-xs">
+          {slices.map((s) => (
+            <li key={s.segment} className="min-w-0">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-0.5 py-0.5 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                onClick={() => onSegmentClick?.(s.segment, s.name)}
+              >
+                <span
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ background: SEGMENT_COLORS[s.segment] }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 text-muted-foreground">{s.name}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-foreground">{s.value}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

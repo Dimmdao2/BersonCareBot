@@ -6,13 +6,13 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
 import type { ProductAnalyticsEntryChannelHourlyRow } from "@/modules/product-analytics/types";
 import { formatDisplayZoneHourFromBucket } from "@/shared/datetime/displayTimeZoneFormat";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const STROKE = {
   pwa: "hsl(142 55% 36%)",
@@ -66,13 +66,8 @@ export function ProductAnalyticsEntryChannelChart({
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickLine={false}
           />
-          <Tooltip
+          <DoctorRechartsTooltip
             labelFormatter={(bucket) => formatBucketTick(String(bucket))}
-            contentStyle={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
-            }}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Line type="monotone" dataKey="pwa" name="PWA" stroke={STROKE.pwa} strokeWidth={2} dot={false} />

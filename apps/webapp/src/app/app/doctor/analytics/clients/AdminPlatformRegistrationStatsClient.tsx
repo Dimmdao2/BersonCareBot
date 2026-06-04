@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { AdminRegistrationStatsPayload } from "@/modules/admin-platform-stats/types";
+import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric-accounts/ports";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 
 import { AdminRegistrationLineChart } from "./AdminRegistrationLineChart";
 import { buildAdminStatsQuery, type AnalyticsPeriodValue } from "./analyticsPeriodUi";
+import { DoctorStatCard } from "./DoctorStatCard";
 
 function formatRegistrationError(code: string): string {
   if (code === "range_too_short") return "Период не короче 7 дней.";
@@ -16,9 +19,10 @@ function formatRegistrationError(code: string): string {
 type Props = {
   period: AnalyticsPeriodValue;
   ready: boolean;
+  onMetricClick?: (metric: DoctorAnalyticsMetricKey, title: string) => void;
 };
 
-export function AdminPlatformRegistrationStatsClient({ period, ready }: Props) {
+export function AdminPlatformRegistrationStatsClient({ period, ready, onMetricClick }: Props) {
   const [data, setData] = useState<AdminRegistrationStatsPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,20 +72,37 @@ export function AdminPlatformRegistrationStatsClient({ period, ready }: Props) {
 
       {data ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <div className="text-muted-foreground text-xs">Регистрации</div>
-              <div className="text-2xl font-semibold tabular-nums">{data.summary.registrations}</div>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <div className="text-muted-foreground text-xs">Слияния</div>
-              <div className="text-2xl font-semibold tabular-nums">{data.summary.merges}</div>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <div className="text-muted-foreground text-xs">Всего событий</div>
-              <div className="text-2xl font-semibold tabular-nums">{data.summary.combined}</div>
-            </div>
-          </div>
+          <DoctorMetricList id="doctor-stats-admin-registration-cards" className="xl:grid-cols-3 2xl:grid-cols-3">
+            <DoctorStatCard
+              id="doctor-stats-admin-registrations"
+              title="Регистрации"
+              value={data.summary.registrations}
+              onValueClick={
+                onMetricClick
+                  ? () => onMetricClick("registrations", "Регистрации за период")
+                  : undefined
+              }
+            />
+            {data.summary.merges > 0 ? (
+              <DoctorStatCard
+                id="doctor-stats-admin-merges"
+                title="Слияния"
+                value={data.summary.merges}
+                tone="warning"
+                onValueClick={
+                  onMetricClick ? () => onMetricClick("registrations_merges", "Слияния за период") : undefined
+                }
+              />
+            ) : null}
+            <DoctorStatCard
+              id="doctor-stats-admin-registration-combined"
+              title="Всего событий"
+              value={data.summary.combined}
+              onValueClick={
+                onMetricClick ? () => onMetricClick("registrations_combined", "Все события за период") : undefined
+              }
+            />
+          </DoctorMetricList>
           {data.series.length > 0 ? <AdminRegistrationLineChart series={data.series} /> : null}
         </>
       ) : null}

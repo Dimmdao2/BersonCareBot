@@ -3,17 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { AdminSubscriberStatsPayload } from "@/modules/admin-platform-stats/types";
+import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric-accounts/ports";
+import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 
 import { AdminSubscriberLineChart } from "./AdminSubscriberLineChart";
 import { buildAdminStatsQuery, type AnalyticsPeriodValue } from "./analyticsPeriodUi";
+import { DoctorStatCard } from "./DoctorStatCard";
 
 type Props = {
   period: AnalyticsPeriodValue;
   ready: boolean;
+  onMetricClick?: (metric: DoctorAnalyticsMetricKey, title: string) => void;
 };
 
-export function AdminPlatformSubscriberStatsClient({ period, ready }: Props) {
+export function AdminPlatformSubscriberStatsClient({ period, ready, onMetricClick }: Props) {
   const [data, setData] = useState<AdminSubscriberStatsPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,16 +67,24 @@ export function AdminPlatformSubscriberStatsClient({ period, ready }: Props) {
 
       {data ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <div className="text-muted-foreground text-xs">На конец периода</div>
-              <div className="text-2xl font-semibold tabular-nums">{data.summary.cumulativeEnd}</div>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <div className="text-muted-foreground text-xs">Прирост за период</div>
-              <div className="text-2xl font-semibold tabular-nums">{data.summary.deltaInRange}</div>
-            </div>
-          </div>
+          <DoctorMetricList id="doctor-stats-admin-subscriber-cards" className="xl:grid-cols-2 2xl:grid-cols-2">
+            <DoctorStatCard
+              id="doctor-stats-admin-subscribers-total"
+              title="На конец периода"
+              value={data.summary.cumulativeEnd}
+              onValueClick={
+                onMetricClick ? () => onMetricClick("subscribers_total", "Подписчики на конец периода") : undefined
+              }
+            />
+            <DoctorStatCard
+              id="doctor-stats-admin-subscribers-delta"
+              title="Прирост за период"
+              value={data.summary.deltaInRange}
+              onValueClick={
+                onMetricClick ? () => onMetricClick("subscribers_delta", "Новые подписчики за период") : undefined
+              }
+            />
+          </DoctorMetricList>
           {data.series.length > 0 ? <AdminSubscriberLineChart series={data.series} /> : null}
         </>
       ) : null}

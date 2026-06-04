@@ -6,7 +6,6 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -15,6 +14,7 @@ import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import { diaryChartFormatTickLabel, diaryChartShowTick } from "@/modules/diaries/stats/formatDiaryChartTick";
 
 import type { MaterialRatingDoctorDetailDay } from "@/modules/material-rating/types";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const STROKE_VIEWS = "hsl(215 65% 38%)";
 const STROKE_ACTIVITY = "hsl(28 78% 42%)";
@@ -73,7 +73,7 @@ export function MaterialRatingDetailChart({ days }: { days: MaterialRatingDoctor
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickLine={false}
           />
-          <Tooltip
+          <DoctorRechartsTooltip
             formatter={(value, name) => {
               const v = typeof value === "number" ? value : Number(value);
               const ok = Number.isFinite(v);
@@ -91,11 +91,6 @@ export function MaterialRatingDetailChart({ days }: { days: MaterialRatingDoctor
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload as { full?: string } | undefined;
               return p?.full ?? "";
-            }}
-            contentStyle={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
             }}
           />
           <Legend

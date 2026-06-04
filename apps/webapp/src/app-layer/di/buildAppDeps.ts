@@ -83,6 +83,8 @@ import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
 import { createPgAdminPlatformUserStatsPort } from "@/infra/repos/pgAdminPlatformUserStats";
 import { createInMemoryAdminPlatformUserStatsPort } from "@/infra/repos/inMemoryAdminPlatformUserStats";
+import { createPgDoctorAnalyticsMetricAccountsPort } from "@/infra/repos/pgDoctorAnalyticsMetricAccounts";
+import { inMemoryDoctorAnalyticsMetricAccountsPort } from "@/infra/repos/inMemoryDoctorAnalyticsMetricAccounts";
 import {
   createDoctorAppointmentsReadSwitchPort,
   parseDoctorAppointmentsReadSource,
@@ -423,6 +425,10 @@ const doctorAppointmentsCanonicalPort =
   !inMemoryRepos && bookingEngineCorePort
     ? createPgDoctorCanonicalAppointmentsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
     : null;
+const doctorAnalyticsMetricAccountsPort =
+  !inMemoryRepos && bookingEngineCorePort
+    ? createPgDoctorAnalyticsMetricAccountsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
+    : inMemoryDoctorAnalyticsMetricAccountsPort;
 const bookingRubitimeBridgePort = !inMemoryRepos ? createPgBookingRubitimeBridgePort() : null;
 const bookingEnginePort =
   bookingEngineCorePort && bookingRubitimeBridgePort
@@ -1203,6 +1209,7 @@ function _buildAppDeps() {
       countRecentClientsWithoutMessagingChannels: (days) =>
         doctorClientsPort.countRecentClientsWithoutMessagingChannels(days),
     }),
+    doctorAnalyticsMetricAccounts: doctorAnalyticsMetricAccountsPort,
     adminPlatformUserStats,
     productAnalytics,
     doctorBroadcasts: createDoctorBroadcastsService({

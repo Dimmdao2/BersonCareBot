@@ -6,11 +6,11 @@ import {
   CartesianGrid,
   Legend,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import type { ProductAnalyticsTopPageRow } from "@/modules/product-analytics/types";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const FILL_VIEWS = "hsl(215 55% 52% / 0.9)";
 const FILL_UNIQUE = "hsl(142 45% 42% / 0.9)";
@@ -47,7 +47,7 @@ export function ProductAnalyticsTopPagesChart({ rows }: { rows: ProductAnalytics
             width={184}
             tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
           />
-          <Tooltip />
+          <DoctorRechartsTooltip />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Bar dataKey="views" name="Просмотры" fill={FILL_VIEWS} radius={[0, 4, 4, 0]} />
           <Bar dataKey="uniqueUsers" name="Клиенты" fill={FILL_UNIQUE} radius={[0, 4, 4, 0]} />

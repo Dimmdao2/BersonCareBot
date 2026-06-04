@@ -1,7 +1,8 @@
 "use client";
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import type { HourlyClockSlice } from "@/app-layer/stats/reminderHourlyClock";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const CHART_SIZE = 168;
 
@@ -45,16 +46,11 @@ export function ReminderSendsHourlyClockChart({ slices }: { slices: HourlyClockS
                 <Cell key={s.hour} fill={sliceFill(s.sent, maxSent)} />
               ))}
             </Pie>
-            <Tooltip
+            <DoctorRechartsTooltip
               formatter={(_, __, item) => {
                 const p = item?.payload as HourlyClockSlice | undefined;
                 if (!p) return ["—", ""];
                 return [`${p.sent} отправок`, p.label];
-              }}
-              contentStyle={{
-                background: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                fontSize: 11,
               }}
             />
           </PieChart>

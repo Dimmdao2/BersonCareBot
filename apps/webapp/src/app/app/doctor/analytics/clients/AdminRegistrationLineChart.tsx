@@ -6,7 +6,6 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -15,6 +14,7 @@ import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import { diaryChartFormatTickLabel, diaryChartShowTick } from "@/modules/diaries/stats/formatDiaryChartTick";
 
 import type { AdminRegistrationDayPoint } from "@/modules/admin-platform-stats/types";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const STROKE_NEW = "hsl(215 65% 38%)";
 const STROKE_MERGE = "hsl(28 78% 42%)";
@@ -61,7 +61,7 @@ export function AdminRegistrationLineChart({ series }: { series: AdminRegistrati
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickLine={false}
           />
-          <Tooltip
+          <DoctorRechartsTooltip
             formatter={(value, name) => {
               const v = typeof value === "number" ? value : Number(value);
               const label = name === "registrations" ? "Регистрации" : "Слияния";
@@ -70,11 +70,6 @@ export function AdminRegistrationLineChart({ series }: { series: AdminRegistrati
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload as { full?: string } | undefined;
               return p?.full ?? "";
-            }}
-            contentStyle={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
             }}
           />
           <Legend

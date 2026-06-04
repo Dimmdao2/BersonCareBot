@@ -5,12 +5,12 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
 import type { ProductAnalyticsActiveUsersDailyRow } from "@/modules/product-analytics/types";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const STROKE = "hsl(215 65% 38%)";
 
@@ -44,13 +44,8 @@ export function ProductAnalyticsActiveUsersChart({
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickLine={false}
           />
-          <Tooltip
+          <DoctorRechartsTooltip
             formatter={(value) => [typeof value === "number" ? value : "—", "Активные"]}
-            contentStyle={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
-            }}
           />
           <Line
             type="monotone"

@@ -10,7 +10,6 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -27,6 +26,7 @@ import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCar
 import { PeopleWithNotificationsCard } from "@/app/app/doctor/analytics/shared/PeopleWithNotificationsCard";
 import { PushOpensAnalyticsCard } from "@/app/app/doctor/analytics/shared/PushOpensAnalyticsCard";
 import { ReminderSendsHourlyClockChart } from "@/app/app/doctor/analytics/shared/ReminderSendsHourlyClockChart";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const PRESETS = [
   { hours: 24, label: "24 ч" },
@@ -89,7 +89,7 @@ function TopPagesHorizontalBarChart({
             width={168}
             tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
           />
-          <Tooltip />
+          <DoctorRechartsTooltip />
           <Bar dataKey="count" name={barName} fill={fill} radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
@@ -126,13 +126,8 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
                 <Cell key={s.name} fill={VIDEO_DELIVERY_COLORS[s.name] ?? "hsl(var(--muted-foreground))"} />
               ))}
             </Pie>
-            <Tooltip
+            <DoctorRechartsTooltip
               formatter={(v) => [String(v), ""]}
-              contentStyle={{
-                background: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                fontSize: 11,
-              }}
             />
           </PieChart>
         </ResponsiveContainer>

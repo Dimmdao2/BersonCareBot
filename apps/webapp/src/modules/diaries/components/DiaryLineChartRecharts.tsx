@@ -5,12 +5,12 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import { diaryChartFormatTickLabel, diaryChartShowTick } from "@/modules/diaries/stats/formatDiaryChartTick";
+import { AppRechartsTooltip } from "@/shared/ui/charts/AppRechartsTooltip";
 
 export type DiaryLineChartPoint = { date: string; value: number };
 
@@ -49,7 +49,7 @@ export default function DiaryLineChartRecharts({
             tickLine={false}
             label={{ value: "0–10", angle: -90, position: "insideLeft", fontSize: 10, dx: -4 }}
           />
-          <Tooltip
+          <AppRechartsTooltip
             formatter={(value) => {
               const v = typeof value === "number" ? value : Number(value);
               return [`${Number.isFinite(v) ? v : "—"}/10`, valueTooltipLabel];
@@ -57,11 +57,6 @@ export default function DiaryLineChartRecharts({
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload as { full?: string } | undefined;
               return p?.full ?? "";
-            }}
-            contentStyle={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
             }}
           />
           <Line

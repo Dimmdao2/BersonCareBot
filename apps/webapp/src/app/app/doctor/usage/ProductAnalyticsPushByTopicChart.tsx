@@ -6,11 +6,11 @@ import {
   CartesianGrid,
   Legend,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import type { ProductAnalyticsPushByTopicRow } from "@/modules/product-analytics/types";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const FILL_SENT = "hsl(215 55% 52% / 0.9)";
 const FILL_OPENED = "hsl(142 45% 42% / 0.9)";
@@ -48,7 +48,7 @@ export function ProductAnalyticsPushByTopicChart({ rows }: { rows: ProductAnalyt
             width={170}
             tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
           />
-          <Tooltip
+          <DoctorRechartsTooltip
             formatter={(value, name, item) => {
               if (name === "Open rate") {
                 return [`${Number(value).toFixed(1)}%`, "Open rate"];

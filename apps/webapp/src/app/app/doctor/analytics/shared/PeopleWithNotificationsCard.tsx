@@ -9,7 +9,6 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -20,6 +19,7 @@ import {
   formatDisplayZoneDayRuFromBucket,
   formatDisplayZoneDayShortFromBucket,
 } from "@/shared/datetime/displayTimeZoneFormat";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const CHART_H = 160;
 
@@ -69,17 +69,12 @@ export function PeopleWithNotificationsCard({
                     <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="dayLabel" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                     <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
-                    <Tooltip
+                    <DoctorRechartsTooltip
                       labelFormatter={(_, payload) => {
                         const row = payload?.[0]?.payload as { dayRu?: string } | undefined;
                         return row?.dayRu ?? "";
                       }}
                       formatter={(v) => [`${v} чел.`, "Люди"]}
-                      contentStyle={{
-                        background: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        fontSize: 11,
-                      }}
                     />
                     <Bar dataKey="peopleCount" name="Люди" fill="hsl(215 55% 48% / 0.9)" radius={[3, 3, 0, 0]} />
                   </BarChart>
@@ -109,15 +104,10 @@ export function PeopleWithNotificationsCard({
                           <Cell key={s.segment} fill={reminderPeopleChannelSegmentColor(s.segment)} />
                         ))}
                       </Pie>
-                      <Tooltip
+                      <DoctorRechartsTooltip
                         formatter={(v, _n, item) => {
                           const row = item?.payload as { name?: string } | undefined;
                           return [`${v} чел.`, row?.name ?? ""];
-                        }}
-                        contentStyle={{
-                          background: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          fontSize: 11,
                         }}
                       />
                     </PieChart>

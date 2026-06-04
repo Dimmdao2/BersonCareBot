@@ -6,7 +6,6 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -15,6 +14,7 @@ import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import { diaryChartFormatTickLabel, diaryChartShowTick } from "@/modules/diaries/stats/formatDiaryChartTick";
 
 import type { AdminSubscriberDayPoint } from "@/modules/admin-platform-stats/types";
+import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
 const STROKE = "hsl(142 55% 36%)";
 
@@ -55,7 +55,7 @@ export function AdminSubscriberLineChart({ series }: { series: AdminSubscriberDa
             tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
             tickLine={false}
           />
-          <Tooltip
+          <DoctorRechartsTooltip
             formatter={(value) => {
               const v = typeof value === "number" ? value : Number(value);
               return [`${Number.isFinite(v) ? v : "—"}`, "Подписчики"];
@@ -63,11 +63,6 @@ export function AdminSubscriberLineChart({ series }: { series: AdminSubscriberDa
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload as { full?: string } | undefined;
               return p?.full ?? "";
-            }}
-            contentStyle={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "6px",
             }}
           />
           <Legend
