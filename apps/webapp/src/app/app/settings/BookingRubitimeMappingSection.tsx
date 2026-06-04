@@ -21,9 +21,15 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import {
+  formatMappingIssueLines,
+  mappingRowBadgeLabel,
+  mappingRowHasProblems,
+  mappingRowStatusTone,
+  problemsSummaryBanner,
+} from "@/modules/rubitime-mapping/issueDisplay";
 import type {
   RubitimeMappingRow,
-  RubitimeMappingStatusCode,
   RubitimeSsaDuplicateGroup,
   RubitimeSsaDuplicateRow,
 } from "@/modules/rubitime-mapping/types";
@@ -47,31 +53,6 @@ type CatalogBranchService = {
   rubitimeServiceId: string;
   isActive: boolean;
 };
-
-const STATUS_LABELS: Record<RubitimeMappingStatusCode, string> = {
-  unmapped: "Не настроено",
-  ssa_missing: "Нет доступности",
-  reverse_missing: "Нет обратной связи",
-  branch_unmapped: "Филиал не сопоставлен",
-  specialist_unmapped: "Специалист не сопоставлен",
-  service_unmapped: "Услуга не сопоставлена",
-  legacy_inactive: "Отключено в Rubitime",
-  duration_mismatch: "Конфликт длительности",
-  price_mismatch: "Конфликт цены",
-  mapped_ok: "Связано",
-};
-
-const ISSUE_LABELS: Record<string, string> = {
-  duration_mismatch: "Длительность",
-  price_mismatch: "Цена",
-};
-
-function statusTone(status: RubitimeMappingStatusCode, issues: string[]): "default" | "urgent" | "neutral" {
-  if (status === "mapped_ok" && issues.length === 0) return "default";
-  if (status === "mapped_ok") return "neutral";
-  if (status === "legacy_inactive") return "neutral";
-  return "urgent";
-}
 
 function duplicateGroupKey(group: Pick<RubitimeSsaDuplicateGroup, "branchId" | "serviceId" | "specialistId">): string {
   return `${group.branchId}:${group.serviceId}:${group.specialistId}`;
@@ -271,6 +252,8 @@ export function BookingRubitimeMappingSection() {
     }
   }
 
+  const problemsBanner = problemsSummaryBanner(problems);
+
   return (
     <>
       <DoctorSection>
@@ -304,44 +287,60 @@ export function BookingRubitimeMappingSection() {
 
         {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
 
+        {problemsBanner ? (
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {problemsBanner}
+          </div>
+        ) : null}
+
         {rows.length === 0 && !loading ? (
           <DoctorEmptyState>
             {problemsOnly ? "Нет проблемных связей." : "Нет пар локация × услуга с доступностью."}
           </DoctorEmptyState>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {rows.map((row) => (
-              <li
-                key={`${row.branchId}:${row.serviceId}`}
-                className={cn(
-                  getDoctorSectionItemClass(statusTone(row.status, row.issues)),
-                  "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between",
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground">
-                    {row.branchTitle} · {row.serviceTitle}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {row.rubitimeBranchTitle ?? "—"} · {row.rubitimeSpecialistName ?? "—"} ·{" "}
-                    {row.rubitimeServiceTitle ?? "—"}
-                  </p>
-                  {row.issues.length > 0 ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {row.issues.map((i) => ISSUE_LABELS[i] ?? i).join(", ")}
+            {rows.map((row) => {
+              const issueLines = formatMappingIssueLines(row);
+              const hasProblems = mappingRowHasProblems(row);
+              return (
+                <li
+                  key={`${row.branchId}:${row.serviceId}`}
+                  className={cn(
+                    getDoctorSectionItemClass(mappingRowStatusTone(row)),
+                    "flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between",
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-foreground">
+                      {row.branchTitle} · {row.serviceTitle}
                     </p>
-                  ) : null}
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Badge variant={row.status === "mapped_ok" && row.issues.length === 0 ? "secondary" : "outline"}>
-                    {STATUS_LABELS[row.status]}
-                  </Badge>
-                  <Button variant="default" size="sm" onClick={() => openEdit(row)}>
-                    Настроить
-                  </Button>
-                </div>
-              </li>
-            ))}
+                    <p className="text-xs text-muted-foreground">
+                      {row.rubitimeBranchTitle ?? "—"} · {row.rubitimeSpecialistName ?? "—"} ·{" "}
+                      {row.rubitimeServiceTitle ?? "—"}
+                    </p>
+                    {issueLines.length > 0 ? (
+                      <ul
+                        className="mt-2 list-none space-y-1 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive"
+                        aria-label="Проблемы связи"
+                      >
+                        {issueLines.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 sm:pt-0.5">
+                    <Badge variant={hasProblems ? "destructive" : "secondary"}>{mappingRowBadgeLabel(row)}</Badge>
+                    <Button variant="default" size="sm" onClick={() => openEdit(row)}>
+                      Настроить
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </DoctorSection>

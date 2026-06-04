@@ -66,18 +66,33 @@ describe("BookingRubitimeMappingSection", () => {
           return Promise.resolve(
             jsonFetchResponse({
               ok: true,
-              total: 1,
+              total: 2,
               mappedOk: 0,
-              problems: 1,
+              problems: 2,
               rows: [
                 {
                   branchId: "550e8400-e29b-41d4-a716-446655440001",
                   branchTitle: "Москва",
                   serviceId: "550e8400-e29b-41d4-a716-446655440002",
-                  serviceTitle: "Приём",
-                  rubitimeBranchTitle: null,
-                  rubitimeSpecialistName: null,
-                  rubitimeServiceTitle: null,
+                  serviceTitle: "Сеанс 60 мин",
+                  rubitimeBranchTitle: "Москва",
+                  rubitimeSpecialistName: "Берсон",
+                  rubitimeServiceTitle: "Сеанс 60 мин",
+                  status: "mapped_ok",
+                  issues: ["price_mismatch"],
+                  issueDetails: {
+                    priceMismatch: { canonicalPriceMinor: 700_000, legacyPriceMinor: 600_000 },
+                  },
+                  branchServiceId: "22e2e533-858c-41d1-bef9-4c2cd43bb527",
+                },
+                {
+                  branchId: "550e8400-e29b-41d4-a716-446655440003",
+                  branchTitle: "Санкт-Петербург",
+                  serviceId: "550e8400-e29b-41d4-a716-446655440002",
+                  serviceTitle: "Сеанс 60 мин",
+                  rubitimeBranchTitle: "СПб",
+                  rubitimeSpecialistName: "Берсон",
+                  rubitimeServiceTitle: "Сеанс 60 мин",
                   status: "unmapped",
                   issues: [],
                   branchServiceId: null,
@@ -111,14 +126,22 @@ describe("BookingRubitimeMappingSection", () => {
     expect(await screen.findByText("2 строки для одной пары")).toBeInTheDocument();
     expect(screen.getByText("Всего пар")).toBeInTheDocument();
     expect(screen.getByText("Проблемы")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Настроить" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Настроить" }).length).toBeGreaterThanOrEqual(1);
   });
 
   it("opens link dialog on configure", async () => {
     const user = userEvent.setup();
     render(<BookingRubitimeMappingSection />);
-    await screen.findByRole("button", { name: "Настроить" });
-    await user.click(screen.getByRole("button", { name: "Настроить" }));
+    const configureButtons = await screen.findAllByRole("button", { name: "Настроить" });
+    await user.click(configureButtons[0]!);
     expect(await screen.findByText("Настроить связь Rubitime")).toBeInTheDocument();
+  });
+
+  it("shows explicit problem messages for price mismatch and blockers", async () => {
+    render(<BookingRubitimeMappingSection />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/2 связи требуют исправления/);
+    expect(await screen.findByText(/Конфликт цены: в кабинете/)).toBeInTheDocument();
+    expect(screen.getAllByText("Не настроено").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Нужно исправить").length).toBeGreaterThanOrEqual(1);
   });
 });

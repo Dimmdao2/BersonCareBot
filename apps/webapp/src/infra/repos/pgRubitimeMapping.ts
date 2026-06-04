@@ -15,6 +15,7 @@ import type {
   LinkRubitimeMappingResult,
   ResolveRubitimeSsaDuplicateInput,
   ResolveRubitimeSsaDuplicateResult,
+  RubitimeMappingIssueDetails,
   RubitimeSsaDuplicateGroup,
   RubitimeSsaDuplicateSummary,
   RubitimeMappingRow,
@@ -206,6 +207,9 @@ async function listMappingsInternal(
         serviceEntityMapped = false;
       }
 
+      const durationMismatch = legacyRow ? legacyRow.service_duration !== service.durationMinutes : false;
+      const priceMismatch = legacyRow ? legacyRow.service_price_minor !== service.priceMinor : false;
+
       const { status, issues } = computeRubitimeMappingStatus({
         branchServiceId,
         ssaPresent: Boolean(ssa),
@@ -215,11 +219,25 @@ async function listMappingsInternal(
         specialistEntityMapped,
         serviceEntityMapped,
         legacyActive: legacyRow?.is_active ?? (branchServiceId ? false : true),
-        durationMismatch: legacyRow ? legacyRow.service_duration !== service.durationMinutes : false,
-        priceMismatch: legacyRow ? legacyRow.service_price_minor !== service.priceMinor : false,
+        durationMismatch,
+        priceMismatch,
       });
 
       if (query.problemsOnly && status === "mapped_ok" && issues.length === 0) continue;
+
+      const issueDetails: RubitimeMappingIssueDetails = {};
+      if (durationMismatch && legacyRow) {
+        issueDetails.durationMismatch = {
+          canonicalMinutes: service.durationMinutes,
+          legacyMinutes: legacyRow.service_duration,
+        };
+      }
+      if (priceMismatch && legacyRow) {
+        issueDetails.priceMismatch = {
+          canonicalPriceMinor: service.priceMinor,
+          legacyPriceMinor: legacyRow.service_price_minor,
+        };
+      }
 
       rows.push({
         branchId: branch.id,
@@ -231,6 +249,8 @@ async function listMappingsInternal(
         rubitimeServiceTitle: legacyRow?.service_title ?? null,
         status,
         issues,
+        issueDetails:
+          issueDetails.durationMismatch || issueDetails.priceMismatch ? issueDetails : undefined,
         branchServiceId,
       });
     }

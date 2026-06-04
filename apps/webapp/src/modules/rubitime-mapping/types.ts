@@ -13,6 +13,12 @@ export const RUBITIME_MAPPING_STATUS_CODES = [
 
 export type RubitimeMappingStatusCode = (typeof RUBITIME_MAPPING_STATUS_CODES)[number];
 
+/** Populated when list API detects duration/price drift between canonical and linked Rubitime row. */
+export type RubitimeMappingIssueDetails = {
+  durationMismatch?: { canonicalMinutes: number; legacyMinutes: number };
+  priceMismatch?: { canonicalPriceMinor: number; legacyPriceMinor: number };
+};
+
 export type RubitimeMappingRow = {
   branchId: string;
   branchTitle: string;
@@ -23,6 +29,7 @@ export type RubitimeMappingRow = {
   rubitimeServiceTitle: string | null;
   status: RubitimeMappingStatusCode;
   issues: string[];
+  issueDetails?: RubitimeMappingIssueDetails;
   branchServiceId: string | null;
 };
 
