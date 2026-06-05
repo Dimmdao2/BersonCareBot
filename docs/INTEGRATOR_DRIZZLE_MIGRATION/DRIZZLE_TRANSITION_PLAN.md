@@ -55,7 +55,7 @@
 
 ## Wave 3 (финальный closeout, 2026-06-05)
 
-Декомпозиция фаз **00, 08–17**: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), решения до старта [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). Цель — сначала сократить избыточную `integrator`-схему после unified DB (фаза 08), затем Class **A** (убрать необъяснённый `pool.query` в runtime), Class **B** (`run*Sql` / `execute`), Class **C** (permanent pg с ADR), плюс отдельный conditional cutover фазы 16 для снятия регулярной зависимости от `migrate:legacy`, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner, и усиление DB-boundary валидации через Zod.
+Декомпозиция фаз **00, 08–17**: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), решения до старта [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). Цель — сначала сократить избыточную `integrator`-схему после unified DB (фаза 08), затем Class **A** (убрать необъяснённый `pool.query` в runtime), Class **B** (`run*Sql` / `execute`), Class **C** (permanent pg с ADR), плюс отдельный conditional cutover фазы 16 для снятия регулярной зависимости от `migrate:legacy`, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner, и усиление DB-boundary валидации через Zod. Для снижения риска крупные фазы разложены на подфазы: `09A-09E`, `10A-10C`, `12A-12E`, `13A-13E`, `14A-14E`, `15A-15F`.
 
 ## Сквозные риски
 

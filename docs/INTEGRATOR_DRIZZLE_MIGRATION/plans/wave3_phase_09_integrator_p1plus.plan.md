@@ -4,23 +4,23 @@ overview: Закрыть только оставшиеся после phase08 pr
 status: pending
 isProject: false
 todos:
-  - id: w3-p09-settings-config
-    content: "Settings/config readers после phase08: читать public.system_settings через общий helper + Zod, без integrator mirror."
+  - id: w3-p09a-settings-config
+    content: "09A: Settings/config readers после phase08: общий helper для чтения public.system_settings + Zod, без runtime-зависимости от integrator mirror."
     status: pending
-  - id: w3-p09-repos-simple
-    content: "platformUserDeliveryPhone, resolvePlatformUserIdForRubitimeBooking, canonicalUserId → runIntegratorSql (Class B)."
+  - id: w3-p09b-simple-repos
+    content: "09B: Простые repos (platformUserDeliveryPhone, resolvePlatformUserIdForRubitimeBooking, canonicalUserId, linkedPhoneSource, messengerStaffIds, adminIncidentAlertRelay) → runIntegratorSql/helper."
     status: pending
-  - id: w3-p09-repos-complex
-    content: "idempotencyKeys, adminStats, integrationDataQualityIncidents, patientHomeMorningPing (repo+handler), branchTimezone."
+  - id: w3-p09c-complex-repos
+    content: "09C: Сложные repos (idempotencyKeys, adminStats, integrationDataQualityIncidents, patientHomeMorningPing repo+handler, branchTimezone) с сохранением семантики."
     status: pending
-  - id: w3-p09-gcal
-    content: "google-calendar calendarDescription, resolvePackageCalendarContext → runIntegratorSql."
+  - id: w3-p09d-gcal
+    content: "09D: Google Calendar (calendarDescription, resolvePackageCalendarContext, runtimeConfig) + cache/invalidation parity."
     status: pending
-  - id: w3-p09-throttle
-    content: "rubitimeApiThrottle: throttle row read/update через drizzle session на том же PoolClient (Class B)."
+  - id: w3-p09e-throttle
+    content: "09E: rubitimeApiThrottle: throttle row read/update через drizzle session на том же PoolClient (Class B), advisory semantics unchanged."
     status: pending
   - id: w3-p09-verify
-    content: "rg integrator await db.query (exclude migrate/scripts/client health); integrator tests + typecheck."
+    content: "После 09A-09E: rg integrator await db.query (exclude migrate/scripts/client health); targeted tests per batch + integrator typecheck."
     status: pending
 ---
 
@@ -28,7 +28,49 @@ todos:
 
 ## Размер
 
-**M** (после phase08 scope должен уменьшиться; один PR).
+**M** (после phase08 scope должен уменьшиться; один PR, минимум 5 commit-батчей).
+
+## Подфазы (обязательный порядок)
+
+### 09A — settings/config foundation
+
+- Цель: унифицировать чтение `public.system_settings` через helper + Zod.
+- Файлы: `config/appBaseUrl.ts`, `config/appTimezone.ts`, `config/smtpOutbound.ts`, `config/operationalVerboseLog.ts`, `repos/linkedPhoneSource.ts`, `gcal/runtimeConfig.ts`.
+- Проверка:
+  - `rg "JSON\\.parse\\(|as unknown" apps/integrator/src/config apps/integrator/src/infra/db/repos/linkedPhoneSource.ts apps/integrator/src/integrations/google-calendar/runtimeConfig.ts`
+  - targeted tests на кеши `appBaseUrl`/`appTimezone`.
+
+### 09B — simple repos batch
+
+- Цель: убрать прямой `await db.query` из низкорисковых repo/read paths.
+- Файлы: `repos/platformUserDeliveryPhone.ts`, `repos/resolvePlatformUserIdForRubitimeBooking.ts`, `repos/canonicalUserId.ts`, `infra/db/messengerStaffIds.ts`, `infra/db/adminIncidentAlertRelay.ts`.
+- Проверка:
+  - `rg "await db\\.query" apps/integrator/src/infra/db/repos/platformUserDeliveryPhone.ts apps/integrator/src/infra/db/repos/resolvePlatformUserIdForRubitimeBooking.ts apps/integrator/src/infra/db/repos/canonicalUserId.ts apps/integrator/src/infra/db/messengerStaffIds.ts apps/integrator/src/infra/db/adminIncidentAlertRelay.ts`
+  - `pnpm --dir apps/integrator run test -- --run platformUserDeliveryPhone canonicalUserId`
+
+### 09C — complex repos batch
+
+- Цель: сохранить поведение dynamic/aggregate/cross-schema paths.
+- Файлы: `repos/idempotencyKeys.ts`, `repos/adminStats.ts`, `repos/integrationDataQualityIncidents.ts`, `repos/patientHomeMorningPing.ts`, `kernel/domain/executor/handlers/patientHomeMorningPing.ts`, `infra/db/branchTimezone.ts`.
+- Проверка:
+  - `pnpm --dir apps/integrator run test -- --run idempotency adminStats branchTimezone patientHomeMorningPing`
+  - `rg "public\\." apps/integrator/src/infra/db/branchTimezone.ts`
+
+### 09D — google calendar batch
+
+- Цель: перевести весь gcal-tail в рамках одной подфазы и не оставить "половинчатый" runtime.
+- Файлы: `integrations/google-calendar/calendarDescription.ts`, `integrations/google-calendar/resolvePackageCalendarContext.ts`, `integrations/google-calendar/runtimeConfig.ts`.
+- Проверка:
+  - targeted tests по gcal flows;
+  - проверка кэшей/дефолтов timezone/baseUrl.
+
+### 09E — rubitime throttle batch
+
+- Цель: перевести throttle-row operations на Drizzle session на том же `PoolClient`.
+- Файлы: `integrations/rubitime/rubitimeApiThrottle.ts`.
+- Проверка:
+  - `pnpm --dir apps/integrator run test -- --run rubitimeApiThrottle`
+  - ручная сверка интервалов, ключа throttle-row и advisory semantics.
 
 ## Definition of Done
 
@@ -38,6 +80,7 @@ todos:
 - [ ] Кэши `appBaseUrl` / `appTimezone` / invalidation — поведение как до миграции.
 - [ ] `branchTimezone` cross-schema join сохранён (qualified `public.*`).
 - [ ] `withRubitimeApiThrottle` — те же интервалы и advisory session.
+- [ ] Подфазы 09A-09E выполнены последовательно, и для каждой есть запись проверки в LOG.
 - [ ] Для settings/json границ в файлах фазы нет `JSON.parse(... ) as unknown` без Zod (`safeParse`/`parse`).
 
 ## Scope

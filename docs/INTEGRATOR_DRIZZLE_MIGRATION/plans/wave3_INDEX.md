@@ -32,17 +32,49 @@
 |---|------------|--------|---------|-----|
 | 00 | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md) | S | Baseline `rg`, Class A/B/C, ADR permanent zones | docs |
 | 08 | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md) | L | Убрать/перенести дубли integrator после unified DB | 1 |
-| 09 | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | M | Integrator: 20 prod-файлов `db.query` + throttle row | 1 |
-| 10 | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | M | media-worker: processTranscode*, settings reads; claim pg | 1 |
+| 09 | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | M | Integrator P1+ (декомпозиция 09A-09E) | 1 |
+| 10 | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | M | media-worker IX (декомпозиция 10A-10C) | 1 |
 | 11 | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | S | app-layer health/media; auth TX tail; мелкие outliers | 1 |
-| 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake, purge, identity, phone bind, merge preview | 1 |
-| 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking catalog, appointments, doctor clients/analytics | 1 |
-| 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | support comms, user projection, admin audit | 1 |
-| 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | references, settings, symptom diary, treatment tail, integrator push, routes | 1 |
+| 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake/purge/identity (декомпозиция 12A-12E) | 1 |
+| 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking/doctor (декомпозиция 13A-13E) | 1 |
+| 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 |
+| 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | long tail (декомпозиция 15A-15F) | 1 |
 | 16 | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | M | webapp legacy migration dependency cutover (`migrate:legacy`) | 1 |
 | 17 | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | S | docs sync, staging smoke gate, full CI, archive | 1 |
 
 **Итого:** ~8 code PR + 1 docs baseline + 1 closeout (или baseline+09 в одном PR по согласованию).
+
+## Рабочая декомпозиция внутри фаз
+
+- **09A:** settings/config foundation (`public.system_settings` helper + Zod)
+- **09B:** simple repos batch
+- **09C:** complex repos batch (idempotency/adminStats/branchTimezone/patientHomeMorningPing)
+- **09D:** Google Calendar batch
+- **09E:** rubitime throttle batch
+- **10A:** media-worker preflight (инварианты + baseline)
+- **10B:** runtime migration на minimal executor
+- **10C:** staging smoke preparation pack (для фазы 17)
+- **12A:** intake core
+- **12B:** identity + phone bind
+- **12C:** integrator-merge route thinness
+- **12D:** purge + merge preview
+- **12E:** phase verify
+- **13A:** booking catalog
+- **13B:** patient bookings + doctor appointments
+- **13C:** doctor clients + analytics
+- **13D:** motivation + doctor tails
+- **13E:** phase verify
+- **14A:** support communication core
+- **14B:** user projection core
+- **14C:** audit + legacy merge helpers
+- **14D:** comms tail
+- **14E:** phase verify
+- **15A:** references/settings/diary
+- **15B:** auth/email ports tail
+- **15C:** treatment and minor tails
+- **15D:** integrator push outbox
+- **15E:** messenger bind + routes tail
+- **15F:** phase verify
 
 ## Gate-контракт (как Wave 2)
 
@@ -57,9 +89,15 @@
 
 - `00` — обязательный старт (docs baseline + ADR).
 - `08` — обязательный перед `09`: сначала reduce/delete/move, потом Drizzle хвостов.
+- `09A→09B→09C→09D→09E` — строго последовательно внутри фазы 09.
+- `10A→10B→10C` — строго последовательно внутри фазы 10.
 - `09` и `10` можно делать параллельно только после `08`.
 - `11` стартует после зелёного `09`.
-- `12` → `13` → `14` → `15` идут последовательно (убывающий риск/шум `rg`).
+- `12A→12B→12C→12D→12E` внутри фазы 12.
+- `13A→13B→13C→13D→13E` внутри фазы 13.
+- `14A→14B→14C→14D→14E` внутри фазы 14.
+- `15A→15B→15C→15D→15E→15F` внутри фазы 15.
+- `12` → `13` → `14` → `15` идут последовательно.
 - `16` стартует после `15` и закрывает legacy-cutover только если `09–15` не оставили причин держать `migrate:legacy` в regular flow; иначе фиксирует blocker/backlog.
 - `17` — только после `00..16`, staging smoke gate и финального `pnpm run ci`.
 

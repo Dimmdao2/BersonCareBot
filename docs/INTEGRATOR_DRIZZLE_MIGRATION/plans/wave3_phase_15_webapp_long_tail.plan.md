@@ -4,26 +4,23 @@ overview: Остаток webapp — references, settings, symptom diary, treatme
 status: pending
 isProject: false
 todos:
-  - id: w3-p15-refs-settings
-    content: "pgReferences (17), pgSystemSettings (7), pgSymptomDiary (18), configAdapter."
+  - id: w3-p15a-refs-settings-diary
+    content: "15A: pgReferences (17), pgSystemSettings (7), pgSymptomDiary (18), configAdapter — migration batch."
     status: pending
-  - id: w3-p15-treatment
-    content: "pgTreatmentProgram (3), pgTreatmentProgramItemSnapshot (1) — instance/events уже Drizzle."
+  - id: w3-p15b-auth-email-ports
+    content: "15B: pgEmailSetupFlowPort, pgEmailPasswordLookup, pgUserPasswordCredentials, pgOAuthBindings, pgLoginTokens, pgPhoneChallengeStore, pgEmailSetupTokens."
     status: pending
-  - id: w3-p15-email-auth-ports
-    content: "pgEmailSetupFlowPort, pgEmailPasswordLookup, pgUserPasswordCredentials, pgOAuthBindings, pgLoginTokens, pgPhoneChallengeStore, pgEmailSetupTokens."
+  - id: w3-p15c-treatment-tail
+    content: "15C: pgTreatmentProgram (3), pgTreatmentProgramItemSnapshot (1), pgMaterialRating, pgUserPins, pgPhoneHistory."
     status: pending
-  - id: w3-p15-integrator-push
-    content: "integratorPushOutbox.ts — db.query на Pool → Drizzle public.integrator_push_outbox."
+  - id: w3-p15d-integrator-push
+    content: "15D: integratorPushOutbox.ts — db.query на Pool -> Drizzle public.integrator_push_outbox."
     status: pending
-  - id: w3-p15-messenger-bind
-    content: "messengerPhoneHttpBindExecute — мигрировать на Drizzle executor + Zod boundary validation."
-    status: pending
-  - id: w3-p15-routes-tail
-    content: "api/media/upload, admin users profile, recordPublicBookingMergeCandidates, resolveOrCreateUserByPhone."
+  - id: w3-p15e-messenger-bind-and-routes
+    content: "15E: messengerPhoneHttpBindExecute + routes tail (api/media/upload, admin users profile, recordPublicBookingMergeCandidates, resolveOrCreateUserByPhone)."
     status: pending
   - id: w3-p15-verify
-    content: "rg webapp prod — целевой ноль unexplained pool.query; список Class B/C в RAW_SQL."
+    content: "15F: rg webapp prod — целевой ноль unexplained pool.query; список Class B/C в RAW_SQL и LOG."
     status: pending
 ---
 
@@ -33,11 +30,60 @@ todos:
 
 **M** (много файлов, малый query count каждый).
 
+## Подфазы (обязательный порядок)
+
+### 15A — references/settings/diary
+
+- Файлы: `pgReferences.ts`, `pgSystemSettings.ts`, `pgSymptomDiary.ts`, `configAdapter`.
+- Цель: закрыть частые low/medium query paths.
+- Проверка:
+  - targeted tests references/diary/settings;
+  - `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos/pgReferences.ts apps/webapp/src/infra/repos/pgSystemSettings.ts apps/webapp/src/infra/repos/pgSymptomDiary.ts`.
+
+### 15B — auth/email ports tail
+
+- Файлы: `pgEmailSetupFlowPort`, `pgEmailPasswordLookup`, `pgUserPasswordCredentials`, `pgOAuthBindings`, `pgLoginTokens`, `pgPhoneChallengeStore`, `pgEmailSetupTokens`.
+- Цель: убрать raw query из auth-tail без изменения auth contracts.
+- Проверка:
+  - fast tests auth/email flows;
+  - parity по token/credential lookups.
+
+### 15C — treatment and minor infra tails
+
+- Файлы: `pgTreatmentProgram.ts`, `pgTreatmentProgramItemSnapshot.ts`, `pgMaterialRating.ts`, `pgUserPins.ts`, `pgPhoneHistory.ts`.
+- Цель: закрыть остатки малого объёма запросов.
+- Проверка:
+  - targeted tests treatment/material rating/pins.
+
+### 15D — integrator push outbox
+
+- Файл: `infra/integrator-push/integratorPushOutbox.ts`.
+- Цель: перевести `.query(` на Drizzle-модель `public.integrator_push_outbox`.
+- Проверка:
+  - integration tests push outbox producer/consumer contract;
+  - `rg "\\.query\\(" apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts`.
+
+### 15E — messenger bind and routes tail
+
+- Файлы: `messengerPhoneHttpBindExecute.ts` + route tails из scope.
+- Цель: убрать прямой query в bind-TX с сохранением семантики и Zod boundary validation.
+- Проверка:
+  - targeted tests bind/phone merge;
+  - route thinness check (SQL вне route handlers).
+
+### 15F — phase verify
+
+- Цель: финально зафиксировать raw SQL остаток и Class B/C список.
+- Проверка:
+  - `rg -l "pool\\.query|client\\.query" apps/webapp/src --glob "*.ts" | rg -v "\\.test\\.ts"`
+  - update `RAW_SQL_INVENTORY.md` + запись в `LOG.md`.
+
 ## Definition of Done
 
 - [ ] После фазы: `rg 'pool\.query|client\.query' apps/webapp/src` → только файлы с **явной** Class C пометкой в RAW_SQL.
 - [ ] `integratorPushOutbox` на Drizzle model из `apps/webapp/db/schema`.
 - [ ] `messengerPhoneHttpBindExecute` без прямого `pool.query`/`client.query`, с Zod-валидацией критичных payload/rows.
+- [ ] Подфазы 15A-15F закрыты последовательно и отражены в LOG.
 
 ## Scope — остаток после фаз 11–14
 

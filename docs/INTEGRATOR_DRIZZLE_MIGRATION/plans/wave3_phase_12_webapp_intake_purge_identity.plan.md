@@ -4,20 +4,20 @@ overview: Высокий риск — online intake, full purge, identity resolu
 status: pending
 isProject: false
 todos:
-  - id: w3-p12-intake
-    content: "pgOnlineIntake.ts (33) — runWebappSql + advisory (P3 done); integration tests."
+  - id: w3-p12a-intake
+    content: "12A: pgOnlineIntake.ts (33) — runWebappSql + advisory parity, integration tests."
     status: pending
-  - id: w3-p12-purge
-    content: "platformUserFullPurge.ts (40), platformUserMergePreview.ts (24) — поэтапно, TX Class B."
+  - id: w3-p12b-identity-phone
+    content: "12B: pgUserByPhone (21), pgIdentityResolution (12), pgPhoneMessengerBind (20) + Zod boundary checks."
     status: pending
-  - id: w3-p12-identity
-    content: "pgUserByPhone (21), pgIdentityResolution (12), pgPhoneMessengerBind (20)."
+  - id: w3-p12c-merge-route
+    content: "12C: app/api/doctor/clients/integrator-merge/route.ts (14) — thin route, SQL в infra/service."
     status: pending
-  - id: w3-p12-route
-    content: "app/api/doctor/clients/integrator-merge/route.ts (14) — thin; SQL в infra."
+  - id: w3-p12d-purge-preview
+    content: "12D: platformUserFullPurge.ts (40), platformUserMergePreview.ts (24), strictPlatformUserPurge.ts — TX Class B и безопасные dry-run semantics."
     status: pending
   - id: w3-p12-verify
-    content: "devDb integration tests purge/intake/merge; rg на фазу."
+    content: "12E: devDb integration tests purge/intake/merge; rg ноль по raw query в scope фазы."
     status: pending
 ---
 
@@ -27,12 +27,54 @@ todos:
 
 **L** — отдельный PR; не смешивать с booking.
 
+## Подфазы (обязательный порядок)
+
+### 12A — intake core
+
+- Файл: `infra/repos/pgOnlineIntake.ts`.
+- Цель: убрать прямой query-tail без изменения advisory semantics.
+- Проверка:
+  - targeted inprocess test на intake.
+  - `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos/pgOnlineIntake.ts`.
+
+### 12B — identity and phone bind
+
+- Файлы: `pgUserByPhone.ts`, `pgIdentityResolution.ts`, `pgPhoneMessengerBind.ts`.
+- Цель: унифицировать query execution и валидацию входов/rows через Zod.
+- Проверка:
+  - targeted tests identity/phone.
+  - `rg "JSON\\.parse\\(|as unknown" apps/webapp/src/infra/repos/pgUserByPhone.ts apps/webapp/src/infra/repos/pgIdentityResolution.ts apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts`.
+
+### 12C — integrator-merge route thinness
+
+- Файл: `app/api/doctor/clients/integrator-merge/route.ts`.
+- Цель: route остаётся thin, SQL остаётся в infra/service.
+- Проверка:
+  - route regression tests;
+  - `rg "pool\\.query|client\\.query|db\\.query" apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts`.
+
+### 12D — purge and merge preview
+
+- Файлы: `platformUserFullPurge.ts`, `platformUserMergePreview.ts`, `strictPlatformUserPurge.ts`.
+- Цель: безопасная TX-migration без потери семантики удаления/preview.
+- Проверка:
+  - devDb tests purge/preview.
+  - dry-run path подтверждён тестом.
+
+### 12E — phase verify
+
+- Цель: контроль остатка raw SQL по scope фазы и финальная фиксация в LOG/RAW_SQL.
+- Проверка:
+  - `rg -l "pool\\.query|client\\.query" apps/webapp/src --glob "*.ts"` + фильтр по scope фазы.
+  - targeted suite для intake/purge/merge.
+
 ## Definition of Done
 
 - [ ] Нет `pool.query` / `client.query` в файлах фазы (кроме Class C advisory/TX с ADR).
 - [ ] `platformUserFullPurge` / `pgOnlineIntake` — существующие integration tests зелёные.
 - [ ] Merge preview не ломает `platform-merge` consumer contract (merge engine остаётся pg в package).
 - [ ] В identity/merge ветках все внешние payload/row-shape проходят Zod-валидацию.
+- [ ] Подфазы 12A-12E закрыты последовательно, каждая с записью проверки в LOG.
 
 ## Scope
 

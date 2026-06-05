@@ -4,20 +4,20 @@ overview: Booking catalog, patient bookings tail, doctor appointments/clients/an
 status: pending
 isProject: false
 todos:
-  - id: w3-p13-catalog
-    content: "pgBookingCatalog.ts (37) — крупнейший блок; runWebappSql + Drizzle где просто."
+  - id: w3-p13a-catalog-read-write
+    content: "13A: pgBookingCatalog.ts (37) — сначала read paths, затем write paths, без big-bang rewrite."
     status: pending
-  - id: w3-p13-bookings-appt
-    content: "pgPatientBookings.ts (15), pgDoctorAppointments.ts (11), pgAppointmentProjection.ts (9)."
+  - id: w3-p13b-bookings-appointments
+    content: "13B: pgPatientBookings.ts (15), pgDoctorAppointments.ts (11), pgAppointmentProjection.ts (9), pgBookingCalendarLegacy.ts (1)."
     status: pending
-  - id: w3-p13-doctor-clients
-    content: "pgDoctorClients.ts (18), pgDoctorAnalyticsMetricAccounts.ts (25), createDoctorClient.ts (7)."
+  - id: w3-p13c-doctor-clients-analytics
+    content: "13C: pgDoctorClients.ts (18), pgDoctorAnalyticsMetricAccounts.ts (25), createDoctorClient.ts (7), pgDoctorNotes.ts (2), pgBranches.ts (2)."
     status: pending
-  - id: w3-p13-motivation
-    content: "app/doctor/content/motivation/actions.ts (10) — SQL в infra port."
+  - id: w3-p13d-motivation-and-tail
+    content: "13D: motivation/actions.ts (10), pgDoctorBroadcastDelivery.ts (6), pgDoctorProactiveInsights.ts (5) — SQL в infra портовом слое."
     status: pending
   - id: w3-p13-verify
-    content: "booking-rubitime-sync consumer tests + doctor clients tests."
+    content: "13E: booking-rubitime-sync consumer tests + doctor clients/appointments/analytics parity checks + rg ноль по scope."
     status: pending
 ---
 
@@ -27,12 +27,54 @@ todos:
 
 **L**
 
+## Подфазы (обязательный порядок)
+
+### 13A — booking catalog core
+
+- Файл: `pgBookingCatalog.ts`.
+- Порядок внутри подфазы: read paths -> write paths.
+- Проверка:
+  - targeted tests catalog read/write.
+  - `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos/pgBookingCatalog.ts`.
+
+### 13B — appointments and patient bookings
+
+- Файлы: `pgPatientBookings.ts`, `pgDoctorAppointments.ts`, `pgAppointmentProjection.ts`, `pgBookingCalendarLegacy.ts`.
+- Критичный инвариант: `pgPatientBookings` продолжает делегировать Rubitime upsert в `booking-rubitime-sync`.
+- Проверка:
+  - tests patient bookings + appointments;
+  - `pnpm --dir packages/booking-rubitime-sync run test`.
+
+### 13C — doctor clients and analytics
+
+- Файлы: `pgDoctorClients.ts`, `pgDoctorAnalyticsMetricAccounts.ts`, `createDoctorClient.ts`, `pgDoctorNotes.ts`, `pgBranches.ts`.
+- Цель: parity по агрегатам и фильтрам.
+- Проверка:
+  - snapshot/parity tests для doctor analytics;
+  - regression tests для doctor client flows.
+
+### 13D — motivation and remaining doctor tails
+
+- Файлы: `app/doctor/content/motivation/actions.ts`, `pgDoctorBroadcastDelivery.ts`, `pgDoctorProactiveInsights.ts`.
+- Цель: route/action остаются thin, SQL живёт в infra.
+- Проверка:
+  - targeted tests motivation/proactive/broadcast paths.
+  - `rg "pool\\.query|client\\.query" apps/webapp/src/app/app/doctor/content/motivation/actions.ts apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts apps/webapp/src/infra/repos/pgDoctorProactiveInsights.ts`.
+
+### 13E — phase verify
+
+- Цель: закрыть raw SQL tail в пределах scope фазы и зафиксировать в LOG.
+- Проверка:
+  - `rg -l "pool\\.query|client\\.query" apps/webapp/src --glob "*.ts"` + фильтр по scope 13.
+  - fast tests по booking/doctor paths.
+
 ## Definition of Done
 
 - [ ] Файлы фазы без необъяснённого `pool.query`.
 - [ ] `pgPatientBookings` по-прежнему делегирует Rubitime upsert в `booking-rubitime-sync` package (не ломать P8).
 - [ ] Doctor analytics SQL — parity тесты или snapshot counts.
 - [ ] Фильтры/DTO booking/doctor paths валидируются Zod на boundary-слое.
+- [ ] Подфазы 13A-13E закрыты в указанном порядке и зафиксированы в LOG.
 
 ## Scope
 

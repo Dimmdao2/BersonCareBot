@@ -4,23 +4,20 @@ overview: media-worker processTranscodeJob/processProgramSubmissionTranscode/wat
 status: pending
 isProject: false
 todos:
-  - id: w3-p10-executor
-    content: "Minimal sql executor на существующем Pool (без shared schema package) — helper в media-worker."
+  - id: w3-p10a-preflight
+    content: "10A: preflight перед кодом — зафиксировать SQL inventory media-worker, подготовить executor contract, список инвариантов claim/transcode."
     status: pending
-  - id: w3-p10-process-transcode
-    content: "processTranscodeJob.ts — status updates/joins через executor."
+  - id: w3-p10b-runtime
+    content: "10B: minimal sql executor + миграция processTranscodeJob/processProgramSubmissionTranscode/watermarkEnabled/pipelineEnabled на executor."
     status: pending
-  - id: w3-p10-process-program
-    content: "processProgramSubmissionTranscode.ts — то же."
-    status: pending
-  - id: w3-p10-settings-reads
-    content: "watermarkEnabled.ts, pipelineEnabled.ts — settings через executor."
+  - id: w3-p10c-ops-prep
+    content: "10C: подготовить staging smoke pack (чеклист, команды, expected logs/queries, rollback hints) для обязательного gate фазы 17."
     status: pending
   - id: w3-p10-claim-adr
     content: "claim.ts без изменений; ADR в RAW_SQL если ещё нет."
     status: pending
   - id: w3-p10-verify
-    content: "pnpm --dir apps/media-worker test; rg pool.query (expect claim only)."
+    content: "После 10A-10C: pnpm --dir apps/media-worker test; rg pool.query (expect claim only); smoke pack приложен в LOG."
     status: pending
 ---
 
@@ -30,6 +27,46 @@ todos:
 
 **M**
 
+## Подфазы (обязательный порядок)
+
+### 10A — preflight
+
+- Зафиксировать baseline:
+  - `jobs/claim.ts` — permanent Class C.
+  - `processTranscodeJob.ts`, `processProgramSubmissionTranscode.ts`, `watermarkEnabled.ts`, `pipelineEnabled.ts` — target migration.
+- Подготовить "инварианты поведения":
+  - те же статусы/transition graph;
+  - те же условия retry/fail;
+  - те же условия чтения feature flags из `system_settings`.
+- Проверка:
+  - `rg "pool\\.query" apps/media-worker/src --glob "*.ts"`
+  - `pnpm --dir apps/media-worker run test -- --run claim`
+
+### 10B — runtime migration
+
+- Ввести thin helper `runMediaWorkerSql` на текущем `pg.Pool`.
+- Перевести:
+  - `processTranscodeJob.ts`
+  - `processProgramSubmissionTranscode.ts`
+  - `watermarkEnabled.ts`
+  - `pipelineEnabled.ts`
+- Ограничение: без shared schema package, без изменения семантики claim.
+- Проверка:
+  - `rg "pool\\.query" apps/media-worker/src --glob "*.ts"`
+  - `pnpm --dir apps/media-worker run test`
+  - `pnpm --dir apps/media-worker run typecheck`
+
+### 10C — operational prep for staging smoke
+
+- Подготовить "smoke pack" (док/LOG-блок) для фазы 17:
+  - шаги multipart upload -> enqueue -> claim -> transcode done/failed;
+  - какие логи смотреть (`media-worker`, webapp enqueue path);
+  - какие SQL-проверки состояния нужны;
+  - критерии pass/fail и что фиксировать в LOG.
+- Подготовить rollback hints:
+  - безопасный откат worker-runtime commit;
+  - повторная проверка, что claim-path не затронут.
+
 ## Definition of Done
 
 - [ ] `processTranscodeJob.ts`, `processProgramSubmissionTranscode.ts`, `watermarkEnabled.ts`, `pipelineEnabled.ts` — нет прямого `pool.query`; SQL идёт через minimal executor (Class B).
@@ -37,6 +74,7 @@ todos:
 - [ ] **Нет** нового shared schema package в monorepo.
 - [ ] LOG: «shared schema package — backlog вне Wave 3».
 - [ ] Флаги/JSON из `system_settings` в worker проходят через Zod-валидацию (без unsafe cast).
+- [ ] Подфазы 10A-10C закрыты; staging smoke pack подготовлен до старта фазы 17.
 
 ## Scope
 
@@ -78,4 +116,4 @@ pnpm --dir apps/media-worker run typecheck
 
 ## Открытое
 
-- E2E staging multipart→claim — обязательный gate в фазе 16.
+- E2E staging multipart→claim — обязательный gate в фазе 17.
