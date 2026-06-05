@@ -73,13 +73,13 @@ export default async function SettingsPage({
           initialEmail={accountEmail.email}
           emailVerified={Boolean(accountEmail.emailVerifiedAt)}
         />
-      <SettingsForm
-        patientLabel={String(patientLabel)}
-        smsFallbackEnabled={Boolean(smsFallbackEnabled)}
-        supportCommentsWithoutSupportDefault={Boolean(supportCommentsWithoutSupportDefault)}
-        supportMediaWithoutSupportDefault={Boolean(supportMediaWithoutSupportDefault)}
-        taskReminderChannels={taskReminderChannels}
-      />
+        <SettingsForm
+          patientLabel={String(patientLabel)}
+          smsFallbackEnabled={Boolean(smsFallbackEnabled)}
+          supportCommentsWithoutSupportDefault={Boolean(supportCommentsWithoutSupportDefault)}
+          supportMediaWithoutSupportDefault={Boolean(supportMediaWithoutSupportDefault)}
+          taskReminderChannels={taskReminderChannels}
+        />
       </div>
     </div>
   );
