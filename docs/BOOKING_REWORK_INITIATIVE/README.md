@@ -20,7 +20,9 @@
 8. [`ACCEPTANCE_STAGE3.md`](ACCEPTANCE_STAGE3.md) — приёмка этапа 3 (**закрыта в коде** 2026-06-04).
 9. [`STAGE4_DECOMPOSITION.md`](STAGE4_DECOMPOSITION.md) — декомпозиция этапа 4 (4.0–4.8): calendar npm, canonical feed, working/break, DnD, Rubitime rollback, poll refresh.
 10. [`ACCEPTANCE_STAGE4.md`](ACCEPTANCE_STAGE4.md) — приёмка этапа 4.
-11. План этапа 2 (архив): [`.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md`](../../.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md)
+11. [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) — двустороннее зеркалирование Rubitime ↔ канон (`AppointmentMirrorSync`, закрыто 2026-06-05).
+12. План mirror sync (архив): [`.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md`](../../.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md).
+13. План этапа 2 (архив): [`.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md`](../../.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md)
 
 **Этап 3 (кратко):** комментарий к пакету (`notes`), индивидуальный абонемент без названия в UI, `GET …/sessions`, `POST …/package/detach`, карточка клиента (`PatientPackageCard` / `PatientPackageSessionsList`), настройка `booking_allow_doctor_unlink_past_package_sessions` — см. [`LOG.md`](LOG.md).
 
@@ -36,6 +38,8 @@
 
 - [`../OWN_BOOKING_ENGINE_INITIATIVE/README.md`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md) — исходная инициатива собственного движка записи.
 - [`../OWN_BOOKING_ENGINE_INITIATIVE/DATA_MODEL_REFERENCE.md`](../OWN_BOOKING_ENGINE_INITIATIVE/DATA_MODEL_REFERENCE.md) — текущая каноническая модель.
-- [`../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — текущий Rubitime pipeline.
+- [`../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — Rubitime pipeline + § mirror sync.
+- [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) — приёмка двустороннего зеркалирования.
+- [`../../apps/webapp/src/modules/booking-appointment-sync/README.md`](../../apps/webapp/src/modules/booking-appointment-sync/README.md) — модуль mirror (код).
 - [`../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`](../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md) — навигация кабинета врача/админа.
 

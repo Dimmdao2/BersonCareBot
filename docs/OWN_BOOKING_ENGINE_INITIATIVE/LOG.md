@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-06-05 — Двустороннее зеркалирование Rubitime ↔ канон (cross-initiative)
+
+Реализация и приёмка ведутся в **BOOKING_REWORK** (не отдельный этап OWN_BOOKING):
+
+- Модуль: [`booking-appointment-sync/README.md`](../../apps/webapp/src/modules/booking-appointment-sync/README.md)
+- Приёмка: [`BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md`](../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md)
+- Журнал: [`BOOKING_REWORK_INITIATIVE/LOG.md`](../BOOKING_REWORK_INITIATIVE/LOG.md) § 2026-06-05
+- Pipeline: [`ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) § «Двустороннее зеркалирование»
+
+**Итог для C8 (Rubitime-мост):** inbound webhook + outbound staff/patient/admin при `booking_rubitime_bridge_enabled` и mapping; ops backfill — `POST /api/admin/booking-engine/bridge`.
+
+**Исторические записи** этапа 1/2 ниже с формулировкой «двусторонний sync не делали» относятся к состоянию **до** этой даты.
+
+---
+
 ## 2026-06-02 — Rubitime catalog v2: UX редактирования услуг
 
 **План:** [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md) (`status: completed`, `completedAt: 2026-06-02`).
@@ -159,7 +174,7 @@
 
 **Миграции 0087/0088 (идемпотентность):** backfill специалистов — join по `created_at`, не по одному `full_name`; `ON CONFLICT` для mappings; литералы org — `::uuid`. Если meta в `drizzle.__drizzle_migrations` записана без фактического SQL — повторно выполнить файлы `0087`/`0088` или `db:seed-drizzle-meta` только после ручного apply.
 
-**Намеренно не делали:** write-путь пациента на канон (этап 2); удаление legacy таблиц; двусторонний Rubitime-sync.
+**Намеренно не делали (на дату этапа 1):** write-путь пациента на канон (этап 2); удаление legacy таблиц; двусторонний Rubitime-sync — **добавлен 2026-06-05**, см. § выше.
 
 **Rollback:** `DROP` таблиц `be_*` (обратный порядок FK); legacy не трогаются. Backfill idempotent.
 
@@ -179,7 +194,7 @@
 
 **Проверки:** `pnpm --filter webapp typecheck`; vitest `booking-scheduling`, `booking-form`, `patient-booking/service`.
 
-**Намеренно не делали:** полный публичный виджет/Tilda (этап 3); полный перевод календаря врача на канон (этап 8); двусторонний Rubitime write-sync beyond create mirror.
+**Намеренно не делали (на дату этапа 2):** полный публичный виджет/Tilda (этап 3); полный перевод календаря врача на канон (этап 8); полный двусторонний write-sync — **cancel/reschedule mirror закрыт 2026-06-05** (§ 2026-06-05 выше); create mirror был ранее.
 
 **Доработка миграций (идемпотентность):** `0087` — маппинг специалистов по `created_at`, `ON CONFLICT` для mappings; `0088` — seed settings (`booking_*` keys), repair mappings; литералы org — `::uuid` в SQL, значение org в JSON — строка (для `readSettingString`).
 

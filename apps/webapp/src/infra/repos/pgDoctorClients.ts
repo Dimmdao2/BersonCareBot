@@ -18,6 +18,7 @@ import {
   listOnSupportPatientUserIds,
   upsertClientSupportProfile,
 } from "@/infra/repos/pgDoctorPatientSupport";
+import { appendSqlExcludeUserIds } from "@/modules/analytics/analyticsAudience";
 
 function rowToBindings(rows: { channel_code: string; external_id: string }[]): ChannelBindings {
   const bindings: ChannelBindings = {};
@@ -195,23 +196,22 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return list;
     },
 
-    async getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics> {
+    async getDashboardPatientMetrics(audience?: {
+      excludedUserIds?: string[];
+    }): Promise<DoctorDashboardPatientMetrics> {
       const pool = getPool();
-      const [totalR, supportR, visitedR] = await Promise.all([
-        pool.query<{ c: string }>(
-          `SELECT COUNT(*)::text AS c FROM platform_users WHERE role = 'client' AND merged_into_id IS NULL AND COALESCE(is_archived, false) = false`
-        ),
-        pool.query<{ c: string }>(
-          `SELECT COUNT(*)::text AS c
+      const excluded = audience?.excludedUserIds ?? [];
+      const totalBase = `SELECT COUNT(*)::text AS c FROM platform_users pu WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND COALESCE(pu.is_archived, false) = false`;
+      const totalQ = appendSqlExcludeUserIds(totalBase, "pu.id", excluded, []);
+      const supportBase = `SELECT COUNT(*)::text AS c
            FROM doctor_patient_support dps
            INNER JOIN platform_users pu ON pu.id = dps.patient_user_id
            WHERE dps.on_support = true
              AND pu.role = 'client'
              AND pu.merged_into_id IS NULL
-             AND COALESCE(pu.is_archived, false) = false`
-        ),
-        pool.query<{ c: string }>(
-          `SELECT COUNT(DISTINCT pu.id)::text AS c
+             AND COALESCE(pu.is_archived, false) = false`;
+      const supportQ = appendSqlExcludeUserIds(supportBase, "pu.id", excluded, []);
+      const visitedBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
            INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
            WHERE pu.role = 'client'
@@ -222,8 +222,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
              AND ar.record_at < NOW()
              AND ar.status IN ('created', 'updated')
-             AND ar.deleted_at IS NULL`,
-        ),
+             AND ar.deleted_at IS NULL`;
+      const visitedQ = appendSqlExcludeUserIds(visitedBase, "pu.id", excluded, []);
+      const [totalR, supportR, visitedR] = await Promise.all([
+        pool.query<{ c: string }>(totalQ.sql, totalQ.params),
+        pool.query<{ c: string }>(supportQ.sql, supportQ.params),
+        pool.query<{ c: string }>(visitedQ.sql, visitedQ.params),
       ]);
       return {
         totalClients: parseInt(totalR.rows[0]?.c ?? "0", 10),
@@ -232,11 +236,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       };
     },
 
-    async countRecentClientsWithoutMessagingChannels(days: number): Promise<number> {
+    async countRecentClientsWithoutMessagingChannels(
+      days: number,
+      audience?: { excludedUserIds?: string[] },
+    ): Promise<number> {
       const pool = getPool();
       const safeDays = Math.max(1, Math.min(365, Math.floor(days)));
-      const r = await pool.query<{ c: string }>(
-        `SELECT COUNT(*)::text AS c
+      const excluded = audience?.excludedUserIds ?? [];
+      const base = `SELECT COUNT(*)::text AS c
          FROM platform_users pu
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
@@ -247,9 +254,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              FROM user_channel_bindings ucb
              WHERE ucb.user_id = pu.id
                AND ucb.channel_code IN ('telegram', 'max')
-           )`,
-        [safeDays],
-      );
+           )`;
+      const q = appendSqlExcludeUserIds(base, "pu.id", excluded, [safeDays]);
+      const r = await pool.query<{ c: string }>(q.sql, q.params);
       return parseInt(r.rows[0]?.c ?? "0", 10);
     },
 
@@ -385,15 +392,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return upsertClientSupportProfile({ ...rest, updatedBy: actorId });
     },
 
-    async getClientContactBreakdown() {
+    async getClientContactBreakdown(audience?: { excludedUserIds?: string[] }) {
       const pool = getPool();
-      const rows = await pool.query<{
-        has_telegram: boolean;
-        has_max: boolean;
-        has_verified_email: boolean;
-        has_phone: boolean;
-      }>(
-        `SELECT
+      const excluded = audience?.excludedUserIds ?? [];
+      const base = `SELECT
            EXISTS (
              SELECT 1 FROM user_channel_bindings ucb
              WHERE ucb.user_id = pu.id AND ucb.channel_code = 'telegram'
@@ -407,8 +409,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
          FROM platform_users pu
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
-           AND COALESCE(pu.is_archived, false) = false`,
-      );
+           AND COALESCE(pu.is_archived, false) = false`;
+      const q = appendSqlExcludeUserIds(base, "pu.id", excluded, []);
+      const rows = await pool.query<{
+        has_telegram: boolean;
+        has_max: boolean;
+        has_verified_email: boolean;
+        has_phone: boolean;
+      }>(q.sql, q.params);
       const breakdown = emptyClientContactBreakdown();
       for (const row of rows.rows) {
         accumulateClientContactBreakdown(breakdown, {

@@ -473,6 +473,26 @@ export async function createBookingOnCanonicalEngine(
     rubitimeManageUrl,
     canonicalAppointmentId: appointment.id,
   });
+  if (!confirmed) {
+    await deps.bookingsPort.markFailedSync(pending.id);
+    if (rubitimeFirst && rubitimeId) {
+      try {
+        await deps.syncPort.deleteRecord(rubitimeId);
+      } catch {
+        // Best-effort rollback of Rubitime record.
+      }
+    }
+    try {
+      await deps.bookingEngine.transitionAppointmentStatus({
+        appointmentId: appointment.id,
+        toStatus: "cancelled_by_specialist",
+        payload: { source: "booking_confirm_failed" },
+      });
+    } catch {
+      // Best-effort rollback of orphan canonical appointment.
+    }
+    throw new Error("booking_confirm_failed");
+  }
 
   // Rubitime post-create projection already fills appointment_records; skip native `be:` row.
   if (deps.appointmentProjection && !rubitimeId) {

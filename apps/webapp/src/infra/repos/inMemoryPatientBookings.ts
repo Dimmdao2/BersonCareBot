@@ -36,6 +36,33 @@ function slotMatchesRowAndInput(rowSlot: string, inputSlot: string): boolean {
   return a === b;
 }
 
+function isAbandonedNativeCreating(row: PatientBookingRecord): boolean {
+  return (
+    row.status === "creating" &&
+    row.bookingSource === "native" &&
+    row.rubitimeId == null &&
+    row.canonicalAppointmentId == null
+  );
+}
+
+function reconcileAbandonedNativeCreating(input: {
+  userId: string;
+  slotStart: string;
+  slotEnd: string;
+}): void {
+  const cutoff = Date.now() - 15 * 60_000;
+  for (const [id, row] of byId) {
+    if (!isAbandonedNativeCreating(row)) continue;
+    const sameUserRetry =
+      row.userId === input.userId &&
+      intervalsOverlap(input.slotStart, input.slotEnd, row.slotStart, row.slotEnd);
+    const stale = Date.parse(row.createdAt) < cutoff;
+    if (sameUserRetry || stale) {
+      byId.set(id, { ...row, status: "failed_sync", updatedAt: new Date().toISOString() });
+    }
+  }
+}
+
 function hasGlobalSlotOverlap(input: {
   slotStart: string;
   slotEnd: string;
@@ -47,6 +74,7 @@ function hasGlobalSlotOverlap(input: {
   for (const row of byId.values()) {
     if (input.excludeBookingId !== undefined && row.id === input.excludeBookingId) continue;
     if (!BLOCKING_STATUSES.includes(row.status as (typeof BLOCKING_STATUSES)[number])) continue;
+    if (isAbandonedNativeCreating(row)) continue;
     if (cooperatorId != null) {
       if (row.rubitimeCooperatorIdSnapshot !== cooperatorId) continue;
     } else if (row.userId !== input.userId) {
@@ -103,6 +131,11 @@ function applyUpsertFromRubitimeToRow(id: string, row: PatientBookingRecord, inp
 
 export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   async createPending(input: CreatePendingPatientBookingInput) {
+    reconcileAbandonedNativeCreating({
+      userId: input.userId,
+      slotStart: input.slotStart,
+      slotEnd: input.slotEnd,
+    });
     if (
       hasGlobalSlotOverlap({
         slotStart: input.slotStart,
@@ -287,16 +320,19 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     if (!targetId || !row) {
       const phoneRaw = input.contactPhone?.trim() ?? "";
       const slotStartIso = input.slotStart?.trim() ?? "";
-      if (phoneRaw && slotStartIso) {
-        const phoneNorm = normalizeRuPhoneE164(phoneRaw);
+      const userId = input.userId?.trim() || null;
+      if ((phoneRaw || userId) && slotStartIso) {
+        const phoneNorm = phoneRaw ? normalizeRuPhoneE164(phoneRaw) : null;
         type Cand = { id: string; row: PatientBookingRecord; createdMs: number };
         const candidates: Cand[] = [];
         for (const [id, r] of byId.entries()) {
           if (r.bookingSource !== "native") continue;
           if (r.rubitimeId != null) continue;
           if (!isFallbackNativeStatus(r.status)) continue;
+          const matchesUser = userId != null && r.userId === userId;
           const rowPhoneNorm = normalizeRuPhoneE164(r.contactPhone.trim());
-          if (rowPhoneNorm !== phoneNorm) continue;
+          const matchesPhone = phoneNorm != null && rowPhoneNorm === phoneNorm;
+          if (!matchesUser && !matchesPhone) continue;
           if (!slotMatchesRowAndInput(r.slotStart, slotStartIso)) continue;
           candidates.push({ id, row: r, createdMs: Date.parse(r.createdAt) });
         }
@@ -390,6 +426,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
           row.status,
         ),
       )
+      .filter((row) => !isAbandonedNativeCreating(row))
       .filter((row) => new Date(row.slotStart).getTime() >= nowMs)
       .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
   },

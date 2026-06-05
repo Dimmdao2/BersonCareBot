@@ -175,7 +175,7 @@ Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, `bookingScheduling.ts`, `book
 
 `patient_bookings.status` включает `awaiting_payment` (check синхронизирован с миграцией `0092` и Drizzle `schema.ts`).
 
-Legacy `booking_*` / `patient_bookings` / `appointment_records` **не удалены**; backfill копирует каталог в `be_*`. Read-bridge проецирует `appointment_records` и `rubitime_records` в `be_appointments` при `booking_rubitime_bridge_enabled` (admin `system_settings`). См. [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md).
+Legacy `booking_*` / `patient_bookings` / `appointment_records` **не удалены**; backfill копирует каталог в `be_*`. При `booking_rubitime_bridge_enabled`: **live mirror** (`AppointmentMirrorSync`) синхронизирует mapped appointments в `be_appointments` и `appointment_records`; ops backfill — `POST /api/admin/booking-engine/bridge`. См. [`CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md) § Live mirror, [`ACCEPTANCE_MIRROR_SYNC.md`](../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md).
 
 ### 2.7 Subscription / mailing (проекция из integrator)
 

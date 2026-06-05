@@ -4,8 +4,8 @@ import {
   productAnalyticsWindowStartHour,
 } from "@/modules/product-analytics/buildAdminDashboard";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { resolveAnalyticsExcludedUserIds } from "@/modules/analytics/analyticsAudience";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
 import {
   hourlyDimsFromEvent,
   shouldUpdateUserHourly,
@@ -29,9 +29,7 @@ import {
   productAnalyticsUserHourly,
   productPushNotifications,
 } from "../../../db/schema/productAnalytics";
-import { platformUsers, systemSettings, userChannelBindings } from "../../../db/schema/schema";
-
-const STAFF_ANALYTICS_ROLES = ["admin", "doctor"] as const;
+import { platformUsers } from "../../../db/schema/schema";
 
 function pgErrCode(e: unknown): string | undefined {
   if (typeof e === "object" && e !== null && "code" in e) {
@@ -43,71 +41,6 @@ function pgErrCode(e: unknown): string | undefined {
 
 function retentionCutoffIso(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-}
-
-async function readTestAccountIdentifiers(
-  db: ReturnType<typeof getDrizzle>,
-): Promise<ReturnType<typeof normalizeTestAccountIdentifiersValue>> {
-  const [row] = await db
-    .select({ valueJson: systemSettings.valueJson })
-    .from(systemSettings)
-    .where(and(eq(systemSettings.key, "test_account_identifiers"), eq(systemSettings.scope, "admin")))
-    .limit(1);
-  if (!row?.valueJson || typeof row.valueJson !== "object") return null;
-  const inner = (row.valueJson as Record<string, unknown>).value;
-  return normalizeTestAccountIdentifiersValue(inner);
-}
-
-async function loadExcludedAnalyticsUserIds(db: ReturnType<typeof getDrizzle>): Promise<string[]> {
-  const excluded = new Set<string>();
-
-  const staffRows = await db
-    .select({ id: platformUsers.id })
-    .from(platformUsers)
-    .where(inArray(platformUsers.role, [...STAFF_ANALYTICS_ROLES]));
-  for (const row of staffRows) excluded.add(row.id);
-
-  const spec = await readTestAccountIdentifiers(db);
-  if (!spec) return [...excluded];
-
-  const phoneRowsPromise =
-    spec.phones.length > 0
-      ? db
-          .select({ id: platformUsers.id })
-          .from(platformUsers)
-          .where(inArray(platformUsers.phoneNormalized, spec.phones))
-      : Promise.resolve([] as Array<{ id: string }>);
-  const telegramRowsPromise =
-    spec.telegramIds.length > 0
-      ? db
-          .select({ id: userChannelBindings.userId })
-          .from(userChannelBindings)
-          .where(
-            and(
-              eq(userChannelBindings.channelCode, "telegram"),
-              inArray(userChannelBindings.externalId, spec.telegramIds),
-            ),
-          )
-      : Promise.resolve([] as Array<{ id: string }>);
-  const maxRowsPromise =
-    spec.maxIds.length > 0
-      ? db
-          .select({ id: userChannelBindings.userId })
-          .from(userChannelBindings)
-          .where(
-            and(eq(userChannelBindings.channelCode, "max"), inArray(userChannelBindings.externalId, spec.maxIds)),
-          )
-      : Promise.resolve([] as Array<{ id: string }>);
-
-  const [phoneRows, telegramRows, maxRows] = await Promise.all([
-    phoneRowsPromise,
-    telegramRowsPromise,
-    maxRowsPromise,
-  ]);
-  for (const row of phoneRows) excluded.add(row.id);
-  for (const row of telegramRows) excluded.add(row.id);
-  for (const row of maxRows) excluded.add(row.id);
-  return [...excluded];
 }
 
 async function upsertHourlyCount(
@@ -292,11 +225,14 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       return { deduped: false };
     },
 
-    async getAdminDashboard({ windowHours }) {
+    async getAdminDashboard({ windowHours, includeTestAccounts = false }) {
       const db = getDrizzle();
       const displayTimezone = await getAppDisplayTimeZone();
       const startHour = productAnalyticsWindowStartHour(windowHours);
-      const excludedUserIds = await loadExcludedAnalyticsUserIds(db);
+      const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
+        includeTestAccounts,
+        excludeStaffRoles: true,
+      });
 
       const recentEventConditions = [gte(productAnalyticsEventsRecent.occurredAt, startHour)];
       if (excludedUserIds.length > 0) {
@@ -526,7 +462,10 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
 
     async listRegistrationEvents(params: ListRegistrationEventsParams): Promise<ListRegistrationEventsResult> {
       const db = getDrizzle();
-      const excludedUserIds = await loadExcludedAnalyticsUserIds(db);
+      const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
+        includeTestAccounts: false,
+        excludeStaffRoles: true,
+      });
       const conditions = [
         gte(productAnalyticsEventsRecent.occurredAt, params.startIso),
         lt(productAnalyticsEventsRecent.occurredAt, params.endExclusiveIso),

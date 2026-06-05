@@ -155,7 +155,7 @@ function createBridgeFacade(port: RubitimeBridgePort) {
       assertUuid(organizationId);
       const enabled = await port.isBridgeEnabled();
       if (!enabled) {
-        const empty = { projectedAppointments: 0, skippedExisting: 0, recoveredMappings: 0 };
+        const empty = { projectedAppointments: 0, updatedAppointments: 0, skippedExisting: 0, recoveredMappings: 0 };
         return { appointmentRecords: empty, rubitimeRecords: empty };
       }
       const appointmentRecords = await port.projectAppointmentRecords(organizationId);

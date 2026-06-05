@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { applyStaffRescheduleSideEffects } from "@/app-layer/booking/staffAppointmentLifecycleEffects";
+import {
+  resolveRubitimeIdForAppointment,
+  syncStaffRescheduleToRubitime,
+} from "@/app-layer/booking/staffRubitimeMirrorOutbound";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
@@ -55,33 +59,44 @@ export async function POST(request: Request, context: RouteContext) {
   const bookingRow = deps.patientBooking
     ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
     : null;
-  const rubitimeId =
-    bookingRow?.rubitimeId ??
-    (gate.ctx.service.getRubitimeAppointmentId
-      ? await gate.ctx.service.getRubitimeAppointmentId({
-          organizationId: gate.ctx.organizationId,
-          appointmentId,
-        })
-      : null);
+  const rubitimeId = await resolveRubitimeIdForAppointment({
+    appointmentId,
+    organizationId: gate.ctx.organizationId,
+    bookingRow,
+    getRubitimeAppointmentId: gate.ctx.service.getRubitimeAppointmentId,
+  });
   let syncedExternally = false;
   const rollbackExternalReschedule = async () => {
-    if (!syncedExternally || !rubitimeId || !syncPort.updateRecord) return;
+    if (!syncedExternally || !rubitimeId) return;
     try {
-      await syncPort.updateRecord({
+      await syncStaffRescheduleToRubitime({
         rubitimeId,
-        slotStart: beforeAppointment.startAt,
-        slotEnd: beforeAppointment.endAt,
+        appointmentId,
+        appointment: beforeAppointment,
+        appointmentMirrorSync: deps.appointmentMirrorSync,
+        syncPort,
       });
     } catch {
       // Best-effort external rollback when canonical reschedule is rejected.
     }
   };
-  if (rubitimeId && syncPort.updateRecord) {
+  const outboundAppointment = {
+    ...beforeAppointment,
+    startAt: parsed.data.newStartAt,
+    endAt: parsed.data.newEndAt,
+    durationMinutes: parsed.data.durationMinutes,
+    branchId: parsed.data.branchId ?? beforeAppointment.branchId,
+    specialistId: parsed.data.specialistId ?? beforeAppointment.specialistId,
+    serviceId: parsed.data.serviceId ?? beforeAppointment.serviceId,
+  };
+  if (rubitimeId) {
     try {
-      await syncPort.updateRecord({
+      await syncStaffRescheduleToRubitime({
         rubitimeId,
-        slotStart: parsed.data.newStartAt,
-        slotEnd: parsed.data.newEndAt,
+        appointmentId,
+        appointment: outboundAppointment,
+        appointmentMirrorSync: deps.appointmentMirrorSync,
+        syncPort,
       });
       syncedExternally = true;
     } catch (syncErr) {

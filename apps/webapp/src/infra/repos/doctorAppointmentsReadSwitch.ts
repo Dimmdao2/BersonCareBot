@@ -39,7 +39,8 @@ export function createDoctorAppointmentsReadSwitchPort(input: {
 
   return {
     listAppointmentsForSpecialist: async (filter) => (await pick()).listAppointmentsForSpecialist(filter),
-    getAppointmentStats: async (filter) => (await pick()).getAppointmentStats(filter),
-    getDashboardAppointmentMetrics: async () => (await pick()).getDashboardAppointmentMetrics(),
+    getAppointmentStats: async (filter, audience) => (await pick()).getAppointmentStats(filter, audience),
+    getDashboardAppointmentMetrics: async (audience) =>
+      (await pick()).getDashboardAppointmentMetrics(audience),
   };
 }

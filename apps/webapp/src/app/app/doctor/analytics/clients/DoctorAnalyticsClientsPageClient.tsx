@@ -154,21 +154,21 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
                 id="doctor-stats-clients-total"
                 title="Всего клиентов"
                 value={clients.total}
-                onValueClick={() => openMetric("clients_total", "Все клиенты")}
+                onClick={() => openMetric("clients_total", "Все клиенты")}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-phone-only"
                 title="Только телефон"
                 value={clients.phoneOnly}
                 tone="warning"
-                onValueClick={() => openMetric("clients_phone_only", "Клиенты: только телефон")}
+                onClick={() => openMetric("clients_phone_only", "Клиенты: только телефон")}
               />
               <DoctorStatCard
                 id="doctor-stats-clients-app-guests"
                 title="Гости приложения"
                 value={clients.appGuests}
                 tone="warning"
-                onValueClick={() => openMetric("clients_app_guests", "Гости приложения")}
+                onClick={() => openMetric("clients_app_guests", "Гости приложения")}
               />
             </DoctorMetricList>
           </div>

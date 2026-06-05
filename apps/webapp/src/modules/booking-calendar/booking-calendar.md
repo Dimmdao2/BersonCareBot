@@ -31,7 +31,8 @@
 ## Rubitime sync (staff actions)
 
 - `POST .../appointments/manual`: canonical create -> synchronous Rubitime `createRecord` -> при конфликте rollback (hard delete/fallback cancel) + `409 external_slot_taken`.
-- `POST .../appointments/[id]/manual-reschedule`: Rubitime sync first -> canonical `staffReschedule`; при конфликте Rubitime canonical запись не меняется, `409 external_slot_taken`.
+- `POST .../appointments/[id]/manual-reschedule`: Rubitime sync first (`AppointmentMirrorSync` / normalized `update-record`) -> canonical `staffReschedule`; при конфликте Rubitime canonical запись не меняется, `409 external_slot_taken`.
+- `POST .../appointments/[id]/manual-cancel`: сначала `staffCancel` в каноне, затем при успехе — `cancelRecord` (status 4) в Rubitime.
 
 Единый контракт конфликтов:
 

@@ -77,7 +77,7 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
             id="doctor-stats-appointments-past-visits"
             title="Визиты клиентов"
             value={stats.pastVisitsInPeriod}
-            onValueClick={
+            onClick={
               onMetricClick ? () => onMetricClick("appointments_past_visits", "Визиты клиентов за период") : undefined
             }
           />
@@ -86,7 +86,7 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
             title="Отменённых визитов"
             value={stats.cancelledVisitsInPeriod}
             tone="warning"
-            onValueClick={
+            onClick={
               onMetricClick
                 ? () => onMetricClick("appointments_cancelled_visits", "Отменённые визиты за период")
                 : undefined
@@ -96,7 +96,7 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
             id="doctor-stats-appointments-bookings-created"
             title="Записались за период"
             value={stats.bookingsCreatedInPeriod}
-            onValueClick={
+            onClick={
               onMetricClick
                 ? () => onMetricClick("appointments_bookings_created", "Записи, созданные за период")
                 : undefined
@@ -107,7 +107,7 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
             title="Отмены записи"
             value={stats.cancellationActionsInPeriod}
             tone="warning"
-            onValueClick={
+            onClick={
               onMetricClick
                 ? () => onMetricClick("appointments_cancellation_actions", "Отмены записей за период")
                 : undefined
@@ -117,7 +117,7 @@ export function DoctorAnalyticsAppointmentsSection({ period, ready, onMetricClic
             id="doctor-stats-appointments-reschedule-actions"
             title="Переносы за период"
             value={stats.rescheduleActionsInPeriod}
-            onValueClick={
+            onClick={
               onMetricClick
                 ? () => onMetricClick("appointments_reschedule_actions", "Переносы записей за период")
                 : undefined

@@ -46,7 +46,9 @@ describe("Stage 8 timezone contract (webapp PG repos)", () => {
 
   it("S8.T02: patient_bookings — createPending binds slot_start ($6) to canonical ISO", async () => {
     const slotEnd = "2026-04-07T09:00:00.000Z";
-    queryMock.mockResolvedValueOnce({
+    queryMock
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValueOnce({
       rows: [
         {
           id: "pb-stage8",
@@ -93,10 +95,10 @@ describe("Stage 8 timezone contract (webapp PG repos)", () => {
       rubitimeCooperatorIdSnapshot: null,
       rubitimeServiceIdSnapshot: null,
     });
-    expect(queryMock).toHaveBeenCalledTimes(1);
-    const params = queryMock.mock.calls[0][1] as unknown[];
+    expect(queryMock).toHaveBeenCalledTimes(2);
+    const params = queryMock.mock.calls[1][1] as unknown[];
     expect(params[5]).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
-    const sql = queryMock.mock.calls[0][0] as string;
+    const sql = queryMock.mock.calls[1][0] as string;
     expect(sql).toContain("patient_bookings");
     expect(sql).toContain("slot_start");
   });

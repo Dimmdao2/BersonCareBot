@@ -121,7 +121,10 @@ describe("buildAppDeps", () => {
   it("doctorStats has getStats", async () => {
     const deps = buildAppDeps();
     expect(typeof deps.doctorStats.getStats).toBe("function");
-    const stats = await deps.doctorStats.getStats();
+    const stats = await deps.doctorStats.getStats({
+      includeTestAccounts: false,
+      excludedUserIds: [],
+    });
     expect(stats).toHaveProperty("appointments");
     expect(stats).toHaveProperty("clients");
     expect(stats.appointments).toHaveProperty("total");

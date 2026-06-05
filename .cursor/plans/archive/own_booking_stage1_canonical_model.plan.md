@@ -112,7 +112,7 @@ isProject: false
 - [x] Организационная модель + услуги + доступность без дублей (ТЗ §2,3,22.1).
 - [x] Канонический `appointment` со статусами (§17) и append-only событиями; каркас таймлайна.
 - [x] `organization_id` на всех новых таблицах (C1); module-isolation соблюдён; новые таблицы — Drizzle.
-- [x] Проекция Rubitime в канон работает; мост отключаем флагом; текущий пайплайн не сломан (C8). Двусторонний sync — этапы 2–4.
+- [x] Проекция Rubitime в канон работает; мост отключаем флагом; текущий пайплайн не сломан (C8). Live двусторонний sync — [`bidirectional_appointment_sync_14c1fa2c.plan.md`](bidirectional_appointment_sync_14c1fa2c.plan.md) (закрыт 2026-06-05).
 - [x] Admin UI §A1–A5 и §A14 присутствует.
 - [x] Тесты/typecheck/lint зелёные; docs и статусы обновлены.
 

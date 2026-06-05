@@ -19,7 +19,28 @@ export type DoctorAnalyticsMetricKey =
   | "registrations_merges"
   | "registrations_combined"
   | "subscribers_total"
-  | "subscribers_delta";
+  | "subscribers_delta"
+  | "today_appointments_today"
+  | "today_appointments_week"
+  | "today_cancellations_30d"
+  | "today_new_clients_no_channels_7d"
+  | "notif_reminders_sent"
+  | "notif_reminders_failed"
+  | "notif_push_opened";
+
+/** Drill-down on `/app/doctor` — doctor-safe API whitelist. */
+export const DOCTOR_TODAY_METRIC_KEYS = [
+  "today_appointments_today",
+  "today_appointments_week",
+  "today_cancellations_30d",
+  "today_new_clients_no_channels_7d",
+] as const satisfies readonly DoctorAnalyticsMetricKey[];
+
+export const NOTIFICATION_METRIC_KEYS = [
+  "notif_reminders_sent",
+  "notif_reminders_failed",
+  "notif_push_opened",
+] as const satisfies readonly DoctorAnalyticsMetricKey[];
 
 export type DoctorAnalyticsMetricPeriod = {
   preset: AdminStatsTimePreset;
@@ -48,5 +69,8 @@ export type DoctorAnalyticsMetricAccountsPort = {
     limit: number;
     offset: number;
     iana: string;
+    excludedUserIds?: string[];
+    /** Required for `notif_*` metrics. */
+    windowHours?: number;
   }): Promise<DoctorAnalyticsMetricAccountsResult>;
 };

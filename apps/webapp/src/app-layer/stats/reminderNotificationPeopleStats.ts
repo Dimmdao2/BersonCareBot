@@ -22,10 +22,16 @@ type ChannelFlagsRow = {
 export async function loadReminderPeopleWithNotificationsStats(opts: {
   windowHours: number;
   displayTimezone: string;
+  excludedUserIds?: string[];
 }): Promise<ReminderPeopleWithNotificationsStats> {
   const windowHours = opts.windowHours;
   const iana = opts.displayTimezone;
+  const excludedUserIds = opts.excludedUserIds ?? [];
   const ianaSql = sql`${iana}::text`;
+  const excludePeopleSql =
+    excludedUserIds.length > 0
+      ? sql`AND COALESCE(rr.platform_user_id, pu.id) <> ALL(${excludedUserIds}::uuid[])`
+      : sql``;
   const db = getDrizzle();
 
   const [dailyRows, channelRows, currentRow] = await Promise.all([
@@ -40,6 +46,7 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
          AND rr.platform_user_id IS NULL
         WHERE rr.is_enabled = TRUE
           AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL
+          ${excludePeopleSql}
         GROUP BY 1
       ),
       day_series AS (
@@ -69,6 +76,7 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
          AND rr.platform_user_id IS NULL
         WHERE rr.is_enabled = TRUE
           AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL
+          ${excludePeopleSql}
       )
       SELECT
         EXISTS (
@@ -119,6 +127,7 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
        AND rr.platform_user_id IS NULL
       WHERE rr.is_enabled = TRUE
         AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL
+        ${excludePeopleSql}
     `),
   ]);
 

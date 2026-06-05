@@ -270,7 +270,13 @@ import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
 import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
 import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
 import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
-import { createPgBookingRubitimeBridgePort } from "@/infra/repos/pgBookingRubitimeBridge";
+import {
+  createPgBookingRubitimeBridgePort,
+  loadExternalMappingLookup,
+  loadReverseMappingLookup,
+  stampBeAppointmentMirrorAttribution,
+} from "@/infra/repos/pgBookingRubitimeBridge";
+import { createAppointmentMirrorSyncService } from "@/modules/booking-appointment-sync/service";
 import { createBookingCatalogService } from "@/modules/booking-catalog/service";
 import { createBookingEngineService } from "@/modules/booking-engine/service";
 import { createPgBookingSchedulingPort } from "@/infra/repos/pgBookingScheduling";
@@ -430,6 +436,18 @@ const doctorAnalyticsMetricAccountsPort =
     ? createPgDoctorAnalyticsMetricAccountsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
     : inMemoryDoctorAnalyticsMetricAccountsPort;
 const bookingRubitimeBridgePort = !inMemoryRepos ? createPgBookingRubitimeBridgePort() : null;
+const appointmentMirrorSync =
+  bookingRubitimeBridgePort && bookingEngineCorePort
+    ? createAppointmentMirrorSyncService({
+        bridge: bookingRubitimeBridgePort,
+        syncPort: createBookingSyncPort(),
+        getDefaultOrganizationId: () => bookingEngineCorePort.getDefaultOrganizationId(),
+        loadForwardMapping: loadExternalMappingLookup,
+        loadReverseMapping: loadReverseMappingLookup,
+        stampCanonicalOutbound: (appointmentId) =>
+          stampBeAppointmentMirrorAttribution(appointmentId, "canonical"),
+      })
+    : null;
 const bookingEnginePort =
   bookingEngineCorePort && bookingRubitimeBridgePort
     ? { ...bookingEngineCorePort, ...bookingRubitimeBridgePort }
@@ -846,6 +864,7 @@ productsServiceResolved =
 patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
+  appointmentMirrorSync: appointmentMirrorSync ?? undefined,
   bookingCatalog: bookingCatalogService,
   bookingEngine: bookingEngineService,
   bookingScheduling: bookingSchedulingService,
@@ -1202,12 +1221,14 @@ function _buildAppDeps() {
       appointmentsPort: doctorAppointmentsPort,
     }),
     doctorStats: createDoctorStatsService({
-      getAppointmentStats: (filter) => doctorAppointmentsPort.getAppointmentStats(filter),
-      getClientContactBreakdown: () => doctorClientsPort.getClientContactBreakdown(),
-      getDashboardPatientMetrics: () => doctorClientsPort.getDashboardPatientMetrics(),
-      getDashboardAppointmentMetrics: () => doctorAppointmentsPort.getDashboardAppointmentMetrics(),
-      countRecentClientsWithoutMessagingChannels: (days) =>
-        doctorClientsPort.countRecentClientsWithoutMessagingChannels(days),
+      getAppointmentStats: (filter, audience) =>
+        doctorAppointmentsPort.getAppointmentStats(filter, audience),
+      getClientContactBreakdown: (audience) => doctorClientsPort.getClientContactBreakdown(audience),
+      getDashboardPatientMetrics: (audience) => doctorClientsPort.getDashboardPatientMetrics(audience),
+      getDashboardAppointmentMetrics: (audience) =>
+        doctorAppointmentsPort.getDashboardAppointmentMetrics(audience),
+      countRecentClientsWithoutMessagingChannels: (days, audience) =>
+        doctorClientsPort.countRecentClientsWithoutMessagingChannels(days, audience),
     }),
     doctorAnalyticsMetricAccounts: doctorAnalyticsMetricAccountsPort,
     adminPlatformUserStats,
@@ -1441,6 +1462,8 @@ function _buildAppDeps() {
     bookingEngine: bookingEngineService,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */
     bookingEnginePort,
+    rubitimeCanonicalProjection: bookingRubitimeBridgePort ?? undefined,
+    appointmentMirrorSync: appointmentMirrorSync ?? undefined,
     bookingScheduling: bookingSchedulingService,
     rubitimeMapping: rubitimeMappingService,
     bookingCalendar: bookingCalendarService,

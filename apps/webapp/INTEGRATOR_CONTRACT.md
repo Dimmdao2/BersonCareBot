@@ -444,7 +444,9 @@ Canonical linking rules:
 
 ## Flow: BersonCare → Integrator (Rubitime record reverse API)
 
-**Направление:** вебапп (сессия врача) вызывает интегратор; интегратор — `POST https://rubitime.ru/api2/update-record` / `remove-record` с API-ключом Rubitime.
+**Направление:** вебапп (сессия врача / patient booking / admin) вызывает интегратор; интегратор — `POST https://rubitime.ru/api2/update-record` / `remove-record` с API-ключом Rubitime.
+
+**Mirror sync (2026-06-05):** отмена mapped записи в кабинете — `update-record` с `status: 4` (`cancelRecord` M2M), не обязательно `remove-record`; перенос — `update-record` с `record` / `datetime_end` и scope ids (`normalizeUpdateRecordPatch` в integrator). Порядок staff cancel vs reschedule — [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../../docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) § mirror.
 
 ### `POST {INTEGRATOR_API_URL}/api/bersoncare/rubitime/update-record`
 

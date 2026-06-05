@@ -2,8 +2,6 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   buildLegacyAppointmentPayload,
-  mapLegacyStatusToCanonical,
-  resolveAppointmentCanonicalRefs,
   type ExternalMappingLookup,
 } from "@/modules/booking-rubitime-bridge/legacyProjection";
 import {
@@ -11,7 +9,20 @@ import {
   recoverableAppointmentStrictQuery,
   type RecoverableAppointmentLookup,
 } from "@/modules/booking-rubitime-bridge/recoverExistingProjection";
-import type { RubitimeBridgePort } from "@/modules/booking-rubitime-bridge/ports";
+import type {
+  RubitimeBridgePort,
+  RubitimeCanonicalProjectionInput,
+  RubitimeCanonicalProjectionResult,
+} from "@/modules/booking-rubitime-bridge/ports";
+import { isNativeBeIntegratorRecordId } from "@/modules/booking-rubitime-bridge/rubitimeIntegratorRecord";
+import {
+  readAttributionFromJson,
+  shouldSkipInboundRubitimeEcho,
+} from "@/modules/booking-appointment-sync/loopGuard";
+import { withSyncAttributionStamp } from "@/modules/booking-appointment-sync/syncAttribution";
+import type { SyncOrigin } from "@/modules/booking-appointment-sync/types";
+import { buildCanonicalInboundSnapshot } from "@/modules/booking-appointment-sync/buildCanonicalSnapshot";
+import { buildReverseMappingLookup } from "@/modules/booking-appointment-sync/reverseMapping";
 import type { BridgeProjectionStats } from "@/modules/booking-engine/types";
 import {
   beAppointmentEvents,
@@ -32,7 +43,7 @@ async function readSettingBoolean(key: string, defaultValue: boolean): Promise<b
   return typeof envelope.value === "boolean" ? envelope.value : defaultValue;
 }
 
-async function loadMappingLookup(organizationId: string): Promise<ExternalMappingLookup> {
+export async function loadExternalMappingLookup(organizationId: string): Promise<ExternalMappingLookup> {
   const db = getDrizzle();
   const rows = await db
     .select({
@@ -113,7 +124,182 @@ async function linkRecoveredRubitimeProjection(
   });
 }
 
-async function upsertProjectedAppointment(
+export async function loadReverseMappingLookup(organizationId: string) {
+  const db = getDrizzle();
+  const rows = await db
+    .select({
+      entityType: beExternalEntityMappings.entityType,
+      externalId: beExternalEntityMappings.externalId,
+      canonicalId: beExternalEntityMappings.canonicalId,
+    })
+    .from(beExternalEntityMappings)
+    .where(
+      and(
+        eq(beExternalEntityMappings.organizationId, organizationId),
+        eq(beExternalEntityMappings.externalSystem, "rubitime"),
+      ),
+    );
+  return buildReverseMappingLookup(rows);
+}
+
+export async function stampBeAppointmentMirrorAttribution(
+  appointmentId: string,
+  origin: SyncOrigin,
+  syncedAt: string = new Date().toISOString(),
+): Promise<void> {
+  const db = getDrizzle();
+  const rows = await db
+    .select({ attributionJson: beAppointments.attributionJson })
+    .from(beAppointments)
+    .where(eq(beAppointments.id, appointmentId))
+    .limit(1);
+  const existing = rows[0];
+  if (!existing) return;
+  await db
+    .update(beAppointments)
+    .set({
+      attributionJson: withSyncAttributionStamp(existing.attributionJson, origin, syncedAt),
+      updatedAt: syncedAt,
+    })
+    .where(eq(beAppointments.id, appointmentId));
+}
+
+async function appendRubitimeProjectionHistory(
+  tx: Pick<ReturnType<typeof getDrizzle>, "insert">,
+  params: {
+    organizationId: string;
+    appointmentId: string;
+    eventType: string;
+    eventPayload: Record<string, unknown>;
+    now: string;
+  },
+): Promise<void> {
+  await tx.insert(beAppointmentEvents).values({
+    organizationId: params.organizationId,
+    appointmentId: params.appointmentId,
+    eventType: params.eventType,
+    payload: params.eventPayload,
+  });
+  await tx.insert(beAppointmentHistoryEvents).values({
+    organizationId: params.organizationId,
+    appointmentId: params.appointmentId,
+    eventType: params.eventType,
+    payload: params.eventPayload,
+    occurredAt: params.now,
+  });
+}
+
+async function updateMappedRubitimeProjection(
+  db: ReturnType<typeof getDrizzle>,
+  params: {
+    organizationId: string;
+    appointmentId: string;
+    externalId: string;
+    platformUserId: string | null;
+    phoneNormalized: string | null;
+    startAt: string;
+    payloadJson: unknown;
+    legacyStatus: string;
+    lastEvent: string;
+    lookup: ExternalMappingLookup;
+  },
+): Promise<"updated" | "skipped_echo_guard"> {
+  const existingRows = await db
+    .select({
+      id: beAppointments.id,
+      startAt: beAppointments.startAt,
+      originalStartAt: beAppointments.originalStartAt,
+      rescheduleCount: beAppointments.rescheduleCount,
+      platformUserId: beAppointments.platformUserId,
+      branchId: beAppointments.branchId,
+      specialistId: beAppointments.specialistId,
+      serviceId: beAppointments.serviceId,
+      attributionJson: beAppointments.attributionJson,
+    })
+    .from(beAppointments)
+    .where(eq(beAppointments.id, params.appointmentId))
+    .limit(1);
+  const existing = existingRows[0];
+  if (!existing) {
+    console.warn("[appointment-mirror] mapped appointment row missing on inbound update", {
+      appointmentId: params.appointmentId,
+      externalId: params.externalId,
+    });
+    return "skipped_echo_guard";
+  }
+
+  if (shouldSkipInboundRubitimeEcho(readAttributionFromJson(existing.attributionJson))) {
+    console.info("[appointment-mirror] inbound skipped echo guard", {
+      appointmentId: params.appointmentId,
+      externalId: params.externalId,
+    });
+    return "skipped_echo_guard";
+  }
+
+  const payloadRecord =
+    params.payloadJson && typeof params.payloadJson === "object" && !Array.isArray(params.payloadJson)
+      ? (params.payloadJson as Record<string, unknown>)
+      : {};
+  const built = buildCanonicalInboundSnapshot({
+    organizationId: params.organizationId,
+    externalId: params.externalId,
+    platformUserId: params.platformUserId,
+    phoneNormalized: params.phoneNormalized,
+    recordAt: params.startAt,
+    legacyStatus: params.legacyStatus,
+    lastEvent: params.lastEvent,
+    payloadJson: payloadRecord,
+    lookup: params.lookup,
+    existingScope: {
+      branchId: existing.branchId,
+      specialistId: existing.specialistId,
+      serviceId: existing.serviceId,
+    },
+  });
+  const refs = built.mergedRefs;
+  const status = built.snapshot.status;
+  const legacy = buildLegacyAppointmentPayload(params.startAt, params.payloadJson);
+  const now = new Date().toISOString();
+  const timeChanged = existing.startAt !== params.startAt;
+  const eventPayload = {
+    externalId: params.externalId,
+    legacyStatus: params.legacyStatus,
+    lastEvent: params.lastEvent,
+    ...refs,
+  };
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(beAppointments)
+      .set({
+        branchId: refs.branchId,
+        specialistId: refs.specialistId,
+        serviceId: refs.serviceId,
+        platformUserId: params.platformUserId ?? existing.platformUserId,
+        startAt: params.startAt,
+        endAt: legacy.endAtIso,
+        durationMinutes: legacy.durationMinutes,
+        status,
+        phoneNormalized: params.phoneNormalized,
+        originalStartAt: existing.originalStartAt ?? existing.startAt,
+        rescheduleCount: timeChanged ? existing.rescheduleCount + 1 : existing.rescheduleCount,
+        attributionJson: withSyncAttributionStamp(existing.attributionJson, "rubitime", now),
+        updatedAt: now,
+      })
+      .where(eq(beAppointments.id, params.appointmentId));
+    await appendRubitimeProjectionHistory(tx, {
+      organizationId: params.organizationId,
+      appointmentId: params.appointmentId,
+      eventType: "rubitime_projection_synced",
+      eventPayload,
+      now,
+    });
+  });
+  return "updated";
+}
+
+async function insertRubitimeProjection(
+  db: ReturnType<typeof getDrizzle>,
   lookup: ExternalMappingLookup,
   params: {
     organizationId: string;
@@ -125,28 +311,30 @@ async function upsertProjectedAppointment(
     legacyStatus: string;
     lastEvent: string;
   },
-): Promise<"projected" | "skipped" | "recovered"> {
-  const db = getDrizzle();
-  const existing = await db
-    .select({ canonicalId: beExternalEntityMappings.canonicalId })
-    .from(beExternalEntityMappings)
-    .where(
-      and(
-        eq(beExternalEntityMappings.externalSystem, "rubitime"),
-        eq(beExternalEntityMappings.entityType, "appointment"),
-        eq(beExternalEntityMappings.externalId, params.externalId),
-      ),
-    )
-    .limit(1);
-  if (existing[0]) return "skipped";
-
+): Promise<"inserted" | "recovered"> {
+  const payloadRecord =
+    params.payloadJson && typeof params.payloadJson === "object" && !Array.isArray(params.payloadJson)
+      ? (params.payloadJson as Record<string, unknown>)
+      : {};
+  const built = buildCanonicalInboundSnapshot({
+    organizationId: params.organizationId,
+    externalId: params.externalId,
+    platformUserId: params.platformUserId,
+    phoneNormalized: params.phoneNormalized,
+    recordAt: params.startAt,
+    legacyStatus: params.legacyStatus,
+    lastEvent: params.lastEvent,
+    payloadJson: payloadRecord,
+    lookup,
+  });
+  const refs = built.mergedRefs;
+  const status = built.snapshot.status;
   const legacy = buildLegacyAppointmentPayload(params.startAt, params.payloadJson);
-  const refs = resolveAppointmentCanonicalRefs(lookup, legacy);
-  const status = mapLegacyStatusToCanonical(params.legacyStatus, params.lastEvent);
   const now = new Date().toISOString();
   const eventPayload = {
     externalId: params.externalId,
     legacyStatus: params.legacyStatus,
+    lastEvent: params.lastEvent,
     ...refs,
   };
 
@@ -168,7 +356,7 @@ async function upsertProjectedAppointment(
     return "recovered";
   }
 
-  return db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(beAppointments)
       .values({
@@ -196,23 +384,127 @@ async function upsertProjectedAppointment(
       canonicalId: appointmentId,
       externalSystem: "rubitime",
       externalId: params.externalId,
-      metadata: { projectedFrom: "read_bridge" },
+      metadata: { projectedFrom: "rubitime_live_projection" },
+      createdAt: now,
+      updatedAt: now,
     });
-    await tx.insert(beAppointmentEvents).values({
+    await appendRubitimeProjectionHistory(tx, {
       organizationId: params.organizationId,
       appointmentId,
       eventType: "projected_from_rubitime",
-      payload: eventPayload,
+      eventPayload,
+      now,
     });
-    await tx.insert(beAppointmentHistoryEvents).values({
-      organizationId: params.organizationId,
-      appointmentId,
-      eventType: "projected_from_rubitime",
-      payload: eventPayload,
-      occurredAt: now,
-    });
-    return "projected" as const;
   });
+  return "inserted";
+}
+
+async function upsertCanonicalFromRubitimeRecordImpl(
+  input: RubitimeCanonicalProjectionInput,
+): Promise<RubitimeCanonicalProjectionResult> {
+  const externalId = input.externalId.trim();
+  if (!externalId || isNativeBeIntegratorRecordId(externalId)) {
+    return { action: "skipped_native_integrator_id" };
+  }
+
+  const db = getDrizzle();
+  const lookup = await loadExternalMappingLookup(input.organizationId);
+  const mapped = await db
+    .select({ canonicalId: beExternalEntityMappings.canonicalId })
+    .from(beExternalEntityMappings)
+    .where(
+      and(
+        eq(beExternalEntityMappings.externalSystem, "rubitime"),
+        eq(beExternalEntityMappings.entityType, "appointment"),
+        eq(beExternalEntityMappings.externalId, externalId),
+      ),
+    )
+    .limit(1);
+
+  if (mapped[0]) {
+    if (!input.recordAt) {
+      return { action: "skipped_no_record_at", appointmentId: mapped[0].canonicalId };
+    }
+    const updateResult = await updateMappedRubitimeProjection(db, {
+      organizationId: input.organizationId,
+      appointmentId: mapped[0].canonicalId,
+      externalId,
+      platformUserId: input.platformUserId,
+      phoneNormalized: input.phoneNormalized,
+      startAt: input.recordAt,
+      payloadJson: input.payloadJson,
+      legacyStatus: input.legacyStatus,
+      lastEvent: input.lastEvent,
+      lookup,
+    });
+    if (updateResult === "skipped_echo_guard") {
+      return { action: "skipped_echo_guard", appointmentId: mapped[0].canonicalId };
+    }
+    return { action: "updated", appointmentId: mapped[0].canonicalId };
+  }
+
+  if (!input.recordAt) {
+    return { action: "skipped_no_record_at" };
+  }
+
+  const insertResult = await insertRubitimeProjection(db, lookup, {
+    organizationId: input.organizationId,
+    externalId,
+    platformUserId: input.platformUserId,
+    phoneNormalized: input.phoneNormalized,
+    startAt: input.recordAt,
+    payloadJson: input.payloadJson,
+    legacyStatus: input.legacyStatus,
+    lastEvent: input.lastEvent,
+  });
+  if (insertResult === "recovered") {
+    const recovered = await db
+      .select({ canonicalId: beExternalEntityMappings.canonicalId })
+      .from(beExternalEntityMappings)
+      .where(
+        and(
+          eq(beExternalEntityMappings.externalSystem, "rubitime"),
+          eq(beExternalEntityMappings.entityType, "appointment"),
+          eq(beExternalEntityMappings.externalId, externalId),
+        ),
+      )
+      .limit(1);
+    const appointmentId = recovered[0]?.canonicalId;
+    if (appointmentId && input.recordAt) {
+      const updateResult = await updateMappedRubitimeProjection(db, {
+        organizationId: input.organizationId,
+        appointmentId,
+        externalId,
+        platformUserId: input.platformUserId,
+        phoneNormalized: input.phoneNormalized,
+        startAt: input.recordAt,
+        payloadJson: input.payloadJson,
+        legacyStatus: input.legacyStatus,
+        lastEvent: input.lastEvent,
+        lookup,
+      });
+      if (updateResult === "updated") {
+        return { action: "updated", appointmentId };
+      }
+      if (updateResult === "skipped_echo_guard") {
+        return { action: "skipped_echo_guard", appointmentId };
+      }
+    }
+    return { action: "recovered", appointmentId };
+  }
+
+  const created = await db
+    .select({ canonicalId: beExternalEntityMappings.canonicalId })
+    .from(beExternalEntityMappings)
+    .where(
+      and(
+        eq(beExternalEntityMappings.externalSystem, "rubitime"),
+        eq(beExternalEntityMappings.entityType, "appointment"),
+        eq(beExternalEntityMappings.externalId, externalId),
+      ),
+    )
+    .limit(1);
+  return { action: "inserted", appointmentId: created[0]?.canonicalId };
 }
 
 async function projectRows(
@@ -227,34 +519,44 @@ async function projectRows(
     payloadJson: unknown;
   }[],
 ): Promise<BridgeProjectionStats> {
-  const lookup = await loadMappingLookup(organizationId);
   let projectedAppointments = 0;
+  let updatedAppointments = 0;
   let skippedExisting = 0;
   let recoveredMappings = 0;
   for (const row of rows) {
-    const result = await upsertProjectedAppointment(lookup, {
+    const result = await upsertCanonicalFromRubitimeRecordImpl({
       organizationId,
       externalId: row.externalId,
       platformUserId: row.platformUserId,
       phoneNormalized: row.phoneNormalized,
-      startAt: row.recordAt,
+      recordAt: row.recordAt,
       payloadJson: row.payloadJson,
       legacyStatus: row.status,
       lastEvent: row.lastEvent,
     });
-    if (result === "projected") projectedAppointments += 1;
-    else if (result === "recovered") {
-      skippedExisting += 1;
+    if (result.action === "inserted") projectedAppointments += 1;
+    else if (result.action === "updated") updatedAppointments += 1;
+    else if (result.action === "recovered") {
       recoveredMappings += 1;
-    } else skippedExisting += 1;
+    } else if (
+      result.action === "skipped_native_integrator_id"
+      || result.action === "skipped_echo_guard"
+      || result.action === "skipped_no_record_at"
+    ) {
+      skippedExisting += 1;
+    }
   }
-  return { projectedAppointments, skippedExisting, recoveredMappings };
+  return { projectedAppointments, updatedAppointments, skippedExisting, recoveredMappings };
 }
 
 export function createPgBookingRubitimeBridgePort(): RubitimeBridgePort {
   return {
     async isBridgeEnabled() {
       return readSettingBoolean("booking_rubitime_bridge_enabled", false);
+    },
+
+    async upsertCanonicalFromRubitimeRecord(input) {
+      return upsertCanonicalFromRubitimeRecordImpl(input);
     },
 
     async projectAppointmentRecords(organizationId) {

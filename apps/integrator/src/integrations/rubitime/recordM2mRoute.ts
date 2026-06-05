@@ -19,6 +19,7 @@ import { resolveScheduleParams } from './bookingScheduleMapping.js';
 import { isLegacyBookingProfileResolveEnabled } from './legacyResolveFlag.js';
 import { normalizeRubitimeSchedule } from './scheduleNormalizer.js';
 import { formatIsoInstantAsRubitimeRecordLocal, getAppDisplayTimezone } from '../../config/appTimezone.js';
+import { normalizeRubitimeUpdateRecordPatch } from './normalizeUpdateRecordPatch.js';
 import { createGetBranchTimezoneWithDataQuality } from '../../infra/db/branchTimezone.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
 import type { z } from 'zod';
@@ -599,10 +600,12 @@ export async function registerRubitimeRecordM2mRoutes(
       typeof request.body === 'object' && request.body !== null && 'patch' in request.body
         ? (request.body as { patch?: unknown }).patch
         : null;
-    const data =
+    const rawPatch =
       typeof patch === 'object' && patch !== null && !Array.isArray(patch)
         ? (patch as Record<string, unknown>)
         : {};
+    const displayTimezone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
+    const data = normalizeRubitimeUpdateRecordPatch(rawPatch, displayTimezone);
     try {
       const result = await updateRubitimeRecord({ recordId, data });
       return reply.code(200).send({ ok: true, data: result });

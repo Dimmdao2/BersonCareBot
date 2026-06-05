@@ -83,26 +83,43 @@ Rubitime передаёт `name` как полную строку (часто Ф
 |------|-----------|
 | 2026-05-02 | Описание события GCal: комментарии клиента/админа вместо одного только id; merge полей комментариев из тела вебхука; unit-тесты. |
 | 2026-06-03 | **Google Calendar:** при Rubitime-first create не дублировать событие на `booking.created`; отмена пациентом/специалистом — префикс **❌** в заголовке (событие остаётся); запрос переноса (`staff_confirmation_required`) — **⚠️**; удаление в Rubitime (`remove-record`/webhook delete) и soft-delete в кабинете — **удаление** из GCal; отмена в Rubitime — `update-record` status `4`, не `remove-record`. **Календарь врача (webapp):** dedupe legacy/`be:` проекции. |
+| 2026-06-05 | **Двустороннее зеркалирование (`AppointmentMirrorSync`):** live inbound/outbound для mapped appointments; единый `buildCanonicalInboundSnapshot`; см. § ниже и [`ACCEPTANCE_MIRROR_SYNC.md`](../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md). |
 
 ## Каноническая модель и read-bridge (этап 1, OWN_BOOKING_ENGINE)
 
 Параллельно legacy-пайплайну выше существует **канон** в webapp (`be_appointments`, организационная модель `be_*`). Источник истины на этапе 1 для новых контрактов — канон; Rubitime и `appointment_records` остаются для текущего UI и вебхуков.
 
 - **Мост:** `system_settings.booking_rubitime_bridge_enabled` (admin). При включении админ может запустить проекцию (`POST /api/admin/booking-engine/bridge`) — idempotent upsert в `be_appointments` + `be_external_entity_mappings` по `integrator_record_id` / `rubitime_record_id`.
-- **Код:** модуль `apps/webapp/src/modules/booking-engine/`, репозитории `pgBookingEngine.ts`, `pgBookingRubitimeBridge.ts`; вебхук integrator **не меняется**.
+- **Код:** модуль `apps/webapp/src/modules/booking-engine/`, репозитории `pgBookingEngine.ts`, `pgBookingRubitimeBridge.ts`; legacy ingest в `appointment_records` сохранён; при наличии `appointmentMirrorSync` в DI — mirror-first в `integrator/events.ts`.
 - **Write-путь (этап 2, done):** пациентский create при каноническом DI пишет в `be_appointments`; Rubitime — по режиму `booking_slots_read_source` (Rubitime-first или best-effort bridge). Read UI врача — `appointment_records` по умолчанию (`rubitime_legacy`); cutover на канон — явный switch.
 
-### Перенос и отмена (этап 4, native)
+### Двустороннее зеркалирование (2026-06, `AppointmentMirrorSync`)
+
+Для любой записи с mapping `be_external_entity_mappings` (`entity_type=appointment`, `external_system=rubitime`) действует **двусторонний** sync времени, длительности, scope (филиал/специалист/услуга), статуса и отмены — в том числе для `native` / `admin_manual`, если у записи уже есть Rubitime id.
+
+- **Inbound (Rubitime → канон):** `appointment.record.upserted` → `buildCanonicalInboundSnapshot` → `applyInboundFromRubitime` → `pgBookingRubitimeBridge`. Тот же snapshot пишется в `appointment_records` (единый projection input). Fan-out top-level (`dateTimeEnd`, `serviceId`, `rubitimeCooperatorId`, `integratorBranchId`). Partial FK policy + warn в лог. Recovery → immediate update. Attribution: `mirror_last_synced_from`, `mirror_synced_at`, `mirror_sync_version`.
+- **Echo guard:** inbound пропускается ~8 с после outbound с `mirror_last_synced_from=canonical`.
+- **Outbound (канон → Rubitime):**
+  - **Перенос (staff calendar):** Rubitime **до** канона (`manual-reschedule`) — проверка занятости слота, rollback при `slot_overlap`.
+  - **Отмена (staff/admin):** канон `staffCancel` **до** Rubitime `cancelRecord` (`status: 4`).
+  - **Пациент:** канон lifecycle **до** best-effort Rubitime (`patientMirrorOutbound.ts`).
+  - Patch: `buildRubitimeOutboundPatch` + M2M; integrator — `normalizeUpdateRecordPatch.ts`.
+- **Ops backfill:** `POST /api/admin/booking-engine/bridge` для истории; **live-path** — webhook + mirror (без ручного bridge на каждое изменение).
+
+Код: [`booking-appointment-sync/README.md`](../../apps/webapp/src/modules/booking-appointment-sync/README.md), `infra/repos/pgBookingRubitimeBridge.ts`, `integrator/events.ts`, `apps/integrator/.../normalizeUpdateRecordPatch.ts`.
+
+### Перенос и отмена (этап 4 + mirror, 2026-06)
 
 При записи с `canonical_appointment_id` в `patient_bookings`:
 
-1. **Отмена:** webapp сначала вызывает integrator `remove-record` (если есть `rubitimeId`), затем отменяет канон (`booking-appointment-lifecycle`). После успеха — `POST /api/bersoncare/rubitime/booking-event` с `eventType: booking.cancelled` (напоминания, patient/doctor TG, web push).
-2. **Перенос:** канон и `patient_bookings` обновляются в webapp; Rubitime — `update-record` (best-effort); затем `booking.rescheduled` (отмена старых slot-напоминаний + планирование на новый `slotStart`).
-3. **Проекция врача:** `appointment_records` с `integrator_record_id = be:{appointmentId}` обновляется из webapp (`native.rescheduled` / `native.cancelled`), не только через Rubitime webhook.
+1. **Отмена (пациент):** `booking-appointment-lifecycle.patientCancel` → best-effort `cancelRecord` / mirror; `patient_bookings` → `cancelled`; проекция; `booking.cancelled` (+ `rubitime_mirror` при сбое моста).
+2. **Перенос (пациент):** проверка слота → lifecycle → best-effort Rubitime `update-record` → `patient_bookings` / проекция / `booking.rescheduled`.
+3. **Отмена/перенос (staff/admin):** см. outbound-порядок в § «Двустороннее зеркалирование»; ручные API — `.../manual-cancel`, `.../manual-reschedule`.
+4. **Проекция врача:** `appointment_records` (`be:{id}`) и inbound webhook синхронизируют один snapshot через mirror.
 
-Код: `modules/patient-booking/service.ts`, `modules/payments/service.ts`, `modules/integrator/bookingM2mApi.ts`, integrator `recordM2mRoute.ts` (`booking.rescheduled`, `booking.payment_captured` в Zod с этапов 4–5).
+Код: `modules/patient-booking/service.ts`, `modules/booking-appointment-lifecycle/`, `app-layer/booking/staffRubitimeMirrorOutbound.ts`, `modules/integrator/bookingM2mApi.ts`.
 
-Подробнее: [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md), [`patient-booking.md`](../../apps/webapp/src/modules/patient-booking/patient-booking.md).
+Подробнее: [`OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md), [`patient-booking.md`](../../apps/webapp/src/modules/patient-booking/patient-booking.md), [`booking-calendar.md`](../../apps/webapp/src/modules/booking-calendar/booking-calendar.md).
 
 ## Одноразовое восстановление данных (ops)
 

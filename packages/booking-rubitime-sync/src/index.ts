@@ -4,6 +4,20 @@ export {
   mapRubitimeStatusToPatientBookingStatus,
   type RubitimeMappedPatientBookingStatus,
 } from "./mapRubitimeStatus.js";
+export {
+  mapRubitimeNormalizedStatusToBeAppointment,
+  mapRubitimeStatusToBeAppointment,
+  type RubitimeMappedBeAppointmentStatus,
+} from "./mapRubitimeStatusToBeAppointment.js";
+export {
+  enrichPayloadWithRubitimeStatus,
+  isRubitimeNormalizedStatus,
+  normalizeRubitimeStatus,
+  resolveRubitimeStatusFromBookingUpsert,
+  resolveRubitimeStatusFromPayload,
+  RUBITIME_NORMALIZED_STATUSES,
+  type RubitimeNormalizedStatus,
+} from "./rubitimeNormalizedStatus.js";
 export { lookupBranchServiceByRubitimeIds, type RubitimeBranchServiceLookupRow } from "./lookupBranchServiceByRubitimeIds.js";
 export {
   upsertPatientBookingFromRubitime,

@@ -3,6 +3,7 @@ import type {
   DoctorAppointmentStatsFilter,
   DoctorDashboardAppointmentMetrics,
 } from "@/modules/doctor-appointments/ports";
+import type { AnalyticsAudienceContext } from "@/modules/analytics/analyticsAudience";
 import type { ClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
 import type { DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
 
@@ -43,8 +44,13 @@ export type DoctorDashboardMetrics = {
   };
 };
 
+type AudienceArg = { excludedUserIds?: string[] };
+
 export type DoctorStatsServiceDeps = {
-  getAppointmentStats: (filter: DoctorAppointmentStatsFilter) => Promise<{
+  getAppointmentStats: (
+    filter: DoctorAppointmentStatsFilter,
+    audience?: AudienceArg,
+  ) => Promise<{
     pastVisitsInPeriod: number;
     cancelledVisitsInPeriod: number;
     bookingsCreatedInPeriod: number;
@@ -53,19 +59,20 @@ export type DoctorStatsServiceDeps = {
     total: number;
     cancellations30d: number;
   }>;
-  getClientContactBreakdown: () => Promise<ClientContactBreakdown>;
-  getDashboardPatientMetrics: () => Promise<DoctorDashboardPatientMetrics>;
-  getDashboardAppointmentMetrics: () => Promise<DoctorDashboardAppointmentMetrics>;
-  countRecentClientsWithoutMessagingChannels: (days: number) => Promise<number>;
+  getClientContactBreakdown: (audience?: AudienceArg) => Promise<ClientContactBreakdown>;
+  getDashboardPatientMetrics: (audience?: AudienceArg) => Promise<DoctorDashboardPatientMetrics>;
+  getDashboardAppointmentMetrics: (audience?: AudienceArg) => Promise<DoctorDashboardAppointmentMetrics>;
+  countRecentClientsWithoutMessagingChannels: (days: number, audience?: AudienceArg) => Promise<number>;
 };
 
 export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
   return {
-    async getStats(): Promise<DoctorStatsState> {
+    async getStats(audience: AnalyticsAudienceContext): Promise<DoctorStatsState> {
+      const aud = { excludedUserIds: audience.excludedUserIds };
       const [appointmentStats, contactBreakdown, newClients7dWithNoChannels] = await Promise.all([
-        deps.getAppointmentStats({ kind: "range", range: "week" }),
-        deps.getClientContactBreakdown(),
-        deps.countRecentClientsWithoutMessagingChannels(7),
+        deps.getAppointmentStats({ kind: "range", range: "week" }, aud),
+        deps.getClientContactBreakdown(aud),
+        deps.countRecentClientsWithoutMessagingChannels(7, aud),
       ]);
 
       return {
@@ -88,10 +95,11 @@ export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
       };
     },
 
-    async getDashboardMetrics(): Promise<DoctorDashboardMetrics> {
+    async getDashboardMetrics(audience: AnalyticsAudienceContext): Promise<DoctorDashboardMetrics> {
+      const aud = { excludedUserIds: audience.excludedUserIds };
       const [p, a] = await Promise.all([
-        deps.getDashboardPatientMetrics(),
-        deps.getDashboardAppointmentMetrics(),
+        deps.getDashboardPatientMetrics(aud),
+        deps.getDashboardAppointmentMetrics(aud),
       ]);
       return {
         patients: {

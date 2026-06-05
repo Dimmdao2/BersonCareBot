@@ -67,6 +67,10 @@ export const doctorStatCardShellClass = "rounded-lg border border-border/60 bg-c
 export const doctorStatCardShellWarningClass =
   "rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 min-w-0";
 
+/** Whole-card click/hover for KPI stat cards (analytics, today). */
+export const doctorStatCardInteractiveClass =
+  "cursor-pointer transition-colors hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+
 /** Section subtitle and helper text under headings. */
 export const doctorSectionSubtitleClass = "text-xs text-muted-foreground";
 

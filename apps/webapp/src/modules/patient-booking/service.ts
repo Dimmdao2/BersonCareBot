@@ -32,7 +32,10 @@ import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
 } from "./bookingLifecycleNotifications";
-import { logBookingRubitimeMirrorFailed } from "./bookingLifecycleObservability";
+import {
+  mirrorPatientCancelToRubitime,
+  mirrorPatientRescheduleToRubitime,
+} from "./patientMirrorOutbound";
 import {
   projectCanonicalAppointmentCancelled,
   projectCanonicalAppointmentRescheduled,
@@ -170,6 +173,7 @@ export function createPatientBookingService(input: {
   resolveSlotsReadSource?: () => Promise<BookingSlotsReadSource>;
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
+  appointmentMirrorSync?: import("@/modules/booking-appointment-sync/ports").AppointmentMirrorSyncService | null;
   slotsTtlMs?: number;
 }): PatientBookingService {
   const slotsTtlMs = input.slotsTtlMs ?? 60 * 1000;
@@ -385,6 +389,16 @@ export function createPatientBookingService(input: {
             });
             invalidateSlotsCache();
             throw new Error("slot_overlap");
+          }
+          await input.bookingsPort.markFailedSync(pending.id);
+          try {
+            await input.syncPort.cancelRecord(rubitimeIdTrimmed);
+          } catch (cancelErr) {
+            console.error("[patient-booking] failed to rollback rubitime record after confirm failure", {
+              bookingId: pending.id,
+              rubitimeId: rubitimeIdTrimmed,
+              cancelErr,
+            });
           }
           console.error("[patient-booking] booking confirm failed after rubitime create", {
             bookingId: pending.id,
@@ -609,16 +623,22 @@ export function createPatientBookingService(input: {
         return { ok: false, error: "not_found" };
       }
 
-      if (row.rubitimeId && input.syncPort.updateRecord) {
-        try {
-          await input.syncPort.updateRecord({
-            rubitimeId: row.rubitimeId,
-            slotStart: rescheduleInput.slotStart,
-            slotEnd: rescheduleInput.slotEnd,
-          });
-        } catch {
-          // Canonical reschedule is primary; Rubitime mirror is best-effort.
-        }
+      if (row.rubitimeId && row.canonicalAppointmentId) {
+        await mirrorPatientRescheduleToRubitime({
+          bookingId: row.id,
+          rubitimeId: row.rubitimeId,
+          canonicalAppointmentId: row.canonicalAppointmentId,
+          appointment: {
+            startAt: rescheduleInput.slotStart,
+            endAt: rescheduleInput.slotEnd,
+            branchId: result.appointment.branchId,
+            specialistId: result.appointment.specialistId,
+            serviceId: result.appointment.serviceId,
+            status: result.appointment.status,
+          },
+          appointmentMirrorSync: input.appointmentMirrorSync,
+          syncPort: input.syncPort,
+        });
       }
 
       const updatedRow = await input.bookingsPort.updateSlotsAfterReschedule({
@@ -630,20 +650,40 @@ export function createPatientBookingService(input: {
       invalidateSlotsCache();
 
       if (input.payments && row.canonicalAppointmentId) {
-        await input.payments.recordReschedulePaymentCarryOver({
-          appointmentId: row.canonicalAppointmentId,
-          organizationId: orgId,
-          platformUserId: rescheduleInput.userId,
-          newStartAt: rescheduleInput.slotStart,
-        });
+        try {
+          await input.payments.recordReschedulePaymentCarryOver({
+            appointmentId: row.canonicalAppointmentId,
+            organizationId: orgId,
+            platformUserId: rescheduleInput.userId,
+            newStartAt: rescheduleInput.slotStart,
+          });
+        } catch (err) {
+          console.error("[patient-booking] payment carry-over failed (reschedule already committed)", {
+            bookingId: row.id,
+            canonicalAppointmentId: row.canonicalAppointmentId,
+            err,
+          });
+        }
       }
 
       if (input.appointmentProjection) {
-        await projectCanonicalAppointmentRescheduled(
-          input.appointmentProjection,
-          result.appointment,
-          rowToProjectionInput(row),
-        );
+        try {
+          await projectCanonicalAppointmentRescheduled(
+            input.appointmentProjection,
+            result.appointment,
+            rowToProjectionInput({
+              ...row,
+              slotStart: rescheduleInput.slotStart,
+              slotEnd: rescheduleInput.slotEnd,
+            }),
+          );
+        } catch (err) {
+          console.error("[patient-booking] doctor projection reschedule failed (reschedule already committed)", {
+            bookingId: row.id,
+            canonicalAppointmentId: row.canonicalAppointmentId,
+            err,
+          });
+        }
       }
 
       const idempotencyKey = `booking.rescheduled:${row.id}:${rescheduleInput.slotStart}`;
@@ -680,17 +720,25 @@ export function createPatientBookingService(input: {
         result.reschedulePolicy,
         (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
       );
-      await input.appointmentLifecycle.patchLatestRescheduleNotifications(
-        row.canonicalAppointmentId,
-        orgId,
-        buildBookingNotificationsSent({
-          eventType: "booking.rescheduled",
-          idempotencyKey,
-          notifyPatient: rescheduleNotify.notifyPatient,
-          notifyStaff: rescheduleNotify.notifyStaff,
-          integratorStatus,
-        }),
-      );
+      try {
+        await input.appointmentLifecycle.patchLatestRescheduleNotifications(
+          row.canonicalAppointmentId,
+          orgId,
+          buildBookingNotificationsSent({
+            eventType: "booking.rescheduled",
+            idempotencyKey,
+            notifyPatient: rescheduleNotify.notifyPatient,
+            notifyStaff: rescheduleNotify.notifyStaff,
+            integratorStatus,
+          }),
+        );
+      } catch (err) {
+        console.error("[patient-booking] reschedule notification patch failed (reschedule already committed)", {
+          bookingId: row.id,
+          canonicalAppointmentId: row.canonicalAppointmentId,
+          err,
+        });
+      }
 
       return { ok: true, booking: updatedRow ?? row };
     },
@@ -733,20 +781,16 @@ export function createPatientBookingService(input: {
           return { ok: false, error: "lifecycle_failed" };
         }
 
-        let rubitimeMirrorStatus: "ok" | "failed" | "skipped" = "skipped";
-        if (row.rubitimeId) {
-          try {
-            await input.syncPort.cancelRecord(row.rubitimeId);
-            rubitimeMirrorStatus = "ok";
-          } catch {
-            rubitimeMirrorStatus = "failed";
-            logBookingRubitimeMirrorFailed({
-              bookingId: row.id,
-              action: "cancel_record",
-              rubitimeId: row.rubitimeId,
-            });
-          }
-        }
+        const rubitimeMirrorStatus =
+          row.rubitimeId && row.canonicalAppointmentId
+            ? await mirrorPatientCancelToRubitime({
+                bookingId: row.id,
+                rubitimeId: row.rubitimeId,
+                canonicalAppointmentId: row.canonicalAppointmentId,
+                appointmentMirrorSync: input.appointmentMirrorSync,
+                syncPort: input.syncPort,
+              })
+            : "skipped";
 
         if (input.payments) {
           await input.payments.applyCancelPaymentOutcome({
@@ -801,11 +845,19 @@ export function createPatientBookingService(input: {
         invalidateSlotsCache();
 
         if (input.appointmentProjection) {
-          await projectCanonicalAppointmentCancelled(
-            input.appointmentProjection,
-            lifecycleResult.appointment,
-            rowToProjectionInput(row),
-          );
+          try {
+            await projectCanonicalAppointmentCancelled(
+              input.appointmentProjection,
+              lifecycleResult.appointment,
+              rowToProjectionInput(row),
+            );
+          } catch (err) {
+            console.error("[patient-booking] doctor projection cancel failed (cancel already committed)", {
+              bookingId: row.id,
+              canonicalAppointmentId: row.canonicalAppointmentId,
+              err,
+            });
+          }
         }
 
         const idempotencyKey = `booking.cancelled:${row.id}`;
@@ -866,15 +918,15 @@ export function createPatientBookingService(input: {
       }
 
       await input.bookingsPort.markCancelling(row.id);
-      let legacyRubitimeMirror: "ok" | "failed" | "skipped" = "skipped";
-      if (row.rubitimeId) {
-        try {
-          await input.syncPort.cancelRecord(row.rubitimeId);
-          legacyRubitimeMirror = "ok";
-        } catch {
-          legacyRubitimeMirror = "failed";
-        }
-      }
+      const legacyRubitimeMirror = row.rubitimeId
+        ? await mirrorPatientCancelToRubitime({
+            bookingId: row.id,
+            rubitimeId: row.rubitimeId,
+            canonicalAppointmentId: row.canonicalAppointmentId ?? row.id,
+            appointmentMirrorSync: input.appointmentMirrorSync,
+            syncPort: input.syncPort,
+          })
+        : "skipped";
       await input.bookingsPort.markCancelled({
         bookingId: row.id,
         reason: cancelInput.reason,

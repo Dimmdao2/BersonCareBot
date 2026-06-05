@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
+import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { PushOpensAnalyticsCard } from "@/app/app/doctor/analytics/shared/PushOpensAnalyticsCard";
 import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
@@ -54,36 +55,6 @@ function topPagesToChartData(rows: TopPageRow[]) {
 
 function chartHeightForRows(rowCount: number): number {
   return Math.min(CHART_H_ROWS, 72 + rowCount * 24);
-}
-
-function KpiCard({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  accent?: "blue" | "green" | "red" | "orange" | "muted";
-}) {
-  const borderClass =
-    accent === "blue"
-      ? "border-l-4 border-l-blue-500/70"
-      : accent === "green"
-        ? "border-l-4 border-l-emerald-500/70"
-        : accent === "red"
-          ? "border-l-4 border-l-red-500/70"
-          : accent === "orange"
-            ? "border-l-4 border-l-amber-500/70"
-            : "";
-  return (
-    <div className={`rounded-lg border border-border/60 bg-card p-3 ${borderClass}`}>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums leading-tight">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p> : null}
-    </div>
-  );
 }
 
 function TopPagesHorizontalBarChart({
@@ -273,35 +244,40 @@ export function MaterialContentStatsClient() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <KpiCard
-                  label="Выдач всего"
+                <DoctorStatCard
+                  id="content-stats-video-resolutions"
+                  title="Выдач всего"
                   value={data.videoPlayback.totalResolutions}
-                  sub="за период"
-                  accent="blue"
+                  hint="за период"
+                  href="/app/doctor/system-health"
                 />
-                <KpiCard
-                  label="Уникальных пар"
+                <DoctorStatCard
+                  id="content-stats-video-pairs"
+                  title="Уникальных пар"
                   value={data.videoPlayback.uniquePlaybackPairsFirstSeenInWindow}
-                  sub="пользователь + видео"
-                  accent="green"
+                  hint="пользователь + видео"
+                  href="/app/doctor/system-health"
                 />
-                <KpiCard
-                  label="Fallback на MP4"
+                <DoctorStatCard
+                  id="content-stats-video-fallback"
+                  title="Fallback на MP4"
                   value={data.videoPlayback.fallbackTotal}
-                  sub={data.videoPlayback.fallbackTotal > 0 ? "HLS → MP4" : "не потребовался"}
-                  accent={data.videoPlayback.fallbackTotal > 0 ? "orange" : "muted"}
+                  hint={data.videoPlayback.fallbackTotal > 0 ? "HLS → MP4" : "не потребовался"}
+                  href="/app/doctor/system-health"
                 />
-                <KpiCard
-                  label="Ошибок плеера"
+                <DoctorStatCard
+                  id="content-stats-video-errors"
+                  title="Ошибок плеера"
                   value={data.videoPlaybackClient.totalErrors}
-                  sub={
+                  tone={data.videoPlaybackClient.totalErrors > 0 ? "warning" : "neutral"}
+                  hint={
                     data.videoPlaybackClient.likelyLooping
                       ? "признак цикла hls_fatal"
                       : data.videoPlaybackClient.totalErrorsLast1h > 0
                         ? `за 1 ч: ${data.videoPlaybackClient.totalErrorsLast1h}`
                         : "за 1 ч: 0"
                   }
-                  accent={data.videoPlaybackClient.totalErrors > 0 ? "red" : "muted"}
+                  href="/app/doctor/system-health"
                 />
               </div>
 

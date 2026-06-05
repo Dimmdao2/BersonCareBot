@@ -95,7 +95,9 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("createPending passes v2 snapshot columns to INSERT", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [v2Row("new-id")] });
+    queryMock
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [v2Row("new-id")] });
     const input: CreatePendingPatientBookingInput = {
       userId: "u1",
       bookingType: "in_person",
@@ -119,15 +121,17 @@ describe("pgPatientBookingsPort", () => {
       rubitimeServiceIdSnapshot: "675",
     };
     const row = await pgPatientBookingsPort.createPending(input);
-    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("branch_service_id");
-    expect(sql).toContain("city_code_snapshot");
+    const reconcileSql = String(queryMock.mock.calls[0]?.[0] ?? "");
+    const insertSql = String(queryMock.mock.calls[1]?.[0] ?? "");
+    expect(reconcileSql).toContain("failed_sync");
+    expect(insertSql).toContain("branch_service_id");
+    expect(insertSql).toContain("city_code_snapshot");
     expect(row.branchServiceId).toBe("bs1");
     expect(row.serviceTitleSnapshot).toBe("Сеанс");
   });
 
   it("createPending throws slot_overlap when INSERT returns no row (overlap pre-check)", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [] });
+    queryMock.mockResolvedValueOnce({ rowCount: 0 }).mockResolvedValueOnce({ rows: [] });
     const input: CreatePendingPatientBookingInput = {
       userId: "u1",
       bookingType: "in_person",
@@ -154,7 +158,9 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("createPending SQL scopes overlap by specialist or user fallback", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [v2Row("new-id-2")] });
+    queryMock
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [v2Row("new-id-2")] });
     const input: CreatePendingPatientBookingInput = {
       userId: "u1",
       bookingType: "in_person",
@@ -178,9 +184,40 @@ describe("pgPatientBookingsPort", () => {
       rubitimeServiceIdSnapshot: "675",
     };
     await pgPatientBookingsPort.createPending(input);
-    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("rubitime_cooperator_id_snapshot = $20");
-    expect(sql).toContain("platform_user_id = $2");
+    const insertSql = String(queryMock.mock.calls[1]?.[0] ?? "");
+    expect(insertSql).toContain("rubitime_cooperator_id_snapshot = $20");
+    expect(insertSql).toContain("platform_user_id = $2");
+    expect(insertSql).toContain("canonical_appointment_id IS NULL");
+  });
+
+  it("createPending excludes abandoned native creating rows from overlap", async () => {
+    queryMock.mockResolvedValueOnce({ rowCount: 1 }).mockResolvedValueOnce({ rows: [v2Row("retry-id")] });
+    const input: CreatePendingPatientBookingInput = {
+      userId: "u1",
+      bookingType: "in_person",
+      city: "spb",
+      category: "general",
+      slotStart: SLOT_START.toISOString(),
+      slotEnd: SLOT_END.toISOString(),
+      contactName: "T",
+      contactPhone: "+7000",
+      contactEmail: null,
+      branchId: "br1",
+      serviceId: "sv1",
+      branchServiceId: "bs1",
+      cityCodeSnapshot: "spb",
+      branchTitleSnapshot: "Филиал",
+      serviceTitleSnapshot: "Сеанс",
+      durationMinutesSnapshot: 60,
+      priceMinorSnapshot: 100,
+      rubitimeBranchIdSnapshot: "173",
+      rubitimeCooperatorIdSnapshot: "347",
+      rubitimeServiceIdSnapshot: "675",
+    };
+    await pgPatientBookingsPort.createPending(input);
+    const reconcileSql = String(queryMock.mock.calls[0]?.[0] ?? "");
+    expect(reconcileSql).toContain("status = 'creating'");
+    expect(reconcileSql).toContain("failed_sync");
   });
 
   it("listUpcomingByUser maps legacy row without v2 columns", async () => {
@@ -203,6 +240,7 @@ describe("pgPatientBookingsPort", () => {
     await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
     const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("status = 'creating'");
+    expect(sql).toContain("canonical_appointment_id IS NULL");
     expect(sql).toContain("COALESCE(newer.category, '') = COALESCE(patient_bookings.category, '')");
   });
 

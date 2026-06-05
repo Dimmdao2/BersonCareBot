@@ -35,8 +35,10 @@ describe("doctor-stats service", () => {
     countRecentClientsWithoutMessagingChannels: async () => 2,
   });
 
+  const audience = { includeTestAccounts: false, excludedUserIds: [] as string[] };
+
   it("getStats returns appointments and clients aggregates", async () => {
-    const stats = await service.getStats();
+    const stats = await service.getStats(audience);
     expect(stats.appointments.pastVisitsInPeriod).toBe(4);
     expect(stats.appointments.bookingsCreatedInPeriod).toBe(6);
     expect(stats.appointments.total).toBe(5);
@@ -49,7 +51,7 @@ describe("doctor-stats service", () => {
   });
 
   it("getDashboardMetrics maps patient and appointment aggregates", async () => {
-    const m = await service.getDashboardMetrics();
+    const m = await service.getDashboardMetrics(audience);
     expect(m.patients.total).toBe(10);
     expect(m.patients.onSupport).toBe(3);
     expect(m.patients.visitedThisMonth).toBe(4);
@@ -84,7 +86,7 @@ describe("doctor-stats service", () => {
       countRecentClientsWithoutMessagingChannels: async () => 2,
     });
 
-    await optimizedService.getStats();
+    await optimizedService.getStats(audience);
     expect(getClientContactBreakdown).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
+import { parseReminderStatsWindowHours } from "@/app-layer/stats/loadAdminReminderStats";
 import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric-accounts/ports";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 
@@ -26,6 +28,13 @@ const metricEnum = z.enum([
   "registrations_combined",
   "subscribers_total",
   "subscribers_delta",
+  "today_appointments_today",
+  "today_appointments_week",
+  "today_cancellations_30d",
+  "today_new_clients_no_channels_7d",
+  "notif_reminders_sent",
+  "notif_reminders_failed",
+  "notif_push_opened",
 ]);
 
 const dayParam = z
@@ -71,8 +80,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid_offset" }, { status: 400 });
   }
 
+  const windowHours = parseReminderStatsWindowHours(url.searchParams.get("windowHours"));
+
   try {
     const iana = await getAppDisplayTimeZone();
+    const audience = await loadDoctorAnalyticsAudience();
     const deps = buildAppDeps();
     const result = await deps.doctorAnalyticsMetricAccounts.listMetricAccounts({
       metric,
@@ -80,6 +92,8 @@ export async function GET(req: Request) {
       limit,
       offset,
       iana,
+      excludedUserIds: audience.excludedUserIds,
+      windowHours,
     });
     return NextResponse.json({ ok: true as const, ...result });
   } catch (e) {

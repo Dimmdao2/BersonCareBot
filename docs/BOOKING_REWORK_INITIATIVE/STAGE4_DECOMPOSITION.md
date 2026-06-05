@@ -354,6 +354,8 @@ ROADMAP §10.2–10.3, §10.7:
 
 **`manual-reschedule`:** сначала sync в Rubitime, затем canonical `staffReschedule`; при Rubitime conflict вернуть `409 external_slot_taken` **без изменения канонической записи** (без compensating reschedule и лишнего lifecycle шума).
 
+**`manual-cancel` (2026-06-05, mirror):** сначала canonical `staffCancel`, затем Rubitime `cancelRecord` (`status: 4`) через `AppointmentMirrorSync` / `staffRubitimeMirrorOutbound`.
+
 ### 4.7.2 — Обновление UI после webhook
 
 Цепочка: Rubitime webhook → integrator → проекция в `be_appointments` / `appointment_records` (уже есть) → **клиент видит изменение**.

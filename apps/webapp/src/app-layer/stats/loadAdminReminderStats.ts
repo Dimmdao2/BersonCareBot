@@ -1,4 +1,5 @@
 import { and, count, desc, eq, gte, inArray, sql, sum } from "drizzle-orm";
+import { drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { loadAdminPlaybackHealthMetrics, type AdminPlaybackHealthMetrics } from "@/app-layer/media/adminPlaybackHealthMetrics";
 import {
@@ -151,10 +152,26 @@ function summarizePushOpens(buckets: PushOpenBucket[]): PushOpensSummary {
  * Платформенные агрегаты: напоминания, практика по страницам, метрики выдачи видео (без списков PII).
  * Используется и админкой (`/api/admin/reminder-stats`), и кабинетом врача (`/api/doctor/content-stats`).
  */
+function reminderOccurrenceAudienceSql(excludedUserIds: string[]) {
+  if (excludedUserIds.length === 0) return undefined;
+  return sql`EXISTS (
+    SELECT 1
+    FROM reminder_rules rr
+    LEFT JOIN platform_users pu
+      ON pu.integrator_user_id = rr.integrator_user_id
+     AND rr.platform_user_id IS NULL
+    WHERE rr.integrator_rule_id = ${reminderOccurrenceHistory.integratorRuleId}
+      AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL
+      AND COALESCE(rr.platform_user_id, pu.id) <> ALL(${excludedUserIds}::uuid[])
+  )`;
+}
+
 export async function loadContentEngagementStats(opts: {
   windowHours?: number;
+  excludedUserIds?: string[];
 }): Promise<ContentEngagementStatsResponse> {
   const windowHours = clampWindowHours(opts.windowHours);
+  const excludedUserIds = opts.excludedUserIds ?? [];
   const displayTimezone = await getAppDisplayTimeZone();
   const displayTimezoneSql = sql`${displayTimezone}::text`;
   const windowCutoffSql = sql`(now() - (${windowHours}::integer * interval '1 hour'))`;
@@ -165,6 +182,12 @@ export async function loadContentEngagementStats(opts: {
   const dayTruncOcc = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${reminderOccurrenceHistory.occurredAt}))`;
   const hourTruncPush = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${productAnalyticsHourly.bucketHour}))`;
   const dayTruncPush = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${productAnalyticsHourly.bucketHour}))`;
+  const occurrenceAudience = reminderOccurrenceAudienceSql(excludedUserIds);
+  const practiceUserExclude = drizzleExcludeUserIdColumn(
+    patientPracticeCompletions.userId,
+    excludedUserIds,
+  );
+  const warmupUserExclude = drizzleExcludeUserIdColumn(patientDailyWarmupVideoViews.userId, excludedUserIds);
 
   const [
     occRows,
@@ -187,7 +210,7 @@ export async function loadContentEngagementStats(opts: {
         n: count(),
       })
       .from(reminderOccurrenceHistory)
-      .where(gte(reminderOccurrenceHistory.occurredAt, windowCutoffSql))
+      .where(and(gte(reminderOccurrenceHistory.occurredAt, windowCutoffSql), occurrenceAudience))
       // GROUP BY select positions: Drizzle duplicates timezone() params and PG rejects mismatched GROUP BY.
       .groupBy(sql`1`, sql`2`)
       .orderBy(sql`1`),
@@ -198,7 +221,7 @@ export async function loadContentEngagementStats(opts: {
         n: count(),
       })
       .from(reminderOccurrenceHistory)
-      .where(gte(reminderOccurrenceHistory.occurredAt, windowCutoffSql))
+      .where(and(gte(reminderOccurrenceHistory.occurredAt, windowCutoffSql), occurrenceAudience))
       .groupBy(sql`1`, sql`2`)
       .orderBy(sql`1`),
     db
@@ -211,6 +234,7 @@ export async function loadContentEngagementStats(opts: {
       .where(
         and(
           gte(reminderOccurrenceHistory.occurredAt, sql`now() - interval '24 hours'`),
+          occurrenceAudience,
         ),
       )
       .groupBy(sql`1`, sql`2`)
@@ -251,7 +275,7 @@ export async function loadContentEngagementStats(opts: {
         n: count(),
       })
       .from(patientPracticeCompletions)
-      .where(gte(patientPracticeCompletions.completedAt, windowCutoffSql))
+      .where(and(gte(patientPracticeCompletions.completedAt, windowCutoffSql), practiceUserExclude))
       .groupBy(patientPracticeCompletions.source),
     db
       .select({
@@ -262,7 +286,7 @@ export async function loadContentEngagementStats(opts: {
       })
       .from(patientPracticeCompletions)
       .innerJoin(contentPages, eq(patientPracticeCompletions.contentPageId, contentPages.id))
-      .where(gte(patientPracticeCompletions.completedAt, windowCutoffSql))
+      .where(and(gte(patientPracticeCompletions.completedAt, windowCutoffSql), practiceUserExclude))
       .groupBy(patientPracticeCompletions.contentPageId, contentPages.section, contentPages.slug)
       .orderBy(desc(count()))
       .limit(15),
@@ -275,11 +299,11 @@ export async function loadContentEngagementStats(opts: {
       })
       .from(patientDailyWarmupVideoViews)
       .innerJoin(contentPages, eq(patientDailyWarmupVideoViews.contentPageId, contentPages.id))
-      .where(gte(patientDailyWarmupVideoViews.viewedAt, windowCutoffSql))
+      .where(and(gte(patientDailyWarmupVideoViews.viewedAt, windowCutoffSql), warmupUserExclude))
       .groupBy(patientDailyWarmupVideoViews.contentPageId, contentPages.section, contentPages.slug)
       .orderBy(desc(count()))
       .limit(15),
-    loadReminderPeopleWithNotificationsStats({ windowHours, displayTimezone }),
+    loadReminderPeopleWithNotificationsStats({ windowHours, displayTimezone, excludedUserIds }),
     db.select({ cnt: count() }).from(reminderRules).where(eq(reminderRules.isEnabled, true)),
     loadAdminPlaybackHealthMetrics({ windowHours }),
     loadAdminPlaybackClientHealthMetrics({ windowHours }),

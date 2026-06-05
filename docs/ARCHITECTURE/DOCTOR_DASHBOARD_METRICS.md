@@ -6,6 +6,16 @@
 
 ---
 
+## Исключение тестовых аккаунтов из аналитики
+
+- Источник идентификаторов: `system_settings.test_account_identifiers` (телефоны, Telegram, MAX).
+- По умолчанию тестовые `platform_users` **не** попадают в KPI, графики и drill-down на «Сегодня», «Аналитика», «Использование», «По уведомлениям», «По контенту».
+- Включение тестовых в выборки — только если в admin settings включён **`dev_mode`** или **`debug_forward_to_admin`** (логика: `apps/webapp/src/modules/analytics/analyticsAudience.ts`).
+- Product analytics («Использование») дополнительно всегда исключает роли `admin` / `doctor`.
+- Технические видеометрики (`videoPlayback`, `videoPlaybackClient`) не имеют user drill-down; KPI ведут на `/app/doctor/system-health`.
+
+---
+
 ## Время и часовой пояс
 
 - Окна «сегодня / завтра / неделя» в `getAppointmentStats` и списке `view` по умолчанию — **`localDayRangeBoundsIso`** от **`app_display_timezone`** (`pgDoctorCanonicalAppointments`; legacy `pgDoctorAppointments` — UTC-полуночь через `getDateBounds`).
@@ -63,6 +73,8 @@
 | Записи на неделю | `getAppointmentStats({ range: 'week' }).total` — все строки с `start_at` в окне недели |
 | Отмены за 30 дн. | `getAppointmentStats` → `cancellations30d` (канон: cancel-статусы, `updated_at` за 30 дней) |
 | Новые клиенты за 7 дн. без каналов связи | `countRecentClientsWithoutMessagingChannels(7)` — `platform_users` с `created_at` ≥ now−7d, без привязок telegram/max |
+
+Клик по плитке открывает список аккаунтов (`GET /api/doctor/analytics-metric-accounts`, ключи `today_*`).
 
 Ссылка «Аналитика по клиентам» (admin) → `/app/doctor/analytics/clients`.
 

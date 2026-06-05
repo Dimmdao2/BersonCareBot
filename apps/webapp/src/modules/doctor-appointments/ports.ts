@@ -76,7 +76,10 @@ export type DoctorDashboardAppointmentMetrics = {
 
 export type DoctorAppointmentsPort = {
   listAppointmentsForSpecialist(filter: DoctorAppointmentsListFilter): Promise<AppointmentRow[]>;
-  getAppointmentStats(filter: DoctorAppointmentStatsFilter): Promise<AppointmentStats>;
+  getAppointmentStats(
+    filter: DoctorAppointmentStatsFilter,
+    audience?: { excludedUserIds?: string[] },
+  ): Promise<AppointmentStats>;
   /** Агрегаты для плиток дашборда; без React. */
-  getDashboardAppointmentMetrics(): Promise<DoctorDashboardAppointmentMetrics>;
+  getDashboardAppointmentMetrics(audience?: { excludedUserIds?: string[] }): Promise<DoctorDashboardAppointmentMetrics>;
 };

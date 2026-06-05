@@ -5,6 +5,7 @@ export type AdminPlatformUserStatsPort = {
     endExclusiveUtcIso: string;
     /** Все календарные дни от from до to (YYYY-MM-DD) в `iana` для выравнивания ряда */
     dayKeys: string[];
+    excludedUserIds?: string[];
   }): Promise<{
     registrationsTotal: number;
     mergesTotal: number;
@@ -17,6 +18,7 @@ export type AdminPlatformUserStatsPort = {
     iana: string;
     startUtcIso: string;
     endExclusiveUtcIso: string;
+    excludedUserIds?: string[];
   }): Promise<{
     /** Число пользователей с first_binding < startUtcIso */
     countBeforeStart: number;

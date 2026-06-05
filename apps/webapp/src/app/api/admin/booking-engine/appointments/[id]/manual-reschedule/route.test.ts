@@ -34,6 +34,19 @@ describe("POST admin manual-reschedule", () => {
       ctx: {
         organizationId: "org-1",
         session: { user: { userId: "a1", role: "admin" } },
+        service: {
+          getAppointment: vi.fn().mockResolvedValue({
+            id: "appt-1",
+            startAt: "2026-06-01T09:00:00.000Z",
+            endAt: "2026-06-01T10:00:00.000Z",
+            durationMinutes: 60,
+            branchId: null,
+            specialistId: null,
+            serviceId: null,
+            status: "confirmed",
+          }),
+          getRubitimeAppointmentId: vi.fn().mockResolvedValue(null),
+        },
       },
     });
     staffRescheduleMock.mockResolvedValue({
@@ -65,6 +78,19 @@ describe("POST admin manual-reschedule", () => {
       ctx: {
         organizationId: "org-1",
         session: { user: { userId: "a1", role: "admin" } },
+        service: {
+          getAppointment: vi.fn().mockResolvedValue({
+            id: "appt-1",
+            startAt: "2026-06-01T09:00:00.000Z",
+            endAt: "2026-06-01T10:00:00.000Z",
+            durationMinutes: 60,
+            branchId: null,
+            specialistId: null,
+            serviceId: null,
+            status: "confirmed",
+          }),
+          getRubitimeAppointmentId: vi.fn().mockResolvedValue(null),
+        },
       },
     });
     staffRescheduleMock.mockRejectedValue(new Error("slot_overlap"));

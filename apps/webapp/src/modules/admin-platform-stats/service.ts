@@ -16,6 +16,7 @@ export function createAdminPlatformUserStatsService(port: AdminPlatformUserStats
       preset: AdminStatsTimePreset;
       customFrom?: string;
       customTo?: string;
+      excludedUserIds?: string[];
     }): Promise<AdminRegistrationStatsPayload> {
       const { iana, preset, customFrom, customTo } = params;
       const { fromDay, toDay, startUtcIso, endExclusiveUtcIso, dayKeys } = resolveAdminStatsLocalRange(
@@ -31,6 +32,7 @@ export function createAdminPlatformUserStatsService(port: AdminPlatformUserStats
         startUtcIso,
         endExclusiveUtcIso,
         dayKeys,
+        excludedUserIds: params.excludedUserIds ?? [],
       });
 
       const series = dayKeys.map((day) => ({
@@ -59,6 +61,7 @@ export function createAdminPlatformUserStatsService(port: AdminPlatformUserStats
       preset: AdminStatsTimePreset;
       customFrom?: string;
       customTo?: string;
+      excludedUserIds?: string[];
     }): Promise<AdminSubscriberStatsPayload> {
       const { iana, preset, customFrom, customTo } = params;
       const { fromDay, toDay, startUtcIso, endExclusiveUtcIso, dayKeys } = resolveAdminStatsLocalRange(
@@ -72,6 +75,7 @@ export function createAdminPlatformUserStatsService(port: AdminPlatformUserStats
         iana,
         startUtcIso,
         endExclusiveUtcIso,
+        excludedUserIds: params.excludedUserIds ?? [],
       });
 
       let running = raw.countBeforeStart;

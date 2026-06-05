@@ -1,6 +1,7 @@
 /**
  * Главная страница кабинета специалиста («/app/doctor») — экран «Сегодня».
  */
+import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
@@ -16,6 +17,7 @@ export default async function DoctorPage() {
   const deps = buildAppDeps();
   const intakeService = getOnlineIntakeService();
   const displayIana = await getAppDisplayTimeZone();
+  const audience = await loadDoctorAnalyticsAudience();
   const [data, kpiStats] = await Promise.all([
     loadDoctorTodayDashboard(
       {
@@ -30,7 +32,7 @@ export default async function DoctorPage() {
       },
       intakeService,
     ),
-    deps.doctorStats.getStats(),
+    deps.doctorStats.getStats(audience),
   ]);
   const [adminHealthBanner, adminRegistrationFailureBanner] =
     session.user.role === "admin"

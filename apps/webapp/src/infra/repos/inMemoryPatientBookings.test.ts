@@ -223,8 +223,58 @@ describe("inMemoryPatientBookings - compat-sync", () => {
       ).resolves.toBeTruthy();
     });
 
-    it("blocks same time for the same specialist", async () => {
+    it("allows retry for same user when previous native creating row was abandoned", async () => {
       await inMemoryPatientBookingsPort.createPending({
+        userId: "u1",
+        bookingType: "in_person",
+        city: "spb",
+        category: "general",
+        slotStart: "2026-06-13T08:00:00.000Z",
+        slotEnd: "2026-06-13T09:00:00.000Z",
+        contactName: "A",
+        contactPhone: "+79189000782",
+        contactEmail: null,
+        branchId: "br1",
+        serviceId: "sv1",
+        branchServiceId: "bs1",
+        cityCodeSnapshot: "spb",
+        branchTitleSnapshot: "Филиал",
+        serviceTitleSnapshot: "Сеанс",
+        durationMinutesSnapshot: 60,
+        priceMinorSnapshot: 100,
+        rubitimeBranchIdSnapshot: "173",
+        rubitimeCooperatorIdSnapshot: "347",
+        rubitimeServiceIdSnapshot: "675",
+      });
+
+      await expect(
+        inMemoryPatientBookingsPort.createPending({
+          userId: "u1",
+          bookingType: "in_person",
+          city: "spb",
+          category: "general",
+          slotStart: "2026-06-13T08:00:00.000Z",
+          slotEnd: "2026-06-13T09:00:00.000Z",
+          contactName: "A",
+          contactPhone: "+79189000782",
+          contactEmail: null,
+          branchId: "br1",
+          serviceId: "sv1",
+          branchServiceId: "bs1",
+          cityCodeSnapshot: "spb",
+          branchTitleSnapshot: "Филиал",
+          serviceTitleSnapshot: "Сеанс",
+          durationMinutesSnapshot: 60,
+          priceMinorSnapshot: 100,
+          rubitimeBranchIdSnapshot: "173",
+          rubitimeCooperatorIdSnapshot: "347",
+          rubitimeServiceIdSnapshot: "675",
+        }),
+      ).resolves.toBeTruthy();
+    });
+
+    it("blocks same time for the same specialist once booking is confirmed", async () => {
+      const pending = await inMemoryPatientBookingsPort.createPending({
         userId: "u1",
         bookingType: "in_person",
         city: "moscow",
@@ -246,6 +296,7 @@ describe("inMemoryPatientBookings - compat-sync", () => {
         rubitimeCooperatorIdSnapshot: "347",
         rubitimeServiceIdSnapshot: "675",
       });
+      await inMemoryPatientBookingsPort.markConfirmed(pending.id, "rub-1");
 
       await expect(
         inMemoryPatientBookingsPort.createPending({

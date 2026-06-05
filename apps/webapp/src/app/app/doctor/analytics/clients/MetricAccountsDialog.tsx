@@ -15,7 +15,11 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   metric: DoctorAnalyticsMetricKey | null;
   title: string;
-  period: AnalyticsPeriodValue;
+  /** Omit for doctor today / window-only APIs. */
+  period?: AnalyticsPeriodValue;
+  /** Default: admin metric-accounts route. */
+  apiPath?: string;
+  extraQuery?: Record<string, string>;
 };
 
 const PAGE_SIZE = 30;
@@ -27,7 +31,17 @@ function formatEventAt(iso: string | null): string {
   return d.toLocaleString("ru-RU", { hour12: false });
 }
 
-export function MetricAccountsDialog({ open, onOpenChange, metric, title, period }: Props) {
+const DEFAULT_API_PATH = "/api/admin/doctor-analytics-metric-accounts";
+
+export function MetricAccountsDialog({
+  open,
+  onOpenChange,
+  metric,
+  title,
+  period,
+  apiPath = DEFAULT_API_PATH,
+  extraQuery,
+}: Props) {
   const [items, setItems] = useState<DoctorAnalyticsMetricAccountItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -35,7 +49,10 @@ export function MetricAccountsDialog({ open, onOpenChange, metric, title, period
   const [error, setError] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const queryBase = useMemo(() => buildAdminStatsQuery(period), [period]);
+  const queryBase = useMemo(
+    () => (period ? buildAdminStatsQuery(period) : new URLSearchParams()),
+    [period],
+  );
 
   const loadPage = useCallback(
     async (nextOffset: number, replace: boolean) => {
@@ -47,7 +64,10 @@ export function MetricAccountsDialog({ open, onOpenChange, metric, title, period
         q.set("metric", metric);
         q.set("limit", String(PAGE_SIZE));
         q.set("offset", String(nextOffset));
-        const res = await fetch(`/api/admin/doctor-analytics-metric-accounts?${q.toString()}`, {
+        if (extraQuery) {
+          for (const [k, v] of Object.entries(extraQuery)) q.set(k, v);
+        }
+        const res = await fetch(`${apiPath}?${q.toString()}`, {
           cache: "no-store",
         });
         const json = (await res.json()) as {
@@ -71,7 +91,7 @@ export function MetricAccountsDialog({ open, onOpenChange, metric, title, period
         setLoading(false);
       }
     },
-    [metric, queryBase],
+    [metric, queryBase, apiPath, extraQuery],
   );
 
   useEffect(() => {

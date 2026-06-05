@@ -80,7 +80,7 @@ export async function projectCanonicalAppointmentCancelled(
     integratorRecordId: resolveDoctorProjectionIntegratorRecordId(appt.id, input.rubitimeRecordId),
     phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
     recordAt: appt.startAt,
-    status: "cancelled",
+    status: "canceled",
     lastEvent: "native.cancelled",
     updatedAt: new Date().toISOString(),
     branchId: appt.branchId,

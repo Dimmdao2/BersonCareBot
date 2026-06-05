@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, lt, lte, notInArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   beAppointmentCancellations,
@@ -30,6 +30,14 @@ const CANCELLED_STATUSES = [
   "late_cancellation",
   "no_show",
 ] as const;
+
+function appointmentUserAudienceCond(excludedUserIds: string[]) {
+  if (excludedUserIds.length === 0) return undefined;
+  return or(
+    isNull(beAppointments.platformUserId),
+    notInArray(beAppointments.platformUserId, excludedUserIds),
+  );
+}
 
 const ACTIVE_UPCOMING_STATUSES = [
   "created",
@@ -207,20 +215,27 @@ export function createPgDoctorCanonicalAppointmentsPort(
       return rows.map(mapListRow);
     },
 
-    async getAppointmentStats(filter: DoctorAppointmentStatsFilter): Promise<AppointmentStats> {
+    async getAppointmentStats(
+      filter: DoctorAppointmentStatsFilter,
+      audience?: { excludedUserIds?: string[] },
+    ): Promise<AppointmentStats> {
       const db = getDrizzle();
       const organizationId = await getDefaultOrganizationId();
       const iana = await getAppDisplayTimeZone();
       const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
+      const excluded = audience?.excludedUserIds ?? [];
+      const userAudience = appointmentUserAudienceCond(excluded);
       const rangeCond = and(
         eq(beAppointments.organizationId, organizationId),
         gte(beAppointments.startAt, from),
         lt(beAppointments.startAt, toExclusive),
+        userAudience,
       );
       const createdInRangeCond = and(
         eq(beAppointments.organizationId, organizationId),
         gte(beAppointments.createdAt, from),
         lt(beAppointments.createdAt, toExclusive),
+        userAudience,
       );
       const [
         totalRow,
@@ -250,21 +265,25 @@ export function createPgDoctorCanonicalAppointmentsPort(
         db
           .select({ count: count() })
           .from(beAppointmentCancellations)
+          .innerJoin(beAppointments, eq(beAppointments.id, beAppointmentCancellations.appointmentId))
           .where(
             and(
               eq(beAppointmentCancellations.organizationId, organizationId),
               gte(beAppointmentCancellations.createdAt, from),
               lt(beAppointmentCancellations.createdAt, toExclusive),
+              userAudience,
             ),
           ),
         db
           .select({ count: count() })
           .from(beAppointmentReschedules)
+          .innerJoin(beAppointments, eq(beAppointments.id, beAppointmentReschedules.appointmentId))
           .where(
             and(
               eq(beAppointmentReschedules.organizationId, organizationId),
               gte(beAppointmentReschedules.createdAt, from),
               lt(beAppointmentReschedules.createdAt, toExclusive),
+              userAudience,
             ),
           ),
         db
@@ -275,6 +294,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               eq(beAppointments.organizationId, organizationId),
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`NOW() - interval '30 days'`),
+              userAudience,
             ),
           ),
       ]);
@@ -290,10 +310,13 @@ export function createPgDoctorCanonicalAppointmentsPort(
       };
     },
 
-    async getDashboardAppointmentMetrics(): Promise<DoctorDashboardAppointmentMetrics> {
+    async getDashboardAppointmentMetrics(audience?: {
+      excludedUserIds?: string[];
+    }): Promise<DoctorDashboardAppointmentMetrics> {
       const db = getDrizzle();
       const organizationId = await getDefaultOrganizationId();
-      const orgCond = eq(beAppointments.organizationId, organizationId);
+      const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
+      const orgCond = and(eq(beAppointments.organizationId, organizationId), userAudience);
       const nowIso = new Date().toISOString();
 
       const [futureR, monthR, cancelR] = await Promise.all([

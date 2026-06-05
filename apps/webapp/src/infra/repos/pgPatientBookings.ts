@@ -90,11 +90,33 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   async createPending(input: CreatePendingPatientBookingInput) {
     const pool = getPool();
     const id = randomUUID();
+    // Abandoned native placeholders (no rubitime / canonical link) must not block retries or other patients.
+    await pool.query(
+      `UPDATE patient_bookings
+       SET status = 'failed_sync', updated_at = now()
+       WHERE status = 'creating'
+         AND rubitime_id IS NULL
+         AND canonical_appointment_id IS NULL
+         AND source = 'native'
+         AND (
+           (
+             platform_user_id = $1::uuid
+             AND tstzrange(slot_start, slot_end, '[)') && tstzrange($2::timestamptz, $3::timestamptz, '[)')
+           )
+           OR created_at < now() - interval '15 minutes'
+         )`,
+      [input.userId, input.slotStart, input.slotEnd],
+    );
     const result = await pool.query<Row>(
       `WITH overlap AS (
          SELECT 1
            FROM patient_bookings
           WHERE status IN ('creating', 'awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
+            AND NOT (
+              status = 'creating'
+              AND rubitime_id IS NULL
+              AND canonical_appointment_id IS NULL
+            )
             AND tstzrange(slot_start, slot_end, '[)') && tstzrange($6::timestamptz, $7::timestamptz, '[)')
              AND (
                ($20::text IS NOT NULL AND rubitime_cooperator_id_snapshot = $20::text)
@@ -301,11 +323,14 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
            WHERE rubitime_id IS NULL
              AND source = 'native'
              AND status IN ('creating', 'confirmed', 'failed_sync')
-             AND contact_phone = $1
              AND slot_start = $2::timestamptz
+             AND (
+               ($3::uuid IS NOT NULL AND platform_user_id = $3::uuid)
+               OR contact_phone = $1
+             )
            ORDER BY created_at DESC
            LIMIT 1`,
-          [phoneNorm, slotStartIso],
+          [phoneNorm, slotStartIso, input.userId ?? null],
         );
         const fb = fallback.rows?.[0];
         if (fb) {
@@ -484,6 +509,11 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
          AND slot_start >= $2::timestamptz
          AND NOT (
            status = 'creating'
+           AND rubitime_id IS NULL
+           AND canonical_appointment_id IS NULL
+         )
+         AND NOT (
+           status = 'creating'
            AND EXISTS (
              SELECT 1
              FROM patient_bookings newer
@@ -598,12 +628,6 @@ async function mergeCompatProjectionFields(input: MergeCompatInput, slotStartIso
   };
 }
 
-export function mapRubitimeStatusToPatientBookingStatus(rawStatus: string): PatientBookingStatus {
-  const x = rawStatus.toLowerCase();
-  // Latin Rubitime + русские подписи статусов без слова «cancel»
-  if (x.includes("cancel") || x.includes("отмен")) return "cancelled";
-  if (x.includes("resched")) return "rescheduled";
-  if (x.includes("complete")) return "completed";
-  if (x.includes("no_show")) return "no_show";
-  return "confirmed";
-}
+export {
+  mapRubitimeStatusToPatientBookingStatus,
+} from "@bersoncare/booking-rubitime-sync";

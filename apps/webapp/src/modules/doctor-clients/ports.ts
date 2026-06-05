@@ -71,16 +71,19 @@ export type DoctorDashboardPatientMetrics = {
 export type DoctorClientsPort = {
   listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]>;
   /** Сегменты контактов для аналитики `/app/doctor/analytics/clients`. */
-  getClientContactBreakdown(): Promise<ClientContactBreakdown>;
+  getClientContactBreakdown(audience?: { excludedUserIds?: string[] }): Promise<ClientContactBreakdown>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;
   /** Patient-scoped doctor APIs — `role = 'client'` only; otherwise `null`. */
   getPatientClientIdentity(userId: string): Promise<ClientIdentity | null>;
-  getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics>;
+  getDashboardPatientMetrics(audience?: { excludedUserIds?: string[] }): Promise<DoctorDashboardPatientMetrics>;
   /**
    * Клиенты, созданные за последние `days` суток, без привязок telegram/max.
    * Для KPI «Сегодня» (см. план навигации).
    */
-  countRecentClientsWithoutMessagingChannels(days: number): Promise<number>;
+  countRecentClientsWithoutMessagingChannels(
+    days: number,
+    audience?: { excludedUserIds?: string[] },
+  ): Promise<number>;
   /** Блокировка исходящих сообщений пациента (проверка в patient messaging). */
   isClientMessagingBlocked(userId: string): Promise<boolean>;
   /** Врач/админ: установить блокировку подписчика. */

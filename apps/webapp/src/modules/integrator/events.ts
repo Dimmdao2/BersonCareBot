@@ -9,6 +9,7 @@ import type { AppointmentProjectionPort } from "@/infra/repos/pgAppointmentProje
 import type { SubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
 import type { BranchesProjectionPort } from "@/infra/repos/pgBranches";
 import type { PatientBookingService } from "@/modules/patient-booking/ports";
+import type { RubitimeBridgePort } from "@/modules/booking-rubitime-bridge/ports";
 import { mapRubitimeStatusToPatientBookingStatus } from "@/infra/repos/pgPatientBookings";
 import { revalidatePath } from "next/cache";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -189,6 +190,12 @@ export type IntegratorEventsDeps = {
   reminderProjection?: ReminderProjectionPort;
   appointmentProjection?: AppointmentProjectionPort;
   patientBooking?: Pick<PatientBookingService, "applyRubitimeUpdate">;
+  rubitimeCanonicalProjection?: Pick<RubitimeBridgePort, "upsertCanonicalFromRubitimeRecord"> & {
+    getDefaultOrganizationId: () => Promise<string>;
+  };
+  appointmentMirrorSync?: import("@/modules/booking-appointment-sync/ports").AppointmentMirrorSyncService & {
+    getDefaultOrganizationId: () => Promise<string>;
+  };
   subscriptionMailingProjection?: SubscriptionMailingProjectionPort;
 };
 
@@ -257,6 +264,16 @@ function isNonRetryableAppointmentProjectionError(err: unknown): boolean {
   return (
     (code === "23503" && constraint === "appointment_records_branch_id_fkey") ||
     (code === "23514" && constraint === "appointment_records_status_check")
+  );
+}
+
+function isNonRetryableCanonicalAppointmentProjectionError(err: unknown): boolean {
+  const code = readPgCode(err);
+  const constraint = readPgConstraint(err);
+  return (
+    code === "23P01"
+    || constraint === "be_appointments_specialist_no_overlap"
+    || (code === "23514" && constraint === "be_appointments_status_check")
   );
 }
 
@@ -953,16 +970,66 @@ export async function handleIntegratorEvent(
         }
       }
 
-      await ap.upsertRecordFromProjection({
-        integratorRecordId,
-        phoneNormalized,
-        recordAt,
-        status,
-        payloadJson,
-        lastEvent,
-        updatedAt,
-        branchId,
-      });
+      const inboundFanout = {
+        dateTimeEnd: coerceToString(p.dateTimeEnd),
+        serviceId: coerceToString(p.serviceId),
+        rubitimeCooperatorId: coerceToString(p.rubitimeCooperatorId),
+        integratorBranchId,
+      };
+
+      if (deps.appointmentMirrorSync) {
+        const organizationId = await deps.appointmentMirrorSync.getDefaultOrganizationId();
+        const mirrorResult = await deps.appointmentMirrorSync.applyInboundFromRubitime({
+          organizationId,
+          externalId: integratorRecordId,
+          platformUserId: ensuredPlatformUserId,
+          phoneNormalized,
+          recordAt,
+          legacyStatus: status,
+          lastEvent,
+          payloadJson,
+          fanout: inboundFanout,
+        });
+        const recordProjection = mirrorResult.appointmentRecordProjection ?? {
+          integratorRecordId,
+          phoneNormalized,
+          recordAt,
+          status,
+          payloadJson,
+          lastEvent,
+          updatedAt,
+          branchId,
+        };
+        await ap.upsertRecordFromProjection({
+          ...recordProjection,
+          branchId: branchId ?? recordProjection.branchId ?? null,
+        });
+      } else {
+        await ap.upsertRecordFromProjection({
+          integratorRecordId,
+          phoneNormalized,
+          recordAt,
+          status,
+          payloadJson,
+          lastEvent,
+          updatedAt,
+          branchId,
+        });
+        if (deps.rubitimeCanonicalProjection) {
+          const organizationId = await deps.rubitimeCanonicalProjection.getDefaultOrganizationId();
+          await deps.rubitimeCanonicalProjection.upsertCanonicalFromRubitimeRecord({
+            organizationId,
+            externalId: integratorRecordId,
+            platformUserId: ensuredPlatformUserId,
+            phoneNormalized,
+            recordAt,
+            legacyStatus: status,
+            lastEvent,
+            payloadJson,
+          });
+        }
+      }
+
       const rubitimeId = integratorRecordId;
       // Extract enriched fields for compat-sync create path (Stage 11).
       // Top-level fields from projection payload take precedence over payloadJson fallbacks.
@@ -1020,7 +1087,10 @@ export async function handleIntegratorEvent(
 
       await deps.patientBooking?.applyRubitimeUpdate({
         rubitimeId,
-        status: mapRubitimeStatusToPatientBookingStatus(status),
+        status: mapRubitimeStatusToPatientBookingStatus(status, {
+          legacyEventStatus: status,
+          payloadJson,
+        }),
         slotStart: recordAt ?? null,
         slotEnd: payloadSlotEnd,
         userId: resolvedUserId,
@@ -1044,7 +1114,9 @@ export async function handleIntegratorEvent(
         accepted: false,
         reason: `appointment.record.upserted: ${reason}`,
         retryable:
-          isNonRetryableProjectionUpsertError(err) || isNonRetryableAppointmentProjectionError(err)
+          isNonRetryableProjectionUpsertError(err)
+          || isNonRetryableAppointmentProjectionError(err)
+          || isNonRetryableCanonicalAppointmentProjectionError(err)
             ? false
             : true,
       };

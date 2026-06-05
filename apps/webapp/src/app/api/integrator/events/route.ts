@@ -172,6 +172,33 @@ export async function POST(request: Request) {
     reminderProjection: deps.reminderProjection,
     appointmentProjection: deps.appointmentProjection,
     patientBooking: deps.patientBooking,
+    rubitimeCanonicalProjection:
+      deps.bookingEnginePort && deps.rubitimeCanonicalProjection
+        ? {
+            upsertCanonicalFromRubitimeRecord: deps.rubitimeCanonicalProjection.upsertCanonicalFromRubitimeRecord.bind(
+              deps.rubitimeCanonicalProjection,
+            ),
+            getDefaultOrganizationId: () => deps.bookingEnginePort!.getDefaultOrganizationId(),
+          }
+        : undefined,
+    appointmentMirrorSync:
+      deps.bookingEnginePort && deps.appointmentMirrorSync
+        ? {
+            applyInboundFromRubitime: deps.appointmentMirrorSync.applyInboundFromRubitime.bind(
+              deps.appointmentMirrorSync,
+            ),
+            pushRescheduleToRubitime: deps.appointmentMirrorSync.pushRescheduleToRubitime.bind(
+              deps.appointmentMirrorSync,
+            ),
+            pushCancelToRubitime: deps.appointmentMirrorSync.pushCancelToRubitime.bind(
+              deps.appointmentMirrorSync,
+            ),
+            stampCanonicalOutbound: deps.appointmentMirrorSync.stampCanonicalOutbound.bind(
+              deps.appointmentMirrorSync,
+            ),
+            getDefaultOrganizationId: () => deps.bookingEnginePort!.getDefaultOrganizationId(),
+          }
+        : undefined,
     branches: deps.branches,
     subscriptionMailingProjection: deps.subscriptionMailingProjection,
     emailSetupAccess: deps.emailSetupAccess,

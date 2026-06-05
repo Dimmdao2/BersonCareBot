@@ -77,7 +77,7 @@ Admin keys (`system_settings`, scope `admin`):
 | Слой | Путь |
 |------|------|
 | Порты | `ports.ts` (`AppointmentProjectionPort` — в модуле, не в infra) |
-| Сервис | `service.ts`, `canonicalCreate.ts` |
+| Сервис | `service.ts`, `canonicalCreate.ts`, `patientMirrorOutbound.ts` (cancel/reschedule → Rubitime) |
 | Слоты | `../booking-scheduling/` |
 | Поля | `../booking-form/` |
 | Bookings | `infra/repos/pgPatientBookings.ts` |
@@ -85,4 +85,4 @@ Admin keys (`system_settings`, scope `admin`):
 
 ## Тесты
 
-`service.test.ts`, `canonicalCreate.test.ts`, `slotOverlap.test.ts`, `createInputValidation.test.ts`; payments — `modules/payments/*.test.ts`, `app/api/booking/payment-routes.test.ts`.
+`service.test.ts`, `canonicalCreate.test.ts`, `patientMirrorOutbound.test.ts`, `slotOverlap.test.ts`, `createInputValidation.test.ts`; payments — `modules/payments/*.test.ts`, `app/api/booking/payment-routes.test.ts`.

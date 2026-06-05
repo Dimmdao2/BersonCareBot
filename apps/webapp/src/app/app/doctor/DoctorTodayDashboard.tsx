@@ -3,10 +3,9 @@ import type { AdminRegistrationFailureAttention } from "@/app-layer/product-anal
 import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
-import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { doctorInlineLinkClass, doctorPageStackClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
-import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
+import { DoctorTodayKpiSection } from "./DoctorTodayKpiSection";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayPendingProgramTestsSection } from "./DoctorTodayPendingProgramTestsSection";
 import { DoctorTodayProactiveInsightsSection } from "./DoctorTodayProactiveInsightsSection";
@@ -76,31 +75,7 @@ export function DoctorTodayDashboard({
         ) : null}
       </header>
 
-      <DoctorMetricList id="doctor-today-kpi" aria-label="Показатели">
-        <DoctorStatCard
-          id="doctor-today-kpi-appointments-today"
-          title="Записи сегодня"
-          value={appointmentsTodayCount}
-        />
-        <DoctorStatCard
-          id="doctor-today-kpi-appointments-week"
-          title="Записи на неделю"
-          value={kpiStats.appointments.total}
-        />
-        <DoctorStatCard
-          id="doctor-today-kpi-cancellations-30d"
-          title="Отмены за 30 дн."
-          value={kpiStats.appointments.cancellations30d}
-          tone="warning"
-          href="/app/doctor/appointments?view=cancellationsMonth"
-        />
-        <DoctorStatCard
-          id="doctor-today-kpi-clients-no-channels"
-          title="Новые клиенты за 7 дн. без каналов связи"
-          value={kpiStats.clients.newClients7dWithNoChannels}
-          tone={kpiStats.clients.newClients7dWithNoChannels > 0 ? "warning" : "neutral"}
-        />
-      </DoctorMetricList>
+      <DoctorTodayKpiSection kpiStats={kpiStats} appointmentsTodayCount={appointmentsTodayCount} />
 
       <DoctorSection id="doctor-today-section-attention" className="gap-2">
         <DoctorSectionTitle>Требует внимания</DoctorSectionTitle>

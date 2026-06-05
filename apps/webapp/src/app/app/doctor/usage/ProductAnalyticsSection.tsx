@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { UsageMetricAccountsDialog } from "./UsageMetricAccountsDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 import {
   Collapsible,
@@ -82,6 +83,7 @@ export function ProductAnalyticsSection() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAllClients, setShowAllClients] = useState(false);
+  const [clientsDialogOpen, setClientsDialogOpen] = useState(false);
 
   const load = useCallback(async (hours: number) => {
     setLoading(true);
@@ -159,6 +161,7 @@ export function ProductAnalyticsSection() {
               id="usage-kpi-active-users"
               title="Активных клиентов"
               value={data.summary.uniqueActiveUsers}
+              onClick={() => setClientsDialogOpen(true)}
             />
             <DoctorStatCard id="usage-kpi-app-opens" title="Заходы" value={data.summary.totalAppOpens} />
             <DoctorStatCard
@@ -314,6 +317,13 @@ export function ProductAnalyticsSection() {
               ) : null}
             </CardContent>
           </Card>
+          <UsageMetricAccountsDialog
+            open={clientsDialogOpen}
+            onOpenChange={setClientsDialogOpen}
+            title="Активные клиенты"
+            rows={sortedClientRows}
+            displayTimezone={data.displayTimezone}
+          />
         </>
       ) : null}
     </div>

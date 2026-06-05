@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { loadContentEngagementStats, parseReminderStatsWindowHours } from "@/app-layer/stats/loadAdminReminderStats";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
@@ -12,6 +13,10 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const windowHours = parseReminderStatsWindowHours(url.searchParams.get("windowHours"));
-  const body = await loadContentEngagementStats({ windowHours });
+  const audience = await loadDoctorAnalyticsAudience();
+  const body = await loadContentEngagementStats({
+    windowHours,
+    excludedUserIds: audience.excludedUserIds,
+  });
   return NextResponse.json(body);
 }

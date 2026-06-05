@@ -11,6 +11,28 @@ describe("legacyProjection", () => {
     expect(mapLegacyStatusToCanonical("canceled", "event-update")).toBe("cancelled_by_patient");
   });
 
+  it("maps staff manual-cancel to cancelled_by_specialist", () => {
+    expect(mapLegacyStatusToCanonical("canceled", "manual-cancel")).toBe("cancelled_by_specialist");
+  });
+
+  it("maps Rubitime normalized status from payload to be_appointments", () => {
+    expect(
+      mapLegacyStatusToCanonical("updated", "updated", {
+        rubitime_normalized_status: "moved_awaiting",
+      }),
+    ).toBe("rescheduled");
+    expect(
+      mapLegacyStatusToCanonical("updated", "updated", {
+        rubitime_normalized_status: "awaiting_prepayment",
+      }),
+    ).toBe("awaiting_payment");
+    expect(
+      mapLegacyStatusToCanonical("updated", "updated", {
+        rubitime_normalized_status: "awaiting_confirmation",
+      }),
+    ).toBe("manual_review_required");
+  });
+
   it("uses datetime_end for duration", () => {
     const { durationMinutes, endAtIso } = resolveDurationAndEnd("2026-06-01T10:00:00.000Z", {
       datetime_end: "2026-06-01T10:40:00.000Z",

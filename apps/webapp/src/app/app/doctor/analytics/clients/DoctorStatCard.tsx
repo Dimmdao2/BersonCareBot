@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   doctorMetricLabelClass,
   doctorMetricValueClass,
+  doctorStatCardInteractiveClass,
   doctorStatCardShellClass,
   doctorStatCardShellWarningClass,
 } from "@/shared/ui/doctor/doctorVisual";
@@ -10,40 +11,58 @@ import { cn } from "@/lib/utils";
 type Props = {
   id: string;
   title: string;
-  value: number;
+  value: number | string;
   tone?: "neutral" | "warning";
   hint?: string;
   href?: string;
+  /** @deprecated Use onClick — whole-card interaction */
   onValueClick?: () => void;
+  onClick?: () => void;
 };
 
-export function DoctorStatCard({ id, title, value, tone = "neutral", hint, href, onValueClick }: Props) {
-  const valueNode = onValueClick ? (
-    <button
-      type="button"
-      className={`mt-0.5 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-sm ${doctorMetricValueClass}`}
-      onClick={onValueClick}
-    >
-      {value}
-    </button>
-  ) : (
-    <p className={`mt-0.5 ${doctorMetricValueClass}`}>{value}</p>
+export function DoctorStatCard({
+  id,
+  title,
+  value,
+  tone = "neutral",
+  hint,
+  href,
+  onValueClick,
+  onClick,
+}: Props) {
+  const handleClick = onClick ?? onValueClick;
+  const shellClass = cn(
+    tone === "warning" ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
+    (href || handleClick) && doctorStatCardInteractiveClass,
   );
-  return (
-    <article
-      id={id}
-      className={cn(tone === "warning" ? doctorStatCardShellWarningClass : doctorStatCardShellClass)}
-    >
+
+  const inner = (
+    <>
       <p className={doctorMetricLabelClass}>{title}</p>
-      {valueNode}
+      <p className={`mt-0.5 ${doctorMetricValueClass}`}>{value}</p>
       {hint ? <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p> : null}
-      {href ? (
-        <p className="mt-1">
-          <Link href={href} className="text-[11px] text-primary underline underline-offset-2">
-            Открыть
-          </Link>
-        </p>
-      ) : null}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link id={id} href={href} className={shellClass}>
+        {inner}
+      </Link>
+    );
+  }
+
+  if (handleClick) {
+    return (
+      <button id={id} type="button" className={cn(shellClass, "w-full text-left")} onClick={handleClick}>
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <article id={id} className={shellClass}>
+      {inner}
     </article>
   );
 }

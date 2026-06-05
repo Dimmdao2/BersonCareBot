@@ -23,6 +23,8 @@ import {
 } from "@/shared/ui/doctor/primitives/select";
 import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
+import { MetricAccountsDialog } from "@/app/app/doctor/analytics/clients/MetricAccountsDialog";
+import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric-accounts/ports";
 import { PeopleWithNotificationsCard } from "@/app/app/doctor/analytics/shared/PeopleWithNotificationsCard";
 import { PushOpensAnalyticsCard } from "@/app/app/doctor/analytics/shared/PushOpensAnalyticsCard";
 import { ReminderSendsHourlyClockChart } from "@/app/app/doctor/analytics/shared/ReminderSendsHourlyClockChart";
@@ -148,11 +150,14 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
   );
 }
 
+type MetricDialogState = { metric: DoctorAnalyticsMetricKey; title: string } | null;
+
 export function NotificationsAnalyticsClient() {
   const [windowHours, setWindowHours] = useState<number>(168);
   const [data, setData] = useState<ContentEngagementStatsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [metricDialog, setMetricDialog] = useState<MetricDialogState>(null);
 
   const load = useCallback(async (hours: number) => {
     setLoading(true);
@@ -232,21 +237,39 @@ export function NotificationsAnalyticsClient() {
       {data ? (
         <>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            <DoctorStatCard id="notif-sent-total" title="Отправлено" value={remindersSentTotal} />
+            <DoctorStatCard
+              id="notif-sent-total"
+              title="Отправлено"
+              value={remindersSentTotal}
+              onClick={() => setMetricDialog({ metric: "notif_reminders_sent", title: "Отправлено" })}
+            />
             <DoctorStatCard
               id="notif-failed-total"
               title="Ошибок"
               value={remindersFailedTotal}
               tone={remindersFailedTotal > 0 ? "warning" : "neutral"}
               hint={remindersSentTotal > 0 ? `Доля: ${formatPct(remindersFailRate / 100)}` : "Нет отправок"}
+              onClick={() => setMetricDialog({ metric: "notif_reminders_failed", title: "Ошибки отправки" })}
             />
             <DoctorStatCard
               id="notif-open-rate"
               title="Push open rate"
               value={openRatePct}
               hint={`Открыто: ${data.pushOpensSummary.opened} из ${data.pushOpensSummary.sent}`}
+              onClick={() => setMetricDialog({ metric: "notif_push_opened", title: "Push open" })}
             />
           </div>
+
+          <MetricAccountsDialog
+            open={metricDialog !== null}
+            onOpenChange={(open) => {
+              if (!open) setMetricDialog(null);
+            }}
+            metric={metricDialog?.metric ?? null}
+            title={metricDialog?.title ?? ""}
+            period={{ preset: "week" }}
+            extraQuery={{ windowHours: String(windowHours) }}
+          />
 
           <div className="grid gap-3 md:grid-cols-2">
             <PeopleWithNotificationsCard stats={data.peopleWithNotifications} />

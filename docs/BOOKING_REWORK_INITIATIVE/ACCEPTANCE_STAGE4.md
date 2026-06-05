@@ -114,7 +114,7 @@
 
 ## 4.7 — Rubitime и обновление календаря
 
-- [x] Ручное создание и перенос **отправляют** sync в Rubitime (при включённом bridge)
+- [x] Ручное создание и перенос **отправляют** sync в Rubitime (при включённом bridge); **`manual-cancel`** — канон → Rubitime ([`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md))
 - [x] При ответе «слот занят» / conflict — **нет** оставшейся «битой» записи в нашей БД; UI показывает понятную ошибку
 - [x] Для `manual` и `manual-reschedule` используется единый контракт ошибки: `409 external_slot_taken` + `hint=refresh_calendar`
 - [x] После ошибки conflict пользователь может **обновить** календарь и увидеть запись, пришедшую webhook'ом

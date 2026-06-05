@@ -115,7 +115,13 @@ export type BookingSyncPort = {
   cancelRecord(rubitimeId: string): Promise<void>;
   /** Удаление записи в Rubitime (освобождение слота / откат create). */
   deleteRecord(rubitimeId: string): Promise<void>;
-  updateRecord?(input: { rubitimeId: string; slotStart: string; slotEnd?: string }): Promise<void>;
+  updateRecord?(input: {
+    rubitimeId: string;
+    slotStart: string;
+    slotEnd?: string;
+    /** Normalized Rubitime API2 fields (record, datetime_end, branch_id, …). */
+    rubitimePatch?: Record<string, unknown>;
+  }): Promise<void>;
   emitBookingEvent(input: {
     eventType:
       | "booking.created"

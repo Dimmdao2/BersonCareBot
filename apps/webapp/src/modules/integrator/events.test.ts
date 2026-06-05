@@ -1115,6 +1115,103 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     expect(result.accepted).toBe(true);
   });
 
+  it("appointment.record.upserted projects into canonical be_appointments when bridge port is wired", async () => {
+    const upsertCanonicalFromRubitimeRecord = vi.fn().mockResolvedValue({ action: "inserted", appointmentId: "appt-1" });
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-canonical-1",
+          phoneNormalized: "+79991234567",
+          recordAt: "2025-06-01T10:00:00.000Z",
+          status: "created",
+          payloadJson: { branch_id: "12", service_id: "99", cooperator_id: "7" },
+          lastEvent: "event-create",
+          updatedAt: "2025-05-01T12:00:00.000Z",
+        },
+      },
+      {
+        ...depsWithAp,
+        rubitimeCanonicalProjection: {
+          upsertCanonicalFromRubitimeRecord,
+          getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1"),
+        },
+      },
+    );
+    expect(result.accepted).toBe(true);
+    expect(upsertCanonicalFromRubitimeRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        externalId: "rec-canonical-1",
+        phoneNormalized: "+79991234567",
+        legacyStatus: "created",
+      }),
+    );
+  });
+
+  it("appointment.record.upserted uses mirror sync fan-out and unified legacy projection", async () => {
+    const applyInboundFromRubitime = vi.fn().mockResolvedValue({
+      action: "updated",
+      appointmentId: "appt-mirror",
+      appointmentRecordProjection: {
+        integratorRecordId: "rec-mirror-1",
+        phoneNormalized: "+79991234567",
+        recordAt: "2025-06-01T10:00:00.000Z",
+        status: "updated",
+        payloadJson: { datetime_end: "2025-06-01T11:00:00.000Z", service_id: "99" },
+        lastEvent: "event-update",
+        updatedAt: "2025-05-01T12:00:00.000Z",
+        branchId: "branch-1",
+      },
+    });
+    const upsertSpy = vi.spyOn(depsWithAp.appointmentProjection!, "upsertRecordFromProjection").mockResolvedValue();
+    try {
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-mirror-1",
+          phoneNormalized: "+79991234567",
+          recordAt: "2025-06-01T10:00:00.000Z",
+          status: "updated",
+          payloadJson: {},
+          lastEvent: "event-update",
+          updatedAt: "2025-05-01T12:00:00.000Z",
+          dateTimeEnd: "2025-06-01T11:00:00.000Z",
+          serviceId: "99",
+        },
+      },
+      {
+        ...depsWithAp,
+        appointmentMirrorSync: {
+          applyInboundFromRubitime,
+          getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1"),
+          pushRescheduleToRubitime: vi.fn(),
+          pushCancelToRubitime: vi.fn(),
+          stampCanonicalOutbound: vi.fn(),
+        },
+      },
+    );
+    expect(result.accepted).toBe(true);
+    expect(applyInboundFromRubitime).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fanout: expect.objectContaining({
+          dateTimeEnd: "2025-06-01T11:00:00.000Z",
+          serviceId: "99",
+        }),
+      }),
+    );
+    expect(upsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        integratorRecordId: "rec-mirror-1",
+        recordAt: "2025-06-01T10:00:00.000Z",
+      }),
+    );
+    } finally {
+      upsertSpy.mockRestore();
+    }
+  });
+
   it("rejects appointment.record.upserted without required fields", async () => {
     const result = await handleIntegratorEvent(
       {

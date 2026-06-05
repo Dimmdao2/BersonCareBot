@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { applyStaffCancelSideEffects } from "@/app-layer/booking/staffAppointmentLifecycleEffects";
+import {
+  resolveRubitimeIdForAppointment,
+  syncStaffCancelToRubitime,
+} from "@/app-layer/booking/staffRubitimeMirrorOutbound";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
@@ -33,6 +37,16 @@ export async function POST(request: Request, context: RouteContext) {
   if (!deps.bookingAppointmentLifecycle) {
     return NextResponse.json({ ok: false, error: "lifecycle_unavailable" }, { status: 503 });
   }
+  const bookingRow = deps.patientBooking
+    ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
+    : null;
+  const rubitimeId = await resolveRubitimeIdForAppointment({
+    appointmentId,
+    organizationId: gate.ctx.organizationId,
+    bookingRow,
+    getRubitimeAppointmentId: gate.ctx.service?.getRubitimeAppointmentId,
+  });
+  const syncPort = createBookingSyncPort();
   const actorType = gate.ctx.session.user.role === "admin" ? "admin" : "specialist";
   const result = await deps.bookingAppointmentLifecycle.staffCancel({
     appointmentId,
@@ -46,6 +60,18 @@ export async function POST(request: Request, context: RouteContext) {
   });
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
+  }
+  if (rubitimeId) {
+    try {
+      await syncStaffCancelToRubitime({
+        rubitimeId,
+        appointmentId,
+        appointmentMirrorSync: deps.appointmentMirrorSync,
+        syncPort,
+      });
+    } catch {
+      return NextResponse.json({ ok: false, error: "rubitime_sync_failed" }, { status: 502 });
+    }
   }
   const { loadBookingLifecycleNotificationsFromSystemSettings } = await import(
     "@/modules/booking-notifications/settings"
@@ -81,10 +107,8 @@ export async function POST(request: Request, context: RouteContext) {
     organizationId: gate.ctx.organizationId,
     appointment: result.appointment,
     cancelPolicy: result.cancelPolicy,
-    syncPort: createBookingSyncPort(),
-    bookingRow: deps.patientBooking
-      ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
-      : null,
+    syncPort,
+    bookingRow,
     lifecycleNotificationSettings,
   });
   return NextResponse.json({ ok: true, appointment: result.appointment });

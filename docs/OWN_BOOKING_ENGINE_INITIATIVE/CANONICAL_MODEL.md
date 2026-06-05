@@ -87,4 +87,14 @@ erDiagram
 - `booking_branch_services` → `be_specialist_service_availability` + mappings
 - `appointment_records` / `rubitime_records` → read-bridge в `be_appointments` (не удаляя legacy)
 
+## Live mirror (2026-06-05)
+
+При `booking_rubitime_bridge_enabled` и `be_external_entity_mappings` для записи:
+
+- **Inbound:** Rubitime webhook → `AppointmentMirrorSync.applyInboundFromRubitime` → `be_appointments` + тот же snapshot в `appointment_records`.
+- **Outbound:** канон lifecycle → Rubitime M2M (`update-record` / `cancelRecord`); порядок staff cancel vs reschedule — см. [`RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md).
+- **Attribution:** `mirror_last_synced_from`, `mirror_synced_at`, `mirror_sync_version` в `payload_json` / meta; echo-guard ~8 с.
+
+Код: `modules/booking-appointment-sync/`, `infra/repos/pgBookingRubitimeBridge.ts`.
+
 Rollback: новые таблицы `DROP` в обратном порядке; legacy `booking_*` не трогаются.

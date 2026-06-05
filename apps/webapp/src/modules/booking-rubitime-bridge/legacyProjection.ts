@@ -1,3 +1,4 @@
+import { mapRubitimeStatusToBeAppointment } from "@bersoncare/booking-rubitime-sync";
 import type { AppointmentStatus } from "@/modules/booking-engine/types";
 
 export type LegacyAppointmentPayload = {
@@ -19,12 +20,27 @@ function coerceString(v: unknown): string | null {
   return null;
 }
 
-export function mapLegacyStatusToCanonical(status: string, lastEvent: string): AppointmentStatus {
-  const s = status.toLowerCase();
+export function mapLegacyStatusToCanonical(
+  status: string,
+  lastEvent: string,
+  payloadJson?: unknown,
+): AppointmentStatus {
+  const mapped = mapRubitimeStatusToBeAppointment(status, lastEvent, payloadJson);
   const ev = lastEvent.toLowerCase();
-  if (s === "canceled" || ev.includes("cancel")) return "cancelled_by_patient";
-  if (s === "updated" || s === "created") return "confirmed";
-  return "confirmed";
+  if (mapped === "cancelled_by_patient") {
+    if (
+      ev.includes("staff")
+      || ev.includes("specialist")
+      || ev.includes("admin")
+      || ev.includes("manual-cancel")
+    ) {
+      return "cancelled_by_specialist";
+    }
+  }
+  if (mapped === "confirmed" && (ev.includes("no_show") || ev.includes("no-show"))) {
+    return "no_show";
+  }
+  return mapped as AppointmentStatus;
 }
 
 export function resolveDurationAndEnd(

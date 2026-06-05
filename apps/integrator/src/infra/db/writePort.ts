@@ -64,7 +64,12 @@ import { logger } from '../observability/logger.js';
 import { insertMailingLog } from './repos/mailingLogs.js';
 import { normalizeRuPhoneE164 } from '../phone/normalizeRuPhoneE164.js';
 import { isExplicitZonedIsoInstant } from '../../shared/explicitZonedIsoInstant.js';
-import { mapRubitimeStatusToPatientBookingStatus, upsertPatientBookingFromRubitime } from '@bersoncare/booking-rubitime-sync';
+import {
+  enrichPayloadWithRubitimeStatus,
+  mapRubitimeStatusToPatientBookingStatus,
+  resolveRubitimeStatusFromBookingUpsert,
+  upsertPatientBookingFromRubitime,
+} from '@bersoncare/booking-rubitime-sync';
 import { upsertAppointmentRecordFromBookingMutation } from './repos/publicAppointmentRecordSync.js';
 import { resolvePlatformUserIdForRubitimeBooking } from './repos/resolvePlatformUserIdForRubitimeBooking.js';
 import { buildAppointmentRecordUpsertedFanout } from './buildAppointmentRecordUpsertedFanout.js';
@@ -92,6 +97,8 @@ type BookingUpsertParams = {
   timeNormalizationStatus?: unknown;
   timeNormalizationFieldErrors?: unknown;
   integratorUserId?: unknown;
+  rubitimeStatusCode?: unknown;
+  rubitimeNormalizedStatus?: unknown;
 };
 
 function asNonEmptyString(value: unknown): string | null {
@@ -263,14 +270,37 @@ export function createDbWritePort(input: {
             typeof payloadJson === 'object' && payloadJson !== null && !Array.isArray(payloadJson)
               ? (JSON.parse(JSON.stringify(payloadJson)) as Record<string, unknown>)
               : {};
+          let enrichedPayloadJson: Record<string, unknown> = payloadJsonForFanout;
+          let patientBookingStatus = mapRubitimeStatusToPatientBookingStatus(status, {
+            legacyEventStatus: status,
+            payloadJson: payloadJsonForFanout,
+          });
           await db.tx(async (txDb) => {
             await canonicalizeIntegratorUserIdKeysInObject(txDb, payloadJsonForFanout);
+            const rubitimeNormalizedStatus = resolveRubitimeStatusFromBookingUpsert({
+              rubitimeNormalizedStatus: params.rubitimeNormalizedStatus,
+              rubitimeStatusCode: params.rubitimeStatusCode,
+              payloadJson: payloadJsonForFanout,
+              legacyEventStatus: status,
+            });
+            const rubitimeStatusCode =
+              asNullableString(params.rubitimeStatusCode) ??
+              (payloadJsonForFanout.status != null ? String(payloadJsonForFanout.status) : null);
+            enrichedPayloadJson = enrichPayloadWithRubitimeStatus(
+              payloadJsonForFanout,
+              rubitimeNormalizedStatus,
+              rubitimeStatusCode,
+            );
+            patientBookingStatus = mapRubitimeStatusToPatientBookingStatus(
+              rubitimeNormalizedStatus ?? status,
+              { legacyEventStatus: status, payloadJson: enrichedPayloadJson },
+            );
             await upsertAppointmentRecordFromBookingMutation(txDb, {
               integratorRecordId: externalRecordId,
               phoneNormalized,
               recordAt,
               status,
-              payloadJson: payloadJsonForFanout,
+              payloadJson: enrichedPayloadJson,
               lastEvent,
               updatedAt,
               branchId: null,
@@ -297,7 +327,7 @@ export function createDbWritePort(input: {
               normalizeRuPhoneE164,
               {
                 rubitimeId: externalRecordId,
-                status: mapRubitimeStatusToPatientBookingStatus(status),
+                status: patientBookingStatus,
                 slotStart: recordAt,
                 slotEnd: rawDateTimeEnd,
                 userId: resolvedUserId,
@@ -322,7 +352,7 @@ export function createDbWritePort(input: {
               phoneNormalized,
               recordAt,
               status,
-              payloadJson: payloadJsonForFanout,
+              payloadJson: enrichedPayloadJson,
               lastEvent,
               updatedAt,
               patientFirstName,

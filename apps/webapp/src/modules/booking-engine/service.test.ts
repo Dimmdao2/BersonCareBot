@@ -60,13 +60,16 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
       .fn()
       .mockImplementation(async (input) => ({ ...appointment, status: input.toStatus })),
     isBridgeEnabled: vi.fn().mockResolvedValue(true),
+    upsertCanonicalFromRubitimeRecord: vi.fn().mockResolvedValue({ action: "skipped_native_integrator_id" }),
     projectAppointmentRecords: vi.fn().mockResolvedValue({
       projectedAppointments: 0,
+      updatedAppointments: 0,
       skippedExisting: 0,
       recoveredMappings: 0,
     }),
     projectRubitimeRecords: vi.fn().mockResolvedValue({
       projectedAppointments: 0,
+      updatedAppointments: 0,
       skippedExisting: 0,
       recoveredMappings: 0,
     }),

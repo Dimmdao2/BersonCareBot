@@ -35,6 +35,9 @@ describe("POST admin manual-cancel", () => {
       ctx: {
         organizationId: "org-1",
         session: { user: { userId: "a1", role: "admin" } },
+        service: {
+          getRubitimeAppointmentId: vi.fn().mockResolvedValue(null),
+        },
       },
     });
     staffCancelMock.mockResolvedValue({

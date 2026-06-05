@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -38,6 +39,7 @@ export async function GET(req: Request) {
 
   const iana = await getAppDisplayTimeZone();
   const deps = buildAppDeps();
+  const audience = await loadDoctorAnalyticsAudience();
 
   try {
     const body = await deps.adminPlatformUserStats.getRegistrationStats({
@@ -45,6 +47,7 @@ export async function GET(req: Request) {
       preset,
       customFrom: fromRaw ?? undefined,
       customTo: toRaw ?? undefined,
+      excludedUserIds: audience.excludedUserIds,
     });
     return NextResponse.json({ ok: true as const, ...body });
   } catch (e) {

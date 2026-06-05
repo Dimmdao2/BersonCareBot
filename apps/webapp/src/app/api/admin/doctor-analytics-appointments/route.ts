@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
@@ -38,18 +39,22 @@ export async function GET(req: Request) {
 
   const iana = await getAppDisplayTimeZone();
   const deps = buildAppDeps();
+  const audience = await loadDoctorAnalyticsAudience();
 
   try {
     const bounds = resolveAppointmentStatsBounds(
       { kind: "preset", preset, customFrom: fromRaw ?? undefined, customTo: toRaw ?? undefined },
       iana,
     );
-    const appointments = await deps.doctorAppointments.getAppointmentStats({
-      kind: "preset",
-      preset,
-      customFrom: fromRaw ?? undefined,
-      customTo: toRaw ?? undefined,
-    });
+    const appointments = await deps.doctorAppointments.getAppointmentStats(
+      {
+        kind: "preset",
+        preset,
+        customFrom: fromRaw ?? undefined,
+        customTo: toRaw ?? undefined,
+      },
+      { excludedUserIds: audience.excludedUserIds },
+    );
     return NextResponse.json({
       ok: true as const,
       fromDay: bounds.fromDay,

@@ -1,5 +1,22 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-05 — Двусторонняя синхронизация Rubitime ↔ канон (`AppointmentMirrorSync`) — закрыто
+
+**Сделано:**
+- Модуль [`booking-appointment-sync/README.md`](../../apps/webapp/src/modules/booking-appointment-sync/README.md): `buildCanonicalInboundSnapshot`, fan-out merge, partial FK + warn, loop guard, `syncVersion`, outbound patch.
+- Inbound: любой mapped `source`; recovery → immediate update; `events.ts`: mirror first → единый snapshot в `appointment_records`.
+- Outbound: doctor + **admin** manual routes, **patient** cancel/reschedule (`patientMirrorOutbound.ts`); integrator `normalizeUpdateRecordPatch.ts`.
+- Shared: `staffRubitimeMirrorOutbound.ts`.
+- Документация синхронизирована: [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md), [`RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md), [`patient-booking.md`](../../apps/webapp/src/modules/patient-booking/patient-booking.md), [`booking-calendar.md`](../../apps/webapp/src/modules/booking-calendar/booking-calendar.md).
+
+**Проверки:** см. ACCEPTANCE_MIRROR_SYNC (vitest matrix); `tsc` webapp — OK.
+
+**Доработка (замечания ревью):** staff **cancel** — канон → Rubitime (не наоборот); убран мёртвый `skipped_native_owner`; лог echo-guard; тесты `patientMirrorOutbound`.
+
+**Вне scope (без изменений):** DDL; real-time UI push; полный FSM redesign.
+
+**Документация (синхронизация):** `README`, `ROADMAP`, `INVENTORY_AND_IA`, `ACCEPTANCE_MIRROR_SYNC`; `RUBITIME_BOOKING_PIPELINE`, `DB_STRUCTURE`; OWN_BOOKING — `LOG`, `STAGE_CHECKLISTS`, `CANONICAL_MODEL`, `UI_SURFACES_CHECKLIST`, `MASTER_PLAN`; `docs/README.md`; module README `booking-appointment-sync`, `patient-booking`, `booking-calendar`; план — [`.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md`](../../.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md) (`status: completed`).
+
 ## 2026-06-04 — Этап 5: агентская реализация (код + документация)
 
 **Контекст:** реализация принятой IA по замечаниям владельца. Базис — блок «Принято владельцем» и «Решения владельца» ниже. Агентская часть выполнена, ожидает ручного прохода и подписи. Чек-лист: [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md).
