@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Activity, Dumbbell, FileText, Flame, Sparkles, Trash2 } from "lucide-react";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -282,7 +282,6 @@ function PersonalReminderCard({
 export function ReminderRulesClient({
   personalRows,
   legacyRules,
-  unseenCount = 0,
   activeProgram = null,
   warmupsSectionAvailable = false,
   warmupsSectionSlug = DEFAULT_WARMUPS_SECTION_SLUG,
@@ -295,7 +294,6 @@ export function ReminderRulesClient({
 }: {
   personalRows: PersonalReminderRowVM[];
   legacyRules: ReminderRule[];
-  unseenCount?: number;
   activeProgram?: { id: string; title: string } | null;
   warmupsSectionAvailable?: boolean;
   warmupsSectionSlug?: string;
@@ -383,16 +381,13 @@ export function ReminderRulesClient({
     });
   };
 
-  const markedSeenRef = useRef(false);
   useEffect(() => {
-    if (!unseenCount || markedSeenRef.current) return;
-    markedSeenRef.current = true;
     void fetch("/api/patient/reminders/mark-seen", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ all: true }),
     }).catch(() => undefined);
-  }, [unseenCount]);
+  }, []);
 
   const openEditForRow = (row: PersonalReminderRowVM) => {
     setEditRow(row);

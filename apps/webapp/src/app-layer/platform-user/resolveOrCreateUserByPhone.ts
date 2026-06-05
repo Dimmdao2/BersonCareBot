@@ -1,4 +1,5 @@
 import { getPool } from "@/app-layer/db/client";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { findCanonicalUserIdByPhone } from "@/infra/repos/pgCanonicalPlatformUser";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import {
@@ -18,7 +19,8 @@ export async function resolveOrCreateUserByPhone(
 
   if (!userId) {
     const display = contactName.trim().slice(0, 500) || phoneNorm;
-    const ins = await pool.query<{ id: string }>(
+    const ins = await runPgPoolPgText<{ id: string }>(
+      pool,
       `INSERT INTO platform_users (phone_normalized, display_name, role, patient_phone_trust_at)
        VALUES ($1, $2, 'client', now())
        RETURNING id`,

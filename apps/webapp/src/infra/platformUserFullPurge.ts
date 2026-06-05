@@ -6,6 +6,7 @@
  */
 import pg, { type Pool, type PoolClient } from "pg";
 import { getPool } from "@/infra/db/client";
+import { runPurgeClientPgText, runPurgePoolPgText } from "@/infra/platformUserPurgeSql";
 
 const { Pool: PgPool } = pg;
 
@@ -102,12 +103,13 @@ const CONTENT_TABLES: { table: string; column: string }[] = [
 
 /** Дневники симптомов и ЛФК: порядок как в `pgDiaryPurge` (FK `lfk_complexes.symptom_tracking_id` → `symptom_trackings`). */
 async function deleteSymptomAndLfkDiaryForUser(client: PoolClient, userId: string): Promise<void> {
-  await client.query(
+  await runPurgeClientPgText(
+    client,
     `UPDATE lfk_complexes SET symptom_tracking_id = NULL, updated_at = now() WHERE user_id = $1`,
     [userId],
   );
-  await client.query(`DELETE FROM lfk_complexes WHERE user_id = $1`, [userId]);
-  await client.query(`DELETE FROM symptom_trackings WHERE user_id = $1`, [userId]);
+  await runPurgeClientPgText(client, `DELETE FROM lfk_complexes WHERE user_id = $1`, [userId]);
+  await runPurgeClientPgText(client, `DELETE FROM symptom_trackings WHERE user_id = $1`, [userId]);
 }
 
 const IDENTITY_TABLES: { table: string; column: string }[] = [
@@ -125,18 +127,25 @@ export function isPlatformUserUuid(s: string): boolean {
 async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: string): Promise<void> {
   const digs = phoneDigits(phoneNormalized);
 
-  await client.query(
+  await runPurgeClientPgText(
+    client,
     `DELETE FROM phone_otp_locks WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
     [digs],
   );
-  await client.query(`DELETE FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`, [digs]);
-  await client.query(
+  await runPurgeClientPgText(
+    client,
+    `DELETE FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`,
+    [digs],
+  );
+  await runPurgeClientPgText(
+    client,
     `DELETE FROM appointment_records
      WHERE phone_normalized IS NOT NULL
        AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
     [digs],
   );
-  await client.query(
+  await runPurgeClientPgText(
+    client,
     `DELETE FROM message_log
      WHERE user_id IN (
        SELECT id::text FROM platform_users
@@ -156,13 +165,14 @@ async function deleteWebappProjectionByIntegratorUserId(client: PoolClient, inte
   if (!/^\d+$/.test(integratorUserId.trim())) return;
   const id = integratorUserId.trim();
 
-  await client.query(`DELETE FROM reminder_delivery_events WHERE integrator_user_id = $1::bigint`, [id]);
-  await client.query(`DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`, [id]);
-  await client.query(`DELETE FROM reminder_rules WHERE integrator_user_id = $1::bigint`, [id]);
-  await client.query(`DELETE FROM content_access_grants_webapp WHERE integrator_user_id = $1::bigint`, [id]);
-  await client.query(`DELETE FROM user_subscriptions_webapp WHERE integrator_user_id = $1::bigint`, [id]);
-  await client.query(`DELETE FROM mailing_logs_webapp WHERE integrator_user_id = $1::bigint`, [id]);
-  await client.query(
+  await runPurgeClientPgText(client, `DELETE FROM reminder_delivery_events WHERE integrator_user_id = $1::bigint`, [id]);
+  await runPurgeClientPgText(client, `DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`, [id]);
+  await runPurgeClientPgText(client, `DELETE FROM reminder_rules WHERE integrator_user_id = $1::bigint`, [id]);
+  await runPurgeClientPgText(client, `DELETE FROM content_access_grants_webapp WHERE integrator_user_id = $1::bigint`, [id]);
+  await runPurgeClientPgText(client, `DELETE FROM user_subscriptions_webapp WHERE integrator_user_id = $1::bigint`, [id]);
+  await runPurgeClientPgText(client, `DELETE FROM mailing_logs_webapp WHERE integrator_user_id = $1::bigint`, [id]);
+  await runPurgeClientPgText(
+    client,
     `DELETE FROM support_question_messages WHERE question_id IN (
        SELECT id FROM support_questions WHERE conversation_id IN (
          SELECT id FROM support_conversations WHERE integrator_user_id = $1::bigint
@@ -170,32 +180,37 @@ async function deleteWebappProjectionByIntegratorUserId(client: PoolClient, inte
      )`,
     [id],
   );
-  await client.query(
+  await runPurgeClientPgText(
+    client,
     `DELETE FROM support_questions WHERE conversation_id IN (
        SELECT id FROM support_conversations WHERE integrator_user_id = $1::bigint
      )`,
     [id],
   );
-  await client.query(`DELETE FROM support_conversations WHERE integrator_user_id = $1::bigint`, [id]);
+  await runPurgeClientPgText(client, `DELETE FROM support_conversations WHERE integrator_user_id = $1::bigint`, [id]);
 }
 
 async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {
-  await client.query(`UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = $1`, [userId]);
-  await client.query(`UPDATE patient_lfk_assignments SET assigned_by = NULL WHERE assigned_by = $1`, [userId]);
-  await client.query(`DELETE FROM patient_lfk_assignments WHERE patient_user_id = $1`, [userId]);
-  await client.query(`DELETE FROM online_intake_requests WHERE user_id = $1`, [userId]);
-  await client.query(`UPDATE lfk_complex_templates SET created_by = NULL WHERE created_by = $1`, [userId]);
-  await client.query(`UPDATE lfk_exercises SET created_by = NULL WHERE created_by = $1`, [userId]);
-  await client.query(`UPDATE system_settings SET updated_by = NULL WHERE updated_by = $1`, [userId]);
-  await client.query(`UPDATE doctor_notes SET author_id = user_id WHERE author_id = $1 AND user_id <> $1`, [userId]);
+  await runPurgeClientPgText(client, `UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = $1`, [userId]);
+  await runPurgeClientPgText(client, `UPDATE patient_lfk_assignments SET assigned_by = NULL WHERE assigned_by = $1`, [userId]);
+  await runPurgeClientPgText(client, `DELETE FROM patient_lfk_assignments WHERE patient_user_id = $1`, [userId]);
+  await runPurgeClientPgText(client, `DELETE FROM online_intake_requests WHERE user_id = $1`, [userId]);
+  await runPurgeClientPgText(client, `UPDATE lfk_complex_templates SET created_by = NULL WHERE created_by = $1`, [userId]);
+  await runPurgeClientPgText(client, `UPDATE lfk_exercises SET created_by = NULL WHERE created_by = $1`, [userId]);
+  await runPurgeClientPgText(client, `UPDATE system_settings SET updated_by = NULL WHERE updated_by = $1`, [userId]);
+  await runPurgeClientPgText(
+    client,
+    `UPDATE doctor_notes SET author_id = user_id WHERE author_id = $1 AND user_id <> $1`,
+    [userId],
+  );
 }
 
 async function deleteContentTablesForUser(client: PoolClient, userId: string): Promise<void> {
   for (const { table, column } of CONTENT_TABLES) {
     if (table === "doctor_notes") {
-      await client.query(`DELETE FROM doctor_notes WHERE user_id = $1 OR author_id = $1`, [userId]);
+      await runPurgeClientPgText(client, `DELETE FROM doctor_notes WHERE user_id = $1 OR author_id = $1`, [userId]);
     } else {
-      await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [userId]);
+      await runPurgeClientPgText(client, `DELETE FROM ${table} WHERE ${column} = $1`, [userId]);
     }
   }
 }
@@ -212,7 +227,8 @@ export type PurgeArtifactKeys = {
  * / clears media ownership.
  */
 export async function collectPurgeArtifactKeys(client: PoolClient, userId: string): Promise<PurgeArtifactKeys> {
-  const intakeRes = await client.query<{ s3_key: string }>(
+  const intakeRes = await runPurgeClientPgText<{ s3_key: string }>(
+    client,
     `SELECT a.s3_key
        FROM online_intake_attachments a
        INNER JOIN online_intake_requests r ON r.id = a.request_id
@@ -222,7 +238,8 @@ export async function collectPurgeArtifactKeys(client: PoolClient, userId: strin
   );
   const intakeS3Keys = intakeRes.rows.map((r) => r.s3_key).filter((k): k is string => typeof k === "string" && k.length > 0);
 
-  const mediaRes = await client.query<{ id: string; s3_key: string | null }>(
+  const mediaRes = await runPurgeClientPgText<{ id: string; s3_key: string | null }>(
+    client,
     `SELECT id::text AS id, s3_key
        FROM media_files
       WHERE uploaded_by = $1::uuid`,
@@ -256,17 +273,18 @@ export async function runWebappPurgeCoreInTransaction(client: PoolClient, user: 
     await deleteWebappProjectionByIntegratorUserId(client, user.integrator_user_id);
   }
 
-  await client.query(
+  await runPurgeClientPgText(
+    client,
     `DELETE FROM message_log
        WHERE user_id = $1::text OR platform_user_id = $1::uuid`,
     [user.id],
   );
 
   for (const { table, column } of IDENTITY_TABLES) {
-    await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [user.id]);
+    await runPurgeClientPgText(client, `DELETE FROM ${table} WHERE ${column} = $1`, [user.id]);
   }
 
-  await client.query(`DELETE FROM platform_users WHERE id = $1`, [user.id]);
+  await runPurgeClientPgText(client, `DELETE FROM platform_users WHERE id = $1`, [user.id]);
 }
 
 /** Messenger rows in webapp `user_channel_bindings` that map to integrator `identities.resource`. */
@@ -282,7 +300,8 @@ export async function fetchMessengerBindingsForIntegratorCleanup(
   client: PoolClient,
   userId: string,
 ): Promise<MessengerBindingForIntegratorCleanup[]> {
-  const r = await client.query<{ channel_code: string; external_id: string }>(
+  const r = await runPurgeClientPgText<{ channel_code: string; external_id: string }>(
+    client,
     `SELECT channel_code, external_id FROM user_channel_bindings
      WHERE user_id = $1::uuid AND channel_code IN ('telegram', 'max')`,
     [userId],
@@ -302,7 +321,8 @@ export async function resolveIntegratorUserIds(
     ids.add(webappIntegratorUserId);
   }
   if (digs.length >= 10) {
-    const r = await integratorDb.query<{ user_id: string }>(
+    const r = await runPurgePoolPgText<{ user_id: string }>(
+      integratorDb,
       `SELECT DISTINCT user_id::text AS user_id FROM contacts
        WHERE type = 'phone'
          AND regexp_replace(value_normalized, '\\D', '', 'g') = $1`,
@@ -315,7 +335,8 @@ export async function resolveIntegratorUserIds(
       if (!INTEGRATOR_CLEANUP_CHANNEL_CODES.has(b.channel_code)) continue;
       const ext = typeof b.external_id === "string" ? b.external_id.trim() : "";
       if (!ext) continue;
-      const r = await integratorDb.query<{ user_id: string }>(
+      const r = await runPurgePoolPgText<{ user_id: string }>(
+        integratorDb,
         `SELECT user_id::text AS user_id FROM identities
          WHERE resource = $1 AND external_id = $2 LIMIT 1`,
         [b.channel_code, ext],
@@ -335,7 +356,8 @@ async function clearMessengerAttributedPhonesForBindings(
     if (!INTEGRATOR_CLEANUP_CHANNEL_CODES.has(b.channel_code)) continue;
     const ext = typeof b.external_id === "string" ? b.external_id.trim() : "";
     if (!ext) continue;
-    await client.query(
+    await runPurgeClientPgText(
+      client,
       `DELETE FROM contacts c
        USING identities i
        WHERE i.resource = $1 AND i.external_id = $2
@@ -361,7 +383,8 @@ export async function deleteIntegratorPhoneData(
       await clearMessengerAttributedPhonesForBindings(client, messengerBindings);
     }
 
-    await client.query(
+    await runPurgeClientPgText(
+      client,
       `DELETE FROM rubitime_events e
        USING rubitime_records rr
        WHERE e.rubitime_record_id IS NOT NULL
@@ -371,21 +394,23 @@ export async function deleteIntegratorPhoneData(
       [digs],
     );
 
-    await client.query(
+    await runPurgeClientPgText(
+      client,
       `DELETE FROM rubitime_records
        WHERE phone_normalized IS NOT NULL
          AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
       [digs],
     );
 
-    await client.query(
+    await runPurgeClientPgText(
+      client,
       `DELETE FROM rubitime_create_retry_jobs
        WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
       [digs],
     );
 
     if (integratorUserIds.length > 0) {
-      await client.query(`DELETE FROM users WHERE id = ANY($1::bigint[])`, [integratorUserIds]);
+      await runPurgeClientPgText(client, `DELETE FROM users WHERE id = ANY($1::bigint[])`, [integratorUserIds]);
     }
 
     await client.query("COMMIT");
@@ -447,7 +472,8 @@ export async function purgePlatformUserByPlatformId(rawId: string): Promise<Purg
 }
 
 async function loadPurgeUserRow(db: Pool, id: string): Promise<PurgePlatformUserRow | null> {
-  const userRes = await db.query<PurgePlatformUserRow>(
+  const userRes = await runPurgePoolPgText<PurgePlatformUserRow>(
+    db,
     `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, role
      FROM platform_users WHERE id = $1`,
     [id],

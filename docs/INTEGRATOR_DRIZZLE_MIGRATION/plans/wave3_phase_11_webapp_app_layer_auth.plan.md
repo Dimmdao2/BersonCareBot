@@ -102,4 +102,4 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 - **Код:** см. таблицу «Мигрированные файлы»; post-audit — доп. unit-тесты `parseSettingValueJson.test.ts`, `pgStore.test.ts`.
 - **Verify:** targeted vitest **48 passed**; typecheck green; post-audit **`pnpm run ci`** green (2026-06-06).
 - **Документация:** [LOG.md §Wave 3 phase 11](../LOG.md), [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md), [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md), [wave3_INDEX.md](./wave3_INDEX.md), [plans/README.md](./README.md).
-- **Следующая фаза:** [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md).
+- **Следующая фаза (на момент закрытия 11):** [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) — **закрыта** 2026-06-06. Актуальная следующая: [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md).

@@ -3,6 +3,7 @@ import {
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
 } from "@/infra/db/runWebappSql";
+import { getPool } from "@/infra/db/client";
 import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
@@ -542,11 +543,11 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const out = new Map<string, string>();
       const unique = [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
       if (unique.length === 0) return out;
-      const r = await runWebappPgText<{ id: string; title: string }>(
+      const r = await getPool().query<{ id: string; title: string }>(
         `SELECT id::text AS id, title FROM lfk_exercises WHERE id = ANY($1::uuid[])`,
         [unique],
       );
-      for (const row of r.rows) {
+      for (const row of r.rows ?? []) {
         out.set(row.id, row.title);
       }
       return out;

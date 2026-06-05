@@ -1,7 +1,7 @@
 ---
 name: Wave3 Phase12 Webapp intake purge identity
 overview: Высокий риск — online intake, full purge, identity resolution, phone bind, merge preview, integrator-merge route.
-status: in_progress
+status: completed
 isProject: false
 todos:
   - id: w3-p12a-intake
@@ -15,10 +15,10 @@ todos:
     status: completed
   - id: w3-p12d-purge-preview
     content: "12D: platformUserFullPurge.ts (40), platformUserMergePreview.ts (24), strictPlatformUserPurge.ts — TX Class B и безопасные dry-run semantics."
-    status: pending
+    status: completed
   - id: w3-p12-verify
     content: "12E: devDb integration tests purge/intake/merge; rg ноль по raw query в scope фазы."
-    status: pending
+    status: completed
 ---
 
 # Wave 3 — фаза 12: Intake, purge, identity
@@ -34,9 +34,11 @@ todos:
 - Файл: `infra/repos/pgOnlineIntake.ts`.
 - Цель: убрать прямой query-tail без изменения advisory semantics.
 - **Закрытие (2026-06-06):** domain SQL → `runWebappPgText` / `runIntakePgText`; Class C TX + `pgAdvisoryXactLockShared` без изменений; `pool.query` = 0.
+- **Post-audit (2026-06-06):** opt-in devDb read-only — `pgOnlineIntake.devDb.integration.test.ts` (`listRequests`, `getById` null/round-trip).
 - Проверка:
   - `pnpm --dir apps/webapp exec vitest run --project fast src/infra/repos/pgOnlineIntake.advisoryLock.test.ts`
-  - `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos/pgOnlineIntake.ts` — только Class C TX (9×) + JSDoc.
+  - opt-in devDb: `USE_REAL_DATABASE=1 RUN_ONLINE_INTAKE_DEV_DB=1 pnpm exec vitest run src/infra/repos/pgOnlineIntake.devDb.integration.test.ts`
+  - `rg "pool\\.query" apps/webapp/src/infra/repos/pgOnlineIntake.ts` — 0; `rg "client\\.query" …` — 9× Class C TX (+ 1× JSDoc mention).
 
 ### 12B — identity and phone bind
 
@@ -61,26 +63,32 @@ todos:
 
 ### 12D — purge and merge preview
 
-- Файлы: `platformUserFullPurge.ts`, `platformUserMergePreview.ts`, `strictPlatformUserPurge.ts`.
+- Файлы: `platformUserFullPurge.ts`, `platformUserMergePreview.ts`, `strictPlatformUserPurge.ts`, `platformUserPurgeSql.ts`.
 - Цель: безопасная TX-migration без потери семантики удаления/preview.
+- **Закрытие (2026-06-06):** domain SQL → `runPurgeClientPgText` / `runPurgePoolPgText` / `runPgPoolPgText`; Class C TX (`BEGIN`/`COMMIT`/`ROLLBACK`) только в `deleteIntegratorPhoneData` + `strictPlatformUserPurge`; merge preview — read-only через executor (`pool.query` = 0).
+- **Post-audit (2026-06-06):** bridge tests — phone-keyed purge, integrator projection; load tests — `searchMergeCandidates` / `searchMergeUsersForManualMerge`; devDb read-only — `platformUserFullPurge.devDb.integration.test.ts` (unknown id + row load), `platformUserMergePreview.devDb.integration.test.ts` (empty query + phone search + same_id); `strictPlatformUserPurge` mock `fetchMessengerBindings`.
 - Проверка:
-  - devDb tests purge/preview.
-  - dry-run path подтверждён тестом.
+  - `pnpm --dir apps/webapp exec vitest run --project fast src/infra/platformUserFullPurge.bridge.test.ts src/infra/platformUserMergePreview.load.test.ts src/infra/platformUserMergePreview.test.ts src/infra/strictPlatformUserPurge.test.ts`
+  - opt-in devDb: `USE_REAL_DATABASE=1 RUN_PURGE_DEV_DB=1` / `RUN_MERGE_PREVIEW_DEV_DB=1` — см. `platformUserFullPurge.devDb.integration.test.ts`, `platformUserMergePreview.devDb.integration.test.ts`
+  - `rg 'pool\.query' apps/webapp/src/infra/platformUserFullPurge.ts apps/webapp/src/infra/platformUserMergePreview.ts` — 0
 
 ### 12E — phase verify
 
 - Цель: контроль остатка raw SQL по scope фазы и финальная фиксация в LOG/RAW_SQL.
+- **Закрытие (2026-06-06):** `pool.query` = 0 по всему scope фазы 12 (включая `app-layer/platform-user/*` → `runPgPoolPgText`); Class C `client.query` только intake (9× runtime + JSDoc), integrator merge (11×), purge integrator TX (3×), strict purge (3×). Vitest `--project fast` phase-12 bundle — **115 passed** (13 CI files); opt-in devDb — **8 skipped** без env (3 intake + 2 purge + 3 preview).
+- **Post-audit tails (2026-06-06):** `pgOnlineIntake.devDb.integration.test.ts`; расширены `platformUserFullPurge.devDb` / `platformUserMergePreview.devDb`; docs sync (`LOG`, `RAW_SQL`, `DRIZZLE_TRANSITION_PLAN`, `wave3_INDEX`, `docs/README.md`).
+- **Следующая фаза:** [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md).
 - Проверка:
-  - `rg -l "pool\\.query|client\\.query" apps/webapp/src --glob "*.ts"` + фильтр по scope фазы.
-  - targeted suite для intake/purge/merge.
+  - `rg 'pool\.query'` по scope-файлам фазы — 0
+  - `pnpm --dir apps/webapp exec vitest run --project fast` (13 CI files + 3 opt-in devDb) — см. блок **12E** ниже
 
 ## Definition of Done
 
-- [ ] Нет `pool.query` / `client.query` в файлах фазы (кроме Class C advisory/TX с ADR).
-- [ ] `platformUserFullPurge` / `pgOnlineIntake` — существующие integration tests зелёные.
-- [ ] Merge preview не ломает `platform-merge` consumer contract (merge engine остаётся pg в package).
-- [ ] В identity/merge ветках все внешние payload/row-shape проходят Zod-валидацию.
-- [ ] Подфазы 12A-12E закрыты последовательно, каждая с записью проверки в LOG.
+- [x] Нет `pool.query` / `client.query` в файлах фазы (кроме Class C advisory/TX с ADR).
+- [x] `platformUserFullPurge` / `pgOnlineIntake` — существующие integration tests зелёные.
+- [x] Merge preview не ломает `platform-merge` consumer contract (merge engine остаётся pg в package).
+- [x] В identity/merge ветках все внешние payload/row-shape проходят Zod-валидацию.
+- [x] Подфазы 12A-12E закрыты последовательно, каждая с записью проверки в LOG.
 
 ## Scope
 
@@ -137,9 +145,32 @@ rg 'pool\.query' apps/webapp/src/infra/integratorPlatformUserMerge.ts  # 0
 pnpm --dir apps/webapp exec vitest run --project fast src/infra/integratorPlatformUserMerge.test.ts src/infra/integratorPlatformUserMergeSchemas.test.ts src/app/api/doctor/clients/integrator-merge/route.test.ts
 ```
 
-**12E (финал фазы):**
+**12D (закрыто):**
 
 ```bash
-rg 'pool\.query|client\.query' apps/webapp/src/infra/platformUserFullPurge.ts apps/webapp/src/infra/repos/pgOnlineIntake.ts
-pnpm --dir apps/webapp exec vitest run --project fast pgOnlineIntake pgPlatformUserMerge strictPlatformUserPurge 2>/dev/null | tail -20
+rg 'pool\.query' apps/webapp/src/infra/platformUserFullPurge.ts apps/webapp/src/infra/platformUserMergePreview.ts  # 0
+rg 'client\.query' apps/webapp/src/infra/platformUserFullPurge.ts  # 3× Class C integrator TX
+rg 'client\.query' apps/webapp/src/infra/strictPlatformUserPurge.ts  # 3× Class C + advisory
+pnpm --dir apps/webapp exec vitest run --project fast src/infra/platformUserFullPurge.bridge.test.ts src/infra/platformUserMergePreview.load.test.ts src/infra/platformUserMergePreview.test.ts src/infra/strictPlatformUserPurge.test.ts
+```
+
+**12E (закрыто):**
+
+```bash
+# pool.query = 0 по scope фазы 12
+rg 'pool\.query' apps/webapp/src/infra/repos/pgOnlineIntake.ts apps/webapp/src/infra/platformUserFullPurge.ts apps/webapp/src/infra/platformUserMergePreview.ts apps/webapp/src/infra/repos/pgUserByPhone.ts apps/webapp/src/infra/repos/pgIdentityResolution.ts apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts apps/webapp/src/infra/integratorPlatformUserMerge.ts apps/webapp/src/infra/strictPlatformUserPurge.ts apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts apps/webapp/src/app-layer/platform-user/resolveOrCreateUserByPhone.ts apps/webapp/src/app-layer/platform-user/recordPublicBookingMergeCandidates.ts
+
+pnpm --dir apps/webapp exec vitest run --project fast \
+  src/infra/repos/pgOnlineIntake.advisoryLock.test.ts \
+  src/infra/repos/pgUserByPhone.test.ts src/infra/repos/pgUserByPhone.createOrBind.test.ts \
+  src/infra/repos/pgIdentityResolution.test.ts src/infra/repos/identityPhoneRowSchemas.test.ts \
+  src/modules/auth/phoneMessengerBind.test.ts \
+  src/infra/integratorPlatformUserMerge.test.ts src/infra/integratorPlatformUserMergeSchemas.test.ts \
+  src/app/api/doctor/clients/integrator-merge/route.test.ts \
+  src/infra/platformUserFullPurge.bridge.test.ts src/infra/platformUserMergePreview.load.test.ts \
+  src/infra/platformUserMergePreview.test.ts src/infra/strictPlatformUserPurge.test.ts
+# opt-in devDb (read-only): USE_REAL_DATABASE=1 + DATABASE_URL
+#   RUN_ONLINE_INTAKE_DEV_DB=1  → pgOnlineIntake.devDb.integration.test.ts
+#   RUN_PURGE_DEV_DB=1          → platformUserFullPurge.devDb.integration.test.ts
+#   RUN_MERGE_PREVIEW_DEV_DB=1  → platformUserMergePreview.devDb.integration.test.ts
 ```

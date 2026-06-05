@@ -602,6 +602,7 @@ LIMIT 3;"
 #### Post-audit closure 12A (2026-06-06)
 
 - Тесты: порядок `pgAdvisoryXactLockShared` до первого INSERT; ROLLBACK при ошибке domain SQL; `changeStatus` Class C TX + `NOT_FOUND` rollback path.
+- Opt-in devDb read-only: `pgOnlineIntake.devDb.integration.test.ts` — `listRequests`, `getById` null, round-trip при наличии строки (`RUN_ONLINE_INTAKE_DEV_DB=1`).
 - Docs: plan §12A verify → `--project fast`; `wave3_INDEX.md` / `plans/README.md` — фаза 12 **in progress (12A done)**.
 - Typecheck: `resolvePatientReminderGoTargets.ts` — добавлен import `DailyWarmupListEntry` (блокировал `pnpm --dir apps/webapp run typecheck`, не связан с intake).
 
@@ -631,4 +632,49 @@ LIMIT 3;"
 - Тесты: service — precheck (`missing_user`, `not_client`, `alias_not_allowed`, `integrator_ids_not_divergent`), `integrator_unconfigured`, generic `integrator_merge_failed` + `details`, `orphan_clear_failed`, unexpected throw + ROLLBACK; route — `invalid_body`, `same_id`, `dryRun` passthrough; `integratorPlatformUserMergeSchemas.test.ts` — body/row/error parsers, `integratorUserIdNumericKey`.
 - Parity: `parseIntegratorMergeHttpDetails` для operator `details` (любой JSON, иначе raw text); typed `parseIntegratorMergeHttpError` — только для `USER_NOT_FOUND` / loser-only ветки.
 - Vitest `--project fast` 12C suite — **28 passed** (12 service + 9 schemas + 7 route).
+
+### Wave 3 phase 12D — purge + merge preview (2026-06-06)
+
+- **Scope:** `platformUserFullPurge.ts`, `platformUserMergePreview.ts`, `strictPlatformUserPurge.ts` + `platformUserPurgeSql.ts`.
+- **Transport:** purge domain SQL → `runPurgeClientPgText` / `runPurgePoolPgText`; merge preview → `runPgPoolPgText`; Class C `client.query` — integrator purge TX (3×) + strict purge TX (3×) + advisory unchanged.
+- **Проверки:** `pool.query` — 0 в `platformUserFullPurge` (webapp domain) и `platformUserMergePreview`; Vitest `--project fast` 12D suite — **34 passed**; opt-in devDb read-only preview smoke (`platformUserMergePreview.devDb.integration.test.ts`).
+- **RAW_SQL:** три файла → **Wave 3 P12D done**; plan todo `w3-p12d-purge-preview` → `completed`.
+
+#### Post-audit closure 12D (2026-06-06)
+
+- Тесты: `platformUserFullPurge.bridge` — phone-keyed deletes, integrator projection; `platformUserMergePreview.load` — `searchMergeCandidates`, `searchMergeUsersForManualMerge`; devDb read-only — `platformUserFullPurge.devDb.integration.test.ts` (unknown id + row load); preview devDb — empty query skip DB, phone search SELECT, `same_id` без writes.
+- Vitest `--project fast` 12D suite — **40 passed** (5 bridge + 7 load + 16 analyze + 12 strict).
+
+### Wave 3 phase 12E — phase verify (2026-06-06)
+
+- **Scope:** финальный `rg` по всем файлам фазы 12; `app-layer/platform-user/resolveOrCreateUserByPhone.ts`, `recordPublicBookingMergeCandidates.ts` → `runPgPoolPgText`.
+- **Проверки:** `pool.query` — **0** по 11 scope-файлам; Class C `client.query` — intake 9×, integrator merge 11×, purge integrator 3×, strict purge 3×; Vitest `--project fast` phase-12 bundle — **115 passed**; typecheck green.
+- **RAW_SQL / plan:** фаза 12 `status: completed`; todo `w3-p12-verify` → `completed`; DoD фазы — все пункты `[x]`.
+- **Re-verify (2026-06-06):** повторный прогон блока 12E — `pool.query` 0, bundle **115 passed**; `plans/README.md` / `wave3_INDEX.md` синхронизированы (**фаза 12 completed**).
+
+#### Post-audit tails closure (2026-06-06)
+
+- DevDb intake smoke: `pgOnlineIntake.devDb.integration.test.ts` (`RUN_ONLINE_INTAKE_DEV_DB=1`).
+- DevDb purge/preview расширены: unknown-id null, `searchMergeUsersForManualMerge` empty/non-empty query.
+- `client.query` в `pgOnlineIntake.ts`: 9× runtime Class C TX + 1× JSDoc (не расхождение с планом).
+
+### Wave 3 phase 12 — итог (completed, 2026-06-06)
+
+| Подфаза | Scope | Проверка |
+|---------|-------|----------|
+| **12A** | `pgOnlineIntake.ts` → `runWebappPgText`; advisory + Class C TX | 5 advisory tests; opt-in devDb read-only |
+| **12B** | `pgUserByPhone`, `pgIdentityResolution`, `pgPhoneMessengerBind` + Zod | 42 tests |
+| **12C** | thin `integrator-merge` route → `integratorPlatformUserMerge.ts` | 28 tests |
+| **12D** | `platformUserFullPurge`, `platformUserMergePreview`, `strictPlatformUserPurge`, `platformUserPurgeSql` | 40 tests; opt-in devDb purge/preview |
+| **12E** | scope `rg pool.query` = 0 (11 файлов); `app-layer/platform-user/*` | **115 passed** CI bundle; typecheck green |
+
+**Новые/ключевые файлы:** `integratorPlatformUserMerge.ts`, `integratorPlatformUserMergeSchemas.ts`, `platformUserPurgeSql.ts`, `identityPhoneRowSchemas.ts`, `identityPhoneSql.ts`.
+
+**Opt-in devDb (read-only, не в CI по умолчанию):** `RUN_ONLINE_INTAKE_DEV_DB=1`, `RUN_PURGE_DEV_DB=1`, `RUN_MERGE_PREVIEW_DEV_DB=1` + `USE_REAL_DATABASE=1` + `DATABASE_URL`.
+
+**Вне scope (без изменений):** `packages/platform-merge` merge engine.
+
+**Документация синхронизирована:** plan 12, `wave3_INDEX`, `plans/README`, `DRIZZLE_TRANSITION_PLAN`, `RAW_SQL_INVENTORY`, `docs/README.md`.
+
+**Следующая фаза Wave 3:** [wave3_phase_13_webapp_booking_doctor.plan.md](./plans/wave3_phase_13_webapp_booking_doctor.plan.md).
 

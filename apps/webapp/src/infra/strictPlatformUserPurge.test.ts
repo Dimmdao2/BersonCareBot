@@ -8,6 +8,7 @@ const { getIntegratorPoolMockRef } = vi.hoisted(() => ({
 
 const writeAuditLogMock = vi.fn();
 const collectKeysMock = vi.fn();
+const fetchBindingsMock = vi.fn();
 const runCoreMock = vi.fn();
 const deleteS3Mock = vi.fn();
 const deleteIntegratorResultMock = vi.fn();
@@ -36,6 +37,7 @@ vi.mock("@/infra/platformUserFullPurge", async () => {
   return {
     ...actual,
     collectPurgeArtifactKeys: (...a: unknown[]) => collectKeysMock(...a),
+    fetchMessengerBindingsForIntegratorCleanup: (...a: unknown[]) => fetchBindingsMock(...a),
     runWebappPurgeCoreInTransaction: (...a: unknown[]) => runCoreMock(...a),
     deleteIntegratorPhoneDataWithResult: (...a: unknown[]) => deleteIntegratorResultMock(...a),
     resolveIntegratorUserIds: (...a: unknown[]) => resolveIntegratorIdsMock(...a),
@@ -65,12 +67,13 @@ describe("runStrictPurgePlatformUser", () => {
     getIntegratorPoolMockRef.current = {};
     writeAuditLogMock.mockResolvedValue(undefined);
     collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
+    fetchBindingsMock.mockResolvedValue([]);
     runCoreMock.mockResolvedValue(undefined);
     deleteS3Mock.mockResolvedValue([]);
     deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
     resolveIntegratorIdsMock.mockResolvedValue([]);
     poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("FROM platform_users WHERE id")) {
+      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
         return Promise.resolve({
           rows: [
             {
@@ -166,7 +169,7 @@ describe("runStrictPurgePlatformUser", () => {
       mediaFiles: [{ id: "00000000-0000-4000-8000-0000000000bb", s3Key: null }],
     });
     poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("FROM platform_users WHERE id")) {
+      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
         return Promise.resolve({
           rows: [
             {
@@ -212,7 +215,7 @@ describe("runStrictPurgePlatformUser", () => {
     const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
     getIntegratorPoolMockRef.current = null;
     poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("FROM platform_users WHERE id")) {
+      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
         return Promise.resolve({
           rows: [
             {
@@ -244,7 +247,7 @@ describe("runStrictPurgePlatformUser", () => {
     const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
     getIntegratorPoolMockRef.current = null;
     poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("FROM platform_users WHERE id")) {
+      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
         return Promise.resolve({
           rows: [
             {
@@ -297,7 +300,7 @@ describe("runStrictPurgePlatformUser", () => {
       { key: "media-k1", ok: true },
     ]);
     poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("FROM platform_users WHERE id")) {
+      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
         return Promise.resolve({
           rows: [
             {

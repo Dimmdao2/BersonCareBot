@@ -23,6 +23,10 @@ todos:
 
 # Wave 3 — фаза 13: Booking + doctor
 
+## Предшественник
+
+- Фаза **12** **completed** (2026-06-06): intake / purge / identity — [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md), журнал [LOG.md §Wave 3 phase 12](../LOG.md).
+
 ## Размер
 
 **L**

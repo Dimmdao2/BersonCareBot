@@ -88,10 +88,9 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   const deps = buildAppDeps();
   const userId = session.user.userId;
 
-  const [rules, projectionStats, appTz, patientIanaRaw, programList, canViewAuth, exerciseDeliveryChannelLabels] =
+  const [rules, appTz, patientIanaRaw, programList, canViewAuth, exerciseDeliveryChannelLabels] =
     await Promise.all([
       deps.reminders.listRulesByUser(userId),
-      deps.reminderProjection.getStats(userId, 30),
       getAppDisplayTimeZone(),
       deps.patientCalendarTimezone.getIanaForUser(userId),
       deps.treatmentProgramInstance.listForPatient(userId),
@@ -185,7 +184,6 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
       <ReminderRulesClient
         personalRows={personalRows}
         legacyRules={[]}
-        unseenCount={projectionStats.unseen}
         activeProgram={rehabProgramForBlock}
         warmupsSectionAvailable={warmupsSectionAvailable}
         warmupsSectionSlug={warmupsSectionSlug}

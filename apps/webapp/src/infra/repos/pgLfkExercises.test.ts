@@ -2,10 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runWebappTransactionMock = vi.hoisted(() => vi.fn());
+const pgPoolQueryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
   runWebappTransaction: runWebappTransactionMock,
+}));
+
+vi.mock("@/infra/db/client", () => ({
+  getPool: () => ({ query: pgPoolQueryMock }),
 }));
 
 import { createPgLfkExercisesPort } from "./pgLfkExercises";
@@ -34,6 +39,7 @@ describe("createPgLfkExercisesPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
     runWebappTransactionMock.mockReset();
+    pgPoolQueryMock.mockReset();
     runWebappTransactionMock.mockImplementation(async (fn) => fn({ rollback: vi.fn() }));
   });
 
@@ -157,5 +163,22 @@ describe("createPgLfkExercisesPort", () => {
     expect(out?.title).toBe("Новое");
     const txCalls = runWebappPgTextMock.mock.calls.filter((c) => c[2] != null);
     expect(txCalls.some((c) => String(c[0]).includes("UPDATE lfk_exercises"))).toBe(true);
+  });
+
+  it("listTitlesByIds passes ids as single uuid[] param", async () => {
+    pgPoolQueryMock.mockResolvedValueOnce({
+      rows: [{ id: exerciseId, title: "Присед" }],
+    });
+    const port = createPgLfkExercisesPort();
+    const out = await port.listTitlesByIds([
+      exerciseId,
+      exerciseId,
+      " 1fcb7fb7-3f85-4388-a607-5f008be4e3f1 ",
+    ]);
+    expect(out.get(exerciseId)).toBe("Присед");
+    const params = pgPoolQueryMock.mock.calls[0]?.[1] as unknown[] | undefined;
+    expect(Array.isArray(params)).toBe(true);
+    expect(Array.isArray(params?.[0])).toBe(true);
+    expect((params?.[0] as string[]).length).toBe(2);
   });
 });

@@ -1,6 +1,6 @@
 # План перехода оставшегося сырого SQL на Drizzle (Wave 2)
 
-**Дата:** 2026-05-15 (обновление: **2026-06-06** — Wave 2 этапы 1–8 закрыты; **Wave 3 phase 00 + 08 + 09 + 10** закрыты)
+**Дата:** 2026-05-15 (обновление: **2026-06-06** — Wave 2 этапы 1–8 закрыты; **Wave 3 phase 00 + 08–12** закрыты; далее **13–17**)
 **Связанные документы:** [инвентаризация](./RAW_SQL_INVENTORY.md), [лог](./LOG.md), [аудит тестов закрытых фаз](./TEST_BEHAVIOR_AUDIT.md), **поэтапные планы** ([`plans/README.md`](./plans/README.md), Wave 3: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)), закрытый мастер-план P1–P4 [integrator_drizzle_migration_master.plan.md](../../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md).
 
 ## Контекст: что уже сделано
@@ -64,7 +64,8 @@
 | **09** | **Done** | [Integrator P1+](./plans/wave3_phase_09_integrator_p1plus.plan.md) — `runIntegratorSql` + `publicSystemSettings`; prod `db.query` → 0 (кроме health/migrate/scripts) |
 | **10** | **Done** | [Media-worker IX](./plans/wave3_phase_10_media_worker_ix.plan.md) — `runMediaWorkerSql` + Zod settings; claim Class C unchanged |
 | **11** | **Done** | [Webapp app-layer / auth tail](./plans/wave3_phase_11_webapp_app_layer_auth.plan.md) — `runWebappPgText` / `runPgPoolPgText`; Zod config/idempotency; Class C TX в `channelLink` / `strictPlatformUserPurge` |
-| **12–15** | Pending | webapp closeout (Class A → Drizzle/`run*Sql` + Zod) |
+| **12** | **Done** | [Intake / purge / identity](./plans/wave3_phase_12_webapp_intake_purge_identity.plan.md) — `pgOnlineIntake`, identity/phone bind, integrator-merge thin route, purge/preview; `pool.query` = 0 по scope; Vitest **115 passed** + opt-in devDb smokes |
+| **13–15** | Pending | webapp closeout (booking/doctor, comms/projection, long tail) |
 | **16** | Pending (conditional) | [Legacy cutover](./plans/wave3_phase_16_legacy_cutover.plan.md) — `migrate:legacy` только если нет blocker после 09–15 |
 | **17** | Pending | Closeout + staging smoke gate + full CI |
 

@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 
 const REASON = "public_booking_phone_collision";
 
@@ -17,7 +18,8 @@ export async function recordPublicBookingMergeCandidates(input: {
   const name = input.contactName.trim();
   if (name.length < 2) return;
 
-  const candidates = await input.pool.query<{ id: string }>(
+  const candidates = await runPgPoolPgText<{ id: string }>(
+    input.pool,
     `SELECT id
        FROM platform_users
       WHERE merged_into_id IS NULL

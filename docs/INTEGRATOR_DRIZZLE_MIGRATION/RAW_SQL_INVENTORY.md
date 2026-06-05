@@ -1,6 +1,6 @@
 # Инвентаризация: сырой SQL вне Drizzle query builder
 
-**Дата снимка:** 2026-06-06 (**Wave 3 phase 00 baseline**; phase **08–10** closeout; правки: Wave 2 P5–P8)
+**Дата снимка:** 2026-06-06 (**Wave 3 phase 00 baseline**; phases **08–12** closeout; правки: Wave 2 P5–P8)
 **Контекст:** мастер-план **P1–P4 интегратора** и **Wave 2 (этапы 1–8)** закрыты — здесь **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты). Wave 3 классифицирует хвост по **Class A / B / C** ([`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)).
 
 **План перехода (фазы, риски, приоритеты):** [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) · Wave 3 индекс: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md)
@@ -285,8 +285,10 @@
 | `src/infra/mergePreviewIntegratorUserPresence.ts`    | Merge preview: `integrator.users` row existence check.                                                                      | Н      | **Wave 3 P11 done:** `runPgPoolPgText` (`integrator.users`)                   | Phantom integrator id                              |
 | `src/modules/reminders/loadWarmupsSectionSlugs.ts`   | Slugs CMS warmups cluster для reminder projection lookup.                                                                    | Н      | **Wave 3 P11 done:** `runPgPoolPgText`                                        | Reminder projection                                |
 | `src/modules/reminders/disableReminderMessengerTopic.ts` | Integrator-signed disable messenger topic prefs (occurrence + bindings).                                                | С      | **Wave 3 P11 done:** 2× `runPgPoolPgText`                                     | Reminder opt-out                                   |
-| `src/infra/platformUserFullPurge.ts`                 | Полное удаление данных пользователя (каскады DELETE/UPDATE по множеству таблиц).                                                                      | В      | процедура в SQL migration **или** `Drizzle` по шагам с tx | GDPR / потеря данных                               |
-| `src/infra/strictPlatformUserPurge.ts`               | Строгий purge: delete медиа, advisory lock.                                                                                                           | В      | **Wave 2 P3 + Wave 3 P11:** Class C TX; load/post-commit DELETE → `runPgPoolPgText` | Медиа / блокировки                                 |
+| `src/infra/platformUserPurgeSql.ts`                  | Class B transport: `runPurgePoolPgText` / `runPurgeClientPgText` для purge domain SQL.                                                                  | —      | **Wave 3 P12D done:** thin executor wrapper                                     | Канон purge SQL                                    |
+| `src/infra/platformUserFullPurge.ts`                 | Полное удаление данных пользователя (каскады DELETE/UPDATE по множеству таблиц).                                                                      | В      | **Wave 3 P12D done:** `runPurgeClientPgText` / `runPurgePoolPgText`; Class C integrator TX (3×) | GDPR / потеря данных                               |
+| `src/infra/platformUserMergePreview.ts`              | Manual merge preview (read-only SELECT/COUNT).                                                                                                        | В      | **Wave 3 P12D done:** `runPgPoolPgText`                                       | Merge preview contract                             |
+| `src/infra/strictPlatformUserPurge.ts`               | Строгий purge: delete медиа, advisory lock.                                                                                                           | В      | **Wave 3 P12D verified:** Class C TX (3×); load/post-commit → `runPgPoolPgText` (P11) | Медиа / блокировки                                 |
 
 ### 2.5 App routes / server actions
 
@@ -305,6 +307,8 @@
 | `src/app-layer/health/collectAdminSystemHealthData.ts` | Админ health: агрегаты по превью медиа и зависшим pending. | С      | **Wave 3 P11 done:** preview probe → `runWebappPgText` | Мониторинг   |
 | `src/app-layer/media/adminTranscodeHealthMetrics.ts`   | Метрики здоровья транскодинга.                             | С      | **Wave 3 P11 done:** legacy counts → `runWebappPgText`; rest Drizzle | Алерты медиа |
 | `src/app-layer/media/videoHlsLegacyBackfill.ts`        | Legacy HLS backfill: выборки/агрегаты по `media_files`.    | С      | **Wave 3 P11 done:** `runPgPoolPgText` on injected pool | HLS legacy   |
+| `src/app-layer/platform-user/resolveOrCreateUserByPhone.ts` | Public booking: INSERT client by phone.                | Н      | **Wave 3 P12E done:** `runPgPoolPgText`               | User bootstrap |
+| `src/app-layer/platform-user/recordPublicBookingMergeCandidates.ts` | Merge candidate lookup by display_name.          | Н      | **Wave 3 P12E done:** `runPgPoolPgText`               | Merge hints    |
 
 ### 2.7 Скрипты `apps/webapp/scripts` (+ integrator)
 
@@ -355,6 +359,9 @@
 | Файл                                                            | Назначение                                                   | Сложн. | Вариант          | Риски              |
 | --------------------------------------------------------------- | ------------------------------------------------------------ | ------ | ---------------- | ------------------ |
 | `src/infra/repos/pgPlatformUserMerge.devDb.integration.test.ts` | Интеграционная очистка тестовых данных через `client.query`. | Н      | **`pg`** в тесте | Только тестовая БД |
+| `src/infra/repos/pgOnlineIntake.devDb.integration.test.ts` | Opt-in read-only intake list/get smoke (`RUN_ONLINE_INTAKE_DEV_DB=1`). | Н | **`pg`** в тесте | Только dev DB |
+| `src/infra/platformUserFullPurge.devDb.integration.test.ts` | Opt-in read-only purge row load (`RUN_PURGE_DEV_DB=1`). | Н | **`pg`** в тесте | Только dev DB |
+| `src/infra/platformUserMergePreview.devDb.integration.test.ts` | Opt-in read-only merge preview/search smoke (`RUN_MERGE_PREVIEW_DEV_DB=1`). | Н | **`pg`** в тесте | Только dev DB |
 
 ---
 
