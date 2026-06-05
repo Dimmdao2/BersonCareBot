@@ -57,9 +57,12 @@ export function createProductAnalyticsService(port: ProductAnalyticsPort) {
       });
     },
 
-    async getAdminDashboard(params: { windowHours?: number }) {
+    async getAdminDashboard(params: { windowHours?: number; includeTestAccounts?: boolean }) {
       const windowHours = clampProductAnalyticsWindowHours(params.windowHours);
-      return port.getAdminDashboard({ windowHours });
+      return port.getAdminDashboard({
+        windowHours,
+        includeTestAccounts: params.includeTestAccounts,
+      });
     },
 
     async purgeRecentOlderThan(days: number, options?: Parameters<ProductAnalyticsPort["purgeRecentOlderThan"]>[1]) {

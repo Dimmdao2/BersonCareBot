@@ -12,7 +12,7 @@ describe("analyticsAudience", () => {
 
   describe("readAnalyticsIncludeTestAccounts", () => {
     it("returns false when both flags off", async () => {
-      const getSetting = vi.fn(async (key: string) => ({
+      const getSetting = vi.fn(async (key: "dev_mode" | "debug_forward_to_admin") => ({
         key,
         scope: "admin" as const,
         valueJson: { value: false },
@@ -25,7 +25,7 @@ describe("analyticsAudience", () => {
     });
 
     it("returns true when dev_mode on", async () => {
-      const getSetting = vi.fn(async (key: string) => ({
+      const getSetting = vi.fn(async (key: "dev_mode" | "debug_forward_to_admin") => ({
         key,
         scope: "admin" as const,
         valueJson: { value: key === "dev_mode" },
@@ -38,7 +38,7 @@ describe("analyticsAudience", () => {
     });
 
     it("returns true when debug_forward_to_admin on", async () => {
-      const getSetting = vi.fn(async (key: string) => ({
+      const getSetting = vi.fn(async (key: "dev_mode" | "debug_forward_to_admin") => ({
         key,
         scope: "admin" as const,
         valueJson: { value: key === "debug_forward_to_admin" },

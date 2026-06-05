@@ -69,7 +69,10 @@ export type DoctorDashboardPatientMetrics = {
 };
 
 export type DoctorClientsPort = {
-  listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]>;
+  listClients(
+    filters: DoctorClientsFilters,
+    audience?: { excludedUserIds?: string[] },
+  ): Promise<ClientListItem[]>;
   /** Сегменты контактов для аналитики `/app/doctor/analytics/clients`. */
   getClientContactBreakdown(audience?: { excludedUserIds?: string[] }): Promise<ClientContactBreakdown>;
   getClientIdentity(userId: string): Promise<ClientIdentity | null>;

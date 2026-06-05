@@ -34,7 +34,11 @@ export type EmailStartResult =
 
 export type EmailConfirmResult =
   | { ok: true }
-  | { ok: false; code: "invalid_code" | "expired_code" | "too_many_attempts"; retryAfterSeconds?: number };
+  | {
+      ok: false;
+      code: "invalid_code" | "expired_code" | "too_many_attempts" | "email_conflict";
+      retryAfterSeconds?: number;
+    };
 
 export async function startEmailChallenge(userId: string, emailRaw: string): Promise<EmailStartResult> {
   const email = normalizeEmail(emailRaw);
@@ -166,10 +170,32 @@ export async function confirmEmailChallenge(userId: string, challengeId: string,
     return { ok: false, code: "invalid_code" };
   }
 
-  await pool.query(
-    "UPDATE platform_users SET email = $1, email_normalized = lower(btrim($1)), email_verified_at = now(), updated_at = now() WHERE id = $2",
-    [r.email, userId],
+  const conflict = await pool.query<{ id: string }>(
+    `SELECT id FROM platform_users
+     WHERE id <> $1::uuid
+       AND merged_into_id IS NULL
+       AND email_normalized = lower(btrim($2::text))
+     LIMIT 1`,
+    [userId, r.email],
   );
+  if (conflict.rows[0]) {
+    await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
+    return { ok: false, code: "email_conflict" };
+  }
+
+  try {
+    await pool.query(
+      "UPDATE platform_users SET email = $1, email_normalized = lower(btrim($1)), email_verified_at = now(), updated_at = now() WHERE id = $2",
+      [r.email, userId],
+    );
+  } catch (err: unknown) {
+    const code = typeof err === "object" && err !== null ? String((err as { code?: unknown }).code ?? "") : "";
+    if (code === "23505") {
+      await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
+      return { ok: false, code: "email_conflict" };
+    }
+    throw err;
+  }
   await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
 
   return { ok: true };

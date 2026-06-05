@@ -22,7 +22,8 @@ export async function POST(request: Request) {
 
   const result = await confirmEmailChallenge(session.user.userId, parsed.data.challengeId, parsed.data.code);
   if (!result.ok) {
-    const status = result.code === "too_many_attempts" ? 429 : 400;
+    const status =
+      result.code === "too_many_attempts" ? 429 : result.code === "email_conflict" ? 409 : 400;
     return NextResponse.json(
       {
         ok: false,
@@ -50,6 +51,8 @@ function errMsg(code: string): string {
       return "Код истёк. Запросите новый.";
     case "too_many_attempts":
       return "Превышено число попыток.";
+    case "email_conflict":
+      return "Этот email уже используется другим аккаунтом";
     default:
       return "Ошибка подтверждения";
   }

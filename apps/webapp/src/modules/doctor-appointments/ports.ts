@@ -74,8 +74,13 @@ export type DoctorDashboardAppointmentMetrics = {
   cancellationsInCalendarMonth: number;
 };
 
+export type DoctorAppointmentsAudience = { excludedUserIds?: string[] };
+
 export type DoctorAppointmentsPort = {
-  listAppointmentsForSpecialist(filter: DoctorAppointmentsListFilter): Promise<AppointmentRow[]>;
+  listAppointmentsForSpecialist(
+    filter: DoctorAppointmentsListFilter,
+    audience?: DoctorAppointmentsAudience,
+  ): Promise<AppointmentRow[]>;
   getAppointmentStats(
     filter: DoctorAppointmentStatsFilter,
     audience?: { excludedUserIds?: string[] },

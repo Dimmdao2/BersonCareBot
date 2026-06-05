@@ -267,7 +267,7 @@ export function NotificationsAnalyticsClient() {
             }}
             metric={metricDialog?.metric ?? null}
             title={metricDialog?.title ?? ""}
-            period={{ preset: "week" }}
+            period={{ preset: "week", customFrom: "", customTo: "" }}
             extraQuery={{ windowHours: String(windowHours) }}
           />
 

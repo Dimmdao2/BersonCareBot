@@ -1,4 +1,5 @@
-import { gte, sql } from "drizzle-orm";
+import { and, gte, sql } from "drizzle-orm";
+import { drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { logger } from "@/app-layer/logging/logger";
 import { mediaPlaybackStatsHourly, mediaPlaybackUserVideoFirstResolve } from "../../../db/schema";
@@ -19,6 +20,7 @@ export type AdminPlaybackHealthMetrics = {
 /** Aggregates playback health metrics for `/api/admin/system-health` using Drizzle. */
 export async function loadAdminPlaybackHealthMetrics(opts: {
   windowHours?: number;
+  excludedUserIds?: string[];
 }): Promise<AdminPlaybackHealthMetrics> {
   const windowHours =
     typeof opts.windowHours === "number" && Number.isFinite(opts.windowHours) && opts.windowHours > 0
@@ -26,6 +28,11 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
       : ADMIN_PLAYBACK_METRICS_WINDOW_HOURS;
 
   const windowCutoffSql = sql`(now() - (${windowHours}::integer * interval '1 hour'))`;
+  const excludedUserIds = opts.excludedUserIds ?? [];
+  const uniqueUserExclude = drizzleExcludeUserIdColumn(
+    mediaPlaybackUserVideoFirstResolve.userId,
+    excludedUserIds,
+  );
 
   try {
     const db = getDrizzle();
@@ -43,7 +50,7 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
       db
         .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
         .from(mediaPlaybackUserVideoFirstResolve)
-        .where(gte(mediaPlaybackUserVideoFirstResolve.firstResolvedAt, windowCutoffSql)),
+        .where(and(gte(mediaPlaybackUserVideoFirstResolve.firstResolvedAt, windowCutoffSql), uniqueUserExclude)),
     ]);
 
     const byDelivery = { hls: 0, mp4: 0, file: 0 };

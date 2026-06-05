@@ -131,10 +131,14 @@ export function createPgDoctorCanonicalAppointmentsPort(
   getDefaultOrganizationId: () => Promise<string>,
 ): DoctorAppointmentsPort {
   return {
-    async listAppointmentsForSpecialist(filter: DoctorAppointmentsListFilter): Promise<AppointmentRow[]> {
+    async listAppointmentsForSpecialist(
+      filter: DoctorAppointmentsListFilter,
+      audience?: { excludedUserIds?: string[] },
+    ): Promise<AppointmentRow[]> {
       const db = getDrizzle();
       const organizationId = await getDefaultOrganizationId();
       const base = and(eq(beAppointments.organizationId, organizationId), isNotNull(beAppointments.startAt));
+      const userAudience = appointmentUserAudienceCond(audience?.excludedUserIds ?? []);
 
       let rows: ListRow[] = [];
 
@@ -147,7 +151,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .where(and(base, gte(beAppointments.startAt, from), lte(beAppointments.startAt, to)))
+          .where(and(base, userAudience, gte(beAppointments.startAt, from), lte(beAppointments.startAt, to)))
           .orderBy(asc(beAppointments.startAt));
       } else if (filter.kind === "futureActive") {
         const nowIso = new Date().toISOString();
@@ -160,6 +164,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .where(
             and(
               base,
+              userAudience,
               gte(beAppointments.startAt, nowIso),
               inArray(beAppointments.status, [...ACTIVE_UPCOMING_STATUSES]),
             ),
@@ -175,6 +180,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .where(
             and(
               base,
+              userAudience,
               gte(beAppointments.startAt, sql`date_trunc('month', NOW())`),
               lte(beAppointments.startAt, sql`date_trunc('month', NOW()) + interval '1 month'`),
             ),
@@ -190,7 +196,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .where(and(base, lt(beAppointments.startAt, nowIso)))
+          .where(and(base, userAudience, lt(beAppointments.startAt, nowIso)))
           .orderBy(desc(beAppointments.startAt))
           .limit(limit)
           .offset(offset);
@@ -204,6 +210,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .where(
             and(
               eq(beAppointments.organizationId, organizationId),
+              userAudience,
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`date_trunc('month', NOW())`),
               lte(beAppointments.updatedAt, sql`date_trunc('month', NOW()) + interval '1 month'`),

@@ -25,7 +25,10 @@ function matchesSearch(item: ClientListItem, search: string): boolean {
 }
 
 export const inMemoryDoctorClientsPort: DoctorClientsPort = {
-  async listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]> {
+  async listClients(
+    filters: DoctorClientsFilters,
+    _audience?: { excludedUserIds?: string[] },
+  ): Promise<ClientListItem[]> {
     let list = [...STUB_CLIENTS];
     if (filters.search?.trim()) {
       list = list.filter((item) => matchesSearch(item, filters.search!));

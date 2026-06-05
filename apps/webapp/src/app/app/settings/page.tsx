@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
+import { DoctorAccountEmailSection } from "./DoctorAccountEmailSection";
 import { SettingsForm } from "./SettingsForm";
 import { parseSpecialistTaskReminderChannels } from "@/modules/specialist-tasks/reminderChannels";
 
@@ -61,10 +63,16 @@ export default async function SettingsPage({
   const taskReminderChannels = parseSpecialistTaskReminderChannels(
     doctorSettings.find((x) => x.key === "doctor_specialist_task_reminder_channels")?.valueJson ?? null,
   );
+  const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
-      <h1 className="mb-6 text-xl font-semibold">Настройки специалиста</h1>
+      <h1 className={`mb-3 ${doctorPageTitleClass}`}>Настройки специалиста</h1>
+      <div className="space-y-4">
+        <DoctorAccountEmailSection
+          initialEmail={accountEmail.email}
+          emailVerified={Boolean(accountEmail.emailVerifiedAt)}
+        />
       <SettingsForm
         patientLabel={String(patientLabel)}
         smsFallbackEnabled={Boolean(smsFallbackEnabled)}
@@ -72,6 +80,7 @@ export default async function SettingsPage({
         supportMediaWithoutSupportDefault={Boolean(supportMediaWithoutSupportDefault)}
         taskReminderChannels={taskReminderChannels}
       />
+      </div>
     </div>
   );
 }

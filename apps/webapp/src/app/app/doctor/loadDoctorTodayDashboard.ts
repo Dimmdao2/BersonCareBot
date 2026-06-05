@@ -1,4 +1,8 @@
-import type { AppointmentRow, DoctorAppointmentsListFilter } from "@/modules/doctor-appointments/ports";
+import type {
+  AppointmentRow,
+  DoctorAppointmentsAudience,
+  DoctorAppointmentsListFilter,
+} from "@/modules/doctor-appointments/ports";
 import type {
   ClientListItem,
   DoctorClientsFilters,
@@ -40,11 +44,19 @@ export type TodayConversationSourceRow = {
 
 export type DoctorTodayDashboardDeps = {
   doctorAppointments: {
-    listAppointmentsForSpecialist(filter: DoctorAppointmentsListFilter): Promise<AppointmentRow[]>;
+    listAppointmentsForSpecialist(
+      filter: DoctorAppointmentsListFilter,
+      audience?: DoctorAppointmentsAudience,
+    ): Promise<AppointmentRow[]>;
   };
   doctorClients: {
-    getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics>;
-    listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]>;
+    getDashboardPatientMetrics(audience?: {
+      excludedUserIds?: string[];
+    }): Promise<DoctorDashboardPatientMetrics>;
+    listClients(
+      filters: DoctorClientsFilters,
+      audience?: { excludedUserIds?: string[] },
+    ): Promise<ClientListItem[]>;
   };
   specialistTasks?: SpecialistTasksService;
   specialistOwnerUserId?: string;
@@ -234,7 +246,11 @@ export function getUpcomingAppointments(
 export async function loadDoctorTodayDashboard(
   deps: DoctorTodayDashboardDeps,
   intakeService: OnlineIntakeService,
+  audience?: DoctorAppointmentsAudience,
 ): Promise<TodayDashboardData> {
+  const clientAudience = audience?.excludedUserIds?.length
+    ? { excludedUserIds: audience.excludedUserIds }
+    : undefined;
   const [
     todayRaw,
     weekRaw,
@@ -244,13 +260,13 @@ export async function loadDoctorTodayDashboard(
     patientMetrics,
     onSupportListRaw,
   ] = await Promise.all([
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" }),
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" }),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" }, audience),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" }, audience),
     intakeService.listForDoctor({ status: "new", limit: 3, offset: 0 }),
     deps.messaging.doctorSupport.listOpenConversations({ unreadOnly: true, limit: 3 }),
     deps.messaging.doctorSupport.unreadFromUsers(),
-    deps.doctorClients.getDashboardPatientMetrics(),
-    deps.doctorClients.listClients({ supportStatus: "on" }),
+    deps.doctorClients.getDashboardPatientMetrics(clientAudience),
+    deps.doctorClients.listClients({ supportStatus: "on" }, clientAudience),
   ]);
 
   const onSupportSorted = [...onSupportListRaw].sort((a, b) =>

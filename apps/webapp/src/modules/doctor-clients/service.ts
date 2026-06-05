@@ -69,8 +69,11 @@ export type DoctorClientsServiceDeps = {
 
 export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
   return {
-    async listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]> {
-      return deps.clientsPort.listClients(filters);
+    async listClients(
+      filters: DoctorClientsFilters,
+      audience?: { excludedUserIds?: string[] },
+    ): Promise<ClientListItem[]> {
+      return deps.clientsPort.listClients(filters, audience);
     },
 
     async getClientProfile(userId: string): Promise<ClientProfile | null> {

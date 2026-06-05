@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { loadAdminPlaybackHealthMetrics, type AdminPlaybackHealthMetrics } from "@/app-layer/media/adminPlaybackHealthMetrics";
@@ -7,11 +7,10 @@ import {
   type AdminPlaybackClientHealthMetrics,
 } from "@/app-layer/media/playbackClientEvents";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { productAnalyticsWindowStartHour } from "@/modules/product-analytics/buildAdminDashboard";
 import { buildReminderSendsLast24hClock, type HourlyClockSlice } from "@/app-layer/stats/reminderHourlyClock";
 import { patientDailyWarmupVideoViews } from "../../../db/schema/patientDailyWarmupVideoView";
 import { patientPracticeCompletions } from "../../../db/schema/patientPractice";
-import { productAnalyticsHourly } from "../../../db/schema/productAnalytics";
+import { productAnalyticsEventsRecent } from "../../../db/schema/productAnalytics";
 import {
   contentPages,
   reminderOccurrenceHistory,
@@ -175,19 +174,19 @@ export async function loadContentEngagementStats(opts: {
   const displayTimezone = await getAppDisplayTimeZone();
   const displayTimezoneSql = sql`${displayTimezone}::text`;
   const windowCutoffSql = sql`(now() - (${windowHours}::integer * interval '1 hour'))`;
-  const pushStartHour = productAnalyticsWindowStartHour(windowHours);
   const db = getDrizzle();
 
   const hourTruncOcc = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${reminderOccurrenceHistory.occurredAt}))`;
   const dayTruncOcc = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${reminderOccurrenceHistory.occurredAt}))`;
-  const hourTruncPush = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${productAnalyticsHourly.bucketHour}))`;
-  const dayTruncPush = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${productAnalyticsHourly.bucketHour}))`;
+  const hourTruncPush = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${productAnalyticsEventsRecent.occurredAt}))`;
+  const dayTruncPush = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${productAnalyticsEventsRecent.occurredAt}))`;
   const occurrenceAudience = reminderOccurrenceAudienceSql(excludedUserIds);
   const practiceUserExclude = drizzleExcludeUserIdColumn(
     patientPracticeCompletions.userId,
     excludedUserIds,
   );
   const warmupUserExclude = drizzleExcludeUserIdColumn(patientDailyWarmupVideoViews.userId, excludedUserIds);
+  const pushUserExclude = drizzleExcludeUserIdColumn(productAnalyticsEventsRecent.userId, excludedUserIds);
 
   const [
     occRows,
@@ -242,14 +241,15 @@ export async function loadContentEngagementStats(opts: {
     db
       .select({
         bucket: sql<string>`${hourTruncPush}::text`.as("bucket"),
-        eventType: productAnalyticsHourly.eventType,
-        n: sum(productAnalyticsHourly.eventCount),
+        eventType: productAnalyticsEventsRecent.eventType,
+        n: count(),
       })
-      .from(productAnalyticsHourly)
+      .from(productAnalyticsEventsRecent)
       .where(
         and(
-          gte(productAnalyticsHourly.bucketHour, pushStartHour),
-          inArray(productAnalyticsHourly.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
+          gte(productAnalyticsEventsRecent.occurredAt, windowCutoffSql),
+          inArray(productAnalyticsEventsRecent.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
+          pushUserExclude,
         ),
       )
       .groupBy(sql`1`, sql`2`)
@@ -257,14 +257,15 @@ export async function loadContentEngagementStats(opts: {
     db
       .select({
         bucket: sql<string>`${dayTruncPush}::text`.as("bucket"),
-        eventType: productAnalyticsHourly.eventType,
-        n: sum(productAnalyticsHourly.eventCount),
+        eventType: productAnalyticsEventsRecent.eventType,
+        n: count(),
       })
-      .from(productAnalyticsHourly)
+      .from(productAnalyticsEventsRecent)
       .where(
         and(
-          gte(productAnalyticsHourly.bucketHour, pushStartHour),
-          inArray(productAnalyticsHourly.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
+          gte(productAnalyticsEventsRecent.occurredAt, windowCutoffSql),
+          inArray(productAnalyticsEventsRecent.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
+          pushUserExclude,
         ),
       )
       .groupBy(sql`1`, sql`2`)
@@ -305,8 +306,8 @@ export async function loadContentEngagementStats(opts: {
       .limit(15),
     loadReminderPeopleWithNotificationsStats({ windowHours, displayTimezone, excludedUserIds }),
     db.select({ cnt: count() }).from(reminderRules).where(eq(reminderRules.isEnabled, true)),
-    loadAdminPlaybackHealthMetrics({ windowHours }),
-    loadAdminPlaybackClientHealthMetrics({ windowHours }),
+    loadAdminPlaybackHealthMetrics({ windowHours, excludedUserIds }),
+    loadAdminPlaybackClientHealthMetrics({ windowHours, excludedUserIds }),
   ]);
 
   const pushOpensHourly = mergePushOpenBuckets(

@@ -7,7 +7,10 @@ describe("doctor pages e2e (in-process)", () => {
   it("buildAppDeps doctorStats getDashboardMetrics returns patient and appointment metrics (stage 9)", async () => {
     const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
     const deps = buildAppDeps();
-    const m = await deps.doctorStats.getDashboardMetrics();
+    const m = await deps.doctorStats.getDashboardMetrics({
+      includeTestAccounts: false,
+      excludedUserIds: [],
+    });
     expect(m.patients).toMatchObject({
       total: expect.any(Number),
       onSupport: expect.any(Number),

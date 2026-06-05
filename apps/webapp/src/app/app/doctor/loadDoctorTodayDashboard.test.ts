@@ -177,6 +177,47 @@ describe("loadDoctorTodayDashboard helpers", () => {
   });
 });
 
+describe("loadDoctorTodayDashboard audience", () => {
+  it("forwards excludedUserIds to appointments and clients loaders", async () => {
+    const { loadDoctorTodayDashboard } = await import("./loadDoctorTodayDashboard");
+    const audience = { excludedUserIds: ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"] };
+    const listCalls: Array<{ filter: unknown; audience?: unknown }> = [];
+    const deps = {
+      doctorAppointments: {
+        listAppointmentsForSpecialist: async (
+          filter: unknown,
+          aud?: { excludedUserIds?: string[] },
+        ) => {
+          listCalls.push({ filter, audience: aud });
+          return [];
+        },
+      },
+      doctorClients: {
+        getDashboardPatientMetrics: async (aud?: { excludedUserIds?: string[] }) => {
+          expect(aud).toEqual(audience);
+          return { onSupportCount: 0, totalClients: 0, visitedThisCalendarMonthCount: 0 };
+        },
+        listClients: async (_filters: unknown, aud?: { excludedUserIds?: string[] }) => {
+          expect(aud).toEqual(audience);
+          return [];
+        },
+      },
+      displayIana: "Europe/Moscow",
+      messaging: {
+        doctorSupport: {
+          listOpenConversations: async () => [],
+          unreadFromUsers: async () => 0,
+        },
+      },
+    };
+    await loadDoctorTodayDashboard(deps, {
+      listForDoctor: async () => ({ items: [], total: 0 }),
+    } as unknown as import("@/modules/online-intake/ports").OnlineIntakeService, audience);
+    expect(listCalls).toHaveLength(2);
+    expect(listCalls.every((c) => c.audience === audience)).toBe(true);
+  });
+});
+
 describe("loadDoctorTodayDashboard proactive", () => {
   it("uses single queryInsights call for proactive section", async () => {
     const { loadDoctorTodayDashboard } = await import("./loadDoctorTodayDashboard");

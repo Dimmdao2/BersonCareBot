@@ -18,7 +18,7 @@ export default async function DoctorPage() {
   const intakeService = getOnlineIntakeService();
   const displayIana = await getAppDisplayTimeZone();
   const audience = await loadDoctorAnalyticsAudience();
-  const [data, kpiStats] = await Promise.all([
+  const [data, kpiStats, todayAppointmentStats] = await Promise.all([
     loadDoctorTodayDashboard(
       {
         doctorAppointments: deps.doctorAppointments,
@@ -31,8 +31,10 @@ export default async function DoctorPage() {
         displayIana,
       },
       intakeService,
+      audience,
     ),
     deps.doctorStats.getStats(audience),
+    deps.doctorAppointments.getAppointmentStats({ kind: "range", range: "today" }, audience),
   ]);
   const [adminHealthBanner, adminRegistrationFailureBanner] =
     session.user.role === "admin"
@@ -44,7 +46,7 @@ export default async function DoctorPage() {
       <DoctorTodayDashboard
         data={data}
         kpiStats={kpiStats}
-        appointmentsTodayCount={data.todayAppointments.length}
+        appointmentsTodayCount={todayAppointmentStats.total}
         adminHealthBanner={adminHealthBanner}
         adminRegistrationFailureBanner={adminRegistrationFailureBanner}
         showAnalyticsLink={session.user.role === "admin"}

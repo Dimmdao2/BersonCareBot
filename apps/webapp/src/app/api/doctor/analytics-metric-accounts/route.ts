@@ -7,7 +7,6 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import {
   DOCTOR_TODAY_METRIC_KEYS,
-  NOTIFICATION_METRIC_KEYS,
   type DoctorAnalyticsMetricKey,
 } from "@/modules/doctor-analytics-metric-accounts/ports";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -15,7 +14,6 @@ import { parseReminderStatsWindowHours } from "@/app-layer/stats/loadAdminRemind
 
 const doctorMetricEnum = z.enum([
   ...DOCTOR_TODAY_METRIC_KEYS,
-  ...NOTIFICATION_METRIC_KEYS,
 ] as [DoctorAnalyticsMetricKey, ...DoctorAnalyticsMetricKey[]]);
 
 export async function GET(req: Request) {

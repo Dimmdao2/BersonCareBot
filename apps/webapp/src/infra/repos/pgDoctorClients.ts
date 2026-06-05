@@ -64,17 +64,24 @@ export function appointmentRecordsJoinPu(puAlias: string, arAlias: string): stri
 
 export function createPgDoctorClientsPort(): DoctorClientsPort {
   return {
-    async listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]> {
+    async listClients(
+      filters: DoctorClientsFilters,
+      audience?: { excludedUserIds?: string[] },
+    ): Promise<ClientListItem[]> {
       const pool = getPool();
+      const excluded = audience?.excludedUserIds ?? [];
       const archivedClause =
         filters.archivedOnly === true
           ? `COALESCE(is_archived, false) = true`
           : `COALESCE(is_archived, false) = false`;
+      const listBase = `SELECT id, display_name, phone_normalized, created_at
+         FROM platform_users pu
+         WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${archivedClause}`;
+      const listQ = appendSqlExcludeUserIds(listBase, "pu.id", excluded, []);
       const clientRows = await pool.query(
-        `SELECT id, display_name, phone_normalized, created_at
-         FROM platform_users
-         WHERE role = 'client' AND merged_into_id IS NULL AND ${archivedClause}
-         ORDER BY display_name, id`
+        `${listQ.sql}
+         ORDER BY display_name, id`,
+        listQ.params,
       );
       if (clientRows.rows.length === 0) return [];
 

@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { logger } from "@/app-layer/logging/logger";
 import { mediaPlaybackClientEvents } from "../../../db/schema";
@@ -100,11 +101,14 @@ function emptyByEvent(): Record<PlaybackClientEventClass, number> {
 
 export async function loadAdminPlaybackClientHealthMetrics(opts?: {
   windowHours?: number;
+  excludedUserIds?: string[];
 }): Promise<AdminPlaybackClientHealthMetrics> {
   const windowHours =
     typeof opts?.windowHours === "number" && Number.isFinite(opts.windowHours) && opts.windowHours > 0
       ? Math.floor(opts.windowHours)
       : 24;
+  const excludedUserIds = opts?.excludedUserIds ?? [];
+  const userExclude = drizzleExcludeUserIdColumn(mediaPlaybackClientEvents.userId, excludedUserIds);
   const db = getDrizzle();
   const cutoff24 = cutoffIso(windowHours);
   const cutoff1h = cutoffIso(1);
@@ -117,7 +121,7 @@ export async function loadAdminPlaybackClientHealthMetrics(opts?: {
         c: sql<string>`count(*)::text`,
       })
       .from(mediaPlaybackClientEvents)
-      .where(gte(mediaPlaybackClientEvents.createdAt, cutoff24))
+      .where(and(gte(mediaPlaybackClientEvents.createdAt, cutoff24), userExclude))
       .groupBy(mediaPlaybackClientEvents.eventClass),
     db
       .select({
@@ -125,7 +129,7 @@ export async function loadAdminPlaybackClientHealthMetrics(opts?: {
         c: sql<string>`count(*)::text`,
       })
       .from(mediaPlaybackClientEvents)
-      .where(gte(mediaPlaybackClientEvents.createdAt, cutoff1h))
+      .where(and(gte(mediaPlaybackClientEvents.createdAt, cutoff1h), userExclude))
       .groupBy(mediaPlaybackClientEvents.eventClass),
     db
       .select({
@@ -133,7 +137,13 @@ export async function loadAdminPlaybackClientHealthMetrics(opts?: {
         c: sql<string>`count(*)::text`,
       })
       .from(mediaPlaybackClientEvents)
-      .where(and(gte(mediaPlaybackClientEvents.createdAt, cutoff24), sql`${mediaPlaybackClientEvents.delivery} IS NOT NULL`))
+      .where(
+        and(
+          gte(mediaPlaybackClientEvents.createdAt, cutoff24),
+          sql`${mediaPlaybackClientEvents.delivery} IS NOT NULL`,
+          userExclude,
+        ),
+      )
       .groupBy(mediaPlaybackClientEvents.delivery),
     db
       .select({
@@ -144,7 +154,7 @@ export async function loadAdminPlaybackClientHealthMetrics(opts?: {
         errorDetail: mediaPlaybackClientEvents.errorDetail,
       })
       .from(mediaPlaybackClientEvents)
-      .where(gte(mediaPlaybackClientEvents.createdAt, cutoff24))
+      .where(and(gte(mediaPlaybackClientEvents.createdAt, cutoff24), userExclude))
       .orderBy(desc(mediaPlaybackClientEvents.createdAt))
       .limit(10),
   ]);
@@ -157,7 +167,13 @@ export async function loadAdminPlaybackClientHealthMetrics(opts?: {
       c: sql<string>`count(*)::text`,
     })
     .from(mediaPlaybackClientEvents)
-    .where(and(gte(mediaPlaybackClientEvents.createdAt, currentUtcHour), eq(mediaPlaybackClientEvents.eventClass, "hls_fatal")))
+    .where(
+      and(
+        gte(mediaPlaybackClientEvents.createdAt, currentUtcHour),
+        eq(mediaPlaybackClientEvents.eventClass, "hls_fatal"),
+        userExclude,
+      ),
+    )
     .groupBy(mediaPlaybackClientEvents.mediaId, mediaPlaybackClientEvents.eventClass);
 
   const byEvent = emptyByEvent();
