@@ -33,7 +33,7 @@ pnpm --dir apps/integrator exec vitest run \
 
 ## Integrity hardening (2026-06-05)
 
-Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md). План: [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md).
+Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md) (partial flags по поверхности — § Partial outcomes). План (архив, `status: completed`): [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md). Closeout: `f960825b`, `9e2ef6c3`; журнал: [`LOG.md`](LOG.md) §2026-06-05.
 
 | Кейс | Покрытие |
 |------|----------|
@@ -85,4 +85,4 @@ Live-path не требует ручного bridge для новых webhook.
 - [x] `mirror_last_synced_from`, `mirror_synced_at`, `mirror_sync_version`
 - [x] Echo guard 8s
 - [x] Integrity hardening: partial API flags, revive guard, lifecycle locks
-- [x] Docs: `RUBITIME_BOOKING_PIPELINE.md`, `booking-calendar.md`, `patient-booking.md`, `booking-appointment-sync/README.md`, `LOG.md` (BOOKING_REWORK + OWN_BOOKING cross-refs)
+- [x] Docs: `RUBITIME_BOOKING_PIPELINE.md`, `booking-calendar.md`, `patient-booking.md`, `api.md`, `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`, `booking-appointment-sync/README.md`, `LOG.md`, plan archive YAML `completed`

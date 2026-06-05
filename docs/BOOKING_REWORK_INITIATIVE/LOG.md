@@ -2,6 +2,8 @@
 
 ## 2026-06-05 — Стабилизация цепочек записи (mirror integrity hardening)
 
+**Closeout commits:** `377f3d51` → `d9bf2335` → `e823a581` → `f960825b` → `9e2ef6c3` (план: [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md), `status: completed`).
+
 **Сделано (фазы 0–7):**
 - Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md).
 - Create: `markAwaitingPayment` сохраняет `rubitime_id` / manage URL; admin manual create = doctor (Rubitime sync + rollback); rollback Rubitime при package/product failure после rubitime-first; `projectionWarning` в логе.
@@ -15,8 +17,8 @@
 - `notificationOutcomeFailed` в patient cancel/reschedule и staff `runStaffManualCancelAfterCanonical`.
 - `paymentOutcomeFailed` на patient reschedule при сбое carry-over.
 - Тесты: `staffManualCancelAfterCanonical.test.ts`, partial flags в manual-cancel routes, patient side-effect/reschedule flags в `service.test.ts`, `markConfirmedByCanonicalAppointment` в `pgPatientBookings.test.ts`.
-- Docs: полная матрица в `ACCEPTANCE_MIRROR_SYNC.md`; defer legacy `remove-record` + online double-book в `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`.
-- Plan archive: все чеклисты `[x]`.
+- Docs: полная матрица в `ACCEPTANCE_MIRROR_SYNC.md`; defer legacy `remove-record` + online double-book в `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`; partial flags по поверхностям (`9e2ef6c3`).
+- Plan archive: frontmatter `status: completed`, todos `completed`, чеклисты `[x]`, `closeoutCommits` в YAML.
 
 **Доработка (audit closeout):**
 - Patient cancel: `patchLatestCancellationNotifications` в try/catch; staff manual-reschedule — gate `booking_rubitime_bridge_enabled`.
@@ -33,35 +35,22 @@
 | 3. Lifecycle race hardening | `377f3d51`, `d9bf2335` | `FOR UPDATE`, `state_conflict`, idempotent cancel, revive guard | `pgBookingAppointmentLifecycle.test.ts`, `pgPatientBookings.test.ts` |
 | 4. Inbound dedup/echo | `377f3d51`, `d9bf2335` | `payloadHash`, release dedup on `PIPELINE_FAILED`, echo/stale mapping ветки | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts` |
 | 5. Timezone + cancel semantics | `377f3d51`, `d9bf2335` | branch timezone для update, `empty_patch` 400, `update-record` в контракте | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md` |
-| 6. Test matrix + docs sync | `d9bf2335`, `e823a581` | расширение regression matrix, синхронизация acceptance/architecture/module docs | `ACCEPTANCE_MIRROR_SYNC.md`, обновления `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md` |
-| 7. Финальный closeout | `e823a581`, `f960825b` | финальные flags, docs audit trail, выравнивание plan | targeted matrix + `tsc`; полный `pnpm run ci` — барьер перед push (см. ниже) |
+| 6. Test matrix + docs sync | `d9bf2335`, `e823a581`, `9e2ef6c3` | regression matrix, acceptance/architecture/module docs, partial flags by surface | `ACCEPTANCE_MIRROR_SYNC.md`, `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md`, `README.md`, `ROADMAP.md` |
+| 7. Финальный closeout | `e823a581`, `f960825b`, `9e2ef6c3` | partial-flag tests, plan/LOG ledger, docs reconciliation | targeted matrix + `tsc` (см. `ACCEPTANCE_MIRROR_SYNC.md`); полный `pnpm run ci` — барьер перед push |
 
 **Реконсиляция scope drift (closeout):**
 - Промежуточный коммит `659f0166` включал смежные правки analytics/stats routes как CI-fix для общих зависимостей (`loadDoctorAnalyticsAudience`) и не менял контракт mirror hardening.
 - В closeout-патче удалены случайно закоммиченные временные дампы `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123244.dump` и `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123251.dump`.
-- Итоговый source-of-truth по покрытию сценариев и defer-ограничениям: `ACCEPTANCE_MIRROR_SYNC.md` + `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`.
+- Docs reconciliation (`9e2ef6c3`): surface-specific partial flags в `api.md`, контракте, `patient-booking.md`, pipeline; cross-refs в `README.md` / `ROADMAP.md` / `.cursor/plans/archive/README.md`.
+- Итоговый source-of-truth: `ACCEPTANCE_MIRROR_SYNC.md` (матрица + команды проверок) + `BOOKING_MIRROR_INTEGRITY_CONTRACT.md` (поведение + defer).
 
-**Проверки (локально):**
+**Проверки (локально):** канонический набор команд — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § «Авто-проверки». Кратко:
+
 ```bash
-pnpm --dir apps/webapp exec vitest run \
-  src/modules/patient-booking/canonicalCreate.test.ts \
-  src/app/api/doctor/booking-engine/appointments/manual/route.test.ts \
-  src/app/api/admin/booking-engine/appointments/manual/route.test.ts \
-  src/app/api/doctor/booking-engine/appointments/[id]/manual-cancel/route.test.ts \
-  src/app/api/admin/booking-engine/appointments/[id]/manual-cancel/route.test.ts \
-  src/modules/patient-booking/service.test.ts \
-  src/modules/integrator/events.test.ts \
-  src/infra/repos/pgBookingRubitimeBridge.test.ts \
-  src/infra/repos/pgBookingAppointmentLifecycle.test.ts \
-  src/infra/repos/pgPatientBookings.test.ts \
-  src/modules/booking-appointment-sync
+# Targeted mirror matrix (webapp + integrator) — см. полный список файлов в ACCEPTANCE_MIRROR_SYNC.md
+pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json
 
-pnpm --dir apps/integrator exec vitest run \
-  src/integrations/rubitime/rubitimePayloadHash.test.ts \
-  src/integrations/rubitime/normalizeUpdateRecordPatch.test.ts \
-  src/integrations/rubitime/recordM2mRoute.test.ts
-
-# Итерации closeout (`f960825b`): targeted matrix + webapp tsc (см. ACCEPTANCE_MIRROR_SYNC.md).
+# Итерации closeout (`f960825b`, `9e2ef6c3`): targeted matrix + tsc.
 # Перед push в remote: pnpm install --frozen-lockfile && pnpm run ci
 ```
 

@@ -20,7 +20,7 @@
 8. [`ACCEPTANCE_STAGE3.md`](ACCEPTANCE_STAGE3.md) — приёмка этапа 3 (**закрыта в коде** 2026-06-04).
 9. [`STAGE4_DECOMPOSITION.md`](STAGE4_DECOMPOSITION.md) — декомпозиция этапа 4 (4.0–4.8): calendar npm, canonical feed, working/break, DnD, Rubitime rollback, poll refresh.
 10. [`ACCEPTANCE_STAGE4.md`](ACCEPTANCE_STAGE4.md) — приёмка этапа 4.
-11. [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) — двустороннее зеркалирование Rubitime ↔ канон (`AppointmentMirrorSync`, закрыто 2026-06-05).
+11. [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) — двустороннее зеркалирование Rubitime ↔ канон + integrity hardening closeout (2026-06-05).
 12. План mirror sync (архив): [`.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md`](../../.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md).
 13. План integrity hardening (архив): [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md) — фазовый closeout 0–7, audit trail, scope reconciliation.
 14. Контракт integrity hardening: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md).

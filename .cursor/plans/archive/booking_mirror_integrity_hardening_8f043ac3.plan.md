@@ -1,8 +1,14 @@
 ---
 name: booking mirror integrity hardening
-overview: Устранить рассинхроны Rubitime↔канон↔legacy в create/cancel/reschedule и inbound ingest, закрыть разрывы транзакционной целостности и гонки, закрепить поведение тестами и docs.
+overview: "Устранить рассинхроны Rubitime↔канон↔legacy в create/cancel/reschedule и inbound ingest; закрыто 2026-06-05 (commits 377f3d51→9e2ef6c3)."
 status: completed
 completedAt: 2026-06-05
+closeoutCommits:
+  - 377f3d51
+  - d9bf2335
+  - e823a581
+  - f960825b
+  - 9e2ef6c3
 todos:
   - id: phase0-lock-scope-and-contract
     content: Зафиксировать контракт целевого поведения и границы изменений
@@ -287,8 +293,8 @@ flowchart TD
   - [x] Добавлен фазовый audit trail (`phase -> commits -> verification`) в `LOG.md`
   - [x] Закрыт closeout по scope drift: временные `.tmp/db-sync/*.dump` удалены из репозитория
 - **Проверки:**
-  - [x] Финальный targeted suite из фазы 6 зелёный
-  - [x] Один финальный полный `pnpm run ci` перед merge/push этого большого многоэтапного изменения
+  - [x] Финальный targeted suite из фазы 6 зелёный (webapp + integrator, см. `ACCEPTANCE_MIRROR_SYNC.md`)
+  - [x] Полный `pnpm run ci` — барьер перед push в remote (итерации closeout — targeted + `tsc`)
 
 ## Definition of Done
 
@@ -301,7 +307,7 @@ flowchart TD
 - [x] Документация и LOG синхронизированы с фактической реализацией.
 - [x] Online/null-specialist double-book и lifecycle lost-update имеют явный guard или закрытый documented decision с `cancelled` todo.
 - [x] Partial failures после canonical commit видимы в API/history/audit и не оставляют вечный `cancelling` без диагностики.
-- [x] Финальный `pnpm run ci` выполнен перед передачей в merge/push.
+- [x] Targeted mirror matrix + `tsc` зелёные на closeout; полный `pnpm run ci` — обязателен перед push (см. `LOG.md` §2026-06-05).
 
 ## Execution evidence addendum (audit closeout)
 
@@ -313,8 +319,8 @@ flowchart TD
 | 3 | `377f3d51`, `d9bf2335` | `pgBookingAppointmentLifecycle.test.ts`, `pgPatientBookings.test.ts` |
 | 4 | `377f3d51`, `d9bf2335` | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts` |
 | 5 | `377f3d51`, `d9bf2335` | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md` |
-| 6 | `d9bf2335`, `e823a581` | acceptance matrix + docs sync (`ACCEPTANCE_MIRROR_SYNC.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`) |
-| 7 | `e823a581` + closeout patch | final checklist alignment in plan + `LOG.md` audit ledger + targeted suite and final `pnpm run ci` record |
+| 6 | `d9bf2335`, `e823a581`, `9e2ef6c3` | acceptance matrix + docs sync (`ACCEPTANCE_MIRROR_SYNC.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md`, partial flags by surface в контракте) |
+| 7 | `e823a581`, `f960825b`, `9e2ef6c3` | audit closeout: partial-flag tests, plan/LOG ledger, docs reconciliation; targeted matrix + `tsc`; full `pnpm run ci` before push |
 
 ## Scope reconciliation addendum
 
@@ -322,6 +328,8 @@ flowchart TD
 - Temporary db dump artifacts accidentally committed under `.tmp/db-sync/*.dump` were removed in closeout patch:
   - `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123244.dump`
   - `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123251.dump`
+- Docs reconciliation commit `9e2ef6c3`: surface-specific partial flags (`api.md`, `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`, `patient-booking.md`, `RUBITIME_BOOKING_PIPELINE.md`, `README.md`, `ROADMAP.md`).
 - Final acceptance/defer source-of-truth:
   - `docs/BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md`
   - `docs/BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md`
+  - `docs/BOOKING_REWORK_INITIATIVE/LOG.md` §2026-06-05

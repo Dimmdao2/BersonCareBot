@@ -1,5 +1,7 @@
 # Booking mirror integrity — контракт поведения (2026-06)
 
+План (архив, `status: completed`): [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md). Приёмка: [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md). Журнал: [`LOG.md`](LOG.md) §2026-06-05.
+
 ## Источник истины
 
 - **Канон:** `be_appointments` — primary source of truth для lifecycle и политик.
