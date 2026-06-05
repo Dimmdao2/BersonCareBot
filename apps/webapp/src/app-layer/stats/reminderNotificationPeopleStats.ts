@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { drizzleSqlUuidInList } from "@/modules/analytics/analyticsAudience";
 import {
   aggregateReminderPeopleChannelSegments,
   type ReminderPeopleWithNotificationsStats,
@@ -30,7 +31,7 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
   const ianaSql = sql`${iana}::text`;
   const excludePeopleSql =
     excludedUserIds.length > 0
-      ? sql`AND COALESCE(rr.platform_user_id, pu.id) <> ALL(${excludedUserIds}::uuid[])`
+      ? sql`AND COALESCE(rr.platform_user_id, pu.id) NOT IN (${drizzleSqlUuidInList(excludedUserIds)})`
       : sql``;
   const db = getDrizzle();
 

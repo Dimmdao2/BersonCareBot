@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { MaterialRatingAccessError } from "@/modules/material-rating/types";
 
@@ -24,10 +25,12 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const audience = await loadDoctorAnalyticsAudience();
   try {
     const aggregate = await deps.materialRating.getPublicAggregate({
       targetKind: parsed.data.kind,
       targetId: parsed.data.id,
+      excludedUserIds: audience.excludedUserIds,
     });
     return NextResponse.json({
       ok: true,

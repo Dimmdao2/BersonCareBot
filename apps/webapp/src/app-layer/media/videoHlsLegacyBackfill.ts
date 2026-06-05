@@ -8,6 +8,7 @@
 
 import type { Pool } from "pg";
 import { enqueueMediaTranscodeJob } from "@/app-layer/media/mediaTranscodeJobs";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { getPool } from "@/infra/db/client";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 
@@ -146,7 +147,8 @@ export async function fetchLegacyBackfillBatch(
   },
 ): Promise<{ id: string; size_bytes: string | null }[]> {
   const coreWhere = legacyHlsBackfillCandidateWhereClause("m", opts.includeFailed);
-  const { rows } = await pool.query<{ id: string; size_bytes: string | null }>(
+  const r = await runPgPoolPgText<{ id: string; size_bytes: string | null }>(
+    pool,
     `SELECT m.id::text AS id, m.size_bytes::text AS size_bytes
      FROM media_files m
      WHERE ${coreWhere}
@@ -160,11 +162,12 @@ export async function fetchLegacyBackfillBatch(
       opts.batchSize,
     ],
   );
-  return rows;
+  return r.rows;
 }
 
 async function loadHistogram(pool: Pool): Promise<{ status: string; count: string }[]> {
-  const { rows } = await pool.query<{ status: string; count: string }>(
+  const r = await runPgPoolPgText<{ status: string; count: string }>(
+    pool,
     `SELECT COALESCE(m.video_processing_status::text, '(null)') AS status, COUNT(*)::text AS count
      FROM media_files m
      WHERE m.mime_type ILIKE 'video/%'
@@ -172,11 +175,12 @@ async function loadHistogram(pool: Pool): Promise<{ status: string; count: strin
      GROUP BY 1
      ORDER BY 1`,
   );
-  return rows;
+  return r.rows;
 }
 
 async function loadFailedReasons(pool: Pool): Promise<{ video_processing_error: string | null; count: string }[]> {
-  const { rows } = await pool.query<{ video_processing_error: string | null; count: string }>(
+  const r = await runPgPoolPgText<{ video_processing_error: string | null; count: string }>(
+    pool,
     `SELECT m.video_processing_error, COUNT(*)::text AS count
      FROM media_files m
      WHERE m.mime_type ILIKE 'video/%'
@@ -186,7 +190,7 @@ async function loadFailedReasons(pool: Pool): Promise<{ video_processing_error: 
      ORDER BY COUNT(*) DESC
      LIMIT 25`,
   );
-  return rows;
+  return r.rows;
 }
 
 function sleep(ms: number): Promise<void> {

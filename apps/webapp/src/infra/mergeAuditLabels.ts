@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 
 const EMPTY = "Имя не указано";
 
@@ -10,7 +11,8 @@ export async function fetchMergePartyDisplayLabels(
   targetId: string,
   duplicateId: string,
 ): Promise<{ targetDisplayName: string; duplicateDisplayName: string }> {
-  const r = await pool.query<{ id: string; display_name: string | null }>(
+  const r = await runPgPoolPgText<{ id: string; display_name: string | null }>(
+    pool,
     `SELECT id::text AS id, display_name FROM platform_users WHERE id IN ($1::uuid, $2::uuid)`,
     [targetId, duplicateId],
   );

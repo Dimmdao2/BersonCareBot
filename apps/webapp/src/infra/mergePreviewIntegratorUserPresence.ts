@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { getIntegratorPoolForPurge } from "@/infra/platformUserFullPurge";
 
 const NUMERIC_ID = /^\d+$/;
@@ -55,8 +56,9 @@ async function resolveWithPool(
   }
 
   try {
-    const res = await pool.query<{ id: string }>(
-      `SELECT id::text AS id FROM users WHERE id = ANY($1::bigint[])`,
+    const res = await runPgPoolPgText<{ id: string }>(
+      pool,
+      `SELECT id::text AS id FROM integrator.users WHERE id = ANY($1::bigint[])`,
       [ids],
     );
     const found = new Set(res.rows.map((r) => String(BigInt(r.id))));

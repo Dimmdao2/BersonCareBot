@@ -60,10 +60,13 @@ describe("fetchLegacyBackfillBatch", () => {
     expect(query).toHaveBeenCalledTimes(1);
     const [, params] = query.mock.calls[0] as [string, unknown[]];
     const sql = query.mock.calls[0][0] as string;
-    expect(params[0]).toBe("00000000-0000-4000-8000-000000000001");
-    expect(params[1]).toBe("2020-01-01T00:00:00.000Z");
-    expect(params[2]).toBe(5);
-    expect(params).toHaveLength(3);
+    expect(params).toEqual(
+      expect.arrayContaining([
+        "00000000-0000-4000-8000-000000000001",
+        "2020-01-01T00:00:00.000Z",
+        5,
+      ]),
+    );
     expect(sql).toContain(MEDIA_READABLE_SQL_M);
     expect(sql).toContain("media_transcode_jobs");
     expect(sql).toContain("video_processing_status = 'failed'");

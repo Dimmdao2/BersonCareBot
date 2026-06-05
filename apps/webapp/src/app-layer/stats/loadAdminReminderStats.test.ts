@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseReminderStatsWindowHours } from "./loadAdminReminderStats";
+import { loadContentEngagementStats, parseReminderStatsWindowHours } from "./loadAdminReminderStats";
 
 describe("parseReminderStatsWindowHours", () => {
   it("defaults to 168 when param is missing or empty", () => {
@@ -18,4 +18,19 @@ describe("parseReminderStatsWindowHours", () => {
   it("returns default for non-numeric input", () => {
     expect(parseReminderStatsWindowHours("abc")).toBe(168);
   });
+});
+
+describe("loadContentEngagementStats audience exclusion", () => {
+  it.runIf(process.env.USE_REAL_DATABASE === "1")(
+    "loads stats when test users are excluded",
+    async () => {
+      const stats = await loadContentEngagementStats({
+        windowHours: 168,
+        excludedUserIds: ["00000000-0000-4000-8000-000000000001"],
+      });
+      expect(stats.peopleWithNotifications.currentPeopleCount).toBeGreaterThanOrEqual(0);
+      expect(stats.occurrenceHistoryHourly).toBeInstanceOf(Array);
+      expect(stats.videoPlayback.totalResolutions).toBeGreaterThanOrEqual(0);
+    },
+  );
 });

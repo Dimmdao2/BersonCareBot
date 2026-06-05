@@ -91,7 +91,8 @@ describe("createProductAnalyticsService", () => {
     const dashboard = await svc.getAdminDashboard({ windowHours: 24 });
     expect(dashboard.topPages).toEqual([
       {
-        pageKey: "/app/patient/content/:slug",
+        pageKey: "/app/patient/content/page",
+        pageLabel: "Страница контента",
         views: 1,
         uniqueUsers: 1,
       },

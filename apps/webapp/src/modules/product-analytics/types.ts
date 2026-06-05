@@ -114,6 +114,8 @@ export type ProductAnalyticsEntryChannelTotalRow = {
 
 export type ProductAnalyticsTopPageRow = {
   pageKey: string;
+  /** Human-readable label for charts (grouped routes). */
+  pageLabel: string;
   views: number;
   uniqueUsers: number;
 };
@@ -127,6 +129,8 @@ export type ProductAnalyticsPageViewsHourlyRow = {
 
 export type ProductAnalyticsPushByTopicRow = {
   topicCode: string;
+  /** Human-readable topic title from notification settings. */
+  topicLabel: string;
   sent: number;
   opened: number;
   openRate: number;

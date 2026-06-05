@@ -32,6 +32,19 @@ type ClientsSnapshot = {
   contactBreakdown: ClientContactBreakdown;
 };
 
+/** Срез «сейчас» — список клиентов не зависит от периода в тулбаре. */
+const CLIENT_SNAPSHOT_METRICS = new Set<DoctorAnalyticsMetricKey>([
+  "clients_total",
+  "clients_phone_only",
+  "clients_app_guests",
+  "clients_segment_telegram_only",
+  "clients_segment_max_only",
+  "clients_segment_email_only",
+  "clients_segment_telegram_email",
+  "clients_segment_max_email",
+  "clients_segment_phone_email_no_messenger",
+]);
+
 type Props = {
   calendarTodayYmd: string;
   displayIana: string;
@@ -56,6 +69,11 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
   const periodLabel = useMemo(
     () => resolveAnalyticsPeriodLabel(displayIana, period),
     [displayIana, period],
+  );
+
+  const metricDialogPeriod = useMemo(
+    () => (selectedMetric && CLIENT_SNAPSHOT_METRICS.has(selectedMetric) ? undefined : period),
+    [selectedMetric, period],
   );
 
   const applyPeriod = useCallback(
@@ -179,7 +197,7 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
         onOpenChange={setMetricDialogOpen}
         metric={selectedMetric}
         title={selectedMetricTitle}
-        period={period}
+        period={metricDialogPeriod}
       />
     </div>
   );

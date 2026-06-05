@@ -6,7 +6,7 @@ import type { UserRole } from "@/shared/types/session";
 /** Устаревший ключ: один открытый кластер. Читается только для миграции в формат множества. */
 export const DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY = "doctorMenu.openCluster.v1";
 
-/** Ключ localStorage: JSON-массив id открытых кластеров (независимое сворачивание секций). */
+/** Ключ localStorage: JSON-массив с одним id открытого кластера (аккордеон — только один блок). */
 export const DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY = "doctorMenu.openClusters.v1";
 
 /** Дефолтный открытый кластер при первом заходе. */

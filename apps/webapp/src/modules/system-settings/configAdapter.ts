@@ -5,7 +5,8 @@
  * Integration secrets (OAuth client secret и т.д.) хранятся в `system_settings` (admin), см. `integrationRuntime`.
  */
 
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { parseSettingEnvelopeValue, parseSmsFallbackEnabledValue } from "./parseSettingValueJson";
 
 const TTL_MS = 60_000;
 
@@ -26,34 +27,35 @@ export function invalidateConfigKey(key: string): void {
   cache.delete(key);
 }
 
+function envelopeValueToString(v: unknown): string | null {
+  if (typeof v === "string") return v.trim() || null;
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return null;
+    }
+  }
+  if (Array.isArray(v)) {
+    const normalized = v.map((item) => String(item).trim()).filter(Boolean);
+    return normalized.length > 0 ? JSON.stringify(normalized) : null;
+  }
+  return null;
+}
+
 async function fetchFromDb(key: string): Promise<string | null> {
   try {
-    const pool = getPool();
-    const result = await pool.query<{ value_json: unknown }>(
+    const result = await runWebappPgText<{ value_json: unknown }>(
       `SELECT value_json FROM system_settings WHERE key = $1 AND scope = 'admin' LIMIT 1`,
-      [key]
+      [key],
     );
     const row = result.rows[0];
     if (!row) return null;
-    const vj = row.value_json;
-    if (vj !== null && typeof vj === "object" && "value" in vj) {
-      const v = (vj as Record<string, unknown>).value;
-      if (typeof v === "string") return v.trim() || null;
-      if (typeof v === "boolean") return v ? "true" : "false";
-      if (typeof v === "number") return String(v);
-      if (typeof v === "object" && v !== null && !Array.isArray(v)) {
-        try {
-          return JSON.stringify(v);
-        } catch {
-          return null;
-        }
-      }
-      if (Array.isArray(v)) {
-        const normalized = v.map((item) => String(item).trim()).filter(Boolean);
-        return normalized.length > 0 ? JSON.stringify(normalized) : null;
-      }
-    }
-    return null;
+    const v = parseSettingEnvelopeValue(row.value_json);
+    if (v === null) return null;
+    return envelopeValueToString(v);
   } catch {
     return null;
   }
@@ -116,15 +118,6 @@ export async function getConfigPositiveInt(
   return Math.min(opts.max, Math.max(opts.min, n));
 }
 
-function parseBoolFromSmsFallbackValueJson(valueJson: unknown): boolean | null {
-  if (valueJson === null || typeof valueJson !== "object" || !("value" in valueJson)) return null;
-  const v = (valueJson as Record<string, unknown>).value;
-  if (typeof v === "boolean") return v;
-  if (v === "true" || v === "1") return true;
-  if (v === "false" || v === "0") return false;
-  return null;
-}
-
 /**
  * SMS fallback для OTP / записи: ключ `sms_fallback_enabled` в `system_settings`;
  * приоритет строки `doctor`, затем `admin` (сид из миграций).
@@ -132,8 +125,7 @@ function parseBoolFromSmsFallbackValueJson(valueJson: unknown): boolean | null {
  */
 export async function getSmsFallbackEnabled(): Promise<boolean> {
   try {
-    const pool = getPool();
-    const r = await pool.query<{ value_json: unknown }>(
+    const r = await runWebappPgText<{ value_json: unknown }>(
       `SELECT value_json FROM system_settings
        WHERE key = 'sms_fallback_enabled' AND scope IN ('doctor', 'admin')
        ORDER BY CASE scope WHEN 'doctor' THEN 0 ELSE 1 END
@@ -141,7 +133,7 @@ export async function getSmsFallbackEnabled(): Promise<boolean> {
     );
     const row = r.rows[0];
     if (!row) return true;
-    const b = parseBoolFromSmsFallbackValueJson(row.value_json);
+    const b = parseSmsFallbackEnabledValue(row.value_json);
     return b ?? true;
   } catch {
     return true;

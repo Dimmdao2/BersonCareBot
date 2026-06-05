@@ -113,7 +113,7 @@ describe("POST /api/patient/analytics/events", () => {
     expect(mockRecordEventsBatch).toHaveBeenCalledWith([
       expect.objectContaining({
         eventType: "page_view",
-        pageKey: "/app/patient/content/:slug",
+        pageKey: "/app/patient/content/page",
       }),
     ]);
   });

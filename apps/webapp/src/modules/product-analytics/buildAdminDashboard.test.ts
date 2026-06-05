@@ -129,6 +129,7 @@ describe("buildAdminDashboard", () => {
 
     expect(dashboard.topPages[0]).toEqual({
       pageKey: "/app/patient/home",
+      pageLabel: "Главная",
       views: 5,
       uniqueUsers: 1,
     });
@@ -143,6 +144,7 @@ describe("buildAdminDashboard", () => {
 
     expect(dashboard.pushByTopic[0]).toMatchObject({
       topicCode: "warmup_reminder",
+      topicLabel: "Разминка (тема напоминания)",
       sent: 10,
       opened: 2,
       openRate: 0.2,
@@ -220,6 +222,46 @@ describe("buildAdminDashboard", () => {
       userHourlyRows: [],
     });
     expect(dashboard.summary.totalAuthLogins).toBe(7);
+  });
+
+  it("rolls up treatment and promo page keys in top pages", () => {
+    const dashboard = buildAdminDashboard({
+      windowHours: 168,
+      displayTimezone: "Europe/Moscow",
+      startHourInclusive: startHour,
+      hourlyRows: [
+        {
+          bucketHour: bucket,
+          eventType: "page_view",
+          entryChannel: "pwa",
+          pageKey: "/app/patient/treatment/:id",
+          topicCode: ALL,
+          pushKind: ALL,
+          warmupSloganKey: ALL,
+          eventCount: 3,
+        },
+        {
+          bucketHour: bucket,
+          eventType: "page_view",
+          entryChannel: "pwa",
+          pageKey: "/app/patient/treatment/promo",
+          topicCode: ALL,
+          pushKind: ALL,
+          warmupSloganKey: ALL,
+          eventCount: 2,
+        },
+      ],
+      userHourlyRows: [],
+    });
+
+    expect(dashboard.topPages).toEqual([
+      {
+        pageKey: "/app/patient/treatment/program",
+        pageLabel: "Программа реабилитации",
+        views: 5,
+        uniqueUsers: 0,
+      },
+    ]);
   });
 
   it("excludes buckets before startHourInclusive", () => {

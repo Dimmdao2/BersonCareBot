@@ -4,6 +4,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { MaterialContentStatsClient } from "@/app/app/doctor/material-ratings/MaterialContentStatsClient";
+import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
@@ -30,9 +31,11 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
   const offset = (pageNum - 1) * PAGE_SIZE;
 
   const deps = buildAppDeps();
+  const audience = await loadDoctorAnalyticsAudience();
   const rowsPlus = await deps.materialRating.listDoctorSummary({
     limit: PAGE_SIZE + 1,
     offset,
+    excludedUserIds: audience.excludedUserIds,
   });
   const hasNext = rowsPlus.length > PAGE_SIZE;
   const rows = rowsPlus.slice(0, PAGE_SIZE);

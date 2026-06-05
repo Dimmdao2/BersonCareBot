@@ -3,6 +3,7 @@
  * Не удаляет platform_users и не трогает профиль вне таблиц дневника.
  */
 import { getPool } from "@/infra/db/client";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { withUserLifecycleLock } from "@/infra/userLifecycleLock";
 import type { PoolClient } from "pg";
 
@@ -11,14 +12,17 @@ function userMatchSql(tableAlias: string, userParamIndex: number): string {
 }
 
 async function purgeDiaryTablesInTransaction(client: PoolClient, userId: string): Promise<void> {
-  await client.query(
+  const db = getWebappSqlFromPgClient(client);
+
+  await runWebappPgText(
     `UPDATE lfk_complexes
        SET symptom_tracking_id = NULL, updated_at = now()
        WHERE ${userMatchSql("lfk_complexes", 1)}`,
     [userId],
+    db,
   );
 
-  await client.query(
+  await runWebappPgText(
     `UPDATE patient_lfk_assignments
        SET complex_id = NULL
        WHERE complex_id IN (
@@ -27,11 +31,12 @@ async function purgeDiaryTablesInTransaction(client: PoolClient, userId: string)
          WHERE ${userMatchSql("c", 1)}
        )`,
     [userId],
+    db,
   );
 
-  await client.query(`DELETE FROM symptom_trackings t WHERE ${userMatchSql("t", 1)}`, [userId]);
+  await runWebappPgText(`DELETE FROM symptom_trackings t WHERE ${userMatchSql("t", 1)}`, [userId], db);
 
-  await client.query(`DELETE FROM lfk_complexes c WHERE ${userMatchSql("c", 1)}`, [userId]);
+  await runWebappPgText(`DELETE FROM lfk_complexes c WHERE ${userMatchSql("c", 1)}`, [userId], db);
 }
 
 export async function purgeAllDiaryDataForUserPg(userId: string): Promise<void> {

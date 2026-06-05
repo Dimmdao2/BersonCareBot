@@ -743,6 +743,13 @@
       "when": 1784800000000,
       "tag": "0105_be_patient_packages_sale_and_usage_refund",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1784900000000,
+      "tag": "0106_media_playback_resolution_events",
+      "breakpoints": true
     }
   ]
 }

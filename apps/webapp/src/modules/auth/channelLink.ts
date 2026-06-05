@@ -1,5 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Pool } from "pg";
+/**
+ * Wave 3 phase 11 — Class C transport only: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` for multipart tx
+ * (platform-merge + channel claim). Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ */
 import {
   classifyMergeFailure,
   mergePlatformUsersInTransaction,

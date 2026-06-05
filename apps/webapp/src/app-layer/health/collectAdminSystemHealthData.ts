@@ -19,6 +19,7 @@ import {
 } from "@/modules/operator-health/reconcileJobKeys";
 import { classifyWebPushOnlyReminderTickSystemHealthStatus } from "@/modules/operator-health/adminHealthThresholds";
 import { getPool } from "@/app-layer/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import type {
@@ -441,16 +442,15 @@ async function probeMediaPreview(): Promise<
 > {
   const startedAt = Date.now();
   try {
-    const pool = getPool();
     const [grouped, stale] = await Promise.all([
-      pool.query<{ mime_type: string; preview_status: string; cnt: string }>(
+      runWebappPgText<{ mime_type: string; preview_status: string; cnt: string }>(
         `SELECT mime_type, preview_status, count(*)::text AS cnt
          FROM media_files
          WHERE mime_type = ANY($1::text[])
          GROUP BY mime_type, preview_status`,
         [PREVIEW_MIMES],
       ),
-      pool.query<{ stale_pending_count: string }>(
+      runWebappPgText<{ stale_pending_count: string }>(
         `SELECT count(*)::text AS stale_pending_count
          FROM media_files
          WHERE mime_type = ANY($1::text[])

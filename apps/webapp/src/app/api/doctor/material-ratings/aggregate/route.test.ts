@@ -2,8 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.hoisted(() => vi.fn());
 const getPublicAggregateMock = vi.hoisted(() => vi.fn());
+const loadDoctorAnalyticsAudienceMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ includeTestAccounts: false, excludedUserIds: [] }),
+);
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
+vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
+  loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
+}));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     materialRating: { getPublicAggregate: getPublicAggregateMock },
@@ -51,7 +57,11 @@ describe("GET /api/doctor/material-ratings/aggregate", () => {
     const json = await res.json();
     expect(json.ok).toBe(true);
     expect(json.count).toBe(4);
-    expect(getPublicAggregateMock).toHaveBeenCalledWith({ targetKind: "lfk_exercise", targetId: UUID });
+    expect(getPublicAggregateMock).toHaveBeenCalledWith({
+      targetKind: "lfk_exercise",
+      targetId: UUID,
+      excludedUserIds: [],
+    });
   });
 
   it("returns 404 when aggregate not available", async () => {

@@ -3,10 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSessionMock = vi.hoisted(() => vi.fn());
 const getTzMock = vi.hoisted(() => vi.fn());
 const getDoctorDetailForDoctorMock = vi.hoisted(() => vi.fn());
+const loadDoctorAnalyticsAudienceMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
 vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
   getAppDisplayTimeZone: getTzMock,
+}));
+vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
+  loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
 }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -21,7 +25,12 @@ describe("GET /api/doctor/material-ratings/detail", () => {
     getSessionMock.mockReset();
     getTzMock.mockReset();
     getDoctorDetailForDoctorMock.mockReset();
+    loadDoctorAnalyticsAudienceMock.mockReset();
     getTzMock.mockResolvedValue("UTC");
+    loadDoctorAnalyticsAudienceMock.mockResolvedValue({
+      includeTestAccounts: false,
+      excludedUserIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+    });
   });
 
   it("returns 401 without session", async () => {
@@ -112,6 +121,7 @@ describe("GET /api/doctor/material-ratings/detail", () => {
         targetKind: "lfk_exercise",
         targetId: "550e8400-e29b-41d4-a716-446655440099",
         iana: "UTC",
+        excludedUserIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
       }),
     );
   });

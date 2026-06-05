@@ -12,14 +12,21 @@ describe("normalizePageKey", () => {
     expect(normalizePageKey("/app/patient/home?nav=diary")).toBe("/app/patient/home");
   });
 
-  it("replaces uuid segments with :id", () => {
+  it("groups treatment program instances", () => {
     expect(normalizePageKey("/app/patient/treatment/550e8400-e29b-41d4-a716-446655440000")).toBe(
-      "/app/patient/treatment/:id",
+      "/app/patient/treatment/program",
+    );
+    expect(normalizePageKey("/app/patient/treatment/promo/item/550e8400-e29b-41d4-a716-446655440000")).toBe(
+      "/app/patient/treatment/program",
     );
   });
 
-  it("replaces content slug segment with :slug", () => {
-    expect(normalizePageKey("/app/patient/content/warmup-intro")).toBe("/app/patient/content/:slug");
+  it("groups CMS content and warmup slugs", () => {
+    expect(normalizePageKey("/app/patient/content/warmup-intro")).toBe("/app/patient/content/page");
+    expect(normalizePageKey("/app/patient/content/neck-warmup", { isWarmupContent: true })).toBe(
+      "/app/patient/warmup",
+    );
+    expect(normalizePageKey("/app/patient/go/daily-warmup")).toBe("/app/patient/warmup");
   });
 
   it("keeps static patient paths", () => {

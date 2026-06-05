@@ -3,6 +3,7 @@ import { env } from "@/config/env";
 import { isS3MediaEnabled } from "@/config/env";
 import { writeAuditLog } from "@/infra/adminAuditLog";
 import { getPool } from "@/infra/db/client";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { pgAdvisoryXactLock } from "@/infra/db/pgAdvisoryLock";
 import {
   collectPurgeArtifactKeys,
@@ -59,7 +60,8 @@ type RunOpts = {
 };
 
 async function loadUserRow(pool: Pool, id: string): Promise<PurgePlatformUserRow | null> {
-  const userRes = await pool.query<PurgePlatformUserRow>(
+  const userRes = await runPgPoolPgText<PurgePlatformUserRow>(
+    pool,
     `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, role
      FROM platform_users WHERE id = $1`,
     [id],
@@ -152,7 +154,7 @@ async function runPostCommitArtifactCleanup(
         artifact.intakeS3Keys.length > 0 || artifact.mediaFiles.some((m) => Boolean(m.s3Key));
       for (const m of artifact.mediaFiles) {
         try {
-          const r = await pool.query(`DELETE FROM media_files WHERE id = $1::uuid`, [m.id]);
+          const r = await runPgPoolPgText(pool, `DELETE FROM media_files WHERE id = $1::uuid`, [m.id]);
           if ((r.rowCount ?? 0) > 0) details.mediaRowsDeleted += 1;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -176,7 +178,7 @@ async function runPostCommitArtifactCleanup(
     for (const m of artifact.mediaFiles) {
       if (!m.s3Key || keyOk.get(m.s3Key) === true) {
         try {
-          const r = await pool.query(`DELETE FROM media_files WHERE id = $1::uuid`, [m.id]);
+          const r = await runPgPoolPgText(pool, `DELETE FROM media_files WHERE id = $1::uuid`, [m.id]);
           if ((r.rowCount ?? 0) > 0) details.mediaRowsDeleted += 1;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);

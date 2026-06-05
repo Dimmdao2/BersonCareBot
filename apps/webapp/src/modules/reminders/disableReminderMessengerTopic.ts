@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import type { ChannelBindings } from "@/shared/types/session";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
@@ -15,7 +16,8 @@ const MESSENGER_LABEL_RU: Record<"telegram" | "max", string> = {
 };
 
 async function loadBindings(pool: Pool, platformUserId: string): Promise<ChannelBindings> {
-  const r = await pool.query<{ channel_code: string; external_id: string }>(
+  const r = await runPgPoolPgText<{ channel_code: string; external_id: string }>(
+    pool,
     `SELECT channel_code, external_id
        FROM user_channel_bindings
       WHERE user_id = $1::uuid
@@ -54,12 +56,13 @@ export async function disableReminderMessengerTopicForOccurrence(
   | { ok: true; persisted: true; paragraphs: string[] }
 > {
   const { pool } = deps;
-  const own = await pool.query<{
+  const own = await runPgPoolPgText<{
     category: string;
     notification_topic_code: string | null;
     reminder_intent: string | null;
     linked_object_type: string | null;
   }>(
+    pool,
     `SELECT rr.category::text AS category,
             rr.notification_topic_code,
             rr.reminder_intent,

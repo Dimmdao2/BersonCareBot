@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
+import { PRODUCT_ANALYTICS_PUSH_TOPIC_HINT } from "@/modules/product-analytics/productAnalyticsTopicLabels";
 import type { ProductAnalyticsAdminDashboard } from "@/modules/product-analytics/types";
 import { formatDisplayZoneInstantRu } from "@/shared/datetime/displayTimeZoneFormat";
 import { ProductAnalyticsActiveUsersChart } from "./ProductAnalyticsActiveUsersChart";
@@ -217,10 +218,11 @@ export function ProductAnalyticsSection() {
 
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Push по теме</CardTitle>
+              <CardTitle className="text-sm">Push по темам уведомлений</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
               <ProductAnalyticsPushByTopicChart rows={data.pushByTopic} />
+              <p className="text-xs text-muted-foreground">{PRODUCT_ANALYTICS_PUSH_TOPIC_HINT}</p>
             </CardContent>
           </Card>
 

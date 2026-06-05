@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 const querySchema = z.object({
@@ -24,10 +25,12 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const audience = await loadDoctorAnalyticsAudience();
   const rows = await deps.materialRating.listDoctorSummary({
     targetKind: parsed.data.kind,
     limit: parsed.data.limit,
     offset: parsed.data.offset,
+    excludedUserIds: audience.excludedUserIds,
   });
 
   return NextResponse.json({ ok: true, rows });

@@ -29,11 +29,20 @@ function bump(dist: Record<number, number>, stars: number) {
 export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
   const rows = new Map<string, Row>();
 
-  function aggregateFor(targetKind: MaterialRatingTargetKind, targetId: string): MaterialRatingAggregate {
+  function isExcluded(userId: string, excludedUserIds?: string[]): boolean {
+    return (excludedUserIds?.length ?? 0) > 0 && excludedUserIds!.includes(userId);
+  }
+
+  function aggregateFor(
+    targetKind: MaterialRatingTargetKind,
+    targetId: string,
+    excludedUserIds?: string[],
+  ): MaterialRatingAggregate {
     let cnt = 0;
     let sum = 0;
     const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const r of rows.values()) {
+      if (isExcluded(r.userId, excludedUserIds)) continue;
       if (r.targetKind === targetKind && r.targetId === targetId) {
         cnt += 1;
         sum += r.stars;
@@ -64,12 +73,13 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
     },
 
     async getAggregate(input) {
-      return aggregateFor(input.targetKind, input.targetId);
+      return aggregateFor(input.targetKind, input.targetId, input.excludedUserIds);
     },
 
     async listDoctorSummary(input) {
       const grouped = new Map<string, { row: MaterialRatingDoctorSummaryRow }>();
       for (const r of rows.values()) {
+        if (isExcluded(r.userId, input.excludedUserIds)) continue;
         if (input.targetKind && r.targetKind !== input.targetKind) continue;
         const gk = `${r.targetKind}\0${r.targetId}`;
         const prev = grouped.get(gk)?.row;
@@ -105,6 +115,7 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
 
       const matching = [...rows.values()].filter(
         (r) =>
+          !isExcluded(r.userId, input.excludedUserIds) &&
           r.targetKind === input.targetKind &&
           r.targetId === input.targetId &&
           Date.parse(r.updatedAt) >= startMs &&

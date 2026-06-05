@@ -1,6 +1,7 @@
 import { and, desc, eq, ne } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { courses as coursesTable } from "../../../db/schema/courses";
 import type { CoursesPort } from "@/modules/courses/ports";
 import type {
@@ -79,7 +80,7 @@ async function loadCourseUsageSummary(
   courseId: string,
 ): Promise<CourseUsageSnapshot | null> {
   const lim = COURSE_USAGE_DETAIL_LIMIT;
-  const r = await pool.query<{
+  const r = await runPgPoolPgText<{
     tpl_id: string | null;
     tpl_title: string | null;
     active_inst: string | number | null;
@@ -93,6 +94,7 @@ async function loadCourseUsageSummary(
     draft_page_refs: unknown;
     arch_page_refs: unknown;
   }>(
+    pool,
     `SELECT
        c.program_template_id::text AS tpl_id,
        tpl.title AS tpl_title,

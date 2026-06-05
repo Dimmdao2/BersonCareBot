@@ -63,7 +63,8 @@
 | **08** | **Done** | [Integrator schema reduction](./plans/wave3_phase_08_integrator_schema_reduction.plan.md) — non-destructive source cutover: settings reads → `public.system_settings`, schema decision matrix |
 | **09** | **Done** | [Integrator P1+](./plans/wave3_phase_09_integrator_p1plus.plan.md) — `runIntegratorSql` + `publicSystemSettings`; prod `db.query` → 0 (кроме health/migrate/scripts) |
 | **10** | **Done** | [Media-worker IX](./plans/wave3_phase_10_media_worker_ix.plan.md) — `runMediaWorkerSql` + Zod settings; claim Class C unchanged |
-| **11–15** | Pending | webapp closeout (Class A → Drizzle/`run*Sql` + Zod) |
+| **11** | **Done** | [Webapp app-layer / auth tail](./plans/wave3_phase_11_webapp_app_layer_auth.plan.md) — `runWebappPgText` / `runPgPoolPgText`; Zod config/idempotency; Class C TX в `channelLink` / `strictPlatformUserPurge` |
+| **12–15** | Pending | webapp closeout (Class A → Drizzle/`run*Sql` + Zod) |
 | **16** | Pending (conditional) | [Legacy cutover](./plans/wave3_phase_16_legacy_cutover.plan.md) — `migrate:legacy` только если нет blocker после 09–15 |
 | **17** | Pending | Closeout + staging smoke gate + full CI |
 

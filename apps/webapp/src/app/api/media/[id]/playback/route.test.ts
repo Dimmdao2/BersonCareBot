@@ -39,6 +39,10 @@ vi.mock("@/app-layer/media/playbackStatsHourly", () => ({
   recordPlaybackResolutionStat: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock("@/app-layer/media/playbackResolutionEvents", () => ({
+  recordPlaybackResolutionEvent: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock("@/app-layer/media/playbackUserVideoFirstResolve", () => ({
   recordPlaybackUserVideoFirstResolve: vi.fn(() => Promise.resolve(false)),
 }));

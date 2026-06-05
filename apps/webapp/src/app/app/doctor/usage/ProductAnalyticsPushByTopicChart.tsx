@@ -19,17 +19,13 @@ function chartHeightForRows(rowCount: number): number {
   return Math.min(420, 100 + rowCount * 30);
 }
 
-function shortenTopicCode(topicCode: string): string {
-  return topicCode.length > 36 ? `${topicCode.slice(0, 33)}...` : topicCode;
-}
-
 export function ProductAnalyticsPushByTopicChart({ rows }: { rows: ProductAnalyticsPushByTopicRow[] }) {
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">Нет данных</p>;
   }
 
   const data = rows.map((r) => ({
-    topicCode: shortenTopicCode(r.topicCode),
+    topicLabel: r.topicLabel,
     sent: r.sent,
     opened: r.opened,
     openRatePct: r.openRate * 100,
@@ -44,8 +40,8 @@ export function ProductAnalyticsPushByTopicChart({ rows }: { rows: ProductAnalyt
           <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
           <YAxis
             type="category"
-            dataKey="topicCode"
-            width={170}
+            dataKey="topicLabel"
+            width={200}
             tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
           />
           <DoctorRechartsTooltip

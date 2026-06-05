@@ -1138,6 +1138,46 @@ export const mediaPlaybackStatsHourly = pgTable(
 	],
 );
 
+/** VIDEO_HLS_DELIVERY: per-user successful playback resolve events (for doctor analytics with audience exclusion). */
+export const mediaPlaybackResolutionEvents = pgTable(
+	"media_playback_resolution_events",
+	{
+		id: uuid().defaultRandom().primaryKey().notNull(),
+		userId: uuid("user_id").notNull(),
+		mediaId: uuid("media_id").notNull(),
+		delivery: text().notNull(),
+		fallbackUsed: boolean("fallback_used").default(false).notNull(),
+		resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("idx_media_playback_resolution_events_resolved_at").using(
+			"btree",
+			table.resolvedAt.desc().nullsFirst().op("timestamptz_ops"),
+		),
+		index("idx_media_playback_resolution_events_user_resolved_at").using(
+			"btree",
+			table.userId.asc().nullsLast().op("uuid_ops"),
+			table.resolvedAt.desc().nullsFirst().op("timestamptz_ops"),
+		),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [platformUsers.id],
+			name: "media_playback_resolution_events_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.mediaId],
+			foreignColumns: [mediaFiles.id],
+			name: "media_playback_resolution_events_media_id_fkey",
+		}).onDelete("cascade"),
+		check(
+			"media_playback_resolution_events_delivery_check",
+			sql`delivery = ANY (ARRAY['hls'::text, 'mp4'::text, 'file'::text])`,
+		),
+	],
+);
+
 /** VIDEO_HLS_DELIVERY: one row per (platform user, media) — first successful video playback resolve only; used for unique-view KPI. */
 export const mediaPlaybackUserVideoFirstResolve = pgTable(
 	"media_playback_user_video_first_resolve",

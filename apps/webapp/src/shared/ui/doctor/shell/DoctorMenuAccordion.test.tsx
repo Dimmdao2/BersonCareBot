@@ -130,19 +130,23 @@ describe("DoctorMenuAccordion", () => {
     );
   });
 
-  it("adds lfk-catalog cluster when its header clicked without closing other open clusters", async () => {
+  it("opens lfk-catalog and closes other clusters when its header clicked", async () => {
     const user = userEvent.setup();
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => screen.getByRole("link", { name: "Сегодня" }));
     await user.click(screen.getByRole("button", { name: "Каталог ЛФК" }));
     expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Пациенты" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Каталог ЛФК" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Работа с пациентами" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     const raw = localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY);
     expect(raw).toBeTruthy();
     const ids = JSON.parse(raw!) as string[];
-    expect(ids).toContain("lfk-catalog");
-    expect(ids).toContain("patients-work");
+    expect(ids).toEqual(["lfk-catalog"]);
     expect(localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY)).toBeNull();
   });
 
@@ -173,6 +177,19 @@ describe("DoctorMenuAccordion", () => {
       expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     });
     expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
+  });
+
+  it("keeps only the last cluster when restoring legacy multi-open storage", async () => {
+    localStorage.setItem(
+      DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
+      JSON.stringify(["patients-work", "lfk-catalog"]),
+    );
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("link", { name: "Пациенты" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Каталог ЛФК" })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("falls back to default cluster when localStorage invalid for both keys", async () => {

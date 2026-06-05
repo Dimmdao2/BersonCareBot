@@ -2,10 +2,18 @@
  * PostgreSQL-backed idempotency store for integrator webhooks.
  * Atomic get/set; safe for multiple instances and restarts.
  */
-import { getPool } from "@/infra/db/client";
+import { z } from "zod";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 
 const TTL_SEC = 24 * 60 * 60; // 24 hours
 const MAX_KEY_LENGTH = 256;
+
+const idempotencyResponseBodySchema = z.record(z.string(), z.unknown());
+
+function parseIdempotencyResponseBody(raw: unknown): Record<string, unknown> {
+  const parsed = idempotencyResponseBodySchema.safeParse(raw);
+  return parsed.success ? parsed.data : {};
+}
 
 export function isKeyValid(key: string): boolean {
   return typeof key === "string" && key.length > 0 && key.length <= MAX_KEY_LENGTH;
@@ -20,11 +28,10 @@ export async function getCachedResponse(
   key: string,
   requestHash: string,
 ): Promise<CachedResponseHit> {
-  const pool = getPool();
-  const res = await pool.query<{
+  const res = await runWebappPgText<{
     request_hash: string;
     status: number;
-    response_body: Record<string, unknown>;
+    response_body: unknown;
   }>(
     `SELECT request_hash, status, response_body
      FROM idempotency_keys
@@ -39,7 +46,7 @@ export async function getCachedResponse(
   return {
     hit: true,
     status: row.status,
-    body: (row.response_body ?? {}) as Record<string, unknown>,
+    body: parseIdempotencyResponseBody(row.response_body),
   };
 }
 
@@ -54,8 +61,7 @@ export async function setCachedResponse(
   status: number,
   responseBody: Record<string, unknown>,
 ): Promise<boolean> {
-  const pool = getPool();
-  const res = await pool.query(
+  const res = await runWebappPgText<{ key: string }>(
     `INSERT INTO idempotency_keys (key, request_hash, status, response_body, expires_at)
      VALUES ($1, $2, $3, $4, now() + $5 * interval '1 second')
      ON CONFLICT (key) DO UPDATE SET

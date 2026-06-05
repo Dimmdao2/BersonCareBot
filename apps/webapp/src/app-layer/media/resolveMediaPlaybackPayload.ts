@@ -14,6 +14,7 @@ import {
   parseVideoDeliveryOverride,
   parseVideoProcessingStatus,
 } from "@/modules/media/videoHlsFields";
+import { recordPlaybackResolutionEvent } from "@/app-layer/media/playbackResolutionEvents";
 import { recordPlaybackResolutionStat } from "@/app-layer/media/playbackStatsHourly";
 import { recordPlaybackUserVideoFirstResolve } from "@/app-layer/media/playbackUserVideoFirstResolve";
 import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
@@ -91,7 +92,14 @@ export async function resolveMediaPlaybackPayload(input: {
       "playback_resolved",
     );
     if (!skipPlaybackStats) {
+      const userId = input.session.user.userId;
       await recordPlaybackResolutionStat({ delivery: "file", fallbackUsed: false });
+      await recordPlaybackResolutionEvent({
+        userId,
+        mediaId: id,
+        delivery: "file",
+        fallbackUsed: false,
+      });
     }
     return {
       ok: true,
@@ -158,11 +166,18 @@ export async function resolveMediaPlaybackPayload(input: {
   );
 
   if (!skipPlaybackStats) {
+    const userId = input.session.user.userId;
     await recordPlaybackResolutionStat({ delivery, fallbackUsed });
+    await recordPlaybackResolutionEvent({
+      userId,
+      mediaId: id,
+      delivery,
+      fallbackUsed,
+    });
 
     if (delivery === "hls" || delivery === "mp4") {
       await recordPlaybackUserVideoFirstResolve({
-        userId: input.session.user.userId,
+        userId,
         mediaId: id,
       });
     }

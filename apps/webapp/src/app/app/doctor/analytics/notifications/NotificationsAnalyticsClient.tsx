@@ -163,7 +163,7 @@ export function NotificationsAnalyticsClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/reminder-stats?windowHours=${hours}`, { credentials: "include" });
+      const res = await fetch(`/api/doctor/content-stats?windowHours=${hours}`, { credentials: "include" });
       if (!res.ok) {
         setError(res.status === 403 ? "Доступ запрещён" : `Ошибка ${res.status}`);
         setData(null);

@@ -1,6 +1,7 @@
 import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import {
   recommendationRegions,
   recommendations as recommendationsTable,
@@ -102,7 +103,7 @@ async function loadRecommendationUsageSummary(
   recommendationId: string,
 ): Promise<RecommendationUsageSnapshot> {
   const lim = RECOMMENDATION_USAGE_DETAIL_LIMIT;
-  const r = await pool.query<{
+  const r = await runPgPoolPgText<{
     published_tp_templates: string | number | null;
     draft_tp_templates: string | number | null;
     archived_tp_templates: string | number | null;
@@ -114,6 +115,7 @@ async function loadRecommendationUsageSummary(
     active_tp_instance_refs: unknown;
     completed_tp_instance_refs: unknown;
   }>(
+    pool,
     `SELECT
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si

@@ -1,6 +1,4 @@
-import { and, eq, inArray, notInArray } from "drizzle-orm";
-import type { Column } from "drizzle-orm";
-import type { SQL } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql, type Column, type SQL } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
 import type { SystemSetting } from "@/modules/system-settings/types";
@@ -180,4 +178,12 @@ export function drizzleExcludeUserIdColumn(
 ): SQL | undefined {
   if (excludedUserIds.length === 0) return undefined;
   return notInArray(column, excludedUserIds);
+}
+
+/**
+ * Drizzle `sql` fragment: `uuid1, uuid2, …` for `NOT IN (...)`.
+ * Do not use `<> ALL(${excludedUserIds}::uuid[])` in drizzle templates — pg driver gets a scalar, not uuid[].
+ */
+export function drizzleSqlUuidInList(excludedUserIds: string[]): SQL {
+  return sql.join(excludedUserIds.map((id) => sql`${id}::uuid`), sql`, `);
 }

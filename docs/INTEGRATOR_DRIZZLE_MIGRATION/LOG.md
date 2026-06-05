@@ -546,3 +546,50 @@ LIMIT 3;"
 
 **Shared schema package:** backlog вне Wave 3 (см. [wave3_DECISIONS.md](./plans/wave3_DECISIONS.md) §3).
 
+### Wave 3 — фаза 11 (webapp app-layer + auth tail) — выполнено (2026-06-06)
+
+План: [wave3_phase_11_webapp_app_layer_auth.plan.md](./plans/wave3_phase_11_webapp_app_layer_auth.plan.md).
+
+#### 11.1 — app-layer health/media
+
+- `collectAdminSystemHealthData.ts` — preview probe (`media_files` grouped + stale pending) → `runWebappPgText`.
+- `adminTranscodeHealthMetrics.ts` — `loadMediaFilesCountsViaPool` → `runWebappPgText`; Drizzle-агрегаты transcode jobs без изменений.
+- `videoHlsLegacyBackfill.ts` — batch fetch / histogram / failed reasons → `runPgPoolPgText` (pool inject для ops script).
+
+#### 11.2 — auth transport + ESLint allowlist
+
+- `channelLink.ts` — **Class C permanent:** только `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` для multipart tx с `platform-merge`; domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient` (Wave 2 P7).
+- ESLint allowlist **не сужен** — проверка `rg '@/infra/repos|@/infra/db'`:
+  - `oauthWebSession.ts` — `@/infra/repos/pgUserByPhone`
+  - `yandexOAuthCallbackHandler.ts` — `pgUserByPhone`, `pgOAuthBindings`, `pgPatientCalendarTimezone`
+  - `service.ts` — dynamic import `pgUserByPhone`, `pgUserProjection`
+  - `channelLink.ts` — `@/infra/db/client`, `@/infra/repos/pgChannelLinkClaim`, …
+  - `configAdapter.ts` — allowlist сохранён (module-layer adapter; SQL через `runWebappPgText`, не прямой `getPool`)
+
+#### 11.3 — small infra (≤6 query)
+
+- **Infra:** `runWebappSql.ts` — добавлен `runPgPoolPgText` (Class B transport для injected `Pool`).
+- **Мигрированы:** `pgDiaryPurge`, `pgAdminPlatformUserStats`, `strictPlatformUserPurge` (domain SQL), `pgRubitimeMapping` (legacy branch_services load), `pgPatientBroadcasts`, usage summaries (`pgRecommendations`, `pgTestSets`, `pgCourses`, `pgClinicalTests`), `loadPlatformUserChannelBindings`, `mergeAuditLabels`, `manualMergeIntegratorGate`, `platformUserNameMatchHints`, `mergePreviewIntegratorUserPresence` (`integrator.users`), `disableReminderMessengerTopic`, `loadWarmupsSectionSlugs`, `configAdapter`, `pgStore`.
+- **Class C остаток:** `strictPlatformUserPurge` — TX `BEGIN`/`COMMIT`/`ROLLBACK` на dedicated client (advisory + `runWebappPurgeCoreInTransaction`).
+
+#### 11.4 — Zod на JSON-границах
+
+- `modules/system-settings/parseSettingValueJson.ts` — envelope + `sms_fallback_enabled`.
+- `infra/idempotency/pgStore.ts` — `idempotencyResponseBodySchema` для `response_body`.
+
+#### Verify
+
+- `rg 'pool\.query|client\.query' apps/webapp/src/app-layer/health apps/webapp/src/app-layer/media --glob '*.ts'` — **0** hits.
+- `rg 'pool\.query' apps/webapp/src/modules/auth/channelLink.ts` — **0** (только Class C `client.query` TX).
+- Vitest `--project fast` (health/media/config/idempotency): **48 passed** — `adminTranscodeHealthMetrics`, `videoHlsLegacyBackfill`, `system-health/route`, `configAdapter`, `parseSettingValueJson`, `pgStore`, `mergePreviewIntegratorUserPresence`.
+- `RAW_SQL_INVENTORY.md` — все 10 мелких repos из scope P11 помечены **Wave 3 P11 done**.
+- `pnpm --dir apps/webapp run typecheck` — green.
+- **`pnpm run ci`** — green (post-audit closure).
+
+#### Post-audit closure (2026-06-06)
+
+- Дополнены строки RAW_SQL: `pgAdminPlatformUserStats`, `pgRubitimeMapping`, `pgPatientBroadcasts`, `loadPlatformUserChannelBindings`, `mergeAuditLabels`, `manualMergeIntegratorGate`, `platformUserNameMatchHints`, `mergePreviewIntegratorUserPresence`, `loadWarmupsSectionSlugs`, `disableReminderMessengerTopic`.
+- Unit-тесты: `parseSettingValueJson.test.ts`, `pgStore.test.ts` (invalid `response_body` → `{}`).
+
+**Синхронизация документов (2026-06-06, post-audit):** [wave3_phase_11_webapp_app_layer_auth.plan.md](./plans/wave3_phase_11_webapp_app_layer_auth.plan.md) (полное закрытие + таблица миграций), [plans/README.md](./plans/README.md), [wave3_INDEX.md](./plans/wave3_INDEX.md), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md), [docs/README.md](../README.md).
+

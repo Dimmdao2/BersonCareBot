@@ -1,21 +1,28 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { getCachedWarmupSlugs } from "@/app-layer/reminders/warmupSlugCache";
 import { routePaths } from "@/app-layer/routes/paths";
 import { patientAnalyticsEventsBodySchema } from "@/modules/product-analytics/ingestSchemas";
 import { normalizePageKey } from "@/modules/product-analytics/normalizePageKey";
+import {
+  groupProductAnalyticsPageKey,
+  patientContentSlugFromPath,
+} from "@/modules/product-analytics/productAnalyticsPageKey";
 import type { ProductAnalyticsIngestEvent } from "@/modules/product-analytics/types";
 
-function resolvePageKeyFromClientEvent(event: {
-  pageKey?: string;
-  pathname?: string;
-}): string | undefined {
-  if (event.pageKey?.trim()) {
-    const fromKey = normalizePageKey(event.pageKey.trim());
-    return fromKey ?? undefined;
+function resolvePageKeyFromClientEvent(
+  event: { pageKey?: string; pathname?: string },
+  warmupSlugs: Set<string>,
+): string | undefined {
+  const pathname = event.pathname?.trim();
+  if (pathname) {
+    const slug = patientContentSlugFromPath(pathname);
+    const isWarmupContent = slug != null && warmupSlugs.has(slug);
+    return normalizePageKey(pathname, { isWarmupContent }) ?? undefined;
   }
-  if (event.pathname?.trim()) {
-    return normalizePageKey(event.pathname.trim()) ?? undefined;
+  if (event.pageKey?.trim()) {
+    return groupProductAnalyticsPageKey(event.pageKey.trim());
   }
   return undefined;
 }
@@ -38,11 +45,12 @@ export async function POST(request: Request) {
   }
 
   const userId = gate.session.user.userId;
+  const warmupSlugs = await getCachedWarmupSlugs();
 
   const ingest: ProductAnalyticsIngestEvent[] = [];
   for (const event of parsed.data.events) {
     if (event.eventType === "page_view") {
-      const pageKey = resolvePageKeyFromClientEvent(event);
+      const pageKey = resolvePageKeyFromClientEvent(event, warmupSlugs);
       if (!pageKey) continue;
       ingest.push({
         eventType: "page_view",

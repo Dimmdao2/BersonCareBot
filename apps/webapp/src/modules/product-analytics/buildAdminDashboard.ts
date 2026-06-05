@@ -8,6 +8,11 @@ import type {
   ProductAnalyticsEntryChannel,
 } from "@/modules/product-analytics/types";
 import {
+  groupProductAnalyticsPageKey,
+  labelProductAnalyticsPageKey,
+} from "@/modules/product-analytics/productAnalyticsPageKey";
+import { labelProductAnalyticsTopicCode } from "@/modules/product-analytics/productAnalyticsTopicLabels";
+import {
   PRODUCT_ANALYTICS_DIM_ALL,
   PRODUCT_ANALYTICS_ENTRY_CHANNELS,
 } from "@/modules/product-analytics/types";
@@ -55,6 +60,26 @@ function openRate(opened: number, sent: number): number {
 
 function emptyChannelCounts(): Record<ProductAnalyticsEntryChannel, number> {
   return { pwa: 0, telegram: 0, max: 0, browser: 0 };
+}
+
+function rollupPageKey(rawPageKey: string): string {
+  return groupProductAnalyticsPageKey(rawPageKey);
+}
+
+function addPageViewCount(map: Map<string, number>, rawPageKey: string, count: number): void {
+  const key = rollupPageKey(rawPageKey);
+  map.set(key, (map.get(key) ?? 0) + count);
+}
+
+function addPageViewUser(
+  map: Map<string, Set<string>>,
+  rawPageKey: string,
+  userId: string,
+): void {
+  const key = rollupPageKey(rawPageKey);
+  const users = map.get(key) ?? new Set<string>();
+  users.add(userId);
+  map.set(key, users);
 }
 
 export function productAnalyticsWindowStartHour(windowHours: number, now = new Date()): string {
@@ -149,11 +174,11 @@ export function buildAdminDashboard(input: {
     }
 
     if (r.eventType === "page_view" && !isRollupTotalDim(r.pageKey)) {
-      pageViews.set(r.pageKey, (pageViews.get(r.pageKey) ?? 0) + r.eventCount);
+      addPageViewCount(pageViews, r.pageKey, r.eventCount);
       totalPageViews += r.eventCount;
       const bucketKey = toDisplayZoneHourBucketKey(r.bucketHour, displayTimezone);
       const byPage = pageViewsByBucket.get(bucketKey) ?? new Map<string, number>();
-      byPage.set(r.pageKey, (byPage.get(r.pageKey) ?? 0) + r.eventCount);
+      addPageViewCount(byPage, r.pageKey, r.eventCount);
       pageViewsByBucket.set(bucketKey, byPage);
     }
 
@@ -192,15 +217,11 @@ export function buildAdminDashboard(input: {
     dailyActiveUsers.set(day, daySet);
 
     if (!isRollupTotalDim(r.pageKey) && r.pageViews > 0) {
-      const users = pageUniqueUsers.get(r.pageKey) ?? new Set<string>();
-      users.add(r.userId);
-      pageUniqueUsers.set(r.pageKey, users);
+      addPageViewUser(pageUniqueUsers, r.pageKey, r.userId);
 
       const bucketKey = toDisplayZoneHourBucketKey(r.bucketHour, displayTimezone);
       const byPage = pageUniqueUsersByBucket.get(bucketKey) ?? new Map<string, Set<string>>();
-      const pageUsers = byPage.get(r.pageKey) ?? new Set<string>();
-      pageUsers.add(r.userId);
-      byPage.set(r.pageKey, pageUsers);
+      addPageViewUser(byPage, r.pageKey, r.userId);
       pageUniqueUsersByBucket.set(bucketKey, byPage);
     }
 
@@ -267,6 +288,7 @@ export function buildAdminDashboard(input: {
   const topPages = [...pageViews.entries()]
     .map(([pageKey, views]) => ({
       pageKey,
+      pageLabel: labelProductAnalyticsPageKey(pageKey),
       views,
       uniqueUsers: pageUniqueUsers.get(pageKey)?.size ?? 0,
     }))
@@ -296,7 +318,13 @@ export function buildAdminDashboard(input: {
     .map((topicCode) => {
       const sent = topicSent.get(topicCode) ?? 0;
       const opened = topicOpened.get(topicCode) ?? 0;
-      return { topicCode, sent, opened, openRate: openRate(opened, sent) };
+      return {
+        topicCode,
+        topicLabel: labelProductAnalyticsTopicCode(topicCode),
+        sent,
+        opened,
+        openRate: openRate(opened, sent),
+      };
     })
     .sort((a, b) => b.sent - a.sent || a.topicCode.localeCompare(b.topicCode));
 

@@ -2,7 +2,11 @@ import { and, gte, sql } from "drizzle-orm";
 import { drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { logger } from "@/app-layer/logging/logger";
-import { mediaPlaybackStatsHourly, mediaPlaybackUserVideoFirstResolve } from "../../../db/schema";
+import {
+  mediaPlaybackResolutionEvents,
+  mediaPlaybackStatsHourly,
+  mediaPlaybackUserVideoFirstResolve,
+} from "../../../db/schema";
 
 export const ADMIN_PLAYBACK_METRICS_WINDOW_HOURS = 24;
 
@@ -29,15 +33,20 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
 
   const windowCutoffSql = sql`(now() - (${windowHours}::integer * interval '1 hour'))`;
   const excludedUserIds = opts.excludedUserIds ?? [];
+  const audienceFiltered = excludedUserIds.length > 0;
   const uniqueUserExclude = drizzleExcludeUserIdColumn(
     mediaPlaybackUserVideoFirstResolve.userId,
+    excludedUserIds,
+  );
+  const resolutionUserExclude = drizzleExcludeUserIdColumn(
+    mediaPlaybackResolutionEvents.userId,
     excludedUserIds,
   );
 
   try {
     const db = getDrizzle();
 
-    const [totalsRows, uniqueRow] = await Promise.all([
+    const hourlyTotalsQuery = () =>
       db
         .select({
           delivery: mediaPlaybackStatsHourly.delivery,
@@ -46,12 +55,49 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
         })
         .from(mediaPlaybackStatsHourly)
         .where(gte(mediaPlaybackStatsHourly.bucketHour, windowCutoffSql))
-        .groupBy(mediaPlaybackStatsHourly.delivery),
+        .groupBy(mediaPlaybackStatsHourly.delivery);
+
+    const audienceTotalsQuery = () =>
       db
-        .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
-        .from(mediaPlaybackUserVideoFirstResolve)
-        .where(and(gte(mediaPlaybackUserVideoFirstResolve.firstResolvedAt, windowCutoffSql), uniqueUserExclude)),
-    ]);
+        .select({
+          delivery: mediaPlaybackResolutionEvents.delivery,
+          resolvedSum: sql<string>`COUNT(*)::text`,
+          fallbackSum: sql<string>`COALESCE(SUM(CASE WHEN ${mediaPlaybackResolutionEvents.fallbackUsed} THEN 1 ELSE 0 END), 0)::text`,
+        })
+        .from(mediaPlaybackResolutionEvents)
+        .where(
+          and(gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql), resolutionUserExclude),
+        )
+        .groupBy(mediaPlaybackResolutionEvents.delivery);
+
+    let totalsRows: Array<{
+      delivery: string;
+      resolvedSum: string;
+      fallbackSum: string;
+    }>;
+    if (audienceFiltered) {
+      try {
+        totalsRows = await audienceTotalsQuery();
+      } catch (eventsErr) {
+        const code =
+          eventsErr && typeof eventsErr === "object" && "code" in eventsErr
+            ? String((eventsErr as { code?: string }).code)
+            : "";
+        if (code !== "42P01") throw eventsErr;
+        logger.warn(
+          { err: eventsErr },
+          "playback_resolution_events_missing_fallback_hourly",
+        );
+        totalsRows = await hourlyTotalsQuery();
+      }
+    } else {
+      totalsRows = await hourlyTotalsQuery();
+    }
+
+    const uniqueRow = await db
+      .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+      .from(mediaPlaybackUserVideoFirstResolve)
+      .where(and(gte(mediaPlaybackUserVideoFirstResolve.firstResolvedAt, windowCutoffSql), uniqueUserExclude));
 
     const byDelivery = { hls: 0, mp4: 0, file: 0 };
     let fallbackTotal = 0;

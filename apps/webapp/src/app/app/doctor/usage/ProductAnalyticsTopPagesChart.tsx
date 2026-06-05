@@ -19,17 +19,13 @@ function chartHeightForRows(rowCount: number): number {
   return Math.min(420, 100 + rowCount * 30);
 }
 
-function shortenPageKey(pageKey: string): string {
-  return pageKey.length > 48 ? `${pageKey.slice(0, 45)}...` : pageKey;
-}
-
 export function ProductAnalyticsTopPagesChart({ rows }: { rows: ProductAnalyticsTopPageRow[] }) {
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">Нет данных</p>;
   }
 
   const data = rows.map((r) => ({
-    pageKey: shortenPageKey(r.pageKey),
+    pageLabel: r.pageLabel,
     views: r.views,
     uniqueUsers: r.uniqueUsers,
   }));
@@ -43,8 +39,8 @@ export function ProductAnalyticsTopPagesChart({ rows }: { rows: ProductAnalytics
           <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
           <YAxis
             type="category"
-            dataKey="pageKey"
-            width={184}
+            dataKey="pageLabel"
+            width={200}
             tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
           />
           <DoctorRechartsTooltip />

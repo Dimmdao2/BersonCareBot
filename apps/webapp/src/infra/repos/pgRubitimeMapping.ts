@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import type { BookingCatalogPort } from "@/modules/booking-catalog/ports";
 import type { ServiceAvailabilityPort } from "@/modules/booking-engine/ports";
 import type { BookingSchedulingPort } from "@/modules/booking-scheduling/ports";
@@ -147,7 +148,8 @@ async function listMappingsInternal(
     if (m.entityType === "specialist") canonicalSpecialistRubitime.set(m.canonicalId, m.externalId);
   }
   const legacyById = new Map<string, LegacyBranchServiceRow>();
-  const legacyRes = await pool.query<LegacyBranchServiceRow>(
+  const legacyRes = await runPgPoolPgText<LegacyBranchServiceRow>(
+    pool,
     `SELECT
        bbs.id,
        bbs.branch_id,

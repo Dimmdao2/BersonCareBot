@@ -23,12 +23,14 @@ export type MaterialRatingPort = {
   getAggregate(input: {
     targetKind: MaterialRatingTargetKind;
     targetId: string;
+    excludedUserIds?: string[];
   }): Promise<MaterialRatingAggregate>;
 
   listDoctorSummary(input: {
     targetKind?: MaterialRatingTargetKind;
     limit: number;
     offset: number;
+    excludedUserIds?: string[];
   }): Promise<MaterialRatingDoctorSummaryRow[]>;
 
   getDoctorDetail(input: {
@@ -38,6 +40,7 @@ export type MaterialRatingPort = {
     startUtcIso: string;
     endExclusiveUtcIso: string;
     dayKeys: string[];
+    excludedUserIds?: string[];
   }): Promise<{
     days: MaterialRatingDoctorDetailDay[];
     raters: MaterialRatingDoctorDetailRater[];

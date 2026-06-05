@@ -1,5 +1,5 @@
 import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
-import { drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
+import { drizzleExcludeUserIdColumn, drizzleSqlUuidInList } from "@/modules/analytics/analyticsAudience";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { loadAdminPlaybackHealthMetrics, type AdminPlaybackHealthMetrics } from "@/app-layer/media/adminPlaybackHealthMetrics";
 import {
@@ -161,7 +161,7 @@ function reminderOccurrenceAudienceSql(excludedUserIds: string[]) {
      AND rr.platform_user_id IS NULL
     WHERE rr.integrator_rule_id = ${reminderOccurrenceHistory.integratorRuleId}
       AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL
-      AND COALESCE(rr.platform_user_id, pu.id) <> ALL(${excludedUserIds}::uuid[])
+      AND COALESCE(rr.platform_user_id, pu.id) NOT IN (${drizzleSqlUuidInList(excludedUserIds)})
   )`;
 }
 

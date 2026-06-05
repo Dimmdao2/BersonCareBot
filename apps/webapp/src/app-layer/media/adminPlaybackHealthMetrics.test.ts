@@ -57,6 +57,42 @@ describe("loadAdminPlaybackHealthMetrics", () => {
     expect(loggerErrorMock).not.toHaveBeenCalled();
   });
 
+  it("aggregates from per-user resolution events when excludedUserIds provided", async () => {
+    const totalsRows = [
+      { delivery: "hls", resolvedSum: "4", fallbackSum: "2" },
+      { delivery: "mp4", resolvedSum: "1", fallbackSum: "0" },
+    ];
+    const uniqueRows = [{ c: "3" }];
+
+    const groupByMock = vi.fn().mockResolvedValue(totalsRows);
+    const totalsWhereMock = vi.fn(() => ({ groupBy: groupByMock }));
+    const totalsFromMock = vi.fn(() => ({ where: totalsWhereMock }));
+
+    const uniqueWhereMock = vi.fn().mockResolvedValue(uniqueRows);
+    const uniqueFromMock = vi.fn(() => ({ where: uniqueWhereMock }));
+
+    const selectMock = vi
+      .fn()
+      .mockImplementationOnce(() => ({ from: totalsFromMock }))
+      .mockImplementationOnce(() => ({ from: uniqueFromMock }));
+
+    getDrizzleMock.mockReturnValue({ select: selectMock });
+
+    const result = await loadAdminPlaybackHealthMetrics({
+      windowHours: 24,
+      excludedUserIds: ["cccccccc-cccc-4ccc-8ccc-cccccccccccc"],
+    });
+
+    expect(result).toEqual({
+      byDelivery: { hls: 4, mp4: 1, file: 0 },
+      fallbackTotal: 2,
+      totalResolutions: 5,
+      uniquePlaybackPairsFirstSeenInWindow: 3,
+    });
+    expect(totalsFromMock).toHaveBeenCalled();
+    expect(groupByMock).toHaveBeenCalled();
+  });
+
   it("uses default window when invalid windowHours provided", async () => {
     const groupByMock = vi.fn().mockResolvedValue([]);
     const totalsWhereMock = vi.fn(() => ({ groupBy: groupByMock }));

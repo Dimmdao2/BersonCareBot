@@ -6,6 +6,7 @@
  * tune limits if the `platform_users` table grows large.
  */
 import type { Pool } from "pg";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 
 export const NAME_MATCH_HINTS_DISCLAIMER =
   "Результаты носят справочный характер: совпадение ФИО не подтверждает, что это один человек. Решение о слиянии записей принимает администратор после ручной проверки.";
@@ -185,8 +186,8 @@ export async function buildNameMatchHintsReport(pool: Pool, opts: BuildOpts): Pr
     LIMIT $1::int
   `;
 
-  const orderedRes = await pool.query<OrderedRow>(orderedSql, [limitGroups, limitMembersPerGroup]);
-  const swappedRes = await pool.query<SwappedSqlRow>(swappedSql, [limitSwappedPairs]);
+  const orderedRes = await runPgPoolPgText<OrderedRow>(pool, orderedSql, [limitGroups, limitMembersPerGroup]);
+  const swappedRes = await runPgPoolPgText<SwappedSqlRow>(pool, swappedSql, [limitSwappedPairs]);
 
   const orderedGroups = groupOrderedRows(orderedRes.rows);
 

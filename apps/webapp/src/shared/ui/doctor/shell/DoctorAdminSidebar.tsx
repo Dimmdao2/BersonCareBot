@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import { Separator } from "@/shared/ui/doctor/primitives/separator";
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
 import {
@@ -44,11 +43,9 @@ export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminS
       <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Разделы</p>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Разделы кабинета">
         <DoctorMenuAccordion variant="sidebar" pathname={pathname} menuAccess={menuAccess} />
-        <Separator className="my-2" />
-        <Link href="/app/settings" className={SIDEBAR_LINK_CLASS}>
+        <Link href="/app/settings" className={cn(SIDEBAR_LINK_CLASS, "mt-1")}>
           Настройки специалиста
         </Link>
-        <Separator className="my-2" />
         <form action="/api/auth/logout" method="post" className="w-full">
           <Button
             type="submit"

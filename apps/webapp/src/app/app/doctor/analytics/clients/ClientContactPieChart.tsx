@@ -88,6 +88,15 @@ export function ClientContactPieChart({
               paddingAngle={2}
               dataKey="value"
               nameKey="name"
+              className={onSegmentClick ? "cursor-pointer" : undefined}
+              onClick={
+                onSegmentClick
+                  ? (_data, index) => {
+                      const row = slices[index];
+                      if (row) onSegmentClick(row.segment, row.name);
+                    }
+                  : undefined
+              }
             >
               {slices.map((s) => (
                 <Cell key={s.segment} fill={SEGMENT_COLORS[s.segment]} />
@@ -103,7 +112,12 @@ export function ClientContactPieChart({
             <li key={s.segment} className="min-w-0">
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded-sm px-0.5 py-0.5 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className={
+                  onSegmentClick
+                    ? "flex w-full cursor-pointer items-center gap-2 rounded-sm px-0.5 py-0.5 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    : "flex w-full items-center gap-2 rounded-sm px-0.5 py-0.5 text-left"
+                }
+                aria-label={onSegmentClick ? `${s.name}: ${s.value} — открыть список` : undefined}
                 onClick={() => onSegmentClick?.(s.segment, s.name)}
               >
                 <span

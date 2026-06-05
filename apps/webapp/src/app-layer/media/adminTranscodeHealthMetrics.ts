@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
-import { getPool } from "@/app-layer/db/client";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { logger } from "@/app-layer/logging/logger";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import {
   legacyHlsBackfillCandidateWhereClause,
   legacyHlsReconcileEligibleForEnqueueSqlFilter,
@@ -43,17 +43,15 @@ async function loadMediaFilesCountsViaPool(): Promise<{
   legacyReconcileCandidateCountWithinSizeCap: number;
   readableVideoReadyWithHlsCount: number;
 }> {
-  const pool = getPool();
   const core = legacyHlsBackfillCandidateWhereClause("m", false);
   const sz = legacyHlsReconcileEligibleForEnqueueSqlFilter("m", VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES);
   const readable = mediaReadableSql("m");
 
   const [candidatesResult, readyHlsResult] = await Promise.all([
-    pool.query<{ c: string }>(
+    runWebappPgText<{ c: string }>(
       `SELECT count(*)::text AS c FROM media_files m WHERE ${core} AND ${sz}`,
-      [],
     ),
-    pool.query<{ c: string }>(
+    runWebappPgText<{ c: string }>(
       `SELECT count(*)::text AS c
        FROM media_files m
        WHERE m.mime_type ILIKE 'video/%'
@@ -61,7 +59,6 @@ async function loadMediaFilesCountsViaPool(): Promise<{
          AND m.video_processing_status = 'ready'
          AND m.hls_master_playlist_s3_key IS NOT NULL
          AND trim(m.hls_master_playlist_s3_key) <> ''`,
-      [],
     ),
   ]);
 

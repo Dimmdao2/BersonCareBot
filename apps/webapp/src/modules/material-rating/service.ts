@@ -87,7 +87,11 @@ export function createMaterialRatingService(deps: {
   }
 
   return {
-    async getPublicAggregate(input: { targetKind: MaterialRatingTargetKind; targetId: string }) {
+    async getPublicAggregate(input: {
+      targetKind: MaterialRatingTargetKind;
+      targetId: string;
+      excludedUserIds?: string[];
+    }) {
       if (input.targetKind === "content_page") {
         await loadContentPageOrThrow(input.targetId);
       } else {
@@ -248,6 +252,7 @@ export function createMaterialRatingService(deps: {
       targetKind?: MaterialRatingTargetKind;
       limit: number;
       offset: number;
+      excludedUserIds?: string[];
     }) {
       return deps.ratings.listDoctorSummary(input);
     },
@@ -263,6 +268,7 @@ export function createMaterialRatingService(deps: {
       startUtcIso: string;
       endExclusiveUtcIso: string;
       dayKeys: string[];
+      excludedUserIds?: string[];
     }) {
       if (input.targetKind === "content_page") {
         await loadContentPageOrThrow(input.targetId);

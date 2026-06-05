@@ -1,3 +1,8 @@
+import {
+  finalizeProductAnalyticsPageKey,
+  type ProductAnalyticsPageKeyOptions,
+} from "@/modules/product-analytics/productAnalyticsPageKey";
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -5,7 +10,10 @@ const UUID_RE =
  * Normalizes patient app paths for hourly aggregates (no query string).
  * Returns null for paths outside `/app/patient/**`.
  */
-export function normalizePageKey(pathname: string): string | null {
+export function normalizePageKey(
+  pathname: string,
+  opts?: ProductAnalyticsPageKeyOptions,
+): string | null {
   const trimmed = pathname.trim();
   if (!trimmed.startsWith("/app/patient")) return null;
 
@@ -25,5 +33,6 @@ export function normalizePageKey(pathname: string): string | null {
       out.push(seg);
     }
   }
-  return out.join("/") || "/app/patient";
+  const normalized = out.join("/") || "/app/patient";
+  return finalizeProductAnalyticsPageKey(normalized, opts);
 }

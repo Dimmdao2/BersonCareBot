@@ -1,12 +1,12 @@
 # Wave 3 — финальный closeout (raw SQL tail ↓ / Drizzle + Zod / legacy cutover)
 
-**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10** completed; следующая: **11**
+**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10**, **11** completed; следующая: **12**
 **Предшественник:** Wave 2 этапы 1–8 **completed**  
 **Решения до старта:** [wave3_DECISIONS.md](./wave3_DECISIONS.md) (DoR закрыт фазой 00)
 
 ## Цель Wave 3
 
-1. Integrator P1+ (**done**, фаза 09) и media-worker IX (**done**, фаза 10) — закрыты; далее webapp closeout (фазы 11–15).
+1. Integrator P1+ (**done**, фаза 09), media-worker IX (**done**, фаза 10), app-layer/auth tail (**done**, фаза 11) — закрыты; далее webapp closeout (фазы **12–15**).
 2. Убрать необъяснённый **`pool.query` / `client.query`** в webapp runtime (Class **A**), либо перевести в Class **B/C** с ADR.
 3. Убрать потребность в регулярном `migrate:legacy` для webapp, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner в regular flow.
 4. Синхронизировать **RAW_SQL_INVENTORY**, **DRIZZLE_TRANSITION_PLAN**, **LOG**; закрыть инициативу или явный backlog с причинами.
@@ -34,7 +34,7 @@
 | 08 | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md) | L | Убрать/перенести дубли integrator после unified DB | 1 (**done** 2026-06-06) |
 | 09 | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | M | Integrator P1+ (декомпозиция 09A-09E) | 1 (**done** 2026-06-06) |
 | 10 | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | M | media-worker IX (декомпозиция 10A-10C) | 1 (**done** 2026-06-06) |
-| 11 | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | S | app-layer health/media; auth TX tail; мелкие outliers | 1 |
+| 11 | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | S | app-layer health/media; auth TX tail; мелкие outliers | 1 (**done** 2026-06-06) |
 | 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake/purge/identity (декомпозиция 12A-12E) | 1 |
 | 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking/doctor (декомпозиция 13A-13E) | 1 |
 | 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 |
@@ -92,7 +92,7 @@
 - `09A→09B→09C→09D→09E` — строго последовательно внутри фазы 09.
 - `10A→10B→10C` — строго последовательно внутри фазы 10.
 - `09` и `10` можно делать параллельно только после `08`.
-- `11` стартует после зелёного `09`.
+- `11` — **done** (2026-06-06); `12` стартует после закрытия `11`.
 - `12A→12B→12C→12D→12E` внутри фазы 12.
 - `13A→13B→13C→13D→13E` внутри фазы 13.
 - `14A→14B→14C→14D→14E` внутри фазы 14.

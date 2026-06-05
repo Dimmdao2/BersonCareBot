@@ -2,8 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.hoisted(() => vi.fn());
 const listDoctorSummaryMock = vi.hoisted(() => vi.fn());
+const loadDoctorAnalyticsAudienceMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ includeTestAccounts: false, excludedUserIds: [] }),
+);
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
+vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
+  loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
+}));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     materialRating: { listDoctorSummary: listDoctorSummaryMock },
@@ -46,7 +52,7 @@ describe("GET /api/doctor/material-ratings/summary", () => {
     const json = await res.json();
     expect(json.ok).toBe(true);
     expect(json.rows).toHaveLength(1);
-    expect(listDoctorSummaryMock).toHaveBeenCalledWith({ targetKind: undefined, limit: 100, offset: 0 });
+    expect(listDoctorSummaryMock).toHaveBeenCalledWith({ targetKind: undefined, limit: 100, offset: 0, excludedUserIds: [] });
   });
 
   it("passes kind limit offset from query", async () => {
@@ -61,6 +67,7 @@ describe("GET /api/doctor/material-ratings/summary", () => {
       targetKind: "lfk_exercise",
       limit: 50,
       offset: 10,
+      excludedUserIds: [],
     });
   });
 });

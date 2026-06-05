@@ -11,7 +11,6 @@ import {
   Users,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import { Separator } from "@/shared/ui/doctor/primitives/separator";
 import {
   Sheet,
   SheetContent,
@@ -158,11 +157,9 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
                 menuAccess={menuAccess}
                 onNavigate={closeMenu}
               />
-              <Separator className="my-2" />
-              <Link href="/app/settings" onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
+              <Link href="/app/settings" onClick={closeMenu} className={cn(DOCTOR_SHEET_LINK_CLASS, "mt-1")}>
                 Настройки специалиста
               </Link>
-              <Separator className="my-2" />
               <form action="/api/auth/logout" method="post" className="w-full">
                 <Button
                   type="submit"

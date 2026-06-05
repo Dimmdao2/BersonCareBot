@@ -66,10 +66,10 @@ const SHEET_LINK_CLASS = cn(
 
 const CLUSTER_TRIGGER_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
-  "flex h-auto w-full items-center justify-start gap-2 rounded-t-md bg-card px-3 py-2 text-left text-sm font-semibold text-foreground hover:bg-muted",
+  "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-semibold text-foreground",
 );
 
-/** Читает набор открытых кластеров: новый JSON-массив, иначе миграция со старого одного id. `null` — оставить начальный state. */
+/** Читает открытый кластер: JSON-массив (берётся последний валидный id), иначе миграция v1. `null` — оставить начальный state. */
 function readOpenClustersFromStorage(): Set<string> | null {
   if (typeof window === "undefined") return null;
   try {
@@ -79,7 +79,8 @@ function readOpenClustersFromStorage(): Set<string> | null {
         const parsed: unknown = JSON.parse(v2);
         if (Array.isArray(parsed)) {
           const ids = parsed.filter((x): x is string => typeof x === "string" && isDoctorMenuClusterId(x));
-          return new Set(ids);
+          if (ids.length === 0) return new Set();
+          return new Set([ids[ids.length - 1]!]);
         }
       } catch {
         /* невалидный JSON v2 — пробуем v1 */
@@ -138,25 +139,20 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
     }
   }, []);
 
-  const toggleCluster = useCallback(
-    (id: string) => {
-      setOpenClusterIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        if (typeof window !== "undefined") {
-          try {
-            window.localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify([...next]));
-            window.localStorage.removeItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY);
-          } catch {
-            /* ignore */
-          }
+  const toggleCluster = useCallback((id: string) => {
+    setOpenClusterIds((prev) => {
+      const next = prev.has(id) ? new Set<string>() : new Set([id]);
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify([...next]));
+          window.localStorage.removeItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY);
+        } catch {
+          /* ignore */
         }
-        return next;
-      });
-    },
-    [],
-  );
+      }
+      return next;
+    });
+  }, []);
 
   const sections = getDoctorMenuRenderSections(menuAccess);
 
@@ -211,10 +207,7 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
         const triggerId = `doctor-menu-cluster-trigger-${cluster.id}`;
 
         return (
-          <div
-            key={cluster.id}
-            className="flex flex-col rounded-md border border-muted-foreground/30"
-          >
+          <div key={cluster.id} className="flex flex-col">
             <button
               type="button"
               id={triggerId}

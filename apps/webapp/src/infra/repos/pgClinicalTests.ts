@@ -1,6 +1,7 @@
 import { and, eq, desc, ilike, inArray, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { clinicalTestRegions, clinicalTests as clinicalTestsTable } from "../../../db/schema/clinicalTests";
 import type { ClinicalTestsPort } from "@/modules/tests/ports";
 import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "@/modules/tests/clinicalTestScoring";
@@ -108,7 +109,7 @@ async function loadClinicalTestUsageSummary(
   clinicalTestId: string,
 ): Promise<ClinicalTestUsageSnapshot> {
   const lim = CLINICAL_TEST_USAGE_DETAIL_LIMIT;
-  const r = await pool.query<{
+  const r = await runPgPoolPgText<{
     non_archived_test_sets: string | number | null;
     archived_test_sets: string | number | null;
     published_tp_templates: string | number | null;
@@ -125,6 +126,7 @@ async function loadClinicalTestUsageSummary(
     active_tp_instance_refs: unknown;
     completed_tp_instance_refs: unknown;
   }>(
+    pool,
     `SELECT
        (SELECT COUNT(DISTINCT ts.id)::int
           FROM test_set_items tsi

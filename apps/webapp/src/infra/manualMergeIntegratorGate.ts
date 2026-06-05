@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Pool } from "pg";
 import { checkIntegratorCanonicalPair } from "@/infra/integrations/integratorUserMergeM2mClient";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import type { VerifiedDistinctIntegratorUserIds } from "@/infra/repos/pgPlatformUserMerge";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 
@@ -31,7 +32,8 @@ export async function verifyManualMergeIntegratorIntegratorGate(
   duplicateId: string,
 ): Promise<ManualMergeIntegratorGateOk | ManualMergeIntegratorGateFail> {
   const v2 = await getConfigBool("platform_user_merge_v2_enabled", false);
-  const r = await pool.query<{ id: string; integrator_user_id: string | null }>(
+  const r = await runPgPoolPgText<{ id: string; integrator_user_id: string | null }>(
+    pool,
     `SELECT id::text AS id, integrator_user_id::text AS integrator_user_id
      FROM platform_users
      WHERE id IN ($1::uuid, $2::uuid)`,

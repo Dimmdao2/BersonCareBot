@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { extractBroadcastBodyContent } from "@/modules/patient-broadcasts/extractBroadcastBodyContent";
 import type { PatientBroadcastsPort, PatientBroadcastView } from "@/modules/patient-broadcasts/ports";
 
@@ -10,11 +11,12 @@ export function createPgPatientBroadcastsPort(): PatientBroadcastsPort {
     async getBroadcastForPatient(auditId: string, platformUserId: string): Promise<PatientBroadcastView | null> {
       if (!UUID_RE.test(auditId) || !UUID_RE.test(platformUserId)) return null;
       const pool = getPool();
-      const r = await pool.query<{
+      const r = await runPgPoolPgText<{
         message_title: string;
         message_body: string;
         executed_at: string;
       }>(
+        pool,
         `SELECT a.message_title, a.message_body, a.executed_at
          FROM broadcast_audit a
          INNER JOIN broadcast_audit_recipients r

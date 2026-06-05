@@ -13,11 +13,16 @@ vi.mock("@/app-layer/db/client", () => ({
   getPool: vi.fn(() => ({ query: poolQueryMock })),
 }));
 
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappPgText: vi.fn(),
+}));
+
 vi.mock("@/app-layer/logging/logger", () => ({
   logger: { error: vi.fn() },
 }));
 
 import { loadAdminTranscodeHealthMetrics } from "./adminTranscodeHealthMetrics";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 
 function mockSelectSequence(rowsPerCall: unknown[][]) {
   const selectMock = vi.fn();
@@ -34,7 +39,8 @@ describe("loadAdminTranscodeHealthMetrics", () => {
   beforeEach(() => {
     getDrizzleMock.mockReset();
     poolQueryMock.mockReset();
-    poolQueryMock.mockResolvedValue({ rows: [{ c: "0" }] });
+    vi.mocked(runWebappPgText).mockReset();
+    vi.mocked(runWebappPgText).mockResolvedValue({ rows: [{ c: "0" }] });
   });
 
   it("maps parallel aggregates and parses avg / oldest pending age", async () => {
@@ -51,7 +57,7 @@ describe("loadAdminTranscodeHealthMetrics", () => {
       [{ oldestSec: "90.25" }],
     ]);
 
-    poolQueryMock
+    vi.mocked(runWebappPgText)
       .mockResolvedValueOnce({ rows: [{ c: "42" }] })
       .mockResolvedValueOnce({ rows: [{ c: "7" }] });
 
