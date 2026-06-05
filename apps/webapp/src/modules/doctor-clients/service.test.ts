@@ -162,6 +162,40 @@ describe("doctor-clients service", () => {
     expect(profile!.appointmentHistory).toEqual([]);
     expect(profile!.supplementaryContacts).toEqual([]);
   });
+
+  it("getClientProfile passes verified email into channel delivery context", async () => {
+    const getChannelCards = vi.fn(async () => []);
+    const verifiedService = createDoctorClientsService({
+      clientsPort: {
+        ...mockPort,
+        async getClientIdentity(userId: string) {
+          if (userId !== "user-1") return null;
+          return {
+            ...stubIdentity,
+            email: "patient@example.com",
+            emailVerifiedAt: "2026-05-19T00:00:00.000Z",
+          };
+        },
+      },
+      getDoctorSupportDefault: async () => false,
+      getUpcomingAppointments: () => [],
+      listAppointmentHistoryForPhone: async () => [],
+      listSymptomTrackings: async () => [],
+      listSymptomEntries: async () => [],
+      listLfkComplexes: async () => [],
+      listLfkSessions: async () => [],
+      getChannelCards,
+      listSupplementaryContacts: async () => [],
+    });
+
+    await verifiedService.getClientProfile("user-1");
+
+    expect(getChannelCards).toHaveBeenCalledWith(
+      "user-1",
+      stubIdentity.bindings,
+      { phone: "+79001234567", emailVerified: true },
+    );
+  });
 });
 
 describe("getClientProfile appointmentStats from history (ARCH-03)", () => {

@@ -18,6 +18,16 @@ vi.mock('../../infra/db/client.js', () => ({
 
 import { withRubitimeApiThrottle } from './rubitimeApiThrottle.js';
 
+function sqlText(input: unknown): string {
+  if (typeof input === 'string') return input;
+  if (input !== null && typeof input === 'object') {
+    if ('text' in input) return String((input as { text: unknown }).text);
+    if ('sql' in input) return String((input as { sql: unknown }).sql);
+    if ('query' in input) return String((input as { query: unknown }).query);
+  }
+  return String(input);
+}
+
 describe('withRubitimeApiThrottle', () => {
   const release = vi.fn();
   const query = vi.fn();
@@ -28,8 +38,9 @@ describe('withRubitimeApiThrottle', () => {
     pgSessionAdvisoryLock.mockResolvedValue(undefined);
     pgSessionAdvisoryUnlock.mockResolvedValue(undefined);
     connect.mockResolvedValue({ query, release });
-    query.mockImplementation((sql: string) => {
-      if (sql.includes('last_completed_at')) {
+    query.mockImplementation((sqlArg: unknown) => {
+      const text = sqlText(sqlArg);
+      if (text.includes('last_completed_at')) {
         return Promise.resolve({ rows: [{ last_completed_at: new Date() }] });
       }
       return Promise.resolve({ rows: [], rowCount: 0 });
@@ -58,9 +69,10 @@ describe('withRubitimeApiThrottle', () => {
     pgSessionAdvisoryUnlock.mockImplementation(async () => {
       order.push('unlock');
     });
-    query.mockImplementation((sql: string) => {
-      if (sql.includes('last_completed_at')) order.push('read');
-      if (sql.includes('UPDATE rubitime_api_throttle')) order.push('update');
+    query.mockImplementation((sqlArg: unknown) => {
+      const text = sqlText(sqlArg);
+      if (text.includes('last_completed_at') && text.includes('SELECT')) order.push('read');
+      if (text.includes('UPDATE rubitime_api_throttle')) order.push('update');
       return Promise.resolve({
         rows: [{ last_completed_at: new Date('2026-06-05T12:00:00.000Z') }],
         rowCount: 1,

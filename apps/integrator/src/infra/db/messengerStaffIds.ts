@@ -7,6 +7,11 @@ import type {
   MessengerStaffChannel,
   ResolveMessengerStaffAdmin,
 } from '../../kernel/contracts/index.js';
+import { parseMessengerIdTokens } from './parseMessengerIdTokens.js';
+import {
+  extractSystemSettingInnerValue,
+  fetchPublicSystemSettingValueJson,
+} from './publicSystemSettings.js';
 
 export type { MessengerStaffChannel, ResolveMessengerStaffAdmin };
 
@@ -32,53 +37,16 @@ export const MESSENGER_STAFF_SETTINGS_KEYS = new Set([
   'doctor_max_ids',
 ]);
 
-/** Exported for unit tests. */
+/** @deprecated Use {@link parseMessengerIdTokens} — re-export for existing tests. */
 export function parseIdTokens(input: unknown): string[] {
-  const fromArray = (items: unknown[]): string[] => {
-    const out: string[] = [];
-    for (const item of items) {
-      const token = String(item).trim();
-      if (!token) continue;
-      if (!out.includes(token)) out.push(token);
-    }
-    return out;
-  };
-
-  if (Array.isArray(input)) {
-    return fromArray(input);
-  }
-
-  const raw = typeof input === 'string' ? input.trim() : '';
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed)) {
-      return fromArray(parsed);
-    }
-    if (typeof parsed === 'string') {
-      return parseIdTokens(parsed);
-    }
-  } catch {
-    // free-form
-  }
-
-  const parts = raw.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
-  return [...new Set(parts)];
+  return parseMessengerIdTokens(input);
 }
 
 async function loadSettingInner(db: DbPort, key: string): Promise<unknown> {
-  const r = await db.query<{ value_json: unknown }>(
-    `SELECT value_json FROM public.system_settings WHERE key = $1 AND scope = 'admin' LIMIT 1`,
-    [key],
-  );
-  const row = r.rows[0];
-  if (!row) return null;
-  const v = row.value_json;
-  if (v !== null && typeof v === 'object' && 'value' in (v as Record<string, unknown>)) {
-    return (v as Record<string, unknown>).value;
-  }
-  return v;
+  const valueJson = await fetchPublicSystemSettingValueJson(db, key);
+  if (valueJson === null) return null;
+  const inner = extractSystemSettingInnerValue(valueJson);
+  return inner === undefined ? valueJson : inner;
 }
 
 async function loadStaffLists(db: DbPort, channel: MessengerStaffChannel): Promise<StaffIdLists> {
@@ -97,8 +65,8 @@ async function loadStaffLists(db: DbPort, channel: MessengerStaffChannel): Promi
   ]);
 
   const lists: StaffIdLists = {
-    adminIds: [...new Set(parseIdTokens(adminInner).map((x) => x.trim()).filter(Boolean))],
-    doctorIds: [...new Set(parseIdTokens(doctorInner).map((x) => x.trim()).filter(Boolean))],
+    adminIds: [...new Set(parseMessengerIdTokens(adminInner).map((x) => x.trim()).filter(Boolean))],
+    doctorIds: [...new Set(parseMessengerIdTokens(doctorInner).map((x) => x.trim()).filter(Boolean))],
   };
   listsCache.set(channel, { loadedAt: now, lists });
   return lists;

@@ -41,6 +41,13 @@ export type BersoncareSettingsSyncDeps = {
   sharedSecret: string;
 };
 
+/**
+ * Legacy compatibility endpoint for the old integrator settings mirror.
+ *
+ * Runtime readers must use `public.system_settings` directly in the unified DB model;
+ * this route is kept non-destructively for signed cache invalidation / retry payloads
+ * until webapp M2M cleanup removes `system_settings_sync`.
+ */
 export async function registerBersoncareSettingsSyncRoute(
   app: FastifyInstance,
   deps: BersoncareSettingsSyncDeps,
@@ -86,7 +93,7 @@ export async function registerBersoncareSettingsSyncRoute(
     try {
       await runIntegratorSql(
         db,
-        sql`INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
+        sql`INSERT INTO integrator.system_settings (key, scope, value_json, updated_at, updated_by)
          VALUES (${key}, ${scope}, ${JSON.stringify(valueJson)}::jsonb, NOW(), ${updatedBy ?? null})
          ON CONFLICT (key, scope) DO UPDATE SET
            value_json = EXCLUDED.value_json,

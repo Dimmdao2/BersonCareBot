@@ -1,13 +1,18 @@
 /**
  * Resolved outbound SMTP used by `/api/bersoncare/send-email`.
- * Priority: DB `smtp_outbound` (admin) when «complete», else legacy env via `integrations/email/config.js`.
+ * Priority: DB `public.system_settings.smtp_outbound` (admin) when «complete»,
+ * else legacy env via `integrations/email/config.js`.
  */
+import { z } from 'zod';
 import type { DbPort } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { emailConfig } from '../integrations/email/config.js';
+import {
+  fetchPublicSystemSettingValueJson,
+  parseSystemSettingInnerWithSchema,
+} from '../infra/db/publicSystemSettings.js';
 
 const KEY = 'smtp_outbound';
-const ADMIN_SCOPE = 'admin';
 const TTL_MS = 60_000;
 
 export type ResolvedSmtpOutboundConfig = {
@@ -22,6 +27,41 @@ export type ResolvedSmtpOutboundConfig = {
 
 type CacheEntry = { cfg: ResolvedSmtpOutboundConfig; expiresAt: number };
 let cache: CacheEntry | null = null;
+
+const smtpPortInnerSchema = z.preprocess((v) => {
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v);
+  if (typeof v === 'string' && /^\d+$/.test(v.trim())) return Number.parseInt(v.trim(), 10);
+  return 587;
+}, z.number().int().min(1).max(65535));
+
+const smtpSecureInnerSchema = z.preprocess(
+  (v) => v === true || v === 1 || v === '1' || v === 'true',
+  z.boolean(),
+);
+
+const smtpOutboundInnerReadSchema = z
+  .object({
+    host: z.string().trim().min(1),
+    user: z.string().trim().min(1),
+    password: z.string().min(1),
+    from: z.string().trim().min(1),
+    port: smtpPortInnerSchema.optional(),
+    secure: smtpSecureInnerSchema.optional(),
+  })
+  .transform((o) => {
+    const port = o.port ?? 587;
+    let smtpSecure = o.secure ?? false;
+    if (!smtpSecure && port === 465) smtpSecure = true;
+    return {
+      configured: true as const,
+      smtpHost: o.host,
+      smtpPort: port,
+      smtpSecure,
+      smtpUser: o.user,
+      smtpPass: o.password.trim(),
+      fromAddress: o.from,
+    };
+  });
 
 export function invalidateSmtpOutboundCache(): void {
   cache = null;
@@ -52,38 +92,8 @@ function fromEnvFallback(): ResolvedSmtpOutboundConfig {
   };
 }
 
-function parseInner(valueJson: unknown): ResolvedSmtpOutboundConfig | null {
-  let inner: unknown = null;
-  if (valueJson !== null && typeof valueJson === 'object' && 'value' in (valueJson as Record<string, unknown>)) {
-    inner = (valueJson as Record<string, unknown>).value;
-  }
-  if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return null;
-  const o = inner as Record<string, unknown>;
-  const host = typeof o.host === 'string' ? o.host.trim() : '';
-  const user = typeof o.user === 'string' ? o.user.trim() : '';
-  const pass = typeof o.password === 'string' ? o.password : '';
-  const from = typeof o.from === 'string' ? o.from.trim() : '';
-  let port = 587;
-  if (typeof o.port === 'number' && Number.isFinite(o.port)) port = Math.min(65535, Math.max(1, Math.round(o.port)));
-  else if (typeof o.port === 'string' && /^\d+$/.test(o.port.trim())) {
-    const n = Number.parseInt(o.port.trim(), 10);
-    if (Number.isFinite(n)) port = Math.min(65535, Math.max(1, n));
-  }
-  let smtpSecure = false;
-  if (o.secure === true || o.secure === 1 || o.secure === '1' || o.secure === 'true') smtpSecure = true;
-  if (smtpSecure === false && port === 465) smtpSecure = true;
-
-  if (!host.length || !user.length || !pass.trim().length || !from.length) return null;
-
-  return {
-    configured: true,
-    smtpHost: host,
-    smtpPort: port,
-    smtpSecure,
-    smtpUser: user,
-    smtpPass: pass.trim(),
-    fromAddress: from,
-  };
+function parseSmtpOutboundValueJson(valueJson: unknown): ResolvedSmtpOutboundConfig | null {
+  return parseSystemSettingInnerWithSchema(valueJson, smtpOutboundInnerReadSchema);
 }
 
 /** Async resolve with TTL cache; invalid after settings sync (`invalidateSmtpOutboundCache`). */
@@ -93,12 +103,8 @@ export async function resolveSmtpOutboundConfig(db: DbPort): Promise<ResolvedSmt
 
   let resolved: ResolvedSmtpOutboundConfig;
   try {
-    const res = await db.query<{ value_json: unknown }>(
-      `SELECT value_json FROM system_settings WHERE key = $1 AND scope = $2 LIMIT 1`,
-      [KEY, ADMIN_SCOPE],
-    );
-    const row = res.rows[0]?.value_json;
-    const fromDb = row != null ? parseInner(row) : null;
+    const valueJson = await fetchPublicSystemSettingValueJson(db, KEY);
+    const fromDb = valueJson !== null ? parseSmtpOutboundValueJson(valueJson) : null;
     resolved = fromDb ?? fromEnvFallback();
   } catch (err) {
     logger.warn({ err, key: KEY }, '[smtpOutbound] query failed, env fallback');

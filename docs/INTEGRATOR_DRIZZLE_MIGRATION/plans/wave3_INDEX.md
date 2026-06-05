@@ -1,8 +1,8 @@
 # Wave 3 — финальный closeout (raw SQL tail ↓ / Drizzle + Zod / legacy cutover)
 
-**Статус:** planning (2026-06-05)  
+**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09** completed; следующая: **10**
 **Предшественник:** Wave 2 этапы 1–8 **completed**  
-**Решения до старта:** [wave3_DECISIONS.md](./wave3_DECISIONS.md)
+**Решения до старта:** [wave3_DECISIONS.md](./wave3_DECISIONS.md) (DoR закрыт фазой 00)
 
 ## Цель Wave 3
 
@@ -21,7 +21,7 @@
 - Staging smoke из `LOG.md` L182: обязательный gate перед closeout; без него Wave 3 остаётся blocked.
 - `rubitimeApiThrottle`: throttle-row read/update переводим на Drizzle session на том же client (Class B).
 - Google Calendar SQL: полностью в фазе 09.
-- PR policy: **1 PR = 1 фаза** (исключение: `00+09`).
+- PR policy: **1 PR = 1 фаза**; после закрытия фазы 00 исключение `00+09` не применяется.
 - Owner decisions: `public` = canonical business data; `integrator` = technical state only; duplicate `integrator` data may be disabled/removed after senior review + owner approval.
 - Добавлена фаза 16: условный legacy migrations cutover + policy cleanup.
 - Добавлена фаза 08: integrator schema reduction до P1+ Drizzle-работ; destructive DB actions require senior-agent review, owner approval, backup/rollback plan.
@@ -30,9 +30,9 @@
 
 | # | Файл плана | Размер | Область | PR |
 |---|------------|--------|---------|-----|
-| 00 | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md) | S | Baseline `rg`, Class A/B/C, ADR permanent zones | docs |
-| 08 | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md) | L | Убрать/перенести дубли integrator после unified DB | 1 |
-| 09 | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | M | Integrator P1+ (декомпозиция 09A-09E) | 1 |
+| 00 | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md) | S | Baseline `rg`, Class A/B/C, ADR permanent zones | docs (**done** 2026-06-05) |
+| 08 | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md) | L | Убрать/перенести дубли integrator после unified DB | 1 (**done** 2026-06-06) |
+| 09 | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | M | Integrator P1+ (декомпозиция 09A-09E) | 1 (**done** 2026-06-06) |
 | 10 | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | M | media-worker IX (декомпозиция 10A-10C) | 1 |
 | 11 | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | S | app-layer health/media; auth TX tail; мелкие outliers | 1 |
 | 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake/purge/identity (декомпозиция 12A-12E) | 1 |

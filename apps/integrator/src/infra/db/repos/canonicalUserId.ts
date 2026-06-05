@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 const MAX_MERGE_CHAIN_DEPTH = 32;
 
@@ -23,12 +25,12 @@ export async function resolveCanonicalIntegratorUserId(db: DbPort, integratorUse
     }
     visited.add(current);
 
-    const res = await db.query<{ merged_into_user_id: string | null }>(
-      `SELECT merged_into_user_id::text AS merged_into_user_id
-       FROM users
-       WHERE id = $1::bigint
-       LIMIT 1`,
-      [current],
+    const res = await runIntegratorSql<{ merged_into_user_id: string | null }>(
+      db,
+      sql`SELECT merged_into_user_id::text AS merged_into_user_id
+          FROM users
+          WHERE id = ${current}::bigint
+          LIMIT 1`,
     );
     const row = res.rows[0];
     if (!row || row.merged_into_user_id == null || row.merged_into_user_id === '') {
@@ -47,12 +49,12 @@ export async function resolveCanonicalUserIdFromIdentityId(db: DbPort, identityI
   const trimmed = identityId.trim();
   if (!trimmed || !BIGINT_STRING.test(trimmed)) return identityId;
 
-  const res = await db.query<{ user_id: string | null }>(
-    `SELECT user_id::text AS user_id
-     FROM identities
-     WHERE id = $1::bigint
-     LIMIT 1`,
-    [trimmed],
+  const res = await runIntegratorSql<{ user_id: string | null }>(
+    db,
+    sql`SELECT user_id::text AS user_id
+        FROM identities
+        WHERE id = ${trimmed}::bigint
+        LIMIT 1`,
   );
   const uid = res.rows[0]?.user_id;
   if (!uid) return identityId;

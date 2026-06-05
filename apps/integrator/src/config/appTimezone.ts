@@ -2,6 +2,10 @@ import type { DbPort, DispatchPort } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { recordDataQualityIncidentAndMaybeTelegram } from '../infra/db/dataQualityIncidentAlert.js';
 import type { IntegrationDataQualityErrorReason } from '../shared/integrationDataQuality/types.js';
+import {
+  fetchPublicSystemSettingValueJson,
+  parseSystemSettingStringValue,
+} from '../infra/db/publicSystemSettings.js';
 
 /**
  * Единая IANA-таймзона «бизнес-времени» интегратора: букинг, напоминания, формат сообщений,
@@ -13,7 +17,6 @@ export const DEFAULT_APP_DISPLAY_TIMEZONE = 'Europe/Moscow';
 /** @deprecated Используйте {@link DEFAULT_APP_DISPLAY_TIMEZONE} — алиас для старых импортов. */
 export const DEFAULT_BOOKING_DISPLAY_TIMEZONE = DEFAULT_APP_DISPLAY_TIMEZONE;
 
-const ADMIN_SCOPE = 'admin';
 const APP_DISPLAY_TZ_KEY = 'app_display_timezone';
 const TTL_MS = 60_000;
 
@@ -31,16 +34,6 @@ function isValidIanaTimeZone(tz: string): boolean {
   }
 }
 
-function parseSettingsValueJson(valueJson: unknown): string | null {
-  if (valueJson !== null && typeof valueJson === 'object' && 'value' in valueJson) {
-    const v = (valueJson as Record<string, unknown>).value;
-    if (typeof v === 'string') return v.trim() || null;
-    if (typeof v === 'boolean') return v ? 'true' : 'false';
-    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
-  }
-  return null;
-}
-
 type DisplayTzResolve =
   | { kind: 'ok'; timezone: string }
   | {
@@ -56,13 +49,9 @@ async function resolveAppDisplayTimezone(db: DbPort): Promise<DisplayTzResolve> 
     return { kind: 'ok', timezone: displayTzCache.tz };
   }
 
-  let rows: { value_json: unknown }[];
+  let valueJson: unknown | null;
   try {
-    const res = await db.query<{ value_json: unknown }>(
-      `SELECT value_json FROM system_settings WHERE key = $1 AND scope = $2 LIMIT 1`,
-      [APP_DISPLAY_TZ_KEY, ADMIN_SCOPE],
-    );
-    rows = res.rows;
+    valueJson = await fetchPublicSystemSettingValueJson(db, APP_DISPLAY_TZ_KEY);
   } catch (err) {
     logger.warn({ err, reason: 'query_failed' }, '[appDisplayTimezone] fallback');
     displayTzCache = { tz: DEFAULT_APP_DISPLAY_TIMEZONE, expiresAt: now + TTL_MS };
@@ -74,7 +63,7 @@ async function resolveAppDisplayTimezone(db: DbPort): Promise<DisplayTzResolve> 
     };
   }
 
-  const rawParsed = rows[0] ? parseSettingsValueJson(rows[0].value_json) : null;
+  const rawParsed = valueJson !== null ? parseSystemSettingStringValue(valueJson) : null;
   if (rawParsed == null || rawParsed === '') {
     logger.warn({ reason: 'missing_or_empty' }, '[appDisplayTimezone] fallback');
     displayTzCache = { tz: DEFAULT_APP_DISPLAY_TIMEZONE, expiresAt: now + TTL_MS };

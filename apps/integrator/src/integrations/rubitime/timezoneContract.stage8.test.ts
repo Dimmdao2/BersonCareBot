@@ -4,7 +4,11 @@ const queryMock = vi.hoisted(() => vi.fn());
 const upsertIncidentMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../infra/db/client.js", () => ({
-  db: { query: queryMock },
+  db: { query: queryMock, connect: vi.fn() },
+  createDbPort: () => ({
+    query: (...args: unknown[]) => queryMock(...args),
+    tx: async (fn: (db: { query: typeof queryMock }) => Promise<unknown>) => fn({ query: queryMock }),
+  }),
 }));
 
 vi.mock("../../infra/db/repos/integrationDataQualityIncidents.js", () => ({

@@ -1,10 +1,11 @@
 /**
- * Google Calendar runtime config: DB-backed (`system_settings`, admin scope)
+ * Google Calendar runtime config: DB-backed (`public.system_settings`, admin scope)
  * with env fallback for backward compatibility during rollout.
  */
 import { createDbPort } from '../../infra/db/client.js';
 import { googleCalendarConfig, type GoogleCalendarConfig } from './config.js';
 import { logger } from '../../infra/observability/logger.js';
+import { readPublicSystemSettingString } from '../../infra/db/publicSystemSettings.js';
 
 const TTL_MS = 60_000;
 type CacheEntry = { config: GoogleCalendarConfig; expiresAt: number };
@@ -14,25 +15,10 @@ export function invalidateGoogleCalendarConfigCache(): void {
   configCache = null;
 }
 
-function parseSettingsValue(valueJson: unknown): string | null {
-  if (valueJson !== null && typeof valueJson === 'object' && 'value' in valueJson) {
-    const v = (valueJson as Record<string, unknown>).value;
-    if (typeof v === 'string') return v.trim() || null;
-    if (typeof v === 'boolean') return v ? 'true' : 'false';
-    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
-  }
-  return null;
-}
-
 async function readDbSetting(key: string): Promise<string | null> {
   try {
     const db = createDbPort();
-    const res = await db.query<{ value_json: unknown }>(
-      `SELECT value_json FROM system_settings WHERE key = $1 AND scope = 'admin' LIMIT 1`,
-      [key],
-    );
-    if (!res.rows[0]) return null;
-    return parseSettingsValue(res.rows[0].value_json);
+    return await readPublicSystemSettingString(db, key);
   } catch {
     return null;
   }

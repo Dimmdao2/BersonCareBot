@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon';
-import type { Action, ActionResult, DomainContext, DbPort } from '../../../contracts/index.js';
+import { z } from 'zod';
+import type { Action, ActionResult, DomainContext } from '../../../contracts/index.js';
 import type { OutgoingIntent } from '../../../contracts/events.js';
 import type { ExecutorDeps } from '../helpers.js';
 import { nowIso } from '../helpers.js';
@@ -13,38 +14,48 @@ import { getAppBaseUrl } from '../../../../config/appBaseUrl.js';
 import { getAppDisplayTimezone } from '../../../../config/appTimezone.js';
 import { buildWebappEntryUrl, buildWebappEntryUrlForMax } from '../../../../integrations/webappEntryToken.js';
 import { logger } from '../../../../infra/observability/logger.js';
+import {
+  extractSystemSettingInnerValue,
+  fetchPublicSystemSettingValueJson,
+} from '../../../../infra/db/publicSystemSettings.js';
 
 const PING_TEXT = 'Доброе утро! Разминка дня готова — 3 минуты. Открыть?';
 const KEY_ENABLED = 'patient_home_morning_ping_enabled';
 const KEY_TIME = 'patient_home_morning_ping_local_time';
 
-async function readAdminScalar(db: DbPort, key: string): Promise<unknown | null> {
-  const res = await db.query<{ value_json: unknown }>(
-    `SELECT value_json FROM system_settings WHERE key = $1 AND scope = 'admin' LIMIT 1`,
-    [key],
-  );
-  const row = res.rows[0];
-  if (!row) return null;
-  const v = row.value_json;
-  if (v !== null && typeof v === 'object' && 'value' in v) {
-    return (v as { value: unknown }).value;
-  }
-  return null;
+const morningPingEnabledSchema = z.preprocess(
+  (raw) => {
+    if (raw === true || raw === 'true' || raw === 1) return true;
+    if (raw === false || raw === 'false' || raw === 0) return false;
+    return false;
+  },
+  z.boolean(),
+);
+
+const morningPingTimeSchema = z
+  .string()
+  .trim()
+  .regex(/^([01]?\d|2[0-3]):([0-5]\d)$/)
+  .transform((s) => {
+    const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(s)!;
+    return { hour: Number(m[1]), minute: Number(m[2]) };
+  });
+
+async function readAdminScalar(db: ReturnType<typeof createDbPort>, key: string): Promise<unknown | null> {
+  const valueJson = await fetchPublicSystemSettingValueJson(db, key);
+  if (valueJson === null) return null;
+  const inner = extractSystemSettingInnerValue(valueJson);
+  return inner === undefined ? null : inner;
 }
 
 function parsePingEnabled(raw: unknown): boolean {
-  if (raw === true) return true;
-  if (raw === false) return false;
-  if (raw === 'true' || raw === 1) return true;
-  if (raw === 'false' || raw === 0) return false;
-  return false;
+  const parsed = morningPingEnabledSchema.safeParse(raw);
+  return parsed.success ? parsed.data : false;
 }
 
 function parsePingTime(raw: unknown): { hour: number; minute: number } {
-  if (typeof raw !== 'string') return { hour: 9, minute: 0 };
-  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(raw.trim());
-  if (!m) return { hour: 9, minute: 0 };
-  return { hour: Number(m[1]), minute: Number(m[2]) };
+  const parsed = morningPingTimeSchema.safeParse(raw);
+  return parsed.success ? parsed.data : { hour: 9, minute: 0 };
 }
 
 function localDateKeyInZone(now: Date, iana: string): string {

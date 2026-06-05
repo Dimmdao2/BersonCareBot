@@ -1,8 +1,10 @@
+import { sql } from "drizzle-orm";
 import type { DbPort, DispatchPort } from "../../kernel/contracts/index.js";
 import type { IntegrationDataQualityErrorReason } from "../../shared/integrationDataQuality/types.js";
-import { db } from "./client.js";
+import { createDbPort } from "./client.js";
 import { recordDataQualityIncidentAndMaybeTelegram } from "./dataQualityIncidentAlert.js";
 import { logger } from "../observability/logger.js";
+import { runIntegratorSql } from "./runIntegratorSql.js";
 
 const FALLBACK_TZ = "Europe/Moscow";
 const TTL_MS = 60_000;
@@ -69,16 +71,17 @@ async function resolveBranchTimezone(branchId: number | string): Promise<BranchT
      * «Каталог записи» — `public.booking_branches`, with `public.branches` as secondary
      * (synced on PATCH). Do not read `integrator.rubitime_branches.timezone` (duplicate).
      */
-    const res = await db.query<{ timezone: string | null }>(
-      `SELECT COALESCE(
-         NULLIF(TRIM(COALESCE(bb.timezone::text, '')), ''),
-         NULLIF(TRIM(COALESCE(b.timezone::text, '')), '')
-       ) AS timezone
-       FROM (SELECT $1::bigint AS rid) AS x
-       LEFT JOIN public.booking_branches bb ON bb.rubitime_branch_id = trim(both from x.rid::text)
-       LEFT JOIN public.branches b ON b.integrator_branch_id = x.rid
-       LIMIT 1`,
-      [id],
+    const db = createDbPort();
+    const res = await runIntegratorSql<{ timezone: string | null }>(
+      db,
+      sql`SELECT COALESCE(
+            NULLIF(TRIM(COALESCE(bb.timezone::text, '')), ''),
+            NULLIF(TRIM(COALESCE(b.timezone::text, '')), '')
+          ) AS timezone
+          FROM (SELECT ${id}::bigint AS rid) AS x
+          LEFT JOIN public.booking_branches bb ON bb.rubitime_branch_id = trim(both from x.rid::text)
+          LEFT JOIN public.branches b ON b.integrator_branch_id = x.rid
+          LIMIT 1`,
     );
     raw = res.rows[0]?.timezone ?? null;
   } catch (err) {

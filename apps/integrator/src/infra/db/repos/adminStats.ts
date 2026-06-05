@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 export type AdminStats = {
   activeBookings: number;
@@ -18,15 +20,15 @@ export async function getAdminStats(db: DbPort): Promise<AdminStats> {
 }
 
 async function getActiveBookingsCount(db: DbPort): Promise<number> {
-  const query = `
-    SELECT COUNT(*)::int AS cnt
-    FROM public.appointment_records
-    WHERE status IN ('created', 'updated')
-      AND deleted_at IS NULL
-      AND (record_at IS NULL OR record_at >= now())
-  `;
   try {
-    const res = await db.query<{ cnt: number }>(query);
+    const res = await runIntegratorSql<{ cnt: number }>(
+      db,
+      sql`SELECT COUNT(*)::int AS cnt
+          FROM public.appointment_records
+          WHERE status IN ('created', 'updated')
+            AND deleted_at IS NULL
+            AND (record_at IS NULL OR record_at >= now())`,
+    );
     return res.rows[0]?.cnt ?? 0;
   } catch (err) {
     logger.error({ err }, 'get active bookings count failed');
@@ -39,21 +41,22 @@ async function getUserCountsByIntegration(db: DbPort): Promise<AdminStats['userC
 
   // Telegram: identities with resource='telegram'; withPhone = those user_ids with a phone in contacts
   try {
-    const telegramRes = await db.query<{ total: number; with_phone: number }>(`
-      SELECT
-        COUNT(DISTINCT i.user_id)::int AS total,
-        COUNT(DISTINCT i.user_id) FILTER (
-          WHERE EXISTS (
-            SELECT 1 FROM contacts c
-            WHERE c.user_id = i.user_id
-              AND c.type = 'phone'
-              AND c.value_normalized IS NOT NULL
-              AND TRIM(c.value_normalized) != ''
-          )
-        )::int AS with_phone
-      FROM identities i
-      WHERE i.resource = 'telegram'
-    `);
+    const telegramRes = await runIntegratorSql<{ total: number; with_phone: number }>(
+      db,
+      sql`SELECT
+            COUNT(DISTINCT i.user_id)::int AS total,
+            COUNT(DISTINCT i.user_id) FILTER (
+              WHERE EXISTS (
+                SELECT 1 FROM contacts c
+                WHERE c.user_id = i.user_id
+                  AND c.type = 'phone'
+                  AND c.value_normalized IS NOT NULL
+                  AND TRIM(c.value_normalized) != ''
+              )
+            )::int AS with_phone
+          FROM identities i
+          WHERE i.resource = 'telegram'`,
+    );
     const row = telegramRes.rows[0];
     if (row) {
       result.telegram = {
@@ -67,12 +70,13 @@ async function getUserCountsByIntegration(db: DbPort): Promise<AdminStats['userC
 
   // RubiTime: уникальные телефоны в проекции webapp (`public.appointment_records`)
   try {
-    const rubitimeRes = await db.query<{ cnt: number }>(`
-      SELECT COUNT(DISTINCT phone_normalized)::int AS cnt
-      FROM public.appointment_records
-      WHERE phone_normalized IS NOT NULL AND TRIM(phone_normalized) != ''
-        AND deleted_at IS NULL
-    `);
+    const rubitimeRes = await runIntegratorSql<{ cnt: number }>(
+      db,
+      sql`SELECT COUNT(DISTINCT phone_normalized)::int AS cnt
+          FROM public.appointment_records
+          WHERE phone_normalized IS NOT NULL AND TRIM(phone_normalized) != ''
+            AND deleted_at IS NULL`,
+    );
     const row = rubitimeRes.rows[0];
     if (row != null) {
       result.rubitime = { total: row.cnt ?? 0 };

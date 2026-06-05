@@ -10,6 +10,7 @@ import {
   resolvePatientProgramInteractionPolicy,
 } from "./supportPolicy";
 import { countCancellations30d, lastVisitLabelFromHistory } from "./appointmentStatsFromHistory";
+import { clientChannelDeliveryContext } from "./clientChannelDeliveryContext";
 
 /** Строка истории записей на приём (этап 9, `appointment_records`). */
 export type ClientAppointmentHistoryItem = {
@@ -90,10 +91,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
         lfkComplexes,
         recentLfkSessions,
       ] = await Promise.all([
-        deps.getChannelCards(userId, identity.bindings, {
-          phone: identity.phone,
-          emailVerified: false,
-        }),
+        deps.getChannelCards(userId, identity.bindings, clientChannelDeliveryContext(identity)),
         deps.listSupplementaryContacts(userId, identity),
         Promise.resolve(deps.getUpcomingAppointments(userId)),
         deps.listAppointmentHistoryForPhone(identity.phone),

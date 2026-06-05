@@ -1,4 +1,7 @@
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { db } from '../../infra/db/client.js';
+import { integratorDrizzleSchema } from '../../infra/db/integratorDrizzleSchema.js';
 import {
   pgSessionAdvisoryLock,
   pgSessionAdvisoryUnlock,
@@ -18,6 +21,13 @@ function throttleDisabled(): boolean {
   return process.env.NODE_ENV === 'test';
 }
 
+type ThrottleRow = { last_completed_at: Date };
+
+function throttleRowsFromExecute(raw: unknown): ThrottleRow[] {
+  const r = raw as { rows?: ThrottleRow[] };
+  return (r.rows ?? []) as ThrottleRow[];
+}
+
 /**
  * Runs `fn` under a cluster-wide lock so that the previous Rubitime api2 call
  * (any method) finished at least RUBITIME_MIN_API_INTERVAL_MS ago.
@@ -29,13 +39,14 @@ export async function withRubitimeApiThrottle<T>(fn: () => Promise<T>): Promise<
   }
 
   const client = await db.connect();
+  const session = drizzle(client, { schema: integratorDrizzleSchema });
   try {
     await pgSessionAdvisoryLock(client, RUBITIME_API_ADVISORY_LOCK_KEY);
     try {
-      const res = await client.query<{ last_completed_at: Date }>(
-        'SELECT last_completed_at FROM rubitime_api_throttle WHERE id = 1',
+      const raw = await session.execute(
+        sql`SELECT last_completed_at FROM rubitime_api_throttle WHERE id = 1`,
       );
-      const row = res.rows[0];
+      const row = throttleRowsFromExecute(raw)[0];
       if (!row) {
         throw new Error(
           'RUBITIME_THROTTLE_ROW_MISSING: apply integrator migrations (rubitime_api_throttle)',
@@ -51,8 +62,8 @@ export async function withRubitimeApiThrottle<T>(fn: () => Promise<T>): Promise<
       try {
         return await fn();
       } finally {
-        await client.query(
-          'UPDATE rubitime_api_throttle SET last_completed_at = now() WHERE id = 1',
+        await session.execute(
+          sql`UPDATE rubitime_api_throttle SET last_completed_at = now() WHERE id = 1`,
         );
       }
     } finally {

@@ -1,7 +1,7 @@
 # План перехода оставшегося сырого SQL на Drizzle (Wave 2)
 
-**Дата:** 2026-05-15 (обновление: **2026-06-05** — Wave 2 этапы 1–8 закрыты)  
-**Связанные документы:** [инвентаризация](./RAW_SQL_INVENTORY.md), [лог](./LOG.md), [аудит тестов закрытых фаз](./TEST_BEHAVIOR_AUDIT.md), **поэтапные планы Wave 2** ([`plans/README.md`](./plans/README.md)), закрытый мастер-план P1–P4 [integrator_drizzle_migration_master.plan.md](../../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md) (в т.ч. раздел **Wave 2** и todo `wave-2-doc-sync`).
+**Дата:** 2026-05-15 (обновление: **2026-06-06** — Wave 2 этапы 1–8 закрыты; **Wave 3 phase 00 + 08 + 09** закрыты)
+**Связанные документы:** [инвентаризация](./RAW_SQL_INVENTORY.md), [лог](./LOG.md), [аудит тестов закрытых фаз](./TEST_BEHAVIOR_AUDIT.md), **поэтапные планы** ([`plans/README.md`](./plans/README.md), Wave 3: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)), закрытый мастер-план P1–P4 [integrator_drizzle_migration_master.plan.md](../../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md).
 
 ## Контекст: что уже сделано
 
@@ -55,7 +55,18 @@
 
 ## Wave 3 (финальный closeout, 2026-06-05)
 
-Декомпозиция фаз **00, 08–17**: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), решения до старта [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). Цель — сначала сократить избыточную `integrator`-схему после unified DB (фаза 08), затем Class **A** (убрать необъяснённый `pool.query` в runtime), Class **B** (`run*Sql` / `execute`), Class **C** (permanent pg с ADR), плюс отдельный conditional cutover фазы 16 для снятия регулярной зависимости от `migrate:legacy`, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner, и усиление DB-boundary валидации через Zod. Для снижения риска крупные фазы разложены на подфазы: `09A-09E`, `10A-10C`, `12A-12E`, `13A-13E`, `14A-14E`, `15A-15F`.
+Декомпозиция фаз **00, 08–17**: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), решения до старта [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). **Фаза 00 done (2026-06-05):** baseline `rg`, Class A/B/C в [RAW_SQL_INVENTORY](./RAW_SQL_INVENTORY.md), ADR permanent zones и решения 1–10 в [LOG](./LOG.md) §Wave 3.
+
+| Фаза | Статус | Суть |
+|------|--------|------|
+| **00** | **Done** | Baseline + ADR + DoR для фазы 09 |
+| **08** | **Done** | [Integrator schema reduction](./plans/wave3_phase_08_integrator_schema_reduction.plan.md) — non-destructive source cutover: settings reads → `public.system_settings`, schema decision matrix |
+| **09** | **Done** | [Integrator P1+](./plans/wave3_phase_09_integrator_p1plus.plan.md) — `runIntegratorSql` + `publicSystemSettings`; prod `db.query` → 0 (кроме health/migrate/scripts) |
+| **10–15** | Pending | media-worker IX, webapp closeout (Class A → Drizzle/`run*Sql` + Zod) |
+| **16** | Pending (conditional) | [Legacy cutover](./plans/wave3_phase_16_legacy_cutover.plan.md) — `migrate:legacy` только если нет blocker после 09–15 |
+| **17** | Pending | Closeout + staging smoke gate + full CI |
+
+Цель — сначала фаза **08** (сократить избыточную `integrator`-схему), затем Class **A** / **B** / **C** (permanent pg с ADR), conditional cutover **16**, Zod на DB-границах 09–15. Подфазы: `09A-09E`, `10A-10C`, `12A-12E`, `13A-13E`, `14A-14E`, `15A-15F`.
 
 ## Сквозные риски
 

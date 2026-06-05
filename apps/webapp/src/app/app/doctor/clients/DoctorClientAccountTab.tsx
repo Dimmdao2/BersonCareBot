@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
-import { phoneToTelHref } from "@/shared/lib/phoneLinks";
+import { DoctorClientPrimaryContacts } from "./DoctorClientPrimaryContacts";
 import { DoctorLfkComplexExerciseOverridesPanel } from "./DoctorLfkComplexExerciseOverridesPanel";
 import { AdminClientProfileEditPanel } from "./AdminClientProfileEditPanel";
 import { DoctorSupplementaryContactsPanel } from "./DoctorSupplementaryContactsPanel";
@@ -35,7 +35,6 @@ export function DoctorClientAccountTab({
 }: Props) {
   const [contactsEditing, setContactsEditing] = useState(false);
   const { identity, channelCards, supplementaryContacts, lfkComplexes, recentLfkSessions } = profile;
-  const tel = phoneToTelHref(identity.phone);
 
   return (
     <div className="flex flex-col gap-0">
@@ -71,16 +70,14 @@ export function DoctorClientAccountTab({
               onSaved={() => setContactsEditing(false)}
             />
           ) : null}
-          {!contactsEditing && identity.phone && tel ? (
-            <p>
-              Телефон:{" "}
-              <a href={tel} className="font-medium text-primary underline">
-                {identity.phone}
-              </a>
-            </p>
-          ) : null}
           {!contactsEditing ? (
-            <DoctorSupplementaryContactsPanel userId={userId} initialContacts={supplementaryContacts} />
+            <>
+              <DoctorClientPrimaryContacts identity={identity} />
+              <DoctorSupplementaryContactsPanel userId={userId} initialContacts={supplementaryContacts} />
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Каналы доставки
+              </p>
+            </>
           ) : null}
           <ul id="doctor-client-channels-list" className="m-0 list-none p-0">
             {channelCards.map((ch) => (

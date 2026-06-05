@@ -100,16 +100,16 @@ describe('channelUsers repo (identity/contact/state split)', () => {
   });
 
   it('setUserPhone writes canonical contact only', async () => {
-    const { db, query, execute } = createDbMock();
-    query.mockResolvedValueOnce({
-      rows: [{ merged_into_user_id: null }],
-      rowCount: 1,
-    } as DbQueryResult<{ merged_into_user_id: string | null }>);
+    const { db, execute } = createDbMock();
     execute
       .mockResolvedValueOnce({
         rows: [{ user_id: '7' }],
         rowCount: 1,
       } as DbQueryResult<{ user_id: string }>)
+      .mockResolvedValueOnce({
+        rows: [{ merged_into_user_id: null }],
+        rowCount: 1,
+      } as DbQueryResult<{ merged_into_user_id: string | null }>)
       .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
 
@@ -119,9 +119,9 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(flatExec(execute, 0)).toContain('123');
     expect(flatExec(execute, 0)).toContain('telegram');
 
-    expect(flatExec(execute, 1)).toContain('DELETE FROM contacts');
+    expect(flatExec(execute, 2)).toContain('DELETE FROM contacts');
 
-    const insSql = flatExec(execute, 2);
+    const insSql = flatExec(execute, 3);
     expect(insSql).toContain('INSERT INTO contacts');
     expect(insSql).toContain('::bigint');
     expect(insSql).toContain('WHERE contacts.user_id = ');
@@ -132,29 +132,33 @@ describe('channelUsers repo (identity/contact/state split)', () => {
   });
 
   it('setUserPhone ON CONFLICT only updates when contact belongs to same canonical user (no takeover)', async () => {
-    const { db, query, execute } = createDbMock();
-    query.mockResolvedValueOnce({
-      rows: [{ merged_into_user_id: null }],
-      rowCount: 1,
-    } as DbQueryResult<{ merged_into_user_id: string | null }>);
+    const { db, execute } = createDbMock();
     execute
       .mockResolvedValueOnce({
         rows: [{ user_id: '42' }],
         rowCount: 1,
       } as DbQueryResult<{ user_id: string }>)
+      .mockResolvedValueOnce({
+        rows: [{ merged_into_user_id: null }],
+        rowCount: 1,
+      } as DbQueryResult<{ merged_into_user_id: string | null }>)
       .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult)
       .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult);
 
     await expect(setUserPhone(db, '456', '+79990001122')).resolves.toBe('noop_conflict');
 
-    const insSql = flatExec(execute, 2);
+    const insSql = flatExec(execute, 3);
     expect(insSql).toContain('ON CONFLICT (type, value_normalized)');
     expect(insSql).toContain('WHERE contacts.user_id = ');
   });
 
   it('setUserPhone follows merged_into_user_id so contact attaches to winner', async () => {
-    const { db, query, execute } = createDbMock();
-    query
+    const { db, execute } = createDbMock();
+    execute
+      .mockResolvedValueOnce({
+        rows: [{ user_id: '2' }],
+        rowCount: 1,
+      } as DbQueryResult<{ user_id: string }>)
       .mockResolvedValueOnce({
         rows: [{ merged_into_user_id: '100' }],
         rowCount: 1,
@@ -162,18 +166,13 @@ describe('channelUsers repo (identity/contact/state split)', () => {
       .mockResolvedValueOnce({
         rows: [{ merged_into_user_id: null }],
         rowCount: 1,
-      } as DbQueryResult<{ merged_into_user_id: string | null }>);
-    execute
-      .mockResolvedValueOnce({
-        rows: [{ user_id: '2' }],
-        rowCount: 1,
-      } as DbQueryResult<{ user_id: string }>)
+      } as DbQueryResult<{ merged_into_user_id: string | null }>)
       .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
 
     await expect(setUserPhone(db, '999', '+79990001122')).resolves.toBe('applied');
 
-    expect(flatExec(execute, 2)).toContain('100');
+    expect(flatExec(execute, 4)).toContain('100');
   });
 
   it('notification settings and dedup fields read/write through telegram_state', async () => {

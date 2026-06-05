@@ -1,6 +1,8 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
 import { resolvePlatformUserIdForRubitimeBooking } from '../../infra/db/repos/resolvePlatformUserIdForRubitimeBooking.js';
+import { runIntegratorSql } from '../../infra/db/runIntegratorSql.js';
 
 const RUBITIME_CLIENT_COMMENT_KEYS = ['comment'] as const;
 
@@ -80,14 +82,14 @@ async function resolveCanonicalAppointmentId(
     const id = rubRecordId.slice(3).trim();
     return id.length > 0 ? id : null;
   }
-  const mapped = await db.query<{ canonical_id: string }>(
-    `SELECT canonical_id::text
-     FROM be_external_entity_mappings
-     WHERE entity_type = 'appointment'
-       AND external_system = 'rubitime'
-       AND external_id = $1
-     LIMIT 1`,
-    [rubRecordId],
+  const mapped = await runIntegratorSql<{ canonical_id: string }>(
+    db,
+    sql`SELECT canonical_id::text
+        FROM be_external_entity_mappings
+        WHERE entity_type = 'appointment'
+          AND external_system = 'rubitime'
+          AND external_id = ${rubRecordId}
+        LIMIT 1`,
   );
   return mapped.rows[0]?.canonical_id ?? null;
 }
@@ -108,33 +110,33 @@ export async function resolveGoogleCalendarDescriptionContext(
   const appointmentId = await resolveCanonicalAppointmentId(db, input.rubRecordId);
 
   const [profileRes, supportRes, staffCommentRes] = await Promise.all([
-    db.query<{ is_problematic: boolean; problematic_note: string | null }>(
-      `SELECT is_problematic, problematic_note
-       FROM be_patient_booking_profiles
-       WHERE platform_user_id = $1::uuid
-       LIMIT 1`,
-      [platformUserId],
+    runIntegratorSql<{ is_problematic: boolean; problematic_note: string | null }>(
+      db,
+      sql`SELECT is_problematic, problematic_note
+          FROM be_patient_booking_profiles
+          WHERE platform_user_id = ${platformUserId}::uuid
+          LIMIT 1`,
     ),
-    db.query<{ title: string }>(
-      `SELECT tpi.title
-       FROM doctor_patient_support dps
-       INNER JOIN treatment_program_instances tpi
-         ON tpi.patient_user_id = dps.patient_user_id
-        AND tpi.status = 'active'
-       WHERE dps.patient_user_id = $1::uuid
-         AND dps.on_support = true
-       ORDER BY tpi.updated_at DESC NULLS LAST
-       LIMIT 1`,
-      [platformUserId],
+    runIntegratorSql<{ title: string }>(
+      db,
+      sql`SELECT tpi.title
+          FROM doctor_patient_support dps
+          INNER JOIN treatment_program_instances tpi
+            ON tpi.patient_user_id = dps.patient_user_id
+           AND tpi.status = 'active'
+          WHERE dps.patient_user_id = ${platformUserId}::uuid
+            AND dps.on_support = true
+          ORDER BY tpi.updated_at DESC NULLS LAST
+          LIMIT 1`,
     ),
     appointmentId
-      ? db.query<{ body: string }>(
-          `SELECT body
-           FROM be_appointment_staff_comments
-           WHERE appointment_id = $1::uuid
-           ORDER BY updated_at DESC
-           LIMIT 1`,
-          [appointmentId],
+      ? runIntegratorSql<{ body: string }>(
+          db,
+          sql`SELECT body
+              FROM be_appointment_staff_comments
+              WHERE appointment_id = ${appointmentId}::uuid
+              ORDER BY updated_at DESC
+              LIMIT 1`,
         )
       : Promise.resolve({ rows: [] as { body: string }[] }),
   ]);

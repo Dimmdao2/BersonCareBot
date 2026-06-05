@@ -1,5 +1,10 @@
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { IdempotencyPort } from '../../../kernel/contracts/index.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
+
+/** Whitelist: gateway idempotency SQL may only touch this integrator table (static templates). */
+export const GATEWAY_IDEMPOTENCY_ALLOWED_TABLES = ['idempotency_keys'] as const;
 
 /**
  * Sentinel row for incoming webhook dedup (event gateway). Not an HTTP body hash;
@@ -30,28 +35,31 @@ export function createInMemoryIdempotencyPort(): IdempotencyPort {
 export function createPostgresIdempotencyPort(db: DbPort): IdempotencyPort {
   return {
     async tryAcquire(key: string, ttlSec: number): Promise<boolean> {
-      const query = `
-        INSERT INTO idempotency_keys (key, request_hash, status, response_body, expires_at)
-        VALUES ($1, $2, $3, $4::jsonb, now() + $5 * interval '1 second')
-        ON CONFLICT (key) DO UPDATE SET
-          expires_at = EXCLUDED.expires_at,
-          request_hash = EXCLUDED.request_hash,
-          status = EXCLUDED.status,
-          response_body = EXCLUDED.response_body
-        WHERE idempotency_keys.expires_at < now()
-        RETURNING key
-      `;
-      const res = await db.query<{ key: string }>(query, [
-        key,
-        GATEWAY_IDEM_REQUEST_HASH,
-        GATEWAY_IDEM_STATUS,
-        GATEWAY_IDEM_RESPONSE_BODY,
-        ttlSec,
-      ]);
+      const res = await runIntegratorSql<{ key: string }>(
+        db,
+        sql`INSERT INTO idempotency_keys (key, request_hash, status, response_body, expires_at)
+            VALUES (
+              ${key},
+              ${GATEWAY_IDEM_REQUEST_HASH},
+              ${GATEWAY_IDEM_STATUS},
+              ${GATEWAY_IDEM_RESPONSE_BODY}::jsonb,
+              now() + ${ttlSec} * interval '1 second'
+            )
+            ON CONFLICT (key) DO UPDATE SET
+              expires_at = EXCLUDED.expires_at,
+              request_hash = EXCLUDED.request_hash,
+              status = EXCLUDED.status,
+              response_body = EXCLUDED.response_body
+            WHERE idempotency_keys.expires_at < now()
+            RETURNING key`,
+      );
       return (res.rowCount ?? 0) > 0;
     },
     async release(key: string): Promise<void> {
-      await db.query(`DELETE FROM idempotency_keys WHERE key = $1`, [key]);
+      await runIntegratorSql(
+        db,
+        sql`DELETE FROM idempotency_keys WHERE key = ${key}`,
+      );
     },
   };
 }

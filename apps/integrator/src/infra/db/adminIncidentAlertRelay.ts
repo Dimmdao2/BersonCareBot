@@ -1,9 +1,15 @@
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import type { DbPort, DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { sendMaxMessage } from '../../integrations/max/client.js';
 import { maxConfig } from '../../integrations/max/config.js';
 import { getMaxApiKey } from '../../integrations/max/runtimeConfig.js';
 import { logger } from '../observability/logger.js';
+import { parseMessengerIdTokens } from './parseMessengerIdTokens.js';
+import {
+  extractSystemSettingInnerValue,
+  fetchPublicSystemSettingValueJson,
+} from './publicSystemSettings.js';
 
 const ADMIN_INCIDENT_V1_TOPIC_KEYS = [
   'channel_link',
@@ -30,6 +36,18 @@ const DEFAULT_TOPICS: Record<AdminIncidentTopicKey, boolean> = {
   messenger_phone_bind_anomaly: true,
 };
 
+const adminIncidentAlertConfigInnerSchema = z
+  .object({
+    topics: z.record(z.string(), z.unknown()).optional(),
+    channels: z
+      .object({
+        telegram: z.boolean().optional(),
+        max: z.boolean().optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
 function defaultConfig(): AdminIncidentAlertConfig {
   return {
     topics: { ...DEFAULT_TOPICS },
@@ -37,87 +55,43 @@ function defaultConfig(): AdminIncidentAlertConfig {
   };
 }
 
-function isBool(v: unknown): v is boolean {
-  return typeof v === 'boolean';
-}
-
 /** Align with webapp admin incident alert JSON (unknown topic keys ignored). */
 export function parseAdminIncidentAlertConfigIntegrator(valueJson: unknown): AdminIncidentAlertConfig {
   const out = defaultConfig();
-  if (valueJson === null || valueJson === undefined) return out;
-  let root: unknown = valueJson;
-  if (typeof valueJson === 'object' && valueJson !== null && 'value' in (valueJson as Record<string, unknown>)) {
-    root = (valueJson as Record<string, unknown>).value;
-  }
-  if (root === null || typeof root !== 'object') return out;
-  const o = root as Record<string, unknown>;
-  if (typeof o.topics === 'object' && o.topics !== null && !Array.isArray(o.topics)) {
-    const t = o.topics as Record<string, unknown>;
+  const inner = extractSystemSettingInnerValue(valueJson);
+  const root = inner === undefined ? valueJson : inner;
+  const parsed = adminIncidentAlertConfigInnerSchema.safeParse(root);
+  if (!parsed.success) return out;
+
+  const o = parsed.data;
+  if (o.topics) {
     for (const k of ADMIN_INCIDENT_V1_TOPIC_KEYS) {
-      if (k in t && isBool(t[k])) {
-        out.topics[k] = t[k]!;
+      const topicVal = o.topics[k];
+      const topicParsed = z.boolean().safeParse(topicVal);
+      if (topicParsed.success) {
+        out.topics[k] = topicParsed.data;
       }
     }
   }
-  if (typeof o.channels === 'object' && o.channels !== null && !Array.isArray(o.channels)) {
-    const c = o.channels as Record<string, unknown>;
-    if (isBool(c.telegram)) out.channels.telegram = c.telegram;
-    if (isBool(c.max)) out.channels.max = c.max;
+  if (o.channels) {
+    const tg = z.boolean().safeParse(o.channels.telegram);
+    if (tg.success) out.channels.telegram = tg.data;
+    const mx = z.boolean().safeParse(o.channels.max);
+    if (mx.success) out.channels.max = mx.data;
   }
   return out;
 }
 
-function parseIdTokens(input: unknown): string[] {
-  const fromArray = (items: unknown[]): string[] => {
-    const out: string[] = [];
-    for (const item of items) {
-      const token = String(item).trim();
-      if (!token) continue;
-      if (!out.includes(token)) out.push(token);
-    }
-    return out;
-  };
-
-  if (Array.isArray(input)) {
-    return fromArray(input);
-  }
-
-  const raw = typeof input === 'string' ? input.trim() : '';
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed)) {
-      return fromArray(parsed);
-    }
-    if (typeof parsed === 'string') {
-      return parseIdTokens(parsed);
-    }
-  } catch {
-    // free-form
-  }
-
-  const parts = raw.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
-  return [...new Set(parts)];
-}
-
 async function loadSettingInner(db: DbPort, key: string): Promise<unknown> {
-  const r = await db.query<{ value_json: unknown }>(
-    `SELECT value_json FROM public.system_settings WHERE key = $1 AND scope = 'admin' LIMIT 1`,
-    [key],
-  );
-  const row = r.rows[0];
-  if (!row) return null;
-  const v = row.value_json;
-  if (v !== null && typeof v === 'object' && 'value' in (v as Record<string, unknown>)) {
-    return (v as Record<string, unknown>).value;
-  }
-  return v;
+  const valueJson = await fetchPublicSystemSettingValueJson(db, key);
+  if (valueJson === null) return null;
+  const inner = extractSystemSettingInnerValue(valueJson);
+  return inner === undefined ? valueJson : inner;
 }
 
 async function loadAdminIdList(db: DbPort, key: 'admin_telegram_ids' | 'admin_max_ids'): Promise<string[]> {
   const inner = await loadSettingInner(db, key);
-  return [...new Set(parseIdTokens(inner).map((x) => x.trim()).filter(Boolean))];
+  return [...new Set(parseMessengerIdTokens(inner).map((x) => x.trim()).filter(Boolean))];
 }
 
 function clip(s: string, max: number): string {
@@ -142,10 +116,8 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
 }): Promise<void> {
   let cfg: AdminIncidentAlertConfig;
   try {
-    const raw = await input.db.query<{ value_json: unknown }>(
-      `SELECT value_json FROM public.system_settings WHERE key = 'admin_incident_alert_config' AND scope = 'admin' LIMIT 1`,
-    );
-    cfg = parseAdminIncidentAlertConfigIntegrator(raw.rows[0]?.value_json ?? null);
+    const valueJson = await fetchPublicSystemSettingValueJson(input.db, 'admin_incident_alert_config');
+    cfg = parseAdminIncidentAlertConfigIntegrator(valueJson);
   } catch (err) {
     logger.warn({ err }, '[admin_incident] integrator: load admin_incident_alert_config failed, defaults');
     cfg = parseAdminIncidentAlertConfigIntegrator(null);

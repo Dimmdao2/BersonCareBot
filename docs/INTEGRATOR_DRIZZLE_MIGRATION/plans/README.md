@@ -19,9 +19,9 @@
 
 | Фаза | Файл плана | Статус |
 |------|------------|--------|
-| 00 — baseline + ADR | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md) | pending |
-| 08 — integrator schema reduction | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md) | pending |
-| 09 — integrator P1+ (09A-09E) | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | pending |
+| 00 — baseline + ADR | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md) | **completed** (2026-06-05) |
+| 08 — integrator schema reduction | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md) | **completed** (2026-06-06; non-destructive) |
+| 09 — integrator P1+ (09A-09E) | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | **completed** (2026-06-06; post-audit closure) |
 | 10 — media-worker IX (10A-10C) | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | pending |
 | 11 — webapp app-layer / auth tail | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | pending |
 | 12 — intake / purge / identity (12A-12E) | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | pending |
@@ -42,11 +42,18 @@
 
 После выполнения этапа: обновить `todos.status` в соответствующем plan-файле, секцию «Закрытие» (если есть), индекс таблицы ниже, [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md) и кратко зафиксировать в [../LOG.md](../LOG.md).
 
+## Исполнение через composer (Wave 3: 09/10)
+
+- `1 composer run = 1 PR = 1 фаза`; фазы **09** и **10** запускать отдельными прогонами/PR.
+- Порядок внутри фаз обязателен: `09A→09B→09C→09D→09E`; `10A→10B→10C`.
+- Для DB/json-границ в фазах **09–15** обязательна Zod-валидация; новый `JSON.parse(... ) as unknown` запрещён.
+- Staging smoke gate обязателен перед closeout (фаза 17), но не блокирует старт фаз 09/10.
+
 ## Решения перед исполнением Wave 2
 
 - **Drizzle сначала, дедуп позже:** Wave 2 не меняет модель данных и не удаляет дублирующие сущности. Дедуп `integrator.rubitime_*`, перевод чтений на `public.booking_*` и удаление зеркал — отдельный cutover после стабилизации Drizzle-волны.
 - **`bookingProfilesRepo`:** в этапе 1 переводится на Drizzle поверх текущих `integrator.rubitime_*`; cutover v1/v2 и отказ от legacy v1 не входят в этап.
-- **`system_settings`:** в этапе 1 `settingsSyncRoute` меняет только реализацию upsert на Drizzle. HTTP sync и зеркало `integrator.system_settings` сохраняются до отдельного refactor/cutover.
+- **`system_settings`:** в этапе 1 `settingsSyncRoute` меняет только реализацию upsert на Drizzle. HTTP sync и зеркало `integrator.system_settings` сохранялись до Wave 3 phase 08; после phase 08 runtime-readers читают `public.system_settings`, а sync route — только legacy compatibility.
 - **Projection health CLI:** этап 2 делает один runtime-канон метрик. Исполняемый CLI переносится в `src/infra/scripts/projection-health.ts` и импортирует общий core; `scripts/projection-health.mjs` остаётся только thin compatibility wrapper без SQL.
 - **Drizzle builder для projection health:** не входит в DoD этапа 2. Цель этапа — единые цифры CLI/HTTP; builder-миграция агрегатов допускается отдельным follow-up.
 - **Advisory в медиа:** этап 3 трогает только lock wrapper/семантику advisory. Остальной SQL `s3MediaStorage` и медиа-репозиториев остаётся этапу 5.
@@ -68,7 +75,7 @@
 | Сложность | Решение Wave 2 |
 |-----------|----------------|
 | Дедуп `rubitime_*` напрашивается рядом с `bookingProfilesRepo` | Не делать в Wave 2. Только Drizzle-эквивалент текущих таблиц. |
-| Зеркало `system_settings` выглядит лишним при unified DB | Не снимать. Только Drizzle upsert в `settingsSyncRoute`; refactor/cutover отдельно. |
+| Зеркало `system_settings` выглядит лишним при unified DB | Wave 2 не снимала. Wave 3 phase 08 сняла runtime-зависимость: reads → `public.system_settings`; legacy sync route не удалён без owner-approved M2M cleanup. |
 | Claim-запросы с `SKIP LOCKED` плохо ложатся в builder | Оставлять `execute(sql)` и тестировать SQL/поведение claim. |
 | Advisory locks зависят от connection/transaction | Менять только call wrapper, не ключи и не session/xact режим. |
 | Общий schema package может понадобиться в `media-worker` | В этапе 8 под-PR C сначала принимается schema decision; при необходимости shared package оформляется отдельным планом до runtime-кода. |

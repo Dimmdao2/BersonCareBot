@@ -5,8 +5,8 @@ import Link from "next/link";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
-import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AdminDangerActions } from "../clients/AdminDangerActions";
+import { DoctorClientPrimaryContacts } from "../clients/DoctorClientPrimaryContacts";
 import { DoctorNotesPanel } from "../clients/DoctorNotesPanel";
 import { ClientBookingHistoryPanel } from "../clients/ClientBookingHistoryPanel";
 import { SubscriberBlockPanel } from "../clients/SubscriberBlockPanel";
@@ -44,7 +44,6 @@ export function SubscriberProfileCard({
   isAdmin,
 }: Props) {
   const { identity, channelCards } = profile;
-  const tel = phoneToTelHref(identity.phone);
   const counts = aggregateChannelCounts(messageHistory);
   const sampleRecordId = profile.appointmentHistory[0]?.id ?? null;
 
@@ -52,21 +51,8 @@ export function SubscriberProfileCard({
     <>
       <section className={doctorClientOverviewPrimaryCardClass} id="doctor-subscriber-compact-contacts">
         <h2 className={doctorClientSectionTitleClass}>Контакты</h2>
-        {identity.phone ? (
-          tel ? (
-            <p>
-              Телефон:{" "}
-              <a href={tel} className={doctorInlineLinkClass}>
-                {identity.phone}
-              </a>
-            </p>
-          ) : (
-            <p>Телефон: {identity.phone}</p>
-          )
-        ) : (
-          <p className="text-muted-foreground">Телефон не указан</p>
-        )}
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Каналы</p>
+        <DoctorClientPrimaryContacts identity={identity} />
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Каналы доставки</p>
         <ul className="m-0 flex flex-wrap list-none gap-2 p-0">
           {channelCards.map((ch) => (
             <li key={ch.code}>

@@ -302,3 +302,141 @@
 - План [wave2_phase_08](./plans/wave2_phase_08_packages_worker_scripts.plan.md): §«Закрытие» / §«Post-audit» согласованы с LOG и счётчиками тестов.
 - [wave2_phase_05](./plans/wave2_phase_05_webapp_media.plan.md): claim → P8 done; `processTranscodeJob` → IX.
 - [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md): фазы V, VIII–X; [plans/README.md](./plans/README.md); [docs/README.md](../README.md); мастер-план §Wave 2.
+
+### Wave 3 — фаза 00 (baseline + ADR) — выполнено (2026-06-05)
+
+Документация-only; код не менялся. План: [wave3_phase_00_baseline_adr.plan.md](./plans/wave3_phase_00_baseline_adr.plan.md).
+
+#### Wave 3 baseline (`rg`, 2026-06-05)
+
+| Зона | Метрика | Сверка с ожиданием |
+|------|---------|-------------------|
+| Integrator `await db.query` (без `migrate.ts` / scripts) | **20** prod-файлов | ✓ (19 P1+ domain + `client.ts` Class C) |
+| Integrator `rubitimeApiThrottle` throttle row | **2** `client.query` | ✓ (фаза 09E, Class B) |
+| Webapp `pool.query` \| `client.query` (без тестов) | **78** prod-файлов | ✓ |
+| Webapp `integratorPushOutbox.ts` | `db.query` на Pool (вне grep `pool.query`) | ✓ → фаза 15D |
+| media-worker `claim.ts` | **8** `pool.query` | ✓ Class C |
+| media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **17** (10 + 7) | ✓ фаза 10 |
+| media-worker settings | **2** (1 + 1) | ✓ фаза 10 |
+| `packages/platform-merge` | **85** `.query(` (79 + 2 + 4) | ~92 ожидание → факт **85** (уточнено в RAW_SQL) |
+| `packages/booking-rubitime-sync` | **4** `.query(` | ✓ Class C |
+
+Полная таблица Class A/B/C: [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) § «Wave 3 baseline».
+
+#### ADR — permanent zones (не переоткрывать в фазах 09–15)
+
+| Артефакт | Решение |
+|----------|---------|
+| **platform-merge** | Merge engine; Drizzle builder rewrite = **out of scope** (Class C). |
+| **booking-rubitime-sync** | `SqlExecutor` + pg text; canonical Rubitime fields **unchanged** (Class C). |
+| **claim** (integrator outbox/job/queue + media-worker `jobs/claim.ts`) | `FOR UPDATE SKIP LOCKED` на dedicated pg session (Class C). |
+| **projectionHealthCore** | Параметризованные агрегаты; CLI/HTTP parity **>** builder `groupBy` (Class B). |
+| **migrate.ts / one-off scripts** | pg ledger / batch ops transport (Class C). |
+| **DbPort / health `client.ts`** | TX transport + `SELECT 1` (Class C). |
+
+#### Зафиксированные решения (вопросы 1–10, [wave3_DECISIONS.md](./plans/wave3_DECISIONS.md))
+
+1. **Webapp scope:** полный closeout runtime `apps/webapp/src` (без `*.test.ts`) в фазах **11–15**; после 15 — только Class B/C в RAW_SQL.
+2. **`messengerPhoneHttpBindExecute.ts`:** миграция в **фазе 15** (Drizzle executor + Zod), **не** permanent C.
+3. **media-worker shared schema:** **не** делаем в Wave 3; minimal `execute(sql)` на существующем `pg.Pool` (фаза 10).
+4. **Staging smoke:** обязателен перед closeout (**фаза 17**); без owner/стенда — Wave 3 `blocked`, не `completed`.
+5. **PR policy:** **1 PR = 1 фаза**; исключение `00+09` при ускорении старта; merge — `pnpm run ci`.
+6. **`rubitimeApiThrottle` throttle row:** фаза **09E** → Drizzle session на том же `PoolClient` (Class B).
+7. **Google Calendar SQL:** все 3 файла в фазе **09D**.
+8. **Legacy migrations (`migrate:legacy`):** фаза **16** — **условный** cutover: только если после 09–15 нет raw-SQL причин держать legacy runner; иначе фиксируем blocker/backlog.
+9. **Zod policy (фазы 09–15):** для всех затронутых DB-границ — Zod на JSON из БД (`system_settings`, jsonb payload), `safeParse` на внешние row-shapes; запрет `JSON.parse(raw) as unknown` без валидации.
+10. **Integrator schema reduction:** фаза **08** **до** P1+ Drizzle; `public` = canonical business data, `integrator` = technical state only; drop/deprecate — senior review + owner approval + backup/rollback.
+
+**Owner decisions (кратко):** `public` — главный источник бизнес-данных; дубли в `integrator`, покрытые `public`, можно отключать после review; живые интеграции Rubitime/Telegram/MAX/GCal — smoke перед закрытием соответствующих фаз.
+
+#### Definition of Ready → фаза 09
+
+- [x] `rg` baseline → Class A/B/C в RAW_SQL (2026-06-05)
+- [x] Решения 1–10 и ADR permanent zones в LOG
+- [x] `plans/README.md` + DRIZZLE_TRANSITION_PLAN → wave3_INDEX, phase 08, phase 16
+- [x] Zod policy для DB-границ 09–15 зафиксирована
+
+**PR map (кодовые фазы):** см. [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md) — 08 → (09 ∥ 10) → 11 → 12 → 13 → 14 → 15 → 16 (conditional) → 17.
+
+### Wave 3 — фаза 08 (integrator schema reduction) — выполнено (2026-06-06)
+
+Фаза закрыта как **non-destructive reduction**: удалений production-таблиц и destructive DB action не было. Senior-agent review + owner approval + backup/rollback/окно выката остаются обязательным gate перед любым будущим `DROP` / hard deprecate.
+
+#### Runtime settings cutover
+
+- `integrator.system_settings` больше не является runtime source of truth для integrator. Оставшиеся runtime-readers настроек читают **`public.system_settings`** явно:
+  `config/appBaseUrl.ts`, `config/appTimezone.ts`, `config/smtpOutbound.ts`, `repos/operationalVerboseLog.ts`, `repos/linkedPhoneSource.ts`, `handlers/patientHomeMorningPing.ts`, `google-calendar/runtimeConfig.ts`.
+- `settingsSyncRoute.ts` оставлен как legacy compatibility endpoint для подписанного `system_settings_sync`/cache invalidation, но запись зеркала явно квалифицирована как **`integrator.system_settings`** и больше не смешивается с runtime-read path.
+- Webapp `syncSettingToIntegrator` / `integrator_push_outbox.kind = system_settings_sync` **не удалялись** в этой фазе: это отдельный cleanup после owner-approved cutover старого M2M-контракта.
+
+#### Матрица решений по integrator-схеме
+
+| Группа | Решение |
+|--------|---------|
+| `integrator.system_settings`, `settingsSyncRoute`, `syncSettingToIntegrator` | Runtime source removed; legacy mirror/sync = **deprecate candidate**, без удаления в phase08. |
+| `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles`, `bookingProfilesRepo` | **move-to-public / deprecate candidate**; не мигрировать в phase09 ради Drizzle, нужен отдельный cutover на `public.booking_*` / booking-sync. |
+| `rubitime_records` | **raw-audit-only / deprecate candidate**; business canon = `public.appointment_records` + `public.patient_bookings`; ops scripts остаются Class C. |
+| `rubitime_events` | **keep technical audit** для webhook replay/debug. |
+| `booking_calendar_map` | **move-to-public candidate**; сейчас thin map + sync `public.patient_bookings.gcal_event_id`, не расширять. |
+| `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs` | **move-to-public candidate; dispatch-state review**; не расширять зеркало до отдельного dispatch-from-public design. |
+| `users`, `identities`, `contacts`, `telegram_state` | **keep channel identity state**; не использовать как дубль public-профиля пациента. |
+| `conversations`, `conversation_messages`, `message_drafts`, `user_questions`, `question_messages` | **review / transport-log only**; если public support canon покрывает бизнес-историю, integrator остаётся channel transport/log. |
+| `projection_outbox`, `rubitime_create_retry_jobs`, delivery/audit logs, throttle/advisory/idempotency | **keep technical state**. |
+
+#### Проверки
+
+- `rg "FROM system_settings|INTO system_settings|UPDATE system_settings" apps/integrator/src --glob "*.ts"` → **0** unqualified matches.
+- `rg "public\.system_settings|integrator\.system_settings" apps/integrator/src --glob "*.ts"` → только expected public reads + legacy sync route/test.
+- Targeted: `pnpm --dir apps/integrator run test -- --run appTimezone operationalVerboseLog messengerStaffIds settingsSyncRoute patientHomeMorningPing runtimeConfig` — green; vitest фактически прогнал весь integrator suite: **149 files passed, 1038 tests passed, 6 skipped**.
+- Typecheck: `pnpm --dir apps/integrator run typecheck` — green.
+- Локальное предупреждение окружения: Node `v20.18.2` при требовании проекта `>=22`.
+
+### Wave 3 — фаза 09A (settings/config foundation) — выполнено (2026-06-06)
+
+#### Scope
+
+- Добавлен общий helper `apps/integrator/src/infra/db/publicSystemSettings.ts`: чтение `public.system_settings` + Zod на envelope/scalar (`extractSystemSettingInnerValue`, `parseSystemSettingStringValue`, `parseSystemSettingTrueLiteral`, `parseSystemSettingInnerWithSchema`).
+- Переведены на helper: `config/appBaseUrl.ts`, `config/appTimezone.ts`, `config/smtpOutbound.ts`, `repos/operationalVerboseLog.ts`, `repos/linkedPhoneSource.ts`, `integrations/google-calendar/runtimeConfig.ts`.
+- Runtime-зависимость от `integrator.system_settings` не добавлялась; `settingsSyncRoute` не трогали.
+
+#### Проверки
+
+- `rg "JSON\.parse\(|as unknown" apps/integrator/src/config apps/integrator/src/infra/db/repos/linkedPhoneSource.ts apps/integrator/src/integrations/google-calendar/runtimeConfig.ts apps/integrator/src/infra/db/repos/operationalVerboseLog.ts` → **0** matches.
+- Targeted tests: `appBaseUrl` (новый), `appTimezone`, `operationalVerboseLog`, `runtimeConfig` — green; полный integrator suite: **150 files passed, 1042 tests passed, 6 skipped**.
+- Typecheck: `pnpm --dir apps/integrator run typecheck` — green.
+
+### Wave 3 — фаза 09B–09E + verify (integrator P1+ closeout) — выполнено (2026-06-06)
+
+#### 09B — simple repos
+
+- `runIntegratorSql` + helper: `platformUserDeliveryPhone`, `resolvePlatformUserIdForRubitimeBooking`, `canonicalUserId`, `messengerStaffIds`, `adminIncidentAlertRelay` (Zod на id-lists и incident config).
+- `linkedPhoneSource` уже на helper из 09A.
+
+#### 09C — complex repos
+
+- `idempotencyKeys`, `adminStats`, `integrationDataQualityIncidents`, `patientHomeMorningPing` (repo), `patientHomeMorningPing` handler (settings helper + Zod), `branchTimezone` (`public.booking_branches` / `public.branches` join сохранён).
+
+#### 09D — google calendar
+
+- `calendarDescription`, `resolvePackageCalendarContext` → `runIntegratorSql`; `runtimeConfig` — helper из 09A.
+
+#### 09E — rubitime throttle
+
+- `rubitimeApiThrottle`: Drizzle `execute(sql)` на том же `PoolClient` под advisory lock; интервал 5500 ms и unlock semantics без изменений.
+
+#### Инфра
+
+- `runIntegratorSql`: `PgDialect.sqlToQuery` + fallback на `db.query`; `public.system_settings` всегда через `DbPort.query`; пустые stub-execute без `rowCount` → fallback для unit-тестов.
+
+#### Проверки (verify)
+
+- `rg 'await db\.query' apps/integrator/src --glob '*.ts'` (exclude `migrate.ts`, scripts, `client.ts` health) → **0** prod matches.
+- `pnpm --dir apps/integrator run test` — **150 files passed, 1042 tests passed, 6 skipped**.
+- `pnpm --dir apps/integrator run typecheck` — green.
+
+#### Post-audit closure (2026-06-06)
+
+- **Zod id-lists:** общий `parseMessengerIdTokens.ts` (без `JSON.parse(...) as unknown`); `messengerStaffIds` / `adminIncidentAlertRelay` переведены на helper; JSON-массивы в строках — `JSON.parse` + `z.json().safeParse` на decoded value.
+- **Idempotency whitelist:** экспорт `GATEWAY_IDEMPOTENCY_ALLOWED_TABLES` в `idempotencyKeys.ts` (план ↔ код).
+- **Тесты:** `parseMessengerIdTokens.test.ts`, `platformUserDeliveryPhone.test.ts`, `adminStats.test.ts`, `idempotencyKeys.test.ts`.
+- **Проверки:** integrator suite **154 files / 1054 tests passed**; typecheck green.
