@@ -69,4 +69,22 @@ describe("GET /api/doctor/analytics-metric-accounts", () => {
       }),
     );
   });
+
+  it("passes empty excludedUserIds when includeTestAccounts is true", async () => {
+    loadDoctorAnalyticsAudienceMock.mockResolvedValue({
+      includeTestAccounts: true,
+      excludedUserIds: [],
+    });
+    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
+    const res = await GET(
+      new Request("http://localhost/api/doctor/analytics-metric-accounts?metric=today_cancellations_30d"),
+    );
+    expect(res.status).toBe(200);
+    expect(listMetricAccountsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metric: "today_cancellations_30d",
+        excludedUserIds: [],
+      }),
+    );
+  });
 });

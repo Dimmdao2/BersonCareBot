@@ -23,6 +23,7 @@ const syncPort = vi.hoisted(() => ({
   createRecord: vi.fn(),
   cancelRecord: vi.fn(),
   deleteRecord: vi.fn(),
+  updateRecord: vi.fn(),
   emitBookingEvent: vi.fn(),
 }));
 
@@ -337,6 +338,156 @@ describe("createPatientBookingService", () => {
     expect(result).toMatchObject({ ok: true });
     expect(bookingsPort.updateSlotsAfterReschedule).toHaveBeenCalled();
     expect(appointmentProjection.upsertRecordFromProjection).toHaveBeenCalled();
+  });
+
+  it("cancelBooking: canonical path returns paymentOutcomeFailed when payment apply fails", async () => {
+    const row = sampleRow({
+      status: "confirmed",
+      rubitimeId: "r1",
+      canonicalAppointmentId: "appt-1",
+    });
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
+    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
+    syncPort.cancelRecord.mockResolvedValue(undefined);
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const appointmentLifecycle = {
+      previewPatientCancel: vi.fn().mockResolvedValue({
+        ok: true,
+        allowed: true,
+        requiresStaffConfirmation: false,
+      }),
+      patientCancel: vi.fn().mockResolvedValue({
+        ok: true,
+        eligibility: { reasonCode: "on_time", isFree: true, decisionType: "free" },
+        cancelPolicy: { notifyPatient: true, notifyStaff: true, lateCancellationBehavior: "retain_prepayment" },
+      }),
+      patchLatestCancellationNotifications: vi.fn().mockResolvedValue(undefined),
+    };
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+    };
+    const payments = {
+      applyCancelPaymentOutcome: vi.fn().mockRejectedValue(new Error("payment_db")),
+    };
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      appointmentLifecycle: appointmentLifecycle as never,
+      payments: payments as never,
+    });
+
+    const result = await svc.cancelBooking({
+      userId: row.userId!,
+      bookingId: row.id,
+    });
+    expect(result).toMatchObject({ ok: true, paymentOutcomeFailed: true });
+    expect(bookingsPort.markCancelled).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "cancelled" }),
+    );
+  });
+
+  it("cancelBooking: canonical path returns notificationOutcomeFailed when patch fails", async () => {
+    const row = sampleRow({
+      status: "confirmed",
+      rubitimeId: "r1",
+      canonicalAppointmentId: "appt-1",
+    });
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
+    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
+    syncPort.cancelRecord.mockResolvedValue(undefined);
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const appointmentLifecycle = {
+      previewPatientCancel: vi.fn().mockResolvedValue({
+        ok: true,
+        allowed: true,
+        requiresStaffConfirmation: false,
+      }),
+      patientCancel: vi.fn().mockResolvedValue({
+        ok: true,
+        eligibility: { reasonCode: "on_time", isFree: true, decisionType: "free" },
+        cancelPolicy: { notifyPatient: true, notifyStaff: true },
+      }),
+      patchLatestCancellationNotifications: vi.fn().mockRejectedValue(new Error("patch_fail")),
+    };
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+    };
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      appointmentLifecycle: appointmentLifecycle as never,
+    });
+
+    const result = await svc.cancelBooking({
+      userId: row.userId!,
+      bookingId: row.id,
+    });
+    expect(result).toMatchObject({ ok: true, notificationOutcomeFailed: true });
+  });
+
+  it("rescheduleBooking: canonical path returns rubitimeMirrorFailed when mirror update fails", async () => {
+    const row = sampleRow({
+      status: "confirmed",
+      rubitimeId: "r1",
+      canonicalAppointmentId: "appt-1",
+    });
+    const newStart = "2026-06-10T10:00:00.000Z";
+    const newEnd = "2026-06-10T11:00:00.000Z";
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.updateSlotsAfterReschedule.mockResolvedValue({
+      ...row,
+      slotStart: newStart,
+      slotEnd: newEnd,
+    });
+    syncPort.updateRecord.mockRejectedValue(new Error("network"));
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const appointmentLifecycle = {
+      patientReschedule: vi.fn().mockResolvedValue({
+        ok: true,
+        appointment: {
+          id: "appt-1",
+          startAt: newStart,
+          endAt: newEnd,
+          branchId: null,
+          specialistId: null,
+          serviceId: null,
+          status: "confirmed",
+        },
+        reschedulePolicy: { notifyPatient: true, notifyStaff: true },
+      }),
+      patchLatestRescheduleNotifications: vi.fn().mockResolvedValue(undefined),
+    };
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+    };
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      appointmentLifecycle: appointmentLifecycle as never,
+      bookingScheduling: { assertSlotAvailable: vi.fn() } as never,
+    });
+
+    const result = await svc.rescheduleBooking({
+      userId: row.userId!,
+      bookingId: row.id,
+      slotStart: newStart,
+      slotEnd: newEnd,
+    });
+    expect(result).toMatchObject({ ok: true, rubitimeMirrorFailed: true });
   });
 
   it("cancelBooking: canonical path completes when Rubitime cancel fails", async () => {

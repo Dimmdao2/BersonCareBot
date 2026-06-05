@@ -426,6 +426,25 @@ describe("pgPatientBookingsPort", () => {
   });
 });
 
+describe("markConfirmedByCanonicalAppointment", () => {
+  it("keeps existing rubitime_id when confirm passes null rubitimeId", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [
+        {
+          ...legacyRow("pb-await"),
+          status: "confirmed",
+          rubitime_id: "rt-kept",
+          canonical_appointment_id: "appt-1",
+        },
+      ],
+    });
+    const row = await pgPatientBookingsPort.markConfirmedByCanonicalAppointment("appt-1", null);
+    expect(row?.rubitimeId).toBe("rt-kept");
+    const updateSql = queryMock.mock.calls.map((c) => String(c[0])).find((s) => s.includes("UPDATE patient_bookings"));
+    expect(updateSql).toContain("rubitime_id = COALESCE($2, rubitime_id)");
+  });
+});
+
 describe("mapRubitimeStatusToPatientBookingStatus", () => {
   it("maps Russian cancelled labels", () => {
     expect(mapRubitimeStatusToPatientBookingStatus("Отменен клиентом")).toBe("cancelled");

@@ -15,8 +15,6 @@ type Props = {
   tone?: "neutral" | "warning";
   hint?: string;
   href?: string;
-  /** @deprecated Use onClick — whole-card interaction */
-  onValueClick?: () => void;
   onClick?: () => void;
 };
 
@@ -27,13 +25,11 @@ export function DoctorStatCard({
   tone = "neutral",
   hint,
   href,
-  onValueClick,
   onClick,
 }: Props) {
-  const handleClick = onClick ?? onValueClick;
   const shellClass = cn(
     tone === "warning" ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
-    (href || handleClick) && doctorStatCardInteractiveClass,
+    (href || onClick) && doctorStatCardInteractiveClass,
   );
 
   const inner = (
@@ -52,9 +48,9 @@ export function DoctorStatCard({
     );
   }
 
-  if (handleClick) {
+  if (onClick) {
     return (
-      <button id={id} type="button" className={cn(shellClass, "w-full text-left")} onClick={handleClick}>
+      <button id={id} type="button" className={cn(shellClass, "w-full text-left")} onClick={onClick}>
         {inner}
       </button>
     );

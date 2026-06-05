@@ -15,6 +15,7 @@ import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 
 export type StaffManualCancelFlags = {
   rubitimeMirrorFailed?: true;
+  notificationOutcomeFailed?: true;
   paymentOutcomeFailed?: true;
   membershipOutcomeFailed?: true;
 };
@@ -104,7 +105,7 @@ export async function runStaffManualCancelAfterCanonical(input: {
       lifecycleNotificationSettings,
     });
   } catch {
-    // Projection/notify are best-effort after canonical cancel.
+    flags.notificationOutcomeFailed = true;
   }
   return flags;
 }

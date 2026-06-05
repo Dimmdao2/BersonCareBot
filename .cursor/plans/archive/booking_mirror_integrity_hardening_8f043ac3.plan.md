@@ -97,14 +97,14 @@ flowchart TD
     - bridge flag policy: какие staff/admin/patient outbound пути обязаны уважать `booking_rubitime_bridge_enabled`, а какие зависят от `booking_slots_read_source=rubitime`
     - единая cancel semantics: `update-record status:4` vs `remove-record`
 - **Чек-лист:**
-  - [ ] Сверить контракт в [docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md](docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
-  - [ ] Привести комментарии route/service к одному поведению
-  - [ ] Явно отметить, где `best-effort`, где `strict`
-  - [ ] Зафиксировать, какие partial failures возвращаются клиенту как `ok + flags`, а какие остаются hard error до commit
-  - [ ] Проверить, что план не содержит размытых пунктов внутри scope
+  - [x] Сверить контракт в [docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md](docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
+  - [x] Привести комментарии route/service к одному поведению
+  - [x] Явно отметить, где `best-effort`, где `strict`
+  - [x] Зафиксировать, какие partial failures возвращаются клиенту как `ok + flags`, а какие остаются hard error до commit
+  - [x] Проверить, что план не содержит размытых пунктов внутри scope
 - **Проверки:**
-  - [ ] `rg "best-effort|rollback|external_slot_taken|echo_guard" apps/webapp/src apps/integrator/src`
-  - [ ] `rg "remove-record|status: 4|booking_rubitime_bridge_enabled|rubitimeMirrorFailed" apps/webapp/src apps/integrator/src docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`
+  - [x] `rg "best-effort|rollback|external_slot_taken|echo_guard" apps/webapp/src apps/integrator/src`
+  - [x] `rg "remove-record|status: 4|booking_rubitime_bridge_enabled|rubitimeMirrorFailed" apps/webapp/src apps/integrator/src docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`
 
 ## Фаза 1 — Create consistency (critical)
 
@@ -122,18 +122,18 @@ flowchart TD
   5. Обработать `projectionWarning` от integrator `create-record`:
      - не игнорировать warning в webapp; записывать observable warning и/или выполнять fallback projection, чтобы doctor UI не терял запись.
 - **Чек-лист:**
-  - [ ] `markAwaitingPayment` принимает rubitime данные
-  - [ ] prepayment create сохраняет rubitime linkage в `patient_bookings`
-  - [ ] `onAppointmentPaymentConfirmed` не обнуляет linkage
-  - [ ] admin manual create делает Rubitime create+mapping при доступном context
-  - [ ] doctor/manual не оставляет orphan canonical при `rubitime_mapping_missing`
-  - [ ] package/product failure после Rubitime create не оставляет живую внешнюю запись без canonical/booking соответствия
-  - [ ] `projectionWarning` из integrator create не остаётся полностью тихим для оператора/лога
+  - [x] `markAwaitingPayment` принимает rubitime данные
+  - [x] prepayment create сохраняет rubitime linkage в `patient_bookings`
+  - [x] `onAppointmentPaymentConfirmed` не обнуляет linkage
+  - [x] admin manual create делает Rubitime create+mapping при доступном context
+  - [x] doctor/manual не оставляет orphan canonical при `rubitime_mapping_missing`
+  - [x] package/product failure после Rubitime create не оставляет живую внешнюю запись без canonical/booking соответствия
+  - [x] `projectionWarning` из integrator create не остаётся полностью тихим для оператора/лога
 - **Проверки:**
-  - [ ] `pnpm --dir apps/webapp exec vitest run src/modules/patient-booking/canonicalCreate.test.ts`
-  - [ ] `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/booking-engine/appointments/manual/route.test.ts`
-  - [ ] добавить и прогнать `src/app/api/admin/booking-engine/appointments/manual/route.test.ts`
-  - [ ] добавить кейсы: prepayment keeps `rubitimeId`, package/product failure rolls back external record, `projectionWarning` logged/fallbacked
+  - [x] `pnpm --dir apps/webapp exec vitest run src/modules/patient-booking/canonicalCreate.test.ts`
+  - [x] `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/booking-engine/appointments/manual/route.test.ts`
+  - [x] добавить и прогнать `src/app/api/admin/booking-engine/appointments/manual/route.test.ts`
+  - [x] добавить кейсы: prepayment keeps `rubitimeId`, package/product failure rolls back external record, `projectionWarning` logged/fallbacked
 
 ## Фаза 2 — Cancel/reschedule consistency (critical)
 
@@ -153,17 +153,17 @@ flowchart TD
   6. Inbound stale webhook vs failed outbound cancel:
      - запретить Rubitime inbound «оживлять» `patient_bookings` native row после canonical cancel без проверки canonical status/mapping attribution.
 - **Чек-лист:**
-  - [ ] cancel route не даёт ложный 502 после уже-коммиченного cancel
-  - [ ] patient reschedule возвращает флаг mirror failure
-  - [ ] side effects не роняют уже завершённый lifecycle
-  - [ ] notification/status patches не теряются при частичных сбоях
-  - [ ] patient cancel не оставляет `patient_bookings.status='cancelling'` при payment/package/product side-effect failure
-  - [ ] staff/admin routes не обходят `booking_rubitime_bridge_enabled` вопреки контракту
-  - [ ] inbound webhook не переводит native `patient_bookings` из cancelled обратно в active при cancelled canonical
+  - [x] cancel route не даёт ложный 502 после уже-коммиченного cancel
+  - [x] patient reschedule возвращает флаг mirror failure
+  - [x] side effects не роняют уже завершённый lifecycle
+  - [x] notification/status patches не теряются при частичных сбоях
+  - [x] patient cancel не оставляет `patient_bookings.status='cancelling'` при payment/package/product side-effect failure
+  - [x] staff/admin routes не обходят `booking_rubitime_bridge_enabled` вопреки контракту
+  - [x] inbound webhook не переводит native `patient_bookings` из cancelled обратно в active при cancelled canonical
 - **Проверки:**
-  - [ ] `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts src/app/api/admin/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts`
-  - [ ] `pnpm --dir apps/webapp exec vitest run src/modules/patient-booking/service.test.ts src/modules/patient-booking/patientMirrorOutbound.test.ts`
-  - [ ] добавить кейсы: payment/package/product cancel side-effect failure, patient reschedule mirror failure flag, stale inbound does not revive cancelled native booking
+  - [x] `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts src/app/api/admin/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts`
+  - [x] `pnpm --dir apps/webapp exec vitest run src/modules/patient-booking/service.test.ts src/modules/patient-booking/patientMirrorOutbound.test.ts`
+  - [x] добавить кейсы: payment/package/product cancel side-effect failure, patient reschedule mirror failure flag, stale inbound does not revive cancelled native booking
 
 ## Фаза 3 — Защита от гонок lifecycle
 
@@ -176,15 +176,15 @@ flowchart TD
     - если без DB constraint нельзя получить корректную гарантию, добавить минимальную миграцию с узким constraint/index и rollback-safe тест.
   - Зафиксировать expected-current-state checks для `applyCancellation` / `applyReschedule`, чтобы stale snapshot не применялся после конкурентного изменения.
 - **Чек-лист:**
-  - [ ] параллельные cancel/reschedule не создают конфликтные финальные статусы
-  - [ ] reschedule не применяет старый snapshot после конкурентного cancel
-  - [ ] online ветка имеет явный guard и задокументированное ограничение
-  - [ ] повторный cancel того же target status не создаёт лишние cancellation rows без idempotency policy
-  - [ ] insert/update race даёт deterministic domain error (`slot_overlap` / `state_conflict`), а не silent overwrite
+  - [x] параллельные cancel/reschedule не создают конфликтные финальные статусы
+  - [x] reschedule не применяет старый snapshot после конкурентного cancel
+  - [x] online ветка имеет явный guard и задокументированное ограничение
+  - [x] повторный cancel того же target status не создаёт лишние cancellation rows без idempotency policy
+  - [x] insert/update race даёт deterministic domain error (`slot_overlap` / `state_conflict`), а не silent overwrite
 - **Проверки:**
-  - [ ] добавить конкурентные unit/integration тесты для lifecycle repo
-  - [ ] `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgBookingAppointmentLifecycle*.test.ts src/modules/booking-appointment-lifecycle/*.test.ts`
-  - [ ] если добавлена миграция: `pnpm --dir apps/webapp exec drizzle-kit check` или существующий project-specific migration validation script
+  - [x] добавить конкурентные unit/integration тесты для lifecycle repo
+  - [x] `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgBookingAppointmentLifecycle*.test.ts src/modules/booking-appointment-lifecycle/*.test.ts`
+  - [x] если добавлена миграция: `pnpm --dir apps/webapp exec drizzle-kit check` или существующий project-specific migration validation script
 
 ## Фаза 4 — Inbound dedup/echo и cross-store инварианты
 
@@ -202,17 +202,17 @@ flowchart TD
   6. Existing scope для legacy projection:
      - projection snapshot должен использовать те же merged refs, что canonical update, чтобы `appointment_records.branch_id` не терялся при unmapped scope.
 - **Чек-лист:**
-  - [ ] payload-only изменения не дропаются dedup-ом
-  - [ ] failed pipeline допускает корректный retry
-  - [ ] echo guard не создаёт canonical/legacy divergence
-  - [ ] stale mapping path не маскируется под обычный echo skip
-  - [ ] concurrent first webhook insert не создаёт duplicate canonical row и не уходит в необработанный 500/422
-  - [ ] `appointment_records` получает preserved branchId/scope при mapped inbound update с missing Rubitime mapping
-  - [ ] integrator local `booking.upsert` и webapp fanout converges даже при частичном fanout failure; DLQ сценарий описан
+  - [x] payload-only изменения не дропаются dedup-ом
+  - [x] failed pipeline допускает корректный retry
+  - [x] echo guard не создаёт canonical/legacy divergence
+  - [x] stale mapping path не маскируется под обычный echo skip
+  - [x] concurrent first webhook insert не создаёт duplicate canonical row и не уходит в необработанный 500/422
+  - [x] `appointment_records` получает preserved branchId/scope при mapped inbound update с missing Rubitime mapping
+  - [x] integrator local `booking.upsert` и webapp fanout converges даже при частичном fanout failure; DLQ сценарий описан
 - **Проверки:**
-  - [ ] `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/*webhook*test.ts src/integrations/rubitime/*connector*test.ts`
-  - [ ] `pnpm --dir apps/webapp exec vitest run src/modules/integrator/events.test.ts src/infra/repos/pgBookingRubitimeBridge.test.ts src/modules/booking-appointment-sync/*.test.ts`
-  - [ ] добавить кейсы: duplicate payload with changed body not dropped, pipeline failure retry, echo guard skips legacy writes, stale mapping outcome, preserved existing scope in `appointment_records`
+  - [x] `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/*webhook*test.ts src/integrations/rubitime/*connector*test.ts`
+  - [x] `pnpm --dir apps/webapp exec vitest run src/modules/integrator/events.test.ts src/infra/repos/pgBookingRubitimeBridge.test.ts src/modules/booking-appointment-sync/*.test.ts`
+  - [x] добавить кейсы: duplicate payload with changed body not dropped, pipeline failure retry, echo guard skips legacy writes, stale mapping outcome, preserved existing scope in `appointment_records`
 
 ## Фаза 5 — Timezone + cancel semantics унификация в M2M
 
@@ -229,16 +229,16 @@ flowchart TD
     - старые doctor proxy paths должны использовать тот же retry/signed client или быть переведены на общий M2M helper.
   - Обновить [apps/integrator/src/integrations/rubitime/internalContract.ts](apps/integrator/src/integrations/rubitime/internalContract.ts): включить `update-record` как официальный endpoint.
 - **Чек-лист:**
-  - [ ] одинаковая timezone policy для create/update
-  - [ ] единая cancel semantics во всех outbound entrypoints
-  - [ ] нормализация patch не дропает валидные string-id без явной причины
-  - [ ] empty patch не даёт ложный success
-  - [ ] `update-record` перечислен в internal contract / docs
-  - [ ] старый doctor cancel path не использует `remove-record` для обычной отмены записи
+  - [x] одинаковая timezone policy для create/update
+  - [x] единая cancel semantics во всех outbound entrypoints
+  - [x] нормализация patch не дропает валидные string-id без явной причины
+  - [x] empty patch не даёт ложный success
+  - [x] `update-record` перечислен в internal contract / docs
+  - [x] старый doctor cancel path не использует `remove-record` для обычной отмены записи
 - **Проверки:**
-  - [ ] `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/normalizeUpdateRecordPatch.test.ts src/integrations/rubitime/recordM2mRoute.test.ts`
-  - [ ] `pnpm --dir apps/webapp exec vitest run src/modules/integrator/bookingM2mApi*.test.ts src/app/api/doctor/appointments/rubitime/cancel/route.test.ts`
-  - [ ] добавить кейсы: branch timezone update, empty patch 400, string numeric id/status, unified cancel path
+  - [x] `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/normalizeUpdateRecordPatch.test.ts src/integrations/rubitime/recordM2mRoute.test.ts`
+  - [x] `pnpm --dir apps/webapp exec vitest run src/modules/integrator/bookingM2mApi*.test.ts src/app/api/doctor/appointments/rubitime/cancel/route.test.ts`
+  - [x] добавить кейсы: branch timezone update, empty patch 400, string numeric id/status, unified cancel path
 
 ## Фаза 6 — Тест-матрица и docs sync
 
@@ -261,17 +261,17 @@ flowchart TD
     - [apps/webapp/INTEGRATOR_CONTRACT.md](apps/webapp/INTEGRATOR_CONTRACT.md)
     - [apps/webapp/src/app/api/api.md](apps/webapp/src/app/api/api.md)
 - **Чек-лист:**
-  - [ ] acceptance matrix покрывает найденные критичные дыры
-  - [ ] docs описывают фактический order-of-operations
-  - [ ] зафиксированы ограничения/деферы, если что-то осознанно оставлено
-  - [ ] `LOG.md` пополнен после каждой фазы с фактическими проверками и решениями
-  - [ ] план перенесён в репозиторий перед исполнением/закрытием (`.cursor/plans/...`) и не остаётся только в `~/.cursor/plans`
+  - [x] acceptance matrix покрывает найденные критичные дыры
+  - [x] docs описывают фактический order-of-operations
+  - [x] зафиксированы ограничения/деферы, если что-то осознанно оставлено
+  - [x] `LOG.md` пополнен после каждой фазы с фактическими проверками и решениями
+  - [x] план перенесён в репозиторий перед исполнением/закрытием (`.cursor/plans/...`) и не остаётся только в `~/.cursor/plans`
 - **Проверки:**
-  - [ ] re-run целевой mirror matrix (webapp + integrator)
-  - [ ] `pnpm --dir apps/webapp exec vitest run src/modules/booking-appointment-sync src/modules/patient-booking/patientMirrorOutbound.test.ts src/infra/repos/pgBookingRubitimeBridge.test.ts src/modules/integrator/events.test.ts src/app/api/doctor/booking-engine/appointments/\[id\]/manual-reschedule/route.test.ts src/app/api/doctor/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts src/app/api/admin/booking-engine/appointments/\[id\]/manual-reschedule/route.test.ts src/app/api/admin/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts`
-  - [ ] `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/normalizeUpdateRecordPatch.test.ts src/integrations/rubitime/recordM2mRoute.test.ts`
-  - [ ] `pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json`
-  - [ ] `pnpm --dir apps/integrator exec tsc --noEmit`
+  - [x] re-run целевой mirror matrix (webapp + integrator)
+  - [x] `pnpm --dir apps/webapp exec vitest run src/modules/booking-appointment-sync src/modules/patient-booking/patientMirrorOutbound.test.ts src/infra/repos/pgBookingRubitimeBridge.test.ts src/modules/integrator/events.test.ts src/app/api/doctor/booking-engine/appointments/\[id\]/manual-reschedule/route.test.ts src/app/api/doctor/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts src/app/api/admin/booking-engine/appointments/\[id\]/manual-reschedule/route.test.ts src/app/api/admin/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts`
+  - [x] `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/normalizeUpdateRecordPatch.test.ts src/integrations/rubitime/recordM2mRoute.test.ts`
+  - [x] `pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json`
+  - [x] `pnpm --dir apps/integrator exec tsc --noEmit`
 
 ## Фаза 7 — Финальная валидация и закрытие plan-файла
 
@@ -280,13 +280,13 @@ flowchart TD
   - Обновлять `todos.status` по мере выполнения фаз.
   - При полном закрытии выставить frontmatter `status: completed`, заполнить completion note/date и выровнять все `[x]` в теле.
 - **Чек-лист:**
-  - [ ] Все phase todos имеют `completed` или `cancelled` с причиной
-  - [ ] Definition of Done синхронизирован с фактическими проверками
-  - [ ] `docs/BOOKING_REWORK_INITIATIVE/LOG.md` содержит итоговую запись с командами проверок
-  - [ ] `ACCEPTANCE_MIRROR_SYNC.md` больше не утверждает покрытие сценариев, которые не закрыты кодом
+  - [x] Все phase todos имеют `completed` или `cancelled` с причиной
+  - [x] Definition of Done синхронизирован с фактическими проверками
+  - [x] `docs/BOOKING_REWORK_INITIATIVE/LOG.md` содержит итоговую запись с командами проверок
+  - [x] `ACCEPTANCE_MIRROR_SYNC.md` больше не утверждает покрытие сценариев, которые не закрыты кодом
 - **Проверки:**
-  - [ ] Финальный targeted suite из фазы 6 зелёный
-  - [ ] Один финальный полный `pnpm run ci` перед merge/push этого большого многоэтапного изменения
+  - [x] Финальный targeted suite из фазы 6 зелёный
+  - [x] Один финальный полный `pnpm run ci` перед merge/push этого большого многоэтапного изменения
 
 ## Definition of Done
 

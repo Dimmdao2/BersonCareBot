@@ -111,7 +111,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 ### Целостность mirror (2026-06, hardening)
 
-- **Canonical-first после commit:** отмена/перенос пациента и staff manual-cancel применяют канон до best-effort Rubitime; HTTP **`ok: true`** с флагами при сбое внешнего зеркала (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `productOutcomeFailed` — см. [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](../BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md)).
+- **Canonical-first после commit:** отмена/перенос пациента и staff manual-cancel применяют канон до best-effort Rubitime; HTTP **`ok: true`** с флагами при сбое внешнего зеркала (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed`, `productOutcomeFailed` — см. [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](../BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md)).
 - **Staff outbound gate:** `booking_rubitime_bridge_enabled` обязателен для manual create/reschedule/cancel mirror (не путать с `booking_slots_read_source=rubitime` у patient create).
 - **Inbound echo / stale mapping:** `skipped_echo_guard` и `stale_mapping_missing_canonical` — accepted event без upsert в `appointment_records` (только revalidate).
 - **Legacy revive guard:** inbound `upsertFromRubitime` не переводит `patient_bookings` из `cancelled`/`cancelling`/`cancel_failed` и не оживляет строку при terminal canonical status.

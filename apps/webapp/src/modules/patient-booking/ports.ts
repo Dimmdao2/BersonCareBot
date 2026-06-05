@@ -246,6 +246,7 @@ export type PatientBookingService = {
         ok: true;
         lateCancellation?: boolean;
         rubitimeMirrorFailed?: boolean;
+        notificationOutcomeFailed?: boolean;
         paymentOutcomeFailed?: boolean;
         membershipOutcomeFailed?: boolean;
         productOutcomeFailed?: boolean;
@@ -272,7 +273,13 @@ export type PatientBookingService = {
     slotEnd: string;
     reason?: string;
   }): Promise<
-    | { ok: true; booking: PatientBookingRecord; rubitimeMirrorFailed?: boolean }
+    | {
+        ok: true;
+        booking: PatientBookingRecord;
+        rubitimeMirrorFailed?: boolean;
+        notificationOutcomeFailed?: boolean;
+        paymentOutcomeFailed?: boolean;
+      }
     | {
         ok: false;
         error:

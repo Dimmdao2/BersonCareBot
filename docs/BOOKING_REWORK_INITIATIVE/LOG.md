@@ -11,6 +11,13 @@
 - M2M: branch TZ на `update-record`; empty patch → 400; string numeric ids в patch; `update-record` в internal contract.
 - Тесты: `rubitimePayloadHash`, gateway release, обновления manual/cancel/canonicalCreate.
 
+**Финал (audit closeout — полное закрытие):**
+- `notificationOutcomeFailed` в patient cancel/reschedule и staff `runStaffManualCancelAfterCanonical`.
+- `paymentOutcomeFailed` на patient reschedule при сбое carry-over.
+- Тесты: `staffManualCancelAfterCanonical.test.ts`, partial flags в manual-cancel routes, patient side-effect/reschedule flags в `service.test.ts`, `markConfirmedByCanonicalAppointment` в `pgPatientBookings.test.ts`.
+- Docs: полная матрица в `ACCEPTANCE_MIRROR_SYNC.md`; defer legacy `remove-record` + online double-book в `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`.
+- Plan archive: все чеклисты `[x]`.
+
 **Доработка (audit closeout):**
 - Patient cancel: `patchLatestCancellationNotifications` в try/catch; staff manual-reschedule — gate `booking_rubitime_bridge_enabled`.
 - Тесты: admin `appointments/manual`, echo-guard fanout, revive-guard `pgPatientBookings`, package/product rubitime-first rollback, `pgBookingAppointmentLifecycle` state_conflict/idempotent cancel, M2M `empty_patch`; CI-fix — mock `loadDoctorAnalyticsAudience` в stats routes.

@@ -650,6 +650,7 @@ export function createPatientBookingService(input: {
       });
       invalidateSlotsCache();
 
+      let paymentOutcomeFailed = false;
       if (input.payments && row.canonicalAppointmentId) {
         try {
           await input.payments.recordReschedulePaymentCarryOver({
@@ -659,6 +660,7 @@ export function createPatientBookingService(input: {
             newStartAt: rescheduleInput.slotStart,
           });
         } catch (err) {
+          paymentOutcomeFailed = true;
           console.error("[patient-booking] payment carry-over failed (reschedule already committed)", {
             bookingId: row.id,
             canonicalAppointmentId: row.canonicalAppointmentId,
@@ -721,6 +723,7 @@ export function createPatientBookingService(input: {
         result.reschedulePolicy,
         (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
       );
+      let notificationOutcomeFailed = false;
       try {
         await input.appointmentLifecycle.patchLatestRescheduleNotifications(
           row.canonicalAppointmentId,
@@ -734,6 +737,7 @@ export function createPatientBookingService(input: {
           }),
         );
       } catch (err) {
+        notificationOutcomeFailed = true;
         console.error("[patient-booking] reschedule notification patch failed (reschedule already committed)", {
           bookingId: row.id,
           canonicalAppointmentId: row.canonicalAppointmentId,
@@ -745,6 +749,8 @@ export function createPatientBookingService(input: {
         ok: true,
         booking: updatedRow ?? row,
         ...(rubitimeMirrorStatus === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
+        ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
+        ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
       };
     },
 
@@ -800,6 +806,7 @@ export function createPatientBookingService(input: {
         let paymentOutcomeFailed = false;
         let membershipOutcomeFailed = false;
         let productOutcomeFailed = false;
+        let notificationOutcomeFailed = false;
 
         if (input.payments) {
           try {
@@ -873,10 +880,7 @@ export function createPatientBookingService(input: {
         await input.bookingsPort.markCancelled({
           bookingId: row.id,
           reason: cancelInput.reason,
-          status:
-            paymentOutcomeFailed || membershipOutcomeFailed || productOutcomeFailed
-              ? "cancelled"
-              : "cancelled",
+          status: "cancelled",
         });
         invalidateSlotsCache();
 
@@ -945,6 +949,7 @@ export function createPatientBookingService(input: {
             }),
           );
         } catch (err) {
+          notificationOutcomeFailed = true;
           console.error("[patient-booking] cancel notification patch failed (cancel already committed)", {
             bookingId: row.id,
             canonicalAppointmentId: row.canonicalAppointmentId,
@@ -958,6 +963,7 @@ export function createPatientBookingService(input: {
             lifecycleResult.eligibility.reasonCode === "late" ||
             lifecycleResult.eligibility.reasonCode === "forfeited_by_reschedule",
           ...(rubitimeMirrorStatus === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
+          ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
           ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
           ...(membershipOutcomeFailed ? { membershipOutcomeFailed: true as const } : {}),
           ...(productOutcomeFailed ? { productOutcomeFailed: true as const } : {}),

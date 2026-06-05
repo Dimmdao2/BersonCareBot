@@ -9,17 +9,26 @@
 pnpm --dir apps/webapp exec vitest run \
   src/modules/booking-appointment-sync \
   src/modules/patient-booking/patientMirrorOutbound.test.ts \
+  src/modules/patient-booking/canonicalCreate.test.ts \
+  src/modules/patient-booking/service.test.ts \
+  src/app-layer/booking/staffManualCancelAfterCanonical.test.ts \
   src/infra/repos/pgBookingRubitimeBridge.test.ts \
+  src/infra/repos/pgBookingAppointmentLifecycle.test.ts \
+  src/infra/repos/pgPatientBookings.test.ts \
   src/modules/integrator/events.test.ts \
   src/modules/booking-rubitime-bridge/legacyProjection.test.ts \
+  src/app/api/doctor/booking-engine/appointments/manual/route.test.ts \
+  src/app/api/admin/booking-engine/appointments/manual/route.test.ts \
   src/app/api/doctor/booking-engine/appointments/\[id\]/manual-reschedule/route.test.ts \
   src/app/api/doctor/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts \
   src/app/api/admin/booking-engine/appointments/\[id\]/manual-reschedule/route.test.ts \
   src/app/api/admin/booking-engine/appointments/\[id\]/manual-cancel/route.test.ts
 
 pnpm --dir apps/integrator exec vitest run \
+  src/integrations/rubitime/rubitimePayloadHash.test.ts \
   src/integrations/rubitime/normalizeUpdateRecordPatch.test.ts \
-  src/integrations/rubitime/recordM2mRoute.test.ts
+  src/integrations/rubitime/recordM2mRoute.test.ts \
+  src/kernel/eventGateway/index.test.ts
 ```
 
 ## Integrity hardening (2026-06-05)
@@ -29,12 +38,22 @@ pnpm --dir apps/integrator exec vitest run \
 | Кейс | Покрытие |
 |------|----------|
 | Prepayment сохраняет `rubitime_id` | `canonicalCreate.test.ts` |
-| Admin manual create + Rubitime | `admin/.../manual/route` (parity с doctor) |
-| Staff cancel partial failure | `staffManualCancelAfterCanonical` + manual-cancel routes |
-| Patient cancel side-effect flags | `service.test.ts` |
-| Inbound echo → no legacy fanout | `events.test.ts` |
+| `markConfirmedByCanonicalAppointment` не затирает `rubitime_id` | `pgPatientBookings.test.ts` |
+| Admin manual create + Rubitime rollback | `admin/.../manual/route.test.ts` |
+| Doctor manual create + Rubitime rollback | `doctor/.../manual/route.test.ts` |
+| Rubitime-first package/product rollback | `canonicalCreate.test.ts` |
+| Staff cancel partial flags (mirror/payment/notify) | `staffManualCancelAfterCanonical.test.ts`, manual-cancel routes |
+| Staff reschedule bridge gate + Rubitime conflict | `manual-reschedule/route.test.ts` (doctor) |
+| Patient cancel `rubitimeMirrorFailed` + side-effect flags | `service.test.ts` |
+| Patient reschedule `rubitimeMirrorFailed` + `notificationOutcomeFailed` | `service.test.ts` |
+| Inbound echo / stale → no legacy fanout | `events.test.ts` |
+| Revive guard (cancelled native / terminal canonical) | `pgPatientBookings.test.ts` |
+| Lifecycle `state_conflict` + idempotent cancel | `pgBookingAppointmentLifecycle.test.ts` |
 | Dedup payload hash + pipeline retry | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts` |
-| M2M empty patch / string status | `normalizeUpdateRecordPatch.test.ts` |
+| M2M empty patch / string status / branch TZ | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts` |
+| Online concurrent slot (no extra DDL) | `service.test.ts` (`concurrent same slot`) |
+
+**Вне scope / defer:** legacy `POST /api/doctor/appointments/rubitime/cancel` (`remove-record`) — см. контракт § Cancel semantics.
 
 ## Smoke-матрица (6 сценариев)
 
@@ -65,4 +84,5 @@ Live-path не требует ручного bridge для новых webhook.
 - [x] Единый `buildCanonicalInboundSnapshot` для канона и `appointment_records`
 - [x] `mirror_last_synced_from`, `mirror_synced_at`, `mirror_sync_version`
 - [x] Echo guard 8s
+- [x] Integrity hardening: partial API flags, revive guard, lifecycle locks
 - [x] Docs: `RUBITIME_BOOKING_PIPELINE.md`, `booking-calendar.md`, `patient-booking.md`, `booking-appointment-sync/README.md`, `LOG.md` (BOOKING_REWORK + OWN_BOOKING cross-refs)

@@ -46,8 +46,8 @@ Admin keys (`system_settings`, scope `admin`):
 Записи с **`canonical_appointment_id`**:
 
 1. Preview: `GET /api/booking/actions?bookingId=` → `previewCancel` / `previewReschedule` (политики `booking-policies`, anti-bypass §8.4).
-2. **Отмена:** `booking-appointment-lifecycle.patientCancel` (канон) **до** best-effort Rubitime `cancelRecord`; затем `patient_bookings` → `cancelled`; проекция; `emitBookingEvent('booking.cancelled')`; `notifications_sent` (+ `rubitime_mirror` при сбое моста). API: `{ ok: true }` или `{ ok: true, rubitimeMirrorFailed: true }` / `notificationOutcomeFailed` — канон уже отменён.
-3. **Перенос:** проверка слота с `excludeAppointmentId`; lifecycle → `patient_bookings.updateSlotsAfterReschedule`; проекция (`native.rescheduled`); `emitBookingEvent('booking.rescheduled')` (integrator schema + handler); история в `be_appointment_reschedules`. API: `{ ok: true }` или `{ ok: true, rubitimeMirrorFailed: true }` / `productOutcomeFailed` при partial side-effects.
+2. **Отмена:** `booking-appointment-lifecycle.patientCancel` (канон) **до** best-effort Rubitime `cancelRecord`; затем `patient_bookings` → `cancelled`; проекция; `emitBookingEvent('booking.cancelled')`; `notifications_sent` (+ `rubitime_mirror` при сбое моста). API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed`, `productOutcomeFailed`) — канон уже отменён.
+3. **Перенос:** проверка слота с `excludeAppointmentId`; lifecycle → `patient_bookings.updateSlotsAfterReschedule`; проекция (`native.rescheduled`); `emitBookingEvent('booking.rescheduled')` (integrator schema + handler); история в `be_appointment_reschedules`. API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`).
 
 Без канона — legacy-отмена только через Rubitime + `patient_bookings` (без политик).
 

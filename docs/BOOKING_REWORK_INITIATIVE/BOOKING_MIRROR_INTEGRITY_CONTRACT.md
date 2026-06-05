@@ -25,7 +25,7 @@
 После успешного canonical commit при сбое внешнего шага:
 
 - HTTP **не** маскировать операцию как полный провал (не 502 «операция не выполнена»).
-- Возвращать явные флаги: `rubitimeMirrorFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed`, `productOutcomeFailed` и т.д.
+- Возвращать явные флаги: `rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed`, `productOutcomeFailed`.
 - Логировать в audit/history.
 
 ## Inbound (Rubitime → webapp)
@@ -38,7 +38,13 @@
 
 ## Cancel semantics
 
-- Единый путь отмены: `update-record` с `status: 4` (не `remove-record` для обычной отмены записи в кабинете).
+- Единый путь отмены в **booking-engine** и patient mirror: `update-record` с `status: 4` / `cancelRecord` M2M (не `remove-record` для обычной отмены записи в кабинете).
+- **Legacy defer:** `POST /api/doctor/appointments/rubitime/cancel` по-прежнему проксирует `remove-record` — отдельный backlog; не использовать для новых интеграций.
+
+## Online double-book (defer)
+
+- Отдельная DDL-миграция под online `specialist_id IS NULL` **не** входила в scope hardening.
+- Guard: `booking-scheduling.assertSlotAvailable` + PostgreSQL exclusion на каноне; регрессия — `service.test.ts` (`concurrent same slot`).
 
 ## M2M timezone
 
