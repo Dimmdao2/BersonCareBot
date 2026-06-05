@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.hoisted(() => vi.fn());
+const loadDoctorAnalyticsAudienceMock = vi.hoisted(() => vi.fn());
 const loadContentEngagementStatsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
+vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
+  loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
+}));
 vi.mock("@/app-layer/stats/loadAdminReminderStats", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/app-layer/stats/loadAdminReminderStats")>();
   return {
@@ -67,7 +71,9 @@ const samplePayload = {
 describe("GET /api/doctor/content-stats", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
+    loadDoctorAnalyticsAudienceMock.mockReset();
     loadContentEngagementStatsMock.mockReset();
+    loadDoctorAnalyticsAudienceMock.mockResolvedValue({ excludedUserIds: [] });
     loadContentEngagementStatsMock.mockResolvedValue(samplePayload);
   });
 
@@ -91,13 +97,19 @@ describe("GET /api/doctor/content-stats", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as typeof samplePayload;
     expect(body.peopleWithNotifications.currentPeopleCount).toBe(5);
-    expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({ windowHours: 720 });
+    expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({
+      windowHours: 720,
+      excludedUserIds: [],
+    });
   });
 
   it("returns JSON for admin role without admin mode", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     const res = await GET(new Request("http://localhost/api/doctor/content-stats?windowHours=168"));
     expect(res.status).toBe(200);
-    expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({ windowHours: 168 });
+    expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({
+      windowHours: 168,
+      excludedUserIds: [],
+    });
   });
 });

@@ -21,6 +21,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     bookingAppointmentLifecycle: { staffReschedule: staffRescheduleMock },
     appointmentProjection: null,
+    appointmentMirrorSync: null,
+    rubitimeCanonicalProjection: {
+      isBridgeEnabled: async () => true,
+    },
     patientBooking: {
       getBookingByCanonicalAppointment: getBookingByCanonicalAppointmentMock,
     },

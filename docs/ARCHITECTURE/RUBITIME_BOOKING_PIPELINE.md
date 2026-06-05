@@ -84,6 +84,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
 | 2026-05-02 | Описание события GCal: комментарии клиента/админа вместо одного только id; merge полей комментариев из тела вебхука; unit-тесты. |
 | 2026-06-03 | **Google Calendar:** при Rubitime-first create не дублировать событие на `booking.created`; отмена пациентом/специалистом — префикс **❌** в заголовке (событие остаётся); запрос переноса (`staff_confirmation_required`) — **⚠️**; удаление в Rubitime (`remove-record`/webhook delete) и soft-delete в кабинете — **удаление** из GCal; отмена в Rubitime — `update-record` status `4`, не `remove-record`. **Календарь врача (webapp):** dedupe legacy/`be:` проекции. |
 | 2026-06-05 | **Двустороннее зеркалирование (`AppointmentMirrorSync`):** live inbound/outbound для mapped appointments; единый `buildCanonicalInboundSnapshot`; см. § ниже и [`ACCEPTANCE_MIRROR_SYNC.md`](../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md). |
+| 2026-06-05 | **Mirror integrity hardening:** partial-failure flags в patient/staff API; echo-guard / stale-mapping skip legacy fanout; revive-guard в `patient_bookings`; lifecycle `FOR UPDATE` + `state_conflict`; Rubitime-first rollback при package/product failure; `empty_patch` → 400 на M2M `update-record`. Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](../BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md). |
 
 ## Каноническая модель и read-bridge (этап 1, OWN_BOOKING_ENGINE)
 
@@ -107,6 +108,15 @@ Rubitime передаёт `name` как полную строку (часто Ф
 - **Ops backfill:** `POST /api/admin/booking-engine/bridge` для истории; **live-path** — webhook + mirror (без ручного bridge на каждое изменение).
 
 Код: [`booking-appointment-sync/README.md`](../../apps/webapp/src/modules/booking-appointment-sync/README.md), `infra/repos/pgBookingRubitimeBridge.ts`, `integrator/events.ts`, `apps/integrator/.../normalizeUpdateRecordPatch.ts`.
+
+### Целостность mirror (2026-06, hardening)
+
+- **Canonical-first после commit:** отмена/перенос пациента и staff manual-cancel применяют канон до best-effort Rubitime; HTTP **`ok: true`** с флагами при сбое внешнего зеркала (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `productOutcomeFailed` — см. [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](../BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md)).
+- **Staff outbound gate:** `booking_rubitime_bridge_enabled` обязателен для manual create/reschedule/cancel mirror (не путать с `booking_slots_read_source=rubitime` у patient create).
+- **Inbound echo / stale mapping:** `skipped_echo_guard` и `stale_mapping_missing_canonical` — accepted event без upsert в `appointment_records` (только revalidate).
+- **Legacy revive guard:** inbound `upsertFromRubitime` не переводит `patient_bookings` из `cancelled`/`cancelling`/`cancel_failed` и не оживляет строку при terminal canonical status.
+- **Lifecycle races:** `pgBookingAppointmentLifecycle` — `SELECT … FOR UPDATE`; повторная отмена idempotent; reschedule из terminal status → `state_conflict`.
+- **Rubitime-first create rollback:** при падении `reserveForAppointment` / `consumeVisitForAppointment` после успешного `createRecord` — best-effort `cancelRecord` + отмена orphan canonical.
 
 ### Перенос и отмена (этап 4 + mirror, 2026-06)
 

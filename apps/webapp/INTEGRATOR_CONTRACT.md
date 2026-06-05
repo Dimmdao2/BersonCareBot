@@ -461,7 +461,7 @@ Canonical linking rules:
 }
 ```
 
-`patch` — дополнительные поля Rubitime API (кроме `id`/`rk`, они подставляются интегратором).
+`patch` — дополнительные поля Rubitime API (кроме `id`/`rk`, они подставляются интегратором). Пустой patch после нормализации (`normalizeUpdateRecordPatch`) → **`400`** `{ ok: false, error: "empty_patch" }`. Поля контакта (`name`, `phone`, `email`) в patch не передаются — только scope/datetime/status.
 
 ### `POST {INTEGRATOR_API_URL}/api/bersoncare/rubitime/remove-record`
 

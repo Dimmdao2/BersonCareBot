@@ -1,14 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, loadContentEngagementStatsMock } = vi.hoisted(() => ({
+const { requireAdminModeSessionMock, loadContentEngagementStatsMock, loadDoctorAnalyticsAudienceMock } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   loadContentEngagementStatsMock: vi.fn(),
+  loadDoctorAnalyticsAudienceMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
 }));
 
+vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
+  loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
+}));
 vi.mock("@/app-layer/stats/loadAdminReminderStats", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/app-layer/stats/loadAdminReminderStats")>();
   return {
@@ -92,7 +96,9 @@ const samplePayload = {
 describe("GET /api/admin/reminder-stats", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
+    loadDoctorAnalyticsAudienceMock.mockReset();
     loadContentEngagementStatsMock.mockReset();
+    loadDoctorAnalyticsAudienceMock.mockResolvedValue({ excludedUserIds: [] });
     loadContentEngagementStatsMock.mockResolvedValue(samplePayload);
   });
 
@@ -116,6 +122,9 @@ describe("GET /api/admin/reminder-stats", () => {
     const body = (await res.json()) as typeof samplePayload;
     expect(body.pushOpensSummary.opened).toBe(1);
     expect(body.peopleWithNotifications.currentPeopleCount).toBe(27);
-    expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({ windowHours: 48 });
+    expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({
+      windowHours: 48,
+      excludedUserIds: [],
+    });
   });
 });

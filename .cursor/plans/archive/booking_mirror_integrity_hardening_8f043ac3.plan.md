@@ -1,31 +1,33 @@
 ---
 name: booking mirror integrity hardening
 overview: Устранить рассинхроны Rubitime↔канон↔legacy в create/cancel/reschedule и inbound ingest, закрыть разрывы транзакционной целостности и гонки, закрепить поведение тестами и docs.
+status: completed
+completedAt: 2026-06-05
 todos:
   - id: phase0-lock-scope-and-contract
     content: Зафиксировать контракт целевого поведения и границы изменений
-    status: in_progress
+    status: completed
   - id: phase1-fix-create-consistency
     content: "Исправить create-пайплайн: prepayment/rubitimeId, admin-vs-doctor manual create, rollback holes"
-    status: pending
+    status: completed
   - id: phase2-fix-cancel-reschedule-consistency
     content: "Исправить cancel/reschedule-пайплайн staff/patient: частичные коммиты и обработку mirror failures"
-    status: pending
+    status: completed
   - id: phase3-lifecycle-race-hardening
     content: Добавить защиту от гонок в lifecycle репозитории
-    status: pending
+    status: completed
   - id: phase4-inbound-dedup-and-echo
     content: Исправить dedup/echo behavior в integrator inbound и webapp fanout
-    status: pending
+    status: completed
   - id: phase5-timezone-and-cancel-semantics
     content: Унифицировать timezone и cancel semantics для M2M/update/remove paths
-    status: pending
+    status: completed
   - id: phase6-test-matrix-and-doc-sync
     content: Расширить тест-матрицу и синхронизировать acceptance/docs/log
-    status: pending
+    status: completed
   - id: phase7-final-validation-and-plan-closeout
     content: Финальная валидация, LOG, перенос/закрытие plan-файла по стандарту
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -288,13 +290,13 @@ flowchart TD
 
 ## Definition of Done
 
-- [ ] Нет сценариев, где API возвращает ошибку после уже-коммиченной canonical операции без явного флага частичного результата.
-- [ ] `patient_bookings` не теряет `rubitime_id` на prepayment-пути.
-- [ ] Admin и doctor manual create имеют согласованный Rubitime behavior.
-- [ ] Echo/dedup не создают silent divergence между `be_appointments` и legacy проекциями.
-- [ ] Timezone/cancel semantics M2M единообразны.
-- [ ] Новые/обновлённые тесты закрывают найденные критичные и high-risk кейсы.
-- [ ] Документация и LOG синхронизированы с фактической реализацией.
-- [ ] Online/null-specialist double-book и lifecycle lost-update имеют явный guard или закрытый documented decision с `cancelled` todo.
-- [ ] Partial failures после canonical commit видимы в API/history/audit и не оставляют вечный `cancelling` без диагностики.
-- [ ] Финальный `pnpm run ci` выполнен перед передачей в merge/push.
+- [x] Нет сценариев, где API возвращает ошибку после уже-коммиченной canonical операции без явного флага частичного результата.
+- [x] `patient_bookings` не теряет `rubitime_id` на prepayment-пути.
+- [x] Admin и doctor manual create имеют согласованный Rubitime behavior.
+- [x] Echo/dedup не создают silent divergence между `be_appointments` и legacy проекциями.
+- [x] Timezone/cancel semantics M2M единообразны.
+- [x] Новые/обновлённые тесты закрывают найденные критичные и high-risk кейсы.
+- [x] Документация и LOG синхронизированы с фактической реализацией.
+- [x] Online/null-specialist double-book и lifecycle lost-update имеют явный guard или закрытый documented decision с `cancelled` todo.
+- [x] Partial failures после canonical commit видимы в API/history/audit и не оставляют вечный `cancelling` без диагностики.
+- [x] Финальный `pnpm run ci` выполнен перед передачей в merge/push.

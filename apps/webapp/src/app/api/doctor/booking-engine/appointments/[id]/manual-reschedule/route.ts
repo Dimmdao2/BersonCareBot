@@ -5,6 +5,7 @@ import {
   resolveRubitimeIdForAppointment,
   syncStaffRescheduleToRubitime,
 } from "@/app-layer/booking/staffRubitimeMirrorOutbound";
+import { isStaffRubitimeOutboundEnabled } from "@/app-layer/booking/staffRubitimeBridgePolicy";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
@@ -89,7 +90,8 @@ export async function POST(request: Request, context: RouteContext) {
     specialistId: parsed.data.specialistId ?? beforeAppointment.specialistId,
     serviceId: parsed.data.serviceId ?? beforeAppointment.serviceId,
   };
-  if (rubitimeId) {
+  const bridgeEnabled = await isStaffRubitimeOutboundEnabled(deps);
+  if (rubitimeId && bridgeEnabled) {
     try {
       await syncStaffRescheduleToRubitime({
         rubitimeId,

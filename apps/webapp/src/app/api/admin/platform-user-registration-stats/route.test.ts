@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, getRegistrationStatsMock } = vi.hoisted(() => ({
+const { requireAdminModeSessionMock, getRegistrationStatsMock, loadDoctorAnalyticsAudienceMock } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   getRegistrationStatsMock: vi.fn(),
+  loadDoctorAnalyticsAudienceMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
@@ -13,6 +14,9 @@ vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
   getAppDisplayTimeZone: () => Promise.resolve("Europe/Moscow"),
 }));
 
+vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
+  loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
+}));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     adminPlatformUserStats: {
@@ -27,6 +31,8 @@ describe("GET /api/admin/platform-user-registration-stats", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
     getRegistrationStatsMock.mockReset();
+    loadDoctorAnalyticsAudienceMock.mockReset();
+    loadDoctorAnalyticsAudienceMock.mockResolvedValue({ excludedUserIds: [] });
   });
 
   it("returns 403 when not admin", async () => {

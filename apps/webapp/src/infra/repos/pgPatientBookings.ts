@@ -311,8 +311,15 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
    */
   async upsertFromRubitime(input) {
     const pool = getPool();
-    const existing = await pool.query<{ id: string; source: string; slot_start: Date }>(
-      `SELECT id, source, slot_start FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
+    const existing = await pool.query<{
+      id: string;
+      source: string;
+      slot_start: Date;
+      status: string;
+      canonical_appointment_id: string | null;
+    }>(
+      `SELECT id, source, slot_start, status, canonical_appointment_id
+       FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
       [input.rubitimeId],
     );
     let existingRow = existing.rows[0];
@@ -322,8 +329,14 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       const slotStartIso = input.slotStart?.trim() ?? "";
       if (phoneRaw && slotStartIso) {
         const phoneNorm = normalizeRuPhoneE164(phoneRaw);
-        const fallback = await pool.query<{ id: string; source: string; slot_start: Date }>(
-          `SELECT id, source, slot_start FROM patient_bookings
+        const fallback = await pool.query<{
+          id: string;
+          source: string;
+          slot_start: Date;
+          status: string;
+          canonical_appointment_id: string | null;
+        }>(
+          `SELECT id, source, slot_start, status, canonical_appointment_id FROM patient_bookings
            WHERE rubitime_id IS NULL
              AND source = 'native'
              AND status IN ('creating', 'confirmed', 'failed_sync')
@@ -353,19 +366,14 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
         && input.status !== "cancelled"
         && (input.status === "confirmed" || input.status === "rescheduled" || input.status === "awaiting_payment")
       ) {
-        const terminal = await pool.query<{ status: string }>(
-          `SELECT status FROM patient_bookings WHERE id = $1`,
-          [existingRow.id],
-        );
-        const currentStatus = terminal.rows[0]?.status;
-        if (currentStatus === "cancelled" || currentStatus === "cancelling" || currentStatus === "cancel_failed") {
+        if (
+          existingRow.status === "cancelled"
+          || existingRow.status === "cancelling"
+          || existingRow.status === "cancel_failed"
+        ) {
           return;
         }
-        const canonicalId = await pool.query<{ canonical_appointment_id: string | null }>(
-          `SELECT canonical_appointment_id FROM patient_bookings WHERE id = $1`,
-          [existingRow.id],
-        );
-        const apptId = canonicalId.rows[0]?.canonical_appointment_id;
+        const apptId = existingRow.canonical_appointment_id;
         if (apptId) {
           const canonical = await pool.query<{ status: string }>(
             `SELECT status FROM be_appointments WHERE id = $1::uuid LIMIT 1`,

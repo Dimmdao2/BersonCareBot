@@ -22,6 +22,7 @@ const bookingEngine = {
   createAppointment: vi.fn(),
   upsertRubitimeAppointmentMapping: vi.fn(),
   getAppointment: vi.fn(),
+  transitionAppointmentStatus: vi.fn(),
 };
 
 const bookingScheduling = {
@@ -535,6 +536,192 @@ describe("createBookingOnCanonicalEngine", () => {
         patientPackageId: "pkg-fefo",
         serviceId: "sv-1",
         appointmentId: "appt-1",
+      }),
+    );
+  });
+
+  it("rubitime-first: rolls back Rubitime when package reserve fails", async () => {
+    const resolved: ResolvedBranchService = {
+      branchService: {
+        id: "bs-1",
+        branchId: "br-1",
+        serviceId: "sv-1",
+        specialistId: "sp-1",
+        rubitimeServiceId: "1",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      branch: {
+        id: "br-1",
+        cityId: "c-1",
+        title: "Филиал",
+        address: null,
+        rubitimeBranchId: "1",
+        timezone: "Europe/Moscow",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      service: {
+        id: "sv-1",
+        title: "Приём",
+        description: null,
+        durationMinutes: 60,
+        priceMinor: 0,
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      specialist: {
+        id: "sp-1",
+        branchId: "br-1",
+        fullName: "Доктор",
+        description: null,
+        rubitimeCooperatorId: "1",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      city: { id: "c-1", code: "msk", title: "Москва", isActive: true, sortOrder: 0, createdAt: "", updatedAt: "" },
+    };
+    bookingCatalog.resolveBranchService.mockResolvedValue(resolved);
+    bookingScheduling.resolveInPersonContext.mockResolvedValue({
+      organizationId: "org-1",
+      branchId: "br-1",
+      specialistId: "sp-1",
+      serviceId: "sv-1",
+      roomId: null,
+      branchServiceId: "bs-1",
+      durationMinutes: 60,
+      branchTimezone: "Europe/Moscow",
+    });
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rt-pkg-fail", raw: {} });
+    const memberships = {
+      listActivePackagesForBooking: vi.fn().mockResolvedValue([{ id: "pkg-1" }]),
+      reserveForAppointment: vi.fn().mockRejectedValue(new Error("package_no_balance")),
+    };
+
+    await expect(
+      createBookingOnCanonicalEngine(
+        { ...deps(false, "rubitime"), memberships: memberships as never },
+        {
+          userId: "user-1",
+          type: "in_person",
+          branchServiceId: "bs-1",
+          cityCode: "msk",
+          patientPackageId: "pkg-1",
+          slotStart: "2026-06-01T10:00:00.000Z",
+          slotEnd: "2026-06-01T11:00:00.000Z",
+          contactName: "Иван",
+          contactPhone: "+79001234567",
+        },
+      ),
+    ).rejects.toThrow("package_no_balance");
+
+    expect(syncPort.cancelRecord).toHaveBeenCalledWith("rt-pkg-fail");
+    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("pb-1");
+    expect(bookingEngine.transitionAppointmentStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: "appt-1",
+        toStatus: "cancelled_by_specialist",
+      }),
+    );
+  });
+
+  it("rubitime-first: rolls back Rubitime when product consume fails", async () => {
+    const resolved: ResolvedBranchService = {
+      branchService: {
+        id: "bs-1",
+        branchId: "br-1",
+        serviceId: "sv-1",
+        specialistId: "sp-1",
+        rubitimeServiceId: "1",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      branch: {
+        id: "br-1",
+        cityId: "c-1",
+        title: "Филиал",
+        address: null,
+        rubitimeBranchId: "1",
+        timezone: "Europe/Moscow",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      service: {
+        id: "sv-1",
+        title: "Приём",
+        description: null,
+        durationMinutes: 60,
+        priceMinor: 0,
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      specialist: {
+        id: "sp-1",
+        branchId: "br-1",
+        fullName: "Доктор",
+        description: null,
+        rubitimeCooperatorId: "1",
+        isActive: true,
+        sortOrder: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+      city: { id: "c-1", code: "msk", title: "Москва", isActive: true, sortOrder: 0, createdAt: "", updatedAt: "" },
+    };
+    bookingCatalog.resolveBranchService.mockResolvedValue(resolved);
+    bookingScheduling.resolveInPersonContext.mockResolvedValue({
+      organizationId: "org-1",
+      branchId: "br-1",
+      specialistId: "sp-1",
+      serviceId: "sv-1",
+      roomId: null,
+      branchServiceId: "bs-1",
+      durationMinutes: 60,
+      branchTimezone: "Europe/Moscow",
+    });
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rt-prod-fail", raw: {} });
+    const products = {
+      listActivePurchasesForBooking: vi.fn().mockResolvedValue([{ id: "prod-1" }]),
+      consumeVisitForAppointment: vi.fn().mockRejectedValue(new Error("product_no_visits")),
+    };
+
+    await expect(
+      createBookingOnCanonicalEngine(
+        { ...deps(false, "rubitime"), products: products as never },
+        {
+          userId: "user-1",
+          type: "in_person",
+          branchServiceId: "bs-1",
+          cityCode: "msk",
+          productPurchaseId: "prod-1",
+          slotStart: "2026-06-01T10:00:00.000Z",
+          slotEnd: "2026-06-01T11:00:00.000Z",
+          contactName: "Иван",
+          contactPhone: "+79001234567",
+        },
+      ),
+    ).rejects.toThrow("product_no_visits");
+
+    expect(syncPort.cancelRecord).toHaveBeenCalledWith("rt-prod-fail");
+    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("pb-1");
+    expect(bookingEngine.transitionAppointmentStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: "appt-1",
+        toStatus: "cancelled_by_specialist",
       }),
     );
   });

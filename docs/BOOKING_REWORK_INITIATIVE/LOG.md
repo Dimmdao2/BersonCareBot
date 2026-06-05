@@ -11,7 +11,33 @@
 - M2M: branch TZ на `update-record`; empty patch → 400; string numeric ids в patch; `update-record` в internal contract.
 - Тесты: `rubitimePayloadHash`, gateway release, обновления manual/cancel/canonicalCreate.
 
-**Проверки (локально):** vitest по матрице mirror + `pnpm run ci` перед merge.
+**Доработка (audit closeout):**
+- Patient cancel: `patchLatestCancellationNotifications` в try/catch; staff manual-reschedule — gate `booking_rubitime_bridge_enabled`.
+- Тесты: admin `appointments/manual`, echo-guard fanout, revive-guard `pgPatientBookings`, package/product rubitime-first rollback, `pgBookingAppointmentLifecycle` state_conflict/idempotent cancel, M2M `empty_patch`; CI-fix — mock `loadDoctorAnalyticsAudience` в stats routes.
+- Docs: `RUBITIME_BOOKING_PIPELINE` § integrity, `patient-booking.md`, `api.md`, `INTEGRATOR_CONTRACT` empty_patch.
+
+**Проверки (локально):**
+```bash
+pnpm --dir apps/webapp exec vitest run \
+  src/modules/patient-booking/canonicalCreate.test.ts \
+  src/app/api/doctor/booking-engine/appointments/manual/route.test.ts \
+  src/app/api/admin/booking-engine/appointments/manual/route.test.ts \
+  src/app/api/doctor/booking-engine/appointments/[id]/manual-cancel/route.test.ts \
+  src/app/api/admin/booking-engine/appointments/[id]/manual-cancel/route.test.ts \
+  src/modules/patient-booking/service.test.ts \
+  src/modules/integrator/events.test.ts \
+  src/infra/repos/pgBookingRubitimeBridge.test.ts \
+  src/infra/repos/pgBookingAppointmentLifecycle.test.ts \
+  src/infra/repos/pgPatientBookings.test.ts \
+  src/modules/booking-appointment-sync
+
+pnpm --dir apps/integrator exec vitest run \
+  src/integrations/rubitime/rubitimePayloadHash.test.ts \
+  src/integrations/rubitime/normalizeUpdateRecordPatch.test.ts \
+  src/integrations/rubitime/recordM2mRoute.test.ts
+
+pnpm run ci
+```
 
 ## 2026-06-05 — Двусторонняя синхронизация Rubitime ↔ канон (`AppointmentMirrorSync`) — закрыто
 

@@ -171,6 +171,21 @@ describe('Rubitime record M2M routes', () => {
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ recordId: '99' }));
   });
 
+  it('update-record returns 400 empty_patch when patch normalizes to no fields', async () => {
+    const spy = vi.spyOn(rubitimeClient, 'updateRubitimeRecord');
+    const app = await buildApp();
+    const body = JSON.stringify({ recordId: '50', patch: {} });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/update-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body)).toEqual({ ok: false, error: 'empty_patch' });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it('returns 401 when signature invalid', async () => {
     const app = await buildApp();
     const body = JSON.stringify({ recordId: '1', patch: {} });

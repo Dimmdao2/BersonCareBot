@@ -931,18 +931,26 @@ export function createPatientBookingService(input: {
           lifecycleResult.cancelPolicy,
           (await input.getBookingLifecycleNotificationSettings?.()) ?? null,
         );
-        await input.appointmentLifecycle.patchLatestCancellationNotifications(
-          row.canonicalAppointmentId,
-          orgId,
-          buildBookingNotificationsSent({
-            eventType: "booking.cancelled",
-            idempotencyKey,
-            notifyPatient: cancelNotify.notifyPatient,
-            notifyStaff: cancelNotify.notifyStaff,
-            integratorStatus,
-            rubitimeMirrorStatus,
-          }),
-        );
+        try {
+          await input.appointmentLifecycle.patchLatestCancellationNotifications(
+            row.canonicalAppointmentId,
+            orgId,
+            buildBookingNotificationsSent({
+              eventType: "booking.cancelled",
+              idempotencyKey,
+              notifyPatient: cancelNotify.notifyPatient,
+              notifyStaff: cancelNotify.notifyStaff,
+              integratorStatus,
+              rubitimeMirrorStatus,
+            }),
+          );
+        } catch (err) {
+          console.error("[patient-booking] cancel notification patch failed (cancel already committed)", {
+            bookingId: row.id,
+            canonicalAppointmentId: row.canonicalAppointmentId,
+            err,
+          });
+        }
 
         return {
           ok: true,

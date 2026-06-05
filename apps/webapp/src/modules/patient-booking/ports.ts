@@ -272,7 +272,7 @@ export type PatientBookingService = {
     slotEnd: string;
     reason?: string;
   }): Promise<
-    | { ok: true; booking: PatientBookingRecord }
+    | { ok: true; booking: PatientBookingRecord; rubitimeMirrorFailed?: boolean }
     | {
         ok: false;
         error:

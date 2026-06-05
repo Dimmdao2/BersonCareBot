@@ -1212,6 +1212,50 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     }
   });
 
+  it.each(["skipped_echo_guard", "stale_mapping_missing_canonical"] as const)(
+    "appointment.record.upserted skips legacy fanout on %s",
+    async (action) => {
+      const applyInboundFromRubitime = vi.fn().mockResolvedValue({
+        action,
+        appointmentId: "appt-skip",
+      });
+      const upsertSpy = vi
+        .spyOn(depsWithAp.appointmentProjection!, "upsertRecordFromProjection")
+        .mockResolvedValue();
+      try {
+        const result = await handleIntegratorEvent(
+          {
+            eventType: "appointment.record.upserted",
+            payload: {
+              integratorRecordId: "rec-skip-1",
+              phoneNormalized: "+79991234567",
+              recordAt: "2025-06-01T10:00:00.000Z",
+              status: "updated",
+              payloadJson: {},
+              lastEvent: "event-update",
+              updatedAt: "2025-05-01T12:00:00.000Z",
+            },
+          },
+          {
+            ...depsWithAp,
+            appointmentMirrorSync: {
+              applyInboundFromRubitime,
+              getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1"),
+              pushRescheduleToRubitime: vi.fn(),
+              pushCancelToRubitime: vi.fn(),
+              stampCanonicalOutbound: vi.fn(),
+            },
+          },
+        );
+        expect(result.accepted).toBe(true);
+        expect(result.reason).toBe(action);
+        expect(upsertSpy).not.toHaveBeenCalled();
+      } finally {
+        upsertSpy.mockRestore();
+      }
+    },
+  );
+
   it("rejects appointment.record.upserted without required fields", async () => {
     const result = await handleIntegratorEvent(
       {

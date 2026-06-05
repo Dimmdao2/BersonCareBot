@@ -358,6 +358,53 @@ describe("pgPatientBookingsPort", () => {
       expect(updateSql).toContain("UPDATE patient_bookings");
     });
 
+    it("does not revive cancelled native row from inbound confirmed upsert", async () => {
+      queryMock.mockResolvedValueOnce({
+        rows: [
+          {
+            id: "native-cancelled",
+            source: "native",
+            slot_start: SLOT_START,
+            status: "cancelled",
+            canonical_appointment_id: null,
+          },
+        ],
+      });
+
+      await pgPatientBookingsPort.upsertFromRubitime({
+        ...baseCompatInput,
+        status: "confirmed",
+      });
+
+      expect(queryMock.mock.calls.length).toBe(1);
+    });
+
+    it("does not revive when canonical appointment is in terminal cancelled state", async () => {
+      queryMock.mockResolvedValueOnce({
+        rows: [
+          {
+            id: "native-linked",
+            source: "native",
+            slot_start: SLOT_START,
+            status: "confirmed",
+            canonical_appointment_id: "appt-terminal",
+          },
+        ],
+      });
+      queryMock.mockResolvedValueOnce({
+        rows: [{ status: "cancelled_by_patient" }],
+      });
+
+      await pgPatientBookingsPort.upsertFromRubitime({
+        ...baseCompatInput,
+        status: "confirmed",
+      });
+
+      expect(queryMock.mock.calls.length).toBe(2);
+      const updateAttempt = queryMock.mock.calls.find((call) => String(call[0]).includes("UPDATE patient_bookings"));
+      expect(updateAttempt).toBeUndefined();
+    });
+
     it("lookup miss yields minimal compat_quality without branch_service_id", async () => {
       lookupMock.mockResolvedValue({ result: null, ambiguous: false });
       queryMock.mockResolvedValueOnce({ rows: [] });
