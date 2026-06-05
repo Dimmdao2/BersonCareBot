@@ -179,7 +179,7 @@
   - [x] pending_delete purge / hard delete advisory order (unit `s3MediaStorage.test.ts`).
   - [x] transcode enqueue idempotent (unit `pgMediaTranscodeJobs.test.ts`, incl. program submission).
   - [x] media-worker claim unit tests (Wave 2 P8 — `claim.test.ts`, 4 tests).
-  - [ ] staging-only: end-to-end multipart upload + transcode claim на media-worker (ops smoke, не блокер P8).
+  - [ ] staging-only: end-to-end multipart upload + transcode claim на media-worker (**gate фаза 17**; чеклист — [LOG](./LOG.md) §Wave 3 phase 10 / 10C).
 - **Постаудит (2026-06-05):** cleanup `cleaned` не завышается при stale lock; RAW_SQL уточнён (enqueue vs claim); расширены unit-тесты.
 - **Тесты (vitest `--project fast`, P5 bundle):** **56 passed** — `init`, `cleanup`, `mediaFoldersRepo`, `mediaUploadSessionsRepo`, `pgMediaTranscodeJobs`, `s3MediaStorage`, `mediaPreviewWorker`, `pgMediaFileIntakeResolve`, `mediaTranscodeAutoEnqueue`.
 - **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci` — green (2026-06-05)**; `rg 'pool\.query|client\.query'` по media scope — только TX transport на `PoolClient`.
@@ -316,8 +316,8 @@
 | Webapp `pool.query` \| `client.query` (без тестов) | **78** prod-файлов | ✓ |
 | Webapp `integratorPushOutbox.ts` | `db.query` на Pool (вне grep `pool.query`) | ✓ → фаза 15D |
 | media-worker `claim.ts` | **8** `pool.query` | ✓ Class C |
-| media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **17** (10 + 7) | ✓ фаза 10 |
-| media-worker settings | **2** (1 + 1) | ✓ фаза 10 |
+| media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **17** (10 + 7) at baseline → **0** direct `pool.query` after phase **10** | ✓ target фаза 10 (**done** 2026-06-06) |
+| media-worker settings | **2** (1 + 1) at baseline → **0** direct `pool.query` after phase **10** | ✓ target фаза 10 (**done** 2026-06-06) |
 | `packages/platform-merge` | **85** `.query(` (79 + 2 + 4) | ~92 ожидание → факт **85** (уточнено в RAW_SQL) |
 | `packages/booking-rubitime-sync` | **4** `.query(` | ✓ Class C |
 
@@ -440,3 +440,109 @@
 - **Idempotency whitelist:** экспорт `GATEWAY_IDEMPOTENCY_ALLOWED_TABLES` в `idempotencyKeys.ts` (план ↔ код).
 - **Тесты:** `parseMessengerIdTokens.test.ts`, `platformUserDeliveryPhone.test.ts`, `adminStats.test.ts`, `idempotencyKeys.test.ts`.
 - **Проверки:** integrator suite **154 files / 1054 tests passed**; typecheck green.
+
+### Wave 3 — фаза 10 (media-worker IX, 10A–10C) — выполнено (2026-06-06)
+
+План: [wave3_phase_10_media_worker_ix.plan.md](./plans/wave3_phase_10_media_worker_ix.plan.md).
+
+#### 10A — preflight (baseline + инварианты)
+
+| Файл | Роль | `pool.query` (до 10B) |
+|------|------|------------------------|
+| `jobs/claim.ts` | **Class C permanent** — без изменений | 8 |
+| `processTranscodeJob.ts` | target migration | 10 |
+| `processProgramSubmissionTranscode.ts` | target migration | 7 |
+| `watermarkEnabled.ts` | target migration + Zod | 1 |
+| `pipelineEnabled.ts` | target migration + Zod | 1 |
+
+**Инварианты поведения (не менять при миграции):**
+
+- Статусы job: `pending` → `processing` (claim) → `done` \| `failed` \| retry `pending` с `next_attempt_at`.
+- Retry: `backoffMsAfterFailure(attemptsAfterClaim)`; финальный fail при `attemptsAfterClaim >= maxAttempts`.
+- Permanent fail: job `failed` + `media_files.video_processing_status = failed`; retryable — job `pending` + media `pending`.
+- Feature flags: `public.system_settings` keys `video_hls_pipeline_enabled`, `video_watermark_enabled` (scope `admin`); default **false** при отсутствии/невалидном JSON.
+- **claim.ts:** `FOR UPDATE SKIP LOCKED`, stale reclaim, ROLLBACK при race — **вне scope** фазы 10.
+
+**Preflight checks:** `rg 'pool\.query' apps/media-worker/src` — inventory как выше; `pnpm --dir apps/media-worker run test -- claim` — green (claim **4**); полный suite после 10B — **22 passed**.
+
+**Out of scope:** shared schema package (backlog вне Wave 3); webapp `pgMediaTranscodeJobs`; DDL.
+
+#### 10B — runtime migration (Class B executor)
+
+- Добавлен `runMediaWorkerSql.ts`: `runMediaWorkerSql` / `runMediaWorkerPgText` — Drizzle `sql` fragment → `PgDialect.sqlToQuery` → `pg.Pool.query` (без shared schema).
+- `systemSettingBoolean.ts` + `parseSystemSettingBoolean` (Zod) для `value_json` admin flags.
+- Мигрированы: `processTranscodeJob.ts`, `processProgramSubmissionTranscode.ts`, `watermarkEnabled.ts`, `pipelineEnabled.ts` — SQL через executor; таблицы **`public.*`**.
+- Тесты: `systemSettingBoolean.test.ts`, `watermarkEnabled.test.ts` (Zod invalid JSON).
+- `claim.ts` — **без изменений**.
+- Зависимость: `drizzle-orm` в `@bersoncare/media-worker` (только `sql` + dialect, не schema package).
+- **`pnpm run ci`** — green (2026-06-06; lint fix `platformUserDeliveryPhone.test.ts` no-secrets для describe label).
+
+**Verify:**
+
+- `rg 'pool\.query' apps/media-worker/src --glob '*.ts'` → только `jobs/claim.ts`, transport в `runMediaWorkerSql.ts`, mock в `claim.test.ts`.
+- `pnpm --dir apps/media-worker run test` — **22 passed** (claim **4**, settings **5**, `systemSettingBoolean` **2**).
+- `pnpm --dir apps/media-worker run typecheck` — green.
+- **`pnpm run ci`** — green (2026-06-06).
+
+#### 10C — staging smoke pack (gate для фазы 17)
+
+Исполнение smoke — **не** в фазе 10; чеклист для owner/ops в фазе **17**.
+
+**Предусловия на staging/prod:**
+
+- `video_hls_pipeline_enabled = true` в `public.system_settings` (admin).
+- `bersoncarebot-media-worker-prod.service` active; webapp env: `DATABASE_URL`, S3, `INTERNAL_JOB_SECRET`.
+- Тестовое видео ≤ лимита multipart (см. CMS / `HOST_DEPLOY_README.md`).
+
+**Шаги (happy path — multipart → enqueue → claim → done):**
+
+1. **Upload:** в CMS загрузить короткий `video/mp4` через multipart (или single PUT для малого файла) → confirm/complete.
+2. **Enqueue (webapp):** при `video_hls_new_uploads_auto_transcode` job создаётся автоматически; иначе:
+   ```bash
+   set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+   curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
+     -H "Content-Type: application/json" \
+     --data '{"mediaId":"<UUID>"}' \
+     "http://127.0.0.1:6200/api/internal/media-transcode/enqueue"
+   ```
+   Ожидание: `{ "ok": true }` или `{ "ok": true, "skipped": "already_ready" }` / `alreadyQueued`.
+3. **Claim + transcode (media-worker):** дождаться poll (секунды–минуты). Логи:
+   - `journalctl -u bersoncarebot-media-worker-prod.service -f --since "5 min ago"`
+   - события: `transcode completed` (`outcome: done`), или `transcode_job_retry` / `transcode_job_terminal` при сбое.
+4. **Webapp enqueue path (при ручном enqueue):** `journalctl -u bersoncarebot-webapp-prod.service` — без 5xx на `/api/internal/media-transcode/enqueue`.
+
+**SQL-проверки состояния (после шага 3):**
+
+```bash
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+SELECT j.id, j.status, j.attempts, j.last_error,
+       m.video_processing_status, m.hls_master_playlist_s3_key IS NOT NULL AS has_master
+FROM public.media_transcode_jobs j
+JOIN public.media_files m ON m.id = j.media_id
+WHERE j.media_id = '<UUID>'::uuid
+ORDER BY j.created_at DESC
+LIMIT 3;"
+```
+
+**Pass criteria:**
+
+| Проверка | Pass |
+|----------|------|
+| Job terminal `status = 'done'` | ✓ |
+| `media_files.video_processing_status = 'ready'` | ✓ |
+| `hls_master_playlist_s3_key` задан (HLS path) или `video_delivery_override = 'mp4'` (program submission) | ✓ |
+| HEAD master/480p в S3 private bucket | ✓ |
+| Нет зависших `processing` > reclaim TTL без активного worker | ✓ |
+
+**Fail criteria (фиксировать в LOG фазы 17):** job `failed` с `last_error`; media `failed`; worker idle при `pipeline_enabled` и pending jobs; duplicate active jobs на один `media_id`.
+
+**Rollback hints (runtime commit фазы 10):**
+
+1. Откат git-коммита фазы 10; `pnpm --dir apps/media-worker build` на хосте; `systemctl restart bersoncarebot-media-worker-prod.service`.
+2. Повторить `pnpm --dir apps/media-worker run test` (claim **4** + suite).
+3. `rg 'pool\.query' apps/media-worker/src` — после отката снова hits в `processTranscodeJob*` (ожидаемо); **`claim.ts` diff должен быть пуст**.
+4. Smoke: один короткий upload → убедиться job доходит до `done` (семантика claim/status не должна меняться при откате только executor-слоя, если SQL-текст эквивалентен).
+
+**Shared schema package:** backlog вне Wave 3 (см. [wave3_DECISIONS.md](./plans/wave3_DECISIONS.md) §3).
+

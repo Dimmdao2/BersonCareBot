@@ -22,7 +22,7 @@
 | 00 — baseline + ADR | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md) | **completed** (2026-06-05) |
 | 08 — integrator schema reduction | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md) | **completed** (2026-06-06; non-destructive) |
 | 09 — integrator P1+ (09A-09E) | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | **completed** (2026-06-06; post-audit closure) |
-| 10 — media-worker IX (10A-10C) | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | pending |
+| 10 — media-worker IX (10A-10C) | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | **completed** (2026-06-06) |
 | 11 — webapp app-layer / auth tail | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | pending |
 | 12 — intake / purge / identity (12A-12E) | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | pending |
 | 13 — booking / doctor (13A-13E) | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | pending |

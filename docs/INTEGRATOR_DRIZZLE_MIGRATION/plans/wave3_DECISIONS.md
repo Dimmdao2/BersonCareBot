@@ -39,7 +39,7 @@
 |----------|----------------|-----------------|
 | `packages/platform-merge` | **88** `query()` в `pgPlatformUserMerge.ts` + 4 в `mergeContactFallback.ts`; полиморфная merge-TX | Только ADR в LOG + RAW_SQL §4 (Wave 2 P8 уже зафиксировал) |
 | `packages/booking-rubitime-sync` | **4** `query()`; единый `SqlExecutor`; **27** unit-тестов | Permanent pg executor; не shared schema |
-| `apps/media-worker/src/jobs/claim.ts` | `FOR UPDATE SKIP LOCKED`; **4** теста в `claim.test.ts` | Оставить pg; статус-апдейты — фаза 10 |
+| `apps/media-worker/src/jobs/claim.ts` | `FOR UPDATE SKIP LOCKED`; **4** теста в `claim.test.ts` | Class C permanent pg |
 | `apps/integrator/src/infra/db/migrate.ts` | **11** `db.query` (schema, ledger, BEGIN/COMMIT) | Class C |
 | `apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts` | SAVEPOINT batch ops | Class C one-off |
 | `apps/integrator/src/infra/scripts/resync-rubitime-records.ts` | динамический `UPDATE` | Class C ops |
@@ -52,6 +52,7 @@
 |----------|----------------|-----------------|
 | `projectionHealthCore.ts` | 5 параллельных агрегатов; Wave 2 P2: «builder не в DoD» | Формализовать Class B в RAW_SQL; не переписывать в `groupBy` |
 | Integrator claim paths | `projectionOutbox`, `jobQueue`, `outgoingDeliveryQueue` уже `runIntegratorSql` | Без изменений |
+| media-worker post-claim | `runMediaWorkerSql.ts` + `runMediaWorkerPgText` (фаза **10 done**) | Class B; qualified `public.*`; без shared schema |
 | Webapp media TX transport | `s3MediaStorage.ts`: **7** `client.query` — только BEGIN/COMMIT/ROLLBACK; домен на `runWebappSql` | Документировать Class C transport на dedicated client |
 | `channelLink.ts` | **6** вызовов — только BEGIN/COMMIT/ROLLBACK вокруг портов | Class C; не считать «незакрытым auth SQL» |
 

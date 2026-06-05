@@ -11,6 +11,7 @@ import {
   mediaRootFromSourceS3Key,
   posterObjectKeyFromMediaRoot,
 } from "./hlsStorageLayout.js";
+import { runMediaWorkerPgText } from "./runMediaWorkerSql.js";
 import { downloadObjectToFile, headObjectExists, putObjectWithRetry, contentTypeForKey } from "./s3.js";
 
 function submission480pKeyFromMediaRoot(mediaRoot: string): string {
@@ -28,12 +29,14 @@ export async function processProgramSubmissionTranscodeJob(
   const sourceKey = media.s3_key.trim();
   const mediaRoot = mediaRootFromSourceS3Key(sourceKey);
   if (!isCanonicalMediaRootForId(mediaRoot, job.mediaId)) {
-    await ctx.pool.query(
-      `UPDATE media_transcode_jobs SET status = 'failed', last_error = $2, finished_at = now(), updated_at = now() WHERE id = $1::uuid`,
+    await runMediaWorkerPgText(
+      ctx.pool,
+      `UPDATE public.media_transcode_jobs SET status = 'failed', last_error = $2, finished_at = now(), updated_at = now() WHERE id = $1::uuid`,
       [job.id, "non_canonical_s3_key_layout"],
     );
-    await ctx.pool.query(
-      `UPDATE media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
+    await runMediaWorkerPgText(
+      ctx.pool,
+      `UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
       [job.mediaId, "non_canonical_s3_key_layout"],
     );
     return;
@@ -48,8 +51,9 @@ export async function processProgramSubmissionTranscodeJob(
   const posterLocal = join(posterDir, "poster.jpg");
 
   try {
-    await ctx.pool.query(
-      `UPDATE media_files SET video_processing_status = 'processing', video_processing_error = NULL WHERE id = $1::uuid`,
+    await runMediaWorkerPgText(
+      ctx.pool,
+      `UPDATE public.media_files SET video_processing_status = 'processing', video_processing_error = NULL WHERE id = $1::uuid`,
       [job.mediaId],
     );
 
@@ -128,8 +132,9 @@ export async function processProgramSubmissionTranscodeJob(
     }
 
     const qualitiesJson = JSON.stringify([{ label: "480p", height: 480, path: "480p.mp4", bandwidth: 900_000 }]);
-    await ctx.pool.query(
-      `UPDATE media_files SET
+    await runMediaWorkerPgText(
+      ctx.pool,
+      `UPDATE public.media_files SET
         s3_key = $1,
         mime_type = 'video/mp4',
         video_processing_status = 'ready',
@@ -143,8 +148,9 @@ export async function processProgramSubmissionTranscodeJob(
       [outputKey, qualitiesJson, job.mediaId, posterKey],
     );
 
-    await ctx.pool.query(
-      `UPDATE media_transcode_jobs
+    await runMediaWorkerPgText(
+      ctx.pool,
+      `UPDATE public.media_transcode_jobs
        SET status = 'done', locked_at = NULL, locked_by = NULL, last_error = NULL, finished_at = now(), updated_at = now()
        WHERE id = $1::uuid`,
       [job.id],
@@ -155,12 +161,14 @@ export async function processProgramSubmissionTranscodeJob(
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await ctx.pool.query(
-      `UPDATE media_transcode_jobs SET status = 'failed', last_error = $2, finished_at = now(), updated_at = now() WHERE id = $1::uuid`,
+    await runMediaWorkerPgText(
+      ctx.pool,
+      `UPDATE public.media_transcode_jobs SET status = 'failed', last_error = $2, finished_at = now(), updated_at = now() WHERE id = $1::uuid`,
       [job.id, msg.slice(0, 8000)],
     );
-    await ctx.pool.query(
-      `UPDATE media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
+    await runMediaWorkerPgText(
+      ctx.pool,
+      `UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
       [job.mediaId, msg.slice(0, 8000)],
     );
     ctx.log.warn({ jobId: job.id, mediaId: job.mediaId, err: msg.slice(0, 200) }, "program_submission_transcode_failed");

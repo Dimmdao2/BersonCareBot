@@ -6,6 +6,7 @@ function makeDb(query: ReturnType<typeof vi.fn>): DbPort {
   return { query, tx: vi.fn() } as unknown as DbPort;
 }
 
+// eslint-disable-next-line no-secrets/no-secrets -- describe label matches exported function name
 describe('getPhoneNormalizedForDeliveryLookup', () => {
   it('returns trimmed phone when row exists', async () => {
     const query = vi.fn().mockResolvedValue({

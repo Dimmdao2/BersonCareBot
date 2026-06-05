@@ -18,6 +18,7 @@ import {
   mediaRootFromSourceS3Key,
   posterObjectKeyFromMediaRoot,
 } from "./hlsStorageLayout.js";
+import { runMediaWorkerPgText } from "./runMediaWorkerSql.js";
 import {
   contentTypeForKey,
   downloadObjectToFile,
@@ -59,9 +60,10 @@ type MediaRow = {
 };
 
 async function fetchTerminalJobDurationMs(pool: Pool, jobId: string): Promise<number | null> {
-  const r = await pool.query<{ ms: string | null }>(
+  const r = await runMediaWorkerPgText<{ ms: string | null }>(
+    pool,
     `SELECT (EXTRACT(EPOCH FROM (finished_at - processing_started_at)) * 1000)::bigint::text AS ms
-     FROM media_transcode_jobs
+     FROM public.media_transcode_jobs
      WHERE id = $1::uuid AND finished_at IS NOT NULL AND processing_started_at IS NOT NULL`,
     [jobId],
   );
@@ -72,17 +74,19 @@ async function fetchTerminalJobDurationMs(pool: Pool, jobId: string): Promise<nu
 }
 
 async function loadMedia(pool: Pool, mediaId: string): Promise<MediaRow | null> {
-  const r = await pool.query<MediaRow>(
+  const r = await runMediaWorkerPgText<MediaRow>(
+    pool,
     `SELECT id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status, usage_purpose
-     FROM media_files WHERE id = $1::uuid`,
+     FROM public.media_files WHERE id = $1::uuid`,
     [mediaId],
   );
   return r.rows[0] ?? null;
 }
 
 async function markJobDone(pool: Pool, jobId: string): Promise<void> {
-  await pool.query(
-    `UPDATE media_transcode_jobs
+  await runMediaWorkerPgText(
+    pool,
+    `UPDATE public.media_transcode_jobs
      SET status = 'done',
          locked_at = NULL,
          locked_by = NULL,
@@ -101,8 +105,9 @@ async function permanentFail(
   message: string,
 ): Promise<void> {
   const err = message.slice(0, 8000);
-  await ctx.pool.query(
-    `UPDATE media_transcode_jobs
+  await runMediaWorkerPgText(
+    ctx.pool,
+    `UPDATE public.media_transcode_jobs
      SET status = 'failed',
          last_error = $2,
          locked_at = NULL,
@@ -113,8 +118,9 @@ async function permanentFail(
      WHERE id = $1::uuid`,
     [jobId, err],
   );
-  await ctx.pool.query(
-    `UPDATE media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
+  await runMediaWorkerPgText(
+    ctx.pool,
+    `UPDATE public.media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
     [mediaId, err],
   );
   const durationMs = await fetchTerminalJobDurationMs(ctx.pool, jobId);
@@ -144,16 +150,18 @@ async function retryableFail(
     await permanentFail(ctx, jobId, mediaId, err);
     return;
   }
-  const started = await ctx.pool.query<{ t: string | null }>(
-    `SELECT processing_started_at::text AS t FROM media_transcode_jobs WHERE id = $1::uuid`,
+  const started = await runMediaWorkerPgText<{ t: string | null }>(
+    ctx.pool,
+    `SELECT processing_started_at::text AS t FROM public.media_transcode_jobs WHERE id = $1::uuid`,
     [jobId],
   );
   const t0 = started.rows[0]?.t ? Date.parse(started.rows[0].t) : NaN;
   const durationMs = Number.isFinite(t0) ? Math.max(0, Date.now() - t0) : null;
   const backoff = backoffMsAfterFailure(attemptsAfterClaim);
   const nextAt = new Date(Date.now() + backoff).toISOString();
-  await ctx.pool.query(
-    `UPDATE media_transcode_jobs
+  await runMediaWorkerPgText(
+    ctx.pool,
+    `UPDATE public.media_transcode_jobs
      SET status = 'pending',
          last_error = $2,
          next_attempt_at = $3::timestamptz,
@@ -165,8 +173,9 @@ async function retryableFail(
      WHERE id = $1::uuid`,
     [jobId, err, nextAt],
   );
-  await ctx.pool.query(
-    `UPDATE media_files SET video_processing_status = 'pending', video_processing_error = $2 WHERE id = $1::uuid`,
+  await runMediaWorkerPgText(
+    ctx.pool,
+    `UPDATE public.media_files SET video_processing_status = 'pending', video_processing_error = $2 WHERE id = $1::uuid`,
     [mediaId, err],
   );
   ctx.log.info(
@@ -255,8 +264,9 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     return;
   }
 
-  await ctx.pool.query(
-    `UPDATE media_files SET video_processing_status = 'processing', video_processing_error = NULL WHERE id = $1::uuid`,
+  await runMediaWorkerPgText(
+    ctx.pool,
+    `UPDATE public.media_files SET video_processing_status = 'processing', video_processing_error = NULL WHERE id = $1::uuid`,
     [job.mediaId],
   );
 
@@ -423,8 +433,9 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
       { label: "720p", height: 720, path: "720p/index.m3u8", bandwidth: 2_800_000 },
       { label: "480p", height: 480, path: "480p/index.m3u8", bandwidth: 900_000 },
     ]);
-    await ctx.pool.query(
-      `UPDATE media_files SET
+    await runMediaWorkerPgText(
+      ctx.pool,
+      `UPDATE public.media_files SET
         video_processing_status = 'ready',
         video_processing_error = NULL,
         hls_master_playlist_s3_key = $1,

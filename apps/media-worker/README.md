@@ -5,7 +5,7 @@ Node.js воркер, который читает очередь **`media_transc
 ## Условия работы
 
 - В БД **`video_hls_pipeline_enabled = true`** (и остальная инфраструктура S3) — иначе воркер простаивает (poll).
-- Тот же `DATABASE_URL`, что и у webapp в unified-postgres среде; **`system_settings`** читается из БД (зеркалирование integrator — по правилам проекта).
+- Тот же `DATABASE_URL`, что и у webapp в unified-postgres среде; **`public.system_settings`** читается через `runMediaWorkerPgText` (Class B executor).
 - На хосте нужен **ffmpeg** в `PATH` или путь из env воркера (см. `src/env.ts` / `MEDIA_WORKER_*` в деплой-доках).
 
 ## Очередь и claim

@@ -1,24 +1,24 @@
 ---
 name: Wave3 Phase10 Media worker IX
 overview: media-worker processTranscodeJob/processProgramSubmissionTranscode/watermark/pipeline — Class B execute; claim.ts permanent pg.
-status: pending
+status: completed
 isProject: false
 todos:
   - id: w3-p10a-preflight
     content: "10A: preflight перед кодом — зафиксировать SQL inventory media-worker, подготовить executor contract, список инвариантов claim/transcode."
-    status: pending
+    status: completed
   - id: w3-p10b-runtime
     content: "10B: minimal sql executor + миграция processTranscodeJob/processProgramSubmissionTranscode/watermarkEnabled/pipelineEnabled на executor."
-    status: pending
+    status: completed
   - id: w3-p10c-ops-prep
     content: "10C: подготовить staging smoke pack (чеклист, команды, expected logs/queries, rollback hints) для обязательного gate фазы 17."
-    status: pending
+    status: completed
   - id: w3-p10-claim-adr
     content: "claim.ts без изменений; ADR в RAW_SQL если ещё нет."
-    status: pending
+    status: completed
   - id: w3-p10-verify
-    content: "После 10A-10C: pnpm --dir apps/media-worker test; rg pool.query (expect claim only); smoke pack приложен в LOG."
-    status: pending
+    content: "После 10A-10C: pnpm --dir apps/media-worker test (22); rg pool.query (claim+transport); pnpm run ci green; smoke pack в LOG."
+    status: completed
 ---
 
 # Wave 3 — фаза 10: Media-worker (фаза IX)
@@ -62,6 +62,7 @@ todos:
   - `rg "pool\\.query" apps/media-worker/src --glob "*.ts"`
   - `pnpm --dir apps/media-worker run test`
   - `pnpm --dir apps/media-worker run typecheck`
+  - `pnpm run ci`
 
 ### 10C — operational prep for staging smoke
 
@@ -76,12 +77,12 @@ todos:
 
 ## Definition of Done
 
-- [ ] `processTranscodeJob.ts`, `processProgramSubmissionTranscode.ts`, `watermarkEnabled.ts`, `pipelineEnabled.ts` — нет прямого `pool.query`; SQL идёт через minimal executor (Class B).
-- [ ] `claim.ts` — **без изменений**; тесты `claim.test.ts` зелёные.
-- [ ] **Нет** нового shared schema package в monorepo.
-- [ ] LOG: «shared schema package — backlog вне Wave 3».
-- [ ] Флаги/JSON из `system_settings` в worker проходят через Zod-валидацию (без unsafe cast).
-- [ ] Подфазы 10A-10C закрыты; staging smoke pack подготовлен до старта фазы 17.
+- [x] `processTranscodeJob.ts`, `processProgramSubmissionTranscode.ts`, `watermarkEnabled.ts`, `pipelineEnabled.ts` — нет прямого `pool.query`; SQL идёт через minimal executor (Class B).
+- [x] `claim.ts` — **без изменений**; тесты `claim.test.ts` зелёные.
+- [x] **Нет** нового shared schema package в monorepo.
+- [x] LOG: «shared schema package — backlog вне Wave 3».
+- [x] Флаги/JSON из `system_settings` в worker проходят через Zod-валидацию (без unsafe cast).
+- [x] Подфазы 10A-10C закрыты; staging smoke pack подготовлен до старта фазы 17.
 
 ## Scope
 
@@ -103,15 +104,16 @@ Pool → thin runMediaWorkerSql(pool, sqlFragment)
 
 Не дублировать `apps/webapp/db/schema` — использовать `sql` tagged + qualified table names (`public.media_transcode_jobs`).
 
-## Inventory (2026-06-05)
+## Inventory (baseline до 10B, 2026-06-05)
 
-| Файл | pool.query count |
-|------|------------------|
-| `jobs/claim.ts` | 8 — **keep** |
-| `processTranscodeJob.ts` | 10 — migrate |
-| `processProgramSubmissionTranscode.ts` | 7 — migrate |
-| `watermarkEnabled.ts` | 1 — migrate |
-| `pipelineEnabled.ts` | 1 — migrate |
+| Файл | `pool.query` (до) | После фазы 10 |
+|------|-------------------|---------------|
+| `jobs/claim.ts` | 8 — **Class C, без изменений** | 8 |
+| `processTranscodeJob.ts` | 10 | **0** → `runMediaWorkerPgText` |
+| `processProgramSubmissionTranscode.ts` | 7 | **0** → `runMediaWorkerPgText` |
+| `watermarkEnabled.ts` | 1 | **0** → `runMediaWorkerPgText` + Zod |
+| `pipelineEnabled.ts` | 1 | **0** → `runMediaWorkerPgText` + Zod |
+| *(новый)* `runMediaWorkerSql.ts` | — | Class B transport (1× `pool.query`) |
 
 ## Проверки
 
@@ -119,7 +121,17 @@ Pool → thin runMediaWorkerSql(pool, sqlFragment)
 rg 'pool\.query' apps/media-worker/src --glob '*.ts'
 pnpm --dir apps/media-worker run test
 pnpm --dir apps/media-worker run typecheck
+pnpm run ci
 ```
+
+## Закрытие (2026-06-06)
+
+- **10A:** baseline + инварианты в [LOG.md](../LOG.md) §Wave 3 phase 10.
+- **10B:** `runMediaWorkerSql.ts`, `systemSettingBoolean.ts`, `watermarkEnabled.test.ts`; миграция 4 файлов; `drizzle-orm` dep; suite **22 passed**; typecheck green.
+- **10C:** staging smoke pack в LOG §10C (исполнение — фаза 17).
+- **claim ADR:** без изменений; Class C в RAW_SQL §3.
+- **rg:** prod `pool.query` — только `claim.ts` + transport `runMediaWorkerSql.ts`.
+- **`pnpm run ci`** — green (2026-06-06).
 
 ## Открытое
 

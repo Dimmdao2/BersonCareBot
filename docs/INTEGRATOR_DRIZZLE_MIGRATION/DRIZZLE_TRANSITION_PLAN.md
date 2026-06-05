@@ -1,6 +1,6 @@
 # План перехода оставшегося сырого SQL на Drizzle (Wave 2)
 
-**Дата:** 2026-05-15 (обновление: **2026-06-06** — Wave 2 этапы 1–8 закрыты; **Wave 3 phase 00 + 08 + 09** закрыты)
+**Дата:** 2026-05-15 (обновление: **2026-06-06** — Wave 2 этапы 1–8 закрыты; **Wave 3 phase 00 + 08 + 09 + 10** закрыты)
 **Связанные документы:** [инвентаризация](./RAW_SQL_INVENTORY.md), [лог](./LOG.md), [аудит тестов закрытых фаз](./TEST_BEHAVIOR_AUDIT.md), **поэтапные планы** ([`plans/README.md`](./plans/README.md), Wave 3: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)), закрытый мастер-план P1–P4 [integrator_drizzle_migration_master.plan.md](../../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md).
 
 ## Контекст: что уже сделано
@@ -50,10 +50,10 @@
 | 6 | L | **VI** | Webapp: LFK каталог / дневник / назначения | Вне integrator master | **Done (2026-06-05):** `runWebappPgText` + tx; list/usage — `execute(sql)` без смены shape ([LOG](./LOG.md), [wave2_phase_06](./plans/wave2_phase_06_webapp_lfk.plan.md)). |
 | 7 | M | **VII** | Webapp: auth + rate limits | Вне integrator master | **Done (2026-06-05):** ports + `pgAuthRateLimitEvents`, `pgOAuthUserResolve`, OTP/email/channel link ([wave2_phase_07](./plans/wave2_phase_07_webapp_auth_rate_limits.plan.md)). |
 | 8 | L | **VIII** | `packages/platform-merge`, `booking-rubitime-sync` | Зависимости webapp + integrator flows | **Done (2026-06-05):** merge pg-only; booking sync unified in package ([P8](./plans/wave2_phase_08_packages_worker_scripts.plan.md), [LOG](./LOG.md)). |
-| 9 | M | **IX** | `apps/media-worker` | Аналог очередей | **Partial (2026-06-05):** claim pg + unit tests; `processTranscodeJob` pg backlog ([P8](./plans/wave2_phase_08_packages_worker_scripts.plan.md)). Shared schema — отдельный план. |
+| 9 | M | **IX** | `apps/media-worker` | Аналог очередей | **Done (2026-06-06):** claim Class C pg + unit tests (P8); post-claim SQL → `runMediaWorkerPgText` (фаза 10). Shared schema — backlog вне Wave 3. |
 | 10 | M | **X** | Прочие `pg*` + scripts | Низкий приоритет | Scripts классифицированы в **P8** ([LOG](./LOG.md) §P8-D); бизнес-код — **Wave 3** ([`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md)). |
 
-## Wave 3 (финальный closeout, 2026-06-05)
+## Wave 3 (финальный closeout, 2026-06-06)
 
 Декомпозиция фаз **00, 08–17**: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), решения до старта [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). **Фаза 00 done (2026-06-05):** baseline `rg`, Class A/B/C в [RAW_SQL_INVENTORY](./RAW_SQL_INVENTORY.md), ADR permanent zones и решения 1–10 в [LOG](./LOG.md) §Wave 3.
 
@@ -62,7 +62,8 @@
 | **00** | **Done** | Baseline + ADR + DoR для фазы 09 |
 | **08** | **Done** | [Integrator schema reduction](./plans/wave3_phase_08_integrator_schema_reduction.plan.md) — non-destructive source cutover: settings reads → `public.system_settings`, schema decision matrix |
 | **09** | **Done** | [Integrator P1+](./plans/wave3_phase_09_integrator_p1plus.plan.md) — `runIntegratorSql` + `publicSystemSettings`; prod `db.query` → 0 (кроме health/migrate/scripts) |
-| **10–15** | Pending | media-worker IX, webapp closeout (Class A → Drizzle/`run*Sql` + Zod) |
+| **10** | **Done** | [Media-worker IX](./plans/wave3_phase_10_media_worker_ix.plan.md) — `runMediaWorkerSql` + Zod settings; claim Class C unchanged |
+| **11–15** | Pending | webapp closeout (Class A → Drizzle/`run*Sql` + Zod) |
 | **16** | Pending (conditional) | [Legacy cutover](./plans/wave3_phase_16_legacy_cutover.plan.md) — `migrate:legacy` только если нет blocker после 09–15 |
 | **17** | Pending | Closeout + staging smoke gate + full CI |
 

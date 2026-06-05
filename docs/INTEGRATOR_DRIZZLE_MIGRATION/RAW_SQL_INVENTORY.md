@@ -1,6 +1,6 @@
 # Инвентаризация: сырой SQL вне Drizzle query builder
 
-**Дата снимка:** 2026-06-06 (**Wave 3 phase 00 baseline**; phase **08–09** closeout; правки: Wave 2 P5–P8)
+**Дата снимка:** 2026-06-06 (**Wave 3 phase 00 baseline**; phase **08–10** closeout; правки: Wave 2 P5–P8)
 **Контекст:** мастер-план **P1–P4 интегратора** и **Wave 2 (этапы 1–8)** закрыты — здесь **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты). Wave 3 классифицирует хвост по **Class A / B / C** ([`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)).
 
 **План перехода (фазы, риски, приоритеты):** [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) · Wave 3 индекс: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md)
@@ -41,14 +41,14 @@
 | Webapp `pool.query` \| `client.query` (без `*.test.ts`) | **78** prod-файлов | **A** (фазы 11–15), исключения **B/C** — в таблицах ниже | 11–15 |
 | Webapp `integratorPushOutbox.ts` | `db.query` на `Pool` \| `PoolClient` (**не** в grep `pool.query`) | **A** | 15D |
 | media-worker `jobs/claim.ts` | **8** `pool.query` | **C** (`SKIP LOCKED` на dedicated pg session) | — |
-| media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **17** `pool.query` | **A** → minimal `execute(sql)` | 10 |
-| media-worker settings (`watermarkEnabled`, `pipelineEnabled`) | **2** `pool.query` | **A** | 10 |
+| media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **0** direct `pool.query` (фаза **10** done) | **B** — `runMediaWorkerPgText` | — |
+| media-worker settings (`watermarkEnabled`, `pipelineEnabled`) | **0** direct `pool.query` (фаза **10** done) | **B** — `runMediaWorkerPgText` + Zod | — |
 | `packages/platform-merge` | **85** `.query(` (79 + 2 + 4) | **C** (merge engine; Drizzle rewrite out of scope) | ADR |
 | `packages/booking-rubitime-sync` | **4** `.query(` | **C** (`SqlExecutor` + pg text) | ADR |
 
 **Permanent Class C (ADR, не обсуждать в 09–15):** `platform-merge`, `booking-rubitime-sync`, integrator/media-worker **claim** (`SKIP LOCKED`), `migrate.ts` / one-off scripts, `projectionHealthCore`, `client.ts` DbPort/health transport, webapp `client.ts` healthcheck, TX-only `BEGIN`/`COMMIT`/`ROLLBACK` на dedicated `PoolClient` (`channelLink`, `s3MediaStorage`).
 
-**Permanent Class B (канон унифицирован, builder не цель):** `projectionHealthCore`, integrator claim paths (`projectionOutbox`, `jobQueue`, `outgoingDeliveryQueue`), webapp media/reminder/LFK hot-path `execute(sql)`.
+**Permanent Class B (канон унифицирован, builder не цель):** `projectionHealthCore`, integrator claim paths (`projectionOutbox`, `jobQueue`, `outgoingDeliveryQueue`), webapp media/reminder/LFK hot-path `execute(sql)`, media-worker post-claim SQL (`runMediaWorkerPgText` / `runMediaWorkerSql.ts`, фаза **10**).
 
 ---
 
@@ -85,6 +85,22 @@
 | Out of scope (без изменений) | `bookingProfilesRepo`, `projectionHealthCore`, `settingsSyncRoute` write-only legacy |
 
 Проверки: integrator **1054 tests** passed; `pnpm --dir apps/integrator run typecheck` green. Post-audit closure — [LOG](./LOG.md) § «Post-audit closure (2026-06-06)».
+
+---
+
+## Wave 3 phase 10 — media-worker IX (2026-06-06)
+
+Фаза **10A–10C** закрыта: post-claim SQL → Class B; `jobs/claim.ts` без изменений (Class C).
+
+| Артефакт | Итог |
+|----------|------|
+| SQL transport | `runMediaWorkerSql.ts` — `PgDialect.sqlToQuery` + `pg.Pool.query`; bridge `runMediaWorkerPgText` |
+| Migrated callers | `processTranscodeJob.ts`, `processProgramSubmissionTranscode.ts`, `watermarkEnabled.ts`, `pipelineEnabled.ts` |
+| Settings JSON | `systemSettingBoolean.ts`, `watermarkEnabled.test.ts` — Zod `safeParse` для admin boolean flags |
+| Out of scope | shared schema package; `claim.ts`; webapp enqueue |
+| Staging smoke | чеклист в [LOG](./LOG.md) §10C — **исполнение gate фазы 17** |
+
+Проверки: `rg 'pool\.query' apps/media-worker/src --glob '*.ts'` → `claim.ts` + transport `runMediaWorkerSql.ts`; `pnpm --dir apps/media-worker run test` — **22 passed**; typecheck green; **`pnpm run ci`** — green (2026-06-06).
 
 ---
 
@@ -332,10 +348,11 @@
 
 | Файл                         | Назначение                                                                                                     | Сложн. | Вариант                                                                                  | Риски                                                      |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `src/processTranscodeJob.ts` | Статусы медиа и джобов: **10** `pool.query` (обновление прогресса, финализация, ошибки). | **A** | С      | **Wave 3 фаза 10** → minimal `execute(sql)` (без shared schema package) | Рассинхрон с webapp при расхождении DDL |
-| `src/processProgramSubmissionTranscode.ts` | Статусы program submission transcode: **7** `pool.query`. | **A** | С      | **Wave 3 фаза 10** → minimal `execute(sql)` | Двойной claim / статусы |
-| `src/watermarkEnabled.ts` | Чтение `system_settings` watermark flag: **1** `pool.query`. | **A** | Н      | **Wave 3 фаза 10** → `execute(sql)` + Zod | Неверный watermark |
-| `src/pipelineEnabled.ts` | Чтение `system_settings` pipeline flag: **1** `pool.query`. | **A** | Н      | **Wave 3 фаза 10** → `execute(sql)` + Zod | Неверный pipeline gate |
+| `src/runMediaWorkerSql.ts` | Class B transport: Drizzle `sql` → `pool.query` (**1** call). | **B** | Н | ADR: minimal executor без shared schema | — |
+| `src/processTranscodeJob.ts` | Статусы медиа и джобов post-claim. | **B** | С | **Wave 3 фаза 10 done:** `runMediaWorkerPgText` | Рассинхрон с webapp при расхождении DDL |
+| `src/processProgramSubmissionTranscode.ts` | Статусы program submission transcode. | **B** | С | **Wave 3 фаза 10 done:** `runMediaWorkerPgText` | Двойной claim / статусы |
+| `src/watermarkEnabled.ts` | Чтение `public.system_settings` watermark flag. | **B** | Н | **Wave 3 фаза 10 done:** `runMediaWorkerPgText` + Zod | Неверный watermark |
+| `src/pipelineEnabled.ts` | Чтение `public.system_settings` pipeline flag. | **B** | Н | **Wave 3 фаза 10 done:** `runMediaWorkerPgText` + Zod | Неверный pipeline gate |
 | `src/jobs/claim.ts`          | Claim транскодинг-джоба в транзакции (**8** `pool.query`, `FOR UPDATE SKIP LOCKED` + update).                                      | **C** | В      | **ADR permanent:** pg на dedicated session; unit `claim.test.ts` (**4 tests**) | Двойной claim                                              |
 
 ---
@@ -357,7 +374,7 @@
 
 1. **Мастер-план (P1–P4 integrator repos):** закрыт — см. [LOG.md](./LOG.md) § «Закрытие инициативы».
 2. **Wave 2 (волна после мастера):** этапы **1–8** закрыты ([plans/README.md](./plans/README.md)); **мелкие repos/config** с `db.query` — **Wave 3 фаза 09** (§1.2, Class **A**).
-3. **Wave 3 (2026-06-05):** baseline Class A/B/C — § «Wave 3 baseline»; индекс фаз [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md); решения [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). **Webapp** closeout — фазы **11–15** (**78** prod-файлов `pool|client.query`); **media-worker** status SQL — фаза **10**; **integrator schema reduction** — фаза **08**; conditional **`migrate:legacy` cutover** — фаза **16**.
+3. **Wave 3 (2026-06-06):** baseline Class A/B/C — § «Wave 3 baseline»; индекс фаз [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md); решения [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). **media-worker** post-claim SQL — **фаза 10 done** (Class B); **Webapp** closeout — фазы **11–15** (**78** prod-файлов `pool|client.query`); **integrator schema reduction** — фаза **08**; conditional **`migrate:legacy` cutover** — фаза **16**.
 4. **Webapp:** перенос через **`src/infra/repos`** + module ports (`buildAppDeps` / `bindAuthModulePorts`). Reminder repos — **P4 done**; медиа — **P5 done**; LFK `pgLfk*` — **P6 done**; auth/rate limits §2.2 — **P7 done** (2026-06-05).
 5. **Поиск в коде:** `rg "pool\\.query\\(|client\\.query\\(" apps packages` и `rg "\\bdb\\.query\\(" apps/integrator` — в `apps/integrator` экспорт `db` из `client.ts` это **`pg.Pool`**, не Drizzle relational `db.query` из webapp. `migrate.ts` и оболочка `client.ts` для TX — **не** цель «весь SQL в Drizzle builder».
 
