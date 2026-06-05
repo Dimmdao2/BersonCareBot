@@ -90,7 +90,7 @@
 
 - Этапы **P1–P4** и **мастер-план** закрыты; целевые репозитории мастера не используют для доменной логики строковый **`db.query(...)`** (Drizzle API и/или **`runIntegratorSql` / `execute(sql)`**).
 - После выравнивания: **`pnpm --dir apps/integrator run lint`**, **`typecheck`**, **`test`** — зелёные.
-- **Wave 2 (2026-06-05):** этапы **1–6** закрыты — см. § ниже. **`outgoingDeliveryQueue`** и **`bookingProfilesRepo`** — Wave 2 P1. Backlog: мелкие integrator repos/config (P1+); auth advisory locks → **P7**; media-worker transcode claim → **P8**.
+- **Wave 2 (2026-06-05):** этапы **1–7** закрыты — см. § ниже. **`outgoingDeliveryQueue`** и **`bookingProfilesRepo`** — Wave 2 P1. Backlog: мелкие integrator repos/config (P1+); media-worker transcode claim → **P8**.
 
 ### Wave 2 — план и инвентаризация (документация)
 
@@ -154,7 +154,7 @@
 
 - **Постаудит / дожим (2026-06-05):** `s3MediaStorage.deleteHard` — lock+DML на одном `PoolClient` (убран `drizzle(pool)` для session-lock). Тесты: integrator `pgAdvisoryLock.test.ts`, `schedulerLocks.test.ts`, `rubitimeApiThrottle.test.ts` (ключ `RUBITIME_API_ADVISORY_LOCK_KEY` = 58220114); webapp `pgAdvisoryLock.test.ts`, `userLifecycleLock.test.ts`, `multipartSessionLock.test.ts`, `pgDiaryPurge.test.ts`, `pgOnlineIntake.advisoryLock.test.ts`, `strictPlatformUserPurge.test.ts`. `RAW_SQL_INVENTORY.md` — строки P3 помечены **Wave 2 P3 done**.
 - **Проверки:** `pnpm --dir apps/integrator run typecheck`, `test` — **1028 passed**, 6 skipped; webapp `tsc --noEmit`; vitest fast по файлам этапа 3 — **23 passed**; `rg` по `apps/*/src/infra` — нет `client.query`/`pool.query` с `pg_advisory` в scope P3.
-- **Остаток:** сырой `pg_advisory_xact_lock` в `modules/auth/*RateLimit.ts` и `publicBookingRateLimit.ts` — **Wave 2 этап 7**.
+- **Остаток:** нет (P7 post-audit closure: `publicBookingRateLimit` переведён на общий `authRateLimits` + `pgAuthRateLimitEvents`).
 - **План:** `docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_03_advisory_locks.plan.md` — `status: completed`, секция «Закрытие».
 
 ### Wave 2 — этап 4 (webapp напоминания) — выполнено (2026-06-05)
@@ -200,3 +200,17 @@
 - **Синхронизация документов:** [plans/README.md](./plans/README.md) (P6 → completed), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) (фаза VI → Done), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) (`pgLfk*`).
 - **План:** [wave2_phase_06_webapp_lfk.plan.md](./plans/wave2_phase_06_webapp_lfk.plan.md) — `status: completed`, todos, DoD, §«Закрытие».
 - **Финальная синхронизация (post-audit):** `pgLfkDiary.test.ts` — add/update session; assignments — abort без лишних SQL; frontmatter/todos плана; `docs/README.md` (Wave 2 этапы 1–6); P6 bundle **27** tests.
+
+### Wave 2 — этап 7 (webapp auth + rate limits) — выполнено (2026-06-05)
+
+- **Infra:** `pgAuthRateLimitEvents.ts` — sliding window + `pg_advisory_xact_lock` через `runWebappTransaction`; `pgPhoneOtpLimits.ts`; `pgDevBypassPlatformUserPhone.ts`; `pgEmailAuth.ts`; `pgChannelLinkClaim.ts`; `pgOAuthUserResolve.ts`.
+- **Rate limits (6):** auth (5) + `publicBookingRateLimit` — DB-path через `checkAndRecordAuthRateLimitEvent`; wiring в `modules/auth/authRateLimits.ts` + `createSlidingWindowRateLimit`; in-memory fallback и ключи/window без изменений.
+- **Clean Architecture (post-audit):** `authRateLimitPort`, `emailAuthPort`, `phoneOtpLimitsPort`, `devBypassPlatformUserPhonePort`, `oauthUserResolvePort`, `emailSendPort` в module layer; `bindAuthModulePorts.ts` + `ensureAuthModulePortsBound()` в `buildAppDeps` и API routes до rate limit / email / OAuth resolve; ESLint allowlist сужен (rate limits, emailAuth, phoneOtpLimits, publicBookingRateLimit, oauth resolve сняты).
+- **OTP / email:** `phoneOtpLimits` → `pgPhoneOtpLimits`; `emailAuth` → `pgEmailAuth` через port; отправка кода → `emailSendPort`.
+- **Channel link:** claim SQL → `pgChannelLinkClaim`; `channelLink.ts` — DML через Drizzle bridge; `client.query(BEGIN|COMMIT|ROLLBACK)` только для `mergePlatformUsersInTransaction` и claim tx.
+- **OAuth resolve:** SQL → `pgOAuthUserResolve`; модули `oauthYandexResolve` / `oauthWebLoginResolve` — business logic через port (без `@/infra/*` в modules).
+- **service.ts:** dev bypass phone UPDATE → port `applyDevBypassPlatformUserPhoneInDb` (allowlisted: dynamic import infra для `pgUserByPhone`).
+- **Остаток (осознанно):** `client.query` tx control в channel link merge/claim; allowlisted legacy: `channelLink.ts`, `service.ts`, `oauthWebSession.ts`, `yandexOAuthCallbackHandler.ts`.
+- **Тесты (vitest `--project fast`):** auth module **243 passed**; additions — `pgAuthRateLimitEvents.test.ts`, `pgOAuthUserResolve.test.ts`, `oauthWebLoginResolve.test.ts`, opt-in `pgAuthRateLimitEvents.devDb.integration.test.ts`.
+- **Проверки:** `pnpm --dir apps/webapp run typecheck`; полный `pnpm run ci`.
+- **План:** [wave2_phase_07_webapp_auth_rate_limits.plan.md](./plans/wave2_phase_07_webapp_auth_rate_limits.plan.md) — `status: completed`, todos, DoD, §«Закрытие».

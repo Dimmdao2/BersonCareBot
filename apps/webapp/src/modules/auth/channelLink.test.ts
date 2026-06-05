@@ -15,6 +15,12 @@ vi.mock("@/infra/db/client", () => ({
   }),
 }));
 
+vi.mock("@/infra/db/runWebappSql", () => ({
+  getWebappSqlDb: () => ({}),
+  getWebappSqlFromPgClient: () => ({}),
+  runWebappPgText: (...args: unknown[]) => queryMock(...args),
+}));
+
 vi.mock("@/infra/adminAuditLog", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/infra/adminAuditLog")>();
   return {
@@ -69,8 +75,8 @@ vi.mock("@/modules/admin-incidents/sendAdminIncidentAlerts", async () => {
   };
 });
 
-vi.mock("./channelLinkClaim", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./channelLinkClaim")>();
+vi.mock("@/infra/repos/pgChannelLinkClaim", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/infra/repos/pgChannelLinkClaim")>();
   return {
     ...actual,
     classifyChannelBindingOwnerForLink: vi.fn(),
@@ -96,8 +102,8 @@ vi.mock("@/infra/repos/pgCanonicalPlatformUser", () => ({
 }));
 
 import { upsertOpenConflictLog } from "@/infra/adminAuditLog";
-import * as channelLinkClaim from "./channelLinkClaim";
-import { ChannelLinkClaimRejectedError } from "./channelLinkClaim";
+import * as channelLinkClaim from "@/infra/repos/pgChannelLinkClaim";
+import { ChannelLinkClaimRejectedError } from "@/infra/repos/pgChannelLinkClaim";
 import {
   completeChannelLinkFromIntegrator,
   setChannelLinkBindingConflictReporter,

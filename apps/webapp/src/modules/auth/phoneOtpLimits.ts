@@ -1,5 +1,5 @@
-import { getPool } from "@/infra/db/client";
 import { webappReposAreInMemory } from "@/config/env";
+import type { PhoneOtpLimitsDbPort } from "@/modules/auth/phoneOtpLimitsPort";
 import type { PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
 import {
   OTP_LOCK_DURATION_SEC,
@@ -12,14 +12,26 @@ export type PhoneChallengeGateResult = SendCodeResult | { ok: true };
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
+let phoneOtpLimitsDbPort: PhoneOtpLimitsDbPort | undefined;
+
+export function bindPhoneOtpLimitsDbPort(port: PhoneOtpLimitsDbPort): void {
+  phoneOtpLimitsDbPort = port;
+}
+
+function requirePhoneOtpDb(): PhoneOtpLimitsDbPort {
+  if (!phoneOtpLimitsDbPort) {
+    throw new Error("PhoneOtpLimitsDbPort is not bound. Call ensureAuthModulePortsBound().");
+  }
+  return phoneOtpLimitsDbPort;
+}
+
 /** In-memory: только Vitest без `DATABASE_URL`. */
 const memLocks = new Map<string, number>();
 const memLastSend = new Map<string, number>();
 
 export async function assertPhoneCanStartChallenge(phone: string): Promise<PhoneChallengeGateResult> {
   const n = phone;
-  const pool = webappReposAreInMemory() ? null : getPool();
-  if (!pool) {
+  if (webappReposAreInMemory()) {
     const lockedUntil = memLocks.get(n);
     if (lockedUntil != null && lockedUntil > nowSec()) {
       return {
@@ -42,14 +54,12 @@ export async function assertPhoneCanStartChallenge(phone: string): Promise<Phone
     return { ok: true };
   }
 
-  await pool.query("DELETE FROM phone_otp_locks WHERE locked_until <= $1", [nowSec()]);
+  const db = requirePhoneOtpDb();
+  await db.deleteExpiredLocks(nowSec());
 
-  const lockRow = await pool.query<{ locked_until: string | number }>(
-    "SELECT locked_until FROM phone_otp_locks WHERE phone_normalized = $1",
-    [n]
-  );
-  if (lockRow.rows.length > 0) {
-    const lu = Number(lockRow.rows[0].locked_until);
+  const lockRow = await db.findLock(n);
+  if (lockRow) {
+    const lu = Number(lockRow.locked_until);
     if (lu > nowSec()) {
       return {
         ok: false,
@@ -59,11 +69,7 @@ export async function assertPhoneCanStartChallenge(phone: string): Promise<Phone
     }
   }
 
-  const lastCh = await pool.query<{ max_created: Date | null }>(
-    "SELECT max(created_at) AS max_created FROM phone_challenges WHERE phone = $1",
-    [n]
-  );
-  const maxCreated = lastCh.rows[0]?.max_created;
+  const maxCreated = await db.findLatestChallengeCreatedAt(n);
   if (maxCreated) {
     const delta = Math.floor((Date.now() - new Date(maxCreated).getTime()) / 1000);
     if (delta < OTP_RESEND_COOLDOWN_SEC) {
@@ -82,7 +88,6 @@ export async function registerPhoneSend(phone: string): Promise<void> {
   if (webappReposAreInMemory()) {
     memLastSend.set(phone, nowSec());
   }
-  /* created_at обновляется при INSERT challenge — см. sendCode. */
 }
 
 export async function onPhoneWrongCode(
@@ -101,16 +106,10 @@ export async function onPhoneWrongCode(
   if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
     await challengeStore.delete(challengeId);
     const lockUntil = nowSec() + OTP_LOCK_DURATION_SEC;
-    const pool = webappReposAreInMemory() ? null : getPool();
-    if (!pool) {
+    if (webappReposAreInMemory()) {
       memLocks.set(phone, lockUntil);
     } else {
-      await pool.query(
-        `INSERT INTO phone_otp_locks (phone_normalized, locked_until)
-         VALUES ($1, $2)
-         ON CONFLICT (phone_normalized) DO UPDATE SET locked_until = EXCLUDED.locked_until`,
-        [phone, lockUntil]
-      );
+      await requirePhoneOtpDb().upsertLock(phone, lockUntil);
     }
     return {
       ok: false,

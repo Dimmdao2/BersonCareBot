@@ -5,6 +5,7 @@
  */
 
 import { cache } from "react";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   getCurrentSession,
   exchangeIntegratorToken,
@@ -1107,6 +1108,7 @@ async function listAppointmentHistoryForPhone(phone: string | null): Promise<Cli
 
 /** Возвращает объект со всеми сервисами приложения для использования на страницах и в API. */
 function _buildAppDeps() {
+  ensureAuthModulePortsBound();
   const doctorClients = createDoctorClientsService({
     clientsPort: doctorClientsPort,
     getUpcomingAppointments,

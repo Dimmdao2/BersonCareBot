@@ -1,10 +1,24 @@
 import { createHash, randomUUID } from "node:crypto";
-import { getPool } from "@/infra/db/client";
 import { env, integratorWebhookSecret } from "@/config/env";
 import { OTP_LOCK_DURATION_SEC, OTP_MAX_VERIFY_ATTEMPTS, OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
-import { sendEmailCodeViaIntegrator } from "@/infra/integrations/email/integratorEmailAdapter";
+import type { EmailAuthDbPort } from "@/modules/auth/emailAuthPort";
+import { sendEmailAuthCode } from "@/modules/auth/emailSendPort";
 
 const CHALLENGE_TTL_SEC = 600; // 10 min
+
+let emailAuthDbPort: EmailAuthDbPort | undefined;
+
+/** Composition root: bind DB port once (see `ensureAuthModulePortsBound`). */
+export function bindEmailAuthDbPort(port: EmailAuthDbPort): void {
+  emailAuthDbPort = port;
+}
+
+function requireEmailAuthDb(): EmailAuthDbPort {
+  if (!emailAuthDbPort) {
+    throw new Error("EmailAuthDbPort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.");
+  }
+  return emailAuthDbPort;
+}
 
 /** Без БД (тесты): хранение челленджей в памяти процесса. */
 const memEmailChallenges = new Map<
@@ -49,6 +63,40 @@ export type EmailConfirmResult =
       retryAfterSeconds?: number;
     };
 
+async function verifyChallengeCodeRow(params: {
+  userId: string;
+  challengeId: string;
+  code: string;
+  row: { id: string; code_hash: string; expires_at: string; attempts: string };
+  onSuccess: () => Promise<EmailConfirmResult>;
+}): Promise<EmailConfirmResult> {
+  const now = Math.floor(Date.now() / 1000);
+  const db = requireEmailAuthDb();
+  const expiresAt = Number(params.row.expires_at);
+  if (expiresAt <= now) {
+    await db.deleteEmailChallengeById(params.challengeId);
+    return { ok: false, code: "expired_code" };
+  }
+
+  const attempts = Number(params.row.attempts);
+  if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
+    return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+  }
+
+  const expectedHash = hashCode(params.code);
+  if (expectedHash !== params.row.code_hash) {
+    const next = attempts + 1;
+    await db.updateEmailChallengeAttempts(params.challengeId, next);
+    if (next >= OTP_MAX_VERIFY_ATTEMPTS) {
+      await db.deleteEmailChallengeById(params.challengeId);
+      return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+    }
+    return { ok: false, code: "invalid_code" };
+  }
+
+  return params.onSuccess();
+}
+
 export async function startEmailChallenge(userId: string, emailRaw: string): Promise<EmailStartResult> {
   const email = normalizeEmail(emailRaw);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -60,7 +108,7 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
     const challengeId = randomUUID();
     const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
     memEmailChallenges.set(challengeId, { userId, email, code, expiresAt, attempts: 0 });
-    const sent = await sendEmailCodeViaIntegrator(email, code);
+    const sent = await sendEmailAuthCode(email, code);
     if (!sent.ok) {
       memEmailChallenges.delete(challengeId);
       return { ok: false, code: "email_send_failed" };
@@ -68,15 +116,11 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
     return { ok: true, challengeId, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
   }
 
-  const pool = getPool();
+  const db = requireEmailAuthDb();
   const now = Date.now();
-
-  const cooldown = await pool.query<{ last_sent_at: Date }>(
-    "SELECT last_sent_at FROM email_send_cooldowns WHERE user_id = $1 AND email_normalized = $2",
-    [userId, email]
-  );
-  if (cooldown.rows.length > 0) {
-    const delta = Math.floor((now - new Date(cooldown.rows[0].last_sent_at).getTime()) / 1000);
+  const lastSent = await db.findEmailSendCooldown(userId, email);
+  if (lastSent) {
+    const delta = Math.floor((now - new Date(lastSent).getTime()) / 1000);
     if (delta < OTP_RESEND_COOLDOWN_SEC) {
       return {
         ok: false,
@@ -86,29 +130,19 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
     }
   }
 
-  await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
+  await db.deleteEmailChallengesForUser(userId);
 
   const code = generateEmailCode();
   const codeHash = hashCode(code);
   const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
 
-  const ins = await pool.query<{ id: string }>(
-    `INSERT INTO email_challenges (user_id, email, code_hash, expires_at, attempts)
-     VALUES ($1, $2, $3, $4, 0) RETURNING id`,
-    [userId, email, codeHash, expiresAt]
-  );
-  const challengeId = ins.rows[0].id;
-  const sent = await sendEmailCodeViaIntegrator(email, code);
+  const challengeId = await db.insertEmailChallenge({ userId, email, codeHash, expiresAt });
+  const sent = await sendEmailAuthCode(email, code);
   if (!sent.ok) {
-    await pool.query("DELETE FROM email_challenges WHERE id = $1", [challengeId]);
+    await db.deleteEmailChallengeById(challengeId);
     return { ok: false, code: "email_send_failed" };
   }
-  await pool.query(
-    `INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
-     VALUES ($1, $2, now())
-     ON CONFLICT (user_id, email_normalized) DO UPDATE SET last_sent_at = now()`,
-    [userId, email]
-  );
+  await db.upsertEmailSendCooldown(userId, email);
 
   return { ok: true, challengeId, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
 }
@@ -150,79 +184,38 @@ export async function confirmEmailChallenge(userId: string, challengeId: string,
     return { ok: true };
   }
 
-  const pool = getPool();
-  const now = Math.floor(Date.now() / 1000);
-
-  const row = await pool.query<{
-    id: string;
-    email: string;
-    code_hash: string;
-    expires_at: string;
-    attempts: string;
-  }>(
-    "SELECT id, email, code_hash, expires_at, attempts FROM email_challenges WHERE id = $1 AND user_id = $2",
-    [challengeId, userId]
-  );
-  if (row.rows.length === 0) {
-    return { ok: false, code: "expired_code" };
-  }
-  const r = row.rows[0]!;
-  const expiresAt = Number(r.expires_at);
-  if (expiresAt <= now) {
-    await pool.query("DELETE FROM email_challenges WHERE id = $1", [challengeId]);
+  const db = requireEmailAuthDb();
+  const row = await db.findEmailChallengeForConfirm(challengeId, userId);
+  if (!row) {
     return { ok: false, code: "expired_code" };
   }
 
-  const attempts = Number(r.attempts);
-  if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
-    return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
-  }
-
-  const expectedHash = hashCode(code);
-  if (expectedHash !== r.code_hash) {
-    const next = attempts + 1;
-    await pool.query("UPDATE email_challenges SET attempts = $1 WHERE id = $2", [next, challengeId]);
-    if (next >= OTP_MAX_VERIFY_ATTEMPTS) {
-      await pool.query("DELETE FROM email_challenges WHERE id = $1", [challengeId]);
-      return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
-    }
-    return { ok: false, code: "invalid_code" };
-  }
-
-  const conflict = await pool.query<{ id: string }>(
-    `SELECT id FROM platform_users
-     WHERE id <> $1::uuid
-       AND merged_into_id IS NULL
-       AND email_normalized = lower(btrim($2::text))
-     LIMIT 1`,
-    [userId, r.email],
-  );
-  if (conflict.rows[0]) {
-    await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
-    return { ok: false, code: "email_conflict" };
-  }
-
-  try {
-    await pool.query(
-      "UPDATE platform_users SET email = $1, email_normalized = lower(btrim($1)), email_verified_at = now(), updated_at = now() WHERE id = $2",
-      [r.email, userId],
-    );
-  } catch (err: unknown) {
-    const code = typeof err === "object" && err !== null ? String((err as { code?: unknown }).code ?? "") : "";
-    if (code === "23505") {
-      await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
-      return { ok: false, code: "email_conflict" };
-    }
-    throw err;
-  }
-  await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
-
-  return { ok: true };
+  return verifyChallengeCodeRow({
+    userId,
+    challengeId,
+    code,
+    row,
+    onSuccess: async () => {
+      if (await db.findEmailOwnerConflict(userId, row.email)) {
+        await db.deleteEmailChallengesForUser(userId);
+        return { ok: false, code: "email_conflict" };
+      }
+      try {
+        await db.verifyUserEmail(userId, row.email);
+      } catch (err: unknown) {
+        const pgCode = typeof err === "object" && err !== null ? String((err as { code?: unknown }).code ?? "") : "";
+        if (pgCode === "23505") {
+          await db.deleteEmailChallengesForUser(userId);
+          return { ok: false, code: "email_conflict" };
+        }
+        throw err;
+      }
+      await db.deleteEmailChallengesForUser(userId);
+      return { ok: true };
+    },
+  });
 }
 
-/**
- * Проверка кода из письма без смены email (сброс пароля и др.): удаляет активные челленджи пользователя при успехе.
- */
 export async function consumeEmailChallengeCode(
   userId: string,
   challengeId: string,
@@ -254,53 +247,24 @@ export async function consumeEmailChallengeCode(
     return { ok: true };
   }
 
-  const pool = getPool();
-  const now = Math.floor(Date.now() / 1000);
-
-  const row = await pool.query<{
-    id: string;
-    code_hash: string;
-    expires_at: string;
-    attempts: string;
-  }>(
-    "SELECT id, code_hash, expires_at, attempts FROM email_challenges WHERE id = $1 AND user_id = $2",
-    [challengeId, userId],
-  );
-  if (row.rows.length === 0) {
-    return { ok: false, code: "expired_code" };
-  }
-  const r = row.rows[0]!;
-  const expiresAt = Number(r.expires_at);
-  if (expiresAt <= now) {
-    await pool.query("DELETE FROM email_challenges WHERE id = $1", [challengeId]);
+  const db = requireEmailAuthDb();
+  const row = await db.findEmailChallengeForConsume(challengeId, userId);
+  if (!row) {
     return { ok: false, code: "expired_code" };
   }
 
-  const attempts = Number(r.attempts);
-  if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
-    return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
-  }
-
-  const expectedHash = hashCode(code);
-  if (expectedHash !== r.code_hash) {
-    const next = attempts + 1;
-    await pool.query("UPDATE email_challenges SET attempts = $1 WHERE id = $2", [next, challengeId]);
-    if (next >= OTP_MAX_VERIFY_ATTEMPTS) {
-      await pool.query("DELETE FROM email_challenges WHERE id = $1", [challengeId]);
-      return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
-    }
-    return { ok: false, code: "invalid_code" };
-  }
-
-  await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
-
-  return { ok: true };
+  return verifyChallengeCodeRow({
+    userId,
+    challengeId,
+    code,
+    row,
+    onSuccess: async () => {
+      await db.deleteEmailChallengesForUser(userId);
+      return { ok: true };
+    },
+  });
 }
 
-/**
- * Проверка кода, когда клиенту не возвращали `challengeId` (anti-enumeration на forgot-password).
- * Использует единственную неистёкшую строку `email_challenges` для пользователя (как после {@link startEmailChallenge}).
- */
 export async function consumeLatestEmailChallengeCodeForUser(
   userId: string,
   codeRaw: string,
@@ -340,48 +304,21 @@ export async function consumeLatestEmailChallengeCodeForUser(
     return { ok: true };
   }
 
-  const pool = getPool();
+  const db = requireEmailAuthDb();
   const now = Math.floor(Date.now() / 1000);
-
-  const row = await pool.query<{
-    id: string;
-    code_hash: string;
-    expires_at: string;
-    attempts: string;
-  }>(
-    `SELECT id, code_hash, expires_at, attempts FROM email_challenges
-     WHERE user_id = $1::uuid AND expires_at > $2
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [userId, now],
-  );
-  if (row.rows.length === 0) {
-    return { ok: false, code: "expired_code" };
-  }
-  const r = row.rows[0]!;
-  const expiresAt = Number(r.expires_at);
-  if (expiresAt <= now) {
-    await pool.query("DELETE FROM email_challenges WHERE id = $1", [r.id]);
+  const row = await db.findLatestEmailChallengeForUser(userId, now);
+  if (!row) {
     return { ok: false, code: "expired_code" };
   }
 
-  const attempts = Number(r.attempts);
-  if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
-    return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
-  }
-
-  const expectedHashLatest = hashCode(code);
-  if (expectedHashLatest !== r.code_hash) {
-    const next = attempts + 1;
-    await pool.query("UPDATE email_challenges SET attempts = $1 WHERE id = $2", [next, r.id]);
-    if (next >= OTP_MAX_VERIFY_ATTEMPTS) {
-      await pool.query("DELETE FROM email_challenges WHERE id = $1", [r.id]);
-      return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
-    }
-    return { ok: false, code: "invalid_code" };
-  }
-
-  await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
-
-  return { ok: true };
+  return verifyChallengeCodeRow({
+    userId,
+    challengeId: row.id,
+    code,
+    row,
+    onSuccess: async () => {
+      await db.deleteEmailChallengesForUser(userId);
+      return { ok: true };
+    },
+  });
 }

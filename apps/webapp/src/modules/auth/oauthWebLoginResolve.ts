@@ -1,34 +1,14 @@
 import { env } from "@/config/env";
-import { getPool } from "@/infra/db/client";
-import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { OAuthBindingsPort } from "@/modules/auth/oauthBindingsPort";
 import type { AccountOutcome } from "@/modules/auth/oauthYandexResolve";
+import { requireOAuthUserResolvePort } from "@/modules/auth/oauthUserResolvePort";
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from "@/modules/platform-access/trustedPhonePolicy";
-import type { Pool } from "pg";
 
 export type { AccountOutcome };
-
-async function applyVerifiedEmailFromWebOAuth(
-  pool: Pool,
-  userId: string,
-  emailRaw: string | null,
-  emailTrusted: boolean,
-): Promise<void> {
-  if (!emailTrusted || !emailRaw?.trim()) return;
-  await pool.query(
-    `UPDATE platform_users
-     SET email = $2::text,
-         email_normalized = lower(btrim($2::text)),
-         email_verified_at = COALESCE(email_verified_at, now()),
-         updated_at = now()
-     WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [userId, emailRaw.trim()],
-  );
-}
 
 export type WebOAuthProvider = "google" | "apple";
 
@@ -67,10 +47,10 @@ export async function resolveUserIdForWebOAuthLogin(
     if (!env.DATABASE_URL?.trim()) {
       return { ok: true, userId: byOAuth.userId, accountOutcome: "linked_existing" };
     }
-    const poolEarly = getPool();
-    const canonicalEarly = await resolveCanonicalUserId(poolEarly, byOAuth.userId);
+    const db = requireOAuthUserResolvePort();
+    const canonicalEarly = await db.resolveCanonicalUserId(byOAuth.userId);
     const uidEarly = canonicalEarly ?? byOAuth.userId;
-    await applyVerifiedEmailFromWebOAuth(poolEarly, uidEarly, emailRaw, emailTrusted);
+    await db.applyVerifiedOAuthEmail(uidEarly, emailRaw, emailTrusted);
     return { ok: true, userId: uidEarly, accountOutcome: "linked_existing" };
   }
 
@@ -78,33 +58,23 @@ export async function resolveUserIdForWebOAuthLogin(
     return { ok: false, reason: "db_error" };
   }
 
-  const pool = getPool();
+  const db = requireOAuthUserResolvePort();
 
   try {
     let userId: string | null = null;
     let accountOutcome: AccountOutcome = "linked_existing";
 
     if (phoneNorm) {
-      userId = await findCanonicalUserIdByPhone(pool, phoneNorm);
+      userId = await db.findCanonicalUserIdByPhone(phoneNorm);
     }
 
     if (!userId && emailNorm) {
-      const byEmail = await pool.query<{ id: string }>(
-        `SELECT id FROM platform_users
-         WHERE merged_into_id IS NULL
-           AND email_verified_at IS NOT NULL
-           AND (
-             email_normalized = $1
-             OR (email_normalized IS NULL AND lower(trim(COALESCE(email, ''))) = $1)
-           )
-         LIMIT 4`,
-        [emailNorm],
-      );
-      if (byEmail.rows.length > 1) {
+      const byEmail = await db.findUserIdsByVerifiedEmail(emailNorm);
+      if (byEmail.length > 1) {
         return { ok: false, reason: "email_ambiguous" };
       }
-      if (byEmail.rows.length === 1) {
-        userId = byEmail.rows[0].id;
+      if (byEmail.length === 1) {
+        userId = byEmail[0]!;
       }
     }
 
@@ -112,56 +82,33 @@ export async function resolveUserIdForWebOAuthLogin(
       accountOutcome = "created";
       const display = (input.displayName?.trim() || emailRaw || phoneNorm || sub).slice(0, 500);
       const emailVerifiedAt = emailTrusted ? new Date() : null;
-      const ins = await pool.query<{ id: string }>(
-        `INSERT INTO platform_users (
-           phone_normalized, display_name, email, email_normalized, email_verified_at, role, patient_phone_trust_at
-         )
-         VALUES (
-           $1, $2, $3,
-           CASE
-             WHEN $4::timestamptz IS NOT NULL AND COALESCE(btrim($3::text), '') <> ''
-               THEN lower(btrim($3::text))
-             ELSE NULL
-           END,
-           $4, 'client',
-           CASE WHEN $1::text IS NOT NULL AND trim($1::text) <> '' THEN now() ELSE NULL END
-         )
-         RETURNING id`,
-        [phoneNorm, display, emailRaw, emailVerifiedAt],
-      );
-      userId = ins.rows[0].id;
+      userId = await db.createOAuthPlatformUser({
+        phoneNorm,
+        display,
+        emailRaw,
+        emailVerifiedAt,
+      });
       if (phoneNorm) {
         trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OAuthWebLoginVerifiedPhone);
       }
     }
 
-    const bind = await pool.query<{ user_id: string }>(
-      `INSERT INTO user_oauth_bindings (user_id, provider, provider_user_id, email)
-       VALUES ($1::uuid, $2::text, $3, $4)
-       ON CONFLICT (provider, provider_user_id) DO NOTHING
-       RETURNING user_id`,
-      [userId, input.provider, sub, emailRaw],
-    );
-    if ((bind.rowCount ?? 0) === 0) {
-      const existing = await pool.query<{ user_id: string }>(
-        `SELECT user_id::text AS user_id
-         FROM user_oauth_bindings
-         WHERE provider = $1::text AND provider_user_id = $2
-         LIMIT 1`,
-        [input.provider, sub],
-      );
-      const ownerId = existing.rows[0]?.user_id;
-      if (ownerId) {
-        const canonical = await resolveCanonicalUserId(pool, ownerId);
-        const uid = canonical ?? ownerId;
-        await applyVerifiedEmailFromWebOAuth(pool, uid, emailRaw, emailTrusted);
-        return { ok: true, userId: uid, accountOutcome: "linked_existing" };
-      }
+    const bind = await db.upsertOAuthBinding({
+      userId,
+      provider: input.provider,
+      providerUserId: sub,
+      emailRaw,
+    });
+    if (!bind.inserted && bind.existingOwnerUserId) {
+      const canonical = await db.resolveCanonicalUserId(bind.existingOwnerUserId);
+      const uid = canonical ?? bind.existingOwnerUserId;
+      await db.applyVerifiedOAuthEmail(uid, emailRaw, emailTrusted);
+      return { ok: true, userId: uid, accountOutcome: "linked_existing" };
     }
 
-    const canonical = await resolveCanonicalUserId(pool, userId);
+    const canonical = await db.resolveCanonicalUserId(userId);
     const uid = canonical ?? userId;
-    await applyVerifiedEmailFromWebOAuth(pool, uid, emailRaw, emailTrusted);
+    await db.applyVerifiedOAuthEmail(uid, emailRaw, emailTrusted);
     return { ok: true, userId: uid, accountOutcome };
   } catch {
     return { ok: false, reason: "db_error" };

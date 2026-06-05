@@ -59,17 +59,7 @@ export default [
   {
     files: [
       "src/modules/auth/channelLink.ts",
-      "src/modules/auth/channelLinkStartRateLimit.ts",
-      "src/modules/auth/checkPhoneRateLimit.ts",
-      "src/modules/auth/emailAuth.ts",
-      "src/modules/auth/messengerStartRateLimit.ts",
-      "src/modules/auth/phoneMessengerBindStartRateLimit.ts",
-      "src/modules/auth/oauthStartRateLimit.ts",
-      "src/modules/public-booking/publicBookingRateLimit.ts",
-      "src/modules/auth/oauthWebLoginResolve.ts",
       "src/modules/auth/oauthWebSession.ts",
-      "src/modules/auth/oauthYandexResolve.ts",
-      "src/modules/auth/phoneOtpLimits.ts",
       "src/modules/auth/yandexOAuthCallbackHandler.ts",
       "src/modules/auth/service.ts",
       "src/modules/content-catalog/service.ts",

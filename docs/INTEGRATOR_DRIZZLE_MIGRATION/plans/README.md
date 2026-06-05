@@ -10,7 +10,7 @@
 | 4 — webapp напоминания | [wave2_phase_04_webapp_reminders.plan.md](./wave2_phase_04_webapp_reminders.plan.md) | completed |
 | 5 — webapp медиа | [wave2_phase_05_webapp_media.plan.md](./wave2_phase_05_webapp_media.plan.md) | completed (2026-06-05) |
 | 6 — webapp ЛФК | [wave2_phase_06_webapp_lfk.plan.md](./wave2_phase_06_webapp_lfk.plan.md) | completed (2026-06-05) |
-| 7 — webapp auth / rate limits | [wave2_phase_07_webapp_auth_rate_limits.plan.md](./wave2_phase_07_webapp_auth_rate_limits.plan.md) | pending |
+| 7 — webapp auth / rate limits | [wave2_phase_07_webapp_auth_rate_limits.plan.md](./wave2_phase_07_webapp_auth_rate_limits.plan.md) | **done** (2026-06-05) |
 | 8 — пакеты, media-worker, скрипты | [wave2_phase_08_packages_worker_scripts.plan.md](./wave2_phase_08_packages_worker_scripts.plan.md) | pending |
 
 После выполнения этапа: обновить `todos.status` в соответствующем plan-файле, секцию «Закрытие» (если есть), индекс таблицы ниже, [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md) и кратко зафиксировать в [../LOG.md](../LOG.md).

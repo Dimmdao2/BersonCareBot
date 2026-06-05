@@ -48,7 +48,7 @@
 | 4 | L | **IV** | Webapp: напоминания `pgReminder*` | Вне integrator master | **Done (2026-06-05):** `runWebappSql` + Drizzle; см. [LOG](./LOG.md), [wave2_phase_04](./plans/wave2_phase_04_webapp_reminders.plan.md). |
 | 5 | L | **V** | Webapp: медиа (S3, transcode enqueue, multipart, preview worker) | Вне integrator master | **Done (2026-06-05):** Drizzle/`runWebappSql`; transcode claim — фаза **IX** / [P8](./plans/wave2_phase_08_packages_worker_scripts.plan.md) ([LOG](./LOG.md), [wave2_phase_05](./plans/wave2_phase_05_webapp_media.plan.md)). |
 | 6 | L | **VI** | Webapp: LFK каталог / дневник / назначения | Вне integrator master | **Done (2026-06-05):** `runWebappPgText` + tx; list/usage — `execute(sql)` без смены shape ([LOG](./LOG.md), [wave2_phase_06](./plans/wave2_phase_06_webapp_lfk.plan.md)). |
-| 7 | M | **VII** | Webapp: auth + rate limits | Вне integrator master | Hot path; контрактные тесты + нагрузочные выборочно. |
+| 7 | M | **VII** | Webapp: auth + rate limits | Вне integrator master | **Done (2026-06-05):** ports + `pgAuthRateLimitEvents`, `pgOAuthUserResolve`, OTP/email/channel link ([wave2_phase_07](./plans/wave2_phase_07_webapp_auth_rate_limits.plan.md)). |
 | 8 | L | **VIII** | `packages/platform-merge`, `booking-rubitime-sync` | Зависимости webapp + integrator flows | Менять только с явным semver/consumer-тестами. |
 | 9 | M | **IX** | `apps/media-worker` | Аналог очередей | Унификация claim-паттерна с webapp-транскодом — после фазы **V** или в рамках фазы **X**, если приоритет на общий паттерн очередей. |
 | 10 | M | **X** | Прочие `pg*` + scripts | Низкий приоритет | Скрипты оставить на `pg` допустимо; бизнес-код — по мере касания. |

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { getCurrentSession } from "@/modules/auth/service";
 import { startEmailChallenge } from "@/modules/auth/emailAuth";
 
@@ -12,6 +13,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  ensureAuthModulePortsBound();
+
   const session = await getCurrentSession();
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });

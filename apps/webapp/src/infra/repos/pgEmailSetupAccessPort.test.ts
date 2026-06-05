@@ -1,12 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { bindEmailSendPort } from "@/modules/auth/emailSendPort";
 import { createPgEmailSetupAccessPort } from "./pgEmailSetupAccessPort";
 import type { EmailSetupTokensPort } from "@/modules/auth/emailSetupTokens/ports";
 
-const sendEmailCodeViaIntegratorMock = vi.fn();
-
-vi.mock("@/infra/integrations/email/integratorEmailAdapter", () => ({
-  sendEmailCodeViaIntegrator: (...args: unknown[]) => sendEmailCodeViaIntegratorMock(...args),
-}));
+const sendEmailCodeMock = vi.fn();
 
 describe("pgEmailSetupAccessPort", () => {
   const tokensPort: EmailSetupTokensPort = {
@@ -19,7 +16,8 @@ describe("pgEmailSetupAccessPort", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    sendEmailCodeViaIntegratorMock.mockResolvedValue({ ok: true });
+    sendEmailCodeMock.mockResolvedValue({ ok: true });
+    bindEmailSendPort({ sendCode: (...args: unknown[]) => sendEmailCodeMock(...args) });
   });
 
   it("enqueues setup code email on success", async () => {
@@ -32,14 +30,14 @@ describe("pgEmailSetupAccessPort", () => {
     expect(r).toEqual({ ok: true, status: "enqueued" });
     expect(tokensPort.revokeActiveForUserEmail).not.toHaveBeenCalled();
     expect(tokensPort.insertToken).not.toHaveBeenCalled();
-    expect(sendEmailCodeViaIntegratorMock).toHaveBeenCalledWith(
+    expect(sendEmailCodeMock).toHaveBeenCalledWith(
       "user@example.com",
       expect.stringMatching(/^\d{6}$/),
     );
   });
 
   it("returns not_configured when code email send fails", async () => {
-    sendEmailCodeViaIntegratorMock.mockResolvedValueOnce({ ok: false, error: "http_503" });
+    sendEmailCodeMock.mockResolvedValueOnce({ ok: false, error: "http_503" });
     const port = createPgEmailSetupAccessPort(tokensPort);
     const r = await port.requestContactEmailSetup({
       userId: "u1",

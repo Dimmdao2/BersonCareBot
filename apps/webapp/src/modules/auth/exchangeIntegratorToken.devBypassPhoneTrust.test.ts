@@ -11,9 +11,9 @@ vi.mock("next/headers", () => ({
   })),
 }));
 
-const queryMock = vi.fn().mockResolvedValue({ rows: [] });
-vi.mock("@/infra/db/client", () => ({
-  getPool: () => ({ query: queryMock }),
+const applyDevBypassMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/modules/auth/devBypassPlatformUserPhonePort", () => ({
+  applyDevBypassPlatformUserPhoneInDb: (...args: unknown[]) => applyDevBypassMock(...args),
 }));
 
 const findByUserIdMock = vi.fn();
@@ -46,7 +46,11 @@ import { exchangeIntegratorToken } from "./service";
 describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
   beforeEach(() => {
     cookieSet.mockClear();
-    queryMock.mockClear();
+    applyDevBypassMock.mockClear();
+    findByUserIdMock.mockReset();
+  });
+
+  it("writes phone + patient_phone_trust_at for dev:client (patient tier)", async () => {
     findByUserIdMock.mockResolvedValue({
       userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
       role: "client",
@@ -54,9 +58,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       phone: "+79990000001",
       bindings: { telegramId: "111111111" },
     } satisfies SessionUser);
-  });
 
-  it("writes phone + patient_phone_trust_at for dev:client (patient tier)", async () => {
     const findOrCreateByChannelBinding = vi.fn(async () => ({
       user: {
         userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
@@ -74,9 +76,11 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
     const result = await exchangeIntegratorToken("dev:client", identityResolutionPort);
     expect(result).not.toBeNull();
-    expect(queryMock).toHaveBeenCalled();
-    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("patient_phone_trust_at");
+    expect(applyDevBypassMock).toHaveBeenCalledWith(
+      "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      "client",
+      "+79990000001",
+    );
     expect(findByUserIdMock).toHaveBeenCalledWith("aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee");
     expect(result!.session.user.phone).toBe("+79990000001");
   });
@@ -107,9 +111,11 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
     const result = await exchangeIntegratorToken("dev:admin", identityResolutionPort);
     expect(result).not.toBeNull();
-    expect(queryMock).toHaveBeenCalled();
-    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).not.toContain("patient_phone_trust_at");
+    expect(applyDevBypassMock).toHaveBeenCalledWith(
+      "bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      "admin",
+      "+79990000003",
+    );
     expect(findByUserIdMock).toHaveBeenCalledWith("bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee");
     expect(result!.session.user.phone).toBe("+79990000003");
   });

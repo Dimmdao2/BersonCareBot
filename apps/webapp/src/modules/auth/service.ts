@@ -360,27 +360,10 @@ async function applyDevBypassPlatformUserPhoneInDb(
   if (!isValidPhoneE164(phone)) return user;
   if (!isPlatformUserUuid(user.userId)) return user;
 
-  const { getPool } = await import("@/infra/db/client");
-  const pool = getPool();
-
-  if (user.role === "client") {
-    await pool.query(
-      `UPDATE platform_users
-       SET phone_normalized = $1,
-           patient_phone_trust_at = COALESCE(patient_phone_trust_at, now()),
-           updated_at = now()
-       WHERE id = $2::uuid`,
-      [phone, user.userId],
-    );
-  } else {
-    await pool.query(
-      `UPDATE platform_users
-       SET phone_normalized = $1,
-           updated_at = now()
-       WHERE id = $2::uuid`,
-      [phone, user.userId],
-    );
-  }
+  const { applyDevBypassPlatformUserPhoneInDb } = await import(
+    "@/modules/auth/devBypassPlatformUserPhonePort"
+  );
+  await applyDevBypassPlatformUserPhoneInDb(user.userId, user.role, phone);
 
   const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
   const fresh = await pgUserByPhonePort.findByUserId(user.userId);

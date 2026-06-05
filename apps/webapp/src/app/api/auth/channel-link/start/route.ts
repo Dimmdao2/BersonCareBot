@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { isChannelLinkStartRateLimited } from "@/modules/auth/channelLinkStartRateLimit";
 import { getCurrentSession } from "@/modules/auth/service";
 import { startChannelLink } from "@/modules/auth/channelLink";
@@ -11,6 +12,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  ensureAuthModulePortsBound();
+
   const session = await getCurrentSession();
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });

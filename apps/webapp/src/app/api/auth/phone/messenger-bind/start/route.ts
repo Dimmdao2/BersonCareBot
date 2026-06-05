@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
@@ -26,6 +27,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  ensureAuthModulePortsBound();
+
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

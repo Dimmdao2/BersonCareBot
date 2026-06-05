@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPool } from "@/app-layer/db/client";
 import { resolveOrCreateUserByPhone } from "@/app-layer/platform-user/resolveOrCreateUserByPhone";
@@ -16,6 +17,8 @@ import {
 } from "@/modules/patient-booking/inPersonBookingResolve";
 
 export async function POST(request: Request) {
+  ensureAuthModulePortsBound();
+
   const rateKey = resolvePublicBookingRateLimitClientKey(request);
   if (!rateKey.ok) {
     return NextResponse.json(

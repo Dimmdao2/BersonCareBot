@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import type { AuthRegistrationAuthMethod } from "@/app-layer/product-analytics/recordAuthRegistration";
 import {
   newRegistrationAttemptId,
@@ -86,6 +87,8 @@ async function logOAuthStartFailure(
  * Старт OAuth: Яндекс / Google / Apple при наличии ключей в `system_settings` (admin).
  */
 export async function POST(request: Request) {
+  ensureAuthModulePortsBound();
+
   const identity = resolveOAuthStartRateLimitClientKey(request);
   if (!identity.ok) {
     await logOAuthStartFailure(null, "proxy_configuration");

@@ -5,6 +5,7 @@ import {
   mergePlatformUsersInTransaction,
 } from "@bersoncare/platform-merge";
 import { getPool } from "@/infra/db/client";
+import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import {
   upsertOpenConflictLog,
   computeChannelLinkOwnershipConflictKey,
@@ -19,7 +20,7 @@ import {
   classifyChannelBindingOwnerForLink,
   claimMessengerChannelBindingInTransaction,
   ChannelLinkClaimRejectedError,
-} from "./channelLinkClaim";
+} from "@/infra/repos/pgChannelLinkClaim";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 
 const SECRET_TTL_MIN = 10;
@@ -80,9 +81,11 @@ async function tryMergeChannelLinkOwners(
   try {
     await client.query("BEGIN");
     await mergePlatformUsersInTransaction(client, params.tokenUserId, params.existingUserId, "phone_bind");
-    await client.query(`UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`, [
-      params.secretRowId,
-    ]);
+    await runWebappPgText(
+      `UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL`,
+      [params.secretRowId],
+      getWebappSqlFromPgClient(client),
+    );
     await client.query("COMMIT");
     return { ok: true };
   } catch (err) {
@@ -121,11 +124,11 @@ function hashToken(token: string): string {
 }
 
 async function platformPhoneBindingInfo(
-  pool: Pool,
   userId: string
 ): Promise<{ needsPhone: boolean; phoneNormalized?: string }> {
+  const pool = getPool();
   const canonical = await resolveCanonicalUserId(pool, userId);
-  const res = await pool.query<{ phone_normalized: string | null }>(
+  const res = await runWebappPgText<{ phone_normalized: string | null }>(
     `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid`,
     [canonical],
   );
@@ -136,7 +139,8 @@ async function platformPhoneBindingInfo(
 
 /** Canonical platform user has no non-empty phone — мессенджер должен запросить контакт. */
 export async function platformUserNeedsPhoneBinding(pool: Pool, userId: string): Promise<boolean> {
-  const { needsPhone } = await platformPhoneBindingInfo(pool, userId);
+  void pool;
+  const { needsPhone } = await platformPhoneBindingInfo(userId);
   return needsPhone;
 }
 
@@ -195,12 +199,11 @@ export async function startChannelLink(params: {
   }
 
   try {
-    const pool = getPool();
-    await pool.query("DELETE FROM channel_link_secrets WHERE user_id = $1 AND channel_code = $2", [
+    await runWebappPgText("DELETE FROM channel_link_secrets WHERE user_id = $1 AND channel_code = $2", [
       params.userId,
       params.channelCode,
     ]);
-    await pool.query(
+    await runWebappPgText(
       `INSERT INTO channel_link_secrets (user_id, channel_code, token_hash, expires_at)
        VALUES ($1, $2, $3, $4)`,
       [params.userId, params.channelCode, hashToken(startPayload), expiresAt.toISOString()]
@@ -229,7 +232,7 @@ export async function completeChannelLinkFromIntegrator(params: {
 
   const pool = getPool();
   const h = hashToken(trimmed);
-  const row = await pool.query<{
+  const row = await runWebappPgText<{
     id: string;
     user_id: string;
     expires_at: string;
@@ -251,7 +254,7 @@ export async function completeChannelLinkFromIntegrator(params: {
     return { ok: false, code: "unknown_or_expired" };
   }
 
-  const existing = await pool.query<{ user_id: string }>(
+  const existing = await runWebappPgText<{ user_id: string }>(
     `SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2`,
     [params.channelCode, params.externalId]
   );
@@ -266,7 +269,7 @@ export async function completeChannelLinkFromIntegrator(params: {
         existingUserId: boundUserId,
       };
 
-      const classification = await classifyChannelBindingOwnerForLink(pool, boundUserId);
+      const classification = await classifyChannelBindingOwnerForLink(getWebappSqlDb(), boundUserId);
       if (classification.kind === "real") {
         const merged = await tryMergeChannelLinkOwners(pool, {
           tokenUserId: r.user_id,
@@ -285,7 +288,7 @@ export async function completeChannelLinkFromIntegrator(params: {
           if (canonicalAfterMerge == null) {
             return { ok: false, code: "user_not_found" };
           }
-          const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, canonicalAfterMerge);
+          const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(canonicalAfterMerge);
           return {
             ok: true,
             userId: canonicalAfterMerge,
@@ -351,7 +354,7 @@ export async function completeChannelLinkFromIntegrator(params: {
       if (canonicalAfterClaim == null) {
         return { ok: false, code: "user_not_found" };
       }
-      const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, canonicalAfterClaim);
+      const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(canonicalAfterClaim);
       return {
         ok: true,
         userId: canonicalAfterClaim,
@@ -359,29 +362,29 @@ export async function completeChannelLinkFromIntegrator(params: {
         ...(phoneNormalized ? { phoneNormalized } : {}),
       };
     }
-    await pool.query("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1 AND used_at IS NULL", [
+    await runWebappPgText("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1 AND used_at IS NULL", [
       r.id,
     ]);
     const canonical = await resolveCanonicalUserId(pool, r.user_id);
     if (canonical == null) {
       return { ok: false, code: "user_not_found" };
     }
-    const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, r.user_id);
+    const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(r.user_id);
     return { ok: true, userId: canonical, needsPhone, ...(phoneNormalized ? { phoneNormalized } : {}) };
   }
 
-  await pool.query(
+  await runWebappPgText(
     `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
      VALUES ($1, $2, $3)`,
     [r.user_id, params.channelCode, params.externalId]
   );
   await upsertBroadcastDefaultsAfterChannelBind(pool, r.user_id, params.channelCode);
-  await pool.query("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1", [r.id]);
+  await runWebappPgText("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1", [r.id]);
 
   const canonical = await resolveCanonicalUserId(pool, r.user_id);
   if (canonical == null) {
     return { ok: false, code: "user_not_found" };
   }
-  const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, r.user_id);
+  const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(r.user_id);
   return { ok: true, userId: canonical, needsPhone, ...(phoneNormalized ? { phoneNormalized } : {}) };
 }

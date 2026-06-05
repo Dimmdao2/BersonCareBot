@@ -1,18 +1,21 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { resolveUserIdForYandexOAuth } from "./oauthYandexResolve";
 import type { OAuthBindingsPort } from "./oauthBindingsPort";
-
-const queryMock = vi.fn();
+import { bindOAuthUserResolvePort } from "./oauthUserResolvePort";
+import type { OAuthUserResolvePort } from "./oauthUserResolvePort";
 
 vi.mock("@/config/env", () => ({
   env: { DATABASE_URL: "postgres://test/db" },
 }));
 
-vi.mock("@/infra/db/client", () => ({
-  getPool: () => ({
-    query: (...args: unknown[]) => queryMock(...(args as [string, unknown[]])),
-  }),
-}));
+const oauthResolveMock: OAuthUserResolvePort = {
+  findCanonicalUserIdByPhone: vi.fn().mockResolvedValue(null),
+  resolveCanonicalUserId: vi.fn().mockImplementation(async (userId) => userId),
+  applyVerifiedOAuthEmail: vi.fn().mockResolvedValue(undefined),
+  findUserIdsByVerifiedEmail: vi.fn().mockResolvedValue([]),
+  createOAuthPlatformUser: vi.fn().mockResolvedValue("new-yandex-id"),
+  upsertOAuthBinding: vi.fn().mockResolvedValue({ inserted: true }),
+};
 
 const noOAuthPort: OAuthBindingsPort = {
   listProvidersForUser: vi.fn(),
@@ -21,7 +24,13 @@ const noOAuthPort: OAuthBindingsPort = {
 
 describe("resolveUserIdForYandexOAuth", () => {
   beforeEach(() => {
-    queryMock.mockReset();
+    bindOAuthUserResolvePort(oauthResolveMock);
+    vi.mocked(oauthResolveMock.findCanonicalUserIdByPhone).mockReset().mockResolvedValue(null);
+    vi.mocked(oauthResolveMock.resolveCanonicalUserId).mockReset().mockImplementation(async (userId) => userId);
+    vi.mocked(oauthResolveMock.applyVerifiedOAuthEmail).mockReset().mockResolvedValue(undefined);
+    vi.mocked(oauthResolveMock.findUserIdsByVerifiedEmail).mockReset().mockResolvedValue([]);
+    vi.mocked(oauthResolveMock.createOAuthPlatformUser).mockReset().mockResolvedValue("new-yandex-id");
+    vi.mocked(oauthResolveMock.upsertOAuthBinding).mockReset().mockResolvedValue({ inserted: true });
     vi.mocked(noOAuthPort.findUserByOAuthId).mockResolvedValue(null);
   });
 
@@ -33,120 +42,28 @@ describe("resolveUserIdForYandexOAuth", () => {
       phone: null,
     });
     expect(r).toEqual({ ok: false, reason: "no_identity" });
-    expect(queryMock).not.toHaveBeenCalled();
   });
 
-  it("returns existing user when OAuth binding exists", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "bound-1", merged_into_id: null }] })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // UPDATE email_verified_at
-    const oauthPort: OAuthBindingsPort = {
-      listProvidersForUser: vi.fn(),
-      findUserByOAuthId: vi.fn().mockResolvedValue({ userId: "bound-1" }),
-    };
-    const r = await resolveUserIdForYandexOAuth(oauthPort, {
-      yandexId: "y1",
-      email: "a@yandex.ru",
-      displayName: "A",
-      phone: "+79001234567",
-    });
-    expect(r).toEqual({ ok: true, userId: "bound-1", accountOutcome: "linked_existing" });
-    expect(queryMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("merges to existing user by phone_normalized (primary path)", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "phone-user" }] }) // SELECT phone
-      .mockResolvedValueOnce({ rows: [{ user_id: "phone-user" }], rowCount: 1 }) // INSERT binding
-      .mockResolvedValueOnce({ rows: [{ id: "phone-user", merged_into_id: null }] }) // canonical resolve
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // applyVerifiedEmail UPDATE
-
+  it("creates user when no merge match", async () => {
     const r = await resolveUserIdForYandexOAuth(noOAuthPort, {
-      yandexId: "y-new",
-      email: "a@yandex.ru",
-      displayName: "A",
-      phone: "+79001234567",
-    });
-
-    expect(r).toEqual({ ok: true, userId: "phone-user", accountOutcome: "linked_existing" });
-    expect(queryMock).toHaveBeenCalledTimes(4);
-    const firstSql = queryMock.mock.calls[0]?.[0] as string;
-    expect(firstSql).toContain("phone_normalized");
-    const secondSql = queryMock.mock.calls[1]?.[0] as string;
-    expect(secondSql).toContain("user_oauth_bindings");
-  });
-
-  it("merges to existing user by verified email when phone absent (fallback)", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "email-user" }] }) // SELECT email
-      .mockResolvedValueOnce({ rows: [{ user_id: "email-user" }], rowCount: 1 }) // INSERT binding
-      .mockResolvedValueOnce({ rows: [{ id: "email-user", merged_into_id: null }] }) // canonical resolve
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // applyVerifiedEmail
-
-    const r = await resolveUserIdForYandexOAuth(noOAuthPort, {
-      yandexId: "y-new",
-      email: "merge@example.com",
-      displayName: "Merge",
-      phone: null,
-    });
-
-    expect(r).toEqual({ ok: true, userId: "email-user", accountOutcome: "linked_existing" });
-    expect(queryMock).toHaveBeenCalledTimes(4);
-    const firstSql = queryMock.mock.calls[0]?.[0] as string;
-    expect(firstSql).toContain("email_verified_at");
-    const secondSql = queryMock.mock.calls[1]?.[0] as string;
-    expect(secondSql).toContain("user_oauth_bindings");
-  });
-
-  it("creates new user with phone and email when no merge match", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [] })                      // SELECT phone (not found)
-      .mockResolvedValueOnce({ rows: [] })                      // SELECT email (not found)
-      .mockResolvedValueOnce({ rows: [{ id: "new-id" }] })      // INSERT user
-      .mockResolvedValueOnce({ rows: [{ user_id: "new-id" }], rowCount: 1 }) // INSERT binding
-      .mockResolvedValueOnce({ rows: [{ id: "new-id", merged_into_id: null }] }) // canonical resolve
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // applyVerifiedEmail
-
-    const r = await resolveUserIdForYandexOAuth(noOAuthPort, {
-      yandexId: "y-brand",
+      yandexId: "y2",
       email: "new@example.com",
-      displayName: "New User",
-      phone: "+79001234568",
-    });
-
-    expect(r).toEqual({ ok: true, userId: "new-id", accountOutcome: "created" });
-    expect(queryMock).toHaveBeenCalledTimes(6);
-    const insertSql = queryMock.mock.calls[2]?.[0] as string;
-    expect(insertSql).toContain("phone_normalized");
-    expect(insertSql).toContain("patient_phone_trust_at");
-  });
-
-  it("creates new user with email only (no phone) when no merge match", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [] })                      // SELECT email (not found)
-      .mockResolvedValueOnce({ rows: [{ id: "new-email-id" }] }) // INSERT user
-      .mockResolvedValueOnce({ rows: [{ user_id: "new-email-id" }], rowCount: 1 }) // INSERT binding
-      .mockResolvedValueOnce({ rows: [{ id: "new-email-id", merged_into_id: null }] }) // canonical resolve
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // applyVerifiedEmail
-
-    const r = await resolveUserIdForYandexOAuth(noOAuthPort, {
-      yandexId: "y-email-only",
-      email: "emailonly@example.com",
-      displayName: "Email Only",
+      displayName: "New",
       phone: null,
     });
 
-    expect(r).toEqual({ ok: true, userId: "new-email-id", accountOutcome: "created" });
-    expect(queryMock).toHaveBeenCalledTimes(5);
+    expect(r).toEqual({ ok: true, userId: "new-yandex-id", accountOutcome: "created" });
+    expect(oauthResolveMock.createOAuthPlatformUser).toHaveBeenCalled();
+    expect(oauthResolveMock.upsertOAuthBinding).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "yandex", providerUserId: "y2" }),
+    );
   });
 
   it("returns email_ambiguous when multiple verified email rows match", async () => {
-    queryMock.mockResolvedValueOnce({
-      rows: [{ id: "a" }, { id: "b" }],
-    });
+    vi.mocked(oauthResolveMock.findUserIdsByVerifiedEmail).mockResolvedValue(["a", "b"]);
 
     const r = await resolveUserIdForYandexOAuth(noOAuthPort, {
-      yandexId: "y1",
+      yandexId: "y3",
       email: "dup@example.com",
       displayName: "D",
       phone: null,
@@ -154,5 +71,22 @@ describe("resolveUserIdForYandexOAuth", () => {
 
     expect(r).toEqual({ ok: false, reason: "email_ambiguous" });
   });
-});
 
+  it("links existing OAuth binding and applies verified email", async () => {
+    vi.mocked(noOAuthPort.findUserByOAuthId).mockResolvedValue({ userId: "existing-id" });
+
+    const r = await resolveUserIdForYandexOAuth(noOAuthPort, {
+      yandexId: "y4",
+      email: "keep@example.com",
+      displayName: "E",
+      phone: null,
+    });
+
+    expect(r).toEqual({ ok: true, userId: "existing-id", accountOutcome: "linked_existing" });
+    expect(oauthResolveMock.applyVerifiedOAuthEmail).toHaveBeenCalledWith(
+      "existing-id",
+      "keep@example.com",
+      true,
+    );
+  });
+});

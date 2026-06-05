@@ -1,11 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { bindEmailSendPort } from "./emailSendPort";
 
-const sendEmailCodeViaIntegratorMock = vi.fn();
-
-vi.mock("@/infra/integrations/email/integratorEmailAdapter", () => ({
-  sendEmailCodeViaIntegrator: (...args: unknown[]) => sendEmailCodeViaIntegratorMock(...args),
-}));
+const sendEmailCodeMock = vi.fn();
 
 import {
   confirmEmailChallenge,
@@ -23,8 +20,9 @@ describe("normalizeEmail", () => {
 
 describe("startEmailChallenge", () => {
   beforeEach(() => {
-    sendEmailCodeViaIntegratorMock.mockReset();
-    sendEmailCodeViaIntegratorMock.mockResolvedValue({ ok: true });
+    sendEmailCodeMock.mockReset();
+    sendEmailCodeMock.mockResolvedValue({ ok: true });
+    bindEmailSendPort({ sendCode: (...args: unknown[]) => sendEmailCodeMock(...args) });
   });
 
   it("отклоняет невалидный email", async () => {
@@ -40,12 +38,12 @@ describe("startEmailChallenge", () => {
       expect(r.challengeId).toBeDefined();
       expect(r.retryAfterSeconds).toBeDefined();
     }
-    expect(sendEmailCodeViaIntegratorMock).toHaveBeenCalledTimes(1);
-    expect(sendEmailCodeViaIntegratorMock).toHaveBeenCalledWith("user+tag@example.org", expect.stringMatching(/^\d{6}$/));
+    expect(sendEmailCodeMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailCodeMock).toHaveBeenCalledWith("user+tag@example.org", expect.stringMatching(/^\d{6}$/));
   });
 
   it("возвращает email_send_failed при ошибке отправки через integrator", async () => {
-    sendEmailCodeViaIntegratorMock.mockResolvedValueOnce({ ok: false, error: "http_503" });
+    sendEmailCodeMock.mockResolvedValueOnce({ ok: false, error: "http_503" });
     const r = await startEmailChallenge(randomUUID(), "user@example.org");
     expect(r).toEqual({ ok: false, code: "email_send_failed" });
   });
@@ -54,8 +52,9 @@ describe("startEmailChallenge", () => {
 describe("confirmEmailChallenge (in-memory)", () => {
   beforeEach(() => {
     resetEmailAuthMemStateForTests();
-    sendEmailCodeViaIntegratorMock.mockReset();
-    sendEmailCodeViaIntegratorMock.mockResolvedValue({ ok: true });
+    sendEmailCodeMock.mockReset();
+    sendEmailCodeMock.mockResolvedValue({ ok: true });
+    bindEmailSendPort({ sendCode: (...args: unknown[]) => sendEmailCodeMock(...args) });
   });
 
   it("подтверждает код и резервирует email за пользователем", async () => {
@@ -63,7 +62,7 @@ describe("confirmEmailChallenge (in-memory)", () => {
     const start = await startEmailChallenge(uid, "mine@example.org");
     expect(start.ok).toBe(true);
     if (!start.ok) return;
-    const code = sendEmailCodeViaIntegratorMock.mock.calls[0]?.[1] as string;
+    const code = sendEmailCodeMock.mock.calls[0]?.[1] as string;
     const result = await confirmEmailChallenge(uid, start.challengeId, code);
     expect(result).toEqual({ ok: true });
   });
@@ -74,13 +73,13 @@ describe("confirmEmailChallenge (in-memory)", () => {
     const startOwner = await startEmailChallenge(ownerId, "taken@example.org");
     expect(startOwner.ok).toBe(true);
     if (!startOwner.ok) return;
-    const ownerCode = sendEmailCodeViaIntegratorMock.mock.calls[0]?.[1] as string;
+    const ownerCode = sendEmailCodeMock.mock.calls[0]?.[1] as string;
     await confirmEmailChallenge(ownerId, startOwner.challengeId, ownerCode);
 
     const startOther = await startEmailChallenge(otherId, "taken@example.org");
     expect(startOther.ok).toBe(true);
     if (!startOther.ok) return;
-    const otherCode = sendEmailCodeViaIntegratorMock.mock.calls[1]?.[1] as string;
+    const otherCode = sendEmailCodeMock.mock.calls[1]?.[1] as string;
     const conflict = await confirmEmailChallenge(otherId, startOther.challengeId, otherCode);
     expect(conflict).toEqual({ ok: false, code: "email_conflict" });
   });
@@ -89,15 +88,16 @@ describe("confirmEmailChallenge (in-memory)", () => {
 describe("consumeLatestEmailChallengeCodeForUser", () => {
   beforeEach(() => {
     resetEmailAuthMemStateForTests();
-    sendEmailCodeViaIntegratorMock.mockReset();
-    sendEmailCodeViaIntegratorMock.mockResolvedValue({ ok: true });
+    sendEmailCodeMock.mockReset();
+    sendEmailCodeMock.mockResolvedValue({ ok: true });
+    bindEmailSendPort({ sendCode: (...args: unknown[]) => sendEmailCodeMock(...args) });
   });
 
   it("принимает код без challengeId (in-memory челлендж)", async () => {
     const uid = randomUUID();
     const start = await startEmailChallenge(uid, "who@example.org");
     expect(start.ok).toBe(true);
-    const sentCode = sendEmailCodeViaIntegratorMock.mock.calls[0]?.[1];
+    const sentCode = sendEmailCodeMock.mock.calls[0]?.[1];
     expect(typeof sentCode).toBe("string");
     const consumed = await consumeLatestEmailChallengeCodeForUser(uid, sentCode as string);
     expect(consumed).toEqual({ ok: true });
