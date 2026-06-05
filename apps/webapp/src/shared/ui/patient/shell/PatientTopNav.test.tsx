@@ -17,9 +17,6 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-vi.mock("@/shared/hooks/useReminderUnread", () => ({
-  useReminderUnreadCount: () => 0,
-}));
 
 vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/messaging/hooks/useSupportUnreadPolling")>();

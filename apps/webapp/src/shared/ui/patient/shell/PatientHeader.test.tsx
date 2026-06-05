@@ -32,9 +32,6 @@ vi.mock("@/app-layer/routes/navigation", async (importOriginal) => {
   };
 });
 
-vi.mock("@/shared/hooks/useReminderUnread", () => ({
-  useReminderUnreadCount: () => 0,
-}));
 
 const chatUnreadState = vi.hoisted(() => ({ count: 0 }));
 

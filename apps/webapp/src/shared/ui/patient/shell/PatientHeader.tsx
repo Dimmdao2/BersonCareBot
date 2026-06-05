@@ -28,7 +28,6 @@ import {
 import { cn } from "@/lib/utils";
 import { PATIENT_OVERLAY_PANEL_WIDTH_CLASS } from "@/shared/ui/patient/pwaLayoutClasses";
 import { usePlatform } from "@/shared/hooks/usePlatform";
-import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 import { PatientNavCountBadge } from "@/shared/ui/patient/PatientNavCountBadge";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
@@ -75,7 +74,6 @@ export function PatientHeader({
   const nav = patientNavByPlatform[platform];
   const [menuOpen, setMenuOpen] = useState(false);
   const headerRightIds = hideRightIcons ? [] : nav.headerRightIcons;
-  const reminderUnread = useReminderUnreadCount(headerRightIds.includes("reminders"));
   const chatUnread = usePatientSupportUnreadCount();
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -116,14 +114,9 @@ export function PatientHeader({
             href={routePaths.patientReminders}
             prefetch={false}
             aria-label="Напоминания"
-            className={cn(HEADER_ICON_CLASS, "relative")}
+            className={HEADER_ICON_CLASS}
           >
             <Bell className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-            {reminderUnread > 0 ? (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
-                {reminderUnread > 99 ? "99+" : reminderUnread}
-              </span>
-            ) : null}
           </Link>
         );
       case "menu":

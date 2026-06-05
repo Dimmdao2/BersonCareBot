@@ -18,9 +18,6 @@ vi.mock("@/shared/hooks/usePlatform", () => ({
   usePlatform: () => "mobile" as const,
 }));
 
-vi.mock("@/shared/hooks/useReminderUnread", () => ({
-  useReminderUnreadCount: () => 0,
-}));
 
 vi.mock("@/modules/messaging/hooks/useSupportUnreadPolling", () => ({
   usePatientSupportUnreadCount: () => 0,

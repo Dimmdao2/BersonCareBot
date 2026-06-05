@@ -22,7 +22,6 @@ import {
   type PatientPrimaryNavItemId,
 } from "@/app-layer/routes/navigation";
 import { cn } from "@/lib/utils";
-import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
 import { usePatientShellScrollCompact } from "@/shared/hooks/usePatientShellScrollCompact";
@@ -87,7 +86,6 @@ export type PatientTopNavProps = {
 export function PatientTopNav(_props: PatientTopNavProps) {
   const pathname = usePathname() ?? "";
   const activeId = getPatientPrimaryNavActiveId(pathname);
-  const reminderUnread = useReminderUnreadCount(true);
   const chatUnread = usePatientSupportUnreadCount();
   const compact = usePatientShellScrollCompact();
   const navRootRef = useRef<HTMLDivElement>(null);
@@ -262,11 +260,6 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             className={cn(TOP_ICON_BTN, "relative")}
           >
             <Bell className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-            {reminderUnread > 0 ? (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
-                {reminderUnread > 99 ? "99+" : reminderUnread}
-              </span>
-            ) : null}
           </Link>
           <Link
             href={routePaths.patientMessages}

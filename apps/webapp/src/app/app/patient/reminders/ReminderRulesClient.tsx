@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Activity, Dumbbell, FileText, Flame, Sparkles, Trash2 } from "lucide-react";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -380,14 +380,6 @@ export function ReminderRulesClient({
       refresh();
     });
   };
-
-  useEffect(() => {
-    void fetch("/api/patient/reminders/mark-seen", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ all: true }),
-    }).catch(() => undefined);
-  }, []);
 
   const openEditForRow = (row: PersonalReminderRowVM) => {
     setEditRow(row);

@@ -18,9 +18,6 @@ vi.mock("@/shared/hooks/usePlatform", () => ({
   usePlatform: () => "mobile" as const,
 }));
 
-vi.mock("@/shared/hooks/useReminderUnread", () => ({
-  useReminderUnreadCount: () => 0,
-}));
 
 const testUser: SessionUser = {
   userId: "u1",
