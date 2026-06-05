@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/ui/doctor/primitives/dialog";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { OTP_TOO_MANY_ATTEMPTS_MESSAGE } from "@/modules/auth/otpConstants";
@@ -25,6 +32,9 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
   const [resendCountdown, setResendCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [hardBlocked, setHardBlocked] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (step !== "code" || !challengeId) return;
@@ -105,6 +115,27 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
     }
   };
 
+  const deleteEmail = async () => {
+    setDeleteError(null);
+    setDeleteLoading(true);
+    try {
+      const res = await fetch("/api/doctor/account/email", { method: "DELETE" });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (data.ok) {
+        setDeleteDialogOpen(false);
+        router.refresh();
+        return;
+      }
+      if (data.error === "already_empty") {
+        setDeleteError("Email уже не указан");
+        return;
+      }
+      setDeleteError("Не удалось удалить email");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const resendCode = async () => {
     if (hardBlocked) return;
     setCodeError(null);
@@ -155,21 +186,56 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
                 <p className="text-muted-foreground text-sm">Не указан</p>
               )}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setStep("enter");
-                setEmailDraft(initialEmail ?? "");
-                setStartError(null);
-              }}
-            >
-              {initialEmail ? "Изменить" : "Добавить"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setStep("enter");
+                  setEmailDraft(initialEmail ?? "");
+                  setStartError(null);
+                }}
+              >
+                {initialEmail ? "Изменить" : "Добавить"}
+              </Button>
+              {initialEmail ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteDialogOpen(true);
+                  }}
+                >
+                  Удалить
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Удалить email?</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm">
+            Email будет сброшен у вашего аккаунта. Вход по email и уведомления на этот адрес перестанут работать.
+          </p>
+          {deleteError ? <p className="text-destructive text-sm">{deleteError}</p> : null}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeleteDialogOpen(false)} disabled={deleteLoading}>
+              Отмена
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => void deleteEmail()} disabled={deleteLoading}>
+              {deleteLoading ? "Удаление…" : "Удалить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {step === "enter" ? (
         <div className="flex max-w-md flex-col gap-3">

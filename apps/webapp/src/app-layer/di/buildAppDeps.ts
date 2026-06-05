@@ -1382,6 +1382,7 @@ function _buildAppDeps() {
       upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
       updateRole: userProjectionPort.updateRole,
       getProfileEmailFields: userProjectionPort.getProfileEmailFields,
+      clearStaffAccountEmail: userProjectionPort.clearStaffAccountEmail,
       applyRubitimeEmailAutobind: userProjectionPort.applyRubitimeEmailAutobind,
       patchAdminClientProfile: userProjectionPort.patchAdminClientProfile,
     },

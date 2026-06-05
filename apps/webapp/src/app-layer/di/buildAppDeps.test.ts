@@ -151,9 +151,10 @@ describe("buildAppDeps", () => {
     expect(Array.isArray(audit)).toBe(true);
   });
 
-  it("userProjection has getProfileEmailFields", () => {
+  it("userProjection has getProfileEmailFields and clearStaffAccountEmail", () => {
     const deps = buildAppDeps();
     expect(typeof deps.userProjection.getProfileEmailFields).toBe("function");
+    expect(typeof deps.userProjection.clearStaffAccountEmail).toBe("function");
   });
 
   it("auth has getCurrentSession, exchangeIntegratorToken, exchangeTelegramInitData, clearSession, setSessionFromUser, startPhoneAuth, confirmPhoneAuth", () => {

@@ -57,6 +57,10 @@ export type UserProjectionPort = {
     email: string | null;
     emailVerifiedAt: string | null;
   }>;
+  /** Сброс email у своего аккаунта врача/админа (`role IN ('doctor','admin')`). */
+  clearStaffAccountEmail: (
+    platformUserId: string,
+  ) => Promise<{ ok: true } | { ok: false; reason: "not_found_or_not_staff" | "already_empty" }>;
   /**
    * Admin (webapp): правка ФИО/email/телефона канонического клиента по `platform_users.id`.
    * Только `role = client`, `merged_into_id IS NULL`. Смена email сбрасывает верификацию при изменении значения.
@@ -684,6 +688,29 @@ export const pgUserProjectionPort: UserProjectionPort = {
     };
   },
 
+  async clearStaffAccountEmail(platformUserId) {
+    const pool = getPool();
+    const current = await pool.query<{ email: string | null }>(
+      `SELECT email FROM platform_users
+       WHERE id = $1::uuid AND role IN ('doctor', 'admin') AND merged_into_id IS NULL`,
+      [platformUserId],
+    );
+    if (current.rows.length === 0) {
+      return { ok: false as const, reason: "not_found_or_not_staff" as const };
+    }
+    const email = current.rows[0]?.email;
+    if (email == null || email.trim() === "") {
+      return { ok: false as const, reason: "already_empty" as const };
+    }
+    await pool.query(
+      `UPDATE platform_users
+       SET email = NULL, email_normalized = NULL, email_verified_at = NULL, updated_at = now()
+       WHERE id = $1::uuid AND role IN ('doctor', 'admin') AND merged_into_id IS NULL`,
+      [platformUserId],
+    );
+    return { ok: true as const };
+  },
+
   async patchAdminClientProfile({ platformUserId, patch }) {
     const pool = getPool();
     const sets: string[] = ["updated_at = now()"];
@@ -794,6 +821,7 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   upsertNotificationTopics: async () => {},
   updateRole: async () => {},
   getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
+  clearStaffAccountEmail: async () => ({ ok: true as const }),
   applyRubitimeEmailAutobind: async () => ({ outcome: "skipped_no_user" as const }),
   patchAdminClientProfile: async () => ({ ok: true as const }),
 };

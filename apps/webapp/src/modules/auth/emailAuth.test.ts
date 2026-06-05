@@ -7,7 +7,13 @@ vi.mock("@/infra/integrations/email/integratorEmailAdapter", () => ({
   sendEmailCodeViaIntegrator: (...args: unknown[]) => sendEmailCodeViaIntegratorMock(...args),
 }));
 
-import { normalizeEmail, startEmailChallenge, consumeLatestEmailChallengeCodeForUser } from "./emailAuth";
+import {
+  confirmEmailChallenge,
+  normalizeEmail,
+  resetEmailAuthMemStateForTests,
+  startEmailChallenge,
+  consumeLatestEmailChallengeCodeForUser,
+} from "./emailAuth";
 
 describe("normalizeEmail", () => {
   it("trim и нижний регистр", () => {
@@ -45,8 +51,44 @@ describe("startEmailChallenge", () => {
   });
 });
 
+describe("confirmEmailChallenge (in-memory)", () => {
+  beforeEach(() => {
+    resetEmailAuthMemStateForTests();
+    sendEmailCodeViaIntegratorMock.mockReset();
+    sendEmailCodeViaIntegratorMock.mockResolvedValue({ ok: true });
+  });
+
+  it("подтверждает код и резервирует email за пользователем", async () => {
+    const uid = randomUUID();
+    const start = await startEmailChallenge(uid, "mine@example.org");
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    const code = sendEmailCodeViaIntegratorMock.mock.calls[0]?.[1] as string;
+    const result = await confirmEmailChallenge(uid, start.challengeId, code);
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("возвращает email_conflict если email уже занят другим пользователем", async () => {
+    const ownerId = randomUUID();
+    const otherId = randomUUID();
+    const startOwner = await startEmailChallenge(ownerId, "taken@example.org");
+    expect(startOwner.ok).toBe(true);
+    if (!startOwner.ok) return;
+    const ownerCode = sendEmailCodeViaIntegratorMock.mock.calls[0]?.[1] as string;
+    await confirmEmailChallenge(ownerId, startOwner.challengeId, ownerCode);
+
+    const startOther = await startEmailChallenge(otherId, "taken@example.org");
+    expect(startOther.ok).toBe(true);
+    if (!startOther.ok) return;
+    const otherCode = sendEmailCodeViaIntegratorMock.mock.calls[1]?.[1] as string;
+    const conflict = await confirmEmailChallenge(otherId, startOther.challengeId, otherCode);
+    expect(conflict).toEqual({ ok: false, code: "email_conflict" });
+  });
+});
+
 describe("consumeLatestEmailChallengeCodeForUser", () => {
   beforeEach(() => {
+    resetEmailAuthMemStateForTests();
     sendEmailCodeViaIntegratorMock.mockReset();
     sendEmailCodeViaIntegratorMock.mockResolvedValue({ ok: true });
   });

@@ -12,6 +12,15 @@ const memEmailChallenges = new Map<
   { userId: string; email: string; code: string; expiresAt: number; attempts: number }
 >();
 
+/** In-memory владельцы email (только без DATABASE_URL). */
+const memEmailOwnerByNormalized = new Map<string, string>();
+
+/** Сброс in-memory состояния между тестами. */
+export function resetEmailAuthMemStateForTests(): void {
+  memEmailChallenges.clear();
+  memEmailOwnerByNormalized.clear();
+}
+
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -127,6 +136,16 @@ export async function confirmEmailChallenge(userId: string, challengeId: string,
       }
       return { ok: false, code: "invalid_code" };
     }
+    const normalized = normalizeEmail(row.email);
+    const owner = memEmailOwnerByNormalized.get(normalized);
+    if (owner && owner !== userId) {
+      memEmailChallenges.delete(challengeId);
+      return { ok: false, code: "email_conflict" };
+    }
+    for (const [emailNorm, uid] of memEmailOwnerByNormalized) {
+      if (uid === userId) memEmailOwnerByNormalized.delete(emailNorm);
+    }
+    memEmailOwnerByNormalized.set(normalized, userId);
     memEmailChallenges.delete(challengeId);
     return { ok: true };
   }
