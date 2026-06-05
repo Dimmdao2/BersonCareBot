@@ -51,7 +51,11 @@
 | 7 | M | **VII** | Webapp: auth + rate limits | Вне integrator master | **Done (2026-06-05):** ports + `pgAuthRateLimitEvents`, `pgOAuthUserResolve`, OTP/email/channel link ([wave2_phase_07](./plans/wave2_phase_07_webapp_auth_rate_limits.plan.md)). |
 | 8 | L | **VIII** | `packages/platform-merge`, `booking-rubitime-sync` | Зависимости webapp + integrator flows | **Done (2026-06-05):** merge pg-only; booking sync unified in package ([P8](./plans/wave2_phase_08_packages_worker_scripts.plan.md), [LOG](./LOG.md)). |
 | 9 | M | **IX** | `apps/media-worker` | Аналог очередей | **Partial (2026-06-05):** claim pg + unit tests; `processTranscodeJob` pg backlog ([P8](./plans/wave2_phase_08_packages_worker_scripts.plan.md)). Shared schema — отдельный план. |
-| 10 | M | **X** | Прочие `pg*` + scripts | Низкий приоритет | Scripts классифицированы в **P8** ([LOG](./LOG.md) §P8-D); бизнес-код — по мере касания. |
+| 10 | M | **X** | Прочие `pg*` + scripts | Низкий приоритет | Scripts классифицированы в **P8** ([LOG](./LOG.md) §P8-D); бизнес-код — **Wave 3** ([`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md)). |
+
+## Wave 3 (финальный closeout, 2026-06-05)
+
+Декомпозиция фаз **00, 08–17**: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), решения до старта [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). Цель — сначала сократить избыточную `integrator`-схему после unified DB (фаза 08), затем Class **A** (убрать необъяснённый `pool.query` в runtime), Class **B** (`run*Sql` / `execute`), Class **C** (permanent pg с ADR), плюс отдельный cutover фазы 16 для снятия регулярной зависимости от `migrate:legacy` и усиление DB-boundary валидации через Zod.
 
 ## Сквозные риски
 
