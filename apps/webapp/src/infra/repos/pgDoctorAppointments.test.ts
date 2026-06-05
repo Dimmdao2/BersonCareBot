@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { queryMock, getPoolMock } = vi.hoisted(() => {
-  const query = vi.fn(async (sql: string) => {
+  const query = vi.fn(async (sql: string, _params?: unknown[]) => {
     if (sql.includes("AS total")) {
       return {
         rows: [
@@ -77,5 +77,17 @@ describe("pgDoctorAppointments cancellation rules", () => {
     expect(rangeQuery).toBeDefined();
     expect(rangeQuery).toContain("deleted_at IS NULL");
     expect(last30Query).toContain("deleted_at IS NULL");
+  });
+
+  it("listAppointmentsForSpecialist passes excludedUserIds as one uuid[] param", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    const excluded = ["1c312a64-fab8-4b75-b24e-88a1d6ebe4e0", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"];
+    const port = createPgDoctorAppointmentsPort();
+    await port.listAppointmentsForSpecialist({ kind: "range", range: "today" }, { excludedUserIds: excluded });
+
+    const [sql, params] = queryMock.mock.calls[0] ?? [];
+    expect(String(sql)).toContain("<> ALL($3::uuid[])");
+    expect(params).toHaveLength(3);
+    expect(params?.[2]).toEqual(excluded);
   });
 });

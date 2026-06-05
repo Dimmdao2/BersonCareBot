@@ -95,11 +95,11 @@ function mapListRows(
 function legacyListUserExclusionClause(
   excludedUserIds: string[] | undefined,
   paramIndex: number,
-): { clause: string; params: string[] } {
+): { clause: string; params: unknown[] } {
   if (!excludedUserIds?.length) return { clause: "", params: [] };
   return {
     clause: ` AND (pu.id IS NULL OR pu.id <> ALL($${paramIndex}::uuid[]))`,
-    params: excludedUserIds,
+    params: [excludedUserIds],
   };
 }
 
@@ -107,7 +107,7 @@ function legacyStatsUserExclusionClause(
   excludedUserIds: string[] | undefined,
   paramIndex: number,
   phoneTable = "appointment_records",
-): { clause: string; params: string[] } {
+): { clause: string; params: unknown[] } {
   if (!excludedUserIds?.length) return { clause: "", params: [] };
   return {
     clause: ` AND NOT EXISTS (
@@ -116,7 +116,7 @@ function legacyStatsUserExclusionClause(
         AND pu.phone_normalized = ${phoneTable}.phone_normalized
         AND pu.id = ANY($${paramIndex}::uuid[])
     )`,
-    params: excludedUserIds,
+    params: [excludedUserIds],
   };
 }
 

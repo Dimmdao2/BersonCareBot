@@ -86,7 +86,7 @@ todos:
 ### 6. Small repos / config reads
 
 - [x] `messengerPhoneBindAudit.ts`: `runIntegratorSql` upsert/increment внутри переданной tx.
-- [ ] **Backlog (вне фактического закрытия):** `platformUserDeliveryPhone`, `canonicalUserId`, `linkedPhoneSource`, `resolvePlatformUserIdForRubitimeBooking`, `patientHomeMorningPing` (+ handler), `idempotencyKeys`, `adminStats`, `integrationDataQualityIncidents`, `branchTimezone`, `adminIncidentAlertRelay`, `smtpOutbound`, `messengerStaffIds`, `operationalVerboseLog` — по-прежнему `db.query`; см. LOG § Wave 2 этап 1 backlog.
+- [x] **Backlog зафиксирован (вне фактического закрытия этапа):** `platformUserDeliveryPhone`, `canonicalUserId`, `linkedPhoneSource`, `resolvePlatformUserIdForRubitimeBooking`, `patientHomeMorningPing` (+ handler), `idempotencyKeys`, `adminStats`, `integrationDataQualityIncidents`, `branchTimezone`, `adminIncidentAlertRelay`, `smtpOutbound`, `messengerStaffIds`, `operationalVerboseLog` оставлены на `db.query`; см. LOG § Wave 2 этап 1 backlog.
 
 ### 7. `settingsSyncRoute.ts`
 
