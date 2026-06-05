@@ -164,6 +164,7 @@ export type PatientBookingsPort = {
   markAwaitingPayment(
     bookingId: string,
     canonicalAppointmentId: string,
+    options?: { rubitimeId?: string | null; rubitimeManageUrl?: string | null },
   ): Promise<PatientBookingRecord | null>;
   markConfirmedByCanonicalAppointment(
     canonicalAppointmentId: string,
@@ -241,7 +242,14 @@ export type PatientBookingService = {
   getBookingByCanonicalAppointment(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
   getByRubitimeId(rubitimeId: string): Promise<PatientBookingRecord | null>;
   cancelBooking(input: CancelPatientBookingInput): Promise<
-    | { ok: true; lateCancellation?: boolean; rubitimeMirrorFailed?: boolean }
+    | {
+        ok: true;
+        lateCancellation?: boolean;
+        rubitimeMirrorFailed?: boolean;
+        paymentOutcomeFailed?: boolean;
+        membershipOutcomeFailed?: boolean;
+        productOutcomeFailed?: boolean;
+      }
     | {
         ok: false;
         error:

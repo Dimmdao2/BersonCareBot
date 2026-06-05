@@ -399,7 +399,10 @@ export async function createBookingOnCanonicalEngine(
       currency: prepayQuote.currency,
       idempotencyKey: `appointment_prepay:${appointment.id}`,
     });
-    const awaiting = await deps.bookingsPort.markAwaitingPayment(pending.id, appointment.id);
+    const awaiting = await deps.bookingsPort.markAwaitingPayment(pending.id, appointment.id, {
+      rubitimeId,
+      rubitimeManageUrl,
+    });
     await persistBookingFormContacts(deps, createInput);
     return awaiting ?? pending;
   }
@@ -415,6 +418,17 @@ export async function createBookingOnCanonicalEngine(
       });
     } catch (reserveErr) {
       await deps.bookingsPort.markFailedSync(pending.id);
+      if (rubitimeFirst && rubitimeId) {
+        try {
+          if (deps.syncPort.cancelRecord) {
+            await deps.syncPort.cancelRecord(rubitimeId);
+          } else {
+            await deps.syncPort.deleteRecord(rubitimeId);
+          }
+        } catch {
+          // Best-effort external rollback.
+        }
+      }
       try {
         await deps.bookingEngine.transitionAppointmentStatus({
           appointmentId: appointment.id,
@@ -447,6 +461,17 @@ export async function createBookingOnCanonicalEngine(
       });
     } catch (consumeErr) {
       await deps.bookingsPort.markFailedSync(pending.id);
+      if (rubitimeFirst && rubitimeId) {
+        try {
+          if (deps.syncPort.cancelRecord) {
+            await deps.syncPort.cancelRecord(rubitimeId);
+          } else {
+            await deps.syncPort.deleteRecord(rubitimeId);
+          }
+        } catch {
+          // Best-effort external rollback.
+        }
+      }
       try {
         await deps.bookingEngine.transitionAppointmentStatus({
           appointmentId: appointment.id,

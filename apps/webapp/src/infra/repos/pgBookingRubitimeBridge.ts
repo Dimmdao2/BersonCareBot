@@ -203,7 +203,7 @@ async function updateMappedRubitimeProjection(
     lastEvent: string;
     lookup: ExternalMappingLookup;
   },
-): Promise<"updated" | "skipped_echo_guard"> {
+): Promise<"updated" | "skipped_echo_guard" | "stale_mapping_missing_canonical"> {
   const existingRows = await db
     .select({
       id: beAppointments.id,
@@ -221,11 +221,11 @@ async function updateMappedRubitimeProjection(
     .limit(1);
   const existing = existingRows[0];
   if (!existing) {
-    console.warn("[appointment-mirror] mapped appointment row missing on inbound update", {
+    console.warn("[appointment-mirror] stale mapping: canonical row missing on inbound update", {
       appointmentId: params.appointmentId,
       externalId: params.externalId,
     });
-    return "skipped_echo_guard";
+    return "stale_mapping_missing_canonical";
   }
 
   if (shouldSkipInboundRubitimeEcho(readAttributionFromJson(existing.attributionJson))) {
@@ -357,6 +357,9 @@ async function insertRubitimeProjection(
   }
 
   await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${`rubitime_inbound:${params.externalId}`}))`,
+    );
     const inserted = await tx
       .insert(beAppointments)
       .values({
@@ -440,6 +443,9 @@ async function upsertCanonicalFromRubitimeRecordImpl(
     if (updateResult === "skipped_echo_guard") {
       return { action: "skipped_echo_guard", appointmentId: mapped[0].canonicalId };
     }
+    if (updateResult === "stale_mapping_missing_canonical") {
+      return { action: "stale_mapping_missing_canonical", appointmentId: mapped[0].canonicalId };
+    }
     return { action: "updated", appointmentId: mapped[0].canonicalId };
   }
 
@@ -488,6 +494,9 @@ async function upsertCanonicalFromRubitimeRecordImpl(
       }
       if (updateResult === "skipped_echo_guard") {
         return { action: "skipped_echo_guard", appointmentId };
+      }
+      if (updateResult === "stale_mapping_missing_canonical") {
+        return { action: "stale_mapping_missing_canonical", appointmentId };
       }
     }
     return { action: "recovered", appointmentId };

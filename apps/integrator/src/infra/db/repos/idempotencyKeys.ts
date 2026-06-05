@@ -20,6 +20,9 @@ export function createInMemoryIdempotencyPort(): IdempotencyPort {
       keys.set(key, now + ttlSec * 1000);
       return true;
     },
+    async release(key: string): Promise<void> {
+      keys.delete(key);
+    },
   };
 }
 
@@ -46,6 +49,9 @@ export function createPostgresIdempotencyPort(db: DbPort): IdempotencyPort {
         ttlSec,
       ]);
       return (res.rowCount ?? 0) > 0;
+    },
+    async release(key: string): Promise<void> {
+      await db.query(`DELETE FROM idempotency_keys WHERE key = $1`, [key]);
     },
   };
 }

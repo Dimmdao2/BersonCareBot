@@ -1,5 +1,18 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-05 — Стабилизация цепочек записи (mirror integrity hardening)
+
+**Сделано (фазы 0–7):**
+- Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md).
+- Create: `markAwaitingPayment` сохраняет `rubitime_id` / manage URL; admin manual create = doctor (Rubitime sync + rollback); rollback Rubitime при package/product failure после rubitime-first; `projectionWarning` в логе.
+- Cancel/reschedule: staff cancel → `ok` + флаги partial failure; patient cancel — side effects в try/catch + флаги; patient reschedule — `rubitimeMirrorFailed`; staff outbound уважает `booking_rubitime_bridge_enabled`.
+- Lifecycle: `FOR UPDATE` + `state_conflict` / idempotent повторный cancel.
+- Inbound: dedup `payloadHash`; release dedup при `PIPELINE_FAILED`; echo/stale mapping не обновляют legacy fanout; advisory lock на first insert; native booking не «оживает» после canonical cancel.
+- M2M: branch TZ на `update-record`; empty patch → 400; string numeric ids в patch; `update-record` в internal contract.
+- Тесты: `rubitimePayloadHash`, gateway release, обновления manual/cancel/canonicalCreate.
+
+**Проверки (локально):** vitest по матрице mirror + `pnpm run ci` перед merge.
+
 ## 2026-06-05 — Двусторонняя синхронизация Rubitime ↔ канон (`AppointmentMirrorSync`) — закрыто
 
 **Сделано:**

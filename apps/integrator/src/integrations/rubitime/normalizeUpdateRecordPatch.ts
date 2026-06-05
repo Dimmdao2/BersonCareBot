@@ -33,8 +33,19 @@ export function normalizeRubitimeUpdateRecordPatch(
 
   for (const key of ['branch_id', 'service_id', 'cooperator_id', 'status'] as const) {
     const v = patch[key];
-    if (typeof v === 'number' && Number.isFinite(v)) out[key] = Math.trunc(v);
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      out[key] = Math.trunc(v);
+      continue;
+    }
+    if (typeof v === 'string' && v.trim()) {
+      const n = Number(v.trim());
+      if (Number.isFinite(n)) out[key] = Math.trunc(n);
+    }
   }
 
   return out;
+}
+
+export function isRubitimeUpdateRecordPatchEmpty(patch: Record<string, unknown>): boolean {
+  return Object.keys(patch).length === 0;
 }

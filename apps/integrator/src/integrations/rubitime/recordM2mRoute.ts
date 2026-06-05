@@ -19,7 +19,10 @@ import { resolveScheduleParams } from './bookingScheduleMapping.js';
 import { isLegacyBookingProfileResolveEnabled } from './legacyResolveFlag.js';
 import { normalizeRubitimeSchedule } from './scheduleNormalizer.js';
 import { formatIsoInstantAsRubitimeRecordLocal, getAppDisplayTimezone } from '../../config/appTimezone.js';
-import { normalizeRubitimeUpdateRecordPatch } from './normalizeUpdateRecordPatch.js';
+import {
+  isRubitimeUpdateRecordPatchEmpty,
+  normalizeRubitimeUpdateRecordPatch,
+} from './normalizeUpdateRecordPatch.js';
 import { createGetBranchTimezoneWithDataQuality } from '../../infra/db/branchTimezone.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
 import type { z } from 'zod';
@@ -604,8 +607,21 @@ export async function registerRubitimeRecordM2mRoutes(
       typeof patch === 'object' && patch !== null && !Array.isArray(patch)
         ? (patch as Record<string, unknown>)
         : {};
-    const displayTimezone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
-    const data = normalizeRubitimeUpdateRecordPatch(rawPatch, displayTimezone);
+    let timeZone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
+    const branchRaw = rawPatch.branch_id ?? rawPatch.branchId;
+    const branchNum =
+      typeof branchRaw === 'number' && Number.isFinite(branchRaw)
+        ? Math.trunc(branchRaw)
+        : typeof branchRaw === 'string' && branchRaw.trim()
+          ? Number(branchRaw.trim())
+          : NaN;
+    if (Number.isFinite(branchNum)) {
+      timeZone = await getBranchTzWithIncident(String(branchNum));
+    }
+    const data = normalizeRubitimeUpdateRecordPatch(rawPatch, timeZone);
+    if (isRubitimeUpdateRecordPatchEmpty(data)) {
+      return reply.code(400).send({ ok: false, error: 'empty_patch' });
+    }
     try {
       const result = await updateRubitimeRecord({ recordId, data });
       return reply.code(200).send({ ok: true, data: result });

@@ -6,8 +6,11 @@
  *
  *   POST /api/bersoncare/rubitime/slots
  *   POST /api/bersoncare/rubitime/create-record
+ *   POST /api/bersoncare/rubitime/update-record
  *   POST /api/bersoncare/rubitime/remove-record
  *   POST /api/bersoncare/rubitime/booking-event
+ *
+ * Cancel semantics: prefer `update-record` with `patch.status: 4` (not remove-record for normal cancel).
  *
  * Webapp mirrors these types in:
  *   apps/webapp/src/modules/integrator/bookingM2mApi.ts

@@ -8,6 +8,12 @@ import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
 } from "@/app-layer/booking/staffBookingIntegratorEvent";
+import { isStaffRubitimeOutboundEnabled } from "@/app-layer/booking/staffRubitimeBridgePolicy";
+import {
+  rollbackStaffManualAppointment,
+  syncStaffManualAppointmentToRubitime,
+  type StaffRubitimeSyncContext,
+} from "@/app-layer/booking/staffRubitimeManualBooking";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import {
   requireDoctorBookingEngine,
@@ -26,17 +32,6 @@ const bodySchema = z.object({
   durationMinutes: z.number().int().positive(),
 });
 
-const RUBITIME_CONFLICT_ERRORS = new Set([
-  "slot_already_taken",
-  "duplicate_local_booking_id",
-  "rubitime_slot_conflict",
-  "external_slot_taken",
-]);
-
-function isExternalSlotConflict(error: string): boolean {
-  return RUBITIME_CONFLICT_ERRORS.has(error);
-}
-
 async function resolveDefaultSpecialistId(ctx: DoctorBookingEngineContext): Promise<string | null> {
   const specialists = await ctx.service.catalog.listSpecialists(ctx.organizationId);
   const active = specialists.find((item) => item.isActive) ?? specialists[0] ?? null;
@@ -49,14 +44,7 @@ async function resolveRubitimeSyncContext(input: {
   branchId: string | null;
   serviceId: string | null;
   specialistId: string | null;
-}): Promise<
-  | {
-      rubitimeBranchId: string;
-      rubitimeCooperatorId: string;
-      rubitimeServiceId: string;
-    }
-  | null
-> {
+}): Promise<StaffRubitimeSyncContext | null> {
   if (!input.branchId || !input.serviceId) return null;
   if (!input.deps.bookingScheduling || !input.deps.bookingCatalog) {
     throw new Error("rubitime_sync_unavailable");
@@ -82,34 +70,6 @@ async function resolveRubitimeSyncContext(input: {
   }
 }
 
-async function rollbackCreatedAppointment(input: {
-  ctx: DoctorBookingEngineContext;
-  appointmentId: string;
-  reason: string;
-}): Promise<void> {
-  if (input.ctx.service.deleteAppointmentHard) {
-    try {
-      const deleted = await input.ctx.service.deleteAppointmentHard({
-        organizationId: input.ctx.organizationId,
-        appointmentId: input.appointmentId,
-      });
-      if (deleted) return;
-    } catch {
-      // Fall through to status transition fallback.
-    }
-  }
-  try {
-    await input.ctx.service.transitionAppointmentStatus({
-      appointmentId: input.appointmentId,
-      toStatus: "cancelled_by_specialist",
-      actorId: input.ctx.session.user.userId,
-      payload: { reason: input.reason },
-    });
-  } catch {
-    // Keep handler deterministic even if rollback transition fails.
-  }
-}
-
 export async function POST(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
@@ -119,6 +79,25 @@ export async function POST(request: Request) {
   }
   const { ctx } = gate;
   const deps = buildAppDeps();
+  const syncPort = createBookingSyncPort();
+  const bridgeEnabled = await isStaffRubitimeOutboundEnabled(deps);
+  let syncContext: StaffRubitimeSyncContext | null = null;
+  try {
+    syncContext = await resolveRubitimeSyncContext({
+      deps,
+      ctx,
+      branchId: parsed.data.branchId ?? null,
+      serviceId: parsed.data.serviceId ?? null,
+      specialistId: parsed.data.specialistId ?? null,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "rubitime_mapping_missing";
+    if (message === "rubitime_mapping_missing" || message === "rubitime_sync_context_missing") {
+      return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    }
+    return NextResponse.json({ ok: false, error: message }, { status: 502 });
+  }
+
   try {
     if (deps.bookingScheduling) {
       await deps.bookingScheduling.assertSlotAvailable({
@@ -145,51 +124,28 @@ export async function POST(request: Request) {
       phoneNormalized: parsed.data.phoneNormalized ?? null,
       actorId: ctx.session.user.userId,
     });
-    const syncPort = createBookingSyncPort();
-    const syncContext = await resolveRubitimeSyncContext({
-      deps,
-      ctx,
-      branchId: parsed.data.branchId ?? null,
-      serviceId: parsed.data.serviceId ?? null,
-      specialistId: parsed.data.specialistId ?? null,
-    });
+
     let syncedRubitimeId: string | null = null;
-    if (syncContext) {
-      let createdRubitimeId: string | null = null;
-      try {
-        const syncResult = await syncPort.createRecord({
-          version: "v2",
-          rubitimeBranchId: syncContext.rubitimeBranchId,
-          rubitimeCooperatorId: syncContext.rubitimeCooperatorId,
-          rubitimeServiceId: syncContext.rubitimeServiceId,
-          slotStart: appointment.startAt,
-          contactName: staffBookingContactNameFromAppointment(appointment),
-          contactPhone: appointment.phoneNormalized ?? "+70000000000",
-          localBookingId: appointment.id,
-        });
-        createdRubitimeId = syncResult.rubitimeId?.trim() || null;
-        if (!createdRubitimeId) throw new Error("rubitime_id_missing");
-        await ctx.service.upsertRubitimeAppointmentMapping({
+    let projectionWarning: string | undefined;
+    if (syncContext && bridgeEnabled) {
+      const syncResult = await syncStaffManualAppointmentToRubitime({
+        syncPort,
+        appointment,
+        syncContext,
+      });
+      if (!syncResult.ok) {
+        await rollbackStaffManualAppointment({
+          deleteAppointmentHard: ctx.service.deleteAppointmentHard,
+          transitionAppointmentStatus: ctx.service.transitionAppointmentStatus,
           organizationId: ctx.organizationId,
           appointmentId: appointment.id,
-          rubitimeId: createdRubitimeId,
+          actorId: ctx.session.user.userId,
+          reason:
+            syncResult.error === "external_slot_taken"
+              ? "external_slot_taken_rollback"
+              : "rubitime_sync_failed_rollback",
         });
-        syncedRubitimeId = createdRubitimeId;
-      } catch (syncErr) {
-        const syncCode = syncErr instanceof Error ? syncErr.message : "rubitime_sync_failed";
-        if (createdRubitimeId) {
-          try {
-            await syncPort.deleteRecord(createdRubitimeId);
-          } catch {
-            // Best-effort cleanup of external transient record.
-          }
-        }
-        await rollbackCreatedAppointment({
-          ctx,
-          appointmentId: appointment.id,
-          reason: isExternalSlotConflict(syncCode) ? "external_slot_taken_rollback" : "rubitime_sync_failed_rollback",
-        });
-        if (isExternalSlotConflict(syncCode)) {
+        if (syncResult.error === "external_slot_taken") {
           return NextResponse.json(
             { ok: false, error: "external_slot_taken", hint: "refresh_calendar" },
             { status: 409 },
@@ -197,6 +153,13 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ ok: false, error: "rubitime_sync_failed" }, { status: 502 });
       }
+      syncedRubitimeId = syncResult.rubitimeId;
+      projectionWarning = syncResult.projectionWarning;
+      await ctx.service.upsertRubitimeAppointmentMapping({
+        organizationId: ctx.organizationId,
+        appointmentId: appointment.id,
+        rubitimeId: syncedRubitimeId,
+      });
     }
 
     if (
@@ -250,7 +213,11 @@ export async function POST(request: Request) {
     } catch {
       // Lifecycle event is best-effort for staff manual create.
     }
-    return NextResponse.json({ ok: true, appointment });
+    return NextResponse.json({
+      ok: true,
+      appointment,
+      ...(projectionWarning ? { projectionWarning } : {}),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "create_failed";
     if (message === "slot_overlap" || (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01")) {

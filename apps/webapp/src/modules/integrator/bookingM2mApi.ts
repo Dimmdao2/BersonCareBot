@@ -245,7 +245,11 @@ export function createBookingSyncPort(): BookingSyncPort {
       const rubitimeId = typeof rubitimeIdValue === "string" && rubitimeIdValue.trim()
         ? rubitimeIdValue.trim()
         : null;
-      return { rubitimeId, raw: json };
+      const projectionWarning =
+        typeof json.projectionWarning === "string" && json.projectionWarning.trim()
+          ? json.projectionWarning.trim()
+          : undefined;
+      return { rubitimeId, raw: { ...json, ...(projectionWarning ? { projectionWarning } : {}) } };
     },
 
     async cancelRecord(rubitimeId: string): Promise<void> {

@@ -17,6 +17,7 @@ vi.mock("../../_requireDoctorBookingEngine", () => ({
 vi.mock("@/modules/integrator/bookingM2mApi", () => ({
   createBookingSyncPort: () => ({
     createRecord: createRecordMock,
+    cancelRecord: vi.fn(),
     deleteRecord: vi.fn(),
     emitBookingEvent: emitBookingEventMock,
   }),
@@ -34,6 +35,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     bookingCatalog: {
       resolveBranchService: resolveBranchServiceMock,
+    },
+    rubitimeCanonicalProjection: {
+      isBridgeEnabled: async () => true,
     },
     memberships: null,
     patientBooking: null,

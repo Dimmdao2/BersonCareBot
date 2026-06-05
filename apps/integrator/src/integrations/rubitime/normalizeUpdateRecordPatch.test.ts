@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRubitimeUpdateRecordPatch } from './normalizeUpdateRecordPatch.js';
+/* eslint-disable no-secrets/no-secrets -- import path matches module filename */
+import {
+  isRubitimeUpdateRecordPatchEmpty,
+  normalizeRubitimeUpdateRecordPatch,
+} from './normalizeUpdateRecordPatch.js';
 
 describe('normalizeRubitimeUpdateRecordPatch', () => {
   it('maps slotStart/slotEnd to record/datetime_end', () => {
@@ -27,5 +31,15 @@ describe('normalizeRubitimeUpdateRecordPatch', () => {
       'Europe/Moscow',
     );
     expect(out.record).not.toBe('2026-06-02T09:00:00.000Z');
+  });
+
+  it('normalizes string numeric status', () => {
+    const out = normalizeRubitimeUpdateRecordPatch({ status: '4' }, 'Europe/Moscow');
+    expect(out.status).toBe(4);
+  });
+
+  it('detects empty patch', () => {
+    expect(isRubitimeUpdateRecordPatchEmpty({})).toBe(true);
+    expect(isRubitimeUpdateRecordPatchEmpty({ status: 4 })).toBe(false);
   });
 });

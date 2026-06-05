@@ -299,6 +299,8 @@ export type ProtectedAccessPort = {
 /** Порт идемпотентности входящих событий. */
 export type IdempotencyPort = {
   tryAcquire(key: string, ttlSec: number): Promise<boolean>;
+  /** Release dedup key after pipeline failure so webhook retry can re-run. */
+  release?(key: string): Promise<void>;
 };
 
 /** Порт времени для детерминированных сценариев/тестов. */

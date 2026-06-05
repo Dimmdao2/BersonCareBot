@@ -623,23 +623,24 @@ export function createPatientBookingService(input: {
         return { ok: false, error: "not_found" };
       }
 
-      if (row.rubitimeId && row.canonicalAppointmentId) {
-        await mirrorPatientRescheduleToRubitime({
-          bookingId: row.id,
-          rubitimeId: row.rubitimeId,
-          canonicalAppointmentId: row.canonicalAppointmentId,
-          appointment: {
-            startAt: rescheduleInput.slotStart,
-            endAt: rescheduleInput.slotEnd,
-            branchId: result.appointment.branchId,
-            specialistId: result.appointment.specialistId,
-            serviceId: result.appointment.serviceId,
-            status: result.appointment.status,
-          },
-          appointmentMirrorSync: input.appointmentMirrorSync,
-          syncPort: input.syncPort,
-        });
-      }
+      const rubitimeMirrorStatus =
+        row.rubitimeId && row.canonicalAppointmentId
+          ? await mirrorPatientRescheduleToRubitime({
+              bookingId: row.id,
+              rubitimeId: row.rubitimeId,
+              canonicalAppointmentId: row.canonicalAppointmentId,
+              appointment: {
+                startAt: rescheduleInput.slotStart,
+                endAt: rescheduleInput.slotEnd,
+                branchId: result.appointment.branchId,
+                specialistId: result.appointment.specialistId,
+                serviceId: result.appointment.serviceId,
+                status: result.appointment.status,
+              },
+              appointmentMirrorSync: input.appointmentMirrorSync,
+              syncPort: input.syncPort,
+            })
+          : ("skipped" as const);
 
       const updatedRow = await input.bookingsPort.updateSlotsAfterReschedule({
         bookingId: row.id,
@@ -740,7 +741,11 @@ export function createPatientBookingService(input: {
         });
       }
 
-      return { ok: true, booking: updatedRow ?? row };
+      return {
+        ok: true,
+        booking: updatedRow ?? row,
+        ...(rubitimeMirrorStatus === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
+      };
     },
 
     async cancelBooking(cancelInput) {
@@ -792,31 +797,51 @@ export function createPatientBookingService(input: {
               })
             : "skipped";
 
+        let paymentOutcomeFailed = false;
+        let membershipOutcomeFailed = false;
+        let productOutcomeFailed = false;
+
         if (input.payments) {
-          await input.payments.applyCancelPaymentOutcome({
-            appointmentId: row.canonicalAppointmentId,
-            organizationId: orgId,
-            prepaymentRetained: lifecycleResult.eligibility
-              ? !lifecycleResult.eligibility.isFree &&
-                lifecycleResult.cancelPolicy.lateCancellationBehavior === "retain_prepayment"
-              : false,
-            prepaymentRefunded: lifecycleResult.eligibility
-              ? !lifecycleResult.eligibility.isFree &&
-                lifecycleResult.cancelPolicy.lateCancellationBehavior === "refund_prepayment"
-              : false,
-            reason: cancelInput.reason,
-          });
+          try {
+            await input.payments.applyCancelPaymentOutcome({
+              appointmentId: row.canonicalAppointmentId,
+              organizationId: orgId,
+              prepaymentRetained: lifecycleResult.eligibility
+                ? !lifecycleResult.eligibility.isFree &&
+                  lifecycleResult.cancelPolicy.lateCancellationBehavior === "retain_prepayment"
+                : false,
+              prepaymentRefunded: lifecycleResult.eligibility
+                ? !lifecycleResult.eligibility.isFree &&
+                  lifecycleResult.cancelPolicy.lateCancellationBehavior === "refund_prepayment"
+                : false,
+              reason: cancelInput.reason,
+            });
+          } catch (err) {
+            paymentOutcomeFailed = true;
+            console.error("[patient-booking] cancel payment outcome failed (canonical already cancelled)", {
+              bookingId: row.id,
+              err,
+            });
+          }
         }
 
         if (input.memberships && lifecycleResult.eligibility) {
           const { eligibility } = lifecycleResult;
           const packageLessonDeducted =
             !eligibility.isFree && eligibility.decisionType === "package_charged";
-          await input.memberships.applyCancelPackageOutcome({
-            organizationId: orgId,
-            appointmentId: row.canonicalAppointmentId,
-            packageLessonDeducted,
-          });
+          try {
+            await input.memberships.applyCancelPackageOutcome({
+              organizationId: orgId,
+              appointmentId: row.canonicalAppointmentId,
+              packageLessonDeducted,
+            });
+          } catch (err) {
+            membershipOutcomeFailed = true;
+            console.error("[patient-booking] cancel package outcome failed (canonical already cancelled)", {
+              bookingId: row.id,
+              err,
+            });
+          }
         }
 
         if (input.products && input.bookingEngine) {
@@ -828,19 +853,30 @@ export function createPatientBookingService(input: {
             const visitDeducted =
               !lifecycleResult.eligibility.isFree &&
               lifecycleResult.eligibility.decisionType === "package_charged";
-            await input.products.applyCancelVisitOutcome({
-              organizationId: orgId,
-              productPurchaseId,
-              appointmentId: row.canonicalAppointmentId,
-              visitDeducted,
-            });
+            try {
+              await input.products.applyCancelVisitOutcome({
+                organizationId: orgId,
+                productPurchaseId,
+                appointmentId: row.canonicalAppointmentId,
+                visitDeducted,
+              });
+            } catch (err) {
+              productOutcomeFailed = true;
+              console.error("[patient-booking] cancel product outcome failed (canonical already cancelled)", {
+                bookingId: row.id,
+                err,
+              });
+            }
           }
         }
 
         await input.bookingsPort.markCancelled({
           bookingId: row.id,
           reason: cancelInput.reason,
-          status: "cancelled",
+          status:
+            paymentOutcomeFailed || membershipOutcomeFailed || productOutcomeFailed
+              ? "cancelled"
+              : "cancelled",
         });
         invalidateSlotsCache();
 
@@ -914,6 +950,9 @@ export function createPatientBookingService(input: {
             lifecycleResult.eligibility.reasonCode === "late" ||
             lifecycleResult.eligibility.reasonCode === "forfeited_by_reschedule",
           ...(rubitimeMirrorStatus === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
+          ...(paymentOutcomeFailed ? { paymentOutcomeFailed: true as const } : {}),
+          ...(membershipOutcomeFailed ? { membershipOutcomeFailed: true as const } : {}),
+          ...(productOutcomeFailed ? { productOutcomeFailed: true as const } : {}),
         };
       }
 

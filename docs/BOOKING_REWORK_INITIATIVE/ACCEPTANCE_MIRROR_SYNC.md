@@ -22,6 +22,20 @@ pnpm --dir apps/integrator exec vitest run \
   src/integrations/rubitime/recordM2mRoute.test.ts
 ```
 
+## Integrity hardening (2026-06-05)
+
+Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md). План: [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md).
+
+| Кейс | Покрытие |
+|------|----------|
+| Prepayment сохраняет `rubitime_id` | `canonicalCreate.test.ts` |
+| Admin manual create + Rubitime | `admin/.../manual/route` (parity с doctor) |
+| Staff cancel partial failure | `staffManualCancelAfterCanonical` + manual-cancel routes |
+| Patient cancel side-effect flags | `service.test.ts` |
+| Inbound echo → no legacy fanout | `events.test.ts` |
+| Dedup payload hash + pipeline retry | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts` |
+| M2M empty patch / string status | `normalizeUpdateRecordPatch.test.ts` |
+
 ## Smoke-матрица (6 сценариев)
 
 | # | Сценарий | Ожидание | Авто |

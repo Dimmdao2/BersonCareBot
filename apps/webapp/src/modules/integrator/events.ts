@@ -990,6 +990,19 @@ export async function handleIntegratorEvent(
           payloadJson,
           fanout: inboundFanout,
         });
+        if (
+          mirrorResult.action === "skipped_echo_guard"
+          || mirrorResult.action === "stale_mapping_missing_canonical"
+        ) {
+          console.info("[integrator-events] inbound mirror skip legacy fanout", {
+            action: mirrorResult.action,
+            integratorRecordId,
+            appointmentId: mirrorResult.appointmentId,
+          });
+          revalidatePath(routePaths.cabinet);
+          revalidatePath(routePaths.patient);
+          return { accepted: true, reason: mirrorResult.action };
+        }
         const recordProjection = mirrorResult.appointmentRecordProjection ?? {
           integratorRecordId,
           phoneNormalized,

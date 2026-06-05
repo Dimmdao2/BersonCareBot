@@ -435,7 +435,10 @@ describe("createBookingOnCanonicalEngine", () => {
       expect.objectContaining({ status: "awaiting_payment" }),
     );
     expect(payments.createAppointmentPaymentIntent).toHaveBeenCalled();
-    expect(bookingsPort.markAwaitingPayment).toHaveBeenCalledWith("pb-1", "appt-1");
+    expect(bookingsPort.markAwaitingPayment).toHaveBeenCalledWith("pb-1", "appt-1", {
+      rubitimeId: "rt-prepay",
+      rubitimeManageUrl: null,
+    });
     expect(syncPort.createRecord.mock.invocationCallOrder[0]!).toBeLessThan(
       bookingsPort.markAwaitingPayment.mock.invocationCallOrder[0]!,
     );

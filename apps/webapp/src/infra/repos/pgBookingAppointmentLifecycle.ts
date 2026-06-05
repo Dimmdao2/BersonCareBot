@@ -140,11 +140,20 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           .where(
             and(eq(beAppointments.id, input.appointmentId), eq(beAppointments.organizationId, input.organizationId)),
           )
-          .limit(1);
+          .for("update");
         const current = currentRows[0];
         if (!current) throw new Error("appointment_not_found");
 
         const fromStatus = current.status as BeAppointment["status"];
+        const terminal = new Set<BeAppointment["status"]>([
+          "cancelled_by_patient",
+          "cancelled_by_specialist",
+          "no_show",
+          "late_cancellation",
+        ]);
+        if (terminal.has(fromStatus)) {
+          throw new Error("state_conflict");
+        }
         if (fromStatus !== "rescheduled") {
           assertValidAppointmentStatusTransition(fromStatus, "rescheduled");
         }
@@ -246,11 +255,28 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           .where(
             and(eq(beAppointments.id, input.appointmentId), eq(beAppointments.organizationId, input.organizationId)),
           )
-          .limit(1);
+          .for("update");
         const current = currentRows[0];
         if (!current) throw new Error("appointment_not_found");
 
         const fromStatus = current.status as BeAppointment["status"];
+        const cancelledStatuses = new Set<BeAppointment["status"]>([
+          "cancelled_by_patient",
+          "cancelled_by_specialist",
+          "no_show",
+          "late_cancellation",
+        ]);
+        if (cancelledStatuses.has(fromStatus) && cancelledStatuses.has(input.targetStatus)) {
+          const updated = await tx
+            .select()
+            .from(beAppointments)
+            .where(eq(beAppointments.id, input.appointmentId))
+            .limit(1);
+          return mapAppointment(updated[0]!);
+        }
+        if (cancelledStatuses.has(fromStatus)) {
+          throw new Error("state_conflict");
+        }
         assertValidAppointmentStatusTransition(fromStatus, input.targetStatus);
 
         await tx

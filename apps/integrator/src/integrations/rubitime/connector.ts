@@ -7,6 +7,7 @@ import {
 } from '../google-calendar/sync.js';
 import type { RubitimeWebhookBodyValidated } from './schema.js';
 import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
+import { buildRubitimeDedupFingerprint } from './rubitimePayloadHash.js';
 
 export type RubitimeIncomingPayload = {
   entity: 'record';
@@ -210,17 +211,6 @@ export function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): Rubitime
     ...(serviceName ? { serviceName } : {}),
     ...(dateTimeEnd ? { dateTimeEnd } : {}),
     ...(cooperatorId ? { cooperatorId } : {}),
-  };
-}
-
-function buildRubitimeDedupFingerprint(incoming: RubitimeIncomingPayload): Record<string, string | number | boolean | null> {
-  return {
-    entity: incoming.entity,
-    action: incoming.action,
-    recordId: incoming.recordId ?? null,
-    status: incoming.status ?? null,
-    recordAt: incoming.recordAt ?? null,
-    updatedAt: incoming.updatedAt ?? null,
   };
 }
 

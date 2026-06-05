@@ -25,7 +25,8 @@ export type RubitimeCanonicalProjectionAction =
   | "recovered"
   | "skipped_native_integrator_id"
   | "skipped_no_record_at"
-  | "skipped_echo_guard";
+  | "skipped_echo_guard"
+  | "stale_mapping_missing_canonical";
 
 export type RubitimeCanonicalProjectionResult = {
   action: RubitimeCanonicalProjectionAction;

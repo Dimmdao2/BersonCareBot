@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { applyStaffCancelSideEffects } from "@/app-layer/booking/staffAppointmentLifecycleEffects";
-import {
-  resolveRubitimeIdForAppointment,
-  syncStaffCancelToRubitime,
-} from "@/app-layer/booking/staffRubitimeMirrorOutbound";
+import { runStaffManualCancelAfterCanonical } from "@/app-layer/booking/staffManualCancelAfterCanonical";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../../_requireDoctorBookingEngine";
 
 const bodySchema = z.object({
@@ -37,16 +32,6 @@ export async function POST(request: Request, context: RouteContext) {
   if (!deps.bookingAppointmentLifecycle) {
     return NextResponse.json({ ok: false, error: "lifecycle_unavailable" }, { status: 503 });
   }
-  const bookingRow = deps.patientBooking
-    ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
-    : null;
-  const rubitimeId = await resolveRubitimeIdForAppointment({
-    appointmentId,
-    organizationId: gate.ctx.organizationId,
-    bookingRow,
-    getRubitimeAppointmentId: gate.ctx.service?.getRubitimeAppointmentId,
-  });
-  const syncPort = createBookingSyncPort();
   const actorType = gate.ctx.session.user.role === "admin" ? "admin" : "specialist";
   const result = await deps.bookingAppointmentLifecycle.staffCancel({
     appointmentId,
@@ -61,55 +46,17 @@ export async function POST(request: Request, context: RouteContext) {
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
   }
-  if (rubitimeId) {
-    try {
-      await syncStaffCancelToRubitime({
-        rubitimeId,
-        appointmentId,
-        appointmentMirrorSync: deps.appointmentMirrorSync,
-        syncPort,
-      });
-    } catch {
-      return NextResponse.json({ ok: false, error: "rubitime_sync_failed" }, { status: 502 });
-    }
-  }
-  const { loadBookingLifecycleNotificationsFromSystemSettings } = await import(
-    "@/modules/booking-notifications/settings"
-  );
-  const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(
-    (key, scope) => deps.systemSettings.getSetting(key, scope),
-  );
-  if (deps.memberships) {
-    try {
-      await deps.memberships.applyCancelPackageOutcome({
-        appointmentId,
-        organizationId: gate.ctx.organizationId,
-        packageLessonDeducted: parsed.data.decisionType === "package_charged",
-        createdByPlatformUserId: gate.ctx.session.user.userId,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "package_outcome_failed";
-      return NextResponse.json({ ok: false, error: message }, { status: 409 });
-    }
-  }
-  if (deps.payments) {
-    await deps.payments.applyCancelPaymentOutcome({
-      appointmentId,
-      organizationId: gate.ctx.organizationId,
-      prepaymentRetained: parsed.data.decisionType === "retain_prepayment",
-      prepaymentRefunded: parsed.data.decisionType === "refund_prepayment",
-      reason: parsed.data.reason,
-    });
-  }
-  await applyStaffCancelSideEffects({
-    projection: deps.appointmentProjection,
-    lifecycle: deps.bookingAppointmentLifecycle,
+  const flags = await runStaffManualCancelAfterCanonical({
+    deps,
     organizationId: gate.ctx.organizationId,
+    appointmentId,
+    actorId: gate.ctx.session.user.userId,
+    actorType,
+    decisionType: parsed.data.decisionType,
+    reason: parsed.data.reason,
+    getRubitimeAppointmentId: gate.ctx.service?.getRubitimeAppointmentId,
     appointment: result.appointment,
     cancelPolicy: result.cancelPolicy,
-    syncPort,
-    bookingRow,
-    lifecycleNotificationSettings,
   });
-  return NextResponse.json({ ok: true, appointment: result.appointment });
+  return NextResponse.json({ ok: true, appointment: result.appointment, ...flags });
 }

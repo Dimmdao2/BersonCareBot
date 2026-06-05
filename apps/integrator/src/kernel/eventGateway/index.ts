@@ -61,6 +61,14 @@ export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
         try {
           await pipeline.run(event);
         } catch (error) {
+          const release = idempotencyPort?.release;
+          if (release) {
+            try {
+              await release(dedupKey);
+            } catch (releaseErr) {
+              console.error('eventGateway dedup release failed', releaseErr);
+            }
+          }
           console.error('eventGateway pipeline failed', error);
           return {
             status: 'rejected',

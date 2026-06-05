@@ -102,8 +102,9 @@ describe('eventGateway', () => {
   it('returns rejected with PIPELINE_FAILED when pipeline.run throws', async () => {
     const { createEventGateway } = await import('./index.js');
     const run = vi.fn().mockRejectedValue(new Error('pipeline error'));
+    const release = vi.fn().mockResolvedValue(undefined);
     const gateway = createEventGateway({
-      idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true) },
+      idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true), release },
       pipeline: { run },
     });
 
@@ -112,6 +113,7 @@ describe('eventGateway', () => {
     if (result.status === 'rejected') {
       expect(result.reason).toBe('PIPELINE_FAILED');
     }
+    expect(release).toHaveBeenCalled();
     expect(run).toHaveBeenCalledTimes(1);
   });
 

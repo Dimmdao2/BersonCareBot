@@ -189,13 +189,15 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     return row;
   },
 
-  async markAwaitingPayment(bookingId, canonicalAppointmentId) {
+  async markAwaitingPayment(bookingId, canonicalAppointmentId, options) {
     const row = byId.get(bookingId);
     if (!row) return null;
     const next = {
       ...row,
       status: "awaiting_payment" as const,
       canonicalAppointmentId,
+      rubitimeId: options?.rubitimeId?.trim() || row.rubitimeId,
+      rubitimeManageUrl: options?.rubitimeManageUrl?.trim() || row.rubitimeManageUrl,
       updatedAt: new Date().toISOString(),
     };
     byId.set(bookingId, next);

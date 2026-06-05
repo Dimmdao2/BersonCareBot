@@ -107,13 +107,14 @@ describe('rubitimeIncomingToEvent', () => {
     expect(event.meta.source).toBe('rubitime');
     expect(event.meta.correlationId).toBe('corr-1');
     expect(event.meta.eventId).toBe('evt-1');
-    expect(event.meta.dedupFingerprint).toEqual({
+    expect(event.meta.dedupFingerprint).toMatchObject({
       entity: 'record',
       action: 'updated',
       recordId: 'rec-1',
       status: 'recorded',
       recordAt: '2026-03-06T12:00:00.000Z',
       updatedAt: '2026-03-06T12:05:00.000Z',
+      payloadHash: expect.any(String),
     });
     expect(event.payload).toMatchObject({
       body,
