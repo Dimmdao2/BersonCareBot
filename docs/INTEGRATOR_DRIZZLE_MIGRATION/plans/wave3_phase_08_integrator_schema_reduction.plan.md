@@ -25,6 +25,9 @@ todos:
   - id: w3-p08-plan-update
     content: "Обновить фазу 09: исключить файлы/таблицы, которые удаляются или переводятся на public."
     status: pending
+  - id: w3-p08-senior-owner-approval
+    content: "Перед delete/deprecate/drop получить senior-agent review + owner approval; для prod-действий зафиксировать backup/rollback/окно выката."
+    status: pending
   - id: w3-p08-verify
     content: "LOG/RAW_SQL: таблица keep/delete/move; targeted tests для изменённых dispatch/settings/booking paths."
     status: pending
@@ -44,6 +47,15 @@ todos:
 - [ ] Фаза 09 обновлена: не мигрирует файлы, которые фаза 08 удаляет/переводит на `public`.
 - [ ] `RAW_SQL_INVENTORY.md` и `LOG.md` содержат итоговую матрицу решений.
 - [ ] Нет новых зеркал `public`-канона в `integrator`.
+- [ ] Для любого `delete/deprecate/drop`: senior-agent review + owner approval; для production — backup/rollback/окно выката.
+
+## Owner decisions
+
+- `public` — главный источник бизнес-данных.
+- `integrator` должен остаться технической схемой: очереди, locks/claims, throttle, outbox, delivery logs, внешние события и channel identity state.
+- Дубли в `integrator` можно отключать/удалять, если эти бизнес-данные уже есть в `public`.
+- Историю в `integrator` отдельно не храним, если она уже покрыта `public`.
+- Нужные справочники переносим/канонизируем в `public`.
 
 ## Preliminary classification
 
@@ -51,7 +63,7 @@ todos:
 |--------|------------------------|---------|
 | `integrator.system_settings`, `settingsSyncRoute`, `syncSettingToIntegrator` | **delete/deprecate** | В одной БД можно читать `public.system_settings`; зеркало создаёт двойную запись и риск рассинхрона |
 | `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles` | **move-to-public candidate** | Webapp уже имеет booking catalog (`public.booking_*`); integrator справочники выглядят legacy v1 mapping |
-| `rubitime_records` | **raw-audit-only candidate** | Канон записи должен быть `public.appointment_records` / `public.patient_bookings`; raw webhook история может остаться отдельно |
+| `rubitime_records` | **raw-event-only or delete/deprecate candidate** | Канон записи должен быть `public.appointment_records` / `public.patient_bookings`; отдельная история в `integrator` нужна только если это непокрытый technical external event log |
 | `rubitime_events` | **keep technical audit** | События внешней интеграции, полезно для replay/debug |
 | `booking_calendar_map` | **move-to-public candidate** | Связь с `public.patient_bookings.gcal_event_id`; возможно заменить колонкой/каноном public |
 | `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs` | **move-to-public candidate** | Правила/история напоминаний уже каноничны в webapp; integrator может dispatch читать из `public` |
@@ -63,7 +75,7 @@ todos:
 
 **Разрешено:** `apps/integrator/src/**`, `apps/webapp/src/modules/system-settings/**`, `apps/webapp/src/infra/integrator-push/**`, docs в `INTEGRATOR_DRIZZLE_MIGRATION`, точечные тесты.
 
-**Вне scope:** удаление production-таблиц без deprecation/backfill plan; переписывание UI.
+**Вне scope:** удаление production-таблиц без senior-agent review, owner approval, backup/rollback/окна выката; переписывание UI.
 
 ## Проверки
 
@@ -77,3 +89,4 @@ pnpm --dir apps/webapp run typecheck
 
 - Нельзя переходить к фазе 09, пока нет матрицы keep/delete/move.
 - Нельзя переводить файл на Drizzle, если его таблица помечена `delete/deprecate` или `move-to-public`.
+- Нельзя выполнять destructive DB action только решением агента: нужен senior-agent review + owner approval.

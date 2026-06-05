@@ -55,7 +55,7 @@
 
 ## Wave 3 (финальный closeout, 2026-06-05)
 
-Декомпозиция фаз **00, 08–17**: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), решения до старта [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). Цель — сначала сократить избыточную `integrator`-схему после unified DB (фаза 08), затем Class **A** (убрать необъяснённый `pool.query` в runtime), Class **B** (`run*Sql` / `execute`), Class **C** (permanent pg с ADR), плюс отдельный cutover фазы 16 для снятия регулярной зависимости от `migrate:legacy` и усиление DB-boundary валидации через Zod.
+Декомпозиция фаз **00, 08–17**: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), решения до старта [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). Цель — сначала сократить избыточную `integrator`-схему после unified DB (фаза 08), затем Class **A** (убрать необъяснённый `pool.query` в runtime), Class **B** (`run*Sql` / `execute`), Class **C** (permanent pg с ADR), плюс отдельный conditional cutover фазы 16 для снятия регулярной зависимости от `migrate:legacy`, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner, и усиление DB-boundary валидации через Zod.
 
 ## Сквозные риски
 
@@ -63,7 +63,7 @@
 |------|-----------|
 | Регресс **очередей** (`SKIP LOCKED`, порядок, индексы) | `EXPLAIN` до/после; тест на claim под конкуренцией; не удалять старый SQL из git history до релиза. |
 | **Две схемы** (`public` / `integrator`) в одном кластере | Qualified имена / `pgSchema` в Drizzle; комментарии в коде для чтений `public.*` из integrator (как в `branchTimezone.ts`). |
-| **Два канала `system_settings`** | Webapp админка: **`updateSetting`** → sync в integrator; integrator: **signed** `settingsSyncRoute` пишет в `integrator.system_settings`. Миграция на Drizzle не должна нарушить этот контракт. |
+| **Два канала `system_settings`** | Wave 3 owner decision: `public.system_settings` становится canonical source; phase 08 убирает runtime-зависимость от `integrator.system_settings` mirror. До фактического cutover не ломать текущий `updateSetting`/sync-контракт без migration plan. |
 | **Динамический SQL** | Whitelist идентификаторов; предпочитать `sql` tagged + параметры, не конкатенацию строк. |
 | **Дубль определений схемы** integrator vs webapp | Backlog общего пакета схемы из LOG; до выноса — чеклист «колонка в колонку» при любых DDL. |
 

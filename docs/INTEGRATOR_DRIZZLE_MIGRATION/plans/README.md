@@ -15,7 +15,7 @@
 
 ## Wave 3 — финальный closeout
 
-Индекс: [wave3_INDEX.md](./wave3_INDEX.md). Решения до старта: [wave3_DECISIONS.md](./wave3_DECISIONS.md) (**зафиксированы**, без открытых развилок перед стартом).
+Индекс: [wave3_INDEX.md](./wave3_INDEX.md). Решения до старта: [wave3_DECISIONS.md](./wave3_DECISIONS.md) (**зафиксированы**; фаза 16 остаётся условной по результатам 09–15).
 
 | Фаза | Файл плана | Статус |
 |------|------------|--------|
@@ -28,7 +28,7 @@
 | 13 — booking / doctor | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | pending |
 | 14 — comms / projection | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | pending |
 | 15 — webapp long tail | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | pending |
-| 16 — legacy cutover | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | pending |
+| 16 — условный legacy cutover | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | pending |
 | 17 — closeout | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | pending |
 
 После выполнения этапа: обновить `todos.status` в соответствующем plan-файле, секцию «Закрытие» (если есть), индекс таблицы ниже, [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md) и кратко зафиксировать в [../LOG.md](../LOG.md).

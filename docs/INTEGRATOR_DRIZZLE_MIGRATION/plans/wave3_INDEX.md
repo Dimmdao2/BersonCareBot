@@ -8,7 +8,7 @@
 
 1. Закрыть **integrator P1+** (`db.query` хвосты) и **media-worker IX**.
 2. Убрать необъяснённый **`pool.query` / `client.query`** в webapp runtime (Class **A**), либо перевести в Class **B/C** с ADR.
-3. Убрать потребность в регулярном `migrate:legacy` для webapp (legacy только аварийный путь).
+3. Убрать потребность в регулярном `migrate:legacy` для webapp, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner в regular flow.
 4. Синхронизировать **RAW_SQL_INVENTORY**, **DRIZZLE_TRANSITION_PLAN**, **LOG**; закрыть инициативу или явный backlog с причинами.
 5. Для переносимых DB-участков в фазах 09–15: обязательный слой валидации через **Zod**.
 6. До Drizzle-миграции хвостов integrator убрать/перенести дубли, которые после unified DB должны жить в `public`.
@@ -22,8 +22,9 @@
 - `rubitimeApiThrottle`: throttle-row read/update переводим на Drizzle session на том же client (Class B).
 - Google Calendar SQL: полностью в фазе 09.
 - PR policy: **1 PR = 1 фаза** (исключение: `00+09`).
-- Добавлена фаза 16: legacy migrations cutover + policy cleanup.
-- Добавлена фаза 08: integrator schema reduction до P1+ Drizzle-работ.
+- Owner decisions: `public` = canonical business data; `integrator` = technical state only; duplicate `integrator` data may be disabled/removed after senior review + owner approval.
+- Добавлена фаза 16: условный legacy migrations cutover + policy cleanup.
+- Добавлена фаза 08: integrator schema reduction до P1+ Drizzle-работ; destructive DB actions require senior-agent review, owner approval, backup/rollback plan.
 
 ## Фазы (порядок исполнения)
 
@@ -59,7 +60,7 @@
 - `09` и `10` можно делать параллельно только после `08`.
 - `11` стартует после зелёного `09`.
 - `12` → `13` → `14` → `15` идут последовательно (убывающий риск/шум `rg`).
-- `16` стартует после `15` и закрывает legacy-cutover.
+- `16` стартует после `15` и закрывает legacy-cutover только если `09–15` не оставили причин держать `migrate:legacy` в regular flow; иначе фиксирует blocker/backlog.
 - `17` — только после `00..16`, staging smoke gate и финального `pnpm run ci`.
 
 ## Связь с DRIZZLE_TRANSITION_PLAN фазами IX–X

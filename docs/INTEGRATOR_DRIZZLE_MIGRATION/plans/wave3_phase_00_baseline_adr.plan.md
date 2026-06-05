@@ -14,7 +14,7 @@ todos:
     content: "LOG §Wave3: ADR platform-merge, booking-rubitime-sync, claim, migrate, projectionHealthCore."
     status: pending
   - id: w3-p00-scope-confirm
-    content: "Записать в LOG зафиксированные решения: полный webapp scope + messengerPhoneHttpBindExecute Class C + staging smoke cancelled."
+    content: "Записать в LOG зафиксированные решения: полный webapp scope + messengerPhoneHttpBindExecute мигрируется в phase15 + staging smoke обязателен в phase17."
     status: pending
   - id: w3-p00-index
     content: "plans/README.md + DRIZZLE_TRANSITION_PLAN ссылка на wave3_INDEX + phase08 schema reduction + phase16 legacy cutover."
@@ -31,7 +31,7 @@ todos:
 
 - [ ] Таблица baseline в [LOG.md](../LOG.md) §Wave 3 baseline (counts по зонам).
 - [ ] [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) обновлён: Class A/B/C, integrator google-calendar в P1+, `integratorPushOutbox` (db.query).
-- [ ] [wave3_DECISIONS.md](./wave3_DECISIONS.md) — все 10 вопросов зафиксированы в LOG без «blocked on product».
+- [ ] [wave3_DECISIONS.md](./wave3_DECISIONS.md) — все 10 вопросов и owner decisions зафиксированы в LOG; phase16 отмечена как conditional cutover.
 - [ ] Permanent zones не требуют повторного обсуждения в фазах 09–15.
 - [ ] Добавлен policy-блок Drizzle+Zod для всех DB-границ в фазах 09–15.
 

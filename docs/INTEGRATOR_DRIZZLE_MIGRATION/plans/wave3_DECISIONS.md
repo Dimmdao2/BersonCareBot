@@ -16,9 +16,20 @@
 ## Цель качества Wave 3
 
 1. Максимально убрать хвост raw SQL из runtime-кода (прямые `pool.query` / `client.query` / `DbPort.query`).
-2. Убрать практическую потребность в `migrate:legacy` для webapp (legacy — только архивный emergency path).
+2. Убрать практическую потребность в `migrate:legacy` для webapp, если после фаз 09–15 не остаётся runtime/raw-SQL причин держать legacy runner в регулярном потоке. Если такая причина остаётся, фаза 16 фиксирует её как явный blocker/backlog, а не отключает legacy «любой ценой».
 3. Для новых/переносимых DB-участков в фазах Wave 3: выполнение через Drizzle и валидация входов/JSON/row-shape через **Zod**.
 4. До миграции хвостов integrator на Drizzle провести **сокращение integrator-схемы**: не мигрировать на Drizzle код/таблицы, которые после unified DB должны читать/писать `public`.
+
+## Owner decisions (2026-06-05)
+
+- `public` — главный источник бизнес-данных.
+- `integrator` должен остаться технической схемой: очереди, locks/claims, throttle, outbox, delivery logs, внешние события и channel identity state.
+- Дубли в `integrator` можно удалять/отключать, если те же бизнес-данные уже есть в `public`.
+- Отдельно хранить историю в `integrator` не нужно, если она уже покрыта `public`.
+- Нужные справочники переносим/канонизируем в `public`, чтобы webapp не зависел от `integrator`-зеркал.
+- Любой `drop/deprecate` требует проверки старшим агентом и owner approval; production-операции требуют backup/rollback/окно выката.
+- Staging smoke подтверждает owner по чеклисту агента; также может подтвердить ops/dev lead/senior agent с доступом к staging/prod logs, очередям, БД и внешним сервисам.
+- Живые интеграции Rubitime / Telegram / MAX / Google Calendar проверяются перед закрытием соответствующих фаз.
 
 ## Ответы из кода (уверенно)
 
@@ -121,7 +132,7 @@
 ### 4) Staging smoke (LOG L182)
 
 **Ответ:** staging smoke обязателен перед финальным closeout (фаза 17), не `cancelled`.  
-Если нет доступа к стенду — статус Wave 3: `blocked`, не `completed`.
+Owner подтверждает smoke по чеклисту агента. Если нет доступа к стенду или подтверждающего человека с доступом к logs/очередям/БД/внешним сервисам — статус Wave 3: `blocked`, не `completed`.
 
 ### 5) PR-стратегия
 
@@ -138,10 +149,12 @@
 
 ### 8) Legacy migrations webapp
 
-**Ответ:** добавляем отдельную фазу cutover (фаза 16) с целью снять зависимость runtime/deploy от `migrate:legacy`:
+**Ответ:** добавляем отдельную фазу cutover (фаза 16) с целью снять зависимость runtime/deploy от `migrate:legacy`, но только если после фаз 09–15 больше нет raw-SQL/migration причин держать legacy runner в regular flow:
 - закрепить Drizzle-only bootstrap для `public` в runbook и CI policy;
 - убрать упоминания `migrate:legacy` из регулярных путей;
 - legacy runner оставить только как ручной аварийный recovery path с явным gate.
+
+Если после фаз 09–15 остаётся сырой SQL, который может потребовать изменения legacy SQL-migrations, фаза 16 не отключает `migrate:legacy`; она фиксирует blocker, список причин и критерии повторного cutover.
 
 ### 9) Zod-политика для DB-слоя
 
@@ -155,13 +168,15 @@
 **Ответ:** перед фазой 09 добавляется фаза **08**: audit/delete/move decision по integrator-таблицам и репозиториям.  
 Правило порядка: если данные являются каноном webapp (`public.platform_users`, `public.patient_bookings`, `public.booking_*`, `public.system_settings`, `public.reminder_*`), то **сначала** решаем move/read-from-public/delete, и только потом мигрируем оставшийся runtime-код на Drizzle.
 
+Owner decision: `public` — canonical source of truth; `integrator` — только technical state. Дубли, покрытые `public`, можно отключать/удалять после senior-agent review + owner approval.
+
 Предварительная классификация:
 
 | Группа | Решение по умолчанию |
 |--------|----------------------|
 | `integrator.system_settings` + `settingsSyncRoute` | удалить зеркало / читать `public.system_settings` напрямую |
 | `rubitime_branches/services/cooperators/booking_profiles` | сверить с `public.booking_*`; если покрыто — перевести reads на `public`, затем deprecate integrator tables |
-| `rubitime_records` vs `public.appointment_records` / `public.patient_bookings` | оставить только как webhook/raw event log, если нужен audit; канон записи — `public` |
+| `rubitime_records` vs `public.appointment_records` / `public.patient_bookings` | оставить только если это непокрытый technical/raw external event log; если история уже покрыта `public`, не хранить отдельный бизнес-дубль |
 | `integrator.user_reminder_*` | проверить возможность dispatch напрямую из `public.reminder_*`; не расширять зеркало |
 | `integrator.users/identities/contacts` | оставить только channel/integration identity state, но не дублировать профиль пациента |
 | `projection_outbox` / retry jobs / delivery logs | оставить как техническую интеграторную state |

@@ -1,6 +1,6 @@
 ---
 name: Wave3 Phase16 Legacy cutover
-overview: Убрать зависимость регулярного потока от webapp legacy migrations и зафиксировать Drizzle-only канон для bootstrap/deploy, сохранив legacy path только как аварийный.
+overview: Убрать зависимость регулярного потока от webapp legacy migrations только если после фаз 09–15 нет raw-SQL/migration причин держать legacy runner; иначе зафиксировать blocker/backlog.
 status: pending
 isProject: false
 todos:
@@ -8,7 +8,10 @@ todos:
     content: "Инвентаризация всех живых ссылок на migrate:legacy/run-migrations.mjs (scripts, docs, tests, deploy)."
     status: pending
   - id: w3-p16-policy
-    content: "Обновить runbook/policy: regular flow = Drizzle only; legacy path = emergency-only/manual gate."
+    content: "Если нет blockers после 09–15: обновить runbook/policy: regular flow = Drizzle only; legacy path = emergency-only/manual gate."
+    status: pending
+  - id: w3-p16-blocker-decision
+    content: "Если остаётся raw SQL, который может требовать legacy migrations: не отключать migrate:legacy, зафиксировать blocker, owner decision и критерии повторного cutover."
     status: pending
   - id: w3-p16-script-guards
     content: "Усилить guardrails: запрет использования migrate:legacy в регулярных pipeline/CI и явный warning gate в runner."
@@ -30,10 +33,19 @@ todos:
 
 **M** (docs + scripts + test bootstrap policy).
 
+## Decision gate before changes
+
+Фаза 16 не отключает `migrate:legacy` автоматически. Сначала исполнитель обязан проверить результат фаз 09–15:
+
+- если в regular runtime/deploy больше нет raw-SQL/migration причин держать legacy runner — переводим `migrate:legacy` в emergency/manual path;
+- если такая причина есть — regular flow не меняем силой, фиксируем blocker/backlog в `LOG.md`, `RAW_SQL_INVENTORY.md` и `DRIZZLE_TRANSITION_PLAN.md`.
+
 ## Definition of Done
 
-- [ ] В регулярном flow (`deploy-prod`, `deploy-webapp-prod`, CI/migrate scripts) нет необходимости вызывать `migrate:legacy`.
-- [ ] `migrate:legacy` оставлен только как emergency/manual path с явной пометкой и guard.
+- [ ] Проверено состояние после фаз 09–15: есть или нет причин держать `migrate:legacy` в regular flow.
+- [ ] Если blockers отсутствуют: в регулярном flow (`deploy-prod`, `deploy-webapp-prod`, CI/migrate scripts) нет необходимости вызывать `migrate:legacy`.
+- [ ] Если blockers отсутствуют: `migrate:legacy` оставлен только как emergency/manual path с явной пометкой и guard.
+- [ ] Если blockers есть: они перечислены с owner decision, и `migrate:legacy` не отключён «любой ценой».
 - [ ] В `RAW_SQL_INVENTORY.md` и `LOG.md` отражён новый статус legacy-path.
 - [ ] `wave3_DECISIONS.md` и `DRIZZLE_TRANSITION_PLAN.md` синхронизированы с cutover-решением.
 - [ ] Zod-проверки добавлены в затронутые скриптовые parsing points (если есть JSON/unknown shape).
@@ -57,5 +69,6 @@ pnpm --dir apps/webapp run lint
 | Риск | Митигация |
 |------|-----------|
 | Старые окружения всё ещё требуют legacy bootstrap | emergency-runbook + explicit gate, не regular deploy |
+| После 09–15 остался raw SQL, который может требовать legacy migrations | не отключать regular legacy path; зафиксировать blocker и повторный cutover gate |
 | Тестовый bootstrap сломается при жёстком запрете legacy | выделить test-only path и задокументировать |
 | Dual-ledger путаница | фиксировать source-of-truth (`drizzle.__drizzle_migrations`) и repair steps |

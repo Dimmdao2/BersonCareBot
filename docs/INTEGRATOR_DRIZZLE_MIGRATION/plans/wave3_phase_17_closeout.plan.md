@@ -11,7 +11,7 @@ todos:
     content: "wave3_phase_00..17 todos completed/cancelled; plans/README Wave 3 index."
     status: pending
   - id: w3-p17-staging-smoke
-    content: "LOG L182 staging multipart→transcode — обязательный smoke и фиксация результата."
+    content: "LOG L182 staging multipart→transcode — обязательный smoke по чеклисту; подтверждает owner или человек/агент с доступом к staging/prod logs, очередям, БД и внешним сервисам."
     status: pending
   - id: w3-p17-ci
     content: "pnpm install --frozen-lockfile && pnpm run ci — green на финальном коммите."
@@ -33,7 +33,7 @@ todos:
 - [ ] [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md): IX media-worker **Done**; X webapp **Done** или backlog с ADR list.
 - [ ] [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md): только Class B/C + scripts; дата снимка.
 - [ ] **`pnpm run ci`** green.
-- [ ] Staging smoke выполнен и зафиксирован в LOG (`[x]` + дата/среда).
+- [ ] Staging smoke выполнен, подтверждён owner/ops/dev lead/senior agent с доступом и зафиксирован в LOG (`[x]` + дата/среда + кто подтвердил).
 
 ## Scope
 
@@ -60,6 +60,7 @@ todos:
 - multipart upload на staging;
 - enqueue/claim транскода;
 - фиксация результата в `LOG.md`.
+- подтверждение owner или другого ответственного с доступом к staging/prod logs, очередям, БД и внешним сервисам.
 
 Без этого пункта Wave 3 не переводится в `completed`.
 
