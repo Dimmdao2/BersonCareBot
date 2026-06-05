@@ -51,7 +51,7 @@ Admin keys (`system_settings`, scope `admin`):
 
 Без канона — legacy-отмена только через Rubitime + `patient_bookings` (без политик).
 
-Ручные решения: admin `.../manual-cancel|manual-reschedule`; doctor `/api/doctor/booking-engine/appointments/[id]/...` (`canAccessDoctor`); история `GET .../appointments/[id]/lifecycle` (admin).
+Ручные решения: admin/doctor `.../manual-cancel|manual-reschedule`; staff manual-cancel — partial flags `rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed` (без `productOutcomeFailed`); история `GET .../appointments/[id]/lifecycle` (admin).
 
 ## Предоплата и оплата (этап 5)
 

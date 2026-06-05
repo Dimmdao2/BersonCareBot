@@ -25,7 +25,10 @@
 После успешного canonical commit при сбое внешнего шага:
 
 - HTTP **не** маскировать операцию как полный провал (не 502 «операция не выполнена»).
-- Возвращать явные флаги: `rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed`, `productOutcomeFailed`.
+- Возвращать явные флаги (по поверхности):
+  - **Patient cancel:** `rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed`, `productOutcomeFailed`
+  - **Patient reschedule:** `rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`
+  - **Staff/admin manual-cancel:** `rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed` (без `productOutcomeFailed` — product visit outcome только patient cancel)
 - Логировать в audit/history.
 
 ## Inbound (Rubitime → webapp)

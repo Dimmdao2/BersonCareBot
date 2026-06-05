@@ -34,7 +34,7 @@
 | 4. Inbound dedup/echo | `377f3d51`, `d9bf2335` | `payloadHash`, release dedup on `PIPELINE_FAILED`, echo/stale mapping ветки | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts` |
 | 5. Timezone + cancel semantics | `377f3d51`, `d9bf2335` | branch timezone для update, `empty_patch` 400, `update-record` в контракте | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md` |
 | 6. Test matrix + docs sync | `d9bf2335`, `e823a581` | расширение regression matrix, синхронизация acceptance/architecture/module docs | `ACCEPTANCE_MIRROR_SYNC.md`, обновления `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md` |
-| 7. Финальный closeout | `e823a581` + closeout patch | финальные flags (`notificationOutcomeFailed`, `paymentOutcomeFailed`), выравнивание plan | финальный targeted suite + `pnpm run ci` (см. блок проверок ниже) |
+| 7. Финальный closeout | `e823a581`, `f960825b` | финальные flags, docs audit trail, выравнивание plan | targeted matrix + `tsc`; полный `pnpm run ci` — барьер перед push (см. ниже) |
 
 **Реконсиляция scope drift (closeout):**
 - Промежуточный коммит `659f0166` включал смежные правки analytics/stats routes как CI-fix для общих зависимостей (`loadDoctorAnalyticsAudience`) и не менял контракт mirror hardening.
@@ -61,7 +61,8 @@ pnpm --dir apps/integrator exec vitest run \
   src/integrations/rubitime/normalizeUpdateRecordPatch.test.ts \
   src/integrations/rubitime/recordM2mRoute.test.ts
 
-pnpm run ci
+# Итерации closeout (`f960825b`): targeted matrix + webapp tsc (см. ACCEPTANCE_MIRROR_SYNC.md).
+# Перед push в remote: pnpm install --frozen-lockfile && pnpm run ci
 ```
 
 ## 2026-06-05 — Двусторонняя синхронизация Rubitime ↔ канон (`AppointmentMirrorSync`) — закрыто
