@@ -219,7 +219,7 @@
 ### S2.T02 - Реальный lookup branch_service_id
 - Status: done
 - Files changed:
-  - `apps/webapp/src/infra/repos/rubitimeBranchServiceLookup.ts` — deterministic SQL lookup + ambiguous без cooperator
+  - `apps/webapp/src/infra/repos/rubitimeBranchServiceLookup.ts` *(superseded 2026-06: `@bersoncare/booking-rubitime-sync`)* — deterministic SQL lookup + ambiguous без cooperator
   - `apps/webapp/src/infra/repos/pgPatientBookings.ts` — merge lookup, snapshot/FK columns, `lookup_miss`/`ambiguous` логи
   - `apps/webapp/src/modules/patient-booking/compatSyncQuality.ts` — реальные критерии `full` (в т.ч. `branch_service_id`)
   - `apps/webapp/src/modules/integrator/events.ts` — `rubitimeCooperatorId` из payload

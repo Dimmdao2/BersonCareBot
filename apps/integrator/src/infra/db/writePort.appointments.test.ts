@@ -81,6 +81,122 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
     });
   });
 
+  it('booking.upsert delegates patient_bookings to booking-rubitime-sync package (INSERT ON CONFLICT)', async () => {
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [], projectionInserts: [] };
+    const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'booking.upsert',
+      params: {
+        externalRecordId: 'rec-pkg-1',
+        phoneNormalized: '+79990001122',
+        recordAt: '2026-05-01T10:00:00.000Z',
+        status: 'created',
+        payloadJson: {
+          branch_id: 173,
+          service_id: 675,
+          cooperator_id: 99,
+          name: 'Patient',
+        },
+        lastEvent: 'event-create',
+      },
+    });
+    const insertSql = capture.sqlCalls.find((s) => s.includes('INSERT INTO public.patient_bookings'));
+    expect(insertSql).toBeDefined();
+    expect(insertSql).toContain('ON CONFLICT (rubitime_id) DO NOTHING');
+    expect(insertSql).toContain("'rubitime_projection'");
+  });
+
+  it('booking.upsert update path uses package UPDATE when projection row exists', async () => {
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [], projectionInserts: [] };
+    const query = vi.fn(async (sql: string, params: unknown[]) => {
+      if (typeof sql === 'string' && sql.includes('merged_into_user_id')) {
+        return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.patient_bookings WHERE rubitime_id')) {
+        return {
+          rows: [
+            {
+              id: 'pb-existing',
+              source: 'rubitime_projection',
+              slot_start: new Date('2026-05-01T10:00:00.000Z'),
+              status: 'confirmed',
+              canonical_appointment_id: null,
+            },
+          ],
+        } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      capture.sqlCalls.push(sql);
+      return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
+    });
+    const integratorDrizzle = wrapDrizzle(capture);
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle } as DbPort));
+    const db = { query, tx, integratorDrizzle } as DbPort;
+    const writePort = createDbWritePort({ db });
+
+    await writePort.writeDb({
+      type: 'booking.upsert',
+      params: {
+        externalRecordId: 'rec-pkg-upd',
+        phoneNormalized: '+79990001122',
+        recordAt: '2026-05-01T11:00:00.000Z',
+        status: 'updated',
+        payloadJson: { branch_id: 173, service_id: 675, cooperator_id: 99 },
+        lastEvent: 'event-update',
+      },
+    });
+
+    const updateSql = capture.sqlCalls.find((s) => s.includes('UPDATE public.patient_bookings'));
+    expect(updateSql).toBeDefined();
+    expect(updateSql).toContain("WHEN source = 'rubitime_projection'");
+  });
+
+  it('booking.upsert skips patient_bookings when native revive guard applies', async () => {
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [], projectionInserts: [] };
+    const query = vi.fn(async (sql: string, params: unknown[]) => {
+      if (typeof sql === 'string' && sql.includes('merged_into_user_id')) {
+        return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.patient_bookings WHERE rubitime_id')) {
+        return {
+          rows: [
+            {
+              id: 'native-cancelled',
+              source: 'native',
+              slot_start: new Date('2026-05-01T10:00:00.000Z'),
+              status: 'cancelled',
+              canonical_appointment_id: null,
+            },
+          ],
+        } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      capture.sqlCalls.push(sql);
+      return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
+    });
+    const integratorDrizzle = wrapDrizzle(capture);
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle } as DbPort));
+    const db = { query, tx, integratorDrizzle } as DbPort;
+    const writePort = createDbWritePort({ db });
+
+    await writePort.writeDb({
+      type: 'booking.upsert',
+      params: {
+        externalRecordId: 'rec-skip-revive',
+        phoneNormalized: '+79990001122',
+        recordAt: '2026-05-01T10:00:00.000Z',
+        status: 'updated',
+        payloadJson: {},
+        lastEvent: 'event-update',
+      },
+    });
+
+    const patientWrite = capture.sqlCalls.find(
+      (s) => s.includes('INSERT INTO public.patient_bookings') || s.includes('UPDATE public.patient_bookings'),
+    );
+    expect(patientWrite).toBeUndefined();
+    expect(appointmentInsert(capture)?.values.integratorRecordId).toBe('rec-skip-revive');
+  });
+
   it('booking.upsert canonicalizes integrator ids inside payloadJson before public writes', async () => {
     const capture: Capture = { sqlCalls: [], drizzleInserts: [], projectionInserts: [] };
     const db = makeMockDb(capture);

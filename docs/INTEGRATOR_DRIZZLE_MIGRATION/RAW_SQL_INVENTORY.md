@@ -1,6 +1,6 @@
 # Инвентаризация: сырой SQL вне Drizzle query builder
 
-**Дата снимка:** 2026-05-15 (правки: 2026-05-16 doctor detail; **2026-06-05 Wave 2 P5 webapp media**; **2026-06-05 Wave 2 P6 webapp LFK**)  
+**Дата снимка:** 2026-05-15 (правки: 2026-05-16 doctor detail; **2026-06-05 Wave 2 P5 webapp media**; **2026-06-05 Wave 2 P6 webapp LFK**; **2026-06-05 Wave 2 P8 packages/worker/scripts**)  
 **Контекст:** миграция интегратора на Drizzle; мастер-план **P1–P4 интегратора закрыт** — здесь перечислены **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты): `pg` и строковый SQL там по-прежнему широко используются.
 
 **План перехода (фазы, риски, приоритеты):** [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md)
@@ -161,7 +161,7 @@
 | `src/infra/repos/pgLfkDiary.ts`                      | Дневник ЛФК-сессий: CRUD, агрегаты по датам, удаление сессий.                                                                                         | С      | **Wave 2 P6 done:** `runWebappPgText`; unit — `pgLfkDiary.test.ts` | Статистика пациента                                |
 | `src/infra/repos/pgLfkAssignments.ts`                | Назначения ЛФК пациенту в транзакции.                                                                                                                 | С      | **Wave 2 P6 done:** `runWebappTransaction` + `runWebappPgText`                                            | Назначения пациенту                                |
 | `src/infra/repos/pgPatientCalendarTimezone.ts`       | Таймзона календаря пациента.                                                                                                                          | Н      | `Drizzle`                                                 | Слоты календаря                                    |
-| `src/infra/repos/pgMediaTranscodeJobs.ts`            | Webapp: idempotent **enqueue** транскодинга (`runWebappTransaction` + dup lookup). Claim/reschedule/complete — `apps/media-worker` (Wave 2 P8).       | С      | **Wave 2 P5 done:** Drizzle + `runWebappTransaction`; dup lookup — `runWebappSql`    | Очередь медиа (enqueue)                            |
+| `src/infra/repos/pgMediaTranscodeJobs.ts`            | Webapp: idempotent **enqueue** транскодинга (`runWebappTransaction` + dup lookup). Claim — `apps/media-worker` (**P8 done**, unit tests).       | С      | **Wave 2 P5 done:** Drizzle + `runWebappTransaction`; dup lookup — `runWebappSql`    | Очередь медиа (enqueue)                            |
 | `src/infra/repos/s3MediaStorage.ts`                  | Медиа-файлы: advisory lock по media id, delete/update статусов, транзакции с CMS-метаданными, поиск сиротских файлов.                                 | В      | **Wave 2 P5 done** (advisory P3; DML — Drizzle/`runWebappSql`; TX BEGIN на PoolClient) | Целостность медиа и S3                             |
 | `src/infra/repos/mediaFoldersRepo.ts`                | Папки медиа: rename, проверки детей, delete.                                                                                                          | С      | **Wave 2 P5 done:** Drizzle                                                 | Иерархия папок                                     |
 | `src/infra/repos/mediaUploadSessionsRepo.ts`         | Сессии загрузки + очистка pending `media_files`.                                                                                                      | С      | **Wave 2 P5 done:** Drizzle + `runWebappSql` + tx на PoolClient            | Зависшие pending                                   |
@@ -173,7 +173,7 @@
 | `src/infra/repos/pgSupportCommunication.ts`          | Поддержка: диалоги, сообщения, служебные проверки `SELECT 1`, статусы.                                                                                | В      | `Drizzle` + `+sql`                                        | Поддержка пациентов                                |
 | `src/infra/repos/pgReferences.ts`                    | Справочники reference data: выборки, транзакции reorder, soft-delete.                                                                                 | С      | `Drizzle` + tx                                            | Порядок элементов                                  |
 | `src/infra/repos/pgAppointmentProjection.ts`         | Проекция записей на приём (транзакция с несколькими шагами).                                                                                          | С      | `Drizzle` + tx                                            | Запись на приём                                    |
-| `src/infra/repos/pgPatientBookings.ts`               | Записи пациента: вставки/обновления проекции из внешних источников.                                                                                   | С      | `Drizzle`                                                 | Календарь пациента                                 |
+| `src/infra/repos/pgPatientBookings.ts`               | Записи пациента: createPending/list; Rubitime upsert — `@bersoncare/booking-rubitime-sync` (+ revive guard). | С | **Wave 2 P8 done:** package `SqlExecutor`; остальной port — backlog по мере касания | Календарь пациента |
 | `src/infra/repos/pgUserProjection.ts`                | Связка webapp user ↔ integrator / platform_users: выборки, insert, merge-апдейты, транзакции.                                                         | В      | `Drizzle` + tx; критичные пути — тесты                    | Идентичности пользователей                         |
 | `src/infra/repos/pgIdentityResolution.ts`            | Разрешение идентичностей по телефону/привязкам.                                                                                                       | С      | `Drizzle` + `+sql`                                        | Неверный матч пользователя                         |
 | `src/infra/repos/pgUserByPhone.ts`                   | Поиск пользователя по телефону и привязкам.                                                                                                           | С      | `Drizzle`                                                 | Логин/чужой аккаунт                                |
@@ -212,22 +212,49 @@
 | `src/app-layer/media/adminTranscodeHealthMetrics.ts`   | Метрики здоровья транскодинга.                             | С      | `Drizzle` + `+sql` (P5: без изменений)       | Алерты медиа |
 | `src/app-layer/media/videoHlsLegacyBackfill.ts`        | Legacy HLS backfill: выборки/агрегаты по `media_files`.    | С      | `Drizzle` + batch update | HLS legacy   |
 
-### 2.7 Скрипты `apps/webapp/scripts`
+### 2.7 Скрипты `apps/webapp/scripts` (+ integrator)
 
-| Файл                                               | Назначение                                                                    | Сложн. | Вариант                    | Риски                      |
-| -------------------------------------------------- | ----------------------------------------------------------------------------- | ------ | -------------------------- | -------------------------- |
-| `run-migrations.mjs`                               | Кастомный раннер SQL-миграций webapp.                                         | Н      | **`pg`**                   | Низкие                     |
-| `seed-drizzle-migrations-meta.mjs`                 | Создание `drizzle.__drizzle_migrations` и мета-строк.                         | Н      | **`pg`** / ops             | Низкие                     |
-| `reconcile-person-domain.mjs`                      | Сверка/чинение person-domain данных (несколько SELECT).                       | С      | **`pg`** или общий сервис  | Исправление данных вручную |
-| `seed-content-pages.mjs`                           | Сид контент-страниц в транзакции.                                             | Н      | `Drizzle` / **`pg`** seed  | Контент                    |
-| `verify-drizzle-public-table-count.mjs`            | Верификация счётчиков строк public-таблиц.                                    | Н      | **`pg`**                   | Низкие                     |
-| `user-phone-admin.ts`                              | Админ CLI по телефону/purge/merge: массовый сырой SQL + `integratorDb.query`. | В      | **`pg`** + вызовы сервисов | Опасные ops                |
-| `realign-webapp-integrator-user-projection.ts`     | Реалайн проекции пользователей.                                               | С      | **`pg`** / сервис          | Проекция                   |
-| `seed-booking-catalog-tochka-zdorovya.ts`          | Сид каталога бронирования.                                                    | С      | **`pg`** / seed pipeline   | Каталог                    |
-| `backfill-rubitime-history-to-patient-bookings.ts` | Бэкфилл истории Rubitime → `patient_bookings`.                                | С      | **`pg`** / батч-сервис     | История записей            |
-| `backfill-rubitime-compat-snapshots.ts`            | Совместимые снапшоты Rubitime.                                                | С      | **`pg`**                   | Совместимость              |
-| `requeue-projection-outbox-dead.ts`                | Переочередь dead-событий projection outbox.                                   | С      | **`pg`** / админ API       | Outbox storm               |
-| `backfill-patient-bookings-v2.ts`                  | Бэкфилл patient_bookings v2.                                                  | С      | **`pg`**                   | Записи                     |
+| Файл | Назначение | Сложн. | Вариант | Риски |
+|------|------------|--------|---------|-------|
+| `run-migrations.mjs` | SQL migration runner | Н | **Wave 2 P8:** `pg` | Низкие |
+| `run-webapp-drizzle-migrate.mjs` | drizzle-kit migrate wrapper | Н | **Wave 2 P8:** ops | Низкие |
+| `seed-drizzle-migrations-meta.mjs` | bootstrap drizzle meta | Н | **Wave 2 P8:** `pg` ops | Низкие |
+| `verify-drizzle-public-table-count.mjs` | row-count audit | Н | **Wave 2 P8:** `pg` report | Низкие |
+| `fix-drizzle-introspect-defaults.mjs` | one-off DDL meta fix | Н | **Wave 2 P8:** `pg` ops | Низкие |
+| `check-drizzle-journal-sync.sh` | shell guard | Н | **Wave 2 P8:** ops (no SQL) | Низкие |
+| `check-legacy-migrations-frozen.sh` | shell guard | Н | **Wave 2 P8:** ops | Низкие |
+| `check-catalog-shared-primitives.sh` | shell guard | Н | **Wave 2 P8:** ops | Низкие |
+| `check-media-preview-invariants.sh` | shell guard | Н | **Wave 2 P8:** ops | Низкие |
+| `reconcile-person-domain.mjs` | person-domain reconcile | С | **Wave 2 P8:** `pg` batch | Data repair |
+| `reconcile-appointments-domain.mjs` | appointments reconcile | С | **Wave 2 P8:** `pg` batch | Data repair |
+| `reconcile-reminders-domain.mjs` | reminders reconcile | С | **Wave 2 P8:** `pg` batch | Data repair |
+| `reconcile-communication-domain.mjs` | communication reconcile | С | **Wave 2 P8:** `pg` batch | Data repair |
+| `reconcile-subscription-mailing-domain.mjs` | subscription reconcile | С | **Wave 2 P8:** `pg` batch | Data repair |
+| `backfill-person-domain.mjs` | person backfill | С | **Wave 2 P8:** `pg` batch | Data repair |
+| `backfill-appointments-domain.mjs` | appointments backfill | С | **Wave 2 P8:** `pg` batch | Data repair |
+| `backfill-reminders-domain.mjs` | reminders backfill | С | **Wave 2 P8:** `pg` batch | Data repair |
+| `backfill-subscription-mailing-domain.mjs` | subscription backfill | С | **Wave 2 P8:** `pg` batch | Data repair |
+| `backfill-communication-history.mjs` | communication backfill | С | **Wave 2 P8:** `pg` batch | History |
+| `backfill-rubitime-history-to-patient-bookings.ts` | Rubitime history → bookings | С | **Wave 2 P8:** `pg` batch | History |
+| `backfill-rubitime-compat-snapshots.ts` | compat snapshots + catalog lookup | С | **Wave 2 P8 done:** `pg` batch; lookup → `@bersoncare/booking-rubitime-sync` | Compat |
+| `backfill-patient-bookings-v2.ts` | patient_bookings v2 backfill | С | **Wave 2 P8:** `pg` batch | Bookings |
+| `video-hls-backfill-legacy.ts` | legacy HLS backfill | С | **Wave 2 P8:** `pg` batch | HLS legacy |
+| `requeue-projection-outbox-dead.ts` | outbox dead requeue | С | **Wave 2 P8:** `pg` ops | Outbox |
+| `realign-webapp-integrator-user-projection.ts` | user projection realign | С | **Wave 2 P8:** `pg` ops | Projection |
+| `seed-content-pages.mjs` | content pages seed | Н | **Wave 2 P8:** `pg` seed | Content |
+| `seed-booking-catalog-tochka-zdorovya.ts` | booking catalog seed | С | **Wave 2 P8:** `pg` seed | Catalog |
+| `user-phone-admin.ts` | admin phone/merge CLI | В | **Wave 2 P8:** `pg` + services | Ops danger |
+| `integrator-push-outbox-tick.ts` | outbox tick | С | **Wave 2 P8:** runtime tick | Delivery |
+| `media-preview-process-tick.ts` | preview worker tick | С | **Wave 2 P8:** runtime tick | Media |
+| `audit-platform-user-merge.sql` | merge audit SQL | Н | **Wave 2 P8:** manual psql | Ops |
+| `audit-platform-user-preflight.sql` | merge preflight SQL | Н | **Wave 2 P8:** manual psql | Ops |
+| `repair-client-8077942.sql` | one-off client repair | Н | **Wave 2 P8:** manual psql | Ops |
+| `rubitime-appointment-mapping-audit.sql` | mapping audit | Н | **Wave 2 P8:** manual psql | Report |
+| `backfill-rubitime-appointment-mappings.sql` | mapping backfill | С | **Wave 2 P8:** manual psql | Ops |
+| `stage13-gate.test.ts` | script gate tests | Н | **Wave 2 P8:** test only | — |
+| `stage13-preflight.test.ts` | script preflight tests | Н | **Wave 2 P8:** test only | — |
+| `backfill-person-domain.test.ts` | backfill script tests | Н | **Wave 2 P8:** test only | — |
+| `apps/integrator/scripts/projection-health.mjs` | projection health CLI | С | **Wave 2 P2+P8:** thin wrapper → core | Metrics |
 
 ### 2.8 Тесты
 
@@ -241,8 +268,8 @@
 
 | Файл                         | Назначение                                                                                                     | Сложн. | Вариант                                                                                  | Риски                                                      |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `src/processTranscodeJob.ts` | Статусы медиа и джобов: несколько `pool.query` / `ctx.pool.query` (обновление прогресса, финализация, ошибки). | С      | ввести Drizzle в worker **или** общий пакет схемы с webapp (сейчас в worker нет Drizzle) | Новая зависимость, рассинхрон с webapp при расхождении DDL |
-| `src/jobs/claim.ts`          | Claim транскодинг-джоба в транзакции (`FOR UPDATE SKIP LOCKED` + update).                                      | В      | `Drizzle` + `execute(sql)` claim                                                         | Двойной claim                                              |
+| `src/processTranscodeJob.ts` | Статусы медиа и джобов: несколько `pool.query` / `ctx.pool.query` (обновление прогресса, финализация, ошибки). | С      | backlog Wave 2 P9+ (pg до shared schema package) | Новая зависимость, рассинхрон с webapp при расхождении DDL |
+| `src/jobs/claim.ts`          | Claim транскодинг-джоба в транзакции (`FOR UPDATE SKIP LOCKED` + update).                                      | В      | **Wave 2 P8 done:** pg `pool.query`; unit `claim.test.ts`; shared Drizzle schema — backlog | Двойной claim                                              |
 
 ---
 
@@ -250,16 +277,18 @@
 
 | Файл                                                            | Назначение                                                                                                               | Сложн. | Вариант                                    | Риски                             |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------ | --------------------------------- |
-| `platform-merge/src/pgPlatformUserMerge.ts`                     | Крупная процедура слияния платформенных пользователей: блокировки, перенос строк по десяткам таблиц, очистка дубликатов. | В      | поэтапно `Drizzle`; ядро — tx + явные шаги | Критичные пользовательские данные |
-| `platform-merge/src/messengerPhonePublicBind.ts`                | Публичная привязка телефона мессенджера: realign/update через `db.query` (pg).                                           | С      | `Drizzle` в consumer app или общий db слой | Зависимости пакета                |
-| `booking-rubitime-sync/src/upsertPatientBookingFromRubitime.ts` | Upsert/delete `public.patient_bookings` при синке из Rubitime.                                                           | С      | `Drizzle`                                  | Записи пациента                   |
+| `platform-merge/src/pgPlatformUserMerge.ts`                     | Крупная процедура слияния платформенных пользователей: блокировки, перенос строк по десяткам таблиц, очистка дубликатов. | В      | **Wave 2 P8:** pg-only (merge TX; ~85 `query`); Drizzle поэтапно — отдельный план | Критичные пользовательские данные |
+| `platform-merge/src/messengerPhonePublicBind.ts`                | Публичная привязка телефона мессенджера: realign/update через `db.query` (pg).                                           | С      | **Wave 2 P8:** pg-only (consumer package) | Зависимости пакета                |
+| `booking-rubitime-sync/src/upsertPatientBookingFromRubitime.ts` | Upsert/delete `public.patient_bookings` при синке из Rubitime.                                                           | С      | **Wave 2 P8 done:** единый `SqlExecutor` pg в пакете; webapp delegates; Drizzle deferred | Записи пациента                   |
+| `booking-rubitime-sync/src/lookupBranchServiceByRubitimeIds.ts` | Catalog lookup `booking_branch_services` по Rubitime ids.                                                                | С      | **Wave 2 P8 done:** pg в пакете (удалён webapp дубль) | compat_quality / branch_service_id |
+| `booking-rubitime-sync/src/shouldSkipNativeReviveUpdate.ts` | Revive guard: skip Rubitime upsert on terminal native/canonical rows. | С | **Wave 2 P8 done:** pg lookup `be_appointments`; webapp + integrator | Erroneous revive |
 
 ---
 
 ## 5. Как читать этот отчёт дальше
 
 1. **Мастер-план (P1–P4 integrator repos):** закрыт — см. [LOG.md](./LOG.md) § «Закрытие инициативы».
-2. **Wave 2 (волна после мастера):** этапы **1–7** закрыты ([plans/README.md](./plans/README.md)); **этап 1** — ядро (`outgoingDeliveryQueue`, `bookingProfilesRepo`, …); **мелкие repos/config** с `db.query` — backlog «Wave 2 P1+» в §1.2. Дальше по плану: **8** packages/worker/scripts.
+2. **Wave 2 (волна после мастера):** этапы **1–8** закрыты ([plans/README.md](./plans/README.md)); **этап 1** — ядро (`outgoingDeliveryQueue`, `bookingProfilesRepo`, …); **мелкие repos/config** с `db.query` — backlog «Wave 2 P1+» в §1.2. **media-worker** `processTranscodeJob` — backlog P9+.
 3. **Webapp:** перенос через **`src/infra/repos`** + module ports (`buildAppDeps` / `bindAuthModulePorts`). Reminder repos — **P4 done**; медиа — **P5 done**; LFK `pgLfk*` — **P6 done**; auth/rate limits §2.2 — **P7 done** (2026-06-05).
 4. **Поиск в коде:** `rg "pool\\.query\\(|client\\.query\\(" apps packages` и `rg "\\bdb\\.query\\(" apps/integrator` — в `apps/integrator` экспорт `db` из `client.ts` это **`pg.Pool`**, не Drizzle relational `db.query` из webapp. `migrate.ts` и оболочка `client.ts` для TX — **не** цель «весь SQL в Drizzle builder».
 

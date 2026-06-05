@@ -10,10 +10,6 @@ vi.mock("@/infra/db/client", () => ({
   getPool: getPoolMock,
 }));
 
-vi.mock("@/infra/repos/rubitimeBranchServiceLookup", () => ({
-  lookupBranchServiceByRubitimeIds: vi.fn(),
-}));
-
 import { createPgAppointmentProjectionPort } from "./pgAppointmentProjection";
 import { pgPatientBookingsPort } from "./pgPatientBookings";
 

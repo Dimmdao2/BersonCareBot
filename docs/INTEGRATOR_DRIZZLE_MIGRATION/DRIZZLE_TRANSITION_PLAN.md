@@ -1,6 +1,6 @@
 # План перехода оставшегося сырого SQL на Drizzle (Wave 2)
 
-**Дата:** 2026-05-15 (обновление оценки и приоритетов)  
+**Дата:** 2026-05-15 (обновление: **2026-06-05** — Wave 2 этапы 1–8 закрыты)  
 **Связанные документы:** [инвентаризация](./RAW_SQL_INVENTORY.md), [лог](./LOG.md), [аудит тестов закрытых фаз](./TEST_BEHAVIOR_AUDIT.md), **поэтапные планы Wave 2** ([`plans/README.md`](./plans/README.md)), закрытый мастер-план P1–P4 [integrator_drizzle_migration_master.plan.md](../../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md) (в т.ч. раздел **Wave 2** и todo `wave-2-doc-sync`).
 
 ## Контекст: что уже сделано
@@ -46,12 +46,12 @@
 | 2 | S | **II** | `projectionHealth.ts` ↔ CLI — один канон метрик | Вне мастера P2 | **Done (2026-06-05):** `projectionHealthCore.ts`; builder `groupBy` — backlog ([wave2_phase_02](./plans/wave2_phase_02_projection_health_sync.plan.md)). |
 | 3 | M | **III** | Advisory locks: integrator + webapp (см. план) | Частично «сложный SQL» | **Done (2026-06-05):** `pgAdvisoryLock`; auth rate limits → фаза **VII** ([wave2_phase_03](./plans/wave2_phase_03_advisory_locks.plan.md)). |
 | 4 | L | **IV** | Webapp: напоминания `pgReminder*` | Вне integrator master | **Done (2026-06-05):** `runWebappSql` + Drizzle; см. [LOG](./LOG.md), [wave2_phase_04](./plans/wave2_phase_04_webapp_reminders.plan.md). |
-| 5 | L | **V** | Webapp: медиа (S3, transcode enqueue, multipart, preview worker) | Вне integrator master | **Done (2026-06-05):** Drizzle/`runWebappSql`; transcode claim — фаза **IX** / [P8](./plans/wave2_phase_08_packages_worker_scripts.plan.md) ([LOG](./LOG.md), [wave2_phase_05](./plans/wave2_phase_05_webapp_media.plan.md)). |
+| 5 | L | **V** | Webapp: медиа (S3, transcode enqueue, multipart, preview worker) | Вне integrator master | **Done (2026-06-05):** Drizzle/`runWebappSql`; transcode **claim** unit-tested in [P8](./plans/wave2_phase_08_packages_worker_scripts.plan.md); `processTranscodeJob` — фаза **IX** ([wave2_phase_05](./plans/wave2_phase_05_webapp_media.plan.md)). |
 | 6 | L | **VI** | Webapp: LFK каталог / дневник / назначения | Вне integrator master | **Done (2026-06-05):** `runWebappPgText` + tx; list/usage — `execute(sql)` без смены shape ([LOG](./LOG.md), [wave2_phase_06](./plans/wave2_phase_06_webapp_lfk.plan.md)). |
 | 7 | M | **VII** | Webapp: auth + rate limits | Вне integrator master | **Done (2026-06-05):** ports + `pgAuthRateLimitEvents`, `pgOAuthUserResolve`, OTP/email/channel link ([wave2_phase_07](./plans/wave2_phase_07_webapp_auth_rate_limits.plan.md)). |
-| 8 | L | **VIII** | `packages/platform-merge`, `booking-rubitime-sync` | Зависимости webapp + integrator flows | Менять только с явным semver/consumer-тестами. |
-| 9 | M | **IX** | `apps/media-worker` | Аналог очередей | Унификация claim-паттерна с webapp-транскодом — после фазы **V** или в рамках фазы **X**, если приоритет на общий паттерн очередей. |
-| 10 | M | **X** | Прочие `pg*` + scripts | Низкий приоритет | Скрипты оставить на `pg` допустимо; бизнес-код — по мере касания. |
+| 8 | L | **VIII** | `packages/platform-merge`, `booking-rubitime-sync` | Зависимости webapp + integrator flows | **Done (2026-06-05):** merge pg-only; booking sync unified in package ([P8](./plans/wave2_phase_08_packages_worker_scripts.plan.md), [LOG](./LOG.md)). |
+| 9 | M | **IX** | `apps/media-worker` | Аналог очередей | **Partial (2026-06-05):** claim pg + unit tests; `processTranscodeJob` pg backlog ([P8](./plans/wave2_phase_08_packages_worker_scripts.plan.md)). Shared schema — отдельный план. |
+| 10 | M | **X** | Прочие `pg*` + scripts | Низкий приоритет | Scripts классифицированы в **P8** ([LOG](./LOG.md) §P8-D); бизнес-код — по мере касания. |
 
 ## Сквозные риски
 

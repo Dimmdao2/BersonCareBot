@@ -1,37 +1,40 @@
 ---
 name: Wave2 Phase08 Packages worker scripts
-overview: Пакеты platform-merge и booking-rubitime-sync; apps/media-worker; оставшиеся ops-скрипты webapp — поэтапный перенос или явное оставление на pg с документацией.
-status: pending
+overview: Пакеты platform-merge и booking-rubitime-sync; apps/media-worker claim; ops-скрипты — унификация SQL в пакете, pg-only решения, revive guard, тесты.
+status: completed
 isProject: false
 todos:
   - id: p08-packages
-    content: "Под-PR A: packages/platform-merge (pgPlatformUserMerge, messengerPhonePublicBind): semver, consumer-тесты webapp/integrator; merge — максимальная осторожность; Drizzle wrappers добавлять только вокруг доказуемо эквивалентных подзапросов."
-    status: pending
+    content: "Под-PR A: packages/platform-merge — inventory + решение pg-only (merge tx); consumer-тесты без изменения API."
+    status: completed
   - id: p08-booking-sync
-    content: "Под-PR B: packages/booking-rubitime-sync: upsertPatientBookingFromRubitime — Drizzle на public.patient_bookings; проверить потребителей пакета."
-    status: pending
+    content: "Под-PR B: packages/booking-rubitime-sync — единый upsert/find/lookup; webapp pgPatientBookings делегирует; unit-тесты пакета + consumer."
+    status: completed
   - id: p08-media-worker
-    content: "Под-PR C: apps/media-worker: сначала принять schema decision; если нужен общий schema-пакет, остановиться и оформить отдельный план до runtime-кода; claim разрешено оставить на pg/execute(sql) с LOG-причиной."
-    status: pending
+    content: "Под-PR C: apps/media-worker — schema decision (pg-only + shared schema backlog); claim unit-тесты."
+    status: completed
   - id: p08-scripts
-    content: "Под-PR D: apps/webapp/scripts/* и apps/integrator/scripts/*: классификация «остаётся pg навсегда» vs «оборачиваем в сервис/Drizzle»; для pg-only — одна строка в LOG на скрипт."
-    status: pending
+    content: "Под-PR D: классификация webapp/integrator scripts — pg-only с причиной в LOG."
+    status: completed
   - id: p08-verify
-    content: "pnpm typecheck/test для затронутых пакетов; не менять корневой GitHub CI workflow."
-    status: pending
+    content: "typecheck/test затронутых пакетов; lockfile vitest booking-rubitime-sync."
+    status: completed
+  - id: p08-post-audit
+    content: "Post-audit + remarks closure: lookup/revive tests, integrator writePort contract, claim race, platform-merge gate, backfill→package, LOG/RAW_SQL построчно, full CI."
+    status: completed
 ---
 
 # Wave 2 — этап 8: пакеты, media-worker, скрипты
 
 ## Размер
 
-**L** (накопительно по нескольким артефактам; выполнять только под-PR/под-задачами ниже).
+**L** (накопительно по нескольким артефактам; выполнено под-PR A→B→C→D).
 
 ## Definition of Done
 
-- [ ] Для каждого затронутого пакета/приложения — зелёные typecheck/test в зоне изменений.
-- [ ] Ops-скрипты либо переведены, либо явно помечены как `pg`-only с причиной в LOG.
-- [ ] Нет новых env для интеграционных URL/ключей (правила репозитория).
+- [x] Для каждого затронутого пакета/приложения — зелёные typecheck/test в зоне изменений.
+- [x] Ops-скрипты либо переведены, либо явно помечены как `pg`-only с причиной в LOG.
+- [x] Нет новых env для интеграционных URL/ключей (правила репозитория).
 
 ## Scope
 
@@ -45,60 +48,68 @@ todos:
 
 ## Обязательная декомпозиция
 
-Не выполнять этап 8 одним PR. Порядок: A `platform-merge` → B `booking-rubitime-sync` → C `media-worker` → D scripts. Каждый под-PR закрывается собственными typecheck/test и записью в LOG; следующий под-PR не должен тащить незакрытые изменения предыдущего.
+Порядок: A `platform-merge` → B `booking-rubitime-sync` → C `media-worker` → D scripts.
 
 ## Декомпозиция исполнения
 
 ### A. `packages/platform-merge`
 
-- [ ] Inventory: `rg "query\\(" packages/platform-merge --glob "*.ts"` и список операций merge/bind.
-- [ ] Сначала read-only helpers и self-heal checks; затем write/merge transactions.
-- [ ] Сохранить public package API и consumer imports.
-- [ ] Для merge transactions использовать минимальные Drizzle wrappers или оставить `pg` с LOG-причиной, если transaction слишком полиморфна.
-- [ ] Тесты: package tests, webapp/integrator consumer tests на phone bind / merge conflict / self-heal.
-- [ ] Stop condition: при необходимости нового shared schema package закрыть под-PR как design-only и завести отдельный план.
+- [x] Inventory: `rg "query\\(" packages/platform-merge --glob "*.ts"` — **85** вызовов (`pgPlatformUserMerge.ts` 79 + bind/fallback).
+- [x] Consumer gate (post-audit): webapp merge tests **44 passed** без изменения API.
+- [x] Решение: **не Drizzle-мигрировать** в Wave 2 — полиморфная merge-транзакция, критичные данные; public API и consumers без изменений.
+- [x] LOG + RAW_SQL_INVENTORY §4 с причиной.
 
 ### B. `packages/booking-rubitime-sync`
 
-- [ ] Inventory: `upsertPatientBookingFromRubitime` и связанные writes в `public.patient_bookings`.
-- [ ] Проверить потребителей пакета в webapp и integrator.
-- [ ] Перевести прямой маппинг на Drizzle без изменения payload normalization.
-- [ ] Тесты: create booking, update booking, idempotent external id, missing patient/profile behavior.
-- [ ] LOG: какие поля остаются source-of-truth из Rubitime и какие из canonical booking.
+- [x] Inventory: `upsertPatientBookingFromRubitime`, `findExistingPatientBookingForRubitime`, `lookupBranchServiceByRubitimeIds`, `shouldSkipNativeReviveUpdate`.
+- [x] Webapp + integrator: find/revive guard → upsert с `existingRow`; удалён дубль `rubitimeBranchServiceLookup.ts`.
+- [x] Backfill `backfill-rubitime-compat-snapshots.ts` — catalog lookup через пакет.
+- [x] `compatSyncQuality` re-export из пакета.
+- [x] Unit-тесты пакета (**27 passed**) + consumer `pgPatientBookings.test.ts` (**19 passed**) + integrator appointments (**9 passed**).
+- [x] Drizzle в пакете **отложен** — `SqlExecutor` + pg-text эквивалентен прежнему SQL; source-of-truth полей Rubitime не менялся.
 
 ### C. `apps/media-worker`
 
-- [ ] До кода принять решение: собственная Drizzle schema, import из webapp schema, или shared schema package.
-- [ ] Если shared schema нужен для production-quality решения, не добавлять быстрый дубль без записи trade-off в LOG.
-- [ ] Claim transcode jobs сохранить эквивалентным webapp phase 5; `SKIP LOCKED` можно оставить на `pg`/`execute(sql)` с причиной.
-- [ ] Тесты: claim one job, complete/fail, retry, no double-claim.
-- [ ] Проверки: `pnpm --dir apps/media-worker run typecheck` и tests/build по package scripts.
+- [x] Schema decision: **без** локального дубля webapp Drizzle schema; shared schema package — отдельный backlog; worker остаётся на `pg.Pool`.
+- [x] `claim.ts` — pg `FOR UPDATE SKIP LOCKED` без изменений; unit `claim.test.ts` (**4 tests**: empty, claim one, reclaim stale, concurrent UPDATE miss).
+- [x] `processTranscodeJob.ts` — pg-only backlog (вне DoD P8).
 
 ### D. Scripts
 
-- [ ] Классифицировать каждый script из inventory: runtime business script, one-off ops, migration/backfill, report/compare.
-- [ ] One-off ops и migration/backfill могут остаться на `pg`; для каждого оставить строку в LOG с причиной.
-- [ ] Runtime business scripts должны вызывать repo/service, а не держать второй SQL-клон.
-- [ ] Не менять host env paths и не добавлять новые env для integration config.
-- [ ] Проверки: script-specific smoke или dry-run mode, если он уже существует; иначе typecheck/build и LOG с ручной командой.
+- [x] Классификация в [LOG.md](../LOG.md) § Wave 2 P8 — scripts (one-off/backfill/report/runtime tick → pg или thin wrapper).
 
 ### Final verification
 
-- [ ] Каждый под-PR имеет отдельный LOG entry и закрытые проверки.
-- [ ] `pnpm run typecheck` или более узкие package typecheck по затронутым consumers.
-- [ ] Не менять `.github/workflows/*`.
-- [ ] Обновить план statuses только по фактически закрытым под-PR.
+- [x] LOG entry + RAW_SQL_INVENTORY §3–4, §2.7.
+- [x] `pnpm --dir packages/booking-rubitime-sync run build && test` — **27 passed**.
+- [x] `pgPatientBookings.test.ts` — **19 passed**; platform-merge consumers — **44 passed**; integrator `writePort.appointments` — **9 passed**.
+- [x] `pnpm --dir apps/media-worker run test` — **17 passed** (incl. claim **4**).
+- [x] **`pnpm run ci`** — green (2026-06-05, post-audit + remarks closure).
+- [x] typecheck: webapp, media-worker, booking-rubitime-sync.
+- [x] Не менять `.github/workflows/*`.
 
 ## Решения по сложным местам
 
-- `platform-merge`: переносить только маленькими эквивалентными участками; при затрагивании merge transaction обязательно запускать tests обоих consumers.
-- `booking-rubitime-sync`: не решать дедуп каталогов и не менять source-of-truth; только persistence implementation для текущего payload.
-- `media-worker`: быстрый локальный дубль schema запрещён как default. При нехватке schema принять одно из двух решений: shared schema package отдельным планом или оставить `pg` с LOG-причиной.
-- Scripts: one-off/backfill/report остаются `pg-only` по умолчанию; runtime scripts должны вызывать общий core/repo.
+- `platform-merge`: pg-only до отдельного merge-engine плана; consumer semver не менялся.
+- `booking-rubitime-sync`: унификация persistence в пакете важнее Drizzle builder в monorepo package без shared schema.
+- `media-worker`: claim эквивалентен webapp P5 enqueue split; Drizzle в worker только после shared schema decision.
+- Scripts: runtime ticks (`integrator-push-outbox-tick`, `media-preview-process-tick`) — pg/HTTP к app endpoints; domain backfills — pg batch.
 
 ## Stop conditions
 
-- Если под-PR A меняет public API `platform-merge`, остановиться и оформить semver/consumer migration.
-- Если под-PR B требует изменить booking canonical model, остановиться и вынести в booking/dedup initiative.
-- Если под-PR C требует shared schema package, не писать runtime-код до отдельного schema-плана.
-- Если script не имеет безопасного dry-run/smoke, не менять его SQL без ручного ops-чеклиста в LOG.
+- (не сработали) API platform-merge и booking canonical model не менялись.
+
+## Закрытие (2026-06-05)
+
+- **A:** platform-merge pg-only (~85 `query`); consumer gate **44 passed**.
+- **B:** `@bersoncare/booking-rubitime-sync` — upsert/find/lookup/revive guard; webapp + integrator + backfill; vitest **27**; webapp **19**; integrator **9**.
+- **C:** media-worker claim unit tests **4**; schema pg-only; `processTranscodeJob` → фаза **IX**; suite **17 passed**.
+- **D:** scripts в LOG § Wave 2 этап 8 — D (**37** строк); RAW_SQL §2.7.
+- **CI:** `pnpm run ci` green (post-audit + remarks closure).
+
+## Post-audit / remarks closure (2026-06-05)
+
+- Package: lookup, revive guard, upsert update/idempotent/ambiguous (**27**).
+- Integrator `writePort.appointments`: INSERT/UPDATE contract + revive skip (**9**).
+- media-worker: concurrent claim race → ROLLBACK (**4** claim tests).
+- Docs: LOG § Wave 2 этап 8 — D, RAW_SQL §2.7/§3–4, `STAGE2_DECOMPOSITION.md`, archive superseded notes для `rubitimeBranchServiceLookup.ts`.

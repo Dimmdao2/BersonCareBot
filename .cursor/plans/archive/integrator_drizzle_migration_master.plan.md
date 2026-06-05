@@ -105,6 +105,7 @@ isProject: true
 
 Оставшийся сырой SQL (`db.query` / `pool.query`), webapp `infra/repos`, worker и скрипты — **не продолжение этого мастер-плана**, а отдельная очередь работ:
 
-- План фаз и рисков: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md)
+- План фаз и рисков: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md) — **этапы 1–8 закрыты (2026-06-05)**; дальше фазы **IX–X**.
 - Построчная инвентаризация: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md)
-- Журнал: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) (раздел **Wave 2**)
+- Журнал: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) (§ Wave 2 этапы 1–8)
+- Индекс этапов: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md)

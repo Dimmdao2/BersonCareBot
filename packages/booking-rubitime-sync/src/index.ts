@@ -20,7 +20,10 @@ export {
 } from "./rubitimeNormalizedStatus.js";
 export { lookupBranchServiceByRubitimeIds, type RubitimeBranchServiceLookupRow } from "./lookupBranchServiceByRubitimeIds.js";
 export {
+  findExistingPatientBookingForRubitime,
   upsertPatientBookingFromRubitime,
+  type ExistingPatientBookingRow,
   type RubitimePatientBookingUpsertInput,
   type UpsertPatientBookingFromRubitimeOptions,
 } from "./upsertPatientBookingFromRubitime.js";
+export { shouldSkipNativeReviveUpdate } from "./shouldSkipNativeReviveUpdate.js";

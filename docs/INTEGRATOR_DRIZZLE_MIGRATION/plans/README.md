@@ -10,8 +10,8 @@
 | 4 — webapp напоминания | [wave2_phase_04_webapp_reminders.plan.md](./wave2_phase_04_webapp_reminders.plan.md) | completed |
 | 5 — webapp медиа | [wave2_phase_05_webapp_media.plan.md](./wave2_phase_05_webapp_media.plan.md) | completed (2026-06-05) |
 | 6 — webapp ЛФК | [wave2_phase_06_webapp_lfk.plan.md](./wave2_phase_06_webapp_lfk.plan.md) | completed (2026-06-05) |
-| 7 — webapp auth / rate limits | [wave2_phase_07_webapp_auth_rate_limits.plan.md](./wave2_phase_07_webapp_auth_rate_limits.plan.md) | **done** (2026-06-05) |
-| 8 — пакеты, media-worker, скрипты | [wave2_phase_08_packages_worker_scripts.plan.md](./wave2_phase_08_packages_worker_scripts.plan.md) | pending |
+| 7 — webapp auth / rate limits | [wave2_phase_07_webapp_auth_rate_limits.plan.md](./wave2_phase_07_webapp_auth_rate_limits.plan.md) | completed (2026-06-05) |
+| 8 — пакеты, media-worker, скрипты | [wave2_phase_08_packages_worker_scripts.plan.md](./wave2_phase_08_packages_worker_scripts.plan.md) | **completed** (2026-06-05) |
 
 После выполнения этапа: обновить `todos.status` в соответствующем plan-файле, секцию «Закрытие» (если есть), индекс таблицы ниже, [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md) и кратко зафиксировать в [../LOG.md](../LOG.md).
 
@@ -26,7 +26,7 @@
 - **Webapp reminders scope:** этап 4 включает все reminder repos с `pool.query` / `client.query`, включая `pgWebPushOnlyReminders.ts` и `pgReminderTransactionalEmailCooldown.ts`.
 - **Integrator tail (этап 1):** закрыт по **ядру** (очередь, booking profiles, settings sync, audit/attempts, worker SQL); полный список «мелких repos» из ранней декомпозиции — **backlog P1+**, не блокирует `status: completed` (см. план §Закрытие).
 - **Auth scope:** этап 7 меняет только ветки с сырой SQL; modules не импортируют infra напрямую, новые SQL-порты идут через существующую DI/ports схему.
-- **Этап 8:** исполняется под-PR/под-задачами: `platform-merge`, `booking-rubitime-sync`, `media-worker`, scripts. Не делать одним большим PR без промежуточной проверки.
+- **Этап 8:** исполняется под-PR/под-задачами: `platform-merge`, `booking-rubitime-sync`, `media-worker`, scripts — **закрыт (2026-06-05)**; см. [wave2_phase_08](./wave2_phase_08_packages_worker_scripts.plan.md). Дальше: фаза **IX** (`processTranscodeJob`), фаза **X** (прочие `pg*`).
 
 ## Gate-контракт для каждого этапа
 

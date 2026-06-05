@@ -28,6 +28,14 @@ export type RubitimePatientBookingUpsertInput = {
   rubitimeManageUrl?: string | null;
 };
 
+export type ExistingPatientBookingRow = {
+  id: string;
+  source: string;
+  slot_start: Date;
+  status: string;
+  canonical_appointment_id: string | null;
+};
+
 type MergeCompatInput = RubitimePatientBookingUpsertInput;
 
 async function mergeCompatProjectionFields(
@@ -107,45 +115,43 @@ export type UpsertPatientBookingFromRubitimeOptions = {
   normalizeRuPhoneE164: (raw: string) => string;
   /** Optional: defaults to console.warn for ambiguous lookup. */
   logCompat?: (msg: string, meta: Record<string, unknown>) => void;
+  /** When provided, skip internal find/link (webapp revive guard runs first). */
+  existingRow?: ExistingPatientBookingRow | null;
 };
 
 /**
- * Single implementation for Rubitime → `patient_bookings` (webapp + integrator direct SQL).
- * Mirrors `pgPatientBookingsPort.upsertFromRubitime`.
+ * Resolve existing `patient_bookings` row by `rubitime_id`, with native fallback link by phone/slot/user.
  */
-export async function upsertPatientBookingFromRubitime(
+export async function findExistingPatientBookingForRubitime(
   db: SqlExecutor,
   normalizeRuPhoneE164: (raw: string) => string,
   input: RubitimePatientBookingUpsertInput,
-  options?: Pick<UpsertPatientBookingFromRubitimeOptions, "logCompat">,
-): Promise<void> {
-  const logCompat =
-    options?.logCompat ??
-    ((msg: string, meta: Record<string, unknown>) => {
-      console.warn(`[rubitime-patient-booking] ${msg}`, meta);
-    });
-
-  const existing = await db.query<{ id: string; source: string; slot_start: Date }>(
-    `SELECT id, source, slot_start FROM public.patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
+): Promise<ExistingPatientBookingRow | null> {
+  const existing = await db.query<ExistingPatientBookingRow>(
+    `SELECT id, source, slot_start, status, canonical_appointment_id
+     FROM public.patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
     [input.rubitimeId],
   );
-  let existingRow = existing.rows[0];
+  let existingRow = existing.rows[0] ?? null;
 
   if (!existingRow) {
     const phoneRaw = input.contactPhone?.trim() ?? "";
     const slotStartIso = input.slotStart?.trim() ?? "";
     if (phoneRaw && slotStartIso) {
       const phoneNorm = normalizeRuPhoneE164(phoneRaw);
-      const fallback = await db.query<{ id: string; source: string; slot_start: Date }>(
-        `SELECT id, source, slot_start FROM public.patient_bookings
+      const fallback = await db.query<ExistingPatientBookingRow>(
+        `SELECT id, source, slot_start, status, canonical_appointment_id FROM public.patient_bookings
          WHERE rubitime_id IS NULL
            AND source = 'native'
            AND status IN ('creating', 'confirmed', 'failed_sync')
-           AND contact_phone = $1
            AND slot_start = $2::timestamptz
+           AND (
+             ($3::uuid IS NOT NULL AND platform_user_id = $3::uuid)
+             OR contact_phone = $1
+           )
          ORDER BY created_at DESC
          LIMIT 1`,
-        [phoneNorm, slotStartIso],
+        [phoneNorm, slotStartIso, input.userId ?? null],
       );
       const fb = fallback.rows?.[0];
       if (fb) {
@@ -157,6 +163,29 @@ export async function upsertPatientBookingFromRubitime(
       }
     }
   }
+
+  return existingRow;
+}
+
+/**
+ * Single implementation for Rubitime → `patient_bookings` (webapp + integrator direct SQL).
+ */
+export async function upsertPatientBookingFromRubitime(
+  db: SqlExecutor,
+  normalizeRuPhoneE164: (raw: string) => string,
+  input: RubitimePatientBookingUpsertInput,
+  options?: Pick<UpsertPatientBookingFromRubitimeOptions, "logCompat" | "existingRow">,
+): Promise<void> {
+  const logCompat =
+    options?.logCompat ??
+    ((msg: string, meta: Record<string, unknown>) => {
+      console.warn(`[rubitime-patient-booking] ${msg}`, meta);
+    });
+
+  let existingRow =
+    options?.existingRow !== undefined
+      ? options.existingRow
+      : await findExistingPatientBookingForRubitime(db, normalizeRuPhoneE164, input);
 
   if (existingRow) {
     if (existingRow.source === "rubitime_projection" && input.status === "cancelled") {

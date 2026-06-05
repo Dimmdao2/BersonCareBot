@@ -90,7 +90,7 @@
 
 - Этапы **P1–P4** и **мастер-план** закрыты; целевые репозитории мастера не используют для доменной логики строковый **`db.query(...)`** (Drizzle API и/или **`runIntegratorSql` / `execute(sql)`**).
 - После выравнивания: **`pnpm --dir apps/integrator run lint`**, **`typecheck`**, **`test`** — зелёные.
-- **Wave 2 (2026-06-05):** этапы **1–7** закрыты — см. § ниже. **`outgoingDeliveryQueue`** и **`bookingProfilesRepo`** — Wave 2 P1. Backlog: мелкие integrator repos/config (P1+); media-worker transcode claim → **P8**.
+- **Wave 2 (2026-06-05):** этапы **1–8** закрыты — см. § ниже. **`outgoingDeliveryQueue`** и **`bookingProfilesRepo`** — Wave 2 P1. Backlog: мелкие integrator repos/config (P1+); media-worker **`processTranscodeJob`** → **фаза IX** (claim — **P8 done**, unit `claim.test.ts`).
 
 ### Wave 2 — план и инвентаризация (документация)
 
@@ -171,14 +171,15 @@
 - **Инфра:** `mediaSqlPredicates.ts` — общие SQL-предикаты readable/purge; `runWebappSql.getWebappSqlFromPgClient` — Drizzle на dedicated `PoolClient` (multipart tx, preview/purge workers, session advisory в `deleteHard`).
 - **Репозитории:** `mediaFoldersRepo.ts`, `mediaUploadSessionsRepo.ts`, `pgMediaTranscodeJobs.ts`, `pgMediaFileIntakeResolve.ts`, `pgMediaUsageSummary.ts`, `s3MediaStorage.ts`, `mediaPreviewWorker.ts` — Drizzle builder / `runWebappSql`; claim/purge/preview — `execute(sql)` с `FOR UPDATE SKIP LOCKED` где было в legacy.
 - **Routes:** `media/multipart/init` — rollback pending через `deletePendingMediaFileById`; `internal/media-multipart/cleanup` — SQL в repo (`lockExpiredSessionForCleanupTx`, `deletePendingMediaFileTx`).
-- **Остаток (осознанно):** `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` на dedicated client в workers/multipart pool-tx; `collectAdminSystemHealthData` media metrics — без изменений (отдельный этап при унификации health SQL); transcode **claim/reschedule** — `apps/media-worker` (Wave 2 этап 8), webapp P5 покрывает только **enqueue**.
+- **Остаток (осознанно):** `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` на dedicated client в workers/multipart pool-tx; `collectAdminSystemHealthData` media metrics — без изменений (отдельный этап при унификации health SQL); transcode **claim** — **P8 done** (`apps/media-worker/src/jobs/claim.test.ts`); **`processTranscodeJob`** status SQL — backlog **фаза IX**.
 - **Smoke-чеклист:**
   - [x] multipart init → rollback при DB failure (unit `init/route.test.ts`: pending + session insert).
   - [x] internal multipart cleanup → pending purge / mark expired / skip stale lock (unit `cleanup/route.test.ts`).
   - [x] preview worker claim → ready/error (unit `mediaPreviewWorker.test.ts`).
   - [x] pending_delete purge / hard delete advisory order (unit `s3MediaStorage.test.ts`).
   - [x] transcode enqueue idempotent (unit `pgMediaTranscodeJobs.test.ts`, incl. program submission).
-  - [ ] staging-only: end-to-end multipart upload + transcode claim на media-worker (после P8).
+  - [x] media-worker claim unit tests (Wave 2 P8 — `claim.test.ts`, 4 tests).
+  - [ ] staging-only: end-to-end multipart upload + transcode claim на media-worker (ops smoke, не блокер P8).
 - **Постаудит (2026-06-05):** cleanup `cleaned` не завышается при stale lock; RAW_SQL уточнён (enqueue vs claim); расширены unit-тесты.
 - **Тесты (vitest `--project fast`, P5 bundle):** **56 passed** — `init`, `cleanup`, `mediaFoldersRepo`, `mediaUploadSessionsRepo`, `pgMediaTranscodeJobs`, `s3MediaStorage`, `mediaPreviewWorker`, `pgMediaFileIntakeResolve`, `mediaTranscodeAutoEnqueue`.
 - **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci` — green (2026-06-05)**; `rg 'pool\.query|client\.query'` по media scope — только TX transport на `PoolClient`.
@@ -214,3 +215,90 @@
 - **Тесты (vitest `--project fast`):** auth module **243 passed**; additions — `pgAuthRateLimitEvents.test.ts`, `pgOAuthUserResolve.test.ts`, `oauthWebLoginResolve.test.ts`, opt-in `pgAuthRateLimitEvents.devDb.integration.test.ts`.
 - **Проверки:** `pnpm --dir apps/webapp run typecheck`; полный `pnpm run ci`.
 - **План:** [wave2_phase_07_webapp_auth_rate_limits.plan.md](./plans/wave2_phase_07_webapp_auth_rate_limits.plan.md) — `status: completed`, todos, DoD, §«Закрытие».
+
+### Wave 2 — этап 8 (packages, media-worker, scripts) — выполнено (2026-06-05)
+
+#### A. `packages/platform-merge` — pg-only (решение)
+
+- **Inventory:** `rg "query\\(" packages/platform-merge --glob "*.ts"` — ~85 в `pgPlatformUserMerge.ts`, + `messengerPhonePublicBind.ts`, `mergeContactFallback.ts`.
+- **Решение:** merge/bind **не переводить** на Drizzle в Wave 2 — полиморфная TX, десятки таблиц, критичные пользовательские данные; public API semver без изменений.
+- **Consumers:** webapp `integrator-merge` route, integrator merge paths — без правок контракта.
+
+#### B. `packages/booking-rubitime-sync` — унификация
+
+- **Пакет:** `findExistingPatientBookingForRubitime`, `upsertPatientBookingFromRubitime`, `lookupBranchServiceByRubitimeIds`, `shouldSkipNativeReviveUpdate`, `computeCompatSyncQuality` — единый канон SQL через `SqlExecutor`.
+- **Webapp:** `pgPatientBookings.upsertFromRubitime` — find/revive guard → делегирование; удалён дубль `apps/webapp/src/infra/repos/rubitimeBranchServiceLookup.ts`.
+- **Integrator:** `writePort` booking.upsert — тот же find/revive guard + upsert с `existingRow`.
+- **Backfill:** `backfill-rubitime-compat-snapshots.ts` phase 2 — lookup через пакет (без дубля SQL).
+- **Re-export:** `modules/patient-booking/compatSyncQuality.ts` → `@bersoncare/booking-rubitime-sync`.
+- **Drizzle в пакете:** отложен (нет shared schema package; поведение SQL 1:1 с legacy).
+- **Тесты:** package **27 passed**; webapp `pgPatientBookings.test.ts` **19 passed**; integrator `writePort.appointments` **9 passed**.
+
+#### C. `apps/media-worker`
+
+- **Schema decision:** worker остаётся на `pg.Pool`; **не** дублировать webapp Drizzle schema локально; shared schema package — отдельный backlog до runtime Drizzle в worker.
+- **Claim:** `src/jobs/claim.ts` — pg `FOR UPDATE SKIP LOCKED`; unit `claim.test.ts` (**4 tests**: empty, claim one, reclaim stale, concurrent miss → ROLLBACK).
+- **Backlog:** `processTranscodeJob.ts` — pg-only status updates (фаза IX follow-up).
+- **Тесты:** media-worker **17 passed**; typecheck green.
+
+#### D. Scripts — классификация (pg-only, одна строка на файл)
+
+| Script | Класс | Причина |
+|--------|-------|---------|
+| `run-migrations.mjs` | migration | SQL migration runner |
+| `run-webapp-drizzle-migrate.mjs` | migration | drizzle-kit migrate wrapper |
+| `seed-drizzle-migrations-meta.mjs` | ops | bootstrap `drizzle.__drizzle_migrations` |
+| `verify-drizzle-public-table-count.mjs` | report | row-count audit |
+| `fix-drizzle-introspect-defaults.mjs` | ops | one-off DDL meta fix |
+| `check-drizzle-journal-sync.sh` | ops | shell guard |
+| `check-legacy-migrations-frozen.sh` | ops | shell guard |
+| `check-catalog-shared-primitives.sh` | ops | shell guard |
+| `check-media-preview-invariants.sh` | ops | shell guard |
+| `reconcile-person-domain.mjs` | reconcile | batch ops SQL |
+| `reconcile-appointments-domain.mjs` | reconcile | batch ops SQL |
+| `reconcile-reminders-domain.mjs` | reconcile | batch ops SQL |
+| `reconcile-communication-domain.mjs` | reconcile | batch ops SQL |
+| `reconcile-subscription-mailing-domain.mjs` | reconcile | batch ops SQL |
+| `backfill-person-domain.mjs` | backfill | batch ops SQL |
+| `backfill-appointments-domain.mjs` | backfill | batch ops SQL |
+| `backfill-reminders-domain.mjs` | backfill | batch ops SQL |
+| `backfill-subscription-mailing-domain.mjs` | backfill | batch ops SQL |
+| `backfill-communication-history.mjs` | backfill | batch ops SQL |
+| `backfill-rubitime-history-to-patient-bookings.ts` | backfill | batch history → `patient_bookings` |
+| `backfill-rubitime-compat-snapshots.ts` | backfill | payload + `@bersoncare/booking-rubitime-sync` lookup |
+| `backfill-patient-bookings-v2.ts` | backfill | legacy v2 rows |
+| `video-hls-backfill-legacy.ts` | backfill | legacy HLS |
+| `requeue-projection-outbox-dead.ts` | ops | outbox admin |
+| `realign-webapp-integrator-user-projection.ts` | ops | projection realign |
+| `seed-content-pages.mjs` | seed | content seed tx |
+| `seed-booking-catalog-tochka-zdorovya.ts` | seed | catalog seed |
+| `user-phone-admin.ts` | ops CLI | admin merge/purge |
+| `integrator-push-outbox-tick.ts` | runtime tick | tick к app endpoint |
+| `media-preview-process-tick.ts` | runtime tick | preview worker tick |
+| `audit-platform-user-merge.sql` | report/ops | manual psql audit |
+| `audit-platform-user-preflight.sql` | report/ops | manual psql preflight |
+| `repair-client-8077942.sql` | ops | one-off repair |
+| `rubitime-appointment-mapping-audit.sql` | report | dry-run metrics |
+| `backfill-rubitime-appointment-mappings.sql` | ops | mapping backfill |
+| `stage13-gate.test.ts` | test | gate script tests |
+| `stage13-preflight.test.ts` | test | preflight script tests |
+| `backfill-person-domain.test.ts` | test | backfill script tests |
+| `apps/integrator/scripts/projection-health.mjs` | CLI wrapper | thin wrapper → `projectionHealthCore` (P2) |
+
+#### Post-audit P8 (2026-06-05)
+
+- **Package tests:** `lookupBranchServiceByRubitimeIds.test.ts`, `shouldSkipNativeReviveUpdate.test.ts`; upsert — update, idempotent, ambiguous (**27 passed**).
+- **Integrator:** `writePort.appointments.test.ts` — INSERT/UPDATE contract + revive skip (**9 passed**).
+- **media-worker:** `claim.test.ts` — race UPDATE empty → ROLLBACK (**4 claim tests**, suite **17 passed**).
+- **platform-merge consumers:** webapp merge tests **44 passed**.
+- **Archive docs:** superseded notes для удалённого `rubitimeBranchServiceLookup.ts`.
+- **Проверки:** `pnpm --dir packages/booking-rubitime-sync run build && test`; targeted webapp/integrator/media-worker tests; **`pnpm run ci` — green (2026-06-05, post-audit + remarks closure)**.
+- **План:** [wave2_phase_08_packages_worker_scripts.plan.md](./plans/wave2_phase_08_packages_worker_scripts.plan.md) — `status: completed`, todos **6/6**, DoD, §«Закрытие» / §«Post-audit / remarks closure».
+- **Синхронизация:** [plans/README.md](./plans/README.md), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) §2.7 / §3–4, [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) фазы VIII–IX, [docs/README.md](../README.md).
+- **Backlog Wave 2 после P8:** фаза **IX** — `media-worker/processTranscodeJob`; фаза **X** — прочие `pg*` repos; Drizzle в `booking-rubitime-sync` / `platform-merge` — отдельные планы.
+
+### Документация — финальная синхронизация P8 (2026-06-05)
+
+- План [wave2_phase_08](./plans/wave2_phase_08_packages_worker_scripts.plan.md): §«Закрытие» / §«Post-audit» согласованы с LOG и счётчиками тестов.
+- [wave2_phase_05](./plans/wave2_phase_05_webapp_media.plan.md): claim → P8 done; `processTranscodeJob` → IX.
+- [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md): фазы V, VIII–X; [plans/README.md](./plans/README.md); [docs/README.md](../README.md); мастер-план §Wave 2.

@@ -1099,7 +1099,7 @@
 - **Agent/model:** Cursor agent
 - **Цель:** `compat_quality = full` только при реальном `branch_service_id` из каталога; `branch_service_lookup_miss` — без ложного success; provenance в БД; маркер в UI; backfill с метриками.
 - **Файлы (основные):**
-  - `apps/webapp/src/infra/repos/rubitimeBranchServiceLookup.ts`, `pgPatientBookings.ts`, `compatSyncQuality.ts`
+  - `apps/webapp/src/infra/repos/rubitimeBranchServiceLookup.ts` *(superseded 2026-06: `@bersoncare/booking-rubitime-sync` / `lookupBranchServiceByRubitimeIds`)*, `pgPatientBookings.ts`, `compatSyncQuality.ts`
   - `apps/webapp/migrations/053_patient_bookings_compat_provenance.sql`
   - `apps/webapp/src/modules/integrator/events.ts` — `rubitimeCooperatorId`
   - `apps/integrator/src/infra/db/writePort.ts`, `connector.ts`, `content/rubitime/scripts.json`

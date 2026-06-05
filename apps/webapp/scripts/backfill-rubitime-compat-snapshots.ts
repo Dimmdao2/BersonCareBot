@@ -18,7 +18,10 @@
 
 import "dotenv/config";
 import pg from "pg";
-import { computeCompatSyncQuality } from "../src/modules/patient-booking/compatSyncQuality";
+import {
+  computeCompatSyncQuality,
+  lookupBranchServiceByRubitimeIds,
+} from "@bersoncare/booking-rubitime-sync";
 
 type CompatRow = {
   id: string;
@@ -50,18 +53,6 @@ type CatalogRow = {
   rubitime_cooperator_id_snapshot: string | null;
   branch_service_id: string | null;
   compat_quality: string | null;
-};
-
-type LookupRow = {
-  branch_service_id: string;
-  branch_id: string;
-  service_id: string;
-  city_code: string;
-  branch_title: string;
-  service_title: string;
-  duration_minutes: number;
-  price_minor: number;
-  rubitime_cooperator_id: string;
 };
 
 const args = process.argv.slice(2);
@@ -180,47 +171,6 @@ function buildCandidate(row: CompatRow): UpdateCandidate | null {
   };
 }
 
-async function lookupCatalog(
-  pool: pg.Pool,
-  rubitimeBranchId: string,
-  rubitimeServiceId: string,
-  rubitimeCooperatorId: string | null,
-): Promise<{ result: LookupRow | null; ambiguous: boolean }> {
-  const res = await pool.query<LookupRow>(
-    `SELECT
-       bs.id AS branch_service_id,
-       b.id AS branch_id,
-       s.id AS service_id,
-       c.code AS city_code,
-       b.title AS branch_title,
-       s.title AS service_title,
-       s.duration_minutes,
-       s.price_minor,
-       sp.rubitime_cooperator_id AS rubitime_cooperator_id
-     FROM booking_branches b
-     JOIN booking_cities c ON c.id = b.city_id
-     JOIN booking_branch_services bs ON bs.branch_id = b.id
-     JOIN booking_services s ON s.id = bs.service_id
-     JOIN booking_specialists sp ON sp.id = bs.specialist_id
-     WHERE b.rubitime_branch_id = $1
-       AND bs.rubitime_service_id = $2
-       AND bs.is_active = TRUE
-       AND b.is_active = TRUE
-       AND ($3::text IS NULL OR sp.rubitime_cooperator_id = $3)
-     ORDER BY
-       CASE WHEN $3::text IS NOT NULL AND sp.rubitime_cooperator_id = $3 THEN 0 ELSE 1 END,
-       bs.updated_at DESC
-     LIMIT 2`,
-    [rubitimeBranchId, rubitimeServiceId, rubitimeCooperatorId],
-  );
-  const rows = res.rows;
-  if (rows.length === 0) return { result: null, ambiguous: false };
-  if (rows.length > 1 && (rubitimeCooperatorId == null || rubitimeCooperatorId === "")) {
-    return { result: null, ambiguous: true };
-  }
-  return { result: rows[0] ?? null, ambiguous: false };
-}
-
 async function main(): Promise<void> {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
@@ -335,23 +285,28 @@ async function main(): Promise<void> {
       }
       const rc = row.rubitime_cooperator_id_snapshot?.trim() || null;
       try {
-        const { result: lookup, ambiguous } = await lookupCatalog(pool, rb, rs, rc);
+        const { result: lookupResult, ambiguous } = await lookupBranchServiceByRubitimeIds(
+          pool,
+          rb,
+          rs,
+          rc,
+        );
         if (ambiguous) {
           stats.catalog_lookup_ambiguous += 1;
           console.warn("[compat backfill] ambiguous lookup", { id: row.id, rb, rs });
           continue;
         }
-        if (!lookup) {
+        if (!lookupResult) {
           stats.catalog_lookup_miss += 1;
           continue;
         }
 
-        const effectiveBranchTitle = row.branch_title_snapshot ?? lookup.branch_title;
-        const effectiveServiceTitle = row.service_title_snapshot ?? lookup.service_title;
-        const slotEndIso = new Date(row.slot_start.getTime() + lookup.duration_minutes * 60_000).toISOString();
+        const effectiveBranchTitle = row.branch_title_snapshot ?? lookupResult.branchTitle;
+        const effectiveServiceTitle = row.service_title_snapshot ?? lookupResult.serviceTitle;
+        const slotEndIso = new Date(row.slot_start.getTime() + lookupResult.durationMinutes * 60_000).toISOString();
         const nextQuality = computeCompatSyncQuality({
-          branchServiceId: lookup.branch_service_id,
-          cityCodeSnapshot: lookup.city_code,
+          branchServiceId: lookupResult.branchServiceId,
+          cityCodeSnapshot: lookupResult.cityCode,
           serviceTitleSnapshot: effectiveServiceTitle,
           branchTitleSnapshot: effectiveBranchTitle,
           rubitimeBranchId: rb,
@@ -361,7 +316,7 @@ async function main(): Promise<void> {
         });
 
         const already =
-          row.branch_service_id === lookup.branch_service_id &&
+          row.branch_service_id === lookupResult.branchServiceId &&
           row.compat_quality === nextQuality &&
           row.slot_end?.toISOString() === slotEndIso;
         if (already) {
@@ -392,15 +347,15 @@ async function main(): Promise<void> {
            WHERE id = $1`,
           [
             row.id,
-            lookup.branch_id,
-            lookup.service_id,
-            lookup.branch_service_id,
-            lookup.city_code,
-            lookup.branch_title,
-            lookup.service_title,
-            lookup.duration_minutes,
-            lookup.price_minor,
-            lookup.rubitime_cooperator_id,
+            lookupResult.branchId,
+            lookupResult.serviceId,
+            lookupResult.branchServiceId,
+            lookupResult.cityCode,
+            lookupResult.branchTitle,
+            lookupResult.serviceTitle,
+            lookupResult.durationMinutes,
+            lookupResult.priceMinor,
+            lookupResult.rubitimeCooperatorId,
             slotEndIso,
             nextQuality,
           ],

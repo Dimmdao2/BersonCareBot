@@ -66,8 +66,10 @@ import { normalizeRuPhoneE164 } from '../phone/normalizeRuPhoneE164.js';
 import { isExplicitZonedIsoInstant } from '../../shared/explicitZonedIsoInstant.js';
 import {
   enrichPayloadWithRubitimeStatus,
+  findExistingPatientBookingForRubitime,
   mapRubitimeStatusToPatientBookingStatus,
   resolveRubitimeStatusFromBookingUpsert,
+  shouldSkipNativeReviveUpdate,
   upsertPatientBookingFromRubitime,
 } from '@bersoncare/booking-rubitime-sync';
 import { upsertAppointmentRecordFromBookingMutation } from './repos/publicAppointmentRecordSync.js';
@@ -322,29 +324,41 @@ export function createDbWritePort(input: {
               asNullableString(payloadJson.url) ??
               asNullableString(payloadJson.link) ??
               asNullableString(payloadJson.record_url);
-            await upsertPatientBookingFromRubitime(
+            const rubitimePatientUpsertInput = {
+              rubitimeId: externalRecordId,
+              status: patientBookingStatus,
+              slotStart: recordAt,
+              slotEnd: rawDateTimeEnd,
+              userId: resolvedUserId,
+              contactPhone: phoneNormalized ?? '',
+              contactName: payloadContactName,
+              branchTitle: rawBranchName,
+              serviceTitle: rawServiceName,
+              rubitimeBranchId: rawBranchId,
+              rubitimeServiceId: rawServiceId,
+              rubitimeCooperatorId: rawCooperatorId,
+              rubitimeManageUrl,
+            };
+            const existingPatientBooking = await findExistingPatientBookingForRubitime(
               txDb,
               normalizeRuPhoneE164,
-              {
-                rubitimeId: externalRecordId,
-                status: patientBookingStatus,
-                slotStart: recordAt,
-                slotEnd: rawDateTimeEnd,
-                userId: resolvedUserId,
-                contactPhone: phoneNormalized ?? '',
-                contactName: payloadContactName,
-                branchTitle: rawBranchName,
-                serviceTitle: rawServiceName,
-                rubitimeBranchId: rawBranchId,
-                rubitimeServiceId: rawServiceId,
-                rubitimeCooperatorId: rawCooperatorId,
-                rubitimeManageUrl,
-              },
-              {
-                logCompat: (msg: string, meta: Record<string, unknown>) =>
-                  logger.warn({ msg, ...meta }, '[booking.upsert] compat-sync'),
-              },
+              rubitimePatientUpsertInput,
             );
+            const skipPatientBookingRevive =
+              existingPatientBooking != null
+              && (await shouldSkipNativeReviveUpdate(txDb, existingPatientBooking, rubitimePatientUpsertInput));
+            if (!skipPatientBookingRevive) {
+              await upsertPatientBookingFromRubitime(
+                txDb,
+                normalizeRuPhoneE164,
+                rubitimePatientUpsertInput,
+                {
+                  existingRow: existingPatientBooking,
+                  logCompat: (msg: string, meta: Record<string, unknown>) =>
+                    logger.warn({ msg, ...meta }, '[booking.upsert] compat-sync'),
+                },
+              );
+            }
           });
           await fanoutProjectionsAfterTx([
             buildAppointmentRecordUpsertedFanout({
