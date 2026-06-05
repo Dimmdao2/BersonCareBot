@@ -2,7 +2,7 @@
 
 ## 2026-06-05 — Стабилизация цепочек записи (mirror integrity hardening)
 
-**Closeout commits:** `377f3d51` → `d9bf2335` → `e823a581` → `f960825b` → `9e2ef6c3` (план: [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md), `status: completed`).
+**Closeout commits:** `377f3d51` → `d9bf2335` → `e823a581` → `f960825b` → `9e2ef6c3` → `13abe6d7` (план: [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md), `status: completed`). Канонический plan-файл — только архив в репозитории; копия в `~/.cursor/plans/` не является source-of-truth.
 
 **Сделано (фазы 0–7):**
 - Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md).
@@ -36,7 +36,7 @@
 | 4. Inbound dedup/echo | `377f3d51`, `d9bf2335` | `payloadHash`, release dedup on `PIPELINE_FAILED`, echo/stale mapping ветки | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts` |
 | 5. Timezone + cancel semantics | `377f3d51`, `d9bf2335` | branch timezone для update, `empty_patch` 400, `update-record` в контракте | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md` |
 | 6. Test matrix + docs sync | `d9bf2335`, `e823a581`, `9e2ef6c3` | regression matrix, acceptance/architecture/module docs, partial flags by surface | `ACCEPTANCE_MIRROR_SYNC.md`, `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md`, `README.md`, `ROADMAP.md` |
-| 7. Финальный closeout | `e823a581`, `f960825b`, `9e2ef6c3` | partial-flag tests, plan/LOG ledger, docs reconciliation | targeted matrix + `tsc` (см. `ACCEPTANCE_MIRROR_SYNC.md`); полный `pnpm run ci` — барьер перед push |
+| 7. Финальный closeout | `e823a581`, `f960825b`, `9e2ef6c3`, `13abe6d7` | partial-flag tests, plan/LOG ledger, docs reconciliation, post-audit plan/docs sync | targeted matrix + `tsc` + полный `pnpm run ci` (см. `ACCEPTANCE_MIRROR_SYNC.md` § «Верификация closeout») |
 
 **Реконсиляция scope drift (closeout):**
 - Промежуточный коммит `659f0166` включал смежные правки analytics/stats routes как CI-fix для общих зависимостей (`loadDoctorAnalyticsAudience`) и не менял контракт mirror hardening.
@@ -44,14 +44,21 @@
 - Docs reconciliation (`9e2ef6c3`): surface-specific partial flags в `api.md`, контракте, `patient-booking.md`, pipeline; cross-refs в `README.md` / `ROADMAP.md` / `.cursor/plans/archive/README.md`.
 - Итоговый source-of-truth: `ACCEPTANCE_MIRROR_SYNC.md` (матрица + команды проверок) + `BOOKING_MIRROR_INTEGRITY_CONTRACT.md` (поведение + defer).
 
-**Проверки (локально):** канонический набор команд — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § «Авто-проверки». Кратко:
+**Проверки (локально):** канонический набор команд — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § «Авто-проверки» и § «Верификация closeout».
+
+**Повторный аудит closeout (после ревью плана):**
+
+| Замечание | Статус | Действие |
+|-----------|--------|----------|
+| `~/.cursor/plans/booking_mirror_integrity_hardening_8f043ac3.plan.md` оставался с `phase7: pending` и незакрытыми чекбоксами | закрыто | синхронизирован с архивом репозитория (`status: completed`, todos/checklists `[x]`) |
+| Расхождение closeout-доков (`closeoutCommits`, execution ledger) | закрыто | `13abe6d7` — выравнивание plan YAML, LOG, ACCEPTANCE, contract, README, ROADMAP |
+| Targeted matrix не была зафиксирована в LOG с числами прогона | закрыто | см. § «Верификация closeout» в `ACCEPTANCE_MIRROR_SYNC.md` |
+| Полный `pnpm run ci` не был записан как фактический барьер | закрыто | прогон и результат — § «Верификация closeout» ниже |
 
 ```bash
-# Targeted mirror matrix (webapp + integrator) — см. полный список файлов в ACCEPTANCE_MIRROR_SYNC.md
-pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json
-
-# Итерации closeout (`f960825b`, `9e2ef6c3`): targeted matrix + tsc.
-# Перед push в remote: pnpm install --frozen-lockfile && pnpm run ci
+# Targeted mirror matrix (webapp + integrator) — полный список в ACCEPTANCE_MIRROR_SYNC.md
+# Post-audit (2026-06-05): webapp 20 files / 199 tests; integrator 4 files / 53 tests; tsc webapp+integrator — OK
+pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 ```
 
 ## 2026-06-05 — Двусторонняя синхронизация Rubitime ↔ канон (`AppointmentMirrorSync`) — закрыто

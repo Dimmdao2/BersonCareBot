@@ -1,6 +1,6 @@
 ---
 name: booking mirror integrity hardening
-overview: "Устранить рассинхроны Rubitime↔канон↔legacy в create/cancel/reschedule и inbound ingest; закрыто 2026-06-05 (commits 377f3d51→9e2ef6c3)."
+overview: "Устранить рассинхроны Rubitime↔канон↔legacy в create/cancel/reschedule и inbound ingest; закрыто 2026-06-05 (commits 377f3d51→13abe6d7)."
 status: completed
 completedAt: 2026-06-05
 closeoutCommits:
@@ -9,6 +9,8 @@ closeoutCommits:
   - e823a581
   - f960825b
   - 9e2ef6c3
+  - 13abe6d7
+canonicalPath: .cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md
 todos:
   - id: phase0-lock-scope-and-contract
     content: Зафиксировать контракт целевого поведения и границы изменений
@@ -320,7 +322,7 @@ flowchart TD
 | 4 | `377f3d51`, `d9bf2335` | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts` |
 | 5 | `377f3d51`, `d9bf2335` | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md` |
 | 6 | `d9bf2335`, `e823a581`, `9e2ef6c3` | acceptance matrix + docs sync (`ACCEPTANCE_MIRROR_SYNC.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md`, partial flags by surface в контракте) |
-| 7 | `e823a581`, `f960825b`, `9e2ef6c3` | audit closeout: partial-flag tests, plan/LOG ledger, docs reconciliation; targeted matrix + `tsc`; full `pnpm run ci` before push |
+| 7 | `e823a581`, `f960825b`, `9e2ef6c3`, `13abe6d7` | audit closeout: partial-flag tests, plan/LOG ledger, docs reconciliation, post-audit plan sync; targeted matrix + `tsc` + full `pnpm run ci` before push |
 
 ## Scope reconciliation addendum
 
@@ -329,6 +331,7 @@ flowchart TD
   - `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123244.dump`
   - `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123251.dump`
 - Docs reconciliation commit `9e2ef6c3`: surface-specific partial flags (`api.md`, `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`, `patient-booking.md`, `RUBITIME_BOOKING_PIPELINE.md`, `README.md`, `ROADMAP.md`).
+- Post-audit remediation (`13abe6d7` + LOG §post-audit): устаревшая копия в `~/.cursor/plans/` синхронизирована с архивом; зафиксированы targeted matrix (199+53 tests), `tsc`, полный `pnpm run ci`.
 - Final acceptance/defer source-of-truth:
   - `docs/BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md`
   - `docs/BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md`

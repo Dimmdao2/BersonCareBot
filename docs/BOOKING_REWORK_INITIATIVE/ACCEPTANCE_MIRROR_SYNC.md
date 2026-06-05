@@ -33,7 +33,17 @@ pnpm --dir apps/integrator exec vitest run \
 
 ## Integrity hardening (2026-06-05)
 
-Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md) (partial flags по поверхности — § Partial outcomes). План (архив, `status: completed`): [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md). Closeout: `f960825b`, `9e2ef6c3`; журнал: [`LOG.md`](LOG.md) §2026-06-05.
+Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md) (partial flags по поверхности — § Partial outcomes). План (архив, `status: completed`): [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md) — **единственный** source-of-truth; копия в `~/.cursor/plans/` должна совпадать с архивом. Closeout: `f960825b` → `9e2ef6c3` → `13abe6d7`; журнал: [`LOG.md`](LOG.md) §2026-06-05.
+
+## Верификация closeout (post-audit, 2026-06-05)
+
+| Проверка | Результат |
+|----------|-----------|
+| Targeted mirror matrix (webapp) | 20 files, 199 tests — passed |
+| Targeted mirror matrix (integrator) | 4 files, 53 tests — passed |
+| `pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json` | OK |
+| `pnpm --dir apps/integrator exec tsc --noEmit` | OK |
+| `pnpm install --frozen-lockfile && pnpm run ci` | passed (post-audit, 2026-06-05; ~5 min) |
 
 | Кейс | Покрытие |
 |------|----------|
