@@ -1,5 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
+
+const runWebappSqlMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/infra/db/runWebappSql", () => ({
+  getWebappSqlFromPgClient: vi.fn(() => ({})),
+  runWebappSql: runWebappSqlMock,
+}));
+
 import { resolveMediaFileForLfkAttachment } from "./pgMediaFileIntakeResolve";
 
 const mediaId = "a0000000-0000-4000-8000-000000000001";
@@ -18,15 +26,14 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-function mockClient(rows: unknown[]) {
-  return {
-    query: vi.fn().mockResolvedValue({ rows }),
-  } as unknown as PoolClient;
-}
-
 describe("resolveMediaFileForLfkAttachment", () => {
+  beforeEach(() => {
+    runWebappSqlMock.mockReset();
+  });
+
   it("returns resolved s3 key and metadata when file is owned and ready", async () => {
-    const client = mockClient([row()]);
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [row()] });
+    const client = {} as PoolClient;
     const r = await resolveMediaFileForLfkAttachment(client, mediaId, userId);
     expect(r.mediaId).toBe(mediaId);
     expect(r.s3Key).toBe("media/key/file.pdf");
@@ -36,35 +43,50 @@ describe("resolveMediaFileForLfkAttachment", () => {
   });
 
   it("throws ATTACHMENT_FILE_INVALID when media row is missing", async () => {
-    const client = mockClient([]);
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [] });
+    const client = {} as PoolClient;
     await expect(resolveMediaFileForLfkAttachment(client, mediaId, userId)).rejects.toMatchObject({
       code: "ATTACHMENT_FILE_INVALID",
     });
   });
 
   it("throws ATTACHMENT_FILE_FORBIDDEN when uploaded_by does not match", async () => {
-    const client = mockClient([row({ uploaded_by: "other-user-uuid-0000-0000-0000-000000000099" })]);
+    runWebappSqlMock.mockResolvedValueOnce({
+      rows: [row({ uploaded_by: "other-user-uuid-0000-0000-0000-000000000099" })],
+    });
+    const client = {} as PoolClient;
     await expect(resolveMediaFileForLfkAttachment(client, mediaId, userId)).rejects.toMatchObject({
       code: "ATTACHMENT_FILE_FORBIDDEN",
     });
   });
 
   it("throws ATTACHMENT_FILE_INVALID when status is pending", async () => {
-    const client = mockClient([row({ status: "pending" })]);
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [row({ status: "pending" })] });
+    const client = {} as PoolClient;
     await expect(resolveMediaFileForLfkAttachment(client, mediaId, userId)).rejects.toMatchObject({
       code: "ATTACHMENT_FILE_INVALID",
     });
   });
 
   it("throws ATTACHMENT_FILE_INVALID when status is deleting", async () => {
-    const client = mockClient([row({ status: "deleting" })]);
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [row({ status: "deleting" })] });
+    const client = {} as PoolClient;
     await expect(resolveMediaFileForLfkAttachment(client, mediaId, userId)).rejects.toMatchObject({
       code: "ATTACHMENT_FILE_INVALID",
     });
   });
 
-  it("throws ATTACHMENT_FILE_INVALID when s3_key is null", async () => {
-    const client = mockClient([row({ s3_key: null })]);
+  it("throws ATTACHMENT_FILE_INVALID when status is pending_delete", async () => {
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [row({ status: "pending_delete" })] });
+    const client = {} as PoolClient;
+    await expect(resolveMediaFileForLfkAttachment(client, mediaId, userId)).rejects.toMatchObject({
+      code: "ATTACHMENT_FILE_INVALID",
+    });
+  });
+
+  it("throws ATTACHMENT_FILE_INVALID when s3_key is missing", async () => {
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [row({ s3_key: null })] });
+    const client = {} as PoolClient;
     await expect(resolveMediaFileForLfkAttachment(client, mediaId, userId)).rejects.toMatchObject({
       code: "ATTACHMENT_FILE_INVALID",
     });

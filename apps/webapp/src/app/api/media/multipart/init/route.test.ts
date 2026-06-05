@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const insertPendingMock = vi.fn();
 const insertSessionMock = vi.fn();
 const createMultipartMock = vi.fn();
+const deletePendingByIdMock = vi.fn();
+const abortMultipartMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
   env: {
@@ -36,6 +38,7 @@ vi.mock("@/app-layer/db/client", () => ({
 
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   insertPendingMediaFileTx: (...args: unknown[]) => insertPendingMock(...args),
+  deletePendingMediaFileById: (...args: unknown[]) => deletePendingByIdMock(...args),
 }));
 
 vi.mock("@/app-layer/media/mediaUploadSessionsRepo", () => ({
@@ -45,7 +48,7 @@ vi.mock("@/app-layer/media/mediaUploadSessionsRepo", () => ({
 vi.mock("@/app-layer/media/s3Client", () => ({
   s3ObjectKey: (mediaId: string, filename: string) => `media/${mediaId}/${filename}`,
   s3CreateMultipartUpload: (...args: unknown[]) => createMultipartMock(...args),
-  s3AbortMultipartUpload: vi.fn().mockResolvedValue(undefined),
+  s3AbortMultipartUpload: (...args: unknown[]) => abortMultipartMock(...args),
 }));
 
 const sessionMock = vi.fn();
@@ -61,9 +64,13 @@ describe("POST /api/media/multipart/init", () => {
     insertPendingMock.mockReset();
     insertSessionMock.mockReset();
     createMultipartMock.mockReset();
+    deletePendingByIdMock.mockReset();
+    abortMultipartMock.mockReset();
     sessionMock.mockReset();
     insertPendingMock.mockResolvedValue(undefined);
     insertSessionMock.mockResolvedValue(undefined);
+    deletePendingByIdMock.mockResolvedValue(true);
+    abortMultipartMock.mockResolvedValue(undefined);
     createMultipartMock.mockResolvedValue({ uploadId: "s3-upload-id-1" });
   });
 
@@ -176,5 +183,42 @@ describe("POST /api/media/multipart/init", () => {
     spy.mockRestore();
     expect(res.status).toBe(501);
     expect(createMultipartMock).not.toHaveBeenCalled();
+  });
+
+  it("aborts S3 multipart and deletes pending media when pending insert fails after create", async () => {
+    sessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
+    insertPendingMock.mockRejectedValueOnce(new Error("db_insert_failed"));
+    const res = await POST(
+      new Request("http://localhost/api/media/multipart/init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filename: "a.png", mimeType: "image/png", size: 100 }),
+      }),
+    );
+    expect(res.status).toBe(500);
+    expect(createMultipartMock).toHaveBeenCalled();
+    expect(abortMultipartMock).toHaveBeenCalledWith(expect.stringMatching(/^media\/.+\/a\.png$/), "s3-upload-id-1");
+    expect(deletePendingByIdMock).toHaveBeenCalledWith(expect.stringMatching(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    ));
+  });
+
+  it("aborts S3 multipart and deletes pending media when session insert fails after pending", async () => {
+    sessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
+    insertSessionMock.mockRejectedValueOnce(new Error("session_insert_failed"));
+    const res = await POST(
+      new Request("http://localhost/api/media/multipart/init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filename: "a.png", mimeType: "image/png", size: 100 }),
+      }),
+    );
+    expect(res.status).toBe(500);
+    expect(createMultipartMock).toHaveBeenCalled();
+    expect(insertPendingMock).toHaveBeenCalled();
+    expect(abortMultipartMock).toHaveBeenCalledWith(expect.stringMatching(/^media\/.+\/a\.png$/), "s3-upload-id-1");
+    expect(deletePendingByIdMock).toHaveBeenCalledWith(expect.stringMatching(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    ));
   });
 });

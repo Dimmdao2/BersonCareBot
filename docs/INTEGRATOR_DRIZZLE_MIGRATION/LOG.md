@@ -90,8 +90,7 @@
 
 - Этапы **P1–P4** и **мастер-план** закрыты; целевые репозитории мастера не используют для доменной логики строковый **`db.query(...)`** (Drizzle API и/или **`runIntegratorSql` / `execute(sql)`**).
 - После выравнивания: **`pnpm --dir apps/integrator run lint`**, **`typecheck`**, **`test`** — зелёные.
-- **Wave 2 (2026-06-05):** этапы **1–4** закрыты отдельно — см. § ниже. **`outgoingDeliveryQueue`** и **`bookingProfilesRepo`** переведены в **Wave 2 этап 1** (не backlog).
-- Backlog после мастера + Wave 2 P1: мелкие integrator repos/config с `db.query` (§ Wave 2 этап 1 backlog); auth advisory locks → Wave 2 этап 7; медиа SQL → этап 5.
+- **Wave 2 (2026-06-05):** этапы **1–5** закрыты — см. § ниже. **`outgoingDeliveryQueue`** и **`bookingProfilesRepo`** — Wave 2 P1. Backlog: мелкие integrator repos/config (P1+); auth advisory locks → **P7**; LFK SQL → **P6**; media-worker transcode claim → **P8**.
 
 ### Wave 2 — план и инвентаризация (документация)
 
@@ -136,7 +135,7 @@
 - **Общий канон:** advisory lock/unlock через `drizzle-orm` `execute(sql\`…\`)` на **том же** `PoolClient`, что и окружающий SQL (`db.connect()` / `pool.connect()`). На dedicated client это `drizzle(client).execute(sql)` — эквивалент `getIntegratorDrizzleSession(port).execute(sql)` внутри TX, но без `DbPort`. Хелперы: `apps/integrator/src/infra/db/pgAdvisoryLock.ts`, `apps/webapp/src/infra/db/pgAdvisoryLock.ts`.
 - **Integrator:** `rubitimeApiThrottle.ts` — session `pg_advisory_lock` / `unlock` (int key `58220114`, тот же `connect()` + `finally`); `schedulerLocks.ts` — `pg_try_advisory_lock` / `pg_advisory_unlock` на dedicated client.
 - **Webapp:** `userLifecycleLock.ts`, `multipartSessionLock.ts`, `pgOnlineIntake.ts` (только shared xact lock), `strictPlatformUserPurge.ts`, `s3MediaStorage.ts` (только session lock/unlock в `deleteHard`); `pgDiaryPurge.ts` — purge обёрнут в `withUserLifecycleLock(..., "exclusive")` (раньше транзакция без advisory; ключ `hashtext(platform_user_id::text)` как у strict purge).
-- **Вне этапа 3 (осознанно):** `modules/auth/*RateLimit.ts`, `publicBookingRateLimit.ts` — этап 7 Wave 2; остальной SQL в `s3MediaStorage.ts` — этап 5.
+- **Вне этапа 3 (осознанно):** `modules/auth/*RateLimit.ts`, `publicBookingRateLimit.ts` — этап 7 Wave 2; остальной SQL в `s3MediaStorage.ts` и медиа-repos — **выполнен Wave 2 P5** (2026-06-05).
 
 #### Семантика блокировок (session vs transaction)
 
@@ -166,3 +165,22 @@
 - **Тесты (vitest `--project fast`, 8 файлов):** **36 passed** — PG: `pgReminderProjection.pg.test.ts`, `pgReminderRules.test.ts`, `pgReminderJournal.pg.test.ts`, `pgWebPushOnlyReminders.pg.test.ts`, `pgReminderTransactionalEmailCooldown.test.ts`; in-memory/contract: `pgReminderProjection.test.ts`, `pgWebPushOnlyReminders.test.ts`, `inMemoryReminderJournal.test.ts`.
 - **Проверки:** `pnpm exec tsc --noEmit` (webapp); `rg 'pool\.query|client\.query'` по `apps/webapp/src/infra/repos/pgReminder*.ts` и `pgWebPushOnlyReminders.ts` — **0**; `RAW_SQL_INVENTORY.md` — P4 done для projection/rules/journal/webpush/cooldown.
 - **План:** [wave2_phase_04_webapp_reminders.plan.md](./plans/wave2_phase_04_webapp_reminders.plan.md) — `status: completed`, todos и DoD закрыты.
+
+### Wave 2 — этап 5 (webapp медиа) — выполнено (2026-06-05)
+
+- **Инфра:** `mediaSqlPredicates.ts` — общие SQL-предикаты readable/purge; `runWebappSql.getWebappSqlFromPgClient` — Drizzle на dedicated `PoolClient` (multipart tx, preview/purge workers, session advisory в `deleteHard`).
+- **Репозитории:** `mediaFoldersRepo.ts`, `mediaUploadSessionsRepo.ts`, `pgMediaTranscodeJobs.ts`, `pgMediaFileIntakeResolve.ts`, `pgMediaUsageSummary.ts`, `s3MediaStorage.ts`, `mediaPreviewWorker.ts` — Drizzle builder / `runWebappSql`; claim/purge/preview — `execute(sql)` с `FOR UPDATE SKIP LOCKED` где было в legacy.
+- **Routes:** `media/multipart/init` — rollback pending через `deletePendingMediaFileById`; `internal/media-multipart/cleanup` — SQL в repo (`lockExpiredSessionForCleanupTx`, `deletePendingMediaFileTx`).
+- **Остаток (осознанно):** `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` на dedicated client в workers/multipart pool-tx; `collectAdminSystemHealthData` media metrics — без изменений (отдельный этап при унификации health SQL); transcode **claim/reschedule** — `apps/media-worker` (Wave 2 этап 8), webapp P5 покрывает только **enqueue**.
+- **Smoke-чеклист:**
+  - [x] multipart init → rollback при DB failure (unit `init/route.test.ts`: pending + session insert).
+  - [x] internal multipart cleanup → pending purge / mark expired / skip stale lock (unit `cleanup/route.test.ts`).
+  - [x] preview worker claim → ready/error (unit `mediaPreviewWorker.test.ts`).
+  - [x] pending_delete purge / hard delete advisory order (unit `s3MediaStorage.test.ts`).
+  - [x] transcode enqueue idempotent (unit `pgMediaTranscodeJobs.test.ts`, incl. program submission).
+  - [ ] staging-only: end-to-end multipart upload + transcode claim на media-worker (после P8).
+- **Постаудит (2026-06-05):** cleanup `cleaned` не завышается при stale lock; RAW_SQL уточнён (enqueue vs claim); расширены unit-тесты.
+- **Тесты (vitest `--project fast`, P5 bundle):** **56 passed** — `init`, `cleanup`, `mediaFoldersRepo`, `mediaUploadSessionsRepo`, `pgMediaTranscodeJobs`, `s3MediaStorage`, `mediaPreviewWorker`, `pgMediaFileIntakeResolve`, `mediaTranscodeAutoEnqueue`.
+- **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci` — green (2026-06-05)**; `rg 'pool\.query|client\.query'` по media scope — только TX transport на `PoolClient`.
+- **Синхронизация документов (2026-06-05):** [plans/README.md](./plans/README.md) (индекс P5 → completed), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) (фаза V → Done), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) (§2.4–2.6 P5).
+- **План:** [wave2_phase_05_webapp_media.plan.md](./plans/wave2_phase_05_webapp_media.plan.md) — `status: completed`, todos, DoD и §«Закрытие».

@@ -1,7 +1,13 @@
 import type { PoolClient } from "pg";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
 import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from "@/infra/db/pgAdvisoryLock";
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappSql,
+} from "@/infra/db/runWebappSql";
 import { logger } from "@/infra/logging/logger";
 import {
   pgCreateFolder,
@@ -29,17 +35,22 @@ import {
   resolvePosterPurgeListPrefix,
 } from "@/shared/lib/hlsStorageLayout";
 import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
+import { mediaFiles } from "../../../db/schema/schema";
+import {
+  mediaReadableStatusPredicate,
+  mediaReadableStatusPredicateM,
+  mediaS3PurgeStatusPredicate,
+} from "@/infra/repos/mediaSqlPredicates";
+
+export {
+  MEDIA_READABLE_STATUS_SQL,
+  MEDIA_READABLE_STATUS_SQL_M,
+  MEDIA_S3_PURGE_STATUS_SQL,
+} from "@/infra/repos/mediaSqlPredicates";
 
 function mediaAppUrl(mediaId: string): string {
   return `/api/media/${mediaId}`;
 }
-
-/** Rows visible in library / readable by GET (not pending upload, not delete pipeline). */
-export const MEDIA_READABLE_STATUS_SQL = `(status IS NULL OR status NOT IN ('pending', 'deleting', 'pending_delete'))`;
-const MEDIA_READABLE_STATUS_SQL_M = `(m.status IS NULL OR m.status NOT IN ('pending', 'deleting', 'pending_delete'))`;
-
-/** Rows queued for background S3 removal (includes legacy `deleting` from pre-queue implementation). */
-const MEDIA_S3_PURGE_STATUS_SQL = `status IN ('pending_delete', 'deleting')`;
 
 function kindFromMime(mimeType: string): MediaRecord["kind"] {
   const lower = mimeType.toLowerCase();
@@ -91,8 +102,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         throw new Error("media_upload_empty");
       }
 
-      const pool = getPool();
-      const idRow = await pool.query<{ id: string }>(`SELECT gen_random_uuid()::text AS id`);
+      const idRow = await runWebappSql<{ id: string }>(
+        getWebappSqlDb(),
+        sql`SELECT gen_random_uuid()::text AS id`,
+      );
       const id = idRow.rows[0]?.id;
       if (!id) throw new Error("media_upload_id");
 
@@ -101,11 +114,17 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       await s3PutObjectBody(key, buf, params.mimeType);
 
       const folderId = params.folderId ?? null;
-      await pool.query(
-        `INSERT INTO media_files (id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by, folder_id)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, 'ready', $7::uuid, $8::uuid)`,
-        [id, params.filename, key, key, params.mimeType, body.byteLength, params.userId ?? null, folderId],
-      );
+      await getWebappSqlDb().insert(mediaFiles).values({
+        id,
+        originalName: params.filename,
+        storedPath: key,
+        s3Key: key,
+        mimeType: params.mimeType,
+        sizeBytes: body.byteLength,
+        status: "ready",
+        uploadedBy: params.userId ?? null,
+        folderId,
+      });
 
       const now = new Date().toISOString();
       const record: MediaRecord = {
@@ -123,8 +142,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async getById(id: string) {
-      const pool = getPool();
-      const res = await pool.query<{
+      const res = await runWebappSql<{
         id: string;
         original_name: string;
         display_name: string | null;
@@ -147,7 +165,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         available_qualities_json: unknown;
         video_delivery_override: string | null;
       }>(
-        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
+        getWebappSqlDb(),
+        sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
               NULLIF(TRIM(CONCAT_WS(' ', pu.first_name, pu.last_name)), ''),
               NULLIF(TRIM(pu.display_name), '')
@@ -160,8 +179,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
-         WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
-        [id],
+         WHERE m.id = ${id}::uuid AND ${mediaReadableStatusPredicateM}`,
       );
       const row = res.rows[0];
       if (!row) return null;
@@ -186,10 +204,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async getUrl(id: string) {
-      const pool = getPool();
-      const res = await pool.query<{ s3_key: string }>(
-        `SELECT s3_key FROM media_files WHERE id = $1::uuid AND s3_key IS NOT NULL AND ${MEDIA_READABLE_STATUS_SQL}`,
-        [id],
+      const res = await runWebappSql<{ s3_key: string }>(
+        getWebappSqlDb(),
+        sql`SELECT s3_key FROM media_files
+         WHERE id = ${id}::uuid AND s3_key IS NOT NULL AND ${mediaReadableStatusPredicate}`,
       );
       const row = res.rows[0];
       if (!row) return null;
@@ -197,70 +215,52 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async list(params: MediaListParams) {
-      const pool = getPool();
-      const where: string[] = [MEDIA_READABLE_STATUS_SQL_M];
-      const values: unknown[] = [];
-      let n = 1;
+      const whereParts: SQL[] = [mediaReadableStatusPredicateM];
 
       if (params.kind && params.kind !== "all") {
-        const byKind: Record<Exclude<MediaRecord["kind"], "file">, string> = {
-          image: "m.mime_type LIKE 'image/%'",
-          video: "m.mime_type LIKE 'video/%'",
-          audio: "m.mime_type LIKE 'audio/%'",
-        };
         if (params.kind === "file") {
-          where.push(
-            `NOT (m.mime_type LIKE 'image/%' OR m.mime_type LIKE 'video/%' OR m.mime_type LIKE 'audio/%')`,
+          whereParts.push(
+            sql`NOT (m.mime_type LIKE 'image/%' OR m.mime_type LIKE 'video/%' OR m.mime_type LIKE 'audio/%')`,
           );
-        } else {
-          where.push(byKind[params.kind]);
+        } else if (params.kind === "image") {
+          whereParts.push(sql`m.mime_type LIKE 'image/%'`);
+        } else if (params.kind === "video") {
+          whereParts.push(sql`m.mime_type LIKE 'video/%'`);
+        } else if (params.kind === "audio") {
+          whereParts.push(sql`m.mime_type LIKE 'audio/%'`);
         }
       }
 
       const pattern = params.query ? pgRuSubstringSearchPattern(params.query) : null;
       if (pattern) {
-        where.push(
-          `(normalize(m.display_name, NFC) ILIKE $${n} ESCAPE '\\' OR normalize(m.original_name, NFC) ILIKE $${n} ESCAPE '\\')`,
+        whereParts.push(
+          sql`(normalize(m.display_name, NFC) ILIKE ${pattern} ESCAPE '\\' OR normalize(m.original_name, NFC) ILIKE ${pattern} ESCAPE '\\')`,
         );
-        values.push(pattern);
-        n += 1;
       }
 
       if (params.folderId !== undefined) {
         if (params.folderId === null) {
-          where.push(`m.folder_id IS NULL`);
+          whereParts.push(sql`m.folder_id IS NULL`);
         } else if (params.includeDescendants) {
-          where.push(
-            `m.folder_id IN (
+          whereParts.push(sql`m.folder_id IN (
               WITH RECURSIVE sub AS (
-                SELECT id FROM media_folders WHERE id = $${n}::uuid
+                SELECT id FROM media_folders WHERE id = ${params.folderId}::uuid
                 UNION ALL
                 SELECT f.id FROM media_folders f INNER JOIN sub ON f.parent_id = sub.id
               )
               SELECT id FROM sub
-            )`,
-          );
-          values.push(params.folderId);
-          n += 1;
+            )`);
         } else {
-          where.push(`m.folder_id = $${n}::uuid`);
-          values.push(params.folderId);
-          n += 1;
+          whereParts.push(sql`m.folder_id = ${params.folderId}::uuid`);
         }
       }
 
-      const nameSortKey =
-        "LOWER(COALESCE(NULLIF(TRIM(m.display_name), ''), m.original_name))";
-      const sortCol: Record<NonNullable<MediaListParams["sortBy"]>, string> = {
-        createdAt: "m.created_at",
-        size: "m.size_bytes",
-        kind: "m.mime_type",
-        name: nameSortKey,
-      };
-      const sortDir = params.sortDir === "asc" ? "ASC" : "DESC";
-      const orderBySql =
+      const whereSql = sql.join(whereParts, sql` AND `);
+      const sortDir = params.sortDir === "asc" ? sql`ASC` : sql`DESC`;
+      const nameSortKey = sql`LOWER(COALESCE(NULLIF(TRIM(m.display_name), ''), m.original_name))`;
+      const orderBy =
         params.sortBy === "name"
-          ? `CASE
+          ? sql`CASE
                WHEN ${nameSortKey} ~ '^[0-9]' THEN 0
                WHEN ${nameSortKey} ~ '^[a-z]' THEN 1
                WHEN ${nameSortKey} ~ '^[а-яё]' THEN 2
@@ -268,16 +268,16 @@ export function createS3MediaStoragePort(): MediaStoragePort {
              END ${sortDir},
              ${nameSortKey} ${sortDir},
              m.id ${sortDir}`
-          : `${params.sortBy ? sortCol[params.sortBy] : "m.created_at"} ${sortDir}, m.id ${sortDir}`;
+          : params.sortBy === "size"
+            ? sql`m.size_bytes ${sortDir}, m.id ${sortDir}`
+            : params.sortBy === "kind"
+              ? sql`m.mime_type ${sortDir}, m.id ${sortDir}`
+              : sql`m.created_at ${sortDir}, m.id ${sortDir}`;
+
       const limit = Math.max(1, Math.min(200, params.limit ?? 50));
       const offset = Math.max(0, params.offset ?? 0);
 
-      values.push(limit, offset);
-      const limitIdx = n++;
-      const offsetIdx = n++;
-
-      const whereSql = `WHERE ${where.join(" AND ")}`;
-      const res = await pool.query<{
+      const res = await runWebappSql<{
         id: string;
         original_name: string;
         display_name: string | null;
@@ -303,7 +303,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         video_delivery_override: string | null;
         total_count: string;
       }>(
-        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
+        getWebappSqlDb(),
+        sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
               NULLIF(TRIM(CONCAT_WS(' ', pu.first_name, pu.last_name)), ''),
               NULLIF(TRIM(pu.display_name), '')
@@ -317,10 +318,9 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             COUNT(*) OVER()::text AS total_count
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
-         ${whereSql} AND m.s3_key IS NOT NULL
-         ORDER BY ${orderBySql}
-         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-        values,
+         WHERE ${whereSql} AND m.s3_key IS NOT NULL
+         ORDER BY ${orderBy}
+         LIMIT ${limit} OFFSET ${offset}`,
       );
 
       const total = res.rows.length > 0 ? Number(res.rows[0]!.total_count) : 0;
@@ -350,24 +350,22 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async updateDisplayName(mediaId: string, displayName: string | null) {
-      const pool = getPool();
       const normalized = displayName?.trim() || null;
-      const res = await pool.query(
-        `UPDATE media_files m
-            SET display_name = $2
-          WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
-        [mediaId, normalized],
+      const res = await runWebappSql(
+        getWebappSqlDb(),
+        sql`UPDATE media_files m
+            SET display_name = ${normalized}
+          WHERE m.id = ${mediaId}::uuid AND ${mediaReadableStatusPredicateM}`,
       );
       return (res.rowCount ?? 0) > 0;
     },
 
     async updateMediaFolder(mediaId: string, folderId: string | null) {
-      const pool = getPool();
-      const res = await pool.query(
-        `UPDATE media_files m
-            SET folder_id = $2
-          WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
-        [mediaId, folderId],
+      const res = await runWebappSql(
+        getWebappSqlDb(),
+        sql`UPDATE media_files m
+            SET folder_id = ${folderId}
+          WHERE m.id = ${mediaId}::uuid AND ${mediaReadableStatusPredicateM}`,
       );
       return (res.rowCount ?? 0) > 0;
     },
@@ -397,40 +395,33 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async findUsage(mediaId: string): Promise<MediaUsageRef[]> {
-      const pool = getPool();
       const mediaUrl = `/api/media/${mediaId}`;
-      const keyRes = await pool.query<{ s3_key: string | null }>(
-        `SELECT s3_key FROM media_files WHERE id = $1::uuid`,
-        [mediaId],
+      const keyRes = await runWebappSql<{ s3_key: string | null }>(
+        getWebappSqlDb(),
+        sql`SELECT s3_key FROM media_files WHERE id = ${mediaId}::uuid`,
       );
       const s3Key = keyRes.rows[0]?.s3_key ?? null;
       const publicUrl =
         s3Key && env.S3_PUBLIC_BUCKET ? s3PublicUrl(s3Key) : null;
 
-      const res = await pool.query<MediaUsageRef>(
-        `SELECT id::text AS "pageId", slug AS "pageSlug", 'image_url'::text AS field
+      const res = await runWebappSql<MediaUsageRef>(
+        getWebappSqlDb(),
+        sql`SELECT id::text AS "pageId", slug AS "pageSlug", 'image_url'::text AS field
            FROM content_pages
-          WHERE image_url = $1 OR ($2::text IS NOT NULL AND image_url = $2)
+          WHERE image_url = ${mediaUrl} OR (${publicUrl}::text IS NOT NULL AND image_url = ${publicUrl})
          UNION ALL
          SELECT id::text AS "pageId", slug AS "pageSlug", 'video_url'::text AS field
            FROM content_pages
-          WHERE video_url = $1 OR ($2::text IS NOT NULL AND video_url = $2)
-              OR (video_type = 'api' AND video_url = $3)
+          WHERE video_url = ${mediaUrl} OR (${publicUrl}::text IS NOT NULL AND video_url = ${publicUrl})
+              OR (video_type = 'api' AND video_url = ${mediaId})
          UNION ALL
          SELECT id::text AS "pageId", slug AS "pageSlug", 'body_md'::text AS field
            FROM content_pages
-          WHERE body_md LIKE $4 OR ($5::text IS NOT NULL AND body_md LIKE $5)
+          WHERE body_md LIKE ${`%${mediaUrl}%`} OR (${publicUrl}::text IS NOT NULL AND body_md LIKE ${publicUrl ? `%${publicUrl}%` : null})
          UNION ALL
          SELECT id::text AS "pageId", slug AS "pageSlug", 'body_html'::text AS field
            FROM content_pages
-          WHERE body_html LIKE $4 OR ($5::text IS NOT NULL AND body_html LIKE $5)`,
-        [
-          mediaUrl,
-          publicUrl,
-          mediaId,
-          `%${mediaUrl}%`,
-          publicUrl ? `%${publicUrl}%` : null,
-        ],
+          WHERE body_html LIKE ${`%${mediaUrl}%`} OR (${publicUrl}::text IS NOT NULL AND body_html LIKE ${publicUrl ? `%${publicUrl}%` : null})`,
       );
       return res.rows.map((row) => ({
         pageId: row.pageId,
@@ -449,9 +440,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       try {
         await pgSessionAdvisoryLock(client, mediaId);
         try {
-          const sel = await client.query<{ s3_key: string | null; status: string | null }>(
-            `SELECT s3_key, status FROM media_files WHERE id = $1::uuid`,
-            [mediaId],
+          const db = getWebappSqlFromPgClient(client);
+          const sel = await runWebappSql<{ s3_key: string | null; status: string | null }>(
+            db,
+            sql`SELECT s3_key, status FROM media_files WHERE id = ${mediaId}::uuid`,
           );
           const row = sel.rows[0];
           if (!row) return false;
@@ -461,11 +453,17 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           }
 
           if (!row.s3_key) {
-            const del = await client.query(`DELETE FROM media_files WHERE id = $1::uuid`, [mediaId]);
+            const del = await runWebappSql(
+              db,
+              sql`DELETE FROM media_files WHERE id = ${mediaId}::uuid`,
+            );
             return (del.rowCount ?? 0) > 0;
           }
 
-          await client.query(`UPDATE media_files SET status = 'pending_delete' WHERE id = $1::uuid`, [mediaId]);
+          await runWebappSql(
+            db,
+            sql`UPDATE media_files SET status = 'pending_delete' WHERE id = ${mediaId}::uuid`,
+          );
           return true;
         } finally {
           await pgSessionAdvisoryUnlock(client, mediaId);
@@ -490,20 +488,18 @@ export async function insertPendingMediaFileTx(
     folderId?: string | null;
   },
 ): Promise<void> {
-  await client.query(
-    `INSERT INTO media_files (id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by, folder_id)
-     VALUES ($1::uuid, $2, $3, $4, $5, $6, 'pending', $7::uuid, $8::uuid)`,
-    [
-      params.id,
-      params.filename,
-      params.key,
-      params.key,
-      params.mimeType,
-      params.sizeBytes,
-      params.userId,
-      params.folderId ?? null,
-    ],
-  );
+  const db = getWebappSqlFromPgClient(client);
+  await db.insert(mediaFiles).values({
+    id: params.id,
+    originalName: params.filename,
+    storedPath: params.key,
+    s3Key: params.key,
+    mimeType: params.mimeType,
+    sizeBytes: params.sizeBytes,
+    status: "pending",
+    uploadedBy: params.userId,
+    folderId: params.folderId ?? null,
+  });
 }
 
 /** Patient program-item submission upload (usage_purpose + mp4 override for video). */
@@ -519,23 +515,19 @@ export async function insertPendingProgramSubmissionMediaFileTx(
   },
 ): Promise<void> {
   const isVideo = params.mimeType.toLowerCase().startsWith("video/");
-  await client.query(
-    `INSERT INTO media_files (
-       id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by,
-       usage_purpose, video_delivery_override
-     )
-     VALUES ($1::uuid, $2, $3, $4, $5, $6, 'pending', $7::uuid, 'program_item_submission', $8)`,
-    [
-      params.id,
-      params.filename,
-      params.key,
-      params.key,
-      params.mimeType,
-      params.sizeBytes,
-      params.userId,
-      isVideo ? "mp4" : null,
-    ],
-  );
+  const db = getWebappSqlFromPgClient(client);
+  await db.insert(mediaFiles).values({
+    id: params.id,
+    originalName: params.filename,
+    storedPath: params.key,
+    s3Key: params.key,
+    mimeType: params.mimeType,
+    sizeBytes: params.sizeBytes,
+    status: "pending",
+    uploadedBy: params.userId,
+    usagePurpose: "program_item_submission",
+    videoDeliveryOverride: isVideo ? "mp4" : null,
+  });
 }
 
 /** Insert pending row + return presign target (presign route). */
@@ -548,21 +540,17 @@ export async function insertPendingMediaFile(params: {
   userId: string;
   folderId?: string | null;
 }): Promise<void> {
-  const pool = getPool();
-  await pool.query(
-    `INSERT INTO media_files (id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by, folder_id)
-     VALUES ($1::uuid, $2, $3, $4, $5, $6, 'pending', $7::uuid, $8::uuid)`,
-    [
-      params.id,
-      params.filename,
-      params.key,
-      params.key,
-      params.mimeType,
-      params.sizeBytes,
-      params.userId,
-      params.folderId ?? null,
-    ],
-  );
+  await getWebappSqlDb().insert(mediaFiles).values({
+    id: params.id,
+    originalName: params.filename,
+    storedPath: params.key,
+    s3Key: params.key,
+    mimeType: params.mimeType,
+    sizeBytes: params.sizeBytes,
+    status: "pending",
+    uploadedBy: params.userId,
+    folderId: params.folderId ?? null,
+  });
 }
 
 /** Row for confirm flow: same owner, any status (pending or ready for idempotency). */
@@ -576,17 +564,16 @@ export async function getMediaRowForConfirm(
   usage_purpose: string | null;
   size_bytes: number | null;
 } | null> {
-  const pool = getPool();
-  const res = await pool.query<{
+  const res = await runWebappSql<{
     s3_key: string | null;
     status: string;
     mime_type: string;
     usage_purpose: string | null;
     size_bytes: string | null;
   }>(
-    `SELECT s3_key, status, mime_type, usage_purpose, size_bytes::text
-     FROM media_files WHERE id = $1::uuid AND uploaded_by = $2::uuid`,
-    [mediaId, userId],
+    getWebappSqlDb(),
+    sql`SELECT s3_key, status, mime_type, usage_purpose, size_bytes::text
+     FROM media_files WHERE id = ${mediaId}::uuid AND uploaded_by = ${userId}::uuid`,
   );
   const row = res.rows[0];
   if (!row) return null;
@@ -601,20 +588,20 @@ export async function getMediaRowForConfirm(
 }
 
 export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
-  const pool = getPool();
-  const res = await pool.query(`UPDATE media_files SET status = 'ready' WHERE id = $1::uuid AND status = 'pending'`, [
-    mediaId,
-  ]);
-  return (res.rowCount ?? 0) > 0;
+  const rows = await getWebappSqlDb()
+    .update(mediaFiles)
+    .set({ status: "ready" })
+    .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.status, "pending")))
+    .returning({ id: mediaFiles.id });
+  return rows.length > 0;
 }
 
 /** Confirm patient program submission upload (must have usage_purpose set at presign). */
 export async function confirmProgramSubmissionMediaFileReady(mediaId: string): Promise<boolean> {
-  const pool = getPool();
-  const res = await pool.query(
-    `UPDATE media_files SET status = 'ready'
-     WHERE id = $1::uuid AND status = 'pending' AND usage_purpose = 'program_item_submission'`,
-    [mediaId],
+  const res = await runWebappSql(
+    getWebappSqlDb(),
+    sql`UPDATE media_files SET status = 'ready'
+     WHERE id = ${mediaId}::uuid AND status = 'pending' AND usage_purpose = 'program_item_submission'`,
   );
   return (res.rowCount ?? 0) > 0;
 }
@@ -639,14 +626,13 @@ export async function getProgramSubmissionMediaStatusRow(
   mediaId: string,
   patientUserId: string,
 ): Promise<ProgramSubmissionMediaStatusRow | null> {
-  const pool = getPool();
-  const res = await pool.query<ProgramSubmissionMediaStatusRow>(
-    `SELECT id::text, mime_type, status, video_processing_status, video_processing_error
+  const res = await runWebappSql<ProgramSubmissionMediaStatusRow>(
+    getWebappSqlDb(),
+    sql`SELECT id::text, mime_type, status, video_processing_status, video_processing_error
      FROM media_files
-     WHERE id = $1::uuid
-       AND uploaded_by = $2::uuid
+     WHERE id = ${mediaId}::uuid
+       AND uploaded_by = ${patientUserId}::uuid
        AND usage_purpose = 'program_item_submission'`,
-    [mediaId, patientUserId],
   );
   return res.rows[0] ?? null;
 }
@@ -676,15 +662,14 @@ export async function markProgramSubmissionVideoProcessingFailed(
   mediaId: string,
   errorMessage: string,
 ): Promise<void> {
-  const pool = getPool();
   const msg = errorMessage.slice(0, 8000);
-  await pool.query(
-    `UPDATE media_files
-     SET video_processing_status = 'failed',
-         video_processing_error = $2
-     WHERE id = $1::uuid AND usage_purpose = 'program_item_submission'`,
-    [mediaId, msg],
-  );
+  await getWebappSqlDb()
+    .update(mediaFiles)
+    .set({
+      videoProcessingStatus: "failed",
+      videoProcessingError: msg,
+    })
+    .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.usagePurpose, "program_item_submission")));
 }
 
 export type MediaAccessRow = {
@@ -694,21 +679,22 @@ export type MediaAccessRow = {
 };
 
 export async function getMediaAccessRow(id: string): Promise<MediaAccessRow | null> {
-  const pool = getPool();
-  const res = await pool.query<MediaAccessRow>(
-    `SELECT usage_purpose, uploaded_by::text, mime_type
+  const res = await runWebappSql<MediaAccessRow>(
+    getWebappSqlDb(),
+    sql`SELECT usage_purpose, uploaded_by::text, mime_type
      FROM media_files
-     WHERE id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL}`,
-    [id],
+     WHERE id = ${id}::uuid AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0] ?? null;
 }
 
 /** Roll back presign INSERT when presigned URL generation fails. */
 export async function deletePendingMediaFileById(mediaId: string): Promise<boolean> {
-  const pool = getPool();
-  const res = await pool.query(`DELETE FROM media_files WHERE id = $1::uuid AND status = 'pending'`, [mediaId]);
-  return (res.rowCount ?? 0) > 0;
+  const rows = await getWebappSqlDb()
+    .delete(mediaFiles)
+    .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.status, "pending")))
+    .returning({ id: mediaFiles.id });
+  return rows.length > 0;
 }
 
 export type MediaDeleteErrorRow = {
@@ -721,21 +707,21 @@ export type MediaDeleteErrorRow = {
 
 /** Admin: rows stuck in delete queue with at least one failed S3 attempt. */
 export async function listMediaDeleteErrors(limit: number = 100): Promise<{ items: MediaDeleteErrorRow[]; total: number }> {
-  const pool = getPool();
   const cap = Math.min(100, Math.max(1, limit));
-  const countRes = await pool.query<{ c: string }>(
-    `SELECT count(*)::text AS c FROM media_files
+  const countRes = await runWebappSql<{ c: string }>(
+    getWebappSqlDb(),
+    sql`SELECT count(*)::text AS c FROM media_files
      WHERE status IN ('pending_delete', 'deleting') AND COALESCE(delete_attempts, 0) > 0`,
   );
   const total = Number.parseInt(countRes.rows[0]?.c ?? "0", 10);
-  const res = await pool.query<MediaDeleteErrorRow>(
-    `SELECT id::text, original_name, COALESCE(delete_attempts, 0)::int AS delete_attempts,
+  const res = await runWebappSql<MediaDeleteErrorRow>(
+    getWebappSqlDb(),
+    sql`SELECT id::text, original_name, COALESCE(delete_attempts, 0)::int AS delete_attempts,
             next_attempt_at::text, created_at::text
        FROM media_files
       WHERE status IN ('pending_delete', 'deleting') AND COALESCE(delete_attempts, 0) > 0
       ORDER BY delete_attempts DESC, id ASC
-      LIMIT $1`,
-    [cap],
+      LIMIT ${cap}`,
   );
   return { items: res.rows, total };
 }
@@ -756,25 +742,23 @@ export type MediaPlaybackRow = {
 };
 
 export async function getMediaRowForPlayback(id: string): Promise<MediaPlaybackRow | null> {
-  const pool = getPool();
-  const res = await pool.query<MediaPlaybackRow>(
-    `SELECT id::text, mime_type, s3_key,
+  const res = await runWebappSql<MediaPlaybackRow>(
+    getWebappSqlDb(),
+    sql`SELECT id::text, mime_type, s3_key,
             video_processing_status, hls_master_playlist_s3_key, poster_s3_key,
             video_duration_seconds, available_qualities_json, video_delivery_override,
             usage_purpose, uploaded_by::text
      FROM media_files
-     WHERE id = $1::uuid AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0 AND ${MEDIA_READABLE_STATUS_SQL}`,
-    [id],
+     WHERE id = ${id}::uuid AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0 AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0] ?? null;
 }
 
 /** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */
 export async function getMediaS3KeyForRedirect(id: string): Promise<string | null> {
-  const pool = getPool();
-  const res = await pool.query<{ s3_key: string | null }>(
-    `SELECT s3_key FROM media_files WHERE id = $1::uuid AND s3_key IS NOT NULL AND ${MEDIA_READABLE_STATUS_SQL}`,
-    [id],
+  const res = await runWebappSql<{ s3_key: string | null }>(
+    getWebappSqlDb(),
+    sql`SELECT s3_key FROM media_files WHERE id = ${id}::uuid AND s3_key IS NOT NULL AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0]?.s3_key ?? null;
 }
@@ -784,16 +768,15 @@ export async function getMediaPreviewS3KeyForRedirect(
   id: string,
   size: "sm" | "md",
 ): Promise<string | null> {
-  const pool = getPool();
-  const res = await pool.query<{
+  const res = await runWebappSql<{
     preview_sm_key: string | null;
     preview_md_key: string | null;
     preview_status: string | null;
   }>(
-    `SELECT preview_sm_key, preview_md_key, preview_status
+    getWebappSqlDb(),
+    sql`SELECT preview_sm_key, preview_md_key, preview_status
      FROM media_files
-     WHERE id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL}`,
-    [id],
+     WHERE id = ${id}::uuid AND ${mediaReadableStatusPredicate}`,
   );
   const row = res.rows[0];
   if (!row || row.preview_status !== "ready") return null;
@@ -888,9 +871,10 @@ export async function purgePendingMediaDeleteBatch(
 
   for (let i = 0; i < take; i++) {
     const client = await pool.connect();
+    const db = getWebappSqlFromPgClient(client);
     try {
       await client.query("BEGIN");
-      const { rows } = await client.query<{
+      const claim = await runWebappSql<{
         id: string;
         s3_key: string;
         preview_sm_key: string | null;
@@ -901,16 +885,18 @@ export async function purgePendingMediaDeleteBatch(
         status: string | null;
         delete_attempts: number | null;
       }>(
-        `SELECT id, s3_key, preview_sm_key, preview_md_key,
+        db,
+        sql`SELECT id, s3_key, preview_sm_key, preview_md_key,
                 hls_artifact_prefix, poster_s3_key, hls_master_playlist_s3_key,
                 status, COALESCE(delete_attempts, 0) AS delete_attempts
          FROM media_files
-         WHERE ${MEDIA_S3_PURGE_STATUS_SQL} AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0
+         WHERE ${mediaS3PurgeStatusPredicate} AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0
          AND (next_attempt_at IS NULL OR next_attempt_at <= now())
          ORDER BY id ASC
          LIMIT 1
          FOR UPDATE SKIP LOCKED`,
       );
+      const rows = claim.rows;
       if (rows.length === 0) {
         await client.query("COMMIT");
         break;
@@ -930,12 +916,12 @@ export async function purgePendingMediaDeleteBatch(
         const prevAttempts = row.delete_attempts ?? 0;
         const exp = Math.min(prevAttempts + 1, 20);
         const minutes = Math.min(1440, Math.pow(2, exp));
-        await client.query(
-          `UPDATE media_files SET
+        await runWebappSql(
+          db,
+          sql`UPDATE media_files SET
              delete_attempts = delete_attempts + 1,
-             next_attempt_at = now() + ($2::numeric * interval '1 minute')
-           WHERE id = $1::uuid`,
-          [row.id, minutes],
+             next_attempt_at = now() + (${minutes}::numeric * interval '1 minute')
+           WHERE id = ${row.id}::uuid`,
         );
         await client.query("COMMIT");
         errors += 1;
@@ -950,12 +936,12 @@ export async function purgePendingMediaDeleteBatch(
         const prevAttempts = row.delete_attempts ?? 0;
         const exp = Math.min(prevAttempts + 1, 20);
         const minutes = Math.min(1440, Math.pow(2, exp));
-        await client.query(
-          `UPDATE media_files SET
+        await runWebappSql(
+          db,
+          sql`UPDATE media_files SET
              delete_attempts = delete_attempts + 1,
-             next_attempt_at = now() + ($2::numeric * interval '1 minute')
-           WHERE id = $1::uuid`,
-          [row.id, minutes],
+             next_attempt_at = now() + (${minutes}::numeric * interval '1 minute')
+           WHERE id = ${row.id}::uuid`,
         );
         await client.query("COMMIT");
         errors += 1;
@@ -963,9 +949,9 @@ export async function purgePendingMediaDeleteBatch(
         continue;
       }
 
-      const del = await client.query(
-        `DELETE FROM media_files WHERE id = $1::uuid AND ${MEDIA_S3_PURGE_STATUS_SQL}`,
-        [row.id],
+      const del = await runWebappSql(
+        db,
+        sql`DELETE FROM media_files WHERE id = ${row.id}::uuid AND ${mediaS3PurgeStatusPredicate}`,
       );
       await client.query("COMMIT");
       if ((del.rowCount ?? 0) > 0) removed += 1;
@@ -981,8 +967,9 @@ export async function purgePendingMediaDeleteBatch(
     }
   }
 
-  const orphan = await pool.query(
-    `DELETE FROM media_files WHERE ${MEDIA_S3_PURGE_STATUS_SQL} AND (s3_key IS NULL OR trim(s3_key) = '')`,
+  const orphan = await runWebappSql(
+    getWebappSqlDb(),
+    sql`DELETE FROM media_files WHERE ${mediaS3PurgeStatusPredicate} AND (s3_key IS NULL OR trim(s3_key) = '')`,
   );
   removed += orphan.rowCount ?? 0;
 

@@ -1,5 +1,7 @@
 import type { SQL } from "drizzle-orm";
+import type { PoolClient } from "pg";
 import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
+import { drizzleOnPgClient } from "@/infra/db/pgAdvisoryLock";
 
 export type WebappQueryResult<T> = {
   rows: T[];
@@ -30,6 +32,11 @@ function normalizeExecute<T>(raw: unknown): WebappQueryResult<T> {
 
 export function getWebappSqlDb(): DrizzleDb {
   return getDrizzle();
+}
+
+/** Drizzle executor on a dedicated `PoolClient` (multipart tx, session advisory locks). */
+export function getWebappSqlFromPgClient(client: PoolClient): WebappSqlExecutor {
+  return drizzleOnPgClient(client) as unknown as WebappSqlExecutor;
 }
 
 export async function runWebappSql<T = unknown>(

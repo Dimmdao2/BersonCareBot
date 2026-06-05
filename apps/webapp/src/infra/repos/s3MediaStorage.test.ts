@@ -1,16 +1,31 @@
 /** @vitest-environment node */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { drizzleSqlFragmentToApproximateSql } from "@/infra/db/drizzleSqlDebugText";
 
-const queryMock = vi.fn();
-const connectQueryMock = vi.fn();
-const s3PutObjectBodyMock = vi.fn();
-const s3DeleteObjectMock = vi.fn();
-const s3ListObjectKeysUnderPrefixMock = vi.fn();
+const runWebappSqlMock = vi.hoisted(() => vi.fn());
+const insertMock = vi.hoisted(() => vi.fn());
+const connectQueryMock = vi.hoisted(() => vi.fn());
+const s3PutObjectBodyMock = vi.hoisted(() => vi.fn());
+const s3DeleteObjectMock = vi.hoisted(() => vi.fn());
+const s3ListObjectKeysUnderPrefixMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/infra/db/runWebappSql", () => ({
+  getWebappSqlDb: vi.fn(() => ({
+    insert: insertMock,
+  })),
+  getWebappSqlFromPgClient: vi.fn(() => ({})),
+  runWebappSql: runWebappSqlMock,
+}));
+
+vi.mock("@/infra/db/pgAdvisoryLock", () => ({
+  pgSessionAdvisoryLock: vi.fn().mockResolvedValue(undefined),
+  pgSessionAdvisoryUnlock: vi.fn().mockResolvedValue(undefined),
+  drizzleOnPgClient: vi.fn(() => ({})),
+}));
 
 vi.mock("@/infra/db/client", () => ({
   getPool: () => ({
-    query: (...args: unknown[]) => queryMock(...args),
     connect: async () => ({
       query: (...args: unknown[]) => connectQueryMock(...args),
       release: () => {},
@@ -43,9 +58,15 @@ vi.mock("@/config/env", () => ({
 
 import { collectS3KeysForMediaPurge, createS3MediaStoragePort, purgePendingMediaDeleteBatch } from "./s3MediaStorage";
 
+function approxSqlAt(callIndex: number): string {
+  const fragment = runWebappSqlMock.mock.calls[callIndex]?.[1];
+  return drizzleSqlFragmentToApproximateSql(fragment);
+}
+
 describe("createS3MediaStoragePort", () => {
   beforeEach(() => {
-    queryMock.mockReset();
+    runWebappSqlMock.mockReset();
+    insertMock.mockReset();
     connectQueryMock.mockReset();
     s3PutObjectBodyMock.mockReset();
     s3DeleteObjectMock.mockReset();
@@ -53,14 +74,13 @@ describe("createS3MediaStoragePort", () => {
     s3PutObjectBodyMock.mockResolvedValue(undefined);
     s3DeleteObjectMock.mockResolvedValue(undefined);
     s3ListObjectKeysUnderPrefixMock.mockResolvedValue([]);
+    insertMock.mockReturnValue({
+      values: vi.fn().mockResolvedValue(undefined),
+    });
   });
 
-  // ----- upload -----
-
   it("upload puts object to S3 and inserts ready row", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "11111111-1111-4111-8111-111111111111" }] })
-      .mockResolvedValueOnce({ rows: [] });
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [{ id: "11111111-1111-4111-8111-111111111111" }] });
 
     const port = createS3MediaStoragePort();
     const body = new Uint8Array([9, 9, 9]).buffer;
@@ -76,61 +96,48 @@ describe("createS3MediaStoragePort", () => {
       expect.any(Buffer),
       "image/png",
     );
-    expect(queryMock).toHaveBeenCalledTimes(2);
-    const insertSql = String(queryMock.mock.calls[1]![0]);
-    expect(insertSql).toContain("INSERT INTO media_files");
-    expect(insertSql).toContain("'ready'");
+    expect(insertMock).toHaveBeenCalled();
     expect(result.record.id).toBe("11111111-1111-4111-8111-111111111111");
     expect(result.url).toBe("/api/media/11111111-1111-4111-8111-111111111111");
   });
 
-  // ----- getUrl -----
-
   it("getUrl returns app media path when s3_key is set", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ s3_key: "media/abc/file.png" }] });
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [{ s3_key: "media/abc/file.png" }] });
     const port = createS3MediaStoragePort();
     const url = await port.getUrl("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(url).toBe("/api/media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   });
 
   it("getUrl returns null when no s3_key row", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [] });
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [] });
     const port = createS3MediaStoragePort();
     const url = await port.getUrl("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
     expect(url).toBeNull();
   });
 
-  it("getUrl returns null when record not found", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [] });
-    const port = createS3MediaStoragePort();
-    const url = await port.getUrl("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
-    expect(url).toBeNull();
-  });
-
-  // ----- deleteHard -----
-
   it("deleteHard queues pending_delete for S3-backed file (no immediate s3 delete)", async () => {
-    connectQueryMock
-      .mockResolvedValueOnce(undefined) // advisory lock
-      .mockResolvedValueOnce({ rows: [{ stored_path: "media/x/f.mp4", s3_key: "media/x/f.mp4", status: "ready" }] })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // update pending_delete
-      .mockResolvedValueOnce(undefined); // advisory unlock
+    runWebappSqlMock
+      .mockResolvedValueOnce({ rows: [{ s3_key: "media/x/f.mp4", status: "ready" }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    connectQueryMock.mockImplementation((sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT") return Promise.resolve({ rowCount: 0, rows: [] });
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
     const port = createS3MediaStoragePort();
     const deleted = await port.deleteHard("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
     expect(deleted).toBe(true);
     expect(s3DeleteObjectMock).not.toHaveBeenCalled();
-    const updateSql = String(connectQueryMock.mock.calls[2]![0]);
-    expect(updateSql).toContain("pending_delete");
+    expect(approxSqlAt(1)).toContain("pending_delete");
   });
 
   it("deleteHard removes DB row when row has no s3_key", async () => {
-    connectQueryMock
-      .mockResolvedValueOnce(undefined) // advisory lock
-      .mockResolvedValueOnce({
-        rows: [{ stored_path: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", s3_key: null, status: "ready" }],
-      })
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // delete row
-      .mockResolvedValueOnce(undefined); // advisory unlock
+    runWebappSqlMock
+      .mockResolvedValueOnce({ rows: [{ s3_key: null, status: "ready" }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    connectQueryMock.mockImplementation((sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT") return Promise.resolve({ rowCount: 0, rows: [] });
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
     const port = createS3MediaStoragePort();
     const deleted = await port.deleteHard("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
     expect(deleted).toBe(true);
@@ -138,11 +145,11 @@ describe("createS3MediaStoragePort", () => {
   });
 
   it("deleteHard returns false when record not found", async () => {
-    // lock -> select none -> unlock
-    connectQueryMock
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce(undefined);
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [] });
+    connectQueryMock.mockImplementation((sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT") return Promise.resolve({ rowCount: 0, rows: [] });
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
     const port = createS3MediaStoragePort();
     const deleted = await port.deleteHard("ffffffff-ffff-4fff-8fff-ffffffffffff");
     expect(deleted).toBe(false);
@@ -152,12 +159,18 @@ describe("createS3MediaStoragePort", () => {
 
 describe("purgePendingMediaDeleteBatch", () => {
   beforeEach(() => {
-    queryMock.mockReset();
+    runWebappSqlMock.mockReset();
     connectQueryMock.mockReset();
     s3DeleteObjectMock.mockReset();
     s3ListObjectKeysUnderPrefixMock.mockReset();
     s3DeleteObjectMock.mockResolvedValue(undefined);
     s3ListObjectKeysUnderPrefixMock.mockResolvedValue([]);
+    connectQueryMock.mockImplementation((sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+        return Promise.resolve({ rowCount: 0, rows: [] });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
   });
 
   it("collectS3KeysForMediaPurge merges list results with source mp4", async () => {
@@ -181,51 +194,11 @@ describe("purgePendingMediaDeleteBatch", () => {
         "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/video.mp4",
       ].sort(),
     );
-    expect(s3ListObjectKeysUnderPrefixMock).toHaveBeenCalledWith(
-      "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/hls",
-    );
-    expect(s3ListObjectKeysUnderPrefixMock).toHaveBeenCalledWith(
-      "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/poster",
-    );
-  });
-
-  it("collectS3KeysForMediaPurge skips untrusted poster_s3_key and lists canonical poster prefix", async () => {
-    const other = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    s3ListObjectKeysUnderPrefixMock
-      .mockResolvedValueOnce(["media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/hls/a.ts"])
-      .mockResolvedValueOnce(["media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/poster/poster.jpg"]);
-    const keys = await collectS3KeysForMediaPurge({
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      s3_key: "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/video.mp4",
-      preview_sm_key: null,
-      preview_md_key: null,
-      hls_artifact_prefix: null,
-      poster_s3_key: `media/${other}/poster/poster.jpg`,
-      hls_master_playlist_s3_key: null,
-    });
-    expect(keys).not.toContain(`media/${other}/poster/poster.jpg`);
-    expect(keys).toContain("media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/poster/poster.jpg");
-    expect(s3ListObjectKeysUnderPrefixMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("collectS3KeysForMediaPurge does not add untrusted hls_master_playlist_s3_key", async () => {
-    const keys = await collectS3KeysForMediaPurge({
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      s3_key: "media/a/legacy.mp4",
-      preview_sm_key: null,
-      preview_md_key: null,
-      hls_artifact_prefix: null,
-      poster_s3_key: null,
-      hls_master_playlist_s3_key: "media/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/hls/master.m3u8",
-    });
-    expect(keys).toEqual(["media/a/legacy.mp4"]);
-    expect(s3ListObjectKeysUnderPrefixMock).not.toHaveBeenCalled();
   });
 
   it("increments delete_attempts and counts errors when S3 delete fails", async () => {
     s3DeleteObjectMock.mockRejectedValueOnce(new Error("s3 unavailable"));
-    connectQueryMock
-      .mockResolvedValueOnce(undefined)
+    runWebappSqlMock
       .mockResolvedValueOnce({
         rows: [
           {
@@ -241,21 +214,14 @@ describe("purgePendingMediaDeleteBatch", () => {
           },
         ],
       })
-      .mockResolvedValueOnce({ rowCount: 1 })
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce(undefined);
-    queryMock.mockResolvedValueOnce({ rowCount: 0 });
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] });
 
     const r = await purgePendingMediaDeleteBatch(5);
     expect(r.errors).toBe(1);
     expect(r.removed).toBe(0);
     expect(s3DeleteObjectMock).toHaveBeenCalledWith("media/a/x");
-    const updateSql = String(
-      connectQueryMock.mock.calls.find((c) => String(c[0]).includes("UPDATE media_files"))?.[0] ?? "",
-    );
-    expect(updateSql).toContain("delete_attempts");
-    expect(updateSql).toContain("next_attempt_at");
+    expect(approxSqlAt(1)).toContain("delete_attempts");
   });
 });

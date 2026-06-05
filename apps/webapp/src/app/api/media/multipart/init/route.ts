@@ -6,7 +6,7 @@ import { getPool } from "@/app-layer/db/client";
 import { logger } from "@/app-layer/logging/logger";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
 import { insertUploadSessionTx } from "@/app-layer/media/mediaUploadSessionsRepo";
-import { insertPendingMediaFileTx } from "@/app-layer/media/s3MediaStorage";
+import { insertPendingMediaFileTx, deletePendingMediaFileById } from "@/app-layer/media/s3MediaStorage";
 import { s3AbortMultipartUpload, s3CreateMultipartUpload, s3ObjectKey } from "@/app-layer/media/s3Client";
 import { withUserLifecycleLock } from "@/app-layer/locks/userLifecycleLock";
 import {
@@ -128,11 +128,9 @@ export async function POST(request: Request) {
         /* best-effort */
       });
     }
-    await getPool()
-      .query(`DELETE FROM media_files WHERE id = $1::uuid AND status = 'pending'`, [mediaId])
-      .catch(() => {
-        /* ignore */
-      });
+    await deletePendingMediaFileById(mediaId).catch(() => {
+      /* ignore */
+    });
     logger.error({ err: e }, "[media/multipart/init] failed");
     return NextResponse.json({ ok: false, error: "multipart_init_failed" }, { status: 500 });
   }

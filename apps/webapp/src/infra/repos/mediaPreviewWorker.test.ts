@@ -1,12 +1,14 @@
 /** @vitest-environment node */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { drizzleSqlFragmentToApproximateSql } from "@/infra/db/drizzleSqlDebugText";
 import sharp from "sharp";
 
 const ffmpegSetFfmpegPathMock = vi.fn();
 const ffmpegRunModeMock = vi.fn((): "end" | "error" => "end");
 const ffmpegErrorFactoryMock = vi.fn((): Error => new Error("ffmpeg_error"));
 const queryMock = vi.fn();
+const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const s3GetObjectBodyMock = vi.fn();
 const s3PutObjectBodyMock = vi.fn();
 const presignGetUrlMock = vi.fn();
@@ -93,8 +95,9 @@ vi.mock("@/infra/db/client", () => ({
   }),
 }));
 
-vi.mock("@/infra/repos/s3MediaStorage", () => ({
-  MEDIA_READABLE_STATUS_SQL: "1=1",
+vi.mock("@/infra/db/runWebappSql", () => ({
+  getWebappSqlFromPgClient: vi.fn(() => ({})),
+  runWebappSql: runWebappSqlMock,
 }));
 
 vi.mock("@/infra/s3/client", () => ({
@@ -121,20 +124,29 @@ type PreviewRow = {
   preview_attempts: number;
 };
 
+function approxRunWebappSqlAt(callIndex: number): string {
+  const fragment = runWebappSqlMock.mock.calls[callIndex]?.[1];
+  return drizzleSqlFragmentToApproximateSql(fragment);
+}
+
 function setupSingleRowScenario(row: PreviewRow) {
   let picked = false;
-  queryMock.mockImplementation(async (sql: unknown, params?: unknown[]) => {
+  queryMock.mockImplementation(async (sql: unknown) => {
     const text = String(sql);
     if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") {
       return { rows: [] };
     }
+    return { rows: [] };
+  });
+  runWebappSqlMock.mockImplementation(async (_db: unknown, fragment: unknown) => {
+    const text = drizzleSqlFragmentToApproximateSql(fragment);
     if (text.includes("SELECT id, s3_key, mime_type")) {
       if (picked) return { rows: [] };
       picked = true;
       return { rows: [row] };
     }
     if (text.includes("UPDATE media_files")) {
-      return { rowCount: 1, rows: [], params };
+      return { rowCount: 1, rows: [] };
     }
     return { rows: [] };
   });
@@ -178,6 +190,7 @@ describe("processMediaPreviewBatch", () => {
     ffmpegErrorFactoryMock.mockReset();
     ffmpegErrorFactoryMock.mockReturnValue(new Error("ffmpeg_error"));
     queryMock.mockReset();
+    runWebappSqlMock.mockReset();
     s3GetObjectBodyMock.mockReset();
     s3PutObjectBodyMock.mockReset();
     presignGetUrlMock.mockReset();
@@ -247,9 +260,7 @@ describe("processMediaPreviewBatch", () => {
       expect.any(Buffer),
       "image/jpeg",
     );
-    expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'ready'")),
-    ).toBe(true);
+    expect(runWebappSqlMock.mock.calls.some((call) => approxRunWebappSqlAt(runWebappSqlMock.mock.calls.indexOf(call)).includes("preview_status = 'ready'"))).toBe(true);
   });
 
   it("skips image/heif when file size is too large for ffmpeg preview", async () => {
@@ -259,9 +270,7 @@ describe("processMediaPreviewBatch", () => {
 
     expect(result).toEqual({ processed: 1, errors: 0 });
     expect(presignGetUrlMock).not.toHaveBeenCalled();
-    expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'skipped'")),
-    ).toBe(true);
+    expect(runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"))).toBe(true);
   });
 
   it("falls back to ImageMagick for image/heic when ffmpeg decoding fails", async () => {
@@ -273,9 +282,7 @@ describe("processMediaPreviewBatch", () => {
 
     expect(result).toEqual({ processed: 1, errors: 0 });
     expect(spawnMock).toHaveBeenCalled();
-    expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'ready'")),
-    ).toBe(true);
+    expect(runWebappSqlMock.mock.calls.some((call) => approxRunWebappSqlAt(runWebappSqlMock.mock.calls.indexOf(call)).includes("preview_status = 'ready'"))).toBe(true);
   });
 
   it("marks image/heic as skipped when ffmpeg fails and magick also fails permanently", async () => {
@@ -301,11 +308,9 @@ describe("processMediaPreviewBatch", () => {
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 0, errors: 1 });
+    expect(runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"))).toBe(true);
     expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'skipped'")),
-    ).toBe(true);
-    expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_next_attempt_at = now()")),
+      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_next_attempt_at = now()")),
     ).toBe(false);
   });
 
@@ -321,10 +326,10 @@ describe("processMediaPreviewBatch", () => {
 
     expect(result).toEqual({ processed: 0, errors: 1 });
     expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_next_attempt_at = now()")),
+      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_next_attempt_at = now()")),
     ).toBe(true);
     expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'skipped'")),
+      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_status = 'skipped'")),
     ).toBe(false);
   });
 
@@ -335,14 +340,12 @@ describe("processMediaPreviewBatch", () => {
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 0, errors: 1 });
+    expect(runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_status = 'skipped'"))).toBe(true);
     expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'skipped'")),
-    ).toBe(true);
-    expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_next_attempt_at = now()")),
+      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_next_attempt_at = now()")),
     ).toBe(false);
     expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_attempts = $2")),
+      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_attempts =")),
     ).toBe(false);
   });
 
@@ -354,10 +357,10 @@ describe("processMediaPreviewBatch", () => {
 
     expect(result).toEqual({ processed: 0, errors: 1 });
     expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_next_attempt_at = now()")),
+      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_next_attempt_at = now()")),
     ).toBe(true);
     expect(
-      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_attempts = $2")),
+      runWebappSqlMock.mock.calls.some((_, i) => approxRunWebappSqlAt(i).includes("preview_attempts =")),
     ).toBe(true);
   });
 

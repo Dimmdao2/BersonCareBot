@@ -5,7 +5,9 @@ import { getPool } from "@/app-layer/db/client";
 import { logger } from "@/app-layer/logging/logger";
 import { withMultipartSessionLock } from "@/app-layer/locks/multipartSessionLock";
 import {
+  deletePendingMediaFileTx,
   listExpiredActiveUploadSessions,
+  lockExpiredSessionForCleanupTx,
   markUploadSessionExpired,
   markUploadSessionExpiredTx,
 } from "@/app-layer/media/mediaUploadSessionsRepo";
@@ -59,41 +61,27 @@ export async function POST(request: Request) {
     const rows = await listExpiredActiveUploadSessions(Number.isFinite(limit) ? limit : 25);
     for (const row of rows) {
       try {
-        const keys = await withMultipartSessionLock(pool, row.id, async (client) => {
-          const sel = await client.query<{
-            id: string;
-            media_id: string;
-            s3_key: string;
-            upload_id: string;
-          }>(
-            `SELECT id, media_id, s3_key, upload_id
-               FROM media_upload_sessions
-              WHERE id = $1::uuid
-                AND status IN ('initiated', 'uploading', 'completing')
-                AND expires_at <= now()
-              FOR UPDATE`,
-            [row.id],
-          );
-          const s = sel.rows[0];
+        const outcome = await withMultipartSessionLock(pool, row.id, async (client) => {
+          const s = await lockExpiredSessionForCleanupTx(client, row.id);
           if (!s) {
-            return null;
+            return { kind: "skipped" as const };
           }
-          const del = await client.query(`DELETE FROM media_files WHERE id = $1::uuid AND status = 'pending'`, [
-            s.media_id,
-          ]);
-          if ((del.rowCount ?? 0) === 0) {
+          const deleted = await deletePendingMediaFileTx(client, s.media_id);
+          if (deleted === 0) {
             await markUploadSessionExpiredTx(client, s.id);
-            return null;
+            return { kind: "expired" as const };
           }
-          return { s3Key: s.s3_key, uploadId: s.upload_id };
+          return { kind: "purged" as const, s3Key: s.s3_key, uploadId: s.upload_id };
         });
 
-        if (keys) {
-          await s3AbortMultipartUpload(keys.s3Key, keys.uploadId).catch(() => {
+        if (outcome.kind === "purged") {
+          await s3AbortMultipartUpload(outcome.s3Key, outcome.uploadId).catch(() => {
             /* best-effort */
           });
         }
-        cleaned += 1;
+        if (outcome.kind !== "skipped") {
+          cleaned += 1;
+        }
       } catch (e) {
         errors += 1;
         logger.error({ err: e, sessionId: row.id }, "[internal/media-multipart/cleanup] row_failed");

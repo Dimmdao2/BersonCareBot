@@ -1,4 +1,6 @@
 import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import { getWebappSqlFromPgClient, runWebappSql } from "@/infra/db/runWebappSql";
 
 export type ResolvedMediaForIntake = {
   mediaId: string;
@@ -17,7 +19,8 @@ export async function resolveMediaFileForLfkAttachment(
   mediaId: string,
   userId: string,
 ): Promise<ResolvedMediaForIntake> {
-  const { rows } = await client.query<{
+  const db = getWebappSqlFromPgClient(client);
+  const { rows } = await runWebappSql<{
     id: string;
     s3_key: string | null;
     mime_type: string;
@@ -26,9 +29,9 @@ export async function resolveMediaFileForLfkAttachment(
     status: string | null;
     uploaded_by: string | null;
   }>(
-    `SELECT id, s3_key, mime_type, size_bytes, original_name, status, uploaded_by
-     FROM media_files WHERE id = $1::uuid`,
-    [mediaId],
+    db,
+    sql`SELECT id, s3_key, mime_type, size_bytes::text, original_name, status, uploaded_by::text
+     FROM media_files WHERE id = ${mediaId}::uuid`,
   );
   const row = rows[0];
   if (!row) {

@@ -9,10 +9,12 @@ import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffmpeg from "fluent-ffmpeg";
 import type { FfmpegCommand } from "fluent-ffmpeg";
 import sharp from "sharp";
+import { sql } from "drizzle-orm";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
+import { getWebappSqlFromPgClient, runWebappSql } from "@/infra/db/runWebappSql";
 import { logger } from "@/infra/logging/logger";
-import { MEDIA_READABLE_STATUS_SQL } from "@/infra/repos/s3MediaStorage";
+import { mediaReadableStatusPredicate } from "@/infra/repos/mediaSqlPredicates";
 import { presignGetUrl, s3GetObjectBody, s3PreviewKey, s3PutObjectBody } from "@/infra/s3/client";
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
 
@@ -317,9 +319,10 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
 
   for (let i = 0; i < take; i++) {
     const client = await pool.connect();
+    const db = getWebappSqlFromPgClient(client);
     try {
       await client.query("BEGIN");
-      const { rows } = await client.query<{
+      const claim = await runWebappSql<{
         id: string;
         s3_key: string;
         mime_type: string;
@@ -328,17 +331,19 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
         source_width: number | null;
         source_height: number | null;
       }>(
-        `SELECT id, s3_key, mime_type, size_bytes::text AS size_bytes, COALESCE(preview_attempts, 0)::int AS preview_attempts,
+        db,
+        sql`SELECT id, s3_key, mime_type, size_bytes::text AS size_bytes, COALESCE(preview_attempts, 0)::int AS preview_attempts,
                 source_width, source_height
          FROM media_files
          WHERE preview_status = 'pending'
            AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0
-           AND ${MEDIA_READABLE_STATUS_SQL}
+           AND ${mediaReadableStatusPredicate}
            AND (preview_next_attempt_at IS NULL OR preview_next_attempt_at <= now())
          ORDER BY created_at ASC
          LIMIT 1
          FOR UPDATE SKIP LOCKED`,
       );
+      const rows = claim.rows;
 
       if (rows.length === 0) {
         await client.query("COMMIT");
@@ -357,9 +362,9 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
       try {
         if (mime === "image/heic" || mime === "image/heif") {
           if (sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
-            await client.query(
-              `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
-              [row.id],
+            await runWebappSql(
+              db,
+              sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
             );
             logger.info(
               { mediaId: row.id, sizeBytes, max: MAX_PREVIEW_SOURCE_BYTES },
@@ -386,35 +391,35 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
             } catch (e) {
               logger.warn({ err: e, mediaId: row.id }, "[mediaPreviewWorker] heic dimension probe failed");
             }
-            await client.query(
-              `UPDATE media_files SET
+            await runWebappSql(
+              db,
+              sql`UPDATE media_files SET
                preview_status = 'ready',
-               preview_sm_key = $2,
-               preview_md_key = $3,
+               preview_sm_key = ${smKey},
+               preview_md_key = ${mdKey},
                preview_attempts = 0,
                preview_next_attempt_at = NULL,
-               source_width = $4,
-               source_height = $5
-             WHERE id = $1::uuid`,
-              [row.id, smKey, mdKey, sw, sh],
+               source_width = ${sw},
+               source_height = ${sh}
+             WHERE id = ${row.id}::uuid`,
             );
             if (sw != null && sh != null) {
               logger.info({ mediaId: row.id, width: sw, height: sh }, "[mediaPreviewWorker] source dimensions stored");
             }
           }
         } else if (mime.startsWith("image/") && sizeBytes > MAX_IMAGE_PREVIEW_BYTES) {
-          await client.query(
-            `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
-            [row.id],
+          await runWebappSql(
+            db,
+            sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
           );
           logger.info(
             { mediaId: row.id, sizeBytes, max: MAX_IMAGE_PREVIEW_BYTES },
             "[processMediaPreviewBatch] image too large for in-process preview, skipped",
           );
         } else if (mime.startsWith("video/") && sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
-          await client.query(
-            `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
-            [row.id],
+          await runWebappSql(
+            db,
+            sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
           );
           logger.info(
             { mediaId: row.id, sizeBytes, max: MAX_PREVIEW_SOURCE_BYTES },
@@ -428,17 +433,17 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
           const { sm, md, sourceWidth, sourceHeight } = await generateImagePreviews(raw);
           await s3PutObjectBody(smKey, sm, "image/jpeg");
           await s3PutObjectBody(mdKey, md, "image/jpeg");
-          await client.query(
-            `UPDATE media_files SET
+          await runWebappSql(
+            db,
+            sql`UPDATE media_files SET
                preview_status = 'ready',
-               preview_sm_key = $2,
-               preview_md_key = $3,
+               preview_sm_key = ${smKey},
+               preview_md_key = ${mdKey},
                preview_attempts = 0,
                preview_next_attempt_at = NULL,
-               source_width = $4,
-               source_height = $5
-             WHERE id = $1::uuid`,
-            [row.id, smKey, mdKey, sourceWidth, sourceHeight],
+               source_width = ${sourceWidth},
+               source_height = ${sourceHeight}
+             WHERE id = ${row.id}::uuid`,
           );
           if (sourceWidth != null && sourceHeight != null) {
             logger.info(
@@ -463,32 +468,32 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
           const { sm: posterSm, md: posterMd } = await posterJpegToSmMd(rawPoster);
           await s3PutObjectBody(smKey, posterSm, "image/jpeg");
           await s3PutObjectBody(mdKey, posterMd, "image/jpeg");
-          await client.query(
-            `UPDATE media_files SET
+          await runWebappSql(
+            db,
+            sql`UPDATE media_files SET
                preview_status = 'ready',
-               preview_sm_key = $2,
-               preview_md_key = $3,
+               preview_sm_key = ${smKey},
+               preview_md_key = ${mdKey},
                preview_attempts = 0,
                preview_next_attempt_at = NULL,
-               source_width = $4,
-               source_height = $5
-             WHERE id = $1::uuid`,
-            [row.id, smKey, mdKey, sw, sh],
+               source_width = ${sw},
+               source_height = ${sh}
+             WHERE id = ${row.id}::uuid`,
           );
           if (sw != null && sh != null) {
             logger.info({ mediaId: row.id, width: sw, height: sh }, "[mediaPreviewWorker] source dimensions stored");
           }
         } else {
-          await client.query(
-            `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
-            [row.id],
+          await runWebappSql(
+            db,
+            sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
           );
         }
       } catch (e) {
         if (isPermanentPreviewError(e)) {
-          await client.query(
-            `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
-            [row.id],
+          await runWebappSql(
+            db,
+            sql`UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = ${row.id}::uuid`,
           );
           logger.warn({ err: e, mediaId: row.id }, "[processMediaPreviewBatch] permanent error, skipped");
           await client.query("COMMIT");
@@ -498,22 +503,22 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
         const prev = row.preview_attempts ?? 0;
         const nextAttempts = prev + 1;
         if (nextAttempts >= MAX_PREVIEW_ATTEMPTS) {
-          await client.query(
-            `UPDATE media_files SET
+          await runWebappSql(
+            db,
+            sql`UPDATE media_files SET
                preview_status = 'failed',
-               preview_attempts = $2,
+               preview_attempts = ${nextAttempts},
                preview_next_attempt_at = NULL
-             WHERE id = $1::uuid`,
-            [row.id, nextAttempts],
+             WHERE id = ${row.id}::uuid`,
           );
         } else {
           const minutes = backoffMinutesAfterFailure(nextAttempts);
-          await client.query(
-            `UPDATE media_files SET
-               preview_attempts = $2,
-               preview_next_attempt_at = now() + ($3::numeric * interval '1 minute')
-             WHERE id = $1::uuid`,
-            [row.id, nextAttempts, minutes],
+          await runWebappSql(
+            db,
+            sql`UPDATE media_files SET
+               preview_attempts = ${nextAttempts},
+               preview_next_attempt_at = now() + (${minutes}::numeric * interval '1 minute')
+             WHERE id = ${row.id}::uuid`,
           );
         }
         await client.query("COMMIT");
