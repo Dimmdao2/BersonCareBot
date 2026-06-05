@@ -90,7 +90,7 @@
 
 - Этапы **P1–P4** и **мастер-план** закрыты; целевые репозитории мастера не используют для доменной логики строковый **`db.query(...)`** (Drizzle API и/или **`runIntegratorSql` / `execute(sql)`**).
 - После выравнивания: **`pnpm --dir apps/integrator run lint`**, **`typecheck`**, **`test`** — зелёные.
-- **Wave 2 (2026-06-05):** этапы **1–5** закрыты — см. § ниже. **`outgoingDeliveryQueue`** и **`bookingProfilesRepo`** — Wave 2 P1. Backlog: мелкие integrator repos/config (P1+); auth advisory locks → **P7**; LFK SQL → **P6**; media-worker transcode claim → **P8**.
+- **Wave 2 (2026-06-05):** этапы **1–6** закрыты — см. § ниже. **`outgoingDeliveryQueue`** и **`bookingProfilesRepo`** — Wave 2 P1. Backlog: мелкие integrator repos/config (P1+); auth advisory locks → **P7**; media-worker transcode claim → **P8**.
 
 ### Wave 2 — план и инвентаризация (документация)
 
@@ -184,3 +184,19 @@
 - **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci` — green (2026-06-05)**; `rg 'pool\.query|client\.query'` по media scope — только TX transport на `PoolClient`.
 - **Синхронизация документов (2026-06-05):** [plans/README.md](./plans/README.md) (индекс P5 → completed), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) (фаза V → Done), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) (§2.4–2.6 P5).
 - **План:** [wave2_phase_05_webapp_media.plan.md](./plans/wave2_phase_05_webapp_media.plan.md) — `status: completed`, todos, DoD и §«Закрытие».
+
+### Wave 2 — этап 6 (webapp ЛФК) — выполнено (2026-06-05)
+
+- **Инфра:** `runWebappSql.ts` — `webappSqlFromPgText` / `runWebappPgText` (legacy `$1..$n` → Drizzle `execute(sql)`).
+- **Репозитории:** `pgLfkExercises.ts`, `pgLfkTemplates.ts`, `pgLfkDiary.ts`, `pgLfkAssignments.ts` — DML/read через `runWebappPgText` / `runWebappTransaction`; list/usage SQL без смены shape.
+- **Транзакции (post-audit):** create/update упражнений и `updateExercises` — **`runWebappTransaction`**; **`pool.query` / `client.query` — 0** в `pgLfk*.ts`.
+- **Smoke-чеклист:**
+  - [x] doctor catalog list/archive/create/update (unit `pgLfkExercises.test.ts`).
+  - [x] template list/usage/reorder tx (unit `pgLfkTemplates.test.ts`).
+  - [x] assignment first assign + re-assign + empty template error (unit `pgLfkAssignments.test.ts`).
+  - [x] patient diary session/complex scoping + add/update session (unit `pgLfkDiary.test.ts`).
+- **Тесты (vitest, P6 bundle):** **27 passed** — `pgLfkAssignments`, `pgLfkExercises`, `pgLfkTemplates`, `pgLfkDiary`, `e2e/lfk-assign-inprocess`.
+- **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci` — green (post-audit 2026-06-05)**.
+- **Синхронизация документов:** [plans/README.md](./plans/README.md) (P6 → completed), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) (фаза VI → Done), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) (`pgLfk*`).
+- **План:** [wave2_phase_06_webapp_lfk.plan.md](./plans/wave2_phase_06_webapp_lfk.plan.md) — `status: completed`, todos, DoD, §«Закрытие».
+- **Финальная синхронизация (post-audit):** `pgLfkDiary.test.ts` — add/update session; assignments — abort без лишних SQL; frontmatter/todos плана; `docs/README.md` (Wave 2 этапы 1–6); P6 bundle **27** tests.

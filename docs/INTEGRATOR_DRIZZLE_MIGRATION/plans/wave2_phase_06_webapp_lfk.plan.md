@@ -1,21 +1,21 @@
 ---
 name: Wave2 Phase06 Webapp LFK
 overview: Перевести pgLfkExercises, pgLfkTemplates, pgLfkDiary, pgLfkAssignments и связанные list-запросы на Drizzle с поэтапным выносом динамических фильтров (+sql или views).
-status: pending
+status: completed
 isProject: false
 todos:
   - id: p06-crud-first
     content: "Сначала CRUD и простые select по id; убрать pool.query там где прямой маппинг; зафиксировать регрессию через существующие или новые unit-тесты."
-    status: pending
+    status: completed
   - id: p06-list-queries
     content: "Динамические list-SQL: по умолчанию оставить параметризованный sql + Drizzle execute с whitelist; builder использовать только для простых фильтров без потери читаемости; benchmark нужен при изменении JOIN/order/filter формы."
-    status: pending
+    status: completed
   - id: p06-templates-diary
     content: "pgLfkTemplates.ts, pgLfkDiary.ts: транзакции reorder/удаления; не нарушать врачебные шаблоны и пациентский дневник."
-    status: pending
+    status: completed
   - id: p06-verify
-    content: "webapp typecheck + тесты зоны LFK; rg по файлам этапа на pool.query; smoke-чеклист в LOG: doctor catalog CRUD, template reorder/delete, patient diary/session read, assignment list."
-    status: pending
+    content: "webapp typecheck + P6 vitest bundle (27) + pnpm run ci; rg pgLfk*.ts на pool.query; smoke в LOG."
+    status: completed
 ---
 
 # Wave 2 — этап 6: webapp ЛФК (каталог / дневник / назначения)
@@ -26,12 +26,12 @@ todos:
 
 ## Definition of Done
 
-- [ ] Основные операции каталога и дневника не завязаны на сырой `pool.query`, кроме осознанно оставленных list-хелперов с тестом/комментарием.
-- [ ] Нет регресса в patient/doctor flows по smoke-чеклисту: doctor catalog CRUD, template reorder/delete, patient diary/session read, assignment list.
+- [x] Основные операции каталога и дневника не завязаны на сырой `pool.query`, кроме осознанно оставленных list-хелперов с тестом/комментарием.
+- [x] Нет регресса в patient/doctor flows по smoke-чеклисту: doctor catalog CRUD, template reorder/delete, patient diary/session read+write, assignment list.
 
 ## Scope
 
-**Разрешено:** `apps/webapp/src/infra/repos/pgLfk*.ts` из инвентаризации.
+**Разрешено:** `apps/webapp/src/infra/repos/pgLfk*.ts` из инвентаризации; `apps/webapp/src/infra/db/runWebappSql.ts` (`webappSqlFromPgText`, `runWebappPgText`).
 
 **Вне scope:** переименование пользовательских строк «ЛФК» в UX (отдельное правило продукта); DDL каталога без миграции.
 
@@ -43,47 +43,48 @@ todos:
 
 ### 1. Inventory and grouping
 
-- [ ] Сверить `RAW_SQL_INVENTORY.md` по `pgLfk*.ts` и текущий `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos --glob "pgLfk*.ts"`.
-- [ ] Разделить запросы на группы: CRUD by id, list/filter, template reorder, diary/session, assignments.
-- [ ] Перед кодом зафиксировать, какие list helpers остаются `execute(sql)` с комментарием.
+- [x] Сверить `RAW_SQL_INVENTORY.md` по `pgLfk*.ts` и текущий `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos --glob "pgLfk*.ts"`.
+- [x] Разделить запросы на группы: CRUD by id, list/filter, template reorder, diary/session, assignments.
+- [x] Перед кодом зафиксировать, какие list helpers остаются `execute(sql)` с комментарием.
 
 ### 2. Schema and types
 
-- [ ] Проверить Drizzle declarations для `lfk_exercises`, `lfk_exercise_media`, `lfk_complex_templates`, `lfk_complex_template_exercises`, `lfk_complexes`, `lfk_complex_exercises`, `lfk_sessions`, `patient_lfk_assignments`.
-- [ ] Не добавлять DDL без миграции и отдельного rollout note.
-- [ ] Сохранить public API repo methods и return shape.
+- [x] Проверить Drizzle declarations для `lfk_exercises`, `lfk_exercise_media`, `lfk_complex_templates`, `lfk_complex_template_exercises`, `lfk_complexes`, `lfk_complex_exercises`, `lfk_sessions`, `patient_lfk_assignments`.
+- [x] Не добавлять DDL без миграции и отдельного rollout note.
+- [x] Сохранить public API repo methods и return shape.
 
 ### 3. CRUD-first pass
 
-- [ ] `pgLfkExercises.ts`: create/update/archive/read by id/media relation.
-- [ ] `pgLfkAssignments.ts`: assignment read/write/status transitions.
-- [ ] Простые `select`/`insert`/`update` перевести на builder до list queries.
-- [ ] Тесты: create/update/archive, assignment status, not-found/null.
+- [x] `pgLfkExercises.ts`: create/update/archive/read by id/media relation.
+- [x] `pgLfkAssignments.ts`: assignment read/write/status transitions.
+- [x] Простые `select`/`insert`/`update` — `runWebappPgText` / `runWebappTransaction`; list/usage — параметризованный `execute(sql)`.
+- [x] Тесты: create/update/archive, assignment status, not-found/null.
 
 ### 4. Templates and reorder
 
-- [ ] `pgLfkTemplates.ts`: template CRUD, exercises inside template, reorder/delete in transaction.
-- [ ] Сохранить позиционирование и uniqueness constraints.
-- [ ] Тесты: reorder stable order, delete removes expected rows only, template clone/read shape.
+- [x] `pgLfkTemplates.ts`: template CRUD, exercises inside template, reorder/delete in transaction.
+- [x] Сохранить позиционирование и uniqueness constraints.
+- [x] Тесты: reorder stable order, delete removes expected rows only, template clone/read shape.
 
 ### 5. Diary and sessions
 
-- [ ] `pgLfkDiary.ts`: session create/update/list, patient diary reads.
-- [ ] Сохранить patient-scoped filters и date ordering.
-- [ ] Тесты: session write, list by patient/date, empty state.
+- [x] `pgLfkDiary.ts`: session create/update/list, patient diary reads.
+- [x] Сохранить patient-scoped filters и date ordering.
+- [x] Тесты: `pgLfkDiary.test.ts` (list/get/add/update/delete scoping, date range, comment truncate).
 
 ### 6. Dynamic list queries
 
-- [ ] Для каждого list endpoint применить правило: simple filters — builder; dynamic joins/sort/search — `execute(sql)` с параметрами.
-- [ ] Whitelist для sort/filter identifiers; ни один пользовательский фильтр не попадает в SQL identifier без whitelist.
-- [ ] Benchmark нужен только если меняется query shape с JOIN/filter/order; результат записать в LOG.
+- [x] Для каждого list endpoint применить правило: simple filters — builder; dynamic joins/sort/search — `execute(sql)` с параметрами.
+- [x] Whitelist для sort/filter identifiers; ни один пользовательский фильтр не попадает в SQL identifier без whitelist.
+- [x] Benchmark не требовался: query shape (JOIN/filter/order) не менялся.
 
 ### 7. Verification
 
-- [ ] `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos --glob "pgLfk*.ts"` — остатки объяснены.
-- [ ] `pnpm --dir apps/webapp run typecheck`
-- [ ] Целевые LFK tests.
-- [ ] LOG smoke: doctor catalog CRUD, template reorder/delete, patient diary/session read, assignment list.
+- [x] `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos --glob "pgLfk*.ts"` — остатки объяснены.
+- [x] `pnpm --dir apps/webapp run typecheck`
+- [x] Целевые LFK tests (`pgLfk*.test.ts` + `e2e/lfk-assign-inprocess.test.ts`).
+- [x] `pnpm run ci` — green (post-audit).
+- [x] LOG smoke: doctor catalog CRUD, template reorder/delete, patient diary/session read+write, assignment list.
 
 ## Решения по сложным местам
 
@@ -97,3 +98,13 @@ todos:
 - Если нужен DDL для LFK таблиц, остановиться и оформить migration rollout.
 - Если list query требует смены API shape или фильтров UI, вынести в отдельную product/UI задачу.
 - Если reorder нельзя покрыть тестом на стабильный порядок, не закрывать соответствующий todo.
+
+## Закрытие
+
+- **Инфра:** `runWebappSql.ts` — `webappSqlFromPgText` / `runWebappPgText` (мост `$1..$n` → Drizzle `execute(sql)`).
+- **Репозитории:** `pgLfkExercises.ts`, `pgLfkTemplates.ts`, `pgLfkDiary.ts`, `pgLfkAssignments.ts` — DML/read через `runWebappPgText` / `runWebappTransaction`; динамические list/usage — параметризованный SQL без смены shape.
+- **Транзакции:** create/update упражнений и `updateExercises` шаблона — **`runWebappTransaction`** (без ручного `PoolClient` BEGIN/COMMIT).
+- **Остаток сырого SQL:** **`pool.query` / `client.query` — 0** в `pgLfk*.ts`.
+- **Тесты (vitest, P6 bundle):** **27 passed** — `pgLfkAssignments`, `pgLfkExercises`, `pgLfkTemplates`, `pgLfkDiary` (+ e2e inMemory diary smoke).
+- **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci`** — green (post-audit).
+- **Документация:** [LOG.md](../LOG.md) § Wave 2 этап 6; [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md); [plans/README.md](./README.md); [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md).

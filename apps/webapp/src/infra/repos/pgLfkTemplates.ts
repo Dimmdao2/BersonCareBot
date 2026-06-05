@@ -1,4 +1,8 @@
-import { getPool } from "@/infra/db/client";
+import {
+  runWebappPgText,
+  runWebappTransaction,
+  type WebappSqlTransactionExecutor,
+} from "@/infra/db/runWebappSql";
 import type { ExerciseMedia, ExerciseMediaType } from "@/modules/lfk-exercises/types";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { LfkTemplatesPort } from "@/modules/lfk-templates/ports";
@@ -138,12 +142,17 @@ function parseLfkTemplateUsageRefs(raw: unknown): LfkTemplateUsageRef[] {
   return out;
 }
 
-async function loadTemplateUsageSummary(
-  pool: ReturnType<typeof getPool>,
-  templateId: string,
-): Promise<LfkTemplateUsageSnapshot> {
+async function txPgText<T>(
+  tx: WebappSqlTransactionExecutor,
+  queryText: string,
+  values: readonly unknown[] = [],
+) {
+  return runWebappPgText<T>(queryText, values, tx);
+}
+
+async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplateUsageSnapshot> {
   const lim = LFK_TEMPLATE_USAGE_DETAIL_LIMIT;
-  const r = await pool.query<{
+  const r = await runWebappPgText<{
     active_patient_lfk: string | number | null;
     published_tp_templates: string | number | null;
     draft_tp_templates: string | number | null;
@@ -314,6 +323,20 @@ function mapTeRow(
   };
 }
 
+type TemplateHeaderDbRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  created_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+type TemplateListDbRow = TemplateHeaderDbRow & { exercise_count: number };
+
+type TemplateExerciseDbRow = Parameters<typeof mapTeRow>[0];
+
 function firstMediaFromListJoinRow(row: TemplateListExerciseJoinRow): ExerciseMedia | null {
   if (!row.em_id || !row.em_media_url || !row.em_created_at) return null;
   return mapListThumbMediaRow({
@@ -333,12 +356,10 @@ function firstMediaFromListJoinRow(row: TemplateListExerciseJoinRow): ExerciseMe
 export function createPgLfkTemplatesPort(): LfkTemplatesPort {
   return {
     async getTemplateUsageSummary(templateId: string): Promise<LfkTemplateUsageSnapshot> {
-      const pool = getPool();
-      return loadTemplateUsageSummary(pool, templateId);
+      return loadTemplateUsageSummary(templateId);
     },
 
     async list(filter: TemplateFilter): Promise<Template[]> {
-      const pool = getPool();
       const conds: string[] = ["1=1"];
       const params: unknown[] = [];
       let i = 1;
@@ -364,21 +385,21 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         ) c ON c.template_id = t.id
         WHERE ${conds.join(" AND ")}
         ORDER BY t.updated_at DESC`;
-      const r = await pool.query(sql, params);
-      const templates = r.rows.map((row: Record<string, unknown>) =>
+      const r = await runWebappPgText<TemplateListDbRow>(sql, params);
+      const templates = r.rows.map((row) =>
         mapTemplateRow(
           {
-            id: row.id as string,
-            title: row.title as string,
-            description: row.description as string | null,
-            status: row.status as string,
-            created_by: row.created_by as string | null,
-            created_at: row.created_at as Date,
-            updated_at: row.updated_at as Date,
+            id: row.id,
+            title: row.title,
+            description: row.description,
+            status: row.status,
+            created_by: row.created_by,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
           },
           [],
-          row.exercise_count as number
-        )
+          row.exercise_count,
+        ),
       );
       const ids = templates.map((t) => t.id);
       if (ids.length === 0) return templates;
@@ -413,7 +434,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         )::uuid
         WHERE tr.rn <= 6
         ORDER BY tr.template_id, tr.sort_order`;
-        const tr = await pool.query(thumbSql, [ids]);
+        const tr = await runWebappPgText(thumbSql, [ids]);
         const byTemplate = new Map<string, ExerciseMedia[]>();
         for (const row of tr.rows as TemplateListThumbRow[]) {
           const tid = String(row.template_id);
@@ -474,7 +495,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         )::uuid
         WHERE te.template_id = ANY($1::uuid[])
         ORDER BY te.template_id, te.sort_order ASC, te.id ASC`;
-      const er = await pool.query(exercisesSql, [ids]);
+      const er = await runWebappPgText(exercisesSql, [ids]);
       const byTemplate = new Map<string, TemplateExercise[]>();
       for (const row of er.rows as TemplateListExerciseJoinRow[]) {
         const tid = String(row.template_id);
@@ -500,14 +521,13 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
     },
 
     async getById(id: string): Promise<Template | null> {
-      const pool = getPool();
-      const tr = await pool.query(
+      const tr = await runWebappPgText<TemplateHeaderDbRow>(
         `SELECT id, title, description, status, created_by, created_at, updated_at
          FROM lfk_complex_templates WHERE id = $1`,
         [id]
       );
       if (!tr.rows[0]) return null;
-      const er = await pool.query(
+      const er = await runWebappPgText<TemplateExerciseDbRow>(
         `SELECT te.id, te.template_id, te.exercise_id, te.sort_order, te.reps, te.sets, te.side,
                 te.max_pain_0_10, te.comment, e.title AS exercise_title
          FROM lfk_complex_template_exercises te
@@ -521,8 +541,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
     },
 
     async create(input: CreateTemplateInput, createdBy: string | null): Promise<Template> {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<TemplateHeaderDbRow>(
         `INSERT INTO lfk_complex_templates (title, description, created_by, updated_at)
          VALUES ($1, $2, $3, now())
          RETURNING id, title, description, status, created_by, created_at, updated_at`,
@@ -532,7 +551,6 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
     },
 
     async update(id: string, input: UpdateTemplateInput): Promise<Template | null> {
-      const pool = getPool();
       const sets: string[] = ["updated_at = now()"];
       const vals: unknown[] = [];
       let n = 1;
@@ -545,7 +563,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         vals.push(input.description);
       }
       vals.push(id);
-      const r = await pool.query(
+      const r = await runWebappPgText<TemplateHeaderDbRow>(
         `UPDATE lfk_complex_templates SET ${sets.join(", ")} WHERE id = $${n}
          RETURNING id, title, description, status, created_by, created_at, updated_at`,
         vals
@@ -555,14 +573,12 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
     },
 
     async updateExercises(templateId: string, exercises: TemplateExerciseInput[]): Promise<void> {
-      const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        await client.query(`DELETE FROM lfk_complex_template_exercises WHERE template_id = $1`, [templateId]);
+      await runWebappTransaction(async (tx) => {
+        await txPgText(tx, `DELETE FROM lfk_complex_template_exercises WHERE template_id = $1`, [templateId]);
         let order = 0;
         for (const e of exercises) {
-          await client.query(
+          await txPgText(
+            tx,
             `INSERT INTO lfk_complex_template_exercises
              (template_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -575,27 +591,16 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
               e.side ?? null,
               e.maxPain0_10 ?? null,
               e.comment ?? null,
-            ]
+            ],
           );
           order += 1;
         }
-        await client.query(`UPDATE lfk_complex_templates SET updated_at = now() WHERE id = $1`, [templateId]);
-        await client.query("COMMIT");
-      } catch (err) {
-        try {
-          await client.query("ROLLBACK");
-        } catch {
-          /* ignore */
-        }
-        throw err;
-      } finally {
-        client.release();
-      }
+        await txPgText(tx, `UPDATE lfk_complex_templates SET updated_at = now() WHERE id = $1`, [templateId]);
+      });
     },
 
     async setStatus(id: string, status: TemplateStatus): Promise<Template | null> {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<TemplateHeaderDbRow>(
         `UPDATE lfk_complex_templates SET status = $2, updated_at = now() WHERE id = $1
          RETURNING id, title, description, status, created_by, created_at, updated_at`,
         [id, status]

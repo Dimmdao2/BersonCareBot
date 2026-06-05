@@ -2,7 +2,7 @@
  * PostgreSQL implementation of LfkDiaryPort.
  * Tables: lfk_complexes, lfk_sessions (see webapp/migrations/005_lfk_complexes_and_sessions.sql).
  */
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { LfkDiaryPort } from "@/modules/diaries/ports";
 import type { LfkComplex, LfkComplexExerciseLine, LfkSession } from "@/modules/diaries/types";
@@ -95,6 +95,11 @@ function rowToSession(row: {
   };
 }
 
+type LfkSessionDbRow = Parameters<typeof rowToSession>[0];
+type LfkComplexDbRow = Parameters<typeof rowToComplex>[0];
+
+type LfkSessionInsertDbRow = Omit<LfkSessionDbRow, "complex_title">;
+
 const COMPLEX_SELECT = `c.id, c.user_id, c.title,
   c.platform_user_id,
   cover.cover_image_url,
@@ -120,9 +125,8 @@ function userMatchSql(tableAlias: string, userParamIndex: number): string {
 
 export const pgLfkDiaryPort: LfkDiaryPort = {
   async createComplex(params) {
-    const pool = getPool();
     const now = new Date();
-    const result = await pool.query(
+    const result = await runWebappPgText<LfkComplexDbRow>(
       `INSERT INTO lfk_complexes (
          user_id, platform_user_id, title, origin, is_active, updated_at,
          symptom_tracking_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id
@@ -141,12 +145,11 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
         params.diagnosisRefId ?? null,
       ]
     );
-    return rowToComplex(result.rows[0]);
+    return rowToComplex(result.rows[0]!);
   },
 
   async listComplexes(userId, activeOnly = true) {
-    const pool = getPool();
-    const result = await pool.query(
+    const result = await runWebappPgText<LfkComplexDbRow>(
       `SELECT ${COMPLEX_SELECT}
        FROM lfk_complexes c
        LEFT JOIN LATERAL (
@@ -174,10 +177,9 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async addSession(params) {
-    const pool = getPool();
     const completedAt = new Date(params.completedAt);
     const recordedAt = params.recordedAt ? new Date(params.recordedAt) : completedAt;
-    const result = await pool.query(
+    const result = await runWebappPgText<LfkSessionInsertDbRow>(
       `INSERT INTO lfk_sessions (
          user_id, complex_id, completed_at, source, recorded_at,
          duration_minutes, difficulty_0_10, pain_0_10, comment
@@ -197,8 +199,8 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
         params.comment ?? null,
       ]
     );
-    const row = result.rows[0];
-    const complex = await pool.query(
+    const row = result.rows[0]!;
+    const complex = await runWebappPgText<{ title: string }>(
       `SELECT title FROM lfk_complexes WHERE id = $1`,
       [params.complexId]
     );
@@ -209,8 +211,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async listSessions(userId, limit = 50) {
-    const pool = getPool();
-    const result = await pool.query(
+    const result = await runWebappPgText<LfkSessionDbRow>(
       `SELECT ${SESSION_SELECT}
        FROM lfk_sessions s
        JOIN lfk_complexes c ON c.id = s.complex_id
@@ -223,8 +224,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async getComplexForUser(params) {
-    const pool = getPool();
-    const result = await pool.query(
+    const result = await runWebappPgText<LfkComplexDbRow>(
       `SELECT ${COMPLEX_SELECT}
        FROM lfk_complexes c
        LEFT JOIN LATERAL (
@@ -252,9 +252,8 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
 
   async listSessionsInRange(params) {
     const lim = Math.min(params.limit ?? 2000, 5000);
-    const pool = getPool();
     if (params.complexId) {
-      const result = await pool.query(
+      const result = await runWebappPgText<LfkSessionDbRow>(
         `SELECT ${SESSION_SELECT}
          FROM lfk_sessions s
          JOIN lfk_complexes c ON c.id = s.complex_id
@@ -272,7 +271,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       );
       return result.rows.map(rowToSession);
     }
-    const result = await pool.query(
+    const result = await runWebappPgText<LfkSessionDbRow>(
       `SELECT ${SESSION_SELECT}
        FROM lfk_sessions s
        JOIN lfk_complexes c ON c.id = s.complex_id
@@ -286,8 +285,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async minCompletedAtForUser(userId) {
-    const pool = getPool();
-    const result = await pool.query(`SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = $1`, [
+    const result = await runWebappPgText<{ m: Date | null }>(`SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = $1`, [
       userId,
     ]);
     const m = result.rows[0]?.m as Date | null | undefined;
@@ -295,8 +293,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async getSessionForUser(params) {
-    const pool = getPool();
-    const result = await pool.query(
+    const result = await runWebappPgText<LfkSessionDbRow>(
       `SELECT ${SESSION_SELECT}
        FROM lfk_sessions s
        JOIN lfk_complexes c ON c.id = s.complex_id
@@ -307,10 +304,9 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async updateSession(params) {
-    const pool = getPool();
     let comment = params.comment?.trim() ?? null;
     if (comment && comment.length > 200) comment = comment.slice(0, 200);
-    await pool.query(
+    await runWebappPgText(
       `UPDATE lfk_sessions
        SET completed_at = $3::timestamptz,
            duration_minutes = $4,
@@ -331,8 +327,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async deleteSession(params) {
-    const pool = getPool();
-    await pool.query(`DELETE FROM lfk_sessions WHERE id = $2 AND user_id = $1`, [
+    await runWebappPgText(`DELETE FROM lfk_sessions WHERE id = $2 AND user_id = $1`, [
       params.userId,
       params.sessionId,
     ]);
@@ -343,8 +338,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     complexIds: string[];
   }): Promise<Record<string, LfkComplexExerciseLine[]>> {
     if (params.complexIds.length === 0) return {};
-    const pool = getPool();
-    const result = await pool.query<{
+    const result = await runWebappPgText<{
       complex_id: string;
       id: string;
       sort_order: number;
@@ -388,8 +382,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     rowId: string;
     localComment: string | null;
   }): Promise<void> {
-    const pool = getPool();
-    const r = await pool.query(
+    const r = await runWebappPgText(
       `UPDATE lfk_complex_exercises ce
        SET local_comment = $3
        FROM lfk_complexes c

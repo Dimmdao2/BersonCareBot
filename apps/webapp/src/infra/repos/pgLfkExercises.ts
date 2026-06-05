@@ -1,4 +1,8 @@
-import { getPool } from "@/infra/db/client";
+import {
+  runWebappPgText,
+  runWebappTransaction,
+  type WebappSqlTransactionExecutor,
+} from "@/infra/db/runWebappSql";
 import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
@@ -17,7 +21,7 @@ import type {
 } from "@/modules/lfk-exercises/types";
 import { EMPTY_EXERCISE_USAGE_SNAPSHOT, EXERCISE_USAGE_DETAIL_LIMIT, mergeExerciseRegionRefIds } from "@/modules/lfk-exercises/types";
 
-function mapMediaRow(row: {
+type MediaDbRow = {
   id: string;
   exercise_id: string;
   media_url: string;
@@ -28,7 +32,25 @@ function mapMediaRow(row: {
   preview_sm_key: string | null;
   preview_md_key: string | null;
   preview_status: string | null;
-}): ExerciseMedia {
+};
+
+type ExerciseDbRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  region_ref_id: string | null;
+  region_m2m_ids?: unknown;
+  load_type: string | null;
+  difficulty_1_10: number | null;
+  contraindications: string | null;
+  tags: string[] | null;
+  is_archived: boolean;
+  created_by: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+function mapMediaRow(row: MediaDbRow): ExerciseMedia {
   const mid = row.media_file_id ? String(row.media_file_id) : null;
   const previewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
   const previewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, "md") : null;
@@ -63,8 +85,7 @@ export async function pgListExerciseUsageForMediaIds(
   if (unique.length === 0) return out;
 
   const urls = unique.map((id) => `/api/media/${id}`);
-  const pool = getPool();
-  const res = await pool.query<{ media_url: string; exercise_id: string; title: string }>(
+  const res = await runWebappPgText<{ media_url: string; exercise_id: string; title: string }>(
     `SELECT DISTINCT ON (m.media_url, e.id)
         m.media_url,
         e.id::text AS exercise_id,
@@ -88,24 +109,7 @@ export async function pgListExerciseUsageForMediaIds(
   return out;
 }
 
-function mapExerciseRow(
-  row: {
-    id: string;
-    title: string;
-    description: string | null;
-    region_ref_id: string | null;
-    region_m2m_ids?: unknown;
-    load_type: string | null;
-    difficulty_1_10: number | null;
-    contraindications: string | null;
-    tags: string[] | null;
-    is_archived: boolean;
-    created_by: string | null;
-    created_at: Date;
-    updated_at: Date;
-  },
-  media: ExerciseMedia[]
-): Exercise {
+function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
   const m2m = Array.isArray(row.region_m2m_ids)
     ? row.region_m2m_ids.map((x) => String(x)).filter((s) => s.length > 0)
     : [];
@@ -129,24 +133,33 @@ function mapExerciseRow(
   };
 }
 
+async function txPgText<T>(
+  tx: WebappSqlTransactionExecutor,
+  queryText: string,
+  values: readonly unknown[] = [],
+) {
+  return runWebappPgText<T>(queryText, values, tx);
+}
+
 async function replaceLfkExerciseRegions(
-  client: { query: (text: string, values?: unknown[]) => Promise<unknown> },
+  tx: WebappSqlTransactionExecutor,
   exerciseId: string,
   regionRefIds: readonly string[],
 ) {
-  await client.query(`DELETE FROM lfk_exercise_regions WHERE exercise_id = $1`, [exerciseId]);
+  await runWebappPgText(`DELETE FROM lfk_exercise_regions WHERE exercise_id = $1`, [exerciseId], tx);
   for (const rid of regionRefIds) {
     const t = rid.trim();
     if (!t) continue;
-    await client.query(`INSERT INTO lfk_exercise_regions (exercise_id, region_ref_id) VALUES ($1, $2::uuid)`, [
-      exerciseId,
-      t,
-    ]);
+    await runWebappPgText(
+      `INSERT INTO lfk_exercise_regions (exercise_id, region_ref_id) VALUES ($1, $2::uuid)`,
+      [exerciseId, t],
+      tx,
+    );
   }
 }
 
-async function loadAllMediaForExercise(pool: ReturnType<typeof getPool>, exerciseId: string): Promise<ExerciseMedia[]> {
-  const r = await pool.query(
+async function loadAllMediaForExercise(exerciseId: string): Promise<ExerciseMedia[]> {
+  const r = await runWebappPgText<MediaDbRow>(
     `SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
             mf.id AS media_file_id,
             mf.preview_sm_key, mf.preview_md_key, mf.preview_status
@@ -197,27 +210,26 @@ function parseExerciseUsageRefs(raw: unknown): ExerciseUsageRef[] {
   return out;
 }
 
-async function loadExerciseUsageSummary(
-  pool: ReturnType<typeof getPool>,
-  exerciseId: string,
-): Promise<ExerciseUsageSnapshot> {
+type ExerciseUsageSummaryRow = {
+  published_lfk_templates: string | number | null;
+  draft_lfk_templates: string | number | null;
+  active_patient_lfk: string | number | null;
+  published_tp_templates: string | number | null;
+  draft_tp_templates: string | number | null;
+  active_tp_instances: string | number | null;
+  completed_tp_instances: string | number | null;
+  published_lfk_template_refs: unknown;
+  draft_lfk_template_refs: unknown;
+  published_tp_template_refs: unknown;
+  draft_tp_template_refs: unknown;
+  active_tp_instance_refs: unknown;
+  completed_tp_instance_refs: unknown;
+  active_patient_lfk_refs: unknown;
+};
+
+async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsageSnapshot> {
   const lim = EXERCISE_USAGE_DETAIL_LIMIT;
-  const r = await pool.query<{
-    published_lfk_templates: string | number | null;
-    draft_lfk_templates: string | number | null;
-    active_patient_lfk: string | number | null;
-    published_tp_templates: string | number | null;
-    draft_tp_templates: string | number | null;
-    active_tp_instances: string | number | null;
-    completed_tp_instances: string | number | null;
-    published_lfk_template_refs: unknown;
-    draft_lfk_template_refs: unknown;
-    published_tp_template_refs: unknown;
-    draft_tp_template_refs: unknown;
-    active_tp_instance_refs: unknown;
-    completed_tp_instance_refs: unknown;
-    active_patient_lfk_refs: unknown;
-  }>(
+  const r = await runWebappPgText<ExerciseUsageSummaryRow>(
     `SELECT
        (SELECT COUNT(DISTINCT ct.id)::int
           FROM lfk_complex_template_exercises te
@@ -418,10 +430,21 @@ function exerciseListArchiveScope(filter: ExerciseFilter): RecommendationListFil
   return "active";
 }
 
+type ExerciseListRow = ExerciseDbRow & {
+  pm_id?: string | null;
+  pm_url?: string | null;
+  pm_type?: string | null;
+  pm_order?: number | null;
+  pm_created?: Date | null;
+  pm_media_file_id?: string | null;
+  pm_preview_sm_key?: string | null;
+  pm_preview_md_key?: string | null;
+  pm_preview_status?: string | null;
+};
+
 export function createPgLfkExercisesPort(): LfkExercisesPort {
   return {
     async list(filter: ExerciseFilter): Promise<Exercise[]> {
-      const pool = getPool();
       const conds: string[] = ["1=1"];
       const params: unknown[] = [];
       let i = 1;
@@ -492,43 +515,26 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         WHERE ${conds.join(" AND ")}
         ORDER BY e.updated_at DESC`;
 
-      const result = await pool.query(sql, params);
-      return result.rows.map((row: Record<string, unknown>) => {
+      const result = await runWebappPgText<ExerciseListRow>(sql, params);
+      return result.rows.map((row) => {
         const media: ExerciseMedia[] = [];
         if (row.pm_id) {
           media.push(
             mapMediaRow({
-              id: row.pm_id as string,
-              exercise_id: row.id as string,
+              id: row.pm_id,
+              exercise_id: row.id,
               media_url: row.pm_url as string,
               media_type: row.pm_type as string,
               sort_order: row.pm_order as number,
               created_at: row.pm_created as Date,
-              media_file_id: (row.pm_media_file_id as string | null) ?? null,
-              preview_sm_key: (row.pm_preview_sm_key as string | null) ?? null,
-              preview_md_key: (row.pm_preview_md_key as string | null) ?? null,
-              preview_status: (row.pm_preview_status as string | null) ?? null,
+              media_file_id: row.pm_media_file_id ?? null,
+              preview_sm_key: row.pm_preview_sm_key ?? null,
+              preview_md_key: row.pm_preview_md_key ?? null,
+              preview_status: row.pm_preview_status ?? null,
             }),
           );
         }
-        return mapExerciseRow(
-          {
-            id: row.id as string,
-            title: row.title as string,
-            description: row.description as string | null,
-            region_ref_id: row.region_ref_id as string | null,
-            region_m2m_ids: row.region_m2m_ids as unknown,
-            load_type: row.load_type as string | null,
-            difficulty_1_10: row.difficulty_1_10 as number | null,
-            contraindications: row.contraindications as string | null,
-            tags: row.tags as string[] | null,
-            is_archived: row.is_archived as boolean,
-            created_by: row.created_by as string | null,
-            created_at: row.created_at as Date,
-            updated_at: row.updated_at as Date,
-          },
-          media
-        );
+        return mapExerciseRow(row, media);
       });
     },
 
@@ -536,8 +542,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const out = new Map<string, string>();
       const unique = [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
       if (unique.length === 0) return out;
-      const pool = getPool();
-      const r = await pool.query<{ id: string; title: string }>(
+      const r = await runWebappPgText<{ id: string; title: string }>(
         `SELECT id::text AS id, title FROM lfk_exercises WHERE id = ANY($1::uuid[])`,
         [unique],
       );
@@ -548,8 +553,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     },
 
     async getById(id: string): Promise<Exercise | null> {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<ExerciseDbRow>(
         `SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
@@ -557,21 +561,19 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                   FROM lfk_exercise_regions x WHERE x.exercise_id = e.id
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
          FROM lfk_exercises e WHERE e.id = $1`,
-        [id]
+        [id],
       );
       if (!r.rows[0]) return null;
-      const media = await loadAllMediaForExercise(pool, id);
+      const media = await loadAllMediaForExercise(id);
       return mapExerciseRow(r.rows[0], media);
     },
 
     async create(input: CreateExerciseInput, createdBy: string | null): Promise<Exercise> {
-      const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        const regionIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
-        const legacyRegion = regionIds[0] ?? null;
-        const ins = await client.query(
+      const regionIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
+      const legacyRegion = regionIds[0] ?? null;
+      const { row, exId } = await runWebappTransaction(async (tx) => {
+        const ins = await txPgText<ExerciseDbRow>(
+          tx,
           `INSERT INTO lfk_exercises (
              title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
            )
@@ -587,44 +589,34 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
             input.contraindications ?? null,
             input.tags ?? null,
             createdBy,
-          ]
+          ],
         );
-        const row = ins.rows[0];
-        const exId = row.id as string;
-        await replaceLfkExerciseRegions(client, exId, regionIds);
+        const insRow = ins.rows[0]!;
+        const newExId = insRow.id;
+        await replaceLfkExerciseRegions(tx, newExId, regionIds);
         if (input.media?.length) {
           let order = 0;
           for (const m of input.media) {
-            await client.query(
+            await txPgText(
+              tx,
               `INSERT INTO lfk_exercise_media (exercise_id, media_url, media_type, sort_order)
                VALUES ($1, $2, $3, $4)`,
-              [exId, m.mediaUrl, m.mediaType, m.sortOrder ?? order]
+              [newExId, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
             );
             order += 1;
           }
         }
-        await client.query("COMMIT");
-        const media = await loadAllMediaForExercise(pool, exId);
-        const enriched = { ...row, region_m2m_ids: regionIds };
-        return mapExerciseRow(enriched, media);
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+        return { row: insRow, exId: newExId };
+      });
+      const media = await loadAllMediaForExercise(exId);
+      const enriched = { ...row, region_m2m_ids: regionIds };
+      return mapExerciseRow(enriched, media);
     },
 
     async update(id: string, input: UpdateExerciseInput): Promise<Exercise | null> {
-      const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        const cur = await client.query(`SELECT id FROM lfk_exercises WHERE id = $1`, [id]);
-        if (!cur.rows[0]) {
-          await client.query("ROLLBACK");
-          return null;
-        }
+      const touched = await runWebappTransaction(async (tx) => {
+        const cur = await txPgText<{ id: string }>(tx, `SELECT id FROM lfk_exercises WHERE id = $1`, [id]);
+        if (!cur.rows[0]) return false;
 
         const sets: string[] = ["updated_at = now()"];
         const vals: unknown[] = [];
@@ -651,70 +643,61 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         if (input.tags !== undefined) add("tags", input.tags);
 
         vals.push(id);
-        await client.query(
-          `UPDATE lfk_exercises SET ${sets.join(", ")} WHERE id = $${n}`,
-          vals
-        );
+        await txPgText(tx, `UPDATE lfk_exercises SET ${sets.join(", ")} WHERE id = $${n}`, vals);
 
         if (regionPatch !== null) {
-          await replaceLfkExerciseRegions(client, id, regionPatch);
+          await replaceLfkExerciseRegions(tx, id, regionPatch);
         }
 
         if (input.media !== undefined && input.media !== null) {
-          await client.query(`DELETE FROM lfk_exercise_media WHERE exercise_id = $1`, [id]);
+          await txPgText(tx, `DELETE FROM lfk_exercise_media WHERE exercise_id = $1`, [id]);
           let order = 0;
           for (const m of input.media) {
-            await client.query(
+            await txPgText(
+              tx,
               `INSERT INTO lfk_exercise_media (exercise_id, media_url, media_type, sort_order)
                VALUES ($1, $2, $3, $4)`,
-              [id, m.mediaUrl, m.mediaType, m.sortOrder ?? order]
+              [id, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
             );
             order += 1;
           }
         }
+        return true;
+      });
+      if (!touched) return null;
 
-        await client.query("COMMIT");
-        const media = await loadAllMediaForExercise(pool, id);
-        const rowR = await pool.query(
-          `SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
-                  e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
-                  COALESCE((
-                    SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
-                    FROM lfk_exercise_regions x WHERE x.exercise_id = e.id
-                  ), ARRAY[]::uuid[]) AS region_m2m_ids
-           FROM lfk_exercises e WHERE e.id = $1`,
-          [id]
-        );
-        return mapExerciseRow(rowR.rows[0], media);
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      const media = await loadAllMediaForExercise(id);
+      const rowR = await runWebappPgText<ExerciseDbRow>(
+        `SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+                e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
+                COALESCE((
+                  SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
+                  FROM lfk_exercise_regions x WHERE x.exercise_id = e.id
+                ), ARRAY[]::uuid[]) AS region_m2m_ids
+         FROM lfk_exercises e WHERE e.id = $1`,
+        [id],
+      );
+      return mapExerciseRow(rowR.rows[0]!, media);
     },
 
     async archive(id: string): Promise<boolean> {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText(
         `UPDATE lfk_exercises SET is_archived = true, updated_at = now() WHERE id = $1 AND is_archived = false`,
-        [id]
+        [id],
       );
       return (r.rowCount ?? 0) > 0;
     },
 
     async unarchive(id: string): Promise<boolean> {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText(
         `UPDATE lfk_exercises SET is_archived = false, updated_at = now() WHERE id = $1 AND is_archived = true`,
-        [id]
+        [id],
       );
       return (r.rowCount ?? 0) > 0;
     },
 
     async getExerciseUsageSummary(id: string): Promise<ExerciseUsageSnapshot> {
-      const pool = getPool();
-      return loadExerciseUsageSummary(pool, id);
+      return loadExerciseUsageSummary(id);
     },
   };
 }

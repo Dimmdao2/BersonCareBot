@@ -1,4 +1,5 @@
 import type { SQL } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { PoolClient } from "pg";
 import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
 import { drizzleOnPgClient } from "@/infra/db/pgAdvisoryLock";
@@ -45,6 +46,43 @@ export async function runWebappSql<T = unknown>(
 ): Promise<WebappQueryResult<T>> {
   const raw = await db.execute(fragment);
   return normalizeExecute<T>(raw);
+}
+
+/**
+ * Bridge legacy `$1..$n` PostgreSQL query text to Drizzle `execute(sql)`.
+ * Parameter values are bound via Drizzle — SQL text must not embed user input.
+ */
+export function webappSqlFromPgText(queryText: string, values: readonly unknown[] = []): SQL {
+  const segments: SQL[] = [];
+  let lastIndex = 0;
+  const re = /\$(\d+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(queryText)) !== null) {
+    if (m.index > lastIndex) {
+      segments.push(sql.raw(queryText.slice(lastIndex, m.index)));
+    }
+    const idx = Number.parseInt(m[1]!, 10) - 1;
+    segments.push(sql`${values[idx]}`);
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastIndex < queryText.length) {
+    segments.push(sql.raw(queryText.slice(lastIndex)));
+  }
+  if (segments.length === 0) {
+    return sql.raw(queryText);
+  }
+  if (segments.length === 1) {
+    return segments[0]!;
+  }
+  return sql.join(segments, sql.raw(""));
+}
+
+export async function runWebappPgText<T = unknown>(
+  queryText: string,
+  values: readonly unknown[] = [],
+  db: WebappSqlExecutor = getWebappSqlDb(),
+): Promise<WebappQueryResult<T>> {
+  return runWebappSql<T>(db, webappSqlFromPgText(queryText, values));
 }
 
 export async function runWebappTransaction<T>(
