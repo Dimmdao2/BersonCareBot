@@ -83,7 +83,7 @@ export function PatientPrimaryNavStrip({ className, variant = "bottom" }: Props)
         aria-label={ariaLabel}
         aria-current={isActive ? "page" : undefined}
         className={cn(
-          "group flex min-h-0 min-w-0 w-full flex-col items-center justify-center gap-0.5 px-1.5 py-1",
+          "group flex min-h-0 min-w-0 w-full flex-col items-center justify-center gap-0.5 px-0.5 py-1",
           isActive ?
             "font-medium text-[var(--patient-color-primary)]"
           : "font-normal text-[var(--patient-text-secondary)] hover:font-normal hover:text-[var(--patient-color-primary)]",

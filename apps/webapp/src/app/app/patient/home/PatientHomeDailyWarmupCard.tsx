@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { CheckCircle2, Clock3, PlayCircle, Sparkles } from "lucide-react";
 import type { ResolvedPatientHomeBlockItem } from "@/modules/patient-home/todayConfig";
+import { routePaths } from "@/app-layer/routes/paths";
 import {
   patientHomeHeroCardGeometryClass,
   patientHomeHeroBadgeClass,
@@ -91,7 +92,7 @@ export function PatientHomeDailyWarmupCard({
   }
 
   const heroImageUrl = stripApiMediaForAnonymousGuest(page.imageUrl, anonymousGuest);
-  const warmupHref = `/app/patient/content/${encodeURIComponent(page.slug)}?from=daily_warmup`;
+  const warmupHref = routePaths.patientGoDailyWarmup;
   const warmupLinkHref = anonymousGuest ? appLoginWithNextHref(warmupHref) : warmupHref;
   const showWarmupDoneHero =
     personalTierOk && !anonymousGuest && warmupRecentlyCompletedHero;

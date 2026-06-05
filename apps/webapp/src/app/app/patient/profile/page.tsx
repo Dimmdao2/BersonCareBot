@@ -14,7 +14,6 @@ import { getSupportContactUrl } from "@/modules/system-settings/supportContactUr
 import { LogoutSection } from "./LogoutSection";
 import { PatientCalendarTimezoneSection } from "./PatientCalendarTimezoneSection";
 import { PatientProfileHero } from "./PatientProfileHero";
-import { PatientBookingHistorySection } from "./PatientBookingHistorySection";
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
@@ -78,8 +77,6 @@ export default async function PatientProfilePage() {
         <section className={patientSectionSurfaceClass}>
           <PatientCalendarTimezoneSection />
         </section>
-
-        <PatientBookingHistorySection />
 
         <LogoutSection />
       </div>

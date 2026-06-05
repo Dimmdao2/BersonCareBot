@@ -11,13 +11,16 @@ import { patientInnerPageStackClass, patientSectionTitleClass } from "@/shared/u
 import { mergePastBookingHistory } from "../../cabinet/cabinetPastBookingsMerge";
 import { loadBookingCitiesForPatientRsc } from "../bookingCatalogRsc";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../constants";
-import { CabinetInfoLinks } from "../../cabinet/CabinetInfoLinks";
 import { BookingPastHistorySection } from "./BookingPastHistorySection";
 import { BookingUpcomingSection } from "./BookingUpcomingSection";
 import { PatientBookingPaymentHistorySection } from "./PatientBookingPaymentHistorySection";
 import { PatientMembershipsSection } from "../PatientMembershipsSection";
 import { BookingWizardShell } from "./BookingWizardShell";
-import { pickBookingCityCodeForAddressLinks } from "@/modules/help-content/patientHelpAddressLink";
+import {
+  pickBookingCityCodeForAddressLinks,
+  resolvePatientAddressHref,
+} from "@/modules/help-content/patientHelpAddressLink";
+import { listHelpArticlesForPatient } from "@/modules/help-content/listHelpArticles";
 import { PatientAboutSiteLink } from "../../about/PatientAboutSiteLink";
 import { FormatStepClient } from "./FormatStepClient";
 
@@ -59,6 +62,10 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
   const pastItems = mergePastBookingHistory(records.history, projectionPast);
   const appDisplayTimeZone = await getAppDisplayTimeZone();
 
+  const helpArticles = await listHelpArticlesForPatient(deps.contentPages);
+  const publishedHelpSlugs = new Set(helpArticles.map((a) => a.slug));
+  const addressHref = resolvePatientAddressHref(publishedHelpSlugs, bookingCityCode);
+
   const citiesCatalog = await loadBookingCitiesForPatientRsc();
   const catalogCities = citiesCatalog.ok ? citiesCatalog.cities : [];
   const catalogCitiesError = citiesCatalog.ok ? null : "Не удалось загрузить каталог городов. Попробуйте ещё раз.";
@@ -80,7 +87,14 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
     >
       <div className={patientInnerPageStackClass}>
         <BookingUpcomingSection bookings={records.upcoming} appDisplayTimeZone={appDisplayTimeZone} />
-        <CabinetInfoLinks surface="booking" bookingCityCode={bookingCityCode} />
+        {records.upcoming.length > 0 && (
+          <Link
+            href={addressHref}
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Адрес кабинета
+          </Link>
+        )}
         <PatientBookingPaymentHistorySection />
         <PatientMembershipsSection />
         <FormatStepClient cities={catalogCities} catalogError={catalogCitiesError} />

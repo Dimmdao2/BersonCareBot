@@ -19,7 +19,7 @@ const blockItem: PatientHomeBlockItem = {
 };
 
 describe("PatientHomeDailyWarmupCard", () => {
-  it("includes from=daily_warmup on warmup link", () => {
+  it("routes warmup CTA through patient go target", () => {
     render(
       <PatientHomeDailyWarmupCard
         personalTierOk
@@ -37,8 +37,7 @@ describe("PatientHomeDailyWarmupCard", () => {
       />,
     );
     const link = screen.getByRole("link", { name: /Начать разминку/i });
-    expect(link.getAttribute("href")).toContain("from=daily_warmup");
-    expect(link.getAttribute("href")).toContain("/app/patient/content/");
+    expect(link.getAttribute("href")).toBe("/app/patient/go/daily-warmup");
   });
 
   it("shows pale green completed label and optional cooldown caption instead of link when warmupRecentlyCompletedHero", () => {

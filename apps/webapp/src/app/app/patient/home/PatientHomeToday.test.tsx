@@ -375,7 +375,7 @@ describe("PatientHomeToday", () => {
 
     const start = screen.getByRole("link", { name: /Начать разминку/i });
     expect(start.getAttribute("href")).toContain(`${routePaths.root}?next=`);
-    expect(start.getAttribute("href")).toContain(encodeURIComponent("/app/patient/content/"));
+    expect(start.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientGoDailyWarmup));
 
     expect(screen.queryByRole("img")).toBeNull();
 

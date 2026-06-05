@@ -13,6 +13,22 @@ export type ProgramItemSubmissionSourceDialogHandle = {
   open: () => void;
 };
 
+/**
+ * iOS Safari bug workaround: after the native file picker closes, the browser sometimes
+ * leaves the viewport scaled. Temporarily setting maximum-scale=1 forces a zoom reset.
+ */
+function resetIosMobileZoom() {
+  if (typeof document === "undefined") return;
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  if (!meta) return;
+  const original = meta.content;
+  if (original.includes("maximum-scale=1")) return;
+  meta.content = original + ",maximum-scale=1";
+  requestAnimationFrame(() => {
+    meta.content = original;
+  });
+}
+
 export const ProgramItemSubmissionSourceDialog = forwardRef<
   ProgramItemSubmissionSourceDialogHandle,
   {
@@ -46,6 +62,7 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
       if (!file || disabled || busy) return;
       setBusy(true);
       setOpen(false);
+      resetIosMobileZoom();
       try {
         const result = await uploadProgramSubmissionToDiscussion({ instanceId, itemId, file });
         if (!result.ok) {

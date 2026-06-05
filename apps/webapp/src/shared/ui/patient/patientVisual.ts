@@ -212,7 +212,7 @@ export const patientEmptyStateClass = cn(
 /** Textarea блока отправки сообщения — те же радиус и токены, что у patient-карточки. */
 export const patientChatComposerTextareaClass = cn(
   "min-h-[112px] w-full resize-y rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
-  "border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-3 py-2 text-sm text-[var(--patient-text-primary)]",
+  "border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-3 py-2 text-base md:text-sm text-[var(--patient-text-primary)]",
   "placeholder:text-[var(--patient-text-muted)] outline-none transition-colors",
   "focus-visible:border-[var(--patient-color-primary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--patient-color-primary)_30%,transparent)]",
   "disabled:cursor-not-allowed disabled:opacity-50",

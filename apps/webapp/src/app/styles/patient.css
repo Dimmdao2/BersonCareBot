@@ -44,12 +44,12 @@
   --patient-bottom-nav-content-pad-fallback: calc(
     var(--patient-bottom-nav-chrome-fallback) + var(--patient-bottom-nav-content-gap)
   );
-  --patient-header-bar-row-height: 3rem;
+  --patient-header-bar-row-height: 2.75rem;
   --patient-header-bar-chrome-fallback: calc(
     env(safe-area-inset-top, 0px) + var(--patient-header-bar-row-height)
   );
-  --patient-header-chrome-opacity: 90%;
-  --patient-header-fade-height: 0.375rem;
+  --patient-header-chrome-opacity: 82%;
+  --patient-header-fade-height: 0.5rem;
   --patient-page-bg: #ffffff;
   --patient-card-bg: #ffffff;
   --patient-border: #e5e7eb;
@@ -113,12 +113,46 @@
 }
 
 @media ((max-width: 767px) or (max-height: 599px)) {
+  #patient-shell-top-chrome {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 50;
+  }
+}
+
+@media (min-width: 768px) and (min-height: 600px) {
+  #patient-shell-top-chrome {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+}
+
+@media ((max-width: 767px) or (max-height: 599px)) {
   #patient-bottom-nav {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 50;
+  }
+}
+
+/**
+ * iOS Safari auto-zoom prevention for portalled dialogs.
+ * Dialogs from shadcn/base-ui are rendered on <body> outside #app-shell-patient, so the
+ * existing rule below (max-width: 767px / #app-shell-patient) does not cover them.
+ * Covers inputs/textareas inside [data-slot="dialog-content"] on mobile.
+ */
+@media (max-width: 767px) {
+  [data-slot="dialog-content"] :where(
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="file"]):not([type="image"]),
+      textarea,
+      select
+    ) {
+    font-size: max(16px, 1em);
   }
 }
 
@@ -344,8 +378,8 @@
 
   .patient-shell-top-chrome-surface {
     background: color-mix(in srgb, var(--patient-page-bg) var(--patient-header-chrome-opacity), transparent);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
   }
 
   .patient-shell-top-chrome-fade {

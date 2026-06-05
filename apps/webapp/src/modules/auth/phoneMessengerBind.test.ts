@@ -3,8 +3,8 @@ import { createPgPhoneMessengerBindPort } from "@/infra/repos/pgPhoneMessengerBi
 import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
 import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 
-const queryMock = vi.fn();
-const clientQueryMock = vi.fn();
+const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const clientQueryMock = vi.hoisted(() => vi.fn());
 const applyMessengerPhonePublicBindMock = vi.hoisted(() => vi.fn());
 const mergePlatformUsersInTransactionMock = vi.hoisted(() => vi.fn());
 const connectMock = vi.fn(async () => ({
@@ -14,9 +14,14 @@ const connectMock = vi.fn(async () => ({
 
 vi.mock("@/infra/db/client", () => ({
   getPool: () => ({
-    query: queryMock,
     connect: connectMock,
   }),
+}));
+
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
+  runPgPoolPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
+  getWebappSqlFromPgClient: (client: unknown) => client,
 }));
 
 vi.mock("@/infra/repos/pgCanonicalPlatformUser", () => ({
@@ -85,7 +90,6 @@ import {
 import { createPhoneOtpChallenge } from "./phoneAuth";
 
 const mockPool = {
-  query: queryMock,
   connect: connectMock,
 } as never;
 
@@ -115,11 +119,17 @@ describe("phoneMessengerBind", () => {
   beforeEach(() => {
     registerPhoneMessengerBindPort(createPgPhoneMessengerBindPort(mockPool));
     vi.mocked(createPhoneOtpChallenge).mockClear();
+    clientQueryMock.mockImplementation((sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
   });
 
   afterEach(() => {
     registerPhoneMessengerBindPort(null);
-    queryMock.mockReset();
+    runWebappPgTextMock.mockReset();
     clientQueryMock.mockReset();
     applyMessengerPhonePublicBindMock.mockReset();
     mergePlatformUsersInTransactionMock.mockReset();
@@ -127,7 +137,7 @@ describe("phoneMessengerBind", () => {
   });
 
   it("startPhoneMessengerBind returns auth_* setupToken", async () => {
-    queryMock.mockResolvedValue({ rows: [] });
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
     const res = await startPhoneMessengerBind({
       phone: "+79991234567",
       channelCode: "telegram",
@@ -139,21 +149,17 @@ describe("phoneMessengerBind", () => {
       expect(res.setupToken).toMatch(/^auth_/);
       expect(res.url).toContain("test_bot");
     }
-    expect(queryMock).toHaveBeenCalled();
+    expect(runWebappPgTextMock).toHaveBeenCalled();
   });
 
   it("complete happy path sets otp_ready and returns challenge", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [secretRow()] });
-    clientQueryMock
-      .mockResolvedValueOnce({ rows: [] })
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [secretRow()] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "u-new" }] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ user_id: "u-new" }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
     const res = await completePhoneMessengerBindFromIntegrator(
       {
@@ -176,16 +182,12 @@ describe("phoneMessengerBind", () => {
   });
 
   it("auto-merges classic telegram owner plus trusted phone owner before OTP", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [secretRow({ phone_normalized: "+79267955103" })] });
-    applyMessengerPhonePublicBindMock.mockResolvedValueOnce({ platformUserId: "phone-owner" });
-    clientQueryMock
-      .mockResolvedValueOnce({ rows: [] })
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [secretRow({ phone_normalized: "+79267955103" })] })
       .mockResolvedValueOnce({ rows: [{ id: "phone-owner" }] })
       .mockResolvedValueOnce({ rows: [{ user_id: "telegram-owner", integrator_user_id: "103" }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    applyMessengerPhonePublicBindMock.mockResolvedValueOnce({ platformUserId: "phone-owner" });
 
     const res = await completePhoneMessengerBindFromIntegrator(
       {
@@ -207,9 +209,7 @@ describe("phoneMessengerBind", () => {
   });
 
   it("returns phone_mismatch when contact phone differs", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [secretRow()] })
-      .mockResolvedValueOnce({ rows: [] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [secretRow()] });
 
     const res = await completePhoneMessengerBindFromIntegrator(
       {
@@ -225,7 +225,7 @@ describe("phoneMessengerBind", () => {
   });
 
   it("returns expired when secret TTL passed", async () => {
-    queryMock
+    runWebappPgTextMock
       .mockResolvedValueOnce({
         rows: [secretRow({ expires_at: new Date(Date.now() - 60_000).toISOString() })],
       })
@@ -245,7 +245,7 @@ describe("phoneMessengerBind", () => {
   });
 
   it("returns used_token when secret consumed", async () => {
-    queryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [secretRow({ status: "consumed", consumed_at: new Date().toISOString() })],
     });
 
@@ -271,7 +271,7 @@ describe("phoneMessengerBind", () => {
       deliveryChannel: "telegram",
     });
 
-    queryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [secretRow({ status: "otp_ready", challenge_id: challengeId })],
     });
 
@@ -296,14 +296,12 @@ describe("phoneMessengerBind", () => {
   });
 
   it("profile_bind complete marks consumed without otp challenge", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [secretRow({ purpose: "profile_bind", user_id: "u-session" })] });
-    clientQueryMock
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: "u-session" }] })
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [secretRow({ purpose: "profile_bind", user_id: "u-session" })] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ user_id: "u-session" }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
     const createOtpMock = vi.mocked(createPhoneOtpChallenge);
 
@@ -319,23 +317,16 @@ describe("phoneMessengerBind", () => {
 
     expect(res).toEqual({ ok: true, purpose: "profile_bind" });
     expect(createOtpMock).not.toHaveBeenCalled();
-    expect(clientQueryMock).toHaveBeenCalledWith(
-      expect.stringContaining("status = 'consumed'"),
-      expect.any(Array),
-    );
+    expect(runWebappPgTextMock.mock.calls.some((c) => String(c[0]).includes("status = 'consumed'"))).toBe(true);
   });
 
   it("profile_bind auto-merges phone owner into session user", async () => {
-    queryMock.mockResolvedValueOnce({
-      rows: [secretRow({ purpose: "profile_bind", user_id: "u-session" })],
-    });
-    clientQueryMock
-      .mockResolvedValueOnce({ rows: [] })
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [secretRow({ purpose: "profile_bind", user_id: "u-session" })] })
       .mockResolvedValueOnce({ rows: [{ id: "u-other" }] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ user_id: "u-session" }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
     mergePlatformUsersInTransactionMock.mockResolvedValueOnce({ targetId: "u-session", duplicateId: "u-other" });
 
     const res = await completePhoneMessengerBindFromIntegrator(
@@ -358,7 +349,7 @@ describe("phoneMessengerBind", () => {
   });
 
   it("getPhoneMessengerBindStatus returns otp_ready with challengeId", async () => {
-    queryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [secretRow({ status: "otp_ready", challenge_id: "ch-1" })],
     });
 
@@ -374,7 +365,7 @@ describe("phoneMessengerBind", () => {
       code: "987654",
       deliveryChannel: "telegram",
     });
-    queryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [secretRow({ status: "otp_ready", challenge_id: challengeId })],
     });
 
@@ -383,13 +374,13 @@ describe("phoneMessengerBind", () => {
   });
 
   it("resolveLoginChallenge returns not_ready when pending_contact", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [secretRow()] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [secretRow()] });
     const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
     expect(res).toEqual({ ok: false, code: "not_ready" });
   });
 
   it("resolveLoginChallenge returns wrong_purpose for profile_bind", async () => {
-    queryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [secretRow({ purpose: "profile_bind", status: "otp_ready", challenge_id: "ch-x" })],
     });
     const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
@@ -397,7 +388,7 @@ describe("phoneMessengerBind", () => {
   });
 
   it("resolveLoginChallenge returns already_consumed", async () => {
-    queryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [secretRow({ status: "consumed", consumed_at: new Date().toISOString() })],
     });
     const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
@@ -405,7 +396,7 @@ describe("phoneMessengerBind", () => {
   });
 
   it("resolveLoginChallenge returns challenge_expired when store empty", async () => {
-    queryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [secretRow({ status: "otp_ready", challenge_id: "ch-missing" })],
     });
     const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
@@ -415,17 +406,17 @@ describe("phoneMessengerBind", () => {
   it("resolveLoginChallenge returns invalid_token for malformed setupToken", async () => {
     const res = await resolvePhoneMessengerBindLoginChallenge("not_auth_token", phoneAuthDeps);
     expect(res).toEqual({ ok: false, code: "invalid_token" });
-    expect(queryMock).not.toHaveBeenCalled();
+    expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 
   it("resolveLoginChallenge returns not_found when secret missing", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const res = await resolvePhoneMessengerBindLoginChallenge("auth_testtoken", phoneAuthDeps);
     expect(res).toEqual({ ok: false, code: "not_found" });
   });
 
   it("resolveLoginChallenge returns expired when TTL passed before otp_ready", async () => {
-    queryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
         secretRow({
           status: "pending_contact",

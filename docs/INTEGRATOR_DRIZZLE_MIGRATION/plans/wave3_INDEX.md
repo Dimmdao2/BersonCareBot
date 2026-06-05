@@ -1,6 +1,6 @@
 # Wave 3 — финальный closeout (raw SQL tail ↓ / Drizzle + Zod / legacy cutover)
 
-**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10**, **11** completed; следующая: **12**
+**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10**, **11** completed; фаза **12** in progress (**12A–12B done**)
 **Предшественник:** Wave 2 этапы 1–8 **completed**  
 **Решения до старта:** [wave3_DECISIONS.md](./wave3_DECISIONS.md) (DoR закрыт фазой 00)
 
@@ -35,7 +35,7 @@
 | 09 | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | M | Integrator P1+ (декомпозиция 09A-09E) | 1 (**done** 2026-06-06) |
 | 10 | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | M | media-worker IX (декомпозиция 10A-10C) | 1 (**done** 2026-06-06) |
 | 11 | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | S | app-layer health/media; auth TX tail; мелкие outliers | 1 (**done** 2026-06-06) |
-| 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake/purge/identity (декомпозиция 12A-12E) | 1 |
+| 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake/purge/identity (декомпозиция 12A-12E) | 1 (**12A–12B done** 2026-06-06) |
 | 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking/doctor (декомпозиция 13A-13E) | 1 |
 | 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 |
 | 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | long tail (декомпозиция 15A-15F) | 1 |
@@ -54,9 +54,9 @@
 - **10A:** media-worker preflight (инварианты + baseline)
 - **10B:** runtime migration на minimal executor
 - **10C:** staging smoke preparation pack (для фазы 17)
-- **12A:** intake core
-- **12B:** identity + phone bind
-- **12C:** integrator-merge route thinness
+- **12A:** intake core (**done** 2026-06-06)
+- **12B:** identity + phone bind (**done** 2026-06-06)
+- **12C:** integrator-merge route thinness (**done** 2026-06-06)
 - **12D:** purge + merge preview
 - **12E:** phase verify
 - **13A:** booking catalog

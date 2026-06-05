@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
+/**
+ * Wave 3 phase 12A — Class C transport only: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` for multipart tx
+ * with shared advisory lock per user id. Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ */
 import { getPool } from "@/infra/db/client";
 import { pgAdvisoryXactLockShared } from "@/infra/db/pgAdvisoryLock";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { resolveMediaFileForLfkAttachment } from "@/infra/repos/pgMediaFileIntakeResolve";
 import type { OnlineIntakePort, ListIntakeQuery } from "@/modules/online-intake/ports";
 import type {
@@ -121,6 +127,14 @@ function mapHistory(row: HistoryRow): IntakeStatusHistoryEntry {
   };
 }
 
+async function runIntakePgText<T>(
+  client: PoolClient,
+  queryText: string,
+  values: readonly unknown[] = [],
+) {
+  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
+}
+
 export function createPgOnlineIntakePort(): OnlineIntakePort {
   return {
     async createLfkRequest(input: CreateLfkIntakeInput): Promise<IntakeRequest> {
@@ -132,7 +146,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         const id = randomUUID();
         const summary = input.description.slice(0, 200);
 
-        const { rows } = await client.query<RequestRow>(
+        const { rows } = await runIntakePgText<RequestRow>(
+          client,
           `INSERT INTO online_intake_requests (id, user_id, type, summary)
            VALUES ($1, $2, 'lfk', $3)
            RETURNING *`,
@@ -140,14 +155,16 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         );
         const request = mapRequest(rows[0]);
 
-        await client.query(
+        await runIntakePgText(
+          client,
           `INSERT INTO online_intake_answers (id, request_id, question_id, ordinal, value)
            VALUES ($1, $2, 'lfk_description', 1, $3)`,
           [randomUUID(), id, input.description],
         );
 
         for (const url of input.attachmentUrls ?? []) {
-          await client.query(
+          await runIntakePgText(
+            client,
             `INSERT INTO online_intake_attachments (id, request_id, attachment_type, url)
              VALUES ($1, $2, 'url', $3)`,
             [randomUUID(), id, url],
@@ -156,7 +173,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
 
         for (const fileId of input.attachmentFileIds ?? []) {
           const resolved = await resolveMediaFileForLfkAttachment(client, fileId, input.userId);
-          await client.query(
+          await runIntakePgText(
+            client,
             `INSERT INTO online_intake_attachments
                (id, request_id, attachment_type, s3_key, mime_type, size_bytes, original_name)
              VALUES ($1, $2, 'file', $3, $4, $5, $6)`,
@@ -171,7 +189,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
           );
         }
 
-        await client.query(
+        await runIntakePgText(
+          client,
           `INSERT INTO online_intake_status_history (id, request_id, from_status, to_status)
            VALUES ($1, $2, NULL, 'new')`,
           [randomUUID(), id],
@@ -196,7 +215,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         const id = randomUUID();
         const summary = input.description.slice(0, 200);
 
-        const { rows } = await client.query<RequestRow>(
+        const { rows } = await runIntakePgText<RequestRow>(
+          client,
           `INSERT INTO online_intake_requests (id, user_id, type, summary)
            VALUES ($1, $2, 'nutrition', $3)
            RETURNING *`,
@@ -204,13 +224,15 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         );
         const request = mapRequest(rows[0]);
 
-        await client.query(
+        await runIntakePgText(
+          client,
           `INSERT INTO online_intake_answers (id, request_id, question_id, ordinal, value)
            VALUES ($1, $2, 'nutrition_description', 1, $3)`,
           [randomUUID(), id, input.description],
         );
 
-        await client.query(
+        await runIntakePgText(
+          client,
           `INSERT INTO online_intake_status_history (id, request_id, from_status, to_status)
            VALUES ($1, $2, NULL, 'new')`,
           [randomUUID(), id],
@@ -227,23 +249,22 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
     },
 
     async getById(id: string): Promise<IntakeRequestFull | null> {
-      const pool = getPool();
-      const { rows: reqRows } = await pool.query<RequestRow>(
+      const { rows: reqRows } = await runWebappPgText<RequestRow>(
         `SELECT * FROM online_intake_requests WHERE id = $1`,
         [id],
       );
       if (!reqRows[0]) return null;
       const request = mapRequest(reqRows[0]);
 
-      const { rows: ansRows } = await pool.query<AnswerRow>(
+      const { rows: ansRows } = await runWebappPgText<AnswerRow>(
         `SELECT * FROM online_intake_answers WHERE request_id = $1 ORDER BY ordinal`,
         [id],
       );
-      const { rows: attRows } = await pool.query<AttachmentRow>(
+      const { rows: attRows } = await runWebappPgText<AttachmentRow>(
         `SELECT * FROM online_intake_attachments WHERE request_id = $1 ORDER BY created_at`,
         [id],
       );
-      const { rows: histRows } = await pool.query<HistoryRow>(
+      const { rows: histRows } = await runWebappPgText<HistoryRow>(
         `SELECT * FROM online_intake_status_history WHERE request_id = $1 ORDER BY changed_at`,
         [id],
       );
@@ -257,8 +278,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
     },
 
     async getByIdForDoctor(id: string): Promise<IntakeRequestFullWithPatientIdentity | null> {
-      const pool = getPool();
-      const { rows: reqRows } = await pool.query<RequestRowWithIdentity>(
+      const { rows: reqRows } = await runWebappPgText<RequestRowWithIdentity>(
         `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone
          FROM online_intake_requests r
          LEFT JOIN platform_users pu ON pu.id = r.user_id
@@ -271,15 +291,15 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const patientName = reqRow.patient_name;
       const patientPhone = reqRow.patient_phone;
 
-      const { rows: ansRows } = await pool.query<AnswerRow>(
+      const { rows: ansRows } = await runWebappPgText<AnswerRow>(
         `SELECT * FROM online_intake_answers WHERE request_id = $1 ORDER BY ordinal`,
         [id],
       );
-      const { rows: attRows } = await pool.query<AttachmentRow>(
+      const { rows: attRows } = await runWebappPgText<AttachmentRow>(
         `SELECT * FROM online_intake_attachments WHERE request_id = $1 ORDER BY created_at`,
         [id],
       );
-      const { rows: histRows } = await pool.query<HistoryRow>(
+      const { rows: histRows } = await runWebappPgText<HistoryRow>(
         `SELECT * FROM online_intake_status_history WHERE request_id = $1 ORDER BY changed_at`,
         [id],
       );
@@ -295,7 +315,6 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
     },
 
     async listRequests(query: ListIntakeQuery): Promise<{ items: IntakeRequest[]; total: number }> {
-      const pool = getPool();
       const conditions: string[] = [];
       const params: unknown[] = [];
       let idx = 1;
@@ -317,13 +336,13 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const limit = query.limit ?? 20;
       const offset = query.offset ?? 0;
 
-      const { rows: countRows } = await pool.query<{ count: string }>(
+      const { rows: countRows } = await runWebappPgText<{ count: string }>(
         `SELECT count(*)::text AS count FROM online_intake_requests ${where}`,
         params,
       );
       const total = parseInt(countRows[0].count, 10);
 
-      const { rows } = await pool.query<RequestRow>(
+      const { rows } = await runWebappPgText<RequestRow>(
         `SELECT * FROM online_intake_requests ${where} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
         [...params, limit, offset],
       );
@@ -334,7 +353,6 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
     async listRequestsForDoctor(
       query: ListIntakeQuery,
     ): Promise<{ items: IntakeRequestWithPatientIdentity[]; total: number }> {
-      const pool = getPool();
       const conditions: string[] = [];
       const params: unknown[] = [];
       let idx = 1;
@@ -358,13 +376,13 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const limit = query.limit ?? 20;
       const offset = query.offset ?? 0;
 
-      const { rows: countRows } = await pool.query<{ count: string }>(
+      const { rows: countRows } = await runWebappPgText<{ count: string }>(
         `SELECT count(*)::text AS count FROM online_intake_requests r ${where}`,
         params,
       );
       const total = parseInt(countRows[0].count, 10);
 
-      const { rows } = await pool.query<RequestRowWithIdentity>(
+      const { rows } = await runWebappPgText<RequestRowWithIdentity>(
         `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone
          FROM online_intake_requests r
          LEFT JOIN platform_users pu ON pu.id = r.user_id
@@ -377,8 +395,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
     },
 
     async countActiveByUser(userId: string, type: IntakeType): Promise<number> {
-      const pool = getPool();
-      const { rows } = await pool.query<{ count: string }>(
+      const { rows } = await runWebappPgText<{ count: string }>(
         `SELECT count(*)::text AS count FROM online_intake_requests
          WHERE user_id = $1 AND type = $2 AND status IN ('new','in_review','contacted')`,
         [userId, type],
@@ -392,7 +409,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       try {
         await client.query("BEGIN");
 
-        const { rows: cur } = await client.query<RequestRow>(
+        const { rows: cur } = await runIntakePgText<RequestRow>(
+          client,
           `SELECT * FROM online_intake_requests WHERE id = $1 FOR UPDATE`,
           [input.requestId],
         );
@@ -400,7 +418,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
 
         const fromStatus = cur[0].status;
 
-        const { rows } = await client.query<RequestRow>(
+        const { rows } = await runIntakePgText<RequestRow>(
+          client,
           `UPDATE online_intake_requests
            SET status = $1, updated_at = now()
            WHERE id = $2
@@ -408,7 +427,8 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
           [input.toStatus, input.requestId],
         );
 
-        await client.query(
+        await runIntakePgText(
+          client,
           `INSERT INTO online_intake_status_history
              (id, request_id, from_status, to_status, changed_by, note)
            VALUES ($1, $2, $3, $4, $5, $6)`,

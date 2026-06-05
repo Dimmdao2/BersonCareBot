@@ -1,18 +1,18 @@
 ---
 name: Wave3 Phase12 Webapp intake purge identity
 overview: Высокий риск — online intake, full purge, identity resolution, phone bind, merge preview, integrator-merge route.
-status: pending
+status: in_progress
 isProject: false
 todos:
   - id: w3-p12a-intake
     content: "12A: pgOnlineIntake.ts (33) — runWebappSql + advisory parity, integration tests."
-    status: pending
+    status: completed
   - id: w3-p12b-identity-phone
     content: "12B: pgUserByPhone (21), pgIdentityResolution (12), pgPhoneMessengerBind (20) + Zod boundary checks."
-    status: pending
+    status: completed
   - id: w3-p12c-merge-route
     content: "12C: app/api/doctor/clients/integrator-merge/route.ts (14) — thin route, SQL в infra/service."
-    status: pending
+    status: completed
   - id: w3-p12d-purge-preview
     content: "12D: platformUserFullPurge.ts (40), platformUserMergePreview.ts (24), strictPlatformUserPurge.ts — TX Class B и безопасные dry-run semantics."
     status: pending
@@ -33,25 +33,31 @@ todos:
 
 - Файл: `infra/repos/pgOnlineIntake.ts`.
 - Цель: убрать прямой query-tail без изменения advisory semantics.
+- **Закрытие (2026-06-06):** domain SQL → `runWebappPgText` / `runIntakePgText`; Class C TX + `pgAdvisoryXactLockShared` без изменений; `pool.query` = 0.
 - Проверка:
-  - targeted inprocess test на intake.
-  - `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos/pgOnlineIntake.ts`.
+  - `pnpm --dir apps/webapp exec vitest run --project fast src/infra/repos/pgOnlineIntake.advisoryLock.test.ts`
+  - `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos/pgOnlineIntake.ts` — только Class C TX (9×) + JSDoc.
 
 ### 12B — identity and phone bind
 
-- Файлы: `pgUserByPhone.ts`, `pgIdentityResolution.ts`, `pgPhoneMessengerBind.ts`.
+- Файлы: `pgUserByPhone.ts`, `pgIdentityResolution.ts`, `pgPhoneMessengerBind.ts`, `identityPhoneRowSchemas.ts`, `identityPhoneSql.ts`.
 - Цель: унифицировать query execution и валидацию входов/rows через Zod.
+- **Закрытие (2026-06-06):** domain SQL → `runIdentityPoolPgText` / `runIdentityClientPgText` / `runPgPoolPgTextOnPool`; Zod row-shape + input boundary в `identityPhoneRowSchemas`; `pool.query` = 0; platform-merge bridge через executor на `PoolClient`.
+- **Post-audit (2026-06-06):** `pgUserByPhone.createOrBind.test.ts`; расширены `pgIdentityResolution` / `identityPhoneRowSchemas` tests; Zod на `ChannelContext`, `findOrCreate` params, resolution hints.
 - Проверка:
-  - targeted tests identity/phone.
-  - `rg "JSON\\.parse\\(|as unknown" apps/webapp/src/infra/repos/pgUserByPhone.ts apps/webapp/src/infra/repos/pgIdentityResolution.ts apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts`.
+  - `pnpm --dir apps/webapp exec vitest run --project fast src/infra/repos/pgUserByPhone.test.ts src/infra/repos/pgUserByPhone.createOrBind.test.ts src/infra/repos/pgIdentityResolution.test.ts src/infra/repos/identityPhoneRowSchemas.test.ts src/modules/auth/phoneMessengerBind.test.ts`
+  - `rg "pool\\.query" apps/webapp/src/infra/repos/pgUserByPhone.ts apps/webapp/src/infra/repos/pgIdentityResolution.ts apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts` — 0
+  - `rg "JSON\\.parse\\(|as unknown" …` — 0
 
 ### 12C — integrator-merge route thinness
 
 - Файл: `app/api/doctor/clients/integrator-merge/route.ts`.
 - Цель: route остаётся thin, SQL остаётся в infra/service.
+- **Закрытие (2026-06-06):** orchestration → `infra/integratorPlatformUserMerge.ts` (рядом с `manualMergeIntegratorGate.ts`, не repo-port); Zod body + integrator HTTP error → `integratorPlatformUserMergeSchemas.ts`; domain SQL → `runIdentityClientPgText`; Class C TX (`BEGIN`/`COMMIT`/`ROLLBACK`) в service; route — auth, v2 flag, parse body, map HTTP.
+- **Post-audit (2026-06-06):** precheck / unconfigured / generic M2M / orphan_clear_race / unexpected ROLLBACK — service tests; route — `invalid_body`, `same_id`, `dryRun`; `integratorPlatformUserMergeSchemas.test.ts`; `parseIntegratorMergeHttpDetails` — parity `details` с legacy.
 - Проверка:
-  - route regression tests;
-  - `rg "pool\\.query|client\\.query|db\\.query" apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts`.
+  - `pnpm --dir apps/webapp exec vitest run --project fast src/infra/integratorPlatformUserMerge.test.ts src/infra/integratorPlatformUserMergeSchemas.test.ts src/app/api/doctor/clients/integrator-merge/route.test.ts`
+  - `rg "pool\\.query|client\\.query|db\\.query" apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts` — 0
 
 ### 12D — purge and merge preview
 
@@ -104,11 +110,36 @@ todos:
 |------|-----------|
 | Потеря данных purge | devDb tests + dry-run flags |
 | Race intake | advisory lock tests (existing) |
-| integrator-merge route fat | вынести в `infra/repos` |
+| integrator-merge route fat | вынести в `infra/*` service (`integratorPlatformUserMerge.ts`) |
 
 ## Проверки
 
+**12A (закрыто):**
+
+```bash
+rg 'pool\.query' apps/webapp/src/infra/repos/pgOnlineIntake.ts   # 0
+rg 'client\.query' apps/webapp/src/infra/repos/pgOnlineIntake.ts # 9× Class C TX
+pnpm --dir apps/webapp exec vitest run --project fast src/infra/repos/pgOnlineIntake.advisoryLock.test.ts
+```
+
+**12B (закрыто):**
+
+```bash
+rg 'pool\.query' apps/webapp/src/infra/repos/pgUserByPhone.ts apps/webapp/src/infra/repos/pgIdentityResolution.ts apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts  # 0
+pnpm --dir apps/webapp exec vitest run --project fast src/infra/repos/pgUserByPhone.test.ts src/infra/repos/pgUserByPhone.createOrBind.test.ts src/infra/repos/pgIdentityResolution.test.ts src/infra/repos/identityPhoneRowSchemas.test.ts src/modules/auth/phoneMessengerBind.test.ts
+```
+
+**12C (закрыто):**
+
+```bash
+rg 'pool\.query|client\.query|db\.query' apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts  # 0
+rg 'pool\.query' apps/webapp/src/infra/integratorPlatformUserMerge.ts  # 0
+pnpm --dir apps/webapp exec vitest run --project fast src/infra/integratorPlatformUserMerge.test.ts src/infra/integratorPlatformUserMergeSchemas.test.ts src/app/api/doctor/clients/integrator-merge/route.test.ts
+```
+
+**12E (финал фазы):**
+
 ```bash
 rg 'pool\.query|client\.query' apps/webapp/src/infra/platformUserFullPurge.ts apps/webapp/src/infra/repos/pgOnlineIntake.ts
-pnpm --dir apps/webapp exec vitest run --project inprocess pgOnlineIntake pgPlatformUserMerge strictPlatformUserPurge 2>/dev/null | tail -20
+pnpm --dir apps/webapp exec vitest run --project fast pgOnlineIntake pgPlatformUserMerge strictPlatformUserPurge 2>/dev/null | tail -20
 ```

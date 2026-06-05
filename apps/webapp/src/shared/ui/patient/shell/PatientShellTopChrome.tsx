@@ -82,6 +82,7 @@ export function PatientShellTopChrome({
   return (
     <div
       ref={headerRef}
+      id="patient-shell-top-chrome"
       data-testid="patient-shell-top-chrome"
       className={cn(
         PATIENT_HEADER_BAR_FIXED_MOBILE_CLASS,

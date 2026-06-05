@@ -1,4 +1,8 @@
 import type { Pool, PoolClient, QueryResultRow } from "pg";
+/**
+ * Wave 3 phase 12B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` in `withTransaction`.
+ * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgTextOnPool`; platform-merge bridge via same client executor.
+ */
 import {
   applyMessengerPhonePublicBind,
   classifyMergeFailure,
@@ -21,16 +25,36 @@ import type {
   PhoneMessengerBindPort,
   PhoneMessengerBindPreOtpFailure,
   PhoneMessengerBindPurpose,
-  PhoneMessengerBindSecretRow,
 } from "@/modules/auth/phoneMessengerBind.ports";
+import {
+  auditLogRepeatRowSchema,
+  bindingOwnerRowSchema,
+  mapPhoneMessengerBindSecretRow,
+  parseIdentityRow,
+  platformUserIdRowSchema,
+  userIdRowSchema,
+} from "@/infra/repos/identityPhoneRowSchemas";
+import { runIdentityClientPgText, runIdentityPoolPgTextOnPool } from "@/infra/repos/identityPhoneSql";
 
 function asMessengerPhoneBindDb(client: PoolClient): MessengerPhoneBindDb {
   return {
     async query<R extends QueryResultRow = QueryResultRow>(queryText: string, values?: unknown[]) {
-      const result = await client.query<R>(queryText, values);
+      const result = await runIdentityClientPgText<R>(client, queryText, values ?? []);
       return { rows: result.rows, rowCount: result.rowCount ?? undefined };
     },
   };
+}
+
+async function runBindPgText<T extends QueryResultRow = QueryResultRow>(
+  pool: Pool,
+  client: PoolClient | undefined,
+  queryText: string,
+  values: readonly unknown[] = [],
+) {
+  if (client) {
+    return runIdentityClientPgText<T>(client, queryText, values);
+  }
+  return runIdentityPoolPgTextOnPool<T>(pool, queryText, values);
 }
 
 async function mergeMessengerBindPair(
@@ -70,7 +94,8 @@ async function applyMessengerContactPreOtpImpl(
   const key = channelToBindingKey(channelCode);
   if (!key) return { ok: false, code: "unsupported_channel" };
 
-  const existingByPhone = await client.query<{ id: string }>(
+  const existingByPhone = await runIdentityClientPgText(
+    client,
     `SELECT id FROM platform_users WHERE phone_normalized = $1 AND merged_into_id IS NULL FOR UPDATE`,
     [params.phoneNormalized],
   );
@@ -80,8 +105,8 @@ async function applyMessengerContactPreOtpImpl(
     if (!sessionId) return { ok: false, code: "session_required" };
     let canonicalSession = (await resolveCanonicalUserId(client, sessionId)) ?? sessionId;
     if (existingByPhone.rows.length > 0) {
-      const phoneOwnerCanonical =
-        (await resolveCanonicalUserId(client, existingByPhone.rows[0]!.id)) ?? existingByPhone.rows[0]!.id;
+      const phoneOwnerId = parseIdentityRow(platformUserIdRowSchema, existingByPhone.rows[0], "phone_owner").id;
+      const phoneOwnerCanonical = (await resolveCanonicalUserId(client, phoneOwnerId)) ?? phoneOwnerId;
       if (phoneOwnerCanonical !== canonicalSession) {
         const merged = await mergeMessengerBindPair(client, {
           targetId: canonicalSession,
@@ -91,7 +116,8 @@ async function applyMessengerContactPreOtpImpl(
         canonicalSession = (await resolveCanonicalUserId(client, canonicalSession)) ?? canonicalSession;
       }
     }
-    await client.query(
+    await runIdentityClientPgText(
+      client,
       `UPDATE platform_users SET phone_normalized = $1, updated_at = now() WHERE id = $2::uuid`,
       [params.phoneNormalized, canonicalSession],
     );
@@ -100,21 +126,24 @@ async function applyMessengerContactPreOtpImpl(
       newPhoneNormalized: params.phoneNormalized,
       source: "messenger",
     });
-    const ins = await client.query(
+    const ins = await runIdentityClientPgText(
+      client,
       `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
        VALUES ($1, $2, $3)
        ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id
        RETURNING user_id`,
       [canonicalSession, channelCode, params.externalId],
     );
-    if (ins.rows[0]?.user_id && ins.rows[0].user_id !== canonicalSession) {
+    const boundUserId = ins.rows[0] ? parseIdentityRow(userIdRowSchema, ins.rows[0], "profile_bind").user_id : null;
+    if (boundUserId && boundUserId !== canonicalSession) {
       return { ok: false, code: "channel_owned_by_other_user" };
     }
     await upsertBroadcastDefaultsAfterChannelBind(client, canonicalSession, channelCode);
     return { ok: true, accountCreated: false };
   }
 
-  const bindingOwner = await client.query<{ user_id: string; integrator_user_id: string | null }>(
+  const bindingOwner = await runIdentityClientPgText(
+    client,
     `SELECT ucb.user_id::text,
             pu.integrator_user_id::text AS integrator_user_id
      FROM user_channel_bindings ucb
@@ -123,11 +152,14 @@ async function applyMessengerContactPreOtpImpl(
      FOR UPDATE OF ucb, pu`,
     [channelCode, params.externalId],
   );
-  const bindingOwnerId = bindingOwner.rows[0]?.user_id ?? null;
-  const bindingOwnerIntegratorId = bindingOwner.rows[0]?.integrator_user_id?.trim() || null;
+  const bindingOwnerRow = bindingOwner.rows[0]
+    ? parseIdentityRow(bindingOwnerRowSchema, bindingOwner.rows[0], "binding_owner")
+    : null;
+  const bindingOwnerId = bindingOwnerRow?.user_id ?? null;
+  const bindingOwnerIntegratorId = bindingOwnerRow?.integrator_user_id?.trim() || null;
 
   if (bindingOwnerId && existingByPhone.rows.length > 0) {
-    const phoneOwnerId = existingByPhone.rows[0]!.id;
+    const phoneOwnerId = parseIdentityRow(platformUserIdRowSchema, existingByPhone.rows[0], "phone_owner_login").id;
     const ownerCanonical = (await resolveCanonicalUserId(client, bindingOwnerId)) ?? bindingOwnerId;
     const phoneCanonical = (await resolveCanonicalUserId(client, phoneOwnerId)) ?? phoneOwnerId;
     if (ownerCanonical !== phoneCanonical) {
@@ -167,7 +199,8 @@ async function applyMessengerContactPreOtpImpl(
   let accountCreated = false;
   if (bindingOwnerId && existingByPhone.rows.length === 0) {
     userId = (await resolveCanonicalUserId(client, bindingOwnerId)) ?? bindingOwnerId;
-    await client.query(
+    await runIdentityClientPgText(
+      client,
       `UPDATE platform_users
        SET phone_normalized = $1,
            patient_phone_trust_at = COALESCE(patient_phone_trust_at, now()),
@@ -181,14 +214,15 @@ async function applyMessengerContactPreOtpImpl(
       source: "messenger",
     });
   } else if (existingByPhone.rows.length > 0) {
-    userId = existingByPhone.rows[0]!.id;
+    userId = parseIdentityRow(platformUserIdRowSchema, existingByPhone.rows[0], "existing_phone_user").id;
   } else {
-    const insert = await client.query<{ id: string }>(
+    const insert = await runIdentityClientPgText(
+      client,
       `INSERT INTO platform_users (phone_normalized, display_name, role)
        VALUES ($1, $2, 'client') RETURNING id`,
       [params.phoneNormalized, params.phoneNormalized],
     );
-    userId = insert.rows[0]!.id;
+    userId = parseIdentityRow(platformUserIdRowSchema, insert.rows[0], "insert_phone_user").id;
     accountCreated = true;
     await applyPlatformUserPhoneHistoryTransition(client, {
       platformUserId: userId,
@@ -197,21 +231,24 @@ async function applyMessengerContactPreOtpImpl(
     });
   }
 
-  if (bindingOwner.rows.length > 0 && bindingOwner.rows[0]!.user_id !== userId) {
-    const ownerCanonical =
-      (await resolveCanonicalUserId(client, bindingOwner.rows[0]!.user_id)) ?? bindingOwner.rows[0]!.user_id;
-    const userCanonical = (await resolveCanonicalUserId(client, userId)) ?? userId;
-    if (ownerCanonical !== userCanonical) {
-      const merged = await mergeMessengerBindPair(client, {
-        targetId: userCanonical,
-        duplicateId: ownerCanonical,
-      });
-      if (!merged.ok) return merged;
-      userId = userCanonical;
+  if (bindingOwner.rows.length > 0) {
+    const ownerId = parseIdentityRow(bindingOwnerRowSchema, bindingOwner.rows[0], "binding_owner_recheck").user_id;
+    if (ownerId !== userId) {
+      const ownerCanonical = (await resolveCanonicalUserId(client, ownerId)) ?? ownerId;
+      const userCanonical = (await resolveCanonicalUserId(client, userId)) ?? userId;
+      if (ownerCanonical !== userCanonical) {
+        const merged = await mergeMessengerBindPair(client, {
+          targetId: userCanonical,
+          duplicateId: ownerCanonical,
+        });
+        if (!merged.ok) return merged;
+        userId = userCanonical;
+      }
     }
   }
 
-  await client.query(
+  await runIdentityClientPgText(
+    client,
     `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
      VALUES ($1, $2, $3)
      ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
@@ -267,7 +304,8 @@ async function recordMessengerBindBlockedImpl(
   const status: AuditLogStatus = "error";
 
   if (!conflictKey) {
-    await client.query(
+    await runIdentityClientPgText(
+      client,
       `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
        VALUES (NULL, 'messenger_phone_bind_anomaly', $1, NULL, $2::jsonb, $3)`,
       [candidateIds[0] ?? null, JSON.stringify(baseDetails), status],
@@ -275,7 +313,8 @@ async function recordMessengerBindBlockedImpl(
     return;
   }
 
-  const existing = await client.query<{ id: string; repeat_count: number }>(
+  const existing = await runIdentityClientPgText(
+    client,
     `SELECT id::text, repeat_count
      FROM admin_audit_log
      WHERE conflict_key = $1 AND resolved_at IS NULL
@@ -284,19 +323,22 @@ async function recordMessengerBindBlockedImpl(
     [conflictKey],
   );
   if (existing.rows[0]) {
-    await client.query(
+    const row = parseIdentityRow(auditLogRepeatRowSchema, existing.rows[0], "audit_log_repeat");
+    await runIdentityClientPgText(
+      client,
       `UPDATE admin_audit_log
        SET details = details || $2::jsonb,
            repeat_count = repeat_count + 1,
            last_seen_at = now(),
            status = $3
        WHERE id = $1::uuid`,
-      [existing.rows[0].id, JSON.stringify(baseDetails), status],
+      [row.id, JSON.stringify(baseDetails), status],
     );
     return;
   }
 
-  await client.query(
+  await runIdentityClientPgText(
+    client,
     `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
      VALUES (NULL, 'messenger_phone_bind_blocked', $1, $2, $3::jsonb, $4, 1, now())
      ON CONFLICT (conflict_key) WHERE resolved_at IS NULL DO UPDATE
@@ -311,16 +353,18 @@ async function recordMessengerBindBlockedImpl(
 export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMessengerBindPort {
   return {
     async findByTokenHash(tokenHash) {
-      const r = await pool.query<PhoneMessengerBindSecretRow>(
+      const r = await runIdentityPoolPgTextOnPool(
+        pool,
         `SELECT id, phone_normalized, channel_code, purpose, user_id, status, challenge_id, failure_code, expires_at, consumed_at
          FROM phone_messenger_bind_secrets WHERE token_hash = $1`,
         [tokenHash],
       );
-      return r.rows[0] ?? null;
+      return r.rows[0] ? mapPhoneMessengerBindSecretRow(r.rows[0]) : null;
     },
 
     async deletePending(phoneNormalized, channelCode, purpose) {
-      await pool.query(
+      await runIdentityPoolPgTextOnPool(
+        pool,
         `DELETE FROM phone_messenger_bind_secrets
          WHERE phone_normalized = $1 AND channel_code = $2 AND purpose = $3 AND status = 'pending_contact'`,
         [phoneNormalized, channelCode, purpose],
@@ -328,7 +372,8 @@ export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMes
     },
 
     async insertSecret(params) {
-      await pool.query(
+      await runIdentityPoolPgTextOnPool(
+        pool,
         `INSERT INTO phone_messenger_bind_secrets
            (token_hash, phone_normalized, channel_code, purpose, user_id, status, expires_at)
          VALUES ($1, $2, $3, $4, $5, 'pending_contact', $6)`,
@@ -344,20 +389,24 @@ export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMes
     },
 
     async updateExpired(id) {
-      await pool.query(`UPDATE phone_messenger_bind_secrets SET status = 'expired' WHERE id = $1`, [id]);
+      await runIdentityPoolPgTextOnPool(pool, `UPDATE phone_messenger_bind_secrets SET status = 'expired' WHERE id = $1`, [
+        id,
+      ]);
     },
 
     async updateFailed(id, failureCode, client) {
-      const q = client ?? pool;
-      await q.query(
+      await runBindPgText(
+        pool,
+        client,
         `UPDATE phone_messenger_bind_secrets SET status = 'failed', failure_code = $2 WHERE id = $1`,
         [id, failureCode],
       );
     },
 
     async updateOtpReady(id, challengeId, client) {
-      const q = client ?? pool;
-      await q.query(
+      await runBindPgText(
+        pool,
+        client,
         `UPDATE phone_messenger_bind_secrets
          SET status = 'otp_ready', challenge_id = $2, failure_code = NULL
          WHERE id = $1`,
@@ -366,8 +415,9 @@ export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMes
     },
 
     async markConsumed(id, client) {
-      const q = client ?? pool;
-      await q.query(
+      await runBindPgText(
+        pool,
+        client,
         `UPDATE phone_messenger_bind_secrets SET status = 'consumed', consumed_at = now()
          WHERE id = $1 AND status <> 'consumed'`,
         [id],
@@ -375,7 +425,8 @@ export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMes
     },
 
     async markConsumedByChallenge(challengeId) {
-      await pool.query(
+      await runIdentityPoolPgTextOnPool(
+        pool,
         `UPDATE phone_messenger_bind_secrets SET status = 'consumed', consumed_at = now()
          WHERE challenge_id = $1 AND status = 'otp_ready'`,
         [challengeId],

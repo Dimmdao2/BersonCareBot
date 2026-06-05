@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Activity, Dumbbell, FileText, Flame, Sparkles, Trash2 } from "lucide-react";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -383,26 +383,16 @@ export function ReminderRulesClient({
     });
   };
 
-  const handleMarkAllSeen = () => {
-    startTransition(async () => {
-      try {
-        const res = await fetch("/api/patient/reminders/mark-seen", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ all: true }),
-        });
-        const data = (await res.json()) as { ok?: boolean };
-        if (!res.ok || !data.ok) {
-          toast.error("Не удалось обновить статус.");
-          return;
-        }
-        toast.success("Отмечено как просмотренные.");
-        refresh();
-      } catch {
-        toast.error("Сеть недоступна.");
-      }
-    });
-  };
+  const markedSeenRef = useRef(false);
+  useEffect(() => {
+    if (!unseenCount || markedSeenRef.current) return;
+    markedSeenRef.current = true;
+    void fetch("/api/patient/reminders/mark-seen", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => undefined);
+  }, [unseenCount]);
 
   const openEditForRow = (row: PersonalReminderRowVM) => {
     setEditRow(row);
@@ -496,15 +486,6 @@ export function ReminderRulesClient({
 
   return (
     <div>
-      {unseenCount > 0 && (
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className={cn(patientMutedTextClass, "text-xs")}>Непросмотрено: {unseenCount}</p>
-          <Button size="sm" variant="outline" onClick={handleMarkAllSeen} disabled={isPending}>
-            Отметить все как просмотренные
-          </Button>
-        </div>
-      )}
-
       {activeProgram ? (
         <section id="patient-reminders-rehab" className={cn(patientHeroBookingSectionClass, "mb-4 !gap-3")}>
           <h2 className={patientSectionTitleNormalClass}>Тренировки</h2>

@@ -593,3 +593,42 @@ LIMIT 3;"
 
 **Синхронизация документов (2026-06-06, post-audit):** [wave3_phase_11_webapp_app_layer_auth.plan.md](./plans/wave3_phase_11_webapp_app_layer_auth.plan.md) (полное закрытие + таблица миграций), [plans/README.md](./plans/README.md), [wave3_INDEX.md](./plans/wave3_INDEX.md), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md), [docs/README.md](../README.md).
 
+### Wave 3 phase 12A — `pgOnlineIntake.ts` (2026-06-06)
+
+- **Scope:** `apps/webapp/src/infra/repos/pgOnlineIntake.ts` — domain SQL → `runWebappPgText` / `getWebappSqlFromPgClient`; Class C transport (`BEGIN`/`COMMIT`/`ROLLBACK`) + `pgAdvisoryXactLockShared` без изменений.
+- **Проверки:** `pool.query` — 0; `client.query` — 9× Class C TX. Vitest `--project fast` `pgOnlineIntake.advisoryLock.test.ts` — **5 passed** (advisory order lock→INSERT, ROLLBACK on domain failure, `changeStatus` TX без advisory).
+- **RAW_SQL:** `pgOnlineIntake.ts` → **Wave 3 P12A done**; plan todo `w3-p12a-intake` → `completed`.
+
+#### Post-audit closure 12A (2026-06-06)
+
+- Тесты: порядок `pgAdvisoryXactLockShared` до первого INSERT; ROLLBACK при ошибке domain SQL; `changeStatus` Class C TX + `NOT_FOUND` rollback path.
+- Docs: plan §12A verify → `--project fast`; `wave3_INDEX.md` / `plans/README.md` — фаза 12 **in progress (12A done)**.
+- Typecheck: `resolvePatientReminderGoTargets.ts` — добавлен import `DailyWarmupListEntry` (блокировал `pnpm --dir apps/webapp run typecheck`, не связан с intake).
+
+### Wave 3 phase 12B — identity / phone bind (2026-06-06)
+
+- **Scope:** `pgUserByPhone.ts`, `pgIdentityResolution.ts`, `pgPhoneMessengerBind.ts` + `identityPhoneRowSchemas.ts`, `identityPhoneSql.ts`.
+- **Transport:** domain SQL → `runIdentityPoolPgText` / `runIdentityClientPgText` / `runPgPoolPgTextOnPool`; Class C TX (`BEGIN`/`COMMIT`/`ROLLBACK`, `SET CONSTRAINTS` в `createOrBind`); `asMessengerPhoneBindDb` → executor на том же `PoolClient`.
+- **Zod:** row-shape для session/bind/secret/merge rows; `bindingsFromRows`, `mapPhoneMessengerBindSecretRow`, `parseUserRole`.
+- **Проверки:** `pool.query` — 0 в трёх repos; `JSON.parse` / `as unknown` — 0. Vitest `--project fast` — **27 passed** (`pgUserByPhone`, `pgIdentityResolution`, `identityPhoneRowSchemas`, `phoneMessengerBind`).
+- **RAW_SQL:** три файла → **Wave 3 P12B done**; plan todo `w3-p12b-identity-phone` → `completed`.
+
+#### Post-audit closure 12B (2026-06-06)
+
+- Zod input boundary: `parseChannelContext`, `parseFindOrCreateByChannelBindingParams`, `parseMessengerIdentityResolutionHints`; secret row enums (`channel_code`, `purpose`, `status`).
+- Тесты: `pgUserByPhone.createOrBind.test.ts` (5) — existing binding, insert, ROLLBACK, merge conflict, invalid context; `pgIdentityResolution.test.ts` — insert_new, merge_before_bind, ROLLBACK, invalid channel; `identityPhoneRowSchemas.test.ts` — invalid row/secret; `pgUserByPhone.test.ts` — `getPhoneByUserId`, `findByUserId`.
+- Vitest `--project fast` 12B suite — **42 passed**.
+
+### Wave 3 phase 12C — integrator-merge route (2026-06-06)
+
+- **Scope:** `app/api/doctor/clients/integrator-merge/route.ts` → thin handler; orchestration + SQL → `infra/integratorPlatformUserMerge.ts`, Zod → `integratorPlatformUserMergeSchemas.ts`.
+- **Transport:** domain SQL → `runIdentityClientPgText`; Class C `client.query` (`BEGIN`/`COMMIT`/`ROLLBACK`) в service; integrator HTTP error body — Zod (`parseIntegratorMergeHttpError`), без `JSON.parse`/`as` в route.
+- **Проверки:** route `pool.query`/`client.query` — **0**; Vitest `--project fast` 12C suite — **28 passed**; `pnpm --dir apps/webapp run typecheck` — green.
+- **RAW_SQL:** route → **Wave 3 P12C done**; plan todo `w3-p12c-merge-route` → `completed`.
+
+#### Post-audit closure 12C (2026-06-06)
+
+- Тесты: service — precheck (`missing_user`, `not_client`, `alias_not_allowed`, `integrator_ids_not_divergent`), `integrator_unconfigured`, generic `integrator_merge_failed` + `details`, `orphan_clear_failed`, unexpected throw + ROLLBACK; route — `invalid_body`, `same_id`, `dryRun` passthrough; `integratorPlatformUserMergeSchemas.test.ts` — body/row/error parsers, `integratorUserIdNumericKey`.
+- Parity: `parseIntegratorMergeHttpDetails` для operator `details` (любой JSON, иначе raw text); typed `parseIntegratorMergeHttpError` — только для `USER_NOT_FOUND` / loser-only ветки.
+- Vitest `--project fast` 12C suite — **28 passed** (12 service + 9 schemas + 7 route).
+

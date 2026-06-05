@@ -50,10 +50,17 @@ const warmupItems: PatientHomeBlockItem[] = [
   },
 ];
 
+type BuildDepsOptions = {
+  requiresAuthBySlug?: Partial<Record<"warm-a" | "warm-b", boolean>>;
+  grantedSlugs?: string[];
+};
+
 function buildDeps(
   getLatestCompletedContentPageId: (userId: string) => Promise<string | null>,
   getPresentedContentPageId: (userId: string) => Promise<string | null> = async () => null,
+  options: BuildDepsOptions = {},
 ) {
+  const granted = new Set(options.grantedSlugs ?? []);
   const getBySlug = vi.fn(async (slug: string) =>
     slug === "warm-a" || slug === "warm-b" ?
       {
@@ -63,6 +70,7 @@ function buildDeps(
         summary: "",
         imageUrl: null,
         section: "warmups",
+        requiresAuth: options.requiresAuthBySlug?.[slug] ?? false,
       }
     : null,
   );
@@ -73,6 +81,9 @@ function buildDeps(
     contentPages: { getBySlug },
     contentSections: warmSection,
     systemSettings: { getSetting: async () => null },
+    entitlements: {
+      hasActiveContentGrant: vi.fn(async (_userId: string, slug: string) => granted.has(slug)),
+    },
     patientPractice: { getLatestDailyWarmupCompletedContentPageId: getLatestCompletedContentPageId },
     patientDailyWarmupPresentation: { getPresentedContentPageId, setPresentedContentPageId: async () => {} },
   };
@@ -109,5 +120,16 @@ describe("resolveDailyWarmupStartPathForPatient", () => {
     expect(todayCfg.dailyWarmupItem?.page?.slug).toBe("warm-a");
     expect(homePath).toBe("/app/patient/content/warm-a?from=daily_warmup");
     expect(reminderPath).toBe("/app/patient/content/warm-b?from=daily_warmup");
+  });
+
+  it("falls back to first accessible warmup for no-tier patient", async () => {
+    const getLatest = vi.fn(async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    const deps = buildDeps(getLatest, async () => null, {
+      requiresAuthBySlug: { "warm-a": true, "warm-b": false },
+    });
+    const session = { user: { userId: "user-1", role: "client" as const, phone: null } };
+
+    const path = await resolveDailyWarmupStartPathForPatient(deps as never, session as never, false, "home");
+    expect(path).toBe("/app/patient/content/warm-b?from=daily_warmup");
   });
 });
