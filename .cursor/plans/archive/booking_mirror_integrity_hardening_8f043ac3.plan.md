@@ -284,6 +284,8 @@ flowchart TD
   - [x] Definition of Done синхронизирован с фактическими проверками
   - [x] `docs/BOOKING_REWORK_INITIATIVE/LOG.md` содержит итоговую запись с командами проверок
   - [x] `ACCEPTANCE_MIRROR_SYNC.md` больше не утверждает покрытие сценариев, которые не закрыты кодом
+  - [x] Добавлен фазовый audit trail (`phase -> commits -> verification`) в `LOG.md`
+  - [x] Закрыт closeout по scope drift: временные `.tmp/db-sync/*.dump` удалены из репозитория
 - **Проверки:**
   - [x] Финальный targeted suite из фазы 6 зелёный
   - [x] Один финальный полный `pnpm run ci` перед merge/push этого большого многоэтапного изменения
@@ -300,3 +302,26 @@ flowchart TD
 - [x] Online/null-specialist double-book и lifecycle lost-update имеют явный guard или закрытый documented decision с `cancelled` todo.
 - [x] Partial failures после canonical commit видимы в API/history/audit и не оставляют вечный `cancelling` без диагностики.
 - [x] Финальный `pnpm run ci` выполнен перед передачей в merge/push.
+
+## Execution evidence addendum (audit closeout)
+
+| Phase | Commits | Verification trail |
+|-------|---------|--------------------|
+| 0 | `377f3d51`, `d9bf2335` | Contract + defer constraints: `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`; grep checks listed in this plan |
+| 1 | `377f3d51`, `d9bf2335` | `canonicalCreate.test.ts`, doctor/admin `manual/route.test.ts` |
+| 2 | `377f3d51`, `d9bf2335`, `e823a581` | `manual-cancel/route.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts` |
+| 3 | `377f3d51`, `d9bf2335` | `pgBookingAppointmentLifecycle.test.ts`, `pgPatientBookings.test.ts` |
+| 4 | `377f3d51`, `d9bf2335` | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts` |
+| 5 | `377f3d51`, `d9bf2335` | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md` |
+| 6 | `d9bf2335`, `e823a581` | acceptance matrix + docs sync (`ACCEPTANCE_MIRROR_SYNC.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`) |
+| 7 | `e823a581` + closeout patch | final checklist alignment in plan + `LOG.md` audit ledger + targeted suite and final `pnpm run ci` record |
+
+## Scope reconciliation addendum
+
+- Intermediate commit `659f0166` included adjacent analytics/stats changes as CI-fix for shared dependencies; mirror hardening contract remained unchanged.
+- Temporary db dump artifacts accidentally committed under `.tmp/db-sync/*.dump` were removed in closeout patch:
+  - `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123244.dump`
+  - `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123251.dump`
+- Final acceptance/defer source-of-truth:
+  - `docs/BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md`
+  - `docs/BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md`

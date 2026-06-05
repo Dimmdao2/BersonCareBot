@@ -42,10 +42,10 @@ pnpm --dir apps/integrator exec vitest run \
 | Admin manual create + Rubitime rollback | `admin/.../manual/route.test.ts` |
 | Doctor manual create + Rubitime rollback | `doctor/.../manual/route.test.ts` |
 | Rubitime-first package/product rollback | `canonicalCreate.test.ts` |
-| Staff cancel partial flags (mirror/payment/notify) | `staffManualCancelAfterCanonical.test.ts`, manual-cancel routes |
+| Staff cancel partial flags (mirror/payment/membership/notify) | `staffManualCancelAfterCanonical.test.ts`, manual-cancel routes |
 | Staff reschedule bridge gate + Rubitime conflict | `manual-reschedule/route.test.ts` (doctor) |
-| Patient cancel `rubitimeMirrorFailed` + side-effect flags | `service.test.ts` |
-| Patient reschedule `rubitimeMirrorFailed` + `notificationOutcomeFailed` | `service.test.ts` |
+| Patient cancel partial flags (mirror/payment/membership/product/notify) | `service.test.ts` |
+| Patient reschedule partial flags (mirror/payment/notify) | `service.test.ts` |
 | Inbound echo / stale → no legacy fanout | `events.test.ts` |
 | Revive guard (cancelled native / terminal canonical) | `pgPatientBookings.test.ts` |
 | Lifecycle `state_conflict` + idempotent cancel | `pgBookingAppointmentLifecycle.test.ts` |

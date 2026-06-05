@@ -23,6 +23,24 @@
 - Тесты: admin `appointments/manual`, echo-guard fanout, revive-guard `pgPatientBookings`, package/product rubitime-first rollback, `pgBookingAppointmentLifecycle` state_conflict/idempotent cancel, M2M `empty_patch`; CI-fix — mock `loadDoctorAnalyticsAudience` в stats routes.
 - Docs: `RUBITIME_BOOKING_PIPELINE` § integrity, `patient-booking.md`, `api.md`, `INTEGRATOR_CONTRACT` empty_patch.
 
+**Фазовый execution ledger (audit trail):**
+
+| Фаза | Коммиты | Ключевые изменения | Проверки/артефакты |
+|------|---------|--------------------|--------------------|
+| 0. Контракт и рамки | `377f3d51`, `d9bf2335` | Контракт поведения и defer-ограничения (`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`) | `rg`-проверки в plan; docs sync в этом разделе и в `ACCEPTANCE_MIRROR_SYNC.md` |
+| 1. Create consistency | `377f3d51`, `d9bf2335` | prepayment linkage, admin/doctor parity, rollback Rubitime-first create | `canonicalCreate.test.ts`, `manual/route.test.ts` (doctor/admin) |
+| 2. Cancel/reschedule consistency | `377f3d51`, `d9bf2335`, `e823a581` | partial outcome flags после canonical commit, bridge gate, side-effect isolation | `manual-cancel/route.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts` |
+| 3. Lifecycle race hardening | `377f3d51`, `d9bf2335` | `FOR UPDATE`, `state_conflict`, idempotent cancel, revive guard | `pgBookingAppointmentLifecycle.test.ts`, `pgPatientBookings.test.ts` |
+| 4. Inbound dedup/echo | `377f3d51`, `d9bf2335` | `payloadHash`, release dedup on `PIPELINE_FAILED`, echo/stale mapping ветки | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts` |
+| 5. Timezone + cancel semantics | `377f3d51`, `d9bf2335` | branch timezone для update, `empty_patch` 400, `update-record` в контракте | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md` |
+| 6. Test matrix + docs sync | `d9bf2335`, `e823a581` | расширение regression matrix, синхронизация acceptance/architecture/module docs | `ACCEPTANCE_MIRROR_SYNC.md`, обновления `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md` |
+| 7. Финальный closeout | `e823a581` + closeout patch | финальные flags (`notificationOutcomeFailed`, `paymentOutcomeFailed`), выравнивание plan | финальный targeted suite + `pnpm run ci` (см. блок проверок ниже) |
+
+**Реконсиляция scope drift (closeout):**
+- Промежуточный коммит `659f0166` включал смежные правки analytics/stats routes как CI-fix для общих зависимостей (`loadDoctorAnalyticsAudience`) и не менял контракт mirror hardening.
+- В closeout-патче удалены случайно закоммиченные временные дампы `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123244.dump` и `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123251.dump`.
+- Итоговый source-of-truth по покрытию сценариев и defer-ограничениям: `ACCEPTANCE_MIRROR_SYNC.md` + `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`.
+
 **Проверки (локально):**
 ```bash
 pnpm --dir apps/webapp exec vitest run \

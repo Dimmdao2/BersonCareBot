@@ -95,6 +95,24 @@ describe("runStaffManualCancelAfterCanonical", () => {
     expect(flags).toEqual({ rubitimeMirrorFailed: true });
   });
 
+  it("returns membershipOutcomeFailed when package outcome apply fails", async () => {
+    const flags = await runStaffManualCancelAfterCanonical({
+      deps: deps({
+        memberships: {
+          applyCancelPackageOutcome: vi.fn().mockRejectedValue(new Error("db")),
+        },
+      }),
+      organizationId: "org-1",
+      appointmentId: "appt-1",
+      actorId: "staff-1",
+      actorType: "specialist",
+      decisionType: "package_charged",
+      appointment: baseAppointment,
+      cancelPolicy: cancelPolicy(),
+    });
+    expect(flags).toEqual({ membershipOutcomeFailed: true });
+  });
+
   it("returns paymentOutcomeFailed when payment outcome apply fails", async () => {
     const flags = await runStaffManualCancelAfterCanonical({
       deps: deps({

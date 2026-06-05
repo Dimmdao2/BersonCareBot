@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const queryMock = vi.hoisted(() => vi.fn(async () => ({ rows: [] as unknown[] })));
+const queryMock = vi.hoisted(() =>
+  vi.fn<(sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }>>(
+    async () => ({ rows: [] }),
+  ),
+);
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({ query: queryMock })));
 
 vi.mock("@/infra/db/client", () => ({
@@ -31,7 +35,10 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
     });
 
     expect(queryMock).toHaveBeenCalledTimes(1);
-    const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
+    const firstCall = queryMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const sql = String(firstCall![0]);
+    const params = firstCall![1] as unknown[];
     expect(sql).toContain("Запись сегодня");
     expect(sql).toContain("<> ALL(");
     expect(params).toContain(EXCLUDED);
@@ -48,7 +55,9 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
       excludedUserIds: [],
     });
 
-    const [sql] = queryMock.mock.calls[0] as [string];
+    const firstCall = queryMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const sql = String(firstCall![0]);
     expect(sql).toContain("Запись на неделе");
     expect(sql).toContain("a.start_at >= $2::timestamptz");
     expect(sql).toContain("a.start_at < $3::timestamptz");
@@ -66,7 +75,10 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
       windowHours: 48,
     });
 
-    const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
+    const firstCall = queryMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const sql = String(firstCall![0]);
+    const params = firstCall![1] as unknown[];
     expect(sql).toContain("reminder_occurrence_history");
     expect(sql).toContain("Отправлено");
     expect(params[0]).toBe(48);
@@ -86,7 +98,10 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
       windowHours: 24,
     });
 
-    const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
+    const firstCall = queryMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const sql = String(firstCall![0]);
+    const params = firstCall![1] as unknown[];
     expect(sql).toContain("product_analytics_events_recent");
     expect(sql).toContain("push_open");
     expect(params[0]).toBe(24);
