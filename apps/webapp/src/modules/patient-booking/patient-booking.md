@@ -11,7 +11,7 @@ Admin keys (`system_settings`, scope `admin`):
 
 | `booking_slots_read_source` | Create |
 |-----------------------------|--------|
-| `rubitime` | Rubitime-first: `createRecord` обязателен, канон после; rollback `cancelRecord` при сбое; без `assertSlotAvailable` |
+| `rubitime` | Rubitime-first: `createRecord` обязателен, канон adopt после projection (retry mapping; **без** native `createAppointment` fallback); при провале projection — `rubitime_projection_not_ready` + rollback `deleteRecord`; без `assertSlotAvailable` на create **и** reschedule |
 | `canonical` | Канон primary; Rubitime best-effort при `booking_rubitime_bridge_enabled` |
 
 Код: `canonicalCreate.ts`, `slotsReadSource.ts`, `doctorAppointmentsReadSwitch.ts`, `bookingCalendarReadSwitch.ts`.
@@ -47,7 +47,9 @@ Admin keys (`system_settings`, scope `admin`):
 
 1. Preview: `GET /api/booking/actions?bookingId=` → `previewCancel` / `previewReschedule` (политики `booking-policies`, anti-bypass §8.4).
 2. **Отмена:** `booking-appointment-lifecycle.patientCancel` (канон) **до** best-effort Rubitime `cancelRecord`; затем `patient_bookings` → `cancelled`; проекция; `emitBookingEvent('booking.cancelled')`; `notifications_sent` (+ `rubitime_mirror` при сбое моста). API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed`, `productOutcomeFailed`) — канон уже отменён.
-3. **Перенос:** проверка слота с `excludeAppointmentId`; lifecycle → `patient_bookings.updateSlotsAfterReschedule`; проекция (`native.rescheduled`); `emitBookingEvent('booking.rescheduled')` (integrator schema + handler); история в `be_appointment_reschedules`. API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`).
+3. **Перенос:** при `canonical` — проверка слота с `excludeAppointmentId`; при `rubitime` — skip assert (как create); lifecycle → `patient_bookings.updateSlotsAfterReschedule`; проекция (`native.rescheduled`); `emitBookingEvent('booking.rescheduled')` (integrator schema + handler); история в `be_appointment_reschedules`. API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`).
+
+**UI partial outcomes (2026-06-06):** после успешной отмены/переноса при `rubitimeMirrorFailed` — warning toast (`shared/booking/bookingPartialOutcomeToast.ts`) в `CabinetBookingActions`, `useRescheduleBooking`, `ConfirmStepClient`; остальные partial flags пациенту не показываются.
 
 Без канона — legacy-отмена только через Rubitime + `patient_bookings` (без политик).
 

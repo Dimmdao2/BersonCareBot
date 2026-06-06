@@ -85,4 +85,49 @@ describe("POST /api/booking/reschedule", () => {
     );
     expect(response.status).toBe(200);
   });
+
+  it("returns 400 when booking has no canonical appointment", async () => {
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
+    rescheduleBookingMock.mockResolvedValue({ ok: false, error: "no_canonical" });
+    const response = await POST(
+      new Request("http://localhost/api/booking/reschedule", {
+        method: "POST",
+        body: JSON.stringify({
+          bookingId: "2f14566f-a4de-4ab4-9336-5ddf806cd6ce",
+          slotStart: "2026-06-01T10:00:00.000Z",
+          slotEnd: "2026-06-01T11:00:00.000Z",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("returns partial failure flags from service on successful reschedule", async () => {
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
+    rescheduleBookingMock.mockResolvedValue({
+      ok: true,
+      booking: { id: "2f14566f-a4de-4ab4-9336-5ddf806cd6ce" },
+      rubitimeMirrorFailed: true,
+      notificationOutcomeFailed: true,
+      paymentOutcomeFailed: true,
+    });
+    const response = await POST(
+      new Request("http://localhost/api/booking/reschedule", {
+        method: "POST",
+        body: JSON.stringify({
+          bookingId: "2f14566f-a4de-4ab4-9336-5ddf806cd6ce",
+          slotStart: "2026-06-01T10:00:00.000Z",
+          slotEnd: "2026-06-01T11:00:00.000Z",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as Record<string, unknown>;
+    expect(json.ok).toBe(true);
+    expect(json.rubitimeMirrorFailed).toBe(true);
+    expect(json.notificationOutcomeFailed).toBe(true);
+    expect(json.paymentOutcomeFailed).toBe(true);
+  });
 });

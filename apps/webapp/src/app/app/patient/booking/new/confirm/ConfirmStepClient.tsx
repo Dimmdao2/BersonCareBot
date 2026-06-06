@@ -15,6 +15,7 @@ import {
   formatBookingTimeShortRu,
 } from "@/shared/lib/formatBusinessDateTime";
 import toast from "react-hot-toast";
+import { showBookingPartialOutcomeToast } from "@/shared/booking/bookingPartialOutcomeToast";
 import { cn } from "@/lib/utils";
 import {
   patientButtonPrimaryClass,
@@ -284,11 +285,11 @@ export function ConfirmStepClient({
                 slotStart: slot.startAt,
                 slotEnd: slot.endAt,
               })
-              .then((ok) => {
-                if (ok) {
-                  toast.success("Запись перенесена");
-                  router.push(successRedirectPath);
-                }
+              .then((result) => {
+                if (!result.ok) return;
+                toast.success("Запись перенесена");
+                showBookingPartialOutcomeToast(result.partial);
+                router.push(successRedirectPath);
               });
             return;
           }

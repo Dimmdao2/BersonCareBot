@@ -66,6 +66,8 @@ describe("pgWebPushOnlyReminders (pg SQL)", () => {
     expect(resetSql).toContain("status = 'planned'");
     expect(selectSql).toContain("FOR UPDATE SKIP LOCKED");
     expect(selectSql).toContain("status = 'planned'");
+    const updateSql = drizzleSqlFragmentToApproximateSql(runWebappSqlMock.mock.calls[2]?.[1]);
+    expect(updateSql).toContain("::uuid[]");
   });
 
   it("markOccurrenceSent sets status sent", async () => {

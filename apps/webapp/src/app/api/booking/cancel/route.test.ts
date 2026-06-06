@@ -74,4 +74,31 @@ describe("POST /api/booking/cancel", () => {
     }));
     expect(response.status).toBe(200);
   });
+
+  it("returns partial failure flags from service on successful canonical cancel", async () => {
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
+    cancelBookingMock.mockResolvedValue({
+      ok: true,
+      lateCancellation: true,
+      rubitimeMirrorFailed: true,
+      notificationOutcomeFailed: true,
+      paymentOutcomeFailed: true,
+      membershipOutcomeFailed: true,
+      productOutcomeFailed: true,
+    });
+    const response = await POST(new Request("http://localhost/api/booking/cancel", {
+      method: "POST",
+      body: JSON.stringify({ bookingId: "2f14566f-a4de-4ab4-9336-5ddf806cd6ce" }),
+      headers: { "content-type": "application/json" },
+    }));
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as Record<string, unknown>;
+    expect(json.ok).toBe(true);
+    expect(json.lateCancellation).toBe(true);
+    expect(json.rubitimeMirrorFailed).toBe(true);
+    expect(json.notificationOutcomeFailed).toBe(true);
+    expect(json.paymentOutcomeFailed).toBe(true);
+    expect(json.membershipOutcomeFailed).toBe(true);
+    expect(json.productOutcomeFailed).toBe(true);
+  });
 });

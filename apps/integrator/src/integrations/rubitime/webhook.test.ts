@@ -14,6 +14,12 @@ vi.mock('../../infra/db/repos/integrationDataQualityIncidents.js', () => ({
   upsertIntegrationDataQualityIncident: vi.fn(async () => ({ occurrences: 2 })),
 }));
 
+vi.mock('./runtimeConfig.js', () => ({
+  getRubitimeWebhookToken: vi.fn(async () => 'test-rubitime-webhook-token'),
+  getRubitimeApiKey: vi.fn(async () => 'test-rubitime-api-key'),
+  resetRubitimeRuntimeConfigCache: vi.fn(),
+}));
+
 describe('rubitime webhook routes', () => {
   it('POST /webhook/rubitime/:token returns 200 and emits gateway event', async () => {
     const handleIncomingEvent = vi.fn().mockResolvedValue({ status: 'accepted' });

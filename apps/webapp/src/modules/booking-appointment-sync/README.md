@@ -22,9 +22,10 @@
 
 | Путь | Порядок |
 |------|---------|
+| Patient create (`slots=rubitime`) | Rubitime `createRecord` → adopt projection mapping (`rubitimeCreateRollback.ts`); **без** native `createAppointment` fallback |
 | Staff `manual-reschedule` | Rubitime → канон (проверка слота) |
 | Staff `manual-cancel` | канон `staffCancel` → Rubitime `cancelRecord` |
-| Patient cancel/reschedule | канон lifecycle → best-effort Rubitime (`patientMirrorOutbound.ts`) |
+| Patient cancel/reschedule | канон lifecycle → best-effort Rubitime (`patientMirrorOutbound.ts`); при `slots=rubitime` reschedule — без `assertSlotAvailable` |
 
 Shared staff helpers: `app-layer/booking/staffRubitimeMirrorOutbound.ts`.
 
@@ -34,8 +35,8 @@ Integrator: `normalizeUpdateRecordPatch.ts` (`record`, `datetime_end`, scope ids
 
 - [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../../../../docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
 - [`docs/BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md`](../../../../docs/BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md)
-- [`docs/BOOKING_REWORK_INITIATIVE/LOG.md`](../../../../docs/BOOKING_REWORK_INITIATIVE/LOG.md) § 2026-06-05
-- План (архив): [`.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md`](../../../../.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md)
+- [`docs/BOOKING_REWORK_INITIATIVE/LOG.md`](../../../../docs/BOOKING_REWORK_INITIATIVE/LOG.md) § 2026-06-05 (mirror), § 2026-06-06 (gaps closeout)
+- Планы (архив): [bidirectional sync](../../../../.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md), [gaps closeout](../../../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md)
 
 ## DI
 

@@ -14,7 +14,7 @@
 | Staff reschedule | Rubitime → канон | Rollback Rubitime; канон не меняется |
 | Staff/admin cancel | канон → Rubitime | API `ok` + флаги partial failure; канон уже отменён |
 | Patient cancel/reschedule | канон → best-effort Rubitime | API `ok` + `rubitimeMirrorFailed` при сбое mirror |
-| Patient create (rubitime-first) | Rubitime → канон | Rollback Rubitime при ошибке канона |
+| Patient create (rubitime-first) | Rubitime → канон (adopt projection; **без** native `createAppointment` fallback) | Rollback `deleteRecord` при ошибке канона / `rubitime_projection_not_ready` |
 | Admin manual create | как doctor при mapping | Rubitime create+mapping или skip |
 
 ## Bridge flag
@@ -44,7 +44,8 @@
 ## Cancel semantics
 
 - Единый путь отмены в **booking-engine** и patient mirror: `update-record` с `status: 4` / `cancelRecord` M2M (не `remove-record` для обычной отмены записи в кабинете).
-- **Legacy defer:** `POST /api/doctor/appointments/rubitime/cancel` по-прежнему проксирует `remove-record` — отдельный backlog; не использовать для новых интеграций.
+- **Create rollback (rubitime-first):** при сбое после `create-record` — `deleteRecord` / `remove-record` (hard delete + GCal delete на integrator) и cancel orphan `be_appointments`; это **не** обычная отмена записи.
+- **Legacy doctor API:** `POST /api/doctor/appointments/rubitime/cancel` — `update-record` с `status: 4` (как `cancelRecord` M2M), не `remove-record`.
 
 ## Online double-book (defer)
 

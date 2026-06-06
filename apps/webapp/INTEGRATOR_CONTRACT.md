@@ -469,8 +469,8 @@ Canonical linking rules:
 
 **Webapp proxy (doctor):**
 
-- `POST /api/doctor/appointments/rubitime/update`
-- `POST /api/doctor/appointments/rubitime/cancel`
+- `POST /api/doctor/appointments/rubitime/update` → integrator `update-record` (patch слота/статуса).
+- `POST /api/doctor/appointments/rubitime/cancel` → integrator **`update-record`** с **`status: 4`** (как patient/staff `cancelRecord` M2M), **не** `remove-record`. Hard delete (`remove-record`) — только create-rollback и ops cleanup.
 
 Те же подписи к integrator формируются на стороне webapp через общий webhook secret.
 

@@ -1,5 +1,5 @@
 /**
- * POST /api/doctor/appointments/rubitime/cancel — прокси на integrator api2/remove-record (M2M).
+ * POST /api/doctor/appointments/rubitime/cancel — прокси на integrator update-record (status 4).
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -31,8 +31,9 @@ export async function POST(request: Request) {
       ? String(Math.trunc(parsed.data.recordId))
       : parsed.data.recordId.trim();
 
-  const result = await postIntegratorSignedJson("/api/bersoncare/rubitime/remove-record", {
+  const result = await postIntegratorSignedJson("/api/bersoncare/rubitime/update-record", {
     recordId,
+    status: 4,
   });
 
   if (result.status === 0) {

@@ -91,6 +91,9 @@ export async function POST(request: Request) {
     if (message === "booking_confirm_failed") {
       return NextResponse.json({ ok: false, error: "booking_confirm_failed" }, { status: 503 });
     }
+    if (message === "rubitime_projection_not_ready") {
+      return NextResponse.json({ ok: false, error: "rubitime_projection_not_ready" }, { status: 503 });
+    }
     if (message === "branch_service_not_found") {
       return NextResponse.json({ ok: false, error: "branch_service_not_found" }, { status: 404 });
     }

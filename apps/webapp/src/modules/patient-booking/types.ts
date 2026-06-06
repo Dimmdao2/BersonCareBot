@@ -126,3 +126,8 @@ export type CancelPatientBookingInput = {
   bookingId: string;
   reason?: string;
 };
+
+/** Partial success flags from patient cancel/reschedule API (subset shown in UI). */
+export type PatientBookingPartialOutcome = {
+  rubitimeMirrorFailed?: true;
+};

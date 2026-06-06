@@ -1,5 +1,47 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-06 — Booking gaps closeout (rubitime-first overlap class + parity)
+
+**План:** [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md).
+
+**Код:**
+- `canonicalCreate.ts` + `rubitimeCreateRollback.ts`: retry projection mapping; **запрет** native `createAppointment` fallback; `rubitime_projection_not_ready` + rollback `deleteRecord`.
+- `service.ts`: reschedule skip `assertSlotAvailable` при `slots=rubitime`; legacy create rollback → `deleteRecord`.
+- `staffRubitimeManualBooking.ts`: create-rollback → `deleteRecord`.
+- `doctor/appointments/rubitime/cancel`: `update-record` status 4 (не `remove-record`).
+- Patient UI: `bookingPartialOutcomeToast` + `CabinetBookingActions` / `useRescheduleBooking` / `ConfirmStepClient`.
+- `pgWebPushOnlyReminders`: `ANY(${ids}::uuid[])`.
+
+**Доки:** `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`, `patient-booking.md`, `ACCEPTANCE_MIRROR_SYNC.md`, `api.md`, `RUBITIME_BOOKING_PIPELINE.md`, `README.md`, `ROADMAP.md`, `booking-appointment-sync/README.md`.
+
+**Docs sync (post-closeout):** выровнены `RUBITIME_BOOKING_PIPELINE.md` (rubitime-first adopt, `deleteRecord` rollback, reschedule skip assert, patient partial UI), `ACCEPTANCE_MIRROR_SYNC.md` (снят defer doctor cancel, smoke #7–8), пути планов в LOG/README/archive; audit-план перенесён в [`.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md`](../../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md).
+
+**Проверки:** targeted vitest + mirror bundle + `pnpm run ci` (в PR).
+
+**Хвосты (догон после аудита):** `staffRubitimeManualBooking` → shared `rollbackFailedRubitimeCreate` + `finalizeStaffManualRubitimeSyncSuccess` + integration rollback test; тест reschedule assert при `canonical`; `INTEGRATOR_CONTRACT` doctor cancel = status 4; явный handler `rubitime_projection_not_ready` в create route; `useRescheduleBooking.test.ts`, `CabinetBookingActions.test.tsx`; warning toast style; план в `.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`.
+
+**Prod deploy:** см. §2026-06-06 аудит — smoke CR-A / CN-P / RS-P после деплоя.
+
+## 2026-06-06 — Аудит сценариев записи/отмены/переноса + фиксы rubitime-first
+
+**Контекст:** prod-инцидент rubitime-first create (double insert → overlap → rollback → orphan GCal). План: [`.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md`](../../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md).
+
+**Код:**
+- `canonicalCreate.ts`: `rollbackRubitimeFirstCreate` — `deleteRecord` + cancel orphan `be_appointments` (G2/G3); package/product rollback унифицирован на `deleteRecord`.
+- `cancel/route.ts`, `reschedule/route.ts`: проброс partial flags из service (G1).
+- `integrator/recordM2mRoute.ts`: GCal delete на `remove-record` (ранее).
+- Тесты: +1 `markConfirmed` rollback; partial flags в cancel/reschedule routes; webhook tests mock `getRubitimeWebhookToken`.
+
+**Доки:** `patient-booking.md`, `BOOKING_MIRROR_INTEGRITY_CONTRACT.md` § create rollback vs cancel.
+
+**Проверки:** mirror bundle webapp 224 + integrator 53; `pnpm run ci` green (~6.5 min).
+
+**Prod deploy (ручной):**
+1. Деплой `webapp` + `integrator` на хост.
+2. Smoke CR-A: patient create → 1× Rubitime, 1× `be_appointments`, 1× GCal, `confirmed`.
+3. Cleanup orphan GCal от инцидента (Rubitime IDs 8449506, 8449507).
+4. Опционально: `failed_sync` rows в `patient_bookings`; projection outbox #1606 → `cancelled` если stale.
+
 ## 2026-06-06 — Закрытие инициативы (этап 5, sign-off владельца)
 
 - Ручной проход UI пройден владельцем постановки; подтверждение: **«Новый интерфейс записи принят»**.
@@ -29,7 +71,7 @@
 - `notificationOutcomeFailed` в patient cancel/reschedule и staff `runStaffManualCancelAfterCanonical`.
 - `paymentOutcomeFailed` на patient reschedule при сбое carry-over.
 - Тесты: `staffManualCancelAfterCanonical.test.ts`, partial flags в manual-cancel routes, patient side-effect/reschedule flags в `service.test.ts`, `markConfirmedByCanonicalAppointment` в `pgPatientBookings.test.ts`.
-- Docs: полная матрица в `ACCEPTANCE_MIRROR_SYNC.md`; defer legacy `remove-record` + online double-book в `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`; partial flags по поверхностям (`9e2ef6c3`).
+- Docs: полная матрица в `ACCEPTANCE_MIRROR_SYNC.md`; defer legacy `remove-record` + online double-book в `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`; partial flags по поверхностям (`9e2ef6c3`). *Defer doctor `remove-record` снят в gaps closeout 2026-06-06 — см. § выше.*
 - Plan archive: frontmatter `status: completed`, todos `completed`, чеклисты `[x]`, `closeoutCommits` в YAML.
 
 **Доработка (audit closeout):**

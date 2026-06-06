@@ -5,9 +5,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConfirmStepClient } from "./ConfirmStepClient";
 import { bookingNewHref } from "../../bookingNewHref";
+import type { RescheduleBookingResult } from "../../../cabinet/useRescheduleBooking";
 
 const createBooking = vi.fn(async () => true);
+const rescheduleBooking = vi.fn(async (): Promise<RescheduleBookingResult> => ({ ok: true }));
 const push = vi.fn();
+const partialToast = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
@@ -21,6 +24,19 @@ vi.mock("../../../cabinet/useCreateBooking", () => ({
   }),
 }));
 
+vi.mock("../../../cabinet/useRescheduleBooking", () => ({
+  useRescheduleBooking: () => ({
+    submitting: false,
+    error: null,
+    rescheduleBooking,
+    successRedirectPath: "/app/patient/cabinet",
+  }),
+}));
+
+vi.mock("@/shared/booking/bookingPartialOutcomeToast", () => ({
+  showBookingPartialOutcomeToast: (...args: unknown[]) => partialToast(...args),
+}));
+
 const baseProps = {
   slotStart: "2026-04-10T10:00:00.000Z",
   slotEnd: "2026-04-10T11:00:00.000Z",
@@ -32,7 +48,10 @@ const baseProps = {
 describe("ConfirmStepClient", () => {
   beforeEach(() => {
     createBooking.mockClear();
+    rescheduleBooking.mockClear();
+    partialToast.mockClear();
     push.mockClear();
+    rescheduleBooking.mockResolvedValue({ ok: true });
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -116,6 +135,29 @@ describe("ConfirmStepClient", () => {
 
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith(bookingNewHref("msk"));
+    });
+  });
+
+  it("shows partial outcome toast on reschedule when rubitime mirror failed", async () => {
+    rescheduleBooking.mockResolvedValue({
+      ok: true,
+      partial: { rubitimeMirrorFailed: true },
+    });
+    const user = userEvent.setup();
+    render(
+      <ConfirmStepClient
+        type="online"
+        category="general"
+        rescheduleBookingId="550e8400-e29b-41d4-a716-446655440099"
+        {...baseProps}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Подтвердить запись/i }));
+
+    await waitFor(() => {
+      expect(rescheduleBooking).toHaveBeenCalledTimes(1);
+      expect(partialToast).toHaveBeenCalledWith({ rubitimeMirrorFailed: true });
     });
   });
 });

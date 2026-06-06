@@ -41,5 +41,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
   }
-  return NextResponse.json({ ok: true }, { status: 200 });
+  const { ok: _ok, ...partial } = result;
+  return NextResponse.json({ ok: true, ...partial }, { status: 200 });
 }

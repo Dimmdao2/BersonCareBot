@@ -192,7 +192,7 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
         if (ids.length > 0) {
           await runWebappSql(
             tx,
-            sql`UPDATE webapp_reminder_occurrences SET status = 'queued', updated_at = now() WHERE id = ANY(${ids})`,
+            sql`UPDATE webapp_reminder_occurrences SET status = 'queued', updated_at = now() WHERE id = ANY(${ids}::uuid[])`,
           );
         }
         return sel.rows.map(

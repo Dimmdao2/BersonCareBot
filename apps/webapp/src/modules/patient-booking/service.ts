@@ -374,7 +374,7 @@ export function createPatientBookingService(input: {
             (err instanceof Error && err.message === "slot_overlap") || isPostgresExclusionViolation(err);
           if (slotOverlap) {
             try {
-              await input.syncPort.cancelRecord(rubitimeIdTrimmed);
+              await input.syncPort.deleteRecord(rubitimeIdTrimmed);
             } catch (cancelErr) {
               console.error("[patient-booking] failed to rollback rubitime record after slot overlap", {
                 bookingId: pending.id,
@@ -392,7 +392,7 @@ export function createPatientBookingService(input: {
           }
           await input.bookingsPort.markFailedSync(pending.id);
           try {
-            await input.syncPort.cancelRecord(rubitimeIdTrimmed);
+            await input.syncPort.deleteRecord(rubitimeIdTrimmed);
           } catch (cancelErr) {
             console.error("[patient-booking] failed to rollback rubitime record after confirm failure", {
               bookingId: pending.id,
@@ -544,32 +544,35 @@ export function createPatientBookingService(input: {
         ),
       );
 
-      try {
-        if (row.bookingType === "in_person" && row.branchServiceId) {
-          await input.bookingScheduling.assertSlotAvailable({
-            branchServiceId: row.branchServiceId,
-            slotStart: rescheduleInput.slotStart,
-            slotEnd: rescheduleInput.slotEnd,
-            durationMinutes,
-            excludeAppointmentId: row.canonicalAppointmentId,
-          });
-        } else {
-          const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
-          await input.bookingScheduling.assertSlotAvailable({
-            organizationId: orgId,
-            specialistId: null,
-            roomId: null,
-            slotStart: rescheduleInput.slotStart,
-            slotEnd: rescheduleInput.slotEnd,
-            durationMinutes,
-            excludeAppointmentId: row.canonicalAppointmentId,
-          });
+      const slotsReadSource = (await input.resolveSlotsReadSource?.()) ?? "canonical";
+      if (slotsReadSource !== "rubitime") {
+        try {
+          if (row.bookingType === "in_person" && row.branchServiceId) {
+            await input.bookingScheduling.assertSlotAvailable({
+              branchServiceId: row.branchServiceId,
+              slotStart: rescheduleInput.slotStart,
+              slotEnd: rescheduleInput.slotEnd,
+              durationMinutes,
+              excludeAppointmentId: row.canonicalAppointmentId,
+            });
+          } else {
+            const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+            await input.bookingScheduling.assertSlotAvailable({
+              organizationId: orgId,
+              specialistId: null,
+              roomId: null,
+              slotStart: rescheduleInput.slotStart,
+              slotEnd: rescheduleInput.slotEnd,
+              durationMinutes,
+              excludeAppointmentId: row.canonicalAppointmentId,
+            });
+          }
+        } catch (err) {
+          if (isPostgresExclusionViolation(err) || (err instanceof Error && err.message === "slot_overlap")) {
+            return { ok: false, error: "slot_overlap" };
+          }
+          throw err;
         }
-      } catch (err) {
-        if (isPostgresExclusionViolation(err) || (err instanceof Error && err.message === "slot_overlap")) {
-          return { ok: false, error: "slot_overlap" };
-        }
-        throw err;
       }
 
       const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();

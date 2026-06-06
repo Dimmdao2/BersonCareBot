@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { routePaths } from "@/app-layer/routes/paths";
+import type { PatientBookingPartialOutcome } from "@/modules/patient-booking/types";
+import {
+  parsePatientBookingPartialOutcome,
+} from "@/shared/booking/bookingPartialOutcomeToast";
 import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
+
+export type RescheduleBookingResult =
+  | { ok: true; partial?: PatientBookingPartialOutcome }
+  | { ok: false };
 
 const ERROR_RU: Record<string, string> = {
   not_found: "Запись не найдена",
@@ -31,7 +39,7 @@ export function useRescheduleBooking() {
     slotStart: string;
     slotEnd: string;
     reason?: string;
-  }): Promise<boolean> {
+  }): Promise<RescheduleBookingResult> {
     setSubmitting(true);
     setError(null);
     try {
@@ -40,7 +48,7 @@ export function useRescheduleBooking() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      const json = (await res.json().catch(() => ({}))) as {
+      const json = (await res.json().catch(() => ({}))) as Record<string, unknown> & {
         ok?: boolean;
         error?: string;
         redirectTo?: string;
@@ -48,15 +56,15 @@ export function useRescheduleBooking() {
       if (!res.ok || json.ok !== true) {
         if (redirectIfPatientActivationRequired(json, router)) {
           setError(null);
-          return false;
+          return { ok: false };
         }
         setError(mapRescheduleErrorCodeToRu(json.error));
-        return false;
+        return { ok: false };
       }
-      return true;
+      return { ok: true, partial: parsePatientBookingPartialOutcome(json) };
     } catch {
       setError("Ошибка сети при переносе");
-      return false;
+      return { ok: false };
     } finally {
       setSubmitting(false);
     }

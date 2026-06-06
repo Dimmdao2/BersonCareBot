@@ -37,6 +37,12 @@ vi.mock('../../infra/operatorIncident/reportOperatorFailure.js', () => ({
   reportOperatorFailure: mockReportOperatorFailure,
 }));
 
+vi.mock('./runtimeConfig.js', () => ({
+  getRubitimeWebhookToken: vi.fn(async () => 'test-rubitime-webhook-token'),
+  getRubitimeApiKey: vi.fn(async () => 'test-rubitime-api-key'),
+  resetRubitimeRuntimeConfigCache: vi.fn(),
+}));
+
 describe('rubitime webhook — Google Calendar failure → operator incident', () => {
   it('calls reportOperatorFailure when syncRubitimeWebhookBodyToGoogleCalendar rejects', async () => {
     mockPrepare.mockResolvedValue({

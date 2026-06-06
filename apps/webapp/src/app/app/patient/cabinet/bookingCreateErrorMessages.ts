@@ -4,6 +4,9 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
   if (code === "slot_overlap" || code === "slot_already_taken" || code === "duplicate_local_booking_id") {
     return "Это время уже занято. Выберите другой слот.";
   }
+  if (code === "rubitime_projection_not_ready") {
+    return "Не удалось завершить запись. Попробуйте ещё раз.";
+  }
   if (code === "booking_confirm_failed" || code.startsWith("rubitime_") || code === "integrator_not_configured") {
     return "Не удалось подтвердить запись. Попробуйте еще раз.";
   }

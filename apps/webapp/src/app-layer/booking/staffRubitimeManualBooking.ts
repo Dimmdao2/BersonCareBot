@@ -8,6 +8,7 @@ import {
   staffBookingContactNameFromAppointment,
 } from "@/app-layer/booking/staffBookingIntegratorEvent";
 import { logBookingRubitimeMirrorFailed } from "@/modules/patient-booking/bookingLifecycleObservability";
+import { rollbackFailedRubitimeCreate } from "@/modules/patient-booking/rubitimeCreateRollback";
 
 const RUBITIME_CONFLICT_ERRORS = new Set([
   "slot_already_taken",
@@ -20,6 +21,20 @@ export function isExternalSlotConflict(error: string): boolean {
   return RUBITIME_CONFLICT_ERRORS.has(error);
 }
 
+/** Staff manual create-rollback: hard-delete Rubitime record (canonical rollback is separate). */
+export async function rollbackStaffFailedRubitimeCreateRecord(input: {
+  syncPort: BookingSyncPort;
+  organizationId: string;
+  rubitimeId: string;
+}): Promise<void> {
+  await rollbackFailedRubitimeCreate({
+    syncPort: input.syncPort,
+    organizationId: input.organizationId,
+    rubitimeId: input.rubitimeId,
+    rollbackSource: "staff_manual_create_rollback",
+  });
+}
+
 export type StaffRubitimeSyncContext = {
   rubitimeBranchId: string;
   rubitimeCooperatorId: string;
@@ -30,11 +45,32 @@ export type StaffManualRubitimeSyncResult =
   | { ok: true; rubitimeId: string; projectionWarning?: string }
   | { ok: false; error: "external_slot_taken" | "rubitime_sync_failed" };
 
+export function finalizeStaffManualRubitimeSyncSuccess(input: {
+  raw: Record<string, unknown>;
+  appointmentId: string;
+  rubitimeId: string;
+}): StaffManualRubitimeSyncResult {
+  const projectionWarning =
+    typeof input.raw.projectionWarning === "string" && input.raw.projectionWarning.trim()
+      ? input.raw.projectionWarning.trim()
+      : undefined;
+  if (projectionWarning) {
+    console.warn("[staff-manual-create] integrator projectionWarning", {
+      appointmentId: input.appointmentId,
+      rubitimeId: input.rubitimeId,
+      projectionWarning,
+    });
+  }
+  return { ok: true, rubitimeId: input.rubitimeId, projectionWarning };
+}
+
 export async function syncStaffManualAppointmentToRubitime(input: {
   syncPort: BookingSyncPort;
   appointment: BeAppointment;
   syncContext: StaffRubitimeSyncContext;
+  finalizeSuccess?: typeof finalizeStaffManualRubitimeSyncSuccess;
 }): Promise<StaffManualRubitimeSyncResult> {
+  const finalizeSuccess = input.finalizeSuccess ?? finalizeStaffManualRubitimeSyncSuccess;
   let createdRubitimeId: string | null = null;
   try {
     const syncResult = await input.syncPort.createRecord({
@@ -49,31 +85,19 @@ export async function syncStaffManualAppointmentToRubitime(input: {
     });
     createdRubitimeId = syncResult.rubitimeId?.trim() || null;
     if (!createdRubitimeId) throw new Error("rubitime_id_missing");
-    const raw = syncResult.raw ?? {};
-    const projectionWarning =
-      typeof raw.projectionWarning === "string" && raw.projectionWarning.trim()
-        ? raw.projectionWarning.trim()
-        : undefined;
-    if (projectionWarning) {
-      console.warn("[staff-manual-create] integrator projectionWarning", {
-        appointmentId: input.appointment.id,
-        rubitimeId: createdRubitimeId,
-        projectionWarning,
-      });
-    }
-    return { ok: true, rubitimeId: createdRubitimeId, projectionWarning };
+    return finalizeSuccess({
+      raw: (syncResult.raw ?? {}) as Record<string, unknown>,
+      appointmentId: input.appointment.id,
+      rubitimeId: createdRubitimeId,
+    });
   } catch (syncErr) {
     const syncCode = syncErr instanceof Error ? syncErr.message : "rubitime_sync_failed";
     if (createdRubitimeId) {
-      try {
-        if (input.syncPort.cancelRecord) {
-          await input.syncPort.cancelRecord(createdRubitimeId);
-        } else {
-          await input.syncPort.deleteRecord(createdRubitimeId);
-        }
-      } catch {
-        // Best-effort cleanup of external transient record.
-      }
+      await rollbackStaffFailedRubitimeCreateRecord({
+        syncPort: input.syncPort,
+        organizationId: input.appointment.organizationId,
+        rubitimeId: createdRubitimeId,
+      });
     }
     logBookingRubitimeMirrorFailed({
       bookingId: input.appointment.id,

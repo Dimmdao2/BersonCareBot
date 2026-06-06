@@ -9,6 +9,10 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { patientInlineLinkClass } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import {
+  parsePatientBookingPartialOutcome,
+  showBookingPartialOutcomeToast,
+} from "@/shared/booking/bookingPartialOutcomeToast";
 
 const CANCEL_MSG: Record<string, string> = {
   cancel_free: "Отмена без штрафа",
@@ -94,12 +98,13 @@ export function CabinetBookingActions({ row }: Props) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ bookingId: row.id }),
             });
-            const json = (await res.json()) as { ok?: boolean; error?: string };
+            const json = (await res.json()) as Record<string, unknown> & { ok?: boolean; error?: string };
             if (!res.ok || !json.ok) {
               toast.error(json.error === "staff_confirmation_required" ? "Нужно согласование" : "Не удалось отменить");
               return;
             }
             toast.success("Запись отменена");
+            showBookingPartialOutcomeToast(parsePatientBookingPartialOutcome(json));
             router.refresh();
           });
         }}

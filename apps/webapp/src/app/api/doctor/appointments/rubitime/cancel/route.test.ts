@@ -48,8 +48,8 @@ describe("POST /api/doctor/appointments/rubitime/cancel", () => {
 
     expect(res.status).toBe(200);
     expect(postIntegratorSignedJsonMock).toHaveBeenCalledWith(
-      "/api/bersoncare/rubitime/remove-record",
-      { recordId: "42" }
+      "/api/bersoncare/rubitime/update-record",
+      { recordId: "42", status: 4 },
     );
   });
 });
