@@ -59,6 +59,36 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
     expect(sql).toContain("Запись на неделе");
     expect(sql).toContain("a.start_at >= $2::timestamptz");
     expect(sql).toContain("a.start_at < $3::timestamptz");
+    expect(sql).toContain("a.status <> ALL($4::text[])");
+    expect((firstCall![1] as unknown[])[3]).toEqual([
+      "cancelled_by_patient",
+      "cancelled_by_specialist",
+      "late_cancellation",
+      "no_show",
+    ]);
+  });
+
+  it("today_appointments_today excludes canceled booking engine statuses", async () => {
+    const port = createPgDoctorAnalyticsMetricAccountsPort(async () => ORG_ID);
+    await port.listMetricAccounts({
+      metric: "today_appointments_today",
+      period: { preset: "week" },
+      limit: 10,
+      offset: 0,
+      iana: "Europe/Moscow",
+      excludedUserIds: [],
+    });
+
+    const firstCall = runWebappPgTextMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const sql = String(firstCall![0]);
+    expect(sql).toContain("a.status <> ALL($4::text[])");
+    expect((firstCall![1] as unknown[])[3]).toEqual([
+      "cancelled_by_patient",
+      "cancelled_by_specialist",
+      "late_cancellation",
+      "no_show",
+    ]);
   });
 
   it("notif_reminders_sent passes windowHours into SQL params", async () => {
@@ -103,6 +133,7 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
     const sql = String(firstCall![0]);
     expect(sql).toContain("appointment_records");
     expect(sql).toContain("Запись на неделе");
+    expect(sql).toContain("ar.status <> 'canceled'");
     expect(sql).not.toContain("be_appointments");
   });
 

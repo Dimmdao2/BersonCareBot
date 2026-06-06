@@ -46,7 +46,7 @@ export const doctorClientBlockedBannerClass =
 
 /** Compact client list row link (§5f). */
 export const doctorClientListRowLinkClass =
-  "flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring";
+  "grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg px-3 py-2 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring";
 
 /** Vertical stack inside tab sections / panels. */
 export const doctorClientPanelStackClass = "flex flex-col gap-3";

@@ -55,6 +55,11 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
   const [preset, setPreset] = useState<AdminStatsTimePreset>("week");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [appliedPeriod, setAppliedPeriod] = useState<AnalyticsPeriodValue>({
+    preset: "week",
+    customFrom: "",
+    customTo: "",
+  });
   const [periodError, setPeriodError] = useState<string | null>(null);
   const [periodReady, setPeriodReady] = useState(true);
   const [metricDialogOpen, setMetricDialogOpen] = useState(false);
@@ -67,13 +72,13 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
   );
 
   const periodLabel = useMemo(
-    () => resolveAnalyticsPeriodLabel(displayIana, period),
-    [displayIana, period],
+    () => resolveAnalyticsPeriodLabel(displayIana, appliedPeriod),
+    [displayIana, appliedPeriod],
   );
 
   const metricDialogPeriod = useMemo(
-    () => (selectedMetric && CLIENT_SNAPSHOT_METRICS.has(selectedMetric) ? undefined : period),
-    [selectedMetric, period],
+    () => (selectedMetric && CLIENT_SNAPSHOT_METRICS.has(selectedMetric) ? undefined : appliedPeriod),
+    [selectedMetric, appliedPeriod],
   );
 
   const applyPeriod = useCallback(
@@ -86,6 +91,7 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
       }
       setPeriodError(null);
       setPeriodReady(true);
+      setAppliedPeriod(next);
     },
     [],
   );
@@ -112,6 +118,16 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
   const handleApplyCustom = useCallback(() => {
     applyPeriod(period);
   }, [applyPeriod, period]);
+
+  const handleCustomFromChange = useCallback((value: string) => {
+    setCustomFrom(value);
+    setPeriodError(null);
+  }, []);
+
+  const handleCustomToChange = useCallback((value: string) => {
+    setCustomTo(value);
+    setPeriodError(null);
+  }, []);
 
   const openMetric = useCallback((metric: DoctorAnalyticsMetricKey, title: string) => {
     setSelectedMetric(metric);
@@ -141,17 +157,17 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
         periodLabel={periodLabel}
         periodError={periodError}
         onPresetChange={handlePresetChange}
-        onCustomFromChange={setCustomFrom}
-        onCustomToChange={setCustomTo}
+        onCustomFromChange={handleCustomFromChange}
+        onCustomToChange={handleCustomToChange}
         onApplyCustom={handleApplyCustom}
       />
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <AdminPlatformSubscriberStatsClient period={period} ready={periodReady} onMetricClick={openMetric} />
-        <AdminPlatformRegistrationStatsClient period={period} ready={periodReady} onMetricClick={openMetric} />
+        <AdminPlatformSubscriberStatsClient period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
+        <AdminPlatformRegistrationStatsClient period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
       </div>
 
-      <DoctorAnalyticsAppointmentsSection period={period} ready={periodReady} onMetricClick={openMetric} />
+      <DoctorAnalyticsAppointmentsSection period={appliedPeriod} ready={periodReady} onMetricClick={openMetric} />
 
       <DoctorSection id="doctor-stats-clients-section">
         <DoctorSectionTitle>Клиенты</DoctorSectionTitle>

@@ -12,7 +12,7 @@ export type DoctorClientsFilters = {
   hasActiveTreatmentProgram?: boolean;
   hasTelegram?: boolean;
   hasMax?: boolean;
-  /** Только пользователи с хотя бы одной строкой в `appointment_records` (JOIN по phone). Этап 9. */
+  /** Только пользователи с хотя бы одной неотменённой строкой в `appointment_records` (JOIN по phone). Этап 9. */
   onlyWithAppointmentRecords?: boolean;
   /**
    * Клиенты с прошедшим слотом created/updated в текущем UTC-месяце (как плитка дашборда «Были на приёме»).
@@ -34,6 +34,7 @@ export type ClientListItem = {
   hasEmail?: boolean;
   hasApp?: boolean;
   nextAppointmentLabel: string | null;
+  /** Есть хотя бы одна неотменённая запись (`appointment_records.status IN ('created', 'updated')`). */
   hasAppointmentHistory?: boolean;
   activeAppointmentsCount?: number;
   /** Хотя бы одна строка `treatment_program_instances` со статусом `active` для этого клиента. */

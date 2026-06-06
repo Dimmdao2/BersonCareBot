@@ -126,8 +126,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           }>(
             `SELECT
                pu.id::text AS user_id,
-               COUNT(*) FILTER (
+               COUNT(ar.id) FILTER (
                  WHERE ar.deleted_at IS NULL
+                   AND ar.status IN ('created', 'updated')
                )::int AS history_count,
                COUNT(*) FILTER (
                  WHERE ar.deleted_at IS NULL

@@ -40,13 +40,13 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       list = list.filter((item) => Boolean(item.bindings.maxId?.trim()));
     }
     if (filters.hasUpcomingAppointment === true) {
-      list = list.filter((item) => Boolean(item.nextAppointmentLabel));
+      list = list.filter((item) => (item.activeAppointmentsCount ?? 0) > 0 || Boolean(item.nextAppointmentLabel));
     }
     if (filters.hasActiveTreatmentProgram === true) {
       list = list.filter((item) => item.activeTreatmentProgram);
     }
     if (filters.onlyWithAppointmentRecords === true) {
-      list = [];
+      list = list.filter((item) => item.hasAppointmentHistory === true);
     }
     if (filters.visitedThisCalendarMonth === true) {
       list = [];

@@ -62,6 +62,7 @@ type Props = {
 };
 
 const DEFAULT_BASE = "/app/doctor/clients";
+const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(10,1.75rem)] gap-1";
 
 type TriFilterState = "off" | "positive" | "negative";
 type RichFilterState = "off" | "positive" | "new" | "negative";
@@ -77,6 +78,18 @@ type IconFiltersState = {
   email: TriFilterState;
   phone: TriFilterState;
   app: TriFilterState;
+};
+
+type ClientFiltersState = {
+  telegram: boolean;
+  max: boolean;
+  email: boolean;
+  phone: boolean;
+  visitedMonth: boolean;
+  cancellations: boolean;
+  reschedules: boolean;
+  withoutAppointments: boolean;
+  memberships: boolean;
 };
 
 function clientRowHref(c: ClientListItem, basePath: string, scope: ClientsScope): string {
@@ -111,6 +124,10 @@ function hasAppointmentHistory(item: ClientListItem): boolean {
   return (item.activeAppointmentsCount ?? 0) > 0 || Boolean(item.nextAppointmentLabel);
 }
 
+function hasActiveAppointments(item: ClientListItem): boolean {
+  return (item.activeAppointmentsCount ?? 0) > 0;
+}
+
 function hasMemberships(item: ClientListItem): boolean {
   return item.hasMemberships === true;
 }
@@ -126,19 +143,6 @@ function parseRichFilterState(raw: string | undefined, fallbackNegative = false)
   if (raw === "new") return "new";
   if (raw === "no") return "negative";
   return fallbackNegative ? "negative" : "off";
-}
-
-function serializeTriFilterState(state: TriFilterState): string | null {
-  if (state === "positive") return "yes";
-  if (state === "negative") return "no";
-  return null;
-}
-
-function serializeRichFilterState(state: RichFilterState): string | null {
-  if (state === "positive") return "yes";
-  if (state === "new") return "new";
-  if (state === "negative") return "no";
-  return null;
 }
 
 function cycleTriFilterState(state: TriFilterState): TriFilterState {
@@ -177,19 +181,9 @@ function applyRichFilter(
 }
 
 function syncLegacyFiltersFromIconFilters(
-  base: {
-    telegram: boolean;
-    max: boolean;
-    email: boolean;
-    phone: boolean;
-    visitedMonth: boolean;
-    cancellations: boolean;
-    reschedules: boolean;
-    withoutAppointments: boolean;
-    memberships: boolean;
-  },
+  base: ClientFiltersState,
   iconFilters: IconFiltersState,
-) {
+): ClientFiltersState {
   return {
     ...base,
     telegram: iconFilters.telegram === "positive",
@@ -199,6 +193,112 @@ function syncLegacyFiltersFromIconFilters(
     withoutAppointments: iconFilters.appointments === "negative",
     memberships: iconFilters.memberships === "positive",
   };
+}
+
+function readInitialFilters(urlParams: UrlParams): ClientFiltersState {
+  return {
+    telegram: urlParams.telegram === "1",
+    max: urlParams.max === "1",
+    email: urlParams.email === "1",
+    phone: urlParams.phone === "1",
+    visitedMonth: urlParams.visitedMonth === "1",
+    cancellations: urlParams.cancellations === "1",
+    reschedules: urlParams.reschedules === "1",
+    withoutAppointments: urlParams.withoutAppointments === "1",
+    memberships: urlParams.memberships === "1",
+  };
+}
+
+function readInitialIconFilters(urlParams: UrlParams): IconFiltersState {
+  return {
+    appointments: parseRichFilterState(urlParams.appointmentFilter, urlParams.withoutAppointments === "1"),
+    messages: parseRichFilterState(urlParams.messageFilter),
+    comments: parseRichFilterState(urlParams.commentFilter),
+    memberships: parseTriFilterState(urlParams.membershipFilter, urlParams.memberships === "1"),
+    support: parseTriFilterState(urlParams.supportFilter),
+    telegram: parseTriFilterState(urlParams.telegramFilter, urlParams.telegram === "1"),
+    max: parseTriFilterState(urlParams.maxFilter, urlParams.max === "1"),
+    email: parseTriFilterState(urlParams.emailFilter, urlParams.email === "1"),
+    phone: parseTriFilterState(urlParams.phoneFilter, urlParams.phone === "1"),
+    app: parseTriFilterState(urlParams.appFilter),
+  };
+}
+
+type ClientListFilterOptions = {
+  scope: ClientsScope;
+  segment: ClientSegment;
+  search: string;
+  filters: ClientFiltersState;
+  iconFilters: IconFiltersState;
+  ignoreSegment?: boolean;
+  ignoreAppointmentSegment?: boolean;
+  ignoreAppointmentFilter?: boolean;
+};
+
+function filterClientList(
+  allClients: ClientListItem[],
+  {
+    scope,
+    segment,
+    search,
+    filters,
+    iconFilters,
+    ignoreSegment = false,
+    ignoreAppointmentSegment = false,
+    ignoreAppointmentFilter = false,
+  }: ClientListFilterOptions,
+): ClientListItem[] {
+  const q = search.trim();
+  let list = allClients;
+  if (!ignoreSegment && scope !== "archived") {
+    if (segment === "appointments" && !ignoreAppointmentSegment) {
+      list = list.filter((c) => hasActiveAppointments(c));
+    } else if (segment === "support") {
+      list = list.filter((c) => c.isOnSupport === true);
+    } else if (segment === "program") {
+      list = list.filter((c) => c.activeTreatmentProgram);
+    }
+  }
+  if (q.length >= 3) {
+    list = list.filter((c) => matchesSearch(c, q));
+  }
+  if (filters.visitedMonth) {
+    list = list.filter((c) => c.visitedThisCalendarMonth === true);
+  }
+  if (filters.cancellations) {
+    list = list.filter((c) => c.cancellationCount30d > 0);
+  }
+  if (filters.reschedules) {
+    list = list.filter((c) => (c.rescheduleCount30d ?? 0) > 0);
+  }
+  if (!ignoreAppointmentFilter) {
+    list = applyRichFilter(
+      list,
+      iconFilters.appointments,
+      (c) => hasAppointmentHistory(c),
+      (c) => hasActiveAppointments(c),
+    );
+  }
+  list = applyRichFilter(
+    list,
+    iconFilters.messages,
+    (c) => (c.hasConversation ?? false) || (c.unreadMessagesCount ?? 0) > 0,
+    (c) => (c.unreadMessagesCount ?? 0) > 0,
+  );
+  list = applyRichFilter(
+    list,
+    iconFilters.comments,
+    (c) => c.activeTreatmentProgram,
+    (c) => (c.unreadExerciseCommentsCount ?? 0) > 0,
+  );
+  list = applyTriFilter(list, iconFilters.memberships, (c) => hasMemberships(c));
+  list = applyTriFilter(list, iconFilters.support, (c) => c.isOnSupport === true);
+  list = applyTriFilter(list, iconFilters.telegram, (c) => Boolean(c.bindings.telegramId?.trim()));
+  list = applyTriFilter(list, iconFilters.max, (c) => Boolean(c.bindings.maxId?.trim()));
+  list = applyTriFilter(list, iconFilters.email, (c) => c.hasEmail === true);
+  list = applyTriFilter(list, iconFilters.phone, (c) => Boolean(c.phone?.trim()));
+  list = applyTriFilter(list, iconFilters.app, (c) => c.hasApp === true);
+  return list;
 }
 
 function iconBadge(value: number | null): ReactNode {
@@ -220,16 +320,18 @@ type IconSlotProps = {
 
 function IconSlot({ visible, label, title, badge, children }: IconSlotProps) {
   if (!visible) {
-    return <span className="inline-flex size-6 shrink-0" aria-hidden />;
+    return <span className="inline-flex size-7 shrink-0" aria-hidden />;
   }
   return (
-    <span
-      className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40 text-muted-foreground"
-      aria-label={label}
-      title={title}
-    >
-      {children}
-      {iconBadge(badge ?? 0)}
+    <span className="inline-flex size-7 shrink-0 items-center justify-center">
+      <span
+        className="relative inline-flex size-6 items-center justify-center rounded-md border border-border/60 bg-muted/40 text-muted-foreground"
+        aria-label={label}
+        title={title}
+      >
+        {children}
+        {iconBadge(badge ?? 0)}
+      </span>
     </span>
   );
 }
@@ -283,181 +385,68 @@ export function DoctorClientsPanel({
 }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState(urlParams.q ?? "");
-  const scope: ClientsScope = urlParams.scope === "archived" ? "archived" : "all";
-  const segment = resolveSegment(urlParams);
-  const filters = useMemo(
-    () => ({
-      telegram: urlParams.telegram === "1",
-      max: urlParams.max === "1",
-      email: urlParams.email === "1",
-      phone: urlParams.phone === "1",
-      visitedMonth: urlParams.visitedMonth === "1",
-      cancellations: urlParams.cancellations === "1",
-      reschedules: urlParams.reschedules === "1",
-      withoutAppointments: urlParams.withoutAppointments === "1",
-      memberships: urlParams.memberships === "1",
-    }),
-    [urlParams],
+  const [scope, setScope] = useState<ClientsScope>(() => (urlParams.scope === "archived" ? "archived" : "all"));
+  const [segment, setSegment] = useState<ClientSegment>(() => resolveSegment(urlParams));
+  const [filters, setFilters] = useState<ClientFiltersState>(() => readInitialFilters(urlParams));
+  const [iconFilters, setIconFilters] = useState<IconFiltersState>(() => readInitialIconFilters(urlParams));
+
+  const filtered = useMemo(
+    () => filterClientList(allClients, { scope, segment, search, filters, iconFilters }),
+    [allClients, filters, iconFilters, scope, search, segment],
   );
 
-  const iconFilters = useMemo<IconFiltersState>(
-    () => ({
-      appointments: parseRichFilterState(urlParams.appointmentFilter, urlParams.withoutAppointments === "1"),
-      messages: parseRichFilterState(urlParams.messageFilter),
-      comments: parseRichFilterState(urlParams.commentFilter),
-      memberships: parseTriFilterState(urlParams.membershipFilter, urlParams.memberships === "1"),
-      support: parseTriFilterState(urlParams.supportFilter),
-      telegram: parseTriFilterState(urlParams.telegramFilter, urlParams.telegram === "1"),
-      max: parseTriFilterState(urlParams.maxFilter, urlParams.max === "1"),
-      email: parseTriFilterState(urlParams.emailFilter, urlParams.email === "1"),
-      phone: parseTriFilterState(urlParams.phoneFilter, urlParams.phone === "1"),
-      app: parseTriFilterState(urlParams.appFilter),
-    }),
-    [urlParams],
-  );
-
-  const filtered = useMemo(() => {
-    const q = search.trim();
-    let list = allClients;
-    if (scope !== "archived") {
-      if (segment === "appointments") {
-        list = list.filter((c) => hasAppointmentHistory(c));
-      } else if (segment === "support") {
-        list = list.filter((c) => c.isOnSupport === true);
-      } else if (segment === "program") {
-        list = list.filter((c) => c.activeTreatmentProgram);
-      }
-    }
-    if (q.length >= 3) {
-      list = list.filter((c) => matchesSearch(c, q));
-    }
-    if (filters.visitedMonth) {
-      list = list.filter((c) => c.visitedThisCalendarMonth === true);
-    }
-    if (filters.cancellations) {
-      list = list.filter((c) => c.cancellationCount30d > 0);
-    }
-    if (filters.reschedules) {
-      list = list.filter((c) => (c.rescheduleCount30d ?? 0) > 0);
-    }
-    list = applyRichFilter(
-      list,
-      iconFilters.appointments,
-      (c) => hasAppointmentHistory(c),
-      (c) => (c.activeAppointmentsCount ?? 0) > 0,
-    );
-    list = applyRichFilter(
-      list,
-      iconFilters.messages,
-      (c) => (c.hasConversation ?? false) || (c.unreadMessagesCount ?? 0) > 0,
-      (c) => (c.unreadMessagesCount ?? 0) > 0,
-    );
-    list = applyRichFilter(
-      list,
-      iconFilters.comments,
-      (c) => c.activeTreatmentProgram,
-      (c) => (c.unreadExerciseCommentsCount ?? 0) > 0,
-    );
-    list = applyTriFilter(list, iconFilters.memberships, (c) => hasMemberships(c));
-    list = applyTriFilter(list, iconFilters.support, (c) => c.isOnSupport === true);
-    list = applyTriFilter(list, iconFilters.telegram, (c) => Boolean(c.bindings.telegramId?.trim()));
-    list = applyTriFilter(list, iconFilters.max, (c) => Boolean(c.bindings.maxId?.trim()));
-    list = applyTriFilter(list, iconFilters.email, (c) => c.hasEmail === true);
-    list = applyTriFilter(list, iconFilters.phone, (c) => Boolean(c.phone?.trim()));
-    list = applyTriFilter(list, iconFilters.app, (c) => c.hasApp === true);
-    return list;
+  const segmentCounts = useMemo(() => {
+    const segmentBase = filterClientList(allClients, {
+      scope,
+      segment,
+      search,
+      filters,
+      iconFilters,
+      ignoreSegment: true,
+      ignoreAppointmentFilter: true,
+    });
+    const withoutAppointmentsBase = filterClientList(allClients, {
+      scope,
+      segment,
+      search,
+      filters,
+      iconFilters,
+      ignoreAppointmentSegment: true,
+      ignoreAppointmentFilter: true,
+    });
+    return {
+      all: segmentBase.length,
+      appointments: segmentBase.filter((c) => hasActiveAppointments(c)).length,
+      withoutAppointments: withoutAppointmentsBase.filter((c) => !hasAppointmentHistory(c)).length,
+      support: segmentBase.filter((c) => c.isOnSupport === true).length,
+      program: segmentBase.filter((c) => c.activeTreatmentProgram).length,
+    };
   }, [allClients, filters, iconFilters, scope, search, segment]);
-
-  const segmentCounts = useMemo(
-    () => ({
-      all: allClients.length,
-      appointments: allClients.filter((c) => hasAppointmentHistory(c)).length,
-      withoutAppointments: allClients.filter((c) => !hasAppointmentHistory(c)).length,
-      support: allClients.filter((c) => c.isOnSupport === true).length,
-      program: allClients.filter((c) => c.activeTreatmentProgram).length,
-    }),
-    [allClients],
-  );
-
-  const pushState = useCallback(
-    (next: {
-      scope: ClientsScope;
-      segment: ClientSegment;
-      telegram: boolean;
-      max: boolean;
-      email: boolean;
-      phone: boolean;
-      visitedMonth: boolean;
-      cancellations: boolean;
-      reschedules: boolean;
-      withoutAppointments: boolean;
-      memberships: boolean;
-      iconFilters: IconFiltersState;
-    }) => {
-      const params = new URLSearchParams();
-      params.set("scope", next.scope);
-      if (next.scope !== "archived" && next.segment !== "all") params.set("segment", next.segment);
-      if (next.telegram) params.set("telegram", "1");
-      if (next.max) params.set("max", "1");
-      if (next.email) params.set("email", "1");
-      if (next.phone) params.set("phone", "1");
-      if (next.visitedMonth) params.set("visitedMonth", "1");
-      if (next.cancellations) params.set("cancellations", "1");
-      if (next.reschedules) params.set("reschedules", "1");
-      if (next.withoutAppointments) params.set("withoutAppointments", "1");
-      if (next.memberships) params.set("memberships", "1");
-      const appointmentFilter = serializeRichFilterState(next.iconFilters.appointments);
-      if (appointmentFilter) params.set("appointmentFilter", appointmentFilter);
-      const messageFilter = serializeRichFilterState(next.iconFilters.messages);
-      if (messageFilter) params.set("messageFilter", messageFilter);
-      const commentFilter = serializeRichFilterState(next.iconFilters.comments);
-      if (commentFilter) params.set("commentFilter", commentFilter);
-      const membershipFilter = serializeTriFilterState(next.iconFilters.memberships);
-      if (membershipFilter) params.set("membershipFilter", membershipFilter);
-      const supportFilter = serializeTriFilterState(next.iconFilters.support);
-      if (supportFilter) params.set("supportFilter", supportFilter);
-      const telegramFilter = serializeTriFilterState(next.iconFilters.telegram);
-      if (telegramFilter) params.set("telegramFilter", telegramFilter);
-      const maxFilter = serializeTriFilterState(next.iconFilters.max);
-      if (maxFilter) params.set("maxFilter", maxFilter);
-      const emailFilter = serializeTriFilterState(next.iconFilters.email);
-      if (emailFilter) params.set("emailFilter", emailFilter);
-      const phoneFilter = serializeTriFilterState(next.iconFilters.phone);
-      if (phoneFilter) params.set("phoneFilter", phoneFilter);
-      const appFilter = serializeTriFilterState(next.iconFilters.app);
-      if (appFilter) params.set("appFilter", appFilter);
-      const query = params.toString();
-      router.replace(`${basePath}${query ? `?${query}` : ""}`);
-    },
-    [basePath, router],
-  );
 
   const onSegmentChange = useCallback(
     (nextSegment: ClientSegment) => {
+      if (scope === "archived") {
+        const params = new URLSearchParams({ scope: "all" });
+        if (nextSegment !== "all") params.set("segment", nextSegment);
+        router.replace(`${basePath}?${params.toString()}`);
+        return;
+      }
       const nextIconFilters: IconFiltersState =
         nextSegment === "appointments" && iconFilters.appointments === "negative"
           ? { ...iconFilters, appointments: "off" }
           : iconFilters;
-      const nextFilters = syncLegacyFiltersFromIconFilters(filters, nextIconFilters);
-      pushState({
-        scope: "all",
-        segment: nextSegment,
-        ...nextFilters,
-        iconFilters: nextIconFilters,
-      });
+      setScope("all");
+      setSegment(nextSegment);
+      setIconFilters(nextIconFilters);
+      setFilters(syncLegacyFiltersFromIconFilters(filters, nextIconFilters));
     },
-    [filters, iconFilters, pushState],
+    [basePath, filters, iconFilters, router, scope],
   );
 
   const onArchiveToggle = useCallback(() => {
     const nextScope: ClientsScope = scope === "archived" ? "all" : "archived";
-    pushState({
-      scope: nextScope,
-      segment,
-      ...syncLegacyFiltersFromIconFilters(filters, iconFilters),
-      iconFilters,
-    });
-  }, [filters, iconFilters, pushState, scope, segment]);
+    router.replace(`${basePath}?scope=${encodeURIComponent(nextScope)}`);
+  }, [basePath, router, scope]);
 
   const onToggleFilter = useCallback(
     (key: keyof typeof filters) => {
@@ -478,14 +467,11 @@ export function DoctorClientsPanel({
         },
         nextIconFilters,
       );
-      pushState({
-        scope,
-        segment: nextSegment,
-        ...nextFilters,
-        iconFilters: nextIconFilters,
-      });
+      setSegment(nextSegment);
+      setIconFilters(nextIconFilters);
+      setFilters(nextFilters);
     },
-    [filters, iconFilters, pushState, scope, segment],
+    [filters, iconFilters, segment],
   );
 
   const onCycleTriIconFilter = useCallback(
@@ -494,15 +480,10 @@ export function DoctorClientsPanel({
         ...iconFilters,
         [key]: cycleTriFilterState(iconFilters[key]),
       };
-      const nextFilters = syncLegacyFiltersFromIconFilters(filters, nextIconFilters);
-      pushState({
-        scope,
-        segment,
-        ...nextFilters,
-        iconFilters: nextIconFilters,
-      });
+      setIconFilters(nextIconFilters);
+      setFilters(syncLegacyFiltersFromIconFilters(filters, nextIconFilters));
     },
-    [filters, iconFilters, pushState, scope, segment],
+    [filters, iconFilters],
   );
 
   const onCycleRichIconFilter = useCallback(
@@ -515,15 +496,11 @@ export function DoctorClientsPanel({
         key === "appointments" && nextIconFilters.appointments === "negative" && segment === "appointments"
           ? "all"
           : segment;
-      const nextFilters = syncLegacyFiltersFromIconFilters(filters, nextIconFilters);
-      pushState({
-        scope,
-        segment: nextSegment,
-        ...nextFilters,
-        iconFilters: nextIconFilters,
-      });
+      setSegment(nextSegment);
+      setIconFilters(nextIconFilters);
+      setFilters(syncLegacyFiltersFromIconFilters(filters, nextIconFilters));
     },
-    [filters, iconFilters, pushState, scope, segment],
+    [filters, iconFilters, segment],
   );
 
   return (
@@ -547,9 +524,9 @@ export function DoctorClientsPanel({
 
       <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
         <section className="flex min-h-0 flex-col rounded-lg border border-border bg-card lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-10rem)] lg:overflow-hidden">
-          <div className="flex shrink-0 flex-col gap-2 border-b border-border/60 px-3 py-2">
-            <p className="text-xs text-muted-foreground">Пациентов: {filtered.length}</p>
-            <div className="flex flex-wrap items-center gap-1" aria-label="Фильтры активности">
+          <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
+            <p className="min-w-0 truncate text-xs text-muted-foreground">Пациентов: {filtered.length}</p>
+            <div className={CLIENT_ICON_RAIL_CLASS} aria-label="Фильтры списка">
               <HeaderIconButton
                 label="Фильтр записей"
                 title="Записи: все состояния -> с записями -> с активными -> без записей"
@@ -575,14 +552,6 @@ export function DoctorClientsPanel({
                 <Dumbbell className="size-3.5" aria-hidden />
               </HeaderIconButton>
               <HeaderIconButton
-                label="Фильтр абонементов"
-                title="Абонементы: все -> с абонементами -> без абонементов"
-                state={iconFilters.memberships}
-                onClick={() => onCycleTriIconFilter("memberships")}
-              >
-                <Ticket className="size-3.5" aria-hidden />
-              </HeaderIconButton>
-              <HeaderIconButton
                 label="Фильтр сопровождения"
                 title="Сопровождение: все -> на сопровождении -> не на сопровождении"
                 state={iconFilters.support}
@@ -590,8 +559,14 @@ export function DoctorClientsPanel({
               >
                 <Handshake className="size-3.5" aria-hidden />
               </HeaderIconButton>
-            </div>
-            <div className="flex flex-wrap items-center gap-1" aria-label="Фильтры каналов">
+              <HeaderIconButton
+                label="Фильтр абонементов"
+                title="Абонементы: все -> с абонементами -> без абонементов"
+                state={iconFilters.memberships}
+                onClick={() => onCycleTriIconFilter("memberships")}
+              >
+                <Ticket className="size-3.5" aria-hidden />
+              </HeaderIconButton>
               <HeaderIconButton
                 label="Фильтр телефона"
                 title="Телефон: все -> есть телефон -> нет телефона"
@@ -652,73 +627,68 @@ export function DoctorClientsPanel({
                       <div className="min-w-0">
                         <span className="block truncate text-sm font-semibold text-foreground">{c.displayName}</span>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <div className="flex shrink-0 items-center gap-1">
-                          <IconSlot
-                            visible={hasAppointmentHistory(c)}
-                            label={`История записей${appointmentCount > 0 ? `, активных: ${appointmentCount}` : ""}`}
-                            title="История записей"
-                            badge={appointmentCount > 0 ? appointmentCount : undefined}
-                          >
-                            <CalendarDays className="size-3.5" aria-hidden />
-                          </IconSlot>
-                          <IconSlot
-                            visible={(c.hasConversation ?? false) || unreadMessagesCount > 0}
-                            label={`Переписка${unreadMessagesCount > 0 ? `, непрочитанных: ${unreadMessagesCount}` : ""}`}
-                            title="Переписка"
-                            badge={unreadMessagesCount > 0 ? unreadMessagesCount : undefined}
-                          >
-                            <MessageSquare className="size-3.5" aria-hidden />
-                          </IconSlot>
-                          <IconSlot
-                            visible={c.activeTreatmentProgram}
-                            label={`Программа тренировок${unreadExerciseCommentsCount > 0 ? `, новых комментариев: ${unreadExerciseCommentsCount}` : ""}`}
-                            title="Назначенная программа тренировок"
-                            badge={unreadExerciseCommentsCount > 0 ? unreadExerciseCommentsCount : undefined}
-                          >
-                            <Dumbbell className="size-3.5" aria-hidden />
-                          </IconSlot>
-                          <IconSlot
-                            visible={c.isOnSupport === true}
-                            label="Клиент на сопровождении"
-                            title="На сопровождении"
-                          >
-                            <Handshake className="size-3.5" aria-hidden />
-                          </IconSlot>
-                          <IconSlot
-                            visible={hasMemberships(c)}
-                            label="Есть абонемент"
-                            title="Есть абонемент"
-                          >
-                            <Ticket className="size-3.5" aria-hidden />
-                          </IconSlot>
-                        </div>
-
-                        <div className="ml-1 flex shrink-0 items-center gap-1">
-                          <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан">
-                            <Phone className="size-3.5" aria-hidden />
-                          </IconSlot>
-                          <IconSlot
-                            visible={Boolean(c.bindings.telegramId?.trim())}
-                            label="Подключён Telegram"
-                            title="Подключён Telegram"
-                          >
-                            <Send className="size-3.5" aria-hidden />
-                          </IconSlot>
-                          <IconSlot
-                            visible={Boolean(c.bindings.maxId?.trim())}
-                            label="Подключён MAX"
-                            title="Подключён MAX"
-                          >
-                            <span className="text-[10px] font-semibold leading-none">М</span>
-                          </IconSlot>
-                          <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email">
-                            <Mail className="size-3.5" aria-hidden />
-                          </IconSlot>
-                          <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение">
-                            <Smartphone className="size-3.5" aria-hidden />
-                          </IconSlot>
-                        </div>
+                      <div className={CLIENT_ICON_RAIL_CLASS}>
+                        <IconSlot
+                          visible={hasAppointmentHistory(c)}
+                          label={`История записей${appointmentCount > 0 ? `, активных: ${appointmentCount}` : ""}`}
+                          title="История записей"
+                          badge={appointmentCount > 0 ? appointmentCount : undefined}
+                        >
+                          <CalendarDays className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={(c.hasConversation ?? false) || unreadMessagesCount > 0}
+                          label={`Переписка${unreadMessagesCount > 0 ? `, непрочитанных: ${unreadMessagesCount}` : ""}`}
+                          title="Переписка"
+                          badge={unreadMessagesCount > 0 ? unreadMessagesCount : undefined}
+                        >
+                          <MessageSquare className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={c.activeTreatmentProgram}
+                          label={`Программа тренировок${unreadExerciseCommentsCount > 0 ? `, новых комментариев: ${unreadExerciseCommentsCount}` : ""}`}
+                          title="Назначенная программа тренировок"
+                          badge={unreadExerciseCommentsCount > 0 ? unreadExerciseCommentsCount : undefined}
+                        >
+                          <Dumbbell className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={c.isOnSupport === true}
+                          label="Клиент на сопровождении"
+                          title="На сопровождении"
+                        >
+                          <Handshake className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={hasMemberships(c)}
+                          label="Есть абонемент"
+                          title="Есть абонемент"
+                        >
+                          <Ticket className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан">
+                          <Phone className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={Boolean(c.bindings.telegramId?.trim())}
+                          label="Подключён Telegram"
+                          title="Подключён Telegram"
+                        >
+                          <Send className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot
+                          visible={Boolean(c.bindings.maxId?.trim())}
+                          label="Подключён MAX"
+                          title="Подключён MAX"
+                        >
+                          <span className="text-[10px] font-semibold leading-none">М</span>
+                        </IconSlot>
+                        <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email">
+                          <Mail className="size-3.5" aria-hidden />
+                        </IconSlot>
+                        <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение">
+                          <Smartphone className="size-3.5" aria-hidden />
+                        </IconSlot>
                       </div>
                     </Link>
                   </li>

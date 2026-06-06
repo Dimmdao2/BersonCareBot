@@ -62,7 +62,7 @@ export type AppointmentStats = {
   cancellationActionsInPeriod: number;
   /** Действия «перенос» (`be_appointment_reschedules.created_at` в окне). */
   rescheduleActionsInPeriod: number;
-  /** Все строки в окне по `start_at` — KPI «Сегодня»: записи на неделю. */
+  /** Неотменённые строки в окне по `start_at` — KPI «Сегодня»: записи сегодня/на неделю. */
   total: number;
   /** Отмены за 30 суток по `updated_at` — KPI «Сегодня». */
   cancellations30d: number;

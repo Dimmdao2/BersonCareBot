@@ -261,7 +261,9 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
           reschedule_actions: string;
         }>(
           `SELECT
-            COUNT(*)::text AS total,
+            COUNT(*) FILTER (
+              WHERE status <> 'canceled'
+            )::text AS total,
             COUNT(*) FILTER (
               WHERE record_at < NOW()
                 AND status <> 'canceled'

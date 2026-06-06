@@ -780,7 +780,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           }
           const ex = sqlExcludeUsers(
             excluded,
-            [orgId, from, to, safeLimit + 1, safeOffset],
+            [orgId, from, to, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
             canonicalUser,
           );
           const r = await runWebappPgText<ListRow>(
@@ -795,9 +795,10 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
-               AND a.start_at <= $3::timestamptz${ex.andSql}
+               AND a.start_at <= $3::timestamptz
+               AND a.status <> ALL($4::text[])${ex.andSql}
              ORDER BY a.start_at DESC, user_id ASC
-             LIMIT $4::int OFFSET $5::int`,
+             LIMIT $5::int OFFSET $6::int`,
             ex.params,
           );
           return r.rows;
@@ -823,6 +824,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                 AND pu.merged_into_id IS NULL
                WHERE ar.deleted_at IS NULL
                  AND ar.record_at IS NOT NULL
+                 AND ar.status <> 'canceled'
                  AND ar.record_at >= $1::timestamptz
                  AND ar.record_at < $2::timestamptz${ex.andSql}
                ORDER BY ar.record_at DESC, user_id ASC
@@ -833,7 +835,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           }
           const ex = sqlExcludeUsers(
             excluded,
-            [orgId, from, toExclusive, safeLimit + 1, safeOffset],
+            [orgId, from, toExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
             canonicalUser,
           );
           const r = await runWebappPgText<ListRow>(
@@ -848,9 +850,10 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
-               AND a.start_at < $3::timestamptz${ex.andSql}
+               AND a.start_at < $3::timestamptz
+               AND a.status <> ALL($4::text[])${ex.andSql}
              ORDER BY a.start_at DESC, user_id ASC
-             LIMIT $4::int OFFSET $5::int`,
+             LIMIT $5::int OFFSET $6::int`,
             ex.params,
           );
           return r.rows;

@@ -19,8 +19,8 @@ const doctorMetricEnum = z.enum([
 ] as [DoctorAnalyticsMetricKey, ...DoctorAnalyticsMetricKey[]]);
 
 const APPOINTMENT_METRIC_FILTERS: Partial<Record<DoctorAnalyticsMetricKey, DoctorAppointmentsListFilter>> = {
-  today_appointments_today: { kind: "statsRange", range: "today" },
-  today_appointments_week: { kind: "statsRange", range: "week" },
+  today_appointments_today: { kind: "range", range: "today" },
+  today_appointments_week: { kind: "range", range: "week" },
   today_cancellations_30d: { kind: "cancellations30d" },
 };
 

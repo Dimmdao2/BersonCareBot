@@ -83,6 +83,49 @@ describe("pgDoctorClients repo", () => {
     expect(list[0]?.nextAppointmentLabel).toBe("Есть запись");
   });
 
+  it("listClients does not count empty left join rows or cancellations as appointment history", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "u1", display_name: "No records", phone_normalized: "+71", created_at: "2026-01-01" },
+          { id: "u2", display_name: "Real record", phone_normalized: "+72", created_at: "2026-01-02" },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            user_id: "u1",
+            history_count: 0,
+            active_count: 0,
+            cancellation_count_30d: 1,
+            reschedule_count_30d: 0,
+            visited_month_count: 0,
+          },
+          {
+            user_id: "u2",
+            history_count: 1,
+            active_count: 0,
+            cancellation_count_30d: 0,
+            reschedule_count_30d: 0,
+            visited_month_count: 0,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgDoctorClientsPort();
+    const list = await port.listClients({});
+
+    const appointmentAggSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    expect(appointmentAggSql).toContain("COUNT(ar.id) FILTER");
+    expect(appointmentAggSql).toContain("ar.status IN ('created', 'updated')");
+    expect(list.find((item) => item.userId === "u1")?.hasAppointmentHistory).toBe(false);
+    expect(list.find((item) => item.userId === "u2")?.hasAppointmentHistory).toBe(true);
+  });
+
   it("listClients supportStatus on filters by on-support ids", async () => {
     listOnSupportPatientUserIdsMock.mockResolvedValue(new Set(["u2"]));
     runWebappPgTextMock

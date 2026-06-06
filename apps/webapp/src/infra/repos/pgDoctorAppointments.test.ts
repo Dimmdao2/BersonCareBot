@@ -74,6 +74,18 @@ describe("pgDoctorAppointments cancellation rules", () => {
     expect(last30Query).toContain("deleted_at IS NULL");
   });
 
+  it("getAppointmentStats total excludes canceled rows for Today KPI", async () => {
+    const port = createPgDoctorAppointmentsPort();
+    await port.getAppointmentStats({ kind: "range", range: "today" });
+
+    const queries = runWebappPgTextMock.mock.calls.map((call) => String(call[0]));
+    const rangeQuery = queries.find((sql) => sql.includes("AS total") && sql.includes("AS past_visits"));
+
+    expect(rangeQuery).toBeDefined();
+    expect(rangeQuery).toContain("COUNT(*) FILTER");
+    expect(rangeQuery).toContain("WHERE status <> 'canceled'");
+  });
+
   it("statsRange list uses stats window semantics", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const port = createPgDoctorAppointmentsPort();

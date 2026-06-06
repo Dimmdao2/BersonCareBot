@@ -68,7 +68,7 @@ describe("GET /api/doctor/analytics-metric-accounts", () => {
     );
     expect(res.status).toBe(200);
     expect(listAppointmentsForSpecialistMock).toHaveBeenCalledWith(
-      { kind: "statsRange", range: "today" },
+      { kind: "range", range: "today" },
       {
         excludedUserIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
       },
