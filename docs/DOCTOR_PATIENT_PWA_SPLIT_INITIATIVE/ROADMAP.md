@@ -1,5 +1,7 @@
 # Doctor Cabinet — Roadmap
 
+**Статус инициативы:** **done** (волны 1–2, 2026-06-06 … 2026-06-07).
+
 **Patient PWA не трогаем** — см. [`SCOPE_BOUNDARIES.md`](SCOPE_BOUNDARIES.md).
 
 ## Две волны
@@ -7,7 +9,7 @@
 | Волна | Что | Документ | Статус |
 |-------|-----|----------|--------|
 | **1** | Runtime: guards, CSS, redirects (браузер) | этот файл §ниже | **done** (2026-06-06) |
-| **2** | Блок чужих зон + Staff PWA (install, manifest) | [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) | §A **done**, §B planned |
+| **2** | Блок чужих зон + Staff PWA (install, manifest) | [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) | **done** (§A + §B) |
 
 **Где делать PWA кабинета:** волна **2** этой инициативы + фаза 5 в [`PWA_INITIATIVE/BACKLOG.md`](../PWA_INITIATIVE/BACKLOG.md). Волна 1 PWA пациента уже закрыта; staff install — **новый** контур, не правка patient manifest.
 
@@ -54,7 +56,7 @@ rg "canAccessDoctor|getPostAuthRedirectTarget" apps/webapp/src/modules apps/weba
 | 1.2 | Визуальный smoke `/app/admin/*` vs `/app/settings` | ручной на стенде ([`ACCEPTANCE_WAVE1.md`](ACCEPTANCE_WAVE1.md) §staff) |
 | 1.3 | **Не делать:** переписывать `doctor.css`, route groups, `patient.css` на `/app` | — |
 
-**Иконки админского кабинета** (LOGO_BERSONADMIN) — отдельный PWA/manifest для staff **не в scope** волны 1; patient manifest остаётся `pwa-icon-*`. Ассеты — положить в `public/` при появлении staff-install.
+**Иконки админского кабинета** (LOGO_BERSONADMIN) — **волна 2 §B done**: `public/staff-pwa-icon-*`, manifest `/manifest-staff.webmanifest`. Волна 1: patient manifest `pwa-icon-*` без изменений.
 
 **Закрытие:**
 
@@ -118,7 +120,18 @@ pnpm --filter webapp exec vitest run src/app/app/doctor --passWithNoTests 2>/dev
 
 ## Волна 2 — блокировка + Staff PWA (кратко)
 
-1. **Блок + toast:** чужой кабинет не рендерится; на своём hub — `react-hot-toast`, **без** отдельных экранов (см. [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §A).
-2. **Staff PWA:** LOGO_BERSONADMIN, `start_url: /app/doctor`, `/app/doctor/install`, второй manifest (§B).
+| Трек | Статус | Приёмка |
+|------|--------|---------|
+| **§A** Блок + toast | **done 100%** (2026-06-06) | [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) §A |
+| **§B** Staff PWA | **done** (2026-06-07, 2.B0–2.B8) | [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) §B |
 
-Полный план: [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md). Волна 1 закрыта — **можно стартовать волну 2**.
+1. **§A:** cross-zone block + `react-hot-toast` на своём hub (включая browser client через `next=`).
+2. **§B:** LOGO_BERSONADMIN, `manifest-staff`, `/app/doctor/install`, навигация, `staffPwaInstallState` — см. [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md).
+
+## Definition of Done (волна 2)
+
+- [x] §A + §B — см. [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) DoD.
+- [x] Vitest fast: **49 tests** (38 §A + 11 §B).
+- [x] Patient PWA frozen — без регрессии.
+
+Полный план: [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md). Журнал: [`LOG.md`](LOG.md).

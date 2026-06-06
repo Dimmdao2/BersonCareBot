@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
 import { DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { routePaths } from "@/app-layer/routes/paths";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
 import type { DoctorMenuAccess } from "@/shared/ui/doctor/doctorNavLinks";
 import { useReportShellChromeHeight } from "@/shared/hooks/useReportShellChromeHeight";
@@ -54,8 +55,12 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const goBack = useCallback(() => {
+    if (pathname === routePaths.doctorInstall) {
+      router.push(routePaths.doctor);
+      return;
+    }
     router.back();
-  }, [router]);
+  }, [pathname, router]);
 
   return (
     <>
@@ -162,6 +167,9 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
                 menuAccess={menuAccess}
                 onNavigate={closeMenu}
               />
+              <Link href={routePaths.doctorInstall} onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
+                Установить приложение
+              </Link>
               <Link href="/app/settings" onClick={closeMenu} className={cn(DOCTOR_SHEET_LINK_CLASS, "mt-1")}>
                 Настройки специалиста
               </Link>

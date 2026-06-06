@@ -31,12 +31,44 @@ function toSearchParams(search: string | URLSearchParams | null | undefined): UR
   return new URLSearchParams(raw);
 }
 
+export function parseReturnToPath(returnTo: string): { pathname: string; search: string } | null {
+  const trimmed = returnTo.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/")) {
+    const qIndex = trimmed.indexOf("?");
+    if (qIndex === -1) return { pathname: trimmed, search: "" };
+    return { pathname: trimmed.slice(0, qIndex), search: trimmed.slice(qIndex) };
+  }
+  try {
+    const u = new URL(trimmed, "http://localhost");
+    return { pathname: u.pathname, search: u.search };
+  } catch {
+    return null;
+  }
+}
+
 export function searchParamsHasAccessDeniedToast(
   search: string | URLSearchParams | null | undefined,
 ): boolean {
   const params = toSearchParams(search);
   if (!params) return false;
   return params.get(APP_ACCESS_DENIED_QUERY_KEY) === APP_ACCESS_DENIED_QUERY_VALUE;
+}
+
+/** Флаг toast внутри `next=` (PwaAppAccessGate → install landing сохраняет deep link). */
+export function searchParamsHasAccessDeniedToastInNext(nextParam: string | null | undefined): boolean {
+  if (!nextParam?.trim()) return false;
+  const parsed = parseReturnToPath(nextParam);
+  if (!parsed) return false;
+  return searchParamsHasAccessDeniedToast(parsed.search);
+}
+
+/** Убирает флаг из значения `next` (decoded path+search для query). */
+export function stripAccessDeniedToastFromNextParam(nextParam: string): string {
+  const parsed = parseReturnToPath(nextParam);
+  if (!parsed) return nextParam;
+  const stripped = stripAccessDeniedToastFromUrl(parsed.pathname, parsed.search);
+  return `${stripped.pathname}${stripped.search}`;
 }
 
 /** Убирает флаг toast из query; pathname не меняется. */

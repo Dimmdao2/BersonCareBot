@@ -15,6 +15,8 @@ export const routePaths = {
   /** Редирект из напоминаний бота: «Начать занятие» по программе (как на карточке плана / в программе). */
   patientGoPlanStartLesson: "/app/patient/go/plan-start-lesson",
   doctor: "/app/doctor",
+  /** Установка Staff PWA (волна 2 §B). */
+  doctorInstall: "/app/doctor/install",
   /** Настройка блоков главной пациента (doctor/admin). */
   doctorPatientHome: "/app/doctor/patient-home",
   settings: "/app/settings",

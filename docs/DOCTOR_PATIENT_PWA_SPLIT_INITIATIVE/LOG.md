@@ -1,11 +1,112 @@
 # DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE — LOG
 
+## 2026-06-07 — Синхронизация документации и плана (волна 2 closed)
+
+**Сделано:**
+
+- Единый статус **done** во всех docs инициативы: `README`, `ROADMAP`, `WAVE2_STAFF_PWA`, `ACCEPTANCE_WAVE2`, `INVENTORY`, `SCOPE_BOUNDARIES`, `STAFF_PWA_ADR`.
+- `docs/README.md`, `PWA_INITIATIVE/ROADMAP.md` — фаза 5 Staff PWA → **done**.
+- `INVENTORY` — таблица Staff PWA §B, тесты 49, дата 2026-06-07.
+- `WAVE2` — этапы 2.B7–2.B8, combined vitest command.
+
+**Итог инициативы:** волны 1–2 закрыты; ручной smoke install на стенде — опционально (`ACCEPTANCE_WAVE2`).
+
+---
+
+## 2026-06-07 — Волна 2 §B доведение до 100% (аудит → правки)
+
+**Сделано:**
+
+- `staffPwaInstallState` — marker вместо `standalone` для «готово» (нет false positive patient PWA).
+- Навигация: «Установить приложение» в sidebar + mobile Sheet; заголовок в `doctorScreenTitles`.
+- `DoctorHeader`: назад с install → `/app/doctor` (не `router.back()`).
+- Import order в `settings/admin/layout.tsx`; убран дубль `requireDoctorAccess` на install page.
+- Тесты: `StaffPwaInstallSection`, `staffPwaInstallState`, `e2e/doctor-staff-pwa-install`, smoke `doctor/install`.
+
+**Проверки:**
+
+```bash
+pnpm --filter webapp exec vitest run \
+  src/shared/lib/pwa/staffPwaManifest.test.ts \
+  src/shared/lib/pwa/staffPwaInstallState.test.ts \
+  src/app/manifest-staff.webmanifest/route.test.ts \
+  src/shared/ui/doctor/pwa/StaffPwaInstallSection.test.tsx \
+  e2e/doctor-staff-pwa-install.test.ts \
+  src/shared/ui/doctorScreenTitles.test.ts
+```
+
+---
+
+## 2026-06-07 — Волна 2 §B закрыта (Staff PWA)
+
+**Трек 2.B (B0–B6):** staff manifest, install, иконки — **100%**.
+
+| Артефакт | Статус |
+|----------|--------|
+| [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md) | 2.B0 ADR |
+| `public/staff-pwa-icon-*` | LOGO_BERSONADMIN |
+| `staffPwaManifest.ts`, `/manifest-staff.webmanifest` | `start_url: /app/doctor`, `id: /app-staff` |
+| `/app/doctor/install` | `StaffPwaInstallSection` (iOS copy) |
+| `StaffPwaBootstrap` | SW `/sw.js`, scope `/app` |
+| `staffPwaLayoutMetadata` | doctor/settings/admin layouts |
+| [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) | §B signed off |
+
+**Проверки:**
+
+```bash
+pnpm --filter webapp exec vitest run \
+  src/shared/lib/pwa/staffPwaManifest.test.ts \
+  src/app/manifest-staff.webmanifest/route.test.ts
+# 3 tests — green
+```
+
+Patient `manifest.ts`, gate, SW push — **не в diff**.
+
+---
+
+## 2026-06-06 — Волна 2 §A закрыта (sign-off)
+
+**Трек 2.A (A0–A5+):** cross-zone block + toast — **100%**.
+
+| Артефакт | Статус |
+|----------|--------|
+| [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) | §A + §B done |
+| [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) | §A signed off |
+| [`INVENTORY_AND_MATRIX.md`](INVENTORY_AND_MATRIX.md) | матрица hub+toast |
+| [`SCOPE_BOUNDARIES.md`](SCOPE_BOUNDARIES.md) | исключения §A |
+
+**Следующий шаг (на момент записи):** §B Staff PWA — **закрыто** 2026-06-07.
+
+---
+
+## 2026-06-06 — Волна 2 §A доведение до 100% (аудит → правки)
+
+**Сделано:**
+
+- Toast для browser client: `AppAccessDeniedToastEffect` читает флаг в `next=`; mount на `LandingPwaClientBootstrap`.
+- Helpers: `parseReturnToPath`, `searchParamsHasAccessDeniedToastInNext`, `stripAccessDeniedToastFromNextParam`.
+- Тест: admin layout client; next-param effect; `pwaAppAccessPolicy` preserves flag in `next`.
+- Docs: `SCOPE_BOUNDARIES` (исключения §A), `ACCEPTANCE_WAVE2` (A8, manual→auto), счётчик **38 tests**.
+
+**Проверки:**
+
+```bash
+pnpm --filter webapp exec vitest run \
+  src/shared/lib/appAccessDeniedToast.test.ts \
+  src/shared/ui/AppAccessDeniedToastEffect.test.tsx \
+  src/app-layer/guards/requireRole.doctorStaffAccess.test.ts \
+  e2e/doctor-patient-role-layout-redirects.test.ts \
+  src/app/api/doctor/clients/route.test.ts \
+  src/shared/lib/pwa/pwaAppAccessPolicy.test.ts
+# 38 tests — green
+```
+
 ## 2026-06-06 — Волна 2 этап 2.A5 (docs)
 
 **Сделано:**
 
 - `INVENTORY_AND_MATRIX.md` — матрица cross-zone hub+toast, точки enforcement, тесты.
-- `ACCEPTANCE_WAVE2.md` — §access (done), §B Staff PWA (planned).
+- `ACCEPTANCE_WAVE2.md` — §access (done); §B — закрыто 2026-06-07.
 - `WAVE2_STAFF_PWA.md`, `ROADMAP.md` — статус §A closed.
 
 **Примечание:** в плане нет этапа «2.A6»; выполнен **2.A5** по запросу «А6».
@@ -22,11 +123,11 @@
 ```bash
 pnpm --filter webapp exec vitest run \
   src/shared/lib/appAccessDeniedToast.test.ts \
-  src/shared/ui/AppAccessDeniedToastEffect.test.ts \
+  src/shared/ui/AppAccessDeniedToastEffect.test.tsx \
   src/app-layer/guards/requireRole.doctorStaffAccess.test.ts \
   e2e/doctor-patient-role-layout-redirects.test.ts \
   src/app/api/doctor/clients/route.test.ts
-# 6 files, 32 tests — green
+# 6 files, 26 tests — green (до доведения §A)
 rg "access-denied|AccessDeniedScreen" apps/webapp/src  # нет forbidden-screen
 ```
 

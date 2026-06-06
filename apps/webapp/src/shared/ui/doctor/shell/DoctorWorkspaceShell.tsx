@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { AppAccessDeniedToastEffect } from "@/shared/ui/AppAccessDeniedToastEffect";
+import { StaffPwaBootstrap } from "@/shared/ui/doctor/pwa/StaffPwaBootstrap";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { DoctorAdminSidebar } from "@/shared/ui/doctor/shell/DoctorAdminSidebar";
 import { DoctorHeader } from "@/shared/ui/doctor/shell/DoctorHeader";
@@ -33,6 +34,7 @@ export function DoctorWorkspaceShell({
       <Suspense fallback={null}>
         <AppAccessDeniedToastEffect />
       </Suspense>
+      <StaffPwaBootstrap />
       <div className="flex min-h-screen flex-col bg-white">
         <DoctorHeader
           userDisplayName={userDisplayName}

@@ -5,6 +5,9 @@ describe("getDoctorScreenTitle", () => {
   it("returns today title for /app/doctor", () => {
     expect(getDoctorScreenTitle("/app/doctor")).toBe("Сегодня");
   });
+  it("returns install page title", () => {
+    expect(getDoctorScreenTitle("/app/doctor/install")).toBe("Установить приложение");
+  });
   it("returns online intake and library titles", () => {
     expect(getDoctorScreenTitle("/app/doctor/online-intake")).toBe("Онлайн-заявки");
     expect(getDoctorScreenTitle("/app/doctor/content/library")).toBe("Библиотека файлов");

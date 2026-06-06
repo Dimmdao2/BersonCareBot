@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { AppAccessDeniedToastEffect } from "@/shared/ui/AppAccessDeniedToastEffect";
 
 /**
  * Регистрация `public/sw.js` с главной `/` (scope = /app).
@@ -16,5 +17,9 @@ export function LandingPwaClientBootstrap() {
     }, 0);
     return () => window.clearTimeout(t);
   }, []);
-  return null;
+  return (
+    <Suspense fallback={null}>
+      <AppAccessDeniedToastEffect />
+    </Suspense>
+  );
 }

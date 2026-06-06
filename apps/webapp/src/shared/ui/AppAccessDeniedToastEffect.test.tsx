@@ -11,12 +11,13 @@ import {
 } from "@/shared/lib/appAccessDeniedToast";
 
 const replaceMock = vi.fn();
+const pathnameRef = vi.hoisted(() => ({ value: "/app/patient" }));
 const searchParamsRef = vi.hoisted(() => ({
   value: new URLSearchParams(),
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/app/patient",
+  usePathname: () => pathnameRef.value,
   useRouter: () => ({ replace: replaceMock }),
   useSearchParams: () => searchParamsRef.value,
 }));
@@ -29,6 +30,7 @@ describe("AppAccessDeniedToastEffect", () => {
   beforeEach(() => {
     replaceMock.mockClear();
     vi.mocked(toast).mockClear();
+    pathnameRef.value = "/app/patient";
     searchParamsRef.value = new URLSearchParams();
   });
 
@@ -53,6 +55,19 @@ describe("AppAccessDeniedToastEffect", () => {
     await waitFor(() => {
       expect(toast).not.toHaveBeenCalled();
       expect(replaceMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("shows toast and strips access-denied flag nested in next param (install landing)", async () => {
+    pathnameRef.value = "/";
+    const next = `/app/patient?${APP_ACCESS_DENIED_QUERY_KEY}=${APP_ACCESS_DENIED_QUERY_VALUE}`;
+    searchParamsRef.value = new URLSearchParams({ next });
+
+    render(<AppAccessDeniedToastEffect />);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(APP_ACCESS_DENIED_TOAST_MESSAGE);
+      expect(replaceMock).toHaveBeenCalledWith("/?next=%2Fapp%2Fpatient");
     });
   });
 

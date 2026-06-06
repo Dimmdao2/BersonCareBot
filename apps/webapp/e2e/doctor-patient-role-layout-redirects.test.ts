@@ -86,6 +86,12 @@ describe("staff layout role redirects", () => {
     expect(redirectMock).toHaveBeenCalledWith(buildOwnHubUrlWithAccessDeniedToast("doctor"));
   });
 
+  it("admin layout redirects client to patient hub with access-denied toast flag", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(session("client"));
+    await expect(AdminLayout({ children: null })).rejects.toThrow("redirect");
+    expect(redirectMock).toHaveBeenCalledWith(buildOwnHubUrlWithAccessDeniedToast("client"));
+  });
+
   it("admin layout redirects unauthenticated to /app", async () => {
     getCurrentSessionMock.mockResolvedValueOnce(null);
     await expect(AdminLayout({ children: null })).rejects.toThrow("redirect");

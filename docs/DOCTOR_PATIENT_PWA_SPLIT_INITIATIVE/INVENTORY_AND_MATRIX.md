@@ -1,16 +1,32 @@
 # Inventory — staff routes & role matrix
 
-**Дата снимка:** 2026-06-06 (обновлено волна 2 §A) · Patient PWA — **read-only** reference (кроме `patient/layout.tsx` role-block).
+**Дата снимка:** 2026-06-07 (волны 1–2 **done**) · Patient PWA — **read-only** (исключения §A/§B в [`SCOPE_BOUNDARIES.md`](SCOPE_BOUNDARIES.md)).
 
 ## Staff route tree
 
-| Префикс | Layout CSS | Shell | Guard |
-|---------|------------|-------|-------|
-| `/app/doctor/**` | `doctor.css` (+ наследует `patient.css` с `/app/layout`) | `DoctorWorkspaceShell` + page `DoctorAppShell` | `requireDoctorAccess()` |
-| `/app/settings/**` | `doctor.css` | `DoctorWorkspaceShell` | session; `client` → patient hub + toast |
-| `/app/admin/**` | `doctor.css` + `patient.css` (наслед.) | `DoctorWorkspaceShell` | `admin` only, иначе doctor hub + toast |
+| Префикс | Layout CSS | Shell | Guard | Staff manifest metadata |
+|---------|------------|-------|-------|-------------------------|
+| `/app/doctor/**` | `doctor.css` (+ `patient.css` с `/app/layout`) | `DoctorWorkspaceShell` + `DoctorAppShell` | `requireDoctorAccess()` | `staffPwaLayoutMetadata` |
+| `/app/settings/**` | `doctor.css` | `DoctorWorkspaceShell` | session; `client` → patient hub + toast | `staffPwaLayoutMetadata` |
+| `/app/admin/**` | `doctor.css` + `patient.css` (наслед.) | `DoctorWorkspaceShell` | `admin` only, иначе doctor hub + toast | `staffPwaLayoutMetadata` |
+| `/app/doctor/install` | то же | то же | `requireDoctorAccess()` (layout) | то же |
 
-**`doctor.css`:** готов с 2026-06-04 (UI split). Подключён в `doctor`, `settings`, **`admin`** layouts (волна 1, 2026-06-06).
+**`doctor.css`:** готов с 2026-06-04 (UI split). Подключён в `doctor`, `settings`, **`admin`** layouts (волна 1).
+
+## Staff PWA (волна 2 §B)
+
+| Элемент | Значение |
+|---------|----------|
+| Manifest URL | `/manifest-staff.webmanifest` |
+| `id` / `start_url` | `/app-staff` / `/app/doctor` |
+| `scope` | `/app` |
+| Install page | `/app/doctor/install` |
+| Иконки | `public/staff-pwa-icon-192/512.png`, `staff-pwa-apple-touch.png` |
+| SW | `public/sw.js`, register в `StaffPwaBootstrap`, scope `/app` |
+| Навигация | sidebar + mobile Sheet → «Установить приложение» |
+| Install «готово» | `staffPwaInstallState` (marker), не patient `standalone` |
+
+Канон кода: `staffPwaManifest.ts`, `staffPwaLayoutMetadata.ts`, `staffPwaInstallState.ts`, `StaffPwaInstallSection.tsx`, `StaffPwaBootstrap.tsx`.
 
 ## Patient zone (baseline PWA — не менять)
 
@@ -19,12 +35,11 @@
 | `/app/patient/**` | `PwaAppAccessGate` в `PatientClientLayout` | session + role-block + `patientClientBusinessGate` |
 | `/app`, `/app/tg`, `/app/max` | нет gate | `AppEntryRsc` → auth или login shell |
 
-**Волна 2 §A:** в `patient/layout.tsx` только role-block — staff → doctor hub + `app_access_denied` query. `PatientClientLayout`, gate, manifest, SW — **без изменений**.
+**Волна 2 §A:** в `patient/layout.tsx` только role-block — staff → doctor hub + `app_access_denied` query. Gate, manifest, SW — **без изменений**.
 
 ## Cross-zone × role × redirect (волна 2 §A)
 
-Источник редиректа с toast: `buildOwnHubUrlWithAccessDeniedToast` (`shared/lib/appAccessDeniedToast.ts`).  
-Потребитель toast: `AppAccessDeniedToastEffect` в `PatientAppShell`, `DoctorWorkspaceShell`.
+Источник: `buildOwnHubUrlWithAccessDeniedToast` · Toast: `AppAccessDeniedToastEffect` в shells.
 
 | Кто | Куда лезет | Итог (server) | UX (client) |
 |-----|------------|---------------|-------------|
@@ -36,57 +51,76 @@
 
 ### Точки enforcement
 
-| Механизм | Файл | Роль |
-|----------|------|------|
-| `requireDoctorAccess` | `requireRole.ts` | client → patient hub + query |
-| `requirePatientAccess` | `requireRole.ts` | staff → doctor hub + query |
-| `getOptionalPatientSession` | `requireRole.ts` | staff → doctor hub + query |
-| Role-block layout | `patient/layout.tsx` | staff → doctor hub + query |
-| Settings layout | `settings/layout.tsx` | client → patient hub + query |
-| Admin layout | `admin/layout.tsx` | non-admin → doctor hub + query |
+| Механизм | Файл |
+|----------|------|
+| `requireDoctorAccess` | `requireRole.ts` |
+| `requirePatientAccess`, `getOptionalPatientSession` | `requireRole.ts` |
+| Role-block layout | `patient/layout.tsx` |
+| Settings / admin layout | `settings/layout.tsx`, `admin/layout.tsx` |
+| Toast hub | `PatientAppShell`, `DoctorWorkspaceShell` |
+| Toast install `next` | `LandingPwaClientBootstrap` |
 
-Entry staff (`doctor`/`admin` → `/app/doctor`, `client` → safe `next` или `/app/patient`) — **`redirectPolicy.ts`**, без изменений в волне 2 §A.
+Entry staff — **`redirectPolicy.ts`**, без изменений в волне 2 §A.
 
 ### Исключения (patient paths)
 
 | Сценарий | Поведение |
 |----------|-----------|
-| `/app/patient/bind-phone` | Только client onboarding; `isSafeNext` **не** принимает bind-phone в post-auth `next`; staff на patient tree → doctor hub + toast |
-| Patient maintenance (`patient_app_*` settings) | Только `patient/layout.tsx`; staff не проходят role-block |
-| `/app/tg`, `/app/max` + сессия staff | `AppEntryRsc` → `/app/doctor` **без** toast |
-| API `/api/doctor/**`, `/api/patient/**` | 401/403 JSON, без redirect/toast |
+| `/app/patient/bind-phone` | client onboarding; staff на patient tree → doctor hub + toast |
+| Patient maintenance (`patient_app_*`) | только `patient/layout.tsx` |
+| `/app/tg`, `/app/max` + сессия staff | `/app/doctor` **без** toast |
+| API cross-role | 401/403 JSON |
 
 ## API boundaries (staff)
 
 - `GET/PATCH/POST /api/doctor/**` — `canAccessDoctor` (doctor | admin).
-- Client на doctor API — 401/403; spot: `POST /api/doctor/clients` — `route.test.ts`.
+- Spot: `POST /api/doctor/clients` — client → 403 (`route.test.ts`).
 
-## PWA / push (контекст)
+## PWA / push (два контура на одном origin)
 
-- **Patient** manifest: `scope: /app`, `start_url: /app/patient` — без изменений волны 2 §A.
-- **Staff** install/manifest — волна 2 §B ([`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §B).
-- SW `scope: /app` — общий origin; patient push endpoints не трогаем.
+| | Patient PWA | Staff PWA |
+|--|-------------|-----------|
+| Manifest | `manifest.ts` → `/app/patient` | `/manifest-staff.webmanifest` → `/app/doctor` |
+| `id` | `/app` | `/app-staff` |
+| Install | `/`, `/app/patient/install` | `/app/doctor/install` |
+| Иконки | `pwa-icon-*` | `staff-pwa-icon-*` |
+| SW | `public/sw.js`, scope `/app` | тот же SW |
+| Push | patient stack | **нет** в §B |
 
-## Тесты (волна 1 + 2 §A)
+## Тесты
+
+### §A (38)
 
 | Файл | Покрытие |
 |------|----------|
-| `redirectPolicy.test.ts` | staff entry redirects (без toast) |
-| `appAccessDeniedToast.test.ts` | helper + query strip |
-| `AppAccessDeniedToastEffect.test.tsx` | client toast + replace |
-| `requireRole.doctorStaffAccess.test.ts` | requireDoctor/PatientAccess, getOptionalPatientSession |
-| `e2e/doctor-patient-role-layout-redirects.test.ts` | settings, admin, patient layouts |
+| `redirectPolicy.test.ts` | staff entry (без toast) |
+| `appAccessDeniedToast.test.ts` | helper |
+| `AppAccessDeniedToastEffect.test.tsx` | toast + strip |
+| `requireRole.doctorStaffAccess.test.ts` | guards |
+| `e2e/doctor-patient-role-layout-redirects.test.ts` | layouts |
 | `api/doctor/clients/route.test.ts` | client → 403 |
-| `PatientAppShell.test.tsx` | shell (mock toast effect) |
+| `pwaAppAccessPolicy.test.ts` | gate + `next` |
 
-**Команда (32 tests):** см. [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §Проверки.
+### §B (11 fast + smoke inprocess)
+
+| Файл | Покрытие |
+|------|----------|
+| `staffPwaManifest.test.ts` | manifest канон |
+| `staffPwaInstallState.test.ts` | install marker |
+| `manifest-staff.webmanifest/route.test.ts` | GET route |
+| `StaffPwaInstallSection.test.tsx` | UI без false positive |
+| `e2e/doctor-staff-pwa-install.test.ts` | layouts metadata |
+| `smoke-app-router-rsc-pages-inprocess.test.ts` | `doctor/install` page |
+
+**Команда:** [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §Проверки (**49** fast).
 
 ## Риски (остаток)
 
 | Риск | Статус |
 |------|--------|
-| ~~Admin без `doctor.css`~~ | **Закрыто** волна 1 |
-| ~~Немой cross-zone redirect~~ | **Закрыто** волна 2 §A (toast) |
-| `patient.css` на всех `/app/**` включая doctor | Документировано; route-group split — backlog |
-| Login shell = `PatientAppShell` на `/app` | Документировано; не менять patient chrome |
-| Staff install vs patient PWA на одном origin | Волна 2 §B — в работе / planned |
+| ~~Admin без `doctor.css`~~ | Закрыто волна 1 |
+| ~~Немой cross-zone redirect~~ | Закрыто волна 2 §A |
+| ~~Staff install vs patient PWA~~ | Закрыто волна 2 §B |
+| `patient.css` на всех `/app/**` | Backlog route-group split |
+| Login shell = `PatientAppShell` на `/app` | Документировано |
+| Ручной smoke staff install на стенде | Опционально оператору |

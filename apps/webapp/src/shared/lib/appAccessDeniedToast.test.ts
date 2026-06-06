@@ -6,8 +6,11 @@ import {
   APP_ACCESS_DENIED_TOAST_MESSAGE,
   buildOwnHubUrlWithAccessDeniedToast,
   getOwnHubPathForRole,
+  parseReturnToPath,
   searchParamsHasAccessDeniedToast,
+  searchParamsHasAccessDeniedToastInNext,
   showAppAccessDeniedToastIfFlagged,
+  stripAccessDeniedToastFromNextParam,
   stripAccessDeniedToastFromUrl,
 } from "./appAccessDeniedToast";
 
@@ -57,6 +60,28 @@ describe("appAccessDeniedToast", () => {
         `?${APP_ACCESS_DENIED_QUERY_KEY}=${APP_ACCESS_DENIED_QUERY_VALUE}`,
       ),
     ).toEqual({ pathname: "/app/doctor", search: "" });
+  });
+
+  it("parseReturnToPath splits pathname and search", () => {
+    expect(parseReturnToPath("/app/patient?tab=symptoms")).toEqual({
+      pathname: "/app/patient",
+      search: "?tab=symptoms",
+    });
+    expect(parseReturnToPath("/app/patient")).toEqual({
+      pathname: "/app/patient",
+      search: "",
+    });
+  });
+
+  it("searchParamsHasAccessDeniedToastInNext detects flag inside next", () => {
+    const next = `/app/patient?${APP_ACCESS_DENIED_QUERY_KEY}=${APP_ACCESS_DENIED_QUERY_VALUE}`;
+    expect(searchParamsHasAccessDeniedToastInNext(next)).toBe(true);
+    expect(searchParamsHasAccessDeniedToastInNext("/app/patient")).toBe(false);
+  });
+
+  it("stripAccessDeniedToastFromNextParam removes flag from next value", () => {
+    const next = `/app/patient?${APP_ACCESS_DENIED_QUERY_KEY}=${APP_ACCESS_DENIED_QUERY_VALUE}&tab=symptoms`;
+    expect(stripAccessDeniedToastFromNextParam(next)).toBe("/app/patient?tab=symptoms");
   });
 
   it("showAppAccessDeniedToastIfFlagged shows toast once when flagged", () => {

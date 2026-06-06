@@ -1,3 +1,4 @@
+import { routePaths } from "@/app-layer/routes/paths";
 import { BOOKING_ADMIN_BASE, BOOKING_ADMIN_TABS, bookingAdminTabFromPathname } from "@/app/app/doctor/admin/booking/bookingAdminTabs";
 
 /**
@@ -8,6 +9,7 @@ export function getDoctorScreenTitle(pathname: string): string {
   if (p === "/app/doctor") return "Сегодня";
 
   const exact: Record<string, string> = {
+    [routePaths.doctorInstall]: "Установить приложение",
     "/app/settings": "Настройки специалиста",
     "/app/doctor/analytics/clients": "По клиентам",
     "/app/doctor/analytics/notifications": "По уведомлениям",

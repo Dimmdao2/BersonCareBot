@@ -3,8 +3,11 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  parseReturnToPath,
   searchParamsHasAccessDeniedToast,
+  searchParamsHasAccessDeniedToastInNext,
   showAppAccessDeniedToastIfFlagged,
+  stripAccessDeniedToastFromNextParam,
   stripAccessDeniedToastFromUrl,
 } from "@/shared/lib/appAccessDeniedToast";
 
@@ -18,20 +21,36 @@ export function AppAccessDeniedToastEffect() {
   const handledKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!searchParamsHasAccessDeniedToast(searchParams)) {
+    const search = searchParams.toString();
+    const fullSearch = search ? `?${search}` : "";
+    const nextParam = searchParams.get("next");
+    const hasDirectFlag = searchParamsHasAccessDeniedToast(searchParams);
+    const hasNextFlag = searchParamsHasAccessDeniedToastInNext(nextParam);
+
+    if (!hasDirectFlag && !hasNextFlag) {
       handledKeyRef.current = null;
       return;
     }
 
-    const search = searchParams.toString();
-    const fullSearch = search ? `?${search}` : "";
     const key = `${pathname}${fullSearch}`;
     if (handledKeyRef.current === key) return;
     handledKeyRef.current = key;
 
-    showAppAccessDeniedToastIfFlagged(searchParams);
-    const stripped = stripAccessDeniedToastFromUrl(pathname, fullSearch);
-    router.replace(`${stripped.pathname}${stripped.search}`);
+    if (hasDirectFlag) {
+      showAppAccessDeniedToastIfFlagged(searchParams);
+      const stripped = stripAccessDeniedToastFromUrl(pathname, fullSearch);
+      router.replace(`${stripped.pathname}${stripped.search}`);
+      return;
+    }
+
+    if (hasNextFlag && nextParam) {
+      const parsedNext = parseReturnToPath(nextParam);
+      showAppAccessDeniedToastIfFlagged(parsedNext?.search);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("next", stripAccessDeniedToastFromNextParam(nextParam));
+      const hash = typeof window !== "undefined" ? window.location.hash : "";
+      router.replace(`${pathname}?${params.toString()}${hash}`);
+    }
   }, [pathname, router, searchParams]);
 
   return null;

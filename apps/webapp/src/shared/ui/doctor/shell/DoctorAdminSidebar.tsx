@@ -9,6 +9,7 @@ import {
   DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
   DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
 } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { routePaths } from "@/app-layer/routes/paths";
 import type { DoctorMenuAccess } from "@/shared/ui/doctor/doctorNavLinks";
 
 const SIDEBAR_LINK_CLASS = cn(
@@ -43,6 +44,15 @@ export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminS
       <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Разделы</p>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Разделы кабинета">
         <DoctorMenuAccordion variant="sidebar" pathname={pathname} menuAccess={menuAccess} />
+        <Link
+          href={routePaths.doctorInstall}
+          className={cn(
+            SIDEBAR_LINK_CLASS,
+            pathname === routePaths.doctorInstall && "bg-primary/15 text-primary",
+          )}
+        >
+          Установить приложение
+        </Link>
         <Link href="/app/settings" className={cn(SIDEBAR_LINK_CLASS, "mt-1")}>
           Настройки специалиста
         </Link>

@@ -73,4 +73,10 @@ describe("pwaAppAccessPolicy", () => {
       "/?next=%2Fapp%2Fpatient%3Ftab%3Dsymptoms#install",
     );
   });
+
+  it("preserves app_access_denied in next when gate redirects browser client", () => {
+    expect(buildPwaInstallLandingRedirectUrl("/app/patient", "?app_access_denied=1")).toBe(
+      "/?next=%2Fapp%2Fpatient%3Fapp_access_denied%3D1#install",
+    );
+  });
 });
