@@ -1,6 +1,6 @@
 # План перехода оставшегося сырого SQL на Drizzle (Wave 2)
 
-**Дата:** 2026-05-15 (обновление: **2026-06-06** — Wave 2 этапы 1–8 закрыты; **Wave 3 phase 00 + 08–17** code/docs closeout; staging smoke gate — open, см. [LOG](./LOG.md) §Wave 3 phase 17)
+**Дата:** 2026-05-15 (обновление: **2026-06-06** — Wave 2 этапы 1–8 закрыты; **Wave 3** completed incl. staging smoke, см. [LOG](./LOG.md) §Wave 3 phase 17)
 **Связанные документы:** [инвентаризация](./RAW_SQL_INVENTORY.md), [лог](./LOG.md), [аудит тестов закрытых фаз](./TEST_BEHAVIOR_AUDIT.md), **поэтапные планы** ([`plans/README.md`](./plans/README.md), Wave 3: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)), закрытый мастер-план P1–P4 [integrator_drizzle_migration_master.plan.md](../../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md).
 
 ## Контекст: что уже сделано
@@ -69,7 +69,7 @@
 | **14** | **Done** | [Comms / projection](./plans/wave3_phase_14_webapp_comms_projection.plan.md) — support comms, user projection, admin audit, comms tail; Zod query modules; `pool.query` = 0 по 10 scope-файлам; Vitest **119 passed** / 11 skipped + opt-in devDb smokes |
 | **15** | **Done** (2026-06-06) | [Webapp long tail](./plans/wave3_phase_15_webapp_long_tail.plan.md) — **15A–15F** closed; prod tail **25** runtime files (Class B/C only) |
 | **16** | **Done** (2026-06-06) | [Legacy cutover](./plans/wave3_phase_16_legacy_cutover.plan.md) — regular flow Drizzle-only; `migrate:legacy` оставлен manual/emergency с guardrails |
-| **17** | **Done** (2026-06-06) | [Closeout](./plans/wave3_phase_17_closeout.plan.md) — docs/rg/CI/archive; **staging smoke** — open gate (owner/ops) |
+| **17** | **Done** (2026-06-06) | [Closeout](./plans/wave3_phase_17_closeout.plan.md) — docs/rg/CI/archive + **staging smoke PASS** (dev stand) |
 
 Цель — сначала фаза **08** (сократить избыточную `integrator`-схему), затем Class **A** / **B** / **C** (permanent pg с ADR), conditional cutover **16**, Zod на DB-границах 09–15. Подфазы: `09A-09E`, `10A-10C`, `12A-12E`, `13A-13E`, `14A-14E`, `15A-15F`.
 

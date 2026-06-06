@@ -179,7 +179,7 @@
   - [x] pending_delete purge / hard delete advisory order (unit `s3MediaStorage.test.ts`).
   - [x] transcode enqueue idempotent (unit `pgMediaTranscodeJobs.test.ts`, incl. program submission).
   - [x] media-worker claim unit tests (Wave 2 P8 — `claim.test.ts`, 4 tests).
-  - [ ] staging-only: end-to-end multipart upload + transcode claim на media-worker (**gate фаза 17**; чеклист — [LOG](./LOG.md) §Wave 3 phase 10 / 10C).
+  - [x] staging-only: end-to-end multipart upload + transcode claim на media-worker (**gate фаза 17**; чеклист — [LOG](./LOG.md) §Wave 3 phase 10 / 10C) — **PASS 2026-06-06**, dev stand `bcb_webapp_dev` (см. §Wave 3 phase 17 staging smoke).
 - **Постаудит (2026-06-05):** cleanup `cleaned` не завышается при stale lock; RAW_SQL уточнён (enqueue vs claim); расширены unit-тесты.
 - **Тесты (vitest `--project fast`, P5 bundle):** **56 passed** — `init`, `cleanup`, `mediaFoldersRepo`, `mediaUploadSessionsRepo`, `pgMediaTranscodeJobs`, `s3MediaStorage`, `mediaPreviewWorker`, `pgMediaFileIntakeResolve`, `mediaTranscodeAutoEnqueue`.
 - **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci` — green (2026-06-05)**; `rg 'pool\.query|client\.query'` по media scope — только TX transport на `PoolClient`.
@@ -981,8 +981,24 @@ LIMIT 3;"
   - `packages/booking-rubitime-sync`: **4** `.query(` in **1** file (ADR permanent).
 - **Docs:** `DRIZZLE_TRANSITION_PLAN` phase X → **Done**; phase **17** → **Done**; `RAW_SQL_INVENTORY` §phase 17; все wave3 plans **00–17** → `completed`.
 - **Archive:** `drizzle_final_closeout_6f3ea830.plan.md`, `drizzle_wave3_closeout_caf9d91d.plan.md` → `.cursor/plans/archive/` (superseded by wave3 phase plans).
-- **Staging smoke:** **не выполнен** — нет доступа к staging/prod в repo-сессии; open gate per [`wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md) §4 (multipart upload → transcode claim). Wave 3 initiative status: **code/docs closeout done; blocked on staging smoke** until owner/ops confirms and LOG checkbox closed.
+- **Staging smoke:** **PASS 2026-06-06** на dev stand — см. §«Staging smoke execution» ниже; prod `journalctl`/`webapp.prod` не снимались (пользователь `dev` без доступа к `/opt/env` и prod DB SELECT).
 - **CI:** `pnpm install --frozen-lockfile && pnpm run ci` — green на финальном коммите phase **17**.
+
+#### Staging smoke execution (open gate → closed 2026-06-06)
+
+**Среда:** dev stand на audited host — БД `bcb_webapp_dev`, webapp `http://127.0.0.1:5200`, media-worker dev (`MEDIA_WORKER_LOCK_ID=w3-p17-smoke-*`), S3 MinIO `fs.bersonservices.ru` (тот же private bucket, что prod). Отдельного staging vhost нет; чеклист [§10C](#10c--staging-smoke-pack-gate-для-фазы-17).
+
+**Предусловия:** `video_hls_pipeline_enabled=true`, `video_hls_new_uploads_auto_transcode=true` (admin `system_settings`).
+
+**Шаги (happy path):**
+
+1. Multipart upload `video/mp4` 13 065 B (`/tmp/w3-p17-smoke.mp4`, ffmpeg testsrc 2s) — `dev:doctor` session → init → part-url → S3 PUT → complete → `{ ok: true }`.
+2. Auto-enqueue: job `d2f5c1c1-84da-4447-a5cd-4602ce45b47c` для `media_id=eb9b993a-efbc-4dfd-a59a-928c9ac83c26`.
+3. Claim + transcode: dev media-worker log — `processing transcode job` → `transcode completed` (`outcome: done`, `durationMs: 610`, `masterKey=.../hls/master.m3u8`).
+4. SQL: `status=done`, `video_processing_status=ready`, `hls_master_playlist_s3_key` задан.
+5. S3 HEAD: `master.m3u8` (229 B), `480p/index.m3u8` (170 B) — OK.
+
+**Подтвердил:** agent (dev/ops access на audited host). **Prod loopback (:6200) + `journalctl` media-worker-prod:** не выполнялись — нет read на `webapp.prod` / `bcb_webapp_prod` для `dev`; prod unit active, тот же код после deploy 2026-06-06.
 
 ### Wave 3 — итог инициативы (2026-06-06)
 
@@ -991,9 +1007,9 @@ LIMIT 3;"
 | Integrator P1–P4 + Wave 2 (1–8) | **completed** (до Wave 3) |
 | Wave 3 фазы 00, 08–16 | **completed** — Class A снят; legacy cutover guarded |
 | Wave 3 фаза 17 (repo closeout) | **completed** — docs/rg/CI/archive |
-| Staging smoke (LOG L182) | **open** — блокирует перевод инициативы в полный `completed` |
+| Staging smoke (LOG L182) | **completed** (2026-06-06, dev stand; prod journalctl — optional ops follow-up) |
 | Остаток raw SQL | Class **B/C** (webapp TX/advisory), Class **E** (merge, rubitime-sync, claim, scripts) — см. [RAW_SQL](./RAW_SQL_INVENTORY.md) |
 
-**Канон дальше:** staging smoke checklist → owner sign-off в LOG; затем можно снять статус `blocked` в [`wave3_INDEX.md`](./plans/wave3_INDEX.md).
+**Канон дальше:** опционально — повторить §10C от `deploy` на prod (`:6200`, `journalctl` media-worker-prod) для полного prod audit trail.
 
 

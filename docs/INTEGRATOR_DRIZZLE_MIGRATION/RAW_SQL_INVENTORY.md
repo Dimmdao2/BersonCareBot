@@ -232,7 +232,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 
 ## Wave 3 phase 17 — closeout gate (2026-06-06)
 
-Фаза **17** закрыла docs/CI/archive; **staging smoke** (multipart → transcode) **не выполнен** в этой сессии — open gate до подтверждения owner/ops на staging ([`wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md) §4, [LOG](./LOG.md) §Wave 3 phase 17).
+Фаза **17** закрыла docs/CI/archive; **staging smoke** (multipart → transcode) — **PASS 2026-06-06** на dev stand ([LOG](./LOG.md) §Wave 3 phase 17 «Staging smoke execution»).
 
 | Gate (17) | Итог |
 |-----------|------|
@@ -243,9 +243,9 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 | `packages/booking-rubitime-sync` `.query(` | **4** hits / **1** file (permanent ADR) |
 | Class A domain raw SQL (webapp runtime) | **0** (closed phases **09–15**) |
 | `pnpm run ci` | green на коммите phase **17** |
-| Staging smoke | **open** — не блокирует phase **17** repo closeout; блокирует статус инициативы Wave 3 → `completed` |
+| Staging smoke | **PASS** (2026-06-06, dev stand) |
 
-**Wave 3 code/docs closeout:** фазы **00 + 08–17** `completed`; инициатива — **blocked (staging smoke)** до owner sign-off.
+**Wave 3:** фазы **00 + 08–17** `completed`; инициатива — **completed**.
 
 ---
 

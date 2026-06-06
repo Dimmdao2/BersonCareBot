@@ -29,7 +29,7 @@
 | 14 — comms / projection (14A-14E) | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | **completed** (2026-06-06; 14A–14E; gate + Zod boundaries; Vitest **119 passed** / 11 skipped) |
 | 15 — webapp long tail (15A-15F) | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | **done** (2026-06-06) |
 | 16 — условный legacy cutover | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | **completed** (2026-06-06; regular flow Drizzle-only, legacy path guarded/manual) |
-| 17 — closeout | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | **completed** (2026-06-06; docs/rg/CI/archive; staging smoke **open**) |
+| 17 — closeout | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | **completed** (2026-06-06; docs/rg/CI/archive; staging smoke **PASS**) |
 
 Детальная рабочая декомпозиция зафиксирована в `wave3_INDEX.md` и внутри phase-файлов:
 

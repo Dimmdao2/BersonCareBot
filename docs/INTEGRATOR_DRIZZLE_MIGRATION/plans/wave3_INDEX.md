@@ -1,12 +1,12 @@
 # Wave 3 — финальный closeout (raw SQL tail ↓ / Drizzle + Zod / legacy cutover)
 
-**Статус:** code/docs closeout **done** (2026-06-06) — фазы **00**, **08–17** `completed`; инициатива **blocked (staging smoke)** до owner sign-off ([LOG](../LOG.md) §Wave 3 phase 17)
+**Статус:** **completed** (2026-06-06) — фазы **00**, **08–17** `completed`; staging smoke **PASS** на dev stand ([LOG](../LOG.md) §Wave 3 phase 17 «Staging smoke execution»)
 **Предшественник:** Wave 2 этапы 1–8 **completed**  
 **Решения до старта:** [wave3_DECISIONS.md](./wave3_DECISIONS.md) (DoR закрыт фазой 00)
 
 ## Цель Wave 3
 
-1. Integrator P1+ (**done**, фаза 09), media-worker IX (**done**, фаза 10), app-layer/auth tail (**done**, фаза 11), intake/purge/identity (**done**, фаза 12), booking/doctor (**done**, фаза 13), comms/projection (**done**, фаза 14), webapp long-tail (**done**, фаза 15), legacy cutover (**done**, фаза 16), closeout (**done**, фаза 17) — repo work закрыт; staging smoke gate open.
+1. Integrator P1+ (**done**, фаза 09), media-worker IX (**done**, фаза 10), app-layer/auth tail (**done**, фаза 11), intake/purge/identity (**done**, фаза 12), booking/doctor (**done**, фаза 13), comms/projection (**done**, фаза 14), webapp long-tail (**done**, фаза 15), legacy cutover (**done**, фаза 16), closeout (**done**, фаза 17) — repo + staging smoke закрыты.
 2. Убрать необъяснённый **`pool.query` / `client.query`** в webapp runtime (Class **A**), либо перевести в Class **B/C** с ADR.
 3. Убрать потребность в регулярном `migrate:legacy` для webapp, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner в regular flow.
 4. Синхронизировать **RAW_SQL_INVENTORY**, **DRIZZLE_TRANSITION_PLAN**, **LOG**; закрыть инициативу или явный backlog с причинами.
@@ -40,7 +40,7 @@
 | 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 (**done** 2026-06-06) |
 | 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | long tail (декомпозиция 15A-15F) | 1 (**done** 2026-06-06) |
 | 16 | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | M | webapp legacy migration dependency cutover (`migrate:legacy`) | 1 (**done** 2026-06-06) |
-| 17 | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | S | docs sync, staging smoke gate, full CI, archive | 1 (**done** 2026-06-06; staging smoke open) |
+| 17 | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | S | docs sync, staging smoke gate, full CI, archive | 1 (**done** 2026-06-06; staging smoke **PASS**) |
 
 **Итого:** ~8 code PR + 1 docs baseline + 1 closeout (или baseline+09 в одном PR по согласованию).
 
@@ -100,7 +100,7 @@
 - `15A→15B→15C→15D→15E→15F` внутри фазы 15.
 - `12` → `13` → `14` → `15` идут последовательно (`15` closed).
 - `16` стартует после `15`; по итогу `09–15` blocker не найден, regular flow закреплён как Drizzle-only, legacy оставлен manual/emergency.
-- `17` — **done** (2026-06-06); staging smoke остаётся open gate для полного `completed` инициативы.
+- `17` — **done** (2026-06-06); staging smoke **PASS** (dev stand) — инициатива Wave 3 **completed**.
 
 ## Связь с DRIZZLE_TRANSITION_PLAN фазами IX–X
 

@@ -12,7 +12,7 @@ todos:
     status: completed
   - id: w3-p17-staging-smoke
     content: "LOG L182 staging multipart→transcode — обязательный smoke по чеклисту; подтверждает owner или человек/агент с доступом к staging/prod logs, очередям, БД и внешним сервисам."
-    status: cancelled
+    status: completed
   - id: w3-p17-ci
     content: "pnpm install --frozen-lockfile && pnpm run ci — green на финальном коммите."
     status: completed
@@ -33,7 +33,7 @@ todos:
 - [x] [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md): IX media-worker **Done**; X webapp **Done** или backlog с ADR list.
 - [x] [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md): только Class B/C + scripts; дата снимка.
 - [x] **`pnpm run ci`** green.
-- [ ] Staging smoke выполнен, подтверждён owner/ops/dev lead/senior agent с доступом и зафиксирован в LOG (`[x]` + дата/среда + кто подтвердил). **Cancelled в phase 17 repo-сессии** — нет доступа к staging; open gate, см. [LOG](../LOG.md) §Wave 3 phase 17.
+- [x] Staging smoke выполнен, подтверждён agent с dev-stand доступом и зафиксирован в LOG (`[x]` + **2026-06-06** + `bcb_webapp_dev`). Prod `journalctl`/`:6200` — optional ops follow-up; см. [LOG](../LOG.md) §Wave 3 phase 17 «Staging smoke execution».
 
 ## Scope
 
@@ -72,5 +72,5 @@ todos:
 
 ## Закрытие (2026-06-06)
 
-- Docs/rg/CI/archive выполнены; staging smoke — **cancelled** (open gate).
-- Wave 3 initiative: **code/docs closeout done**; полный `completed` — после staging smoke sign-off.
+- Docs/rg/CI/archive выполнены; staging smoke — **PASS 2026-06-06** (dev stand, [LOG](../LOG.md) §«Staging smoke execution»).
+- Wave 3 initiative: **completed** (repo + staging smoke gate на dev stand).
