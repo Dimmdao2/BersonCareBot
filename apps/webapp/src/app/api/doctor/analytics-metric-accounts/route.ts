@@ -7,14 +7,42 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import {
   DOCTOR_TODAY_METRIC_KEYS,
+  type DoctorAnalyticsMetricAccountItem,
   type DoctorAnalyticsMetricKey,
 } from "@/modules/doctor-analytics-metric-accounts/ports";
+import type { AppointmentRow, DoctorAppointmentsListFilter } from "@/modules/doctor-appointments/ports";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { parseReminderStatsWindowHours } from "@/app-layer/stats/loadAdminReminderStats";
 
 const doctorMetricEnum = z.enum([
   ...DOCTOR_TODAY_METRIC_KEYS,
 ] as [DoctorAnalyticsMetricKey, ...DoctorAnalyticsMetricKey[]]);
+
+const APPOINTMENT_METRIC_FILTERS: Partial<Record<DoctorAnalyticsMetricKey, DoctorAppointmentsListFilter>> = {
+  today_appointments_today: { kind: "statsRange", range: "today" },
+  today_appointments_week: { kind: "statsRange", range: "week" },
+  today_cancellations_30d: { kind: "cancellations30d" },
+};
+
+function mapAppointmentMetricLabel(metric: DoctorAnalyticsMetricKey): string {
+  if (metric === "today_appointments_today") return "Запись сегодня";
+  if (metric === "today_appointments_week") return "Запись на неделе";
+  if (metric === "today_cancellations_30d") return "Отмена";
+  return "Запись";
+}
+
+function mapAppointmentMetricItem(metric: DoctorAnalyticsMetricKey, row: AppointmentRow): DoctorAnalyticsMetricAccountItem {
+  return {
+    userId: row.clientUserId,
+    displayName: row.clientLabel,
+    phone: null,
+    eventAt: row.recordAtIso,
+    eventLabel: mapAppointmentMetricLabel(metric),
+    appointmentAt: row.recordAtIso,
+    appointmentService: row.type,
+    appointmentBranch: row.branchName,
+  };
+}
 
 export async function GET(req: Request) {
   const session = await getCurrentSession();
@@ -44,6 +72,23 @@ export async function GET(req: Request) {
     const iana = await getAppDisplayTimeZone();
     const audience = await loadDoctorAnalyticsAudience();
     const deps = buildAppDeps();
+    const appointmentFilter = APPOINTMENT_METRIC_FILTERS[metric];
+    if (appointmentFilter) {
+      const rows = await deps.doctorAppointments.listAppointmentsForSpecialist(appointmentFilter, {
+        excludedUserIds: audience.excludedUserIds,
+      });
+      const pageEnd = offset + limit + 1;
+      const pageRows = rows.slice(offset, pageEnd);
+      const hasMore = pageRows.length > limit;
+      const sliced = hasMore ? pageRows.slice(0, limit) : pageRows;
+      return NextResponse.json({
+        ok: true as const,
+        items: sliced.map((row) => mapAppointmentMetricItem(metric, row)),
+        hasMore,
+        nextOffset: hasMore ? offset + limit : null,
+      });
+    }
+
     const isToday = (DOCTOR_TODAY_METRIC_KEYS as readonly string[]).includes(metric);
     const result = await deps.doctorAnalyticsMetricAccounts.listMetricAccounts({
       metric,

@@ -74,6 +74,29 @@ describe("pgDoctorAppointments cancellation rules", () => {
     expect(last30Query).toContain("deleted_at IS NULL");
   });
 
+  it("statsRange list uses stats window semantics", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    const port = createPgDoctorAppointmentsPort();
+    await port.listAppointmentsForSpecialist({ kind: "statsRange", range: "today" });
+
+    const [sql] = runWebappPgTextMock.mock.calls[0] ?? [];
+    const listSql = String(sql);
+    expect(listSql).toContain("ar.record_at >= $1::timestamptz");
+    expect(listSql).toContain("ar.record_at < $2::timestamptz");
+    expect(listSql).not.toContain("ar.status != 'canceled'");
+  });
+
+  it("cancellations30d list reuses cancellation exclusion", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    const port = createPgDoctorAppointmentsPort();
+    await port.listAppointmentsForSpecialist({ kind: "cancellations30d" });
+
+    const [sql] = runWebappPgTextMock.mock.calls[0] ?? [];
+    const listSql = String(sql);
+    expect(listSql).toContain(CANCELLATION_LAST_EVENT_EXCLUSION_SQL);
+    expect(listSql).toContain("NOW() - INTERVAL '30 days'");
+  });
+
   it("listAppointmentsForSpecialist passes excludedUserIds as one uuid[] param", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const excluded = ["1c312a64-fab8-4b75-b24e-88a1d6ebe4e0", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"];

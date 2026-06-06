@@ -54,6 +54,10 @@ export type DoctorAnalyticsMetricAccountItem = {
   phone: string | null;
   eventAt: string | null;
   eventLabel: string | null;
+  /** KPI drill-down for appointment metrics. */
+  appointmentAt?: string | null;
+  appointmentService?: string | null;
+  appointmentBranch?: string | null;
 };
 
 export type DoctorAnalyticsMetricAccountsResult = {

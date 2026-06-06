@@ -23,6 +23,11 @@ type Props = {
 };
 
 const PAGE_SIZE = 30;
+const APPOINTMENT_METRICS = new Set<DoctorAnalyticsMetricKey>([
+  "today_appointments_today",
+  "today_appointments_week",
+  "today_cancellations_30d",
+]);
 
 function formatEventAt(iso: string | null): string {
   if (!iso) return "";
@@ -133,17 +138,31 @@ export function MetricAccountsDialog({
           <ul className="space-y-2">
             {items.map((item, idx) => (
               <li key={`${item.userId}-${item.eventAt ?? "none"}-${idx}`} className="rounded-md border border-border/60 p-2">
-                <Link
-                  href={`/app/doctor/clients/${item.userId}`}
-                  className="text-sm font-medium text-primary underline-offset-2 hover:underline"
-                >
-                  {item.displayName}
-                </Link>
-                <p className="text-xs text-muted-foreground">
-                  {item.phone ? `Телефон: ${item.phone}` : "Телефон не указан"}
-                  {item.eventLabel ? ` · ${item.eventLabel}` : ""}
-                  {item.eventAt ? ` · ${formatEventAt(item.eventAt)}` : ""}
-                </p>
+                {item.userId ? (
+                  <Link
+                    href={`/app/doctor/clients/${item.userId}`}
+                    className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    {item.displayName}
+                  </Link>
+                ) : (
+                  <p className="text-sm font-medium">{item.displayName}</p>
+                )}
+                {metric && APPOINTMENT_METRICS.has(metric) ? (
+                  <p className="text-xs text-muted-foreground">
+                    {item.appointmentAt || item.eventAt
+                      ? `Дата/время: ${formatEventAt(item.appointmentAt ?? item.eventAt)}`
+                      : "Дата/время не указаны"}
+                    {item.appointmentService ? ` · Услуга: ${item.appointmentService}` : " · Услуга: не указана"}
+                    {item.appointmentBranch ? ` · Филиал: ${item.appointmentBranch}` : " · Филиал: не указан"}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {item.phone ? `Телефон: ${item.phone}` : "Телефон не указан"}
+                    {item.eventLabel ? ` · ${item.eventLabel}` : ""}
+                    {item.eventAt ? ` · ${formatEventAt(item.eventAt)}` : ""}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
