@@ -54,6 +54,7 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     getConversationRelayInfo: async () => null,
     getConversationIfOwnedByUser: async () => null,
     markInboundReadForUser: async () => undefined,
+    markInboundMessagesReadForUser: async () => undefined,
     markUserMessagesReadByAdmin: async () => undefined,
     countUnreadForUser: async () => 0,
     listUnreadInboundAdminMessagesForUser: async () => [],

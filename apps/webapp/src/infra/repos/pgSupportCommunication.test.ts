@@ -394,4 +394,30 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     await port.markInboundReadForUser(canonicalId, platformUserId);
     expect(await port.countUnreadForUser(platformUserId)).toBe(0);
   });
+
+  it("markInboundMessagesReadForUser marks only selected inbound ids", async () => {
+    const platformUserId = "patient-unread-selective-3";
+    const { id: convId } = await port.ensureWebappConversationForUser(platformUserId);
+    const now = new Date().toISOString();
+    const first = await port.appendWebappMessage({
+      conversationId: convId,
+      integratorMessageId: "webapp-unread-selective-a",
+      senderRole: "admin",
+      text: "First",
+      source: "webapp",
+      createdAt: now,
+    });
+    await port.appendWebappMessage({
+      conversationId: convId,
+      integratorMessageId: "webapp-unread-selective-b",
+      senderRole: "admin",
+      text: "Second",
+      source: "webapp",
+      createdAt: now,
+    });
+
+    expect(await port.countUnreadForUser(platformUserId)).toBe(2);
+    await port.markInboundMessagesReadForUser(platformUserId, [first.id]);
+    expect(await port.countUnreadForUser(platformUserId)).toBe(1);
+  });
 });

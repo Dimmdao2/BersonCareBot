@@ -253,6 +253,15 @@ function readPgConstraint(err: unknown): string | null {
   return null;
 }
 
+function withPgMeta(reason: string, err: unknown): string {
+  const code = readPgCode(err);
+  const constraint = readPgConstraint(err);
+  if (!code && !constraint) return reason;
+  if (code && constraint) return `${reason} [pg:${code}/${constraint}]`;
+  if (code) return `${reason} [pg:${code}]`;
+  return `${reason} [pg:${constraint}]`;
+}
+
 /**
  * appointment_records deterministic DB errors should not be retried forever:
  * - 23503 appointment_records_branch_id_fkey (branch mapping/data mismatch)
@@ -1125,7 +1134,7 @@ export async function handleIntegratorEvent(
       const reason = err instanceof Error ? err.message : "unknown error";
       return {
         accepted: false,
-        reason: `appointment.record.upserted: ${reason}`,
+        reason: withPgMeta(`appointment.record.upserted: ${reason}`, err),
         retryable:
           isNonRetryableProjectionUpsertError(err)
           || isNonRetryableAppointmentProjectionError(err)

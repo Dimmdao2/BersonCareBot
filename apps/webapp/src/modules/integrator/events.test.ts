@@ -1326,6 +1326,47 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     expect(result.reason).toContain("appointment.record.upserted:");
   });
 
+  it("appointment.record.upserted canonical overlap is non-retryable (422 path)", async () => {
+    const pgErr = Object.assign(
+      new Error(
+        "conflicting key value violates exclusion constraint \"be_appointments_specialist_no_overlap\"",
+      ),
+      {
+        code: "23P01",
+        constraint: "be_appointments_specialist_no_overlap",
+      },
+    );
+    const applyInboundFromRubitime = vi.fn().mockRejectedValue(pgErr);
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-overlap-1",
+          phoneNormalized: "+79991234567",
+          recordAt: "2025-06-01T10:00:00.000Z",
+          status: "created",
+          payloadJson: {},
+          lastEvent: "event-create",
+          updatedAt: "2025-05-01T12:00:00.000Z",
+        },
+      },
+      {
+        ...depsWithAp,
+        appointmentMirrorSync: {
+          applyInboundFromRubitime,
+          getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1"),
+          pushRescheduleToRubitime: vi.fn(),
+          pushCancelToRubitime: vi.fn(),
+          stampCanonicalOutbound: vi.fn(),
+        },
+      },
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.retryable).toBe(false);
+    expect(result.reason).toContain("be_appointments_specialist_no_overlap");
+    expect(result.reason).toContain("23P01");
+  });
+
   it("appointment.record.upserted normalizes phone before ensureClientFromAppointmentProjection", async () => {
     const ensureClientFromAppointmentProjection = vi
       .fn()

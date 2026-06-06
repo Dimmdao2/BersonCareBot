@@ -5,6 +5,8 @@ type RequestLoggerLike = {
   error: (obj: Record<string, unknown>, message: string) => void;
 };
 
+const TELEGRAM_CALLBACK_DATA_MAX_BYTES = 64;
+
 type DeliveryPayload = {
   recipient?: { chatId?: unknown };
   message?: { text?: unknown };
@@ -39,6 +41,51 @@ function asChatId(value: unknown): number | null {
   return null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isTelegramCallbackDataValid(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const bytes = Buffer.byteLength(value, 'utf8');
+  return bytes > 0 && bytes <= TELEGRAM_CALLBACK_DATA_MAX_BYTES;
+}
+
+/**
+ * Telegram returns BUTTON_DATA_INVALID when callback_data is missing/invalid or longer than 64 bytes.
+ * To keep delivery resilient, we drop only broken inline buttons and send the rest.
+ */
+function sanitizeTelegramReplyMarkup(replyMarkup: unknown): unknown {
+  if (!isRecord(replyMarkup)) return replyMarkup;
+  const inlineKeyboardRaw = replyMarkup.inline_keyboard;
+  if (!Array.isArray(inlineKeyboardRaw)) return replyMarkup;
+
+  let mutated = false;
+  const inline_keyboard = inlineKeyboardRaw
+    .map((row) => {
+      if (!Array.isArray(row)) {
+        mutated = true;
+        return [];
+      }
+      const nextRow = row.filter((button) => {
+        if (!isRecord(button)) {
+          mutated = true;
+          return false;
+        }
+        if (!('callback_data' in button)) return true;
+        const valid = isTelegramCallbackDataValid(button.callback_data);
+        if (!valid) mutated = true;
+        return valid;
+      });
+      if (nextRow.length !== row.length) mutated = true;
+      return nextRow;
+    })
+    .filter((row) => row.length > 0);
+
+  if (!mutated) return replyMarkup;
+  return { ...replyMarkup, inline_keyboard };
+}
+
 export function createTelegramDeliveryAdapter(): DeliveryAdapter {
   let messagingPort: ReturnType<typeof createMessagingPort> | null = null;
   const getMessagingPort = (): ReturnType<typeof createMessagingPort> => {
@@ -64,6 +111,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       const reqLogger = (intent.meta as { reqLogger?: RequestLoggerLike }).reqLogger;
       if (intent.type === 'message.send') {
         const chatId = asChatId(rawChatId);
+        const replyMarkup = sanitizeTelegramReplyMarkup(payload.replyMarkup);
         if (chatId === null || !text) {
           if (reqLogger) {
             reqLogger.error({ recipient: payload.recipient, intent }, '[telegram][deliveryAdapter] TELEGRAM_PAYLOAD_INVALID diagnostics');
@@ -75,7 +123,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
         const sent = await getMessagingPort().sendMessage({
           chat_id: chatId,
           text,
-          reply_markup: payload.replyMarkup as never,
+          reply_markup: replyMarkup as never,
           ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
         });
         const midRaw = (sent as { message_id?: unknown })?.message_id;
@@ -104,6 +152,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
 
       if (intent.type === 'message.edit') {
         const chatId = asChatId(rawChatId);
+        const replyMarkup = sanitizeTelegramReplyMarkup(payload.replyMarkup);
         const numMessageId = typeof messageId === 'number' && Number.isFinite(messageId) ? messageId : (typeof messageId === 'string' ? Number(messageId) : NaN);
         if (chatId === null || !Number.isFinite(numMessageId) || !text) {
           const err = new Error('TELEGRAM_PAYLOAD_INVALID');
@@ -114,7 +163,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           chat_id: chatId,
           message_id: numMessageId,
           text,
-          reply_markup: payload.replyMarkup as never,
+          reply_markup: replyMarkup as never,
           ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
         });
         return {};
@@ -122,6 +171,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
 
       if (intent.type === 'message.replyMarkup.edit') {
         const chatId = asChatId(rawChatId);
+        const replyMarkup = sanitizeTelegramReplyMarkup(payload.replyMarkup);
         const numMessageId = typeof messageId === 'number' && Number.isFinite(messageId) ? messageId : (typeof messageId === 'string' ? Number(messageId) : NaN);
         if (chatId === null || !Number.isFinite(numMessageId)) {
           const err = new Error('TELEGRAM_PAYLOAD_INVALID');
@@ -131,7 +181,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
         await getMessagingPort().editMessageReplyMarkup({
           chat_id: chatId,
           message_id: numMessageId,
-          reply_markup: payload.replyMarkup as never,
+          reply_markup: replyMarkup as never,
         });
         return {};
       }

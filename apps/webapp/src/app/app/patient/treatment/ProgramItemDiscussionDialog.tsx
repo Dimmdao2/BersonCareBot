@@ -15,6 +15,7 @@ import {
 import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/modules/messaging/messageFormatting";
 import { ProgramItemDiscussionMediaPicker } from "@/app/app/patient/treatment/ProgramItemDiscussionMediaPicker";
 import { ProgramItemDiscussionMessageBody } from "@/app/app/patient/treatment/ProgramItemDiscussionMessageBody";
+import { notifyPatientSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -57,6 +58,7 @@ export function ProgramItemDiscussionDialog(props: {
   const markRead = useCallback(async () => {
     const res = await fetch(`${basePath}/read`, { method: "POST" });
     if (!res.ok) return false;
+    notifyPatientSupportUnreadCountChanged();
     await onRead?.();
     return true;
   }, [basePath, onRead]);

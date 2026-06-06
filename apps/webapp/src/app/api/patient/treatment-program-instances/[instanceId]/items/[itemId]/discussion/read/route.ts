@@ -52,5 +52,13 @@ export async function POST(
     patientUserId: gate.session.user.userId,
     stageItemId: itemId,
   });
+
+  const linkedSupportMessageIds = await deps.programItemDiscussion.listLinkedSupportMessageIdsForStageItem(itemId);
+  if (linkedSupportMessageIds.length > 0) {
+    await deps.supportCommunication.markInboundMessagesReadForUser(
+      gate.session.user.userId,
+      linkedSupportMessageIds,
+    );
+  }
   return NextResponse.json({ ok: true });
 }

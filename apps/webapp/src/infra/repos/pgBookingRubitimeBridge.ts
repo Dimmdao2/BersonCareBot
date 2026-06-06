@@ -5,6 +5,7 @@ import {
   type ExternalMappingLookup,
 } from "@/modules/booking-rubitime-bridge/legacyProjection";
 import {
+  recoverableAppointmentNearSlotQuery,
   recoverableAppointmentSlotPhoneQuery,
   recoverableAppointmentStrictQuery,
   type RecoverableAppointmentLookup,
@@ -76,7 +77,10 @@ async function findRecoverableRubitimeProjectionId(
   const strict = await db.execute<{ id: string }>(recoverableAppointmentStrictQuery(lookup));
   if (strict.rows[0]?.id) return strict.rows[0].id;
   const fallback = await db.execute<{ id: string }>(recoverableAppointmentSlotPhoneQuery(lookup));
-  return fallback.rows[0]?.id ?? null;
+  if (fallback.rows[0]?.id) return fallback.rows[0].id;
+  if (!lookup.phoneNormalized) return null;
+  const nearSlot = await db.execute<{ id: string }>(recoverableAppointmentNearSlotQuery(lookup));
+  return nearSlot.rows[0]?.id ?? null;
 }
 
 async function linkRecoveredRubitimeProjection(

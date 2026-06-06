@@ -54,7 +54,8 @@ function adminContinueCallbackData(conversationId: string, programNoteStageItemI
   if (programNoteStageItemId) {
     return `program_reply:${programNoteStageItemId}`;
   }
-  return `admin_reply_continue:${conversationId}`;
+  // `admin_reply:` keeps callback_data within Telegram 64-byte limit for `webapp:platform:{uuid}` ids.
+  return `admin_reply:${conversationId}`;
 }
 
 async function persistAdminMessengerUserState(
@@ -481,7 +482,7 @@ export async function handleConversationAdminReply(
       ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() ?? ''
       : '';
     const replyRows: Array<Array<{ text: string; callback_data: string }>> = [
-      [{ text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` }],
+      [{ text: continueButtonText, callback_data: adminContinueCallbackData(conversationId, null) }],
     ];
     if (closeButtonText) {
       replyRows.push([{ text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` }]);

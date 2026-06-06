@@ -6,17 +6,23 @@ const {
   getSettingMock,
   getInstanceForPatientMock,
   markReadMock,
+  listLinkedSupportMessageIdsForStageItemMock,
+  markInboundMessagesReadForUserMock,
   getPatientProgramInteractionPolicyMock,
 } = vi.hoisted(() => {
   const getSettingMockInner = vi.fn();
   const getInstanceForPatientMockInner = vi.fn();
   const markReadMockInner = vi.fn();
+  const listLinkedSupportMessageIdsForStageItemMockInner = vi.fn();
+  const markInboundMessagesReadForUserMockInner = vi.fn();
   const getPatientProgramInteractionPolicyMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
     getSettingMock: getSettingMockInner,
     getInstanceForPatientMock: getInstanceForPatientMockInner,
     markReadMock: markReadMockInner,
+    listLinkedSupportMessageIdsForStageItemMock: listLinkedSupportMessageIdsForStageItemMockInner,
+    markInboundMessagesReadForUserMock: markInboundMessagesReadForUserMockInner,
     getPatientProgramInteractionPolicyMock: getPatientProgramInteractionPolicyMockInner,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: { getSetting: getSettingMockInner },
@@ -24,7 +30,13 @@ const {
         getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMockInner,
       },
       treatmentProgramInstance: { getInstanceForPatient: getInstanceForPatientMockInner },
-      programItemDiscussion: { markRead: markReadMockInner },
+      programItemDiscussion: {
+        markRead: markReadMockInner,
+        listLinkedSupportMessageIdsForStageItem: listLinkedSupportMessageIdsForStageItemMockInner,
+      },
+      supportCommunication: {
+        markInboundMessagesReadForUser: markInboundMessagesReadForUserMockInner,
+      },
     })),
   };
 });
@@ -48,6 +60,8 @@ describe("POST discussion/read", () => {
     getSettingMock.mockReset();
     getInstanceForPatientMock.mockReset();
     markReadMock.mockReset();
+    listLinkedSupportMessageIdsForStageItemMock.mockReset();
+    markInboundMessagesReadForUserMock.mockReset();
     getPatientProgramInteractionPolicyMock.mockReset();
 
     gateMock.mockResolvedValue({
@@ -73,6 +87,8 @@ describe("POST discussion/read", () => {
       stages: [{ items: [{ id: itemId }] }],
     });
     markReadMock.mockResolvedValue(undefined);
+    listLinkedSupportMessageIdsForStageItemMock.mockResolvedValue([]);
+    markInboundMessagesReadForUserMock.mockResolvedValue(undefined);
   });
 
   it("marks item discussion as read", async () => {
@@ -88,6 +104,23 @@ describe("POST discussion/read", () => {
       patientUserId,
       stageItemId: itemId,
     });
+  });
+
+  it("syncs related support inbound messages as read", async () => {
+    const linkedMessageIds = [
+      "33333333-3333-4333-8333-333333333333",
+      "44444444-4444-4444-8444-444444444444",
+    ];
+    listLinkedSupportMessageIdsForStageItemMock.mockResolvedValue(linkedMessageIds);
+    const res = await POST(
+      new Request(
+        `http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/read`,
+        { method: "POST" },
+      ),
+      { params: Promise.resolve({ instanceId, itemId }) },
+    );
+    expect(res.status).toBe(200);
+    expect(markInboundMessagesReadForUserMock).toHaveBeenCalledWith(patientUserId, linkedMessageIds);
   });
 
   it("returns 403 when feature disabled", async () => {

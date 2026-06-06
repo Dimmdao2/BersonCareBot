@@ -138,6 +138,24 @@ describe("createPgBookingRubitimeBridgePort projection idempotency", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("recovers mapping when only near-slot fallback matches", async () => {
+    let queryCall = 0;
+    executeMock.mockImplementation(async () => {
+      queryCall += 1;
+      if (queryCall === 1 || queryCall === 2) return { rows: [] };
+      if (queryCall === 3) return { rows: [{ id: "near-slot-appt-id" }] };
+      return { rows: [] };
+    });
+
+    const port = createPgBookingRubitimeBridgePort();
+    const result = await port.projectAppointmentRecords(ORG);
+
+    expect(result.projectedAppointments).toBe(0);
+    expect(result.updatedAppointments).toBe(0);
+    expect(result.recoveredMappings).toBe(1);
+    expect(txInsert.mock.calls.filter(([table]) => table === beAppointments)).toHaveLength(0);
+  });
+
   it("updates when appointment mapping already exists", async () => {
     mappingSelectLimit.mockResolvedValue([{ canonicalId: "already-mapped" }]);
     appointmentSelectLimit.mockResolvedValue([

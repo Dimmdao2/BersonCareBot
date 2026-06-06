@@ -48,3 +48,27 @@ export function recoverableAppointmentSlotPhoneQuery(
     LIMIT 1
   `;
 }
+
+/**
+ * Fallback for small Rubitime timestamp drift (seconds precision mismatch):
+ * same specialist + phone and start/end within 2 minutes.
+ */
+export function recoverableAppointmentNearSlotQuery(
+  params: RecoverableAppointmentLookup,
+): SQL {
+  return sql`
+    SELECT id
+    FROM be_appointments
+    WHERE organization_id = ${params.organizationId}::uuid
+      AND source = 'rubitime_projection'
+      AND specialist_id IS NOT DISTINCT FROM ${params.specialistId}::uuid
+      AND ${params.phoneNormalized}::text IS NOT NULL
+      AND phone_normalized IS NOT DISTINCT FROM ${params.phoneNormalized}::text
+      AND ABS(EXTRACT(EPOCH FROM (start_at - ${params.startAt}::timestamptz))) <= 120
+      AND ABS(EXTRACT(EPOCH FROM (end_at - ${params.endAtIso}::timestamptz))) <= 120
+    ORDER BY
+      ABS(EXTRACT(EPOCH FROM (start_at - ${params.startAt}::timestamptz))) ASC,
+      updated_at DESC
+    LIMIT 1
+  `;
+}

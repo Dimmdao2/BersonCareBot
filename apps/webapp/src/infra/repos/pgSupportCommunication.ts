@@ -207,6 +207,10 @@ export type SupportCommunicationPort = {
   getConversationRelayInfo(conversationId: string): Promise<SupportConversationRelayInfo | null>;
   getConversationIfOwnedByUser(conversationId: string, platformUserId: string): Promise<SupportConversationRow | null>;
   markInboundReadForUser(conversationId: string, platformUserId: string): Promise<void>;
+  markInboundMessagesReadForUser(
+    platformUserId: string,
+    messageIds: string[],
+  ): Promise<void>;
   markUserMessagesReadByAdmin(conversationId: string): Promise<void>;
   countUnreadForUser(platformUserId: string): Promise<number>;
   listUnreadInboundAdminMessagesForUser(
@@ -1007,6 +1011,22 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
          )
          AND sender_role <> 'user' AND read_at IS NULL`,
         [platformUserId]
+      );
+    },
+
+    async markInboundMessagesReadForUser(platformUserId, messageIds) {
+      const ids = [...new Set(messageIds.map((id) => String(id).trim()).filter(Boolean))];
+      if (ids.length === 0) return;
+      await runWebappPgText(
+        `UPDATE support_conversation_messages m
+         SET read_at = COALESCE(m.read_at, now())
+         FROM support_conversations c
+         WHERE m.conversation_id = c.id
+           AND c.platform_user_id = $1::uuid
+           AND m.sender_role <> 'user'
+           AND m.read_at IS NULL
+           AND m.id = ANY($2::uuid[])`,
+        [platformUserId, ids],
       );
     },
 

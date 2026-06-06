@@ -477,6 +477,23 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     }
   },
 
+  async markInboundMessagesReadForUser(platformUserId, messageIds) {
+    const ids = new Set(messageIds.map((id) => String(id).trim()).filter(Boolean));
+    if (ids.size === 0) return;
+    const convIds = new Set(
+      Array.from(conversations.values())
+        .filter((row) => row.platformUserId === platformUserId)
+        .map((row) => row.id),
+    );
+    const now = new Date().toISOString();
+    for (const m of messages.values()) {
+      if (!ids.has(m.id)) continue;
+      if (!convIds.has(m.conversationId)) continue;
+      if (m.senderRole === "user" || m.readAt != null) continue;
+      m.readAt = now;
+    }
+  },
+
   async markUserMessagesReadByAdmin(conversationId) {
     for (const m of messages.values()) {
       if (m.conversationId === conversationId && m.senderRole === "user" && m.readAt == null) {
