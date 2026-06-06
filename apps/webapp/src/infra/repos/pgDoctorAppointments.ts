@@ -1,7 +1,10 @@
+/**
+ * Wave 3 phase 13B — domain SQL via `runWebappPgText` (Drizzle `execute(sql)`); no direct `pool.query`.
+ */
 import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { rubitimeNameIfDifferent } from "@/shared/lib/appointmentRubitimeNameMismatch";
 import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordProvenance";
 import type {
@@ -126,7 +129,6 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
       filter: DoctorAppointmentsListFilter,
       audience?: { excludedUserIds?: string[] },
     ): Promise<AppointmentRow[]> {
-      const pool = getPool();
       let result: {
         rows: Parameters<typeof mapListRows>[0];
       };
@@ -135,7 +137,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         const iana = await getAppDisplayTimeZone();
         const { from, to } = localDayRangeBoundsIso(filter.range, iana);
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 3);
-        result = await pool.query(
+        result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
@@ -150,7 +152,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         );
       } else if (filter.kind === "futureActive") {
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);
-        result = await pool.query(
+        result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
@@ -161,7 +163,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         );
       } else if (filter.kind === "recordsInCalendarMonth") {
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);
-        result = await pool.query(
+        result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
@@ -177,7 +179,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         const limit = filter.limit ?? 50;
         const offset = filter.offset ?? 0;
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 3);
-        result = await pool.query(
+        result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
@@ -192,7 +194,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         );
       } else {
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);
-        result = await pool.query(
+        result = await runWebappPgText(
           `${LIST_SELECT}
          FROM appointment_records ar
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
@@ -214,14 +216,13 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
       filter: DoctorAppointmentStatsFilter,
       audience?: { excludedUserIds?: string[] },
     ): Promise<AppointmentStats> {
-      const pool = getPool();
       const iana = await getAppDisplayTimeZone();
       const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
       const rangeEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 3);
       const bookingsEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 3);
       const cancel30Ex = legacyStatsUserExclusionClause(audience?.excludedUserIds, 1);
       const [rangeResult, bookingsCreatedResult] = await Promise.all([
-        pool.query<{
+        runWebappPgText<{
           total: string;
           past_visits: string;
           cancelled_visits: string;
@@ -251,7 +252,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
              AND record_at >= $1::timestamptz AND record_at < $2::timestamptz${rangeEx.clause}`,
           [from, toExclusive, ...rangeEx.params],
         ),
-        pool.query<{ count: string }>(
+        runWebappPgText<{ count: string }>(
           `SELECT COUNT(*)::text AS count
            FROM appointment_records
            WHERE deleted_at IS NULL
@@ -259,7 +260,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
           [from, toExclusive, ...bookingsEx.params],
         ),
       ]);
-      const cancellations30dResult = await pool.query<{ count: string }>(
+      const cancellations30dResult = await runWebappPgText<{ count: string }>(
         `SELECT COUNT(*)::text AS count
          FROM appointment_records
          WHERE deleted_at IS NULL
@@ -284,17 +285,16 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
     async getDashboardAppointmentMetrics(
       audience?: { excludedUserIds?: string[] },
     ): Promise<DoctorDashboardAppointmentMetrics> {
-      const pool = getPool();
       const futureEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 1, "ar");
       const monthEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 1);
       const cancelEx = legacyStatsUserExclusionClause(audience?.excludedUserIds, 1, "ar");
       const [futureR, monthR, cancelR] = await Promise.all([
-        pool.query<{ c: string }>(
+        runWebappPgText<{ c: string }>(
           `SELECT COUNT(*)::text AS c FROM appointment_records ar
            WHERE ${AR_ACTIVE_UPCOMING_SQL}${futureEx.clause}`,
           futureEx.params,
         ),
-        pool.query<{ c: string }>(
+        runWebappPgText<{ c: string }>(
           `SELECT COUNT(*)::text AS c FROM appointment_records
            WHERE deleted_at IS NULL
              AND record_at IS NOT NULL
@@ -302,7 +302,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
              AND record_at < date_trunc('month', NOW()) + interval '1 month'${monthEx.clause}`,
           monthEx.params,
         ),
-        pool.query<{ c: string }>(
+        runWebappPgText<{ c: string }>(
           `SELECT COUNT(*)::text AS c FROM appointment_records ar
            WHERE ar.deleted_at IS NULL
              AND ar.status = 'canceled'

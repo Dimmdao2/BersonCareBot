@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const queryMock = vi.hoisted(() => vi.fn());
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({ query: queryMock })));
+
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappPgText: runWebappPgTextMock,
+}));
 
 vi.mock("@/infra/db/client", () => ({
   getPool: getPoolMock,
@@ -89,11 +94,12 @@ const baseCompatInput = {
 
 describe("pgPatientBookingsPort", () => {
   beforeEach(() => {
+    runWebappPgTextMock.mockReset();
     queryMock.mockReset();
   });
 
   it("createPending passes v2 snapshot columns to INSERT", async () => {
-    queryMock
+    runWebappPgTextMock
       .mockResolvedValueOnce({ rowCount: 0 })
       .mockResolvedValueOnce({ rows: [v2Row("new-id")] });
     const input: CreatePendingPatientBookingInput = {
@@ -119,8 +125,8 @@ describe("pgPatientBookingsPort", () => {
       rubitimeServiceIdSnapshot: "675",
     };
     const row = await pgPatientBookingsPort.createPending(input);
-    const reconcileSql = String(queryMock.mock.calls[0]?.[0] ?? "");
-    const insertSql = String(queryMock.mock.calls[1]?.[0] ?? "");
+    const reconcileSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
     expect(reconcileSql).toContain("failed_sync");
     expect(insertSql).toContain("branch_service_id");
     expect(insertSql).toContain("city_code_snapshot");
@@ -129,7 +135,7 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("createPending throws slot_overlap when INSERT returns no row (overlap pre-check)", async () => {
-    queryMock.mockResolvedValueOnce({ rowCount: 0 }).mockResolvedValueOnce({ rows: [] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 0 }).mockResolvedValueOnce({ rows: [] });
     const input: CreatePendingPatientBookingInput = {
       userId: "u1",
       bookingType: "in_person",
@@ -156,7 +162,7 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("createPending SQL scopes overlap by specialist or user fallback", async () => {
-    queryMock
+    runWebappPgTextMock
       .mockResolvedValueOnce({ rowCount: 0 })
       .mockResolvedValueOnce({ rows: [v2Row("new-id-2")] });
     const input: CreatePendingPatientBookingInput = {
@@ -182,14 +188,14 @@ describe("pgPatientBookingsPort", () => {
       rubitimeServiceIdSnapshot: "675",
     };
     await pgPatientBookingsPort.createPending(input);
-    const insertSql = String(queryMock.mock.calls[1]?.[0] ?? "");
+    const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
     expect(insertSql).toContain("rubitime_cooperator_id_snapshot = $20");
     expect(insertSql).toContain("platform_user_id = $2");
     expect(insertSql).toContain("canonical_appointment_id IS NULL");
   });
 
   it("createPending excludes abandoned native creating rows from overlap", async () => {
-    queryMock.mockResolvedValueOnce({ rowCount: 1 }).mockResolvedValueOnce({ rows: [v2Row("retry-id")] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1 }).mockResolvedValueOnce({ rows: [v2Row("retry-id")] });
     const input: CreatePendingPatientBookingInput = {
       userId: "u1",
       bookingType: "in_person",
@@ -213,13 +219,13 @@ describe("pgPatientBookingsPort", () => {
       rubitimeServiceIdSnapshot: "675",
     };
     await pgPatientBookingsPort.createPending(input);
-    const reconcileSql = String(queryMock.mock.calls[0]?.[0] ?? "");
+    const reconcileSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(reconcileSql).toContain("status = 'creating'");
     expect(reconcileSql).toContain("failed_sync");
   });
 
   it("listUpcomingByUser maps legacy row without v2 columns", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [legacyRow("leg-1")] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [legacyRow("leg-1")] });
     const rows = await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
     expect(rows).toHaveLength(1);
     expect(rows[0]!.branchServiceId).toBeNull();
@@ -227,16 +233,16 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("listUpcomingByUser maps v2 row with snapshots", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [v2Row("v2-1")] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [v2Row("v2-1")] });
     const rows = await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
     expect(rows[0]!.branchServiceId).toBe("bs1");
     expect(rows[0]!.cityCodeSnapshot).toBe("moscow");
   });
 
   it("listUpcomingByUser filters stale creating duplicates against finalized rows", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
-    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("status = 'creating'");
     expect(sql).toContain("canonical_appointment_id IS NULL");
     expect(sql).toContain("COALESCE(newer.category, '') = COALESCE(patient_bookings.category, '')");
@@ -245,7 +251,7 @@ describe("pgPatientBookingsPort", () => {
   it("listHistoryByUser returns mixed legacy and v2 rows (dual-read history)", async () => {
     const leg = legacyRow("leg-h");
     const v2 = v2Row("v2-h");
-    queryMock.mockResolvedValueOnce({ rows: [v2, leg] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [v2, leg] });
     const rows = await pgPatientBookingsPort.listHistoryByUser("u1", "2026-06-01T00:00:00.000Z");
     expect(rows).toHaveLength(2);
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
@@ -256,6 +262,10 @@ describe("pgPatientBookingsPort", () => {
   });
 
   describe("upsertFromRubitime (F-04 compat-sync)", () => {
+    beforeEach(() => {
+      queryMock.mockReset();
+    });
+
     it("native row update keeps slot timestamps guarded by source=rubitime_projection", async () => {
       queryMock.mockResolvedValueOnce({
         rows: [{ id: "native-id-1", source: "native", slot_start: SLOT_START, status: "confirmed", canonical_appointment_id: null }],
@@ -428,8 +438,12 @@ describe("pgPatientBookingsPort", () => {
 });
 
 describe("markConfirmedByCanonicalAppointment", () => {
+  beforeEach(() => {
+    runWebappPgTextMock.mockReset();
+  });
+
   it("keeps existing rubitime_id when confirm passes null rubitimeId", async () => {
-    queryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
         {
           ...legacyRow("pb-await"),
@@ -441,8 +455,50 @@ describe("markConfirmedByCanonicalAppointment", () => {
     });
     const row = await pgPatientBookingsPort.markConfirmedByCanonicalAppointment("appt-1", null);
     expect(row?.rubitimeId).toBe("rt-kept");
-    const updateSql = queryMock.mock.calls.map((c) => String(c[0])).find((s) => s.includes("UPDATE patient_bookings"));
+    const updateSql = runWebappPgTextMock.mock.calls.map((c) => String(c[0])).find((s) => s.includes("UPDATE patient_bookings"));
     expect(updateSql).toContain("rubitime_id = COALESCE($2, rubitime_id)");
+  });
+});
+
+describe("markConfirmed", () => {
+  beforeEach(() => {
+    runWebappPgTextMock.mockReset();
+  });
+
+  it("updates status and optional canonical_appointment_id", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{ ...legacyRow("pb-1"), status: "confirmed", rubitime_id: "rt-1" }],
+    });
+    const row = await pgPatientBookingsPort.markConfirmed("pb-1", "rt-1", {
+      canonicalAppointmentId: "00000000-0000-4000-8000-000000000001",
+    });
+    expect(row?.status).toBe("confirmed");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("canonical_appointment_id = COALESCE");
+  });
+});
+
+describe("getById", () => {
+  beforeEach(() => {
+    runWebappPgTextMock.mockReset();
+  });
+
+  it("returns null when booking missing", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    expect(await pgPatientBookingsPort.getById("missing")).toBeNull();
+  });
+});
+
+describe("markFailedSync", () => {
+  beforeEach(() => {
+    runWebappPgTextMock.mockReset();
+  });
+
+  it("sets status failed_sync", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    await pgPatientBookingsPort.markFailedSync("pb-fail");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("status = 'failed_sync'");
   });
 });
 

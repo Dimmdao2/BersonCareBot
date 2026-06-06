@@ -1,4 +1,5 @@
-import { getPool } from "@/infra/db/client";
+/** Wave 3 phase 13B — legacy calendar read via `runWebappPgText`. */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL } from "@/infra/repos/pgDoctorAppointments";
 import type { BookingCalendarPort } from "@/modules/booking-calendar/ports";
 import {
@@ -36,8 +37,7 @@ function mapRows(rows: LegacyAppointmentRecordRow[]): CalendarAppointmentEvent[]
 export function createPgBookingCalendarLegacyPort(): Pick<BookingCalendarPort, "listAppointmentsInRange"> {
   return {
     async listAppointmentsInRange(filters: CalendarFilters): Promise<CalendarAppointmentEvent[]> {
-      const pool = getPool();
-      const result = await pool.query<LegacyAppointmentRecordRow>(
+      const result = await runWebappPgText<LegacyAppointmentRecordRow>(
         `${LIST_SELECT}
          FROM appointment_records ar
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL

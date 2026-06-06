@@ -686,3 +686,12 @@ LIMIT 3;"
 - **Проверки:** `rg "pool\\.query|client\\.query" pgBookingCatalog.ts` — **0**; Vitest `--project fast pgBookingCatalog` — **15 passed**.
 - **RAW_SQL / plan:** todo `w3-p13a-catalog-read-write` → `completed`.
 
+### Wave 3 phase 13B — patient bookings + appointments (2026-06-06)
+
+- **Scope:** `pgPatientBookings.ts`, `pgDoctorAppointments.ts`, `pgAppointmentProjection.ts`, `pgBookingCalendarLegacy.ts`.
+- **Transport:** domain SQL → `runWebappPgText`; `pgPatientBookings.upsertFromRubitime` — `getPool()` → `booking-rubitime-sync` (инвариант P8).
+- **Class C:** `pgAppointmentProjection.softDeleteByIntegratorId` — `BEGIN`/`COMMIT`/`ROLLBACK` на PoolClient; domain UPDATE — `runWebappPgText` + `getWebappSqlFromPgClient`.
+- **Проверки:** `pool.query` = 0 в scope-файлах (кроме Class C transport); Vitest fast bundle — **37 passed**; `booking-rubitime-sync` — **27 passed**.
+- **Post-audit (2026-06-06):** legacy calendar + projection repo tests; patient bookings status/get tests; opt-in devDb read-only (`RUN_PATIENT_BOOKINGS_DEV_DB`); RAW_SQL row `pgBookingCalendarLegacy`.
+- **RAW_SQL / plan:** todo `w3-p13b-bookings-appointments` → `completed`.
+

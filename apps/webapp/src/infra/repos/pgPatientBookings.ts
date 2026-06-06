@@ -1,5 +1,10 @@
+/**
+ * Wave 3 phase 13B — domain SQL via `runWebappPgText`; Rubitime upsert still delegates to
+ * `booking-rubitime-sync` with `getPool()` (package owns its SQL).
+ */
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import {
   findExistingPatientBookingForRubitime,
   shouldSkipNativeReviveUpdate,
@@ -92,10 +97,9 @@ function mapRow(row: Row): PatientBookingRecord {
 
 export const pgPatientBookingsPort: PatientBookingsPort = {
   async createPending(input: CreatePendingPatientBookingInput) {
-    const pool = getPool();
     const id = randomUUID();
     // Abandoned native placeholders (no rubitime / canonical link) must not block retries or other patients.
-    await pool.query(
+    await runWebappPgText(
       `UPDATE patient_bookings
        SET status = 'failed_sync', updated_at = now()
        WHERE status = 'creating'
@@ -111,7 +115,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
          )`,
       [input.userId, input.slotStart, input.slotEnd],
     );
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `WITH overlap AS (
          SELECT 1
            FROM patient_bookings
@@ -177,10 +181,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markAwaitingPayment(bookingId, canonicalAppointmentId, options) {
-    const pool = getPool();
     const rubitimeId = options?.rubitimeId?.trim() || null;
     const manageUrl = options?.rubitimeManageUrl?.trim() || null;
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'awaiting_payment',
            canonical_appointment_id = $2::uuid,
@@ -196,8 +199,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markConfirmedByCanonicalAppointment(canonicalAppointmentId, rubitimeId = null) {
-    const pool = getPool();
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'confirmed',
            rubitime_id = COALESCE($2, rubitime_id),
@@ -212,10 +214,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markConfirmed(bookingId, rubitimeId, options) {
-    const pool = getPool();
     const manageUrl = options?.rubitimeManageUrl?.trim() || null;
     const canonicalId = options?.canonicalAppointmentId?.trim() || null;
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'confirmed',
            rubitime_id = COALESCE($2, rubitime_id),
@@ -231,8 +232,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markFailedSync(bookingId) {
-    const pool = getPool();
-    await pool.query(
+    await runWebappPgText(
       `UPDATE patient_bookings
        SET status = 'failed_sync', updated_at = now()
        WHERE id = $1`,
@@ -241,8 +241,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markCancelling(bookingId) {
-    const pool = getPool();
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'cancelling', updated_at = now()
        WHERE id = $1
@@ -254,9 +253,8 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markCancelled(input) {
-    const pool = getPool();
     const status = input.status ?? "cancelled";
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = $2,
            cancelled_at = now(),
@@ -271,9 +269,8 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async updateSlotsAfterReschedule(input) {
-    const pool = getPool();
     const status = input.status ?? "confirmed";
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET slot_start = $2::timestamptz,
            slot_end = $3::timestamptz,
@@ -288,8 +285,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async getByIdForUser(bookingId, userId) {
-    const pool = getPool();
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `SELECT * FROM patient_bookings WHERE id = $1 AND platform_user_id = $2 LIMIT 1`,
       [bookingId, userId],
     );
@@ -298,8 +294,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async getByRubitimeId(rubitimeId) {
-    const pool = getPool();
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `SELECT * FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
       [rubitimeId],
     );
@@ -325,15 +320,13 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async getById(bookingId) {
-    const pool = getPool();
-    const result = await pool.query<Row>(`SELECT * FROM patient_bookings WHERE id = $1`, [bookingId]);
+    const result = await runWebappPgText<Row>(`SELECT * FROM patient_bookings WHERE id = $1`, [bookingId]);
     const row = result.rows[0];
     return row ? mapRow(row) : null;
   },
 
   async getByCanonicalAppointmentId(canonicalAppointmentId) {
-    const pool = getPool();
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `SELECT * FROM patient_bookings WHERE canonical_appointment_id = $1::uuid LIMIT 1`,
       [canonicalAppointmentId],
     );
@@ -342,8 +335,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async listUpcomingByUser(userId, nowIso) {
-    const pool = getPool();
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `SELECT * FROM patient_bookings
        WHERE platform_user_id = $1
          AND status IN ('creating', 'awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
@@ -375,8 +367,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async listHistoryByUser(userId, nowIso) {
-    const pool = getPool();
-    const result = await pool.query<Row>(
+    const result = await runWebappPgText<Row>(
       `SELECT * FROM patient_bookings
        WHERE platform_user_id = $1
          AND (

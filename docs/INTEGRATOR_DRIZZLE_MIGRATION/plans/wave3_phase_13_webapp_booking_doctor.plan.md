@@ -9,7 +9,7 @@ todos:
     status: completed
   - id: w3-p13b-bookings-appointments
     content: "13B: pgPatientBookings.ts (15), pgDoctorAppointments.ts (11), pgAppointmentProjection.ts (9), pgBookingCalendarLegacy.ts (1)."
-    status: pending
+    status: completed
   - id: w3-p13c-doctor-clients-analytics
     content: "13C: pgDoctorClients.ts (18), pgDoctorAnalyticsMetricAccounts.ts (25), createDoctorClient.ts (7), pgDoctorNotes.ts (2), pgBranches.ts (2)."
     status: pending
@@ -55,6 +55,13 @@ todos:
 - Проверка:
   - tests patient bookings + appointments;
   - `pnpm --dir packages/booking-rubitime-sync run test`.
+
+#### Закрытие 13B (2026-06-06)
+
+- Domain SQL → `runWebappPgText`; `pgPatientBookings.upsertFromRubitime` — `getPool()` → `booking-rubitime-sync` (без изменений).
+- `pgAppointmentProjection.softDeleteByIntegratorId` — Class C TX (`BEGIN`/`COMMIT`/`ROLLBACK`) + domain SQL через `runWebappPgText` / `getWebappSqlFromPgClient`.
+- Vitest `--project fast pgPatientBookings pgDoctorAppointments pgAppointmentProjection pgBookingCalendarLegacy` — **37 passed**; `booking-rubitime-sync` — **27 passed**.
+- Post-audit: `pgBookingCalendarLegacy.test.ts`, `pgAppointmentProjection.repo.test.ts`, расширение `pgPatientBookings.test.ts`, opt-in devDb `RUN_PATIENT_BOOKINGS_DEV_DB=1`, RAW_SQL row для legacy calendar.
 
 ### 13C — doctor clients and analytics
 

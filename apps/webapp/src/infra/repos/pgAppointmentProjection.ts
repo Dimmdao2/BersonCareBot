@@ -1,9 +1,10 @@
 /**
  * Appointment records projection (Stage 9).
- * Idempotent by integrator_record_id; used for product reads and integrator API.
+ * Wave 3 phase 13B — domain SQL via `runWebappPgText`; Class C TX transport on soft-delete.
  */
 
 import { getPool } from "@/infra/db/client";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 
 export type AppointmentRecordRow = {
   id: string;
@@ -74,8 +75,7 @@ function mapRow(r: {
 export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
   return {
     async upsertRecordFromProjection(params) {
-      const pool = getPool();
-      await pool.query(
+      await runWebappPgText(
         `INSERT INTO appointment_records (
           integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at, branch_id,
           platform_user_id
@@ -136,8 +136,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
     },
 
     async getRecordByIntegratorId(integratorRecordId: string): Promise<AppointmentRecordRow | null> {
-      const pool = getPool();
-      const result = await pool.query<{
+      const result = await runWebappPgText<{
         id: string;
         integrator_record_id: string;
         phone_normalized: string | null;
@@ -159,8 +158,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
     },
 
     async listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]> {
-      const pool = getPool();
-      const result = await pool.query<{
+      const result = await runWebappPgText<{
         id: string;
         integrator_record_id: string;
         phone_normalized: string | null;
@@ -185,8 +183,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
     },
 
     async listHistoryByPhoneNormalized(phoneNormalized: string, limit = 50): Promise<AppointmentRecordRow[]> {
-      const pool = getPool();
-      const result = await pool.query<{
+      const result = await runWebappPgText<{
         id: string;
         integrator_record_id: string;
         phone_normalized: string | null;
@@ -214,14 +211,16 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        const r = await client.query(
+        const tx = getWebappSqlFromPgClient(client);
+        const r = await runWebappPgText(
           `UPDATE appointment_records SET deleted_at = now(), updated_at = now()
            WHERE integrator_record_id = $1 AND deleted_at IS NULL`,
           [integratorRecordId],
+          tx,
         );
         const updated = (r.rowCount ?? 0) > 0;
         if (updated) {
-          await client.query(
+          await runWebappPgText(
             `UPDATE patient_bookings
              SET status = 'cancelled',
                  cancelled_at = COALESCE(cancelled_at, now()),
@@ -240,6 +239,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
                  'failed_sync'
                )`,
             [integratorRecordId, "admin_soft_delete"],
+            tx,
           );
         }
         await client.query("COMMIT");
