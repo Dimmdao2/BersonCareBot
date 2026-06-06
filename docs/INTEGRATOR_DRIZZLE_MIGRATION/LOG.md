@@ -970,4 +970,30 @@ LIMIT 3;"
 - **Docs sync:** обновлены `wave3_phase_16_legacy_cutover.plan.md`, `wave3_INDEX.md`, `plans/README.md`, `DRIZZLE_TRANSITION_PLAN.md`, `RAW_SQL_INVENTORY.md`, `deploy/HOST_DEPLOY_README.md`, `apps/webapp/scripts/README.md`, `docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/*`, `docs/ARCHITECTURE/DB_STRUCTURE.md`.
 - **Следующая фаза Wave 3:** [wave3_phase_17_closeout.plan.md](./plans/wave3_phase_17_closeout.plan.md).
 
+### Wave 3 phase 17 — closeout (2026-06-06)
+
+- **Scope:** docs sync (`DRIZZLE_TRANSITION_PLAN` IX–X → Done; `RAW_SQL` snapshot; `wave3_INDEX` / `plans/README` / `docs/README`); финальный rg gate; archive дубликатов `~/.cursor/plans/drizzle_*` → `.cursor/plans/archive/`; full CI.
+- **Final rg gate (2026-06-06):**
+  - webapp prod `pool.query|client.query` (`rg -l`, без tests): **27** files (runtime **25** = Class B/C, unchanged vs 15F);
+  - `media-worker/claim.ts`: **1** `pool.query` (permanent);
+  - `integrator/client.ts`: **1** `await db.query`;
+  - `packages/platform-merge`: **85** `.query(` in **3** files (ADR permanent);
+  - `packages/booking-rubitime-sync`: **4** `.query(` in **1** file (ADR permanent).
+- **Docs:** `DRIZZLE_TRANSITION_PLAN` phase X → **Done**; phase **17** → **Done**; `RAW_SQL_INVENTORY` §phase 17; все wave3 plans **00–17** → `completed`.
+- **Archive:** `drizzle_final_closeout_6f3ea830.plan.md`, `drizzle_wave3_closeout_caf9d91d.plan.md` → `.cursor/plans/archive/` (superseded by wave3 phase plans).
+- **Staging smoke:** **не выполнен** — нет доступа к staging/prod в repo-сессии; open gate per [`wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md) §4 (multipart upload → transcode claim). Wave 3 initiative status: **code/docs closeout done; blocked on staging smoke** until owner/ops confirms and LOG checkbox closed.
+- **CI:** `pnpm install --frozen-lockfile && pnpm run ci` — green на финальном коммите phase **17**.
+
+### Wave 3 — итог инициативы (2026-06-06)
+
+| Область | Статус |
+|---------|--------|
+| Integrator P1–P4 + Wave 2 (1–8) | **completed** (до Wave 3) |
+| Wave 3 фазы 00, 08–16 | **completed** — Class A снят; legacy cutover guarded |
+| Wave 3 фаза 17 (repo closeout) | **completed** — docs/rg/CI/archive |
+| Staging smoke (LOG L182) | **open** — блокирует перевод инициативы в полный `completed` |
+| Остаток raw SQL | Class **B/C** (webapp TX/advisory), Class **E** (merge, rubitime-sync, claim, scripts) — см. [RAW_SQL](./RAW_SQL_INVENTORY.md) |
+
+**Канон дальше:** staging smoke checklist → owner sign-off в LOG; затем можно снять статус `blocked` в [`wave3_INDEX.md`](./plans/wave3_INDEX.md).
+
 

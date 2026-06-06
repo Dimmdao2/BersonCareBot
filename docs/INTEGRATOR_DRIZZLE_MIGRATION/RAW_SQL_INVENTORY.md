@@ -1,7 +1,7 @@
 # Инвентаризация: сырой SQL вне Drizzle query builder
 
-**Дата снимка:** 2026-06-06 (**Wave 3 phase 00 baseline**; phases **08–14** closeout; правки: Wave 2 P5–P8)
-**Контекст:** мастер-план **P1–P4 интегратора** и **Wave 2 (этапы 1–8)** закрыты — здесь **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты). Wave 3 классифицирует хвост по **Class A / B / C** ([`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)).
+**Дата снимка:** 2026-06-06 (**Wave 3 closeout**, фазы **00 + 08–17**; финальный gate phase **17**)
+**Контекст:** мастер-план **P1–P4 интегратора** и **Wave 2 (этапы 1–8)** закрыты — здесь **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты). Wave 3 (фазы **09–15**) сняла Class **A** из webapp runtime; остаток — только **Class B/C** + scripts/ops ([`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)).
 
 **План перехода (фазы, риски, приоритеты):** [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) · Wave 3 индекс: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md)
 
@@ -227,6 +227,25 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15E.
 **Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](./plans/wave3_phase_16_legacy_cutover.plan.md).
 
 Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
+
+---
+
+## Wave 3 phase 17 — closeout gate (2026-06-06)
+
+Фаза **17** закрыла docs/CI/archive; **staging smoke** (multipart → transcode) **не выполнен** в этой сессии — open gate до подтверждения owner/ops на staging ([`wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md) §4, [LOG](./LOG.md) §Wave 3 phase 17).
+
+| Gate (17) | Итог |
+|-----------|------|
+| Webapp prod `pool.query` \| `client.query` (`rg -l`, без tests) | **27** файлов (unchanged vs **15F**; runtime **25** = Class B/C only) |
+| `apps/media-worker/src/jobs/claim.ts` | **1** `pool.query` (permanent Class E) |
+| `apps/integrator/src/infra/db/client.ts` | **1** `await db.query` (health/migrate path) |
+| `packages/platform-merge` `.query(` | **85** hits / **3** files (permanent ADR) |
+| `packages/booking-rubitime-sync` `.query(` | **4** hits / **1** file (permanent ADR) |
+| Class A domain raw SQL (webapp runtime) | **0** (closed phases **09–15**) |
+| `pnpm run ci` | green на коммите phase **17** |
+| Staging smoke | **open** — не блокирует phase **17** repo closeout; блокирует статус инициативы Wave 3 → `completed` |
+
+**Wave 3 code/docs closeout:** фазы **00 + 08–17** `completed`; инициатива — **blocked (staging smoke)** до owner sign-off.
 
 ---
 
