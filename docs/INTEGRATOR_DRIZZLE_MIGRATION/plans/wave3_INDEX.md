@@ -67,7 +67,7 @@
 - **14A:** support communication core (**done** 2026-06-06; `runWebappPgText`, repo tests, Zod list query, devDb `RUN_SUPPORT_COMMUNICATION_DEV_DB`; merge helper SQL → `runWebappPgText` on tx client)
 - **14B:** user projection core (**done** 2026-06-06; `runWebappPgText`/`txPgText`; repo + devDb `RUN_USER_PROJECTION_DEV_DB`; Class C TX on upsert/appointment/phone/admin patch)
 - **14C:** audit + legacy merge helpers (**done** 2026-06-06; `adminAuditLog.ts` → `runWebappPgText`; Class C TX on `upsertOpenConflictLog`; merge helper regression-only)
-- **14D:** comms tail
+- **14D:** comms tail (**done** 2026-06-06; 6 repos → `runWebappPgText`; Class C TX on channel prefs preferred-auth + web-push save)
 - **14E:** phase verify
 - **15A:** references/settings/diary
 - **15B:** auth/email ports tail

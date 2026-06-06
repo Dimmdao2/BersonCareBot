@@ -1,9 +1,11 @@
-import { getPool } from "@/infra/db/client";
+/**
+ * Wave 3 phase 14D — patient calendar timezone via `runWebappPgText`.
+ */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { isAcceptableIanaTimezone } from "@/modules/system-settings/calendarIana";
 
 export async function getPatientCalendarTimezoneIana(platformUserId: string): Promise<string | null> {
-  const pool = getPool();
-  const r = await pool.query<{ calendar_timezone: string | null }>(
+  const r = await runWebappPgText<{ calendar_timezone: string | null }>(
     `SELECT calendar_timezone FROM platform_users WHERE id = $1::uuid AND merged_into_id IS NULL`,
     [platformUserId],
   );
@@ -11,8 +13,7 @@ export async function getPatientCalendarTimezoneIana(platformUserId: string): Pr
 }
 
 export async function setPatientCalendarTimezoneIana(platformUserId: string, value: string | null): Promise<boolean> {
-  const pool = getPool();
-  const res = await pool.query(
+  const res = await runWebappPgText(
     `UPDATE platform_users
      SET calendar_timezone = $2, updated_at = now()
      WHERE id = $1::uuid AND role = 'client' AND merged_into_id IS NULL`,
@@ -28,8 +29,7 @@ export async function setPatientCalendarTimezoneIana(platformUserId: string, val
 export async function trySetInitialCalendarTimezoneIfEmpty(platformUserId: string, raw: string | null): Promise<void> {
   const candidate = raw?.trim() ?? "";
   if (!candidate || !isAcceptableIanaTimezone(candidate)) return;
-  const pool = getPool();
-  await pool.query(
+  await runWebappPgText(
     `UPDATE platform_users
      SET calendar_timezone = $2, updated_at = now()
      WHERE id = $1::uuid

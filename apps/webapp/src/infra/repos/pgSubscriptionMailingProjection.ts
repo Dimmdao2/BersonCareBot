@@ -1,10 +1,9 @@
 /**
- * Subscription/mailing projection (Stage 11).
+ * Wave 3 phase 14D — subscription/mailing projection via `runWebappPgText`.
  * Idempotent by integrator ids; used for product reads and ingest from integrator events.
- * API returns ids as strings (bigint-safe).
  */
 
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 
 export type MailingTopicRow = {
   integratorTopicId: string;
@@ -49,8 +48,7 @@ export type SubscriptionMailingProjectionPort = {
 export function createPgSubscriptionMailingProjectionPort(): SubscriptionMailingProjectionPort {
   return {
     async upsertTopicFromProjection(params) {
-      const pool = getPool();
-      await pool.query(
+      await runWebappPgText(
         `INSERT INTO mailing_topics_webapp (
           integrator_topic_id, code, title, key, is_active, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
@@ -67,13 +65,12 @@ export function createPgSubscriptionMailingProjectionPort(): SubscriptionMailing
           params.key,
           params.isActive,
           params.updatedAt,
-        ]
+        ],
       );
     },
 
     async upsertUserSubscriptionFromProjection(params) {
-      const pool = getPool();
-      await pool.query(
+      await runWebappPgText(
         `INSERT INTO user_subscriptions_webapp (
           integrator_user_id, integrator_topic_id, is_active, updated_at
         ) VALUES ($1, $2, $3, $4::timestamptz)
@@ -85,13 +82,12 @@ export function createPgSubscriptionMailingProjectionPort(): SubscriptionMailing
           params.integratorTopicId,
           params.isActive,
           params.updatedAt,
-        ]
+        ],
       );
     },
 
     async appendMailingLogFromProjection(params) {
-      const pool = getPool();
-      await pool.query(
+      await runWebappPgText(
         `INSERT INTO mailing_logs_webapp (
           integrator_user_id, integrator_mailing_id, status, sent_at, error_text
         ) VALUES ($1, $2, $3, $4::timestamptz, $5)
@@ -102,13 +98,12 @@ export function createPgSubscriptionMailingProjectionPort(): SubscriptionMailing
           params.status,
           params.sentAt,
           params.errorText,
-        ]
+        ],
       );
     },
 
     async listTopics(): Promise<MailingTopicRow[]> {
-      const pool = getPool();
-      const result = await pool.query<{
+      const result = await runWebappPgText<{
         integrator_topic_id: string;
         code: string;
         title: string;
@@ -116,7 +111,7 @@ export function createPgSubscriptionMailingProjectionPort(): SubscriptionMailing
         is_active: boolean;
       }>(
         `SELECT integrator_topic_id, code, title, key, is_active
-         FROM mailing_topics_webapp WHERE is_active = true ORDER BY integrator_topic_id`
+         FROM mailing_topics_webapp WHERE is_active = true ORDER BY integrator_topic_id`,
       );
       return result.rows.map((r) => ({
         integratorTopicId: String(r.integrator_topic_id),
@@ -128,8 +123,7 @@ export function createPgSubscriptionMailingProjectionPort(): SubscriptionMailing
     },
 
     async listSubscriptionsByIntegratorUserId(integratorUserId: string): Promise<UserSubscriptionRow[]> {
-      const pool = getPool();
-      const result = await pool.query<{
+      const result = await runWebappPgText<{
         integrator_topic_id: string;
         code: string;
         is_active: boolean;
@@ -139,7 +133,7 @@ export function createPgSubscriptionMailingProjectionPort(): SubscriptionMailing
          JOIN mailing_topics_webapp t ON t.integrator_topic_id = s.integrator_topic_id
          WHERE s.integrator_user_id = $1 AND s.is_active = true
          ORDER BY s.integrator_topic_id`,
-        [integratorUserId]
+        [integratorUserId],
       );
       return result.rows.map((r) => ({
         integratorTopicId: String(r.integrator_topic_id),

@@ -15,7 +15,7 @@ todos:
     status: completed
   - id: w3-p14d-comms-tail
     content: "14D: pgMessageLog.ts, pgChannelPreferences.ts, pgWebPushSubscriptions.ts, pgBroadcastAudit.ts, pgSubscriptionMailingProjection.ts, pgPatientCalendarTimezone.ts."
-    status: pending
+    status: completed
   - id: w3-p14-verify
     content: "14E: messaging/support tests; rg zero по scope фазы; Zod boundary checks на filters/params."
     status: pending

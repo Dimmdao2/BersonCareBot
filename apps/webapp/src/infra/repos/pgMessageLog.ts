@@ -1,4 +1,7 @@
-import { getPool } from "@/infra/db/client";
+/**
+ * Wave 3 phase 14D — domain SQL via `runWebappPgText` (Class B dynamic filters in `buildWhere`).
+ */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { MessageLogEntry, MessageLogListFilters, MessageLogListResult, MessageLogPort } from "@/modules/doctor-messaging/ports";
 
 function normalizePage(page?: number, pageSize?: number): { page: number; pageSize: number; offset: number } {
@@ -56,8 +59,18 @@ function mapRows(rows: Array<Record<string, unknown>>): MessageLogEntry[] {
 export function createPgMessageLogPort(): MessageLogPort {
   return {
     async append(entry): Promise<MessageLogEntry> {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<{
+        id: string;
+        user_id: string;
+        platform_user_id: string | null;
+        sender_id: string;
+        text: string;
+        category: string;
+        channel_bindings_used: Record<string, string>;
+        sent_at: Date;
+        outcome: MessageLogEntry["outcome"];
+        error_message: string | null;
+      }>(
         `INSERT INTO message_log (
            user_id, platform_user_id, sender_id, text, category, channel_bindings_used, outcome, error_message
          )
@@ -71,16 +84,16 @@ export function createPgMessageLogPort(): MessageLogPort {
           JSON.stringify(entry.channelBindingsUsed ?? {}),
           entry.outcome,
           entry.errorMessage ?? null,
-        ]
+        ],
       );
-      const row = r.rows[0];
+      const row = r.rows[0]!;
       return {
         id: row.id,
         userId: row.platform_user_id ?? row.user_id,
         senderId: row.sender_id,
         text: row.text,
         category: row.category,
-        channelBindingsUsed: (row.channel_bindings_used as Record<string, string>) ?? {},
+        channelBindingsUsed: row.channel_bindings_used ?? {},
         sentAt: new Date(row.sent_at).toISOString(),
         outcome: row.outcome,
         errorMessage: row.error_message,
@@ -88,10 +101,9 @@ export function createPgMessageLogPort(): MessageLogPort {
     },
     async listByUser(userId: string, params): Promise<MessageLogListResult> {
       const paging = normalizePage(params?.page, params?.pageSize);
-      const pool = getPool();
       const where = buildWhere({ userId });
       const [listRes, countRes] = await Promise.all([
-        pool.query(
+        runWebappPgText(
           `SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
            FROM message_log
            ${where.whereSql}
@@ -100,7 +112,10 @@ export function createPgMessageLogPort(): MessageLogPort {
            OFFSET $${where.values.length + 2}`,
           [...where.values, paging.pageSize, paging.offset],
         ),
-        pool.query<{ c: string }>(`SELECT COUNT(*)::text AS c FROM message_log ${where.whereSql}`, where.values),
+        runWebappPgText<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM message_log ${where.whereSql}`,
+          where.values,
+        ),
       ]);
       return {
         items: mapRows(listRes.rows),
@@ -111,10 +126,9 @@ export function createPgMessageLogPort(): MessageLogPort {
     },
     async listAll(params): Promise<MessageLogListResult> {
       const paging = normalizePage(params?.page, params?.pageSize);
-      const pool = getPool();
       const where = buildWhere(params?.filters);
       const [listRes, countRes] = await Promise.all([
-        pool.query(
+        runWebappPgText(
           `SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
            FROM message_log
            ${where.whereSql}
@@ -123,7 +137,10 @@ export function createPgMessageLogPort(): MessageLogPort {
            OFFSET $${where.values.length + 2}`,
           [...where.values, paging.pageSize, paging.offset],
         ),
-        pool.query<{ c: string }>(`SELECT COUNT(*)::text AS c FROM message_log ${where.whereSql}`, where.values),
+        runWebappPgText<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM message_log ${where.whereSql}`,
+          where.values,
+        ),
       ]);
       return {
         items: mapRows(listRes.rows),

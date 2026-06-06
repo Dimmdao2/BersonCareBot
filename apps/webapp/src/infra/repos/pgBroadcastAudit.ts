@@ -1,4 +1,7 @@
-import { getPool } from "@/infra/db/client";
+/**
+ * Wave 3 phase 14D — domain SQL via `runWebappPgText`.
+ */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { BroadcastAuditEntry, BroadcastAuditPort } from "@/modules/doctor-broadcasts/ports";
 import { normalizeBroadcastChannels } from "@/modules/doctor-broadcasts/broadcastChannels";
 
@@ -28,8 +31,7 @@ function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
 export function createPgBroadcastAuditPort(): BroadcastAuditPort {
   return {
     async append(entry): Promise<BroadcastAuditEntry> {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<Record<string, unknown>>(
         `INSERT INTO broadcast_audit (
            actor_id, category, audience_filter, message_title, message_body, channels,
            preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count
@@ -50,16 +52,15 @@ export function createPgBroadcastAuditPort(): BroadcastAuditPort {
           entry.errorCount,
         ],
       );
-      return mapRow(r.rows[0] as Record<string, unknown>);
+      return mapRow(r.rows[0]!);
     },
     async list(limit = 50): Promise<BroadcastAuditEntry[]> {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<Record<string, unknown>>(
         `SELECT id, actor_id, category, audience_filter, message_title, message_body, channels, executed_at, preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count
          FROM broadcast_audit ORDER BY executed_at DESC LIMIT $1`,
         [limit],
       );
-      return r.rows.map((row) => mapRow(row as Record<string, unknown>));
+      return r.rows.map((row) => mapRow(row));
     },
   };
 }

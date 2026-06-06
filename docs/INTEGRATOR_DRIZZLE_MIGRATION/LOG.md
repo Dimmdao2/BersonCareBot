@@ -806,6 +806,24 @@ LIMIT 3;"
 - **Zod boundaries:** deferred to **14E** (audit list route params — вне 14C).
 - **Проверки:** `pool.query` = 0 в `adminAuditLog.ts`; Class C `client.query` = 3× (BEGIN/COMMIT/ROLLBACK); Vitest fast `adminAuditLog` + `mergeLegacySupportConversations` green.
 
-**Следующая подфаза Wave 3 phase 14:** **14D** — comms tail (`pgMessageLog`, `pgChannelPreferences`, …).
+**Следующая подфаза Wave 3 phase 14:** **14D** — comms tail.
+
+### Wave 3 phase 14D — comms tail (2026-06-06)
+
+- **Scope:** `pgMessageLog.ts`, `pgChannelPreferences.ts`, `pgWebPushSubscriptions.ts`, `pgBroadcastAudit.ts`, `pgSubscriptionMailingProjection.ts`, `pgPatientCalendarTimezone.ts` (36 domain call sites baseline).
+- **Transport:** domain SQL → `runWebappPgText`; in-TX → `txPgText` + `getWebappSqlFromPgClient`.
+- **Class C:** `pgChannelPreferences.setPreferredAuthChannel`, `pgWebPushSubscriptions.saveSubscription` — `BEGIN`/`COMMIT`/`ROLLBACK` on PoolClient.
+- **Проверки:** `pool.query` = **0** во всех 6 файлах; Vitest `--project fast` phase-14D bundle green.
+- **Tests:** repo parity tests per file; `pgMessageLog.test.ts` migrated to `runWebappPgText` mock.
+- **RAW_SQL / plan:** todo `w3-p14d-comms-tail` → `completed`.
+
+#### Post-audit closure 14D (2026-06-06)
+
+- **Repo tests:** extended parity — `pgMessageLog.append`; channel prefs upsert/batch/clear-preferred TX; web-push ROLLBACK + hasAny/list; mailing upsert/log/listTopics; calendar trySetInitial valid IANA.
+- **Class C:** `setPreferredAuthChannel`, `saveSubscription` — transport-only `client.query` (BEGIN/COMMIT/ROLLBACK); domain via `txPgText`.
+- **Opt-in devDb:** `RUN_PHASE_14D_DEV_DB=1` + `USE_REAL_DATABASE=1` — read-only smoke (3 cases).
+- **Проверки:** `pool.query` = 0 во всех 6 scope-файлах; Vitest fast phase-14D bundle green.
+
+**Следующая подфаза Wave 3 phase 14:** **14E** — phase verify (scope `rg`, Zod boundaries).
 
 

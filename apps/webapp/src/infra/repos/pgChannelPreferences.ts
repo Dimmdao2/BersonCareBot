@@ -1,4 +1,8 @@
+/**
+ * Wave 3 phase 14D — domain SQL via `runWebappPgText`; Class C TX on `setPreferredAuthChannel`.
+ */
 import { getPool } from "@/infra/db/client";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import {
@@ -6,11 +10,20 @@ import {
   isChannelAllowedForPreferredAuth,
 } from "@/modules/channel-preferences/preferredAuthChannelPolicy";
 import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
+import type { PoolClient } from "pg";
 
 const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email", "web_push"];
 
 function userMatchSql(paramIndex: number): string {
   return `(platform_user_id = $${paramIndex}::uuid OR (platform_user_id IS NULL AND user_id = $${paramIndex}::text))`;
+}
+
+function txPgText<T = unknown>(
+  client: PoolClient,
+  queryText: string,
+  values: readonly unknown[] = [],
+) {
+  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
 }
 
 function rowToPreference(row: {
@@ -31,11 +44,15 @@ function rowToPreference(row: {
 
 export const pgChannelPreferencesPort: ChannelPreferencesPort = {
   async getPreferences(userId) {
-    const pool = getPool();
-    const result = await pool.query(
+    const result = await runWebappPgText<{
+      channel_code: string;
+      is_enabled_for_messages: boolean;
+      is_enabled_for_notifications: boolean;
+      is_preferred_for_auth: boolean;
+    }>(
       `SELECT channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth
        FROM user_channel_preferences WHERE ${userMatchSql(1)}`,
-      [userId]
+      [userId],
     );
     const byCode = new Map<string, ChannelPreference>();
     for (const row of result.rows) {
@@ -47,14 +64,13 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
         isEnabledForMessages: true,
         isEnabledForNotifications: true,
         isPreferredForAuth: false,
-      }
+      },
     );
   },
 
   async upsertPreference(params) {
-    const pool = getPool();
     const now = new Date();
-    await pool.query(
+    await runWebappPgText(
       `INSERT INTO user_channel_preferences (
          user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
        )
@@ -64,14 +80,19 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
          is_enabled_for_messages = EXCLUDED.is_enabled_for_messages,
          is_enabled_for_notifications = EXCLUDED.is_enabled_for_notifications,
          updated_at = EXCLUDED.updated_at`,
-      [params.userId, params.channelCode, params.isEnabledForMessages, params.isEnabledForNotifications, now]
+      [params.userId, params.channelCode, params.isEnabledForMessages, params.isEnabledForNotifications, now],
     );
-    const result = await pool.query(
+    const result = await runWebappPgText<{
+      channel_code: string;
+      is_enabled_for_messages: boolean;
+      is_enabled_for_notifications: boolean;
+      is_preferred_for_auth: boolean;
+    }>(
       `SELECT channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth
        FROM user_channel_preferences WHERE ${userMatchSql(1)} AND channel_code = $2`,
-      [params.userId, params.channelCode]
+      [params.userId, params.channelCode],
     );
-    return rowToPreference(result.rows[0]);
+    return rowToPreference(result.rows[0]!);
   },
 
   async getBroadcastNotificationFlagsBatch(platformUserIds): Promise<Map<string, BroadcastNotificationPrefsFlags>> {
@@ -81,8 +102,7 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     }
     if (platformUserIds.length === 0) return out;
 
-    const pool = getPool();
-    const result = await pool.query<{
+    const result = await runWebappPgText<{
       platform_user_id: string;
       channel_code: string;
       is_enabled_for_notifications: boolean;
@@ -104,12 +124,11 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
   },
 
   async getPreferredAuthChannelCode(userId) {
-    const pool = getPool();
-    const result = await pool.query(
+    const result = await runWebappPgText<{ channel_code: string }>(
       `SELECT channel_code FROM user_channel_preferences
        WHERE ${userMatchSql(1)} AND is_preferred_for_auth = true
        LIMIT 1`,
-      [userId]
+      [userId],
     );
     const code = result.rows[0]?.channel_code as ChannelCode | undefined;
     if (code != null && !isChannelAllowedForPreferredAuth(code)) return null;
@@ -123,15 +142,17 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query(
+      await txPgText(
+        client,
         `UPDATE user_channel_preferences SET is_preferred_for_auth = false WHERE ${userMatchSql(1)}`,
-        [userId]
+        [userId],
       );
       if (channelCode == null) {
         await client.query("COMMIT");
         return;
       }
-      await client.query(
+      await txPgText(
+        client,
         `INSERT INTO user_channel_preferences (
            user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth, updated_at
          )
@@ -140,7 +161,7 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
            platform_user_id = COALESCE(user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
            is_preferred_for_auth = true,
            updated_at = EXCLUDED.updated_at`,
-        [userId, channelCode, now]
+        [userId, channelCode, now],
       );
       await client.query("COMMIT");
     } catch (e) {
