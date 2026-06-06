@@ -8,6 +8,7 @@ import type { SessionUser } from "@/shared/types/session";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/app/patient",
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     back: vi.fn(),
     push: vi.fn(),

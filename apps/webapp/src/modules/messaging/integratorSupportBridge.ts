@@ -28,6 +28,14 @@ export function createIntegratorSupportBridge(deps: {
   port: SupportCommunicationPort;
   notifyPatientOfDoctorReply?: (params: NotifyPatientDoctorReplyParams) => Promise<void>;
   sendProgramNoteReply?: SendProgramNoteReply;
+  notifyDoctorOfPatientMessage?: (input: {
+    platformUserId: string;
+    messageId: string;
+    messageText: string;
+    patientLabel: string;
+    source: "webapp" | "telegram" | "max";
+  }) => Promise<void>;
+  resolvePatientLabel?: (platformUserId: string) => Promise<string>;
 }) {
   return {
     async syncUserMessage(input: IntegratorSupportSyncMessageInput): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -55,6 +63,27 @@ export function createIntegratorSupportBridge(deps: {
         source: input.source,
         createdAt: input.createdAt,
       });
+
+      if (deps.notifyDoctorOfPatientMessage) {
+        const source: "webapp" | "telegram" | "max" =
+          input.source === "max" ? "max" : input.source === "telegram" ? "telegram" : "webapp";
+        const patientLabel =
+          deps.resolvePatientLabel ?
+            (await deps.resolvePatientLabel(platformUserId).catch(() => "Пациент"))
+          : "Пациент";
+        deps
+          .notifyDoctorOfPatientMessage({
+            platformUserId,
+            messageId: input.integratorMessageId,
+            messageText: trimmed,
+            patientLabel: patientLabel.trim() || "Пациент",
+            source,
+          })
+          .catch((err: unknown) => {
+            console.error("[integratorSupportBridge] doctor notify error:", err);
+          });
+      }
+
       return { ok: true };
     },
 

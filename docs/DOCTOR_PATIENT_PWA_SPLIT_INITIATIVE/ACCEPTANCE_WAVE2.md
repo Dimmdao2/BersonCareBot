@@ -1,6 +1,6 @@
 # Приёмка — волна 2 (Doctor Cabinet)
 
-**Статус:** волна 2 **done** — §A (2026-06-06) · §B (2026-06-07, 2.B0–2.B8).
+**Статус:** волна 2 **done** — §A (2026-06-06) · §B (2026-06-07, 2.B0–2.B8) · **staff push** post-§B (2026-06-07).
 
 См. [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md), [`INVENTORY_AND_MATRIX.md`](INVENTORY_AND_MATRIX.md), [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md).
 
@@ -8,7 +8,8 @@
 
 - [x] Cross-zone block + toast; patient PWA gate/manifest/SW не в diff.
 - [x] Staff PWA: manifest, install, иконки, навигация, install-state marker.
-- [x] Vitest fast: **49 tests** green (команда — `WAVE2_STAFF_PWA.md` §Проверки).
+- [x] Vitest fast: **63 tests** green (49 §A+§B + 14 staff push — `WAVE2_STAFF_PWA.md` §Проверки).
+- [x] Staff push: API, settings matrix, delivery, integrator sync; patient push stack не в diff.
 - [ ] Ручной smoke install staff PWA на стенде (Chrome/Safari/iOS) — опционально у оператора.
 
 ---
@@ -102,3 +103,28 @@
 ### Sign-off §B
 
 Трек **2.B** закрыт: отдельный staff manifest/install/metadata; patient `manifest.ts`, gate, SW push — **не в diff**.
+
+---
+
+## §C — Staff web push (post-§B)
+
+**Статус:** **done** (2026-06-07).
+
+| # | Критерий | Статус |
+|---|----------|--------|
+| C1 | API `/api/doctor/web-push/*` (doctor/admin) | [x] |
+| C2 | Матрица каналов в `/app/settings` (2 темы) | [x] |
+| C3 | Напоминания о задачах — per-owner каналы + push | [x] |
+| C4 | Сообщения пациентов — per-staff tg/max/push; integrator sync | [x] |
+| C5 | `StaffWebPushBootstrap` + opt-in на install | [x] |
+| C6 | Patient push/manifest/gate/SW — **не в diff** | [x] |
+
+### Automated (§C)
+
+- [x] `modules/doctor-notifications/*.test.ts`
+- [x] `api/doctor/web-push/status/route.test.ts`
+- [x] `dispatchDueReminders.test.ts` (per-owner resolve)
+
+### Sign-off §C
+
+Staff push и настройка каналов закрыты; общий fast-набор волны 2 + push — **63 tests** green.

@@ -11,24 +11,12 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
-import {
-  SPECIALIST_TASK_REMINDER_CHANNEL_CODES,
-  type SpecialistTaskReminderChannelCode,
-} from "@/modules/specialist-tasks/types";
-
-const CHANNEL_LABELS: Record<SpecialistTaskReminderChannelCode, string> = {
-  telegram: "Telegram",
-  max: "MAX",
-  web_push: "Web Push",
-  email: "Email",
-};
 
 type SettingsFormProps = {
   patientLabel: string;
   smsFallbackEnabled: boolean;
   supportCommentsWithoutSupportDefault: boolean;
   supportMediaWithoutSupportDefault: boolean;
-  taskReminderChannels: SpecialistTaskReminderChannelCode[];
 };
 
 export function SettingsForm({
@@ -36,7 +24,6 @@ export function SettingsForm({
   smsFallbackEnabled,
   supportCommentsWithoutSupportDefault,
   supportMediaWithoutSupportDefault,
-  taskReminderChannels,
 }: SettingsFormProps) {
   const [label, setLabel] = useState(patientLabel);
   const [smsFallback, setSmsFallback] = useState(smsFallbackEnabled);
@@ -44,9 +31,6 @@ export function SettingsForm({
     supportCommentsWithoutSupportDefault,
   );
   const [supportMediaDefault, setSupportMediaDefault] = useState(supportMediaWithoutSupportDefault);
-  const [reminderChannels, setReminderChannels] = useState<SpecialistTaskReminderChannelCode[]>(
-    taskReminderChannels,
-  );
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -56,7 +40,7 @@ export function SettingsForm({
     setError(null);
     startTransition(async () => {
       try {
-        const [r1, r2, r3, r4, r5] = await Promise.all([
+        const [r1, r2, r3, r4] = await Promise.all([
           fetch("/api/doctor/settings", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -83,16 +67,8 @@ export function SettingsForm({
               value: { value: supportMediaDefault },
             }),
           }),
-          fetch("/api/doctor/settings", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              key: "doctor_specialist_task_reminder_channels",
-              value: { value: { channels: reminderChannels } },
-            }),
-          }),
         ]);
-        if (!r1.ok || !r2.ok || !r3.ok || !r4.ok || !r5.ok) {
+        if (!r1.ok || !r2.ok || !r3.ok || !r4.ok) {
           setError("Не удалось сохранить настройки");
           return;
         }
@@ -149,25 +125,6 @@ export function SettingsForm({
           onCheckedChange={setSupportMediaDefault}
           disabled={isPending}
         />
-
-        <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm font-medium">Напоминания о задачах</legend>
-          {SPECIALIST_TASK_REMINDER_CHANNEL_CODES.map((code) => (
-            <label key={code} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={reminderChannels.includes(code)}
-                onChange={(e) => {
-                  setReminderChannels((prev) =>
-                    e.target.checked ? [...prev, code] : prev.filter((c) => c !== code),
-                  );
-                }}
-                disabled={isPending}
-              />
-              {CHANNEL_LABELS[code]}
-            </label>
-          ))}
-        </fieldset>
 
         <div className="flex items-center gap-3">
           <Button onClick={handleSave} disabled={isPending}>

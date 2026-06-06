@@ -72,6 +72,17 @@ export async function requireDoctorAccess(): Promise<AppSession> {
   return session;
 }
 
+/** Для Route Handlers под `/api/doctor/*`: doctor или admin. */
+export async function requireDoctorApiSession(): Promise<
+  { ok: true; session: AppSession } | { ok: false; response: NextResponse }
+> {
+  const session = await getCurrentSession();
+  if (!session || !canAccessDoctor(session.user.role)) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  return { ok: true, session };
+}
+
 /** Есть ли привязка хотя бы одного мессенджера (альтернатива телефону для части сценариев). */
 export function hasMessengerBinding(session: AppSession): boolean {
   const b = session.user.bindings;

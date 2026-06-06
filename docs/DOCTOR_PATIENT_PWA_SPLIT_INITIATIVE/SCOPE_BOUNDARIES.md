@@ -58,7 +58,18 @@ apps/webapp/src/shared/ui/AppAccessDeniedToastEffect.tsx
 | `doctor/settings/admin/layout.tsx` | `metadata.manifest` → staff manifest |
 | `public/staff-pwa-icon-*.png`, `staff-pwa-apple-touch.png` | Иконки LOGO_BERSONADMIN |
 
-**Не трогали:** `manifest.ts` (patient), `PwaAppAccessGate`, `sw.js` (логика push), patient push stack.
+### Post-§B — staff push (допустимые правки)
+
+| Файл / путь | Что разрешено |
+|-------------|----------------|
+| `app/api/doctor/web-push/**` | Staff subscribe/status/unsubscribe |
+| `modules/doctor-notifications/**` | Темы, resolve, delivery helpers |
+| `app/app/settings/DoctorNotification*.tsx`, `doctorNotificationPrefsActions.ts` | UI матрицы |
+| `shared/lib/webPush/staffWebPushApi.ts`, `subscribeStaffWebPush.ts` | **Новые** staff-файлы (patient helpers не меняли) |
+| `shared/ui/doctor/pwa/StaffWebPushBootstrap.tsx`, `StaffPwaPushOptIn.tsx` | Auto-restore + install opt-in |
+| `infra/repos/pgStaffUsers.ts` | Список staff для fan-out сообщений |
+
+**Не трогали:** `manifest.ts` (patient), `PwaAppAccessGate`, `sw.js` (логика push), `/api/patient/web-push/*`, patient notification UI.
 
 ## Осторожно (shared, только staff-эффект)
 
@@ -79,6 +90,6 @@ apps/webapp/src/shared/ui/AppAccessDeniedToastEffect.tsx
 
 - [x] `git diff` волны 2 §A не затрагивает запрещённые patient PWA файлы (gate, manifest, SW, push).
 - [x] Допустимые исключения §A задокументированы (layout role-block, shell toast, landing `next`).
-- [x] Staff + cross-zone guards покрыты тестами (**49** fast — см. `WAVE2_STAFF_PWA.md` §Проверки).
+- [x] Staff + cross-zone guards + staff push покрыты тестами (**63** fast — см. `WAVE2_STAFF_PWA.md` §Проверки).
 - [x] `git diff` волны 2 §B не затрагивает запрещённые patient PWA файлы; staff manifest/install — только разрешённые пути §B.
 - [x] Инициатива **done** (волны 1–2) — см. [`README.md`](README.md), [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md).

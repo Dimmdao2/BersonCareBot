@@ -523,7 +523,7 @@ Canonical linking rules:
 
 ### `POST /api/integrator/support/sync-user-message`
 
-Входящее сообщение пациента из бота в thread `webapp:platform:{platformUserId}`.
+Входящее сообщение пациента из бота в thread `webapp:platform:{platformUserId}`. После записи в thread — уведомление staff (doctor/admin) по матрице `/app/settings` (topic `doctor_patient_messages`: telegram/max/web_push на привязках пользователя; fallback env `doctor_telegram_ids` / `admin_telegram_ids` только если per-staff telegram/max не доставлены).
 
 ### `POST /api/integrator/support/admin-reply`
 

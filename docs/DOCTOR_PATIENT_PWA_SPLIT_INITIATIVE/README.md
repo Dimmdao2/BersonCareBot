@@ -1,6 +1,6 @@
 # DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE — кабинет врача отдельно от пациентской PWA
 
-**Статус:** **done** — волна 1 (2026-06-06) · волна 2 (2026-06-07): §A access+toast · §B Staff PWA  
+**Статус:** **done** — волна 1 (2026-06-06) · волна 2 (2026-06-07): §A access+toast · §B Staff PWA · **staff push** (post-§B)  
 **Дата старта:** 2026-06-06
 
 ## Главное ограничение
@@ -22,6 +22,7 @@ Staff runtime: `/app/doctor/**`, `/app/settings/**`, `/app/admin/**`, guards, do
 | **1** | Кабинет специалиста — самостоятельный runtime в браузере (guards, CSS, redirects) |
 | **2 §A** | Cross-zone block + toast на своём hub (без forbidden-экранов) |
 | **2 §B** | Staff PWA: manifest, иконки BersonAdmin, install, SW register |
+| **post-§B** | Staff web push + матрица каналов уведомлений (`/app/settings`, `/api/doctor/web-push/*`) |
 
 UI/CSS split закрыт ранее: [`PATIENT_DOCTOR_UI_SPLIT`](../archive/2026-06-initiatives/PATIENT_DOCTOR_UI_SPLIT_INITIATIVE/README.md).
 
@@ -41,7 +42,7 @@ UI/CSS split закрыт ранее: [`PATIENT_DOCTOR_UI_SPLIT`](../archive/202
 - Любые изменения patient PWA (кроме задокументированных исключений §A);
 - guest/mass mode, Product Platform, монетизация, CRM;
 - визуальный редизайн doctor UI;
-- staff web push, offline cache, subdomain deploy — backlog PWA;
+- offline cache staff, subdomain deploy — backlog;
 - patient Web Push hardening — [`PWA_INITIATIVE`](../PWA_INITIATIVE/README.md).
 
 ## Код
@@ -53,5 +54,6 @@ UI/CSS split закрыт ранее: [`PATIENT_DOCTOR_UI_SPLIT`](../archive/202
 | Guards §A | `requireRole.ts` |
 | Toast §A | `appAccessDeniedToast.ts`, `AppAccessDeniedToastEffect.tsx`; shells + `LandingPwaClientBootstrap` |
 | Staff PWA §B | `staffPwaManifest.ts`, `staffPwaLayoutMetadata.ts`, `staffPwaInstallState.ts`, `manifest-staff.webmanifest/route.ts`, `doctor/install/page.tsx`, `StaffPwaBootstrap`, `StaffPwaInstallSection`, `public/staff-pwa-icon-*` |
+| Staff push | `modules/doctor-notifications/`, `api/doctor/web-push/*`, `DoctorNotificationChannelsSection`, `StaffWebPushBootstrap`, `staffWebPushApi.ts` |
 | Навигация install | `routePaths.doctorInstall`, `DoctorAdminSidebar`, `DoctorHeader` Sheet |
-| Тесты | **49** fast (38 §A + 11 §B) — [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §Проверки |
+| Тесты | **63** fast (49 §A+§B + 14 staff push) — [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §Проверки |

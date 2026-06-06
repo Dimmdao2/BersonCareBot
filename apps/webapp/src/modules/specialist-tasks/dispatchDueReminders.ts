@@ -1,15 +1,18 @@
+import {
+  resolveSpecialistTaskReminderChannelsForUser,
+  type ResolveSpecialistTaskReminderChannelsDeps,
+} from "@/modules/doctor-notifications/resolveSpecialistTaskReminderChannels";
 import type { SpecialistTasksService } from "./service";
 import {
-  loadSpecialistTaskReminderChannelsFromSettings,
   notifySpecialistTaskReminder,
   type NotifySpecialistTaskReminderDeps,
 } from "./notifySpecialistTaskReminder";
 
-export type DispatchSpecialistTaskRemindersDeps = NotifySpecialistTaskReminderDeps & {
-  specialistTasks: SpecialistTasksService;
-  resolvePatientDisplayName?: (patientUserId: string) => Promise<string | null>;
-  getDoctorSetting: (key: "doctor_specialist_task_reminder_channels") => Promise<{ valueJson: unknown } | null | undefined>;
-};
+export type DispatchSpecialistTaskRemindersDeps = NotifySpecialistTaskReminderDeps &
+  ResolveSpecialistTaskReminderChannelsDeps & {
+    specialistTasks: SpecialistTasksService;
+    resolvePatientDisplayName?: (patientUserId: string) => Promise<string | null>;
+  };
 
 export async function dispatchDueSpecialistTaskReminders(
   deps: DispatchSpecialistTaskRemindersDeps,
@@ -20,11 +23,6 @@ export async function dispatchDueSpecialistTaskReminders(
   const nowIso = now.toISOString();
   const due = await deps.specialistTasks.listDueReminders(nowIso, limit);
 
-  const channels = await loadSpecialistTaskReminderChannelsFromSettings(deps.getDoctorSetting);
-  if (channels.length === 0) {
-    return { processed: due.length, sent: 0, errors: 0 };
-  }
-
   let sent = 0;
   let errors = 0;
 
@@ -34,6 +32,7 @@ export async function dispatchDueSpecialistTaskReminders(
         task.patientUserId && deps.resolvePatientDisplayName
           ? await deps.resolvePatientDisplayName(task.patientUserId)
           : null;
+      const channels = await resolveSpecialistTaskReminderChannelsForUser(task.ownerUserId, deps);
       const result = await notifySpecialistTaskReminder(
         task,
         { ...deps, getReminderChannels: async () => channels },

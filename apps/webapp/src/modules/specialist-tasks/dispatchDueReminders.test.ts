@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
 const notifyMock = vi.hoisted(() => vi.fn());
-const loadChannelsMock = vi.hoisted(() => vi.fn());
+const resolveChannelsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("./notifySpecialistTaskReminder", () => ({
   notifySpecialistTaskReminder: notifyMock,
-  loadSpecialistTaskReminderChannelsFromSettings: loadChannelsMock,
+}));
+
+vi.mock("@/modules/doctor-notifications/resolveSpecialistTaskReminderChannels", () => ({
+  resolveSpecialistTaskReminderChannelsForUser: resolveChannelsMock,
 }));
 
 import type { SpecialistTasksService } from "./service";
-import { dispatchDueSpecialistTaskReminders } from "./dispatchDueReminders";
+import { dispatchDueSpecialistTaskReminders, type DispatchSpecialistTaskRemindersDeps } from "./dispatchDueReminders";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 
 const baseTask = {
@@ -29,23 +32,26 @@ const baseTask = {
 
 describe("dispatchDueSpecialistTaskReminders", () => {
   it("marks reminder sent only when notify reports delivery", async () => {
-    loadChannelsMock.mockResolvedValue(["telegram"]);
+    resolveChannelsMock.mockResolvedValue(["telegram"]);
     notifyMock.mockResolvedValue({ sent: false, undeliverable: false });
     const markReminderSent = vi.fn();
     const listDueReminders = vi.fn().mockResolvedValue([baseTask]);
 
     const deps = {
       specialistTasks: { listDueReminders, markReminderSent } as unknown as SpecialistTasksService,
-      getDoctorSetting: vi.fn(),
+      topicChannelPrefs: { listByUserId: vi.fn(), upsert: vi.fn() },
+      channelPreferences: { getPreferences: vi.fn() },
       getReminderChannels: async () => ["telegram" as const],
       getChannelBindings: vi.fn(),
       getProfileEmail: vi.fn(),
+      getProfileEmailVerified: vi.fn(),
       webPushSubscriptions: {
+        hasAnyForUserId: vi.fn(),
         listActiveByUserId: vi.fn().mockResolvedValue([]),
         deleteByEndpointIfExists: vi.fn(),
       } as unknown as WebPushSubscriptionsPort,
       systemSettings: { getSetting: vi.fn() },
-    };
+    } as unknown as DispatchSpecialistTaskRemindersDeps;
 
     await dispatchDueSpecialistTaskReminders(deps, {
       limit: 10,
@@ -65,23 +71,26 @@ describe("dispatchDueSpecialistTaskReminders", () => {
   });
 
   it("marks reminder sent when notify reports undeliverable (no retry loop)", async () => {
-    loadChannelsMock.mockResolvedValue(["telegram"]);
+    resolveChannelsMock.mockResolvedValue(["telegram"]);
     notifyMock.mockResolvedValue({ sent: false, undeliverable: true });
     const markReminderSent = vi.fn();
     const listDueReminders = vi.fn().mockResolvedValue([baseTask]);
 
     const deps = {
       specialistTasks: { listDueReminders, markReminderSent } as unknown as SpecialistTasksService,
-      getDoctorSetting: vi.fn(),
+      topicChannelPrefs: { listByUserId: vi.fn(), upsert: vi.fn() },
+      channelPreferences: { getPreferences: vi.fn() },
       getReminderChannels: async () => ["telegram" as const],
       getChannelBindings: vi.fn(),
       getProfileEmail: vi.fn(),
+      getProfileEmailVerified: vi.fn(),
       webPushSubscriptions: {
+        hasAnyForUserId: vi.fn(),
         listActiveByUserId: vi.fn().mockResolvedValue([]),
         deleteByEndpointIfExists: vi.fn(),
       } as unknown as WebPushSubscriptionsPort,
       systemSettings: { getSetting: vi.fn() },
-    };
+    } as unknown as DispatchSpecialistTaskRemindersDeps;
 
     await dispatchDueSpecialistTaskReminders(deps, {
       limit: 10,

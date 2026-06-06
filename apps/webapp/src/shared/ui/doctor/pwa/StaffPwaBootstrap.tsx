@@ -5,7 +5,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { markStaffPwaInstalled } from "@/shared/lib/pwa/staffPwaInstallState";
 
-/** Регистрация `public/sw.js` в staff shell (scope `/app`); без patient push. */
+/** Регистрация `public/sw.js` в staff shell (scope `/app`). */
 export function StaffPwaBootstrap() {
   useEffect(() => {
     const onAppInstalled = () => {

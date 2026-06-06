@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { AppAccessDeniedToastEffect } from "@/shared/ui/AppAccessDeniedToastEffect";
 import { StaffPwaBootstrap } from "@/shared/ui/doctor/pwa/StaffPwaBootstrap";
+import { StaffWebPushBootstrap } from "@/shared/ui/doctor/pwa/StaffWebPushBootstrap";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { DoctorAdminSidebar } from "@/shared/ui/doctor/shell/DoctorAdminSidebar";
 import { DoctorHeader } from "@/shared/ui/doctor/shell/DoctorHeader";
@@ -35,6 +36,7 @@ export function DoctorWorkspaceShell({
         <AppAccessDeniedToastEffect />
       </Suspense>
       <StaffPwaBootstrap />
+      <StaffWebPushBootstrap />
       <div className="flex min-h-screen flex-col bg-white">
         <DoctorHeader
           userDisplayName={userDisplayName}

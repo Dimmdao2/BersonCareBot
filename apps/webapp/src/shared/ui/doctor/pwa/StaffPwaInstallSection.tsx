@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   isStaffPwaInstallComplete,
   markStaffPwaInstalled,
 } from "@/shared/lib/pwa/staffPwaInstallState";
+import { StaffPwaPushOptIn } from "@/shared/ui/doctor/pwa/StaffPwaPushOptIn";
 
 type BeforeInstallPromptEventLike = Event & {
   prompt: () => Promise<void>;
@@ -73,7 +74,14 @@ export function StaffPwaInstallSection() {
   if (!mounted) return <div className="min-h-[5.5rem]" aria-hidden />;
 
   if (done) {
-    return <p className="text-sm text-emerald-800">Приложение на устройстве — открывайте кабинет с домашнего экрана.</p>;
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-emerald-800">
+          Приложение на устройстве — открывайте кабинет с домашнего экрана.
+        </p>
+        <StaffPwaPushOptIn />
+      </div>
+    );
   }
 
   if (isIos) {

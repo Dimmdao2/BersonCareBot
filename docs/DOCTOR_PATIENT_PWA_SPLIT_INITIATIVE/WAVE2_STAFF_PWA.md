@@ -1,6 +1,6 @@
 # Волна 2 — Staff PWA + блокировка чужих зон
 
-**Статус:** волна 2 **done 100%** — §A (2.A0–2.A5+, 2026-06-06) · §B (2.B0–2.B8, 2026-06-07). Приёмка: [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md).
+**Статус:** волна 2 **done 100%** — §A (2.A0–2.A5+, 2026-06-06) · §B (2.B0–2.B8, 2026-06-07) · **staff push** (post-§B, 2026-06-07). Приёмка: [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md).
 
 **Patient PWA (install/gate/manifest/SW)** — поведение **не меняем**. Исключения §A — см. [`SCOPE_BOUNDARIES.md`](SCOPE_BOUNDARIES.md) §«Исключения волны 2»; **`PwaAppAccessGate` не правим** — toast для browser client через `next=` на лендинге `/`.
 
@@ -113,7 +113,7 @@
 
 1. Scope staff manifest: **`/app`** (покрывает doctor/settings/admin).
 2. Два ярлыка на устройстве — **да** (`id` `/app` vs `/app-staff`).
-3. Staff push на install — **нет** в §B.
+3. Staff push на install — **нет** в §B; **да** post-§B (`StaffPwaPushOptIn` после «Готово»).
 4. iOS — **да**, инструкции на `/app/doctor/install`.
 
 **Блокировка — решено:** только toast, без экранов.
@@ -144,6 +144,17 @@
 - [x] §B Staff PWA: install, manifest, иконки.
 - [x] §A Patient install/manifest/gate — без регрессии (код не трогали).
 - [x] `ACCEPTANCE_WAVE2.md` (§access и §B закрыты).
+- [x] Staff push + матрица уведомлений (post-§B).
+
+### C. Staff web push (post-§B)
+
+| Этап | Содержание |
+|------|------------|
+| **2.C0** ✅ | API `/api/doctor/web-push/*`, subscribe/unsubscribe, VAPID из admin settings |
+| **2.C1** ✅ | `/app/settings` — push + матрица тем (`doctor_specialist_task_reminders`, `doctor_patient_messages`) |
+| **2.C2** ✅ | Доставка: задачи per-owner; сообщения per-staff (tg/max/push); integrator sync |
+| **2.C3** ✅ | `StaffWebPushBootstrap`, defaults при subscribe, opt-in на install |
+| **2.C4** ✅ | Тесты + docs (`STAFF_PWA_ADR` post-§B, `api.md`, `INTEGRATOR_CONTRACT`) |
 
 ## Проверки
 
@@ -182,6 +193,31 @@ pnpm --filter webapp exec vitest run \
   src/shared/ui/doctor/pwa/StaffPwaInstallSection.test.tsx \
   e2e/doctor-staff-pwa-install.test.ts
 # 49 tests — green (2026-06-07)
+
+# staff push (post-§B)
+pnpm --filter webapp exec vitest run \
+  src/modules/doctor-notifications \
+  src/app/api/doctor/web-push \
+  src/modules/specialist-tasks/dispatchDueReminders.test.ts
+# 14 tests
+
+# волна 2 + staff push (полный fast-набор)
+pnpm --filter webapp exec vitest run \
+  src/shared/lib/appAccessDeniedToast.test.ts \
+  src/shared/ui/AppAccessDeniedToastEffect.test.tsx \
+  src/app-layer/guards/requireRole.doctorStaffAccess.test.ts \
+  e2e/doctor-patient-role-layout-redirects.test.ts \
+  src/app/api/doctor/clients/route.test.ts \
+  src/shared/lib/pwa/pwaAppAccessPolicy.test.ts \
+  src/shared/lib/pwa/staffPwaManifest.test.ts \
+  src/shared/lib/pwa/staffPwaInstallState.test.ts \
+  src/app/manifest-staff.webmanifest/route.test.ts \
+  src/shared/ui/doctor/pwa/StaffPwaInstallSection.test.tsx \
+  e2e/doctor-staff-pwa-install.test.ts \
+  src/modules/doctor-notifications \
+  src/app/api/doctor/web-push \
+  src/modules/specialist-tasks/dispatchDueReminders.test.ts
+# 63 tests — green (2026-06-07)
 
 curl -sS localhost:3000/manifest-staff.webmanifest | jq '.start_url'   # → "/app/doctor" (ручной smoke)
 rg "staff-pwa-icon|manifest-staff|doctor/install|staffPwaInstallState" apps/webapp/src apps/webapp/public

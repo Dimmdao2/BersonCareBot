@@ -5,7 +5,6 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
 import { recordOperatorCronJobTickBestEffort } from "@/app-layer/operator-health/recordOperatorCronJobTick";
 import { dispatchDueSpecialistTaskReminders } from "@/modules/specialist-tasks/dispatchDueReminders";
-import { loadSpecialistTaskReminderChannelsFromSettings } from "@/modules/specialist-tasks/notifySpecialistTaskReminder";
 import {
   OPERATOR_SPECIALIST_TASKS_JOB_FAMILY,
   OPERATOR_SPECIALIST_TASK_REMINDERS_TICK_JOB_KEY,
@@ -45,25 +44,20 @@ export async function POST(request: Request) {
     const result = await dispatchDueSpecialistTaskReminders(
       {
         specialistTasks: deps.specialistTasks,
-        getDoctorSetting: (key) =>
-          deps.systemSettings.getSetting(
-            key as "doctor_specialist_task_reminder_channels",
-            "doctor",
-          ),
-        getReminderChannels: () =>
-          loadSpecialistTaskReminderChannelsFromSettings((key) =>
-            deps.systemSettings.getSetting(
-              key as "doctor_specialist_task_reminder_channels",
-              "doctor",
-            ),
-          ),
+        topicChannelPrefs: deps.topicChannelPrefs,
+        channelPreferences: deps.channelPreferencesPort,
         getChannelBindings: deps.loadPlatformUserChannelBindings,
         getProfileEmail: async (platformUserId) => {
           const fields = await deps.userProjection.getProfileEmailFields(platformUserId);
           return fields?.email?.trim() || null;
         },
+        getProfileEmailVerified: async (platformUserId) => {
+          const fields = await deps.userProjection.getProfileEmailFields(platformUserId);
+          return Boolean(fields?.emailVerifiedAt);
+        },
         webPushSubscriptions: deps.webPushSubscriptions,
         systemSettings: deps.systemSettings,
+        getReminderChannels: async () => [],
         resolvePatientDisplayName: async (patientUserId) => {
           const identity = await deps.doctorClientsPort.getClientIdentity(patientUserId);
           return identity?.displayName?.trim() || null;

@@ -1,5 +1,19 @@
 # DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE — LOG
 
+## 2026-06-07 — Staff web push + матрица уведомлений (post-§B)
+
+**Сделано:**
+
+- API `/api/doctor/web-push/*`; UI `/app/settings` (push + матрица 2 тем).
+- Модуль `doctor-notifications`: per-owner задачи, per-staff сообщения (tg/max/push), integrator `sync-user-message`.
+- `StaffWebPushBootstrap`, `StaffPwaPushOptIn`, defaults при subscribe.
+- Docs: `STAFF_PWA_ADR` post-§B, `README`, `WAVE2`, `ACCEPTANCE_WAVE2` §C, `SCOPE_BOUNDARIES`, `api.md`, `INTEGRATOR_CONTRACT`.
+- Тесты: **63** fast (49 + 14 push); fix `StaffPwaInstallSection.test` после push opt-in.
+
+**Проверки:** `pnpm run ci` перед commit.
+
+---
+
 ## 2026-06-07 — Синхронизация документации и плана (волна 2 closed)
 
 **Сделано:**

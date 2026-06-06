@@ -6,6 +6,8 @@ import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
 import { DoctorAccountEmailSection } from "./DoctorAccountEmailSection";
 import { SettingsForm } from "./SettingsForm";
+import { DoctorNotificationChannelsSection } from "./DoctorNotificationChannelsSection";
+import { buildDoctorNotificationTopicModels } from "@/modules/doctor-notifications/doctorProfileTopicChannelsModel";
 import { parseSpecialistTaskReminderChannels } from "@/modules/specialist-tasks/reminderChannels";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
@@ -64,6 +66,21 @@ export default async function SettingsPage({
     doctorSettings.find((x) => x.key === "doctor_specialist_task_reminder_channels")?.valueJson ?? null,
   );
   const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
+  const emailVerified = Boolean(accountEmail.emailVerifiedAt);
+  const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());
+  const hasMax = Boolean(session.user.bindings.maxId?.trim());
+  const hasWebPushSubscription = await deps.webPushSubscriptions.hasAnyForUserId(session.user.userId);
+  const channelPrefs = await deps.channelPreferencesPort.getPreferences(session.user.userId);
+  const globalWebPushEnabled =
+    channelPrefs.find((p) => p.channelCode === "web_push")?.isEnabledForNotifications !== false;
+  const prefRows = await deps.topicChannelPrefs.listByUserId(session.user.userId);
+  const notificationTopics = buildDoctorNotificationTopicModels(prefRows, {
+    hasTelegram,
+    hasMax,
+    emailVerified,
+    hasWebPushSubscription,
+    globalWebPushEnabled,
+  }, taskReminderChannels);
 
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
@@ -73,12 +90,19 @@ export default async function SettingsPage({
           initialEmail={accountEmail.email}
           emailVerified={Boolean(accountEmail.emailVerifiedAt)}
         />
+        <DoctorNotificationChannelsSection
+          initialTopics={notificationTopics}
+          hasWebPushSubscription={hasWebPushSubscription}
+          globalWebPushEnabled={globalWebPushEnabled}
+          hasTelegram={hasTelegram}
+          hasMax={hasMax}
+          emailVerified={emailVerified}
+        />
         <SettingsForm
           patientLabel={String(patientLabel)}
           smsFallbackEnabled={Boolean(smsFallbackEnabled)}
           supportCommentsWithoutSupportDefault={Boolean(supportCommentsWithoutSupportDefault)}
           supportMediaWithoutSupportDefault={Boolean(supportMediaWithoutSupportDefault)}
-          taskReminderChannels={taskReminderChannels}
         />
       </div>
     </div>

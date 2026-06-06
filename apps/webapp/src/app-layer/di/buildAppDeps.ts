@@ -141,6 +141,7 @@ import {
   inMemoryPatientNotificationTopicsPort,
 } from "@/infra/repos/pgPatientNotificationTopics";
 import { createPgTopicChannelPrefsPort, inMemoryTopicChannelPrefsPort } from "@/infra/repos/pgTopicChannelPrefs";
+import { createPgStaffUsersPort, inMemoryStaffUsersPort } from "@/infra/repos/pgStaffUsers";
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
 import { pgUserPinsPort } from "@/infra/repos/pgUserPins";
 import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
@@ -367,6 +368,7 @@ const reminderTransactionalEmailCooldownPort = !inMemoryRepos
   ? createPgReminderTransactionalEmailCooldownPort()
   : createNoOpReminderTransactionalEmailCooldownPort();
 const topicChannelPrefsPort = !inMemoryRepos ? createPgTopicChannelPrefsPort() : inMemoryTopicChannelPrefsPort;
+const staffUsersPort = !inMemoryRepos ? createPgStaffUsersPort() : inMemoryStaffUsersPort;
 const patientNotificationTopicsPort = !inMemoryRepos
   ? createPgPatientNotificationTopicsPort()
   : inMemoryPatientNotificationTopicsPort;
@@ -943,26 +945,43 @@ const sendProgramNoteReply = createSendProgramNoteReply({
   discussion: programItemDiscussionService,
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
 });
+const doctorPatientMessageStaffDeps = {
+  staffUsers: staffUsersPort,
+  topicChannelPrefs: topicChannelPrefsPort,
+  channelPreferences: channelPreferencesPort,
+  webPushSubscriptions: webPushSubscriptionsPort,
+  systemSettings: systemSettingsService,
+  getChannelBindings: loadPlatformUserChannelBindings,
+};
+
+const resolvePatientLabelForDoctorNotify = async (platformUserId: string): Promise<string> => {
+  const identity = await doctorClientsPort.getClientIdentity(platformUserId);
+  return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";
+};
+
+const notifyDoctorOfPatientMessageImpl = async (input: {
+  platformUserId: string;
+  messageId: string;
+  messageText: string;
+  patientLabel: string;
+  source: "webapp" | "telegram" | "max";
+}) => {
+  await notifyDoctorPatientMessage(input, { staffDeps: doctorPatientMessageStaffDeps });
+};
+
 const integratorSupportBridge = createIntegratorSupportBridge({
   port: supportCommunicationPort,
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
   sendProgramNoteReply,
+  notifyDoctorOfPatientMessage: notifyDoctorOfPatientMessageImpl,
+  resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });
 const patientMessagingService = createPatientMessagingService(supportCommunicationPort, {
   isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),
   notifyDoctorOfPatientMessage: async (input) => {
-    await notifyDoctorPatientMessage({
-      platformUserId: input.platformUserId,
-      messageId: input.messageId,
-      messageText: input.messageText,
-      patientLabel: input.patientLabel,
-      source: "webapp",
-    });
+    await notifyDoctorOfPatientMessageImpl({ ...input, source: "webapp" });
   },
-  resolvePatientLabel: async (platformUserId) => {
-    const identity = await doctorClientsPort.getClientIdentity(platformUserId);
-    return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";
-  },
+  resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });
 const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort, {
   shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
@@ -1377,6 +1396,7 @@ function _buildAppDeps() {
       }) => getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
     },
     topicChannelPrefs: topicChannelPrefsPort,
+    staffUsers: staffUsersPort,
     patientNotificationTopics: patientNotificationTopicsPort,
     userProjection: {
       upsertFromProjection: userProjectionPort.upsertFromProjection,

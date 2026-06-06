@@ -8,6 +8,8 @@ import EmailSetupPageClient from "./EmailSetupPageClient";
 const replaceMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/app/auth/email-setup",
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ replace: replaceMock }),
 }));
 

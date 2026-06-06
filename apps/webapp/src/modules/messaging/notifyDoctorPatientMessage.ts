@@ -4,15 +4,24 @@ import {
   relayTextToDoctorTargets,
 } from "@/modules/messaging/doctorNotifyTargets";
 import {
+  notifyDoctorPatientMessageToStaff,
+  type NotifyDoctorPatientMessageToStaffDeps,
+} from "@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff";
+import {
   isWebappPlatformConversationId,
   webappPlatformConversationId,
 } from "@/modules/messaging/supportConversationIds";
 
+export function buildDoctorMessagesOpenPath(platformUserId: string): string {
+  const convKey = encodeURIComponent(webappPlatformConversationId(platformUserId));
+  return `/app/doctor/messages?integratorConversationId=${convKey}`;
+}
+
 export function buildDoctorMessagesDeepLink(platformUserId: string): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
-  if (!base) return "/app/doctor/messages";
-  const convKey = encodeURIComponent(webappPlatformConversationId(platformUserId));
-  return `${base}/app/doctor/messages?integratorConversationId=${convKey}`;
+  const path = buildDoctorMessagesOpenPath(platformUserId);
+  if (!base) return path;
+  return `${base}${path}`;
 }
 
 export function buildDoctorPatientMessageNotifyText(input: {
@@ -53,31 +62,57 @@ export type NotifyDoctorPatientMessageInput = {
 
 export async function notifyDoctorPatientMessage(
   input: NotifyDoctorPatientMessageInput,
+  opts?: { staffDeps?: NotifyDoctorPatientMessageToStaffDeps },
 ): Promise<void> {
-  const targets = await loadDoctorNotifyTargets();
-  if (targets.telegram.length === 0 && targets.max.length === 0) return;
-
   const deepLink = buildDoctorMessagesDeepLink(input.platformUserId);
+  const openPath = buildDoctorMessagesOpenPath(input.platformUserId);
+  const replyConversationId = doctorReplyCallbackConversationId(input.platformUserId);
   const text = buildDoctorPatientMessageNotifyText({
     patientLabel: input.patientLabel,
     messageText: input.messageText,
     source: input.source,
     deepLink,
-    replyConversationId: doctorReplyCallbackConversationId(input.platformUserId),
+    replyConversationId,
   });
+  const preview = input.messageText.trim().slice(0, 120);
 
-  const replyConversationId = doctorReplyCallbackConversationId(input.platformUserId);
-  const replyMarkup = {
-    inline_keyboard: [[{ text: "Ответить", callback_data: `admin_reply:${replyConversationId}` }]],
-  };
+  let staffTelegram = 0;
+  let staffMax = 0;
 
-  await relayTextToDoctorTargets(
-    `patient-msg-notify:${input.messageId}`,
-    targets,
-    text,
-    "patient-msg-notify",
-    replyMarkup,
-  );
+  if (opts?.staffDeps) {
+    const staffResult = await notifyDoctorPatientMessageToStaff(
+      {
+        messageId: input.messageId,
+        text,
+        pushTitle: "Сообщение от пациента",
+        pushBody: `${input.patientLabel}: ${preview}`,
+        pushUrl: openPath,
+        replyConversationId,
+      },
+      opts.staffDeps,
+    ).catch((err: unknown) => {
+      console.error("[notifyDoctorPatientMessage] staff notify error:", err);
+      return { telegramDelivered: 0, maxDelivered: 0, pushDelivered: 0 };
+    });
+    staffTelegram = staffResult.telegramDelivered;
+    staffMax = staffResult.maxDelivered;
+  }
+
+  if (staffTelegram === 0 && staffMax === 0) {
+    const targets = await loadDoctorNotifyTargets();
+    if (targets.telegram.length > 0 || targets.max.length > 0) {
+      const replyMarkup = {
+        inline_keyboard: [[{ text: "Ответить", callback_data: `admin_reply:${replyConversationId}` }]],
+      };
+      await relayTextToDoctorTargets(
+        `patient-msg-notify:${input.messageId}`,
+        targets,
+        text,
+        "patient-msg-notify",
+        replyMarkup,
+      );
+    }
+  }
 }
 
 export { isWebappPlatformConversationId };

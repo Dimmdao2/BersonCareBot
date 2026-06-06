@@ -12,7 +12,7 @@ Patient PWA (`manifest.ts`, `start_url: /app/patient`) — **без измене
 |---|--------|---------|
 | 1 | Scope staff manifest | **`/app`** — тот же origin scope, что patient SW; покрывает `/app/doctor`, `/app/settings`, `/app/admin` |
 | 2 | Два ярлыка на устройстве | **Да** — разные `id` manifest (`/app` patient vs `/app-staff` staff) и разные `start_url` |
-| 3 | Staff push на install | **Нет** в §B — без web-push opt-in на install; patient push stack не трогаем |
+| 3 | Staff push на install | **Нет в §B** (2026-06-07); **да post-§B** — opt-in на `/app/doctor/install` после установки (`StaffPwaPushOptIn`) |
 | 4 | iOS install copy | **Да** — инструкции на `/app/doctor/install` (Safari «На экран Домой» / Mac Dock) |
 | 5 | Обязательность install | **Опционально** — browser OK для staff (как волна 1); PWA — ускорение, отдельная иконка |
 | 6 | Service worker | **Тот же** `public/sw.js`, `scope: /app` — без второго SW |
@@ -26,6 +26,23 @@ Patient PWA (`manifest.ts`, `start_url: /app/patient`) — **без измене
 - Навигация: sidebar + mobile Sheet → `/app/doctor/install`.
 - Install «готово»: `staffPwaInstallState` (localStorage marker после `appinstalled`), без ложного срабатывания patient standalone.
 
-## Вне scope §B
+## Post-§B — Staff web push (2026-06-07)
 
-- Staff web push, offline cache, отдельный subdomain/deploy.
+Отдельный трек после закрытия §B; patient push stack **не меняли**.
+
+| Решение | Деталь |
+|---------|--------|
+| API | `/api/doctor/web-push/status|subscribe|unsubscribe` (doctor/admin) |
+| Подписка | Тот же `public/sw.js`, `user_web_push_subscriptions` |
+| Настройки | `/app/settings` — матрица тем × каналов (`doctor_specialist_task_reminders`, `doctor_patient_messages`) |
+| Доставка задач | Per-owner `user_notification_topic_channels` + fallback `doctor_specialist_task_reminder_channels` |
+| Сообщения пациентов | Per-staff tg/max/push; integrator `sync-user-message` → notify; env tg/max — fallback |
+| Auto-restore | `StaffWebPushBootstrap` (`WEB_PUSH_SUBSCRIPTION_CHANGE`) |
+| Defaults при subscribe | `enableStaffWebPushNotificationDefaults` — web_push для обеих doctor-тем |
+
+Код: `modules/doctor-notifications/`, `shared/lib/webPush/staffWebPushApi.ts`, `subscribeStaffWebPush.ts`.
+
+## Вне scope
+
+- Offline cache staff, отдельный subdomain/deploy.
+- Изменения patient `manifest.ts`, gate, `sw.js` push handler, `/api/patient/web-push/*`.

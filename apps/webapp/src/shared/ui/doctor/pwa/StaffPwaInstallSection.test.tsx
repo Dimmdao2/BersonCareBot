@@ -9,9 +9,26 @@ vi.mock("@/shared/lib/webPush/pwaDisplay", () => ({
   isStandalonePwa: vi.fn(() => true),
 }));
 
+vi.mock("./StaffPwaPushOptIn", () => ({
+  StaffPwaPushOptIn: () => null,
+}));
+
 describe("StaffPwaInstallSection", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          vapidConfigured: true,
+          publicKey: "pk",
+          hasSubscription: false,
+          globalWebPushEnabled: true,
+        }),
+      }),
+    );
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
@@ -30,9 +47,9 @@ describe("StaffPwaInstallSection", () => {
   it("does not show done in patient standalone without staff marker", async () => {
     render(<StaffPwaInstallSection />);
     await waitFor(() => {
-      expect(screen.queryByText(/Приложение на устройстве/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Меню браузера|Поделиться|Установить/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/Меню браузера|Поделиться|Установить/i)).toBeTruthy();
+    expect(screen.queryByText(/Приложение на устройстве/)).not.toBeInTheDocument();
   });
 
   it("shows done when staff install marker is set", async () => {
