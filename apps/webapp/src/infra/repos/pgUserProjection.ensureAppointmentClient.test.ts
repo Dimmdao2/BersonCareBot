@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
 
-const { mockGetPool, mockTrustedAnchor } = vi.hoisted(() => ({
+const { mockGetPool, mockTrustedAnchor, runWebappPgTextMock } = vi.hoisted(() => ({
   mockGetPool: vi.fn(),
   mockTrustedAnchor: vi.fn(),
+  runWebappPgTextMock: vi.fn(),
 }));
 
 vi.mock("@/infra/db/client", () => ({
   getPool: mockGetPool,
+}));
+
+vi.mock("@/infra/db/runWebappSql", () => ({
+  getWebappSqlFromPgClient: (client: unknown) => client,
+  runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
 }));
 
 vi.mock("@/infra/repos/pgPlatformUserMerge", () => ({
@@ -24,8 +30,15 @@ vi.mock("@/modules/platform-access/trustedPhonePolicy", () => ({
 import { pgUserProjectionPort } from "./pgUserProjection";
 
 function installPool(queryImpl: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }>) {
+  runWebappPgTextMock.mockImplementation(async (queryText: string, values?: readonly unknown[]) =>
+    queryImpl(queryText, values as unknown[] | undefined),
+  );
+  const queryFn = vi.fn(async (sql: unknown, params?: unknown[]) => {
+    if (typeof sql !== "string") return { rows: [] };
+    return queryImpl(sql, params);
+  });
   const client = {
-    query: vi.fn(queryImpl),
+    query: queryFn,
     release: vi.fn(),
   } as unknown as PoolClient;
   mockGetPool.mockReturnValue({

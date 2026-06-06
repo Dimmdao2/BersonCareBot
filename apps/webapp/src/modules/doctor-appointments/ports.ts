@@ -18,9 +18,13 @@ export type DoctorAppointmentStatsFilter =
  */
 export type DoctorAppointmentsListFilter =
   | { kind: "range"; range: DoctorAppointmentsStatsRange }
+  /** Диапазон как в `getAppointmentStats.total` (включая отмененные). Для KPI drill-down. */
+  | { kind: "statsRange"; range: DoctorAppointmentsStatsRange }
   | { kind: "futureActive" }
   | { kind: "recordsInCalendarMonth" }
   | { kind: "cancellationsInCalendarMonth" }
+  /** Отмены за 30 суток по `updated_at` — как в `getAppointmentStats.cancellations30d`. */
+  | { kind: "cancellations30d" }
   /** Прошедшие записи с пагинацией для архива. */
   | { kind: "past"; limit?: number; offset?: number };
 

@@ -1,4 +1,9 @@
+/**
+ * Wave 3 phase 14B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK"|SET CONSTRAINTS)` on PoolClient.
+ * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ */
 import { getPool } from "@/infra/db/client";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { findCanonicalUserIdByChannelBinding } from "@/infra/repos/pgCanonicalPlatformUser";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import { mergePlatformUsersInTransaction, pickMergeTargetId, enrichPickMergeCandidatesWithBookingCounts } from "@/infra/repos/pgPlatformUserMerge";
@@ -9,6 +14,14 @@ import {
 import type { PoolClient } from "pg";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
+
+function txPgText<T = unknown>(
+  client: PoolClient,
+  queryText: string,
+  values: readonly unknown[] = [],
+) {
+  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
+}
 
 export type UserProjectionPort = {
   upsertFromProjection: (params: {
@@ -101,7 +114,8 @@ type PuRow = {
 };
 
 async function loadPuRow(client: PoolClient, id: string): Promise<PuRow | null> {
-  const r = await client.query<PuRow>(
+  const r = await txPgText<PuRow>(
+    client,
     `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, merged_into_id,
             display_name, first_name, last_name, email, created_at
      FROM platform_users WHERE id = $1::uuid`,
@@ -160,7 +174,8 @@ async function collectCandidateIds(
   },
 ): Promise<string[]> {
   const ids: string[] = [];
-  const byInt = await client.query<{ id: string }>(
+  const byInt = await txPgText<{ id: string }>(
+    client,
     `SELECT id FROM platform_users
      WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
      LIMIT 3`,
@@ -171,7 +186,8 @@ async function collectCandidateIds(
   // Phone match is intentional for signed integrator webhook: payload asserts this user owns the number
   // (may merge a row without patient_phone_trust_at; UPDATE path then sets trust when phone is supplied).
   if (params.phoneNormalized) {
-    const byPhone = await client.query<{ id: string }>(
+    const byPhone = await txPgText<{ id: string }>(
+      client,
       `SELECT id FROM platform_users
        WHERE phone_normalized = $1 AND merged_into_id IS NULL
        LIMIT 3`,
@@ -211,7 +227,8 @@ async function upsertFromProjectionTx(
 
   if (candidateIds.length === 0) {
     const displayName = params.displayName ?? "";
-    const ins = await client.query<{ id: string }>(
+    const ins = await txPgText<{ id: string }>(
+      client,
       `INSERT INTO platform_users (
          integrator_user_id, phone_normalized, display_name, first_name, last_name, email,
          patient_phone_trust_at
@@ -232,7 +249,8 @@ async function upsertFromProjectionTx(
     userId = ins.rows[0]!.id;
   } else {
     userId = await mergeCandidates(client, candidateIds, "projection");
-    await client.query(
+    await txPgText(
+      client,
       `UPDATE platform_users SET
          display_name = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE display_name END,
          first_name = COALESCE($3::text, first_name),
@@ -259,7 +277,8 @@ async function upsertFromProjectionTx(
   }
 
   if (params.channelCode && params.externalId) {
-    const insBinding = await client.query<{ user_id: string | null }>(
+    const insBinding = await txPgText<{ user_id: string | null }>(
+      client,
       `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
        VALUES ($1::uuid, $2, $3)
        ON CONFLICT (channel_code, external_id) DO NOTHING
@@ -309,7 +328,8 @@ async function ensureAppointmentClientTx(
   contactEmailSetup?: { emailNormalized: string };
 }> {
   const ids: string[] = [];
-  const byPhone = await client.query<{ id: string }>(
+  const byPhone = await txPgText<{ id: string }>(
+    client,
     `SELECT id FROM platform_users WHERE phone_normalized = $1 AND merged_into_id IS NULL LIMIT 2`,
     [params.phoneNormalized],
   );
@@ -323,7 +343,8 @@ async function ensureAppointmentClientTx(
   if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
 
   if (params.integratorUserId?.trim()) {
-    const byInt = await client.query<{ id: string }>(
+    const byInt = await txPgText<{ id: string }>(
+    client,
       `SELECT id FROM platform_users
        WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL LIMIT 2`,
       [params.integratorUserId.trim()],
@@ -336,7 +357,8 @@ async function ensureAppointmentClientTx(
 
   const emailNorm = normalizeRubitimeContactEmail(params.email);
   if (ids.length === 0 && emailNorm) {
-    const byEmail = await client.query<{ id: string }>(
+    const byEmail = await txPgText<{ id: string }>(
+      client,
       `SELECT id FROM platform_users
        WHERE email_normalized = lower(btrim($1::text)) AND merged_into_id IS NULL
        LIMIT 2`,
@@ -355,7 +377,8 @@ async function ensureAppointmentClientTx(
     params.phoneNormalized;
 
   if (uniq.length === 0) {
-    const ins = await client.query<{ id: string }>(
+    const ins = await txPgText<{ id: string }>(
+      client,
       `INSERT INTO platform_users (
          phone_normalized, display_name, first_name, last_name, email, email_normalized, role,
          integrator_user_id, patient_phone_trust_at
@@ -390,13 +413,15 @@ async function ensureAppointmentClientTx(
   let emailForUpdate: string | null = emailNorm;
   if (emailNorm) {
     const emailNormalized = emailNorm.trim().toLowerCase();
-    const prev = await client.query<{ email_normalized: string | null }>(
+    const prev = await txPgText<{ email_normalized: string | null }>(
+      client,
       `SELECT email_normalized FROM platform_users WHERE id = $1::uuid`,
       [userId],
     );
     const prevNorm = prev.rows[0]?.email_normalized ?? null;
     if (prevNorm !== emailNormalized) {
-      const conflict = await client.query<{ id: string }>(
+      const conflict = await txPgText<{ id: string }>(
+        client,
         `SELECT id FROM platform_users
          WHERE id <> $1::uuid
            AND email_normalized = $2::text
@@ -447,7 +472,7 @@ async function ensureAppointmentClientTx(
   ];
   try {
     // Existing user: enrich contact email / trusted Rubitime phone; never overwrite display/FIO from Rubitime.
-    await client.query(updateSql, updateParams);
+    await txPgText(client, updateSql, updateParams);
   } catch (err) {
     if (emailForUpdate && isActiveEmailNormalizedUniqueViolation(err)) {
       contactEmailSetup = undefined;
@@ -455,7 +480,7 @@ async function ensureAppointmentClientTx(
       console.warn("[ensureClientFromAppointmentProjection] fallback skip email update after unique violation", {
         platformUserId: userId,
       });
-      await client.query(updateSql, [
+      await txPgText(client, updateSql, [
         userId,
         null,
         params.integratorUserId?.trim() ?? null,
@@ -518,8 +543,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async findByIntegratorId(integratorUserId) {
-    const pool = getPool();
-    const result = await pool.query<{ id: string; phone_normalized: string | null }>(
+    const result = await runWebappPgText<{ id: string; phone_normalized: string | null }>(
       `SELECT id, phone_normalized FROM platform_users
        WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL`,
       [integratorUserId],
@@ -530,8 +554,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async findByPhoneNormalized(phoneNormalized) {
-    const pool = getPool();
-    const result = await pool.query<{ id: string }>(
+    const result = await runWebappPgText<{ id: string }>(
       `SELECT id FROM platform_users
        WHERE phone_normalized = $1 AND merged_into_id IS NULL
        LIMIT 1`,
@@ -547,7 +570,8 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query(
+      await txPgText(
+        client,
         "UPDATE platform_users SET phone_normalized = $1, patient_phone_trust_at = now(), updated_at = now() WHERE id = $2",
         [phoneNormalized, platformUserId],
       );
@@ -566,8 +590,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async updateDisplayName(platformUserId, displayName) {
-    const pool = getPool();
-    const result = await pool.query(
+    const result = await runWebappPgText(
       "UPDATE platform_users SET display_name = $1, updated_at = now() WHERE id = $2",
       [displayName, platformUserId],
     );
@@ -577,7 +600,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async updateProfileByPhone(params) {
-    const pool = getPool();
     const sets: string[] = ["updated_at = now()"];
     const vals: unknown[] = [];
     let idx = 0;
@@ -599,7 +621,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     }
     if (vals.length === 0) return;
     vals.push(params.phoneNormalized);
-    await pool.query(
+    await runWebappPgText(
       `UPDATE platform_users SET ${sets.join(", ")}
        WHERE phone_normalized = $${idx + 1} AND merged_into_id IS NULL`,
       vals,
@@ -607,9 +629,8 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async upsertNotificationTopics(params) {
-    const pool = getPool();
     for (const topic of params.topics) {
-      await pool.query(
+      await runWebappPgText(
         `INSERT INTO user_notification_topics (user_id, topic_code, is_enabled)
          VALUES ($1, $2, $3)
          ON CONFLICT (user_id, topic_code) DO UPDATE SET
@@ -620,8 +641,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async updateRole(platformUserId, role) {
-    const pool = getPool();
-    const result = await pool.query(
+    const result = await runWebappPgText(
       "UPDATE platform_users SET role = $1, updated_at = now() WHERE id = $2",
       [role, platformUserId],
     );
@@ -638,8 +658,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
       return { outcome: "skipped_invalid_email" as const };
     }
     const phone = params.phoneNormalized.trim();
-    const pool = getPool();
-    const row = await pool.query<{ id: string; email_verified_at: Date | null }>(
+    const row = await runWebappPgText<{ id: string; email_verified_at: Date | null }>(
       `SELECT id, email_verified_at FROM platform_users
        WHERE phone_normalized = $1 AND merged_into_id IS NULL`,
       [phone],
@@ -647,11 +666,11 @@ export const pgUserProjectionPort: UserProjectionPort = {
     if (row.rows.length === 0) {
       return { outcome: "skipped_no_user" as const };
     }
-    const u = row.rows[0];
+    const u = row.rows[0]!;
     if (u.email_verified_at) {
       return { outcome: "skipped_verified" as const, platformUserId: u.id };
     }
-    const conflict = await pool.query<{ id: string }>(
+    const conflict = await runWebappPgText<{ id: string }>(
       `SELECT id FROM platform_users
        WHERE id <> $1 AND email IS NOT NULL AND lower(trim(email)) = lower(trim($2))`,
       [u.id, emailNorm],
@@ -664,7 +683,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
       });
       return { outcome: "skipped_conflict" as const };
     }
-    await pool.query(
+    await runWebappPgText(
       `UPDATE platform_users SET email = $1, email_normalized = lower(btrim($1)), email_verified_at = NULL, updated_at = now()
        WHERE id = $2`,
       [emailNorm, u.id],
@@ -673,8 +692,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async getProfileEmailFields(platformUserId) {
-    const pool = getPool();
-    const result = await pool.query<{ email: string | null; email_verified_at: Date | null }>(
+    const result = await runWebappPgText<{ email: string | null; email_verified_at: Date | null }>(
       "SELECT email, email_verified_at FROM platform_users WHERE id = $1",
       [platformUserId],
     );
@@ -689,8 +707,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async clearStaffAccountEmail(platformUserId) {
-    const pool = getPool();
-    const current = await pool.query<{ email: string | null }>(
+    const current = await runWebappPgText<{ email: string | null }>(
       `SELECT email FROM platform_users
        WHERE id = $1::uuid AND role IN ('doctor', 'admin') AND merged_into_id IS NULL`,
       [platformUserId],
@@ -702,7 +719,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     if (email == null || email.trim() === "") {
       return { ok: false as const, reason: "already_empty" as const };
     }
-    await pool.query(
+    await runWebappPgText(
       `UPDATE platform_users
        SET email = NULL, email_normalized = NULL, email_verified_at = NULL, updated_at = now()
        WHERE id = $1::uuid AND role IN ('doctor', 'admin') AND merged_into_id IS NULL`,
@@ -776,7 +793,8 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const result = await client.query(
+      const result = await txPgText(
+        client,
         `UPDATE platform_users SET ${sets.join(", ")}
          WHERE id = $${idPlaceholder}::uuid AND role = 'client' AND merged_into_id IS NULL`,
         vals,

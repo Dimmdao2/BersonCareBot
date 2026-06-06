@@ -765,5 +765,26 @@ LIMIT 3;"
 - **Opt-in devDb:** `RUN_SUPPORT_COMMUNICATION_DEV_DB=1` + `USE_REAL_DATABASE=1` — read-only smoke (3 cases).
 - **Проверки:** `pool.query` = 0 в `pgSupportCommunication.ts` + `mergeLegacySupportConversations.ts`; Class C `client.query` = 3× (merge TX wrapper); Vitest fast bundle 14A — repo + in-memory + messaging + route/query tests green.
 
-**Следующая подфаза Wave 3 phase 14:** **14B** — `pgUserProjection.ts`.
+**Следующая подфаза Wave 3 phase 14:** **14C** — `adminAuditLog.ts`, `mergeLegacySupportConversations.ts` (audit tail; merge helper SQL done in 14A post-audit).
+
+### Wave 3 phase 14B — user projection core (2026-06-06)
+
+- **Scope:** `apps/webapp/src/infra/repos/pgUserProjection.ts` — upsert/appointment projection TX, admin patch, reads, Rubitime email autobind (43 domain call sites baseline).
+- **Transport:** pool/client domain SQL → `runWebappPgText`; in-TX helpers → `txPgText(client, …)` + `getWebappSqlFromPgClient`.
+- **Class C:** `upsertFromProjection`, `ensureClientFromAppointmentProjection`, `updatePhone`, `patchAdminClientProfile` — `BEGIN`/`COMMIT`/`ROLLBACK` + `SET CONSTRAINTS … DEFERRED` on PoolClient; merge/phone-history/channel-bind helpers unchanged (still accept PoolClient).
+- **Проверки:** `pool.query` = **0**; Class C `client.query` only on TX transport; Vitest `--project fast` `pgUserProjection*` — **15 passed** / 3 skipped (devDb).
+- **Tests:** `pgUserProjection.repo.test.ts` (find/update parity); existing patch/appointment/clearStaff tests updated for `runWebappPgText` mock; opt-in devDb `RUN_USER_PROJECTION_DEV_DB=1`.
+- **RAW_SQL / plan:** todo `w3-p14b-user-projection-core` → `completed`.
+
+#### Post-audit closure 14B (2026-06-06)
+
+- **Repo tests:** `pgUserProjection.repo.test.ts` — mock `runWebappPgText` + `getWebappSqlFromPgClient` (find/update parity, `upsertFromProjection` insert TX, `updatePhone` TX + phone history); existing patch/appointment/clearStaff tests migrated to same mock.
+- **Class C:** 4 TX entrypoints — `upsertFromProjection`, `ensureClientFromAppointmentProjection`, `updatePhone`, `patchAdminClientProfile`; domain SQL inside TX via `txPgText`; transport-only `client.query` (BEGIN/COMMIT/ROLLBACK + deferred constraints).
+- **Delegate modules (вне 14B file scope):** `findCanonicalUserIdByChannelBinding`, `mergePlatformUsersInTransaction`, `applyPlatformUserPhoneHistoryTransition`, `upsertBroadcastDefaultsAfterChannelBind` — still accept `PoolClient`; no rewrite in 14B.
+- **Opt-in devDb:** `RUN_USER_PROJECTION_DEV_DB=1` + `USE_REAL_DATABASE=1` — read-only smoke (3 cases).
+- **Zod boundaries:** deferred to **14E** (projection route params/filters).
+- **Проверки:** `pool.query` = 0 в `pgUserProjection.ts`; Vitest fast `pgUserProjection*` — repo + in-memory + TX tests green.
+
+**Следующая подфаза Wave 3 phase 14:** **14C** — `adminAuditLog.ts` (merge helper SQL уже в 14A post-audit).
+
 

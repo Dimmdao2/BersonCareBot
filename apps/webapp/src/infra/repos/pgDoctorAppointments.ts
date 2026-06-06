@@ -150,6 +150,22 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
          ORDER BY ar.record_at ASC`,
           [from, to, ...ex.params],
         );
+      } else if (filter.kind === "statsRange") {
+        const iana = await getAppDisplayTimeZone();
+        const { from, toExclusive } = resolveAppointmentStatsBounds({ kind: "range", range: filter.range }, iana);
+        const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 3);
+        result = await runWebappPgText(
+          `${LIST_SELECT}
+         FROM appointment_records ar
+         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
+         LEFT JOIN branches b ON ar.branch_id = b.id
+         WHERE ar.deleted_at IS NULL
+           AND ar.record_at IS NOT NULL
+           AND ar.record_at >= $1::timestamptz
+           AND ar.record_at < $2::timestamptz${ex.clause}
+         ORDER BY ar.record_at DESC`,
+          [from, toExclusive, ...ex.params],
+        );
       } else if (filter.kind === "futureActive") {
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);
         result = await runWebappPgText(
@@ -191,6 +207,20 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
          ORDER BY ar.record_at DESC
          LIMIT $1 OFFSET $2`,
           [limit, offset, ...ex.params],
+        );
+      } else if (filter.kind === "cancellations30d") {
+        const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);
+        result = await runWebappPgText(
+          `${LIST_SELECT}
+         FROM appointment_records ar
+         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
+         LEFT JOIN branches b ON ar.branch_id = b.id
+         WHERE ar.deleted_at IS NULL
+           AND ar.status = 'canceled'
+           AND ${AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
+           AND ar.updated_at >= NOW() - INTERVAL '30 days'${ex.clause}
+         ORDER BY ar.updated_at DESC`,
+          ex.params,
         );
       } else {
         const ex = legacyListUserExclusionClause(audience?.excludedUserIds, 1);

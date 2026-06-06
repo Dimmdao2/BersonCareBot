@@ -9,9 +9,9 @@ todos:
     status: completed
   - id: w3-p14b-user-projection-core
     content: "14B: pgUserProjection.ts (43) — patch profile, admin client, joins; без изменения контрактов ответов."
-    status: pending
+    status: completed
   - id: w3-p14c-audit-merge
-    content: "14C: adminAuditLog.ts (16), mergeLegacySupportConversations.ts (6) — insert/list parity и merge safety."
+    content: "14C: adminAuditLog.ts (16) — insert/list parity; mergeLegacySupportConversations.ts — verify only (SQL bridge done in 14A post-audit)."
     status: pending
   - id: w3-p14d-comms-tail
     content: "14D: pgMessageLog.ts, pgChannelPreferences.ts, pgWebPushSubscriptions.ts, pgBroadcastAudit.ts, pgSubscriptionMailingProjection.ts, pgPatientCalendarTimezone.ts."
@@ -52,10 +52,10 @@ todos:
 ### 14C — audit and legacy merge helpers
 
 - Файлы: `adminAuditLog.ts`, `mergeLegacySupportConversations.ts`.
-- Цель: сохранить insert/list parity и merge semantics.
+- Цель: сохранить insert/list parity; merge helper — regression-only (`mergeLegacySupportConversations.ts` уже на `runWebappPgText` с 14A post-audit).
 - Проверка:
   - audit tests;
-  - targeted regression для legacy merge.
+  - targeted regression для legacy merge (no rewrite unless drift).
 
 ### 14D — comms tail
 

@@ -72,7 +72,7 @@ function contactNameFromAttribution(attr: Record<string, unknown> | null | undef
 
 type ListRow = {
   id: string;
-  startAt: string;
+  startAt: string | null;
   status: string;
   phoneNormalized: string | null;
   attributionJson: unknown;
@@ -153,6 +153,17 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
           .where(and(base, userAudience, gte(beAppointments.startAt, from), lte(beAppointments.startAt, to)))
           .orderBy(asc(beAppointments.startAt));
+      } else if (filter.kind === "statsRange") {
+        const iana = await getAppDisplayTimeZone();
+        const { from, toExclusive } = resolveAppointmentStatsBounds({ kind: "range", range: filter.range }, iana);
+        rows = await db
+          .select(listSelect)
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+          .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .where(and(eq(beAppointments.organizationId, organizationId), userAudience, gte(beAppointments.startAt, from), lt(beAppointments.startAt, toExclusive)))
+          .orderBy(desc(beAppointments.startAt));
       } else if (filter.kind === "futureActive") {
         const nowIso = new Date().toISOString();
         rows = await db
@@ -200,6 +211,22 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .orderBy(desc(beAppointments.startAt))
           .limit(limit)
           .offset(offset);
+      } else if (filter.kind === "cancellations30d") {
+        rows = await db
+          .select(listSelect)
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+          .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .where(
+            and(
+              eq(beAppointments.organizationId, organizationId),
+              userAudience,
+              inArray(beAppointments.status, [...CANCELLED_STATUSES]),
+              gte(beAppointments.updatedAt, sql`NOW() - interval '30 days'`),
+            ),
+          )
+          .orderBy(desc(beAppointments.updatedAt));
       } else {
         rows = await db
           .select(listSelect)

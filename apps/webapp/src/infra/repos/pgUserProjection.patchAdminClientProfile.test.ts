@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
 
-const { mockGetPool, mockTrustedAnchor } = vi.hoisted(() => ({
+const { mockGetPool, mockTrustedAnchor, runWebappPgTextMock } = vi.hoisted(() => ({
   mockGetPool: vi.fn(),
   mockTrustedAnchor: vi.fn(),
+  runWebappPgTextMock: vi.fn(),
 }));
 
 vi.mock("@/infra/db/client", () => ({
   getPool: mockGetPool,
+}));
+
+vi.mock("@/infra/db/runWebappSql", () => ({
+  getWebappSqlFromPgClient: (client: unknown) => client,
+  runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
 }));
 
 vi.mock("@/infra/repos/pgPhoneHistory", () => ({
@@ -22,7 +28,13 @@ vi.mock("@/modules/platform-access/trustedPhonePolicy", () => ({
 import { pgUserProjectionPort } from "./pgUserProjection";
 
 function installPool(queryImpl: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount?: number }>) {
-  const queryFn = vi.fn(queryImpl);
+  runWebappPgTextMock.mockImplementation(async (queryText: string, values?: readonly unknown[]) =>
+    queryImpl(queryText, values as unknown[] | undefined),
+  );
+  const queryFn = vi.fn(async (sql: unknown, params?: unknown[]) => {
+    if (typeof sql !== "string") return { rows: [], rowCount: 0 };
+    return queryImpl(sql, params);
+  });
   const client = {
     query: queryFn,
     release: vi.fn(),
@@ -80,14 +92,14 @@ describe("patchAdminClientProfile (PHASE_02 contact email)", () => {
 
   it("applyRubitimeEmailAutobind sets unverified contact email without password row", async () => {
     const sqlLog: string[] = [];
-    installPool(async (sql, params) => {
-      sqlLog.push(sql);
-      if (sql.includes("FROM platform_users") && sql.includes("phone_normalized")) {
+    runWebappPgTextMock.mockImplementation(async (queryText: string, values?: readonly unknown[]) => {
+      sqlLog.push(queryText);
+      if (queryText.includes("FROM platform_users") && queryText.includes("phone_normalized")) {
         return { rows: [{ id: "rubitime-user", email_verified_at: null }] };
       }
-      if (sql.includes("id <> $1 AND email")) return { rows: [] };
-      if (sql.includes("UPDATE platform_users SET email")) {
-        expect(params).toEqual(["client@rubitime.test", "rubitime-user"]);
+      if (queryText.includes("id <> $1 AND email")) return { rows: [] };
+      if (queryText.includes("UPDATE platform_users SET email")) {
+        expect(values).toEqual(["client@rubitime.test", "rubitime-user"]);
         return { rows: [], rowCount: 1 };
       }
       return { rows: [] };
