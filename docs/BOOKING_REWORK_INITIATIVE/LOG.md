@@ -1,5 +1,40 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-06 — Booking sync desync fix (prod smoke rebook / manage / FK / 410)
+
+**План:** [`.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md`](../../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md) (`status: completed`; sync-only; cancel = status 4, без `remove-record` на normal cancel).
+
+**Prod smoke (до фикса):** rebook на отменённый слот → `slot_overlap`; GCal `410` на remove webhook; «Управлять» на dead Rubitime rows; FK `appointment_records_branch_id_fkey` при patient cancel projection.
+
+**Код:**
+- `pgPatientBookings`: `markCancelled` → `rubitime_manage_url = NULL`; stale sweep `cancelling`/`cancel_failed` в `createPending`; `listUpcomingByUser` → `cancelled_at IS NULL`.
+- `upsertPatientBookingFromRubitime`: native inbound cancel clears manage URL; `closeActivePatientBookingsByRubitimeId` on cancel (scenario E duplicate rows).
+- `pgPatientBookings.markCancelled`: sibling close by `rubitime_id`.
+- `staffManualCancelAfterCanonical` + `PatientBookingService.syncLinkedPatientBookingCancelled`: staff cancel закрывает linked `patient_bookings`.
+- `projectCanonicalAppointment*` + `resolveLegacyBranchIdForProjection`: legacy `branches.id` (не `be_branches.id`); `pgAppointmentProjection` ON CONFLICT `COALESCE` branch_id; `buildCanonicalSnapshot` не пишет be_branch в `appointment_records`.
+- Integrator: GCal DELETE tolerates **410**; Rubitime `remove-record` «record not found» → silent `{}`; `update-record` duplicate cancel / gone → silent `{}`.
+- Patient UI: hide Rubitime manage для `cancel_failed`; defense при пустом URL.
+
+**Ops backfill (post-deploy, review counts):**
+
+```sql
+UPDATE patient_bookings SET status = 'cancelled', rubitime_manage_url = NULL
+WHERE cancelled_at IS NOT NULL AND status <> 'cancelled';
+
+UPDATE patient_bookings SET status = 'cancelled', rubitime_manage_url = NULL
+WHERE status = 'cancelling' AND updated_at < now() - interval '15 minutes';
+```
+
+**Проверки:** targeted vitest (pgPatientBookings, upsertPatientBookingFromRubitime, `closeActivePatientBookingsByRubitimeId`, service/staff/events, `bookingMirrorDesyncMatrix` 7/7, projection, integrator connector/sync GCal 410 + Rubitime idempotent update/remove) + **`pnpm run ci` green** (2026-06-06).
+
+**P0.0 (root cause):** класс ghost A–D подтверждён prod evidence в плане (smoke #4 overlap, staff cancel без mirror, FK branch, manage URL); SQL runbook — §P0.0 плана (ops verification post-deploy).
+
+**Post-deploy ops gate (вне code DoD):** re-smoke #4–6 + ops backfill SQL ниже — после деплоя на prod; см. [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) smoke #9 + § «Post-deploy ops gate — sync desync fix» (todo плана `post-deploy-ops-gate`: `cancelled`).
+
+**Доки:** `LOG.md`, `ACCEPTANCE_MIRROR_SYNC.md`, `RUBITIME_BOOKING_PIPELINE.md`, `INTEGRATOR_CONTRACT.md`, `README.md`, `ROADMAP.md`, plan archive YAML `completed`.
+
+**Docs sync (post-closeout desync fix):** выровнены § cancel mirror invariants в pipeline; smoke #9 + § «Верификация sync desync fix» + post-deploy ops gate в ACCEPTANCE; пункт #18 README + строка ROADMAP; DoD/checklist/todos в plan archive; idempotent `update-record` в INTEGRATOR_CONTRACT.
+
 ## 2026-06-06 — Booking gaps closeout (rubitime-first overlap class + parity)
 
 **План:** [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md).
@@ -16,9 +51,9 @@
 
 **Docs sync (post-closeout):** выровнены `RUBITIME_BOOKING_PIPELINE.md` (rubitime-first adopt, `deleteRecord` rollback, reschedule skip assert, patient partial UI), `ACCEPTANCE_MIRROR_SYNC.md` (снят defer doctor cancel, smoke #7–8), пути планов в LOG/README/archive; audit-план перенесён в [`.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md`](../../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md).
 
-**Проверки:** targeted vitest + mirror bundle + `pnpm run ci` (в PR).
+**Проверки:** targeted vitest (10 files, 86 tests) + mirror bundle + **`pnpm run ci` green** (2026-06-06; полный барьер прогнан в **отдельной agent-сессии** реализации closeout, не в docs-сессии).
 
-**Хвосты (догон после аудита):** `staffRubitimeManualBooking` → shared `rollbackFailedRubitimeCreate` + `finalizeStaffManualRubitimeSyncSuccess` + integration rollback test; тест reschedule assert при `canonical`; `INTEGRATOR_CONTRACT` doctor cancel = status 4; явный handler `rubitime_projection_not_ready` в create route; `useRescheduleBooking.test.ts`, `CabinetBookingActions.test.tsx`; warning toast style; план в `.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`.
+**Хвосты (догон после аудита, закрыты):** `staffRubitimeManualBooking` → shared `rollbackFailedRubitimeCreate` + `finalizeStaffManualRubitimeSyncSuccess` + integration rollback test; тест reschedule assert при `canonical`; `INTEGRATOR_CONTRACT` doctor cancel = status 4; явный handler `rubitime_projection_not_ready` в create route; `useRescheduleBooking.test.ts`, `CabinetBookingActions.test.tsx`, `ConfirmStepClient.test.tsx`; warning toast style; план — [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md) (`status: completed`).
 
 **Prod deploy:** см. §2026-06-06 аудит — smoke CR-A / CN-P / RS-P после деплоя.
 

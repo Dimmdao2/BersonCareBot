@@ -80,6 +80,27 @@ describe("runStaffManualCancelAfterCanonical", () => {
     } as never;
   }
 
+  it("marks linked patient booking cancelled after staff cancel", async () => {
+    const syncLinkedPatientBookingCancelled = vi.fn().mockResolvedValue(undefined);
+    await runStaffManualCancelAfterCanonical({
+      deps: deps({
+        patientBooking: { getBookingByCanonicalAppointment: vi.fn(), syncLinkedPatientBookingCancelled },
+      }),
+      organizationId: "org-1",
+      appointmentId: "appt-1",
+      actorId: "staff-1",
+      actorType: "specialist",
+      decisionType: "free",
+      reason: "staff reason",
+      appointment: baseAppointment,
+      cancelPolicy: cancelPolicy(),
+    });
+    expect(syncLinkedPatientBookingCancelled).toHaveBeenCalledWith({
+      canonicalAppointmentId: "appt-1",
+      reason: "staff reason",
+    });
+  });
+
   it("returns rubitimeMirrorFailed when Rubitime sync fails", async () => {
     syncStaffCancelToRubitimeMock.mockRejectedValue(new Error("network"));
     const flags = await runStaffManualCancelAfterCanonical({

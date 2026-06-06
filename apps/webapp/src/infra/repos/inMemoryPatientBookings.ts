@@ -263,9 +263,30 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       status: input.status ?? "cancelled",
       cancelReason: input.reason ?? row.cancelReason,
       cancelledAt: new Date().toISOString(),
+      rubitimeManageUrl: null,
       updatedAt: new Date().toISOString(),
     };
     byId.set(input.bookingId, next);
+    if (row.rubitimeId) {
+      for (const [id, other] of byId.entries()) {
+        if (
+          id !== input.bookingId &&
+          other.rubitimeId === row.rubitimeId &&
+          other.status !== "cancelled" &&
+          other.status !== "failed_sync" &&
+          other.status !== "completed" &&
+          other.status !== "no_show"
+        ) {
+          byId.set(id, {
+            ...other,
+            status: "cancelled",
+            cancelledAt: new Date().toISOString(),
+            rubitimeManageUrl: null,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
+    }
     return next;
   },
 

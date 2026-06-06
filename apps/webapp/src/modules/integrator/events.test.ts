@@ -1875,6 +1875,48 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     }
   });
 
+  it("appointment.record.upserted inbound cancel routes cancelled status for mirror close", async () => {
+    const applyRubitimeUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const deps: IntegratorEventsDeps = {
+      ...mockDeps,
+      appointmentProjection: mockAp,
+      patientBooking: {
+        getSlots: vi.fn().mockResolvedValue([]),
+        createBooking: vi.fn(),
+        cancelBooking: vi.fn(),
+        listMyBookings: vi.fn().mockResolvedValue({ upcoming: [], history: [] }),
+        applyRubitimeUpdate,
+      } as never,
+    };
+    await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "8449953",
+          status: "cancelled",
+          recordAt: "2026-06-28T07:00:00.000Z",
+          lastEvent: "event-cancel",
+          updatedAt: "2026-06-28T07:00:00.000Z",
+        },
+      },
+      deps,
+    );
+    expect(applyRubitimeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rubitimeId: "8449953",
+        status: "cancelled",
+        slotStart: "2026-06-28T07:00:00.000Z",
+      }),
+    );
+  });
+
   it("appointment.record.upserted accepts update (e.g. status cancelled) and calls upsert with new payload", async () => {
     const mockAp = {
       getRecordByIntegratorId: vi.fn(),

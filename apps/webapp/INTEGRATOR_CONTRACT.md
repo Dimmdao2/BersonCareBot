@@ -467,6 +467,8 @@ Canonical linking rules:
 
 **Тело:** `{ "recordId": "79379" }` (или числовой `recordId`).
 
+**Idempotency (2026-06-06):** если Rubitime отвечает «record not found» — integrator возвращает **`200`** `{ ok: true, data: {} }` (запись уже удалена). Для **`update-record`** с повторной отменой (status 4) или «record not found» / «already cancelled» — тоже **`200`** `{ ok: true, data: {} }`. GCal cleanup при remove webhook: HTTP **404** и **410** на DELETE события — не ошибка.
+
 **Webapp proxy (doctor):**
 
 - `POST /api/doctor/appointments/rubitime/update` → integrator `update-record` (patch слота/статуса).

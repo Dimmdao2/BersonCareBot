@@ -117,7 +117,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           payload_json = EXCLUDED.payload_json,
           last_event = EXCLUDED.last_event,
           updated_at = EXCLUDED.updated_at,
-          branch_id = EXCLUDED.branch_id,
+          branch_id = COALESCE(EXCLUDED.branch_id, appointment_records.branch_id),
           platform_user_id = CASE
             WHEN EXCLUDED.platform_user_id IS NOT NULL THEN EXCLUDED.platform_user_id
             WHEN EXCLUDED.phone_normalized IS NOT NULL AND EXCLUDED.record_at IS NOT NULL THEN NULL

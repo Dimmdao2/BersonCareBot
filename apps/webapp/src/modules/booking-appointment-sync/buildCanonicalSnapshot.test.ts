@@ -30,6 +30,7 @@ describe("buildCanonicalInboundSnapshot", () => {
     expect(built.mergedRefs.specialistId).toBe("spec-1");
     expect(built.mergedRefs.serviceId).toBe("svc-keep");
     expect(built.appointmentRecordProjection.recordAt).toBe("2026-06-01T09:00:00.000Z");
+    expect(built.appointmentRecordProjection.branchId).toBeNull();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });

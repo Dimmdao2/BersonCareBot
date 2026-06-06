@@ -21,12 +21,14 @@ import type {
   BookingSyncPort,
   PatientBookingsPort,
   CreatePendingPatientBookingInput,
+  LegacyBranchProjectionPort,
 } from "./ports";
 import type { CreatePatientBookingInput, PatientBookingRecord } from "./types";
 import type { BookingSlotsReadSource } from "./slotsReadSource";
 import type { ResolvedBranchService } from "@/modules/booking-catalog/types";
 import { extractRubitimeManageUrlFromIntegratorCreateRaw } from "./rubitimeManageUrl";
 import { projectCanonicalAppointmentForDoctor } from "./projectCanonicalAppointment";
+import { resolveLegacyBranchIdForProjection } from "./resolveLegacyBranchIdForProjection";
 import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
@@ -70,6 +72,7 @@ export type CanonicalBookingDeps = {
   isRubitimeBridgeEnabled: () => Promise<boolean>;
   resolveSlotsReadSource?: () => Promise<BookingSlotsReadSource>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
+  branches?: LegacyBranchProjectionPort | null;
 };
 
 function toPendingRowOnline(
@@ -582,11 +585,17 @@ export async function createBookingOnCanonicalEngine(
   // Rubitime post-create projection already fills appointment_records; skip native `be:` row.
   if (deps.appointmentProjection && !rubitimeId) {
     try {
+      const legacyBranchId = await resolveLegacyBranchIdForProjection(
+        deps.branches,
+        pendingRow.rubitimeBranchIdSnapshot,
+        pendingRow.branchTitleSnapshot,
+      );
       await projectCanonicalAppointmentForDoctor(deps.appointmentProjection, appointment, {
         phoneNormalized,
         contactName: createInput.contactName,
         serviceTitle: pendingRow.serviceTitleSnapshot,
         branchTitle: pendingRow.branchTitleSnapshot,
+        legacyBranchId,
       });
     } catch {
       // Doctor projection is best-effort on transition.

@@ -4,6 +4,7 @@ import type {
   BookingSyncPort,
   BookingSlotsQuery,
   CreatePendingPatientBookingInput,
+  LegacyBranchProjectionPort,
 } from "./ports";
 import type { CreatePatientBookingInput } from "./types";
 import type { BookingCatalogService } from "@/modules/booking-catalog/service";
@@ -40,6 +41,7 @@ import {
   projectCanonicalAppointmentCancelled,
   projectCanonicalAppointmentRescheduled,
 } from "./projectCanonicalAppointment";
+import { resolveLegacyBranchIdForProjection } from "./resolveLegacyBranchIdForProjection";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { PatientBookingRecord } from "./types";
 import { prepaymentContextFromBooking } from "@/modules/payments/prepaymentContextFromBooking";
@@ -82,6 +84,18 @@ function rowToProjectionInput(row: PatientBookingRecord) {
     branchTitle: row.branchTitleSnapshot,
     rubitimeRecordId: row.rubitimeId,
   };
+}
+
+async function buildProjectionInput(
+  row: PatientBookingRecord,
+  branches: LegacyBranchProjectionPort | null | undefined,
+) {
+  const legacyBranchId = await resolveLegacyBranchIdForProjection(
+    branches,
+    row.rubitimeBranchIdSnapshot,
+    row.branchTitleSnapshot,
+  );
+  return { ...rowToProjectionInput(row), legacyBranchId };
 }
 
 function cacheKey(query: BookingSlotsQuery): string {
@@ -174,6 +188,7 @@ export function createPatientBookingService(input: {
   isRubitimeBridgeEnabled?: () => Promise<boolean>;
   getBookingLifecycleNotificationSettings?: () => Promise<BookingLifecycleNotificationsSettings | null>;
   appointmentMirrorSync?: import("@/modules/booking-appointment-sync/ports").AppointmentMirrorSyncService | null;
+  branches?: LegacyBranchProjectionPort | null;
   slotsTtlMs?: number;
 }): PatientBookingService {
   const slotsTtlMs = input.slotsTtlMs ?? 60 * 1000;
@@ -209,6 +224,7 @@ export function createPatientBookingService(input: {
           resolveSlotsReadSource: input.resolveSlotsReadSource,
           getBookingLifecycleNotificationSettings:
             input.getBookingLifecycleNotificationSettings ?? (async () => null),
+          branches: input.branches ?? null,
         }
       : null;
 
@@ -489,6 +505,20 @@ export function createPatientBookingService(input: {
       return input.bookingsPort.getByCanonicalAppointmentId(canonicalAppointmentId);
     },
 
+    async syncLinkedPatientBookingCancelled(syncInput: {
+      canonicalAppointmentId: string;
+      reason?: string;
+    }): Promise<void> {
+      const row = await input.bookingsPort.getByCanonicalAppointmentId(syncInput.canonicalAppointmentId);
+      if (!row) return;
+      if (row.status === "cancelled" || row.status === "failed_sync") return;
+      await input.bookingsPort.markCancelled({
+        bookingId: row.id,
+        status: "cancelled",
+        reason: syncInput.reason,
+      });
+    },
+
     async getByRubitimeId(rubitimeId: string) {
       return input.bookingsPort.getByRubitimeId(rubitimeId);
     },
@@ -677,11 +707,14 @@ export function createPatientBookingService(input: {
           await projectCanonicalAppointmentRescheduled(
             input.appointmentProjection,
             result.appointment,
-            rowToProjectionInput({
-              ...row,
-              slotStart: rescheduleInput.slotStart,
-              slotEnd: rescheduleInput.slotEnd,
-            }),
+            await buildProjectionInput(
+              {
+                ...row,
+                slotStart: rescheduleInput.slotStart,
+                slotEnd: rescheduleInput.slotEnd,
+              },
+              input.branches,
+            ),
           );
         } catch (err) {
           console.error("[patient-booking] doctor projection reschedule failed (reschedule already committed)", {
@@ -892,7 +925,7 @@ export function createPatientBookingService(input: {
             await projectCanonicalAppointmentCancelled(
               input.appointmentProjection,
               lifecycleResult.appointment,
-              rowToProjectionInput(row),
+              await buildProjectionInput(row, input.branches),
             );
           } catch (err) {
             console.error("[patient-booking] doctor projection cancel failed (cancel already committed)", {

@@ -104,6 +104,57 @@ describe("upsertPatientBookingFromRubitime", () => {
     expect(String(query.mock.calls[2]?.[0])).toContain("UPDATE public.patient_bookings SET rubitime_id");
   });
 
+  it("native cancelled clears rubitime_manage_url", async () => {
+    const { db, query } = createDbMock();
+    const existingRow = {
+      id: "native-cancel",
+      source: "native",
+      slot_start: new Date("2026-05-01T10:00:00.000Z"),
+      status: "confirmed",
+      canonical_appointment_id: "appt-1",
+    };
+    query.mockResolvedValueOnce({ rowCount: 1 });
+
+    await upsertPatientBookingFromRubitime(
+      db,
+      normalizePhone,
+      {
+        rubitimeId: "rt-native-cancel",
+        status: "cancelled",
+        slotStart: "2026-05-01T10:00:00.000Z",
+        rubitimeManageUrl: "https://rubitime.ru/manage/123",
+      },
+      { existingRow },
+    );
+
+    const updateSql = String(query.mock.calls[0]?.[0] ?? "");
+    expect(updateSql).toContain("WHEN $2::text = 'cancelled' THEN NULL");
+    const params = query.mock.calls[0]?.[1] as unknown[];
+    expect(params?.[1]).toBe("cancelled");
+  });
+
+  it("native cancelled closes active sibling rows with same rubitime_id", async () => {
+    const { db, query } = createDbMock();
+    const existingRow = {
+      id: "native-primary",
+      source: "native",
+      slot_start: new Date("2026-05-01T10:00:00.000Z"),
+      status: "confirmed",
+      canonical_appointment_id: "appt-1",
+    };
+    query.mockResolvedValueOnce({ rowCount: 1 }).mockResolvedValueOnce({ rowCount: 1 });
+
+    await upsertPatientBookingFromRubitime(
+      db,
+      normalizePhone,
+      { rubitimeId: "rt-dup", status: "cancelled", slotStart: "2026-05-01T10:00:00.000Z" },
+      { existingRow },
+    );
+
+    expect(String(query.mock.calls[1]?.[0])).toContain("rubitime_id = $1");
+    expect(String(query.mock.calls[1]?.[0])).toContain("rubitime_manage_url = NULL");
+  });
+
   it("updates existing rubitime_projection row", async () => {
     const { db, query } = createDbMock();
     const existingRow = {

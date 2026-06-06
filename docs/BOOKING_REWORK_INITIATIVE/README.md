@@ -1,6 +1,6 @@
 # BOOKING_REWORK_INITIATIVE — доработка записи
 
-**Статус:** `done` (этапы 0–5 — `done`; mirror sync — `done`; ops defer — [`LOG.md`](LOG.md))
+**Статус:** `done` (этапы 0–5 — `done`; mirror sync + gaps closeout + sync desync fix code — `done`; post-deploy ops gate desync fix — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § post-deploy)
 **Дата старта:** 2026-06-04 · **Дата закрытия:** 2026-06-06
 **Владелец постановки:** Дмитрий Берсон
 
@@ -20,13 +20,14 @@
 8. [`STAGE4_DECOMPOSITION.md`](STAGE4_DECOMPOSITION.md) — декомпозиция этапа 4 (4.0–4.8): calendar npm, canonical feed, working/break, DnD, Rubitime rollback, poll refresh.
 9. [`ACCEPTANCE_STAGE4.md`](ACCEPTANCE_STAGE4.md) — приёмка этапа 4.
 10. [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md) — финальная приёмка UI (в т.ч. наследие solo UX этапа 1 после IA на 4 вкладки).
-11. [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) — двустороннее зеркалирование Rubitime ↔ канон + integrity hardening (2026-06-05) + gaps closeout smoke (2026-06-06).
+11. [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) — двустороннее зеркалирование Rubitime ↔ канон + integrity hardening (2026-06-05) + gaps closeout + sync desync fix (2026-06-06).
 12. План mirror sync (архив): [`.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md`](../../.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md).
 13. План integrity hardening (архив): [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md) — фазовый closeout 0–7, audit trail, scope reconciliation.
 14. Контракт integrity hardening: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md).
 15. План этапа 2 (архив): [`.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md`](../../.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md)
-16. План gaps closeout (архив, 2026-06-06): [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md) — rubitime-first overlap class, G4/G6, patient partial UI, shared rollback.
+16. План gaps closeout (архив, 2026-06-06, `status: completed`): [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md) — rubitime-first overlap class, G4/G6, patient partial UI, shared rollback; CI green (agent-сессия closeout) — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § gaps closeout.
 17. План аудита сценариев (архив): [`.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md`](../../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md) — prod-инцидент 2026-06-06, предшественник gaps closeout.
+18. План sync desync fix (архив, 2026-06-06, `status: completed`): [`.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md`](../../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md) — cancel mirror, rebook overlap, FK branch, GCal/Rubitime idempotent delete/update, matrix 7/7; CI green — [`LOG.md`](LOG.md) §2026-06-06 desync fix, [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § верификация desync fix + smoke #9; post-deploy ops gate — ACCEPTANCE § post-deploy.
 
 **Этап 3 (кратко):** комментарий к пакету (`notes`), индивидуальный абонемент без названия в UI, `GET …/sessions`, `POST …/package/detach`, карточка клиента (`PatientPackageCard` / `PatientPackageSessionsList`), настройка `booking_allow_doctor_unlink_past_package_sessions` — см. [`LOG.md`](LOG.md).
 

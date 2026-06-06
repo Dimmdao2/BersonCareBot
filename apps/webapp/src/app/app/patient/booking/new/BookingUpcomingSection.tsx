@@ -51,12 +51,7 @@ function statusLabel(status: PatientBookingRecord["status"]): string {
 }
 
 function showManageLink(status: PatientBookingRecord["status"]): boolean {
-  return (
-    status === "confirmed" ||
-    status === "rescheduled" ||
-    status === "creating" ||
-    status === "cancel_failed"
-  );
+  return status === "confirmed" || status === "rescheduled" || status === "creating";
 }
 
 function payHref(bookingId: string): string {

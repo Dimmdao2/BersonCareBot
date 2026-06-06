@@ -58,6 +58,16 @@ describe('Google Calendar client (nock)', () => {
     expect(id).toBe('evt-patch-1');
   });
 
+  it('DELETE tolerates 410 Gone (idempotent delete)', async () => {
+    nock('https://oauth2.googleapis.com').post('/token').reply(200, { access_token: 'access-410' });
+    nock('https://www.googleapis.com')
+      .delete(/\/calendar\/v3\/calendars\/[^/]+\/events\/gone-event$/)
+      .reply(410);
+
+    const client = createGoogleCalendarClient(globalThis.fetch, async () => testConfig);
+    await expect(client.deleteEvent('gone-event')).resolves.toBeUndefined();
+  });
+
   it('DELETE tolerates 404 (idempotent delete)', async () => {
     nock('https://oauth2.googleapis.com').post('/token').reply(200, { access_token: 'access-3' });
     nock('https://www.googleapis.com')

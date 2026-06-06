@@ -104,7 +104,7 @@ export function buildCanonicalInboundSnapshot(
       payloadJson: input.payloadJson,
       lastEvent: input.lastEvent,
       updatedAt,
-      branchId: mergedRefs.branchId,
+      branchId: null,
     },
   };
 }

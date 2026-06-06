@@ -33,7 +33,7 @@ todos:
     content: "Post-closeout: синхронизация всех расходящихся docs + archive booking_scenarios_audit plan"
     status: completed
   - id: p3-ci-barrier
-    content: "P3: targeted vitest + mirror bundle + pnpm run ci"
+    content: "P3: targeted vitest + mirror bundle + pnpm run ci — green 2026-06-06 (agent-сессия closeout)"
     status: completed
 isProject: false
 ---

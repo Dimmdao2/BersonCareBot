@@ -93,7 +93,7 @@ export function createGoogleCalendarClient(
         },
       },
     );
-    if (!response.ok && response.status !== 404) {
+    if (!response.ok && response.status !== 404 && response.status !== 410) {
       throw new Error(`GOOGLE_CALENDAR_DELETE_HTTP_${response.status}`);
     }
   }

@@ -73,6 +73,18 @@ const LOOKUP_FULL = {
   rubitime_cooperator_id: "99",
 } as const;
 
+function mockCreatePendingSqlChain(insertRow: Record<string, unknown> | null, creatingSweepRowCount = 0) {
+  runWebappPgTextMock
+    .mockResolvedValueOnce({ rowCount: creatingSweepRowCount })
+    .mockResolvedValueOnce({ rowCount: 0 })
+    .mockResolvedValueOnce({ rowCount: 0 });
+  if (insertRow) {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [insertRow] });
+  } else {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+  }
+}
+
 function lookupQueryResult() {
   return { rows: [LOOKUP_FULL] };
 }
@@ -99,9 +111,7 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("createPending passes v2 snapshot columns to INSERT", async () => {
-    runWebappPgTextMock
-      .mockResolvedValueOnce({ rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [v2Row("new-id")] });
+    mockCreatePendingSqlChain(v2Row("new-id"));
     const input: CreatePendingPatientBookingInput = {
       userId: "u1",
       bookingType: "in_person",
@@ -126,7 +136,7 @@ describe("pgPatientBookingsPort", () => {
     };
     const row = await pgPatientBookingsPort.createPending(input);
     const reconcileSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    const insertSql = String(runWebappPgTextMock.mock.calls[3]?.[0] ?? "");
     expect(reconcileSql).toContain("failed_sync");
     expect(insertSql).toContain("branch_service_id");
     expect(insertSql).toContain("city_code_snapshot");
@@ -135,7 +145,7 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("createPending throws slot_overlap when INSERT returns no row (overlap pre-check)", async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 0 }).mockResolvedValueOnce({ rows: [] });
+    mockCreatePendingSqlChain(null);
     const input: CreatePendingPatientBookingInput = {
       userId: "u1",
       bookingType: "in_person",
@@ -162,9 +172,7 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("createPending SQL scopes overlap by specialist or user fallback", async () => {
-    runWebappPgTextMock
-      .mockResolvedValueOnce({ rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [v2Row("new-id-2")] });
+    mockCreatePendingSqlChain(v2Row("new-id-2"));
     const input: CreatePendingPatientBookingInput = {
       userId: "u1",
       bookingType: "in_person",
@@ -188,14 +196,14 @@ describe("pgPatientBookingsPort", () => {
       rubitimeServiceIdSnapshot: "675",
     };
     await pgPatientBookingsPort.createPending(input);
-    const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    const insertSql = String(runWebappPgTextMock.mock.calls[3]?.[0] ?? "");
     expect(insertSql).toContain("rubitime_cooperator_id_snapshot = $20");
     expect(insertSql).toContain("platform_user_id = $2");
     expect(insertSql).toContain("canonical_appointment_id IS NULL");
   });
 
   it("createPending excludes abandoned native creating rows from overlap", async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1 }).mockResolvedValueOnce({ rows: [v2Row("retry-id")] });
+    mockCreatePendingSqlChain(v2Row("retry-id"), 1);
     const input: CreatePendingPatientBookingInput = {
       userId: "u1",
       bookingType: "in_person",
@@ -224,6 +232,89 @@ describe("pgPatientBookingsPort", () => {
     expect(reconcileSql).toContain("failed_sync");
   });
 
+  it("createPending sweeps stale cancelling and cancel_failed before overlap check", async () => {
+    mockCreatePendingSqlChain(v2Row("new-after-sweep"));
+    const input: CreatePendingPatientBookingInput = {
+      userId: "u1",
+      bookingType: "in_person",
+      city: "moscow",
+      category: "general",
+      slotStart: SLOT_START.toISOString(),
+      slotEnd: SLOT_END.toISOString(),
+      contactName: "T",
+      contactPhone: "+7000",
+      contactEmail: null,
+      branchId: "br1",
+      serviceId: "sv1",
+      branchServiceId: "bs1",
+      cityCodeSnapshot: "moscow",
+      branchTitleSnapshot: "Филиал",
+      serviceTitleSnapshot: "Сеанс",
+      durationMinutesSnapshot: 60,
+      priceMinorSnapshot: 100,
+      rubitimeBranchIdSnapshot: "173",
+      rubitimeCooperatorIdSnapshot: "347",
+      rubitimeServiceIdSnapshot: "675",
+    };
+    await pgPatientBookingsPort.createPending(input);
+    const cancellingSweep = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    const cancelFailedSweep = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    expect(cancellingSweep).toContain("status = 'cancelling'");
+    expect(cancellingSweep).toContain("rubitime_manage_url = NULL");
+    expect(cancelFailedSweep).toContain("status = 'cancel_failed'");
+  });
+
+  it("markCancelled clears rubitime_manage_url", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [v2Row("cancelled-id")] });
+    await pgPatientBookingsPort.markCancelled({ bookingId: "cancelled-id", status: "cancelled" });
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("rubitime_manage_url = NULL");
+  });
+
+  it("markCancelled closes active sibling rows sharing rubitime_id", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{ ...v2Row("primary-id"), rubitime_id: "rt-dup" }],
+    });
+    queryMock.mockResolvedValueOnce({ rowCount: 1 });
+    await pgPatientBookingsPort.markCancelled({ bookingId: "primary-id", status: "cancelled" });
+    const siblingSql = String(queryMock.mock.calls[0]?.[0] ?? "");
+    expect(siblingSql).toContain("rubitime_id = $1");
+    expect(siblingSql).toContain("rubitime_manage_url = NULL");
+  });
+
+  it("createPending succeeds after markCancelled on same slot (rebook path)", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [{ ...v2Row("cancelled-id"), rubitime_id: "rt-1", status: "cancelled" }],
+    });
+    queryMock.mockResolvedValueOnce({ rowCount: 0 });
+    await pgPatientBookingsPort.markCancelled({ bookingId: "cancelled-id", status: "cancelled" });
+    mockCreatePendingSqlChain(v2Row("rebook-id"));
+    const input: CreatePendingPatientBookingInput = {
+      userId: "u1",
+      bookingType: "in_person",
+      city: "moscow",
+      category: "general",
+      slotStart: SLOT_START.toISOString(),
+      slotEnd: SLOT_END.toISOString(),
+      contactName: "T",
+      contactPhone: "+7000",
+      contactEmail: null,
+      branchId: "br1",
+      serviceId: "sv1",
+      branchServiceId: "bs1",
+      cityCodeSnapshot: "moscow",
+      branchTitleSnapshot: "Филиал",
+      serviceTitleSnapshot: "Сеанс",
+      durationMinutesSnapshot: 60,
+      priceMinorSnapshot: 100,
+      rubitimeBranchIdSnapshot: "173",
+      rubitimeCooperatorIdSnapshot: "347",
+      rubitimeServiceIdSnapshot: "675",
+    };
+    const row = await pgPatientBookingsPort.createPending(input);
+    expect(row.id).toBe("rebook-id");
+  });
+
   it("listUpcomingByUser maps legacy row without v2 columns", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [legacyRow("leg-1")] });
     const rows = await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
@@ -243,6 +334,7 @@ describe("pgPatientBookingsPort", () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("cancelled_at IS NULL");
     expect(sql).toContain("status = 'creating'");
     expect(sql).toContain("canonical_appointment_id IS NULL");
     expect(sql).toContain("COALESCE(newer.category, '') = COALESCE(patient_bookings.category, '')");
@@ -327,7 +419,9 @@ describe("pgPatientBookingsPort", () => {
 
       const deleteSql = String(queryMock.mock.calls[5]![0] ?? "");
       expect(deleteSql).toContain("DELETE FROM");
-      expect(queryMock.mock.calls.length).toBe(6);
+      expect(queryMock.mock.calls.length).toBe(7);
+      const siblingSql = String(queryMock.mock.calls[6]![0] ?? "");
+      expect(siblingSql).toContain("rubitime_manage_url = NULL");
     });
 
     it("compat cancelled without existing row does not create projection row", async () => {

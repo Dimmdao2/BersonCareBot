@@ -37,6 +37,14 @@ export type AppointmentProjectionPort = {
   }): Promise<void>;
 };
 
+/** Legacy `branches.id` for `appointment_records.branch_id` FK (not `be_branches.id`). */
+export type LegacyBranchProjectionPort = {
+  upsertFromProjection(params: {
+    integratorBranchId: number | string;
+    name?: string | null;
+  }): Promise<{ branchId: string }>;
+};
+
 /**
  * Payload to integrator `/rubitime/slots`.
  * v1: online only. v2: explicit Rubitime IDs + slot duration to expand `times[]`.
@@ -240,6 +248,10 @@ export type PatientBookingService = {
     import("@/modules/payments/types").PaymentHistoryEventRecord[]
   >;
   getBookingByCanonicalAppointment(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
+  syncLinkedPatientBookingCancelled(input: {
+    canonicalAppointmentId: string;
+    reason?: string;
+  }): Promise<void>;
   getByRubitimeId(rubitimeId: string): Promise<PatientBookingRecord | null>;
   cancelBooking(input: CancelPatientBookingInput): Promise<
     | {

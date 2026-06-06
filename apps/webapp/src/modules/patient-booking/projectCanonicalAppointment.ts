@@ -20,6 +20,8 @@ type ProjectionContactFields = {
   serviceTitle: string | null;
   branchTitle: string | null;
   rubitimeRecordId?: string | null;
+  /** Legacy `branches.id` — never `be_branches.id`. */
+  legacyBranchId?: string | null;
 };
 
 function basePayloadJson(
@@ -49,7 +51,7 @@ export async function projectCanonicalAppointmentForDoctor(
     status: "created",
     lastEvent: "native.created",
     updatedAt: new Date().toISOString(),
-    branchId: appt.branchId,
+    branchId: input.legacyBranchId ?? null,
     payloadJson: basePayloadJson(appt, input),
   });
 }
@@ -66,7 +68,7 @@ export async function projectCanonicalAppointmentRescheduled(
     status: "updated",
     lastEvent: "native.rescheduled",
     updatedAt: new Date().toISOString(),
-    branchId: appt.branchId,
+    branchId: input.legacyBranchId ?? null,
     payloadJson: basePayloadJson(appt, input),
   });
 }
@@ -83,7 +85,7 @@ export async function projectCanonicalAppointmentCancelled(
     status: "canceled",
     lastEvent: "native.cancelled",
     updatedAt: new Date().toISOString(),
-    branchId: appt.branchId,
+    branchId: input.legacyBranchId ?? null,
     payloadJson: basePayloadJson(appt, input),
   });
 }

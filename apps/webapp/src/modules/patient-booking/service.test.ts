@@ -171,6 +171,46 @@ describe("createPatientBookingService", () => {
     });
   });
 
+  it("cancelBooking then createBooking on same slot succeeds (rebook after cancel)", async () => {
+    const row = sampleRow({ status: "confirmed", rubitimeId: "r1" });
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
+    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled", rubitimeManageUrl: null });
+    syncPort.cancelRecord.mockResolvedValue(undefined);
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+    });
+    await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
+
+    const pending = sampleRow({
+      id: "b-new",
+      status: "creating",
+      rubitimeId: null,
+      rubitimeManageUrl: null,
+    });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "r2", raw: { link: "https://rubitime.example/r2" } });
+    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "r2" });
+
+    const created = await svc.createBooking({
+      userId: row.userId!,
+      type: "online",
+      category: "general",
+      slotStart: row.slotStart,
+      slotEnd: row.slotEnd,
+      contactName: row.contactName,
+      contactPhone: row.contactPhone,
+      contactEmail: row.contactEmail ?? undefined,
+    });
+
+    expect(bookingsPort.createPending).toHaveBeenCalled();
+    expect(created.rubitimeId).toBe("r2");
+  });
+
   it("cancelBooking: Rubitime sync failure still completes legacy cancel", async () => {
     const row = sampleRow({ status: "confirmed", rubitimeId: "r1" });
     bookingsPort.getByIdForUser.mockResolvedValue(row);

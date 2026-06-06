@@ -78,6 +78,22 @@ describe('rubitime Google Calendar sync (connector)', () => {
     await syncRubitimeWebhookBodyToGoogleCalendar(toRubitimeIncoming(body));
     expect(syncAppointmentToCalendarMock).not.toHaveBeenCalled();
   });
+
+  it('maps event-remove-record to canceled calendar sync without throwing', async () => {
+    syncAppointmentToCalendarMock.mockResolvedValue(null);
+    const body = {
+      from: 'rubitime',
+      event: 'event-delete-record' as const,
+      data: { record: { id: '77', record: '2026-01-01 10:00:00' } },
+    };
+    const incoming = toRubitimeIncoming(body);
+    expect(incoming.action).toBe('canceled');
+    expect(incoming.recordId).toBe('77');
+    await syncRubitimeWebhookBodyToGoogleCalendar(incoming);
+    expect(syncAppointmentToCalendarMock).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'canceled', rubRecordId: '77' }),
+    );
+  });
 });
 
 describe('rubitimeIncomingToEvent', () => {

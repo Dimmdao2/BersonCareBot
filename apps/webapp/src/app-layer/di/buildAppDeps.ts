@@ -901,6 +901,7 @@ patientBookingService = createPatientBookingService({
     );
     return parseBookingLifecycleNotificationsSettings(row?.valueJson ?? null);
   },
+  branches: branchesProjectionPort ?? undefined,
 });
 
 const patientHomeBlocksService = createPatientHomeBlocksService({

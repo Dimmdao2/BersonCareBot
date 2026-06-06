@@ -103,9 +103,21 @@ export async function runStaffManualCancelAfterCanonical(input: {
       syncPort,
       bookingRow,
       lifecycleNotificationSettings,
+      branches: input.deps.branches,
     });
   } catch {
     flags.notificationOutcomeFailed = true;
+  }
+
+  if (input.deps.patientBooking) {
+    try {
+      await input.deps.patientBooking.syncLinkedPatientBookingCancelled({
+        canonicalAppointmentId: input.appointmentId,
+        reason: input.reason,
+      });
+    } catch {
+      // Best-effort mirror close; canonical cancel already committed.
+    }
   }
   return flags;
 }

@@ -73,6 +73,22 @@ describe("BookingUpcomingSection", () => {
     expect(screen.queryByRole("button", { name: "Управлять" })).not.toBeInTheDocument();
   });
 
+  it("hides Rubitime manage for cancel_failed without canonical appointment", () => {
+    render(
+      <BookingUpcomingSection
+        bookings={[
+          makeBooking({
+            status: "cancel_failed",
+            canonicalAppointmentId: null,
+            rubitimeManageUrl: "https://rubitime.ru/record/123",
+          }),
+        ]}
+        appDisplayTimeZone="Europe/Moscow"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Управлять" })).not.toBeInTheDocument();
+  });
+
   it("shows Rubitime manage only without canonical appointment", () => {
     render(
       <BookingUpcomingSection

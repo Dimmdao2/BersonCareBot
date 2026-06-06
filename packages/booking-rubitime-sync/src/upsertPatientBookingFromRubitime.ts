@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { closeActivePatientBookingsByRubitimeId } from "./closeActivePatientBookingsByRubitimeId.js";
 import { computeCompatSyncQuality } from "./compatSyncQuality.js";
 import type { RubitimeMappedPatientBookingStatus } from "./mapRubitimeStatus.js";
 import { lookupBranchServiceByRubitimeIds } from "./lookupBranchServiceByRubitimeIds.js";
@@ -191,6 +192,7 @@ export async function upsertPatientBookingFromRubitime(
     if (existingRow.source === "rubitime_projection" && input.status === "cancelled") {
       await db.query(`DELETE FROM public.patient_bookings
            WHERE id = $1 AND source = 'rubitime_projection'`, [existingRow.id]);
+      await closeActivePatientBookingsByRubitimeId(db, input.rubitimeId, existingRow.id);
       return;
     }
     const slotStartIso = input.slotStart ?? existingRow.slot_start.toISOString();
@@ -223,7 +225,11 @@ export async function upsertPatientBookingFromRubitime(
              duration_minutes_snapshot = CASE WHEN source = 'rubitime_projection' AND $14::integer IS NOT NULL THEN $14::integer ELSE duration_minutes_snapshot END,
              price_minor_snapshot = CASE WHEN source = 'rubitime_projection' AND $15::integer IS NOT NULL THEN $15::integer ELSE price_minor_snapshot END,
              compat_quality = CASE WHEN source = 'rubitime_projection' THEN $9::text ELSE compat_quality END,
-             rubitime_manage_url = CASE WHEN $17::text IS NOT NULL THEN $17::text ELSE rubitime_manage_url END,
+             rubitime_manage_url = CASE
+               WHEN $2::text = 'cancelled' THEN NULL
+               WHEN $17::text IS NOT NULL THEN $17::text
+               ELSE rubitime_manage_url
+             END,
              provenance_updated_by = CASE WHEN source = 'rubitime_projection' THEN 'rubitime_external' ELSE provenance_updated_by END,
              platform_user_id = CASE
                WHEN $18::uuid IS NOT NULL THEN COALESCE(platform_user_id, $18::uuid)
@@ -252,6 +258,9 @@ export async function upsertPatientBookingFromRubitime(
         input.userId ?? null,
       ],
     );
+    if (input.status === "cancelled") {
+      await closeActivePatientBookingsByRubitimeId(db, input.rubitimeId, existingRow.id);
+    }
     return;
   }
 

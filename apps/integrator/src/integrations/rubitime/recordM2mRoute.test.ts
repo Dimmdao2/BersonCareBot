@@ -158,6 +158,23 @@ describe('Rubitime record M2M routes', () => {
     );
   });
 
+  it('update-record returns 200 when Rubitime record already cancelled', async () => {
+    const spy = vi.spyOn(rubitimeClient, 'updateRubitimeRecord').mockResolvedValue({});
+    const app = await buildApp();
+    const body = JSON.stringify({ recordId: '50', patch: { status: 4 } });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/update-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ ok: true, data: {} });
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ recordId: '50', data: { status: 4 } }),
+    );
+  });
+
   it('remove-record returns 200 when Rubitime client succeeds', async () => {
     const spy = vi.spyOn(rubitimeClient, 'removeRubitimeRecord').mockResolvedValue({});
     mockSyncAppointmentToCalendar.mockClear();
@@ -176,6 +193,22 @@ describe('Rubitime record M2M routes', () => {
       expect.objectContaining({ dispatchPort: expect.anything() }),
     );
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ recordId: '99' }));
+  });
+
+  it('remove-record returns 200 when Rubitime record already gone', async () => {
+    const spy = vi.spyOn(rubitimeClient, 'removeRubitimeRecord').mockResolvedValue({});
+    mockSyncAppointmentToCalendar.mockClear();
+    const app = await buildApp();
+    const body = JSON.stringify({ recordId: 404404 });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/remove-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ ok: true, data: {} });
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ recordId: '404404' }));
   });
 
   it('update-record returns 400 empty_patch when patch normalizes to no fields', async () => {

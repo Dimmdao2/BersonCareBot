@@ -26,6 +26,23 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isRubitimeRecordGoneMessage(message: string): boolean {
+  return message.toLowerCase().includes('record not found');
+}
+
+/** Duplicate cancel (status 4) or update on gone/cancelled record — treat as success. */
+function isRubitimeUpdateAlreadyAppliedMessage(message: string): boolean {
+  if (isRubitimeRecordGoneMessage(message)) return true;
+  const m = message.toLowerCase();
+  return (
+    m.includes('already cancel')
+    || m.includes('already cancelled')
+    || m.includes('already canceled')
+    || m.includes('уже отмен')
+    || (m.includes('отмен') && (m.includes('record') || m.includes('запис')))
+  );
+}
+
 async function postRubitimeApi2(input: {
   method: 'get-record' | 'update-record' | 'remove-record' | 'create-record' | 'get-schedule';
   body: Record<string, unknown>;
@@ -86,6 +103,12 @@ async function postRubitimeApi2(input: {
         // still counts this HTTP 200 + error body as a request). The caller's HTTP (e.g. M2M
         // create-record) stays open for that whole server-side wait — webapp can show a loading state.
         continue;
+      }
+      if (input.method === 'remove-record' && isRubitimeRecordGoneMessage(apiMessage)) {
+        return {};
+      }
+      if (input.method === 'update-record' && isRubitimeUpdateAlreadyAppliedMessage(apiMessage)) {
+        return {};
       }
       throw new Error(`RUBITIME_API_ERROR: ${apiMessage}`);
     }

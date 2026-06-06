@@ -18,5 +18,8 @@ describe("pgAppointmentProjection upsert contract", () => {
     expect(src).toContain("h.valid_from <= COALESCE($3::timestamptz, now())");
     expect(src).toContain("(h.valid_to IS NULL OR h.valid_to > COALESCE($3::timestamptz, now()))");
     expect(src).toContain("h_other_claim.platform_user_id <> pu.id");
+    expect(src).toContain(
+      "branch_id = COALESCE(EXCLUDED.branch_id, appointment_records.branch_id)",
+    );
   });
 });

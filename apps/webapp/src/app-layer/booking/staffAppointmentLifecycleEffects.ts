@@ -14,9 +14,16 @@ import {
   projectCanonicalAppointmentRescheduled,
 } from "@/modules/patient-booking/projectCanonicalAppointment";
 
+import { resolveLegacyBranchIdForProjection } from "@/modules/patient-booking/resolveLegacyBranchIdForProjection";
+import type { LegacyBranchProjectionPort } from "@/modules/patient-booking/ports";
+
 type LifecycleService = ReturnType<typeof createBookingAppointmentLifecycleService>;
 
-function projectionFromAppointment(appt: BeAppointment, bookingRow?: PatientBookingRecord | null) {
+async function projectionFromAppointment(
+  appt: BeAppointment,
+  bookingRow?: PatientBookingRecord | null,
+  branches?: LegacyBranchProjectionPort | null,
+) {
   const attr = appt.attributionJson ?? {};
   const contactName =
     typeof attr.contact_name === "string"
@@ -30,12 +37,18 @@ function projectionFromAppointment(appt: BeAppointment, bookingRow?: PatientBook
       : typeof attr.serviceTitle === "string"
         ? attr.serviceTitle
         : null;
+  const legacyBranchId = await resolveLegacyBranchIdForProjection(
+    branches,
+    bookingRow?.rubitimeBranchIdSnapshot ?? null,
+    bookingRow?.branchTitleSnapshot ?? null,
+  );
   return {
     phoneNormalized: appt.phoneNormalized,
     contactName,
     serviceTitle,
-    branchTitle: null,
+    branchTitle: bookingRow?.branchTitleSnapshot ?? null,
     rubitimeRecordId: bookingRow?.rubitimeId ?? null,
+    legacyBranchId,
   };
 }
 
@@ -48,12 +61,13 @@ export async function applyStaffCancelSideEffects(opts: {
   syncPort?: BookingSyncPort | null;
   bookingRow?: PatientBookingRecord | null;
   lifecycleNotificationSettings?: BookingLifecycleNotificationsSettings | null;
+  branches?: LegacyBranchProjectionPort | null;
 }): Promise<void> {
   if (opts.projection) {
     await projectCanonicalAppointmentCancelled(
       opts.projection,
       opts.appointment,
-      projectionFromAppointment(opts.appointment, opts.bookingRow),
+      await projectionFromAppointment(opts.appointment, opts.bookingRow, opts.branches),
     );
   }
   const integratorStatus = await emitStaffCanonicalBookingEvent({
@@ -89,12 +103,13 @@ export async function applyStaffRescheduleSideEffects(opts: {
   syncPort?: BookingSyncPort | null;
   bookingRow?: PatientBookingRecord | null;
   lifecycleNotificationSettings?: BookingLifecycleNotificationsSettings | null;
+  branches?: LegacyBranchProjectionPort | null;
 }): Promise<void> {
   if (opts.projection) {
     await projectCanonicalAppointmentRescheduled(
       opts.projection,
       opts.appointment,
-      projectionFromAppointment(opts.appointment, opts.bookingRow),
+      await projectionFromAppointment(opts.appointment, opts.bookingRow, opts.branches),
     );
   }
   const integratorStatus = await emitStaffCanonicalBookingEvent({

@@ -3,6 +3,12 @@ import nock from 'nock';
 import { formatPhoneHashtag } from './calendarDescription.js';
 import { mapRubitimeEventToGoogleEvent, syncAppointmentToCalendar } from './sync.js';
 
+vi.mock('../../infra/db/repos/bookingCalendarMap.js', () => ({
+  getGoogleEventIdByRubitimeRecordId: vi.fn().mockResolvedValue('gcal-existing'),
+  deleteBookingCalendarMap: vi.fn().mockResolvedValue(undefined),
+  upsertBookingCalendarMap: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('google calendar description (exported helpers)', () => {
   it('formats phone hashtag', () => {
     expect(formatPhoneHashtag('+79189000792')).toBe('#+79189000792');
@@ -121,6 +127,26 @@ describe('google calendar sync', () => {
     }
     expect(client.upsertEvent).not.toHaveBeenCalled();
     expect(client.deleteEvent).not.toHaveBeenCalled();
+  });
+
+  it('canceled action deletes mapped event idempotently (410 handled in client)', async () => {
+    const deleteEvent = vi.fn().mockResolvedValue(undefined);
+    const client = { upsertEvent: vi.fn(), deleteEvent };
+    await syncAppointmentToCalendar(
+      { action: 'canceled', rubRecordId: 'rec-cancel-410' },
+      {
+        client,
+        config: {
+          enabled: true,
+          clientId: 'id',
+          clientSecret: 'secret',
+          redirectUri: 'http://localhost/oauth',
+          calendarId: 'cal',
+          refreshToken: 'rt',
+        },
+      },
+    );
+    expect(deleteEvent).toHaveBeenCalledWith('gcal-existing');
   });
 });
 

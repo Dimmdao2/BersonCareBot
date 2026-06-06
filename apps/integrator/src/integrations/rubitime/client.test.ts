@@ -103,6 +103,42 @@ describe('updateRubitimeRecord / removeRubitimeRecord', () => {
     expect(body.status).toBe(0);
   });
 
+  it("remove-record returns empty object when record already gone", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'error', message: 'Record not found' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await removeRubitimeRecord({ recordId: '99', fetchImpl });
+    expect(result).toEqual({});
+  });
+
+  it("update-record returns empty object when record already cancelled", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'error', message: 'Record already cancelled' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await updateRubitimeRecord({ recordId: '50', data: { status: 4 }, fetchImpl });
+    expect(result).toEqual({});
+  });
+
+  it("update-record returns empty object when record not found", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'error', message: 'Record not found' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await updateRubitimeRecord({ recordId: '50', data: { status: 4 }, fetchImpl });
+    expect(result).toEqual({});
+  });
+
   it('posts remove-record', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: 'ok', message: 'Success', data: {} }), {

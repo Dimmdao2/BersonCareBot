@@ -72,6 +72,21 @@ describe("CabinetActiveBookings", () => {
     expect(openExternalLinkInMessenger).toHaveBeenCalledWith("https://rubitime.ru/record/123");
   });
 
+  it("hides manage action for cancel_failed even with rubitime URL", () => {
+    render(
+      <CabinetActiveBookings
+        bookings={[
+          makeBooking({
+            status: "cancel_failed",
+            rubitimeManageUrl: "https://rubitime.ru/record/123",
+          }),
+        ]}
+        appDisplayTimeZone="Europe/Moscow"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
+  });
+
   it("hides manage action when rubitime URL is absent", () => {
     render(
       <CabinetActiveBookings

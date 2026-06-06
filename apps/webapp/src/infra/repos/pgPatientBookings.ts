@@ -7,6 +7,7 @@ import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStri
 import { getPool } from "@/infra/db/client";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import {
+  closeActivePatientBookingsByRubitimeId,
   findExistingPatientBookingForRubitime,
   shouldSkipNativeReviveUpdate,
   upsertPatientBookingFromRubitime,
@@ -115,6 +116,24 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
            OR created_at < now() - interval '15 minutes'
          )`,
       [input.userId, input.slotStart, input.slotEnd],
+    );
+    // Stale cancel in-flight rows must not block rebook on a freed Rubitime slot.
+    await runWebappPgText(
+      `UPDATE patient_bookings
+       SET status = 'cancelled',
+           cancelled_at = now(),
+           rubitime_manage_url = NULL,
+           updated_at = now()
+       WHERE status = 'cancelling'
+         AND updated_at < now() - interval '15 minutes'`,
+      [],
+    );
+    await runWebappPgText(
+      `UPDATE patient_bookings
+       SET status = 'failed_sync', updated_at = now()
+       WHERE status = 'cancel_failed'
+         AND updated_at < now() - interval '15 minutes'`,
+      [],
     );
     const result = await runWebappPgText<Row>(
       `WITH overlap AS (
@@ -260,12 +279,16 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
        SET status = $2,
            cancelled_at = now(),
            cancel_reason = COALESCE($3, cancel_reason),
+           rubitime_manage_url = NULL,
            updated_at = now()
        WHERE id = $1
        RETURNING *`,
       [input.bookingId, status, input.reason ?? null],
     );
     const row = result.rows[0];
+    if (row?.rubitime_id) {
+      await closeActivePatientBookingsByRubitimeId(getPool(), row.rubitime_id, input.bookingId);
+    }
     return row ? mapRow(row) : null;
   },
 
@@ -339,6 +362,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     const result = await runWebappPgText<Row>(
       `SELECT * FROM patient_bookings
        WHERE platform_user_id = $1
+         AND cancelled_at IS NULL
          AND status IN ('creating', 'awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
          AND slot_start >= $2::timestamptz
          AND NOT (

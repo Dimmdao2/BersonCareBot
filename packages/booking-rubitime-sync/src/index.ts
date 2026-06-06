@@ -26,4 +26,5 @@ export {
   type RubitimePatientBookingUpsertInput,
   type UpsertPatientBookingFromRubitimeOptions,
 } from "./upsertPatientBookingFromRubitime.js";
+export { closeActivePatientBookingsByRubitimeId } from "./closeActivePatientBookingsByRubitimeId.js";
 export { shouldSkipNativeReviveUpdate } from "./shouldSkipNativeReviveUpdate.js";
