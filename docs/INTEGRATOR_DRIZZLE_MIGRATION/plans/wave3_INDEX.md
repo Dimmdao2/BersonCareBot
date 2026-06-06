@@ -64,7 +64,7 @@
 - **13C:** doctor clients + analytics (**done** 2026-06-06)
 - **13D:** motivation + doctor tails (**done** 2026-06-06)
 - **13E:** phase verify (**done** 2026-06-06) — **фаза 13 closed** (gate + 116 fast tests + rubitime-sync 27); opt-in devDb: `RUN_BOOKING_CATALOG_DEV_DB` / `RUN_PATIENT_BOOKINGS_DEV_DB` / `RUN_DOCTOR_CLIENTS_DEV_DB` / `RUN_PG_DOCTOR_CLIENTS_APPOINTMENT_JOIN_DB` / `RUN_DOCTOR_ANALYTICS_DEV_DB` / `RUN_DOCTOR_PHASE_13D_DEV_DB`
-- **14A:** support communication core
+- **14A:** support communication core (**done** 2026-06-06; `runWebappPgText`, repo tests, Zod list query, devDb `RUN_SUPPORT_COMMUNICATION_DEV_DB`; merge helper SQL → `runWebappPgText` on tx client)
 - **14B:** user projection core
 - **14C:** audit + legacy merge helpers
 - **14D:** comms tail

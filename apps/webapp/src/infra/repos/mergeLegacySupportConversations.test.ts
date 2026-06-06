@@ -1,11 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappPgText: runWebappPgTextMock,
+  getWebappSqlFromPgClient: (client: unknown) => client,
+}));
+
 import { mergeLegacySupportConversationsForPlatformUser } from "./mergeLegacySupportConversations";
 
 describe("mergeLegacySupportConversationsForPlatformUser", () => {
+  beforeEach(() => {
+    runWebappPgTextMock.mockReset();
+  });
+
   it("moves messages from legacy rows into canonical thread", async () => {
     const canonicalId = "canonical-uuid";
     const legacyId = "legacy-uuid";
-    const query = vi.fn(async (sql: string) => {
+    runWebappPgTextMock.mockImplementation(async (sql: string) => {
       if (sql.includes("INSERT INTO support_conversations")) {
         return { rows: [{ id: canonicalId }] };
       }
@@ -17,7 +29,7 @@ describe("mergeLegacySupportConversationsForPlatformUser", () => {
       }
       return { rows: [], rowCount: 0 };
     });
-    const client = { query } as unknown as import("pg").PoolClient;
+    const client = {} as import("pg").PoolClient;
 
     const result = await mergeLegacySupportConversationsForPlatformUser(
       client,
@@ -26,9 +38,9 @@ describe("mergeLegacySupportConversationsForPlatformUser", () => {
 
     expect(result.mergedConversationCount).toBe(1);
     expect(result.movedMessageCount).toBe(2);
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("merged_into_platform_thread"),
-      [legacyId],
+    const closeCall = runWebappPgTextMock.mock.calls.find(([sql]) =>
+      String(sql).includes("merged_into_platform_thread"),
     );
+    expect(closeCall?.[1]).toEqual([legacyId]);
   });
 });

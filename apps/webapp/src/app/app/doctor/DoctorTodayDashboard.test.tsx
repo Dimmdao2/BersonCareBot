@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
 import type { TodayDashboardData } from "./loadDoctorTodayDashboard";
 
@@ -39,6 +40,9 @@ function emptyData(): TodayDashboardData {
     proactiveInsights: [],
     proactiveInsightsTotal: 0,
     proactiveInsightsTruncated: false,
+    exerciseCommentAttentionItems: [],
+    exerciseCommentAttentionTotal: 0,
+    exerciseCommentAttentionTruncated: false,
   };
 }
 
@@ -73,8 +77,13 @@ const emptyKpi = {
   },
 };
 
+async function openAttentionDialog(label: RegExp) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: label }));
+}
+
 describe("DoctorTodayDashboard", () => {
-  it("renders title, KPI, attention block, and section headings", () => {
+  it("renders title, KPI, attention block, and remaining section headings", () => {
     render(
       <DoctorTodayDashboard
         data={emptyData()}
@@ -88,17 +97,19 @@ describe("DoctorTodayDashboard", () => {
       "href",
       "/app/doctor/analytics/clients",
     );
-    expect(screen.getByRole("heading", { name: "Требует внимания" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Требует внимания" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Рабочие задачи на сегодня" })).toBeInTheDocument();
+    expect(document.getElementById("doctor-today-primary-row")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Записи сегодня" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Новые онлайн-заявки" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Непрочитанные сообщения" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ближайшие записи" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "К проверке" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "К проверке" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Новые онлайн-заявки" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Непрочитанные сообщения" })).not.toBeInTheDocument();
     expect(screen.getByText("Новые клиенты за 7 дн. без каналов связи")).toBeInTheDocument();
   });
 
-  it("shows empty states and CTAs", () => {
+  it("shows empty states and CTAs for on-support, today appointments, and upcoming", () => {
     render(
       <DoctorTodayDashboard data={emptyData()} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
     );
@@ -112,22 +123,52 @@ describe("DoctorTodayDashboard", () => {
       "href",
       "/app/doctor/appointments",
     );
-    expect(screen.getByText("Новых заявок нет")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть все заявки" })).toHaveAttribute(
-      "href",
-      "/app/doctor/online-intake",
-    );
-    expect(screen.getByText("Непрочитанных сообщений нет")).toBeInTheDocument();
-    expect(screen.getByText("Нет тестов, ожидающих оценки")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть все сообщения" })).toHaveAttribute(
-      "href",
-      "/app/doctor/messages",
-    );
     expect(screen.getByText("Ближайших записей на неделе нет")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Все записи" })[0]).toHaveAttribute(
       "href",
       "/app/doctor/appointments?view=future",
     );
+  });
+
+  it("hides upcoming appointments when today has appointments", () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      todayAppointments: [
+        {
+          id: "ap1",
+          time: "09:00",
+          clientLabel: "Клиент",
+          clientUserId: "user-1",
+          type: "Осмотр",
+          status: "created",
+          branchName: null,
+          scheduleProvenancePrefix: null,
+          rubitimeNameIfDifferent: null,
+          href: "/app/doctor/clients/user-1?scope=appointments",
+          ctaLabel: "Открыть карточку",
+        },
+      ],
+      upcomingAppointments: [
+        {
+          id: "ap2",
+          time: "Пн 10:00",
+          clientLabel: "Будущий",
+          clientUserId: "user-2",
+          type: "Осмотр",
+          status: "created",
+          branchName: null,
+          scheduleProvenancePrefix: null,
+          rubitimeNameIfDifferent: null,
+          href: "/app/doctor/clients/user-2?scope=appointments",
+          ctaLabel: "Открыть карточку",
+        },
+      ],
+    };
+    render(
+      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={1} />,
+    );
+    expect(screen.queryByRole("heading", { name: "Ближайшие записи" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Пн 10:00 · Будущий/)).not.toBeInTheDocument();
   });
 
   it("renders today appointment with card link", () => {
@@ -152,13 +193,14 @@ describe("DoctorTodayDashboard", () => {
     render(
       <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={1} />,
     );
-    expect(screen.getByText(/09:00 · Клиент/)).toBeInTheDocument();
-    expect(screen.getByText(/Осмотр · created/)).toBeInTheDocument();
-    expect(screen.getByText(/Филиал А/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть карточку" })).toHaveAttribute(
+    expect(screen.getByText("09:00 ·")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Клиент" })).toHaveAttribute(
       "href",
       "/app/doctor/clients/user-1?scope=appointments",
     );
+    expect(screen.getByText(/Осмотр · created/)).toBeInTheDocument();
+    expect(screen.getByText(/Филиал А/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Открыть карточку" })).not.toBeInTheDocument();
   });
 
   it("renders Rubitime name hint when different from profile label", () => {
@@ -186,7 +228,7 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByText("В Rubitime: Иванов И.И.")).toBeInTheDocument();
   });
 
-  it("renders intake row with deep link", () => {
+  it("opens intake details in attention dialog", async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       newIntakeRequests: [
@@ -205,6 +247,8 @@ describe("DoctorTodayDashboard", () => {
     render(
       <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
     );
+    await openAttentionDialog(/Онлайн-заявки/);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Анна")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть заявку" })).toHaveAttribute(
       "href",
@@ -221,11 +265,17 @@ describe("DoctorTodayDashboard", () => {
           userId: "u-a",
           displayName: "Анна",
           href: "/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs",
+          unreadMessagesCount: 2,
+          exerciseDoneTodayCount: 1,
+          newExerciseCommentsCount: 1,
         },
         {
           userId: "u-b",
           displayName: "Борис",
           href: "/app/doctor/clients/u-b?scope=appointments#doctor-client-section-treatment-programs",
+          unreadMessagesCount: 0,
+          exerciseDoneTodayCount: 0,
+          newExerciseCommentsCount: 0,
         },
       ],
       onSupportListTruncated: true,
@@ -248,7 +298,7 @@ describe("DoctorTodayDashboard", () => {
     );
   });
 
-  it("renders pending program tests with evaluate link and truncation footer", () => {
+  it("opens pending program tests in attention dialog", async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       pendingProgramTestsTotal: 12,
@@ -270,6 +320,7 @@ describe("DoctorTodayDashboard", () => {
     render(
       <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
     );
+    await openAttentionDialog(/Тесты к проверке/);
     expect(screen.getByText(/Попыток без оценки: 12/)).toBeInTheDocument();
     expect(screen.getByText("Иванова")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Оценить" })).toHaveAttribute(
@@ -277,14 +328,9 @@ describe("DoctorTodayDashboard", () => {
       "/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests",
     );
     expect(screen.getByText("Показаны первые 1 из 12")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Тесты к проверке/ })).toHaveAttribute(
-      "href",
-      "#doctor-today-section-pending-tests",
-    );
-    expect(screen.getByText("12")).toBeInTheDocument();
   });
 
-  it("renders proactive patient insights section and attention link", () => {
+  it("opens proactive patient insights in attention dialog", async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       proactiveInsightsTotal: 2,
@@ -301,15 +347,12 @@ describe("DoctorTodayDashboard", () => {
       ],
     };
     render(<DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />);
+    await openAttentionDialog(/Сигналы пациентов/);
     expect(screen.getByRole("heading", { name: "Сигналы пациентов" })).toBeInTheDocument();
     expect(screen.getByText("Петров")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Сигналы пациентов/ })).toHaveAttribute(
-      "href",
-      "#doctor-today-section-proactive-insights",
-    );
   });
 
-  it("renders unread conversations and total", () => {
+  it("opens unread conversations in attention dialog", async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       unreadTotal: 5,
@@ -329,8 +372,50 @@ describe("DoctorTodayDashboard", () => {
     render(
       <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
     );
+    await openAttentionDialog(/Сообщения/);
     expect(screen.getByText(/Всего непрочитанных: 5/)).toBeInTheDocument();
     expect(screen.getByText("Пациент")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("opens exercise comments attention dialog grouped by patient", async () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      exerciseCommentAttentionTotal: 1,
+      exerciseCommentAttentionTruncated: false,
+      exerciseCommentAttentionItems: [
+        {
+          patientUserId: "u1",
+          patientDisplayName: "Иванов Иван",
+          instanceId: "inst-1",
+          stageItemId: "item-1",
+          stageItemTitle: "Приседания",
+          latestMessage: {
+            id: "m1",
+            instanceStageItemId: "item-1",
+            patientUserId: "u1",
+            senderRole: "patient",
+            origin: "patient_observation",
+            body: "Болит колено",
+            mediaFileId: null,
+            supportMessageId: null,
+            createdAt: "2026-06-06T00:00:00.000Z",
+          },
+          latestMessageAtLabel: "06.06.2026, 03:00",
+          href: "/app/doctor/clients/u1/treatment-programs/inst-1?scope=appointments&discussionItem=item-1",
+        },
+      ],
+    };
+    render(
+      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
+    );
+    await openAttentionDialog(/Новые комментарии по упражнениям/);
+    expect(screen.getByRole("heading", { name: "Новые комментарии по упражнениям" })).toBeInTheDocument();
+    expect(screen.getByText("Иванов Иван")).toBeInTheDocument();
+    expect(screen.getByText("Приседания")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Открыть комментарии в программе" })).toHaveAttribute(
+      "href",
+      "/app/doctor/clients/u1/treatment-programs/inst-1?scope=appointments&discussionItem=item-1",
+    );
   });
 });

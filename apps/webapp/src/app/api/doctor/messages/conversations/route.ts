@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
+import { doctorSupportUnreadOnlyFromQuery } from "@/modules/messaging/supportAdminListQuery";
 import { canAccessDoctor } from "@/modules/roles/service";
 
 export async function GET(request: Request) {
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
 
   const deps = buildAppDeps();
   const url = new URL(request.url);
-  const unreadOnly = url.searchParams.get("unread") === "1";
+  const unreadOnly = doctorSupportUnreadOnlyFromQuery(url.searchParams.get("unread"));
   const list = await deps.messaging.doctorSupport.listOpenConversations({ limit: 50, unreadOnly });
   return NextResponse.json({
     ok: true,

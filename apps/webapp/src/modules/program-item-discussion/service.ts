@@ -173,6 +173,29 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
       });
     },
 
+    async markReadForViewer(input: {
+      viewerUserId: string;
+      stageItemId: string;
+      lastReadAt?: string;
+    }): Promise<void> {
+      await port.markRead({
+        // Storage key in reads table is any platform user id; here we persist doctor viewer cursor.
+        patientUserId: assertUuid(input.viewerUserId, "viewer_user_id"),
+        stageItemId: assertUuid(input.stageItemId, "stage_item_id"),
+        lastReadAt: input.lastReadAt,
+      });
+    },
+
+    async getLastReadAtForViewer(input: {
+      viewerUserId: string;
+      stageItemId: string;
+    }): Promise<string | null> {
+      return port.getLastReadAt({
+        patientUserId: assertUuid(input.viewerUserId, "viewer_user_id"),
+        stageItemId: assertUuid(input.stageItemId, "stage_item_id"),
+      });
+    },
+
     async getUnreadCount(input: { patientUserId: string; stageItemId: string; exerciseTitle?: string }): Promise<number> {
       const patientUserId = assertUuid(input.patientUserId, "patient_user_id");
       const stageItemId = assertUuid(input.stageItemId, "stage_item_id");

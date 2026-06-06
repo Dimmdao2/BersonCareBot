@@ -78,4 +78,14 @@ describe("GET /api/integrator/communication/conversations", () => {
     expect(json.conversations).toHaveLength(1);
     expect(mockListOpen).toHaveBeenCalledWith({ limit: 5 });
   });
+
+  it("returns 400 for invalid limit query", async () => {
+    const res = await GET(
+      new Request("http://localhost/api/integrator/communication/conversations?limit=abc", {
+        headers: integratorGetSignedHeadersOk,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ ok: false, error: "invalid query" });
+  });
 });

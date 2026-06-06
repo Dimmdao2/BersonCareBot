@@ -1,10 +1,19 @@
 import type { Pool, PoolClient } from "pg";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { webappPlatformConversationId } from "@/modules/messaging/supportConversationIds";
 
 export type MergeLegacySupportResult = {
   mergedConversationCount: number;
   movedMessageCount: number;
 };
+
+function mergeSqlOnClient<T>(
+  client: Pool | PoolClient,
+  queryText: string,
+  values: readonly unknown[] = [],
+) {
+  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client as PoolClient));
+}
 
 /**
  * Переносит историю из legacy projection-диалогов (UUID integrator) в канон `webapp:platform:{platformUserId}`.
@@ -16,7 +25,8 @@ export async function mergeLegacySupportConversationsForPlatformUser(
 ): Promise<MergeLegacySupportResult> {
   const canonicalKey = webappPlatformConversationId(platformUserId);
 
-  const canonRow = await client.query<{ id: string }>(
+  const canonRow = await mergeSqlOnClient<{ id: string }>(
+    client,
     `INSERT INTO support_conversations (
       integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
       opened_at, last_message_at
@@ -32,7 +42,8 @@ export async function mergeLegacySupportConversationsForPlatformUser(
     return { mergedConversationCount: 0, movedMessageCount: 0 };
   }
 
-  const legacyRows = await client.query<{ id: string }>(
+  const legacyRows = await mergeSqlOnClient<{ id: string }>(
+    client,
     `SELECT sc.id FROM support_conversations sc
      WHERE sc.integrator_conversation_id <> $2
        AND (
@@ -51,7 +62,8 @@ export async function mergeLegacySupportConversationsForPlatformUser(
 
   let movedMessageCount = 0;
   for (const legacy of legacyRows.rows) {
-    const move = await client.query<{ id: string }>(
+    const move = await mergeSqlOnClient<{ id: string }>(
+      client,
       `UPDATE support_conversation_messages
        SET conversation_id = $1::uuid
        WHERE conversation_id = $2::uuid
@@ -60,14 +72,16 @@ export async function mergeLegacySupportConversationsForPlatformUser(
     );
     movedMessageCount += move.rowCount ?? move.rows.length;
 
-    await client.query(
+    await mergeSqlOnClient(
+      client,
       `UPDATE support_questions
        SET conversation_id = $1::uuid, updated_at = now()
        WHERE conversation_id = $2::uuid`,
       [canonicalId, legacy.id],
     );
 
-    await client.query(
+    await mergeSqlOnClient(
+      client,
       `UPDATE support_conversations
        SET status = 'closed',
            closed_at = COALESCE(closed_at, now()),
@@ -78,7 +92,8 @@ export async function mergeLegacySupportConversationsForPlatformUser(
     );
   }
 
-  await client.query(
+  await mergeSqlOnClient(
+    client,
     `UPDATE support_conversations sc
      SET last_message_at = GREATEST(
            sc.last_message_at,

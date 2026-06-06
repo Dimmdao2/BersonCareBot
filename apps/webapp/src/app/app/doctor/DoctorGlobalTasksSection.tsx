@@ -39,7 +39,7 @@ export function DoctorGlobalTasksSection({ initialTasks }: { initialTasks: Speci
   return (
     <DoctorSection id="doctor-today-global-tasks" className="gap-2">
       <div className="flex items-center justify-between gap-2">
-        <DoctorSectionTitle>Мои задачи</DoctorSectionTitle>
+        <DoctorSectionTitle>Рабочие задачи на сегодня</DoctorSectionTitle>
         <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
           Новая
         </Button>

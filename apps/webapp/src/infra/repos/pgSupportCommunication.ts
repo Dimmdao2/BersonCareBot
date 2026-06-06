@@ -1,10 +1,12 @@
 /**
  * Support communication history repo: projection/backfill writes and shadow reads.
  * Idempotent by integrator_*_id; platform_user_id resolved from platform_users when present.
+ *
+ * Wave 3 phase 14A — domain SQL via `runWebappPgText` (Drizzle `execute(sql)`); no direct `pool.query`.
  */
 
 import { getPool } from "@/infra/db/client";
-import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { mergeLegacySupportConversationsForPlatformUser as runMergeLegacySupportConversations } from "@/infra/repos/mergeLegacySupportConversations";
 
 export type SupportConversationRow = {
@@ -236,17 +238,148 @@ function mapMessageRow(m: Record<string, unknown>): SupportConversationMessageRo
   };
 }
 
-function resolvePlatformUserId(pool: Awaited<ReturnType<typeof getPool>>, integratorUserId: string | null): Promise<string | null> {
-  if (integratorUserId == null || integratorUserId === "") return Promise.resolve(null);
-  return findCanonicalUserIdByIntegratorId(pool, integratorUserId);
+type SupportConversationDbRow = {
+  id: string;
+  integrator_conversation_id: string;
+  platform_user_id: string | null;
+  integrator_user_id: string | null;
+  source: string;
+  admin_scope: string;
+  status: string;
+  opened_at: string;
+  last_message_at: string;
+  closed_at: string | null;
+  close_reason: string | null;
+  channel_code: string | null;
+  channel_external_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function mapConversationRow(row: SupportConversationDbRow): SupportConversationRow {
+  return {
+    id: row.id,
+    integratorConversationId: row.integrator_conversation_id,
+    platformUserId: row.platform_user_id,
+    integratorUserId: row.integrator_user_id,
+    source: row.source,
+    adminScope: row.admin_scope,
+    status: row.status,
+    openedAt: row.opened_at,
+    lastMessageAt: row.last_message_at,
+    closedAt: row.closed_at,
+    closeReason: row.close_reason,
+    channelCode: row.channel_code,
+    channelExternalId: row.channel_external_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+type SupportQuestionDbRow = {
+  id: string;
+  integrator_question_id: string;
+  conversation_id: string | null;
+  status: string;
+  created_at: string;
+  answered_at: string | null;
+  updated_at: string;
+};
+
+type SupportDeliveryEventDbRow = {
+  id: string;
+  conversation_message_id: string | null;
+  integrator_intent_event_id: string | null;
+  correlation_id: string | null;
+  channel_code: string;
+  status: string;
+  attempt: number;
+  reason: string | null;
+  payload_json: Record<string, unknown>;
+  occurred_at: string;
+};
+
+type AdminConversationListDbRow = {
+  conversation_id: string;
+  integrator_conversation_id: string;
+  source: string;
+  integrator_user_id: string | null;
+  admin_scope: string;
+  status: string;
+  opened_at: string;
+  last_message_at: string;
+  closed_at: string | null;
+  close_reason: string | null;
+  display_name: string;
+  phone_normalized: string | null;
+  channel_external_id: string | null;
+  last_message_text: string | null;
+  last_sender_role: string | null;
+  unread_from_user_count: number;
+};
+
+type AdminConversationDetailDbRow = AdminConversationListDbRow & {
+  user_chat_id: string | null;
+};
+
+type AdminQuestionListDbRow = {
+  integrator_question_id: string;
+  integrator_conversation_id: string | null;
+  text: string;
+  created_at: string;
+  answered: boolean;
+  answered_at: string | null;
+  display_name: string;
+  phone_normalized: string | null;
+  channel_external_id: string | null;
+};
+
+function mapAdminConversationListRow(row: AdminConversationListDbRow): AdminConversationListRow {
+  return {
+    conversationId: String(row.conversation_id),
+    integratorConversationId: row.integrator_conversation_id,
+    source: row.source,
+    integratorUserId: row.integrator_user_id,
+    adminScope: row.admin_scope,
+    status: row.status,
+    openedAt: row.opened_at,
+    lastMessageAt: row.last_message_at,
+    closedAt: row.closed_at,
+    closeReason: row.close_reason,
+    displayName: row.display_name ?? "",
+    phoneNormalized: row.phone_normalized,
+    channelExternalId: row.channel_external_id,
+    lastMessageText: row.last_message_text,
+    lastSenderRole: row.last_sender_role,
+    unreadFromUserCount: Number(row.unread_from_user_count ?? 0),
+  };
+}
+
+async function resolvePlatformUserId(integratorUserId: string | null): Promise<string | null> {
+  if (integratorUserId == null || integratorUserId === "") return null;
+  const r = await runWebappPgText<{ id: string }>(
+    `SELECT id FROM platform_users
+     WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
+     ORDER BY created_at ASC
+     LIMIT 3`,
+    [integratorUserId],
+  );
+  if (r.rows.length === 0) return null;
+  if (r.rows.length > 1) {
+    console.error("[canonical] multiple canonical rows for integrator_user_id", {
+      integratorUserId,
+      ids: r.rows.map((x) => x.id),
+    });
+    return null;
+  }
+  return r.rows[0]!.id;
 }
 
 export function createPgSupportCommunicationPort(): SupportCommunicationPort {
   return {
     async upsertConversationFromProjection(params) {
-      const pool = getPool();
-      const platformUserId = await resolvePlatformUserId(pool, params.integratorUserId);
-      const r = await pool.query<{ id: string }>(
+      const platformUserId = await resolvePlatformUserId(params.integratorUserId);
+      const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_conversations (
           integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
           opened_at, last_message_at, closed_at, close_reason, channel_code, channel_external_id
@@ -275,18 +408,17 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           params.channelExternalId ?? null,
         ]
       );
-      return { id: r.rows[0].id };
+      return { id: r.rows[0]!.id };
     },
 
     async appendConversationMessageFromProjection(params) {
-      const pool = getPool();
-      const conv = await pool.query<{ id: string }>(
+      const conv = await runWebappPgText<{ id: string }>(
         "SELECT id FROM support_conversations WHERE integrator_conversation_id = $1",
         [params.integratorConversationId]
       );
       const conversationId = conv.rows[0]?.id;
       if (!conversationId) {
-        const ins = await pool.query<{ id: string }>(
+        const ins = await runWebappPgText<{ id: string }>(
           `INSERT INTO support_conversations (
             integrator_conversation_id, integrator_user_id, source, admin_scope, status, opened_at, last_message_at
           ) VALUES ($1, NULL, $2, '', 'open', $3::timestamptz, $3::timestamptz)
@@ -294,8 +426,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           RETURNING id`,
           [params.integratorConversationId, params.source, params.createdAt]
         );
-        const cid = ins.rows[0].id;
-        const r = await pool.query<{ id: string }>(
+        const cid = ins.rows[0]!.id;
+        const r = await runWebappPgText<{ id: string }>(
           `INSERT INTO support_conversation_messages (
             integrator_message_id, conversation_id, sender_role, message_type, text, source,
             external_chat_id, external_message_id, delivery_status, created_at
@@ -315,9 +447,9 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
             params.createdAt,
           ]
         );
-        return { id: r.rows[0].id };
+        return { id: r.rows[0]!.id };
       }
-      const r = await pool.query<{ id: string }>(
+      const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_conversation_messages (
           integrator_message_id, conversation_id, sender_role, message_type, text, source,
           external_chat_id, external_message_id, delivery_status, created_at
@@ -337,16 +469,15 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           params.createdAt,
         ]
       );
-      await pool.query(
+      await runWebappPgText(
         `UPDATE support_conversations SET last_message_at = GREATEST(last_message_at, $2::timestamptz), updated_at = now() WHERE id = $1`,
         [conversationId, params.createdAt]
       );
-      return { id: r.rows[0].id };
+      return { id: r.rows[0]!.id };
     },
 
     async setConversationStatusFromProjection(params) {
-      const pool = getPool();
-      const r = await pool.query<{ id: string }>(
+      const r = await runWebappPgText<{ id: string }>(
         `UPDATE support_conversations SET
           status = $2,
           last_message_at = COALESCE($3::timestamptz, last_message_at),
@@ -364,7 +495,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         ]
       );
       if (r.rowCount === 0) {
-        await pool.query(
+        await runWebappPgText(
           `INSERT INTO support_conversations (
             integrator_conversation_id, source, admin_scope, status, opened_at, last_message_at, closed_at, close_reason
           ) VALUES ($1, 'ingest', '', $2, now(), $3::timestamptz, $4::timestamptz, $5)
@@ -386,16 +517,15 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async upsertQuestionFromProjection(params) {
-      const pool = getPool();
       let conversationId: string | null = null;
       if (params.integratorConversationId) {
-        const c = await pool.query<{ id: string }>(
+        const c = await runWebappPgText<{ id: string }>(
           "SELECT id FROM support_conversations WHERE integrator_conversation_id = $1",
           [params.integratorConversationId]
         );
         conversationId = c.rows[0]?.id ?? null;
       }
-      const r = await pool.query<{ id: string }>(
+      const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_questions (
           integrator_question_id, conversation_id, status, created_at, answered_at
         ) VALUES ($1, $2, $3, $4::timestamptz, $5::timestamptz)
@@ -413,18 +543,17 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           params.answeredAt ?? null,
         ]
       );
-      return { id: r.rows[0].id };
+      return { id: r.rows[0]!.id };
     },
 
     async appendQuestionMessageFromProjection(params) {
-      const pool = getPool();
-      const q = await pool.query<{ id: string }>(
+      const q = await runWebappPgText<{ id: string }>(
         "SELECT id FROM support_questions WHERE integrator_question_id = $1",
         [params.integratorQuestionId]
       );
       const questionId = q.rows[0]?.id;
       if (!questionId) {
-        const ins = await pool.query<{ id: string }>(
+        const ins = await runWebappPgText<{ id: string }>(
           `INSERT INTO support_questions (integrator_question_id, conversation_id, status, created_at)
            VALUES ($1, NULL, 'open', $2::timestamptz)
            ON CONFLICT (integrator_question_id) DO NOTHING
@@ -433,13 +562,13 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         );
         const qid = ins.rows[0]?.id;
         if (!qid) {
-          const sel = await pool.query<{ id: string }>(
+          const sel = await runWebappPgText<{ id: string }>(
             "SELECT id FROM support_questions WHERE integrator_question_id = $1",
             [params.integratorQuestionId]
           );
           const qid2 = sel.rows[0]?.id;
           if (!qid2) throw new Error(`support_questions row missing for ${params.integratorQuestionId}`);
-          const r = await pool.query<{ id: string }>(
+          const r = await runWebappPgText<{ id: string }>(
             `INSERT INTO support_question_messages (
               integrator_question_message_id, question_id, sender_role, text, created_at
             ) VALUES ($1, $2, $3, $4, $5::timestamptz)
@@ -449,7 +578,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           );
           return { id: r.rows[0]?.id ?? "" };
         }
-        const r = await pool.query<{ id: string }>(
+        const r = await runWebappPgText<{ id: string }>(
           `INSERT INTO support_question_messages (
             integrator_question_message_id, question_id, sender_role, text, created_at
           ) VALUES ($1, $2, $3, $4, $5::timestamptz)
@@ -459,7 +588,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         );
         return { id: r.rows[0]?.id ?? "" };
       }
-      const r = await pool.query<{ id: string }>(
+      const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_question_messages (
           integrator_question_message_id, question_id, sender_role, text, created_at
         ) VALUES ($1, $2, $3, $4, $5::timestamptz)
@@ -471,8 +600,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async appendDeliveryEventFromProjection(params) {
-      const pool = getPool();
-      const r = await pool.query<{ id: string }>(
+      const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_delivery_events (
           conversation_message_id, integrator_intent_event_id, correlation_id,
           channel_code, status, attempt, reason, payload_json, occurred_at
@@ -497,36 +625,18 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async listConversationsByUser(platformUserId) {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<SupportConversationDbRow>(
         `SELECT id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
                 opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
                 created_at::text, updated_at::text
          FROM support_conversations WHERE platform_user_id = $1 ORDER BY last_message_at DESC`,
         [platformUserId]
       );
-      return r.rows.map((row) => ({
-        id: row.id,
-        integratorConversationId: row.integrator_conversation_id,
-        platformUserId: row.platform_user_id,
-        integratorUserId: row.integrator_user_id,
-        source: row.source,
-        adminScope: row.admin_scope,
-        status: row.status,
-        openedAt: row.opened_at,
-        lastMessageAt: row.last_message_at,
-        closedAt: row.closed_at,
-        closeReason: row.close_reason,
-        channelCode: row.channel_code,
-        channelExternalId: row.channel_external_id,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+      return r.rows.map(mapConversationRow);
     },
 
     async getConversationWithMessages(conversationId) {
-      const pool = getPool();
-      const conv = await pool.query(
+      const conv = await runWebappPgText<SupportConversationDbRow>(
         `SELECT id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
                 opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
                 created_at::text, updated_at::text
@@ -534,38 +644,20 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         [conversationId]
       );
       if (conv.rows.length === 0) return null;
-      const row = conv.rows[0];
-      const conversation: SupportConversationRow = {
-        id: row.id,
-        integratorConversationId: row.integrator_conversation_id,
-        platformUserId: row.platform_user_id,
-        integratorUserId: row.integrator_user_id,
-        source: row.source,
-        adminScope: row.admin_scope,
-        status: row.status,
-        openedAt: row.opened_at,
-        lastMessageAt: row.last_message_at,
-        closedAt: row.closed_at,
-        closeReason: row.close_reason,
-        channelCode: row.channel_code,
-        channelExternalId: row.channel_external_id,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      };
-      const msg = await pool.query(
+      const conversation = mapConversationRow(conv.rows[0]!);
+      const msg = await runWebappPgText<Record<string, unknown>>(
         `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
                 external_chat_id, external_message_id, delivery_status, created_at::text,
                 read_at::text, delivered_at::text, media_url, media_type
          FROM support_conversation_messages WHERE conversation_id = $1 ORDER BY created_at ASC`,
         [conversationId]
       );
-      const messages: SupportConversationMessageRow[] = msg.rows.map((m) => mapMessageRow(m as Record<string, unknown>));
+      const messages: SupportConversationMessageRow[] = msg.rows.map((m) => mapMessageRow(m));
       return { conversation, messages };
     },
 
     async listQuestionsByUser(platformUserId) {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<SupportQuestionDbRow>(
         `SELECT q.id, q.integrator_question_id, q.conversation_id, q.status, q.created_at::text, q.answered_at::text, q.updated_at::text
          FROM support_questions q
          JOIN support_conversations c ON c.id = q.conversation_id AND c.platform_user_id = $1
@@ -584,8 +676,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async listRecentDeliveryTrailForConversation(conversationId, limit = 50) {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<SupportDeliveryEventDbRow>(
         `SELECT e.id, e.conversation_message_id, e.integrator_intent_event_id, e.correlation_id,
                 e.channel_code, e.status, e.attempt, e.reason, e.payload_json, e.occurred_at::text
          FROM support_delivery_events e
@@ -602,16 +693,15 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         status: row.status,
         attempt: row.attempt,
         reason: row.reason,
-        payloadJson: (row.payload_json as Record<string, unknown>) ?? {},
+        payloadJson: row.payload_json ?? {},
         occurredAt: row.occurred_at,
       }));
     },
 
     async listOpenConversationsForAdmin(params) {
-      const pool = getPool();
       const limit = typeof params.limit === "number" && params.limit > 0 ? Math.min(params.limit, 100) : 20;
       const source = typeof params.source === "string" && params.source.trim() ? params.source.trim() : null;
-      const r = await pool.query(
+      const r = await runWebappPgText<AdminConversationListDbRow>(
         `SELECT
           sc.id AS conversation_id,
           sc.integrator_conversation_id,
@@ -653,29 +743,11 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
          LIMIT $2`,
         [source, limit, params.unreadOnly === true]
       );
-      return r.rows.map((row) => ({
-        conversationId: String(row.conversation_id),
-        integratorConversationId: row.integrator_conversation_id,
-        source: row.source,
-        integratorUserId: row.integrator_user_id,
-        adminScope: row.admin_scope,
-        status: row.status,
-        openedAt: row.opened_at,
-        lastMessageAt: row.last_message_at,
-        closedAt: row.closed_at,
-        closeReason: row.close_reason,
-        displayName: row.display_name ?? "",
-        phoneNormalized: row.phone_normalized,
-        channelExternalId: row.channel_external_id,
-        lastMessageText: row.last_message_text,
-        lastSenderRole: row.last_sender_role,
-        unreadFromUserCount: Number(row.unread_from_user_count ?? 0),
-      }));
+      return r.rows.map(mapAdminConversationListRow);
     },
 
     async getConversationByIntegratorId(integratorConversationId) {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<AdminConversationDetailDbRow>(
         `SELECT
           sc.id AS conversation_id,
           sc.integrator_conversation_id,
@@ -723,31 +795,12 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       );
       if (r.rows.length === 0) return null;
       const row = r.rows[0]!;
-      return {
-        conversationId: String(row.conversation_id),
-        integratorConversationId: row.integrator_conversation_id,
-        source: row.source,
-        integratorUserId: row.integrator_user_id,
-        adminScope: row.admin_scope,
-        status: row.status,
-        openedAt: row.opened_at,
-        lastMessageAt: row.last_message_at,
-        closedAt: row.closed_at,
-        closeReason: row.close_reason,
-        displayName: row.display_name ?? "",
-        phoneNormalized: row.phone_normalized,
-        channelExternalId: row.channel_external_id,
-        lastMessageText: row.last_message_text,
-        lastSenderRole: row.last_sender_role,
-        unreadFromUserCount: Number(row.unread_from_user_count ?? 0),
-        userChatId: row.user_chat_id,
-      };
+      return { ...mapAdminConversationListRow(row), userChatId: row.user_chat_id };
     },
 
     async listUnansweredQuestionsForAdmin(params) {
-      const pool = getPool();
       const limit = typeof params.limit === "number" && params.limit > 0 ? Math.min(params.limit, 100) : 50;
-      const r = await pool.query(
+      const r = await runWebappPgText<AdminQuestionListDbRow>(
         `SELECT
           sq.integrator_question_id,
           sc.integrator_conversation_id AS integrator_conversation_id,
@@ -787,8 +840,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async getQuestionByIntegratorConversationId(integratorConversationId) {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<{ integrator_question_id: string; status: string }>(
         `SELECT sq.integrator_question_id, sq.status
          FROM support_questions sq
          JOIN support_conversations sc ON sc.id = sq.conversation_id
@@ -806,9 +858,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async ensureWebappConversationForUser(platformUserId) {
-      const pool = getPool();
       const integratorConversationId = `webapp:platform:${platformUserId}`;
-      const r = await pool.query<{ id: string }>(
+      const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_conversations (
           integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
           opened_at, last_message_at
@@ -839,8 +890,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async appendWebappMessage(params) {
-      const pool = getPool();
-      const r = await pool.query<{ id: string }>(
+      const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_conversation_messages (
           integrator_message_id, conversation_id, sender_role, message_type, text, source,
           external_chat_id, external_message_id, delivery_status, created_at, delivered_at
@@ -857,13 +907,13 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         ]
       );
       if (r.rows[0]?.id) {
-        await pool.query(
+        await runWebappPgText(
           `UPDATE support_conversations SET last_message_at = GREATEST(last_message_at, $2::timestamptz), updated_at = now() WHERE id = $1::uuid`,
           [params.conversationId, params.createdAt]
         );
-        return { id: r.rows[0].id, created: true };
+        return { id: r.rows[0]!.id, created: true };
       }
-      const ex = await pool.query<{ id: string }>(
+      const ex = await runWebappPgText<{ id: string }>(
         "SELECT id FROM support_conversation_messages WHERE integrator_message_id = $1",
         [params.integratorMessageId]
       );
@@ -871,10 +921,9 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async listMessagesSince(conversationId, params) {
-      const pool = getPool();
       const lim = Math.min(Math.max(params.limit, 1), 200);
       if (params.sinceCreatedAt) {
-        const r = await pool.query(
+        const r = await runWebappPgText<Record<string, unknown>>(
           `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
                   external_chat_id, external_message_id, delivery_status, created_at::text,
                   read_at::text, delivered_at::text, media_url, media_type
@@ -884,9 +933,9 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            LIMIT $3`,
           [conversationId, params.sinceCreatedAt, lim]
         );
-        return r.rows.map((m) => mapMessageRow(m as Record<string, unknown>));
+        return r.rows.map((m) => mapMessageRow(m));
       }
-      const r = await pool.query(
+      const r = await runWebappPgText<Record<string, unknown>>(
         `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
                 external_chat_id, external_message_id, delivery_status, created_at::text,
                 read_at::text, delivered_at::text, media_url, media_type
@@ -899,18 +948,19 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
          ORDER BY created_at ASC`,
         [conversationId, lim]
       );
-      return r.rows.map((m) => mapMessageRow(m as Record<string, unknown>));
+      return r.rows.map((m) => mapMessageRow(m));
     },
 
     async conversationExists(conversationId) {
-      const pool = getPool();
-      const r = await pool.query("SELECT 1 FROM support_conversations WHERE id = $1::uuid LIMIT 1", [conversationId]);
+      const r = await runWebappPgText<Record<string, unknown>>(
+        "SELECT 1 FROM support_conversations WHERE id = $1::uuid LIMIT 1",
+        [conversationId],
+      );
       return r.rows.length > 0;
     },
 
     async getConversationRelayInfo(conversationId) {
-      const pool = getPool();
-      const r = await pool.query<{
+      const r = await runWebappPgText<{
         id: string;
         platform_user_id: string | null;
         channel_code: string | null;
@@ -933,8 +983,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async getConversationIfOwnedByUser(conversationId, platformUserId) {
-      const pool = getPool();
-      const r = await pool.query(
+      const r = await runWebappPgText<SupportConversationDbRow>(
         `SELECT id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
                 opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
                 created_at::text, updated_at::text
@@ -942,34 +991,16 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         [conversationId, platformUserId]
       );
       if (r.rows.length === 0) return null;
-      const row = r.rows[0]!;
-      return {
-        id: row.id,
-        integratorConversationId: row.integrator_conversation_id,
-        platformUserId: row.platform_user_id,
-        integratorUserId: row.integrator_user_id,
-        source: row.source,
-        adminScope: row.admin_scope,
-        status: row.status,
-        openedAt: row.opened_at,
-        lastMessageAt: row.last_message_at,
-        closedAt: row.closed_at,
-        closeReason: row.close_reason,
-        channelCode: row.channel_code,
-        channelExternalId: row.channel_external_id,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      };
+      return mapConversationRow(r.rows[0]!);
     },
 
     async markInboundReadForUser(conversationId, platformUserId) {
-      const pool = getPool();
-      const ok = await pool.query(
+      const ok = await runWebappPgText<Record<string, unknown>>(
         `SELECT 1 FROM support_conversations WHERE id = $1::uuid AND platform_user_id = $2::uuid`,
         [conversationId, platformUserId]
       );
       if (ok.rows.length === 0) return;
-      await pool.query(
+      await runWebappPgText(
         `UPDATE support_conversation_messages SET read_at = COALESCE(read_at, now())
          WHERE conversation_id IN (
            SELECT id FROM support_conversations WHERE platform_user_id = $1::uuid
@@ -980,8 +1011,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async markUserMessagesReadByAdmin(conversationId) {
-      const pool = getPool();
-      await pool.query(
+      await runWebappPgText(
         `UPDATE support_conversation_messages SET read_at = COALESCE(read_at, now())
          WHERE conversation_id = $1::uuid AND sender_role = 'user' AND read_at IS NULL`,
         [conversationId]
@@ -989,8 +1019,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async countUnreadForUser(platformUserId) {
-      const pool = getPool();
-      const r = await pool.query<{ c: string }>(
+      const r = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c FROM support_conversation_messages m
          JOIN support_conversations c ON c.id = m.conversation_id
          WHERE c.platform_user_id = $1::uuid AND m.sender_role <> 'user' AND m.read_at IS NULL`,
@@ -1000,8 +1029,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async listUnreadInboundAdminMessagesForUser(platformUserId) {
-      const pool = getPool();
-      const r = await pool.query<{ id: string; text: string }>(
+      const r = await runWebappPgText<{ id: string; text: string }>(
         `SELECT m.id::text AS id, m.text
          FROM support_conversation_messages m
          JOIN support_conversations c ON c.id = m.conversation_id
@@ -1015,8 +1043,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async countUnreadUserMessagesForAdmin() {
-      const pool = getPool();
-      const r = await pool.query<{ c: string }>(
+      const r = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c
          FROM support_conversation_messages m
          JOIN support_conversations c ON c.id = m.conversation_id
@@ -1029,8 +1056,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async countUnreadUserMessagesForAdminByConversation(conversationId) {
-      const pool = getPool();
-      const r = await pool.query<{ c: string }>(
+      const r = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c FROM support_conversation_messages m
          WHERE m.conversation_id = $1::uuid AND m.sender_role = 'user' AND m.read_at IS NULL`,
         [conversationId]
@@ -1039,8 +1065,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async countUnreadUserMessagesForAdminByPatient(platformUserId) {
-      const pool = getPool();
-      const r = await pool.query<{ c: string }>(
+      const r = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c
          FROM support_conversation_messages m
          JOIN support_conversations c ON c.id = m.conversation_id

@@ -6,7 +6,7 @@ isProject: false
 todos:
   - id: w3-p14a-support-core
     content: "14A: pgSupportCommunication.ts (46) — по подсекциям (threads, messages, filters) в отдельных commit-батчах."
-    status: pending
+    status: completed
   - id: w3-p14b-user-projection-core
     content: "14B: pgUserProjection.ts (43) — patch profile, admin client, joins; без изменения контрактов ответов."
     status: pending

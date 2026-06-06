@@ -748,3 +748,22 @@ LIMIT 3;"
 
 **Следующая фаза Wave 3:** [wave3_phase_14_webapp_comms_projection.plan.md](./plans/wave3_phase_14_webapp_comms_projection.plan.md).
 
+### Wave 3 phase 14A — support communication core (2026-06-06)
+
+- **Scope:** `apps/webapp/src/infra/repos/pgSupportCommunication.ts` — projection writes, admin list/filters, webapp messages, read/unread counts (43 domain call sites + merge TX wrapper).
+- **Transport:** domain SQL → `runWebappPgText` (Drizzle `execute(sql)`); `resolvePlatformUserId` — по-прежнему `findCanonicalUserIdByIntegratorId(getPool(), …)`.
+- **Class C:** `mergeLegacySupportConversationsForPlatformUser` — `BEGIN`/`COMMIT`/`ROLLBACK` на PoolClient; domain merge SQL остаётся в `mergeLegacySupportConversations.ts` (14C).
+- **Проверки:** `pool.query` = **0**; Class C `client.query` = **3×** (merge TX); Vitest `--project fast` `pgSupportCommunication` + messaging bundle — **86 passed**.
+- **RAW_SQL / plan:** todo `w3-p14a-support-core` → `completed`.
+
+#### Post-audit closure 14A (2026-06-06)
+
+- **Repo tests:** `pgSupportCommunication.repo.test.ts` — mock `runWebappPgText` (upsert, status fallback, admin filters, unread aggregate, conversationExists).
+- **Merge helper:** `mergeLegacySupportConversations.ts` → `runWebappPgText` + `getWebappSqlFromPgClient` (6 domain calls; ahead of 14C checklist).
+- **Canonical lookup:** `resolvePlatformUserId` in `pgSupportCommunication.ts` → `runWebappPgText` (no `getPool()` on upsert path).
+- **Zod boundaries:** `supportAdminListQuery.ts` — integrator GET conversations + doctor unread filter.
+- **Opt-in devDb:** `RUN_SUPPORT_COMMUNICATION_DEV_DB=1` + `USE_REAL_DATABASE=1` — read-only smoke (3 cases).
+- **Проверки:** `pool.query` = 0 в `pgSupportCommunication.ts` + `mergeLegacySupportConversations.ts`; Class C `client.query` = 3× (merge TX wrapper); Vitest fast bundle 14A — repo + in-memory + messaging + route/query tests green.
+
+**Следующая подфаза Wave 3 phase 14:** **14B** — `pgUserProjection.ts`.
+
