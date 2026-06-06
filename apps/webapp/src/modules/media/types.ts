@@ -100,7 +100,12 @@ export type MediaUsageSummary = {
 export type MediaUsageRef = {
   pageId: string;
   pageSlug: string;
-  field: "image_url" | "video_url" | "body_md" | "body_html";
+  field:
+    | "image_url"
+    | "video_url"
+    | "body_md"
+    | "body_html"
+    | "program_item_discussion_media_only";
 };
 
 /** LFK exercise referencing this library media (`/api/media/:id`). */

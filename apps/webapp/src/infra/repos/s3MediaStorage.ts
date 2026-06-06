@@ -427,7 +427,14 @@ export function createS3MediaStoragePort(): MediaStoragePort {
          UNION ALL
          SELECT id::text AS "pageId", slug AS "pageSlug", 'body_html'::text AS field
            FROM content_pages
-          WHERE body_html LIKE ${`%${mediaUrl}%`} OR (${publicUrl}::text IS NOT NULL AND body_html LIKE ${publicUrl ? `%${publicUrl}%` : null})`,
+          WHERE body_html LIKE ${`%${mediaUrl}%`} OR (${publicUrl}::text IS NOT NULL AND body_html LIKE ${publicUrl ? `%${publicUrl}%` : null})
+         UNION ALL
+         SELECT m.id::text AS "pageId",
+                ('program_item_discussion:' || m.instance_stage_item_id::text) AS "pageSlug",
+                'program_item_discussion_media_only'::text AS field
+           FROM program_item_discussion_messages m
+          WHERE m.media_file_id = ${mediaId}::uuid
+            AND m.body IS NULL`,
       );
       return res.rows.map((row) => ({
         pageId: row.pageId,
@@ -797,6 +804,47 @@ export type PurgePendingMediaDeleteBatchResult = {
   errors: number;
 };
 
+function computeDeleteRetryDelayMinutes(previousAttempts: number): number {
+  const exp = Math.min(previousAttempts + 1, 20);
+  return Math.min(1440, Math.pow(2, exp));
+}
+
+async function schedulePendingDeleteRetry(
+  db: ReturnType<typeof getWebappSqlFromPgClient>,
+  mediaId: string,
+  previousAttempts: number,
+): Promise<void> {
+  const minutes = computeDeleteRetryDelayMinutes(previousAttempts);
+  await runWebappSql(
+    db,
+    sql`UPDATE media_files SET
+       delete_attempts = delete_attempts + 1,
+       next_attempt_at = now() + (${minutes}::numeric * interval '1 minute')
+     WHERE id = ${mediaId}::uuid`,
+  );
+}
+
+function readPgCode(err: unknown): string | null {
+  if (!err || typeof err !== "object") return null;
+  const e = err as { code?: unknown; cause?: { code?: unknown } };
+  if (typeof e.code === "string" && e.code.length > 0) return e.code;
+  if (typeof e.cause?.code === "string" && e.cause.code.length > 0) return e.cause.code;
+  return null;
+}
+
+function readPgConstraint(err: unknown): string | null {
+  if (!err || typeof err !== "object") return null;
+  const e = err as { constraint?: unknown; cause?: { constraint?: unknown } };
+  if (typeof e.constraint === "string" && e.constraint.length > 0) return e.constraint;
+  if (typeof e.cause?.constraint === "string" && e.cause.constraint.length > 0) return e.cause.constraint;
+  return null;
+}
+
+function isDeterministicDeleteConstraintFailure(err: unknown): boolean {
+  const code = readPgCode(err);
+  return typeof code === "string" && code.startsWith("23");
+}
+
 /**
  * Resolves all S3 object keys to delete for a media row in `pending_delete` / `deleting`:
  * preview JPEGs, entire HLS prefix (variants + master + legacy segments), poster prefix/object, source MP4.
@@ -919,16 +967,7 @@ export async function purgePendingMediaDeleteBatch(
         keysToDelete = await collectS3KeysForMediaPurge(row);
       } catch (e) {
         logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] failed to list keys");
-        const prevAttempts = row.delete_attempts ?? 0;
-        const exp = Math.min(prevAttempts + 1, 20);
-        const minutes = Math.min(1440, Math.pow(2, exp));
-        await runWebappSql(
-          db,
-          sql`UPDATE media_files SET
-             delete_attempts = delete_attempts + 1,
-             next_attempt_at = now() + (${minutes}::numeric * interval '1 minute')
-           WHERE id = ${row.id}::uuid`,
-        );
+        await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
         await client.query("COMMIT");
         errors += 1;
         continue;
@@ -939,28 +978,38 @@ export async function purgePendingMediaDeleteBatch(
           await s3DeleteObject(key);
         }
       } catch (e) {
-        const prevAttempts = row.delete_attempts ?? 0;
-        const exp = Math.min(prevAttempts + 1, 20);
-        const minutes = Math.min(1440, Math.pow(2, exp));
-        await runWebappSql(
-          db,
-          sql`UPDATE media_files SET
-             delete_attempts = delete_attempts + 1,
-             next_attempt_at = now() + (${minutes}::numeric * interval '1 minute')
-           WHERE id = ${row.id}::uuid`,
-        );
+        await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
         await client.query("COMMIT");
         errors += 1;
         logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] s3 delete failed");
         continue;
       }
 
-      const del = await runWebappSql(
-        db,
-        sql`DELETE FROM media_files WHERE id = ${row.id}::uuid AND ${mediaS3PurgeStatusPredicate}`,
-      );
-      await client.query("COMMIT");
-      if ((del.rowCount ?? 0) > 0) removed += 1;
+      try {
+        const del = await runWebappSql(
+          db,
+          sql`DELETE FROM media_files WHERE id = ${row.id}::uuid AND ${mediaS3PurgeStatusPredicate}`,
+        );
+        await client.query("COMMIT");
+        if ((del.rowCount ?? 0) > 0) removed += 1;
+      } catch (e) {
+        if (!isDeterministicDeleteConstraintFailure(e)) {
+          throw e;
+        }
+        await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
+        await client.query("COMMIT");
+        errors += 1;
+        logger.warn(
+          {
+            err: e,
+            mediaId: row.id,
+            pgCode: readPgCode(e),
+            pgConstraint: readPgConstraint(e),
+          },
+          "[purgePendingMediaDeleteBatch] db delete blocked by data constraint; retry scheduled",
+        );
+        continue;
+      }
     } catch (e) {
       try {
         await client.query("ROLLBACK");

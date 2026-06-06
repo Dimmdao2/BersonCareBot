@@ -224,4 +224,38 @@ describe("purgePendingMediaDeleteBatch", () => {
     expect(s3DeleteObjectMock).toHaveBeenCalledWith("media/a/x");
     expect(approxSqlAt(1)).toContain("delete_attempts");
   });
+
+  it("does not throw when DB delete is blocked by check constraint", async () => {
+    const pgConstraintErr = Object.assign(new Error("check constraint"), {
+      code: "23514",
+      constraint: "program_item_discussion_messages_payload_check",
+    });
+
+    runWebappSqlMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            s3_key: "media/a/x",
+            status: "pending_delete",
+            delete_attempts: 2,
+            preview_sm_key: null,
+            preview_md_key: null,
+            hls_artifact_prefix: null,
+            poster_s3_key: null,
+            hls_master_playlist_s3_key: null,
+          },
+        ],
+      })
+      .mockRejectedValueOnce(pgConstraintErr)
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+    const r = await purgePendingMediaDeleteBatch(5);
+    expect(r.errors).toBe(1);
+    expect(r.removed).toBe(0);
+    expect(s3DeleteObjectMock).toHaveBeenCalledWith("media/a/x");
+    expect(approxSqlAt(2)).toContain("delete_attempts");
+  });
 });

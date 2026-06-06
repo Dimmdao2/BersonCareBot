@@ -66,7 +66,12 @@ type Crumb = { id: string | null; label: string };
 type UsageRef = {
   pageId: string;
   pageSlug: string;
-  field: "image_url" | "video_url" | "body_md" | "body_html";
+  field:
+    | "image_url"
+    | "video_url"
+    | "body_md"
+    | "body_html"
+    | "program_item_discussion_media_only";
 };
 
 type UploadOkResponse = {
@@ -155,6 +160,10 @@ function isDescendantOfFolder(flat: FolderRow[], ancestorId: string, nodeId: str
 
 function mediaTitle(item: MediaItem): string {
   return item.displayName?.trim() || item.filename;
+}
+
+function usageHasNonOverridableRefs(usage: UsageRef[]): boolean {
+  return usage.some((u) => u.field === "program_item_discussion_media_only");
 }
 
 export type MediaLibraryClientProps = {
@@ -802,7 +811,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         method: "DELETE",
         credentials: "same-origin",
       });
-      if (res.status === 409 && !force) {
+      if (res.status === 409) {
         const data = (await res.json()) as { usage?: UsageRef[] };
         const usage = data.usage ?? [];
         setDeleteDialog({ item, phase: "in_use", usage });
@@ -857,10 +866,10 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
           {deleteItem && deletePhase === "in_use" && deleteDialog && deleteDialog.phase === "in_use" ? (
             <>
               <DialogHeader>
-                <DialogTitle>Файл используется в CMS</DialogTitle>
+                <DialogTitle>Файл используется</DialogTitle>
                 <DialogDescription>
-                  Этот файл всё ещё указан на страницах контента. Удаление может сломать ссылки. Файл сразу
-                  исчезнет из библиотеки; очистка в хранилище — в фоне.
+                  Этот файл всё ещё используется в контенте или диалогах пациента. Удаление может сломать
+                  ссылки и историю сообщений.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 text-sm">
@@ -874,20 +883,29 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                 {deleteDialog.usage.length > 12 ? (
                   <p className="text-xs text-muted-foreground">…и ещё {deleteDialog.usage.length - 12}</p>
                 ) : null}
-                <p className="font-medium text-foreground">Удалить всё равно?</p>
+                {usageHasNonOverridableRefs(deleteDialog.usage) ? (
+                  <p className="font-medium text-foreground">
+                    В этом списке есть сообщения пациента, где файл является единственным содержимым, поэтому
+                    удаление заблокировано.
+                  </p>
+                ) : (
+                  <p className="font-medium text-foreground">Удалить всё равно?</p>
+                )}
               </div>
               <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
                 <Button type="button" variant="outline" onClick={() => setDeleteDialog(null)} disabled={deletingId !== null}>
                   Отмена
                 </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={deletingId !== null}
-                  onClick={() => void executeDelete(true)}
-                >
-                  {deletingId === deleteItem.id ? "Удаление..." : "Удалить всё равно"}
-                </Button>
+                {!usageHasNonOverridableRefs(deleteDialog.usage) ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={deletingId !== null}
+                    onClick={() => void executeDelete(true)}
+                  >
+                    {deletingId === deleteItem.id ? "Удаление..." : "Удалить всё равно"}
+                  </Button>
+                ) : null}
               </DialogFooter>
             </>
           ) : null}

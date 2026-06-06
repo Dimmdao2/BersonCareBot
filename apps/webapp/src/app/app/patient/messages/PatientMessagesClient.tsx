@@ -135,13 +135,14 @@ export function PatientMessagesClient() {
       <ChatView
         variant="patient"
         relativeFooters
+        stickyComposer
         messages={messages}
         emptyText="Напишите сообщение поддержке — ответ появится здесь."
         className="min-h-0 flex-1"
         composer={
           <div
             className={cn(
-              "shrink-0 border-t border-[var(--patient-border)] pt-3 md:pt-4",
+              "shrink-0 border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] pt-3 md:pt-4",
               patientInnerPageStackClass,
             )}
           >

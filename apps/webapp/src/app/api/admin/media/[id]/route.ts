@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
+import type { MediaUsageRef } from "@/modules/media/types";
 
 const querySchema = z.object({
   confirmDelete: z.enum(["true", "false"]).optional(),
@@ -82,6 +83,12 @@ export async function DELETE(
 
   const deps = buildAppDeps();
   const usage = await deps.media.findUsage(id);
+  const hasNonOverridableUsage = usage.some(
+    (entry: MediaUsageRef) => entry.field === "program_item_discussion_media_only",
+  );
+  if (hasNonOverridableUsage) {
+    return NextResponse.json({ ok: false, error: "media_in_use", usage }, { status: 409 });
+  }
   if (usage.length > 0 && !confirmUsed) {
     return NextResponse.json({ ok: false, error: "media_in_use", usage }, { status: 409 });
   }
