@@ -12,7 +12,7 @@ todos:
     status: completed
   - id: w3-p13c-doctor-clients-analytics
     content: "13C: pgDoctorClients.ts (18), pgDoctorAnalyticsMetricAccounts.ts (25), createDoctorClient.ts (7), pgDoctorNotes.ts (2), pgBranches.ts (2)."
-    status: pending
+    status: completed
   - id: w3-p13d-motivation-and-tail
     content: "13D: motivation/actions.ts (10), pgDoctorBroadcastDelivery.ts (6), pgDoctorProactiveInsights.ts (5) — SQL в infra портовом слое."
     status: pending
@@ -70,6 +70,14 @@ todos:
 - Проверка:
   - snapshot/parity tests для doctor analytics;
   - regression tests для doctor client flows.
+
+#### Закрытие 13C (2026-06-06)
+
+- Domain SQL → `runWebappPgText` во всех scope-файлах; `pgDoctorClients` — `getPool()` только для `resolveCanonicalUserId`.
+- `createDoctorClient` — Class C TX (`BEGIN`/`COMMIT`/`ROLLBACK`); pre-tx SELECT + INSERT через `runWebappPgText`; `findCanonicalUserIdByPhone(pool)` и `applyPlatformUserPhoneHistoryTransition(client)` без изменений.
+- Vitest `--project fast` bundle 13C — **52 passed** (+ contract/join tests без изменений).
+- Gate: `pool.query` = 0 в repos/notes/branches/analytics; в `createDoctorClient.ts` — только Class C transport.
+- **Post-audit (2026-06-06):** `pgDoctorAnalyticsMetricAccounts.parity.test.ts` (26 metric keys + pagination); расширены `pgDoctorClients.repo.test.ts`, `createDoctorClient.test.ts`; opt-in devDb `RUN_DOCTOR_CLIENTS_DEV_DB` / `RUN_DOCTOR_ANALYTICS_DEV_DB`.
 
 ### 13D — motivation and remaining doctor tails
 

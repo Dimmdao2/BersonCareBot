@@ -1,11 +1,11 @@
-import { getPool } from "@/infra/db/client";
+/** Wave 3 phase 13C — domain SQL via `runWebappPgText`. */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { DoctorNoteRow, DoctorNotesPort } from "@/modules/doctor-notes/ports";
 
 export function createPgDoctorNotesPort(): DoctorNotesPort {
   return {
     async listForUser(userId: string): Promise<DoctorNoteRow[]> {
-      const pool = getPool();
-      const r = await pool.query<{
+      const r = await runWebappPgText<{
         id: string;
         user_id: string;
         author_id: string;
@@ -28,8 +28,7 @@ export function createPgDoctorNotesPort(): DoctorNotesPort {
     },
 
     async create(params: { userId: string; authorId: string; text: string }): Promise<DoctorNoteRow> {
-      const pool = getPool();
-      const r = await pool.query<{
+      const r = await runWebappPgText<{
         id: string;
         user_id: string;
         author_id: string;

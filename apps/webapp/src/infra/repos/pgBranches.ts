@@ -1,8 +1,8 @@
 /**
- * Branches projection (Rubitime branch_id). Idempotent upsert by integrator_branch_id.
+ * Branches projection (Rubitime branch_id). Wave 3 phase 13C — `runWebappPgText`.
  */
 
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 
 export type BranchRow = {
   id: string;
@@ -33,11 +33,10 @@ function parseIntegratorBranchId(value: number | string): number {
 export function createPgBranchesProjectionPort(): BranchesProjectionPort {
   return {
     async upsertFromProjection(params) {
-      const pool = getPool();
       const integratorBranchId = parseIntegratorBranchId(params.integratorBranchId);
       const name = params.name ?? null;
       const metaJson = params.metaJson ?? {};
-      const result = await pool.query<{ id: string }>(
+      const result = await runWebappPgText<{ id: string }>(
         `INSERT INTO branches (integrator_branch_id, name, meta_json, updated_at)
          VALUES ($1, $2, $3::jsonb, now())
          ON CONFLICT (integrator_branch_id) DO UPDATE SET
@@ -52,9 +51,8 @@ export function createPgBranchesProjectionPort(): BranchesProjectionPort {
     },
 
     async getByIntegratorBranchId(integratorBranchId: number | string): Promise<BranchRow | null> {
-      const pool = getPool();
       const id = parseIntegratorBranchId(integratorBranchId);
-      const result = await pool.query<{
+      const result = await runWebappPgText<{
         id: string;
         integrator_branch_id: number;
         name: string | null;

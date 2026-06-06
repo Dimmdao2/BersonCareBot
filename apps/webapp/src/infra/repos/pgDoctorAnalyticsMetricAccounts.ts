@@ -1,4 +1,4 @@
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import {
   MIN_REGISTRATION_STATS_INCLUSIVE_DAYS,
   resolveAdminStatsLocalRange,
@@ -62,7 +62,6 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
     }) {
       const safeLimit = Math.min(Math.max(1, Math.floor(limit) || 20), 100);
       const safeOffset = Math.max(0, Math.floor(offset) || 0);
-      const pool = getPool();
       const orgId = await getDefaultOrganizationId();
       const excluded = excludedUserIds;
       const canonicalUser = "COALESCE(pu.merged_into_id, pu.id)";
@@ -86,7 +85,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [orgId, start, endExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -113,7 +112,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [orgId, start, endExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -140,7 +139,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [orgId, start, endExclusive, safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -166,7 +165,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [orgId, start, endExclusive, safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -193,7 +192,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [orgId, start, endExclusive, safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -220,7 +219,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -244,7 +243,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -275,7 +274,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -305,7 +304,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -338,7 +337,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -371,7 +370,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -401,7 +400,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -434,7 +433,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -467,7 +466,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -498,7 +497,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [start, endExclusive, safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -524,7 +523,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [start, endExclusive, safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -550,7 +549,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [start, endExclusive, safeLimit + 1, safeOffset],
             "q.user_id::uuid",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT * FROM (
                SELECT
                  COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
@@ -592,7 +591,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [orgId, from, to, safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -618,7 +617,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [orgId, from, toExclusive, safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -643,7 +642,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [orgId, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
             canonicalUser,
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -664,7 +663,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
         }
         if (metricKey === "today_new_clients_no_channels_7d") {
           const clientEx = sqlExcludeUsers(excluded, [7, safeLimit + 1, safeOffset], "pu.id");
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -696,7 +695,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [notifHours, status, safeLimit + 1, safeOffset],
             "COALESCE(rr.platform_user_id, pu.id)",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                COALESCE(rr.platform_user_id, pu.id)::text AS user_id,
                pcanon.display_name,
@@ -726,7 +725,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [notifHours, safeLimit + 1, safeOffset],
             "e.user_id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                e.user_id::text AS user_id,
                pu.display_name,
@@ -751,7 +750,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             [endExclusive, safeLimit + 1, safeOffset],
             "pu.id",
           );
-          const r = await pool.query<ListRow>(
+          const r = await runWebappPgText<ListRow>(
             `SELECT
                pu.id::text AS user_id,
                pu.display_name,
@@ -783,7 +782,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           [start, endExclusive, safeLimit + 1, safeOffset],
           "pu.id",
         );
-        const r = await pool.query<ListRow>(
+        const r = await runWebappPgText<ListRow>(
           `SELECT
              pu.id::text AS user_id,
              pu.display_name,

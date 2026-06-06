@@ -695,3 +695,12 @@ LIMIT 3;"
 - **Post-audit (2026-06-06):** legacy calendar + projection repo tests; patient bookings status/get tests; opt-in devDb read-only (`RUN_PATIENT_BOOKINGS_DEV_DB`); RAW_SQL row `pgBookingCalendarLegacy`.
 - **RAW_SQL / plan:** todo `w3-p13b-bookings-appointments` → `completed`.
 
+### Wave 3 phase 13C — doctor clients + analytics (2026-06-06)
+
+- **Scope:** `pgDoctorClients.ts`, `pgDoctorAnalyticsMetricAccounts.ts`, `createDoctorClient.ts`, `pgDoctorNotes.ts`, `pgBranches.ts`.
+- **Transport:** domain SQL → `runWebappPgText`; `resolveCanonicalUserId` / `findCanonicalUserIdByPhone` — по-прежнему `Pool | PoolClient`.
+- **Class C:** `createDoctorClient` — INSERT + phone history в TX; transport `BEGIN`/`COMMIT`/`ROLLBACK` на PoolClient.
+- **Проверки:** `pool.query` = 0 в scope repos (кроме Class C transport в `createDoctorClient`); Vitest fast bundle 13C — **52 passed**.
+- **Tests:** mock `runWebappPgText`; parity table 26 metric keys; repo/createDoctorClient edge cases; opt-in devDb `RUN_DOCTOR_CLIENTS_DEV_DB` / `RUN_DOCTOR_ANALYTICS_DEV_DB`.
+- **RAW_SQL / plan:** todo `w3-p13c-doctor-clients-analytics` → `completed`.
+

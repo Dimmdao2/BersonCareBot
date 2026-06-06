@@ -1,4 +1,8 @@
+/**
+ * Wave 3 phase 13C — domain SQL via `runWebappPgText`; canonical helpers still accept `getPool()`.
+ */
 import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import type { ChannelBindings } from "@/shared/types/session";
 import type {
@@ -68,7 +72,6 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       filters: DoctorClientsFilters,
       audience?: { excludedUserIds?: string[] },
     ): Promise<ClientListItem[]> {
-      const pool = getPool();
       const excluded = audience?.excludedUserIds ?? [];
       const archivedClause =
         filters.archivedOnly === true
@@ -78,7 +81,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
          FROM platform_users pu
          WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${archivedClause}`;
       const listQ = appendSqlExcludeUserIds(listBase, "pu.id", excluded, []);
-      const clientRows = await pool.query(
+      const clientRows = await runWebappPgText(
         `${listQ.sql}
          ORDER BY display_name, id`,
         listQ.params,
@@ -86,7 +89,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       if (clientRows.rows.length === 0) return [];
 
       const userIds = clientRows.rows.map((r: { id: string }) => r.id);
-      const bindingsRows = await pool.query(
+      const bindingsRows = await runWebappPgText(
         `SELECT user_id, channel_code, external_id FROM user_channel_bindings WHERE user_id = ANY($1::uuid[])`,
         [userIds]
       );
@@ -98,7 +101,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       }
 
       const [upcomingUsers, activeProgramPatients] = await Promise.all([
-        pool.query<{ id: string }>(
+        runWebappPgText<{ id: string }>(
           `SELECT DISTINCT pu.id
            FROM platform_users pu
            INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
@@ -109,7 +112,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND ar.record_at >= NOW()`,
           [userIds],
         ),
-        pool.query<{ patient_user_id: string; instance_id: string }>(
+        runWebappPgText<{ patient_user_id: string; instance_id: string }>(
           `SELECT DISTINCT ON (patient_user_id)
              patient_user_id,
              id AS instance_id
@@ -159,7 +162,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         list = list.filter((item) => item.activeTreatmentProgram);
       }
       if (filters.onlyWithAppointmentRecords === true && !filters.archivedOnly) {
-        const withAnyRecord = await pool.query<{ id: string }>(
+        const withAnyRecord = await runWebappPgText<{ id: string }>(
           `SELECT DISTINCT pu.id
            FROM platform_users pu
            INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
@@ -171,7 +174,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         list = list.filter((item) => idSet.has(item.userId));
       }
       if (filters.visitedThisCalendarMonth === true && !filters.archivedOnly) {
-        const visited = await pool.query<{ id: string }>(
+        const visited = await runWebappPgText<{ id: string }>(
           `SELECT DISTINCT pu.id
            FROM platform_users pu
            INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
@@ -206,7 +209,6 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async getDashboardPatientMetrics(audience?: {
       excludedUserIds?: string[];
     }): Promise<DoctorDashboardPatientMetrics> {
-      const pool = getPool();
       const excluded = audience?.excludedUserIds ?? [];
       const totalBase = `SELECT COUNT(*)::text AS c FROM platform_users pu WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND COALESCE(pu.is_archived, false) = false`;
       const totalQ = appendSqlExcludeUserIds(totalBase, "pu.id", excluded, []);
@@ -232,9 +234,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND ar.deleted_at IS NULL`;
       const visitedQ = appendSqlExcludeUserIds(visitedBase, "pu.id", excluded, []);
       const [totalR, supportR, visitedR] = await Promise.all([
-        pool.query<{ c: string }>(totalQ.sql, totalQ.params),
-        pool.query<{ c: string }>(supportQ.sql, supportQ.params),
-        pool.query<{ c: string }>(visitedQ.sql, visitedQ.params),
+        runWebappPgText<{ c: string }>(totalQ.sql, totalQ.params),
+        runWebappPgText<{ c: string }>(supportQ.sql, supportQ.params),
+        runWebappPgText<{ c: string }>(visitedQ.sql, visitedQ.params),
       ]);
       return {
         totalClients: parseInt(totalR.rows[0]?.c ?? "0", 10),
@@ -247,7 +249,6 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       days: number,
       audience?: { excludedUserIds?: string[] },
     ): Promise<number> {
-      const pool = getPool();
       const safeDays = Math.max(1, Math.min(365, Math.floor(days)));
       const excluded = audience?.excludedUserIds ?? [];
       const base = `SELECT COUNT(*)::text AS c
@@ -263,14 +264,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                AND ucb.channel_code IN ('telegram', 'max')
            )`;
       const q = appendSqlExcludeUserIds(base, "pu.id", excluded, [safeDays]);
-      const r = await pool.query<{ c: string }>(q.sql, q.params);
+      const r = await runWebappPgText<{ c: string }>(q.sql, q.params);
       return parseInt(r.rows[0]?.c ?? "0", 10);
     },
 
     async getPatientClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
-      const roleRow = await pool.query<{ role: string }>(
+      const roleRow = await runWebappPgText<{ role: string }>(
         `SELECT role FROM platform_users WHERE id = $1::uuid`,
         [canonicalId],
       );
@@ -281,7 +282,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
-      const userRow = await pool.query(
+      const userRow = await runWebappPgText(
         `SELECT id, display_name, phone_normalized, created_at,
                 first_name, last_name, email, email_verified_at,
                 COALESCE(is_blocked, false) AS is_blocked,
@@ -304,7 +305,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         blocked_reason: string | null;
         is_archived: boolean;
       };
-      const bindingsRows = await pool.query(
+      const bindingsRows = await runWebappPgText(
         "SELECT channel_code, external_id, created_at FROM user_channel_bindings WHERE user_id = $1",
         [canonicalId],
       );
@@ -341,8 +342,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async isClientMessagingBlocked(userId: string): Promise<boolean> {
-      const pool = getPool();
-      const r = await pool.query<{ b: boolean }>(
+      const r = await runWebappPgText<{ b: boolean }>(
         `SELECT COALESCE(is_blocked, false) AS b FROM platform_users WHERE id = $1`,
         [userId]
       );
@@ -355,9 +355,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       reason: string | null;
       actorId: string;
     }): Promise<void> {
-      const pool = getPool();
       if (params.blocked) {
-        await pool.query(
+        await runWebappPgText(
           `UPDATE platform_users SET
              is_blocked = true,
              blocked_at = now(),
@@ -368,7 +367,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           [params.userId, params.reason, params.actorId]
         );
       } else {
-        await pool.query(
+        await runWebappPgText(
           `UPDATE platform_users SET
              is_blocked = false,
              blocked_at = NULL,
@@ -382,8 +381,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async setUserArchived(userId: string, archived: boolean): Promise<void> {
-      const pool = getPool();
-      await pool.query(
+      await runWebappPgText(
         `UPDATE platform_users SET is_archived = $2, updated_at = now()
          WHERE id = $1::uuid AND role = 'client'`,
         [userId, archived]
@@ -400,7 +398,6 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     },
 
     async getClientContactBreakdown(audience?: { excludedUserIds?: string[] }) {
-      const pool = getPool();
       const excluded = audience?.excludedUserIds ?? [];
       const base = `SELECT
            EXISTS (
@@ -418,7 +415,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            AND pu.merged_into_id IS NULL
            AND COALESCE(pu.is_archived, false) = false`;
       const q = appendSqlExcludeUserIds(base, "pu.id", excluded, []);
-      const rows = await pool.query<{
+      const rows = await runWebappPgText<{
         has_telegram: boolean;
         has_max: boolean;
         has_verified_email: boolean;

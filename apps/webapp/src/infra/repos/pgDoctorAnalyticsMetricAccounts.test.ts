@@ -1,14 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const queryMock = vi.hoisted(() =>
+const runWebappPgTextMock = vi.hoisted(() =>
   vi.fn<(sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }>>(
     async () => ({ rows: [] }),
   ),
 );
-const getPoolMock = vi.hoisted(() => vi.fn(() => ({ query: queryMock })));
 
-vi.mock("@/infra/db/client", () => ({
-  getPool: getPoolMock,
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappPgText: runWebappPgTextMock,
 }));
 
 import { createPgDoctorAnalyticsMetricAccountsPort } from "./pgDoctorAnalyticsMetricAccounts";
@@ -18,9 +17,8 @@ const EXCLUDED = ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"];
 
 describe("pgDoctorAnalyticsMetricAccounts", () => {
   beforeEach(() => {
-    queryMock.mockClear();
-    getPoolMock.mockClear();
-    queryMock.mockResolvedValue({ rows: [] });
+    runWebappPgTextMock.mockReset();
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
   });
 
   it("today_appointments_today applies excludedUserIds in SQL", async () => {
@@ -34,8 +32,8 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
       excludedUserIds: EXCLUDED,
     });
 
-    expect(queryMock).toHaveBeenCalledTimes(1);
-    const firstCall = queryMock.mock.calls[0];
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
+    const firstCall = runWebappPgTextMock.mock.calls[0];
     expect(firstCall).toBeDefined();
     const sql = String(firstCall![0]);
     const params = firstCall![1] as unknown[];
@@ -55,7 +53,7 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
       excludedUserIds: [],
     });
 
-    const firstCall = queryMock.mock.calls[0];
+    const firstCall = runWebappPgTextMock.mock.calls[0];
     expect(firstCall).toBeDefined();
     const sql = String(firstCall![0]);
     expect(sql).toContain("Запись на неделе");
@@ -75,7 +73,7 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
       windowHours: 48,
     });
 
-    const firstCall = queryMock.mock.calls[0];
+    const firstCall = runWebappPgTextMock.mock.calls[0];
     expect(firstCall).toBeDefined();
     const sql = String(firstCall![0]);
     const params = firstCall![1] as unknown[];
@@ -98,7 +96,7 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
       windowHours: 24,
     });
 
-    const firstCall = queryMock.mock.calls[0];
+    const firstCall = runWebappPgTextMock.mock.calls[0];
     expect(firstCall).toBeDefined();
     const sql = String(firstCall![0]);
     const params = firstCall![1] as unknown[];

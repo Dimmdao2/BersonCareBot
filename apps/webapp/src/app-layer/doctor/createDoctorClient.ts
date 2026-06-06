@@ -1,4 +1,5 @@
 import { getPool } from "@/app-layer/db/client";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
 import type { EmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
 import { findCanonicalUserIdByPhone } from "@/infra/repos/pgCanonicalPlatformUser";
@@ -45,7 +46,7 @@ export async function createDoctorClient(
   const pool = getPool();
   const existingId = await findCanonicalUserIdByPhone(pool, phoneNormalized);
   if (existingId) {
-    const row = await pool.query<{ display_name: string; phone_normalized: string | null }>(
+    const row = await runWebappPgText<{ display_name: string; phone_normalized: string | null }>(
       `SELECT display_name, phone_normalized FROM platform_users WHERE id = $1::uuid`,
       [existingId],
     );
@@ -62,7 +63,7 @@ export async function createDoctorClient(
   }
 
   if (emailNorm) {
-    const conflict = await pool.query<{ id: string }>(
+    const conflict = await runWebappPgText<{ id: string }>(
       `SELECT id FROM platform_users
        WHERE merged_into_id IS NULL
          AND email IS NOT NULL
@@ -85,7 +86,7 @@ export async function createDoctorClient(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const ins = await client.query<{ id: string; display_name: string }>(
+    const ins = await runWebappPgText<{ id: string; display_name: string }>(
       `INSERT INTO platform_users (
          phone_normalized, display_name, email, email_normalized, role, patient_phone_trust_at
        ) VALUES (
@@ -95,6 +96,7 @@ export async function createDoctorClient(
        )
        RETURNING id, display_name`,
       [phoneNormalized, displayName, emailRaw || null],
+      getWebappSqlFromPgClient(client),
     );
     const userId = ins.rows[0]?.id;
     if (!userId) {

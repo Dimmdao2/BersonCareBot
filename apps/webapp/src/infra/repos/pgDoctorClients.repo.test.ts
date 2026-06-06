@@ -1,0 +1,163 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
+const listOnSupportPatientUserIdsMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappPgText: runWebappPgTextMock,
+}));
+
+vi.mock("@/infra/db/client", () => ({
+  getPool: vi.fn(() => ({})),
+}));
+
+vi.mock("@/infra/repos/pgCanonicalPlatformUser", () => ({
+  resolveCanonicalUserId: resolveCanonicalUserIdMock,
+}));
+
+vi.mock("@/infra/repos/pgDoctorPatientSupport", () => ({
+  getClientSupportProfile: vi.fn(),
+  listOnSupportPatientUserIds: listOnSupportPatientUserIdsMock,
+  upsertClientSupportProfile: vi.fn(),
+}));
+
+import { createPgDoctorClientsPort } from "./pgDoctorClients";
+
+describe("pgDoctorClients repo", () => {
+  beforeEach(() => {
+    runWebappPgTextMock.mockReset();
+    resolveCanonicalUserIdMock.mockReset();
+    listOnSupportPatientUserIdsMock.mockReset();
+    listOnSupportPatientUserIdsMock.mockResolvedValue(new Set());
+  });
+
+  it("listClients returns empty when no platform_users rows", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    const port = createPgDoctorClientsPort();
+    const list = await port.listClients({});
+    expect(list).toEqual([]);
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("platform_users");
+  });
+
+  it("listClients filters hasUpcomingAppointment in memory", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "u1", display_name: "A", phone_normalized: "+71", created_at: "2026-01-01" },
+          { id: "u2", display_name: "B", phone_normalized: "+72", created_at: "2026-01-02" },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "u1" }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgDoctorClientsPort();
+    const list = await port.listClients({ hasUpcomingAppointment: true });
+
+    expect(list).toHaveLength(1);
+    expect(list[0]?.userId).toBe("u1");
+    expect(list[0]?.nextAppointmentLabel).toBe("Есть запись");
+  });
+
+  it("listClients supportStatus on filters by on-support ids", async () => {
+    listOnSupportPatientUserIdsMock.mockResolvedValue(new Set(["u2"]));
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "u1", display_name: "A", phone_normalized: null, created_at: "2026-01-01" },
+          { id: "u2", display_name: "B", phone_normalized: null, created_at: "2026-01-02" },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgDoctorClientsPort();
+    const list = await port.listClients({ supportStatus: "on" });
+
+    expect(list).toHaveLength(1);
+    expect(list[0]?.userId).toBe("u2");
+  });
+
+  it("getDashboardPatientMetrics runs three count queries in parallel", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [{ c: "3" }] });
+    const port = createPgDoctorClientsPort();
+    const metrics = await port.getDashboardPatientMetrics();
+
+    expect(metrics).toEqual({
+      totalClients: 3,
+      onSupportCount: 3,
+      visitedThisCalendarMonthCount: 3,
+    });
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("getClientIdentity resolves canonical id and maps bindings", async () => {
+    resolveCanonicalUserIdMock.mockResolvedValue("canonical-1");
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "canonical-1",
+            display_name: "Client",
+            phone_normalized: "+79991234567",
+            created_at: "2026-01-01T00:00:00.000Z",
+            first_name: "A",
+            last_name: "B",
+            email: "c@example.com",
+            email_verified_at: null,
+            is_blocked: false,
+            blocked_reason: null,
+            is_archived: false,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ channel_code: "telegram", external_id: "tg-1", created_at: new Date("2026-02-01") }],
+      });
+
+    const port = createPgDoctorClientsPort();
+    const identity = await port.getClientIdentity("alias-id");
+
+    expect(resolveCanonicalUserIdMock).toHaveBeenCalled();
+    expect(identity).toMatchObject({
+      userId: "canonical-1",
+      displayName: "Client",
+      bindings: { telegramId: "tg-1" },
+      isBlocked: false,
+    });
+  });
+
+  it("setClientBlocked block true updates blocked columns", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const port = createPgDoctorClientsPort();
+    await port.setClientBlocked({
+      userId: "u1",
+      blocked: true,
+      reason: "spam",
+      actorId: "doc-1",
+    });
+
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("is_blocked = true");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["u1", "spam", "doc-1"]);
+  });
+
+  it("setClientBlocked block false clears blocked columns", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const port = createPgDoctorClientsPort();
+    await port.setClientBlocked({
+      userId: "u1",
+      blocked: false,
+      reason: null,
+      actorId: "doc-1",
+    });
+
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("is_blocked = false");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["u1"]);
+  });
+});
