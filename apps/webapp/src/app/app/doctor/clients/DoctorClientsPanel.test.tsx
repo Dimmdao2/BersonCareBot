@@ -44,6 +44,7 @@ describe("DoctorClientsPanel", () => {
         bindings: { telegramId: "tg1", maxId: "m1" },
         hasEmail: true,
         hasApp: true,
+        hasMemberships: true,
       }),
     ];
     render(
@@ -61,6 +62,7 @@ describe("DoctorClientsPanel", () => {
     expect(scope.getByLabelText("Подключён MAX")).toBeInTheDocument();
     expect(scope.getByLabelText("Указан email")).toBeInTheDocument();
     expect(scope.getByLabelText("Есть приложение")).toBeInTheDocument();
+    expect(scope.getByLabelText("Есть абонемент")).toBeInTheDocument();
   });
 
   it("renders only phone indicator when other channels are absent", () => {
@@ -178,6 +180,27 @@ describe("DoctorClientsPanel", () => {
     const nextUrl = String(routerReplaceMock.mock.calls.at(-1)?.[0] ?? "");
     expect(nextUrl).toContain("scope=all");
     expect(nextUrl).toContain("withoutAppointments=1");
+    expect(nextUrl).not.toContain("segment=appointments");
+  });
+
+  it("appointments icon cycles to negative and clears appointments segment", () => {
+    const list = [
+      baseItem({ userId: "x1", displayName: "With history", hasAppointmentHistory: true }),
+      baseItem({ userId: "x2", displayName: "No history", hasAppointmentHistory: false }),
+    ];
+    render(
+      <DoctorClientsPanel
+        allClients={list}
+        urlParams={{ scope: "all", segment: "appointments", appointmentFilter: "new" }}
+        basePath="/app/doctor/clients"
+      />,
+    );
+
+    const appointmentsFilter = screen.getByLabelText("Фильтр записей");
+    fireEvent.click(appointmentsFilter); // negative
+
+    const nextUrl = String(routerReplaceMock.mock.calls.at(-1)?.[0] ?? "");
+    expect(nextUrl).toContain("appointmentFilter=no");
     expect(nextUrl).not.toContain("segment=appointments");
   });
 });

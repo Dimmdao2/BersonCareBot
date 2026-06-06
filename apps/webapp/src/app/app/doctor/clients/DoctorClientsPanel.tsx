@@ -3,7 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { CalendarDays, Dumbbell, Handshake, Mail, MessageSquare, Phone, Send, Smartphone } from "lucide-react";
+import {
+  Ban,
+  CalendarDays,
+  Dumbbell,
+  Handshake,
+  Mail,
+  MessageSquare,
+  Phone,
+  Send,
+  Smartphone,
+  Ticket,
+} from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
@@ -27,6 +38,16 @@ type UrlParams = {
   reschedules?: string;
   withoutAppointments?: string;
   memberships?: string;
+  appointmentFilter?: string;
+  messageFilter?: string;
+  commentFilter?: string;
+  membershipFilter?: string;
+  supportFilter?: string;
+  telegramFilter?: string;
+  maxFilter?: string;
+  emailFilter?: string;
+  phoneFilter?: string;
+  appFilter?: string;
   scope?: string;
   /** Legacy query params kept for backwards compatibility. */
   appointment?: string;
@@ -41,6 +62,22 @@ type Props = {
 };
 
 const DEFAULT_BASE = "/app/doctor/clients";
+
+type TriFilterState = "off" | "positive" | "negative";
+type RichFilterState = "off" | "positive" | "new" | "negative";
+
+type IconFiltersState = {
+  appointments: RichFilterState;
+  messages: RichFilterState;
+  comments: RichFilterState;
+  memberships: TriFilterState;
+  support: TriFilterState;
+  telegram: TriFilterState;
+  max: TriFilterState;
+  email: TriFilterState;
+  phone: TriFilterState;
+  app: TriFilterState;
+};
 
 function clientRowHref(c: ClientListItem, basePath: string, scope: ClientsScope): string {
   return `${basePath}/${encodeURIComponent(c.userId)}?scope=${encodeURIComponent(scope)}`;
@@ -78,6 +115,92 @@ function hasMemberships(item: ClientListItem): boolean {
   return item.hasMemberships === true;
 }
 
+function parseTriFilterState(raw: string | undefined, fallbackPositive = false): TriFilterState {
+  if (raw === "yes") return "positive";
+  if (raw === "no") return "negative";
+  return fallbackPositive ? "positive" : "off";
+}
+
+function parseRichFilterState(raw: string | undefined, fallbackNegative = false): RichFilterState {
+  if (raw === "yes") return "positive";
+  if (raw === "new") return "new";
+  if (raw === "no") return "negative";
+  return fallbackNegative ? "negative" : "off";
+}
+
+function serializeTriFilterState(state: TriFilterState): string | null {
+  if (state === "positive") return "yes";
+  if (state === "negative") return "no";
+  return null;
+}
+
+function serializeRichFilterState(state: RichFilterState): string | null {
+  if (state === "positive") return "yes";
+  if (state === "new") return "new";
+  if (state === "negative") return "no";
+  return null;
+}
+
+function cycleTriFilterState(state: TriFilterState): TriFilterState {
+  if (state === "off") return "positive";
+  if (state === "positive") return "negative";
+  return "off";
+}
+
+function cycleRichFilterState(state: RichFilterState): RichFilterState {
+  if (state === "off") return "positive";
+  if (state === "positive") return "new";
+  if (state === "new") return "negative";
+  return "off";
+}
+
+function applyTriFilter(
+  list: ClientListItem[],
+  state: TriFilterState,
+  predicate: (item: ClientListItem) => boolean,
+): ClientListItem[] {
+  if (state === "off") return list;
+  if (state === "positive") return list.filter(predicate);
+  return list.filter((item) => !predicate(item));
+}
+
+function applyRichFilter(
+  list: ClientListItem[],
+  state: RichFilterState,
+  hasPredicate: (item: ClientListItem) => boolean,
+  newPredicate: (item: ClientListItem) => boolean,
+): ClientListItem[] {
+  if (state === "off") return list;
+  if (state === "positive") return list.filter(hasPredicate);
+  if (state === "new") return list.filter(newPredicate);
+  return list.filter((item) => !hasPredicate(item));
+}
+
+function syncLegacyFiltersFromIconFilters(
+  base: {
+    telegram: boolean;
+    max: boolean;
+    email: boolean;
+    phone: boolean;
+    visitedMonth: boolean;
+    cancellations: boolean;
+    reschedules: boolean;
+    withoutAppointments: boolean;
+    memberships: boolean;
+  },
+  iconFilters: IconFiltersState,
+) {
+  return {
+    ...base,
+    telegram: iconFilters.telegram === "positive",
+    max: iconFilters.max === "positive",
+    email: iconFilters.email === "positive",
+    phone: iconFilters.phone === "positive",
+    withoutAppointments: iconFilters.appointments === "negative",
+    memberships: iconFilters.memberships === "positive",
+  };
+}
+
 function iconBadge(value: number | null): ReactNode {
   if (!value || value <= 0) return null;
   return (
@@ -111,6 +234,48 @@ function IconSlot({ visible, label, title, badge, children }: IconSlotProps) {
   );
 }
 
+type HeaderIconButtonProps = {
+  label: string;
+  title: string;
+  state: TriFilterState | RichFilterState;
+  onClick: () => void;
+  children: ReactNode;
+};
+
+function HeaderIconButton({ label, title, state, onClick, children }: HeaderIconButtonProps) {
+  const isPositive = state === "positive" || state === "new";
+  const isNegative = state === "negative";
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={title}
+      onClick={onClick}
+      className={[
+        "relative inline-flex size-7 shrink-0 items-center justify-center rounded-md border transition-colors",
+        isPositive
+          ? "border-primary/50 bg-primary/15 text-primary"
+          : isNegative
+            ? "border-slate-500/60 bg-slate-600/20 text-slate-700 dark:text-slate-300"
+            : "border-border/60 bg-muted/40 text-muted-foreground",
+      ].join(" ")}
+    >
+      {children}
+      {state === "new" ? (
+        <span
+          className="absolute -right-1 -top-1 inline-flex size-2.5 rounded-full bg-destructive"
+          aria-hidden
+        />
+      ) : null}
+      {isNegative ? (
+        <span className="absolute -right-1 -top-1 inline-flex size-3.5 items-center justify-center rounded-full bg-background">
+          <Ban className="size-3 text-destructive" aria-hidden />
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 export function DoctorClientsPanel({
   allClients,
   urlParams,
@@ -135,6 +300,22 @@ export function DoctorClientsPanel({
     [urlParams],
   );
 
+  const iconFilters = useMemo<IconFiltersState>(
+    () => ({
+      appointments: parseRichFilterState(urlParams.appointmentFilter, urlParams.withoutAppointments === "1"),
+      messages: parseRichFilterState(urlParams.messageFilter),
+      comments: parseRichFilterState(urlParams.commentFilter),
+      memberships: parseTriFilterState(urlParams.membershipFilter, urlParams.memberships === "1"),
+      support: parseTriFilterState(urlParams.supportFilter),
+      telegram: parseTriFilterState(urlParams.telegramFilter, urlParams.telegram === "1"),
+      max: parseTriFilterState(urlParams.maxFilter, urlParams.max === "1"),
+      email: parseTriFilterState(urlParams.emailFilter, urlParams.email === "1"),
+      phone: parseTriFilterState(urlParams.phoneFilter, urlParams.phone === "1"),
+      app: parseTriFilterState(urlParams.appFilter),
+    }),
+    [urlParams],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim();
     let list = allClients;
@@ -150,18 +331,6 @@ export function DoctorClientsPanel({
     if (q.length >= 3) {
       list = list.filter((c) => matchesSearch(c, q));
     }
-    if (filters.telegram) {
-      list = list.filter((c) => Boolean(c.bindings.telegramId?.trim()));
-    }
-    if (filters.max) {
-      list = list.filter((c) => Boolean(c.bindings.maxId?.trim()));
-    }
-    if (filters.email) {
-      list = list.filter((c) => c.hasEmail === true);
-    }
-    if (filters.phone) {
-      list = list.filter((c) => Boolean(c.phone?.trim()));
-    }
     if (filters.visitedMonth) {
       list = list.filter((c) => c.visitedThisCalendarMonth === true);
     }
@@ -171,14 +340,33 @@ export function DoctorClientsPanel({
     if (filters.reschedules) {
       list = list.filter((c) => (c.rescheduleCount30d ?? 0) > 0);
     }
-    if (filters.withoutAppointments) {
-      list = list.filter((c) => !hasAppointmentHistory(c));
-    }
-    if (filters.memberships) {
-      list = list.filter((c) => hasMemberships(c));
-    }
+    list = applyRichFilter(
+      list,
+      iconFilters.appointments,
+      (c) => hasAppointmentHistory(c),
+      (c) => (c.activeAppointmentsCount ?? 0) > 0,
+    );
+    list = applyRichFilter(
+      list,
+      iconFilters.messages,
+      (c) => (c.hasConversation ?? false) || (c.unreadMessagesCount ?? 0) > 0,
+      (c) => (c.unreadMessagesCount ?? 0) > 0,
+    );
+    list = applyRichFilter(
+      list,
+      iconFilters.comments,
+      (c) => c.activeTreatmentProgram,
+      (c) => (c.unreadExerciseCommentsCount ?? 0) > 0,
+    );
+    list = applyTriFilter(list, iconFilters.memberships, (c) => hasMemberships(c));
+    list = applyTriFilter(list, iconFilters.support, (c) => c.isOnSupport === true);
+    list = applyTriFilter(list, iconFilters.telegram, (c) => Boolean(c.bindings.telegramId?.trim()));
+    list = applyTriFilter(list, iconFilters.max, (c) => Boolean(c.bindings.maxId?.trim()));
+    list = applyTriFilter(list, iconFilters.email, (c) => c.hasEmail === true);
+    list = applyTriFilter(list, iconFilters.phone, (c) => Boolean(c.phone?.trim()));
+    list = applyTriFilter(list, iconFilters.app, (c) => c.hasApp === true);
     return list;
-  }, [allClients, filters, scope, search, segment]);
+  }, [allClients, filters, iconFilters, scope, search, segment]);
 
   const segmentCounts = useMemo(
     () => ({
@@ -204,6 +392,7 @@ export function DoctorClientsPanel({
       reschedules: boolean;
       withoutAppointments: boolean;
       memberships: boolean;
+      iconFilters: IconFiltersState;
     }) => {
       const params = new URLSearchParams();
       params.set("scope", next.scope);
@@ -217,6 +406,26 @@ export function DoctorClientsPanel({
       if (next.reschedules) params.set("reschedules", "1");
       if (next.withoutAppointments) params.set("withoutAppointments", "1");
       if (next.memberships) params.set("memberships", "1");
+      const appointmentFilter = serializeRichFilterState(next.iconFilters.appointments);
+      if (appointmentFilter) params.set("appointmentFilter", appointmentFilter);
+      const messageFilter = serializeRichFilterState(next.iconFilters.messages);
+      if (messageFilter) params.set("messageFilter", messageFilter);
+      const commentFilter = serializeRichFilterState(next.iconFilters.comments);
+      if (commentFilter) params.set("commentFilter", commentFilter);
+      const membershipFilter = serializeTriFilterState(next.iconFilters.memberships);
+      if (membershipFilter) params.set("membershipFilter", membershipFilter);
+      const supportFilter = serializeTriFilterState(next.iconFilters.support);
+      if (supportFilter) params.set("supportFilter", supportFilter);
+      const telegramFilter = serializeTriFilterState(next.iconFilters.telegram);
+      if (telegramFilter) params.set("telegramFilter", telegramFilter);
+      const maxFilter = serializeTriFilterState(next.iconFilters.max);
+      if (maxFilter) params.set("maxFilter", maxFilter);
+      const emailFilter = serializeTriFilterState(next.iconFilters.email);
+      if (emailFilter) params.set("emailFilter", emailFilter);
+      const phoneFilter = serializeTriFilterState(next.iconFilters.phone);
+      if (phoneFilter) params.set("phoneFilter", phoneFilter);
+      const appFilter = serializeTriFilterState(next.iconFilters.app);
+      if (appFilter) params.set("appFilter", appFilter);
       const query = params.toString();
       router.replace(`${basePath}${query ? `?${query}` : ""}`);
     },
@@ -225,14 +434,19 @@ export function DoctorClientsPanel({
 
   const onSegmentChange = useCallback(
     (nextSegment: ClientSegment) => {
+      const nextIconFilters: IconFiltersState =
+        nextSegment === "appointments" && iconFilters.appointments === "negative"
+          ? { ...iconFilters, appointments: "off" }
+          : iconFilters;
+      const nextFilters = syncLegacyFiltersFromIconFilters(filters, nextIconFilters);
       pushState({
         scope: "all",
         segment: nextSegment,
-        ...filters,
-        withoutAppointments: nextSegment === "appointments" ? false : filters.withoutAppointments,
+        ...nextFilters,
+        iconFilters: nextIconFilters,
       });
     },
-    [filters, pushState],
+    [filters, iconFilters, pushState],
   );
 
   const onArchiveToggle = useCallback(() => {
@@ -240,23 +454,76 @@ export function DoctorClientsPanel({
     pushState({
       scope: nextScope,
       segment,
-      ...filters,
+      ...syncLegacyFiltersFromIconFilters(filters, iconFilters),
+      iconFilters,
     });
-  }, [filters, pushState, scope, segment]);
+  }, [filters, iconFilters, pushState, scope, segment]);
 
   const onToggleFilter = useCallback(
     (key: keyof typeof filters) => {
       const nextValue = !filters[key];
+      const nextIconFilters: IconFiltersState = { ...iconFilters };
+      if (key === "telegram") nextIconFilters.telegram = nextValue ? "positive" : "off";
+      if (key === "max") nextIconFilters.max = nextValue ? "positive" : "off";
+      if (key === "email") nextIconFilters.email = nextValue ? "positive" : "off";
+      if (key === "phone") nextIconFilters.phone = nextValue ? "positive" : "off";
+      if (key === "memberships") nextIconFilters.memberships = nextValue ? "positive" : "off";
+      if (key === "withoutAppointments") nextIconFilters.appointments = nextValue ? "negative" : "off";
       const nextSegment: ClientSegment =
-        key === "withoutAppointments" && nextValue && segment === "appointments" ? "all" : segment;
+        nextIconFilters.appointments === "negative" && segment === "appointments" ? "all" : segment;
+      const nextFilters = syncLegacyFiltersFromIconFilters(
+        {
+          ...filters,
+          [key]: nextValue,
+        },
+        nextIconFilters,
+      );
       pushState({
         scope,
         segment: nextSegment,
-        ...filters,
-        [key]: nextValue,
+        ...nextFilters,
+        iconFilters: nextIconFilters,
       });
     },
-    [filters, pushState, scope, segment],
+    [filters, iconFilters, pushState, scope, segment],
+  );
+
+  const onCycleTriIconFilter = useCallback(
+    (key: Exclude<keyof IconFiltersState, "appointments" | "messages" | "comments">) => {
+      const nextIconFilters: IconFiltersState = {
+        ...iconFilters,
+        [key]: cycleTriFilterState(iconFilters[key]),
+      };
+      const nextFilters = syncLegacyFiltersFromIconFilters(filters, nextIconFilters);
+      pushState({
+        scope,
+        segment,
+        ...nextFilters,
+        iconFilters: nextIconFilters,
+      });
+    },
+    [filters, iconFilters, pushState, scope, segment],
+  );
+
+  const onCycleRichIconFilter = useCallback(
+    (key: Extract<keyof IconFiltersState, "appointments" | "messages" | "comments">) => {
+      const nextIconFilters: IconFiltersState = {
+        ...iconFilters,
+        [key]: cycleRichFilterState(iconFilters[key]),
+      };
+      const nextSegment: ClientSegment =
+        key === "appointments" && nextIconFilters.appointments === "negative" && segment === "appointments"
+          ? "all"
+          : segment;
+      const nextFilters = syncLegacyFiltersFromIconFilters(filters, nextIconFilters);
+      pushState({
+        scope,
+        segment: nextSegment,
+        ...nextFilters,
+        iconFilters: nextIconFilters,
+      });
+    },
+    [filters, iconFilters, pushState, scope, segment],
   );
 
   return (
@@ -280,8 +547,92 @@ export function DoctorClientsPanel({
 
       <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
         <section className="flex min-h-0 flex-col rounded-lg border border-border bg-card lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-10rem)] lg:overflow-hidden">
-          <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-2">
+          <div className="flex shrink-0 flex-col gap-2 border-b border-border/60 px-3 py-2">
             <p className="text-xs text-muted-foreground">Пациентов: {filtered.length}</p>
+            <div className="flex flex-wrap items-center gap-1" aria-label="Фильтры активности">
+              <HeaderIconButton
+                label="Фильтр записей"
+                title="Записи: все состояния -> с записями -> с активными -> без записей"
+                state={iconFilters.appointments}
+                onClick={() => onCycleRichIconFilter("appointments")}
+              >
+                <CalendarDays className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр переписки"
+                title="Переписка: все состояния -> с перепиской -> с непрочитанными -> без переписки"
+                state={iconFilters.messages}
+                onClick={() => onCycleRichIconFilter("messages")}
+              >
+                <MessageSquare className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр комментариев"
+                title="Комментарии по упражнениям: все -> есть -> новые -> нет"
+                state={iconFilters.comments}
+                onClick={() => onCycleRichIconFilter("comments")}
+              >
+                <Dumbbell className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр абонементов"
+                title="Абонементы: все -> с абонементами -> без абонементов"
+                state={iconFilters.memberships}
+                onClick={() => onCycleTriIconFilter("memberships")}
+              >
+                <Ticket className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр сопровождения"
+                title="Сопровождение: все -> на сопровождении -> не на сопровождении"
+                state={iconFilters.support}
+                onClick={() => onCycleTriIconFilter("support")}
+              >
+                <Handshake className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+            </div>
+            <div className="flex flex-wrap items-center gap-1" aria-label="Фильтры каналов">
+              <HeaderIconButton
+                label="Фильтр телефона"
+                title="Телефон: все -> есть телефон -> нет телефона"
+                state={iconFilters.phone}
+                onClick={() => onCycleTriIconFilter("phone")}
+              >
+                <Phone className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр Telegram"
+                title="Telegram: все -> подключен -> не подключен"
+                state={iconFilters.telegram}
+                onClick={() => onCycleTriIconFilter("telegram")}
+              >
+                <Send className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр MAX"
+                title="MAX: все -> подключен -> не подключен"
+                state={iconFilters.max}
+                onClick={() => onCycleTriIconFilter("max")}
+              >
+                <span className="text-[10px] font-semibold leading-none">М</span>
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр email"
+                title="Email: все -> указан -> не указан"
+                state={iconFilters.email}
+                onClick={() => onCycleTriIconFilter("email")}
+              >
+                <Mail className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+              <HeaderIconButton
+                label="Фильтр приложения"
+                title="Приложение: все -> есть приложение -> нет приложения"
+                state={iconFilters.app}
+                onClick={() => onCycleTriIconFilter("app")}
+              >
+                <Smartphone className="size-3.5" aria-hidden />
+              </HeaderIconButton>
+            </div>
           </div>
           {filtered.length === 0 ? (
             <p className="px-3 py-4 text-sm text-muted-foreground">Нет записей по текущим фильтрам.</p>
@@ -333,6 +684,13 @@ export function DoctorClientsPanel({
                             title="На сопровождении"
                           >
                             <Handshake className="size-3.5" aria-hidden />
+                          </IconSlot>
+                          <IconSlot
+                            visible={hasMemberships(c)}
+                            label="Есть абонемент"
+                            title="Есть абонемент"
+                          >
+                            <Ticket className="size-3.5" aria-hidden />
                           </IconSlot>
                         </div>
 
