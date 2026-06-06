@@ -5,10 +5,17 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
+import { cn } from "@/lib/utils";
 import { SpecialistTaskFormDialog } from "./clients/SpecialistTaskFormDialog";
 import { SpecialistTaskRow as TaskRow } from "./clients/SpecialistTaskRow";
 
-export function DoctorGlobalTasksSection({ initialTasks }: { initialTasks: SpecialistTaskRow[] }) {
+export function DoctorGlobalTasksSection({
+  initialTasks,
+  className,
+}: {
+  initialTasks: SpecialistTaskRow[];
+  className?: string;
+}) {
   const [tasks, setTasks] = useState(initialTasks);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -37,7 +44,7 @@ export function DoctorGlobalTasksSection({ initialTasks }: { initialTasks: Speci
   }
 
   return (
-    <DoctorSection id="doctor-today-global-tasks" className="gap-2">
+    <DoctorSection id="doctor-today-global-tasks" className={cn("h-full gap-2", className)}>
       <div className="flex items-center justify-between gap-2">
         <DoctorSectionTitle>Рабочие задачи на сегодня</DoctorSectionTitle>
         <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
@@ -50,7 +57,7 @@ export function DoctorGlobalTasksSection({ initialTasks }: { initialTasks: Speci
           <p>Нет открытых задач</p>
         </DoctorEmptyState>
       ) : (
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+        <ul className="m-0 flex min-h-0 list-none flex-col gap-2 overflow-y-auto p-0">
           {tasks.map((task) => (
             <TaskRow
               key={task.id}

@@ -63,7 +63,7 @@ const PHASE_15_MIGRATED_REL = [
   "infra/repos/pgUserPins.ts",
   "infra/repos/pgPhoneHistory.ts",
   "infra/integrator-push/integratorPushOutbox.ts",
-  "modules/integrator/messengerPhoneHttpBindExecute.ts",
+  "app-layer/integrator/messengerPhoneHttpBindExecute.ts",
   "infra/repos/pgAdminClientProfileConflicts.ts",
   "infra/repos/pgMediaFolderLookup.ts",
   "app/api/media/upload/route.ts",

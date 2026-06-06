@@ -35,7 +35,7 @@ function sqlExcludeUsers(excludedUserIds: string[], baseParams: unknown[], userI
   }
   const idx = baseParams.length + 1;
   return {
-    andSql: ` AND ${userIdExpr} <> ALL($${idx}::uuid[])`,
+    andSql: ` AND (${userIdExpr} IS NULL OR ${userIdExpr} <> ALL($${idx}::uuid[]))`,
     params: [...baseParams, excludedUserIds],
   };
 }
@@ -141,14 +141,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
-               COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
-               pcanon.phone_normalized,
+               COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
+               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.start_at::text AS event_at,
                'Визит'::text AS event_label
              FROM be_appointments a
-             INNER JOIN platform_users pu ON pu.id = a.platform_user_id
-             INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
+             LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at < $3::timestamptz
@@ -197,14 +197,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
-               COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
-               pcanon.phone_normalized,
+               COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
+               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.start_at::text AS event_at,
                'Отменённый визит'::text AS event_label
              FROM be_appointments a
-             INNER JOIN platform_users pu ON pu.id = a.platform_user_id
-             INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
+             LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at < $3::timestamptz
@@ -250,14 +250,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
-               COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
-               pcanon.phone_normalized,
+               COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
+               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.created_at::text AS event_at,
                'Запись создана'::text AS event_label
              FROM be_appointments a
-             INNER JOIN platform_users pu ON pu.id = a.platform_user_id
-             INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
+             LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.created_at >= $2::timestamptz
                AND a.created_at < $3::timestamptz
@@ -304,15 +304,15 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
-               COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
-               pcanon.phone_normalized,
+               COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
+               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                c.created_at::text AS event_at,
                'Отмена'::text AS event_label
              FROM be_appointment_cancellations c
              INNER JOIN be_appointments a ON a.id = c.appointment_id
-             INNER JOIN platform_users pu ON pu.id = a.platform_user_id
-             INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
+             LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE c.organization_id = $1::uuid
                AND c.created_at >= $2::timestamptz
                AND c.created_at < $3::timestamptz
@@ -358,15 +358,15 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
-               COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
-               pcanon.phone_normalized,
+               COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
+               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                r.created_at::text AS event_at,
                'Перенос'::text AS event_label
              FROM be_appointment_reschedules r
              INNER JOIN be_appointments a ON a.id = r.appointment_id
-             INNER JOIN platform_users pu ON pu.id = a.platform_user_id
-             INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
+             LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE r.organization_id = $1::uuid
                AND r.created_at >= $2::timestamptz
                AND r.created_at < $3::timestamptz
@@ -785,14 +785,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
-               COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
-               pcanon.phone_normalized,
+               COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
+               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.start_at::text AS event_at,
                'Запись сегодня'::text AS event_label
              FROM be_appointments a
-             INNER JOIN platform_users pu ON pu.id = a.platform_user_id
-             INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
+             LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at <= $3::timestamptz${ex.andSql}
@@ -838,14 +838,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
-               COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
-               pcanon.phone_normalized,
+               COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
+               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.start_at::text AS event_at,
                'Запись на неделе'::text AS event_label
              FROM be_appointments a
-             INNER JOIN platform_users pu ON pu.id = a.platform_user_id
-             INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
+             LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at < $3::timestamptz${ex.andSql}
@@ -890,14 +890,14 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           const r = await runWebappPgText<ListRow>(
             `SELECT
-               COALESCE(pu.merged_into_id, pu.id)::text AS user_id,
-               pcanon.display_name,
-               pcanon.phone_normalized,
+               COALESCE(COALESCE(pu.merged_into_id, pu.id)::text, '') AS user_id,
+               COALESCE(pcanon.display_name, NULLIF(a.attribution_json->>'contact_name', ''), a.phone_normalized, 'Клиент') AS display_name,
+               COALESCE(pcanon.phone_normalized, a.phone_normalized) AS phone_normalized,
                a.updated_at::text AS event_at,
                'Отмена'::text AS event_label
              FROM be_appointments a
-             INNER JOIN platform_users pu ON pu.id = a.platform_user_id
-             INNER JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
+             LEFT JOIN platform_users pu ON pu.id = a.platform_user_id
+             LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.status = ANY($2::text[])
                AND a.updated_at >= NOW() - interval '30 days'${ex.andSql}

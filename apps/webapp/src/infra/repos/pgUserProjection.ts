@@ -15,6 +15,10 @@ import {
 import type { PoolClient } from "pg";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
+import {
+  findPlatformUserIdWithEmailConflict,
+  findPlatformUserIdWithPhoneConflict,
+} from "@/infra/repos/pgAdminClientProfileConflicts";
 
 function txPgText<T = unknown>(
   client: PoolClient,
@@ -89,6 +93,11 @@ export type UserProjectionPort = {
       phoneNormalized?: string | null;
     };
   }) => Promise<{ ok: true } | { ok: false; reason: "nothing_to_update" | "not_found_or_not_client" }>;
+  findPlatformUserIdWithEmailConflict: (canonicalId: string, email: string) => Promise<string | null>;
+  findPlatformUserIdWithPhoneConflict: (
+    canonicalId: string,
+    phoneNormalized: string,
+  ) => Promise<string | null>;
   /** Rubitime webhook → user.email.autobind (USER_TODO_STAGE; см. AUDIT-BACKLOG-024). */
   applyRubitimeEmailAutobind: (params: {
     phoneNormalized: string;
@@ -827,6 +836,14 @@ export const pgUserProjectionPort: UserProjectionPort = {
       client.release();
     }
   },
+
+  findPlatformUserIdWithEmailConflict(canonicalId, email) {
+    return findPlatformUserIdWithEmailConflict(canonicalId, email);
+  },
+
+  findPlatformUserIdWithPhoneConflict(canonicalId, phoneNormalized) {
+    return findPlatformUserIdWithPhoneConflict(canonicalId, phoneNormalized);
+  },
 };
 
 export const inMemoryUserProjectionPort: UserProjectionPort = {
@@ -843,4 +860,6 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   clearStaffAccountEmail: async () => ({ ok: true as const }),
   applyRubitimeEmailAutobind: async () => ({ outcome: "skipped_no_user" as const }),
   patchAdminClientProfile: async () => ({ ok: true as const }),
+  findPlatformUserIdWithEmailConflict: async () => null,
+  findPlatformUserIdWithPhoneConflict: async () => null,
 };

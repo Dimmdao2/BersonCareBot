@@ -84,6 +84,28 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
     expect(params).toContain(EXCLUDED);
   });
 
+  it("today_appointments_week uses legacy appointment_records when read source is rubitime_legacy", async () => {
+    const port = createPgDoctorAnalyticsMetricAccountsPort(
+      async () => ORG_ID,
+      async () => "rubitime_legacy",
+    );
+    await port.listMetricAccounts({
+      metric: "today_appointments_week",
+      period: { preset: "week" },
+      limit: 10,
+      offset: 0,
+      iana: "Europe/Moscow",
+      excludedUserIds: [],
+    });
+
+    const firstCall = runWebappPgTextMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const sql = String(firstCall![0]);
+    expect(sql).toContain("appointment_records");
+    expect(sql).toContain("Запись на неделе");
+    expect(sql).not.toContain("be_appointments");
+  });
+
   it("notif_push_opened queries product_analytics_events_recent with windowHours", async () => {
     const port = createPgDoctorAnalyticsMetricAccountsPort(async () => ORG_ID);
     await port.listMetricAccounts({

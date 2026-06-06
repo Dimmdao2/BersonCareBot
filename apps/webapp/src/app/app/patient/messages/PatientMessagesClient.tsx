@@ -17,6 +17,7 @@ export function PatientMessagesClient() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [composerExpanded, setComposerExpanded] = useState(false);
 
   const loadBootstrap = useCallback(async () => {
     const res = await fetch("/api/patient/messages");
@@ -103,6 +104,7 @@ export function PatientMessagesClient() {
         return;
       }
       setDraft("");
+      setComposerExpanded(false);
       const res2 = await fetch(
         `/api/patient/messages?conversationId=${encodeURIComponent(conversationId)}`
       );
@@ -124,7 +126,7 @@ export function PatientMessagesClient() {
   }
 
   return (
-    <section className={cn(patientCardClass, "flex min-h-0 flex-1 flex-col gap-3 pb-6 md:pb-8")}>
+    <section className={cn(patientCardClass, "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden")}>
       {error ?
         <p className={cn(patientMutedTextClass, "shrink-0 font-medium text-[var(--patient-color-danger)]")}>
           {error}
@@ -139,16 +141,25 @@ export function PatientMessagesClient() {
         composer={
           <div
             className={cn(
-              "flex flex-col border-t border-[var(--patient-border)] pt-3 md:pt-4",
+              "shrink-0 border-t border-[var(--patient-border)] pt-3 md:pt-4",
               patientInnerPageStackClass,
             )}
           >
             <Textarea
-              className={patientChatComposerTextareaClass}
+              rows={2}
+              className={cn(
+                patientChatComposerTextareaClass,
+                "transition-[min-height] duration-200 ease-out",
+                composerExpanded || draft.trim().length > 0 ? "min-h-[112px]" : "min-h-[56px]",
+              )}
               placeholder="Ваше сообщение…"
               value={draft}
               maxLength={4000}
               onChange={(e) => setDraft(e.target.value)}
+              onFocus={() => setComposerExpanded(true)}
+              onBlur={() => {
+                if (!draft.trim()) setComposerExpanded(false);
+              }}
               disabled={sending}
               aria-label="Текст сообщения"
             />

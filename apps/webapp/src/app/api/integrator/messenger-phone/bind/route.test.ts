@@ -17,7 +17,7 @@ vi.mock("@/app-layer/integrator/verifyIntegratorSignature", () => ({
   verifyIntegratorSignature: verifySignatureMock,
 }));
 
-vi.mock("@/modules/integrator/messengerPhoneHttpBindExecute", () => ({
+vi.mock("@/app-layer/integrator/messengerPhoneHttpBindExecute", () => ({
   executeMessengerPhoneHttpBind: (...args: unknown[]) => executeMessengerPhoneHttpBindMock(...args),
 }));
 

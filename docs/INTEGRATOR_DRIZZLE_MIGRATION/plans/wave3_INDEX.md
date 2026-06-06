@@ -74,7 +74,7 @@
 - **15C:** treatment and minor tails (**done** 2026-06-06; 5 repos → `runWebappPgText`; `pgPhoneHistory` TX bridge; gate = 0; **26 passed** fast bundle)
 - **15D:** integrator push outbox (**done** 2026-06-06; `integratorPushOutbox` → Drizzle; claim `execute(sql)`; gate `db.query` = 0; **22 passed** fast bundle)
 - **15E:** messenger bind + routes tail (**done** 2026-06-06; `messengerPhoneHttpBindExecute` + route repos; gate = 0; **26 passed** fast bundle)
-- **15F:** phase verify (**done** 2026-06-06; tail **25** runtime files Class B/C; verify **5** + spot **77 passed**)
+- **15F:** phase verify (**done** 2026-06-06; tail **25** runtime files Class B/C; closure bundle **92 passed**)
 
 ## Gate-контракт (как Wave 2)
 

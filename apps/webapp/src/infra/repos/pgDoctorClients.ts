@@ -108,9 +108,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         bindingsByUser.set(row.user_id, list);
       }
 
-      const [appointmentAggRows, supportConversationRows, activeProgramPatients, onSupportIds, unreadExerciseCommentRows] =
-        await Promise.all([
-          runWebappPgText<{
+      const [
+        appointmentAggRows,
+        supportConversationRows,
+        activeProgramPatients,
+        onSupportIds,
+        unreadExerciseCommentRows,
+        membershipRows,
+      ] = await Promise.all([
+        runWebappPgText<{
             user_id: string;
             history_count: number;
             active_count: number;
@@ -222,6 +228,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                 [userIds, filters.viewerUserId],
               )
             : Promise.resolve({ rows: [] as { patient_user_id: string; unread_comments_count: number }[] }),
+          runWebappPgText<{ user_id: string; memberships_count: number }>(
+            `SELECT
+               pp.platform_user_id::text AS user_id,
+               COUNT(*) FILTER (
+                 WHERE pp.status IN ('active', 'awaiting_payment')
+               )::int AS memberships_count
+             FROM be_patient_packages pp
+             WHERE pp.platform_user_id = ANY($1::uuid[])
+             GROUP BY pp.platform_user_id`,
+            [userIds],
+          ),
         ]);
 
       const appointmentAggByUserId = new Map(
@@ -251,6 +268,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const unreadExerciseCommentsByPatientId = new Map<string, number>(
         unreadExerciseCommentRows.rows.map((row) => [row.patient_user_id, Number(row.unread_comments_count ?? 0)]),
       );
+      const membershipsByPatientId = new Map<string, number>(
+        membershipRows.rows.map((row) => [row.user_id, Number(row.memberships_count ?? 0)]),
+      );
 
       let list: ClientListItem[] = clientRows.rows.map((r) => {
           const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
@@ -279,6 +299,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             unreadMessagesCount: supportConversation?.unreadCount ?? 0,
             unreadExerciseCommentsCount: unreadExerciseCommentsByPatientId.get(r.id) ?? 0,
             isOnSupport: onSupportIds.has(r.id),
+            hasMemberships: (membershipsByPatientId.get(r.id) ?? 0) > 0,
           };
         });
 

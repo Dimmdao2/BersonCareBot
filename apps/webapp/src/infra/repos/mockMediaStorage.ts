@@ -214,6 +214,10 @@ export const mockMediaStoragePort: MediaStoragePort = {
     if (!folders.delete(folderId)) return { ok: false as const, error: "not_empty" as const };
     return { ok: true as const };
   },
+
+  async folderExists(folderId) {
+    return folders.has(folderId);
+  },
 };
 
 /** Used by GET /api/media/[id] to serve the buffer. */

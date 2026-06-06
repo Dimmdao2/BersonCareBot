@@ -52,5 +52,8 @@ export function createMediaService(port: MediaStoragePort) {
     async deleteFolder(folderId: string) {
       return port.deleteFolder(folderId);
     },
+    async folderExists(folderId: string) {
+      return port.folderExists(folderId);
+    },
   };
 }

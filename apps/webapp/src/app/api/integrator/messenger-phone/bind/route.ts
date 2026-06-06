@@ -5,7 +5,7 @@ import { computeMessengerPhoneBindRequestHash } from "@/app-layer/idempotency/me
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
 import { logger } from "@/app-layer/logging/logger";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
-import { executeMessengerPhoneHttpBind } from "@/modules/integrator/messengerPhoneHttpBindExecute";
+import { executeMessengerPhoneHttpBind } from "@/app-layer/integrator/messengerPhoneHttpBindExecute";
 
 const bodySchema = z.object({
   channelCode: z.enum(["telegram", "max"]),

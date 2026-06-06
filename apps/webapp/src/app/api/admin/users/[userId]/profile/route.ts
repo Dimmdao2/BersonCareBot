@@ -7,10 +7,6 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
 import { getPool } from "@/app-layer/db/client";
-import {
-  findPlatformUserIdWithEmailConflict,
-  findPlatformUserIdWithPhoneConflict,
-} from "@/infra/repos/pgAdminClientProfileConflicts";
 import { writeAuditLog } from "@/app-layer/admin/auditLog";
 import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
@@ -82,22 +78,27 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
 
   const pool = getPool();
   const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
+  const deps = buildAppDeps();
 
   if (patch.email !== undefined && patch.email !== null && patch.email.trim() !== "") {
-    const conflictId = await findPlatformUserIdWithEmailConflict(canonicalId, patch.email.trim());
+    const conflictId = await deps.userProjection.findPlatformUserIdWithEmailConflict(
+      canonicalId,
+      patch.email.trim(),
+    );
     if (conflictId) {
       return NextResponse.json({ ok: false, error: "email_conflict" }, { status: 409 });
     }
   }
 
   if (patch.phoneNormalized !== undefined && patch.phoneNormalized !== null) {
-    const conflictId = await findPlatformUserIdWithPhoneConflict(canonicalId, patch.phoneNormalized);
+    const conflictId = await deps.userProjection.findPlatformUserIdWithPhoneConflict(
+      canonicalId,
+      patch.phoneNormalized,
+    );
     if (conflictId) {
       return NextResponse.json({ ok: false, error: "phone_conflict" }, { status: 409 });
     }
   }
-
-  const deps = buildAppDeps();
   const emailBefore =
     patch.email !== undefined && patch.email !== null && patch.email.trim() !== ""
       ? await deps.userProjection.getProfileEmailFields(canonicalId)

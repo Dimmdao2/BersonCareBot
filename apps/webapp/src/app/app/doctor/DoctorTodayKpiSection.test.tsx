@@ -25,7 +25,13 @@ const kpiStats = {
 
 describe("DoctorTodayKpiSection", () => {
   it("opens today appointments drill-down dialog on KPI click", () => {
-    render(<DoctorTodayKpiSection kpiStats={kpiStats} appointmentsTodayCount={3} />);
+    render(
+      <DoctorTodayKpiSection
+        kpiStats={kpiStats}
+        appointmentsTodayCount={3}
+        unreadMessagesCount={2}
+      />,
+    );
     fireEvent.click(screen.getByText("Записи сегодня"));
     const dialog = screen.getByTestId("metric-dialog");
     expect(dialog).toHaveAttribute("data-metric", "today_appointments_today");

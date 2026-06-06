@@ -104,13 +104,17 @@ export function DoctorTodayDashboard({
         ) : null}
       </header>
 
-      <DoctorTodayKpiSection kpiStats={kpiStats} appointmentsTodayCount={appointmentsTodayCount} />
+      <DoctorTodayKpiSection
+        kpiStats={kpiStats}
+        appointmentsTodayCount={appointmentsTodayCount}
+        unreadMessagesCount={data.unreadTotal}
+      />
 
       <div
         id="doctor-today-primary-row"
-        className="grid gap-3 md:grid-cols-3 md:items-start"
+        className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)] md:items-stretch"
       >
-        <DoctorSection id="doctor-today-section-on-support" className="min-w-0">
+        <DoctorSection id="doctor-today-section-on-support" className="min-w-0 h-full">
           <DoctorSectionHeader>
             <DoctorSectionTitle>На сопровождении</DoctorSectionTitle>
             {data.onSupportCount > 0 ? (
@@ -204,10 +208,9 @@ export function DoctorTodayDashboard({
           )}
         </DoctorSection>
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex">
           <DoctorTodayAttentionSection
             intakeCount={data.newIntakeRequests.length}
-            messagesCount={data.unreadTotal}
             pendingTestsCount={data.pendingProgramTestsTotal}
             proactiveCount={data.proactiveInsightsTotal}
             newIntakeRequests={data.newIntakeRequests}
@@ -225,8 +228,8 @@ export function DoctorTodayDashboard({
           />
         </div>
 
-        <div className="min-w-0">
-          <DoctorGlobalTasksSection initialTasks={data.globalOpenTasks} />
+        <div className="min-w-0 flex">
+          <DoctorGlobalTasksSection initialTasks={data.globalOpenTasks} className="flex-1" />
         </div>
       </div>
 

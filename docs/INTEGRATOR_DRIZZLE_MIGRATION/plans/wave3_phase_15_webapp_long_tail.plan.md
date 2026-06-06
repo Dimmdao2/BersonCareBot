@@ -136,10 +136,13 @@ pnpm --dir apps/webapp exec vitest run --project fast \
   src/infra/repos/webappPhase15F.verify.test.ts \
   src/infra/repos/webappPhase15E.repo.test.ts \
   src/modules/integrator/messengerPhoneHttpBindExecute15E.test.ts \
+  src/app/api/integrator/messenger-phone/bind/route.test.ts \
   src/infra/repos/pgReferences.repo.test.ts \
   src/infra/repos/pgAuthEmailPorts15B.repo.test.ts \
   src/infra/repos/pgTreatmentTail15C.repo.test.ts \
-  src/infra/integrator-push/integratorPushOutbox.test.ts
+  src/infra/integrator-push/integratorPushOutbox.test.ts \
+  src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts
+# ожидание: 92 passed (fast) — полный phase-15 closure bundle
 ```
 
 ## Закрытие 15A (2026-06-06)
@@ -210,7 +213,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Tests:** `messengerPhoneHttpBindExecute15E.test.ts` (runtime + happy path + max CTE + Zod reject + blocked audit) + `webappPhase15E.repo.test.ts` (route/repo/P12E runtime gates + SQL parity) + `messenger-phone/bind/route.test.ts` — **26 passed** (fast).
 
-**Verify-only (P12E):** `recordPublicBookingMergeCandidates`, `resolveOrCreateUserByPhone` — без `pool.query`.
+**Verify-only (P12E):** `app-layer/platform-user/recordPublicBookingMergeCandidates.ts` и `app-layer/platform-user/resolveOrCreateUserByPhone.ts` — без `pool.query`; вызовы подтверждены в `app/api/booking/public/create/route.ts`.
 
 **Остаток webapp (post-15E, `rg -l`):** **27** (incl. 2 comment-only); runtime **25** — финал **15F**.
 
@@ -228,7 +231,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Class C (22):** intake, purge, merge, identity, user projection, comms, media TX, locks, channel link, doctor create/broadcast/motivation, appointments, s3 media.
 
-**Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 spot bundle — **77 passed** (fast).
+**Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 closure bundle — **92 passed** (fast).
 
 **Документация (sync 15F):** [../LOG.md](../LOG.md) §Wave 3 phase 15F + §phase 15 итог; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15F.
 
@@ -236,8 +239,9 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 - **RAW_SQL §15E:** уточнён `rg -l` **27** vs runtime **25** (comment-only `pgBookingCatalog`, `pgDoctorAppointments`).
 - **RAW_SQL §15F:** migrated scope gate — только `pool.query`/`client.query` (не Drizzle relational `db.query.*`).
-- **Spot bundle:** **77 passed** (15F verify + 15E + 15A–15D); команда в §Проверки.
-- **HEAD bleed fix:** дополнен незавершённый `pgDoctorAnalyticsMetricAccounts.ts` (read-source switch для KPI drill-down; вне scope 15, но блокировал typecheck на ветке).
+- **Closure bundle:** **92 passed** (15F + 15E incl. bind route + 15A–15D + analytics read-source); команда в §Проверки.
+- **HEAD bleed fix:** `pgDoctorAnalyticsMetricAccounts.ts` — `resolveReadSource` + legacy exclusion + unit test `rubitime_legacy` path.
+- **Plan remark closure:** verify-only P12E пути зафиксированы явно (`app-layer/platform-user/*`) вместо неявных ссылок.
 
 ## Следующая фаза Wave 3
 

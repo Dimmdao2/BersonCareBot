@@ -932,15 +932,15 @@ LIMIT 3;"
 - **Class B:** `runWebappSql.ts` (transport), `client.ts` (health), `pgAdminPlatformUserStats.ts` (uuid[] `pool.query` workaround).
 - **Class C:** **22** файла — TX `BEGIN`/`COMMIT`/`ROLLBACK` (+ advisory locks).
 - **Domain `pool.query`:** **0** вне Class B allowlist; **15A–15E** migrated scope — runtime `pool.query`/`client.query` = **0**.
-- **Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 spot bundle — **77 passed** (fast).
+- **Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 closure bundle — **92 passed** (fast).
 - **RAW_SQL / plan:** §Wave 3 phase 15F; baseline webapp tail **78→25**; todo `w3-p15-verify` → `completed`; **фаза 15 closed**.
 - **Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](./plans/wave3_phase_16_legacy_cutover.plan.md).
 
 #### Post-audit closure 15F (2026-06-06)
 
 - **RAW_SQL §15E/15F:** `rg -l` **27** vs runtime **25** (comment-only catalog/appointments); migrated gate — `pool.query`/`client.query` only.
-- **Spot bundle re-verify:** **77 passed** (15F verify + 15E + 15A–15D).
-- **HEAD bleed fix:** `pgDoctorAnalyticsMetricAccounts.ts` — дополнены `resolveReadSource` / legacy exclusion (незавершённый sidecar на ветке); typecheck green.
+- **Closure bundle re-verify:** **92 passed** (15F + 15E incl. bind route + 15A–15D + analytics).
+- **HEAD bleed fix:** `pgDoctorAnalyticsMetricAccounts.ts` — `resolveReadSource` / legacy exclusion + unit test legacy path; typecheck green.
 
 ### Wave 3 phase 15 — итог (completed, 2026-06-06)
 
@@ -951,7 +951,7 @@ LIMIT 3;"
 | **15C** | 5 treatment/minor repos | **26 passed** |
 | **15D** | `integratorPushOutbox` → Drizzle | **22 passed** |
 | **15E** | messenger bind + route tails | **26 passed** |
-| **15F** | Class B/C gate + inventory | verify **5 passed**; spot **77 passed**; tail **25** runtime files |
+| **15F** | Class B/C gate + inventory | verify **5 passed**; closure **92 passed**; tail **25** runtime files |
 
 **Webapp prod tail:** baseline **78** → post-15 **25** (только Class B/C с пометкой в RAW_SQL).
 

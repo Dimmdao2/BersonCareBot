@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const poolQueryMock = vi.fn();
 const patchMock = vi.fn();
 const getProfileEmailFieldsMock = vi.fn();
+const findEmailConflictMock = vi.fn();
+const findPhoneConflictMock = vi.fn();
 const requestContactEmailSetupMock = vi.fn();
 const writeAuditLogMock = vi.fn();
 
@@ -25,6 +27,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     userProjection: {
       patchAdminClientProfile: patchMock,
       getProfileEmailFields: getProfileEmailFieldsMock,
+      findPlatformUserIdWithEmailConflict: findEmailConflictMock,
+      findPlatformUserIdWithPhoneConflict: findPhoneConflictMock,
     },
     emailSetupAccess: {
       requestContactEmailSetup: requestContactEmailSetupMock,
@@ -55,6 +59,8 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
     poolQueryMock.mockReset();
     patchMock.mockReset();
     getProfileEmailFieldsMock.mockReset();
+    findEmailConflictMock.mockReset();
+    findPhoneConflictMock.mockReset();
     requestContactEmailSetupMock.mockReset();
     writeAuditLogMock.mockReset();
     resolveCanonicalMock.mockReset();
@@ -63,6 +69,8 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
     poolQueryMock.mockResolvedValue({ rows: [] });
     patchMock.mockResolvedValue({ ok: true as const });
     getProfileEmailFieldsMock.mockResolvedValue({ email: null, emailVerifiedAt: null });
+    findEmailConflictMock.mockResolvedValue(null);
+    findPhoneConflictMock.mockResolvedValue(null);
     requestContactEmailSetupMock.mockResolvedValue({ ok: true, status: "stub_pending_phase3" });
   });
 
@@ -82,7 +90,7 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
   });
 
   it("returns 409 when email belongs to another user", async () => {
-    poolQueryMock.mockResolvedValueOnce({ rows: [{ id: "other" }] });
+    findEmailConflictMock.mockResolvedValueOnce("other");
     const res = await PATCH(
       new Request(`http://localhost/api/admin/users/${uid}/profile`, {
         method: "PATCH",

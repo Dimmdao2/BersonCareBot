@@ -72,6 +72,7 @@ describe("pgDoctorClients repo", () => {
         ],
       })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
     const port = createPgDoctorClientsPort();
@@ -91,6 +92,7 @@ describe("pgDoctorClients repo", () => {
           { id: "u2", display_name: "B", phone_normalized: null, created_at: "2026-01-02" },
         ],
       })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })

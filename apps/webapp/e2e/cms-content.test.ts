@@ -4,13 +4,15 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const { uploadMock, upsertMock, sessionMock, getSectionBySlugMock, listAllMock } = vi.hoisted(() => ({
-  uploadMock: vi.fn(),
-  upsertMock: vi.fn(),
-  sessionMock: vi.fn(),
-  getSectionBySlugMock: vi.fn(),
-  listAllMock: vi.fn(),
-}));
+const { uploadMock, folderExistsMock, upsertMock, sessionMock, getSectionBySlugMock, listAllMock } =
+  vi.hoisted(() => ({
+    uploadMock: vi.fn(),
+    folderExistsMock: vi.fn().mockResolvedValue(false),
+    upsertMock: vi.fn(),
+    sessionMock: vi.fn(),
+    getSectionBySlugMock: vi.fn(),
+    listAllMock: vi.fn(),
+  }));
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: sessionMock,
@@ -22,7 +24,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    media: { upload: uploadMock },
+    media: { upload: uploadMock, folderExists: folderExistsMock },
     contentPages: { upsert: upsertMock, listAll: listAllMock },
     contentSections: { getBySlug: getSectionBySlugMock },
   }),

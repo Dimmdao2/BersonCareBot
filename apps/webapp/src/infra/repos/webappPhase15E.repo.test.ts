@@ -41,14 +41,14 @@ describe("Wave3 phase 15E route tails (runtime constraints)", () => {
     );
     expect(src).not.toMatch(/\bpool\.query\b/);
     expect(src).not.toMatch(/\bclient\.query\b/);
-    expect(src).toContain("pgAdminClientProfileConflicts");
+    expect(src).toContain("findPlatformUserIdWithEmailConflict");
   });
 
   it("media upload route has no pool.query / client.query", () => {
     const src = readFileSync(join(repoRoot, "app/api/media/upload/route.ts"), "utf8");
     expect(src).not.toMatch(/\bpool\.query\b/);
     expect(src).not.toMatch(/\bclient\.query\b/);
-    expect(src).toContain("mediaFolderExists");
+    expect(src).toContain("folderExists");
   });
 
   it("resolveOrCreateUserByPhone has no pool.query (P12E verify)", () => {

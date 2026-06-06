@@ -69,7 +69,7 @@ export function PatientBottomShellFrame({
       />
       <div
         className={cn(
-          "shrink-0 patient-mobile:pt-[var(--patient-header-bar-height,var(--patient-header-bar-chrome-fallback))]",
+          "shrink-0 patient-mobile:pt-[calc(var(--patient-header-bar-height,var(--patient-header-bar-chrome-fallback))+var(--patient-header-fade-height,0.5rem))]",
           "patient-desktop:pt-0",
         )}
         aria-hidden

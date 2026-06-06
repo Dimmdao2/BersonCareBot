@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { mediaFolderExists } from "@/infra/repos/pgMediaFolderLookup";
 import { logger } from "@/app-layer/logging/logger";
 import { ALLOWED_MEDIA_MIME, MAX_PROXY_UPLOAD_BYTES } from "@/modules/media/uploadAllowedMime";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -154,7 +153,10 @@ type UploadCandidateMeta = {
 const MEDIA_FOLDER_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function resolveUploadFolderIdFromForm(form: FormData): Promise<
+async function resolveUploadFolderIdFromForm(
+  folderExists: (folderId: string) => Promise<boolean>,
+  form: FormData,
+): Promise<
   | { ok: true; folderId: string | null | undefined }
   | { ok: false; status: number; payload: Record<string, unknown> }
 > {
@@ -166,7 +168,7 @@ async function resolveUploadFolderIdFromForm(form: FormData): Promise<
   if (!MEDIA_FOLDER_ID_RE.test(t)) {
     return { ok: false, status: 400, payload: { error: "invalid_folder_id" } };
   }
-  const exists = await mediaFolderExists(t);
+  const exists = await folderExists(t);
   if (!exists) {
     return { ok: false, status: 400, payload: { error: "folder_not_found" } };
   }
@@ -240,7 +242,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "missing_file" }, { status: 400 });
   }
 
-  const folderRes = await resolveUploadFolderIdFromForm(form);
+  const deps = buildAppDeps();
+  const folderRes = await resolveUploadFolderIdFromForm(
+    (folderId) => deps.media.folderExists(folderId),
+    form,
+  );
   if (!folderRes.ok) {
     return NextResponse.json(folderRes.payload, { status: folderRes.status });
   }
@@ -270,7 +276,6 @@ export async function POST(request: Request) {
     });
   }
 
-  const deps = buildAppDeps();
   const uploaded: Array<{
     mediaId: string;
     url: string;

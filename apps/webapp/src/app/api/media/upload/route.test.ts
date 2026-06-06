@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { uploadMock, sessionMock } = vi.hoisted(() => ({
+const { uploadMock, folderExistsMock, sessionMock } = vi.hoisted(() => ({
   uploadMock: vi.fn(),
+  folderExistsMock: vi.fn(),
   sessionMock: vi.fn(),
 }));
 
@@ -11,7 +12,7 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    media: { upload: uploadMock },
+    media: { upload: uploadMock, folderExists: folderExistsMock },
   }),
 }));
 
@@ -33,6 +34,8 @@ const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0
 describe("POST /api/media/upload", () => {
   beforeEach(() => {
     uploadMock.mockReset();
+    folderExistsMock.mockReset();
+    folderExistsMock.mockResolvedValue(false);
     sessionMock.mockReset();
   });
 

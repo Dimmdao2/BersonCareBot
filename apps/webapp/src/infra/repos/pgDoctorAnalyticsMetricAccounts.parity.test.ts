@@ -77,6 +77,27 @@ describe("pgDoctorAnalyticsMetricAccounts SQL parity", () => {
     }
   });
 
+  it("uses legacy appointment_records SQL when read source is rubitime_legacy", async () => {
+    const port = createPgDoctorAnalyticsMetricAccountsPort(
+      async () => ORG_ID,
+      async () => "rubitime_legacy",
+    );
+
+    await port.listMetricAccounts({
+      metric: "appointments_past_visits",
+      period: { preset: "week" },
+      limit: 20,
+      offset: 0,
+      iana: "Europe/Moscow",
+      excludedUserIds: [],
+    });
+
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("FROM appointment_records ar");
+    expect(sql).toContain("ar.status <> 'canceled'");
+  });
+
   it("paginates with hasMore when row count exceeds limit", async () => {
     const rows = Array.from({ length: 21 }, (_, i) => ({
       user_id: `user-${i}`,

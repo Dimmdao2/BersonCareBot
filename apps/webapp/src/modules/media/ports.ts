@@ -38,6 +38,7 @@ export type MediaStoragePort = {
   renameFolder(folderId: string, name: string): Promise<boolean>;
   moveFolder(folderId: string, newParentId: string | null): Promise<boolean>;
   deleteFolder(folderId: string): Promise<{ ok: true } | { ok: false; error: "not_empty" }>;
+  folderExists(folderId: string): Promise<boolean>;
   findUsage(mediaId: string): Promise<MediaUsageRef[]>;
   getUsageSummary(mediaId: string): Promise<MediaUsageSummary>;
   deleteHard(mediaId: string): Promise<boolean>;

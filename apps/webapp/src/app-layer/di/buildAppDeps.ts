@@ -1391,6 +1391,8 @@ function _buildAppDeps() {
       clearStaffAccountEmail: userProjectionPort.clearStaffAccountEmail,
       applyRubitimeEmailAutobind: userProjectionPort.applyRubitimeEmailAutobind,
       patchAdminClientProfile: userProjectionPort.patchAdminClientProfile,
+      findPlatformUserIdWithEmailConflict: userProjectionPort.findPlatformUserIdWithEmailConflict,
+      findPlatformUserIdWithPhoneConflict: userProjectionPort.findPlatformUserIdWithPhoneConflict,
     },
     supportCommunication: supportCommunicationPort,
     integratorSupportBridge,

@@ -352,7 +352,7 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByText("Петров")).toBeInTheDocument();
   });
 
-  it("opens unread conversations in attention dialog", async () => {
+  it("shows unread messages KPI as quick link to chat inbox", () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       unreadTotal: 5,
@@ -369,13 +369,10 @@ describe("DoctorTodayDashboard", () => {
         },
       ],
     };
-    render(
-      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
-    );
-    await openAttentionDialog(/Сообщения/);
-    expect(screen.getByText(/Всего непрочитанных: 5/)).toBeInTheDocument();
-    expect(screen.getByText("Пациент")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    render(<DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />);
+    const unreadCardLink = screen.getByRole("link", { name: /Новые сообщения/i });
+    expect(unreadCardLink).toHaveAttribute("href", "/app/doctor/messages");
+    expect(screen.getByText("5")).toBeInTheDocument();
   });
 
   it("opens exercise comments attention dialog grouped by patient", async () => {

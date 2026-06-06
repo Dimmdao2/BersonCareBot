@@ -50,7 +50,7 @@ vi.mock("@bersoncare/platform-merge", async (importOriginal) => {
   };
 });
 
-import { executeMessengerPhoneHttpBind } from "./messengerPhoneHttpBindExecute";
+import { executeMessengerPhoneHttpBind } from "@/app-layer/integrator/messengerPhoneHttpBindExecute";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -75,7 +75,10 @@ function mockBindSqlHappyPath() {
 
 describe("Wave3 phase 15E messengerPhoneHttpBindExecute (runtime constraints)", () => {
   it("has no pool.query / client.query in messengerPhoneHttpBindExecute.ts", () => {
-    const src = readFileSync(join(__dirname, "messengerPhoneHttpBindExecute.ts"), "utf8");
+    const src = readFileSync(
+      join(__dirname, "../../app-layer/integrator/messengerPhoneHttpBindExecute.ts"),
+      "utf8",
+    );
     expect(src).not.toMatch(/\bpool\.query\b/);
     expect(src).not.toMatch(/\bclient\.query\b/);
     expect(src).toContain("runWebappPgText");

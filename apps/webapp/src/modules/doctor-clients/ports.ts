@@ -47,6 +47,8 @@ export type ClientListItem = {
   unreadMessagesCount?: number;
   unreadExerciseCommentsCount?: number;
   isOnSupport?: boolean;
+  /** Есть активный/ожидающий оплаты абонемент пациента. */
+  hasMemberships?: boolean;
 };
 
 /** Базовая идентичность клиента (для профиля и агрегации). */

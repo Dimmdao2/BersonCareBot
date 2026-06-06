@@ -1,13 +1,15 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import { DoctorClientsPanel } from "./DoctorClientsPanel";
 
+const routerReplaceMock = vi.hoisted(() => vi.fn());
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
-    replace: vi.fn(),
+    replace: routerReplaceMock,
     push: vi.fn(),
     prefetch: vi.fn(),
   }),
@@ -23,11 +25,16 @@ function baseItem(overrides: Partial<ClientListItem> = {}): ClientListItem {
     activeTreatmentProgram: false,
     activeTreatmentProgramInstanceId: null,
     cancellationCount30d: 0,
+    hasMemberships: false,
     ...overrides,
   };
 }
 
 describe("DoctorClientsPanel", () => {
+  beforeEach(() => {
+    routerReplaceMock.mockReset();
+  });
+
   it("renders phone, Telegram, MAX, email and app indicators", () => {
     const list = [
       baseItem({
@@ -117,5 +124,60 @@ describe("DoctorClientsPanel", () => {
       <DoctorClientsPanel allClients={list} urlParams={{}} basePath="/app/doctor/clients" />,
     );
     expect(container.textContent).not.toContain(phone);
+  });
+
+  it("filters list by 'without appointments' flag", () => {
+    const list = [
+      baseItem({ userId: "w1", displayName: "Without", hasAppointmentHistory: false }),
+      baseItem({ userId: "w2", displayName: "With", hasAppointmentHistory: true }),
+    ];
+    render(
+      <DoctorClientsPanel
+        allClients={list}
+        urlParams={{ withoutAppointments: "1" }}
+        basePath="/app/doctor/clients"
+      />,
+    );
+    expect(document.getElementById("doctor-clients-card-w1")).not.toBeNull();
+    expect(document.getElementById("doctor-clients-card-w2")).toBeNull();
+    expect(screen.getByRole("button", { name: /Без записей \(1\)/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("filters list by memberships flag", () => {
+    const list = [
+      baseItem({ userId: "m1", displayName: "Membership", hasMemberships: true }),
+      baseItem({ userId: "m2", displayName: "No membership", hasMemberships: false }),
+    ];
+    render(
+      <DoctorClientsPanel
+        allClients={list}
+        urlParams={{ memberships: "1" }}
+        basePath="/app/doctor/clients"
+      />,
+    );
+    expect(document.getElementById("doctor-clients-card-m1")).not.toBeNull();
+    expect(document.getElementById("doctor-clients-card-m2")).toBeNull();
+    expect(screen.getByRole("button", { name: "С абонементами" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("turning on 'without appointments' clears appointments segment", () => {
+    const list = [
+      baseItem({ userId: "s1", displayName: "With history", hasAppointmentHistory: true }),
+      baseItem({ userId: "s2", displayName: "No history", hasAppointmentHistory: false }),
+    ];
+    render(
+      <DoctorClientsPanel
+        allClients={list}
+        urlParams={{ scope: "all", segment: "appointments" }}
+        basePath="/app/doctor/clients"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Без записей \(1\)/ }));
+
+    const nextUrl = String(routerReplaceMock.mock.calls.at(-1)?.[0] ?? "");
+    expect(nextUrl).toContain("scope=all");
+    expect(nextUrl).toContain("withoutAppointments=1");
+    expect(nextUrl).not.toContain("segment=appointments");
   });
 });

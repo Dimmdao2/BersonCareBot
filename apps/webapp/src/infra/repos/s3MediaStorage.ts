@@ -18,6 +18,7 @@ import {
   pgMoveFolder,
   pgRenameFolder,
 } from "@/infra/repos/mediaFoldersRepo";
+import { mediaFolderExists } from "@/infra/repos/pgMediaFolderLookup";
 import { pgMediaUsageSummaryForMediaId } from "@/infra/repos/pgMediaUsageSummary";
 import { s3DeleteObject, s3ListObjectKeysUnderPrefix, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/infra/s3/client";
 import type { MediaStoragePort } from "@/modules/media/ports";
@@ -393,6 +394,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
     async deleteFolder(folderId: string) {
       return pgDeleteFolderIfEmpty(folderId);
+    },
+
+    async folderExists(folderId: string) {
+      return mediaFolderExists(folderId);
     },
 
     async findUsage(mediaId: string): Promise<MediaUsageRef[]> {

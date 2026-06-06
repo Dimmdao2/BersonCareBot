@@ -25,6 +25,8 @@ type UrlParams = {
   visitedMonth?: string;
   cancellations?: string;
   reschedules?: string;
+  withoutAppointments?: string;
+  memberships?: string;
   scope?: string;
   /** Legacy query params kept for backwards compatibility. */
   appointment?: string;
@@ -68,7 +70,12 @@ function matchesSearch(item: ClientListItem, query: string): boolean {
 }
 
 function hasAppointmentHistory(item: ClientListItem): boolean {
-  return Boolean(item.hasAppointmentHistory) || (item.activeAppointmentsCount ?? 0) > 0 || Boolean(item.nextAppointmentLabel);
+  if (typeof item.hasAppointmentHistory === "boolean") return item.hasAppointmentHistory;
+  return (item.activeAppointmentsCount ?? 0) > 0 || Boolean(item.nextAppointmentLabel);
+}
+
+function hasMemberships(item: ClientListItem): boolean {
+  return item.hasMemberships === true;
 }
 
 function iconBadge(value: number | null): ReactNode {
@@ -122,6 +129,8 @@ export function DoctorClientsPanel({
       visitedMonth: urlParams.visitedMonth === "1",
       cancellations: urlParams.cancellations === "1",
       reschedules: urlParams.reschedules === "1",
+      withoutAppointments: urlParams.withoutAppointments === "1",
+      memberships: urlParams.memberships === "1",
     }),
     [urlParams],
   );
@@ -162,6 +171,12 @@ export function DoctorClientsPanel({
     if (filters.reschedules) {
       list = list.filter((c) => (c.rescheduleCount30d ?? 0) > 0);
     }
+    if (filters.withoutAppointments) {
+      list = list.filter((c) => !hasAppointmentHistory(c));
+    }
+    if (filters.memberships) {
+      list = list.filter((c) => hasMemberships(c));
+    }
     return list;
   }, [allClients, filters, scope, search, segment]);
 
@@ -169,6 +184,7 @@ export function DoctorClientsPanel({
     () => ({
       all: allClients.length,
       appointments: allClients.filter((c) => hasAppointmentHistory(c)).length,
+      withoutAppointments: allClients.filter((c) => !hasAppointmentHistory(c)).length,
       support: allClients.filter((c) => c.isOnSupport === true).length,
       program: allClients.filter((c) => c.activeTreatmentProgram).length,
     }),
@@ -186,6 +202,8 @@ export function DoctorClientsPanel({
       visitedMonth: boolean;
       cancellations: boolean;
       reschedules: boolean;
+      withoutAppointments: boolean;
+      memberships: boolean;
     }) => {
       const params = new URLSearchParams();
       params.set("scope", next.scope);
@@ -197,6 +215,8 @@ export function DoctorClientsPanel({
       if (next.visitedMonth) params.set("visitedMonth", "1");
       if (next.cancellations) params.set("cancellations", "1");
       if (next.reschedules) params.set("reschedules", "1");
+      if (next.withoutAppointments) params.set("withoutAppointments", "1");
+      if (next.memberships) params.set("memberships", "1");
       const query = params.toString();
       router.replace(`${basePath}${query ? `?${query}` : ""}`);
     },
@@ -209,6 +229,7 @@ export function DoctorClientsPanel({
         scope: "all",
         segment: nextSegment,
         ...filters,
+        withoutAppointments: nextSegment === "appointments" ? false : filters.withoutAppointments,
       });
     },
     [filters, pushState],
@@ -225,11 +246,14 @@ export function DoctorClientsPanel({
 
   const onToggleFilter = useCallback(
     (key: keyof typeof filters) => {
+      const nextValue = !filters[key];
+      const nextSegment: ClientSegment =
+        key === "withoutAppointments" && nextValue && segment === "appointments" ? "all" : segment;
       pushState({
         scope,
-        segment,
+        segment: nextSegment,
         ...filters,
-        [key]: !filters[key],
+        [key]: nextValue,
       });
     },
     [filters, pushState, scope, segment],
@@ -450,6 +474,26 @@ export function DoctorClientsPanel({
                 aria-pressed={filters.reschedules}
               >
                 Есть переносы
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={filters.withoutAppointments ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onToggleFilter("withoutAppointments")}
+                aria-pressed={filters.withoutAppointments}
+              >
+                Без записей ({segmentCounts.withoutAppointments})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={filters.memberships ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => onToggleFilter("memberships")}
+                aria-pressed={filters.memberships}
+              >
+                С абонементами
               </Button>
               <Button
                 type="button"

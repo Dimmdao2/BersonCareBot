@@ -222,7 +222,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15E.
 | Runtime tail (unique) | **25** файлов = Class B pool (**2**) + Class B client (**1**) + Class C (**22**) |
 | 15A–15E migrated scope | runtime `pool.query`/`client.query` = **0** (Drizzle `db.query.*` relational API — вне gate) |
 | Verify test | `webappPhase15F.verify.test.ts` — **5 passed** (fast) |
-| Phase 15 bundle (spot) | 15F verify + 15E + 15A–15D repo/outbox tests — **77 passed** (fast) |
+| Phase 15 closure bundle | 15F verify + 15E (incl. bind route) + 15A–15D + analytics read-source — **92 passed** (fast) |
 
 **Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](./plans/wave3_phase_16_legacy_cutover.plan.md).
 
