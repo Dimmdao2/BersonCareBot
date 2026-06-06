@@ -8,7 +8,7 @@
 
 - [`smoke-app-router-rsc-pages-inprocess.test.ts`](./smoke-app-router-rsc-pages-inprocess.test.ts) — один `beforeAll` прогружает граф страниц; остальные `*inprocess*.test.ts` не дублируют эти импорты.
 
-Остальные сценарии в `*inprocess*.test.ts` — маршруты `route.ts`, `buildAppDeps`, клиентские модули, in-memory сервисы. Редиректы списка клиентов (legacy `?selected=`, `/subscribers`) — [`doctor-clients-scope-redirects.test.ts`](./doctor-clients-scope-redirects.test.ts).
+Остальные сценарии в `*inprocess*.test.ts` — маршруты `route.ts`, `buildAppDeps`, клиентские модули, in-memory сервисы. Редиректы списка клиентов (legacy `?selected=`, `/subscribers`) — [`doctor-clients-scope-redirects.test.ts`](./doctor-clients-scope-redirects.test.ts). Staff vs patient layout redirects (settings/admin) — [`doctor-patient-role-layout-redirects.test.ts`](./doctor-patient-role-layout-redirects.test.ts).
 
 ## Файлы `e2e/*.test.ts` вне `*inprocess*`
 

@@ -61,15 +61,16 @@ const probeShell = {
   integratorPushOutbox: { status: "ok", durationMs: 1 },
 };
 
-function healthJsonWithDead(outDead: number, ipoDead: number) {
+function healthJsonWithDead(outDead: number, ipoDead: number, projectionDead = 0, reminderDead = 0) {
   return {
     webappDb: "up",
     integratorApi: { status: "ok", db: "up" },
     projection: {
-      status: "ok",
+      status: projectionDead > 0 ? "degraded" : "ok",
       snapshot: {
         pendingCount: 0,
         processingCount: 0,
+        deadCount: projectionDead,
         lastSuccessAt: "2026-04-16T10:00:00.000Z",
       },
     },
@@ -99,6 +100,13 @@ function healthJsonWithDead(outDead: number, ipoDead: number) {
       processingCount: 0,
       oldestProcessingAgeSeconds: null,
       lastQueueActivityAt: null,
+    },
+    remindersPipeline: {
+      windowHours: 24,
+      outgoingReminderDispatch: { due: 0, dead: reminderDead, processing: 0 },
+      occurrenceHistory: { sent: 0, failed: 0 },
+      deliveryEvents: { sent: 0, failed: 0 },
+      patientReminderM2mIdempotencyKeysActive: 0,
     },
     meta: { probes: probeShell },
     fetchedAt: "2026-04-16T10:00:00.000Z",
@@ -147,5 +155,90 @@ describe("SystemHealthSection health failure archive controls", () => {
 
     const buttons = await screen.findAllByRole("button", { name: /Заархивировать и сбросить dead/i });
     expect(buttons.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows clear-dead button for projection when deadCount > 0", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(healthJsonWithDead(0, 0, 2, 0)),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SystemHealthSection />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Синхронизация событий/i }));
+
+    expect(await screen.findByRole("button", { name: /Заархивировать и сбросить dead/i })).toBeInTheDocument();
+  });
+
+  it("shows clear-dead button for reminders when reminder_dispatch dead > 0", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(healthJsonWithDead(0, 0, 0, 1)),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SystemHealthSection />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole("button", { name: /^Напоминания/i }));
+
+    expect(await screen.findByRole("button", { name: /Заархивировать и сбросить dead/i })).toBeInTheDocument();
+  });
+
+  it("confirm dialog calls clear API for projection and reloads system-health", async () => {
+    const user = userEvent.setup();
+    let healthLoads = 0;
+    const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/admin/system-health")) {
+        healthLoads += 1;
+        const projectionDead = healthLoads === 1 ? 2 : 0;
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(healthJsonWithDead(0, 0, projectionDead, 0)),
+        });
+      }
+      if (url.includes("/api/admin/health-failure-archive/clear") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, inserted: 2, deleted: 2 }),
+        });
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SystemHealthSection />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Синхронизация событий/i }));
+    await user.click(await screen.findByRole("button", { name: /Заархивировать и сбросить dead/i }));
+    await user.click(await screen.findByRole("button", { name: /^Подтвердить$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/health-failure-archive/clear",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ probe: "projection_outbox" }),
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(healthLoads).toBeGreaterThanOrEqual(2);
+    });
   });
 });

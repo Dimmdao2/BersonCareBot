@@ -4,6 +4,7 @@
 
 | Задача | Примечание |
 |--------|------------|
+| **Фаза 5 — Staff PWA + блок чужих зон** | Волна 2: чужая зона → свой hub + **toast** (`react-hot-toast`), без forbidden-страниц + staff install. Канон: [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/WAVE2_STAFF_PWA.md`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/WAVE2_STAFF_PWA.md). |
 | Посты / фрагменты CMS на главной | Не блокирует фазы 1–3 первой волны. |
 | Web Push | **MVP контура** — подписки, patient API, SW `push`/`notificationclick`, напоминания с integrator (M2M) + email по SMTP; детали в [LOG.md](LOG.md). **Хвост:** broadcast врача на web_push/email, FCM, офлайн-кэш. VAPID: [WEB_PUSH_VAPID_ADMIN.plan.md](WEB_PUSH_VAPID_ADMIN.plan.md). |
 | Офлайн‑кэш | Высокий риск для RSC/медиа; после push или отдельное решение. |

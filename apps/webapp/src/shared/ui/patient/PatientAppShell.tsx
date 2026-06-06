@@ -3,6 +3,8 @@
  */
 
 import type { CSSProperties, ReactNode } from "react";
+import { Suspense } from "react";
+import { AppAccessDeniedToastEffect } from "@/shared/ui/AppAccessDeniedToastEffect";
 import { PatientGatedHeader } from "@/shared/ui/patient/shell/PatientGatedHeader";
 import { PatientTopNav } from "@/shared/ui/patient/shell/PatientTopNav";
 import { PatientBottomShellFrame } from "@/shared/ui/patient/shell/PatientBottomShellFrame";
@@ -70,6 +72,10 @@ export function PatientAppShell({
       (!patientSuppressShellTitle && (Boolean(shellTitleBadge) || Boolean(shellTitle))));
 
   return (
+    <>
+      <Suspense fallback={null}>
+        <AppAccessDeniedToastEffect />
+      </Suspense>
     <div
       id="app-shell-patient"
       {...patientShellMaxWidthDataAttribute()}
@@ -177,5 +183,6 @@ export function PatientAppShell({
         </main>}
       {patientFloatingSlot}
     </div>
+    </>
   );
 }

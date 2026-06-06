@@ -2,6 +2,8 @@ import {
   HEALTH_FAILURE_ARCHIVE_CLEAR_BATCH_SIZE,
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
   type HealthFailureArchiveProbe,
 } from "./healthFailureArchiveConstants";
@@ -26,9 +28,29 @@ export function createHealthFailureArchiveService(port: HealthFailureArchivePort
           deleted += batch.deleted;
           if (batch.deleted === 0) break;
         }
-      } else {
+      } else if (input.probe === HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE) {
         for (;;) {
           const batch = await port.archiveIntegratorPushOutboxDeadBatch({
+            limit,
+            archivedByUserId: input.archivedByUserId,
+          });
+          inserted += batch.inserted;
+          deleted += batch.deleted;
+          if (batch.deleted === 0) break;
+        }
+      } else if (input.probe === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE) {
+        for (;;) {
+          const batch = await port.archiveProjectionDeadBatch({
+            limit,
+            archivedByUserId: input.archivedByUserId,
+          });
+          inserted += batch.inserted;
+          deleted += batch.deleted;
+          if (batch.deleted === 0) break;
+        }
+      } else {
+        for (;;) {
+          const batch = await port.archiveOutgoingReminderDeadBatch({
             limit,
             archivedByUserId: input.archivedByUserId,
           });

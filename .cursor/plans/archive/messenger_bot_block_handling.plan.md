@@ -284,15 +284,6 @@ pnpm --dir apps/integrator exec vitest run \
 
 ---
 
-## Вне scope
-
-- SMS/email health semantics
-- Auto-off `user_channel_preferences` при block
-- Исключение blocked из audience рассылок
-- Patient reminder UI labels (`resolveActiveReminderDeliveryLabelsForTopic`) — отдельный backlog, если продукт захочет «канал неактивен» и там
-
----
-
 ## Порядок реализации
 
 1. Migration + integrator `markOutgoingDeliveryDead(failureClass)`

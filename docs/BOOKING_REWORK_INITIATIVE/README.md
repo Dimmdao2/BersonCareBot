@@ -1,6 +1,6 @@
 # BOOKING_REWORK_INITIATIVE — доработка записи
 
-**Статус:** `done` (этапы 0–5 — `done`; mirror sync + gaps closeout + sync desync fix code — `done`; post-deploy ops gate desync fix — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § post-deploy)
+**Статус:** `done` (этапы 0–5 — `done`; mirror sync + gaps closeout + sync desync fix code — `done`; post-deploy ops gate — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § post-deploy). Архивный индекс: [`docs/archive/2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md`](../archive/2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md).
 **Дата старта:** 2026-06-04 · **Дата закрытия:** 2026-06-06
 **Владелец постановки:** Дмитрий Берсон
 

@@ -12,8 +12,9 @@
 | 3 — аудит manifest после лендинга | [PHASE_03_MANIFEST_AUDIT.md](PHASE_03_MANIFEST_AUDIT.md) | done |
 | 4 — Web Push: VAPID в админке (`system_settings`) | [WEB_PUSH_VAPID_ADMIN.plan.md](WEB_PUSH_VAPID_ADMIN.plan.md) | done |
 | Backlog | [BACKLOG.md](BACKLOG.md) | backlog |
+| 5 — Staff PWA (кабинет врача, BersonAdmin) | [WAVE2_STAFF_PWA.md](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/WAVE2_STAFF_PWA.md) | planned |
 
-Код первой волны (фазы 1–3) и **фаза 4** (ключ `web_push_vapid`, PATCH, UI настроек, `getWebPushVapidKeyPair`) в репозитории **done**. Однократная генерация пары VAPID и ввод в админку на стенде/проде — у оператора (см. план §1.1). Чекбоксы **на стенде** для фаз 1–3 — в [`PHASE_00`](PHASE_00_PRINCIPLES_AND_SCOPE.md) («Верификация на стенде») и в ручных § фаз 1–3.
+Код первой волны (patient) (фазы 1–3) и **фаза 4** (ключ `web_push_vapid`, PATCH, UI настроек, `getWebPushVapidKeyPair`) в репозитории **done**. Однократная генерация пары VAPID и ввод в админку на стенде/проде — у оператора (см. план §1.1). Чекбоксы **на стенде** для фаз 1–3 — в [`PHASE_00`](PHASE_00_PRINCIPLES_AND_SCOPE.md) («Верификация на стенде») и в ручных § фаз 1–3.
 
 ## Остальные материалы инициативы
 

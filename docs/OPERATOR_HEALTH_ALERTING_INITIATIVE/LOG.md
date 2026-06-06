@@ -4,6 +4,41 @@
 
 ## Записи
 
+### 2026-06-07 — UI: операторский сброс инцидентов и dead-очередей (**закрыто**)
+
+План: [`.cursor/plans/archive/health_ui_operator_actions.plan.md`](../../.cursor/plans/archive/health_ui_operator_actions.plan.md).
+
+#### Реализация
+
+- **Цель:** оператор в «Здоровье системы» (`/app/doctor/system-health`, admin mode) закрывает открытые `operator_incidents` и архивирует dead в `projection_outbox` / `reminder_dispatch` без `psql`.
+- **API:** `POST /api/admin/operator-incidents/resolve-all` → `{ ok, resolved }`, audit **`operator_incidents_resolve_all`**; расширен `POST /api/admin/health-failure-archive/clear` и `GET /api/admin/health-failure-archive` — пробы **`projection_outbox`**, **`outgoing_reminder_dispatch`** (+ `outgoing_delivery`, `integrator_push_outbox`).
+- **Write:** `OperatorHealthWritePort.resolveAllOpenIncidents` — [`pgOperatorHealthWrite.ts`](../../apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts); архив — [`pgHealthFailureArchive.ts`](../../apps/webapp/src/infra/repos/pgHealthFailureArchive.ts) (`archiveProjectionDeadBatch`, `archiveOutgoingReminderDeadBatch`).
+- **UI:** [`SystemHealthSection.tsx`](../../apps/webapp/src/app/app/settings/SystemHealthSection.tsx) — «Закрыть все открытые», «Заархивировать и сбросить dead» (projection, reminders); union Dialog `HealthOperatorAction`; deep links на `?adminTab=health-archive&probe=…`.
+- **Архив UI:** [`HealthFailureArchiveSection.tsx`](../../apps/webapp/src/app/app/settings/HealthFailureArchiveSection.tsx) — 4 probe в селекте; `archiveRowTypeLabel` / `archiveRowReasonLabel` (projection: `event_type`, `rawErrorTruncated`).
+- **Audit:** фильтр действия `operator_incidents_resolve_all` в [`AdminAuditLogSection.tsx`](../../apps/webapp/src/app/app/settings/AdminAuditLogSection.tsx); пресет «Системные снимки» — [`ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS`](../../apps/webapp/src/modules/admin/adminAuditListQuery.ts) + `systemHealthScopeOnly` в [`adminAuditLog.ts`](../../apps/webapp/src/infra/adminAuditLog.ts).
+
+#### Сознательно не делали
+
+- Recovery TG/email при ручном resolve инцидентов
+- Requeue projection dead (ops: [`requeue-projection-outbox-dead.ts`](../../apps/webapp/scripts/requeue-projection-outbox-dead.ts))
+- Resolve по одному `incident.id`
+- Изменения `GET /api/doctor/health-failure-archive`
+
+#### Проверки
+
+- Route: `operator-incidents/resolve-all`, `health-failure-archive/clear`, `health-failure-archive` GET, `audit-log` (`systemHealthOnly`)
+- Unit/query: `adminAuditListQuery`, `adminAuditLog` (`systemHealthScopeOnly` SQL)
+- RTL: `SystemHealthSection.healthFailureArchive.test.tsx`, `SystemHealthSection.operatorIncidents.test.tsx` (Dialog → POST → reload)
+- UI helpers: `HealthFailureArchiveSection.test.tsx`
+- Unit `clearDeadForProbe` — в `health-failure-archive/clear/route.test.ts` (отдельный `healthFailureArchiveService.test.ts` **не** используется: моки с `deleted > 0` без второго батча → бесконечный цикл → OOM vitest)
+- `pnpm --dir apps/webapp typecheck` — ok; targeted vitest **30+** green; webapp shard **2/3** — 1824 passed
+
+#### Документация
+
+- [`apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) — `resolve-all`, `clear.probe`, `systemHealthOnly`
+- План archived, DoD/checklists `[x]` — `.cursor/plans/archive/health_ui_operator_actions.plan.md`
+- README инициативы — § операторские действия UI
+
 ### 2026-05-28 — Наблюдаемость host cron в «Здоровье системы»
 
 - **Цель:** видеть в админке статус всех критичных periodic jobs (internal HTTP + backup tiers) без чтения `/var/log` на хосте.

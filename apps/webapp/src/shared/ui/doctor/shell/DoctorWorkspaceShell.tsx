@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { Suspense } from "react";
+import { AppAccessDeniedToastEffect } from "@/shared/ui/AppAccessDeniedToastEffect";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { DoctorAdminSidebar } from "@/shared/ui/doctor/shell/DoctorAdminSidebar";
 import { DoctorHeader } from "@/shared/ui/doctor/shell/DoctorHeader";
@@ -28,6 +30,9 @@ export function DoctorWorkspaceShell({
 
   return (
     <DoctorSupportUnreadProvider>
+      <Suspense fallback={null}>
+        <AppAccessDeniedToastEffect />
+      </Suspense>
       <div className="flex min-h-screen flex-col bg-white">
         <DoctorHeader
           userDisplayName={userDisplayName}

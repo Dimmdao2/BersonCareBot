@@ -11,6 +11,12 @@ export const inMemoryHealthFailureArchivePort: HealthFailureArchivePort = {
   async archiveIntegratorPushOutboxDeadBatch(): Promise<HealthFailureArchiveClearBatchResult> {
     return { inserted: 0, deleted: 0 };
   },
+  async archiveProjectionDeadBatch(): Promise<HealthFailureArchiveClearBatchResult> {
+    return { inserted: 0, deleted: 0 };
+  },
+  async archiveOutgoingReminderDeadBatch(): Promise<HealthFailureArchiveClearBatchResult> {
+    return { inserted: 0, deleted: 0 };
+  },
   async listForAdmin(): Promise<HealthFailureArchiveListResult> {
     return { items: [], nextCursor: null };
   },

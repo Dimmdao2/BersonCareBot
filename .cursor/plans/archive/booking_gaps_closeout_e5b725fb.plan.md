@@ -3,6 +3,9 @@ name: Booking gaps closeout
 overview: "Максимальное закрытие оставшихся booking-gaps: G4 reschedule, устранение класса overlap (no native fallback при rubitime-first), унификация create-rollback deleteRecord, G6 legacy API, patient partial UI, web-push, legacy service path, shared helpers, полная верификация."
 status: completed
 completedAt: 2026-06-06
+closeoutCommit: eb9eba63
+ciBarrier: passed
+ciVerifiedAt: 2026-06-06
 canonicalPath: .cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md
 todos:
   - id: p0-rubitime-first-no-fallback
@@ -33,12 +36,14 @@ todos:
     content: "Post-closeout: синхронизация всех расходящихся docs + archive booking_scenarios_audit plan"
     status: completed
   - id: p3-ci-barrier
-    content: "P3: targeted vitest + mirror bundle + pnpm run ci — green 2026-06-06 (agent-сессия closeout)"
+    content: "P3: targeted vitest + mirror bundle + pnpm run ci — green 2026-06-06 (commit eb9eba63, push main)"
     status: completed
 isProject: false
 ---
 
 # Закрытие всех оставшихся booking-gaps (усиленный)
+
+> **Закрытие:** `status: completed` · `closeoutCommit: eb9eba63` · `pnpm run ci` green (2026-06-06) · канон только [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](booking_gaps_closeout_e5b725fb.plan.md) — копию в `~/.cursor/plans/` удалить.
 
 ## Уже сделано (не повторять)
 

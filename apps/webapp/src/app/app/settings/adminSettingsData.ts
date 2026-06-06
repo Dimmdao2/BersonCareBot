@@ -18,6 +18,9 @@ import type { EmailSmtpSectionProps } from "./EmailSmtpSection";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
+  type HealthFailureArchiveProbe,
 } from "@/modules/operator-health/healthFailureArchiveConstants";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 import { parseAdminIncidentAlertConfig } from "@/modules/admin-incidents/adminIncidentAlertConfig";
@@ -107,7 +110,7 @@ function parseAdminSmtpOutboundForUi(settings: Array<{ key: string; valueJson: u
 
 export function parseHealthArchiveProbeParam(
   raw: string | string[] | undefined,
-): typeof HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE | typeof HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE | undefined {
+): HealthFailureArchiveProbe | undefined {
   const s =
     typeof raw === "string"
       ? raw.trim()
@@ -115,7 +118,14 @@ export function parseHealthArchiveProbeParam(
         ? raw[0].trim()
         : "";
   if (!s) return undefined;
-  if (s === HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE || s === HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE) return s;
+  if (
+    s === HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE ||
+    s === HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE ||
+    s === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE ||
+    s === HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE
+  ) {
+    return s;
+  }
   return undefined;
 }
 

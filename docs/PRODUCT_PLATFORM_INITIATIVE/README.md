@@ -1,27 +1,28 @@
 # PRODUCT_PLATFORM_INITIATIVE — платформа: режимы, каналы, массовый вход
 
-**Статус:** `active` (этап 0 — `done`; этапы 1–10 — `pending`)
+**Статус:** `deferred` · **on hold** · **revisit later** (решение 2026-06-06)
 **Дата старта:** 2026-06-06
 
-Одна платформа: единый пользователь, единый контент, несколько каналов (PWA, Telegram, MAX, сайт). Текущий клинический кабинет **не переписываем** — он становится **Patient Mode**. Вокруг него — **Mass Mode** (guest/lead/customer), channel shells и **product-status** отдельно от **access-tier**.
+Архитектурная **заготовка** на долгий срок. **Не исполнять** этапы 1–10 в ближайших волнах.
 
-## Документы
+## Решение 2026-06-06
 
-1. [`ROADMAP.md`](ROADMAP.md) — этапы 0–10, DoD, риски, порядок запуска.
-2. [`PHASE_DECOMPOSITION.md`](PHASE_DECOMPOSITION.md) — подэтапы для исполнения агентами (обязательные чеклисты).
-3. [`LOG.md`](LOG.md) — журнал выполнения.
-4. Канон терминов: [`../ARCHITECTURE/PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md`](../ARCHITECTURE/PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md).
-5. План Cursor: [`.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md`](../../.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md).
+- **Guest mode отменён** — анонимный доступ без регистрации снимается с roadmap.
+- **Mass/Patient split отложен** — нет достаточного объёма контента, продуктов и автоматизаций для оправдания сложности.
+- Этап 0 (канон терминов в docs) **сохранён** как справочник; код resolver/mass routes **не закладывать**.
 
-## Границы (кратко)
+Карточка отложенной работы: [`../TODO_NOT_NOW/product-platform-mass-patient.md`](../TODO_NOT_NOW/product-platform-mass-patient.md).
 
-**В scope:** channel shell `/app/tg` `/app/max`, Mass shell, product-status resolver, mode-aware nav/home, booking hub как единая точка, единые уведомления, warmups/SOS, access rules, deep links.
+**Ближайший приоритет вместо этого:** [`../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md).
 
-**Вне scope без решения:** отдельный кабинет в боте; дубли CMS под каналы; оплата до guest/mass + access rules; смешение `accessTier patient` с product `patient`.
+## Документы (архив инициативы)
 
-## Связанные инициативы
+1. [`ROADMAP.md`](ROADMAP.md) — этапы 0–10; 1–10 cancelled.
+2. [`PHASE_DECOMPOSITION.md`](PHASE_DECOMPOSITION.md) — подэтапы (не для исполнения до revisit).
+3. [`LOG.md`](LOG.md) — журнал.
+4. Канон (справочно): [`../ARCHITECTURE/PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md`](../ARCHITECTURE/PLATFORM_ACCESS_TIER_VS_PRODUCT_STATUS.md).
+5. План: [`.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md`](../../.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md).
 
-- Booking hub (уже `done`): [`../BOOKING_REWORK_INITIATIVE/README.md`](../BOOKING_REWORK_INITIATIVE/README.md)
-- Identity / tier: [`../ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md`](../ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md)
-- Курсы (отложены): [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md)
-- APP restructure IA: [`../APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md`](../APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md)
+## Когда возвращаться
+
+См. триггеры в [`../TODO_NOT_NOW/product-platform-mass-patient.md`](../TODO_NOT_NOW/product-platform-mass-patient.md).

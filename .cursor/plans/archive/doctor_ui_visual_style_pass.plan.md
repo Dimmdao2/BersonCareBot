@@ -73,9 +73,9 @@ isProject: false
 
 1. Прочитать каноны и правила из раздела выше; убедиться, что density не откатываем.
 2. Создать initiative docs:
-   - `docs/DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/README.md` — цель, scope, ссылки;
-   - `docs/DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/LOG.md` — журнал исполнения по фазам;
-   - `docs/DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/AUDIT.md` — таблица baseline-отклонений (файл → класс-нарушитель → целевой класс §B/§A).
+   - `docs/archive/2026-06-initiatives/DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/README.md` — цель, scope, ссылки;
+   - `docs/archive/2026-06-initiatives/DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/LOG.md` — журнал исполнения по фазам;
+   - `docs/archive/2026-06-initiatives/DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/AUDIT.md` — таблица baseline-отклонений (файл → класс-нарушитель → целевой класс §B/§A).
 3. Собрать инвентаризацию отклонений (только doctor-зона):
 
 ```bash

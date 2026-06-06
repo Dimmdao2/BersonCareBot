@@ -34,6 +34,14 @@
 
 Закрыто в репо **2026-06-06**: [`2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/README.md`](2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/README.md) · план [`.cursor/plans/archive/messenger_bot_block_handling.plan.md`](../../.cursor/plans/archive/messenger_bot_block_handling.plan.md).
 
+## 2026-06 — BOOKING_REWORK (solo UX, mirror, gaps closeout)
+
+Инициатива **`done`** (2026-06-06). Индекс архива: [`2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md`](2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md). Операционный канон (LOG, ACCEPTANCE, контракт mirror): [`BOOKING_REWORK_INITIATIVE/README.md`](../BOOKING_REWORK_INITIATIVE/README.md).
+
+## 2026-06 — Doctor UI visual style pass
+
+Закрыто **2026-06-04** (`pnpm run ci` green): [`2026-06-initiatives/DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/README.md`](2026-06-initiatives/DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/README.md) · план [`.cursor/plans/archive/doctor_ui_visual_style_pass.plan.md`](../../.cursor/plans/archive/doctor_ui_visual_style_pass.plan.md). Stub: [`DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/README.md`](../DOCTOR_UI_VISUAL_STYLE_PASS_INITIATIVE/README.md).
+
 ## 2026-05 — вынесенные закрытые пункты project backlog
 
 Записи, удалённые из [`../TODO.md`](../TODO.md) как история: [`TODO_BACKLOG_CLOSED_HISTORY.md`](TODO_BACKLOG_CLOSED_HISTORY.md).

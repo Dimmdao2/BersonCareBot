@@ -1,14 +1,19 @@
 import { and, desc, eq, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { broadcastAudit, integratorPushOutbox, platformUsers } from "../../../db/schema/schema";
+import { broadcastAudit, integratorPushOutbox, platformUsers, projectionOutbox } from "../../../db/schema/schema";
 import { operatorHealthFailureArchive } from "../../../db/schema/operatorHealthFailureArchive";
 import { outgoingDeliveryQueue } from "../../../db/schema/outgoingDeliveryQueue";
 import { DOCTOR_BROADCAST_QUEUE_KIND } from "@/modules/doctor-broadcasts/deliveryQueueKind";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   INTEGRATOR_OUTBOX_ARCHIVE_SOURCE_KIND,
   OUTGOING_ARCHIVE_SOURCE_KIND,
+  OUTGOING_REMINDER_ARCHIVE_SOURCE_KIND,
+  OUTGOING_REMINDER_QUEUE_KIND,
+  PROJECTION_ARCHIVE_SOURCE_KIND,
 } from "@/modules/operator-health/healthFailureArchiveConstants";
 import type {
   HealthFailureArchiveClearBatchResult,
@@ -232,6 +237,106 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
       await tx.delete(integratorPushOutbox).where(
         inArray(
           integratorPushOutbox.id,
+          rows.map((r) => r.id),
+        ),
+      );
+
+      return { inserted: rows.length, deleted: rows.length };
+    });
+  },
+
+  async archiveProjectionDeadBatch(input: {
+    limit: number;
+    archivedByUserId: string;
+  }): Promise<HealthFailureArchiveClearBatchResult> {
+    const db = getDrizzle();
+    return db.transaction(async (tx) => {
+      const rows = await tx
+        .select()
+        .from(projectionOutbox)
+        .where(eq(projectionOutbox.status, "dead"))
+        .limit(Math.min(500, Math.max(1, input.limit)));
+
+      if (rows.length === 0) {
+        return { inserted: 0, deleted: 0 };
+      }
+
+      const insertValues = rows.map((row) => ({
+        archivedByUserId: input.archivedByUserId,
+        healthProbe: HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
+        sourceKind: PROJECTION_ARCHIVE_SOURCE_KIND,
+        sourceId: String(row.id),
+        severityAtArchive: "dead" as const,
+        doctorUserId: null as string | null,
+        summaryJson: {
+          event_type: row.eventType,
+          idempotency_key: row.idempotencyKey,
+          attempts_done: row.attemptsDone,
+        },
+        rawErrorTruncated: truncateError(row.lastError),
+      }));
+
+      await tx.insert(operatorHealthFailureArchive).values(insertValues);
+      await tx.delete(projectionOutbox).where(
+        inArray(
+          projectionOutbox.id,
+          rows.map((r) => r.id),
+        ),
+      );
+
+      return { inserted: rows.length, deleted: rows.length };
+    });
+  },
+
+  async archiveOutgoingReminderDeadBatch(input: {
+    limit: number;
+    archivedByUserId: string;
+  }): Promise<HealthFailureArchiveClearBatchResult> {
+    const db = getDrizzle();
+    return db.transaction(async (tx) => {
+      const rows = await tx
+        .select()
+        .from(outgoingDeliveryQueue)
+        .where(
+          and(
+            eq(outgoingDeliveryQueue.status, "dead"),
+            eq(outgoingDeliveryQueue.kind, OUTGOING_REMINDER_QUEUE_KIND),
+            or(
+              isNull(outgoingDeliveryQueue.failureClass),
+              ne(outgoingDeliveryQueue.failureClass, "recipient_blocked_bot"),
+            ),
+          ),
+        )
+        .limit(Math.min(500, Math.max(1, input.limit)));
+
+      if (rows.length === 0) {
+        return { inserted: 0, deleted: 0 };
+      }
+
+      const insertValues = rows.map((row) => {
+        const { reason_code, reason_ru } = humanizeOutgoingDeliveryLastError(row.lastError);
+        const summary: Record<string, unknown> = {
+          reason_code,
+          reason_ru,
+          queue_kind: row.kind,
+          channel: row.channel,
+        };
+        return {
+          archivedByUserId: input.archivedByUserId,
+          healthProbe: HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+          sourceKind: OUTGOING_REMINDER_ARCHIVE_SOURCE_KIND,
+          sourceId: row.id,
+          severityAtArchive: "dead" as const,
+          doctorUserId: null as string | null,
+          summaryJson: summary,
+          rawErrorTruncated: truncateError(row.lastError),
+        };
+      });
+
+      await tx.insert(operatorHealthFailureArchive).values(insertValues);
+      await tx.delete(outgoingDeliveryQueue).where(
+        inArray(
+          outgoingDeliveryQueue.id,
           rows.map((r) => r.id),
         ),
       );

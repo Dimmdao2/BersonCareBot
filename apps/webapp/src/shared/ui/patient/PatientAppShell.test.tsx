@@ -14,6 +14,10 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+vi.mock("@/shared/ui/AppAccessDeniedToastEffect", () => ({
+  AppAccessDeniedToastEffect: () => null,
+}));
+
 vi.mock("@/shared/hooks/usePlatform", () => ({
   usePlatform: () => "mobile" as const,
 }));

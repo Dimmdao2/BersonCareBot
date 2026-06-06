@@ -44,6 +44,7 @@ export async function GET(req: Request) {
       fromInclusive: filter.fromInclusive,
       toInclusive: filter.toInclusive,
       ...(filter.actionPrefix ? { actionPrefix: filter.actionPrefix } : {}),
+      ...(filter.systemHealthScopeOnly ? { systemHealthScopeOnly: true } : {}),
       ...(filter.excludeActionPrefix ? { excludeActionPrefix: filter.excludeActionPrefix } : {}),
     }),
     countOpenAutoMergeConflicts(pool),

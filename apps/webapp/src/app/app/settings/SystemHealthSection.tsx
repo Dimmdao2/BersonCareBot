@@ -21,8 +21,15 @@ import { CopyForAiButton } from "./CopyForAiButton";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
+  type HealthFailureArchiveProbe,
 } from "@/modules/operator-health/healthFailureArchiveConstants";
+
+type HealthOperatorAction =
+  | { kind: "archive"; probe: HealthFailureArchiveProbe }
+  | { kind: "resolve_incidents" };
 
 type DbStatus = "up" | "down";
 type IntegratorApiStatus = "ok" | "unreachable" | "error";
@@ -718,9 +725,7 @@ export function SystemHealthSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SystemHealthPayload | null>(null);
-  const [clearProbe, setClearProbe] = useState<
-    typeof HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE | typeof HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE | null
-  >(null);
+  const [operatorAction, setOperatorAction] = useState<HealthOperatorAction | null>(null);
   const [clearBusy, setClearBusy] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
 
@@ -749,30 +754,36 @@ export function SystemHealthSection() {
     }
   }, []);
 
-  const runArchiveClear = useCallback(async () => {
-    if (!clearProbe) return;
+  const runOperatorAction = useCallback(async () => {
+    if (!operatorAction) return;
     setClearBusy(true);
     setClearError(null);
     try {
-      const res = await fetch("/api/admin/health-failure-archive/clear", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ probe: clearProbe }),
-      });
+      const res =
+        operatorAction.kind === "resolve_incidents"
+          ? await fetch("/api/admin/operator-incidents/resolve-all", {
+              method: "POST",
+              credentials: "include",
+            })
+          : await fetch("/api/admin/health-failure-archive/clear", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ probe: operatorAction.probe }),
+            });
       const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!res.ok || !body?.ok) {
         setClearError(body?.error ?? "request_failed");
         return;
       }
-      setClearProbe(null);
+      setOperatorAction(null);
       await load();
     } catch {
       setClearError("network");
     } finally {
       setClearBusy(false);
     }
-  }, [clearProbe, load]);
+  }, [operatorAction, load]);
 
   useEffect(() => {
     void load();
@@ -944,6 +955,21 @@ export function SystemHealthSection() {
               </p>
               <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
               <DetailRow label="Самая старая задача ждёт с" value={formatDateTime(oldestPending)} />
+              {queueDead > 0 ? (
+                <div className="pt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      setClearError(null);
+                      setOperatorAction({ kind: "archive", probe: HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE });
+                    }}
+                  >
+                    Заархивировать и сбросить dead
+                  </Button>
+                </div>
+              ) : null}
               <ProbeInfo probe={data?.meta?.probes?.projection} />
             </HealthAccordionItem>
 
@@ -1238,6 +1264,21 @@ export function SystemHealthSection() {
                   ))}
                 </div>
               )}
+              {openOperatorIncidents.length > 0 ? (
+                <div className="pt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      setClearError(null);
+                      setOperatorAction({ kind: "resolve_incidents" });
+                    }}
+                  >
+                    Закрыть все открытые
+                  </Button>
+                </div>
+              ) : null}
             </HealthAccordionItem>
 
             <HealthAccordionItem name="Бэкапы базы данных" status={data?.meta?.probes?.operatorBackupJobs?.status ?? "error"}>
@@ -1349,7 +1390,7 @@ export function SystemHealthSection() {
                     variant="destructive"
                     onClick={() => {
                       setClearError(null);
-                      setClearProbe(HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE);
+                      setOperatorAction({ kind: "archive", probe: HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE });
                     }}
                   >
                     Заархивировать и сбросить dead
@@ -1443,6 +1484,21 @@ export function SystemHealthSection() {
                 label="M2M push/email: активные ключи idempotency"
                 value={String(data?.remindersPipeline?.patientReminderM2mIdempotencyKeysActive ?? 0)}
               />
+              {(data?.remindersPipeline?.outgoingReminderDispatch?.dead ?? 0) > 0 ? (
+                <div className="pt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      setClearError(null);
+                      setOperatorAction({ kind: "archive", probe: HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE });
+                    }}
+                  >
+                    Заархивировать и сбросить dead
+                  </Button>
+                </div>
+              ) : null}
             </HealthAccordionItem>
 
             <HealthAccordionItem name="Web Push (PWA)" status={webPushSectionStatus}>
@@ -1568,7 +1624,7 @@ export function SystemHealthSection() {
                     variant="destructive"
                     onClick={() => {
                       setClearError(null);
-                      setClearProbe(HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE);
+                      setOperatorAction({ kind: "archive", probe: HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE });
                     }}
                   >
                     Заархивировать и сбросить dead
@@ -1620,33 +1676,50 @@ export function SystemHealthSection() {
             >
               Архив: очередь синка в integrator
             </Link>
+            <Link
+              href={`/app/settings?adminTab=health-archive&probe=${HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE}`}
+              className="text-foreground underline underline-offset-2"
+            >
+              Архив: синхронизация событий
+            </Link>
+            <Link
+              href={`/app/settings?adminTab=health-archive&probe=${HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}`}
+              className="text-foreground underline underline-offset-2"
+            >
+              Архив: напоминания (reminder_dispatch)
+            </Link>
           </div>
         </CollapsibleContent>
       </Collapsible>
 
       <Dialog
-        open={clearProbe !== null}
+        open={operatorAction !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setClearProbe(null);
+            setOperatorAction(null);
             setClearError(null);
           }
         }}
       >
         <DialogContent className="sm:max-w-md" showCloseButton={!clearBusy}>
           <DialogHeader>
-            <DialogTitle>Сброс dead в очереди</DialogTitle>
+            <DialogTitle>
+              {operatorAction?.kind === "resolve_incidents" ? "Закрыть инциденты" : "Сброс dead в очереди"}
+            </DialogTitle>
             <DialogDescription>
-              Необратимо удалит dead-строки из очереди; копия останется в архиве до {HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS}{" "}
-              дней. Задачи due и журнал рассылок не пересчитываются.
+              {operatorAction?.kind === "resolve_incidents"
+                ? "Закроет все открытые инциденты. Повторные алерты не отправляются."
+                : operatorAction?.probe === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE
+                  ? "Удалит dead из очереди синхронизации; копия в архиве. Это не повторная постановка в очередь."
+                  : `Необратимо удалит dead-строки из очереди; копия останется в архиве до ${HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дней. Задачи due и журнал рассылок не пересчитываются.`}
             </DialogDescription>
           </DialogHeader>
           {clearError ? <p className="text-sm text-destructive">Не удалось выполнить ({clearError}).</p> : null}
           <DialogFooter className="gap-2 sm:justify-end">
-            <Button type="button" variant="outline" disabled={clearBusy} onClick={() => setClearProbe(null)}>
+            <Button type="button" variant="outline" disabled={clearBusy} onClick={() => setOperatorAction(null)}>
               Отмена
             </Button>
-            <Button type="button" variant="destructive" disabled={clearBusy} onClick={() => void runArchiveClear()}>
+            <Button type="button" variant="destructive" disabled={clearBusy} onClick={() => void runOperatorAction()}>
               {clearBusy ? "Выполняется…" : "Подтвердить"}
             </Button>
           </DialogFooter>

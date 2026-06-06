@@ -109,3 +109,15 @@
 
 - [`MASTER_PLAN.md`](MASTER_PLAN.md)
 - [`PHASE_G_TESTS_AND_DOCS.md`](PHASE_G_TESTS_AND_DOCS.md)
+
+## 8. Дополнение (2026-06-07) — операторский bulk reset в UI
+
+Закрытый план [`.cursor/plans/archive/health_ui_operator_actions.plan.md`](../../.cursor/plans/archive/health_ui_operator_actions.plan.md); журнал [`LOG.md`](LOG.md) § 2026-06-07.
+
+**In scope (сделано):**
+
+- Закрыть **все** открытые `operator_incidents` из [`SystemHealthSection.tsx`](../../apps/webapp/src/app/app/settings/SystemHealthSection.tsx) (`POST /api/admin/operator-incidents/resolve-all`).
+- Заархивировать и удалить dead в `projection_outbox` и очереди `reminder_dispatch` (`POST /api/admin/health-failure-archive/clear` с probe `projection_outbox` / `outgoing_reminder_dispatch`).
+- Архив dead-строк — вкладка `health-archive`; audit — `operator_incidents_resolve_all`, `health_failure_archive_clear_dead`.
+
+**Out of scope (как и в §3):** resolve одного инцидента по id; recovery-уведомления при ручном resolve; requeue projection (ops-скрипт).

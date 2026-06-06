@@ -1,44 +1,54 @@
 ---
 name: product-platform-roadmap
-overview: Roadmap переводит текущий пациентский кабинет в платформу с двумя пользовательскими режимами, отдельными канальными оболочками и единым источником контента/уведомлений без дублей.
+overview: "DEFERRED 2026-06-06: guest отменён; mass/patient split on hold. Этап 0 (канон docs) done. Ближайшая волна — DOCTOR_PATIENT_PWA_SPLIT + push."
 todos:
   - id: phase-0-canon
     content: Зафиксировать терминологию access-tier vs product-status и границы каналов
     status: completed
   - id: phase-1-channel-shell
     content: Спроектировать отдельные `/app/tg` и `/app/max` channel shells без дублирования бизнес-контента
-    status: pending
+    status: cancelled
   - id: phase-2-guest-mass
     content: Спроектировать Guest/Mass Mode без регистрации и action gates для персональных действий
-    status: pending
+    status: cancelled
   - id: phase-3-product-status
     content: Спроектировать product-status model и mode resolver
-    status: pending
+    status: cancelled
   - id: phase-4-mode-nav-home
     content: Спроектировать mode-aware navigation и отдельные home screens
-    status: pending
+    status: cancelled
   - id: phase-5-booking-hub
     content: Закрепить booking hub как единый экран записей, истории и абонементов
-    status: pending
+    status: cancelled
   - id: phase-6-notifications
     content: Спроектировать единую модель уведомлений и рассылок по каналам
-    status: pending
+    status: cancelled
   - id: phase-7-warmups-sos
     content: Спроектировать структурированные warmups/SOS сценарии
-    status: pending
+    status: cancelled
   - id: phase-8-access-courses
     content: Спроектировать public programs, courses и access rules
-    status: pending
+    status: cancelled
   - id: phase-9-monetization
     content: Спланировать покупки и подписки после access rules
-    status: pending
+    status: cancelled
   - id: phase-10-deeplinks-site
     content: Спланировать deep links, сайт-витрину и финальную роль каналов
-    status: pending
+    status: cancelled
 isProject: false
 ---
 
 # Roadmap Платформы: Режимы, Каналы, Массовый Вход
+
+## Статус плана (2026-06-06)
+
+**Deferred / on hold.** Guest mode **отменён**. Этапы 1–10 **не реализовывать** в ближайших волнах.
+
+- Карточка: [`docs/TODO_NOT_NOW/product-platform-mass-patient.md`](../../docs/TODO_NOT_NOW/product-platform-mass-patient.md)
+- Инициатива: [`docs/PRODUCT_PLATFORM_INITIATIVE/README.md`](../../docs/PRODUCT_PLATFORM_INITIATIVE/README.md)
+- **Ближайший приоритет:** [`docs/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../../docs/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md) (Doctor Cabinet only; Patient PWA frozen)
+
+---
 
 ## Цель
 Построить одну платформу с единым пользователем, единым контентом и несколькими каналами доступа: приложение как основной интерфейс, Telegram/MAX как тонкие каналы, сайт как витрина, админка как центр управления.

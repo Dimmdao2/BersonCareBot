@@ -108,6 +108,25 @@ describe("GET /api/admin/audit-log", () => {
     expect(listAdminAuditLogMock).not.toHaveBeenCalled();
   });
 
+  it("passes systemHealthScopeOnly when systemHealthOnly=1", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" } },
+    });
+    listAdminAuditLogMock.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 50,
+    });
+    const res = await GET(new Request("http://localhost/api/admin/audit-log?systemHealthOnly=1"));
+    expect(res.status).toBe(200);
+    expect(listAdminAuditLogMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ systemHealthScopeOnly: true }),
+    );
+  });
+
   it("passes involvesPlatformUserId to list when valid uuid", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,

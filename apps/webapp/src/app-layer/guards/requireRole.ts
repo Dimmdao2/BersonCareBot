@@ -5,6 +5,7 @@ import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/modul
 import { getPool } from "@/infra/db/client";
 import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
+import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
 import type { AppSession } from "@/shared/types/session";
 
 export async function requireSession(returnPath?: string): Promise<AppSession> {
@@ -61,7 +62,9 @@ export async function patientRscPersonalDataGate(
 
 export async function requireDoctorAccess(): Promise<AppSession> {
   const session = await requireSession();
-  if (!canAccessDoctor(session.user.role)) redirect(routePaths.patient);
+  if (!canAccessDoctor(session.user.role)) {
+    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
+  }
   return session;
 }
 

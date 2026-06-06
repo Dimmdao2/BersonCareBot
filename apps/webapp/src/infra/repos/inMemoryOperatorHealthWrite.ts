@@ -107,4 +107,8 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
       metaJson: input.metaJson,
     });
   },
+
+  async resolveAllOpenIncidents() {
+    return { resolved: 0 };
+  },
 };

@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
   type HealthFailureArchiveProbe,
 } from "@/modules/operator-health/healthFailureArchiveConstants";
@@ -21,9 +23,21 @@ type ArchiveItem = {
   rawErrorTruncated: string | null;
 };
 
-function summaryStr(s: Record<string, unknown>, key: string): string {
-  const v = s[key];
-  return typeof v === "string" ? v : "—";
+/** Тип строки в таблице: queue_kind для outgoing, event_type для projection. */
+export function archiveRowTypeLabel(summary: Record<string, unknown>): string {
+  const queueKind = summary.queue_kind;
+  if (typeof queueKind === "string" && queueKind.length > 0) return queueKind;
+  const eventType = summary.event_type;
+  if (typeof eventType === "string" && eventType.length > 0) return eventType;
+  return "—";
+}
+
+/** Причина: reason_ru для outgoing, иначе усечённая ошибка из архива. */
+export function archiveRowReasonLabel(row: Pick<ArchiveItem, "summaryJson" | "rawErrorTruncated">): string {
+  const reason = row.summaryJson.reason_ru;
+  if (typeof reason === "string" && reason.length > 0) return reason;
+  if (row.rawErrorTruncated != null && row.rawErrorTruncated.length > 0) return row.rawErrorTruncated;
+  return "—";
 }
 
 export type HealthFailureArchiveSectionProps = {
@@ -108,12 +122,18 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
                 else if (v === HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE) setProbe(HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE);
                 else if (v === HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE) {
                   setProbe(HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE);
+                } else if (v === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE) {
+                  setProbe(HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE);
+                } else if (v === HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE) {
+                  setProbe(HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE);
                 }
               }}
             >
               <option value="all">Все</option>
               <option value={HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE}>Очередь доставки</option>
               <option value={HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE}>Синк в integrator</option>
+              <option value={HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE}>Синхронизация событий</option>
+              <option value={HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}>Напоминания (reminder_dispatch)</option>
             </select>
           </label>
           <Button type="button" variant="outline" size="sm" onClick={() => void loadPage(null, false)} disabled={loading}>
@@ -148,8 +168,8 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
                   <tr key={row.id} className="border-b border-border/40 align-top">
                     <td className="p-2 whitespace-nowrap text-muted-foreground">{row.archivedAt.replace("T", " ").slice(0, 19)}</td>
                     <td className="p-2">{row.healthProbe}</td>
-                    <td className="p-2">{summaryStr(row.summaryJson, "queue_kind")}</td>
-                    <td className="p-2">{summaryStr(row.summaryJson, "reason_ru")}</td>
+                    <td className="p-2">{archiveRowTypeLabel(row.summaryJson)}</td>
+                    <td className="p-2">{archiveRowReasonLabel(row)}</td>
                     <td className="p-2 font-mono break-all">{row.sourceId}</td>
                   </tr>
                 ))}

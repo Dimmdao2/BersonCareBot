@@ -258,6 +258,27 @@ describe("listAdminAuditLog", () => {
     expect(countCall?.[1]).toEqual(expect.arrayContaining(["system_health_"]));
   });
 
+  it("systemHealthScopeOnly includes prefix and operator health actions", async () => {
+    runWebappPgTextMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("count(*)")) {
+        return { rows: [{ n: "0" }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await listAdminAuditLog(poolStub, { page: 1, limit: 10, systemHealthScopeOnly: true });
+
+    const countCall = runWebappPgTextMock.mock.calls.find((c) => String(c[0]).includes("count(*)"));
+    expect(String(countCall?.[0])).toContain("LIKE");
+    expect(String(countCall?.[0])).toContain("= ANY");
+    expect(countCall?.[1]).toEqual(
+      expect.arrayContaining([
+        "system_health_",
+        expect.arrayContaining(["operator_incidents_resolve_all", "health_failure_archive_clear_dead"]),
+      ]),
+    );
+  });
+
   it("involvesPlatformUserId SQL matches merge/bind candidateIds and user_merge details", async () => {
     const uid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     runWebappPgTextMock.mockImplementation(async (sql: string) => {

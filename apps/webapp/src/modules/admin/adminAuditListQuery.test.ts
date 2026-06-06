@@ -26,6 +26,13 @@ describe("adminAuditListQuery", () => {
     expect(filter.toInclusive).toBe(adminAuditDayEndUtcIso("2026-01-31"));
   });
 
+  it("maps systemHealthOnly to systemHealthScopeOnly", () => {
+    const q = adminAuditListQuerySchema.parse({ systemHealthOnly: "1" });
+    const filter = adminAuditListFilterFromQuery(q);
+    expect(filter.systemHealthScopeOnly).toBe(true);
+    expect(filter.actionPrefix).toBeUndefined();
+  });
+
   it("rejects invalid involvesPlatformUserId", () => {
     expect(adminAuditListQuerySchema.safeParse({ involvesPlatformUserId: "not-uuid" }).success).toBe(false);
   });

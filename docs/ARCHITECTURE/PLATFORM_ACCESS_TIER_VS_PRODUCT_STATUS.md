@@ -2,7 +2,7 @@
 
 Нормативный документ для roadmap **Product Platform** (Mass Mode + Patient Mode). Дополняет [`PLATFORM_IDENTITY_SPECIFICATION.md`](PLATFORM_IDENTITY_SPECIFICATION.md), не заменяет его.
 
-**Версия:** 2026-06-06 · **Статус:** канон этапа 0 (до появления кода `productStatus`).
+**Версия:** 2026-06-06 · **Статус:** справочный черновик (инициатива **deferred** 2026-06-06; guest mode **отменён**; код `productStatus` **не планируется** в ближайших волнах). Актуальный access-tier — [`PLATFORM_IDENTITY_SPECIFICATION.md`](PLATFORM_IDENTITY_SPECIFICATION.md).
 
 ---
 
@@ -154,7 +154,9 @@ rg "tier.*patient" apps/webapp/src/modules/platform-access --glob "*.ts"
 
 ## 9. Ссылки
 
+- Статус: [`../TODO_NOT_NOW/product-platform-mass-patient.md`](../TODO_NOT_NOW/product-platform-mass-patient.md) (deferred)
 - Инициатива: [`../PRODUCT_PLATFORM_INITIATIVE/README.md`](../PRODUCT_PLATFORM_INITIATIVE/README.md)
+- Ближайший приоритет: [`../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md)
 - План: [`.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md`](../../.cursor/plans/archive/product-platform-roadmap_e6f81831.plan.md)
 - Identity tier: [`PLATFORM_IDENTITY_SPECIFICATION.md`](PLATFORM_IDENTITY_SPECIFICATION.md)
 - Сценарии и код: [`PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md)

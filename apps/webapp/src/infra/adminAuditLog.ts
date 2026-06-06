@@ -4,6 +4,7 @@
  */
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
+import { ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS } from "@/modules/admin/adminAuditListQuery";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { logger } from "@/infra/logging/logger";
 
@@ -348,6 +349,8 @@ export type ListAdminAuditLogParams = {
   actionPrefix?: string;
   /** `l.action NOT LIKE $prefix || '%'` */
   excludeActionPrefix?: string;
+  /** `system_health_*` + operator health actions from «Здоровье системы». */
+  systemHealthScopeOnly?: boolean;
 };
 
 /** Count of distinct open `auto_merge_conflict` rows (`resolved_at IS NULL`). */
@@ -439,6 +442,13 @@ export async function listAdminAuditLog(_pool: Pool, params: ListAdminAuditLogPa
     conditions.push(`l.action LIKE $${i} || '%'`);
     values.push(params.actionPrefix.trim());
     i++;
+  }
+  if (params.systemHealthScopeOnly) {
+    conditions.push(
+      `(l.action LIKE $${i} || '%' OR l.action = ANY($${i + 1}::text[]))`,
+    );
+    values.push("system_health_", [...ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS]);
+    i += 2;
   }
   if (params.excludeActionPrefix?.trim()) {
     conditions.push(`l.action NOT LIKE $${i} || '%'`);

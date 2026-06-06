@@ -33,6 +33,14 @@ export type HealthFailureArchivePort = {
     limit: number;
     archivedByUserId: string;
   }): Promise<HealthFailureArchiveClearBatchResult>;
+  archiveProjectionDeadBatch(input: {
+    limit: number;
+    archivedByUserId: string;
+  }): Promise<HealthFailureArchiveClearBatchResult>;
+  archiveOutgoingReminderDeadBatch(input: {
+    limit: number;
+    archivedByUserId: string;
+  }): Promise<HealthFailureArchiveClearBatchResult>;
   listForAdmin(input: {
     probe: HealthFailureArchiveProbe | null;
     limit: number;

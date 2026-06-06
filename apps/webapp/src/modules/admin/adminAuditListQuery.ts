@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+/** Operator actions from «Здоровье системы» — показываем в пресете «Системные снимки». */
+export const ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS = [
+  "health_failure_archive_clear_dead",
+  "operator_incidents_resolve_all",
+] as const;
+
 /** GET /api/admin/audit-log query params. */
 export const adminAuditListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -40,6 +46,8 @@ export type AdminAuditListFilter = {
   toInclusive?: string;
   actionPrefix?: "system_health_";
   excludeActionPrefix?: "system_health_";
+  /** `system_health_*` + {@link ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS}. */
+  systemHealthScopeOnly?: true;
 };
 
 export function adminAuditDayStartUtcIso(date: string): string {
@@ -66,7 +74,7 @@ export function adminAuditListFilterFromQuery(q: AdminAuditListQuery): AdminAudi
     fromInclusive,
     toInclusive,
     ...(q.systemHealthOnly
-      ? { actionPrefix: "system_health_" as const }
+      ? { systemHealthScopeOnly: true as const }
       : q.excludeSystemHealth
         ? { excludeActionPrefix: "system_health_" as const }
         : {}),

@@ -41,7 +41,28 @@ vi.mock("@/app-layer/db/client", () => ({
   getPool: getPoolMock,
 }));
 
+import {
+  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
+} from "@/modules/operator-health/healthFailureArchiveConstants";
+import type { HealthFailureArchivePort } from "@/modules/operator-health/healthFailureArchivePort";
+import { createHealthFailureArchiveService } from "@/modules/operator-health/healthFailureArchiveService";
 import { POST } from "./route";
+
+function makeArchivePort(overrides: Partial<HealthFailureArchivePort> = {}): HealthFailureArchivePort {
+  return {
+    archiveOutgoingDeadBatch: vi.fn().mockResolvedValue({ inserted: 0, deleted: 0 }),
+    archiveIntegratorPushOutboxDeadBatch: vi.fn().mockResolvedValue({ inserted: 0, deleted: 0 }),
+    archiveProjectionDeadBatch: vi.fn().mockResolvedValue({ inserted: 0, deleted: 0 }),
+    archiveOutgoingReminderDeadBatch: vi.fn().mockResolvedValue({ inserted: 0, deleted: 0 }),
+    listForAdmin: vi.fn(),
+    listForDoctor: vi.fn(),
+    deleteArchivedBefore: vi.fn(),
+    ...overrides,
+  };
+}
 
 describe("POST /api/admin/health-failure-archive/clear", () => {
   beforeEach(() => {
@@ -137,5 +158,124 @@ describe("POST /api/admin/health-failure-archive/clear", () => {
         details: { probe: "outgoing_delivery", inserted: 0, deleted: 0 },
       }),
     );
+  });
+
+  it("accepts projection_outbox probe", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" } },
+    });
+    clearDeadForProbeMock.mockResolvedValueOnce({ inserted: 1, deleted: 1 });
+    const res = await POST(
+      new Request("http://localhost/api/admin/health-failure-archive/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ probe: "projection_outbox" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(clearDeadForProbeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ probe: "projection_outbox", archivedByUserId: "a1" }),
+    );
+  });
+
+  it("accepts outgoing_reminder_dispatch probe", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" } },
+    });
+    clearDeadForProbeMock.mockResolvedValueOnce({ inserted: 0, deleted: 0 });
+    const res = await POST(
+      new Request("http://localhost/api/admin/health-failure-archive/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ probe: "outgoing_reminder_dispatch" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(clearDeadForProbeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ probe: "outgoing_reminder_dispatch" }),
+    );
+  });
+
+  it("accepts integrator_push_outbox probe", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" } },
+    });
+    clearDeadForProbeMock.mockResolvedValueOnce({ inserted: 1, deleted: 1 });
+    const res = await POST(
+      new Request("http://localhost/api/admin/health-failure-archive/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ probe: "integrator_push_outbox" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(clearDeadForProbeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ probe: "integrator_push_outbox", archivedByUserId: "a1" }),
+    );
+  });
+});
+
+describe("createHealthFailureArchiveService.clearDeadForProbe", () => {
+  it("loops outgoing_delivery batches until deleted=0", async () => {
+    const port = makeArchivePort({
+      archiveOutgoingDeadBatch: vi
+        .fn()
+        .mockResolvedValueOnce({ inserted: 2, deleted: 2 })
+        .mockResolvedValueOnce({ inserted: 0, deleted: 0 }),
+    });
+    const svc = createHealthFailureArchiveService(port);
+    const r = await svc.clearDeadForProbe({
+      probe: HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+      archivedByUserId: "u1",
+    });
+    expect(r).toEqual({ inserted: 2, deleted: 2 });
+    expect(port.archiveOutgoingDeadBatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses integrator outbox batch for integrator_push_outbox probe", async () => {
+    const port = makeArchivePort({
+      archiveIntegratorPushOutboxDeadBatch: vi.fn().mockResolvedValue({ inserted: 1, deleted: 0 }),
+    });
+    const svc = createHealthFailureArchiveService(port);
+    const r = await svc.clearDeadForProbe({
+      probe: HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
+      archivedByUserId: "u1",
+    });
+    expect(r).toEqual({ inserted: 1, deleted: 0 });
+    expect(port.archiveIntegratorPushOutboxDeadBatch).toHaveBeenCalledTimes(1);
+    expect(port.archiveProjectionDeadBatch).not.toHaveBeenCalled();
+  });
+
+  it("uses projection batch for projection_outbox probe", async () => {
+    const port = makeArchivePort({
+      archiveProjectionDeadBatch: vi
+        .fn()
+        .mockResolvedValueOnce({ inserted: 3, deleted: 3 })
+        .mockResolvedValueOnce({ inserted: 0, deleted: 0 }),
+    });
+    const svc = createHealthFailureArchiveService(port);
+    const r = await svc.clearDeadForProbe({
+      probe: HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
+      archivedByUserId: "u1",
+    });
+    expect(r).toEqual({ inserted: 3, deleted: 3 });
+    expect(port.archiveProjectionDeadBatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses reminder batch for outgoing_reminder_dispatch probe", async () => {
+    const port = makeArchivePort({
+      archiveOutgoingReminderDeadBatch: vi.fn().mockResolvedValue({ inserted: 1, deleted: 0 }),
+    });
+    const svc = createHealthFailureArchiveService(port);
+    const r = await svc.clearDeadForProbe({
+      probe: HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+      archivedByUserId: "u1",
+    });
+    expect(r).toEqual({ inserted: 1, deleted: 0 });
+    expect(port.archiveOutgoingReminderDeadBatch).toHaveBeenCalledTimes(1);
+    expect(port.archiveOutgoingDeadBatch).not.toHaveBeenCalled();
   });
 });

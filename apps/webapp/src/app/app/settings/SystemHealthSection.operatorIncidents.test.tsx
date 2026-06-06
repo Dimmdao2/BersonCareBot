@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SystemHealthSection } from "./SystemHealthSection";
 
 const mediaPreviewShell = {
@@ -144,6 +145,116 @@ describe("SystemHealthSection operator incidents", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Открытые инциденты \(1\)/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows resolve-all button when open incidents exist", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve(
+          healthJson({
+            operatorIncidentsOpen: [
+              {
+                id: "550e8400-e29b-41d4-a716-446655440000",
+                dedupKey: "k",
+                direction: "outbound",
+                integration: "google_calendar",
+                errorClass: "unknown_error_class",
+                errorDetail: null,
+                openedAt: "2026-04-16T09:00:00.000Z",
+                lastSeenAt: "2026-04-16T09:30:00.000Z",
+                occurrenceCount: 1,
+              },
+            ],
+            meta: {
+              probes: {
+                ...probeShell,
+                operatorIncidents: { status: "degraded", durationMs: 2 },
+              },
+            },
+          }),
+        ),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SystemHealthSection />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Открытые инциденты \(1\)/)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Открытые инциденты \(1\)/i }));
+
+    expect(await screen.findByRole("button", { name: /Закрыть все открытые/i })).toBeInTheDocument();
+  });
+
+  it("confirm dialog calls resolve-all and reloads system-health", async () => {
+    const user = userEvent.setup();
+    const openIncident = {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      dedupKey: "k",
+      direction: "outbound",
+      integration: "google_calendar",
+      errorClass: "unknown_error_class",
+      errorDetail: null,
+      openedAt: "2026-04-16T09:00:00.000Z",
+      lastSeenAt: "2026-04-16T09:30:00.000Z",
+      occurrenceCount: 1,
+    };
+    let healthLoads = 0;
+    const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/admin/system-health")) {
+        healthLoads += 1;
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve(
+              healthJson({
+                operatorIncidentsOpen: healthLoads === 1 ? [openIncident] : [],
+                meta: {
+                  probes: {
+                    ...probeShell,
+                    operatorIncidents: { status: healthLoads === 1 ? "degraded" : "ok", durationMs: 2 },
+                  },
+                },
+              }),
+            ),
+        });
+      }
+      if (url.includes("/api/admin/operator-incidents/resolve-all") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, resolved: 1 }),
+        });
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SystemHealthSection />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Открытые инциденты \(1\)/)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Открытые инциденты \(1\)/i }));
+    await user.click(await screen.findByRole("button", { name: /Закрыть все открытые/i }));
+    await user.click(await screen.findByRole("button", { name: /^Подтвердить$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/operator-incidents/resolve-all",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    await waitFor(() => {
+      expect(healthLoads).toBeGreaterThanOrEqual(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Открытые инциденты \(0\)/)).toBeInTheDocument();
     });
   });
 });

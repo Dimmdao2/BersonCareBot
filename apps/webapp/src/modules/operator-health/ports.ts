@@ -108,4 +108,6 @@ export type OperatorHealthWritePort = {
     error: string;
     metaJson: Record<string, unknown>;
   }): Promise<void>;
+  /** Закрыть все открытые строки `operator_incidents` (ручной сброс из «Здоровье системы»). */
+  resolveAllOpenIncidents(): Promise<{ resolved: number }>;
 };

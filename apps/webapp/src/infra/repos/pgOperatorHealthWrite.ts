@@ -1,5 +1,6 @@
+import { isNull } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { operatorJobStatus } from "../../../db/schema/operatorHealth";
+import { operatorIncidents, operatorJobStatus } from "../../../db/schema/operatorHealth";
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
@@ -150,5 +151,16 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
       metaJson: input.metaJson,
       clearMetaOnFailure: false,
     });
+  },
+
+  async resolveAllOpenIncidents() {
+    const db = getDrizzle();
+    const finishedIso = new Date().toISOString();
+    const rows = await db
+      .update(operatorIncidents)
+      .set({ resolvedAt: finishedIso })
+      .where(isNull(operatorIncidents.resolvedAt))
+      .returning({ id: operatorIncidents.id });
+    return { resolved: rows.length };
   },
 };

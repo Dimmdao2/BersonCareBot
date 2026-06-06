@@ -55,6 +55,7 @@ const ACTION_FILTER_OPTIONS = [
   { value: "integrator_user_merge", label: "integrator_user_merge" },
   { value: "admin_client_profile_patch", label: "admin_client_profile_patch" },
   { value: "health_failure_archive_clear_dead", label: "health_failure_archive_clear_dead" },
+  { value: "operator_incidents_resolve_all", label: "operator_incidents_resolve_all" },
 ] as const;
 
 function actionTierLabel(action: string): string {
@@ -67,6 +68,7 @@ function actionTierLabel(action: string): string {
     "media_delete",
     "reference_archive",
     "health_failure_archive_clear_dead",
+    "operator_incidents_resolve_all",
   ]);
   const tier2 = new Set([
     "settings_change",

@@ -93,4 +93,15 @@ describe("GET /api/admin/health-failure-archive", () => {
       expect.objectContaining({ cursor: "curs123" }),
     );
   });
+
+  it("accepts projection_outbox probe filter", async () => {
+    listForAdminMock.mockResolvedValue({ items: [], nextCursor: null });
+    const res = await GET(
+      new Request("http://localhost/api/admin/health-failure-archive?probe=projection_outbox"),
+    );
+    expect(res.status).toBe(200);
+    expect(listForAdminMock).toHaveBeenCalledWith(
+      expect.objectContaining({ probe: "projection_outbox" }),
+    );
+  });
 });

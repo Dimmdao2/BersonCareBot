@@ -5,10 +5,17 @@ import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
 } from "@/modules/operator-health/healthFailureArchiveConstants";
 import type { HealthFailureArchiveProbe } from "@/modules/operator-health/healthFailureArchiveConstants";
 
-const probeEnum = z.enum([HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE, HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE]);
+const probeEnum = z.enum([
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
+  HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+]);
 
 function parseProbe(raw: string | null): HealthFailureArchiveProbe | null {
   if (raw == null) return null;
