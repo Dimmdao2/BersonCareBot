@@ -1,5 +1,7 @@
 /**
- * Optional signed HTTP entry: same binding TX as integrator `user.phone.link`.
+ * Wave 3 phase 15E — optional signed HTTP bind TX: domain SQL via `runWebappPgText` on
+ * `PoolClient`; TX control via `runPgPoolPgText` (Class C transport on dedicated client).
+ *
  * Logic is kept in sync with:
  * - `apps/integrator/src/infra/db/writePort.ts` (`user.phone.link`)
  * - `apps/integrator/src/infra/db/repos/messengerPhonePublicBind.ts`
@@ -10,6 +12,7 @@
  * Implemented here (not imported from `apps/integrator`) so Next.js production build does not bundle integrator sources with `.js` import paths.
  */
 import type { Pool, PoolClient } from "pg";
+import { z } from "zod";
 import {
   applyMessengerPhonePublicBind,
   buildMessengerBindBlockedRelayLines,
@@ -22,17 +25,68 @@ import {
   type MessengerPhoneLinkFailureCode,
 } from "@bersoncare/platform-merge";
 import { computeConflictKeyFromCandidateIds, writeAuditLog } from "@/infra/adminAuditLog";
+import {
+  getWebappSqlFromPgClient,
+  runPgPoolPgText,
+  runWebappPgText,
+} from "@/infra/db/runWebappSql";
 import { notifyMessengerPhoneBindBlockedFromWebapp } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import { logger } from "@/infra/logging/logger";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
 
-/** Minimal DB surface for this TX (matches integrator `DbPort.query`). */
+/** Minimal DB surface for this TX (matches integrator `DbPort.query` / platform-merge). */
 type TxQuery = {
   query<T = unknown>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount?: number }>;
 };
 
 const MAX_MERGE_CHAIN_DEPTH = 32;
 const BIGINT_STRING = /^\d+$/;
+
+const bindInputSchema = z.object({
+  channelCode: z.enum(["telegram", "max"]),
+  externalId: z.string().min(1).max(128),
+  phoneNormalized: z.string().min(1).max(32),
+  correlationId: z.string().max(256).optional(),
+});
+
+const mergedIntoRowSchema = z.object({
+  merged_into_user_id: z.string().nullable(),
+});
+
+const integratorIdentityRowSchema = z.object({
+  user_id: z.string(),
+});
+
+function poolAsMessengerPhoneBindDb(pool: Pool): MessengerPhoneBindDb {
+  return {
+    query: async (sql, values = []) => runPgPoolPgText(pool, sql, values),
+  };
+}
+
+function createTxQuery(client: PoolClient): TxQuery {
+  const executor = getWebappSqlFromPgClient(client);
+  return {
+    query: async <T = unknown>(sql: string, params?: unknown[]) => {
+      const res = await runWebappPgText<T>(sql, params ?? [], executor);
+      return {
+        rows: res.rows,
+        ...(typeof res.rowCount === "number" ? { rowCount: res.rowCount } : {}),
+      };
+    },
+  };
+}
+
+async function txBegin(client: PoolClient): Promise<void> {
+  await runPgPoolPgText(client, "BEGIN");
+}
+
+async function txCommit(client: PoolClient): Promise<void> {
+  await runPgPoolPgText(client, "COMMIT");
+}
+
+async function txRollback(client: PoolClient): Promise<void> {
+  await runPgPoolPgText(client, "ROLLBACK");
+}
 
 async function resolveCanonicalIntegratorUserId(db: TxQuery, integratorUserId: string): Promise<string> {
   const trimmed = integratorUserId.trim();
@@ -47,15 +101,19 @@ async function resolveCanonicalIntegratorUserId(db: TxQuery, integratorUserId: s
     }
     visited.add(current);
 
-    const res = await db.query<{ merged_into_user_id: string | null }>(
+    const res = await db.query(
       `SELECT merged_into_user_id::text AS merged_into_user_id
        FROM users
        WHERE id = $1::bigint
        LIMIT 1`,
       [current],
     );
-    const row = res.rows[0];
-    if (!row || row.merged_into_user_id == null || row.merged_into_user_id === "") {
+    const parsed = mergedIntoRowSchema.safeParse(res.rows[0]);
+    if (!parsed.success) {
+      return current;
+    }
+    const row = parsed.data;
+    if (row.merged_into_user_id == null || row.merged_into_user_id === "") {
       return current;
     }
     current = row.merged_into_user_id;
@@ -104,7 +162,7 @@ async function setUserPhone(
   phoneNormalized: string,
   resource: string,
 ): Promise<SetUserPhoneOutcome> {
-  const idRes = await db.query<{ user_id: string }>(
+  const idRes = await db.query(
     `SELECT i.user_id::text AS user_id
      FROM identities i
      WHERE i.resource = $2
@@ -112,10 +170,10 @@ async function setUserPhone(
      LIMIT 1`,
     [channelUserId, resource],
   );
-  const rawUserId = idRes.rows[0]?.user_id;
-  if (!rawUserId) return "failed";
+  const idParsed = integratorIdentityRowSchema.safeParse(idRes.rows[0]);
+  if (!idParsed.success) return "failed";
 
-  const userId = await resolveCanonicalIntegratorUserId(db, rawUserId);
+  const userId = await resolveCanonicalIntegratorUserId(db, idParsed.data.user_id);
 
   await db.query(
     `DELETE FROM contacts
@@ -156,18 +214,6 @@ function pgSqlStateFromUnknown(err: unknown): string | undefined {
   return typeof code === "string" ? code : undefined;
 }
 
-function createTxQuery(client: PoolClient): TxQuery {
-  return {
-    query: async <T = unknown>(sql: string, params?: unknown[]) => {
-      const res = await client.query(sql, params);
-      return {
-        rows: res.rows as T[],
-        ...(typeof res.rowCount === "number" ? { rowCount: res.rowCount } : {}),
-      };
-    },
-  };
-}
-
 export type MessengerPhoneHttpBindFailureReason =
   | "no_integrator_identity"
   | MessengerPhoneLinkFailureCode;
@@ -189,9 +235,15 @@ export async function executeMessengerPhoneHttpBind(
     correlationId?: string;
   },
 ): Promise<MessengerPhoneHttpBindResult> {
-  const resource = input.channelCode;
-  const channelUserId = input.externalId;
-  const phoneNormalized = input.phoneNormalized;
+  const parsedInput = bindInputSchema.safeParse(input);
+  if (!parsedInput.success) {
+    return { ok: false, reason: "db_transient_failure", phoneLinkIndeterminate: true };
+  }
+  const validated = parsedInput.data;
+
+  const resource = validated.channelCode;
+  const channelUserId = validated.externalId;
+  const phoneNormalized = validated.phoneNormalized;
   const phoneSuffix = phoneLogSuffix(phoneNormalized);
   const bindLogBase = {
     event: "messenger_phone_bind_tx" as const,
@@ -201,7 +253,7 @@ export async function executeMessengerPhoneHttpBind(
     channelCode: resource,
     externalId: channelUserId,
     metric: "messenger_bind_tx_fail" as const,
-    ...(input.correlationId && input.correlationId.trim() ? { correlationId: input.correlationId.trim() } : {}),
+    ...(validated.correlationId?.trim() ? { correlationId: validated.correlationId.trim() } : {}),
   };
 
   let client: PoolClient | undefined;
@@ -217,25 +269,25 @@ export async function executeMessengerPhoneHttpBind(
   let applied = false;
 
   try {
-    await client.query("BEGIN");
+    await txBegin(client);
     const txDb = createTxQuery(client);
 
     try {
       if (resource === "max") {
         await ensureIdentityForMessenger(txDb, { resource: "max", externalId: channelUserId });
       }
-      const idPeek = await txDb.query<{ user_id: string }>(
+      const idPeek = await txDb.query(
         `SELECT i.user_id::text AS user_id
          FROM identities i
          WHERE i.resource = $2 AND i.external_id = $1
          LIMIT 1`,
         [channelUserId, resource],
       );
-      const rawUid = idPeek.rows[0]?.user_id ?? null;
-      if (!rawUid) {
+      const peekParsed = integratorIdentityRowSchema.safeParse(idPeek.rows[0]);
+      if (!peekParsed.success) {
         phoneLinkEarly = { ok: false, reason: "no_integrator_identity" };
       } else {
-        const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, rawUid);
+        const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, peekParsed.data.user_id);
         const { platformUserId } = await applyMessengerPhonePublicBind(txDb, {
           channelCode: resource,
           externalId: channelUserId,
@@ -253,7 +305,7 @@ export async function executeMessengerPhoneHttpBind(
         applied = true;
       }
     } catch (err) {
-      await client.query("ROLLBACK");
+      await txRollback(client);
       if (err instanceof MessengerPhoneLinkError) {
         const cause = (err as Error & { cause?: unknown }).cause;
         const sqlState = pgSqlStateFromUnknown(cause) ?? pgSqlStateFromUnknown(err);
@@ -282,7 +334,7 @@ export async function executeMessengerPhoneHttpBind(
               reasonHumanRu: string;
             };
             try {
-              enrichedFields = await enrichMessengerBindAuditDetailsFields(pool as MessengerPhoneBindDb, {
+              enrichedFields = await enrichMessengerBindAuditDetailsFields(poolAsMessengerPhoneBindDb(pool), {
                 reason: err.code,
                 candidateIds: err.candidateIds,
                 channelCode: resource,
@@ -309,7 +361,7 @@ export async function executeMessengerPhoneHttpBind(
               externalId: channelUserId,
               phoneSuffix,
               candidateIds: err.candidateIds,
-              ...(input.correlationId?.trim() ? { correlationId: input.correlationId.trim() } : {}),
+              ...(validated.correlationId?.trim() ? { correlationId: validated.correlationId.trim() } : {}),
               candidates: enrichedFields.candidates,
               initiator: enrichedFields.initiator,
               reasonHumanRu: enrichedFields.reasonHumanRu,
@@ -327,7 +379,7 @@ export async function executeMessengerPhoneHttpBind(
                 channelCode: resource,
                 externalId: channelUserId,
                 ...(phoneSuffix ? { phoneSuffix } : {}),
-                ...(input.correlationId?.trim() ? { correlationId: input.correlationId.trim() } : {}),
+                ...(validated.correlationId?.trim() ? { correlationId: validated.correlationId.trim() } : {}),
                 source: "http_bind",
               });
             } catch (relayErr) {
@@ -372,7 +424,7 @@ export async function executeMessengerPhoneHttpBind(
     }
 
     if (phoneLinkEarly) {
-      await client.query("ROLLBACK");
+      await txRollback(client);
       if (!phoneLinkEarly.ok) {
         logger.warn(
           {
@@ -387,7 +439,7 @@ export async function executeMessengerPhoneHttpBind(
       return phoneLinkEarly;
     }
 
-    await client.query("COMMIT");
+    await txCommit(client);
 
     if (applied && platformUserIdForLog) {
       logger.info(
@@ -401,7 +453,7 @@ export async function executeMessengerPhoneHttpBind(
           externalId: channelUserId,
           platformUserId: platformUserIdForLog,
           phoneSuffix,
-          ...(input.correlationId && input.correlationId.trim() ? { correlationId: input.correlationId.trim() } : {}),
+          ...(validated.correlationId?.trim() ? { correlationId: validated.correlationId.trim() } : {}),
         },
         "bind_tx_ok",
       );

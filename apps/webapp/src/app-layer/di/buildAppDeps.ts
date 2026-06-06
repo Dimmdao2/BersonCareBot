@@ -432,10 +432,6 @@ const doctorAppointmentsCanonicalPort =
   !inMemoryRepos && bookingEngineCorePort
     ? createPgDoctorCanonicalAppointmentsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
     : null;
-const doctorAnalyticsMetricAccountsPort =
-  !inMemoryRepos && bookingEngineCorePort
-    ? createPgDoctorAnalyticsMetricAccountsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
-    : inMemoryDoctorAnalyticsMetricAccountsPort;
 const bookingRubitimeBridgePort = !inMemoryRepos ? createPgBookingRubitimeBridgePort() : null;
 const appointmentMirrorSync =
   bookingRubitimeBridgePort && bookingEngineCorePort
@@ -542,15 +538,23 @@ const specialistTasksService = createSpecialistTasksService(specialistTasksPort)
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
+const resolveDoctorAppointmentsReadSource = async () => {
+  if (inMemoryRepos) return "rubitime_legacy" as const;
+  const row = await systemSettingsService.getSetting("booking_doctor_appointments_read_source", "admin");
+  return parseDoctorAppointmentsReadSource(row?.valueJson ?? null);
+};
 const doctorAppointmentsPort = createDoctorAppointmentsReadSwitchPort({
   legacyPort: doctorAppointmentsLegacyPort,
   canonicalPort: doctorAppointmentsCanonicalPort,
-  resolveReadSource: async () => {
-    if (inMemoryRepos) return "rubitime_legacy";
-    const row = await systemSettingsService.getSetting("booking_doctor_appointments_read_source", "admin");
-    return parseDoctorAppointmentsReadSource(row?.valueJson ?? null);
-  },
+  resolveReadSource: resolveDoctorAppointmentsReadSource,
 });
+const doctorAnalyticsMetricAccountsPort =
+  !inMemoryRepos && bookingEngineCorePort
+    ? createPgDoctorAnalyticsMetricAccountsPort(
+        () => bookingEngineCorePort.getDefaultOrganizationId(),
+        resolveDoctorAppointmentsReadSource,
+      )
+    : inMemoryDoctorAnalyticsMetricAccountsPort;
 const membershipsPort = !inMemoryRepos ? createPgMembershipsPort() : null;
 const productsPort = !inMemoryRepos ? createPgProductsPort() : null;
 const entitlementsPort = !inMemoryRepos ? createPgEntitlementsPort() : null;

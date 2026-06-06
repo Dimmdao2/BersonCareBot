@@ -915,4 +915,46 @@ LIMIT 3;"
 - **Plan doc sync:** `wave3_phase_15` §Закрытие 15D + INDEX / README / DRIZZLE_TRANSITION_PLAN (2026-06-06).
 - **Следующая подфаза:** 15E (messenger bind + routes tail).
 
+### Wave 3 phase 15E — messenger bind + routes tail (2026-06-06)
+
+- **Scope:** `messengerPhoneHttpBindExecute.ts`; route tails `api/media/upload`, `admin/users/[userId]/profile`; verify `recordPublicBookingMergeCandidates`, `resolveOrCreateUserByPhone` (P12E).
+- **Миграция:** 5× `client.query` → `runWebappPgText` + `getWebappSqlFromPgClient`; TX BEGIN/COMMIT/ROLLBACK → `runPgPoolPgText`; audit enrich — `poolAsMessengerPhoneBindDb`; Zod на bind input и identity/merge rows.
+- **Route thinness:** новые repo `pgAdminClientProfileConflicts` (email/phone conflict), `pgMediaFolderLookup` (`mediaFolderExists`); routes без `pool.query`.
+- **Baseline → gate:** 5 raw query в bind module → **0**; webapp prod tail post-15E — **27** файлов.
+- **Tests:** 15E bundle — `messengerPhoneHttpBindExecute15E.test.ts` (max CTE, Zod reject, blocked audit) + `webappPhase15E.repo.test.ts` (route/repo/P12E runtime gates) + `messenger-phone/bind/route.test.ts` — **26 passed** (fast).
+- **RAW_SQL:** §Wave 3 phase 15E + строки `messengerPhoneHttpBindExecute`, `pgAdminClientProfileConflicts`, `pgMediaFolderLookup`.
+- **Plan doc sync:** `wave3_phase_15` §Закрытие 15E + INDEX / README / DRIZZLE_TRANSITION_PLAN (2026-06-06).
+- **Следующая подфаза:** 15F (phase verify).
+
+### Wave 3 phase 15F — phase verify (2026-06-06)
+
+- **Gate:** runtime webapp prod tail — **25** unique файлов (`pool.query`/`client.query`); `rg -l` **27** (incl. 2 comment-only: `pgBookingCatalog`, `pgDoctorAppointments`).
+- **Class B:** `runWebappSql.ts` (transport), `client.ts` (health), `pgAdminPlatformUserStats.ts` (uuid[] `pool.query` workaround).
+- **Class C:** **22** файла — TX `BEGIN`/`COMMIT`/`ROLLBACK` (+ advisory locks).
+- **Domain `pool.query`:** **0** вне Class B allowlist; **15A–15E** migrated scope — runtime `pool.query`/`client.query` = **0**.
+- **Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 spot bundle — **77 passed** (fast).
+- **RAW_SQL / plan:** §Wave 3 phase 15F; baseline webapp tail **78→25**; todo `w3-p15-verify` → `completed`; **фаза 15 closed**.
+- **Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](./plans/wave3_phase_16_legacy_cutover.plan.md).
+
+#### Post-audit closure 15F (2026-06-06)
+
+- **RAW_SQL §15E/15F:** `rg -l` **27** vs runtime **25** (comment-only catalog/appointments); migrated gate — `pool.query`/`client.query` only.
+- **Spot bundle re-verify:** **77 passed** (15F verify + 15E + 15A–15D).
+- **HEAD bleed fix:** `pgDoctorAnalyticsMetricAccounts.ts` — дополнены `resolveReadSource` / legacy exclusion (незавершённый sidecar на ветке); typecheck green.
+
+### Wave 3 phase 15 — итог (completed, 2026-06-06)
+
+| Подфаза | Scope | Проверка |
+|---------|-------|----------|
+| **15A** | references/settings/diary | 3 repo → `runWebappPgText`; **33 passed** |
+| **15B** | 7 auth/email ports | **52 passed** |
+| **15C** | 5 treatment/minor repos | **26 passed** |
+| **15D** | `integratorPushOutbox` → Drizzle | **22 passed** |
+| **15E** | messenger bind + route tails | **26 passed** |
+| **15F** | Class B/C gate + inventory | verify **5 passed**; spot **77 passed**; tail **25** runtime files |
+
+**Webapp prod tail:** baseline **78** → post-15 **25** (только Class B/C с пометкой в RAW_SQL).
+
+**Документация синхронизирована:** plan 15, `wave3_INDEX`, `plans/README`, `DRIZZLE_TRANSITION_PLAN`, `RAW_SQL_INVENTORY`, `docs/README.md`.
+
 

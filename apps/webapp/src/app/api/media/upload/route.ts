@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/app-layer/db/client";
+import { mediaFolderExists } from "@/infra/repos/pgMediaFolderLookup";
 import { logger } from "@/app-layer/logging/logger";
 import { ALLOWED_MEDIA_MIME, MAX_PROXY_UPLOAD_BYTES } from "@/modules/media/uploadAllowedMime";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -166,9 +166,8 @@ async function resolveUploadFolderIdFromForm(form: FormData): Promise<
   if (!MEDIA_FOLDER_ID_RE.test(t)) {
     return { ok: false, status: 400, payload: { error: "invalid_folder_id" } };
   }
-  const pool = getPool();
-  const r = await pool.query<{ id: string }>(`SELECT id FROM media_folders WHERE id = $1::uuid LIMIT 1`, [t]);
-  if (r.rowCount === 0) {
+  const exists = await mediaFolderExists(t);
+  if (!exists) {
     return { ok: false, status: 400, payload: { error: "folder_not_found" } };
   }
   return { ok: true, folderId: t };

@@ -38,7 +38,7 @@
 |------|---------|----------------------|-------------|
 | Integrator `await db.query` (без `migrate.ts` / scripts) | **0** prod (было 20) | **A** закрыто фазой **09**; `client.ts` → **C** (DbPort transport) | — |
 | Integrator `rubitimeApiThrottle` throttle row | **0** `client.query` (было 2) | **B** — Drizzle `execute` на том же `PoolClient` (фаза **09E**) | — |
-| Webapp `pool.query` \| `client.query` (без `*.test.ts`) | **78** prod-файлов | **A** (фазы 11–15), исключения **B/C** — в таблицах ниже | 11–15 |
+| Webapp `pool.query` \| `client.query` (без `*.test.ts`) | **25** runtime prod-файлов (**15F** 2026-06-06; было 78 baseline) | **A** закрыто фазой **15**; остаток **B/C** — в таблицах ниже | — |
 | Webapp `integratorPushOutbox.ts` | **0** `db.query` (было 4; P15D done) | **A** закрыто **15D** | — |
 | media-worker `jobs/claim.ts` | **8** `pool.query` | **C** (`SKIP LOCKED` на dedicated pg session) | — |
 | media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **0** direct `pool.query` (фаза **10** done) | **B** — `runMediaWorkerPgText` | — |
@@ -189,6 +189,47 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15D.
 
 ---
 
+## Wave 3 phase 15E — messenger bind + routes tail (2026-06-06)
+
+Подфаза **15E** закрыта: `messengerPhoneHttpBindExecute.ts` — runtime `pool.query`/`client.query` = **0**; route SQL вынесен в infra repos.
+
+| Gate (15E) | Итог |
+|------------|------|
+| Scope bind module | `src/modules/integrator/messengerPhoneHttpBindExecute.ts` |
+| `pool.query` / `client.query` | **0** (было 5× `client.query` в bind-TX) |
+| Executor | domain SQL → `runWebappPgText` + `getWebappSqlFromPgClient(client)`; TX control → `runPgPoolPgText` (BEGIN/COMMIT/ROLLBACK) |
+| Boundary | Zod `bindInputSchema`, `mergedIntoRowSchema`, `integratorIdentityRowSchema` |
+| Route tails | `api/media/upload` → `pgMediaFolderLookup`; `admin/users/[userId]/profile` → `pgAdminClientProfileConflicts` |
+| Verify-only | `recordPublicBookingMergeCandidates`, `resolveOrCreateUserByPhone` — P12E (`runPgPoolPgText`) |
+| Tests | Vitest 15E bundle — **26 passed** (fast): max CTE, Zod reject, blocked audit, route/repo/P12E gates; devDb — opt-in; staging — **phase 17** |
+| Webapp prod tail (`rg -l`, incl. JSDoc) | **27** файлов (было 30); **2** comment-only → runtime **25** (финал **15F**) |
+
+Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15E.
+
+---
+
+## Wave 3 phase 15F — phase verify (2026-06-06)
+
+Подфаза **15F** закрыта: webapp prod tail — только **Class B** (`pool.query`) и **Class C** (`client.query`); каждый файл в [RAW_SQL таблицах](#22-инфраструктура-webapp) с явной пометкой.
+
+| Gate (15F) | Итог |
+|------------|------|
+| Domain `pool.query` (runtime) | **0** вне allowlist (**2** Class B `pool.query`) |
+| Class B `pool.query` | `runWebappSql.ts` (transport), `pgAdminPlatformUserStats.ts` (uuid[] workaround) |
+| Class B `client.query` | `client.ts` (healthcheck `select 1` на PoolClient) |
+| Class C `client.query` | **22** файла — TX `BEGIN`/`COMMIT`/`ROLLBACK` (+ advisory locks в `userLifecycleLock` / `multipartSessionLock`) |
+| `rg -l` (incl. JSDoc) | **27** файлов; **2** comment-only (`pgBookingCatalog`, `pgDoctorAppointments` — domain **0**) |
+| Runtime tail (unique) | **25** файлов = Class B pool (**2**) + Class B client (**1**) + Class C (**22**) |
+| 15A–15E migrated scope | runtime `pool.query`/`client.query` = **0** (Drizzle `db.query.*` relational API — вне gate) |
+| Verify test | `webappPhase15F.verify.test.ts` — **5 passed** (fast) |
+| Phase 15 bundle (spot) | 15F verify + 15E + 15A–15D repo/outbox tests — **77 passed** (fast) |
+
+**Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](./plans/wave3_phase_16_legacy_cutover.plan.md).
+
+Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
+
+---
+
 ## Раздел E (справочно): SQL через Drizzle `execute` / `runIntegratorSql`
 
 Здесь **нет** прямого `pool.query`, но остаётся **сырой SQL-текст** в шаблонах `sql`…`` — для миграции на «чистый» query builder это отдельный слой.
@@ -309,7 +350,9 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15D.
 
 | Файл                                                      | Назначение                                                                                                                             | Сложн. | Вариант                                                                | Риски                         |
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------- | ----------------------------- |
-| `src/modules/integrator/messengerPhoneHttpBindExecute.ts` | Привязка телефона через HTTP к интегратору: `db.query` на **отдельном** пуле интегратора + `client.query` в транзакции слияния/аудита. | **A** | В      | **Wave 3 фаза 15E:** Drizzle executor + Zod (не permanent C) | Расхождение двух пулов, merge |
+| `src/modules/integrator/messengerPhoneHttpBindExecute.ts` | Привязка телефона через HTTP к интегратору: bind-TX на integrator pool + audit enrich. | **A** | В      | **Wave 3 P15E done:** `runWebappPgText` / `runPgPoolPgText` + Zod; Class C TX control only | Расхождение двух пулов, merge |
+| `src/infra/repos/pgAdminClientProfileConflicts.ts` | Admin profile patch: email/phone conflict lookup на `platform_users`. | Н      | **Wave 3 P15E done:** `runWebappPgText` | Дубликаты email/phone |
+| `src/infra/repos/pgMediaFolderLookup.ts` | Media upload: проверка существования `media_folders` по id. | Н      | **Wave 3 P15E done:** `runWebappPgText` | Неверный folderId |
 
 ### 2.4 Репозитории `pg*` и медиа
 
@@ -378,7 +421,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15D.
 | `src/infra/repos/pgTestSets.ts`                      | Наборы тестов / связка с клиническими тестами (usage summary).                                                                            | С      | **Wave 3 P11 done:** `runPgPoolPgText`                                        | Каталог тестов                                     |
 | `src/infra/repos/pgRecommendations.ts`               | Рекомендации: usage summary.                                                                                                | С      | **Wave 3 P11 done:** `runPgPoolPgText`                                        | Каталог рекомендаций                               |
 | `src/infra/repos/pgCourses.ts`                       | Курсы: usage summary.                                                                                                       | С      | **Wave 3 P11 done:** `runPgPoolPgText`                                        | Каталог курсов                                     |
-| `src/infra/repos/pgAdminPlatformUserStats.ts`        | Admin KPI: регистрации/merge/subscriber bindings (6× parallel counts).                                                      | С      | **Wave 3 P11 done:** `runPgPoolPgText`                                        | Аналитика admin                                    |
+| `src/infra/repos/pgAdminPlatformUserStats.ts`        | Admin KPI: регистрации/merge/subscriber bindings (6× parallel counts).                                                      | С      | **Wave 3 P11 + P15F:** Class B — прямой `pool.query` (uuid[] `<> ALL($n::uuid[])` ломается через drizzle `sqlToQuery`) | Аналитика admin                                    |
 | `src/infra/repos/pgPatientBroadcasts.ts`           | Patient broadcast view: join `broadcast_audit` + recipients.                                                                | Н      | **Wave 3 P11 done:** `runPgPoolPgText`                                        | Рассылки пациенту                                  |
 | `src/infra/repos/pgRubitimeMapping.ts`               | Rubitime mapping list: Drizzle catalog + legacy `booking_branch_services` load.                                             | С      | **Wave 3 P11 done:** legacy load → `runPgPoolPgText`; rest Drizzle            | Каталог Rubitime                                   |
 | `src/infra/repos/loadPlatformUserChannelBindings.ts` | Канонические messenger bindings для fan-out.                                                                                | Н      | **Wave 3 P11 done:** `runWebappPgText`                                        | Доставка M2M                                       |

@@ -8,6 +8,7 @@ import type {
   DoctorAnalyticsMetricAccountsPort,
   DoctorAnalyticsMetricKey,
 } from "@/modules/doctor-analytics-metric-accounts/ports";
+import type { DoctorAppointmentsReadSource } from "@/infra/repos/doctorAppointmentsReadSwitch";
 import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
 import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
 
@@ -17,6 +18,8 @@ const CANCELLED_BE_STATUSES = [
   "late_cancellation",
   "no_show",
 ] as const;
+const LEGACY_CANCELLATION_LAST_EVENT_EXCLUSION_SQL =
+  "last_event NOT IN ('event-remove-record', 'event-delete-record')";
 
 type ListRow = {
   user_id: string;
@@ -37,6 +40,26 @@ function sqlExcludeUsers(excludedUserIds: string[], baseParams: unknown[], userI
   };
 }
 
+function legacyStatsUserExclusionClause(
+  excludedUserIds: string[],
+  baseParams: unknown[],
+  phoneExpr: string,
+) {
+  if (excludedUserIds.length === 0) {
+    return { andSql: "", params: baseParams };
+  }
+  const idx = baseParams.length + 1;
+  return {
+    andSql: ` AND NOT EXISTS (
+      SELECT 1 FROM platform_users pu_ex
+      WHERE pu_ex.merged_into_id IS NULL
+        AND pu_ex.phone_normalized = ${phoneExpr}
+        AND pu_ex.id = ANY($${idx}::uuid[])
+    )`,
+    params: [...baseParams, excludedUserIds],
+  };
+}
+
 function mapRow(row: ListRow): DoctorAnalyticsMetricAccountItem {
   return {
     userId: row.user_id,
@@ -49,6 +72,7 @@ function mapRow(row: ListRow): DoctorAnalyticsMetricAccountItem {
 
 export function createPgDoctorAnalyticsMetricAccountsPort(
   getDefaultOrganizationId: () => Promise<string>,
+  resolveReadSource: () => Promise<DoctorAppointmentsReadSource> = async () => "canonical",
 ): DoctorAnalyticsMetricAccountsPort {
   return {
     async listMetricAccounts({
@@ -77,9 +101,39 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
       const start = range.startUtcIso;
       const endExclusive = range.endExclusiveUtcIso;
       const notifHours = Math.min(720, Math.max(1, Math.floor(windowHours ?? 168) || 168));
+      const appointmentsReadSource = await resolveReadSource();
 
       const queryByMetric = async (metricKey: DoctorAnalyticsMetricKey): Promise<ListRow[]> => {
         if (metricKey === "appointments_past_visits") {
+          if (appointmentsReadSource === "rubitime_legacy") {
+            const ex = legacyStatsUserExclusionClause(
+              excluded,
+              [start, endExclusive, safeLimit + 1, safeOffset],
+              "ar.phone_normalized",
+            );
+            const r = await runWebappPgText<ListRow>(
+              `SELECT
+                 COALESCE(pu.id::text, '') AS user_id,
+                 COALESCE(pu.display_name, ar.payload_json->>'name', ar.phone_normalized, 'Клиент') AS display_name,
+                 ar.phone_normalized,
+                 ar.record_at::text AS event_at,
+                 'Визит'::text AS event_label
+               FROM appointment_records ar
+               LEFT JOIN platform_users pu
+                 ON pu.phone_normalized = ar.phone_normalized
+                AND pu.merged_into_id IS NULL
+               WHERE ar.deleted_at IS NULL
+                 AND ar.record_at IS NOT NULL
+                 AND ar.record_at >= $1::timestamptz
+                 AND ar.record_at < $2::timestamptz
+                 AND ar.record_at < NOW()
+                 AND ar.status <> 'canceled'${ex.andSql}
+               ORDER BY ar.record_at DESC, user_id ASC
+               LIMIT $3::int OFFSET $4::int`,
+              ex.params,
+            );
+            return r.rows;
+          }
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
@@ -107,6 +161,35 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           return r.rows;
         }
         if (metricKey === "appointments_cancelled_visits") {
+          if (appointmentsReadSource === "rubitime_legacy") {
+            const ex = legacyStatsUserExclusionClause(
+              excluded,
+              [start, endExclusive, safeLimit + 1, safeOffset],
+              "ar.phone_normalized",
+            );
+            const r = await runWebappPgText<ListRow>(
+              `SELECT
+                 COALESCE(pu.id::text, '') AS user_id,
+                 COALESCE(pu.display_name, ar.payload_json->>'name', ar.phone_normalized, 'Клиент') AS display_name,
+                 ar.phone_normalized,
+                 ar.record_at::text AS event_at,
+                 'Отменённый визит'::text AS event_label
+               FROM appointment_records ar
+               LEFT JOIN platform_users pu
+                 ON pu.phone_normalized = ar.phone_normalized
+                AND pu.merged_into_id IS NULL
+               WHERE ar.deleted_at IS NULL
+                 AND ar.record_at IS NOT NULL
+                 AND ar.record_at >= $1::timestamptz
+                 AND ar.record_at < $2::timestamptz
+                 AND ar.status = 'canceled'
+                 AND ${LEGACY_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}${ex.andSql}
+               ORDER BY ar.record_at DESC, user_id ASC
+               LIMIT $3::int OFFSET $4::int`,
+              ex.params,
+            );
+            return r.rows;
+          }
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],
@@ -134,6 +217,32 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           return r.rows;
         }
         if (metricKey === "appointments_bookings_created") {
+          if (appointmentsReadSource === "rubitime_legacy") {
+            const ex = legacyStatsUserExclusionClause(
+              excluded,
+              [start, endExclusive, safeLimit + 1, safeOffset],
+              "ar.phone_normalized",
+            );
+            const r = await runWebappPgText<ListRow>(
+              `SELECT
+                 COALESCE(pu.id::text, '') AS user_id,
+                 COALESCE(pu.display_name, ar.payload_json->>'name', ar.phone_normalized, 'Клиент') AS display_name,
+                 ar.phone_normalized,
+                 ar.created_at::text AS event_at,
+                 'Запись создана'::text AS event_label
+               FROM appointment_records ar
+               LEFT JOIN platform_users pu
+                 ON pu.phone_normalized = ar.phone_normalized
+                AND pu.merged_into_id IS NULL
+               WHERE ar.deleted_at IS NULL
+                 AND ar.created_at >= $1::timestamptz
+                 AND ar.created_at < $2::timestamptz${ex.andSql}
+               ORDER BY ar.created_at DESC, user_id ASC
+               LIMIT $3::int OFFSET $4::int`,
+              ex.params,
+            );
+            return r.rows;
+          }
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, safeLimit + 1, safeOffset],
@@ -160,6 +269,34 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           return r.rows;
         }
         if (metricKey === "appointments_cancellation_actions") {
+          if (appointmentsReadSource === "rubitime_legacy") {
+            const ex = legacyStatsUserExclusionClause(
+              excluded,
+              [start, endExclusive, safeLimit + 1, safeOffset],
+              "ar.phone_normalized",
+            );
+            const r = await runWebappPgText<ListRow>(
+              `SELECT
+                 COALESCE(pu.id::text, '') AS user_id,
+                 COALESCE(pu.display_name, ar.payload_json->>'name', ar.phone_normalized, 'Клиент') AS display_name,
+                 ar.phone_normalized,
+                 ar.updated_at::text AS event_at,
+                 'Отмена'::text AS event_label
+               FROM appointment_records ar
+               LEFT JOIN platform_users pu
+                 ON pu.phone_normalized = ar.phone_normalized
+                AND pu.merged_into_id IS NULL
+               WHERE ar.deleted_at IS NULL
+                 AND ar.status = 'canceled'
+                 AND ${LEGACY_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
+                 AND ar.updated_at >= $1::timestamptz
+                 AND ar.updated_at < $2::timestamptz${ex.andSql}
+               ORDER BY ar.updated_at DESC, user_id ASC
+               LIMIT $3::int OFFSET $4::int`,
+              ex.params,
+            );
+            return r.rows;
+          }
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, safeLimit + 1, safeOffset],
@@ -187,6 +324,33 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           return r.rows;
         }
         if (metricKey === "appointments_reschedule_actions") {
+          if (appointmentsReadSource === "rubitime_legacy") {
+            const ex = legacyStatsUserExclusionClause(
+              excluded,
+              [start, endExclusive, safeLimit + 1, safeOffset],
+              "ar.phone_normalized",
+            );
+            const r = await runWebappPgText<ListRow>(
+              `SELECT
+                 COALESCE(pu.id::text, '') AS user_id,
+                 COALESCE(pu.display_name, ar.payload_json->>'name', ar.phone_normalized, 'Клиент') AS display_name,
+                 ar.phone_normalized,
+                 ar.updated_at::text AS event_at,
+                 'Перенос'::text AS event_label
+               FROM appointment_records ar
+               LEFT JOIN platform_users pu
+                 ON pu.phone_normalized = ar.phone_normalized
+                AND pu.merged_into_id IS NULL
+               WHERE ar.deleted_at IS NULL
+                 AND ar.status = 'updated'
+                 AND ar.updated_at >= $1::timestamptz
+                 AND ar.updated_at < $2::timestamptz${ex.andSql}
+               ORDER BY ar.updated_at DESC, user_id ASC
+               LIMIT $3::int OFFSET $4::int`,
+              ex.params,
+            );
+            return r.rows;
+          }
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, start, endExclusive, safeLimit + 1, safeOffset],
@@ -586,6 +750,34 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
         }
         if (metricKey === "today_appointments_today") {
           const { from, to } = localDayRangeBoundsIso("today", iana);
+          if (appointmentsReadSource === "rubitime_legacy") {
+            const ex = legacyStatsUserExclusionClause(
+              excluded,
+              [from, to, safeLimit + 1, safeOffset],
+              "ar.phone_normalized",
+            );
+            const r = await runWebappPgText<ListRow>(
+              `SELECT
+                 COALESCE(pu.id::text, '') AS user_id,
+                 COALESCE(pu.display_name, ar.payload_json->>'name', ar.phone_normalized, 'Клиент') AS display_name,
+                 ar.phone_normalized,
+                 ar.record_at::text AS event_at,
+                 'Запись сегодня'::text AS event_label
+               FROM appointment_records ar
+               LEFT JOIN platform_users pu
+                 ON pu.phone_normalized = ar.phone_normalized
+                AND pu.merged_into_id IS NULL
+               WHERE ar.deleted_at IS NULL
+                 AND ar.record_at IS NOT NULL
+                 AND ar.status <> 'canceled'
+                 AND ar.record_at >= $1::timestamptz
+                 AND ar.record_at <= $2::timestamptz${ex.andSql}
+               ORDER BY ar.record_at DESC, user_id ASC
+               LIMIT $3::int OFFSET $4::int`,
+              ex.params,
+            );
+            return r.rows;
+          }
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, from, to, safeLimit + 1, safeOffset],
@@ -612,6 +804,33 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
         }
         if (metricKey === "today_appointments_week") {
           const { from, toExclusive } = resolveAppointmentStatsBounds({ kind: "range", range: "week" }, iana);
+          if (appointmentsReadSource === "rubitime_legacy") {
+            const ex = legacyStatsUserExclusionClause(
+              excluded,
+              [from, toExclusive, safeLimit + 1, safeOffset],
+              "ar.phone_normalized",
+            );
+            const r = await runWebappPgText<ListRow>(
+              `SELECT
+                 COALESCE(pu.id::text, '') AS user_id,
+                 COALESCE(pu.display_name, ar.payload_json->>'name', ar.phone_normalized, 'Клиент') AS display_name,
+                 ar.phone_normalized,
+                 ar.record_at::text AS event_at,
+                 'Запись на неделе'::text AS event_label
+               FROM appointment_records ar
+               LEFT JOIN platform_users pu
+                 ON pu.phone_normalized = ar.phone_normalized
+                AND pu.merged_into_id IS NULL
+               WHERE ar.deleted_at IS NULL
+                 AND ar.record_at IS NOT NULL
+                 AND ar.record_at >= $1::timestamptz
+                 AND ar.record_at < $2::timestamptz${ex.andSql}
+               ORDER BY ar.record_at DESC, user_id ASC
+               LIMIT $3::int OFFSET $4::int`,
+              ex.params,
+            );
+            return r.rows;
+          }
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, from, toExclusive, safeLimit + 1, safeOffset],
@@ -637,6 +856,33 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           return r.rows;
         }
         if (metricKey === "today_cancellations_30d") {
+          if (appointmentsReadSource === "rubitime_legacy") {
+            const ex = legacyStatsUserExclusionClause(
+              excluded,
+              [safeLimit + 1, safeOffset],
+              "ar.phone_normalized",
+            );
+            const r = await runWebappPgText<ListRow>(
+              `SELECT
+                 COALESCE(pu.id::text, '') AS user_id,
+                 COALESCE(pu.display_name, ar.payload_json->>'name', ar.phone_normalized, 'Клиент') AS display_name,
+                 ar.phone_normalized,
+                 ar.updated_at::text AS event_at,
+                 'Отмена'::text AS event_label
+               FROM appointment_records ar
+               LEFT JOIN platform_users pu
+                 ON pu.phone_normalized = ar.phone_normalized
+                AND pu.merged_into_id IS NULL
+               WHERE ar.deleted_at IS NULL
+                 AND ar.status = 'canceled'
+                 AND ${LEGACY_CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
+                 AND ar.updated_at >= NOW() - interval '30 days'${ex.andSql}
+               ORDER BY ar.updated_at DESC, user_id ASC
+               LIMIT $1::int OFFSET $2::int`,
+              ex.params,
+            );
+            return r.rows;
+          }
           const ex = sqlExcludeUsers(
             excluded,
             [orgId, [...CANCELLED_BE_STATUSES], safeLimit + 1, safeOffset],

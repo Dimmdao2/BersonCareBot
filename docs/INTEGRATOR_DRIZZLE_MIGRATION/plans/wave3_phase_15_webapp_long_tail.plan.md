@@ -1,7 +1,7 @@
 ---
 name: Wave3 Phase15 Webapp long tail
 overview: Остаток webapp — references, settings, symptom diary, treatment tail, email auth ports, integrator push, routes, messengerPhoneHttpBindExecute (по решению DECISIONS).
-status: pending
+status: completed
 isProject: false
 todos:
   - id: w3-p15a-refs-settings-diary
@@ -18,10 +18,10 @@ todos:
     status: completed
   - id: w3-p15e-messenger-bind-and-routes
     content: "15E: messengerPhoneHttpBindExecute + routes tail (api/media/upload, admin users profile, recordPublicBookingMergeCandidates, resolveOrCreateUserByPhone)."
-    status: pending
+    status: completed
   - id: w3-p15-verify
     content: "15F: rg webapp prod — целевой ноль unexplained pool.query; список Class B/C в RAW_SQL и LOG."
-    status: pending
+    status: completed
 ---
 
 # Wave 3 — фаза 15: Webapp long tail
@@ -67,27 +67,29 @@ todos:
   - `rg "\\.query\\(" apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts`.
 - **Итог:** `db.query` = **0**; enqueue/complete/fail/reschedule → Drizzle `insert`/`update` на `integratorPushOutbox`; claim → `runWebappSql` + `execute(sql)` (SKIP LOCKED); Zod на claimed rows; PoolClient → `getWebappSqlFromPgClient`. Vitest 15D bundle — **22 passed** (fast).
 
-### 15E — messenger bind and routes tail
+### 15E — messenger bind and routes tail (**done** 2026-06-06)
 
 - Файлы: `messengerPhoneHttpBindExecute.ts` + route tails из scope.
 - Цель: убрать прямой query в bind-TX с сохранением семантики и Zod boundary validation.
 - Проверка:
   - targeted tests bind/phone merge;
   - route thinness check (SQL вне route handlers).
+- **Итог:** `pool.query`/`client.query` = **0** в `messengerPhoneHttpBindExecute`; domain SQL → `runWebappPgText` + `getWebappSqlFromPgClient`; TX control → `runPgPoolPgText` (BEGIN/COMMIT/ROLLBACK); Zod (`bindInputSchema`, `mergedIntoRowSchema`, `integratorIdentityRowSchema`). Route tails: SQL вынесен в `pgAdminClientProfileConflicts`, `pgMediaFolderLookup`; `recordPublicBookingMergeCandidates` / `resolveOrCreateUserByPhone` — verify-only (P12E, runtime tests). Vitest 15E bundle — **26 passed** (fast): max `ensureIdentityForMessenger`, Zod-reject identity row, `MessengerPhoneLinkError` + audit/incident, route/repo/P12E runtime gates.
 
-### 15F — phase verify
+### 15F — phase verify (**done** 2026-06-06)
 
 - Цель: финально зафиксировать raw SQL остаток и Class B/C список.
 - Проверка:
   - `rg -l "pool\\.query|client\\.query" apps/webapp/src --glob "*.ts" | rg -v "\\.test\\.ts"`
   - update `RAW_SQL_INVENTORY.md` + запись в `LOG.md`.
+- **Итог:** runtime tail **25** файлов (Class B pool **2** + Class B client **1** + Class C **22**); domain `pool.query` = **0** вне allowlist; `webappPhase15F.verify.test.ts` — **5 passed**; RAW_SQL baseline **78→25**; фаза **15 closed**.
 
 ## Definition of Done
 
-- [ ] После фазы: `rg 'pool\.query|client\.query' apps/webapp/src` → только файлы с **явной** Class C пометкой в RAW_SQL.
+- [x] После фазы: `rg 'pool\.query|client\.query' apps/webapp/src` → только файлы с **явной** Class B/C пометкой в RAW_SQL (**15F** 2026-06-06).
 - [x] `integratorPushOutbox` на Drizzle model из `apps/webapp/db/schema` (**15D** 2026-06-06).
-- [ ] `messengerPhoneHttpBindExecute` без прямого `pool.query`/`client.query`, с Zod-валидацией критичных payload/rows.
-- [ ] Подфазы 15A-15F закрыты последовательно и отражены в LOG.
+- [x] `messengerPhoneHttpBindExecute` без прямого `pool.query`/`client.query`, с Zod-валидацией критичных payload/rows (**15E** 2026-06-06).
+- [x] Подфазы 15A-15F закрыты последовательно и отражены в LOG (**15F** 2026-06-06).
 
 ## Scope — остаток после фаз 11–14
 
@@ -112,7 +114,7 @@ todos:
 | `pgPhoneHistory.ts` | 2 → **0** (P15C) |
 | `pgTreatmentProgramItemSnapshot.ts` | 1 → **0** (P15C) |
 | `integratorPushOutbox.ts` | 4× `db.query` → **0** (P15D) |
-| `messengerPhoneHttpBindExecute.ts` | 5 |
+| `messengerPhoneHttpBindExecute.ts` | 5 → **0** (P15E) |
 | `s3MediaStorage.ts` | 7 (TX only — Class C) |
 | `mediaUploadSessionsRepo.ts` | 6 (verify P5) |
 | `mediaPreviewWorker.ts` | 6 (verify P5) |
@@ -129,8 +131,15 @@ todos:
 ## Проверки
 
 ```bash
-rg -l 'pool\.query|client\.query' apps/webapp/src --glob '*.ts' | rg -v '\.test\.ts'
-rg '\.query\(' apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts
+rg -l 'pool\.query|client\.query' apps/webapp/src --glob '*.ts' | rg -v '\.test\.ts'  # 27 (25 runtime + 2 comment-only)
+pnpm --dir apps/webapp exec vitest run --project fast \
+  src/infra/repos/webappPhase15F.verify.test.ts \
+  src/infra/repos/webappPhase15E.repo.test.ts \
+  src/modules/integrator/messengerPhoneHttpBindExecute15E.test.ts \
+  src/infra/repos/pgReferences.repo.test.ts \
+  src/infra/repos/pgAuthEmailPorts15B.repo.test.ts \
+  src/infra/repos/pgTreatmentTail15C.repo.test.ts \
+  src/infra/integrator-push/integratorPushOutbox.test.ts
 ```
 
 ## Закрытие 15A (2026-06-06)
@@ -191,6 +200,45 @@ rg '\.query\(' apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts
 
 **Документация (sync 15D):** [../LOG.md](../LOG.md) §Wave 3 phase 15D; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15D.
 
-## Следующая подфаза
+## Закрытие 15E (2026-06-06)
 
-**15E** — messenger bind and routes tail (`messengerPhoneHttpBindExecute` + route tails).
+| Подфаза | Итог |
+|---------|------|
+| **15E** | `messengerPhoneHttpBindExecute` → `runWebappPgText` / `runPgPoolPgText`; route SQL → `pgAdminClientProfileConflicts`, `pgMediaFolderLookup` |
+
+**Gate 15E:** `rg pool.query|client.query` по `messengerPhoneHttpBindExecute.ts`, `api/media/upload/route.ts`, `api/admin/users/[userId]/profile/route.ts` → **0**.
+
+**Tests:** `messengerPhoneHttpBindExecute15E.test.ts` (runtime + happy path + max CTE + Zod reject + blocked audit) + `webappPhase15E.repo.test.ts` (route/repo/P12E runtime gates + SQL parity) + `messenger-phone/bind/route.test.ts` — **26 passed** (fast).
+
+**Verify-only (P12E):** `recordPublicBookingMergeCandidates`, `resolveOrCreateUserByPhone` — без `pool.query`.
+
+**Остаток webapp (post-15E, `rg -l`):** **27** (incl. 2 comment-only); runtime **25** — финал **15F**.
+
+**Документация (sync 15E):** [../LOG.md](../LOG.md) §Wave 3 phase 15E; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15E.
+
+## Закрытие 15F (2026-06-06)
+
+| Подфаза | Итог |
+|---------|------|
+| **15F** | Gate: domain `pool.query` = **0**; Class B (**3** raw-query files) + Class C (**22** TX files); verify test + RAW_SQL §15F |
+
+**Gate 15F:** runtime tail **25** unique prod-файлов; `rg -l` **27** (incl. 2 comment-only: `pgBookingCatalog`, `pgDoctorAppointments`).
+
+**Class B:** `runWebappSql.ts`, `client.ts` (health), `pgAdminPlatformUserStats.ts` (uuid[]).
+
+**Class C (22):** intake, purge, merge, identity, user projection, comms, media TX, locks, channel link, doctor create/broadcast/motivation, appointments, s3 media.
+
+**Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 spot bundle — **77 passed** (fast).
+
+**Документация (sync 15F):** [../LOG.md](../LOG.md) §Wave 3 phase 15F + §phase 15 итог; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15F.
+
+#### Post-audit closure 15F (2026-06-06)
+
+- **RAW_SQL §15E:** уточнён `rg -l` **27** vs runtime **25** (comment-only `pgBookingCatalog`, `pgDoctorAppointments`).
+- **RAW_SQL §15F:** migrated scope gate — только `pool.query`/`client.query` (не Drizzle relational `db.query.*`).
+- **Spot bundle:** **77 passed** (15F verify + 15E + 15A–15D); команда в §Проверки.
+- **HEAD bleed fix:** дополнен незавершённый `pgDoctorAnalyticsMetricAccounts.ts` (read-source switch для KPI drill-down; вне scope 15, но блокировал typecheck на ветке).
+
+## Следующая фаза Wave 3
+
+**16** — [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) (legacy migration dependency cutover).
