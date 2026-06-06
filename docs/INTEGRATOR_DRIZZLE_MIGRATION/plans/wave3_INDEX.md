@@ -66,7 +66,7 @@
 - **13E:** phase verify (**done** 2026-06-06) — **фаза 13 closed** (gate + 116 fast tests + rubitime-sync 27); opt-in devDb: `RUN_BOOKING_CATALOG_DEV_DB` / `RUN_PATIENT_BOOKINGS_DEV_DB` / `RUN_DOCTOR_CLIENTS_DEV_DB` / `RUN_PG_DOCTOR_CLIENTS_APPOINTMENT_JOIN_DB` / `RUN_DOCTOR_ANALYTICS_DEV_DB` / `RUN_DOCTOR_PHASE_13D_DEV_DB`
 - **14A:** support communication core (**done** 2026-06-06; `runWebappPgText`, repo tests, Zod list query, devDb `RUN_SUPPORT_COMMUNICATION_DEV_DB`; merge helper SQL → `runWebappPgText` on tx client)
 - **14B:** user projection core (**done** 2026-06-06; `runWebappPgText`/`txPgText`; repo + devDb `RUN_USER_PROJECTION_DEV_DB`; Class C TX on upsert/appointment/phone/admin patch)
-- **14C:** audit + legacy merge helpers
+- **14C:** audit + legacy merge helpers (**done** 2026-06-06; `adminAuditLog.ts` → `runWebappPgText`; Class C TX on `upsertOpenConflictLog`; merge helper regression-only)
 - **14D:** comms tail
 - **14E:** phase verify
 - **15A:** references/settings/diary

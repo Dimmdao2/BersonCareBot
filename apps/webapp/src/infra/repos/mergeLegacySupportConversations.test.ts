@@ -14,6 +14,16 @@ describe("mergeLegacySupportConversationsForPlatformUser", () => {
     runWebappPgTextMock.mockReset();
   });
 
+  it("returns zero when canonical upsert yields no id", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    const client = {} as import("pg").PoolClient;
+    const result = await mergeLegacySupportConversationsForPlatformUser(
+      client,
+      "00000000-0000-4000-8000-000000000001",
+    );
+    expect(result).toEqual({ mergedConversationCount: 0, movedMessageCount: 0 });
+  });
+
   it("moves messages from legacy rows into canonical thread", async () => {
     const canonicalId = "canonical-uuid";
     const legacyId = "legacy-uuid";

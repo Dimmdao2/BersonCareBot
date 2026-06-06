@@ -1,6 +1,19 @@
+/**
+ * Wave 3 phase 14C — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` in `upsertOpenConflictLog`.
+ * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ */
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { logger } from "@/infra/logging/logger";
+
+function txPgText<T = unknown>(
+  client: PoolClient,
+  queryText: string,
+  values: readonly unknown[] = [],
+) {
+  return runWebappPgText<T>(queryText, values, getWebappSqlFromPgClient(client));
+}
 
 export type AuditLogStatus = "ok" | "partial_failure" | "error";
 
@@ -68,10 +81,10 @@ function isPgUniqueViolation(err: unknown): boolean {
  * Append-only audit row. Call after COMMIT/ROLLBACK of the main operation (separate implicit transaction).
  * Failure is logged and does not throw (fire-and-forget from callers).
  */
-export async function writeAuditLog(pool: Pool, entry: AuditLogWriteEntry): Promise<void> {
+export async function writeAuditLog(_pool: Pool, entry: AuditLogWriteEntry): Promise<void> {
   const status: AuditLogStatus = entry.status ?? "ok";
   try {
-    await pool.query(
+    await runWebappPgText(
       `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
        VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6)`,
       [
@@ -93,12 +106,12 @@ export async function writeAuditLog(pool: Pool, entry: AuditLogWriteEntry): Prom
  */
 /** Последнее значение `details->>field` для action (для state-change снимков health). */
 export async function getLastAuditLogDetailsField(
-  pool: Pool,
+  _pool: Pool,
   action: string,
   field: string,
 ): Promise<string | null> {
   try {
-    const res = await pool.query<{ value: string | null }>(
+    const res = await runWebappPgText<{ value: string | null }>(
       `SELECT details->>$2 AS value
        FROM admin_audit_log
        WHERE action = $1
@@ -115,12 +128,12 @@ export async function getLastAuditLogDetailsField(
 }
 
 export async function writeAuditLogDedupeOpenConflictKey(
-  pool: Pool,
+  _pool: Pool,
   entry: AuditLogWriteEntry & { conflictKey: string },
 ): Promise<void> {
   const status: AuditLogStatus = entry.status ?? "ok";
   try {
-    await pool.query(
+    await runWebappPgText(
       `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
        VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6)`,
       [
@@ -208,11 +221,12 @@ export async function upsertOpenConflictLog(
     client = await pool.connect();
     if (!client) return { kind: "skipped" };
     await client.query("BEGIN");
-    const existing = await client.query<{
+    const existing = await txPgText<{
       id: string;
       details: Record<string, unknown>;
       repeat_count: number;
     }>(
+      client,
       `SELECT id, details, repeat_count
        FROM admin_audit_log
        WHERE conflict_key = $1 AND resolved_at IS NULL
@@ -221,13 +235,14 @@ export async function upsertOpenConflictLog(
     );
 
     if (existing.rows.length > 0) {
-      const row = existing.rows[0];
+      const row = existing.rows[0]!;
       const mergedDetails = {
         ...row.details,
         ...baseDetails,
         seenEventTypes: mergeSeenEventTypes(row.details.seenEventTypes, incomingSeenEventTypes),
       };
-      await client.query(
+      await txPgText(
+        client,
         `UPDATE admin_audit_log
          SET details = $2::jsonb,
              status = $3,
@@ -242,7 +257,8 @@ export async function upsertOpenConflictLog(
         seenEventTypes: incomingSeenEventTypes,
       };
       try {
-        await client.query(
+        await txPgText(
+          client,
           `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
            VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6, 1, now())`,
           [input.actorId, action, input.targetId ?? null, conflictKey, JSON.stringify(firstDetails), status],
@@ -251,11 +267,12 @@ export async function upsertOpenConflictLog(
       } catch (err) {
         if (!isPgUniqueViolation(err)) throw err;
         // Race-safe fallback: another tx inserted open row with same conflict_key.
-        const collision = await client.query<{
+        const collision = await txPgText<{
           id: string;
           details: Record<string, unknown>;
           repeat_count: number;
         }>(
+          client,
           `SELECT id, details, repeat_count
            FROM admin_audit_log
            WHERE conflict_key = $1 AND resolved_at IS NULL
@@ -263,13 +280,14 @@ export async function upsertOpenConflictLog(
           [conflictKey],
         );
         if (collision.rows.length === 0) throw err;
-        const row = collision.rows[0];
+        const row = collision.rows[0]!;
         const mergedDetails = {
           ...row.details,
           ...baseDetails,
           seenEventTypes: mergeSeenEventTypes(row.details.seenEventTypes, incomingSeenEventTypes),
         };
-        await client.query(
+        await txPgText(
+          client,
           `UPDATE admin_audit_log
            SET details = $2::jsonb,
                status = $3,
@@ -333,9 +351,9 @@ export type ListAdminAuditLogParams = {
 };
 
 /** Count of distinct open `auto_merge_conflict` rows (`resolved_at IS NULL`). */
-export async function countOpenAutoMergeConflicts(pool: Pool): Promise<number> {
+export async function countOpenAutoMergeConflicts(_pool: Pool): Promise<number> {
   try {
-    const r = await pool.query<{ n: string }>(
+    const r = await runWebappPgText<{ n: string }>(
       `SELECT count(*)::text AS n
        FROM admin_audit_log
        WHERE action = 'auto_merge_conflict' AND resolved_at IS NULL`,
@@ -354,7 +372,7 @@ export type ListAdminAuditLogResult = {
   limit: number;
 };
 
-export async function listAdminAuditLog(pool: Pool, params: ListAdminAuditLogParams): Promise<ListAdminAuditLogResult> {
+export async function listAdminAuditLog(_pool: Pool, params: ListAdminAuditLogParams): Promise<ListAdminAuditLogResult> {
   const page = Math.max(1, params.page);
   const limit = Math.min(200, Math.max(1, params.limit));
   const offset = (page - 1) * limit;
@@ -431,7 +449,7 @@ export async function listAdminAuditLog(pool: Pool, params: ListAdminAuditLogPar
   const whereSql = conditions.join(" AND ");
   const filterValues = [...values];
 
-  const countRes = await pool.query<{ n: string }>(
+  const countRes = await runWebappPgText<{ n: string }>(
     `SELECT count(*)::text AS n FROM admin_audit_log l WHERE ${whereSql}`,
     filterValues,
   );
@@ -459,7 +477,7 @@ export async function listAdminAuditLog(pool: Pool, params: ListAdminAuditLogPar
   `;
   const listValues = [...filterValues, limit, offset];
 
-  const listRes = await pool.query<AdminAuditLogRow>(listSql, listValues);
+  const listRes = await runWebappPgText<AdminAuditLogRow>(listSql, listValues);
 
   return {
     items: listRes.rows.map((row) => ({
@@ -492,11 +510,11 @@ export type ResolveAdminAuditConflictResult =
  * Mark a single open audit row as resolved (`resolved_at = now()`).
  * Only {@link MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS}; idempotent for already-resolved rows.
  */
-export async function resolveAdminAuditConflictById(pool: Pool, id: string): Promise<ResolveAdminAuditConflictResult> {
+export async function resolveAdminAuditConflictById(_pool: Pool, id: string): Promise<ResolveAdminAuditConflictResult> {
   const trimmed = id.trim();
   if (!trimmed) return { ok: false, error: "not_found" };
 
-  const meta = await pool.query<{ action: string; resolved_at: string | null }>(
+  const meta = await runWebappPgText<{ action: string; resolved_at: string | null }>(
     `SELECT action, resolved_at FROM admin_audit_log WHERE id = $1::uuid`,
     [trimmed],
   );
@@ -507,7 +525,7 @@ export async function resolveAdminAuditConflictById(pool: Pool, id: string): Pro
     return { ok: false, error: "not_closeable" };
   }
 
-  const upd = await pool.query(
+  const upd = await runWebappPgText(
     `UPDATE admin_audit_log
      SET resolved_at = NOW()
      WHERE id = $1::uuid
@@ -516,7 +534,7 @@ export async function resolveAdminAuditConflictById(pool: Pool, id: string): Pro
      RETURNING id`,
     [trimmed, [...MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS]],
   );
-  if (upd.rowCount === 0) {
+  if ((upd.rowCount ?? 0) === 0) {
     return { ok: false, error: "already_resolved" };
   }
   return { ok: true, updated: true };

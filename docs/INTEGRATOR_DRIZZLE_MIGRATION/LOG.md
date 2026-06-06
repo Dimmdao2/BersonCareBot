@@ -787,4 +787,25 @@ LIMIT 3;"
 
 **Следующая подфаза Wave 3 phase 14:** **14C** — `adminAuditLog.ts` (merge helper SQL уже в 14A post-audit).
 
+### Wave 3 phase 14C — admin audit + merge helper verify (2026-06-06)
+
+- **Scope:** `apps/webapp/src/infra/adminAuditLog.ts` — insert/list/dedupe/resolve (16 domain call sites baseline); `mergeLegacySupportConversations.ts` — regression-only (SQL bridge в 14A post-audit).
+- **Transport:** domain SQL → `runWebappPgText`; in-TX dedupe → `txPgText(client, …)` + `getWebappSqlFromPgClient`.
+- **Class C:** `upsertOpenConflictLog` — `BEGIN`/`COMMIT`/`ROLLBACK` on PoolClient; domain SELECT/INSERT/UPDATE inside TX via `txPgText`.
+- **Merge helper:** `pool.query` = 0 (verified); extended unit test for empty canonical upsert.
+- **Проверки:** `pool.query` = **0** в `adminAuditLog.ts`; Class C `client.query` only on TX transport; Vitest `--project fast` `adminAuditLog` + `mergeLegacySupportConversations` green.
+- **Tests:** `adminAuditLog.repo.test.ts` (getLast/count/dedupe); existing `adminAuditLog.test.ts` migrated to `runWebappPgText` mock; opt-in devDb `RUN_ADMIN_AUDIT_LOG_DEV_DB=1`.
+- **RAW_SQL / plan:** todo `w3-p14c-audit-merge` → `completed`.
+
+#### Post-audit closure 14C (2026-06-06)
+
+- **Repo tests:** `adminAuditLog.repo.test.ts` — `getLastAuditLogDetailsField`, `countOpenAutoMergeConflicts`, dedupe 23505 + non-unique error log.
+- **TX tests:** `upsertOpenConflictLog` ROLLBACK on domain failure; list SELECT with `LEFT JOIN platform_users`; `resolveAdminAuditConflictById` — `(rowCount ?? 0)` guard.
+- **Merge helper:** regression-only — empty canonical upsert + full merge path (`mergeLegacySupportConversations.test.ts`); `pool.query` = 0 unchanged.
+- **Opt-in devDb:** `RUN_ADMIN_AUDIT_LOG_DEV_DB=1` + `USE_REAL_DATABASE=1` — read-only smoke (2 cases).
+- **Zod boundaries:** deferred to **14E** (audit list route params — вне 14C).
+- **Проверки:** `pool.query` = 0 в `adminAuditLog.ts`; Class C `client.query` = 3× (BEGIN/COMMIT/ROLLBACK); Vitest fast `adminAuditLog` + `mergeLegacySupportConversations` green.
+
+**Следующая подфаза Wave 3 phase 14:** **14D** — comms tail (`pgMessageLog`, `pgChannelPreferences`, …).
+
 

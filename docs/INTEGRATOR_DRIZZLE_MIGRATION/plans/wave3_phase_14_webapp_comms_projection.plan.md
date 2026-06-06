@@ -12,7 +12,7 @@ todos:
     status: completed
   - id: w3-p14c-audit-merge
     content: "14C: adminAuditLog.ts (16) — insert/list parity; mergeLegacySupportConversations.ts — verify only (SQL bridge done in 14A post-audit)."
-    status: pending
+    status: completed
   - id: w3-p14d-comms-tail
     content: "14D: pgMessageLog.ts, pgChannelPreferences.ts, pgWebPushSubscriptions.ts, pgBroadcastAudit.ts, pgSubscriptionMailingProjection.ts, pgPatientCalendarTimezone.ts."
     status: pending
