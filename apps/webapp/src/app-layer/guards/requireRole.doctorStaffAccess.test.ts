@@ -17,7 +17,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
-import { requireDoctorAccess, requirePatientAccess } from "./requireRole";
+import { getOptionalPatientSession, requireDoctorAccess, requirePatientAccess } from "./requireRole";
 
 function session(role: AppSession["user"]["role"]): AppSession {
   return {
@@ -67,22 +67,46 @@ describe("requireDoctorAccess", () => {
 });
 
 describe("requirePatientAccess", () => {
-  it("redirects doctor to doctor cabinet", async () => {
+  it("redirects doctor to doctor hub with access-denied toast flag", async () => {
     getCurrentSessionMock.mockResolvedValueOnce(session("doctor"));
-    await expect(requirePatientAccess()).rejects.toThrow("redirect:/app/doctor");
-    expect(redirectMock).toHaveBeenCalledWith("/app/doctor");
+    const target = buildOwnHubUrlWithAccessDeniedToast("doctor");
+    await expect(requirePatientAccess()).rejects.toThrow(`redirect:${target}`);
+    expect(redirectMock).toHaveBeenCalledWith(target);
   });
 
-  it("redirects admin to doctor cabinet", async () => {
+  it("redirects admin to doctor hub with access-denied toast flag", async () => {
     getCurrentSessionMock.mockResolvedValueOnce(session("admin"));
-    await expect(requirePatientAccess()).rejects.toThrow("redirect:/app/doctor");
-    expect(redirectMock).toHaveBeenCalledWith("/app/doctor");
+    const target = buildOwnHubUrlWithAccessDeniedToast("admin");
+    await expect(requirePatientAccess()).rejects.toThrow(`redirect:${target}`);
+    expect(redirectMock).toHaveBeenCalledWith(target);
   });
 
   it("returns session for client", async () => {
     const client = session("client");
     getCurrentSessionMock.mockResolvedValueOnce(client);
     await expect(requirePatientAccess()).resolves.toBe(client);
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("getOptionalPatientSession", () => {
+  it("returns null when no session", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(null);
+    await expect(getOptionalPatientSession()).resolves.toBeNull();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("redirects doctor to doctor hub with access-denied toast flag", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(session("doctor"));
+    const target = buildOwnHubUrlWithAccessDeniedToast("doctor");
+    await expect(getOptionalPatientSession()).rejects.toThrow(`redirect:${target}`);
+    expect(redirectMock).toHaveBeenCalledWith(target);
+  });
+
+  it("returns session for client", async () => {
+    const client = session("client");
+    getCurrentSessionMock.mockResolvedValueOnce(client);
+    await expect(getOptionalPatientSession()).resolves.toBe(client);
     expect(redirectMock).not.toHaveBeenCalled();
   });
 });

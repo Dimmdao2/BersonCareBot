@@ -20,7 +20,9 @@ export async function requireSession(returnPath?: string): Promise<AppSession> {
 /** Сессия для разделов «только для авторизованного» (записи, дневники, покупки). Редирект на /app с ?next= при отсутствии сессии. */
 export async function requirePatientAccess(returnPath?: string): Promise<AppSession> {
   const session = await requireSession(returnPath);
-  if (!canAccessPatient(session.user.role)) redirect(routePaths.doctor);
+  if (!canAccessPatient(session.user.role)) {
+    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
+  }
   return session;
 }
 
@@ -35,7 +37,9 @@ export async function requirePatientAccessWithPhone(returnPath?: string): Promis
 export async function getOptionalPatientSession(): Promise<AppSession | null> {
   const session = await getCurrentSession();
   if (!session) return null;
-  if (!canAccessPatient(session.user.role)) redirect(routePaths.doctor);
+  if (!canAccessPatient(session.user.role)) {
+    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
+  }
   return session;
 }
 

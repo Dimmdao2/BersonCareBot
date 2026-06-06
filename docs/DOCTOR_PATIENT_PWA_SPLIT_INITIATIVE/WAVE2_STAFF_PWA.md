@@ -1,6 +1,6 @@
 # Волна 2 — Staff PWA + блокировка чужих зон
 
-**Статус:** `planned` — волна 1 [закрыта](ROADMAP.md) 2026-06-06; **готова к старту**.
+**Статус:** §A **done** (2.A0–2.A5, 2026-06-06); §B `planned` (Staff PWA).
 
 **Patient PWA (install/gate/manifest/SW)** — поведение **не меняем**. Исключение волны 2: **только** политика доступа по роли — см. §блокировка; без правок `PwaAppAccessGate`, `manifest.start_url`, patient push.
 
@@ -58,8 +58,8 @@
 | **2.A1** ✅ | Client: чтение флага в shell, `react-hot-toast`, strip query | `AppAccessDeniedToastEffect`, `PatientAppShell`, `DoctorWorkspaceShell` |
 | **2.A2** ✅ | Staff guards: `requireDoctorAccess`, `settings/layout`, `admin/layout` | `requireRole.ts`, staff layouts |
 | **2.A3** ✅ | Patient: staff на `/app/patient/**` — тот же паттерн | `patient/layout.tsx` (только role-block) |
-| **2.A4** | Тесты: guards → redirect на свой hub + query; toast helper unit | vitest / e2e |
-| **2.A5** | INVENTORY, ACCEPTANCE_WAVE2 §access | docs |
+| **2.A4** ✅ | Тесты: guards → redirect на свой hub + query; toast helper unit | vitest / e2e |
+| **2.A5** ✅ | INVENTORY, ACCEPTANCE_WAVE2 §access | `INVENTORY_AND_MATRIX.md`, `ACCEPTANCE_WAVE2.md` |
 
 **Не делать:** `AccessDeniedScreen`, `/app/access-denied`, Dialog «нет доступа».
 
@@ -106,19 +106,25 @@
 
 ## Definition of Done (волна 2)
 
-- [ ] Чужая зона: контент не показывается; на своём hub — **toast** (`react-hot-toast`).
-- [ ] Нет маршрутов/компонентов access-denied screen.
-- [ ] Entry в свой hub без изменений.
-- [ ] Staff PWA: install, manifest, иконки.
-- [ ] Patient install/manifest/gate — без регрессии.
-- [ ] `ACCEPTANCE_WAVE2.md`.
+- [x] §A Чужая зона: контент не показывается; на своём hub — **toast** (`react-hot-toast`).
+- [x] §A Нет маршрутов/компонентов access-denied screen.
+- [x] §A Entry в свой hub без изменений.
+- [ ] §B Staff PWA: install, manifest, иконки.
+- [x] §A Patient install/manifest/gate — без регрессии (код не трогали).
+- [x] `ACCEPTANCE_WAVE2.md` (§access закрыт; §B — после 2.B6).
 
 ## Проверки
 
 ```bash
 rg "app_access_denied|appAccessDenied" apps/webapp/src
-rg "access-denied|AccessDeniedScreen" apps/webapp/src   # ожидание: 0 новых
-pnpm --filter webapp exec vitest run src/app-layer/guards/requireRole.doctorStaffAccess.test.ts
+rg "access-denied|AccessDeniedScreen" apps/webapp/src   # ожидание: 0 новых forbidden-screen
+pnpm --filter webapp exec vitest run \
+  src/shared/lib/appAccessDeniedToast.test.ts \
+  src/shared/ui/AppAccessDeniedToastEffect.test.ts \
+  src/app-layer/guards/requireRole.doctorStaffAccess.test.ts \
+  e2e/doctor-patient-role-layout-redirects.test.ts \
+  src/app/api/doctor/clients/route.test.ts
+# 32 tests (волна 2 access, 2026-06-06)
 
 # staff PWA
 curl -sS localhost:3000/manifest-staff.webmanifest | jq '.start_url'

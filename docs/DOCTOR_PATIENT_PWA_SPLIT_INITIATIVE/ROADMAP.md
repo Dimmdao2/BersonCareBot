@@ -7,7 +7,7 @@
 | Волна | Что | Документ | Статус |
 |-------|-----|----------|--------|
 | **1** | Runtime: guards, CSS, redirects (браузер) | этот файл §ниже | **done** (2026-06-06) |
-| **2** | Блок чужих зон + Staff PWA (install, manifest) | [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) | planned |
+| **2** | Блок чужих зон + Staff PWA (install, manifest) | [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) | §A **done**, §B planned |
 
 **Где делать PWA кабинета:** волна **2** этой инициативы + фаза 5 в [`PWA_INITIATIVE/BACKLOG.md`](../PWA_INITIATIVE/BACKLOG.md). Волна 1 PWA пациента уже закрыта; staff install — **новый** контур, не правка patient manifest.
 

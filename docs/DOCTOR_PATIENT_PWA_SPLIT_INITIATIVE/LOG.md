@@ -1,5 +1,35 @@
 # DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE — LOG
 
+## 2026-06-06 — Волна 2 этап 2.A5 (docs)
+
+**Сделано:**
+
+- `INVENTORY_AND_MATRIX.md` — матрица cross-zone hub+toast, точки enforcement, тесты.
+- `ACCEPTANCE_WAVE2.md` — §access (done), §B Staff PWA (planned).
+- `WAVE2_STAFF_PWA.md`, `ROADMAP.md` — статус §A closed.
+
+**Примечание:** в плане нет этапа «2.A6»; выполнен **2.A5** по запросу «А6».
+
+## 2026-06-06 — Волна 2 этап 2.A4 (код + тесты)
+
+**Сделано:**
+
+- `requirePatientAccess`, `getOptionalPatientSession` — staff → `buildOwnHubUrlWithAccessDeniedToast(role)`.
+- Тесты: `requirePatientAccess`, `getOptionalPatientSession` в `requireRole.doctorStaffAccess.test.ts`.
+
+**Проверки (волна 2 access):**
+
+```bash
+pnpm --filter webapp exec vitest run \
+  src/shared/lib/appAccessDeniedToast.test.ts \
+  src/shared/ui/AppAccessDeniedToastEffect.test.ts \
+  src/app-layer/guards/requireRole.doctorStaffAccess.test.ts \
+  e2e/doctor-patient-role-layout-redirects.test.ts \
+  src/app/api/doctor/clients/route.test.ts
+# 6 files, 32 tests — green
+rg "access-denied|AccessDeniedScreen" apps/webapp/src  # нет forbidden-screen
+```
+
 ## 2026-06-06 — Волна 2 этап 2.A3 (код)
 
 **Сделано:**
@@ -14,7 +44,6 @@ pnpm --filter webapp exec vitest run e2e/doctor-patient-role-layout-redirects.te
 # 7 tests — green
 ```
 
-**Не делали:** `requirePatientAccess` / `getOptionalPatientSession` (2.A4).
 
 ## 2026-06-06 — Волна 2 этап 2.A2 (код)
 
