@@ -48,6 +48,14 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
       return port.getRubitimeAppointmentId(input);
     },
 
+    async getAppointmentIdByRubitimeExternalId(input) {
+      assertUuid(input.organizationId, "organizationId");
+      const rubitimeId = input.rubitimeId.trim();
+      if (!rubitimeId) return null;
+      if (!port.getAppointmentIdByRubitimeExternalId) return null;
+      return port.getAppointmentIdByRubitimeExternalId({ organizationId: input.organizationId, rubitimeId });
+    },
+
     async getStatusBeforePackageCharge(appointmentId) {
       assertUuid(appointmentId, "appointmentId");
       return port.getStatusBeforePackageCharge(appointmentId);

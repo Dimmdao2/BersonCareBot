@@ -41,7 +41,7 @@ todos:
 
 ## Архитектура
 
-Работа только в `infra/repos`; модули — без прямого Drizzle ([DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md)).
+Работа только в `infra/repos`; модули — без прямого Drizzle ([DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md)).
 
 ## Декомпозиция исполнения
 
@@ -113,7 +113,7 @@ todos:
 - **Репозитории:** `pgReminderRules.ts`, `pgReminderJournal.ts`, `pgWebPushOnlyReminders.ts` (+ `cancelWebPushOnlyPendingOccurrencesForRule`); `pgReminderProjection.ts` — доменный SQL через `execute(sql)`; `pgReminderTransactionalEmailCooldown.ts` — Drizzle builder на `email_send_cooldowns`.
 - **Исключение (документировано):** `pgReminderProjection` по-прежнему вызывает `getPool()` только для `findCanonicalUserIdByIntegratorId` / `loadWarmupsSectionSlugs` (внешние хелперы, не `pool.query` внутри projection SQL).
 - **Тесты (vitest `--project fast`):** **36 passed** в 8 файлах — PG: `pgReminderProjection.pg.test.ts`, `pgReminderRules.test.ts`, `pgReminderJournal.pg.test.ts`, `pgWebPushOnlyReminders.pg.test.ts`, `pgReminderTransactionalEmailCooldown.test.ts`; in-memory/contract: `pgReminderProjection.test.ts`, `inMemoryReminderJournal.test.ts`, `pgWebPushOnlyReminders.test.ts`.
-- **Документация:** [LOG.md](../LOG.md) § Wave 2 этап 4; [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) — P4 done для всех reminder repos этапа.
+- **Документация:** [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) § Wave 2 этап 4; [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) — P4 done для всех reminder repos этапа.
 - **Проверки (воспроизводимые):**
   - `rg 'pool\.query|client\.query' apps/webapp/src/infra/repos/pgReminder*.ts apps/webapp/src/infra/repos/pgWebPushOnlyReminders.ts` → пусто
   - `pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json`

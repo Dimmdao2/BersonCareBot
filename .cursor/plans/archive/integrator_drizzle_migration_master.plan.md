@@ -108,4 +108,4 @@ isProject: true
 - План фаз и рисков: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md) — **этапы 1–8 закрыты (2026-06-05)**; дальше фазы **IX–X**.
 - Построчная инвентаризация: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md)
 - Журнал: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) (§ Wave 2 этапы 1–8)
-- Индекс этапов: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md`](../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md)
+- Индекс этапов (архив): [`docs/archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md`](../../../docs/archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md)

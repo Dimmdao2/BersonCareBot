@@ -76,7 +76,7 @@ todos:
 
 ### D. Scripts
 
-- [x] Классификация в [LOG.md](../LOG.md) § Wave 2 P8 — scripts (one-off/backfill/report/runtime tick → pg или thin wrapper).
+- [x] Классификация в [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) § Wave 2 P8 — scripts (one-off/backfill/report/runtime tick → pg или thin wrapper).
 
 ### Final verification
 

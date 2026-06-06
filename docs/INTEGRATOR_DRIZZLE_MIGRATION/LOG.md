@@ -95,7 +95,7 @@
 ### Wave 2 — план и инвентаризация (документация)
 
 - Обновлены **`docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md`** (волна после закрытого мастера P1–P4: фазы, риски, DoD по каналам `system_settings`, правило webapp `infra/repos`) и **`RAW_SQL_INVENTORY.md`** (в т.ч. **`public.integrator_push_outbox`**, оценки для `client.ts` / `migrate.ts` / `branchTimezone`, уточнение `rg` для `db.query`).
-- Поэтапные планы выполнения Wave 2: **`docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/`** ([`plans/README.md`](plans/README.md) — индекс `wave2_phase_01` … `wave2_phase_08`).
+- Поэтапные планы выполнения Wave 2: **`docs/archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/`** ([`plans/README.md`](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md) — индекс `wave2_phase_01` … `wave2_phase_08`; перенос **2026-06-06**).
 - Постаудит **рассылок врача / `outgoing_delivery_queue`**: webapp `pgDoctorBroadcastDelivery` — `INSERT … ON CONFLICT (event_id) DO NOTHING` + откат транзакции при `rowCount ≠ 1` (**один** `ROLLBACK` в `catch`, без дубля перед `throw`); integrator `outgoingDeliveryWorker` — при планируемом ретрае только **`logger.debug`** с усечённым `error` (без сырого `err` в структурированных полях); **`docs/ARCHITECTURE/DOCTOR_BROADCASTS.md`** и строка **`outgoingDeliveryWorker`** в **`RAW_SQL_INVENTORY.md`** приведены в соответствие с кодом.
 - **Рассылки врача — меню в чате:** `doctorBroadcastIntentMenu.ts` (обогащение `message.send` до **`dispatchOutgoing`**, паритет с `delivery.ts` / `buildMainReplyKeyboardMarkup` и MAX inline через `enrichMessageSendPayloadWithMaxMainInlineIfApplicable`); **`runIntegratorSql`** для резолва телефона по `public.platform_users` / `contacts`; unit-тесты `doctorBroadcastIntentMenu.test.ts`, расширение `outgoingDeliveryWorker.test.ts`; колонка **`broadcast_audit.attach_menu_after_send`**, флаг **`payload_json.attachMenu`**; миграция webapp **`0066_broadcast_audit_attach_menu_after_send.sql`**.
 - **Мастер-план** `.cursor/plans/archive/integrator_drizzle_migration_master.plan.md`: frontmatter выровнен под этапы 1–2 (`status` сразу после `name`, `overview: >-`), todo **`wave-2-doc-sync`** (completed); в теле плана — раздел **«Следующая волна (Wave 2)»** со ссылками на `DRIZZLE_TRANSITION_PLAN` / `RAW_SQL_INVENTORY` / `LOG`.
@@ -164,7 +164,7 @@
 - **Ограничение:** в `pgReminderProjection` остаётся `getPool()` только для вызовов `findCanonicalUserIdByIntegratorId` / `loadWarmupsSectionSlugs` (внешние хелперы, без `pool.query` в SQL projection).
 - **Тесты (vitest `--project fast`, 8 файлов):** **36 passed** — PG: `pgReminderProjection.pg.test.ts`, `pgReminderRules.test.ts`, `pgReminderJournal.pg.test.ts`, `pgWebPushOnlyReminders.pg.test.ts`, `pgReminderTransactionalEmailCooldown.test.ts`; in-memory/contract: `pgReminderProjection.test.ts`, `pgWebPushOnlyReminders.test.ts`, `inMemoryReminderJournal.test.ts`.
 - **Проверки:** `pnpm exec tsc --noEmit` (webapp); `rg 'pool\.query|client\.query'` по `apps/webapp/src/infra/repos/pgReminder*.ts` и `pgWebPushOnlyReminders.ts` — **0**; `RAW_SQL_INVENTORY.md` — P4 done для projection/rules/journal/webpush/cooldown.
-- **План:** [wave2_phase_04_webapp_reminders.plan.md](./plans/wave2_phase_04_webapp_reminders.plan.md) — `status: completed`, todos и DoD закрыты.
+- **План:** [wave2_phase_04_webapp_reminders.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_04_webapp_reminders.plan.md) — `status: completed`, todos и DoD закрыты.
 
 ### Wave 2 — этап 5 (webapp медиа) — выполнено (2026-06-05)
 
@@ -183,8 +183,8 @@
 - **Постаудит (2026-06-05):** cleanup `cleaned` не завышается при stale lock; RAW_SQL уточнён (enqueue vs claim); расширены unit-тесты.
 - **Тесты (vitest `--project fast`, P5 bundle):** **56 passed** — `init`, `cleanup`, `mediaFoldersRepo`, `mediaUploadSessionsRepo`, `pgMediaTranscodeJobs`, `s3MediaStorage`, `mediaPreviewWorker`, `pgMediaFileIntakeResolve`, `mediaTranscodeAutoEnqueue`.
 - **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci` — green (2026-06-05)**; `rg 'pool\.query|client\.query'` по media scope — только TX transport на `PoolClient`.
-- **Синхронизация документов (2026-06-05):** [plans/README.md](./plans/README.md) (индекс P5 → completed), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) (фаза V → Done), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) (§2.4–2.6 P5).
-- **План:** [wave2_phase_05_webapp_media.plan.md](./plans/wave2_phase_05_webapp_media.plan.md) — `status: completed`, todos, DoD и §«Закрытие».
+- **Синхронизация документов (2026-06-05):** [plans/README.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md) (индекс P5 → completed), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) (фаза V → Done), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) (§2.4–2.6 P5).
+- **План:** [wave2_phase_05_webapp_media.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_05_webapp_media.plan.md) — `status: completed`, todos, DoD и §«Закрытие».
 
 ### Wave 2 — этап 6 (webapp ЛФК) — выполнено (2026-06-05)
 
@@ -198,8 +198,8 @@
   - [x] patient diary session/complex scoping + add/update session (unit `pgLfkDiary.test.ts`).
 - **Тесты (vitest, P6 bundle):** **27 passed** — `pgLfkAssignments`, `pgLfkExercises`, `pgLfkTemplates`, `pgLfkDiary`, `e2e/lfk-assign-inprocess`.
 - **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci` — green (post-audit 2026-06-05)**.
-- **Синхронизация документов:** [plans/README.md](./plans/README.md) (P6 → completed), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) (фаза VI → Done), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) (`pgLfk*`).
-- **План:** [wave2_phase_06_webapp_lfk.plan.md](./plans/wave2_phase_06_webapp_lfk.plan.md) — `status: completed`, todos, DoD, §«Закрытие».
+- **Синхронизация документов:** [plans/README.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md) (P6 → completed), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) (фаза VI → Done), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) (`pgLfk*`).
+- **План:** [wave2_phase_06_webapp_lfk.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_06_webapp_lfk.plan.md) — `status: completed`, todos, DoD, §«Закрытие».
 - **Финальная синхронизация (post-audit):** `pgLfkDiary.test.ts` — add/update session; assignments — abort без лишних SQL; frontmatter/todos плана; `docs/README.md` (Wave 2 этапы 1–6); P6 bundle **27** tests.
 
 ### Wave 2 — этап 7 (webapp auth + rate limits) — выполнено (2026-06-05)
@@ -214,7 +214,7 @@
 - **Остаток (осознанно):** `client.query` tx control в channel link merge/claim; allowlisted legacy: `channelLink.ts`, `service.ts`, `oauthWebSession.ts`, `yandexOAuthCallbackHandler.ts`.
 - **Тесты (vitest `--project fast`):** auth module **243 passed**; additions — `pgAuthRateLimitEvents.test.ts`, `pgOAuthUserResolve.test.ts`, `oauthWebLoginResolve.test.ts`, opt-in `pgAuthRateLimitEvents.devDb.integration.test.ts`.
 - **Проверки:** `pnpm --dir apps/webapp run typecheck`; полный `pnpm run ci`.
-- **План:** [wave2_phase_07_webapp_auth_rate_limits.plan.md](./plans/wave2_phase_07_webapp_auth_rate_limits.plan.md) — `status: completed`, todos, DoD, §«Закрытие».
+- **План:** [wave2_phase_07_webapp_auth_rate_limits.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_07_webapp_auth_rate_limits.plan.md) — `status: completed`, todos, DoD, §«Закрытие».
 
 ### Wave 2 — этап 8 (packages, media-worker, scripts) — выполнено (2026-06-05)
 
@@ -293,19 +293,19 @@
 - **platform-merge consumers:** webapp merge tests **44 passed**.
 - **Archive docs:** superseded notes для удалённого `rubitimeBranchServiceLookup.ts`.
 - **Проверки:** `pnpm --dir packages/booking-rubitime-sync run build && test`; targeted webapp/integrator/media-worker tests; **`pnpm run ci` — green (2026-06-05, post-audit + remarks closure)**.
-- **План:** [wave2_phase_08_packages_worker_scripts.plan.md](./plans/wave2_phase_08_packages_worker_scripts.plan.md) — `status: completed`, todos **6/6**, DoD, §«Закрытие» / §«Post-audit / remarks closure».
-- **Синхронизация:** [plans/README.md](./plans/README.md), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) §2.7 / §3–4, [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) фазы VIII–IX, [docs/README.md](../README.md).
+- **План:** [wave2_phase_08_packages_worker_scripts.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_08_packages_worker_scripts.plan.md) — `status: completed`, todos **6/6**, DoD, §«Закрытие» / §«Post-audit / remarks closure».
+- **Синхронизация:** [plans/README.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md), [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) §2.7 / §3–4, [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) фазы VIII–IX, [docs/README.md](../README.md).
 - **Backlog Wave 2 после P8:** фаза **IX** — `media-worker/processTranscodeJob`; фаза **X** — прочие `pg*` repos; Drizzle в `booking-rubitime-sync` / `platform-merge` — отдельные планы.
 
 ### Документация — финальная синхронизация P8 (2026-06-05)
 
-- План [wave2_phase_08](./plans/wave2_phase_08_packages_worker_scripts.plan.md): §«Закрытие» / §«Post-audit» согласованы с LOG и счётчиками тестов.
-- [wave2_phase_05](./plans/wave2_phase_05_webapp_media.plan.md): claim → P8 done; `processTranscodeJob` → IX.
-- [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md): фазы V, VIII–X; [plans/README.md](./plans/README.md); [docs/README.md](../README.md); мастер-план §Wave 2.
+- План [wave2_phase_08](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_08_packages_worker_scripts.plan.md): §«Закрытие» / §«Post-audit» согласованы с LOG и счётчиками тестов.
+- [wave2_phase_05](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave2_phase_05_webapp_media.plan.md): claim → P8 done; `processTranscodeJob` → IX.
+- [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md): фазы V, VIII–X; [plans/README.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md); [docs/README.md](../README.md); мастер-план §Wave 2.
 
 ### Wave 3 — фаза 00 (baseline + ADR) — выполнено (2026-06-05)
 
-Документация-only; код не менялся. План: [wave3_phase_00_baseline_adr.plan.md](./plans/wave3_phase_00_baseline_adr.plan.md).
+Документация-only; код не менялся. План: [wave3_phase_00_baseline_adr.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_00_baseline_adr.plan.md).
 
 #### Wave 3 baseline (`rg`, 2026-06-05)
 
@@ -334,7 +334,7 @@
 | **migrate.ts / one-off scripts** | pg ledger / batch ops transport (Class C). |
 | **DbPort / health `client.ts`** | TX transport + `SELECT 1` (Class C). |
 
-#### Зафиксированные решения (вопросы 1–10, [wave3_DECISIONS.md](./plans/wave3_DECISIONS.md))
+#### Зафиксированные решения (вопросы 1–10, [wave3_DECISIONS.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_DECISIONS.md))
 
 1. **Webapp scope:** полный closeout runtime `apps/webapp/src` (без `*.test.ts`) в фазах **11–15**; после 15 — только Class B/C в RAW_SQL.
 2. **`apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts`:** миграция в **фазе 15** (Drizzle executor + Zod), **не** permanent C.
@@ -356,7 +356,7 @@
 - [x] `plans/README.md` + DRIZZLE_TRANSITION_PLAN → wave3_INDEX, phase 08, phase 16
 - [x] Zod policy для DB-границ 09–15 зафиксирована
 
-**PR map (кодовые фазы):** см. [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md) — 08 → (09 ∥ 10) → 11 → 12 → 13 → 14 → 15 → 16 (conditional) → 17.
+**PR map (кодовые фазы):** см. [`plans/wave3_INDEX.md`](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_INDEX.md) — 08 → (09 ∥ 10) → 11 → 12 → 13 → 14 → 15 → 16 (conditional) → 17.
 
 ### Wave 3 — фаза 08 (integrator schema reduction) — выполнено (2026-06-06)
 
@@ -443,7 +443,7 @@
 
 ### Wave 3 — фаза 10 (media-worker IX, 10A–10C) — выполнено (2026-06-06)
 
-План: [wave3_phase_10_media_worker_ix.plan.md](./plans/wave3_phase_10_media_worker_ix.plan.md).
+План: [wave3_phase_10_media_worker_ix.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_10_media_worker_ix.plan.md).
 
 #### 10A — preflight (baseline + инварианты)
 
@@ -544,11 +544,11 @@ LIMIT 3;"
 3. `rg 'pool\.query' apps/media-worker/src` — после отката снова hits в `processTranscodeJob*` (ожидаемо); **`claim.ts` diff должен быть пуст**.
 4. Smoke: один короткий upload → убедиться job доходит до `done` (семантика claim/status не должна меняться при откате только executor-слоя, если SQL-текст эквивалентен).
 
-**Shared schema package:** backlog вне Wave 3 (см. [wave3_DECISIONS.md](./plans/wave3_DECISIONS.md) §3).
+**Shared schema package:** backlog вне Wave 3 (см. [wave3_DECISIONS.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_DECISIONS.md) §3).
 
 ### Wave 3 — фаза 11 (webapp app-layer + auth tail) — выполнено (2026-06-06)
 
-План: [wave3_phase_11_webapp_app_layer_auth.plan.md](./plans/wave3_phase_11_webapp_app_layer_auth.plan.md).
+План: [wave3_phase_11_webapp_app_layer_auth.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_11_webapp_app_layer_auth.plan.md).
 
 #### 11.1 — app-layer health/media
 
@@ -591,7 +591,7 @@ LIMIT 3;"
 - Дополнены строки RAW_SQL: `pgAdminPlatformUserStats`, `pgRubitimeMapping`, `pgPatientBroadcasts`, `loadPlatformUserChannelBindings`, `mergeAuditLabels`, `manualMergeIntegratorGate`, `platformUserNameMatchHints`, `mergePreviewIntegratorUserPresence`, `loadWarmupsSectionSlugs`, `disableReminderMessengerTopic`.
 - Unit-тесты: `parseSettingValueJson.test.ts`, `pgStore.test.ts` (invalid `response_body` → `{}`).
 
-**Синхронизация документов (2026-06-06, post-audit):** [wave3_phase_11_webapp_app_layer_auth.plan.md](./plans/wave3_phase_11_webapp_app_layer_auth.plan.md) (полное закрытие + таблица миграций), [plans/README.md](./plans/README.md), [wave3_INDEX.md](./plans/wave3_INDEX.md), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md), [docs/README.md](../README.md).
+**Синхронизация документов (2026-06-06, post-audit):** [wave3_phase_11_webapp_app_layer_auth.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_11_webapp_app_layer_auth.plan.md) (полное закрытие + таблица миграций), [plans/README.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md), [wave3_INDEX.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_INDEX.md), [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md), [docs/README.md](../README.md).
 
 ### Wave 3 phase 12A — `pgOnlineIntake.ts` (2026-06-06)
 
@@ -676,7 +676,7 @@ LIMIT 3;"
 
 **Документация синхронизирована:** plan 12, `wave3_INDEX`, `plans/README`, `DRIZZLE_TRANSITION_PLAN`, `RAW_SQL_INVENTORY`, `docs/README.md`.
 
-**Следующая фаза Wave 3:** [wave3_phase_13_webapp_booking_doctor.plan.md](./plans/wave3_phase_13_webapp_booking_doctor.plan.md).
+**Следующая фаза Wave 3:** [wave3_phase_13_webapp_booking_doctor.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_13_webapp_booking_doctor.plan.md).
 
 ### Wave 3 phase 13A — booking catalog core (2026-06-06)
 
@@ -746,7 +746,7 @@ LIMIT 3;"
 
 **Документация синхронизирована:** plan 13, `wave3_INDEX`, `plans/README`, `DRIZZLE_TRANSITION_PLAN`, `RAW_SQL_INVENTORY`, `docs/README.md`, plan 14 §Предшественник.
 
-**Следующая фаза Wave 3:** [wave3_phase_14_webapp_comms_projection.plan.md](./plans/wave3_phase_14_webapp_comms_projection.plan.md).
+**Следующая фаза Wave 3:** [wave3_phase_14_webapp_comms_projection.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_14_webapp_comms_projection.plan.md).
 
 ### Wave 3 phase 14A — support communication core (2026-06-06)
 
@@ -869,7 +869,7 @@ LIMIT 3;"
 - **Re-verify:** gate 10 files `pool.query` = 0; fast bundle **119 passed** / **11 skipped**.
 - **Plan doc sync:** `wave3_phase_14` §Закрытие + INDEX / README / DRIZZLE_TRANSITION_PLAN / docs/README (2026-06-06).
 
-**Следующая фаза Wave 3:** [wave3_phase_15_webapp_long_tail.plan.md](./plans/wave3_phase_15_webapp_long_tail.plan.md).
+**Следующая фаза Wave 3:** [wave3_phase_15_webapp_long_tail.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_15_webapp_long_tail.plan.md).
 
 ### Wave 3 phase 15A — references / settings / diary (2026-06-06)
 
@@ -934,7 +934,7 @@ LIMIT 3;"
 - **Domain `pool.query`:** **0** вне Class B allowlist; **15A–15E** migrated scope — runtime `pool.query`/`client.query` = **0**.
 - **Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 closure bundle — **93 passed** (fast).
 - **RAW_SQL / plan:** §Wave 3 phase 15F; baseline webapp tail **78→25**; todo `w3-p15-verify` → `completed`; **фаза 15 closed**.
-- **Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](./plans/wave3_phase_16_legacy_cutover.plan.md).
+- **Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_16_legacy_cutover.plan.md).
 
 #### Post-audit closure 15F (2026-06-06)
 
@@ -968,7 +968,7 @@ LIMIT 3;"
 - **Test bootstrap policy:** `apps/webapp/vitest.globalSetup.ts` больше не запускает `migrate:legacy` неявно; по умолчанию выполняется только Drizzle migrate. Legacy включается только opt-in (`VITEST_USE_LEGACY_MIGRATIONS=true` / `WEBAPP_TEST_USE_LEGACY_MIGRATIONS=true`), в bootstrap-режиме.
 - **Zod boundary в migration tooling:** `run-migrations.mjs` — валидация ledger/shape (`COUNT(*)` row + migration filename schema) через `zod`.
 - **Docs sync:** обновлены `wave3_phase_16_legacy_cutover.plan.md`, `wave3_INDEX.md`, `plans/README.md`, `DRIZZLE_TRANSITION_PLAN.md`, `RAW_SQL_INVENTORY.md`, `deploy/HOST_DEPLOY_README.md`, `apps/webapp/scripts/README.md`, `docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/*`, `docs/ARCHITECTURE/DB_STRUCTURE.md`.
-- **Следующая фаза Wave 3:** [wave3_phase_17_closeout.plan.md](./plans/wave3_phase_17_closeout.plan.md).
+- **Следующая фаза Wave 3:** [wave3_phase_17_closeout.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_17_closeout.plan.md).
 
 ### Wave 3 phase 17 — closeout (2026-06-06)
 
@@ -1011,5 +1011,11 @@ LIMIT 3;"
 | Остаток raw SQL | Class **B/C** (webapp TX/advisory), Class **E** (merge, rubitime-sync, claim, scripts) — см. [RAW_SQL](./RAW_SQL_INVENTORY.md) |
 
 **Канон дальше:** опционально — повторить §10C от `deploy` на prod (`:6200`, `journalctl` media-worker-prod) для полного prod audit trail.
+
+### Архив phase-планов (2026-06-06)
+
+- **`git mv`** `docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/` → `docs/archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/` (22 файла: Wave 2 `wave2_phase_01`…`08`, Wave 3 `wave3_*`).
+- В корне `docs/INTEGRATOR_DRIZZLE_MIGRATION/` оставлены операционные якоря: `README.md`, `RAW_SQL_INVENTORY.md`, `DRIZZLE_TRANSITION_PLAN.md`, `LOG.md`, `TEST_BEHAVIOR_AUDIT.md`.
+- Ссылки обновлены: `docs/README.md`, `docs/archive/README.md`, `.cursor/plans/archive/README.md`, относительные пути в LOG / RAW_SQL / DRIZZLE_TRANSITION_PLAN.
 
 

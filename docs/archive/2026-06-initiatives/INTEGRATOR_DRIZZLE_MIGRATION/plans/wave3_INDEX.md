@@ -1,6 +1,6 @@
 # Wave 3 — финальный closeout (raw SQL tail ↓ / Drizzle + Zod / legacy cutover)
 
-**Статус:** **completed** (2026-06-06) — фазы **00**, **08–17** `completed`; staging smoke **PASS** на dev stand ([LOG](../LOG.md) §Wave 3 phase 17 «Staging smoke execution»)
+**Статус:** **completed** (2026-06-06) — фазы **00**, **08–17** `completed`; staging smoke **PASS** на dev stand ([LOG](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 17 «Staging smoke execution»)
 **Предшественник:** Wave 2 этапы 1–8 **completed**  
 **Решения до старта:** [wave3_DECISIONS.md](./wave3_DECISIONS.md) (DoR закрыт фазой 00)
 

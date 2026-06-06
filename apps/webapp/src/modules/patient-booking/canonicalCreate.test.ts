@@ -22,6 +22,7 @@ const bookingEngine = {
   createAppointment: vi.fn(),
   upsertRubitimeAppointmentMapping: vi.fn(),
   getAppointment: vi.fn(),
+  getAppointmentIdByRubitimeExternalId: vi.fn(),
   transitionAppointmentStatus: vi.fn(),
 };
 
@@ -115,9 +116,17 @@ describe("createBookingOnCanonicalEngine", () => {
     });
     bookingEngine.getAppointment.mockResolvedValue({
       id: "appt-1",
+      status: "confirmed",
       startAt: "2026-06-01T10:00:00.000Z",
       endAt: "2026-06-01T11:00:00.000Z",
     });
+    bookingEngine.getAppointmentIdByRubitimeExternalId.mockResolvedValue(null);
+    bookingEngine.transitionAppointmentStatus.mockImplementation(async (input) => ({
+      id: input.appointmentId,
+      status: input.toStatus,
+      startAt: "2026-06-01T10:00:00.000Z",
+      endAt: "2026-06-01T11:00:00.000Z",
+    }));
   });
 
   it("rejects self-service booking when client is booking-blocked", async () => {
@@ -348,6 +357,42 @@ describe("createBookingOnCanonicalEngine", () => {
     );
     expect(appointmentProjection.upsertRecordFromProjection).toHaveBeenCalledWith(
       expect.objectContaining({ integratorRecordId: "be:appt-1" }),
+    );
+  });
+
+  it("rubitime slot mode: reuses postCreateProjection appointment instead of native insert", async () => {
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rt-projected", raw: {} });
+    bookingEngine.getAppointmentIdByRubitimeExternalId.mockResolvedValue("appt-projected");
+    bookingEngine.getAppointment.mockResolvedValue({
+      id: "appt-projected",
+      status: "confirmed",
+      startAt: "2026-06-01T10:00:00.000Z",
+      endAt: "2026-06-01T11:00:00.000Z",
+    });
+    bookingsPort.markConfirmed.mockResolvedValue({
+      ...confirmedRecord(),
+      canonicalAppointmentId: "appt-projected",
+    });
+
+    await createBookingOnCanonicalEngine(deps(false, "rubitime"), {
+      userId: "user-1",
+      type: "online",
+      category: "general",
+      slotStart: "2026-06-01T10:00:00.000Z",
+      slotEnd: "2026-06-01T11:00:00.000Z",
+      contactName: "Иван",
+      contactPhone: "+79001234567",
+    });
+
+    expect(bookingEngine.getAppointmentIdByRubitimeExternalId).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      rubitimeId: "rt-projected",
+    });
+    expect(bookingEngine.createAppointment).not.toHaveBeenCalled();
+    expect(bookingsPort.markConfirmed).toHaveBeenCalledWith(
+      "pb-1",
+      "rt-projected",
+      expect.objectContaining({ canonicalAppointmentId: "appt-projected" }),
     );
   });
 

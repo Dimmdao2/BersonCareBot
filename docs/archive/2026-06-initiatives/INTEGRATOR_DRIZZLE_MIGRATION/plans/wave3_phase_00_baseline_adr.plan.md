@@ -29,8 +29,8 @@ todos:
 
 ## Definition of Done
 
-- [x] Таблица baseline в [LOG.md](../LOG.md) §Wave 3 baseline (counts по зонам).
-- [x] [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) обновлён: Class A/B/C, integrator google-calendar в P1+, `integratorPushOutbox` (db.query).
+- [x] Таблица baseline в [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 baseline (counts по зонам).
+- [x] [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) обновлён: Class A/B/C, integrator google-calendar в P1+, `integratorPushOutbox` (db.query).
 - [x] [wave3_DECISIONS.md](./wave3_DECISIONS.md) — все 10 вопросов и owner decisions зафиксированы в LOG; phase16 отмечена как conditional cutover.
 - [x] Permanent zones не требуют повторного обсуждения в фазах 09–15.
 - [x] Добавлен policy-блок Drizzle+Zod для всех DB-границ в фазах 09–15.
@@ -81,7 +81,7 @@ rg -c '\.query\(' packages/booking-rubitime-sync/src --glob '*.ts'
 ## Закрытие (2026-06-05)
 
 - Baseline `rg` выполнен; факт **85** `.query(` в platform-merge (не ~92) — уточнено в RAW_SQL и LOG.
-- DoR для фазы 09 выполнен — см. [LOG.md](../LOG.md) § «Wave 3 — фаза 00».
+- DoR для фазы 09 выполнен — см. [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) § «Wave 3 — фаза 00».
 
 ## Stop conditions
 

@@ -5,7 +5,7 @@ status: completed
 isProject: false
 todos:
   - id: p01-inventory-scope
-    content: "Сверить scope с [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §1.2–1.3; зафиксировать список файлов этапа: outgoingDeliveryQueue, bookingProfilesRepo, messengerPhoneBindAudit, platformUserDeliveryPhone, patientHomeMorningPing repo/handler, idempotencyKeys, adminStats, linkedPhoneSource, resolvePlatformUserIdForRubitimeBooking, canonicalUserId, integrationDataQualityIncidents, settings/config reads и outgoingDeliveryWorker; не расширять на P4-репо без причины."
+    content: "Сверить scope с [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) §1.2–1.3; зафиксировать список файлов этапа: outgoingDeliveryQueue, bookingProfilesRepo, messengerPhoneBindAudit, platformUserDeliveryPhone, patientHomeMorningPing repo/handler, idempotencyKeys, adminStats, linkedPhoneSource, resolvePlatformUserIdForRubitimeBooking, canonicalUserId, integrationDataQualityIncidents, settings/config reads и outgoingDeliveryWorker; не расширять на P4-репо без причины."
     status: completed
   - id: p01-outgoing-delivery
     content: "outgoingDeliveryQueue.ts: Drizzle insert/update/reschedule/mark*; claim CTE+SKIP LOCKED — либо оставить execute(sql), либо перенос только с EXPLAIN+тестом конкуренции; обновить/добавить unit-тесты порта."
@@ -31,14 +31,14 @@ todos:
 
 ## Размер и приоритет
 
-**M / L** (высокий риск у `bookingProfilesRepo` и очередей). Первый этап волны Wave 2 по [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md).
+**M / L** (высокий риск у `bookingProfilesRepo` и очередей). Первый этап волны Wave 2 по [DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md).
 
 ## Definition of Done
 
 - [x] **Фактический scope (ядро):** `outgoingDeliveryQueue`, `outgoingDeliveryWorker` (точечный SQL), `bookingProfilesRepo`, `settingsSyncRoute`, `messengerPhoneBindAudit`, `notificationDeliveryAttempts` — без строкового `DbPort.query` в доменной логике; claim — `runIntegratorSql` + `execute(sql)`.
-- [x] Остатки `db.query` в мелких repos/config (см. backlog) задокументированы в LOG и [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md), не помечены как «сделано».
+- [x] Остатки `db.query` в мелких repos/config (см. backlog) задокументированы в LOG и [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md), не помечены как «сделано».
 - [x] `pnpm --dir apps/integrator run typecheck` и `pnpm --dir apps/integrator run test` зелёные.
-- [x] В [LOG.md](../LOG.md) кратко зафиксирован итог этапа и backlog мелких repos.
+- [x] В [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) кратко зафиксирован итог этапа и backlog мелких repos.
 
 ## Scope
 
@@ -121,8 +121,8 @@ todos:
 - **Backlog:** мелкие repos и config reads из §6 (см. todo `p01-small-repos-backlog`) — остаются на `db.query`.
 - **Тесты:** `outgoingDeliveryQueue.test.ts`, `bookingProfilesRepo.test.ts`, обновления worker/settings/attempts — **1016 passed** (integrator test на дату закрытия).
 - **Проверки:** `pnpm --dir apps/integrator run typecheck` && `pnpm --dir apps/integrator run test`; `rg` по ядру scope — без необъяснённого `db.query` в переведённых файлах.
-- **Документация:** [LOG.md](../LOG.md) § Wave 2 этап 1; [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) — **Wave 2 P1 done** для переведённых строк.
+- **Документация:** [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) § Wave 2 этап 1; [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) — **Wave 2 P1 done** для переведённых строк.
 
 ## Лог выполнения
 
-Вести кратко в [../LOG.md](../LOG.md) под датой выполнения (решения, что не делали, ссылки на PR).
+Вести кратко в [../LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) под датой выполнения (решения, что не делали, ссылки на PR).

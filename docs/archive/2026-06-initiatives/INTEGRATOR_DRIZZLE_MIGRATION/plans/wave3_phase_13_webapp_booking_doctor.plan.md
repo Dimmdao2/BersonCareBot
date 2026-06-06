@@ -25,7 +25,7 @@ todos:
 
 ## Предшественник
 
-- Фаза **12** **completed** (2026-06-06): intake / purge / identity — [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md), журнал [LOG.md §Wave 3 phase 12](../LOG.md).
+- Фаза **12** **completed** (2026-06-06): intake / purge / identity — [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md), журнал [LOG.md §Wave 3 phase 12](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md).
 
 ## Размер
 
@@ -222,5 +222,5 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 ## Документация (sync при закрытии)
 
 - YAML frontmatter: `status: completed`, все `todos` → `completed`.
-- [../LOG.md](../LOG.md) §Wave 3 phase 13 — итог + post-audit.
-- [wave3_INDEX.md](./wave3_INDEX.md), [README.md](./README.md), [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md), [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md), [../../README.md](../../README.md).
+- [../LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 13 — итог + post-audit.
+- [wave3_INDEX.md](./wave3_INDEX.md), [README.md](./README.md), [../DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md), [../RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md), [../../README.md](../../../../README.md).

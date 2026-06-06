@@ -127,6 +127,11 @@ export type ServiceAvailabilityPort = {
 export type BookingEnginePort = {
   getAppointment(id: string): Promise<BeAppointment | null>;
   getRubitimeAppointmentId?(input: { organizationId: string; appointmentId: string }): Promise<string | null>;
+  /** Reverse lookup after integrator postCreateProjection (rubitime-first patient create). */
+  getAppointmentIdByRubitimeExternalId?(input: {
+    organizationId: string;
+    rubitimeId: string;
+  }): Promise<string | null>;
   /** Status immediately before transition to `charged_to_package` (for package refund revert). */
   getStatusBeforePackageCharge(appointmentId: string): Promise<AppointmentStatus | null>;
   createAppointment(input: CreateAppointmentInput): Promise<BeAppointment>;

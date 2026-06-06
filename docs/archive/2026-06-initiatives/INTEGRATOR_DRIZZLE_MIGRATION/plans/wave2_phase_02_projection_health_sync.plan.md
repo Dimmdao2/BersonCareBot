@@ -91,4 +91,4 @@ todos:
 - **Core:** `projectionHealthCore.ts` — единый расчёт; `projectionHealth.ts` — thin wrapper; CLI — `src/infra/scripts/projection-health.ts`; `scripts/projection-health.mjs` — compatibility wrapper **без SQL**.
 - **SQL:** агрегаты в core по-прежнему через `db.query` (пул integrator); Drizzle `groupBy` — **cancelled** (todo `p02-drizzle-deferred`).
 - **Проверки:** `routes.projectionHealth.test.ts`, `projection-health.test.ts`; integrator test **1021 passed** (на дату закрытия); `pnpm --dir apps/integrator run build` — compiled CLI в `dist`.
-- **Документация:** [LOG.md](../LOG.md) § Wave 2 этап 2; [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) — **Wave 2 P2 done** (единый core, не «расхождение с mjs»).
+- **Документация:** [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) § Wave 2 этап 2; [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) — **Wave 2 P2 done** (единый core, не «расхождение с mjs»).

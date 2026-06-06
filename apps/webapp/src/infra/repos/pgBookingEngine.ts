@@ -666,6 +666,26 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       return rows[0]?.externalId?.trim() || null;
     },
 
+    async getAppointmentIdByRubitimeExternalId(input: { organizationId: string; rubitimeId: string }) {
+      const rubitimeId = input.rubitimeId.trim();
+      if (!rubitimeId) return null;
+      const db = getDrizzle();
+      const rows = await db
+        .select({ canonicalId: beExternalEntityMappings.canonicalId })
+        .from(beExternalEntityMappings)
+        .where(
+          and(
+            eq(beExternalEntityMappings.organizationId, input.organizationId),
+            eq(beExternalEntityMappings.entityType, "appointment"),
+            eq(beExternalEntityMappings.externalSystem, "rubitime"),
+            eq(beExternalEntityMappings.externalId, rubitimeId),
+          ),
+        )
+        .limit(1);
+      const id = rows[0]?.canonicalId?.trim();
+      return id || null;
+    },
+
     async getStatusBeforePackageCharge(appointmentId) {
       const revertTargets: AppointmentStatus[] = ["visit_confirmed", "confirmed", "completed"];
       const db = getDrizzle();

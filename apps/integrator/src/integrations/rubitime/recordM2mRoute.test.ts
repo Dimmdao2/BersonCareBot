@@ -15,8 +15,10 @@ vi.mock('./postCreateProjection.js', () => ({
 }));
 
 const mockSyncCanonicalAppointmentToCalendar = vi.hoisted(() => vi.fn().mockResolvedValue('gcal-canonical'));
+const mockSyncAppointmentToCalendar = vi.hoisted(() => vi.fn().mockResolvedValue('gcal-rubitime'));
 vi.mock('../google-calendar/sync.js', () => ({
   syncCanonicalAppointmentToCalendar: mockSyncCanonicalAppointmentToCalendar,
+  syncAppointmentToCalendar: mockSyncAppointmentToCalendar,
 }));
 
 const enqueueMessageRetryJob = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -158,6 +160,7 @@ describe('Rubitime record M2M routes', () => {
 
   it('remove-record returns 200 when Rubitime client succeeds', async () => {
     const spy = vi.spyOn(rubitimeClient, 'removeRubitimeRecord').mockResolvedValue({});
+    mockSyncAppointmentToCalendar.mockClear();
     const app = await buildApp();
     const body = JSON.stringify({ recordId: 99 });
     const res = await app.inject({
@@ -168,6 +171,10 @@ describe('Rubitime record M2M routes', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ ok: true, data: {} });
+    expect(mockSyncAppointmentToCalendar).toHaveBeenCalledWith(
+      { action: 'canceled', rubRecordId: '99' },
+      expect.objectContaining({ dispatchPort: expect.anything() }),
+    );
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ recordId: '99' }));
   });
 

@@ -1,7 +1,7 @@
 # Wave 3 — решения перед стартом (зафиксировано)
 
 **Дата снимка:** 2026-06-05  
-**Канон порядка:** [wave3_INDEX.md](./wave3_INDEX.md), [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md)
+**Канон порядка:** [wave3_INDEX.md](./wave3_INDEX.md), [../DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md)
 
 ## Три класса (не «убрать pg навсегда»)
 

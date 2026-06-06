@@ -30,10 +30,10 @@ todos:
 ## Definition of Done
 
 - [x] Все фазы 00–16: `status: completed` или явный `cancelled` с причиной.
-- [x] [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md): IX media-worker **Done**; X webapp **Done** или backlog с ADR list.
-- [x] [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md): только Class B/C + scripts; дата снимка.
+- [x] [DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md): IX media-worker **Done**; X webapp **Done** или backlog с ADR list.
+- [x] [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md): только Class B/C + scripts; дата снимка.
 - [x] **`pnpm run ci`** green.
-- [x] Staging smoke выполнен, подтверждён agent с dev-stand доступом и зафиксирован в LOG (`[x]` + **2026-06-06** + `bcb_webapp_dev`). Prod `journalctl`/`:6200` — optional ops follow-up; см. [LOG](../LOG.md) §Wave 3 phase 17 «Staging smoke execution».
+- [x] Staging smoke выполнен, подтверждён agent с dev-stand доступом и зафиксирован в LOG (`[x]` + **2026-06-06** + `bcb_webapp_dev`). Prod `journalctl`/`:6200` — optional ops follow-up; см. [LOG](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 17 «Staging smoke execution».
 
 ## Scope
 
@@ -54,7 +54,7 @@ todos:
 
 ## Staging smoke (обязательный gate)
 
-Из [LOG.md](../LOG.md): e2e multipart upload + transcode claim на staging.
+Из [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md): e2e multipart upload + transcode claim на staging.
 
 Обязательная проверка перед закрытием Wave 3:
 - multipart upload на staging;
@@ -72,5 +72,5 @@ todos:
 
 ## Закрытие (2026-06-06)
 
-- Docs/rg/CI/archive выполнены; staging smoke — **PASS 2026-06-06** (dev stand, [LOG](../LOG.md) §«Staging smoke execution»).
+- Docs/rg/CI/archive выполнены; staging smoke — **PASS 2026-06-06** (dev stand, [LOG](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §«Staging smoke execution»).
 - Wave 3 initiative: **completed** (repo + staging smoke gate на dev stand).

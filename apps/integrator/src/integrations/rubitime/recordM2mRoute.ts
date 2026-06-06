@@ -642,6 +642,14 @@ export async function registerRubitimeRecordM2mRoutes(
       return reply.code(400).send({ ok: false, error: 'recordId required' });
     }
     try {
+      try {
+        await syncAppointmentToCalendar(
+          { action: 'canceled', rubRecordId: recordId },
+          { dispatchPort: deps.dispatchPort, db: createDbPort() },
+        );
+      } catch (gcalErr) {
+        logger.warn({ err: gcalErr, recordId }, 'rubitime remove-record GCal cleanup failed');
+      }
       const result = await removeRubitimeRecord({ recordId });
       return reply.code(200).send({ ok: true, data: result });
     } catch (err) {

@@ -126,7 +126,7 @@ pnpm run ci
 
 ## Закрытие (2026-06-06)
 
-- **10A:** baseline + инварианты в [LOG.md](../LOG.md) §Wave 3 phase 10.
+- **10A:** baseline + инварианты в [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 10.
 - **10B:** `runMediaWorkerSql.ts`, `systemSettingBoolean.ts`, `watermarkEnabled.test.ts`; миграция 4 файлов; `drizzle-orm` dep; suite **22 passed**; typecheck green.
 - **10C:** staging smoke pack в LOG §10C (исполнение — фаза 17).
 - **claim ADR:** без изменений; Class C в RAW_SQL §3.

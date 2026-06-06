@@ -159,4 +159,4 @@ pnpm --dir apps/integrator run typecheck
 - **Zod id-lists:** `parseMessengerIdTokens` вместо `JSON.parse(...) as unknown` в `messengerStaffIds` / `adminIncidentAlertRelay`.
 - **Idempotency whitelist:** экспорт `GATEWAY_IDEMPOTENCY_ALLOWED_TABLES`.
 - **Тесты:** `parseMessengerIdTokens`, `platformUserDeliveryPhone`, `adminStats`, `idempotencyKeys`, `appBaseUrl` (cache).
-- Журнал: [LOG.md](../LOG.md) § «Post-audit closure».
+- Журнал: [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) § «Post-audit closure».

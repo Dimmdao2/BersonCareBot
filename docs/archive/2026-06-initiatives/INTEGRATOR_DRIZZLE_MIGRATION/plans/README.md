@@ -1,6 +1,8 @@
 # Wave 2 — планы по этапам (SQL → Drizzle / сырой pg)
 
-Канон порядка и рисков: [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md). Инвентаризация файлов: [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md).
+**Архив** (перенос **2026-06-06** из `docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/`). Якоря: [`INTEGRATOR_DRIZZLE_MIGRATION/README.md`](../../../../INTEGRATOR_DRIZZLE_MIGRATION/README.md).
+
+Канон порядка и рисков: [DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md). Инвентаризация: [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md).
 
 | Этап | Файл плана | Статус |
 |------|------------|--------|
@@ -40,7 +42,7 @@
 - 14: `14A-14E`
 - 15: `15A-15F`
 
-После выполнения этапа: обновить `todos.status` в соответствующем plan-файле, секцию «Закрытие» (если есть), индекс таблицы ниже, [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md) и кратко зафиксировать в [../LOG.md](../LOG.md).
+После выполнения этапа: обновить `todos.status` в соответствующем plan-файле, секцию «Закрытие» (если есть), индекс таблицы ниже, [DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md) и кратко зафиксировать в [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md).
 
 ## Исполнение через composer (Wave 3: 09/10)
 

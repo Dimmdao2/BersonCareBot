@@ -157,7 +157,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Остаток webapp (post-15A):** **42** prod-файла с `pool.query`/`client.query` (цель 15F — только Class C с пометкой в RAW_SQL).
 
-**Документация (sync 15A):** [../LOG.md](../LOG.md) §Wave 3 phase 15A; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15A.
+**Документация (sync 15A):** [../LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 15A; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) §Wave 3 phase 15A.
 
 ## Закрытие 15B (2026-06-06)
 
@@ -171,7 +171,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Остаток webapp (post-15B):** **35** prod-файла с `pool.query`/`client.query`.
 
-**Документация (sync 15B):** [../LOG.md](../LOG.md) §Wave 3 phase 15B; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15B.
+**Документация (sync 15B):** [../LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 15B; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) §Wave 3 phase 15B.
 
 ## Закрытие 15C (2026-06-06)
 
@@ -185,7 +185,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Остаток webapp (post-15C):** **30** prod-файлов с `pool.query`/`client.query`.
 
-**Документация (sync 15C):** [../LOG.md](../LOG.md) §Wave 3 phase 15C; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15C.
+**Документация (sync 15C):** [../LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 15C; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) §Wave 3 phase 15C.
 
 ## Закрытие 15D (2026-06-06)
 
@@ -201,7 +201,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Callers:** `syncToIntegrator`, `notifyIntegrator`, `runIntegratorPushWorkerTick` — без изменений сигнатур (`Pool \| PoolClient`).
 
-**Документация (sync 15D):** [../LOG.md](../LOG.md) §Wave 3 phase 15D; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15D.
+**Документация (sync 15D):** [../LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 15D; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) §Wave 3 phase 15D.
 
 ## Закрытие 15E (2026-06-06)
 
@@ -217,7 +217,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Остаток webapp (post-15E, `rg -l`):** **27** (incl. 2 comment-only); runtime **25** — финал **15F**.
 
-**Документация (sync 15E):** [../LOG.md](../LOG.md) §Wave 3 phase 15E; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15E.
+**Документация (sync 15E):** [../LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 15E; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) §Wave 3 phase 15E.
 
 ## Закрытие 15F (2026-06-06)
 
@@ -233,7 +233,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 closure bundle — **93 passed** (fast).
 
-**Документация (sync 15F):** [../LOG.md](../LOG.md) §Wave 3 phase 15F + §phase 15 итог; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15F.
+**Документация (sync 15F):** [../LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) §Wave 3 phase 15F + §phase 15 итог; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) §Wave 3 phase 15F.
 
 #### Post-audit closure 15F (2026-06-06)
 

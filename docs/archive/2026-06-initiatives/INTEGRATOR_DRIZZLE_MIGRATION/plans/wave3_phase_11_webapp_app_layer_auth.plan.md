@@ -35,8 +35,8 @@ todos:
 
 - [x] `app-layer/health/*`, `app-layer/media/*` — нет `pool.query`.
 - [x] `channelLink.ts`: только Class C transport (`BEGIN`/`COMMIT`/`ROLLBACK`) + domain SQL через `runWebappPgText` / `getWebappSqlFromPgClient`.
-- [x] ESLint allowlist auth: для каждого оставшегося файла — явная причина в [LOG §Wave 3 phase 11](../LOG.md); лишние записи не удалялись (infra/repos импорты сохранены).
-- [x] Мелкие repos из scope мигрированы и помечены **Wave 3 P11 done** в [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md).
+- [x] ESLint allowlist auth: для каждого оставшегося файла — явная причина в [LOG §Wave 3 phase 11](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md); лишние записи не удалялись (infra/repos импорты сохранены).
+- [x] Мелкие repos из scope мигрированы и помечены **Wave 3 P11 done** в [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md).
 - [x] Zod на затронутых JSON-границах (`parseSettingValueJson`, `pgStore.response_body`); unit-тесты добавлены.
 
 ## Scope
@@ -101,5 +101,5 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 - **Код:** см. таблицу «Мигрированные файлы»; post-audit — доп. unit-тесты `parseSettingValueJson.test.ts`, `pgStore.test.ts`.
 - **Verify:** targeted vitest **48 passed**; typecheck green; post-audit **`pnpm run ci`** green (2026-06-06).
-- **Документация:** [LOG.md §Wave 3 phase 11](../LOG.md), [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md), [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md), [wave3_INDEX.md](./wave3_INDEX.md), [plans/README.md](./README.md).
+- **Документация:** [LOG.md §Wave 3 phase 11](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md), [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md), [DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md), [wave3_INDEX.md](./wave3_INDEX.md), [plans/README.md](./README.md).
 - **Следующая фаза (на момент закрытия 11):** [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) — **закрыта** 2026-06-06. Актуальная следующая: [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md).

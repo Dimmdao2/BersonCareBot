@@ -1,9 +1,9 @@
 # Инвентаризация: сырой SQL вне Drizzle query builder
 
 **Дата снимка:** 2026-06-06 (**Wave 3 closeout**, фазы **00 + 08–17**; финальный gate phase **17**)
-**Контекст:** мастер-план **P1–P4 интегратора** и **Wave 2 (этапы 1–8)** закрыты — здесь **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты). Wave 3 (фазы **09–15**) сняла Class **A** из webapp runtime; остаток — только **Class B/C** + scripts/ops ([`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)).
+**Контекст:** мастер-план **P1–P4 интегратора** и **Wave 2 (этапы 1–8)** закрыты — здесь **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты). Wave 3 (фазы **09–15**) сняла Class **A** из webapp runtime; остаток — только **Class B/C** + scripts/ops ([`plans/wave3_DECISIONS.md`](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_DECISIONS.md)).
 
-**План перехода (фазы, риски, приоритеты):** [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) · Wave 3 индекс: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md)
+**План перехода (фазы, риски, приоритеты):** [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) · Wave 3 индекс: [`plans/wave3_INDEX.md`](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_INDEX.md)
 
 ## Легенда столбцов оценки
 
@@ -32,7 +32,7 @@
 
 ## Wave 3 baseline (2026-06-05, `rg`)
 
-Сверка перед фазами 09–15. Команды — [wave3_phase_00](./plans/wave3_phase_00_baseline_adr.plan.md).
+Сверка перед фазами 09–15. Команды — [wave3_phase_00](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_00_baseline_adr.plan.md).
 
 | Зона | Метрика | Class (по умолчанию) | Фаза Wave 3 |
 |------|---------|----------------------|-------------|
@@ -224,7 +224,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15E.
 | Verify test | `webappPhase15F.verify.test.ts` — **5 passed** (fast) |
 | Phase 15 closure bundle | 15F verify + 15E (incl. bind route) + 15A–15D + analytics read-source — **93 passed** (fast) |
 
-**Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](./plans/wave3_phase_16_legacy_cutover.plan.md).
+**Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_phase_16_legacy_cutover.plan.md).
 
 Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 
@@ -559,8 +559,8 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 ## 5. Как читать этот отчёт дальше
 
 1. **Мастер-план (P1–P4 integrator repos):** закрыт — см. [LOG.md](./LOG.md) § «Закрытие инициативы».
-2. **Wave 2 (волна после мастера):** этапы **1–8** закрыты ([plans/README.md](./plans/README.md)); **мелкие repos/config** с `db.query` — **Wave 3 фаза 09** (§1.2, Class **A**).
-3. **Wave 3 (2026-06-06):** baseline Class A/B/C — § «Wave 3 baseline»; индекс фаз [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md); решения [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). **media-worker** post-claim SQL — **фаза 10 done** (Class B); **Webapp** closeout — фазы **11–15** (**78** prod-файлов `pool|client.query`); **integrator schema reduction** — фаза **08**; **legacy cutover (phase 16) done** — regular flow Drizzle-only, `migrate:legacy` оставлен manual/emergency с guardrails.
+2. **Wave 2 (волна после мастера):** этапы **1–8** закрыты ([plans/README.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/README.md)); **мелкие repos/config** с `db.query` — **Wave 3 фаза 09** (§1.2, Class **A**).
+3. **Wave 3 (2026-06-06):** baseline Class A/B/C — § «Wave 3 baseline»; индекс фаз [`plans/wave3_INDEX.md`](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_INDEX.md); решения [`plans/wave3_DECISIONS.md`](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_DECISIONS.md). **media-worker** post-claim SQL — **фаза 10 done** (Class B); **Webapp** closeout — фазы **11–15** (**78** prod-файлов `pool|client.query`); **integrator schema reduction** — фаза **08**; **legacy cutover (phase 16) done** — regular flow Drizzle-only, `migrate:legacy` оставлен manual/emergency с guardrails.
 4. **Webapp:** перенос через **`src/infra/repos`** + module ports (`buildAppDeps` / `bindAuthModulePorts`). Reminder repos — **P4 done**; медиа — **P5 done**; LFK `pgLfk*` — **P6 done**; auth/rate limits §2.2 — **P7 done** (2026-06-05).
 5. **Поиск в коде:** `rg "pool\\.query\\(|client\\.query\\(" apps packages` и `rg "\\bdb\\.query\\(" apps/integrator` — в `apps/integrator` экспорт `db` из `client.ts` это **`pg.Pool`**, не Drizzle relational `db.query` из webapp. `migrate.ts` и оболочка `client.ts` для TX — **не** цель «весь SQL в Drizzle builder».
 

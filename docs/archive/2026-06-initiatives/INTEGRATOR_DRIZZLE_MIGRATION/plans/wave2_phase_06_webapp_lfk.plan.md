@@ -107,4 +107,4 @@ todos:
 - **Остаток сырого SQL:** **`pool.query` / `client.query` — 0** в `pgLfk*.ts`.
 - **Тесты (vitest, P6 bundle):** **27 passed** — `pgLfkAssignments`, `pgLfkExercises`, `pgLfkTemplates`, `pgLfkDiary` (+ e2e inMemory diary smoke).
 - **Проверки:** `pnpm --dir apps/webapp run typecheck`; **`pnpm run ci`** — green (post-audit).
-- **Документация:** [LOG.md](../LOG.md) § Wave 2 этап 6; [RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md); [plans/README.md](./README.md); [DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md).
+- **Документация:** [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) § Wave 2 этап 6; [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md); [plans/README.md](./README.md); [DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md).
