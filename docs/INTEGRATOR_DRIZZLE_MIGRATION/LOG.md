@@ -871,4 +871,26 @@ LIMIT 3;"
 
 **Следующая фаза Wave 3:** [wave3_phase_15_webapp_long_tail.plan.md](./plans/wave3_phase_15_webapp_long_tail.plan.md).
 
+### Wave 3 phase 15A — references / settings / diary (2026-06-06)
+
+- **Scope:** `pgReferences.ts`, `pgSystemSettings.ts`, `pgSymptomDiary.ts`; `configAdapter.ts` уже на `runWebappPgText` (P11) — без изменений.
+- **Миграция:** все `pool.query` / `client.query` → `runWebappPgText`; TX — `runWebappTransaction` (`saveCatalog`, `upsertManyInTransaction`).
+- **Baseline → gate:** 17 + 7 + 18 raw query → **0** в трёх repo.
+- **Gate:** `rg pool.query|client.query` по трём repo-файлам → **0**; webapp prod tail post-15A — **42** файла (было ~45).
+- **Tests:** 15A bundle (repo constraints + parity + `configAdapter` + `inMemoryReferences` + `symptom-service`) — **33 passed** (fast); новые repo tests — 9.
+- **RAW_SQL:** §Wave 3 phase 15A + строки `pgReferences`, `pgSystemSettings`, `pgSymptomDiary`.
+- **Plan doc sync:** `wave3_phase_15` §Закрытие 15A + INDEX / README / DRIZZLE_TRANSITION_PLAN (2026-06-06).
+- **Следующая подфаза:** 15B (auth/email ports tail; 42 raw query в 7 файлах).
+
+### Wave 3 phase 15B — auth / email ports tail (2026-06-06)
+
+- **Scope:** `pgEmailSetupFlowPort`, `pgEmailPasswordLookup`, `pgUserPasswordCredentials`, `pgOAuthBindings`, `pgLoginTokens`, `pgPhoneChallengeStore`, `pgEmailSetupTokens`.
+- **Миграция:** domain SQL → `runWebappPgText`; TX → `runWebappTransaction` (`applyEmailSetupCompletion`, `registerPendingVerification`, email duplicate merge).
+- **Merge bridge:** `mergePlatformUsersInTransaction` на `PlatformMergeDbClient` поверх Drizzle tx (без `client.query` в lookup port).
+- **Baseline → gate:** 42 raw query в 7 файлах → **0**; webapp prod tail post-15B — **35** файлов.
+- **Tests:** 15B bundle — `pgAuthEmailPorts15B.repo.test.ts` (runtime + SQL parity + auth-state/merge/token lookups) + `pgEmailSetupAccessPort.test.ts` + `oauth/callback/route.test.ts` + `email-password/register` + `email-setup.routes` + `emailSetupFlow/service` — **52 passed** (fast).
+- **RAW_SQL:** §Wave 3 phase 15B + строки всех 7 scope-repo в таблице инвентаризации.
+- **Plan doc sync:** `wave3_phase_15` §Закрытие 15B + INDEX / README / DRIZZLE_TRANSITION_PLAN (2026-06-06).
+- **Следующая подфаза:** 15C (treatment tail; 13 raw query в 5 файлах).
+
 

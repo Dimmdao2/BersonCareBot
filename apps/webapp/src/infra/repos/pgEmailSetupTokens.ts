@@ -1,4 +1,5 @@
-import { getPool } from "@/infra/db/client";
+/** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type {
   EmailSetupTokenRow,
@@ -8,8 +9,7 @@ import type {
 
 export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
   async revokeActiveForUserEmail(userId: string, emailNormalized: string): Promise<void> {
-    const pool = getPool();
-    await pool.query(
+    await runWebappPgText(
       `UPDATE user_email_setup_tokens
        SET revoked_at = now()
        WHERE user_id = $1::uuid
@@ -21,8 +21,7 @@ export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
   },
 
   async insertToken(params: IssueEmailSetupTokenParams): Promise<{ id: string }> {
-    const pool = getPool();
-    const res = await pool.query<{ id: string }>(
+    const res = await runWebappPgText<{ id: string }>(
       `INSERT INTO user_email_setup_tokens (
          user_id, email_normalized, token_hash, expires_at, source, created_by_user_id
        ) VALUES ($1::uuid, $2, $3, $4::timestamptz, $5, $6::uuid)
@@ -36,23 +35,21 @@ export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
         params.createdByUserId ?? null,
       ],
     );
-    return { id: res.rows[0].id };
+    return { id: res.rows[0]!.id };
   },
 
   async deleteTokenById(id: string): Promise<void> {
-    const pool = getPool();
-    await pool.query(`DELETE FROM user_email_setup_tokens WHERE id = $1::uuid`, [id]);
+    await runWebappPgText(`DELETE FROM user_email_setup_tokens WHERE id = $1::uuid`, [id]);
   },
 
   async findByTokenHash(tokenHash: string): Promise<EmailSetupTokenRow | null> {
-    const pool = getPool();
-    const res = await pool.query<{
+    const res = await runWebappPgText<{
       id: string;
       user_id: string;
       email_normalized: string;
-      expires_at: Date;
-      used_at: Date | null;
-      revoked_at: Date | null;
+      expires_at: Date | string;
+      used_at: Date | string | null;
+      revoked_at: Date | string | null;
     }>(
       `SELECT id::text AS id, user_id::text AS user_id, email_normalized,
               expires_at, used_at, revoked_at
@@ -62,7 +59,7 @@ export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
       [tokenHash],
     );
     if (res.rows.length === 0) return null;
-    const r = res.rows[0];
+    const r = res.rows[0]!;
     return {
       id: r.id,
       userId: r.user_id,
@@ -74,8 +71,7 @@ export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
   },
 
   async markUsedById(id: string): Promise<boolean> {
-    const pool = getPool();
-    const res = await pool.query(
+    const res = await runWebappPgText(
       `UPDATE user_email_setup_tokens
        SET used_at = now()
        WHERE id = $1::uuid

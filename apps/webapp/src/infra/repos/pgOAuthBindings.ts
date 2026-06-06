@@ -1,14 +1,14 @@
-import { getPool } from "@/infra/db/client";
+/** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { OauthProvider, OAuthBindingsPort } from "@/modules/auth/oauthBindingsPort";
 
 const ALLOWED_PROVIDERS: OauthProvider[] = ["google", "apple", "yandex"];
 
 export const pgOAuthBindingsPort: OAuthBindingsPort = {
   async listProvidersForUser(userId: string): Promise<OauthProvider[]> {
-    const pool = getPool();
-    const res = await pool.query<{ provider: string }>(
+    const res = await runWebappPgText<{ provider: string }>(
       `SELECT DISTINCT provider FROM user_oauth_bindings WHERE user_id = $1`,
-      [userId]
+      [userId],
     );
     const out: OauthProvider[] = [];
     for (const row of res.rows) {
@@ -20,10 +20,9 @@ export const pgOAuthBindingsPort: OAuthBindingsPort = {
   },
 
   async findUserByOAuthId(provider: OauthProvider, providerUserId: string): Promise<{ userId: string } | null> {
-    const pool = getPool();
-    const res = await pool.query<{ user_id: string }>(
+    const res = await runWebappPgText<{ user_id: string }>(
       `SELECT user_id FROM user_oauth_bindings WHERE provider = $1 AND provider_user_id = $2 LIMIT 1`,
-      [provider, providerUserId]
+      [provider, providerUserId],
     );
     const row = res.rows[0];
     return row ? { userId: row.user_id } : null;

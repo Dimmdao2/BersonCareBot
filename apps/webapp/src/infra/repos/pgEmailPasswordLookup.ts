@@ -1,10 +1,22 @@
+/**
+ * Wave 3 phase 15B — domain SQL via `runWebappPgText`; duplicate-email merge via
+ * `runWebappTransaction` + `PlatformMergeDbClient`. `getPool()` only for Class C
+ * `upsertOpenConflictLog` in `adminAuditLog` (P14C).
+ */
+import type { QueryResultRow } from "pg";
 import { getPool } from "@/infra/db/client";
+import {
+  runWebappPgText,
+  runWebappTransaction,
+  type WebappSqlTransactionExecutor,
+} from "@/infra/db/runWebappSql";
 import { upsertOpenConflictLog } from "@/infra/adminAuditLog";
 import type { EmailPasswordLookupPort } from "@/modules/auth/emailPasswordLookup/ports";
 import type { EmailPasswordAuthState } from "@/modules/auth/emailPasswordLookup/types";
 import {
   classifyMergeFailure,
   mergePlatformUsersInTransaction,
+  type PlatformMergeDbClient,
 } from "@bersoncare/platform-merge";
 
 type EmailAuthStateRow = {
@@ -12,6 +24,15 @@ type EmailAuthStateRow = {
   email_verified: boolean;
   has_password: boolean;
 };
+
+function mergeDbClientFromTx(tx: WebappSqlTransactionExecutor): PlatformMergeDbClient {
+  return {
+    async query<R extends QueryResultRow = QueryResultRow>(queryText: string, values: unknown[] = []) {
+      const r = await runWebappPgText<R>(queryText, values, tx);
+      return { rows: r.rows, rowCount: r.rowCount };
+    },
+  };
+}
 
 function pickEmailConflictTarget(rows: EmailAuthStateRow[]): string {
   const verifiedWithPassword = rows.filter((row) => row.email_verified && row.has_password);
@@ -30,9 +51,8 @@ async function recordEmailAuthConflict(params: {
   reason: string;
   candidateIds?: string[];
 }): Promise<void> {
-  const pool = getPool();
   const candidateIds = params.candidateIds?.length ? params.candidateIds : params.rows.map((row) => row.id);
-  await upsertOpenConflictLog(pool, {
+  await upsertOpenConflictLog(getPool(), {
     actorId: null,
     action: "email_auth_conflict",
     candidateIds,
@@ -47,11 +67,25 @@ async function recordEmailAuthConflict(params: {
   });
 }
 
+async function loadEmailAuthStateRows(emailNormalized: string): Promise<EmailAuthStateRow[]> {
+  const r = await runWebappPgText<EmailAuthStateRow>(
+    `SELECT pu.id::text AS id,
+            (pu.email_verified_at IS NOT NULL) AS email_verified,
+            EXISTS (
+              SELECT 1 FROM user_password_credentials upc WHERE upc.user_id = pu.id
+            ) AS has_password
+     FROM platform_users pu
+     WHERE pu.email_normalized = $1
+       AND pu.merged_into_id IS NULL`,
+    [emailNormalized],
+  );
+  return r.rows;
+}
+
 async function tryAutoMergeDuplicateEmailUsers(
   emailNormalized: string,
   rows: EmailAuthStateRow[],
 ): Promise<boolean> {
-  const pool = getPool();
   const targetId = pickEmailConflictTarget(rows);
   const passwordOwners = rows.filter((row) => row.has_password);
   if (passwordOwners.length > 1) {
@@ -65,16 +99,15 @@ async function tryAutoMergeDuplicateEmailUsers(
   }
   const duplicateIds = rows.map((row) => row.id).filter((id) => id !== targetId);
   if (duplicateIds.length === 0) return true;
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-    for (const duplicateId of duplicateIds) {
-      await mergePlatformUsersInTransaction(client, targetId, duplicateId, "projection");
-    }
-    await client.query("COMMIT");
+    await runWebappTransaction(async (tx) => {
+      const mergeClient = mergeDbClientFromTx(tx);
+      for (const duplicateId of duplicateIds) {
+        await mergePlatformUsersInTransaction(mergeClient, targetId, duplicateId, "projection");
+      }
+    });
     return true;
   } catch (err) {
-    await client.query("ROLLBACK").catch(() => undefined);
     const candidateIds = rows.map((row) => row.id);
     const classified = classifyMergeFailure(err, candidateIds);
     await recordEmailAuthConflict({
@@ -85,45 +118,30 @@ async function tryAutoMergeDuplicateEmailUsers(
       candidateIds: classified.candidateIds.length > 0 ? classified.candidateIds : candidateIds,
     });
     return false;
-  } finally {
-    client.release();
   }
 }
 
 export function createPgEmailPasswordLookupPort(): EmailPasswordLookupPort {
   return {
     async resolveAuthState(emailNormalized): Promise<EmailPasswordAuthState> {
-      const pool = getPool();
-      const loadRows = () =>
-        pool.query<EmailAuthStateRow>(
-          `SELECT pu.id::text AS id,
-                  (pu.email_verified_at IS NOT NULL) AS email_verified,
-                  EXISTS (
-                    SELECT 1 FROM user_password_credentials upc WHERE upc.user_id = pu.id
-                  ) AS has_password
-           FROM platform_users pu
-           WHERE pu.email_normalized = $1
-             AND pu.merged_into_id IS NULL`,
-          [emailNormalized],
-        );
-      let r = await loadRows();
+      let rows = await loadEmailAuthStateRows(emailNormalized);
 
-      if (r.rows.length === 0) {
+      if (rows.length === 0) {
         return { kind: "free" };
       }
-      if (r.rows.length > 1) {
-        const merged = await tryAutoMergeDuplicateEmailUsers(emailNormalized, r.rows);
+      if (rows.length > 1) {
+        const merged = await tryAutoMergeDuplicateEmailUsers(emailNormalized, rows);
         if (!merged) {
-          return { kind: "email_conflict", candidateIds: r.rows.map((row) => row.id) };
+          return { kind: "email_conflict", candidateIds: rows.map((row) => row.id) };
         }
-        r = await loadRows();
-        if (r.rows.length === 0) return { kind: "free" };
-        if (r.rows.length > 1) {
-          return { kind: "email_conflict", candidateIds: r.rows.map((row) => row.id) };
+        rows = await loadEmailAuthStateRows(emailNormalized);
+        if (rows.length === 0) return { kind: "free" };
+        if (rows.length > 1) {
+          return { kind: "email_conflict", candidateIds: rows.map((row) => row.id) };
         }
       }
 
-      const row = r.rows[0]!;
+      const row = rows[0]!;
       if (row.email_verified && row.has_password) {
         return { kind: "verified_with_password", userId: row.id };
       }

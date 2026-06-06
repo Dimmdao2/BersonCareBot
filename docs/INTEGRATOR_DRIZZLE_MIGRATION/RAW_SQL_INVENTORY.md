@@ -120,6 +120,39 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 14E.
 
 ---
 
+## Wave 3 phase 15A — references / settings / diary (2026-06-06)
+
+Подфаза **15A** закрыта: 3 scope-repo — runtime `pool.query`/`client.query` = **0**; domain SQL → `runWebappPgText`; TX → `runWebappTransaction`.
+
+| Gate (15A) | Итог |
+|------------|------|
+| Scope files | `pgReferences.ts`, `pgSystemSettings.ts`, `pgSymptomDiary.ts` |
+| `pool.query` / `client.query` | **0** в scope (было 17 + 7 + 18) |
+| Out of scope (без diff) | `configAdapter.ts` — уже `runWebappPgText` (P11) |
+| Class C / shared TX | `upsertWarmupFeelingTrackingIdInTx` → `warmupFeelingTrackingTx` (Drizzle tx helper, P6) |
+| Tests | Vitest 15A bundle — **33 passed** (fast); devDb — opt-in; staging — **phase 17** |
+| Webapp prod tail (post-15A) | **42** файла с `pool.query`/`client.query` (цель снять в 15B–15F + Class C в 15F) |
+
+Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15A.
+
+---
+
+## Wave 3 phase 15B — auth / email ports tail (2026-06-06)
+
+Подфаза **15B** закрыта: 7 scope-repo — runtime `pool.query`/`client.query` = **0**; domain SQL → `runWebappPgText`; TX → `runWebappTransaction`.
+
+| Gate (15B) | Итог |
+|------------|------|
+| Scope files | `pgEmailSetupFlowPort.ts`, `pgEmailPasswordLookup.ts`, `pgUserPasswordCredentials.ts`, `pgOAuthBindings.ts`, `pgLoginTokens.ts`, `pgPhoneChallengeStore.ts`, `pgEmailSetupTokens.ts` |
+| `pool.query` / `client.query` | **0** в scope (было 9 + 4 + 12 + 2 + 5 + 5 + 5 = **42**) |
+| Class C / external | `pgEmailPasswordLookup` — `upsertOpenConflictLog(getPool())` (audit dedupe TX в `adminAuditLog`, P14C); email duplicate merge — `mergePlatformUsersInTransaction` через `PlatformMergeDbClient` bridge на `runWebappTransaction` |
+| Tests | Vitest 15B bundle — **52 passed** (fast); devDb — opt-in; staging — **phase 17** |
+| Webapp prod tail (post-15B) | **35** файлов с `pool.query`/`client.query` |
+
+Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15B.
+
+---
+
 ## Раздел E (справочно): SQL через Drizzle `execute` / `runIntegratorSql`
 
 Здесь **нет** прямого `pool.query`, но остаётся **сырой SQL-текст** в шаблонах `sql`…`` — для миграции на «чистый» query builder это отдельный слой.
@@ -251,7 +284,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 14E.
 | `src/infra/repos/pgReminderJournal.ts`               | Журнал/события напоминаний, snooze, транзакции с несколькими апдейтами.                                                                               | В      | **Wave 2 P4 done:** `runWebappTransaction` + `execute(sql)` | Неверные snooze / доставки                         |
 | `src/infra/repos/pgWebPushOnlyReminders.ts`          | Web-push-only cron: planned/queued occurrences, claim `FOR UPDATE SKIP LOCKED`, sent/fail.                                                             | В      | **Wave 2 P4 done:** `runWebappSql` + `runWebappTransaction` | Дубли dispatch, зависшие queued                  |
 | `src/infra/repos/pgReminderTransactionalEmailCooldown.ts` | Cooldown transactional email напоминаний (`email_send_cooldowns`, ключ `!reminder_txn_v1`).                                                      | Н      | **Wave 2 P4 done:** Drizzle `select` + `insert` `onConflictDoUpdate` | Спам transactional email                    |
-| `src/infra/repos/pgSymptomDiary.ts`                  | Дневник симптомов: выборки, вставки, обновления, удаления, join-агрегаты.                                                                             | В      | `Drizzle` + `+sql` для отчётов                            | Потеря истории симптомов                           |
+| `src/infra/repos/pgSymptomDiary.ts`                  | Дневник симптомов: выборки, вставки, обновления, удаления, join-агрегаты.                                                                             | В      | **Wave 3 P15A done:** `runWebappPgText`; TX warmup — `warmupFeelingTrackingTx` | Потеря истории симптомов                           |
 | `src/infra/repos/pgDoctorClients.ts`                 | Список клиентов врача, привязки, операции с `user_channel_bindings`.                                                                                  | С      | **Wave 3 P13C done:** `runWebappPgText`; `getPool()` только для `resolveCanonicalUserId` | Неверный состав клиентов                           |
 | `src/infra/repos/pgDoctorProactiveInsights.ts`       | Proactive insights для doctor today: on-support patients, wellbeing entries, program activity.                                                          | С      | **Wave 3 P13D done:** `runWebappPgText` (5 call sites)    | Ложные/пропущенные сигналы  |
 | `src/infra/repos/pgDoctorMotivationQuotesEditor.ts`  | Doctor CMS motivational quotes: list (Drizzle) + write/reorder (`runWebappPgText`; Class C TX on reorder).                                                | С      | **Wave 3 P13D done:** writes in infra port                | Порядок цитат               |
@@ -271,7 +304,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 14E.
 | `src/infra/repos/pgBroadcastAudit.ts`                | Аудит рассылок.                                                                                                                                       | Н      | **Wave 3 P14D done:** `runWebappPgText`                                      | Аудит                                              |
 | `src/infra/repos/pgSupportCommunication.ts`          | Поддержка: диалоги, сообщения, служебные проверки `SELECT 1`, статусы.                                                                                | В      | **Wave 3 P14A done:** `runWebappPgText`; Class C TX merge wrapper (3×) | Поддержка пациентов                                |
 | `src/infra/repos/mergeLegacySupportConversations.ts` | Legacy merge support threads into canonical conversation (6 SQL steps).                                                                               | С      | **Wave 3 P14A done:** `runWebappPgText` + `getWebappSqlFromPgClient`; verify-only in 14C/14E | Regression-only merge helper                       |
-| `src/infra/repos/pgReferences.ts`                    | Справочники reference data: выборки, транзакции reorder, soft-delete.                                                                                 | С      | `Drizzle` + tx                                            | Порядок элементов                                  |
+| `src/infra/repos/pgReferences.ts`                    | Справочники reference data: выборки, транзакции reorder, soft-delete.                                                                                 | С      | **Wave 3 P15A done:** `runWebappPgText` + `runWebappTransaction` (`saveCatalog`) | Порядок элементов                                  |
 | `src/infra/repos/pgAppointmentProjection.ts`         | Проекция записей на приём (транзакция с несколькими шагами).                                                                                          | С      | **Wave 3 P13B done:** `runWebappPgText`; Class C TX on soft-delete | Запись на приём                                    |
 | `src/infra/repos/pgPatientBookings.ts`               | Записи пациента: createPending/list; Rubitime upsert — `@bersoncare/booking-rubitime-sync` (+ revive guard). | С | **Wave 3 P13B done:** port SQL → `runWebappPgText`; Rubitime upsert — `getPool()` → package (P8) | Календарь пациента |
 | `src/infra/repos/pgUserProjection.ts`                | Связка webapp user ↔ integrator / platform_users: выборки, insert, merge-апдейты, транзакции.                                                         | В      | **Wave 3 P14B done:** `runWebappPgText`/`txPgText`; Class C TX + SET CONSTRAINTS | Идентичности пользователей                         |
@@ -288,14 +321,19 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 14E.
 | `src/app-layer/doctor/createDoctorClient.ts`         | Создание клиента врачом (phone/email conflict, INSERT + phone history TX).                                                                            | С      | **Wave 3 P13C done:** `runWebappPgText`; Class C TX; canonical lookup — `getPool()` | Дубликаты клиентов                                 |
 | `src/infra/repos/pgBookingCalendarLegacy.ts`         | Legacy calendar read: range overlap over `appointment_records` + BE dedupe joins.                                                                      | С      | **Wave 3 P13B done:** `runWebappPgText` (1 call site)   | Календарь врача (legacy Rubitime rows)             |
 | `src/infra/repos/pgBookingCatalog.ts`                | Каталог филиалов/услуг бронирования: тяжёлые выборки и модификации.                                                                                   | В      | **Wave 3 P13A done:** `runWebappPgText` (37→0 `pool.query`) | Каталог ТЗ и филиалов                              |
-| `src/infra/repos/pgPhoneChallengeStore.ts`           | Хранилище phone challenges (insert/select/delete).                                                                                                    | С      | `Drizzle`                                                 | OTP/SMS злоупотребления                            |
+| `src/infra/repos/pgPhoneChallengeStore.ts`           | Хранилище phone challenges (insert/select/delete).                                                                                                    | С      | **Wave 3 P15B done:** `runWebappPgText`                   | OTP/SMS злоупотребления                            |
+| `src/infra/repos/pgEmailSetupFlowPort.ts`            | Email setup completion: assert contact email + transactional password/token consume.                                                                  | С      | **Wave 3 P15B done:** `runWebappPgText` + `runWebappTransaction` | Email login setup                               |
+| `src/infra/repos/pgEmailPasswordLookup.ts`           | Email/password auth state + auto-merge duplicate emails.                                                                                              | С      | **Wave 3 P15B done:** `runWebappPgText` + merge TX bridge; `getPool()` → Class C `upsertOpenConflictLog` | Email conflict / merge                     |
+| `src/infra/repos/pgUserPasswordCredentials.ts`       | Password credentials: register pending, verify login, upsert/update hash.                                                                              | С      | **Wave 3 P15B done:** `runWebappPgText` + `runWebappTransaction` (`registerPendingVerification`) | Email/password auth                    |
+| `src/infra/repos/pgOAuthBindings.ts`                 | OAuth provider bindings lookup.                                                                                                                       | Н      | **Wave 3 P15B done:** `runWebappPgText`                   | OAuth identity                                      |
+| `src/infra/repos/pgEmailSetupTokens.ts`              | Email setup tokens: issue/revoke/consume/lookup by hash.                                                                                              | С      | **Wave 3 P15B done:** `runWebappPgText`                   | Email setup tokens                                  |
 | `src/infra/repos/pgUserPins.ts`                      | Закрепления пользователя.                                                                                                                             | Н      | `Drizzle`                                                 | Низкие                                             |
-| `src/infra/repos/pgLoginTokens.ts`                   | Токены логина.                                                                                                                                        | С      | `Drizzle`                                                 | Сессии                                             |
+| `src/infra/repos/pgLoginTokens.ts`                   | Токены логина.                                                                                                                                        | С      | **Wave 3 P15B done:** `runWebappPgText`                   | Сессии                                             |
 | `src/infra/repos/pgMaterialRating.ts`                | Оценки материалов: агрегаты через Drizzle; **doctor detail** — сырой `pool.query`: дневные `COUNT` первых resolve playback по видео-media, группировки `material_ratings` по локальному дню (`timezone`), список оценивших с `LEFT JOIN platform_users`. | С      | `Drizzle` + `+sql` / `execute(sql)` для TZ-агрегатов | Детализация оценок врача, метрики просмотров |
 | `src/infra/repos/pgSubscriptionMailingProjection.ts` | Проекция подписок/рассылок.                                                                                                                           | С      | **Wave 3 P14D done:** `runWebappPgText`                                      | Рассылки                                           |
 | `src/infra/repos/pgOnlineIntake.ts`                  | Online intake: shared advisory lock по user id + операции заявки.                                                                                     | С      | **Wave 2 P3 + Wave 3 P12A:** lock + `runWebappPgText`; Class C TX (`BEGIN`/`COMMIT`/`ROLLBACK`) | Двойная заявка                                     |
 | `src/infra/repos/pgDiaryPurge.ts`                    | Purge данных дневника (advisory + delete).                                                                                                            | С      | **Wave 2 P3 + Wave 3 P11:** lifecycle lock + `runWebappPgText` на `PoolClient` | Удаление не тех данных                             |
-| `src/infra/repos/pgSystemSettings.ts`                | Системные настройки (транзакционные обновления при определённых сценариях).                                                                           | С      | `Drizzle` + sync в integrator по канону                   | Рассинхрон настроек                                |
+| `src/infra/repos/pgSystemSettings.ts`                | Системные настройки (транзакционные обновления при определённых сценариях).                                                                           | С      | **Wave 3 P15A done:** `runWebappPgText` + `runWebappTransaction` (`upsertManyInTransaction`) | Рассинхрон настроек                                |
 | `src/infra/repos/pgClinicalTests.ts`                 | Клинические тесты: Drizzle для основной модели + usage summary.                                                            | С      | **Wave 3 P11 done:** usage `runPgPoolPgText`                           | Отчёты использования тестов                        |
 | `src/infra/repos/pgTestSets.ts`                      | Наборы тестов / связка с клиническими тестами (usage summary).                                                                            | С      | **Wave 3 P11 done:** `runPgPoolPgText`                                        | Каталог тестов                                     |
 | `src/infra/repos/pgRecommendations.ts`               | Рекомендации: usage summary.                                                                                                | С      | **Wave 3 P11 done:** `runPgPoolPgText`                                        | Каталог рекомендаций                               |

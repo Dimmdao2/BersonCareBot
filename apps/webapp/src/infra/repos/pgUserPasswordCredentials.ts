@@ -1,4 +1,5 @@
-import { getPool } from "@/infra/db/client";
+/** Wave 3 phase 15B — domain SQL via `runWebappPgText`; TX on `registerPendingVerification`. */
+import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import argon2 from "argon2";
 
 export type UserPasswordCredentialsPort = {
@@ -41,8 +42,7 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     emailNormalized: string,
     plainPassword: string,
   ): Promise<{ userId: string; emailVerified: boolean } | null> {
-    const pool = getPool();
-    const r = await pool.query<{ user_id: string; password_hash: string; email_verified: boolean }>(
+    const r = await runWebappPgText<{ user_id: string; password_hash: string; email_verified: boolean }>(
       `SELECT upc.user_id::text AS user_id, upc.password_hash,
               (pu.email_verified_at IS NOT NULL) AS email_verified
        FROM user_password_credentials upc
@@ -65,39 +65,35 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
   return {
     async registerPendingVerification(params) {
-      const pool = getPool();
-      const client = await pool.connect();
       try {
-        await client.query("BEGIN");
-        const ins = await client.query<{ id: string }>(
-          `INSERT INTO platform_users (display_name, email, email_normalized, role)
-           VALUES ($1, $2, $3, 'client')
-           RETURNING id`,
-          [params.displayName, params.emailNormalized, params.emailNormalized],
-        );
-        const userId = ins.rows[0]!.id;
-        await client.query(
-          `INSERT INTO user_password_credentials (user_id, password_hash, updated_at)
-           VALUES ($1::uuid, $2::text, now())`,
-          [userId, params.passwordHash],
-        );
-        await client.query("COMMIT");
-        return { ok: true, userId };
+        return await runWebappTransaction(async (tx) => {
+          const ins = await runWebappPgText<{ id: string }>(
+            `INSERT INTO platform_users (display_name, email, email_normalized, role)
+             VALUES ($1, $2, $3, 'client')
+             RETURNING id`,
+            [params.displayName, params.emailNormalized, params.emailNormalized],
+            tx,
+          );
+          const userId = ins.rows[0]!.id;
+          await runWebappPgText(
+            `INSERT INTO user_password_credentials (user_id, password_hash, updated_at)
+             VALUES ($1::uuid, $2::text, now())`,
+            [userId, params.passwordHash],
+            tx,
+          );
+          return { ok: true as const, userId };
+        });
       } catch (e: unknown) {
-        await client.query("ROLLBACK");
         const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code?: unknown }).code) : "";
         if (code === "23505") {
           return { ok: false, reason: "duplicate_email" };
         }
         throw e;
-      } finally {
-        client.release();
       }
     },
 
     async deleteUnverifiedEmailPasswordRegistration(userId) {
-      const pool = getPool();
-      await pool.query(
+      await runWebappPgText(
         `DELETE FROM platform_users
          WHERE id = $1::uuid
            AND role = 'client'
@@ -108,8 +104,7 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     },
 
     async findUserIdByEmailChallengeId(challengeId) {
-      const pool = getPool();
-      const r = await pool.query<{ user_id: string }>(
+      const r = await runWebappPgText<{ user_id: string }>(
         "SELECT user_id::text AS user_id FROM email_challenges WHERE id = $1::uuid LIMIT 1",
         [challengeId],
       );
@@ -117,8 +112,7 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     },
 
     async tryResendRegistrationChallenge({ emailNormalized, plainPassword }) {
-      const pool = getPool();
-      const r = await pool.query<{ id: string; password_hash: string }>(
+      const r = await runWebappPgText<{ id: string; password_hash: string }>(
         `SELECT pu.id::text AS id, upc.password_hash
          FROM platform_users pu
          INNER JOIN user_password_credentials upc ON upc.user_id = pu.id
@@ -147,8 +141,7 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     verifyEmailPasswordForLogin: verifyEmailPasswordForLoginImpl,
 
     async findVerifiedUserIdWithPassword(emailNormalized) {
-      const pool = getPool();
-      const r = await pool.query<{ id: string }>(
+      const r = await runWebappPgText<{ id: string }>(
         `SELECT upc.user_id::text AS id
          FROM user_password_credentials upc
          INNER JOIN platform_users pu ON pu.id = upc.user_id
@@ -162,19 +155,17 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     },
 
     async updatePasswordHash(userId, passwordHash) {
-      const pool = getPool();
-      const res = await pool.query(`UPDATE user_password_credentials SET password_hash = $2, updated_at = now() WHERE user_id = $1::uuid`, [
-        userId,
-        passwordHash,
-      ]);
+      const res = await runWebappPgText(
+        `UPDATE user_password_credentials SET password_hash = $2, updated_at = now() WHERE user_id = $1::uuid`,
+        [userId, passwordHash],
+      );
       if ((res.rowCount ?? 0) === 0) {
         throw new Error("updatePasswordHash: no credentials row");
       }
     },
 
     async upsertPasswordHash(userId, passwordHash) {
-      const pool = getPool();
-      await pool.query(
+      await runWebappPgText(
         `INSERT INTO user_password_credentials (user_id, password_hash, updated_at)
          VALUES ($1::uuid, $2::text, now())
          ON CONFLICT (user_id) DO UPDATE

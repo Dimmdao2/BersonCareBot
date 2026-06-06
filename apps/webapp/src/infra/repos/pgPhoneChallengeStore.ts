@@ -1,4 +1,5 @@
-import { getPool } from "@/infra/db/client";
+/** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import type { PhoneChallengePayload, PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
 
@@ -42,8 +43,7 @@ function mergeChannelContextJson(payload: PhoneChallengePayload): string | null 
 export function createPgPhoneChallengeStore(): PhoneChallengeStore {
   return {
     async set(challengeId: string, payload: PhoneChallengePayload): Promise<void> {
-      const pool = getPool();
-      await pool.query(
+      await runWebappPgText(
         `INSERT INTO phone_challenges (challenge_id, phone, expires_at, code, channel_context, verify_attempts)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (challenge_id) DO UPDATE SET
@@ -59,21 +59,26 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
           payload.code ?? null,
           mergeChannelContextJson(payload),
           payload.verifyAttempts ?? 0,
-        ]
+        ],
       );
     },
     async get(challengeId: string): Promise<PhoneChallengePayload | null> {
-      const pool = getPool();
       const now = Math.floor(Date.now() / 1000);
-      const r = await pool.query(
+      const r = await runWebappPgText<{
+        phone: string;
+        expires_at: number | string;
+        code: string | null;
+        channel_context: unknown;
+        verify_attempts: number | string | null;
+      }>(
         "SELECT phone, expires_at, code, channel_context, verify_attempts FROM phone_challenges WHERE challenge_id = $1",
-        [challengeId]
+        [challengeId],
       );
       if (r.rows.length === 0) return null;
-      const row = r.rows[0];
+      const row = r.rows[0]!;
       const expiresAt = Number(row.expires_at);
       if (expiresAt <= now) {
-        await pool.query("DELETE FROM phone_challenges WHERE challenge_id = $1", [challengeId]);
+        await runWebappPgText("DELETE FROM phone_challenges WHERE challenge_id = $1", [challengeId]);
         return null;
       }
       const channelContext = channelContextFromRow(row);
@@ -88,12 +93,10 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       };
     },
     async delete(challengeId: string): Promise<void> {
-      const pool = getPool();
-      await pool.query("DELETE FROM phone_challenges WHERE challenge_id = $1", [challengeId]);
+      await runWebappPgText("DELETE FROM phone_challenges WHERE challenge_id = $1", [challengeId]);
     },
     async deleteByPhone(phone: string): Promise<void> {
-      const pool = getPool();
-      await pool.query("DELETE FROM phone_challenges WHERE phone = $1", [phone]);
+      await runWebappPgText("DELETE FROM phone_challenges WHERE phone = $1", [phone]);
     },
   };
 }
