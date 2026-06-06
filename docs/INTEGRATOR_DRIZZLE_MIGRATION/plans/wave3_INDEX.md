@@ -1,12 +1,12 @@
 # Wave 3 — финальный closeout (raw SQL tail ↓ / Drizzle + Zod / legacy cutover)
 
-**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10**, **11**, **12** completed; далее **13–15**
+**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10**, **11**, **12**, **13** completed; далее **14–15**
 **Предшественник:** Wave 2 этапы 1–8 **completed**  
 **Решения до старта:** [wave3_DECISIONS.md](./wave3_DECISIONS.md) (DoR закрыт фазой 00)
 
 ## Цель Wave 3
 
-1. Integrator P1+ (**done**, фаза 09), media-worker IX (**done**, фаза 10), app-layer/auth tail (**done**, фаза 11), intake/purge/identity (**done**, фаза 12) — закрыты; далее webapp closeout (фазы **13–15**).
+1. Integrator P1+ (**done**, фаза 09), media-worker IX (**done**, фаза 10), app-layer/auth tail (**done**, фаза 11), intake/purge/identity (**done**, фаза 12), booking/doctor (**done**, фаза 13) — закрыты; далее webapp closeout (фазы **14–15**).
 2. Убрать необъяснённый **`pool.query` / `client.query`** в webapp runtime (Class **A**), либо перевести в Class **B/C** с ADR.
 3. Убрать потребность в регулярном `migrate:legacy` для webapp, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner в regular flow.
 4. Синхронизировать **RAW_SQL_INVENTORY**, **DRIZZLE_TRANSITION_PLAN**, **LOG**; закрыть инициативу или явный backlog с причинами.
@@ -36,7 +36,7 @@
 | 10 | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | M | media-worker IX (декомпозиция 10A-10C) | 1 (**done** 2026-06-06) |
 | 11 | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | S | app-layer health/media; auth TX tail; мелкие outliers | 1 (**done** 2026-06-06) |
 | 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake/purge/identity (декомпозиция 12A-12E) | 1 (**done** 2026-06-06) |
-| 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking/doctor (декомпозиция 13A-13E) | 1 |
+| 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking/doctor (декомпозиция 13A-13E) | 1 (**done** 2026-06-06) |
 | 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 |
 | 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | long tail (декомпозиция 15A-15F) | 1 |
 | 16 | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | M | webapp legacy migration dependency cutover (`migrate:legacy`) | 1 |
@@ -63,7 +63,7 @@
 - **13B:** patient bookings + doctor appointments (**done** 2026-06-06; Rubitime sync invariant preserved)
 - **13C:** doctor clients + analytics (**done** 2026-06-06)
 - **13D:** motivation + doctor tails (**done** 2026-06-06)
-- **13E:** phase verify
+- **13E:** phase verify (**done** 2026-06-06) — **фаза 13 closed** (gate + 116 fast tests + rubitime-sync 27)
 - **14A:** support communication core
 - **14B:** user projection core
 - **14C:** audit + legacy merge helpers

@@ -1,6 +1,6 @@
 # План перехода оставшегося сырого SQL на Drizzle (Wave 2)
 
-**Дата:** 2026-05-15 (обновление: **2026-06-06** — Wave 2 этапы 1–8 закрыты; **Wave 3 phase 00 + 08–12** закрыты; далее **13–17**)
+**Дата:** 2026-05-15 (обновление: **2026-06-06** — Wave 2 этапы 1–8 закрыты; **Wave 3 phase 00 + 08–13** закрыты; далее **14–17**)
 **Связанные документы:** [инвентаризация](./RAW_SQL_INVENTORY.md), [лог](./LOG.md), [аудит тестов закрытых фаз](./TEST_BEHAVIOR_AUDIT.md), **поэтапные планы** ([`plans/README.md`](./plans/README.md), Wave 3: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md), [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)), закрытый мастер-план P1–P4 [integrator_drizzle_migration_master.plan.md](../../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md).
 
 ## Контекст: что уже сделано

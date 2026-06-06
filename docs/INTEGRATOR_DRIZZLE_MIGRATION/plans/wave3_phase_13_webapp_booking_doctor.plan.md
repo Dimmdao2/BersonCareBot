@@ -1,7 +1,7 @@
 ---
 name: Wave3 Phase13 Webapp booking doctor
 overview: Booking catalog, patient bookings tail, doctor appointments/clients/analytics, createDoctorClient, motivation actions.
-status: pending
+status: completed
 isProject: false
 todos:
   - id: w3-p13a-catalog-read-write
@@ -18,7 +18,7 @@ todos:
     status: completed
   - id: w3-p13-verify
     content: "13E: booking-rubitime-sync consumer tests + doctor clients/appointments/analytics parity checks + rg ноль по scope."
-    status: pending
+    status: completed
 ---
 
 # Wave 3 — фаза 13: Booking + doctor
@@ -102,13 +102,23 @@ todos:
   - `rg -l "pool\\.query|client\\.query" apps/webapp/src --glob "*.ts"` + фильтр по scope 13.
   - fast tests по booking/doctor paths.
 
+#### Закрытие 13E (2026-06-06)
+
+- **Gate scope (14 файлов):** `pool.query` = **0** (кроме комментариев в file headers); domain SQL → `runWebappPgText`.
+- **Class C transport (документировано):** `createDoctorClient`, `pgAppointmentProjection.softDelete`, `pgDoctorBroadcastDelivery`, `pgDoctorMotivationQuotesEditor.reorderQuotes` — только `BEGIN`/`COMMIT`/`ROLLBACK`.
+- **P8:** `pgPatientBookings.upsertFromRubitime` → `getPool()` + `@bersoncare/booking-rubitime-sync` (без изменений).
+- **Tests:** `booking-rubitime-sync` — **27 passed**; webapp fast bundle phase 13 — **116 passed**, 12 skipped (devDb opt-in).
+- **Parity:** `pgDoctorAnalyticsMetricAccounts.parity.test.ts` (26 keys); doctor clients/appointments/booking repo tests из 13A–13D.
+- **Zod (boundary):** подтверждено на ключевых API — `/api/doctor/clients` (POST body), `/api/doctor/analytics-metric-accounts` (metric enum); motivation CMS — FormData + inline validation в actions.
+- **Фаза 13 closed**; следующая — [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md).
+
 ## Definition of Done
 
-- [ ] Файлы фазы без необъяснённого `pool.query`.
-- [ ] `pgPatientBookings` по-прежнему делегирует Rubitime upsert в `booking-rubitime-sync` package (не ломать P8).
-- [ ] Doctor analytics SQL — parity тесты или snapshot counts.
-- [ ] Фильтры/DTO booking/doctor paths валидируются Zod на boundary-слое.
-- [ ] Подфазы 13A-13E закрыты в указанном порядке и зафиксированы в LOG.
+- [x] Файлы фазы без необъяснённого `pool.query`.
+- [x] `pgPatientBookings` по-прежнему делегирует Rubitime upsert в `booking-rubitime-sync` package (не ломать P8).
+- [x] Doctor analytics SQL — parity тесты или snapshot counts.
+- [x] Фильтры/DTO booking/doctor paths валидируются Zod на boundary-слое (ключевые API routes; CMS actions — inline/FormData).
+- [x] Подфазы 13A-13E закрыты в указанном порядке и зафиксированы в LOG.
 
 ## Scope
 

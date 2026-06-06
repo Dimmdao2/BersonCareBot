@@ -713,3 +713,36 @@ LIMIT 3;"
 - **Post-audit:** motivation archive/active + reorder mismatch tests; proactive full query chain; opt-in devDb `RUN_DOCTOR_PHASE_13D_DEV_DB`.
 - **RAW_SQL / plan:** todo `w3-p13d-motivation-and-tail` → `completed`.
 
+### Wave 3 phase 13E — phase verify (2026-06-06)
+
+- **Gate:** 14 scope-файлов — `pool.query` = 0; Class C `client.query` только в 4 TX-модулях (см. plan §13E).
+- **P8:** `pgPatientBookings.upsertFromRubitime` → `booking-rubitime-sync` через `getPool()` — подтверждено.
+- **Tests:** `booking-rubitime-sync` **27 passed**; webapp fast phase-13 bundle **116 passed** / 12 skipped (devDb).
+- **RAW_SQL / plan:** todo `w3-p13-verify` → `completed`; **фаза 13 closed**.
+
+#### Post-audit closure 13E (2026-06-06)
+
+- Документация: plan 13 `status: completed`, DoD `[x]`; `wave3_INDEX`, `plans/README`, `DRIZZLE_TRANSITION_PLAN`, `docs/README.md` — фаза 13 done, next **14**.
+- Zod на DB-границах: частично (13B/13C parity + row parsers); полный sweep — фазы **09–15** (не блокер 13E).
+- DevDb opt-in: 6 smoke-файлов (`RUN_BOOKING_CATALOG_DEV_DB`, `RUN_PATIENT_BOOKINGS_DEV_DB`, `RUN_DOCTOR_CLIENTS_DEV_DB`, `RUN_DOCTOR_ANALYTICS_DEV_DB`, `RUN_DOCTOR_PHASE_13D_DEV_DB` + bundle skip без env) — вне CI по умолчанию.
+
+### Wave 3 phase 13 — итог (completed, 2026-06-06)
+
+| Подфаза | Scope | Проверка |
+|---------|-------|----------|
+| **13A** | `pgBookingCatalog.ts` → `runWebappPgText` | 15 tests; opt-in devDb read-only |
+| **13B** | `pgPatientBookings`, `pgDoctorAppointments`, `pgAppointmentProjection`, `pgBookingCalendarLegacy` | 37 tests; P8 rubitime-sync; Class C projection soft-delete |
+| **13C** | `pgDoctorClients`, `pgDoctorAnalyticsMetricAccounts`, `createDoctorClient`, `pgDoctorNotes`, `pgBranches` | 52 tests; 26 metric-key parity |
+| **13D** | `motivation/actions` → thin actions; `pgDoctorMotivationQuotesEditor`, `pgDoctorBroadcastDelivery`, `pgDoctorProactiveInsights` | 12 tests post-audit; Class C broadcast queue |
+| **13E** | scope `rg pool.query` = 0 (14 файлов); P8 consumer | **116 passed** / 12 skipped; rubitime-sync **27 passed** |
+
+**Class C TX (остаются на PoolClient):** `pgAppointmentProjection`, `createDoctorClient`, `pgDoctorBroadcastDelivery` + transport в `pgDoctorClients.resolveCanonicalUserId` (`getPool` only).
+
+**Opt-in devDb (read-only, не в CI по умолчанию):** `RUN_BOOKING_CATALOG_DEV_DB=1`, `RUN_PATIENT_BOOKINGS_DEV_DB=1`, `RUN_DOCTOR_CLIENTS_DEV_DB=1`, `RUN_DOCTOR_ANALYTICS_DEV_DB=1`, `RUN_DOCTOR_PHASE_13D_DEV_DB=1` + `USE_REAL_DATABASE=1` + `DATABASE_URL`.
+
+**Вне scope (без изменений):** `packages/booking-rubitime-sync` engine (consumer path через `getPool`).
+
+**Документация синхронизирована:** plan 13, `wave3_INDEX`, `plans/README`, `DRIZZLE_TRANSITION_PLAN`, `docs/README.md`.
+
+**Следующая фаза Wave 3:** [wave3_phase_14_webapp_comms_projection.plan.md](./plans/wave3_phase_14_webapp_comms_projection.plan.md).
+
