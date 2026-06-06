@@ -63,7 +63,7 @@
 - **13B:** patient bookings + doctor appointments (**done** 2026-06-06; Rubitime sync invariant preserved)
 - **13C:** doctor clients + analytics (**done** 2026-06-06)
 - **13D:** motivation + doctor tails (**done** 2026-06-06)
-- **13E:** phase verify (**done** 2026-06-06) — **фаза 13 closed** (gate + 116 fast tests + rubitime-sync 27)
+- **13E:** phase verify (**done** 2026-06-06) — **фаза 13 closed** (gate + 116 fast tests + rubitime-sync 27); opt-in devDb: `RUN_BOOKING_CATALOG_DEV_DB` / `RUN_PATIENT_BOOKINGS_DEV_DB` / `RUN_DOCTOR_CLIENTS_DEV_DB` / `RUN_PG_DOCTOR_CLIENTS_APPOINTMENT_JOIN_DB` / `RUN_DOCTOR_ANALYTICS_DEV_DB` / `RUN_DOCTOR_PHASE_13D_DEV_DB`
 - **14A:** support communication core
 - **14B:** user projection core
 - **14C:** audit + legacy merge helpers
@@ -92,12 +92,12 @@
 - `09A→09B→09C→09D→09E` — строго последовательно внутри фазы 09.
 - `10A→10B→10C` — строго последовательно внутри фазы 10.
 - `09` и `10` можно делать параллельно только после `08`.
-- `11` — **done** (2026-06-06); `12` — **done** (2026-06-06); `13` стартует после закрытия `12`.
+- `11` — **done** (2026-06-06); `12` — **done** (2026-06-06); `13` — **done** (2026-06-06); **14** стартует после закрытия `13`.
 - `12A→12B→12C→12D→12E` внутри фазы 12.
 - `13A→13B→13C→13D→13E` внутри фазы 13.
 - `14A→14B→14C→14D→14E` внутри фазы 14.
 - `15A→15B→15C→15D→15E→15F` внутри фазы 15.
-- `12` → `13` → `14` → `15` идут последовательно.
+- `12` → `13` → `14` → `15` идут последовательно (`13` closed).
 - `16` стартует после `15` и закрывает legacy-cutover только если `09–15` не оставили причин держать `migrate:legacy` в regular flow; иначе фиксирует blocker/backlog.
 - `17` — только после `00..16`, staging smoke gate и финального `pnpm run ci`.
 

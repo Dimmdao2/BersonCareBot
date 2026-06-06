@@ -96,7 +96,10 @@ describe("analyticsAudience", () => {
     }
 
     it("returns staff ids only when includeTestAccounts is true (product path)", async () => {
-      const db = createMockDb([async () => [{ id: "staff-admin" }, { id: "staff-doctor" }]]);
+      const db = createMockDb([
+        async () => [{ id: "staff-admin" }, { id: "staff-doctor" }],
+        async () => [],
+      ]);
       await expect(
         resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: true, excludeStaffRoles: true }),
       ).resolves.toEqual(expect.arrayContaining(["staff-admin", "staff-doctor"]));
@@ -109,9 +112,17 @@ describe("analyticsAudience", () => {
       ).resolves.toEqual([]);
     });
 
+    it("always excludes the analytics placeholder phone", async () => {
+      const db = createMockDb([async () => [{ id: "placeholder-phone-user" }]]);
+      await expect(
+        resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: true, excludeStaffRoles: false }),
+      ).resolves.toEqual(["placeholder-phone-user"]);
+    });
+
     it("merges staff and test account ids when flags off and identifiers configured", async () => {
       const db = createMockDb([
         async () => [{ id: "staff-1" }],
+        async () => [{ id: "placeholder-phone-user" }],
         () => ({
           limit: async () => [
             {
@@ -133,12 +144,13 @@ describe("analyticsAudience", () => {
       await expect(
         resolveAnalyticsExcludedUserIds(db, { includeTestAccounts: false, excludeStaffRoles: true }),
       ).resolves.toEqual(
-        expect.arrayContaining(["staff-1", "phone-user", "tg-user", "max-user"]),
+        expect.arrayContaining(["staff-1", "placeholder-phone-user", "phone-user", "tg-user", "max-user"]),
       );
     });
 
     it("skips staff lookup when excludeStaffRoles is false", async () => {
       const db = createMockDb([
+        async () => [],
         () => ({
           limit: async () => [
             {

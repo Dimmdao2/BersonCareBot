@@ -5,6 +5,7 @@ import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { doctorInlineLinkClass, doctorPageStackClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
+import { DoctorTodayAttentionSection } from "./DoctorTodayAttentionSection";
 import { DoctorTodayKpiSection } from "./DoctorTodayKpiSection";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayPendingProgramTestsSection } from "./DoctorTodayPendingProgramTestsSection";
@@ -32,11 +33,6 @@ export function DoctorTodayDashboard({
   adminRegistrationFailureBanner,
   showAnalyticsLink,
 }: Props) {
-  const intakeAttentionCount = data.newIntakeRequests.length;
-  const messagesAttentionCount = data.unreadTotal;
-  const pendingTestsAttentionCount = data.pendingProgramTestsTotal;
-  const proactiveAttentionCount = data.proactiveInsightsTotal;
-
   return (
     <div id="doctor-today-dashboard" className={doctorPageStackClass}>
       {adminHealthBanner?.show ? (
@@ -77,51 +73,12 @@ export function DoctorTodayDashboard({
 
       <DoctorTodayKpiSection kpiStats={kpiStats} appointmentsTodayCount={appointmentsTodayCount} />
 
-      <DoctorSection id="doctor-today-section-attention" className="gap-2">
-        <DoctorSectionTitle>Требует внимания</DoctorSectionTitle>
-        <ul className="m-0 list-none space-y-1.5 p-0 text-sm">
-          <li>
-            <Link href="/app/doctor/online-intake" className={doctorInlineLinkClass}>
-              Онлайн-заявки
-            </Link>
-            {intakeAttentionCount > 0 ? (
-              <span className="text-muted-foreground"> — новых: {intakeAttentionCount}</span>
-            ) : (
-              <span className="text-muted-foreground"> — нет новых</span>
-            )}
-          </li>
-          <li>
-            <Link href="/app/doctor/messages" className={doctorInlineLinkClass}>
-              Сообщения
-            </Link>
-            {messagesAttentionCount > 0 ? (
-              <span className="text-muted-foreground"> — непрочитанных: {messagesAttentionCount}</span>
-            ) : (
-              <span className="text-muted-foreground"> — нет непрочитанных</span>
-            )}
-          </li>
-          <li>
-            <a href="#doctor-today-section-pending-tests" className={doctorInlineLinkClass}>
-              Тесты к проверке
-            </a>
-            {pendingTestsAttentionCount > 0 ? (
-              <span className="text-muted-foreground"> — попыток: {pendingTestsAttentionCount}</span>
-            ) : (
-              <span className="text-muted-foreground"> — нет</span>
-            )}
-          </li>
-          <li>
-            <a href="#doctor-today-section-proactive-insights" className={doctorInlineLinkClass}>
-              Сигналы пациентов
-            </a>
-            {proactiveAttentionCount > 0 ? (
-              <span className="text-muted-foreground"> — {proactiveAttentionCount}</span>
-            ) : (
-              <span className="text-muted-foreground"> — нет</span>
-            )}
-          </li>
-        </ul>
-      </DoctorSection>
+      <DoctorTodayAttentionSection
+        intakeCount={data.newIntakeRequests.length}
+        messagesCount={data.unreadTotal}
+        pendingTestsCount={data.pendingProgramTestsTotal}
+        proactiveCount={data.proactiveInsightsTotal}
+      />
 
       <DoctorGlobalTasksSection initialTasks={data.globalOpenTasks} />
 

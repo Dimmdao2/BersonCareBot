@@ -277,11 +277,11 @@ describe("DoctorTodayDashboard", () => {
       "/app/doctor/clients/u1?scope=appointments#doctor-client-section-pending-program-tests",
     );
     expect(screen.getByText("Показаны первые 1 из 12")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Тесты к проверке" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Тесты к проверке/ })).toHaveAttribute(
       "href",
       "#doctor-today-section-pending-tests",
     );
-    expect(screen.getByText(/попыток: 12/)).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
   });
 
   it("renders proactive patient insights section and attention link", () => {
@@ -303,11 +303,10 @@ describe("DoctorTodayDashboard", () => {
     render(<DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />);
     expect(screen.getByRole("heading", { name: "Сигналы пациентов" })).toBeInTheDocument();
     expect(screen.getByText("Петров")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Сигналы пациентов" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Сигналы пациентов/ })).toHaveAttribute(
       "href",
       "#doctor-today-section-proactive-insights",
     );
-    expect(screen.getByText(/— 2/)).toBeInTheDocument();
   });
 
   it("renders unread conversations and total", () => {

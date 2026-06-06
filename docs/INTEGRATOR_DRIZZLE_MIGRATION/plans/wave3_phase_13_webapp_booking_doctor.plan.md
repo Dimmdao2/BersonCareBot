@@ -14,7 +14,7 @@ todos:
     content: "13C: pgDoctorClients.ts (18), pgDoctorAnalyticsMetricAccounts.ts (25), createDoctorClient.ts (7), pgDoctorNotes.ts (2), pgBranches.ts (2)."
     status: completed
   - id: w3-p13d-motivation-and-tail
-    content: "13D: motivation/actions.ts (10), pgDoctorBroadcastDelivery.ts (6), pgDoctorProactiveInsights.ts (5) — SQL в infra портовом слое."
+    content: "13D: motivation/actions.ts (thin), pgDoctorMotivationQuotesEditor (writes/reorder), pgDoctorBroadcastDelivery.ts (6), pgDoctorProactiveInsights.ts (5) — SQL в infra."
     status: completed
   - id: w3-p13-verify
     content: "13E: booking-rubitime-sync consumer tests + doctor clients/appointments/analytics parity checks + rg ноль по scope."
@@ -85,7 +85,7 @@ todos:
 - Цель: route/action остаются thin, SQL живёт в infra.
 - Проверка:
   - targeted tests motivation/proactive/broadcast paths.
-  - `rg "pool\\.query|client\\.query" apps/webapp/src/app/app/doctor/content/motivation/actions.ts apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts apps/webapp/src/infra/repos/pgDoctorProactiveInsights.ts`.
+  - `rg "pool\\.query|client\\.query" apps/webapp/src/app/app/doctor/content/motivation/actions.ts apps/webapp/src/infra/repos/pgDoctorMotivationQuotesEditor.ts apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts apps/webapp/src/infra/repos/pgDoctorProactiveInsights.ts`.
 
 #### Закрытие 13D (2026-06-06)
 
@@ -104,13 +104,14 @@ todos:
 
 #### Закрытие 13E (2026-06-06)
 
-- **Gate scope (14 файлов):** `pool.query` = **0** (кроме комментариев в file headers); domain SQL → `runWebappPgText`.
-- **Class C transport (документировано):** `createDoctorClient`, `pgAppointmentProjection.softDelete`, `pgDoctorBroadcastDelivery`, `pgDoctorMotivationQuotesEditor.reorderQuotes` — только `BEGIN`/`COMMIT`/`ROLLBACK`.
+- **Gate scope (14 файлов):** `pool.query` = **0** (кроме JSDoc в file headers); domain SQL → `runWebappPgText`. Файлы: §Scope table + `pgDoctorMotivationQuotesEditor.ts` (writes/reorder из 13D).
+- **Class C transport (документировано):** `createDoctorClient`, `pgAppointmentProjection.softDelete`, `pgDoctorBroadcastDelivery`, `pgDoctorMotivationQuotesEditor.reorderQuotes` — только `BEGIN`/`COMMIT`/`ROLLBACK`. `getPool()` без domain SQL: P8 rubitime consumer, `pgDoctorClients.resolveCanonicalUserId`, `createDoctorClient.findCanonicalUserIdByPhone`.
 - **P8:** `pgPatientBookings.upsertFromRubitime` → `getPool()` + `@bersoncare/booking-rubitime-sync` (без изменений).
 - **Tests:** `booking-rubitime-sync` — **27 passed**; webapp fast bundle phase 13 — **116 passed**, 12 skipped (devDb opt-in).
 - **Parity:** `pgDoctorAnalyticsMetricAccounts.parity.test.ts` (26 keys); doctor clients/appointments/booking repo tests из 13A–13D.
 - **Zod (boundary):** подтверждено на ключевых API — `/api/doctor/clients` (POST body), `/api/doctor/analytics-metric-accounts` (metric enum); motivation CMS — FormData + inline validation в actions.
 - **Фаза 13 closed**; следующая — [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md).
+- **Re-verify (2026-06-06):** повторный gate + bundle — `pool.query` 0 (runtime); Class C 4 TX; **116 passed** / 12 skipped; rubitime-sync **27 passed**; `wave3_INDEX` dependency line синхронизирован.
 
 ## Definition of Done
 
@@ -129,7 +130,7 @@ todos:
 | `pgDoctorClients.ts` | 18 |
 | `pgPatientBookings.ts` | 15 |
 | `pgDoctorAppointments.ts` | 11 |
-| `motivation/actions.ts` | 10 |
+| `motivation/actions.ts` | 0 (13D: thin; baseline 10 → SQL в `pgDoctorMotivationQuotesEditor`) |
 | `pgAppointmentProjection.ts` | 9 |
 | `createDoctorClient.ts` | 7 |
 | `pgBookingCalendarLegacy.ts` | 1 |
@@ -137,6 +138,7 @@ todos:
 | `pgDoctorProactiveInsights.ts` | 5 |
 | `pgDoctorNotes.ts` | 2 |
 | `pgBranches.ts` | 2 |
+| `pgDoctorMotivationQuotesEditor.ts` | writes/reorder (13D; list — Drizzle) |
 
 **Вне scope:** `packages/booking-rubitime-sync` internals.
 
@@ -149,7 +151,76 @@ todos:
 
 ## Проверки
 
+**13A (закрыто):**
+
 ```bash
-pnpm --dir packages/booking-rubitime-sync run test
-pnpm --dir apps/webapp exec vitest run --project fast pgPatientBookings pgDoctorAppointments pgDoctorClients 2>/dev/null | tail -15
+rg 'pool\.query|client\.query' apps/webapp/src/infra/repos/pgBookingCatalog.ts   # 0 (JSDoc only)
+pnpm --dir apps/webapp exec vitest run --project fast pgBookingCatalog
+# opt-in devDb: USE_REAL_DATABASE=1 RUN_BOOKING_CATALOG_DEV_DB=1 → pgBookingCatalog.devDb.integration.test.ts
 ```
+
+**13B (закрыто):**
+
+```bash
+rg 'pool\.query' apps/webapp/src/infra/repos/pgPatientBookings.ts apps/webapp/src/infra/repos/pgDoctorAppointments.ts apps/webapp/src/infra/repos/pgBookingCalendarLegacy.ts  # 0
+rg 'client\.query' apps/webapp/src/infra/repos/pgAppointmentProjection.ts  # 3× Class C soft-delete TX
+pnpm --dir packages/booking-rubitime-sync run test
+pnpm --dir apps/webapp exec vitest run --project fast pgPatientBookings pgDoctorAppointments pgAppointmentProjection pgBookingCalendarLegacy
+# opt-in devDb: USE_REAL_DATABASE=1 RUN_PATIENT_BOOKINGS_DEV_DB=1 → pgPatientBookings.devDb.integration.test.ts
+```
+
+**13C (закрыто):**
+
+```bash
+rg 'pool\.query' apps/webapp/src/infra/repos/pgDoctorClients.ts apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts apps/webapp/src/infra/repos/pgDoctorNotes.ts apps/webapp/src/infra/repos/pgBranches.ts  # 0
+rg 'client\.query' apps/webapp/src/app-layer/doctor/createDoctorClient.ts  # 4× Class C TX
+pnpm --dir apps/webapp exec vitest run --project fast pgDoctorClients pgDoctorAnalyticsMetricAccounts createDoctorClient pgDoctorNotes pgBranches
+# opt-in devDb: RUN_DOCTOR_CLIENTS_DEV_DB=1 / RUN_DOCTOR_ANALYTICS_DEV_DB=1 / RUN_PG_DOCTOR_CLIENTS_APPOINTMENT_JOIN_DB=1
+```
+
+**13D (закрыто):**
+
+```bash
+rg 'pool\.query|client\.query' apps/webapp/src/app/app/doctor/content/motivation/actions.ts apps/webapp/src/infra/repos/pgDoctorProactiveInsights.ts  # 0
+rg 'client\.query' apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts apps/webapp/src/infra/repos/pgDoctorMotivationQuotesEditor.ts  # Class C TX
+pnpm --dir apps/webapp exec vitest run --project fast pgDoctorMotivationQuotesEditor pgDoctorBroadcastDelivery pgDoctorProactiveInsights
+# opt-in devDb: USE_REAL_DATABASE=1 RUN_DOCTOR_PHASE_13D_DEV_DB=1 → pgDoctorPhase13d.devDb.integration.test.ts
+```
+
+**13E (закрыто):**
+
+```bash
+# pool.query = 0 по scope фазы 13 (14 файлов; см. §Scope)
+rg 'pool\.query' \
+  apps/webapp/src/infra/repos/pgBookingCatalog.ts \
+  apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts \
+  apps/webapp/src/infra/repos/pgDoctorClients.ts \
+  apps/webapp/src/infra/repos/pgPatientBookings.ts \
+  apps/webapp/src/infra/repos/pgDoctorAppointments.ts \
+  apps/webapp/src/app/app/doctor/content/motivation/actions.ts \
+  apps/webapp/src/infra/repos/pgAppointmentProjection.ts \
+  apps/webapp/src/app-layer/doctor/createDoctorClient.ts \
+  apps/webapp/src/infra/repos/pgBookingCalendarLegacy.ts \
+  apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts \
+  apps/webapp/src/infra/repos/pgDoctorProactiveInsights.ts \
+  apps/webapp/src/infra/repos/pgDoctorNotes.ts \
+  apps/webapp/src/infra/repos/pgBranches.ts \
+  apps/webapp/src/infra/repos/pgDoctorMotivationQuotesEditor.ts
+
+pnpm --dir packages/booking-rubitime-sync run test
+pnpm --dir apps/webapp exec vitest run --project fast \
+  pgBookingCatalog pgPatientBookings pgDoctorAppointments pgAppointmentProjection \
+  pgBookingCalendarLegacy pgDoctorClients pgDoctorAnalyticsMetricAccounts \
+  createDoctorClient pgDoctorNotes pgBranches pgDoctorMotivationQuotesEditor \
+  pgDoctorBroadcastDelivery pgDoctorProactiveInsights
+```
+
+## Следующая фаза
+
+[wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) — comms / user projection (14A–14E).
+
+## Документация (sync при закрытии)
+
+- YAML frontmatter: `status: completed`, все `todos` → `completed`.
+- [../LOG.md](../LOG.md) §Wave 3 phase 13 — итог + post-audit.
+- [wave3_INDEX.md](./wave3_INDEX.md), [README.md](./README.md), [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md), [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md), [../../README.md](../../README.md).

@@ -5,6 +5,7 @@ import type { SystemSetting } from "@/modules/system-settings/types";
 import { platformUsers, systemSettings, userChannelBindings } from "../../../db/schema/schema";
 
 const STAFF_ANALYTICS_ROLES = ["admin", "doctor"] as const;
+const ALWAYS_EXCLUDED_ANALYTICS_PHONES = ["+70000000000"] as const;
 const TTL_MS = 30_000;
 
 type IncludeTestCacheEntry = { value: boolean; expiresAt: number };
@@ -93,6 +94,12 @@ export async function resolveAnalyticsExcludedUserIds(
       .where(inArray(platformUsers.role, [...STAFF_ANALYTICS_ROLES]));
     for (const row of staffRows) excluded.add(row.id);
   }
+
+  const alwaysExcludedPhoneRows = await db
+    .select({ id: platformUsers.id })
+    .from(platformUsers)
+    .where(inArray(platformUsers.phoneNormalized, [...ALWAYS_EXCLUDED_ANALYTICS_PHONES]));
+  for (const row of alwaysExcludedPhoneRows) excluded.add(row.id);
 
   if (options.includeTestAccounts) {
     return [...excluded];

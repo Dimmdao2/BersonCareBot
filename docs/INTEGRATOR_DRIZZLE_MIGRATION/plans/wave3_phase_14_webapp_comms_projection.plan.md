@@ -23,6 +23,10 @@ todos:
 
 # Wave 3 — фаза 14: Comms + user projection
 
+## Предшественник
+
+- Фаза **13** **completed** (2026-06-06): booking / doctor — [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md), журнал [LOG.md §Wave 3 phase 13](../LOG.md).
+
 ## Размер
 
 **L** — возможно **2 commits** внутри PR (support отдельно от projection).
