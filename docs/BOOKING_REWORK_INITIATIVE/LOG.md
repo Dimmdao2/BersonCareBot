@@ -1,5 +1,17 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-06 — Закрытие инициативы (этап 5, sign-off владельца)
+
+- Ручной проход UI пройден владельцем постановки; подтверждение: **«Новый интерфейс записи принят»**.
+- Закрыты: этап 1 (`done`), этап 5 (`done`), инициатива **`done`**.
+- Обновлены: [`ROADMAP.md`](ROADMAP.md), [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md), [`README.md`](README.md), `docs/README.md`.
+
+## 2026-06-06 — Снят устаревший `ACCEPTANCE_STAGE1.md`
+
+- Удалён `ACCEPTANCE_STAGE1.md` (чек-лист 12 вкладок; не соответствует IA на 4 вкладки).
+- Этап 1 зафиксирован как **`done` в коде**; ручной sign-off перенесён в [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md) (решение владельца 2026-06-04, LOG §«Этап 5: проход UI владельца»).
+- Обновлены ссылки: `README.md`, `STAGE2_DECOMPOSITION.md`, `STAGE3_DECOMPOSITION.md`, `docs/README.md`.
+
 ## 2026-06-05 — Стабилизация цепочек записи (mirror integrity hardening)
 
 **Closeout commits:** `377f3d51` → `d9bf2335` → `e823a581` → `f960825b` → `9e2ef6c3` → `13abe6d7` (план: [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md), `status: completed`). Канонический plan-файл — только архив в репозитории; копия в `~/.cursor/plans/` не является source-of-truth.
@@ -192,7 +204,7 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 | **Создание** абонементов (регулярная работа) | На **странице «Запись» врача**, не в admin. |
 | Legacy URL admin booking | **Не нужны** редиректы. |
 | Мердж пациентов | **Убрать** из главного меню врача; это **админская** задача, не отдельная вкладка «настройки записи» — разместить в общей **админ-зоне** (куда именно — при реализации). |
-| `ACCEPTANCE_STAGE1` (старый список 12 вкладок) | Пометить как архив: приёмка перенесена в этап 5; пункт навигации stage1 считать закрытым как historical baseline. |
+| `ACCEPTANCE_STAGE1` (старый список 12 вкладок) | **Снят** 2026-06-06; приёмка — [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md). |
 | Warning при resize (duration ≠ service default) | Пока **не делать**; оставить в defer без блокировки этапа 5. |
 
 **Уточнённая карта (код ещё не совпадает):**
@@ -346,7 +358,7 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 
 ### Не делали (на момент записи)
 
-- Приёмка владельцем (`ACCEPTANCE_STAGE1.md`). Этап 2 (patient API `{ branchId, serviceId }`) — **выполнен позже**, см. записи «Этап 2» ниже.
+- Ручная приёмка solo UX (устаревший чек-лист stage1) — перенесена в [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md). Этап 2 (patient API `{ branchId, serviceId }`) — **выполнен позже**, см. записи «Этап 2» ниже.
 
 ## 2026-06-04 — Этап 0: Инвентаризация и IA
 
@@ -408,7 +420,7 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 
 ### Не делали (этап 1)
 
-- Приёмка UI владельцем — чек-лист [`ACCEPTANCE_STAGE1.md`](ACCEPTANCE_STAGE1.md).
+- Ручная приёмка solo UX — см. [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md) (устаревший `ACCEPTANCE_STAGE1` снят 2026-06-06).
 - Этап 2+: полный Rubitime adapter UI — **выполнено** (см. LOG «Этап 2»).
 
 ### Проверки
@@ -429,7 +441,7 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 
 - Редактор рабочих часов (интервалы, копирование, буфер, min notice).
 - Конструктор формы.
-- Приёмка UI владельцем.
+- Ручная приёмка solo UX — см. [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md).
 
 ### Проверки
 

@@ -2,7 +2,7 @@
 
 **Статус:** закрыт в коде 2026-06-04 (2.3b ops defer в LOG)  
 **Родитель:** [`ROADMAP.md`](ROADMAP.md) §8  
-**Зависимости:** этап 0 (`INVENTORY_AND_IA.md`), этап 1 (solo UX; gate — [`ACCEPTANCE_STAGE1.md`](ACCEPTANCE_STAGE1.md))
+**Зависимости:** этап 0 (`INVENTORY_AND_IA.md`), этап 1 (solo UX — `done` в коде; устаревший чек-лист приёмки снят, финальный sign-off — [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md))
 
 Этап 2 — **четыре исполнимых блока**: **2.0 → 2.1 → 2.2 → 2.3**. Блок **2.0** обязателен: без runtime-синхронизации SSA ↔ `legacy_branch_service_id` UI маппинга не закроет runtime (сейчас связь создаётся только backfill-миграцией `0087`, а `upsertBranchServiceAdmin` пишет лишь `booking_branch_services`).
 

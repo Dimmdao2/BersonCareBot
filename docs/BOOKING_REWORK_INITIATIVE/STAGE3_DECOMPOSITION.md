@@ -2,7 +2,7 @@
 
 **Статус:** `done`  
 **Родитель:** [`ROADMAP.md`](ROADMAP.md) §9  
-**Зависимости:** этап 0 (`INVENTORY_AND_IA.md` §4.1, §5); **этап 2 `done`** (fail-closed `branch_service_mapping_missing`, canonical resolve); этап 1 — вкладка «Абонементы и продукты» (каталог шаблонов; gate — [`ACCEPTANCE_STAGE1.md`](ACCEPTANCE_STAGE1.md) §«Абонементы»)
+**Зависимости:** этап 0 (`INVENTORY_AND_IA.md` §4.1, §5); **этап 2 `done`** (fail-closed `branch_service_mapping_missing`, canonical resolve); этап 1 — solo UX и каталог абонементов (`done` в коде; приёмка — [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md))
 
 Этап 3 — **семь исполнимых блоков**: **3.0 → 3.1 → 3.2 → 3.3 → 3.4 → 3.5 → 3.6**.
 

@@ -1,5 +1,7 @@
 # ROADMAP — доработка записи
 
+**Статус инициативы:** `done` (2026-06-06 — ручной проход владельца, [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md)).
+
 Статусы этапов: `pending` · `in_progress` · `blocked` · `done` · `cancelled`.
 
 Эта инициатива не заменяет [`OWN_BOOKING_ENGINE_INITIATIVE`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md). Она является следующим продуктовым слоем над уже созданным собственным booking engine: привести кабинет записи, абонементы и календарь к понятному рабочему состоянию для текущего продукта.
@@ -71,12 +73,12 @@ Rubitime-дубли специалистов не должны попадать 
 | # | Этап | Статус | Цель | Основные зоны |
 |---|------|--------|------|---------------|
 | 0 | Инвентаризация и IA | `done` | Зафиксировать текущие экраны, контракты и целевую карту UI | docs, routes, API, data flow |
-| 1 | Новый кабинет записи: solo UX | `in_progress` | Пересобрать основные вкладки записи вокруг локаций, услуг, доступности, расписания и формы | `/app/doctor/admin/booking`, `Booking*Section` |
+| 1 | Новый кабинет записи: solo UX | `done` | Solo UX: локации, услуги, доступность, расписание, форма; IA сведена к 4 вкладкам admin на этапе 5 | `/app/doctor/admin/booking`, `Booking*Section` |
 | 2 | Rubitime-маппинг как адаптер | `done` | 2.0–2.3a в коде; 2.3b slots cutover — ops; appointments read-source → этап 4 | [`STAGE2_DECOMPOSITION.md`](STAGE2_DECOMPOSITION.md), [`ACCEPTANCE_STAGE2.md`](ACCEPTANCE_STAGE2.md), [`LOG.md`](LOG.md) |
 | 3 | Абонементы: UX и корректное списание | `done` | Доработать индивидуальные абонементы, комментарии, список сеансов, отвязку и списание | [`STAGE3_DECOMPOSITION.md`](STAGE3_DECOMPOSITION.md), [`ACCEPTANCE_STAGE3.md`](ACCEPTANCE_STAGE3.md), memberships |
 | 4 | Интерактивный календарь | `done` | Calendar lib, canonical feed, working/break, DnD, Rubitime rollback, poll | [`STAGE4_DECOMPOSITION.md`](STAGE4_DECOMPOSITION.md), [`ACCEPTANCE_STAGE4.md`](ACCEPTANCE_STAGE4.md), `/app/doctor/calendar` |
 | — | **Mirror sync + integrity hardening** Rubitime ↔ канон | `done` | Live inbound/outbound (`AppointmentMirrorSync`) + closeout hardening; commits `377f3d51`…`13abe6d7`; post-audit CI green | [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md), [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md), [plan archive](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md) (`completed`), [`LOG.md`](LOG.md) §2026-06-05, `booking-appointment-sync/` |
-| 5 | Полный проход UI и приемка | `in_progress` | Довести интерфейс по замечаниям владельца и закрыть инициативу только после принятия | все экраны записи |
+| 5 | Полный проход UI и приемка | `done` | Ручной проход владельца; «Новый интерфейс записи принят» (2026-06-06) | все экраны записи |
 
 ## 6. Этап 0 — Инвентаризация и IA
 
@@ -131,6 +133,8 @@ Rubitime-дубли специалистов не должны попадать 
 ### Цель
 
 Сделать основной кабинет записи понятным для работы одного специалиста с клиентами. Пользователь должен видеть не таблицы/связи, а рабочие задачи: локации, услуги, доступность, расписание, форма, проверка записи.
+
+**Статус этапа:** `done` (код 2026-06-04; финальная IA admin — 4 вкладки на этапе 5; sign-off 2026-06-06 — [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md)). Исходная постановка §7 ниже — baseline; актуальная навигация — [`INVENTORY_AND_IA.md`](INVENTORY_AND_IA.md) §1a.
 
 ### Новая Навигация
 
@@ -739,7 +743,7 @@ Resize за край должен:
 
 ## 11. Этап 5 — Полный Проход UI и Приемка
 
-**Статус:** `in_progress`. Замечания владельца — [`LOG.md`](LOG.md) §«Этап 5». Агентская часть выполнена (2026-06-04) — [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md) §5.A. Ожидает ручного прохода и подписи владельца.
+**Статус:** `done` (2026-06-06). Ручной проход владельца пройден — [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md) §5.B. Агентская часть — §5.A (2026-06-04).
 
 ### Цель
 
