@@ -1,6 +1,6 @@
-import { z } from "zod";
 import type { ChannelBindings } from "@/shared/types/session";
-import type { MessageLogListFilters, MessageLogListParams, MessageLogPort } from "./ports";
+import type { MessageLogListParams, MessageLogPort } from "./ports";
+import { normalizeMessageLogListParams } from "./messageLogListQuery";
 
 export type PrepareDraftParams = { userId: string };
 export type PrepareDraftResult = {
@@ -23,24 +23,6 @@ export type DoctorMessagingServiceDeps = {
   getDeliveryTargets: (params: { phone?: string; telegramId?: string; maxId?: string }) => Promise<{ channelBindings: ChannelBindings } | null>;
   messageLogPort: MessageLogPort;
 };
-
-function sanitizeMessageLogFilters(filters: MessageLogListFilters): MessageLogListFilters {
-  const out = { ...filters };
-  const uid = out.userId?.trim();
-  if (uid && !z.string().uuid().safeParse(uid).success) {
-    delete out.userId;
-  }
-  return out;
-}
-
-function normalizeListParams(params?: MessageLogListParams): Required<Pick<MessageLogListParams, "page" | "pageSize">> & {
-  filters: NonNullable<MessageLogListParams["filters"]>;
-} {
-  const page = Math.max(1, Math.floor(params?.page ?? 1));
-  const pageSize = Math.min(100, Math.max(1, Math.floor(params?.pageSize ?? 20)));
-  const filters = sanitizeMessageLogFilters(params?.filters ?? {});
-  return { page, pageSize, filters };
-}
 
 function bindingsToChannelList(b: ChannelBindings): string[] {
   const out: string[] = [];
@@ -85,12 +67,12 @@ export function createDoctorMessagingService(deps: DoctorMessagingServiceDeps) {
     },
 
     async listMessageHistory(params: { userId: string; page?: number; pageSize?: number }) {
-      const normalized = normalizeListParams({ page: params.page, pageSize: params.pageSize });
+      const normalized = normalizeMessageLogListParams({ page: params.page, pageSize: params.pageSize });
       return deps.messageLogPort.listByUser(params.userId, normalized);
     },
 
     async listAllMessages(params?: MessageLogListParams) {
-      return deps.messageLogPort.listAll(normalizeListParams(params));
+      return deps.messageLogPort.listAll(normalizeMessageLogListParams(params));
     },
   };
 }

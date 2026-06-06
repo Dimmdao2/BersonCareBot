@@ -26,7 +26,7 @@
 | 11 — webapp app-layer / auth tail | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | **completed** (2026-06-06; `runPgPoolPgText`, Zod config/idempotency, post-audit RAW_SQL) |
 | 12 — intake / purge / identity (12A-12E) | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | **completed** (2026-06-06; 12A–12E; post-audit devDb smokes; Vitest **115 passed**) |
 | 13 — booking / doctor (13A-13E) | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | **completed** (2026-06-06; 13A–13E; post-audit devDb smokes; gate + Vitest **116 passed**; rubitime-sync **27 passed**) |
-| 14 — comms / projection (14A-14E) | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | pending |
+| 14 — comms / projection (14A-14E) | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | **completed** (2026-06-06; 14A–14E; gate + Zod boundaries; fast bundle green) |
 | 15 — webapp long tail (15A-15F) | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | pending |
 | 16 — условный legacy cutover | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | pending |
 | 17 — closeout | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | pending |

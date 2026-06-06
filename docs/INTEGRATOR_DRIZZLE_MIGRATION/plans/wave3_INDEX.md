@@ -1,6 +1,6 @@
 # Wave 3 — финальный closeout (raw SQL tail ↓ / Drizzle + Zod / legacy cutover)
 
-**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10**, **11**, **12**, **13** completed; далее **14–15**
+**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10**, **11**, **12**, **13**, **14** completed; далее **15**
 **Предшественник:** Wave 2 этапы 1–8 **completed**  
 **Решения до старта:** [wave3_DECISIONS.md](./wave3_DECISIONS.md) (DoR закрыт фазой 00)
 
@@ -68,7 +68,7 @@
 - **14B:** user projection core (**done** 2026-06-06; `runWebappPgText`/`txPgText`; repo + devDb `RUN_USER_PROJECTION_DEV_DB`; Class C TX on upsert/appointment/phone/admin patch)
 - **14C:** audit + legacy merge helpers (**done** 2026-06-06; `adminAuditLog.ts` → `runWebappPgText`; Class C TX on `upsertOpenConflictLog`; merge helper regression-only)
 - **14D:** comms tail (**done** 2026-06-06; 6 repos → `runWebappPgText`; Class C TX on channel prefs preferred-auth + web-push save)
-- **14E:** phase verify
+- **14E:** phase verify (**done** 2026-06-06) — **фаза 14 closed** (gate 11 files; Zod query modules; fast bundle green)
 - **15A:** references/settings/diary
 - **15B:** auth/email ports tail
 - **15C:** treatment and minor tails

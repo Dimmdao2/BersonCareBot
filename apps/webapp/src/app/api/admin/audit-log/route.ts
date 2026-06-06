@@ -3,46 +3,13 @@
  * Guard: requireAdminModeSession() (admin + admin mode).
  */
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { getPool } from "@/app-layer/db/client";
 import { countOpenAutoMergeConflicts, listAdminAuditLog } from "@/app-layer/admin/auditLog";
+import {
+  adminAuditListFilterFromQuery,
+  adminAuditListQuerySchema,
+} from "@/modules/admin/adminAuditListQuery";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
-
-const querySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  action: z.string().max(256).optional(),
-  target: z.string().max(512).optional(),
-  /** Filter: `target_id` match or `auto_merge_conflict.details.candidateIds` contains this UUID. */
-  involvesPlatformUserId: z.string().uuid().optional(),
-  status: z.enum(["ok", "partial_failure", "error"]).optional(),
-  from: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  to: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  /** Скрыть `system_health_*` (список по умолчанию в UI). */
-  excludeSystemHealth: z
-    .enum(["1", "true"])
-    .optional()
-    .transform((v) => v === "1" || v === "true"),
-  /** Только `system_health_*` (фильтр «Системные снимки»). */
-  systemHealthOnly: z
-    .enum(["1", "true"])
-    .optional()
-    .transform((v) => v === "1" || v === "true"),
-});
-
-function dayStartUtcIso(date: string): string {
-  return `${date}T00:00:00.000Z`;
-}
-
-function dayEndUtcIso(date: string): string {
-  return `${date}T23:59:59.999Z`;
-}
 
 export async function GET(req: Request) {
   const gate = await requireAdminModeSession();
@@ -50,17 +17,14 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const raw = Object.fromEntries(url.searchParams.entries());
-  const parsed = querySchema.safeParse(raw);
+  const parsed = adminAuditListQuerySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_query", issues: parsed.error.flatten() }, { status: 400 });
   }
 
   const q = parsed.data;
-  let fromInclusive: string | undefined;
-  let toInclusive: string | undefined;
-  if (q.from) fromInclusive = dayStartUtcIso(q.from);
-  if (q.to) toInclusive = dayEndUtcIso(q.to);
-  if (fromInclusive && toInclusive && fromInclusive > toInclusive) {
+  const filter = adminAuditListFilterFromQuery(q);
+  if (filter.fromInclusive && filter.toInclusive && filter.fromInclusive > filter.toInclusive) {
     return NextResponse.json({ ok: false, error: "invalid_date_range" }, { status: 400 });
   }
 
@@ -71,19 +35,16 @@ export async function GET(req: Request) {
   const pool = getPool();
   const [result, openAutoMergeConflictCount] = await Promise.all([
     listAdminAuditLog(pool, {
-      page: q.page,
-      limit: q.limit,
-      action: q.action,
-      targetId: q.target,
-      involvesPlatformUserId: q.involvesPlatformUserId,
-      status: q.status,
-      fromInclusive,
-      toInclusive,
-      ...(q.systemHealthOnly
-        ? { actionPrefix: "system_health_" }
-        : q.excludeSystemHealth
-          ? { excludeActionPrefix: "system_health_" }
-          : {}),
+      page: filter.page,
+      limit: filter.limit,
+      action: filter.action,
+      targetId: filter.targetId,
+      involvesPlatformUserId: filter.involvesPlatformUserId,
+      status: filter.status,
+      fromInclusive: filter.fromInclusive,
+      toInclusive: filter.toInclusive,
+      ...(filter.actionPrefix ? { actionPrefix: filter.actionPrefix } : {}),
+      ...(filter.excludeActionPrefix ? { excludeActionPrefix: filter.excludeActionPrefix } : {}),
     }),
     countOpenAutoMergeConflicts(pool),
   ]);

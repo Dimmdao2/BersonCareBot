@@ -1,6 +1,6 @@
 # Инвентаризация: сырой SQL вне Drizzle query builder
 
-**Дата снимка:** 2026-06-06 (**Wave 3 phase 00 baseline**; phases **08–13** closeout; правки: Wave 2 P5–P8)
+**Дата снимка:** 2026-06-06 (**Wave 3 phase 00 baseline**; phases **08–14** closeout; правки: Wave 2 P5–P8)
 **Контекст:** мастер-план **P1–P4 интегратора** и **Wave 2 (этапы 1–8)** закрыты — здесь **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты). Wave 3 классифицирует хвост по **Class A / B / C** ([`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md)).
 
 **План перехода (фазы, риски, приоритеты):** [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md) · Wave 3 индекс: [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md)
@@ -101,6 +101,22 @@
 | Staging smoke | чеклист в [LOG](./LOG.md) §10C — **исполнение gate фазы 17** |
 
 Проверки: `rg 'pool\.query' apps/media-worker/src --glob '*.ts'` → `claim.ts` + transport `runMediaWorkerSql.ts`; `pnpm --dir apps/media-worker run test` — **22 passed**; typecheck green; **`pnpm run ci`** — green (2026-06-06).
+
+---
+
+## Wave 3 phase 14 — webapp comms + projection (2026-06-06)
+
+Фаза **14A–14E** закрыта: 11 scope-файлов — runtime `pool.query` = **0**; domain SQL → `runWebappPgText` / `txPgText`.
+
+| Gate (14E) | Итог |
+|------------|------|
+| Scope files | `pgSupportCommunication`, `pgUserProjection`, `adminAuditLog`, `mergeLegacySupportConversations`, `pgMessageLog`, `pgChannelPreferences`, `pgWebPushSubscriptions`, `pgBroadcastAudit`, `pgSubscriptionMailingProjection`, `pgPatientCalendarTimezone` |
+| `pool.query` | **0** (runtime; JSDoc «no direct pool.query» в headers допустим) |
+| Class C `client.query` | TX transport only: support merge wrapper (3×); user projection (4 TX + `SET CONSTRAINTS`); audit dedupe; channel prefs; web-push save |
+| Zod boundaries | `supportAdminListQuery`, `adminAuditListQuery`, `messageLogListQuery`; admin profile PATCH bodySchema (`/api/admin/users/[userId]/profile`) |
+| Tests | Vitest `--project fast` phase-14 bundle — **117 passed** / **11 skipped** (devDb opt-in) |
+
+Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 14E.
 
 ---
 
@@ -254,6 +270,7 @@
 | `src/infra/repos/pgMediaUsageSummary.ts`               | Агрегаты usage по `mediaId` (materials/exercises/tests/recommendations).                                                                              | С      | **Wave 2 P5 done:** `runWebappSql`                                          | Ссылки на медиа в CMS                              |
 | `src/infra/repos/pgBroadcastAudit.ts`                | Аудит рассылок.                                                                                                                                       | Н      | **Wave 3 P14D done:** `runWebappPgText`                                      | Аудит                                              |
 | `src/infra/repos/pgSupportCommunication.ts`          | Поддержка: диалоги, сообщения, служебные проверки `SELECT 1`, статусы.                                                                                | В      | **Wave 3 P14A done:** `runWebappPgText`; Class C TX merge wrapper (3×) | Поддержка пациентов                                |
+| `src/infra/repos/mergeLegacySupportConversations.ts` | Legacy merge support threads into canonical conversation (6 SQL steps).                                                                               | С      | **Wave 3 P14A done:** `runWebappPgText` + `getWebappSqlFromPgClient`; verify-only in 14C/14E | Regression-only merge helper                       |
 | `src/infra/repos/pgReferences.ts`                    | Справочники reference data: выборки, транзакции reorder, soft-delete.                                                                                 | С      | `Drizzle` + tx                                            | Порядок элементов                                  |
 | `src/infra/repos/pgAppointmentProjection.ts`         | Проекция записей на приём (транзакция с несколькими шагами).                                                                                          | С      | **Wave 3 P13B done:** `runWebappPgText`; Class C TX on soft-delete | Запись на приём                                    |
 | `src/infra/repos/pgPatientBookings.ts`               | Записи пациента: createPending/list; Rubitime upsert — `@bersoncare/booking-rubitime-sync` (+ revive guard). | С | **Wave 3 P13B done:** port SQL → `runWebappPgText`; Rubitime upsert — `getPool()` → package (P8) | Календарь пациента |

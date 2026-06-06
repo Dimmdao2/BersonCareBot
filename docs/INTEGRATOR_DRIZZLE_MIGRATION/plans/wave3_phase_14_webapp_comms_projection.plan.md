@@ -1,7 +1,7 @@
 ---
 name: Wave3 Phase14 Webapp comms projection
 overview: Support communication, user projection, admin audit, merge legacy conversations — самые большие SQL-файлы webapp.
-status: pending
+status: completed
 isProject: false
 todos:
   - id: w3-p14a-support-core
@@ -18,7 +18,7 @@ todos:
     status: completed
   - id: w3-p14-verify
     content: "14E: messaging/support tests; rg zero по scope фазы; Zod boundary checks на filters/params."
-    status: pending
+    status: completed
 ---
 
 # Wave 3 — фаза 14: Comms + user projection
@@ -72,13 +72,21 @@ todos:
   - `rg -l "pool\\.query|client\\.query" apps/webapp/src --glob "*.ts"` + фильтр scope 14;
   - запись результатов в LOG/RAW_SQL.
 
+#### Закрытие 14E (2026-06-06)
+
+- **Gate scope (11 файлов):** `pool.query` = **0** (runtime; JSDoc «no direct pool.query» в headers допустим); domain SQL → `runWebappPgText` / `txPgText`.
+- **Class C transport:** `pgSupportCommunication` merge wrapper (3×); `pgUserProjection` (4 TX); `adminAuditLog.upsertOpenConflictLog` (3×); `pgChannelPreferences.setPreferredAuthChannel`; `pgWebPushSubscriptions.saveSubscription` — только `BEGIN`/`COMMIT`/`ROLLBACK` (+ `SET CONSTRAINTS` в user projection TX).
+- **Zod boundaries:** `supportAdminListQuery.ts`; `adminAuditListQuery.ts`; `messageLogListQuery.ts` + admin profile PATCH bodySchema (`/api/admin/users/[userId]/profile`).
+- **Tests:** webapp fast phase-14 bundle — **117 passed** / **11 skipped** (repos + query modules + route tests); devDb opt-in smokes из 14A/14B/14C/14D — вне CI по умолчанию.
+- **Фаза 14 closed**; следующая — [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md).
+
 ## Definition of Done
 
-- [ ] `pgSupportCommunication.ts`, `pgUserProjection.ts`, `adminAuditLog.ts` — Class A или B.
-- [ ] Динамические фильтры support — Class B (`sql` fragments), не конкатенация без whitelist.
-- [ ] Admin audit insert/list parity.
-- [ ] Входные фильтры/параметры support/projection проходят Zod-валидацию на boundary.
-- [ ] Подфазы 14A-14E выполнены последовательно и отражены в LOG.
+- [x] `pgSupportCommunication.ts`, `pgUserProjection.ts`, `adminAuditLog.ts` — Class A или B.
+- [x] Динамические фильтры support — Class B (`sql` fragments), не конкатенация без whitelist.
+- [x] Admin audit insert/list parity.
+- [x] Входные фильтры/параметры support/projection проходят Zod-валидацию на boundary.
+- [x] Подфазы 14A-14E выполнены последовательно и отражены в LOG.
 
 ## Scope
 

@@ -826,4 +826,37 @@ LIMIT 3;"
 
 **Следующая подфаза Wave 3 phase 14:** **14E** — phase verify (scope `rg`, Zod boundaries).
 
+### Wave 3 phase 14E — phase verify (2026-06-06)
+
+- **Gate:** 11 scope-файлов — runtime `pool.query` = **0**; Class C `client.query` только на TX transport (см. §14E plan).
+- **Zod:** `supportAdminListQuery`, `adminAuditListQuery`, `messageLogListQuery`; admin client profile PATCH — route bodySchema.
+- **Tests:** fast bundle phase 14 — **117 passed** / **11 skipped** (repos + query modules + admin audit route).
+- **RAW_SQL / plan:** todo `w3-p14-verify` → `completed`; **фаза 14 closed**.
+
+#### Post-audit closure 14E (2026-06-06)
+
+- **Query modules:** extracted `adminAuditListQuery.ts`, `messageLogListQuery.ts` (service boundary); route `/api/admin/audit-log` thinned.
+- **Документация:** plan 14 `status: completed`, DoD `[x]`; `wave3_INDEX`, `plans/README` — фаза 14 done, next **15**.
+- **DevDb opt-in (14A–14D):** `RUN_SUPPORT_COMMUNICATION_DEV_DB`, `RUN_USER_PROJECTION_DEV_DB`, `RUN_ADMIN_AUDIT_LOG_DEV_DB`, `RUN_PHASE_14D_DEV_DB` + `USE_REAL_DATABASE=1` — вне CI по умолчанию.
+
+#### Post-audit fixes 14E (2026-06-06)
+
+- **RAW_SQL_INVENTORY:** добавлен §Wave 3 phase 14 (gate 14E, 11 scope-файлов, Zod boundaries, счётчики тестов); строка `mergeLegacySupportConversations.ts`.
+- **Tests:** `messageLogListQuery.test.ts` — кейс invalid `dateFrom` → filters `{}` (Zod boundary).
+- **Docs:** plan/LOG — явные **117 passed** / **11 skipped** (post-audit test на invalid `dateFrom`).
+
+### Wave 3 phase 14 — итог (completed, 2026-06-06)
+
+| Подфаза | Scope | Проверка |
+|---------|-------|----------|
+| **14A** | `pgSupportCommunication`, merge helper SQL | repo + Zod support list; Class C merge TX |
+| **14B** | `pgUserProjection` | 4 Class C TX; repo + devDb |
+| **14C** | `adminAuditLog`, merge verify | dedupe TX; audit tests + devDb |
+| **14D** | 6 comms/subscription repos | Class C channel prefs + web-push save |
+| **14E** | gate + Zod boundaries | 11 files `pool.query` = 0; **117 passed** / 11 skipped |
+
+**Class C TX (phase 14):** support merge wrapper; user projection (4 entrypoints); audit dedupe; channel preferred-auth; web-push save.
+
+**Следующая фаза Wave 3:** [wave3_phase_15_webapp_long_tail.plan.md](./plans/wave3_phase_15_webapp_long_tail.plan.md).
+
 
