@@ -41,6 +41,25 @@ describe("clientContactSegments", () => {
     ).toBe("app_guest");
   });
 
+  it("blocked telegram binding is not classified as telegram_only", () => {
+    expect(
+      classifyClientContact({
+        hasTelegram: false,
+        hasMax: false,
+        hasVerifiedEmail: false,
+        hasPhone: true,
+      }),
+    ).toBe("phone_only");
+    expect(
+      classifyClientContact({
+        hasTelegram: true,
+        hasMax: false,
+        hasVerifiedEmail: false,
+        hasPhone: false,
+      }),
+    ).toBe("telegram_only");
+  });
+
   it("accumulates breakdown totals", () => {
     const b = emptyClientContactBreakdown();
     accumulateClientContactBreakdown(b, {

@@ -81,6 +81,7 @@ type SystemHealthPayload = {
   outgoingDelivery?: {
     dueBacklog: number;
     deadTotal: number;
+    blockedRecipientTotal: number;
     oldestDueAgeSeconds: number | null;
     dueByChannel: Record<string, number>;
     dueByKind: Record<string, number>;
@@ -1300,6 +1301,12 @@ export function SystemHealthSection() {
               <ProbeInfo probe={data?.meta?.probes?.outgoingDelivery} />
               <DetailRow label="Ждут отправки" value={String(data?.outgoingDelivery?.dueBacklog ?? 0)} />
               <DetailRow label="Ошибок без повтора (dead)" value={String(data?.outgoingDelivery?.deadTotal ?? 0)} />
+              {(data?.outgoingDelivery?.blockedRecipientTotal ?? 0) > 0 ? (
+                <DetailRow
+                  label="Бот заблокирован (не деградация)"
+                  value={String(data?.outgoingDelivery?.blockedRecipientTotal ?? 0)}
+                />
+              ) : null}
               <DetailRow label="Обрабатываются сейчас" value={String(data?.outgoingDelivery?.processingCount ?? 0)} />
               <DetailRow
                 label="Ждущие по каналам"

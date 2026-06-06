@@ -1,4 +1,5 @@
 import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
+import { classifyTelegramRecipientBlockedError } from '../../infra/delivery/recipientBotBlocked.js';
 import { createMessagingPort } from './client.js';
 
 type RequestLoggerLike = {
@@ -86,6 +87,16 @@ function sanitizeTelegramReplyMarkup(replyMarkup: unknown): unknown {
   return { ...replyMarkup, inline_keyboard };
 }
 
+async function withTelegramBlockedDetection<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const blocked = classifyTelegramRecipientBlockedError(err);
+    if (blocked) throw blocked;
+    throw err;
+  }
+}
+
 export function createTelegramDeliveryAdapter(): DeliveryAdapter {
   let messagingPort: ReturnType<typeof createMessagingPort> | null = null;
   const getMessagingPort = (): ReturnType<typeof createMessagingPort> => {
@@ -120,15 +131,17 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           (err as { code?: number }).code = 400;
           throw err;
         }
-        const sent = await getMessagingPort().sendMessage({
-          chat_id: chatId,
-          text,
-          reply_markup: replyMarkup as never,
-          ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
+        return withTelegramBlockedDetection(async () => {
+          const sent = await getMessagingPort().sendMessage({
+            chat_id: chatId,
+            text,
+            reply_markup: replyMarkup as never,
+            ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
+          });
+          const midRaw = (sent as { message_id?: unknown })?.message_id;
+          const telegramMessageId = typeof midRaw === 'number' && Number.isFinite(midRaw) ? midRaw : undefined;
+          return telegramMessageId !== undefined ? { telegramMessageId } : {};
         });
-        const midRaw = (sent as { message_id?: unknown })?.message_id;
-        const telegramMessageId = typeof midRaw === 'number' && Number.isFinite(midRaw) ? midRaw : undefined;
-        return telegramMessageId !== undefined ? { telegramMessageId } : {};
       }
 
       if (intent.type === 'message.copy') {
@@ -142,11 +155,13 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           (err as { code?: number }).code = 400;
           throw err;
         }
-        await getMessagingPort().copyMessage({
-          chat_id: chatId,
-          from_chat_id: fromChatId,
-          message_id: msgId,
-        });
+        await withTelegramBlockedDetection(() =>
+          getMessagingPort().copyMessage({
+            chat_id: chatId,
+            from_chat_id: fromChatId,
+            message_id: msgId,
+          }),
+        );
         return {};
       }
 
@@ -159,13 +174,15 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           (err as { code?: number }).code = 400;
           throw err;
         }
-        await getMessagingPort().editMessageText({
-          chat_id: chatId,
-          message_id: numMessageId,
-          text,
-          reply_markup: replyMarkup as never,
-          ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
-        });
+        await withTelegramBlockedDetection(() =>
+          getMessagingPort().editMessageText({
+            chat_id: chatId,
+            message_id: numMessageId,
+            text,
+            reply_markup: replyMarkup as never,
+            ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
+          }),
+        );
         return {};
       }
 
@@ -178,11 +195,13 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           (err as { code?: number }).code = 400;
           throw err;
         }
-        await getMessagingPort().editMessageReplyMarkup({
-          chat_id: chatId,
-          message_id: numMessageId,
-          reply_markup: replyMarkup as never,
-        });
+        await withTelegramBlockedDetection(() =>
+          getMessagingPort().editMessageReplyMarkup({
+            chat_id: chatId,
+            message_id: numMessageId,
+            reply_markup: replyMarkup as never,
+          }),
+        );
         return {};
       }
 
@@ -194,7 +213,9 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           (err as { code?: number }).code = 400;
           throw err;
         }
-        await getMessagingPort().deleteMessage({ chat_id: chatId, message_id: numMessageId });
+        await withTelegramBlockedDetection(() =>
+          getMessagingPort().deleteMessage({ chat_id: chatId, message_id: numMessageId }),
+        );
         return {};
       }
 
@@ -205,11 +226,13 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
         throw err;
       }
       const toast = asNonEmptyString(payload.text);
-      await getMessagingPort().answerCallbackQuery({
-        callback_query_id: callbackQueryId,
-        ...(toast ? { text: toast } : {}),
-        ...(payload.show_alert === true ? { show_alert: true } : {}),
-      });
+      await withTelegramBlockedDetection(() =>
+        getMessagingPort().answerCallbackQuery({
+          callback_query_id: callbackQueryId,
+          ...(toast ? { text: toast } : {}),
+          ...(payload.show_alert === true ? { show_alert: true } : {}),
+        }),
+      );
       return {};
     },
   };

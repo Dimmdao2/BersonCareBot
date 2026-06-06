@@ -32,6 +32,14 @@ function bindingsToChannelList(b: ChannelBindings): string[] {
   return out;
 }
 
+function bindingsToLogRecord(b: ChannelBindings): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (b.telegramId) out.telegramId = b.telegramId;
+  if (b.maxId) out.maxId = b.maxId;
+  if (b.vkId) out.vkId = b.vkId;
+  return out;
+}
+
 export function createDoctorMessagingService(deps: DoctorMessagingServiceDeps) {
   return {
     async prepareMessageDraft(params: PrepareDraftParams): Promise<PrepareDraftResult | null> {
@@ -59,7 +67,7 @@ export function createDoctorMessagingService(deps: DoctorMessagingServiceDeps) {
         senderId: command.senderId,
         text: command.text,
         category: command.category,
-        channelBindingsUsed: command.channelBindings,
+        channelBindingsUsed: bindingsToLogRecord(command.channelBindings),
         outcome,
         errorMessage: outcome === "failed" ? "no channels" : null,
       });

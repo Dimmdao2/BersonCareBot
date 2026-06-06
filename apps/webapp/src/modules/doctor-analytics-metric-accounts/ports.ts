@@ -15,6 +15,8 @@ export type DoctorAnalyticsMetricKey =
   | "clients_segment_telegram_email"
   | "clients_segment_max_email"
   | "clients_segment_phone_email_no_messenger"
+  | "clients_messenger_bot_blocked_telegram"
+  | "clients_messenger_bot_blocked_max"
   | "registrations"
   | "registrations_merges"
   | "registrations_combined"

@@ -12,14 +12,34 @@
 
 Статусы: `pending`, `processing`, `sent`, `failed_retryable`, `dead`. Backoff после неудачи: 60s → 300s → 900s → 3600s (см. `apps/integrator/src/infra/delivery/deliveryContract.ts`). Зависшие `processing` сбрасываются в `failed_retryable` через ~10 минут.
 
+**Блокировка бота (TG/MAX):** при `RECIPIENT_BLOCKED_BOT` строка финализируется как `dead` с `failure_class = recipient_blocked_bot`, attempt в `notification_delivery_attempts` — `skipped` / `recipient_blocked_bot`. Такие строки **не** входят в operator `deadTotal` («Очередь доставки») и **не** увеличивают `broadcast_audit.error_count` (отдельный счётчик `blocked_recipient_count`). Маркер `user_channel_bindings.bot_blocked_at` снимается при успешной доставке по тому же каналу. См. `docs/ARCHITECTURE/DOCTOR_BROADCASTS.md` и post-deploy backfill SQL.
+
 ## Runbook
 
 - **Dead / рост due:** админка → «Здоровье системы» — блок «Очередь доставки уведомлений» и `GET /api/admin/system-health` (`outgoingDelivery`, `meta.probes.outgoing_delivery`). В payload: **`dueByChannel`**, **`processingCount`**, **`lastSentAt`**, **`lastQueueActivityAt`**. Для пациентских напоминаний отдельно смотрите **`remindersPipeline`** в том же ответе (срез **`kind=reminder_dispatch`**, **`occurrenceHistory`** / **`deliveryEvents`** за 24 ч UTC, **`patientReminderM2mIdempotencyKeysActive`**) и детальную вкладку **«Статистика»** / `GET /api/admin/reminder-stats` (загрузчик **`loadContentEngagementStats`**, файл [`loadAdminReminderStats.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts)); тот же JSON у врача — **`GET /api/doctor/content-stats`** (см. [`api.md`](../../apps/webapp/src/app/api/api.md)).
 - **Постоянные ошибки доставки:** воркер помечает `dead` без длительных ретраев для известных «конфигурационных» сообщений (`CHANNEL_NOT_SUPPORTED`, `BAD_PAYLOAD`, …), см. `isOutgoingDeliveryDispatchErrorRetryable` в `deliveryContract.ts`.
-- **Строки в БД:** `public.outgoing_delivery_queue` (`status`, `last_error`, `attempt_count`).
+- **Блокировка бота (TG/MAX):** см. § ниже и [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md) § Post-deploy.
+- **Строки в БД:** `public.outgoing_delivery_queue` (`status`, `last_error`, `attempt_count`, **`failure_class`**).
+
+## Блокировка бота (TG/MAX)
+
+| Поле / счётчик | Поведение |
+|----------------|-----------|
+| `failure_class` | `recipient_blocked_bot` — финал очереди, **не** operator-dead |
+| `notification_delivery_attempts` | `status=skipped`, `reason=recipient_blocked_bot` |
+| `broadcast_audit.error_count` | **не** инкрементируется при blocked |
+| `broadcast_audit.blocked_recipient_count` | info-счётчик рассылки |
+| `user_channel_bindings.bot_blocked_at` | маркер; UPSERT/UPDATE integrator; снимается при успешной доставке |
+
+**Kinds с clear маркера при success:** `reminder_dispatch`, `doctor_broadcast_intent`, `operator_alert`.
+
+Детекция: `apps/integrator/src/infra/delivery/recipientBotBlocked.ts`. Worker: `outgoingDeliveryWorker.ts`. Health read: `pgOperatorHealthRead.getOutgoingDeliveryQueueHealth`.
+
+Журнал инициативы: [`docs/archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md`](../archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md).
 
 ## Связанные файлы
 
-- Миграция: `apps/webapp/db/drizzle-migrations/0060_outgoing_delivery_queue.sql`
+- Миграция очереди: `apps/webapp/db/drizzle-migrations/0060_outgoing_delivery_queue.sql`
+- Миграция blocked: `apps/webapp/db/drizzle-migrations/0107_messenger_bot_blocked.sql`
 - Репозиторий SQL: `apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts`
 - Воркер: `apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts`, подключение в `apps/integrator/src/infra/runtime/worker/main.ts`

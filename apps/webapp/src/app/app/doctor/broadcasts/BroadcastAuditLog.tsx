@@ -33,7 +33,7 @@ function deliveryProgressLine(entry: BroadcastAuditEntry): string {
 function deliveryIncomplete(entry: BroadcastAuditEntry): boolean {
   const planned = entry.deliveryJobsTotal > 0 ? entry.deliveryJobsTotal : entry.audienceSize;
   if (planned <= 0) return false;
-  return entry.sentCount + entry.errorCount < planned;
+  return entry.sentCount + entry.errorCount + entry.blockedRecipientCount < planned;
 }
 
 export function BroadcastAuditLog({ entries }: Props) {
@@ -48,6 +48,7 @@ export function BroadcastAuditLog({ entries }: Props) {
   }
 
   const hasErrors = entries.some((e) => e.errorCount > 0);
+  const hasBlocked = entries.some((e) => e.blockedRecipientCount > 0);
 
   return (
     <div className="overflow-x-auto">
@@ -63,12 +64,14 @@ export function BroadcastAuditLog({ entries }: Props) {
             <th className="pb-2 pr-4 font-medium text-right">Получателей в списке</th>
             <th className="pb-2 pr-4 font-medium text-right">Сообщений запланировано</th>
             <th className="pb-2 pr-4 font-medium text-right">Итог доставки</th>
+            {hasBlocked ? <th className="pb-2 pr-4 font-medium text-right">Бот заблокирован</th> : null}
             {hasErrors ? <th className="pb-2 font-medium text-right">Не удалось доставить</th> : null}
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => {
             const expanded = openId === entry.id;
+            const detailColSpan = 8 + (hasBlocked ? 1 : 0) + (hasErrors ? 1 : 0);
             return (
               <Fragment key={entry.id}>
                 <tr className="border-b border-border/50 last:border-0">
@@ -97,6 +100,11 @@ export function BroadcastAuditLog({ entries }: Props) {
                   <td className="py-2 pr-4 text-right tabular-nums align-top text-xs leading-snug">
                     {deliveryProgressLine(entry)}
                   </td>
+                  {hasBlocked ? (
+                    <td className="py-2 pr-4 text-right tabular-nums text-muted-foreground align-top">
+                      {entry.blockedRecipientCount > 0 ? entry.blockedRecipientCount : "—"}
+                    </td>
+                  ) : null}
                   {hasErrors ? (
                     <td className="py-2 text-right tabular-nums text-destructive align-top">{entry.errorCount}</td>
                   ) : null}
@@ -104,13 +112,16 @@ export function BroadcastAuditLog({ entries }: Props) {
                 {expanded ? (
                   <tr key={`${entry.id}-details`} className="border-b border-border/50 last:border-0 bg-muted/30">
                     <td />
-                    <td colSpan={hasErrors ? 9 : 8} className="py-3 pr-4 pl-0 text-xs text-muted-foreground">
+                    <td colSpan={detailColSpan} className="py-3 pr-4 pl-0 text-xs text-muted-foreground">
                       <div id={`broadcast-audit-details-${entry.id}`} className="space-y-2 max-w-prose">
                         <p>
                           <span className="font-medium text-foreground">Текст (начало): </span>
                           {entry.messageBody.trim().length > 0 ? bodyPreview(entry.messageBody) : "—"}
                         </p>
                         {entry.attachMenuAfterSend ? <p className="text-foreground">Меню в чате обновлялось.</p> : null}
+                        {entry.blockedRecipientCount > 0 ? (
+                          <p>{entry.blockedRecipientCount} — бот заблокирован</p>
+                        ) : null}
                         {deliveryIncomplete(entry) ? (
                           <p className="text-amber-800 dark:text-amber-400">
                             Часть сообщений ещё в очереди — обновите страницу через минуту.

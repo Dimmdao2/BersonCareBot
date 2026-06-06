@@ -83,6 +83,15 @@
 - Webapp: `OperatorHealthReadPort.getOutgoingDeliveryQueueHealth`, `GET /api/admin/system-health` (`outgoingDelivery`), UI в `SystemHealthSection`; admin-only баннер на экране врача «Сегодня»; для `role === admin` admin mode считается всегда включённым (`requireAdminModeSession`, сессия, настройки).
 - Док: `docs/ARCHITECTURE/OUTGOING_DELIVERY_QUEUE.md`.
 
+### 2026-06-06 — Блокировка бота TG/MAX (не деградация health)
+
+- **Проблема:** blocked TG/MAX → `dead` + `error_count` → degraded «Очередь доставки» / «Доставка уведомлений» (prod-рассылка 2026-06-06).
+- **Решение:** `failure_class=recipient_blocked_bot` исключён из operator `deadTotal`; attempts → `skipped`; отдельный `blocked_recipient_count` в `broadcast_audit`; маркер `user_channel_bindings.bot_blocked_at`.
+- **Health UI:** `blockedRecipientTotal` (info) в `SystemHealthSection`; `pgHealthFailureArchive` — только operator-dead.
+- **Миграция:** `0107_messenger_bot_blocked.sql`.
+- **Post-deploy prod:** backfill SQL в [`DOCTOR_BROADCASTS.md`](../ARCHITECTURE/DOCTOR_BROADCASTS.md) § Post-deploy (ops gate, не блокер merge).
+- Журнал: [`archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md`](../archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md); план [`.cursor/plans/archive/messenger_bot_block_handling.plan.md`](../../.cursor/plans/archive/messenger_bot_block_handling.plan.md).
+
 ### 2026-05-14 — Аудит: доработка health, баннера и классификации dispatch
 
 - Сбор `GET /api/admin/system-health` вынесен в `collectAdminSystemHealthData`; баннер «Сегодня» использует тот же снимок (`adminDoctorTodayHealthBannerFromSystemHealth`).

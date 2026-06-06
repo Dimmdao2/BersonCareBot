@@ -22,6 +22,8 @@ export type DoctorStatsState = {
     phoneOnly: number;
     appGuests: number;
     contactBreakdown: ClientContactBreakdown;
+    /** Клиенты с маркером «бот заблокирован» по каналу (активная привязка отсутствует). */
+    messengerBotBlocked: ClientContactBreakdown["messengerBotBlocked"];
     /** Созданы за последние 7 суток, без telegram/max (KPI «Сегодня»). */
     newClients7dWithNoChannels: number;
   };
@@ -90,6 +92,7 @@ export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
           phoneOnly: contactBreakdown.phoneOnly,
           appGuests: contactBreakdown.appGuests,
           contactBreakdown,
+          messengerBotBlocked: contactBreakdown.messengerBotBlocked,
           newClients7dWithNoChannels,
         },
       };

@@ -4,12 +4,16 @@ const sendMaxMessageMock = vi.fn();
 const answerMaxCallbackMock = vi.fn();
 const editMaxMessageMock = vi.fn();
 const deleteMaxMessageMock = vi.fn();
-vi.mock('./client.js', () => ({
-  sendMaxMessage: (...args: unknown[]) => sendMaxMessageMock(...args),
-  answerMaxCallback: (...args: unknown[]) => answerMaxCallbackMock(...args),
-  editMaxMessage: (...args: unknown[]) => editMaxMessageMock(...args),
-  deleteMaxMessage: (...args: unknown[]) => deleteMaxMessageMock(...args),
-}));
+vi.mock('./client.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./client.js')>();
+  return {
+    ...actual,
+    sendMaxMessage: (...args: unknown[]) => sendMaxMessageMock(...args),
+    answerMaxCallback: (...args: unknown[]) => answerMaxCallbackMock(...args),
+    editMaxMessage: (...args: unknown[]) => editMaxMessageMock(...args),
+    deleteMaxMessage: (...args: unknown[]) => deleteMaxMessageMock(...args),
+  };
+});
 vi.mock('./runtimeConfig.js', () => ({ getMaxApiKey: async () => 'test-key' }));
 
 import { createMaxDeliveryAdapter } from './deliveryAdapter.js';
@@ -301,8 +305,9 @@ describe('max deliveryAdapter', () => {
     );
   });
 
-  it('send message.send throws when MAX client returns null', async () => {
-    sendMaxMessageMock.mockResolvedValueOnce(null);
+  it('send message.send propagates MaxSendError from client', async () => {
+    const { MaxSendError } = await import('./client.js');
+    sendMaxMessageMock.mockRejectedValueOnce(new MaxSendError('MAX_SEND_FAILED', { apiMessage: 'send failed' }));
     const adapter = createMaxDeliveryAdapter();
     await expect(
       adapter.send({

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { broadcastAudit, integratorPushOutbox, platformUsers } from "../../../db/schema/schema";
 import { operatorHealthFailureArchive } from "../../../db/schema/operatorHealthFailureArchive";
@@ -90,7 +90,15 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
       const rows = await tx
         .select()
         .from(outgoingDeliveryQueue)
-        .where(eq(outgoingDeliveryQueue.status, "dead"))
+        .where(
+          and(
+            eq(outgoingDeliveryQueue.status, "dead"),
+            or(
+              isNull(outgoingDeliveryQueue.failureClass),
+              ne(outgoingDeliveryQueue.failureClass, "recipient_blocked_bot"),
+            ),
+          ),
+        )
         .limit(Math.min(500, Math.max(1, input.limit)));
 
       if (rows.length === 0) {

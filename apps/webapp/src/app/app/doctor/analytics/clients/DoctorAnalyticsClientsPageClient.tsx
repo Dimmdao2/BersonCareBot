@@ -43,6 +43,8 @@ const CLIENT_SNAPSHOT_METRICS = new Set<DoctorAnalyticsMetricKey>([
   "clients_segment_telegram_email",
   "clients_segment_max_email",
   "clients_segment_phone_email_no_messenger",
+  "clients_messenger_bot_blocked_telegram",
+  "clients_messenger_bot_blocked_max",
 ]);
 
 type Props = {
@@ -203,6 +205,20 @@ export function DoctorAnalyticsClientsPageClient({ calendarTodayYmd, displayIana
                 value={clients.appGuests}
                 tone="warning"
                 onClick={() => openMetric("clients_app_guests", "Гости приложения")}
+              />
+              <DoctorStatCard
+                id="doctor-stats-clients-bot-blocked-telegram"
+                title="ТГ: бот заблокирован"
+                value={clients.contactBreakdown.messengerBotBlocked.telegram}
+                onClick={() =>
+                  openMetric("clients_messenger_bot_blocked_telegram", "Telegram: бот заблокирован")
+                }
+              />
+              <DoctorStatCard
+                id="doctor-stats-clients-bot-blocked-max"
+                title="MAX: бот заблокирован"
+                value={clients.contactBreakdown.messengerBotBlocked.max}
+                onClick={() => openMetric("clients_messenger_bot_blocked_max", "MAX: бот заблокирован")}
               />
             </DoctorMetricList>
           </div>

@@ -38,6 +38,7 @@ const auditBase: Omit<BroadcastAuditEntry, "id" | "executedAt"> = {
   attachMenuAfterSend: false,
   sentCount: 0,
   errorCount: 0,
+  blockedRecipientCount: 0,
 };
 
 describe("pgDoctorBroadcastDelivery commitAuditAndDeliveryQueue", () => {

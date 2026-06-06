@@ -32,6 +32,8 @@ export type OperatorJobStatusTickRow = OperatorBackupJobStatusRow & {
 export type OutgoingDeliveryQueueHealthSnapshot = {
   dueBacklog: number;
   deadTotal: number;
+  /** Dead rows with `failure_class = recipient_blocked_bot` (info-only, not operator degradation). */
+  blockedRecipientTotal: number;
   oldestDueAgeSeconds: number | null;
   dueByChannel: Record<string, number>;
   /** Due-строки по `outgoing_delivery_queue.kind` (внутренние ключи; для UI — маппинг). */

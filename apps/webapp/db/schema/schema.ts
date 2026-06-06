@@ -169,6 +169,8 @@ export const userChannelBindings = pgTable("user_channel_bindings", {
 	channelCode: text("channel_code").notNull(),
 	externalId: text("external_id").notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	botBlockedAt: timestamp("bot_blocked_at", { withTimezone: true, mode: 'string' }),
+	botBlockedReason: text("bot_blocked_reason"),
 }, (table) => [
 	index("idx_user_channel_bindings_lookup").using("btree", table.channelCode.asc().nullsLast().op("text_ops"), table.externalId.asc().nullsLast().op("text_ops")),
 	index("idx_user_channel_bindings_user_id").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
@@ -208,6 +210,7 @@ export const broadcastAudit = pgTable("broadcast_audit", {
 	attachMenuAfterSend: boolean("attach_menu_after_send").default(false).notNull(),
 	sentCount: integer("sent_count").default(0).notNull(),
 	errorCount: integer("error_count").default(0).notNull(),
+	blockedRecipientCount: integer("blocked_recipient_count").default(0).notNull(),
 }, (table) => [
 	index("idx_broadcast_audit_executed_at").using("btree", table.executedAt.desc().nullsFirst().op("timestamptz_ops")),
 ]);

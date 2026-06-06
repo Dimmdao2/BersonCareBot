@@ -83,6 +83,7 @@ describe("executeBroadcastAction", () => {
       audienceSize: 30,
       sentCount: 0,
       errorCount: 0,
+      blockedRecipientCount: 0,
       attachMenuAfterSend: false,
     };
     executeMock.mockResolvedValue({ auditEntry });

@@ -211,6 +211,7 @@ type OperatorBackupJobPayload = {
 export type OutgoingDeliveryHealthPayload = {
   dueBacklog: number;
   deadTotal: number;
+  blockedRecipientTotal: number;
   oldestDueAgeSeconds: number | null;
   /** Количество due-строк по каналу (`outgoing_delivery_queue.channel`). */
   dueByChannel: Record<string, number>;
@@ -838,6 +839,7 @@ async function probeOperatorHealthData(): Promise<
     const outgoingDelivery: OutgoingDeliveryHealthPayload = {
       dueBacklog: outgoingSnapshot.dueBacklog,
       deadTotal: outgoingSnapshot.deadTotal,
+      blockedRecipientTotal: outgoingSnapshot.blockedRecipientTotal,
       oldestDueAgeSeconds: outgoingSnapshot.oldestDueAgeSeconds,
       dueByChannel: outgoingSnapshot.dueByChannel,
       dueByKind: outgoingSnapshot.dueByKind,
@@ -914,6 +916,7 @@ function logProbe(
 const emptyOutgoingDeliveryHealthPayload = (): OutgoingDeliveryHealthPayload => ({
   dueBacklog: 0,
   deadTotal: 0,
+  blockedRecipientTotal: 0,
   oldestDueAgeSeconds: null,
   dueByChannel: {},
   dueByKind: {},

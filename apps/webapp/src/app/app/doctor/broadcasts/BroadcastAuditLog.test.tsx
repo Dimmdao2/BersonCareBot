@@ -19,6 +19,7 @@ const makeEntry = (overrides: Partial<BroadcastAuditEntry> = {}): BroadcastAudit
   audienceSize: 30,
   sentCount: 0,
   errorCount: 0,
+  blockedRecipientCount: 0,
   attachMenuAfterSend: false,
   ...overrides,
 });

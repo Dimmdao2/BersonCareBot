@@ -5,6 +5,7 @@ vi.mock('../../db/repos/outgoingDeliveryQueue.js', async (importOriginal) => {
   return {
     ...mod,
     markOutgoingDeliverySent: vi.fn().mockResolvedValue(undefined),
+    markOutgoingDeliveryDead: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -12,12 +13,25 @@ vi.mock('../../db/runIntegratorSql.js', () => ({
   runIntegratorSql: vi.fn().mockResolvedValue({ rows: [{ status: 'queued' }] }),
 }));
 
+vi.mock('../../db/repos/userChannelBotBlocked.js', () => ({
+  markUserChannelBotBlocked: vi.fn().mockResolvedValue(undefined),
+  clearUserChannelBotBlocked: vi.fn().mockResolvedValue(undefined),
+  resolvePlatformUserIdForBotBlockedMarker: vi.fn().mockReturnValue('u1'),
+}));
+
+vi.mock('../../db/repos/operatorHealthDrizzle.js', () => ({
+  getOperatorIncidentAlertState: vi.fn().mockResolvedValue(null),
+  markOperatorIncidentAlertSent: vi.fn().mockResolvedValue(undefined),
+}));
+
 import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
 import { processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
-import { markOutgoingDeliverySent } from '../../db/repos/outgoingDeliveryQueue.js';
+import { markOutgoingDeliveryDead, markOutgoingDeliverySent } from '../../db/repos/outgoingDeliveryQueue.js';
+import { RecipientBlockedBotError } from '../../delivery/recipientBotBlocked.js';
 import * as doctorBroadcastIntentMenu from './doctorBroadcastIntentMenu.js';
 import { drizzleSqlFragmentToApproximateSql } from '../../db/drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../../db/runIntegratorSql.js';
+import { clearUserChannelBotBlocked } from '../../db/repos/userChannelBotBlocked.js';
 
 function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDeliveryQueueRow {
   return {
@@ -201,6 +215,10 @@ describe('reminder_dispatch outgoing delivery row', () => {
     expect(dispatchOutgoing.mock.calls[0]?.[0]).toMatchObject({ type: 'message.send' });
     const logCall = writeDb.mock.calls.find((c) => c[0]?.type === 'reminders.delivery.log');
     expect(logCall?.[0]?.params?.payloadJson).toMatchObject({ maxMessageId: 'mid-only-send' });
+    expect(clearUserChannelBotBlocked).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({ channel: 'max', platformUserId: 'u1', externalId: '300' }),
+    );
   });
 
   it('max: stale delete throws but send still runs and logs maxMessageId', async () => {
@@ -379,6 +397,50 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
     expect(runIntegratorSql).toHaveBeenCalled();
   });
 
+  it('doctor broadcast blocked: increments blocked_recipient_count not error_count', async () => {
+    const dispatchOutgoing = vi.fn().mockRejectedValue(
+      new RecipientBlockedBotError('telegram', 'bot was blocked by the user'),
+    );
+    const auditId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const db = {};
+    await processOutgoingDeliveryRow(
+      baseRow({
+        kind: 'doctor_broadcast_intent',
+        channel: 'telegram',
+        payloadJson: {
+          broadcastAuditId: auditId,
+          clientUserId: 'u1',
+          intent: {
+            type: 'message.send',
+            meta: {
+              eventId: 'e-blocked',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'telegram',
+              userId: 'u1',
+            },
+            payload: {
+              recipient: { chatId: 1 },
+              message: { text: 'Hi' },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: db as never, writePort: { writeDb: vi.fn() } as never, dispatchOutgoing },
+    );
+    expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(
+      db,
+      'q1',
+      expect.stringContaining('RECIPIENT_BLOCKED_BOT'),
+      'recipient_blocked_bot',
+    );
+    const sqlText = vi.mocked(runIntegratorSql).mock.calls
+      .map((c) => drizzleSqlFragmentToApproximateSql(c[1]))
+      .join('\n');
+    expect(sqlText).toContain('blocked_recipient_count');
+    expect(sqlText).not.toContain('error_count = error_count + 1');
+  });
+
   it('missing broadcastAuditId: marks dead without dispatch', async () => {
     const dispatchOutgoing = vi.fn();
     const db = {};
@@ -401,10 +463,7 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
       { db: db as never, writePort: { writeDb: vi.fn() } as never, dispatchOutgoing },
     );
     expect(dispatchOutgoing).not.toHaveBeenCalled();
-    const sqlText = vi.mocked(runIntegratorSql).mock.calls
-      .map((c) => drizzleSqlFragmentToApproximateSql(c[1]))
-      .join('\n');
-    expect(sqlText).toContain("status = 'dead'");
+    expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(db, 'q1', 'MISSING_BROADCAST_AUDIT_ID');
   });
 
   it('calls menu enricher when doctorBroadcastMenu deps provided', async () => {
@@ -460,5 +519,47 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
       payload: { replyMarkup: { testMenu: true } },
     });
     spy.mockRestore();
+  });
+});
+
+describe('operator_alert outgoing delivery row', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(runIntegratorSql).mockResolvedValue({ rows: [{ status: 'queued' }] });
+  });
+
+  it('success clears messenger blocked marker before mark sent', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue({});
+    const db = {};
+    await processOutgoingDeliveryRow(
+      baseRow({
+        kind: 'operator_alert',
+        channel: 'telegram',
+        payloadJson: {
+          incidentId: 'inc-1',
+          intent: {
+            type: 'message.send',
+            meta: {
+              eventId: 'e-op',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'telegram',
+              userId: 'u-op',
+            },
+            payload: {
+              recipient: { chatId: 9001 },
+              message: { text: 'alert' },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: db as never, writePort: { writeDb: vi.fn() } as never, dispatchOutgoing },
+    );
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
+    expect(clearUserChannelBotBlocked).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({ channel: 'telegram', platformUserId: 'u1' }),
+    );
+    expect(markOutgoingDeliverySent).toHaveBeenCalled();
   });
 });

@@ -222,6 +222,23 @@ describe("messenger delivery intent", () => {
     expect(intent.payload.message.text).toBe("Title\n\nBody");
   });
 
+  it("still enqueues telegram job when binding is marked bot-blocked", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [
+        cl({
+          userId: "u-blocked",
+          bindings: { telegramId: "111", telegramBotBlocked: true },
+        }),
+      ],
+      channels: ["bot_message"],
+      messageTitle: "T",
+      messageBodyPlain: "Hello",
+    });
+    expect(jobs.length).toBe(1);
+    expect(jobs[0]?.channel).toBe("telegram");
+  });
+
   it("telegram and sms share the same truncated plain cap for long body", () => {
     const longBody = "z".repeat(4000);
     const jobs = buildDoctorBroadcastDeliveryJobs({

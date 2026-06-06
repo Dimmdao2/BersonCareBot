@@ -105,6 +105,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         attachMenuAfterSend: command.attachMenuAfterSend === true,
         sentCount: 0,
         errorCount: 0,
+        blockedRecipientCount: 0,
       };
       const entry = await deps.doctorBroadcastDeliveryCommitPort.commitAuditAndDeliveryQueue({
         auditId,

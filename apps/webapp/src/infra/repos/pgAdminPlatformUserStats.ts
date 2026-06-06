@@ -114,6 +114,8 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
 
       const subscriberFrom = `FROM platform_users pu
              INNER JOIN user_channel_bindings ucb ON ucb.user_id = pu.id
+               AND ucb.channel_code IN ('telegram', 'max')
+               AND ucb.bot_blocked_at IS NULL
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false`;

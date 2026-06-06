@@ -24,6 +24,7 @@ function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
     attachMenuAfterSend: Boolean(row.attach_menu_after_send ?? false),
     sentCount: Number(row.sent_count),
     errorCount: Number(row.error_count),
+    blockedRecipientCount: Number(row.blocked_recipient_count ?? 0),
   };
 }
 
@@ -52,9 +53,10 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
              delivery_jobs_total,
              attach_menu_after_send,
              sent_count,
-             error_count
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-           RETURNING id, actor_id, category, audience_filter, message_title, message_body, channels, executed_at, preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count`,
+             error_count,
+             blocked_recipient_count
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+           RETURNING id, actor_id, category, audience_filter, message_title, message_body, channels, executed_at, preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count, blocked_recipient_count`,
           [
             auditId,
             input.audit.actorId,
@@ -69,6 +71,7 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
             input.audit.attachMenuAfterSend,
             input.audit.sentCount,
             input.audit.errorCount,
+            input.audit.blockedRecipientCount ?? 0,
           ],
           tx,
         );

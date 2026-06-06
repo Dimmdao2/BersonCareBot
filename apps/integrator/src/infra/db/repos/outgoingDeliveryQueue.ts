@@ -151,14 +151,20 @@ export async function markOutgoingDeliverySent(db: DbPort, id: string): Promise<
   );
 }
 
-export async function markOutgoingDeliveryDead(db: DbPort, id: string, lastError: string | null): Promise<void> {
+export async function markOutgoingDeliveryDead(
+  db: DbPort,
+  id: string,
+  lastError: string | null,
+  failureClass?: string | null,
+): Promise<void> {
   await runIntegratorSql(
     db,
     sql`UPDATE public.outgoing_delivery_queue
      SET status = 'dead',
          dead_at = now(),
          updated_at = now(),
-         last_error = ${lastError}
+         last_error = ${lastError},
+         failure_class = ${failureClass ?? null}
      WHERE id = ${id}`,
   );
 }

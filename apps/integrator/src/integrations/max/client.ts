@@ -45,30 +45,24 @@ export type MaxAnswerCallbackParams = {
   extra?: MaxAnswerCallbackExtra;
 };
 
+export class MaxSendError extends Error {
+  readonly apiMessage: string;
+  readonly apiCode?: string;
+
+  constructor(message: string, opts?: { apiMessage?: string; apiCode?: string }) {
+    super(message);
+    this.name = 'MaxSendError';
+    this.apiMessage = opts?.apiMessage ?? message;
+    if (opts?.apiCode !== undefined) this.apiCode = opts.apiCode;
+  }
+}
+
 export type MaxEditMessageParams = {
   messageId: string;
   extra?: MaxEditMessageExtra;
 };
 
 let cachedBot: { cacheKey: string; bot: Bot } | null = null;
-
-/** `sendMessageToChat` требует chat_id диалога; в БД/привязке часто хранится platform user_id — тогда нужен `sendMessageToUser`. */
-function isMaxDialogNotFoundError(err: unknown): boolean {
-  const m =
-    err !== null && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
-      ? (err as { message: string }).message
-      : err instanceof Error
-        ? err.message
-        : String(err);
-  const lower = m.toLowerCase();
-  return (
-    lower.includes('dialog.notfound') ||
-    lower.includes('error.dialog.notfound') ||
-    /** REST/SDK: "404: Chat 123 not found" — id был user_id, не chat_id диалога */
-    (lower.includes('chat') && lower.includes('not found')) ||
-    (lower.includes('404') && lower.includes('chat'))
-  );
-}
 
 function getBot(config: MaxClientConfig): Bot {
   const cacheKey = `${config.apiKey}::${config.baseUrl ?? ''}`;
@@ -116,7 +110,7 @@ export async function setMaxBotCommands(
 export async function sendMaxMessage(
   config: MaxClientConfig,
   params: MaxSendMessageParams,
-): Promise<Message | null> {
+): Promise<Message> {
   const { logger } = await import('../../infra/observability/logger.js');
   try {
     const bot = getBot(config);
@@ -124,30 +118,22 @@ export async function sendMaxMessage(
       return await bot.api.sendMessageToUser(params.userId, params.text, params.extra);
     }
     if (params.chatId != null) {
-      const chatId = params.chatId;
-      try {
-        return await bot.api.sendMessageToChat(chatId, params.text, params.extra);
-      } catch (errFirst) {
-        if (!isMaxDialogNotFoundError(errFirst)) throw errFirst;
-        logger.info({ chatIdFailedAsDialog: chatId }, 'max sendMessageToChat dialog not found, retry sendMessageToUser');
-        try {
-          return await bot.api.sendMessageToUser(chatId, params.text, params.extra);
-        } catch (errFallback) {
-          logger.error(
-            { err: errFallback, chatIdTriedAsUserId: chatId, textLength: params.text?.length },
-            'max sendMessageToUser after dialog.notfound failed',
-          );
-          return null;
-        }
-      }
+      return await bot.api.sendMessageToChat(params.chatId, params.text, params.extra);
     }
-    return null;
+    throw new MaxSendError('MAX_PAYLOAD_INVALID: chatId or userId required');
   } catch (err) {
+    if (err instanceof MaxSendError) throw err;
+    const apiMessage =
+      err !== null && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+        ? (err as { message: string }).message
+        : err instanceof Error
+          ? err.message
+          : String(err);
     logger.error(
       { err, chatId: params.chatId, userId: params.userId, textLength: params.text?.length },
       'max sendMessage failed',
     );
-    return null;
+    throw new MaxSendError('MAX_SEND_FAILED', { apiMessage });
   }
 }
 

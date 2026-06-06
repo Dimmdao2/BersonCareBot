@@ -30,6 +30,10 @@
 
 План `patient_help_booking_surface` закрыт (фазы 1–4): [`2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/README.md`](2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/README.md). Список полезных задач после плана — [`FOLLOW_UP.md`](2026-06-initiatives/PATIENT_HELP_BOOKING_SURFACE_INITIATIVE/FOLLOW_UP.md).
 
+## 2026-06 — блокировка бота TG/MAX (health + рассылки)
+
+Закрыто в репо **2026-06-06**: [`2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/README.md`](2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/README.md) · план [`.cursor/plans/archive/messenger_bot_block_handling.plan.md`](../../.cursor/plans/archive/messenger_bot_block_handling.plan.md).
+
 ## 2026-05 — вынесенные закрытые пункты project backlog
 
 Записи, удалённые из [`../TODO.md`](../TODO.md) как история: [`TODO_BACKLOG_CLOSED_HISTORY.md`](TODO_BACKLOG_CLOSED_HISTORY.md).

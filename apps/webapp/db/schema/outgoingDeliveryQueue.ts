@@ -18,6 +18,7 @@ export const outgoingDeliveryQueue = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true, mode: "string" }),
     deadAt: timestamp("dead_at", { withTimezone: true, mode: "string" }),
     lastError: text("last_error"),
+    failureClass: text("failure_class"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },

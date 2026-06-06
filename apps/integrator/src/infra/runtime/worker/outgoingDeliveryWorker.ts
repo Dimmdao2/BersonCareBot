@@ -6,6 +6,11 @@ import {
   isOutgoingDeliveryDispatchErrorRetryable,
   DOCTOR_BROADCAST_INTENT_QUEUE_KIND,
 } from '../../delivery/deliveryContract.js';
+import {
+  classifyRecipientBlockedBotError,
+  RECIPIENT_BLOCKED_BOT,
+  RECIPIENT_BLOCKED_BOT_FAILURE_CLASS,
+} from '../../delivery/recipientBotBlocked.js';
 import { logger } from '../../observability/logger.js';
 import {
   getOperatorIncidentAlertState,
@@ -24,6 +29,11 @@ import {
   type DoctorBroadcastMenuWorkerDeps,
 } from './doctorBroadcastIntentMenu.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../../db/repos/notificationDeliveryAttempts.js';
+import {
+  clearUserChannelBotBlocked,
+  markUserChannelBotBlocked,
+  resolvePlatformUserIdForBotBlockedMarker,
+} from '../../db/repos/userChannelBotBlocked.js';
 import { runIntegratorSql } from '../../db/runIntegratorSql.js';
 
 export type OutgoingDeliveryWorkerDeps = {
@@ -113,6 +123,49 @@ async function incrementBroadcastAuditErrorIfDoctorBroadcast(
   await runIntegratorSql(db, sql`UPDATE public.broadcast_audit SET error_count = error_count + 1 WHERE id = ${auditId}::uuid`);
 }
 
+async function incrementBroadcastAuditBlockedIfDoctorBroadcast(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+): Promise<void> {
+  if (row.kind !== DOCTOR_BROADCAST_INTENT_QUEUE_KIND) return;
+  const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
+  if (!auditId) return;
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.broadcast_audit SET blocked_recipient_count = blocked_recipient_count + 1 WHERE id = ${auditId}::uuid`,
+  );
+}
+
+function resolveExternalIdForBotBlockedMarker(
+  row: OutgoingDeliveryQueueRow,
+  intent: OutgoingIntent,
+): string | null {
+  const p = row.payloadJson;
+  const fromPayload = typeof p.externalId === 'string' ? p.externalId.trim() : '';
+  if (fromPayload.length > 0) return fromPayload;
+  const sendPayload = intent.payload as { recipient?: { chatId?: unknown } };
+  const chatId = sendPayload.recipient?.chatId;
+  if (typeof chatId === 'number' && Number.isFinite(chatId)) return String(Math.trunc(chatId));
+  if (typeof chatId === 'string' && chatId.trim().length > 0) return chatId.trim();
+  return null;
+}
+
+async function maybeClearMessengerBotBlockedMarker(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+  intent: OutgoingIntent,
+): Promise<void> {
+  if (row.channel !== 'telegram' && row.channel !== 'max') return;
+  await clearUserChannelBotBlocked(db, {
+    platformUserId: resolvePlatformUserIdForBotBlockedMarker({
+      metaUserId: intent.meta.userId,
+      payloadJson: row.payloadJson,
+    }),
+    channel: row.channel,
+    externalId: resolveExternalIdForBotBlockedMarker(row, intent),
+  });
+}
+
 async function readOperatorAlertAlreadySent(incidentId: string): Promise<boolean> {
   const row = await getOperatorIncidentAlertState(incidentId);
   return Boolean(row?.alertSentAt);
@@ -199,7 +252,7 @@ async function recordMessengerQueueDeliveryAttempt(
   row: OutgoingDeliveryQueueRow,
   intent: OutgoingIntent,
   params: {
-    status: 'success' | 'failed';
+    status: 'success' | 'failed' | 'skipped';
     reason?: string;
     errorMessage?: string;
     providerStatusCode?: number;
@@ -226,6 +279,91 @@ async function recordMessengerQueueDeliveryAttempt(
   });
 }
 
+async function finalizeRecipientBlockedBotDelivery(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+  intent: OutgoingIntent,
+  safeError: string,
+  writePort: DbWritePort,
+): Promise<void> {
+  await markUserChannelBotBlocked(db, {
+    platformUserId: resolvePlatformUserIdForBotBlockedMarker({
+      metaUserId: intent.meta.userId,
+      payloadJson: row.payloadJson,
+    }),
+    channel: row.channel,
+    externalId: resolveExternalIdForBotBlockedMarker(row, intent),
+  });
+  await recordMessengerQueueDeliveryAttempt(db, row, intent, {
+    status: 'skipped',
+    reason: 'recipient_blocked_bot',
+    errorMessage: safeError,
+  });
+  await markOutgoingDeliveryDead(db, row.id, safeError, RECIPIENT_BLOCKED_BOT_FAILURE_CLASS);
+  await incrementBroadcastAuditBlockedIfDoctorBroadcast(db, row);
+
+  if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
+    const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : '';
+    logger.info(
+      {
+        broadcastAuditId: auditId || undefined,
+        eventId: row.eventId,
+        channel: row.channel,
+        outcome: 'blocked',
+        error: truncateDeliveryErrorMessage(safeError),
+      },
+      'doctor_broadcast_delivery.blocked',
+    );
+  }
+
+  if (row.kind === 'reminder_dispatch') {
+    const p = row.payloadJson;
+    const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : null;
+    const channel = typeof p.channel === 'string' ? p.channel : null;
+    const deliveryLogId = typeof p.deliveryLogId === 'string' ? p.deliveryLogId : null;
+    const externalId = typeof p.externalId === 'string' ? p.externalId : '';
+    const text = typeof p.logText === 'string' ? p.logText : '';
+    if (occurrenceId && channel && deliveryLogId) {
+      const occStatus = await readReminderOccurrenceStatus(db, occurrenceId);
+      if (!occStatus) {
+        logger.warn(
+          { occurrenceId, rowId: row.id, eventId: row.eventId },
+          // eslint-disable-next-line no-secrets/no-secrets -- structured log event name, not a credential
+          'finalize_delivery_blocked_skip_missing_occurrence',
+        );
+        return;
+      }
+      try {
+        await writePort.writeDb({
+          type: 'reminders.delivery.log',
+          params: {
+            id: deliveryLogId,
+            occurrenceId,
+            channel,
+            status: 'failed',
+            errorCode: RECIPIENT_BLOCKED_BOT,
+            payloadJson: { chatId: externalId, text },
+          },
+        });
+        await writePort.writeDb({
+          type: 'reminders.occurrence.markSkippedLocal',
+          params: { occurrenceId },
+        });
+      } catch (err) {
+        if (isMissingReminderOccurrenceFk(err)) {
+          logger.warn(
+            { occurrenceId, rowId: row.id, eventId: row.eventId },
+            // eslint-disable-next-line no-secrets/no-secrets -- structured log event name, not a credential
+            'finalize_delivery_blocked_skip_missing_occurrence_fk',
+          );
+          return;
+        }
+        throw err;
+      }
+    }
+  }
+}
+
 async function handleDispatchFailure(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
@@ -233,6 +371,19 @@ async function handleDispatchFailure(
   writePort: DbWritePort,
   intent?: OutgoingIntent,
 ): Promise<void> {
+  if (intent && (row.channel === 'telegram' || row.channel === 'max')) {
+    const blocked = classifyRecipientBlockedBotError(err, row.channel);
+    if (blocked) {
+      await finalizeRecipientBlockedBotDelivery(
+        db,
+        row,
+        intent,
+        truncateDeliveryErrorMessage(blocked.message),
+        writePort,
+      );
+      return;
+    }
+  }
   const msg = err instanceof Error ? err.message : String(err);
   const safe = truncateDeliveryErrorMessage(msg);
   const attempts = row.attemptCount;
@@ -277,6 +428,7 @@ export async function processOutgoingDeliveryRow(
     try {
       await dispatchOutgoing(intent);
       await markOperatorIncidentAlertSent(incidentId);
+      await maybeClearMessengerBotBlockedMarker(db, row, intent);
       await markOutgoingDeliverySent(db, row.id);
     } catch (err) {
       await handleDispatchFailure(db, row, err, writePort, intent);
@@ -389,6 +541,7 @@ export async function processOutgoingDeliveryRow(
         params: { occurrenceId, channel },
       });
       await recordMessengerQueueDeliveryAttempt(db, row, intent, { status: 'success' });
+      await maybeClearMessengerBotBlockedMarker(db, row, intent);
       await markOutgoingDeliverySent(db, row.id);
     } catch (err) {
       await handleDispatchFailure(db, row, err, writePort, intent);
@@ -417,6 +570,7 @@ export async function processOutgoingDeliveryRow(
           : intent;
       await dispatchOutgoing(toSend);
       await recordMessengerQueueDeliveryAttempt(db, row, toSend, { status: 'success' });
+      await maybeClearMessengerBotBlockedMarker(db, row, toSend);
       await markOutgoingDeliverySent(db, row.id);
       await runIntegratorSql(db, sql`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = ${broadcastAuditId}::uuid`);
       logger.info(

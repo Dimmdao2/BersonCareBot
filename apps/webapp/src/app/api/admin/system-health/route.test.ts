@@ -25,6 +25,7 @@ const zeroTranscodeMetrics = {
 const zeroOutgoingSnapshot = {
   dueBacklog: 0,
   deadTotal: 0,
+  blockedRecipientTotal: 0,
   oldestDueAgeSeconds: null as number | null,
   dueByChannel: {} as Record<string, number>,
   dueByKind: {} as Record<string, number>,

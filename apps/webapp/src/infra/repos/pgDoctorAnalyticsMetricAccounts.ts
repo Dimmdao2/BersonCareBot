@@ -11,6 +11,11 @@ import type {
 import type { DoctorAppointmentsReadSource } from "@/infra/repos/doctorAppointmentsReadSwitch";
 import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
 import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
+import {
+  sqlActiveMaxBinding,
+  sqlActiveMessengerBinding,
+  sqlActiveTelegramBinding,
+} from "@/modules/doctor-clients/activeMessengerBindingSql";
 
 const CANCELLED_BE_STATUSES = [
   "cancelled_by_patient",
@@ -421,10 +426,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.phone_normalized IS NOT NULL
                AND btrim(pu.phone_normalized) <> ''
                AND pu.email_verified_at IS NULL
-               AND NOT EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code IN ('telegram', 'max')
-               )
+               AND NOT ${sqlActiveMessengerBinding("pu.id")}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -451,10 +453,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND COALESCE(pu.is_archived, false) = false
                AND (pu.phone_normalized IS NULL OR btrim(pu.phone_normalized) = '')
                AND pu.email_verified_at IS NULL
-               AND NOT EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code IN ('telegram', 'max')
-               )
+               AND NOT ${sqlActiveMessengerBinding("pu.id")}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -479,14 +478,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code = 'telegram'
-               )
-               AND NOT EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code = 'max'
-               )
+               AND ${sqlActiveTelegramBinding("pu.id")}
+               AND NOT ${sqlActiveMaxBinding("pu.id")}
                AND pu.email_verified_at IS NULL
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
@@ -512,14 +505,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code = 'max'
-               )
-               AND NOT EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code = 'telegram'
-               )
+               AND ${sqlActiveMaxBinding("pu.id")}
+               AND NOT ${sqlActiveTelegramBinding("pu.id")}
                AND pu.email_verified_at IS NULL
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
@@ -547,10 +534,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND COALESCE(pu.is_archived, false) = false
                AND pu.email_verified_at IS NOT NULL
                AND (pu.phone_normalized IS NULL OR btrim(pu.phone_normalized) = '')
-               AND NOT EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code IN ('telegram', 'max')
-               )
+               AND NOT ${sqlActiveMessengerBinding("pu.id")}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -576,14 +560,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND pu.email_verified_at IS NOT NULL
-               AND EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code = 'telegram'
-               )
-               AND NOT EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code = 'max'
-               )
+               AND ${sqlActiveTelegramBinding("pu.id")}
+               AND NOT ${sqlActiveMaxBinding("pu.id")}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -609,14 +587,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND pu.email_verified_at IS NOT NULL
-               AND EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code = 'max'
-               )
-               AND NOT EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code = 'telegram'
-               )
+               AND ${sqlActiveMaxBinding("pu.id")}
+               AND NOT ${sqlActiveTelegramBinding("pu.id")}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -644,10 +616,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.email_verified_at IS NOT NULL
                AND pu.phone_normalized IS NOT NULL
                AND btrim(pu.phone_normalized) <> ''
-               AND NOT EXISTS (
-                 SELECT 1 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id AND ucb.channel_code IN ('telegram', 'max')
-               )
+               AND NOT ${sqlActiveMessengerBinding("pu.id")}
              ${clientEx.andSql}
              ORDER BY pu.display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -924,13 +893,33 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND pu.created_at >= NOW() - ($1::int * interval '1 day')
-               AND NOT EXISTS (
-                 SELECT 1
-                 FROM user_channel_bindings ucb
-                 WHERE ucb.user_id = pu.id
-                   AND ucb.channel_code IN ('telegram', 'max')
-               )${clientEx.andSql}
+               AND NOT ${sqlActiveMessengerBinding("pu.id")}${clientEx.andSql}
              ORDER BY pu.created_at DESC, pu.id ASC
+             LIMIT $2::int OFFSET $3::int`,
+            clientEx.params,
+          );
+          return r.rows;
+        }
+        if (metricKey === "clients_messenger_bot_blocked_telegram" || metricKey === "clients_messenger_bot_blocked_max") {
+          const channel = metricKey === "clients_messenger_bot_blocked_telegram" ? "telegram" : "max";
+          const clientEx = sqlExcludeUsers(excluded, [channel, safeLimit + 1, safeOffset], "pu.id");
+          const r = await runWebappPgText<ListRow>(
+            `SELECT
+               pu.id::text AS user_id,
+               pu.display_name,
+               pu.phone_normalized,
+               ucb.bot_blocked_at::text AS event_at,
+               'Бот заблокирован'::text AS event_label
+             FROM platform_users pu
+             INNER JOIN user_channel_bindings ucb
+               ON ucb.user_id = pu.id
+              AND ucb.channel_code = $1::text
+              AND ucb.bot_blocked_at IS NOT NULL
+             WHERE pu.role = 'client'
+               AND pu.merged_into_id IS NULL
+               AND COALESCE(pu.is_archived, false) = false
+             ${clientEx.andSql}
+             ORDER BY ucb.bot_blocked_at DESC NULLS LAST, pu.id ASC
              LIMIT $2::int OFFSET $3::int`,
             clientEx.params,
           );
@@ -1009,6 +998,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              FROM (
                SELECT ucb.user_id, MIN(ucb.created_at) AS first_at
                FROM user_channel_bindings ucb
+               WHERE ucb.channel_code IN ('telegram', 'max')
+                 AND ucb.bot_blocked_at IS NULL
                GROUP BY ucb.user_id
              ) s
              INNER JOIN platform_users pu ON pu.id = s.user_id
@@ -1041,6 +1032,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
            FROM (
              SELECT ucb.user_id, MIN(ucb.created_at) AS first_at
              FROM user_channel_bindings ucb
+             WHERE ucb.channel_code IN ('telegram', 'max')
+               AND ucb.bot_blocked_at IS NULL
              GROUP BY ucb.user_id
            ) s
            INNER JOIN platform_users pu ON pu.id = s.user_id

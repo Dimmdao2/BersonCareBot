@@ -4,6 +4,8 @@ export type ChannelBindings = {
   telegramId?: string;
   vkId?: string;
   maxId?: string;
+  telegramBotBlocked?: boolean;
+  maxBotBlocked?: boolean;
 };
 
 export type SessionUser = {

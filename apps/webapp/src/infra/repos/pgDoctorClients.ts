@@ -24,13 +24,31 @@ import {
   upsertClientSupportProfile,
 } from "@/infra/repos/pgDoctorPatientSupport";
 import { appendSqlExcludeUserIds } from "@/modules/analytics/analyticsAudience";
+import {
+  sqlActiveMaxBinding,
+  sqlActiveMessengerBinding,
+  sqlActiveTelegramBinding,
+  sqlMessengerBotBlocked,
+} from "@/modules/doctor-clients/activeMessengerBindingSql";
 
-function rowToBindings(rows: { channel_code: string; external_id: string }[]): ChannelBindings {
+function rowToBindings(
+  rows: { channel_code: string; external_id: string; bot_blocked_at?: string | null }[],
+): ChannelBindings {
   const bindings: ChannelBindings = {};
   for (const row of rows) {
-    const key =
-      row.channel_code === "telegram" ? "telegramId" : row.channel_code === "max" ? "maxId" : "vkId";
-    (bindings as Record<string, string>)[key] = row.external_id;
+    if (row.channel_code === "telegram") {
+      bindings.telegramId = row.external_id;
+      if (row.bot_blocked_at) bindings.telegramBotBlocked = true;
+      continue;
+    }
+    if (row.channel_code === "max") {
+      bindings.maxId = row.external_id;
+      if (row.bot_blocked_at) bindings.maxBotBlocked = true;
+      continue;
+    }
+    if (row.channel_code === "vk") {
+      bindings.vkId = row.external_id;
+    }
   }
   return bindings;
 }
@@ -98,7 +116,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
       const userIds = clientRows.rows.map((r) => r.id);
       const bindingsRows = await runWebappPgText(
-        `SELECT user_id, channel_code, external_id FROM user_channel_bindings WHERE user_id = ANY($1::uuid[])`,
+        `SELECT user_id, channel_code, external_id, bot_blocked_at FROM user_channel_bindings WHERE user_id = ANY($1::uuid[])`,
         [userIds]
       );
       const bindingsByUser = new Map<string | number, { channel_code: string; external_id: string }[]>();
@@ -388,12 +406,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            AND pu.merged_into_id IS NULL
            AND COALESCE(pu.is_archived, false) = false
            AND pu.created_at >= NOW() - ($1::int * interval '1 day')
-           AND NOT EXISTS (
-             SELECT 1
-             FROM user_channel_bindings ucb
-             WHERE ucb.user_id = pu.id
-               AND ucb.channel_code IN ('telegram', 'max')
-           )`;
+           AND NOT ${sqlActiveMessengerBinding("pu.id")}`;
       const q = appendSqlExcludeUserIds(base, "pu.id", excluded, [safeDays]);
       const r = await runWebappPgText<{ c: string }>(q.sql, q.params);
       return parseInt(r.rows[0]?.c ?? "0", 10);
@@ -531,14 +544,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async getClientContactBreakdown(audience?: { excludedUserIds?: string[] }) {
       const excluded = audience?.excludedUserIds ?? [];
       const base = `SELECT
-           EXISTS (
-             SELECT 1 FROM user_channel_bindings ucb
-             WHERE ucb.user_id = pu.id AND ucb.channel_code = 'telegram'
-           ) AS has_telegram,
-           EXISTS (
-             SELECT 1 FROM user_channel_bindings ucb
-             WHERE ucb.user_id = pu.id AND ucb.channel_code = 'max'
-           ) AS has_max,
+           ${sqlActiveTelegramBinding("pu.id")} AS has_telegram,
+           ${sqlActiveMaxBinding("pu.id")} AS has_max,
+           ${sqlMessengerBotBlocked("pu.id", "telegram")} AS telegram_bot_blocked,
+           ${sqlMessengerBotBlocked("pu.id", "max")} AS max_bot_blocked,
            (pu.email_verified_at IS NOT NULL) AS has_verified_email,
            (pu.phone_normalized IS NOT NULL AND btrim(pu.phone_normalized) <> '') AS has_phone
          FROM platform_users pu
@@ -549,6 +558,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const rows = await runWebappPgText<{
         has_telegram: boolean;
         has_max: boolean;
+        telegram_bot_blocked: boolean;
+        max_bot_blocked: boolean;
         has_verified_email: boolean;
         has_phone: boolean;
       }>(q.sql, q.params);
@@ -560,6 +571,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           hasVerifiedEmail: row.has_verified_email,
           hasPhone: row.has_phone,
         });
+        if (row.telegram_bot_blocked) breakdown.messengerBotBlocked.telegram += 1;
+        if (row.max_bot_blocked) breakdown.messengerBotBlocked.max += 1;
       }
       return breakdown;
     },

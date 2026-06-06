@@ -1,7 +1,9 @@
 import { logger } from '../../infra/observability/logger.js';
+import { classifyMaxRecipientBlockedError } from '../../infra/delivery/recipientBotBlocked.js';
 import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
 import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import * as maxClient from './client.js';
+import { MaxSendError } from './client.js';
 import { getMaxApiKey } from './runtimeConfig.js';
 
 /**
@@ -164,20 +166,26 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
           payload.replyMarkup,
           sendContactId !== undefined ? { contactId: sendContactId } : undefined,
         );
-        const result = await maxClient.sendMaxMessage(config, {
-          chatId,
-          text,
-          extra: {
-            ...(payload.parse_mode === 'HTML' ? { format: 'html' as const } : {}),
-            ...(attachments?.length ? { attachments } : {}),
-          },
-        });
-        if (!result) throw new Error('MAX_SEND_FAILED');
-        const mid =
-          typeof result.body?.mid === 'string' && result.body.mid.trim().length > 0
-            ? result.body.mid.trim()
-            : undefined;
-        return mid ? { maxMessageId: mid } : {};
+        try {
+          const result = await maxClient.sendMaxMessage(config, {
+            chatId,
+            text,
+            extra: {
+              ...(payload.parse_mode === 'HTML' ? { format: 'html' as const } : {}),
+              ...(attachments?.length ? { attachments } : {}),
+            },
+          });
+          const mid =
+            typeof result.body?.mid === 'string' && result.body.mid.trim().length > 0
+              ? result.body.mid.trim()
+              : undefined;
+          return mid ? { maxMessageId: mid } : {};
+        } catch (err) {
+          const blocked = classifyMaxRecipientBlockedError(err);
+          if (blocked) throw blocked;
+          if (err instanceof MaxSendError) throw err;
+          throw err;
+        }
       }
 
       if (intent.type === 'message.delete') {

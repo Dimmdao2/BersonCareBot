@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNull, lte, max, min, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lte, max, min, ne, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { integratorPushOutbox } from "../../../db/schema/schema";
 import { operatorIncidents, operatorJobStatus } from "../../../db/schema/operatorHealth";
@@ -11,6 +11,11 @@ import type {
   OperatorJobStatusTickRow,
   OutgoingDeliveryQueueHealthSnapshot,
 } from "@/modules/operator-health/ports";
+
+/** Dead queue rows that count toward operator degradation (excludes blocked-bot finals). */
+export function countAsOperatorOutgoingDeliveryDead(failureClass: string | null): boolean {
+  return failureClass !== "recipient_blocked_bot";
+}
 
 export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
   async listOpenIncidents(limit: number): Promise<OperatorIncidentOpenRow[]> {
@@ -119,9 +124,21 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       inArray(outgoingDeliveryQueue.status, ["pending", "failed_retryable"]),
       lte(outgoingDeliveryQueue.nextRetryAt, sql`now()`),
     );
+    const operatorDeadWh = and(
+      eq(outgoingDeliveryQueue.status, "dead"),
+      or(
+        isNull(outgoingDeliveryQueue.failureClass),
+        ne(outgoingDeliveryQueue.failureClass, "recipient_blocked_bot"),
+      ),
+    );
+    const blockedDeadWh = and(
+      eq(outgoingDeliveryQueue.status, "dead"),
+      eq(outgoingDeliveryQueue.failureClass, "recipient_blocked_bot"),
+    );
     const [
       dueRows,
       deadRows,
+      blockedDeadRows,
       oldestRows,
       channelRows,
       kindDueRows,
@@ -131,7 +148,8 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       sentRows,
     ] = await Promise.all([
       db.select({ c: count() }).from(outgoingDeliveryQueue).where(dueWh),
-      db.select({ c: count() }).from(outgoingDeliveryQueue).where(eq(outgoingDeliveryQueue.status, "dead")),
+      db.select({ c: count() }).from(outgoingDeliveryQueue).where(operatorDeadWh),
+      db.select({ c: count() }).from(outgoingDeliveryQueue).where(blockedDeadWh),
       db
         .select({ createdAt: outgoingDeliveryQueue.createdAt })
         .from(outgoingDeliveryQueue)
@@ -151,7 +169,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       db
         .select({ kind: outgoingDeliveryQueue.kind, n: count() })
         .from(outgoingDeliveryQueue)
-        .where(eq(outgoingDeliveryQueue.status, "dead"))
+        .where(operatorDeadWh)
         .groupBy(outgoingDeliveryQueue.kind),
       db
         .select({ c: count() })
@@ -162,6 +180,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
     ]);
     const dueRow = dueRows[0];
     const deadRow = deadRows[0];
+    const blockedDeadRow = blockedDeadRows[0];
     const oldestAt = oldestRows[0]?.createdAt;
     let oldestDueAgeSeconds: number | null = null;
     if (oldestAt) {
@@ -185,6 +204,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
     return {
       dueBacklog: Number(dueRow?.c ?? 0),
       deadTotal: Number(deadRow?.c ?? 0),
+      blockedRecipientTotal: Number(blockedDeadRow?.c ?? 0),
       oldestDueAgeSeconds,
       dueByChannel,
       dueByKind,

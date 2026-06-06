@@ -48,6 +48,7 @@ describe("pgBroadcastAudit (repo SQL parity)", () => {
       attachMenuAfterSend: false,
       sentCount: 8,
       errorCount: 2,
+      blockedRecipientCount: 0,
     });
     expect(entry.id).toBe("1");
     expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("INSERT INTO broadcast_audit");

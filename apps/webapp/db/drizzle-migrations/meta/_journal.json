@@ -750,6 +750,13 @@
       "when": 1784900000000,
       "tag": "0106_media_playback_resolution_events",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1785000000000,
+      "tag": "0107_messenger_bot_blocked",
+      "breakpoints": true
     }
   ]
 }

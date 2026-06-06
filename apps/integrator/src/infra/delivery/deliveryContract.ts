@@ -1,3 +1,5 @@
+import { isRecipientBlockedBotDispatchError } from "./recipientBotBlocked.js";
+
 /** Статусы строки `public.outgoing_delivery_queue` (см. миграцию webapp). */
 export const OUTGOING_DELIVERY_STATUSES = [
   "pending",
@@ -43,6 +45,7 @@ export function truncateDeliveryErrorMessage(message: string, maxLen = 900): str
  */
 export function isOutgoingDeliveryDispatchErrorRetryable(errorMessage: string): boolean {
   const m = errorMessage.trim();
+  if (isRecipientBlockedBotDispatchError(m)) return false;
   if (m.startsWith("CHANNEL_NOT_SPECIFIED")) return false;
   if (m.startsWith("CHANNEL_NOT_SUPPORTED:")) return false;
   if (m.startsWith("BAD_PAYLOAD")) return false;

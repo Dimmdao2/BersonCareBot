@@ -19,7 +19,8 @@ export type SkippedNotificationChannelReason =
   | "vapid_missing"
   | "unsupported_intent_type"
   | "missing_recipient"
-  | "rate_limited";
+  | "rate_limited"
+  | "recipient_blocked_bot";
 
 export type NotificationChannelDeliveryPath = "integrator_worker" | "webapp_m2m";
 

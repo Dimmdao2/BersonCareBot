@@ -48,6 +48,7 @@ describe("doctor-stats service", () => {
     expect(stats.clients.appGuests).toBe(1);
     expect(stats.clients.contactBreakdown.pie.telegram_only).toBe(1);
     expect(stats.clients.newClients7dWithNoChannels).toBe(2);
+    expect(stats.clients.messengerBotBlocked).toEqual(contactBreakdown.messengerBotBlocked);
   });
 
   it("getDashboardMetrics maps patient and appointment aggregates", async () => {

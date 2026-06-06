@@ -105,6 +105,7 @@ export type BroadcastAuditEntry = {
   attachMenuAfterSend: boolean;
   sentCount: number;
   errorCount: number;
+  blockedRecipientCount: number;
 };
 
 export type BroadcastAuditPort = {

@@ -96,18 +96,71 @@
 |--------|--------|
 | `audience_size` | Число клиентов, которым уйдёт хотя бы одна строка очереди (eligible: dev_mode → prefs/isolate-сегмент). |
 | `delivery_jobs_total` | Число строк очереди для этой рассылки; **0** — запись до внедрения очереди (legacy). |
-| `sent_count` / `error_count` | Инкременты воркера по **завершённым** заданиям очереди (успех / `dead`). |
+| `sent_count` / `error_count` | Инкременты воркера по **завершённым** заданиям очереди (успех / operator-`dead`). **`error_count`** — только реальные ошибки доставки, **не** «бот заблокирован». |
+| `blocked_recipient_count` | Получатель заблокировал бота (TG/MAX); info-счётчик, не деградация health и не `error_count`. |
 | `attach_menu_after_send` | Запрошено ли прикрепление главного меню к исходящим в мессенджер для этой рассылки. |
+
+### Post-deploy: backfill «бот заблокирован» (prod, одноразово)
+
+После деплоя кода с `failure_class` и `bot_blocked_at`:
+
+```bash
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+-- 1) Маркеры на привязках по dead-очереди и attempts
+UPDATE user_channel_bindings ucb
+SET bot_blocked_at = COALESCE(ucb.bot_blocked_at, now()),
+    bot_blocked_reason = COALESCE(ucb.bot_blocked_reason, 'recipient_blocked_bot')
+FROM outgoing_delivery_queue q
+WHERE q.status = 'dead'
+  AND q.channel IN ('telegram', 'max')
+  AND (
+    q.last_error ILIKE '%bot was blocked by the user%'
+    OR q.last_error ILIKE '%RECIPIENT_BLOCKED_BOT%'
+    OR q.last_error ILIKE '%MAX_SEND_FAILED%blocked%'
+  )
+  AND ucb.channel_code = q.channel
+  AND ucb.external_id = COALESCE(q.payload_json->>'externalId', q.payload_json->'intent'->'payload'->'recipient'->>'chatId');
+
+-- 2) Reclassify queue dead rows
+UPDATE outgoing_delivery_queue
+SET failure_class = 'recipient_blocked_bot'
+WHERE status = 'dead'
+  AND failure_class IS NULL
+  AND (
+    last_error ILIKE '%bot was blocked by the user%'
+    OR last_error ILIKE '%RECIPIENT_BLOCKED_BOT%'
+  );
+
+-- 3) Пример data-fix рассылки (подставить id): перенести blocked из error_count
+-- UPDATE broadcast_audit SET error_count = error_count - 8, blocked_recipient_count = blocked_recipient_count + 8 WHERE id = '...'::uuid;
+SQL
+```
+
+Проверка: `deadTotal` operator probe = 0 при только blocked; health-карточки «Очередь доставки» / «Доставка уведомлений» = ok.
 
 ## Наблюдаемость
 
 - **Журнал врача** (`BroadcastAuditLog`): человекочитаемые заголовки колонок, раскрытие строки — начало текста, подсказка при незавершённой доставке.
 - **Админка «Здоровье системы»**: блок очереди доставки; агрегаты **`dueByKind`** / **`deadByKind`** с подписями «Напоминания пациентам», «Рассылки от специалистов», «Служебные оповещения», «Прочее». Для цепочки напоминаний отдельно — блок **«Напоминания»** / поле **`remindersPipeline`** в `GET /api/admin/system-health` (в т.ч. **`patientReminderM2mIdempotencyKeysActive`**, **`deliveryEvents`**) и детали на вкладке **«Статистика»** (`GET /api/admin/reminder-stats`); врач без admin mode — **`GET /api/doctor/content-stats`** (тот же JSON, **`loadContentEngagementStats`**).
-- **Логи integrator** (`doctor_broadcast_delivery.sent` / `.dead`; при планируемом ретрае — **debug** `doctor_broadcast_delivery.dispatch_will_retry` с усечённым `error`, без сырого объекта исключения): `broadcastAuditId`, `eventId`, `channel`, исход, **маскированный** получатель (без полного текста рассылки).
+- **Логи integrator** (`doctor_broadcast_delivery.sent` / `.dead` / **`.blocked`**; при планируемом ретрае — **debug** `doctor_broadcast_delivery.dispatch_will_retry` с усечённым `error`, без сырого объекта исключения): `broadcastAuditId`, `eventId`, `channel`, исход, **маскированный** получатель (без полного текста рассылки).
+- **Журнал рассылок:** колонка **«Бот заблокирован»** (`blocked_recipient_count`); «Не удалось доставить» — только `error_count`.
+- **Здоровье системы:** info **`blockedRecipientTotal`** (не operator-dead); см. [`OUTGOING_DELIVERY_QUEUE.md`](OUTGOING_DELIVERY_QUEUE.md).
+
+### Active vs binding (метрики и рассылки)
+
+| Контекст | Семантика канала TG/MAX |
+|----------|-------------------------|
+| Рассылки / `listClients({ hasTelegram, hasMax })` | **Binding exists** — blocked клиент **остаётся** в audience |
+| Analytics pie, KPI, tri-state фильтр каталога | **Active binding** — `bot_blocked_at IS NULL` |
+| Маркер blocked | `user_channel_bindings.bot_blocked_at`; снимается при успешной доставке worker |
+
+Shared SQL: `apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts`.
 
 ## Связанные документы
 
 - Inbox PWA-чат (рассылки, unread, deep links): [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
 - Кабинет специалиста (продуктовый смысл раздела «Рассылки»): [`SPECIALIST_CABINET_STRUCTURE.md`](SPECIALIST_CABINET_STRUCTURE.md) §9.
 - Guard relay: [`apps/webapp/INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) (Flow 6, dev_mode).
+- Блокировка бота TG/MAX (health, маркер, post-deploy): [`archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md`](../archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md), [`OUTGOING_DELIVERY_QUEUE.md`](OUTGOING_DELIVERY_QUEUE.md).
 - Режимы и тестовые аккаунты: [`APP_RESTRUCTURE_INITIATIVE/done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](../APP_RESTRUCTURE_INITIATIVE/done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md).

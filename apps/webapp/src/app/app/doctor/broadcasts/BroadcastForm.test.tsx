@@ -157,6 +157,7 @@ describe("BroadcastForm", () => {
         deliveryJobsTotal: 0,
         sentCount: 0,
         errorCount: 0,
+        blockedRecipientCount: 0,
         attachMenuAfterSend: false,
       },
     });

@@ -129,6 +129,32 @@ describe("classifyNotificationDeliverySystemHealthStatus", () => {
     ).toBe("ok");
   });
 
+  it("returns ok on recipient_blocked_bot skip (user blocked bot)", () => {
+    const byChannel = emptyByChannel();
+    byChannel.telegram.skippedCount = 2;
+    byChannel.telegram.successCount = 5;
+    expect(
+      classifyNotificationDeliverySystemHealthStatus({
+        totalAttempts24h: 7,
+        byChannel,
+        recentIssues: [
+          {
+            createdAt: new Date().toISOString(),
+            channel: "telegram",
+            status: "skipped",
+            reason: "recipient_blocked_bot",
+            topicCode: null,
+            recipientRef: "telegram:…1234",
+            userId: "u1",
+            errorMessage: "RECIPIENT_BLOCKED_BOT:telegram",
+          },
+        ],
+        vapidConfigured: true,
+        smtpConfigured: true,
+      }),
+    ).toBe("ok");
+  });
+
   it("filterOperatorRelevantDeliveryIssues drops routine skips", () => {
     const issues = [
       {

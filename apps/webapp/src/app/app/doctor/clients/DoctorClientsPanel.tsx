@@ -293,8 +293,16 @@ function filterClientList(
   );
   list = applyTriFilter(list, iconFilters.memberships, (c) => hasMemberships(c));
   list = applyTriFilter(list, iconFilters.support, (c) => c.isOnSupport === true);
-  list = applyTriFilter(list, iconFilters.telegram, (c) => Boolean(c.bindings.telegramId?.trim()));
-  list = applyTriFilter(list, iconFilters.max, (c) => Boolean(c.bindings.maxId?.trim()));
+  list = applyTriFilter(
+    list,
+    iconFilters.telegram,
+    (c) => Boolean(c.bindings.telegramId?.trim()) && !c.bindings.telegramBotBlocked,
+  );
+  list = applyTriFilter(
+    list,
+    iconFilters.max,
+    (c) => Boolean(c.bindings.maxId?.trim()) && !c.bindings.maxBotBlocked,
+  );
   list = applyTriFilter(list, iconFilters.email, (c) => c.hasEmail === true);
   list = applyTriFilter(list, iconFilters.phone, (c) => Boolean(c.phone?.trim()));
   list = applyTriFilter(list, iconFilters.app, (c) => c.hasApp === true);

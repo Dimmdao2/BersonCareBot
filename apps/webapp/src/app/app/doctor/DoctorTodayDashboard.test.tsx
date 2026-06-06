@@ -5,6 +5,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
 import type { TodayDashboardData } from "./loadDoctorTodayDashboard";
+import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 
 vi.mock("next/link", () => ({
   default: ({
@@ -46,7 +47,7 @@ function emptyData(): TodayDashboardData {
   };
 }
 
-const emptyKpi = {
+const emptyKpi: DoctorStatsState = {
   appointments: {
     pastVisitsInPeriod: 0,
     cancelledVisitsInPeriod: 0,
@@ -72,7 +73,9 @@ const emptyKpi = {
         max_email: 0,
         phone_email_no_messenger: 0,
       },
+      messengerBotBlocked: { telegram: 0, max: 0 },
     },
+    messengerBotBlocked: { telegram: 0, max: 0 },
     newClients7dWithNoChannels: 0,
   },
 };

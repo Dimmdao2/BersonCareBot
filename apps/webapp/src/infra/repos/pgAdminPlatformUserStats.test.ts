@@ -37,6 +37,8 @@ describe("pgAdminPlatformUserStats", () => {
     expect(sql).toContain("timezone($1::text, s.first_at)");
     expect(sql).toContain("HAVING MIN(ucb.created_at) >= $3::timestamptz");
     expect(sql).toContain("AND MIN(ucb.created_at) < $4::timestamptz");
+    expect(sql).toContain("bot_blocked_at IS NULL");
+    expect(sql).toContain("channel_code IN ('telegram', 'max')");
     expect(params[0]).toBe("Europe/Moscow");
     expect(params[1]).toEqual(EXCLUDED);
     expect(params[2]).toBe("2026-05-31T21:00:00.000Z");
