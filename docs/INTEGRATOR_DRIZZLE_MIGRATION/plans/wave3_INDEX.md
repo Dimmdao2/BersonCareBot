@@ -38,7 +38,7 @@
 | 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake/purge/identity (декомпозиция 12A-12E) | 1 (**done** 2026-06-06) |
 | 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking/doctor (декомпозиция 13A-13E) | 1 (**done** 2026-06-06) |
 | 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 (**done** 2026-06-06) |
-| 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | long tail (декомпозиция 15A-15F) | 1 (**15A–15B done** 2026-06-06; 15C–15F pending) |
+| 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | long tail (декомпозиция 15A-15F) | 1 (**15A–15C done** 2026-06-06; 15D–15F pending) |
 | 16 | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | M | webapp legacy migration dependency cutover (`migrate:legacy`) | 1 |
 | 17 | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | S | docs sync, staging smoke gate, full CI, archive | 1 |
 
@@ -71,7 +71,7 @@
 - **14E:** phase verify (**done** 2026-06-06) — **фаза 14 closed** (gate 10 files; Zod query modules; **118 passed** / 11 skipped)
 - **15A:** references/settings/diary (**done** 2026-06-06; `runWebappPgText` + `runWebappTransaction`; gate 3 repo = 0; **33 passed** fast bundle)
 - **15B:** auth/email ports tail (**done** 2026-06-06; 7 repos → `runWebappPgText`; merge bridge + `runWebappTransaction`; gate = 0; **52 passed** fast bundle)
-- **15C:** treatment and minor tails
+- **15C:** treatment and minor tails (**done** 2026-06-06; 5 repos → `runWebappPgText`; `pgPhoneHistory` TX bridge; gate = 0; **26 passed** fast bundle)
 - **15D:** integrator push outbox
 - **15E:** messenger bind + routes tail
 - **15F:** phase verify

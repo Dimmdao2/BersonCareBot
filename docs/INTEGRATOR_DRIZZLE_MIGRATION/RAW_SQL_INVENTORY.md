@@ -153,6 +153,23 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15B.
 
 ---
 
+## Wave 3 phase 15C — treatment / minor infra tail (2026-06-06)
+
+Подфаза **15C** закрыта: 5 scope-repo — runtime `pool.query`/`client.query` = **0**; domain SQL → `runWebappPgText`; `pgPhoneHistory` — `getWebappSqlFromPgClient` на caller `PoolClient`.
+
+| Gate (15C) | Итог |
+|------------|------|
+| Scope files | `pgTreatmentProgram.ts`, `pgTreatmentProgramItemSnapshot.ts`, `pgMaterialRating.ts`, `pgUserPins.ts`, `pgPhoneHistory.ts` |
+| `pool.query` / `client.query` | **0** в scope (было 3 + 1 + 3 + 4 + 2 = **13**) |
+| TX delegate | `applyPlatformUserPhoneHistoryTransition` — `runWebappPgText(..., getWebappSqlFromPgClient(client))`; callers (`pgUserProjection`, `createDoctorClient`, `pgUserByPhone`, `pgPhoneMessengerBind`) без изменений |
+| Tests | Vitest 15C bundle — **26 passed** (fast); devDb — opt-in; staging — **phase 17** |
+| RAW_SQL table rows | **5/5** scope-repo (`pgUserPins`, `pgMaterialRating`, `pgTreatmentProgram`, `pgTreatmentProgramItemSnapshot`, `pgPhoneHistory`) |
+| Webapp prod tail (post-15C) | **30** файлов с `pool.query`/`client.query` |
+
+Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15C.
+
+---
+
 ## Раздел E (справочно): SQL через Drizzle `execute` / `runIntegratorSql`
 
 Здесь **нет** прямого `pool.query`, но остаётся **сырой SQL-текст** в шаблонах `sql`…`` — для миграции на «чистый» query builder это отдельный слой.
@@ -327,9 +344,12 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15B.
 | `src/infra/repos/pgUserPasswordCredentials.ts`       | Password credentials: register pending, verify login, upsert/update hash.                                                                              | С      | **Wave 3 P15B done:** `runWebappPgText` + `runWebappTransaction` (`registerPendingVerification`) | Email/password auth                    |
 | `src/infra/repos/pgOAuthBindings.ts`                 | OAuth provider bindings lookup.                                                                                                                       | Н      | **Wave 3 P15B done:** `runWebappPgText`                   | OAuth identity                                      |
 | `src/infra/repos/pgEmailSetupTokens.ts`              | Email setup tokens: issue/revoke/consume/lookup by hash.                                                                                              | С      | **Wave 3 P15B done:** `runWebappPgText`                   | Email setup tokens                                  |
-| `src/infra/repos/pgUserPins.ts`                      | Закрепления пользователя.                                                                                                                             | Н      | `Drizzle`                                                 | Низкие                                             |
+| `src/infra/repos/pgUserPins.ts`                      | Закрепления пользователя (PIN hash, lockout).                                                                                                         | Н      | **Wave 3 P15C done:** `runWebappPgText`                   | Низкие                                             |
 | `src/infra/repos/pgLoginTokens.ts`                   | Токены логина.                                                                                                                                        | С      | **Wave 3 P15B done:** `runWebappPgText`                   | Сессии                                             |
-| `src/infra/repos/pgMaterialRating.ts`                | Оценки материалов: агрегаты через Drizzle; **doctor detail** — сырой `pool.query`: дневные `COUNT` первых resolve playback по видео-media, группировки `material_ratings` по локальному дню (`timezone`), список оценивших с `LEFT JOIN platform_users`. | С      | `Drizzle` + `+sql` / `execute(sql)` для TZ-агрегатов | Детализация оценок врача, метрики просмотров |
+| `src/infra/repos/pgMaterialRating.ts`                | Оценки материалов: агрегаты через Drizzle; **doctor detail** — TZ-агрегаты playback resolve + `material_ratings` + raters list.                      | С      | **Wave 3 P15C done:** `runWebappPgText` (doctor detail); upsert/list — Drizzle | Детализация оценок врача, метрики просмотров |
+| `src/infra/repos/pgTreatmentProgram.ts`              | Шаблоны программ: Drizzle CRUD; list preview CTE + `media_files` enrichment + usage summary JSON aggregates.                                          | С      | **Wave 3 P15C done:** `runWebappPgText` (3 call sites); rest Drizzle          | Каталог программ, usage summary                    |
+| `src/infra/repos/pgTreatmentProgramItemSnapshot.ts`  | Снимки элементов программы: Drizzle load + `media_files` worker preview lookup для каталожного медиа.                                                  | С      | **Wave 3 P15C done:** `runWebappPgText` (`catalogMediaRowsWithWorkerPreviews`) | Пациентский UI снимков                            |
+| `src/infra/repos/pgPhoneHistory.ts`                  | История телефонов platform user: close/open интервалы в legacy TX (`PoolClient`).                                                                     | Н      | **Wave 3 P15C done:** `runWebappPgText` + `getWebappSqlFromPgClient`; callers без изменений | Аудит смены телефона                  |
 | `src/infra/repos/pgSubscriptionMailingProjection.ts` | Проекция подписок/рассылок.                                                                                                                           | С      | **Wave 3 P14D done:** `runWebappPgText`                                      | Рассылки                                           |
 | `src/infra/repos/pgOnlineIntake.ts`                  | Online intake: shared advisory lock по user id + операции заявки.                                                                                     | С      | **Wave 2 P3 + Wave 3 P12A:** lock + `runWebappPgText`; Class C TX (`BEGIN`/`COMMIT`/`ROLLBACK`) | Двойная заявка                                     |
 | `src/infra/repos/pgDiaryPurge.ts`                    | Purge данных дневника (advisory + delete).                                                                                                            | С      | **Wave 2 P3 + Wave 3 P11:** lifecycle lock + `runWebappPgText` на `PoolClient` | Удаление не тех данных                             |

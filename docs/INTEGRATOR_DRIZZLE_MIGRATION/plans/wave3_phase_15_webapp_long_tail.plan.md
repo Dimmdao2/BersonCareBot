@@ -12,7 +12,7 @@ todos:
     status: completed
   - id: w3-p15c-treatment-tail
     content: "15C: pgTreatmentProgram (3), pgTreatmentProgramItemSnapshot (1), pgMaterialRating, pgUserPins, pgPhoneHistory."
-    status: pending
+    status: completed
   - id: w3-p15d-integrator-push
     content: "15D: integratorPushOutbox.ts — db.query на Pool -> Drizzle public.integrator_push_outbox."
     status: pending
@@ -50,12 +50,13 @@ todos:
   - parity по token/credential lookups.
 - **Итог:** `pool.query`/`client.query` = **0** в 7 repo; TX → `runWebappTransaction`; email merge → `mergePlatformUsersInTransaction` через `PlatformMergeDbClient` bridge; conflict audit — `upsertOpenConflictLog(getPool())` (Class C в `adminAuditLog`). Vitest 15B bundle — repo parity (auth-state kinds, token/credential lookups, TX paths) + auth/email route/service tests — **green** (fast).
 
-### 15C — treatment and minor infra tails
+### 15C — treatment and minor infra tails (**done** 2026-06-06)
 
 - Файлы: `pgTreatmentProgram.ts`, `pgTreatmentProgramItemSnapshot.ts`, `pgMaterialRating.ts`, `pgUserPins.ts`, `pgPhoneHistory.ts`.
 - Цель: закрыть остатки малого объёма запросов.
 - Проверка:
   - targeted tests treatment/material rating/pins.
+- **Итог:** `pool.query`/`client.query` = **0** в 5 scope-repo; domain SQL → `runWebappPgText`; `pgPhoneHistory` — TX-scoped executor через `getWebappSqlFromPgClient`. Vitest 15C bundle — **26 passed** (fast).
 
 ### 15D — integrator push outbox
 
@@ -104,11 +105,11 @@ todos:
 | `pgLoginTokens.ts` | 5 → **0** (P15B) |
 | `pgPhoneChallengeStore.ts` | 5 → **0** (P15B) |
 | `pgEmailSetupTokens.ts` | 5 → **0** (P15B) |
-| `pgMaterialRating.ts` | 3 |
-| `pgTreatmentProgram.ts` | 3 |
-| `pgUserPins.ts` | 4 |
-| `pgPhoneHistory.ts` | 2 |
-| `pgTreatmentProgramItemSnapshot.ts` | 1 |
+| `pgMaterialRating.ts` | 3 → **0** (P15C) |
+| `pgTreatmentProgram.ts` | 3 → **0** (P15C) |
+| `pgUserPins.ts` | 4 → **0** (P15C) |
+| `pgPhoneHistory.ts` | 2 → **0** (P15C) |
+| `pgTreatmentProgramItemSnapshot.ts` | 1 → **0** (P15C) |
 | `integratorPushOutbox.ts` | db.query (все методы) |
 | `messengerPhoneHttpBindExecute.ts` | 5 |
 | `s3MediaStorage.ts` | 7 (TX only — Class C) |
@@ -159,6 +160,20 @@ rg '\.query\(' apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts
 
 **Документация (sync 15B):** [../LOG.md](../LOG.md) §Wave 3 phase 15B; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15B.
 
+## Закрытие 15C (2026-06-06)
+
+| Подфаза | Итог |
+|---------|------|
+| **15C** | 5 treatment/minor repos → `runWebappPgText`; `pgPhoneHistory` — `getWebappSqlFromPgClient` на caller `PoolClient` |
+
+**Gate 15C:** `rg pool.query|client.query` по 5 repo-файлам → **0**.
+
+**Tests:** `pgTreatmentTail15C.repo.test.ts` (runtime + parity: pins, phone history TX, material rating, item snapshot) + `pgTreatmentProgram.test.ts` (usage summary + list preview) + `inMemoryMaterialRating.detail.test.ts` — **26 passed** (fast).
+
+**Остаток webapp (post-15C):** **30** prod-файлов с `pool.query`/`client.query`.
+
+**Документация (sync 15C):** [../LOG.md](../LOG.md) §Wave 3 phase 15C; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15C.
+
 ## Следующая подфаза
 
-**15C** — treatment and minor tails (`pgTreatmentProgram`, `pgTreatmentProgramItemSnapshot`, `pgMaterialRating`, `pgUserPins`, `pgPhoneHistory`).
+**15D** — integrator push outbox (`integratorPushOutbox.ts` → Drizzle `public.integrator_push_outbox`).

@@ -1,31 +1,39 @@
-import { getPool } from "@/infra/db/client";
+/** Wave 3 phase 15C — domain SQL via `runWebappPgText`. */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { UserPinRecord, UserPinsPort } from "@/modules/auth/userPinsPort";
+
+function toDateField(v: Date | string): Date {
+  return typeof v === "string" ? new Date(v) : v;
+}
+
+function nullableDateField(v: Date | string | null): Date | null {
+  if (v == null) return null;
+  return toDateField(v);
+}
 
 export const pgUserPinsPort: UserPinsPort = {
   async getByUserId(userId: string): Promise<UserPinRecord | null> {
-    const pool = getPool();
-    const res = await pool.query<{
+    const res = await runWebappPgText<{
       user_id: string;
       pin_hash: string;
       attempts_failed: number;
-      locked_until: Date | null;
+      locked_until: Date | string | null;
     }>(
       `SELECT user_id, pin_hash, attempts_failed, locked_until FROM user_pins WHERE user_id = $1`,
-      [userId]
+      [userId],
     );
     if (res.rows.length === 0) return null;
-    const r = res.rows[0];
+    const r = res.rows[0]!;
     return {
       userId: r.user_id,
       pinHash: r.pin_hash,
       attemptsFailed: r.attempts_failed,
-      lockedUntil: r.locked_until,
+      lockedUntil: nullableDateField(r.locked_until),
     };
   },
 
   async upsertPinHash(userId: string, pinHash: string): Promise<void> {
-    const pool = getPool();
-    await pool.query(
+    await runWebappPgText(
       `INSERT INTO user_pins (user_id, pin_hash, attempts_failed, locked_until, updated_at)
        VALUES ($1, $2, 0, NULL, now())
        ON CONFLICT (user_id) DO UPDATE SET
@@ -33,19 +41,18 @@ export const pgUserPinsPort: UserPinsPort = {
          attempts_failed = 0,
          locked_until = NULL,
          updated_at = now()`,
-      [userId, pinHash]
+      [userId, pinHash],
     );
   },
 
   async incrementFailed(
     userId: string,
     maxAttempts: number,
-    lockMinutes: number
+    lockMinutes: number,
   ): Promise<{ attemptsFailed: number; lockedUntil: Date | null }> {
-    const pool = getPool();
-    const res = await pool.query<{
+    const res = await runWebappPgText<{
       attempts_failed: number;
-      locked_until: Date | null;
+      locked_until: Date | string | null;
     }>(
       `UPDATE user_pins SET
          attempts_failed = attempts_failed + 1,
@@ -56,22 +63,22 @@ export const pgUserPinsPort: UserPinsPort = {
          END
        WHERE user_id = $1
        RETURNING attempts_failed, locked_until`,
-      [userId, maxAttempts, lockMinutes]
+      [userId, maxAttempts, lockMinutes],
     );
     if (res.rows.length === 0) {
       return { attemptsFailed: 0, lockedUntil: null };
     }
+    const row = res.rows[0]!;
     return {
-      attemptsFailed: res.rows[0].attempts_failed,
-      lockedUntil: res.rows[0].locked_until,
+      attemptsFailed: row.attempts_failed,
+      lockedUntil: nullableDateField(row.locked_until),
     };
   },
 
   async resetAttempts(userId: string): Promise<void> {
-    const pool = getPool();
-    await pool.query(
+    await runWebappPgText(
       `UPDATE user_pins SET attempts_failed = 0, locked_until = NULL, updated_at = now() WHERE user_id = $1`,
-      [userId]
+      [userId],
     );
   },
 };

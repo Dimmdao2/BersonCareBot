@@ -893,4 +893,15 @@ LIMIT 3;"
 - **Plan doc sync:** `wave3_phase_15` §Закрытие 15B + INDEX / README / DRIZZLE_TRANSITION_PLAN (2026-06-06).
 - **Следующая подфаза:** 15C (treatment tail; 13 raw query в 5 файлах).
 
+### Wave 3 phase 15C — treatment / minor infra tail (2026-06-06)
+
+- **Scope:** `pgTreatmentProgram.ts`, `pgTreatmentProgramItemSnapshot.ts`, `pgMaterialRating.ts`, `pgUserPins.ts`, `pgPhoneHistory.ts`.
+- **Миграция:** domain SQL → `runWebappPgText`; `pgPhoneHistory` — TX-scoped `runWebappPgText` через `getWebappSqlFromPgClient(client)` (callers по-прежнему передают `PoolClient` из legacy TX).
+- **Baseline → gate:** 3 + 1 + 3 + 4 + 2 = **13** raw query → **0** в 5 scope-repo.
+- **Gate:** `rg pool.query|client.query` по 5 repo-файлам → **0**; webapp prod tail post-15C — **30** файлов.
+- **Tests:** 15C bundle — `pgTreatmentTail15C.repo.test.ts` (runtime headers + parity) + `pgTreatmentProgram.test.ts` (usage + list preview) + `inMemoryMaterialRating.detail.test.ts` — **26 passed** (fast).
+- **RAW_SQL:** §Wave 3 phase 15C + **5/5** строк scope-repo в таблице инвентаризации.
+- **Plan doc sync:** `wave3_phase_15` §Закрытие 15C + INDEX / README / DRIZZLE_TRANSITION_PLAN (2026-06-06).
+- **Следующая подфаза:** 15D (`integratorPushOutbox.ts` → Drizzle `public.integrator_push_outbox`).
+
 

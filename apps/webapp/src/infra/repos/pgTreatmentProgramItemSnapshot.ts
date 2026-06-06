@@ -1,6 +1,7 @@
+/** Wave 3 phase 15C — catalog media preview lookup via `runWebappPgText`. */
 import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
 import { recommendations } from "../../../db/schema/recommendations";
 import { contentPages, lfkExerciseMedia, lfkExercises } from "../../../db/schema/schema";
@@ -50,7 +51,6 @@ type CatalogMediaSnapshotRow = CatalogMediaRowInput & {
  * элементов программы (пациентский UI без join к БД на клиенте).
  */
 async function catalogMediaRowsWithWorkerPreviews(
-  pool: ReturnType<typeof getPool>,
   rows: CatalogMediaRowInput[],
 ): Promise<CatalogMediaSnapshotRow[]> {
   if (rows.length === 0) return [];
@@ -62,7 +62,7 @@ async function catalogMediaRowsWithWorkerPreviews(
     { preview_sm_key: string | null; preview_md_key: string | null; preview_status: string | null }
   >();
   if (fileIds.length > 0) {
-    const r = await pool.query<{
+    const r = await runWebappPgText<{
       id: string;
       preview_sm_key: string | null;
       preview_md_key: string | null;
@@ -109,13 +109,12 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             .from(lfkExerciseMedia)
             .where(eq(lfkExerciseMedia.exerciseId, itemRefId))
             .orderBy(asc(lfkExerciseMedia.sortOrder), asc(lfkExerciseMedia.id));
-          const pool = getPool();
           const base = mediaRows.map((m) => ({
             mediaUrl: m.mediaUrl,
             mediaType: m.mediaType,
             sortOrder: m.sortOrder,
           }));
-          const enriched = await catalogMediaRowsWithWorkerPreviews(pool, base);
+          const enriched = await catalogMediaRowsWithWorkerPreviews(base);
           const media =
             enriched.length > 0
               ? enriched.map((m) => ({
@@ -143,9 +142,8 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             where: and(eq(clinicalTests.id, itemRefId), eq(clinicalTests.isArchived, false)),
           });
           if (!t) throw notFound(type);
-          const pool = getPool();
           const rawMedia = clinicalTestMediaToCatalogRows(t.media);
-          const enriched = rawMedia.length === 0 ? [] : await catalogMediaRowsWithWorkerPreviews(pool, rawMedia);
+          const enriched = rawMedia.length === 0 ? [] : await catalogMediaRowsWithWorkerPreviews(rawMedia);
           const media =
             enriched.length > 0
               ? enriched.map((m) => ({
@@ -178,8 +176,7 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
           });
           if (!row) throw notFound(type);
           const rawMedia = (row.media ?? []) as CatalogMediaRowInput[];
-          const pool = getPool();
-          const enriched = await catalogMediaRowsWithWorkerPreviews(pool, rawMedia);
+          const enriched = await catalogMediaRowsWithWorkerPreviews(rawMedia);
           const media =
             enriched.length > 0
               ? enriched.map((m) => ({

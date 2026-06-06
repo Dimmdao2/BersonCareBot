@@ -1,4 +1,6 @@
+/** Wave 3 phase 15C — TX-scoped SQL via `runWebappPgText` on caller `PoolClient`. */
 import type { Pool, PoolClient } from "pg";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 
 export type PhoneHistorySource = "otp" | "messenger" | "merge" | "admin" | "projection";
 
@@ -14,17 +16,20 @@ export async function applyPlatformUserPhoneHistoryTransition(
     source: PhoneHistorySource;
   },
 ): Promise<void> {
-  await client.query(
+  const db = getWebappSqlFromPgClient(client as PoolClient);
+  await runWebappPgText(
     `UPDATE user_phone_history SET valid_to = now()
      WHERE platform_user_id = $1::uuid AND valid_to IS NULL`,
     [opts.platformUserId],
+    db,
   );
   const p = opts.newPhoneNormalized?.trim();
   if (p) {
-    await client.query(
+    await runWebappPgText(
       `INSERT INTO user_phone_history (platform_user_id, phone_normalized, valid_from, valid_to, source)
        VALUES ($1::uuid, $2::text, now(), NULL, $3::text)`,
       [opts.platformUserId, p, opts.source],
+      db,
     );
   }
 }

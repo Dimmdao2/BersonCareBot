@@ -1,5 +1,6 @@
+/** Wave 3 phase 15C — doctor detail TZ aggregates via `runWebappPgText`. */
 import { and, avg, count, desc, eq, sql } from "drizzle-orm";
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { resolveMaterialRatingTargetVideoMediaIds } from "@/infra/repos/materialRatingTargetVideoMediaIds";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { appendSqlExcludeUserIds, drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
@@ -135,7 +136,6 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
       days: MaterialRatingDoctorDetailDay[];
       raters: MaterialRatingDoctorDetailRater[];
     }> {
-      const pool = getPool();
       const excludedUserIds = input.excludedUserIds ?? [];
       const mediaIds = await resolveMaterialRatingTargetVideoMediaIds(input.targetKind, input.targetId);
 
@@ -153,7 +153,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
           input.startUtcIso,
           input.endExclusiveUtcIso,
         ]);
-        const vr = await pool.query<{ d: string; c: number }>(
+        const vr = await runWebappPgText<{ d: string; c: number }>(
           `${viewQ.sql} GROUP BY 1`,
           viewQ.params,
         );
@@ -177,7 +177,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         input.startUtcIso,
         input.endExclusiveUtcIso,
       ]);
-      const rr = await pool.query<{ d: string; cnt: number; avg_stars: string | null }>(
+      const rr = await runWebappPgText<{ d: string; cnt: number; avg_stars: string | null }>(
         `${ratingQ.sql} GROUP BY 1`,
         ratingQ.params,
       );
@@ -212,7 +212,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         input.startUtcIso,
         input.endExclusiveUtcIso,
       ]);
-      const ratersR = await pool.query<{
+      const ratersR = await runWebappPgText<{
         user_id: string;
         stars: number;
         updated_at: string;

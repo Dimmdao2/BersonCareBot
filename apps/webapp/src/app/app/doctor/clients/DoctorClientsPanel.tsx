@@ -255,14 +255,14 @@ export function DoctorClientsPanel({
       </form>
 
       <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
-        <section className="min-h-0 rounded-lg border border-border bg-card lg:h-[calc(100dvh-12.5rem)] lg:overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+        <section className="flex min-h-0 flex-col rounded-lg border border-border bg-card lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-10rem)] lg:overflow-hidden">
+          <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-2">
             <p className="text-xs text-muted-foreground">Пациентов: {filtered.length}</p>
           </div>
           {filtered.length === 0 ? (
             <p className="px-3 py-4 text-sm text-muted-foreground">Нет записей по текущим фильтрам.</p>
           ) : (
-            <ul id="doctor-clients-list" className="m-0 list-none space-y-1.5 overflow-y-auto p-2 lg:h-full lg:max-h-full">
+            <ul id="doctor-clients-list" className="m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-2">
               {filtered.map((c) => {
                 const appointmentCount = c.activeAppointmentsCount ?? (c.nextAppointmentLabel ? 1 : 0);
                 const unreadMessagesCount = c.unreadMessagesCount ?? 0;

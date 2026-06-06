@@ -1,6 +1,7 @@
+/** Wave 3 phase 15C — list preview / usage summary SQL via `runWebappPgText`. */
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { lfkComplexTemplateExercises, lfkComplexTemplates } from "../../../db/schema/schema";
 import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
 import {
@@ -145,7 +146,6 @@ async function templateListCounts(
 }
 
 async function templateListFirstItemPreviewByTemplateId(
-  pool: ReturnType<typeof getPool>,
   templateIds: string[],
 ): Promise<Map<string, TreatmentProgramTemplateListPreviewMedia | null>> {
   const out = new Map<string, TreatmentProgramTemplateListPreviewMedia | null>();
@@ -160,7 +160,7 @@ async function templateListFirstItemPreviewByTemplateId(
     preview_type: string | null;
   };
 
-  const res = await pool.query<PreviewRow>(
+  const res = await runWebappPgText<PreviewRow>(
     `
     WITH first_item AS (
       SELECT DISTINCT ON (s.template_id)
@@ -249,7 +249,6 @@ async function templateListFirstItemPreviewByTemplateId(
 }
 
 async function enrichTemplateListPreviewMedia(
-  pool: ReturnType<typeof getPool>,
   previews: Map<string, TreatmentProgramTemplateListPreviewMedia | null>,
 ): Promise<Map<string, TreatmentProgramTemplateListPreviewMedia | null>> {
   const mediaIds: string[] = [];
@@ -260,7 +259,7 @@ async function enrichTemplateListPreviewMedia(
   }
   if (mediaIds.length === 0) return previews;
 
-  const res = await pool.query<{
+  const res = await runWebappPgText<{
     id: string;
     preview_sm_key: string | null;
     preview_status: string | null;
@@ -380,11 +379,10 @@ function parseTreatmentProgramTemplateUsageRefs(raw: unknown): TreatmentProgramT
 }
 
 async function loadTreatmentProgramTemplateUsageSummary(
-  pool: ReturnType<typeof getPool>,
   templateId: string,
 ): Promise<TreatmentProgramTemplateUsageSnapshot> {
   const lim = TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT;
-  const r = await pool.query<{
+  const r = await runWebappPgText<{
     active_inst: string | number | null;
     completed_inst: string | number | null;
     pub_courses: string | number | null;
@@ -629,9 +627,8 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         .orderBy(desc(tplTable.updatedAt), desc(tplTable.id));
       const ids = rows.map((r) => r.id);
       const countMap = await templateListCounts(db, ids);
-      const pool = getPool();
-      const previewMapRaw = await templateListFirstItemPreviewByTemplateId(pool, ids);
-      const previewMap = await enrichTemplateListPreviewMedia(pool, previewMapRaw);
+      const previewMapRaw = await templateListFirstItemPreviewByTemplateId(ids);
+      const previewMap = await enrichTemplateListPreviewMedia(previewMapRaw);
       return rows.map((r) => mapTemplate(r, countMap.get(r.id), previewMap.get(r.id) ?? null));
     },
 
@@ -646,8 +643,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     },
 
     async getTreatmentProgramTemplateUsageSummary(templateId: string): Promise<TreatmentProgramTemplateUsageSnapshot> {
-      const pool = getPool();
-      return loadTreatmentProgramTemplateUsageSummary(pool, templateId);
+      return loadTreatmentProgramTemplateUsageSummary(templateId);
     },
 
     async createStage(templateId: string, input: CreateTreatmentProgramStageInput) {
