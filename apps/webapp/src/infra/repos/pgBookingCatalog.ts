@@ -1,4 +1,7 @@
-import { getPool } from "@/infra/db/client";
+/**
+ * Wave 3 phase 13A — domain SQL via `runWebappPgText` (Drizzle `execute(sql)`); no direct `pool.query`.
+ */
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { BookingCatalogPort } from "@/modules/booking-catalog/ports";
 import type {
   BookingCity,
@@ -151,15 +154,11 @@ function parseRubitimeBranchIdAsIntegratorId(rubitimeBranchId: string): number |
   return Math.trunc(n);
 }
 
-async function syncBranchesTimezoneFromCatalog(
-  pool: ReturnType<typeof getPool>,
-  rubitimeBranchId: string,
-  timezone: string,
-): Promise<void> {
+async function syncBranchesTimezoneFromCatalog(rubitimeBranchId: string, timezone: string): Promise<void> {
   const integratorId = parseRubitimeBranchIdAsIntegratorId(rubitimeBranchId);
   if (integratorId === null) return;
   const tz = timezone.trim() || "Europe/Moscow";
-  await pool.query(
+  await runWebappPgText(
     `UPDATE branches SET timezone = $1, updated_at = now() WHERE integrator_branch_id = $2`,
     [tz, integratorId],
   );
@@ -170,15 +169,13 @@ async function syncBranchesTimezoneFromCatalog(
 // ---------------------------------------------------------------------------
 
 export function createPgBookingCatalogPort(): BookingCatalogPort {
-  const pool = getPool();
-
   return {
     // -----------------------------------------------------------------------
     // Read
     // -----------------------------------------------------------------------
 
     async listCitiesForPatient() {
-      const result = await pool.query<CityRow>(
+      const result = await runWebappPgText<CityRow>(
         `SELECT id, code, title, is_active, sort_order, created_at, updated_at
          FROM booking_cities
          WHERE is_active = TRUE
@@ -219,7 +216,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         sp_updated_at: Date;
       };
 
-      const result = await pool.query<JoinRow>(
+      const result = await runWebappPgText<JoinRow>(
         `SELECT
            bbs.id, bbs.branch_id, bbs.service_id, bbs.specialist_id,
            bbs.rubitime_service_id, bbs.is_active, bbs.sort_order,
@@ -357,7 +354,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
           city_updated_at: Date;
         };
 
-      const result = await pool.query<ResolveRow>(
+      const result = await runWebappPgText<ResolveRow>(
         `SELECT
            bbs.id AS bbs_id, bbs.branch_id AS bbs_branch_id,
            bbs.service_id AS bbs_service_id, bbs.specialist_id AS bbs_specialist_id,
@@ -462,7 +459,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     // -----------------------------------------------------------------------
 
     async upsertCity({ code, title, isActive, sortOrder }) {
-      const result = await pool.query<CityRow>(
+      const result = await runWebappPgText<CityRow>(
         `INSERT INTO booking_cities (id, code, title, is_active, sort_order)
          VALUES (gen_random_uuid(), $1, $2, $3, $4)
          ON CONFLICT (code) DO UPDATE
@@ -477,7 +474,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async upsertBranch({ cityCode, title, address, rubitimeBranchId, timezone, isActive, sortOrder }) {
-      const cityRes = await pool.query<{ id: string }>(
+      const cityRes = await runWebappPgText<{ id: string }>(
         `SELECT id FROM booking_cities WHERE code = $1`,
         [cityCode],
       );
@@ -485,7 +482,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const cityId = cityRes.rows[0]!.id;
       const tz = (timezone ?? "Europe/Moscow").trim() || "Europe/Moscow";
 
-      const result = await pool.query<{ id: string }>(
+      const result = await runWebappPgText<{ id: string }>(
         `INSERT INTO booking_branches (id, city_id, title, address, rubitime_branch_id, is_active, sort_order, timezone)
          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (rubitime_branch_id) DO UPDATE
@@ -499,7 +496,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
          RETURNING id`,
         [cityId, title, address, rubitimeBranchId, isActive, sortOrder, tz],
       );
-      await syncBranchesTimezoneFromCatalog(pool, rubitimeBranchId, tz);
+      await syncBranchesTimezoneFromCatalog(rubitimeBranchId, tz);
       return { id: result.rows[0]!.id };
     },
 
@@ -511,14 +508,14 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       isActive,
       sortOrder,
     }) {
-      const branchRes = await pool.query<{ id: string }>(
+      const branchRes = await runWebappPgText<{ id: string }>(
         `SELECT id FROM booking_branches WHERE rubitime_branch_id = $1`,
         [rubitimeBranchId],
       );
       if (branchRes.rows.length === 0) throw new Error(`branch_not_found:${rubitimeBranchId}`);
       const branchId = branchRes.rows[0]!.id;
 
-      const result = await pool.query<{ id: string }>(
+      const result = await runWebappPgText<{ id: string }>(
         `INSERT INTO booking_specialists
            (id, branch_id, full_name, description, rubitime_cooperator_id, is_active, sort_order)
          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
@@ -535,7 +532,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async upsertService({ title, description, durationMinutes, priceMinor, isActive, sortOrder }) {
-      const result = await pool.query<{ id: string }>(
+      const result = await runWebappPgText<{ id: string }>(
         `INSERT INTO booking_services
            (id, title, description, duration_minutes, price_minor, is_active, sort_order)
          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
@@ -560,14 +557,14 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       isActive,
       sortOrder,
     }) {
-      const branchRes = await pool.query<{ id: string }>(
+      const branchRes = await runWebappPgText<{ id: string }>(
         `SELECT id FROM booking_branches WHERE rubitime_branch_id = $1`,
         [rubitimeBranchId],
       );
       if (branchRes.rows.length === 0) throw new Error(`branch_not_found:${rubitimeBranchId}`);
       const branchId = branchRes.rows[0]!.id;
 
-      const specialistRes = await pool.query<{ id: string }>(
+      const specialistRes = await runWebappPgText<{ id: string }>(
         `SELECT id FROM booking_specialists
          WHERE rubitime_cooperator_id = $1 AND branch_id = $2`,
         [rubitimeCooperatorId, branchId],
@@ -576,7 +573,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         throw new Error(`specialist_not_found:${rubitimeCooperatorId}`);
       const specialistId = specialistRes.rows[0]!.id;
 
-      const serviceRes = await pool.query<{ id: string }>(
+      const serviceRes = await runWebappPgText<{ id: string }>(
         `SELECT id FROM booking_services
          WHERE title = $1 AND duration_minutes = $2`,
         [serviceTitle, serviceDurationMinutes],
@@ -585,7 +582,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         throw new Error(`service_not_found:${serviceTitle}/${serviceDurationMinutes}`);
       const serviceId = serviceRes.rows[0]!.id;
 
-      const result = await pool.query<{ id: string }>(
+      const result = await runWebappPgText<{ id: string }>(
         `INSERT INTO booking_branch_services
            (id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order)
          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
@@ -606,7 +603,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     // -----------------------------------------------------------------------
 
     async listCitiesAdmin() {
-      const result = await pool.query<CityRow>(
+      const result = await runWebappPgText<CityRow>(
         `SELECT id, code, title, is_active, sort_order, created_at, updated_at
          FROM booking_cities
          ORDER BY sort_order ASC, title ASC`,
@@ -615,7 +612,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async getCityById(id) {
-      const result = await pool.query<CityRow>(
+      const result = await runWebappPgText<CityRow>(
         `SELECT id, code, title, is_active, sort_order, created_at, updated_at
          FROM booking_cities WHERE id = $1`,
         [id],
@@ -630,7 +627,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const title = patch.title ?? cur.title;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
-      const result = await pool.query<CityRow>(
+      const result = await runWebappPgText<CityRow>(
         `UPDATE booking_cities
          SET title = $2, is_active = $3, sort_order = $4, updated_at = now()
          WHERE id = $1
@@ -641,15 +638,15 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async deactivateCity(id) {
-      const result = await pool.query(
+      const result = await runWebappPgText(
         `UPDATE booking_cities SET is_active = FALSE, updated_at = now() WHERE id = $1`,
         [id],
       );
-      return result.rowCount !== null && result.rowCount > 0;
+      return (result.rowCount ?? 0) > 0;
     },
 
     async listBranchesAdmin() {
-      const result = await pool.query<BranchRow>(
+      const result = await runWebappPgText<BranchRow>(
         `SELECT id, city_id, title, address, rubitime_branch_id, timezone, is_active, sort_order, created_at, updated_at
          FROM booking_branches
          ORDER BY sort_order ASC, title ASC`,
@@ -658,7 +655,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async getBranchById(id) {
-      const result = await pool.query<BranchRow>(
+      const result = await runWebappPgText<BranchRow>(
         `SELECT id, city_id, title, address, rubitime_branch_id, timezone, is_active, sort_order, created_at, updated_at
          FROM booking_branches WHERE id = $1`,
         [id],
@@ -677,7 +674,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const timezone = patch.timezone !== undefined ? patch.timezone : cur.timezone;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
-      const result = await pool.query<BranchRow>(
+      const result = await runWebappPgText<BranchRow>(
         `UPDATE booking_branches
          SET city_id = $2, title = $3, address = $4, rubitime_branch_id = $5, timezone = $6,
              is_active = $7, sort_order = $8, updated_at = now()
@@ -686,20 +683,20 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         [id, cityId, title, address, rubitimeBranchId, timezone, isActive, sortOrder],
       );
       const row = result.rows[0]!;
-      await syncBranchesTimezoneFromCatalog(pool, row.rubitime_branch_id, row.timezone);
+      await syncBranchesTimezoneFromCatalog(row.rubitime_branch_id, row.timezone);
       return mapBranch(row);
     },
 
     async deactivateBranch(id) {
-      const result = await pool.query(
+      const result = await runWebappPgText(
         `UPDATE booking_branches SET is_active = FALSE, updated_at = now() WHERE id = $1`,
         [id],
       );
-      return result.rowCount !== null && result.rowCount > 0;
+      return (result.rowCount ?? 0) > 0;
     },
 
     async listServicesAdmin() {
-      const result = await pool.query<ServiceRow>(
+      const result = await runWebappPgText<ServiceRow>(
         `SELECT id, title, description, duration_minutes, price_minor, is_active, sort_order, created_at, updated_at
          FROM booking_services
          ORDER BY sort_order ASC, title ASC`,
@@ -708,7 +705,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async getServiceById(id) {
-      const result = await pool.query<ServiceRow>(
+      const result = await runWebappPgText<ServiceRow>(
         `SELECT id, title, description, duration_minutes, price_minor, is_active, sort_order, created_at, updated_at
          FROM booking_services WHERE id = $1`,
         [id],
@@ -726,7 +723,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const priceMinor = patch.priceMinor ?? cur.priceMinor;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
-      const result = await pool.query<ServiceRow>(
+      const result = await runWebappPgText<ServiceRow>(
         `UPDATE booking_services
          SET title = $2, description = $3, duration_minutes = $4, price_minor = $5,
              is_active = $6, sort_order = $7, updated_at = now()
@@ -738,23 +735,23 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async deactivateService(id) {
-      const result = await pool.query(
+      const result = await runWebappPgText(
         `UPDATE booking_services SET is_active = FALSE, updated_at = now() WHERE id = $1`,
         [id],
       );
-      return result.rowCount !== null && result.rowCount > 0;
+      return (result.rowCount ?? 0) > 0;
     },
 
     async listSpecialistsAdmin(branchId) {
       const result = branchId
-        ? await pool.query<SpecialistRow>(
+        ? await runWebappPgText<SpecialistRow>(
             `SELECT id, branch_id, full_name, description, rubitime_cooperator_id, is_active, sort_order, created_at, updated_at
              FROM booking_specialists
              WHERE branch_id = $1
              ORDER BY sort_order ASC, full_name ASC`,
             [branchId],
           )
-        : await pool.query<SpecialistRow>(
+        : await runWebappPgText<SpecialistRow>(
             `SELECT id, branch_id, full_name, description, rubitime_cooperator_id, is_active, sort_order, created_at, updated_at
              FROM booking_specialists
              ORDER BY branch_id ASC, sort_order ASC, full_name ASC`,
@@ -763,7 +760,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async getSpecialistById(id) {
-      const result = await pool.query<SpecialistRow>(
+      const result = await runWebappPgText<SpecialistRow>(
         `SELECT id, branch_id, full_name, description, rubitime_cooperator_id, is_active, sort_order, created_at, updated_at
          FROM booking_specialists WHERE id = $1`,
         [id],
@@ -781,7 +778,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const rubitimeCooperatorId = patch.rubitimeCooperatorId ?? cur.rubitimeCooperatorId;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
-      const result = await pool.query<SpecialistRow>(
+      const result = await runWebappPgText<SpecialistRow>(
         `UPDATE booking_specialists
          SET branch_id = $2, full_name = $3, description = $4, rubitime_cooperator_id = $5,
              is_active = $6, sort_order = $7, updated_at = now()
@@ -793,23 +790,23 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async deactivateSpecialist(id) {
-      const result = await pool.query(
+      const result = await runWebappPgText(
         `UPDATE booking_specialists SET is_active = FALSE, updated_at = now() WHERE id = $1`,
         [id],
       );
-      return result.rowCount !== null && result.rowCount > 0;
+      return (result.rowCount ?? 0) > 0;
     },
 
     async listBranchServicesAdmin(branchId) {
       const result = branchId
-        ? await pool.query<BranchServiceRow>(
+        ? await runWebappPgText<BranchServiceRow>(
             `SELECT id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order, created_at, updated_at
              FROM booking_branch_services
              WHERE branch_id = $1
              ORDER BY sort_order ASC, created_at ASC`,
             [branchId],
           )
-        : await pool.query<BranchServiceRow>(
+        : await runWebappPgText<BranchServiceRow>(
             `SELECT id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order, created_at, updated_at
              FROM booking_branch_services
              ORDER BY branch_id ASC, sort_order ASC`,
@@ -818,7 +815,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async getBranchServiceById(id) {
-      const result = await pool.query<BranchServiceRow>(
+      const result = await runWebappPgText<BranchServiceRow>(
         `SELECT id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order, created_at, updated_at
          FROM booking_branch_services WHERE id = $1`,
         [id],
@@ -835,14 +832,14 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       isActive,
       sortOrder,
     }) {
-      const spRes = await pool.query<{ branch_id: string }>(
+      const spRes = await runWebappPgText<{ branch_id: string }>(
         `SELECT branch_id FROM booking_specialists WHERE id = $1`,
         [specialistId],
       );
       if (spRes.rows.length === 0) throw new Error("specialist_not_found");
       if (spRes.rows[0]!.branch_id !== branchId) throw new Error("specialist_branch_mismatch");
 
-      const result = await pool.query<BranchServiceRow>(
+      const result = await runWebappPgText<BranchServiceRow>(
         `INSERT INTO booking_branch_services
            (id, branch_id, service_id, specialist_id, rubitime_service_id, is_active, sort_order)
          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
@@ -859,11 +856,11 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
     },
 
     async deactivateBranchService(id) {
-      const result = await pool.query(
+      const result = await runWebappPgText(
         `UPDATE booking_branch_services SET is_active = FALSE, updated_at = now() WHERE id = $1`,
         [id],
       );
-      return result.rowCount !== null && result.rowCount > 0;
+      return (result.rowCount ?? 0) > 0;
     },
   };
 }

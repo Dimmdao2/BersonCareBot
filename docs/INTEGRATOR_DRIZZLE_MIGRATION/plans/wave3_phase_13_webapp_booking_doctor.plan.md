@@ -6,7 +6,7 @@ isProject: false
 todos:
   - id: w3-p13a-catalog-read-write
     content: "13A: pgBookingCatalog.ts (37) — сначала read paths, затем write paths, без big-bang rewrite."
-    status: pending
+    status: completed
   - id: w3-p13b-bookings-appointments
     content: "13B: pgPatientBookings.ts (15), pgDoctorAppointments.ts (11), pgAppointmentProjection.ts (9), pgBookingCalendarLegacy.ts (1)."
     status: pending
@@ -40,6 +40,13 @@ todos:
 - Проверка:
   - targeted tests catalog read/write.
   - `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos/pgBookingCatalog.ts`.
+
+#### Закрытие 13A (2026-06-06)
+
+- Domain SQL → `runWebappPgText`; `pool.query` = 0.
+- `deactivate*` — `(rowCount ?? 0) > 0` (parity с `pgLfkExercises`).
+- Vitest `--project fast pgBookingCatalog` — **15 passed**.
+- Opt-in devDb read-only: `RUN_BOOKING_CATALOG_DEV_DB=1` + `USE_REAL_DATABASE=1` (`pgBookingCatalog.devDb.integration.test.ts`).
 
 ### 13B — appointments and patient bookings
 

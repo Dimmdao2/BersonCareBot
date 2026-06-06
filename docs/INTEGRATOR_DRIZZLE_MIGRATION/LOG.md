@@ -678,3 +678,11 @@ LIMIT 3;"
 
 **Следующая фаза Wave 3:** [wave3_phase_13_webapp_booking_doctor.plan.md](./plans/wave3_phase_13_webapp_booking_doctor.plan.md).
 
+### Wave 3 phase 13A — booking catalog core (2026-06-06)
+
+- **Scope:** `apps/webapp/src/infra/repos/pgBookingCatalog.ts` — все read/write/admin paths (37 call sites).
+- **Transport:** domain SQL → `runWebappPgText` (Drizzle `execute(sql)`); `syncBranchesTimezoneFromCatalog` — тот же канал.
+- **Hardening:** `deactivate*` → `(rowCount ?? 0) > 0`; unit-тесты EXISTS/branch_not_found/deactivate rowCount; opt-in devDb read-only smoke (`RUN_BOOKING_CATALOG_DEV_DB`).
+- **Проверки:** `rg "pool\\.query|client\\.query" pgBookingCatalog.ts` — **0**; Vitest `--project fast pgBookingCatalog` — **15 passed**.
+- **RAW_SQL / plan:** todo `w3-p13a-catalog-read-write` → `completed`.
+

@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const queryMock = vi.hoisted(() => vi.fn());
-const getPoolMock = vi.hoisted(() => vi.fn(() => ({ query: queryMock })));
+const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/infra/db/client", () => ({
-  getPool: getPoolMock,
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappPgText: runWebappPgTextMock,
 }));
 
 import { createPgBookingCatalogPort } from "./pgBookingCatalog";
@@ -26,17 +25,17 @@ function cityRow(overrides = {}) {
 
 describe("createPgBookingCatalogPort", () => {
   beforeEach(() => {
-    queryMock.mockReset();
+    runWebappPgTextMock.mockReset();
   });
 
   describe("listCitiesForPatient", () => {
     it("queries active cities ordered by sort_order", async () => {
-      queryMock.mockResolvedValueOnce({ rows: [cityRow()] });
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [cityRow()] });
       const port = createPgBookingCatalogPort();
       const cities = await port.listCitiesForPatient();
       expect(cities).toHaveLength(1);
       expect(cities[0]!.code).toBe("moscow");
-      const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("is_active = TRUE");
       expect(sql).toContain("sort_order ASC");
     });
@@ -44,48 +43,50 @@ describe("createPgBookingCatalogPort", () => {
 
   describe("listServicesByCity", () => {
     it("passes city code as parameter and joins required tables", async () => {
-      queryMock.mockResolvedValueOnce({ rows: [] });
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgBookingCatalogPort();
       await port.listServicesByCity("spb");
-      const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("booking_branch_services");
       expect(sql).toContain("booking_cities");
       expect(sql).toContain("booking_branches");
       expect(sql).toContain("booking_specialists");
-      expect(queryMock.mock.calls[0]?.[1]).toEqual(["spb"]);
+      expect(sql).toContain("be_external_entity_mappings");
+      expect(sql).toContain("legacy_branch_service_id");
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["spb"]);
     });
   });
 
   describe("resolveBranchService", () => {
     it("returns null when no rows returned", async () => {
-      queryMock.mockResolvedValueOnce({ rows: [] });
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgBookingCatalogPort();
       const result = await port.resolveBranchService("nonexistent-id");
       expect(result).toBeNull();
     });
 
     it("requires active city (parity with listServicesByCity)", async () => {
-      queryMock.mockResolvedValueOnce({ rows: [] });
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgBookingCatalogPort();
       await port.resolveBranchService("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb");
-      const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("c.is_active = TRUE");
     });
   });
 
   describe("upsertCity", () => {
     it("uses ON CONFLICT (code) DO UPDATE", async () => {
-      queryMock.mockResolvedValueOnce({ rows: [cityRow()] });
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [cityRow()] });
       const port = createPgBookingCatalogPort();
       await port.upsertCity({ code: "moscow", title: "Москва", isActive: true, sortOrder: 1 });
-      const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("ON CONFLICT (code) DO UPDATE");
     });
   });
 
   describe("upsertBranch", () => {
     it("sets timezone on conflict and syncs branches.integrator_branch_id row", async () => {
-      queryMock
+      runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [{ id: "city-uuid-1" }] })
         .mockResolvedValueOnce({ rows: [{ id: "branch-uuid-1" }] })
         .mockResolvedValueOnce({ rowCount: 1 });
@@ -99,16 +100,16 @@ describe("createPgBookingCatalogPort", () => {
         isActive: true,
         sortOrder: 1,
       });
-      const upsertSql = String(queryMock.mock.calls[1]?.[0] ?? "");
+      const upsertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
       expect(upsertSql).toContain("timezone = EXCLUDED.timezone");
-      const syncSql = String(queryMock.mock.calls[2]?.[0] ?? "");
+      const syncSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
       expect(syncSql).toContain("UPDATE branches");
       expect(syncSql).toContain("integrator_branch_id");
-      expect(queryMock.mock.calls[2]?.[1]).toEqual(["Europe/Samara", 17356]);
+      expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual(["Europe/Samara", 17356]);
     });
 
     it("skips branches sync when rubitime_branch_id is not numeric", async () => {
-      queryMock
+      runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [{ id: "city-uuid-1" }] })
         .mockResolvedValueOnce({ rows: [{ id: "branch-uuid-1" }] });
       const port = createPgBookingCatalogPort();
@@ -121,7 +122,7 @@ describe("createPgBookingCatalogPort", () => {
         isActive: true,
         sortOrder: 1,
       });
-      expect(queryMock).toHaveBeenCalledTimes(2);
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -140,7 +141,7 @@ describe("createPgBookingCatalogPort", () => {
     };
 
     it("syncs branches after updating booking_branches timezone", async () => {
-      queryMock
+      runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [branchRow] })
         .mockResolvedValueOnce({
           rows: [{ ...branchRow, timezone: "Asia/Yekaterinburg", updated_at: NOW }],
@@ -150,25 +151,25 @@ describe("createPgBookingCatalogPort", () => {
       await port.updateBranchById("bb111111-1111-4111-8111-111111111111", {
         timezone: "Asia/Yekaterinburg",
       });
-      const syncSql = String(queryMock.mock.calls[2]?.[0] ?? "");
+      const syncSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
       expect(syncSql).toContain("UPDATE branches");
-      expect(queryMock.mock.calls[2]?.[1]).toEqual(["Asia/Yekaterinburg", 17356]);
+      expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual(["Asia/Yekaterinburg", 17356]);
     });
   });
 
   describe("listCitiesAdmin", () => {
     it("includes inactive cities (no is_active filter)", async () => {
-      queryMock.mockResolvedValueOnce({ rows: [cityRow({ is_active: false })] });
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [cityRow({ is_active: false })] });
       const port = createPgBookingCatalogPort();
       await port.listCitiesAdmin();
-      const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).not.toContain("WHERE is_active");
     });
   });
 
   describe("upsertBranchServiceAdmin", () => {
     it("throws specialist_branch_mismatch when specialist belongs to another branch", async () => {
-      queryMock.mockResolvedValueOnce({ rows: [{ branch_id: "other-branch" }] });
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ branch_id: "other-branch" }] });
       const port = createPgBookingCatalogPort();
       await expect(
         port.upsertBranchServiceAdmin({
@@ -183,13 +184,52 @@ describe("createPgBookingCatalogPort", () => {
     });
   });
 
+  describe("getCityById", () => {
+    it("returns null when no row", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+      const port = createPgBookingCatalogPort();
+      expect(await port.getCityById("missing")).toBeNull();
+    });
+  });
+
+  describe("upsertSpecialist", () => {
+    it("throws branch_not_found when rubitime branch missing", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+      const port = createPgBookingCatalogPort();
+      await expect(
+        port.upsertSpecialist({
+          rubitimeBranchId: "99999",
+          fullName: "Dr",
+          description: null,
+          rubitimeCooperatorId: "c1",
+          isActive: true,
+          sortOrder: 0,
+        }),
+      ).rejects.toThrow("branch_not_found:99999");
+    });
+  });
+
+  describe("deactivateCity", () => {
+    it("returns true when rowCount > 0", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1, rows: [] });
+      const port = createPgBookingCatalogPort();
+      expect(await port.deactivateCity("550e8400-e29b-41d4-a716-446655440000")).toBe(true);
+    });
+
+    it("returns false when rowCount is zero or missing", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+      const port = createPgBookingCatalogPort();
+      expect(await port.deactivateCity("550e8400-e29b-41d4-a716-446655440000")).toBe(false);
+    });
+  });
+
   describe("deactivateBranchService", () => {
     it("sets is_active false", async () => {
-      queryMock.mockResolvedValueOnce({ rowCount: 1 });
+      runWebappPgTextMock.mockResolvedValueOnce({ rowCount: 1 });
       const port = createPgBookingCatalogPort();
       const ok = await port.deactivateBranchService("550e8400-e29b-41d4-a716-446655440000");
       expect(ok).toBe(true);
-      const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("is_active = FALSE");
     });
   });

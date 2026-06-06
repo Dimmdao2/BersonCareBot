@@ -59,7 +59,7 @@
 - **12C:** integrator-merge route thinness (**done** 2026-06-06)
 - **12D:** purge + merge preview (**done** 2026-06-06)
 - **12E:** phase verify (**done** 2026-06-06) — **фаза 12 closed**; post-audit tails: opt-in devDb smokes (`RUN_ONLINE_INTAKE_DEV_DB` / `RUN_PURGE_DEV_DB` / `RUN_MERGE_PREVIEW_DEV_DB`)
-- **13A:** booking catalog
+- **13A:** booking catalog (**done** 2026-06-06; `runWebappPgText`, devDb smoke `RUN_BOOKING_CATALOG_DEV_DB`)
 - **13B:** patient bookings + doctor appointments
 - **13C:** doctor clients + analytics
 - **13D:** motivation + doctor tails
