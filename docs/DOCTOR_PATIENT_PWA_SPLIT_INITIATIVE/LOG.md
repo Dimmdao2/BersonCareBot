@@ -1,5 +1,21 @@
 # DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE — LOG
 
+## 2026-06-06 — Волна 2 этап 2.A3 (код)
+
+**Сделано:**
+
+- `patient/layout.tsx` — staff (`doctor`/`admin`) → `buildOwnHubUrlWithAccessDeniedToast(role)` вместо `getPostAuthRedirectTarget`.
+- Тесты patient layout redirect в `e2e/doctor-patient-role-layout-redirects.test.ts`.
+
+**Проверки:**
+
+```bash
+pnpm --filter webapp exec vitest run e2e/doctor-patient-role-layout-redirects.test.ts
+# 7 tests — green
+```
+
+**Не делали:** `requirePatientAccess` / `getOptionalPatientSession` (2.A4).
+
 ## 2026-06-06 — Волна 2 этап 2.A2 (код)
 
 **Сделано:**

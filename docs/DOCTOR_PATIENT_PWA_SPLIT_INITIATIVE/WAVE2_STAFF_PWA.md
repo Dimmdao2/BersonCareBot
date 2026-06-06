@@ -57,7 +57,7 @@
 | **2.A0** ✅ | Константа query + helper редиректа на свой hub с флагом toast | `shared/lib/appAccessDeniedToast.ts`, `appAccessDeniedToast.test.ts` |
 | **2.A1** ✅ | Client: чтение флага в shell, `react-hot-toast`, strip query | `AppAccessDeniedToastEffect`, `PatientAppShell`, `DoctorWorkspaceShell` |
 | **2.A2** ✅ | Staff guards: `requireDoctorAccess`, `settings/layout`, `admin/layout` | `requireRole.ts`, staff layouts |
-| **2.A3** | Patient: staff на `/app/patient/**` — тот же паттерн | `patient/layout.tsx` (только role-block) |
+| **2.A3** ✅ | Patient: staff на `/app/patient/**` — тот же паттерн | `patient/layout.tsx` (только role-block) |
 | **2.A4** | Тесты: guards → redirect на свой hub + query; toast helper unit | vitest / e2e |
 | **2.A5** | INVENTORY, ACCEPTANCE_WAVE2 §access | docs |
 

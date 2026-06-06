@@ -1,5 +1,5 @@
 /**
- * Staff vs patient layout redirects (волна 1 DOCTOR_PATIENT_PWA_SPLIT).
+ * Staff vs patient layout redirects (волна 1–2 DOCTOR_PATIENT_PWA_SPLIT).
  * Импорты layout — один раз в beforeAll; patient page graphs не тянем.
  */
 import type { ReactNode } from "react";
@@ -24,6 +24,20 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/shared/ui/doctor/shell/DoctorWorkspaceShell", () => ({
   DoctorWorkspaceShell: ({ children }: { children: ReactNode }) => children,
+}));
+
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => ({
+    get: (name: string) => {
+      if (name === "x-bc-pathname") return "/app/patient";
+      if (name === "x-bc-search") return "";
+      return null;
+    },
+  })),
+}));
+
+vi.mock("@/app/app/patient/PatientClientLayout", () => ({
+  PatientClientLayout: ({ children }: { children: ReactNode }) => children,
 }));
 
 function session(role: "client" | "doctor" | "admin") {
@@ -82,5 +96,30 @@ describe("staff layout role redirects", () => {
     getCurrentSessionMock.mockResolvedValueOnce(session("admin"));
     await expect(AdminLayout({ children: null })).resolves.toBeDefined();
     expect(redirectMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("patient layout staff role redirects", () => {
+  let PatientLayout: (typeof import("@/app/app/patient/layout"))["default"];
+
+  beforeAll(async () => {
+    PatientLayout = (await import("@/app/app/patient/layout")).default;
+  }, 60_000);
+
+  beforeEach(() => {
+    redirectMock.mockClear();
+    getCurrentSessionMock.mockReset();
+  });
+
+  it("patient layout redirects doctor to doctor hub with access-denied toast flag", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(session("doctor"));
+    await expect(PatientLayout({ children: null })).rejects.toThrow("redirect");
+    expect(redirectMock).toHaveBeenCalledWith(buildOwnHubUrlWithAccessDeniedToast("doctor"));
+  });
+
+  it("patient layout redirects admin to doctor hub with access-denied toast flag", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(session("admin"));
+    await expect(PatientLayout({ children: null })).rejects.toThrow("redirect");
+    expect(redirectMock).toHaveBeenCalledWith(buildOwnHubUrlWithAccessDeniedToast("admin"));
   });
 });

@@ -5,8 +5,8 @@ import { patientPathRequiresBoundPhone, patientClientBusinessGate, resolvePatien
 import { logger } from "@/infra/logging/logger";
 import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
-import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { getCurrentSession } from "@/modules/auth/service";
+import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
 import { canAccessPatient } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -34,7 +34,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   }
 
   if (!canAccessPatient(session.user.role)) {
-    redirect(getPostAuthRedirectTarget(session.user.role, null));
+    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
 
   const returnTo = (pathname.trim() ? pathname : routePaths.patient) + search;
