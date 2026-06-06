@@ -130,8 +130,7 @@ export function PatientMessagesClient() {
       className={cn(
         patientCardClass,
         "flex min-h-0 flex-col gap-3 overflow-hidden",
-        "h-[calc(var(--patient-content-dvh)_-_1rem)]",
-        "patient-desktop:h-[calc(100dvh_-_var(--patient-header-total-offset)_-_2rem)]",
+        "patient-messages-chat-height",
       )}
     >
       {error ?

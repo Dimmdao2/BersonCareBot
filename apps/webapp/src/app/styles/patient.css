@@ -205,6 +205,66 @@
   background-color: #ffffff;
 }
 
+/**
+ * Отступы контента страницы — ОБЫЧНЫМ CSS, не через Tailwind arbitrary-var утилиты.
+ * Причина: `customVariant:pt-[var(--x)]` (например `patient-mobile:pt-[var(...)]`)
+ * этим стеком (Tailwind v4 + Turbopack) НЕ генерируется в CSS — класс висит без правила,
+ * паддинг = 0, и фиксированные шапка/нав перекрывают контент. Здесь правило существует всегда.
+ *
+ * `.patient-shell-content-pad` — основной `<main>`: сверху зазор под фиксированной шапкой,
+ * снизу — над фиксированным bottom nav.
+ * `--flush-top` — когда верхний offset несёт above-title-slot (дневник), сам main без верхнего паддинга.
+ * `.patient-shell-above-slot-pad` — обёртка above-title-slot, которая берёт верхний offset на себя.
+ */
+#app-shell-patient main#app-shell-content.patient-shell-content-pad {
+  padding-top: 0.25rem;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+}
+
+@media ((max-width: 767px) or (max-height: 599px)) {
+  #app-shell-patient main#app-shell-content.patient-shell-content-pad {
+    padding-top: var(--patient-content-top-pad);
+    padding-bottom: var(--patient-content-bottom-pad);
+  }
+  #app-shell-patient
+    main#app-shell-content.patient-shell-content-pad.patient-shell-content-pad--flush-top {
+    padding-top: 0;
+  }
+  #app-shell-patient .patient-shell-above-slot-pad {
+    padding-top: var(--patient-content-top-pad);
+  }
+}
+
+/**
+ * Высоты полноэкранных блоков — тоже ОБЫЧНЫМ CSS (та же причина, что и паддинги выше):
+ * `customVariant:h-[calc(... var(--x) ...)]` (вариант + arbitrary со `var()`) этим стеком
+ * Tailwind v4 + Turbopack НЕ генерируется — класс висит без правила, высота схлопывается.
+ *
+ * `.patient-messages-chat-height` — секция чата поддержки (messages):
+ *   моб/узкое окно = content-dvh − 1rem; desktop = 100dvh − header − 2rem.
+ * `.patient-address-iframe-height` — iframe адреса кабинета (address):
+ *   desktop = shell-inner-dvh − 2rem; моб/узкое окно = 100dvh − header − 3rem.
+ */
+#app-shell-patient .patient-messages-chat-height {
+  height: calc(var(--patient-content-dvh) - 1rem);
+}
+
+@media (min-width: 768px) and (min-height: 600px) {
+  #app-shell-patient .patient-messages-chat-height {
+    height: calc(100dvh - var(--patient-header-total-offset) - 2rem);
+  }
+}
+
+#app-shell-patient .patient-address-iframe-height {
+  height: calc(var(--patient-shell-inner-dvh) - 2rem);
+}
+
+@media ((max-width: 767px) or (max-height: 599px)) {
+  #app-shell-patient .patient-address-iframe-height {
+    height: calc(100dvh - var(--patient-header-total-offset) - 3rem);
+  }
+}
+
 #app-shell-patient :where(a[href]) {
   cursor: pointer;
 }

@@ -68,12 +68,7 @@ export function PatientBottomShellFrame({
         mobileHeaderCenter={mobileHeaderCenter}
       />
       {aboveTitleSlot ?
-        <div
-          className={cn(
-            "w-full min-w-0 shrink-0",
-            "patient-mobile:pt-[var(--patient-content-top-pad)] patient-desktop:pt-0",
-          )}
-        >
+        <div className={cn("w-full min-w-0 shrink-0", "patient-shell-above-slot-pad")}>
           {aboveTitleSlot}
         </div>
       : null}

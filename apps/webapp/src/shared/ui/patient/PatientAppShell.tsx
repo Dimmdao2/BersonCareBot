@@ -157,10 +157,10 @@ export function PatientAppShell({
               "flex min-h-0 min-w-0 flex-1 flex-col",
               patientEmbedMain ?
                 "gap-0 pt-0"
-              : hasPatientShellAboveTitleSlot ?
-                "gap-[var(--patient-gap)] patient-mobile:pt-0 patient-desktop:pt-1"
-              : "gap-[var(--patient-gap)] patient-mobile:pt-[var(--patient-content-top-pad)] patient-desktop:pt-1",
-              "patient-mobile:pb-[var(--patient-content-bottom-pad)] patient-desktop:pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]",
+              : cn(
+                  "gap-[var(--patient-gap)] patient-shell-content-pad",
+                  hasPatientShellAboveTitleSlot && "patient-shell-content-pad--flush-top",
+                ),
             )}
           >
             {children}
