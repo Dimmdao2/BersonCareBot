@@ -217,7 +217,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 ## Следующая фаза
 
-[wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) — comms / user projection (14A–14E).
+[wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) — webapp long tail (15A–15F). Фаза 14 — [`wave3_phase_14_webapp_comms_projection.plan.md`](./wave3_phase_14_webapp_comms_projection.plan.md) (**completed** 2026-06-06).
 
 ## Документация (sync при закрытии)
 

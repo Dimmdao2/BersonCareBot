@@ -866,6 +866,7 @@ LIMIT 3;"
 - **DevDb smokes:** opt-in only; staging/production — gate **phase 17** (не блокер 14).
 - **messageLog Zod:** strict boundary + tests invalid `dateFrom` / oversize `category` → `{}` (14E + full audit closure).
 - **Re-verify:** gate 11 files `pool.query` = 0; fast bundle **118 passed** / **11 skipped**.
+- **Plan doc sync:** `wave3_phase_14` §Закрытие + INDEX / README / DRIZZLE_TRANSITION_PLAN / docs/README (2026-06-06).
 
 **Следующая фаза Wave 3:** [wave3_phase_15_webapp_long_tail.plan.md](./plans/wave3_phase_15_webapp_long_tail.plan.md).
 

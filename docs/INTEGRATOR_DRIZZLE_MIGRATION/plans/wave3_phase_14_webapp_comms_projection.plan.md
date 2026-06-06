@@ -1,6 +1,6 @@
 ---
 name: Wave3 Phase14 Webapp comms projection
-overview: Support communication, user projection, admin audit, merge legacy conversations — самые большие SQL-файлы webapp.
+overview: "Phase 14 completed (2026-06-06): support comms, user projection, admin audit, comms tail — runWebappPgText bridge, Zod boundaries, gate 11 files, Vitest 118/11."
 status: completed
 isProject: false
 todos:
@@ -33,7 +33,7 @@ todos:
 
 ## Подфазы (обязательный порядок)
 
-### 14A — support communication core
+### 14A — support communication core (**done** 2026-06-06)
 
 - Файл: `pgSupportCommunication.ts`.
 - Цель: убрать raw query из крупных секций без big-bang переписывания.
@@ -41,7 +41,7 @@ todos:
   - targeted support tests;
   - `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos/pgSupportCommunication.ts`.
 
-### 14B — user projection core
+### 14B — user projection core (**done** 2026-06-06)
 
 - Файл: `pgUserProjection.ts`.
 - Цель: сохранить контракт полей/фильтров для admin/patient projection.
@@ -49,7 +49,7 @@ todos:
   - projection/admin tests;
   - parity проверка по выборке до/после для ключевых фильтров.
 
-### 14C — audit and legacy merge helpers
+### 14C — audit and legacy merge helpers (**done** 2026-06-06)
 
 - Файлы: `adminAuditLog.ts`, `mergeLegacySupportConversations.ts`.
 - Цель: сохранить insert/list parity; merge helper — regression-only (`mergeLegacySupportConversations.ts` уже на `runWebappPgText` с 14A post-audit).
@@ -57,7 +57,7 @@ todos:
   - audit tests;
   - targeted regression для legacy merge (no rewrite unless drift).
 
-### 14D — comms tail
+### 14D — comms tail (**done** 2026-06-06)
 
 - Файлы: `pgMessageLog.ts`, `pgChannelPreferences.ts`, `pgWebPushSubscriptions.ts`, `pgBroadcastAudit.ts`, `pgSubscriptionMailingProjection.ts`, `pgPatientCalendarTimezone.ts`.
 - Цель: закрыть хвост comms-проекций и подписок в рамках фазы.
@@ -65,7 +65,7 @@ todos:
   - targeted tests comms/subscriptions;
   - `rg "pool\\.query|client\\.query" apps/webapp/src/infra/repos/pgMessageLog.ts apps/webapp/src/infra/repos/pgChannelPreferences.ts apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts apps/webapp/src/infra/repos/pgBroadcastAudit.ts apps/webapp/src/infra/repos/pgSubscriptionMailingProjection.ts apps/webapp/src/infra/repos/pgPatientCalendarTimezone.ts`.
 
-### 14E — phase verify
+### 14E — phase verify (**done** 2026-06-06)
 
 - Цель: финальная проверка raw query остатка в scope и фиксация Zod-boundaries.
 - Проверка:
@@ -143,3 +143,29 @@ pnpm --dir apps/webapp exec vitest run --project fast \
   src/app/api/admin/audit-log/route.test.ts \
   src/modules/doctor-messaging/service.test.ts
 ```
+
+## Закрытие (2026-06-06)
+
+| Подфаза | Коммит | Результат |
+|---------|--------|-----------|
+| **14A** | `e9a33a1e` | `pgSupportCommunication` → `runWebappPgText`; merge helper bridge; Zod `supportAdminListQuery`; Class C merge TX |
+| **14B** | `53f414b3` | `pgUserProjection` → `runWebappPgText`/`txPgText`; 4 Class C TX; repo + devDb |
+| **14C** | `c288d942` | `adminAuditLog` → bridge; dedupe TX; merge helper verify-only |
+| **14D** | `18ce7e6e` | 6 comms/subscription repos → bridge; Class C channel prefs + web-push |
+| **14E** | `ae07ad0e`, `c3b18629` | gate + Zod modules; RAW_SQL §14; full audit doc sync |
+
+**Gate:** runtime `pool.query` = **0** в 11 scope-файлах (см. §Scope, §Проверки).
+
+**Tests:** Vitest `--project fast` phase-14 bundle — **118 passed** / **11 skipped**; devDb opt-in — `RUN_SUPPORT_COMMUNICATION_DEV_DB`, `RUN_USER_PROJECTION_DEV_DB`, `RUN_ADMIN_AUDIT_LOG_DEV_DB`, `RUN_PHASE_14D_DEV_DB` + `USE_REAL_DATABASE=1`.
+
+**Class C TX:** support merge wrapper; user projection (4 entrypoints); audit dedupe; channel preferred-auth; web-push save.
+
+## Следующая фаза
+
+[wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) — webapp long tail (15A–15F).
+
+## Документация (sync при закрытии)
+
+- YAML frontmatter: `status: completed`, все `todos` → `completed`.
+- [../LOG.md](../LOG.md) §Wave 3 phase 14 — итог + post-audit + full audit closure.
+- [wave3_INDEX.md](./wave3_INDEX.md), [README.md](./README.md), [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md), [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 14, [../../README.md](../../README.md).

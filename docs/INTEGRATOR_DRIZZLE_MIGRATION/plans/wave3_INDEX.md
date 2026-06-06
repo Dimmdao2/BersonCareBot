@@ -6,7 +6,7 @@
 
 ## Цель Wave 3
 
-1. Integrator P1+ (**done**, фаза 09), media-worker IX (**done**, фаза 10), app-layer/auth tail (**done**, фаза 11), intake/purge/identity (**done**, фаза 12), booking/doctor (**done**, фаза 13) — закрыты; далее webapp closeout (фазы **14–15**).
+1. Integrator P1+ (**done**, фаза 09), media-worker IX (**done**, фаза 10), app-layer/auth tail (**done**, фаза 11), intake/purge/identity (**done**, фаза 12), booking/doctor (**done**, фаза 13), comms/projection (**done**, фаза 14) — закрыты; далее webapp closeout (**15**).
 2. Убрать необъяснённый **`pool.query` / `client.query`** в webapp runtime (Class **A**), либо перевести в Class **B/C** с ADR.
 3. Убрать потребность в регулярном `migrate:legacy` для webapp, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner в regular flow.
 4. Синхронизировать **RAW_SQL_INVENTORY**, **DRIZZLE_TRANSITION_PLAN**, **LOG**; закрыть инициативу или явный backlog с причинами.
@@ -37,7 +37,7 @@
 | 11 | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | S | app-layer health/media; auth TX tail; мелкие outliers | 1 (**done** 2026-06-06) |
 | 12 | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | L | intake/purge/identity (декомпозиция 12A-12E) | 1 (**done** 2026-06-06) |
 | 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking/doctor (декомпозиция 13A-13E) | 1 (**done** 2026-06-06) |
-| 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 |
+| 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 (**done** 2026-06-06) |
 | 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | long tail (декомпозиция 15A-15F) | 1 |
 | 16 | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | M | webapp legacy migration dependency cutover (`migrate:legacy`) | 1 |
 | 17 | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | S | docs sync, staging smoke gate, full CI, archive | 1 |
@@ -92,12 +92,12 @@
 - `09A→09B→09C→09D→09E` — строго последовательно внутри фазы 09.
 - `10A→10B→10C` — строго последовательно внутри фазы 10.
 - `09` и `10` можно делать параллельно только после `08`.
-- `11` — **done** (2026-06-06); `12` — **done** (2026-06-06); `13` — **done** (2026-06-06); **14** стартует после закрытия `13`.
+- `11` — **done** (2026-06-06); `12` — **done** (2026-06-06); `13` — **done** (2026-06-06); `14` — **done** (2026-06-06); **15** — next.
 - `12A→12B→12C→12D→12E` внутри фазы 12.
 - `13A→13B→13C→13D→13E` внутри фазы 13.
 - `14A→14B→14C→14D→14E` внутри фазы 14.
 - `15A→15B→15C→15D→15E→15F` внутри фазы 15.
-- `12` → `13` → `14` → `15` идут последовательно (`13` closed).
+- `12` → `13` → `14` → `15` идут последовательно (`14` closed).
 - `16` стартует после `15` и закрывает legacy-cutover только если `09–15` не оставили причин держать `migrate:legacy` в regular flow; иначе фиксирует blocker/backlog.
 - `17` — только после `00..16`, staging smoke gate и финального `pnpm run ci`.
 
