@@ -27,4 +27,11 @@ describe("messageLogListQuery", () => {
     });
     expect(normalized.filters).toEqual({});
   });
+
+  it("drops all filters when category exceeds max length", () => {
+    const normalized = normalizeMessageLogListParams({
+      filters: { category: "x".repeat(101) },
+    });
+    expect(normalized.filters).toEqual({});
+  });
 });

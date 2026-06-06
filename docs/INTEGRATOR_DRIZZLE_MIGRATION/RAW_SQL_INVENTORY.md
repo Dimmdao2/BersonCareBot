@@ -114,7 +114,7 @@
 | `pool.query` | **0** (runtime; JSDoc «no direct pool.query» в headers допустим) |
 | Class C `client.query` | TX transport only: support merge wrapper (3×); user projection (4 TX + `SET CONSTRAINTS`); audit dedupe; channel prefs; web-push save |
 | Zod boundaries | `supportAdminListQuery`, `adminAuditListQuery`, `messageLogListQuery`; admin profile PATCH bodySchema (`/api/admin/users/[userId]/profile`) |
-| Tests | Vitest `--project fast` phase-14 bundle — **117 passed** / **11 skipped** (devDb opt-in) |
+| Tests | Vitest `--project fast` phase-14 bundle — **118 passed** / **11 skipped** (devDb opt-in); staging smoke — **phase 17** |
 
 Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 14E.
 

@@ -77,7 +77,7 @@ todos:
 - **Gate scope (11 файлов):** `pool.query` = **0** (runtime; JSDoc «no direct pool.query» в headers допустим); domain SQL → `runWebappPgText` / `txPgText`.
 - **Class C transport:** `pgSupportCommunication` merge wrapper (3×); `pgUserProjection` (4 TX); `adminAuditLog.upsertOpenConflictLog` (3×); `pgChannelPreferences.setPreferredAuthChannel`; `pgWebPushSubscriptions.saveSubscription` — только `BEGIN`/`COMMIT`/`ROLLBACK` (+ `SET CONSTRAINTS` в user projection TX).
 - **Zod boundaries:** `supportAdminListQuery.ts`; `adminAuditListQuery.ts`; `messageLogListQuery.ts` + admin profile PATCH bodySchema (`/api/admin/users/[userId]/profile`).
-- **Tests:** webapp fast phase-14 bundle — **117 passed** / **11 skipped** (repos + query modules + route tests); devDb opt-in smokes из 14A/14B/14C/14D — вне CI по умолчанию.
+- **Tests:** webapp fast phase-14 bundle — **118 passed** / **11 skipped** (repos + query modules + route tests); devDb opt-in smokes из 14A/14B/14C/14D — вне CI по умолчанию; staging/production smoke — gate **phase 17**, не 14.
 - **Фаза 14 closed**; следующая — [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md).
 
 ## Definition of Done
@@ -90,18 +90,20 @@ todos:
 
 ## Scope
 
-| Файл | queries |
-|------|---------|
-| `pgSupportCommunication.ts` | 46 |
-| `pgUserProjection.ts` | 43 |
-| `adminAuditLog.ts` | 16 |
-| `mergeLegacySupportConversations.ts` | 6 |
-| `pgMessageLog.ts` | 5 |
-| `pgChannelPreferences.ts` | 11 |
-| `pgWebPushSubscriptions.ts` | 10 |
-| `pgBroadcastAudit.ts` | 2 |
-| `pgSubscriptionMailingProjection.ts` | 5 |
-| `pgPatientCalendarTimezone.ts` | 3 |
+| Файл | bridge calls (14E) | pre-14 baseline (`pool.query`) |
+|------|-------------------:|-------------------------------:|
+| `pgSupportCommunication.ts` | 46 | 46 |
+| `pgUserProjection.ts` | 32 (15 `runWebappPgText` + 17 `txPgText`) | 43 |
+| `adminAuditLog.ts` | 17 (11 + 6 `txPgText`) | 16 |
+| `mergeLegacySupportConversations.ts` | 2 | 6 |
+| `pgMessageLog.ts` | 7 | 5 |
+| `pgChannelPreferences.ts` | 11 | 11 |
+| `pgWebPushSubscriptions.ts` | 11 | 10 |
+| `pgBroadcastAudit.ts` | 4 | 2 |
+| `pgSubscriptionMailingProjection.ts` | 7 | 5 |
+| `pgPatientCalendarTimezone.ts` | 5 | 3 |
+
+*Baseline — снимок inventory до миграции; bridge — факт после gate 14E (`rg 'runWebappPgText|txPgText'`). Расхождения — консолидация call sites, не регресс gate.*
 
 **Вне scope:** integrator `messageThreads` (уже runIntegratorSql).
 
@@ -112,7 +114,32 @@ todos:
 
 ## Проверки
 
+Gate (11 scope-файлов):
+
 ```bash
-rg 'pool\.query|client\.query' apps/webapp/src/infra/repos/pgSupportCommunication.ts apps/webapp/src/infra/repos/pgUserProjection.ts
-pnpm --dir apps/webapp exec vitest run --project fast adminAuditLog 2>/dev/null | tail -10
+SCOPE=(
+  apps/webapp/src/infra/repos/pgSupportCommunication.ts
+  apps/webapp/src/infra/repos/pgUserProjection.ts
+  apps/webapp/src/infra/adminAuditLog.ts
+  apps/webapp/src/infra/repos/mergeLegacySupportConversations.ts
+  apps/webapp/src/infra/repos/pgMessageLog.ts
+  apps/webapp/src/infra/repos/pgChannelPreferences.ts
+  apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts
+  apps/webapp/src/infra/repos/pgBroadcastAudit.ts
+  apps/webapp/src/infra/repos/pgSubscriptionMailingProjection.ts
+  apps/webapp/src/infra/repos/pgPatientCalendarTimezone.ts
+)
+for f in "${SCOPE[@]}"; do rg 'pool\.query' "$f" | rg -v 'no direct|Wave 3|JSDoc' || true; done
+```
+
+Fast bundle (из корня репо):
+
+```bash
+pnpm --dir apps/webapp exec vitest run --project fast \
+  pgSupportCommunication pgUserProjection adminAuditLog mergeLegacySupportConversations \
+  pgMessageLog pgChannelPreferences pgWebPushSubscriptions pgBroadcastAudit \
+  pgSubscriptionMailingProjection pgPatientCalendarTimezone pgPhase14D \
+  supportAdminListQuery adminAuditListQuery messageLogListQuery \
+  src/app/api/admin/audit-log/route.test.ts \
+  src/modules/doctor-messaging/service.test.ts
 ```

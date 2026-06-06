@@ -68,7 +68,7 @@
 - **14B:** user projection core (**done** 2026-06-06; `runWebappPgText`/`txPgText`; repo + devDb `RUN_USER_PROJECTION_DEV_DB`; Class C TX on upsert/appointment/phone/admin patch)
 - **14C:** audit + legacy merge helpers (**done** 2026-06-06; `adminAuditLog.ts` → `runWebappPgText`; Class C TX on `upsertOpenConflictLog`; merge helper regression-only)
 - **14D:** comms tail (**done** 2026-06-06; 6 repos → `runWebappPgText`; Class C TX on channel prefs preferred-auth + web-push save)
-- **14E:** phase verify (**done** 2026-06-06) — **фаза 14 closed** (gate 11 files; Zod query modules; fast bundle green)
+- **14E:** phase verify (**done** 2026-06-06) — **фаза 14 closed** (gate 11 files; Zod query modules; **118 passed** / 11 skipped)
 - **15A:** references/settings/diary
 - **15B:** auth/email ports tail
 - **15C:** treatment and minor tails

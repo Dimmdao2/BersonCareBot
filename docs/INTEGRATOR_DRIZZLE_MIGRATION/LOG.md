@@ -750,8 +750,8 @@ LIMIT 3;"
 
 ### Wave 3 phase 14A — support communication core (2026-06-06)
 
-- **Scope:** `apps/webapp/src/infra/repos/pgSupportCommunication.ts` — projection writes, admin list/filters, webapp messages, read/unread counts (43 domain call sites + merge TX wrapper).
-- **Transport:** domain SQL → `runWebappPgText` (Drizzle `execute(sql)`); `resolvePlatformUserId` — по-прежнему `findCanonicalUserIdByIntegratorId(getPool(), …)`.
+- **Scope:** `apps/webapp/src/infra/repos/pgSupportCommunication.ts` — projection writes, admin list/filters, webapp messages, read/unread counts (46 bridge call sites + merge TX wrapper).
+- **Transport:** domain SQL → `runWebappPgText` (Drizzle `execute(sql)`); `resolvePlatformUserId` → `runWebappPgText` (post-audit 14A; без `getPool()` на upsert path).
 - **Class C:** `mergeLegacySupportConversationsForPlatformUser` — `BEGIN`/`COMMIT`/`ROLLBACK` на PoolClient; domain merge SQL остаётся в `mergeLegacySupportConversations.ts` (14C).
 - **Проверки:** `pool.query` = **0**; Class C `client.query` = **3×** (merge TX); Vitest `--project fast` `pgSupportCommunication` + messaging bundle — **86 passed**.
 - **RAW_SQL / plan:** todo `w3-p14a-support-core` → `completed`.
@@ -763,6 +763,7 @@ LIMIT 3;"
 - **Canonical lookup:** `resolvePlatformUserId` in `pgSupportCommunication.ts` → `runWebappPgText` (no `getPool()` on upsert path).
 - **Zod boundaries:** `supportAdminListQuery.ts` — integrator GET conversations + doctor unread filter.
 - **Opt-in devDb:** `RUN_SUPPORT_COMMUNICATION_DEV_DB=1` + `USE_REAL_DATABASE=1` — read-only smoke (3 cases).
+- **Commit note:** `e9a33a1e` также содержит несвязанные правки doctor UI (`DoctorTodayAttention*`); на gate/SQL scope не влияет; split истории не делался.
 - **Проверки:** `pool.query` = 0 в `pgSupportCommunication.ts` + `mergeLegacySupportConversations.ts`; Class C `client.query` = 3× (merge TX wrapper); Vitest fast bundle 14A — repo + in-memory + messaging + route/query tests green.
 
 **Следующая подфаза Wave 3 phase 14:** **14C** — `adminAuditLog.ts`, `mergeLegacySupportConversations.ts` (audit tail; merge helper SQL done in 14A post-audit).
@@ -830,7 +831,7 @@ LIMIT 3;"
 
 - **Gate:** 11 scope-файлов — runtime `pool.query` = **0**; Class C `client.query` только на TX transport (см. §14E plan).
 - **Zod:** `supportAdminListQuery`, `adminAuditListQuery`, `messageLogListQuery`; admin client profile PATCH — route bodySchema.
-- **Tests:** fast bundle phase 14 — **117 passed** / **11 skipped** (repos + query modules + admin audit route).
+- **Tests:** fast bundle phase 14 — **118 passed** / **11 skipped** (repos + query modules + admin audit route).
 - **RAW_SQL / plan:** todo `w3-p14-verify` → `completed`; **фаза 14 closed**.
 
 #### Post-audit closure 14E (2026-06-06)
@@ -842,8 +843,8 @@ LIMIT 3;"
 #### Post-audit fixes 14E (2026-06-06)
 
 - **RAW_SQL_INVENTORY:** добавлен §Wave 3 phase 14 (gate 14E, 11 scope-файлов, Zod boundaries, счётчики тестов); строка `mergeLegacySupportConversations.ts`.
-- **Tests:** `messageLogListQuery.test.ts` — кейс invalid `dateFrom` → filters `{}` (Zod boundary).
-- **Docs:** plan/LOG — явные **117 passed** / **11 skipped** (post-audit test на invalid `dateFrom`).
+- **Tests:** `messageLogListQuery.test.ts` — invalid `dateFrom` и oversize `category` → filters `{}` (Zod boundary).
+- **Docs:** plan/LOG/INDEX/README/RAW_SQL — **118 passed** / **11 skipped**; scope table bridge vs baseline.
 
 ### Wave 3 phase 14 — итог (completed, 2026-06-06)
 
@@ -853,9 +854,18 @@ LIMIT 3;"
 | **14B** | `pgUserProjection` | 4 Class C TX; repo + devDb |
 | **14C** | `adminAuditLog`, merge verify | dedupe TX; audit tests + devDb |
 | **14D** | 6 comms/subscription repos | Class C channel prefs + web-push save |
-| **14E** | gate + Zod boundaries | 11 files `pool.query` = 0; **117 passed** / 11 skipped |
+| **14E** | gate + Zod boundaries | 11 files `pool.query` = 0; **118 passed** / 11 skipped |
 
 **Class C TX (phase 14):** support merge wrapper; user projection (4 entrypoints); audit dedupe; channel preferred-auth; web-push save.
+
+#### Full phase 14 audit closure (2026-06-06)
+
+- **Scope table:** plan §Scope — bridge counts (14E) + pre-14 baseline; footnote про расхождения.
+- **14A commit bleed:** doctor UI в `e9a33a1e` задокументирован; история не переписывалась.
+- **LOG 14A transport:** исправлен устаревший текст про `findCanonicalUserIdByIntegratorId(getPool())` — фактически `resolvePlatformUserId` → `runWebappPgText`.
+- **DevDb smokes:** opt-in only; staging/production — gate **phase 17** (не блокер 14).
+- **messageLog Zod:** strict boundary + tests invalid `dateFrom` / oversize `category` → `{}` (14E + full audit closure).
+- **Re-verify:** gate 11 files `pool.query` = 0; fast bundle **118 passed** / **11 skipped**.
 
 **Следующая фаза Wave 3:** [wave3_phase_15_webapp_long_tail.plan.md](./plans/wave3_phase_15_webapp_long_tail.plan.md).
 
