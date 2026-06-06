@@ -130,8 +130,8 @@ export function PatientMessagesClient() {
       className={cn(
         patientCardClass,
         "flex min-h-0 flex-col gap-3 overflow-hidden",
-        "h-[calc(100dvh_-_var(--patient-header-bar-height,var(--patient-header-bar-chrome-fallback))_-_var(--patient-header-fade-height,0.5rem)_-_var(--patient-bottom-nav-height,var(--patient-bottom-nav-chrome-fallback))_-_var(--patient-bottom-nav-content-gap)_-_1rem)]",
-        "patient-desktop:h-[calc(100dvh_-_var(--patient-header-bar-height,var(--patient-header-bar-chrome-fallback))_-_2rem)]",
+        "h-[calc(var(--patient-content-dvh)_-_1rem)]",
+        "patient-desktop:h-[calc(100dvh_-_var(--patient-header-total-offset)_-_2rem)]",
       )}
     >
       {error ?

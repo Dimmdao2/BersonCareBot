@@ -39,7 +39,7 @@ export function DiaryTabsClient({
       className={patientInnerPageStackClass}
     >
       <div
-        className="safe-bleed-x sticky top-[calc(var(--patient-header-bar-height,var(--patient-header-bar-chrome-fallback))_+_var(--patient-header-fade-height,0.5rem))] z-30 pb-4 pt-2"
+        className="safe-bleed-x sticky top-[var(--patient-header-total-offset)] z-30 pb-4 pt-2"
         style={{
           background:
             "linear-gradient(to bottom, var(--patient-bg) 0%, var(--patient-bg) 85%, transparent 100%)",

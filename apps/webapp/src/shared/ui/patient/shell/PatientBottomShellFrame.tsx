@@ -67,15 +67,15 @@ export function PatientBottomShellFrame({
         showBack={shouldShowPatientMobileHeaderBack(pathname, backHref)}
         mobileHeaderCenter={mobileHeaderCenter}
       />
-      <div
-        className={cn(
-          "shrink-0 patient-mobile:pt-[calc(var(--patient-header-bar-height,var(--patient-header-bar-chrome-fallback))_+_var(--patient-header-fade-height,0.5rem))]",
-          "patient-desktop:pt-0",
-        )}
-        aria-hidden
-      />
       {aboveTitleSlot ?
-        <div className="w-full min-w-0 shrink-0">{aboveTitleSlot}</div>
+        <div
+          className={cn(
+            "w-full min-w-0 shrink-0",
+            "patient-mobile:pt-[var(--patient-content-top-pad)] patient-desktop:pt-0",
+          )}
+        >
+          {aboveTitleSlot}
+        </div>
       : null}
       {showSubpageTitleStrip ?
         <div className="hidden min-w-0 shrink-0 patient-desktop:block">

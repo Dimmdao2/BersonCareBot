@@ -5,7 +5,7 @@ import type { PatientDiaryWeekNavModel } from "@/modules/diaries/loadPatientDiar
 
 /** Липнет под реальным fixed patient header, включая fade-spacer. */
 const STICKY_UNDER_HEADER_CLASS =
-  "sticky top-[calc(var(--patient-header-bar-height,var(--patient-header-bar-chrome-fallback))_+_var(--patient-header-fade-height,0.5rem))] z-30";
+  "sticky top-[var(--patient-header-total-offset)] z-30";
 
 const navButtonLayoutClass =
   "flex min-h-[2.75rem] flex-1 max-w-[4.5rem] items-center justify-center gap-1.5 px-2 py-2 text-sm font-semibold outline-none transition-colors duration-150 no-underline sm:max-w-none sm:px-3";

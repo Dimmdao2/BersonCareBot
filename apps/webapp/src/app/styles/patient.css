@@ -50,6 +50,51 @@
   );
   --patient-header-chrome-opacity: 82%;
   --patient-header-fade-height: 0.5rem;
+  /**
+   * Высота фиксированного хедера + fade. Используется для sticky-элементов,
+   * которые должны липнуть ВПЛОТНУЮ под шапкой (вкладки дневника и т.п.).
+   * JS пишет --patient-header-bar-height на :root; до гидрации — CSS-fallback.
+   */
+  --patient-header-total-offset: calc(
+    var(--patient-header-bar-height, var(--patient-header-bar-chrome-fallback))
+    + var(--patient-header-fade-height, 0.5rem)
+  );
+  /** Комфортный воздушный зазор между хромом (шапка/нав) и контентом страницы. */
+  --patient-content-edge-gap: 1rem;
+  /**
+   * Верхний отступ КОНТЕНТА страницы под фиксированным хедером:
+   * высота шапки + комфортный зазор (чтобы карточки не лезли вплотную под шапку).
+   */
+  --patient-content-top-pad: calc(
+    var(--patient-header-bar-height, var(--patient-header-bar-chrome-fallback))
+    + var(--patient-content-edge-gap)
+  );
+  /**
+   * Нижний отступ контента: высота bottom nav + комфортный зазор над ним.
+   * JS пишет --patient-bottom-nav-height на :root; до гидрации — CSS-fallback.
+   */
+  --patient-content-bottom-pad: calc(
+    var(--patient-bottom-nav-height, var(--patient-bottom-nav-chrome-fallback))
+    + var(--patient-bottom-nav-content-gap)
+  );
+  /**
+   * Горизонтальный отступ заголовка в top chrome = ширина кнопки профиля/назад + зазор.
+   */
+  --patient-header-side-pad: calc(var(--patient-shell-chrome-action-width, 2.25rem) + 0.375rem);
+  /**
+   * Высота окна минус оба fixed-навбара (header + bottom nav): удобна для fullscreen-блоков.
+   * JS обновляет оба слагаемых через ResizeObserver.
+   */
+  --patient-shell-inner-dvh: calc(
+    100dvh
+    - var(--patient-header-total-offset)
+    - var(--patient-bottom-nav-height, var(--patient-bottom-nav-chrome-fallback))
+  );
+  /**
+   * То же, но ещё минус content-gap под навбаром: для чатов и списков, которым
+   * нужен точный обрез без лишнего пространства.
+   */
+  --patient-content-dvh: calc(var(--patient-shell-inner-dvh) - var(--patient-bottom-nav-content-gap));
   --patient-page-bg: #ffffff;
   --patient-card-bg: #ffffff;
   --patient-border: #e5e7eb;

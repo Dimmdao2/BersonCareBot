@@ -60,6 +60,7 @@ export function PatientAppShell({
 }: PatientAppShellProps) {
   const showPatientShellNav = !patientEmbedMain && !patientHideBottomNav && !patientBrandTitleBar;
   const useBottomNavShell = PATIENT_SHELL_NAV_VARIANT === "bottom";
+  const hasPatientShellAboveTitleSlot = patientShellAboveTitleSlot != null;
   const shellTitleBadge = patientTitleBadge?.trim() ?? "";
   const shellTitle = title?.trim() ?? "";
   const showShellTitleStrip =
@@ -154,8 +155,12 @@ export function PatientAppShell({
             id="app-shell-content"
             className={cn(
               "flex min-h-0 min-w-0 flex-1 flex-col",
-              patientEmbedMain ? "gap-0 pt-0" : "gap-[var(--patient-gap)] patient-desktop:pt-1",
-              "patient-mobile:pb-[calc(var(--patient-bottom-nav-height,var(--patient-bottom-nav-chrome-fallback))_+_var(--patient-bottom-nav-content-gap))] patient-desktop:pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]",
+              patientEmbedMain ?
+                "gap-0 pt-0"
+              : hasPatientShellAboveTitleSlot ?
+                "gap-[var(--patient-gap)] patient-mobile:pt-0 patient-desktop:pt-1"
+              : "gap-[var(--patient-gap)] patient-mobile:pt-[var(--patient-content-top-pad)] patient-desktop:pt-1",
+              "patient-mobile:pb-[var(--patient-content-bottom-pad)] patient-desktop:pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]",
             )}
           >
             {children}
