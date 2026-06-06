@@ -15,7 +15,7 @@
 
 ## Wave 3 — финальный closeout
 
-Индекс: [wave3_INDEX.md](./wave3_INDEX.md). Решения до старта: [wave3_DECISIONS.md](./wave3_DECISIONS.md) (**зафиксированы**; фаза 16 остаётся условной по результатам 09–15).
+Индекс: [wave3_INDEX.md](./wave3_INDEX.md). Решения до старта: [wave3_DECISIONS.md](./wave3_DECISIONS.md) (**зафиксированы**; фаза 16 закрыла условный legacy cutover по результатам 09–15).
 
 | Фаза | Файл плана | Статус |
 |------|------------|--------|
@@ -25,10 +25,10 @@
 | 10 — media-worker IX (10A-10C) | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | **completed** (2026-06-06) |
 | 11 — webapp app-layer / auth tail | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | **completed** (2026-06-06; `runPgPoolPgText`, Zod config/idempotency, post-audit RAW_SQL) |
 | 12 — intake / purge / identity (12A-12E) | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | **completed** (2026-06-06; 12A–12E; post-audit devDb smokes; Vitest **115 passed**) |
-| 13 — booking / doctor (13A-13E) | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | **completed** (2026-06-06; 13A–13E; post-audit devDb smokes; gate + Vitest **116 passed**; rubitime-sync **27 passed**) |
-| 14 — comms / projection (14A-14E) | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | **completed** (2026-06-06; 14A–14E; gate + Zod boundaries; Vitest **118 passed** / 11 skipped) |
+| 13 — booking / doctor (13A-13E) | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | **completed** (2026-06-06; 13A–13E; post-audit devDb smokes; gate + Vitest **123 passed** / 12 skipped; rubitime-sync **27 passed**) |
+| 14 — comms / projection (14A-14E) | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | **completed** (2026-06-06; 14A–14E; gate + Zod boundaries; Vitest **119 passed** / 11 skipped) |
 | 15 — webapp long tail (15A-15F) | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | **done** (2026-06-06) |
-| 16 — условный legacy cutover | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | pending |
+| 16 — условный legacy cutover | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | **completed** (2026-06-06; regular flow Drizzle-only, legacy path guarded/manual) |
 | 17 — closeout | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | pending |
 
 Детальная рабочая декомпозиция зафиксирована в `wave3_INDEX.md` и внутри phase-файлов:

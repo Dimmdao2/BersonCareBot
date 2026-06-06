@@ -42,4 +42,4 @@ Guard новых legacy-файлов: [`apps/webapp/scripts/check-legacy-migrati
 
 ## Тесты и `migrate:legacy`
 
-См. раздел в [`STAGE_PLAN.md`](./STAGE_PLAN.md) и записи в [`LOG.md`](./LOG.md). По умолчанию Vitest globalSetup **не меняется** без отдельного решения в `LOG` и проверок из плана исполнения.
+См. раздел в [`STAGE_PLAN.md`](./STAGE_PLAN.md) и записи в [`LOG.md`](./LOG.md). Текущее поведение: в `vitest.globalSetup` по умолчанию выполняется только Drizzle migrate; legacy запускается только явным opt-in (`VITEST_USE_LEGACY_MIGRATIONS=true` или `WEBAPP_TEST_USE_LEGACY_MIGRATIONS=true`).

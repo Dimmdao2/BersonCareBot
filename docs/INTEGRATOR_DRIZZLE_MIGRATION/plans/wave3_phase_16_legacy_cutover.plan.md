@@ -1,30 +1,30 @@
 ---
 name: Wave3 Phase16 Legacy cutover
 overview: Убрать зависимость регулярного потока от webapp legacy migrations только если после фаз 09–15 нет raw-SQL/migration причин держать legacy runner; иначе зафиксировать blocker/backlog.
-status: pending
+status: completed
 isProject: false
 todos:
   - id: w3-p16-inventory
     content: "Инвентаризация всех живых ссылок на migrate:legacy/run-migrations.mjs (scripts, docs, tests, deploy)."
-    status: pending
+    status: completed
   - id: w3-p16-policy
     content: "Если нет blockers после 09–15: обновить runbook/policy: regular flow = Drizzle only; legacy path = emergency-only/manual gate."
-    status: pending
+    status: completed
   - id: w3-p16-blocker-decision
-    content: "Если остаётся raw SQL, который может требовать legacy migrations: не отключать migrate:legacy, зафиксировать blocker, owner decision и критерии повторного cutover."
-    status: pending
+    content: "Проверено: blocker после 09–15 не найден; regular flow закреплён как Drizzle-only, legacy путь оставлен manual/emergency."
+    status: completed
   - id: w3-p16-script-guards
     content: "Усилить guardrails: запрет использования migrate:legacy в регулярных pipeline/CI и явный warning gate в runner."
-    status: pending
+    status: completed
   - id: w3-p16-test-bootstrap
     content: "Для test/bootstrap path убрать неявную зависимость от legacy runner или явно изолировать её в dedicated emergency setup."
-    status: pending
+    status: completed
   - id: w3-p16-zod-ledger
     content: "Добавить Zod-валидацию ledger/runtime parsing в migration tooling, где есть untyped JSON/shape."
-    status: pending
+    status: completed
   - id: w3-p16-verify
     content: "Проверить: rg migrate:legacy/run-migrations в регулярных путях = 0; docs/LOG/RAW_SQL синхронизированы."
-    status: pending
+    status: completed
 ---
 
 # Wave 3 — фаза 16: Legacy migrations cutover
@@ -42,13 +42,13 @@ todos:
 
 ## Definition of Done
 
-- [ ] Проверено состояние после фаз 09–15: есть или нет причин держать `migrate:legacy` в regular flow.
-- [ ] Если blockers отсутствуют: в регулярном flow (`deploy-prod`, `deploy-webapp-prod`, CI/migrate scripts) нет необходимости вызывать `migrate:legacy`.
-- [ ] Если blockers отсутствуют: `migrate:legacy` оставлен только как emergency/manual path с явной пометкой и guard.
-- [ ] Если blockers есть: они перечислены с owner decision, и `migrate:legacy` не отключён «любой ценой».
-- [ ] В `RAW_SQL_INVENTORY.md` и `LOG.md` отражён новый статус legacy-path.
-- [ ] `wave3_DECISIONS.md` и `DRIZZLE_TRANSITION_PLAN.md` синхронизированы с cutover-решением.
-- [ ] Zod-проверки добавлены в затронутые скриптовые parsing points (если есть JSON/unknown shape).
+- [x] Проверено состояние после фаз 09–15: есть или нет причин держать `migrate:legacy` в regular flow.
+- [x] Если blockers отсутствуют: в регулярном flow (`deploy-prod`, `deploy-webapp-prod`, CI/migrate scripts) нет необходимости вызывать `migrate:legacy`.
+- [x] Если blockers отсутствуют: `migrate:legacy` оставлен только как emergency/manual path с явной пометкой и guard.
+- [x] Если blockers есть: они перечислены с owner decision, и `migrate:legacy` не отключён «любой ценой» (N/A, blockers не выявлены).
+- [x] В `RAW_SQL_INVENTORY.md` и `LOG.md` отражён новый статус legacy-path.
+- [x] `wave3_DECISIONS.md` и `DRIZZLE_TRANSITION_PLAN.md` синхронизированы с cutover-решением.
+- [x] Zod-проверки добавлены в затронутые скриптовые parsing points (если есть JSON/unknown shape).
 
 ## Scope
 
@@ -72,3 +72,16 @@ pnpm --dir apps/webapp run lint
 | После 09–15 остался raw SQL, который может требовать legacy migrations | не отключать regular legacy path; зафиксировать blocker и повторный cutover gate |
 | Тестовый bootstrap сломается при жёстком запрете legacy | выделить test-only path и задокументировать |
 | Dual-ledger путаница | фиксировать source-of-truth (`drizzle.__drizzle_migrations`) и repair steps |
+
+## Закрытие (2026-06-06)
+
+- Decision gate: blocker после фаз 09–15 не найден; regular deploy/CI остаётся на Drizzle-only path.
+- Guardrails выполнены:
+  - `run-migrations.mjs`: warning gate + `WEBAPP_LEGACY_MIGRATIONS_MODE` + CI блок для `manual` режима.
+  - `vitest.globalSetup.ts`: legacy миграции убраны из неявного bootstrap; включаются только через opt-in env.
+  - `run-migrations.mjs`: Zod-валидация shape (`COUNT(*)` ledger row, migration filenames).
+- Документация синхронизирована: `wave3_INDEX`, `plans/README`, `DRIZZLE_TRANSITION_PLAN`, `RAW_SQL_INVENTORY`, `LOG`, `HOST_DEPLOY_README`, `apps/webapp/scripts/README`.
+- Verify gates:
+  - `rg "migrate:legacy|run-migrations\\.mjs" apps/webapp deploy docs --glob "!docs/archive/**"` — только emergency/manual контексты в docs/scripts/tests.
+  - `pnpm --dir apps/webapp run typecheck`
+  - `pnpm --dir apps/webapp run lint`

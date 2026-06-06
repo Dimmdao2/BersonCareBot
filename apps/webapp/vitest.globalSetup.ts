@@ -1,7 +1,7 @@
 /**
- * Runs once before all tests. When DATABASE_URL is set (e.g. from .env), runs migrations
- * so the dev/test DB has symptom_entries and lfk_sessions. E2e tests then use this DB
- * and add sample data (addLfkSession / addSymptomEntry).
+ * Runs once before all tests.
+ * When DATABASE_URL is set (e.g. from .env), runs Drizzle migrations.
+ * Legacy SQL migrations are opt-in only via VITEST_USE_LEGACY_MIGRATIONS=true.
  */
 import { config } from "dotenv";
 import { execSync } from "node:child_process";
@@ -19,14 +19,23 @@ export default async function globalSetup() {
   if (!dbUrl || dbUrl === "") {
     return;
   }
+  const useLegacyMigrations =
+    process.env.VITEST_USE_LEGACY_MIGRATIONS === "true" ||
+    process.env.WEBAPP_TEST_USE_LEGACY_MIGRATIONS === "true";
   const failOnMigrationError =
     process.env.CI === "true" || process.env.VITEST_REQUIRE_DB_MIGRATIONS === "true";
   try {
-    execSync("pnpm run migrate:legacy", {
-      encoding: "utf-8",
-      cwd: __dirname,
-      env: { ...process.env, DATABASE_URL: dbUrl },
-    });
+    if (useLegacyMigrations) {
+      execSync("pnpm run migrate:legacy", {
+        encoding: "utf-8",
+        cwd: __dirname,
+        env: {
+          ...process.env,
+          DATABASE_URL: dbUrl,
+          WEBAPP_LEGACY_MIGRATIONS_MODE: "bootstrap",
+        },
+      });
+    }
     execSync("pnpm run migrate", {
       encoding: "utf-8",
       cwd: __dirname,

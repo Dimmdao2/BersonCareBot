@@ -114,7 +114,7 @@
 | `pool.query` | **0** (runtime; JSDoc «no direct pool.query» в headers допустим) |
 | Class C `client.query` | TX transport only: support merge wrapper (3×); user projection (4 TX + `SET CONSTRAINTS`); audit dedupe; channel prefs; web-push save |
 | Zod boundaries | `supportAdminListQuery`, `adminAuditListQuery`, `messageLogListQuery`; admin profile PATCH bodySchema (`/api/admin/users/[userId]/profile`) |
-| Tests | Vitest `--project fast` phase-14 bundle — **118 passed** / **11 skipped** (devDb opt-in); staging smoke — **phase 17** |
+| Tests | Vitest `--project fast` phase-14 bundle — **119 passed** / **11 skipped** (devDb opt-in); staging smoke — **phase 17** |
 
 Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 14E.
 
@@ -191,11 +191,11 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15D.
 
 ## Wave 3 phase 15E — messenger bind + routes tail (2026-06-06)
 
-Подфаза **15E** закрыта: `messengerPhoneHttpBindExecute.ts` — runtime `pool.query`/`client.query` = **0**; route SQL вынесен в infra repos.
+Подфаза **15E** закрыта: `app-layer/integrator/messengerPhoneHttpBindExecute.ts` — runtime `pool.query`/`client.query` = **0**; route SQL вынесен в infra repos.
 
 | Gate (15E) | Итог |
 |------------|------|
-| Scope bind module | `src/modules/integrator/messengerPhoneHttpBindExecute.ts` |
+| Scope bind module | `src/app-layer/integrator/messengerPhoneHttpBindExecute.ts` |
 | `pool.query` / `client.query` | **0** (было 5× `client.query` в bind-TX) |
 | Executor | domain SQL → `runWebappPgText` + `getWebappSqlFromPgClient(client)`; TX control → `runPgPoolPgText` (BEGIN/COMMIT/ROLLBACK) |
 | Boundary | Zod `bindInputSchema`, `mergedIntoRowSchema`, `integratorIdentityRowSchema` |
@@ -222,7 +222,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15E.
 | Runtime tail (unique) | **25** файлов = Class B pool (**2**) + Class B client (**1**) + Class C (**22**) |
 | 15A–15E migrated scope | runtime `pool.query`/`client.query` = **0** (Drizzle `db.query.*` relational API — вне gate) |
 | Verify test | `webappPhase15F.verify.test.ts` — **5 passed** (fast) |
-| Phase 15 closure bundle | 15F verify + 15E (incl. bind route) + 15A–15D + analytics read-source — **92 passed** (fast) |
+| Phase 15 closure bundle | 15F verify + 15E (incl. bind route) + 15A–15D + analytics read-source — **93 passed** (fast) |
 
 **Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](./plans/wave3_phase_16_legacy_cutover.plan.md).
 
@@ -350,7 +350,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 
 | Файл                                                      | Назначение                                                                                                                             | Сложн. | Вариант                                                                | Риски                         |
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------- | ----------------------------- |
-| `src/modules/integrator/messengerPhoneHttpBindExecute.ts` | Привязка телефона через HTTP к интегратору: bind-TX на integrator pool + audit enrich. | **A** | В      | **Wave 3 P15E done:** `runWebappPgText` / `runPgPoolPgText` + Zod; Class C TX control only | Расхождение двух пулов, merge |
+| `src/app-layer/integrator/messengerPhoneHttpBindExecute.ts` | Привязка телефона через HTTP к интегратору: bind-TX на integrator pool + audit enrich. | **A** | В      | **Wave 3 P15E done:** `runWebappPgText` / `runPgPoolPgText` + Zod; Class C TX control only | Расхождение двух пулов, merge |
 | `src/infra/repos/pgAdminClientProfileConflicts.ts` | Admin profile patch: email/phone conflict lookup на `platform_users`. | Н      | **Wave 3 P15E done:** `runWebappPgText` | Дубликаты email/phone |
 | `src/infra/repos/pgMediaFolderLookup.ts` | Media upload: проверка существования `media_folders` по id. | Н      | **Wave 3 P15E done:** `runWebappPgText` | Неверный folderId |
 
@@ -541,7 +541,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15F.
 
 1. **Мастер-план (P1–P4 integrator repos):** закрыт — см. [LOG.md](./LOG.md) § «Закрытие инициативы».
 2. **Wave 2 (волна после мастера):** этапы **1–8** закрыты ([plans/README.md](./plans/README.md)); **мелкие repos/config** с `db.query` — **Wave 3 фаза 09** (§1.2, Class **A**).
-3. **Wave 3 (2026-06-06):** baseline Class A/B/C — § «Wave 3 baseline»; индекс фаз [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md); решения [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). **media-worker** post-claim SQL — **фаза 10 done** (Class B); **Webapp** closeout — фазы **11–15** (**78** prod-файлов `pool|client.query`); **integrator schema reduction** — фаза **08**; conditional **`migrate:legacy` cutover** — фаза **16**.
+3. **Wave 3 (2026-06-06):** baseline Class A/B/C — § «Wave 3 baseline»; индекс фаз [`plans/wave3_INDEX.md`](./plans/wave3_INDEX.md); решения [`plans/wave3_DECISIONS.md`](./plans/wave3_DECISIONS.md). **media-worker** post-claim SQL — **фаза 10 done** (Class B); **Webapp** closeout — фазы **11–15** (**78** prod-файлов `pool|client.query`); **integrator schema reduction** — фаза **08**; **legacy cutover (phase 16) done** — regular flow Drizzle-only, `migrate:legacy` оставлен manual/emergency с guardrails.
 4. **Webapp:** перенос через **`src/infra/repos`** + module ports (`buildAppDeps` / `bindAuthModulePorts`). Reminder repos — **P4 done**; медиа — **P5 done**; LFK `pgLfk*` — **P6 done**; auth/rate limits §2.2 — **P7 done** (2026-06-05).
 5. **Поиск в коде:** `rg "pool\\.query\\(|client\\.query\\(" apps packages` и `rg "\\bdb\\.query\\(" apps/integrator` — в `apps/integrator` экспорт `db` из `client.ts` это **`pg.Pool`**, не Drizzle relational `db.query` из webapp. `migrate.ts` и оболочка `client.ts` для TX — **не** цель «весь SQL в Drizzle builder».
 

@@ -337,7 +337,7 @@
 #### Зафиксированные решения (вопросы 1–10, [wave3_DECISIONS.md](./plans/wave3_DECISIONS.md))
 
 1. **Webapp scope:** полный closeout runtime `apps/webapp/src` (без `*.test.ts`) в фазах **11–15**; после 15 — только Class B/C в RAW_SQL.
-2. **`messengerPhoneHttpBindExecute.ts`:** миграция в **фазе 15** (Drizzle executor + Zod), **не** permanent C.
+2. **`apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts`:** миграция в **фазе 15** (Drizzle executor + Zod), **не** permanent C.
 3. **media-worker shared schema:** **не** делаем в Wave 3; minimal `execute(sql)` на существующем `pg.Pool` (фаза 10).
 4. **Staging smoke:** обязателен перед closeout (**фаза 17**); без owner/стенда — Wave 3 `blocked`, не `completed`.
 5. **PR policy:** **1 PR = 1 фаза**; исключение `00+09` при ускорении старта; merge — `pnpm run ci`.
@@ -717,7 +717,7 @@ LIMIT 3;"
 
 - **Gate:** 14 scope-файлов — `pool.query` = 0; Class C `client.query` только в 4 TX-модулях (см. plan §13E).
 - **P8:** `pgPatientBookings.upsertFromRubitime` → `booking-rubitime-sync` через `getPool()` — подтверждено.
-- **Tests:** `booking-rubitime-sync` **27 passed**; webapp fast phase-13 bundle **116 passed** / 12 skipped (devDb).
+- **Tests:** `booking-rubitime-sync` **27 passed**; webapp fast phase-13 bundle **123 passed** / 12 skipped (devDb).
 - **RAW_SQL / plan:** todo `w3-p13-verify` → `completed`; **фаза 13 closed**.
 
 #### Post-audit closure 13E (2026-06-06)
@@ -725,7 +725,7 @@ LIMIT 3;"
 - Документация: plan 13 `status: completed`, DoD `[x]`; `wave3_INDEX`, `plans/README`, `DRIZZLE_TRANSITION_PLAN`, `RAW_SQL_INVENTORY`, `docs/README.md`, plan 14 §Предшественник — фаза 13 done, next **14**.
 - Zod на DB-границах: частично (13B/13C parity + row parsers); полный sweep — фазы **09–15** (не блокер 13E).
 - DevDb opt-in: 7 smoke-файлов (`RUN_BOOKING_CATALOG_DEV_DB`, `RUN_PATIENT_BOOKINGS_DEV_DB`, `RUN_DOCTOR_CLIENTS_DEV_DB`, `RUN_PG_DOCTOR_CLIENTS_APPOINTMENT_JOIN_DB`, `RUN_DOCTOR_ANALYTICS_DEV_DB`, `RUN_DOCTOR_PHASE_13D_DEV_DB` + bundle skip без env) — вне CI по умолчанию.
-- **Re-verify (2026-06-06):** повторный gate — `pool.query` = 0 (только JSDoc в headers); Class C `client.query` — 4 TX-модуля; bundle **116 passed** / 12 skipped; rubitime-sync **27 passed**.
+- **Re-verify (2026-06-06):** повторный gate — `pool.query` = 0 (только JSDoc в headers); Class C `client.query` — 4 TX-модуля; bundle **123 passed** / 12 skipped; rubitime-sync **27 passed**.
 - **Audit closure (2026-06-06):** независимая проверка выполнения фазы — блокирующих расхождений нет; scope table plan 13 — `motivation/actions.ts` baseline 10 → **0** после 13D.
 
 ### Wave 3 phase 13 — итог (completed, 2026-06-06)
@@ -736,7 +736,7 @@ LIMIT 3;"
 | **13B** | `pgPatientBookings`, `pgDoctorAppointments`, `pgAppointmentProjection`, `pgBookingCalendarLegacy` | 37 tests; P8 rubitime-sync; Class C projection soft-delete |
 | **13C** | `pgDoctorClients`, `pgDoctorAnalyticsMetricAccounts`, `createDoctorClient`, `pgDoctorNotes`, `pgBranches` | 52 tests; 26 metric-key parity |
 | **13D** | `motivation/actions` → thin actions; `pgDoctorMotivationQuotesEditor`, `pgDoctorBroadcastDelivery`, `pgDoctorProactiveInsights` | 12 tests post-audit; Class C broadcast queue |
-| **13E** | scope `rg pool.query` = 0 (14 файлов); P8 consumer | **116 passed** / 12 skipped; rubitime-sync **27 passed** |
+| **13E** | scope `rg pool.query` = 0 (14 файлов); P8 consumer | **123 passed** / 12 skipped; rubitime-sync **27 passed** |
 
 **Class C TX (остаются на PoolClient):** `pgAppointmentProjection.softDelete`, `createDoctorClient`, `pgDoctorBroadcastDelivery`, `pgDoctorMotivationQuotesEditor.reorderQuotes`; `getPool()` без domain SQL — `pgPatientBookings.upsertFromRubitime` (P8), `pgDoctorClients.resolveCanonicalUserId`, `createDoctorClient.findCanonicalUserIdByPhone`.
 
@@ -831,7 +831,7 @@ LIMIT 3;"
 
 - **Gate:** 10 scope-файлов — runtime `pool.query` = **0**; Class C `client.query` только на TX transport (см. §14E plan).
 - **Zod:** `supportAdminListQuery`, `adminAuditListQuery`, `messageLogListQuery`; admin client profile PATCH — route bodySchema.
-- **Tests:** fast bundle phase 14 — **118 passed** / **11 skipped** (repos + query modules + admin audit route).
+- **Tests:** fast bundle phase 14 — **119 passed** / **11 skipped** (repos + query modules + admin audit route).
 - **RAW_SQL / plan:** todo `w3-p14-verify` → `completed`; **фаза 14 closed**.
 
 #### Post-audit closure 14E (2026-06-06)
@@ -844,7 +844,7 @@ LIMIT 3;"
 
 - **RAW_SQL_INVENTORY:** добавлен §Wave 3 phase 14 (gate 14E, 10 scope-файлов, Zod boundaries, счётчики тестов); строка `mergeLegacySupportConversations.ts`.
 - **Tests:** `messageLogListQuery.test.ts` — invalid `dateFrom` и oversize `category` → filters `{}` (Zod boundary).
-- **Docs:** plan/LOG/INDEX/README/RAW_SQL — **118 passed** / **11 skipped**; scope table bridge vs baseline.
+- **Docs:** plan/LOG/INDEX/README/RAW_SQL — **119 passed** / **11 skipped**; scope table bridge vs baseline.
 
 ### Wave 3 phase 14 — итог (completed, 2026-06-06)
 
@@ -854,7 +854,7 @@ LIMIT 3;"
 | **14B** | `pgUserProjection` | 4 Class C TX; repo + devDb |
 | **14C** | `adminAuditLog`, merge verify | dedupe TX; audit tests + devDb |
 | **14D** | 6 comms/subscription repos | Class C channel prefs + web-push save |
-| **14E** | gate + Zod boundaries | 10 files `pool.query` = 0; **118 passed** / 11 skipped |
+| **14E** | gate + Zod boundaries | 10 files `pool.query` = 0; **119 passed** / 11 skipped |
 
 **Class C TX (phase 14):** support merge wrapper; user projection (4 entrypoints); audit dedupe; channel preferred-auth; web-push save.
 
@@ -866,7 +866,7 @@ LIMIT 3;"
 - **LOG 14A transport:** исправлен устаревший текст про `findCanonicalUserIdByIntegratorId(getPool())` — фактически `resolvePlatformUserId` → `runWebappPgText`.
 - **DevDb smokes:** opt-in only; staging/production — gate **phase 17** (не блокер 14).
 - **messageLog Zod:** strict boundary + tests invalid `dateFrom` / oversize `category` → `{}` (14E + full audit closure).
-- **Re-verify:** gate 10 files `pool.query` = 0; fast bundle **118 passed** / **11 skipped**.
+- **Re-verify:** gate 10 files `pool.query` = 0; fast bundle **119 passed** / **11 skipped**.
 - **Plan doc sync:** `wave3_phase_14` §Закрытие + INDEX / README / DRIZZLE_TRANSITION_PLAN / docs/README (2026-06-06).
 
 **Следующая фаза Wave 3:** [wave3_phase_15_webapp_long_tail.plan.md](./plans/wave3_phase_15_webapp_long_tail.plan.md).
@@ -917,7 +917,7 @@ LIMIT 3;"
 
 ### Wave 3 phase 15E — messenger bind + routes tail (2026-06-06)
 
-- **Scope:** `messengerPhoneHttpBindExecute.ts`; route tails `api/media/upload`, `admin/users/[userId]/profile`; verify `recordPublicBookingMergeCandidates`, `resolveOrCreateUserByPhone` (P12E).
+- **Scope:** `app-layer/integrator/messengerPhoneHttpBindExecute.ts`; route tails `api/media/upload`, `admin/users/[userId]/profile`; verify `recordPublicBookingMergeCandidates`, `resolveOrCreateUserByPhone` (P12E).
 - **Миграция:** 5× `client.query` → `runWebappPgText` + `getWebappSqlFromPgClient`; TX BEGIN/COMMIT/ROLLBACK → `runPgPoolPgText`; audit enrich — `poolAsMessengerPhoneBindDb`; Zod на bind input и identity/merge rows.
 - **Route thinness:** новые repo `pgAdminClientProfileConflicts` (email/phone conflict), `pgMediaFolderLookup` (`mediaFolderExists`); routes без `pool.query`.
 - **Baseline → gate:** 5 raw query в bind module → **0**; webapp prod tail post-15E — **27** файлов.
@@ -932,14 +932,14 @@ LIMIT 3;"
 - **Class B:** `runWebappSql.ts` (transport), `client.ts` (health), `pgAdminPlatformUserStats.ts` (uuid[] `pool.query` workaround).
 - **Class C:** **22** файла — TX `BEGIN`/`COMMIT`/`ROLLBACK` (+ advisory locks).
 - **Domain `pool.query`:** **0** вне Class B allowlist; **15A–15E** migrated scope — runtime `pool.query`/`client.query` = **0**.
-- **Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 closure bundle — **92 passed** (fast).
+- **Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 closure bundle — **93 passed** (fast).
 - **RAW_SQL / plan:** §Wave 3 phase 15F; baseline webapp tail **78→25**; todo `w3-p15-verify` → `completed`; **фаза 15 closed**.
 - **Следующая фаза Wave 3:** [wave3_phase_16_legacy_cutover.plan.md](./plans/wave3_phase_16_legacy_cutover.plan.md).
 
 #### Post-audit closure 15F (2026-06-06)
 
 - **RAW_SQL §15E/15F:** `rg -l` **27** vs runtime **25** (comment-only catalog/appointments); migrated gate — `pool.query`/`client.query` only.
-- **Closure bundle re-verify:** **92 passed** (15F + 15E incl. bind route + 15A–15D + analytics).
+- **Closure bundle re-verify:** **93 passed** (15F + 15E incl. bind route + 15A–15D + analytics).
 - **HEAD bleed fix:** `pgDoctorAnalyticsMetricAccounts.ts` — `resolveReadSource` / legacy exclusion + unit test legacy path; typecheck green.
 
 ### Wave 3 phase 15 — итог (completed, 2026-06-06)
@@ -951,10 +951,23 @@ LIMIT 3;"
 | **15C** | 5 treatment/minor repos | **26 passed** |
 | **15D** | `integratorPushOutbox` → Drizzle | **22 passed** |
 | **15E** | messenger bind + route tails | **26 passed** |
-| **15F** | Class B/C gate + inventory | verify **5 passed**; closure **92 passed**; tail **25** runtime files |
+| **15F** | Class B/C gate + inventory | verify **5 passed**; closure **93 passed**; tail **25** runtime files |
 
 **Webapp prod tail:** baseline **78** → post-15 **25** (только Class B/C с пометкой в RAW_SQL).
 
 **Документация синхронизирована:** plan 15, `wave3_INDEX`, `plans/README`, `DRIZZLE_TRANSITION_PLAN`, `RAW_SQL_INVENTORY`, `docs/README.md`.
+
+### Wave 3 phase 16 — legacy cutover (2026-06-06)
+
+- **Decision gate (после 09–15):** blocker для regular flow не найден. `deploy-prod`/`deploy-webapp-prod` и CI не требуют `migrate:legacy`; канон остаётся Drizzle-only (`pnpm --dir apps/webapp run migrate`).
+- **Inventory:** `rg "migrate:legacy|run-migrations\\.mjs" apps/webapp deploy docs --glob "!docs/archive/**"` подтвердил живые ссылки только в emergency/manual контексте (scripts/docs/tests), не в regular deploy/CI paths.
+- **Guardrails:** `apps/webapp/scripts/run-migrations.mjs` получил явный gate:
+  - warning banner (legacy = emergency/bootstrap-only),
+  - режим `WEBAPP_LEGACY_MIGRATIONS_MODE` (`manual|bootstrap|emergency`),
+  - блокировка `manual`-режима в CI (для regular pipeline).
+- **Test bootstrap policy:** `apps/webapp/vitest.globalSetup.ts` больше не запускает `migrate:legacy` неявно; по умолчанию выполняется только Drizzle migrate. Legacy включается только opt-in (`VITEST_USE_LEGACY_MIGRATIONS=true` / `WEBAPP_TEST_USE_LEGACY_MIGRATIONS=true`), в bootstrap-режиме.
+- **Zod boundary в migration tooling:** `run-migrations.mjs` — валидация ledger/shape (`COUNT(*)` row + migration filename schema) через `zod`.
+- **Docs sync:** обновлены `wave3_phase_16_legacy_cutover.plan.md`, `wave3_INDEX.md`, `plans/README.md`, `DRIZZLE_TRANSITION_PLAN.md`, `RAW_SQL_INVENTORY.md`, `deploy/HOST_DEPLOY_README.md`, `apps/webapp/scripts/README.md`, `docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/*`, `docs/ARCHITECTURE/DB_STRUCTURE.md`.
+- **Следующая фаза Wave 3:** [wave3_phase_17_closeout.plan.md](./plans/wave3_phase_17_closeout.plan.md).
 
 

@@ -69,7 +69,7 @@ todos:
 
 ### 15E — messenger bind and routes tail (**done** 2026-06-06)
 
-- Файлы: `messengerPhoneHttpBindExecute.ts` + route tails из scope.
+- Файлы: `app-layer/integrator/messengerPhoneHttpBindExecute.ts` + route tails из scope.
 - Цель: убрать прямой query в bind-TX с сохранением семантики и Zod boundary validation.
 - Проверка:
   - targeted tests bind/phone merge;
@@ -114,7 +114,7 @@ todos:
 | `pgPhoneHistory.ts` | 2 → **0** (P15C) |
 | `pgTreatmentProgramItemSnapshot.ts` | 1 → **0** (P15C) |
 | `integratorPushOutbox.ts` | 4× `db.query` → **0** (P15D) |
-| `messengerPhoneHttpBindExecute.ts` | 5 → **0** (P15E) |
+| `app-layer/integrator/messengerPhoneHttpBindExecute.ts` | 5 → **0** (P15E) |
 | `s3MediaStorage.ts` | 7 (TX only — Class C) |
 | `mediaUploadSessionsRepo.ts` | 6 (verify P5) |
 | `mediaPreviewWorker.ts` | 6 (verify P5) |
@@ -142,7 +142,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
   src/infra/repos/pgTreatmentTail15C.repo.test.ts \
   src/infra/integrator-push/integratorPushOutbox.test.ts \
   src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts
-# ожидание: 92 passed (fast) — полный phase-15 closure bundle
+# ожидание: 93 passed (fast) — полный phase-15 closure bundle
 ```
 
 ## Закрытие 15A (2026-06-06)
@@ -209,7 +209,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 |---------|------|
 | **15E** | `messengerPhoneHttpBindExecute` → `runWebappPgText` / `runPgPoolPgText`; route SQL → `pgAdminClientProfileConflicts`, `pgMediaFolderLookup` |
 
-**Gate 15E:** `rg pool.query|client.query` по `messengerPhoneHttpBindExecute.ts`, `api/media/upload/route.ts`, `api/admin/users/[userId]/profile/route.ts` → **0**.
+**Gate 15E:** `rg pool.query|client.query` по `app-layer/integrator/messengerPhoneHttpBindExecute.ts`, `api/media/upload/route.ts`, `api/admin/users/[userId]/profile/route.ts` → **0**.
 
 **Tests:** `messengerPhoneHttpBindExecute15E.test.ts` (runtime + happy path + max CTE + Zod reject + blocked audit) + `webappPhase15E.repo.test.ts` (route/repo/P12E runtime gates + SQL parity) + `messenger-phone/bind/route.test.ts` — **26 passed** (fast).
 
@@ -231,7 +231,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Class C (22):** intake, purge, merge, identity, user projection, comms, media TX, locks, channel link, doctor create/broadcast/motivation, appointments, s3 media.
 
-**Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 closure bundle — **92 passed** (fast).
+**Tests:** `webappPhase15F.verify.test.ts` — **5 passed**; phase 15 closure bundle — **93 passed** (fast).
 
 **Документация (sync 15F):** [../LOG.md](../LOG.md) §Wave 3 phase 15F + §phase 15 итог; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15F.
 
@@ -239,7 +239,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 - **RAW_SQL §15E:** уточнён `rg -l` **27** vs runtime **25** (comment-only `pgBookingCatalog`, `pgDoctorAppointments`).
 - **RAW_SQL §15F:** migrated scope gate — только `pool.query`/`client.query` (не Drizzle relational `db.query.*`).
-- **Closure bundle:** **92 passed** (15F + 15E incl. bind route + 15A–15D + analytics read-source); команда в §Проверки.
+- **Closure bundle:** **93 passed** (15F + 15E incl. bind route + 15A–15D + analytics read-source); команда в §Проверки.
 - **HEAD bleed fix:** `pgDoctorAnalyticsMetricAccounts.ts` — `resolveReadSource` + legacy exclusion + unit test `rubitime_legacy` path.
 - **Plan remark closure:** verify-only P12E пути зафиксированы явно (`app-layer/platform-user/*`) вместо неявных ссылок.
 

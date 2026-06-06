@@ -45,7 +45,7 @@ todos:
 
 ## Примечание
 
-Интеграторный путь `messengerPhoneHttpBindExecute.ts` остаётся на отдельном пуле до отдельной задачи унификации — не раздувать этап без постановки.
+Интеграторный путь `apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts` остаётся на отдельном пуле до отдельной задачи унификации — не раздувать этап без постановки.
 
 ## Закрытие (2026-06-05)
 
@@ -106,7 +106,7 @@ todos:
 - Auth SQL переносится без изменения security policy: error classes, audit actions, HTTP statuses и `mergeReason` priority сохраняются.
 - Rate-limit keys/window semantics не менять. Helper/repo может менять реализацию хранения, но не ключ лимита.
 - Clean Architecture обязательна: module defines port, infra implements, `buildAppDeps` wires.
-- `messengerPhoneHttpBindExecute.ts` остаётся вне scope; phone-bind shared package унификация — отдельный backlog.
+- `apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts` остаётся вне scope; phone-bind shared package унификация — отдельный backlog.
 
 ## Stop conditions
 

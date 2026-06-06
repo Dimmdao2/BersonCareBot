@@ -1,12 +1,12 @@
 # Wave 3 — финальный closeout (raw SQL tail ↓ / Drizzle + Zod / legacy cutover)
 
-**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10**, **11**, **12**, **13**, **14** completed; далее **15**
+**Статус:** in progress (2026-06-06) — фазы **00**, **08**, **09**, **10**, **11**, **12**, **13**, **14**, **15**, **16** completed; далее **17**
 **Предшественник:** Wave 2 этапы 1–8 **completed**  
 **Решения до старта:** [wave3_DECISIONS.md](./wave3_DECISIONS.md) (DoR закрыт фазой 00)
 
 ## Цель Wave 3
 
-1. Integrator P1+ (**done**, фаза 09), media-worker IX (**done**, фаза 10), app-layer/auth tail (**done**, фаза 11), intake/purge/identity (**done**, фаза 12), booking/doctor (**done**, фаза 13), comms/projection (**done**, фаза 14) — закрыты; далее webapp closeout (**15**).
+1. Integrator P1+ (**done**, фаза 09), media-worker IX (**done**, фаза 10), app-layer/auth tail (**done**, фаза 11), intake/purge/identity (**done**, фаза 12), booking/doctor (**done**, фаза 13), comms/projection (**done**, фаза 14), webapp long-tail (**done**, фаза 15), legacy cutover (**done**, фаза 16) — закрыты; далее closeout (**17**).
 2. Убрать необъяснённый **`pool.query` / `client.query`** в webapp runtime (Class **A**), либо перевести в Class **B/C** с ADR.
 3. Убрать потребность в регулярном `migrate:legacy` для webapp, если после фаз 09–15 не осталось raw-SQL/migration причин держать legacy runner в regular flow.
 4. Синхронизировать **RAW_SQL_INVENTORY**, **DRIZZLE_TRANSITION_PLAN**, **LOG**; закрыть инициативу или явный backlog с причинами.
@@ -16,7 +16,7 @@
 ## Зафиксированные решения до старта
 
 - Webapp scope: **полный closeout** runtime-файлов `apps/webapp/src` (без тестов), не top-N.
-- `messengerPhoneHttpBindExecute.ts`: мигрируем в фазе 15 (Drizzle executor + Zod), не оставляем permanent C.
+- `apps/webapp/src/app-layer/integrator/messengerPhoneHttpBindExecute.ts`: мигрируем в фазе 15 (Drizzle executor + Zod), не оставляем permanent C.
 - media-worker: **без** shared schema package; только minimal executor в фазе 10.
 - Staging smoke из `LOG.md` L182: обязательный gate перед closeout; без него Wave 3 остаётся blocked.
 - `rubitimeApiThrottle`: throttle-row read/update переводим на Drizzle session на том же client (Class B).
@@ -39,7 +39,7 @@
 | 13 | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | L | booking/doctor (декомпозиция 13A-13E) | 1 (**done** 2026-06-06) |
 | 14 | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | L | comms/projection (декомпозиция 14A-14E) | 1 (**done** 2026-06-06) |
 | 15 | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | M | long tail (декомпозиция 15A-15F) | 1 (**done** 2026-06-06) |
-| 16 | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | M | webapp legacy migration dependency cutover (`migrate:legacy`) | 1 |
+| 16 | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | M | webapp legacy migration dependency cutover (`migrate:legacy`) | 1 (**done** 2026-06-06) |
 | 17 | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | S | docs sync, staging smoke gate, full CI, archive | 1 |
 
 **Итого:** ~8 code PR + 1 docs baseline + 1 closeout (или baseline+09 в одном PR по согласованию).
@@ -63,18 +63,19 @@
 - **13B:** patient bookings + doctor appointments (**done** 2026-06-06; Rubitime sync invariant preserved)
 - **13C:** doctor clients + analytics (**done** 2026-06-06)
 - **13D:** motivation + doctor tails (**done** 2026-06-06)
-- **13E:** phase verify (**done** 2026-06-06) — **фаза 13 closed** (gate + 116 fast tests + rubitime-sync 27); opt-in devDb: `RUN_BOOKING_CATALOG_DEV_DB` / `RUN_PATIENT_BOOKINGS_DEV_DB` / `RUN_DOCTOR_CLIENTS_DEV_DB` / `RUN_PG_DOCTOR_CLIENTS_APPOINTMENT_JOIN_DB` / `RUN_DOCTOR_ANALYTICS_DEV_DB` / `RUN_DOCTOR_PHASE_13D_DEV_DB`
+- **13E:** phase verify (**done** 2026-06-06) — **фаза 13 closed** (gate + 123 fast tests / 12 skipped + rubitime-sync 27); opt-in devDb: `RUN_BOOKING_CATALOG_DEV_DB` / `RUN_PATIENT_BOOKINGS_DEV_DB` / `RUN_DOCTOR_CLIENTS_DEV_DB` / `RUN_PG_DOCTOR_CLIENTS_APPOINTMENT_JOIN_DB` / `RUN_DOCTOR_ANALYTICS_DEV_DB` / `RUN_DOCTOR_PHASE_13D_DEV_DB`
 - **14A:** support communication core (**done** 2026-06-06; `runWebappPgText`, repo tests, Zod list query, devDb `RUN_SUPPORT_COMMUNICATION_DEV_DB`; merge helper SQL → `runWebappPgText` on tx client)
 - **14B:** user projection core (**done** 2026-06-06; `runWebappPgText`/`txPgText`; repo + devDb `RUN_USER_PROJECTION_DEV_DB`; Class C TX on upsert/appointment/phone/admin patch)
 - **14C:** audit + legacy merge helpers (**done** 2026-06-06; `adminAuditLog.ts` → `runWebappPgText`; Class C TX on `upsertOpenConflictLog`; merge helper regression-only)
 - **14D:** comms tail (**done** 2026-06-06; 6 repos → `runWebappPgText`; Class C TX on channel prefs preferred-auth + web-push save)
-- **14E:** phase verify (**done** 2026-06-06) — **фаза 14 closed** (gate 10 files; Zod query modules; **118 passed** / 11 skipped)
+- **14E:** phase verify (**done** 2026-06-06) — **фаза 14 closed** (gate 10 files; Zod query modules; **119 passed** / 11 skipped)
 - **15A:** references/settings/diary (**done** 2026-06-06; `runWebappPgText` + `runWebappTransaction`; gate 3 repo = 0; **33 passed** fast bundle)
 - **15B:** auth/email ports tail (**done** 2026-06-06; 7 repos → `runWebappPgText`; merge bridge + `runWebappTransaction`; gate = 0; **52 passed** fast bundle)
 - **15C:** treatment and minor tails (**done** 2026-06-06; 5 repos → `runWebappPgText`; `pgPhoneHistory` TX bridge; gate = 0; **26 passed** fast bundle)
 - **15D:** integrator push outbox (**done** 2026-06-06; `integratorPushOutbox` → Drizzle; claim `execute(sql)`; gate `db.query` = 0; **22 passed** fast bundle)
 - **15E:** messenger bind + routes tail (**done** 2026-06-06; `messengerPhoneHttpBindExecute` + route repos; gate = 0; **26 passed** fast bundle)
-- **15F:** phase verify (**done** 2026-06-06; tail **25** runtime files Class B/C; closure bundle **92 passed**)
+- **15F:** phase verify (**done** 2026-06-06; tail **25** runtime files Class B/C; closure bundle **93 passed**)
+- **16:** legacy cutover (**done** 2026-06-06; `migrate:legacy` removed from implicit test bootstrap, CI regular path blocked, runner guard + Zod ledger parsing)
 
 ## Gate-контракт (как Wave 2)
 
@@ -92,13 +93,13 @@
 - `09A→09B→09C→09D→09E` — строго последовательно внутри фазы 09.
 - `10A→10B→10C` — строго последовательно внутри фазы 10.
 - `09` и `10` можно делать параллельно только после `08`.
-- `11` — **done** (2026-06-06); `12` — **done** (2026-06-06); `13` — **done** (2026-06-06); `14` — **done** (2026-06-06); **15** — next.
+- `11` — **done** (2026-06-06); `12` — **done** (2026-06-06); `13` — **done** (2026-06-06); `14` — **done** (2026-06-06); `15` — **done** (2026-06-06).
 - `12A→12B→12C→12D→12E` внутри фазы 12.
 - `13A→13B→13C→13D→13E` внутри фазы 13.
 - `14A→14B→14C→14D→14E` внутри фазы 14.
 - `15A→15B→15C→15D→15E→15F` внутри фазы 15.
-- `12` → `13` → `14` → `15` идут последовательно (`14` closed).
-- `16` стартует после `15` и закрывает legacy-cutover только если `09–15` не оставили причин держать `migrate:legacy` в regular flow; иначе фиксирует blocker/backlog.
+- `12` → `13` → `14` → `15` идут последовательно (`15` closed).
+- `16` стартует после `15`; по итогу `09–15` blocker не найден, regular flow закреплён как Drizzle-only, legacy оставлен manual/emergency.
 - `17` — только после `00..16`, staging smoke gate и финального `pnpm run ci`.
 
 ## Связь с DRIZZLE_TRANSITION_PLAN фазами IX–X

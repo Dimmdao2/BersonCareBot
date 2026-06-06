@@ -107,11 +107,11 @@ todos:
 - **Gate scope (14 файлов):** `pool.query` = **0** (кроме JSDoc в file headers); domain SQL → `runWebappPgText`. Файлы: §Scope table + `pgDoctorMotivationQuotesEditor.ts` (writes/reorder из 13D).
 - **Class C transport (документировано):** `createDoctorClient`, `pgAppointmentProjection.softDelete`, `pgDoctorBroadcastDelivery`, `pgDoctorMotivationQuotesEditor.reorderQuotes` — только `BEGIN`/`COMMIT`/`ROLLBACK`. `getPool()` без domain SQL: P8 rubitime consumer, `pgDoctorClients.resolveCanonicalUserId`, `createDoctorClient.findCanonicalUserIdByPhone`.
 - **P8:** `pgPatientBookings.upsertFromRubitime` → `getPool()` + `@bersoncare/booking-rubitime-sync` (без изменений).
-- **Tests:** `booking-rubitime-sync` — **27 passed**; webapp fast bundle phase 13 — **116 passed**, 12 skipped (devDb opt-in).
+- **Tests:** `booking-rubitime-sync` — **27 passed**; webapp fast bundle phase 13 — **123 passed**, 12 skipped (devDb opt-in).
 - **Parity:** `pgDoctorAnalyticsMetricAccounts.parity.test.ts` (26 keys); doctor clients/appointments/booking repo tests из 13A–13D.
 - **Zod (boundary):** подтверждено на ключевых API — `/api/doctor/clients` (POST body), `/api/doctor/analytics-metric-accounts` (metric enum); motivation CMS — FormData + inline validation в actions.
 - **Фаза 13 closed**; следующая — [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md).
-- **Re-verify (2026-06-06):** повторный gate + bundle — `pool.query` 0 (runtime); Class C 4 TX; **116 passed** / 12 skipped; rubitime-sync **27 passed**; `wave3_INDEX` dependency line синхронизирован.
+- **Re-verify (2026-06-06):** повторный gate + bundle — `pool.query` 0 (runtime); Class C 4 TX; **123 passed** / 12 skipped; rubitime-sync **27 passed**; `wave3_INDEX` dependency line синхронизирован.
 
 ## Definition of Done
 

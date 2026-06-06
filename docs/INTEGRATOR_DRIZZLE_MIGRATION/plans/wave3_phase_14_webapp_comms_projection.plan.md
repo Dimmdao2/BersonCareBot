@@ -77,7 +77,7 @@ todos:
 - **Gate scope (10 файлов):** `pool.query` = **0** (runtime; JSDoc «no direct pool.query» в headers допустим); domain SQL → `runWebappPgText` / `txPgText`.
 - **Class C transport:** `pgSupportCommunication` merge wrapper (3×); `pgUserProjection` (4 TX); `adminAuditLog.upsertOpenConflictLog` (3×); `pgChannelPreferences.setPreferredAuthChannel`; `pgWebPushSubscriptions.saveSubscription` — только `BEGIN`/`COMMIT`/`ROLLBACK` (+ `SET CONSTRAINTS` в user projection TX).
 - **Zod boundaries:** `supportAdminListQuery.ts`; `adminAuditListQuery.ts`; `messageLogListQuery.ts` + admin profile PATCH bodySchema (`/api/admin/users/[userId]/profile`).
-- **Tests:** webapp fast phase-14 bundle — **118 passed** / **11 skipped** (repos + query modules + route tests); devDb opt-in smokes из 14A/14B/14C/14D — вне CI по умолчанию; staging/production smoke — gate **phase 17**, не 14.
+- **Tests:** webapp fast phase-14 bundle — **119 passed** / **11 skipped** (repos + query modules + route tests); devDb opt-in smokes из 14A/14B/14C/14D — вне CI по умолчанию; staging/production smoke — gate **phase 17**, не 14.
 - **Фаза 14 closed**; следующая — [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md).
 
 ## Definition of Done
@@ -157,7 +157,7 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 **Gate:** runtime `pool.query` = **0** в 10 scope-файлах (см. §Scope, §Проверки).
 
-**Tests:** Vitest `--project fast` phase-14 bundle — **118 passed** / **11 skipped**; devDb opt-in — `RUN_SUPPORT_COMMUNICATION_DEV_DB`, `RUN_USER_PROJECTION_DEV_DB`, `RUN_ADMIN_AUDIT_LOG_DEV_DB`, `RUN_PHASE_14D_DEV_DB` + `USE_REAL_DATABASE=1`.
+**Tests:** Vitest `--project fast` phase-14 bundle — **119 passed** / **11 skipped**; devDb opt-in — `RUN_SUPPORT_COMMUNICATION_DEV_DB`, `RUN_USER_PROJECTION_DEV_DB`, `RUN_ADMIN_AUDIT_LOG_DEV_DB`, `RUN_PHASE_14D_DEV_DB` + `USE_REAL_DATABASE=1`.
 
 **Class C TX:** support merge wrapper; user projection (4 entrypoints); audit dedupe; channel preferred-auth; web-push save.
 

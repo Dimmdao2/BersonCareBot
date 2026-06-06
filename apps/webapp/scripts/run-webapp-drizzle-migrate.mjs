@@ -41,8 +41,8 @@ If tables already exist but drizzle.__drizzle_migrations is empty (DDL applied o
   pnpm --dir apps/webapp run db:seed-drizzle-meta
   pnpm --dir apps/webapp run migrate
 
-If you need legacy SQL from apps/webapp/migrations (older bootstrap), run after fixing Drizzle state:
-  pnpm --dir apps/webapp run migrate:legacy
+If you need legacy SQL from apps/webapp/migrations (emergency/bootstrap only), run explicitly:
+  WEBAPP_LEGACY_MIGRATIONS_MODE=bootstrap pnpm --dir apps/webapp run migrate:legacy
 `);
 }
 process.exit(code);
