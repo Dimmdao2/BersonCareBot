@@ -15,7 +15,7 @@ todos:
     status: completed
   - id: w3-p15d-integrator-push
     content: "15D: integratorPushOutbox.ts — db.query на Pool -> Drizzle public.integrator_push_outbox."
-    status: pending
+    status: completed
   - id: w3-p15e-messenger-bind-and-routes
     content: "15E: messengerPhoneHttpBindExecute + routes tail (api/media/upload, admin users profile, recordPublicBookingMergeCandidates, resolveOrCreateUserByPhone)."
     status: pending
@@ -58,13 +58,14 @@ todos:
   - targeted tests treatment/material rating/pins.
 - **Итог:** `pool.query`/`client.query` = **0** в 5 scope-repo; domain SQL → `runWebappPgText`; `pgPhoneHistory` — TX-scoped executor через `getWebappSqlFromPgClient`. Vitest 15C bundle — **26 passed** (fast).
 
-### 15D — integrator push outbox
+### 15D — integrator push outbox (**done** 2026-06-06)
 
 - Файл: `infra/integrator-push/integratorPushOutbox.ts`.
 - Цель: перевести `.query(` на Drizzle-модель `public.integrator_push_outbox`.
 - Проверка:
   - integration tests push outbox producer/consumer contract;
   - `rg "\\.query\\(" apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts`.
+- **Итог:** `db.query` = **0**; enqueue/complete/fail/reschedule → Drizzle `insert`/`update` на `integratorPushOutbox`; claim → `runWebappSql` + `execute(sql)` (SKIP LOCKED); Zod на claimed rows; PoolClient → `getWebappSqlFromPgClient`. Vitest 15D bundle — **22 passed** (fast).
 
 ### 15E — messenger bind and routes tail
 
@@ -84,7 +85,7 @@ todos:
 ## Definition of Done
 
 - [ ] После фазы: `rg 'pool\.query|client\.query' apps/webapp/src` → только файлы с **явной** Class C пометкой в RAW_SQL.
-- [ ] `integratorPushOutbox` на Drizzle model из `apps/webapp/db/schema`.
+- [x] `integratorPushOutbox` на Drizzle model из `apps/webapp/db/schema` (**15D** 2026-06-06).
 - [ ] `messengerPhoneHttpBindExecute` без прямого `pool.query`/`client.query`, с Zod-валидацией критичных payload/rows.
 - [ ] Подфазы 15A-15F закрыты последовательно и отражены в LOG.
 
@@ -110,7 +111,7 @@ todos:
 | `pgUserPins.ts` | 4 → **0** (P15C) |
 | `pgPhoneHistory.ts` | 2 → **0** (P15C) |
 | `pgTreatmentProgramItemSnapshot.ts` | 1 → **0** (P15C) |
-| `integratorPushOutbox.ts` | db.query (все методы) |
+| `integratorPushOutbox.ts` | 4× `db.query` → **0** (P15D) |
 | `messengerPhoneHttpBindExecute.ts` | 5 |
 | `s3MediaStorage.ts` | 7 (TX only — Class C) |
 | `mediaUploadSessionsRepo.ts` | 6 (verify P5) |
@@ -174,6 +175,22 @@ rg '\.query\(' apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts
 
 **Документация (sync 15C):** [../LOG.md](../LOG.md) §Wave 3 phase 15C; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15C.
 
+## Закрытие 15D (2026-06-06)
+
+| Подфаза | Итог |
+|---------|------|
+| **15D** | `integratorPushOutbox.ts` → Drizzle `integratorPushOutbox` model; claim CTE — Class B `execute(sql)` |
+
+**Gate 15D:** `rg '\.query\(' apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts` → **0**.
+
+**Tests:** `integratorPushOutbox.test.ts` (runtime + producer/consumer + Zod reject) + `runIntegratorPushWorkerTick.test.ts` (worker orchestration) + `syncToIntegrator.test.ts` + `notifyIntegrator.test.ts` — **22 passed** (fast).
+
+**DoD (15D):** чекбокс `integratorPushOutbox` на Drizzle model — **закрыт**; §RAW_SQL раздел E — строка claim `execute(sql)`.
+
+**Callers:** `syncToIntegrator`, `notifyIntegrator`, `runIntegratorPushWorkerTick` — без изменений сигнатур (`Pool \| PoolClient`).
+
+**Документация (sync 15D):** [../LOG.md](../LOG.md) §Wave 3 phase 15D; [wave3_INDEX.md](./wave3_INDEX.md); [README.md](./README.md); [../DRIZZLE_TRANSITION_PLAN.md](../DRIZZLE_TRANSITION_PLAN.md); [../RAW_SQL_INVENTORY.md](../RAW_SQL_INVENTORY.md) §Wave 3 phase 15D.
+
 ## Следующая подфаза
 
-**15D** — integrator push outbox (`integratorPushOutbox.ts` → Drizzle `public.integrator_push_outbox`).
+**15E** — messenger bind and routes tail (`messengerPhoneHttpBindExecute` + route tails).

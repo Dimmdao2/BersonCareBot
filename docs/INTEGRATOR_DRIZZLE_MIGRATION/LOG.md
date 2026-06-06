@@ -314,7 +314,7 @@
 | Integrator `await db.query` (без `migrate.ts` / scripts) | **20** prod-файлов | ✓ (19 P1+ domain + `client.ts` Class C) |
 | Integrator `rubitimeApiThrottle` throttle row | **2** `client.query` | ✓ (фаза 09E, Class B) |
 | Webapp `pool.query` \| `client.query` (без тестов) | **78** prod-файлов | ✓ |
-| Webapp `integratorPushOutbox.ts` | `db.query` на Pool (вне grep `pool.query`) | ✓ → фаза 15D |
+| Webapp `integratorPushOutbox.ts` | **0** `db.query` (было 4; P15D done) | ✓ закрыто **15D** |
 | media-worker `claim.ts` | **8** `pool.query` | ✓ Class C |
 | media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **17** (10 + 7) at baseline → **0** direct `pool.query` after phase **10** | ✓ target фаза 10 (**done** 2026-06-06) |
 | media-worker settings | **2** (1 + 1) at baseline → **0** direct `pool.query` after phase **10** | ✓ target фаза 10 (**done** 2026-06-06) |
@@ -903,5 +903,16 @@ LIMIT 3;"
 - **RAW_SQL:** §Wave 3 phase 15C + **5/5** строк scope-repo в таблице инвентаризации.
 - **Plan doc sync:** `wave3_phase_15` §Закрытие 15C + INDEX / README / DRIZZLE_TRANSITION_PLAN (2026-06-06).
 - **Следующая подфаза:** 15D (`integratorPushOutbox.ts` → Drizzle `public.integrator_push_outbox`).
+
+### Wave 3 phase 15D — integrator push outbox (2026-06-06)
+
+- **Scope:** `src/infra/integrator-push/integratorPushOutbox.ts`.
+- **Миграция:** 4× `db.query` → Drizzle `integratorPushOutbox` (`insert`/`onConflictDoUpdate`, `update`); claim — `runWebappSql` + `execute(sql)` (SKIP LOCKED); Zod на claimed rows; executor bridge `Pool`/`PoolClient`.
+- **Baseline → gate:** 4 `db.query` → **0**.
+- **Gate:** `rg '\.query\(' integratorPushOutbox.ts` → **0**; webapp prod tail `pool.query`/`client.query` — **30** (outbox вне этого grep).
+- **Tests:** 15D bundle — `integratorPushOutbox.test.ts` + `runIntegratorPushWorkerTick.test.ts` + `syncToIntegrator.test.ts` + `notifyIntegrator.test.ts` — **22 passed** (fast).
+- **RAW_SQL:** §Wave 3 phase 15D + строка `integratorPushOutbox.ts` в таблице инвентаризации.
+- **Plan doc sync:** `wave3_phase_15` §Закрытие 15D + INDEX / README / DRIZZLE_TRANSITION_PLAN (2026-06-06).
+- **Следующая подфаза:** 15E (messenger bind + routes tail).
 
 

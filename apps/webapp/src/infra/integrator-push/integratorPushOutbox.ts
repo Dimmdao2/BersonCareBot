@@ -1,4 +1,14 @@
+/** Wave 3 phase 15D — `public.integrator_push_outbox` via Drizzle insert/update + claim `execute(sql)`. */
+import { eq, sql } from "drizzle-orm";
 import type { Pool, PoolClient } from "pg";
+import { z } from "zod";
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappSql,
+  type WebappSqlExecutor,
+} from "@/infra/db/runWebappSql";
+import { integratorPushOutbox } from "../../../db/schema/schema";
 
 export const INTEGRATOR_PUSH_KINDS = ["system_settings_sync", "reminder_rule_upsert"] as const;
 export type IntegratorPushKind = (typeof INTEGRATOR_PUSH_KINDS)[number];
@@ -12,8 +22,41 @@ export type IntegratorPushOutboxRow = {
   maxAttempts: number;
 };
 
+function isPgPool(db: Pool | PoolClient): db is Pool {
+  return typeof (db as Pool).connect === "function";
+}
+
+function integratorPushExecutor(db: Pool | PoolClient): WebappSqlExecutor {
+  return isPgPool(db) ? getWebappSqlDb() : getWebappSqlFromPgClient(db);
+}
+
+function pushOutboxId(id: string): bigint {
+  return BigInt(id);
+}
+
 function isKind(k: string): k is IntegratorPushKind {
   return (INTEGRATOR_PUSH_KINDS as readonly string[]).includes(k);
+}
+
+const claimedIntegratorPushRowSchema = z.object({
+  id: z.union([z.string(), z.number(), z.bigint()]).transform(String),
+  kind: z.string(),
+  idempotency_key: z.string(),
+  payload: z.record(z.string(), z.unknown()),
+  attempts_done: z.coerce.number(),
+  max_attempts: z.coerce.number(),
+});
+
+function mapClaimedRow(raw: z.infer<typeof claimedIntegratorPushRowSchema>): IntegratorPushOutboxRow | null {
+  if (!isKind(raw.kind)) return null;
+  return {
+    id: raw.id,
+    kind: raw.kind,
+    idempotencyKey: raw.idempotency_key,
+    payload: raw.payload,
+    attemptsDone: raw.attempts_done,
+    maxAttempts: raw.max_attempts,
+  };
 }
 
 /**
@@ -23,38 +66,44 @@ export async function enqueueIntegratorPush(
   db: Pool | PoolClient,
   input: { kind: IntegratorPushKind; idempotencyKey: string; payload: Record<string, unknown> },
 ): Promise<void> {
-  await db.query(
-    `INSERT INTO integrator_push_outbox (kind, idempotency_key, payload, status, next_try_at)
-     VALUES ($1, $2, $3::jsonb, 'pending', now())
-     ON CONFLICT (idempotency_key) DO UPDATE SET
-       kind = EXCLUDED.kind,
-       payload = EXCLUDED.payload,
-       status = 'pending',
-       attempts_done = 0,
-       next_try_at = now(),
-       last_error = NULL,
-       updated_at = now()`,
-    [input.kind, input.idempotencyKey, JSON.stringify(input.payload)],
-  );
+  const d = integratorPushExecutor(db);
+  await d
+    .insert(integratorPushOutbox)
+    .values({
+      kind: input.kind,
+      idempotencyKey: input.idempotencyKey,
+      payload: input.payload,
+      status: "pending",
+      nextTryAt: sql`now()`,
+    })
+    .onConflictDoUpdate({
+      target: integratorPushOutbox.idempotencyKey,
+      set: {
+        kind: input.kind,
+        payload: input.payload,
+        status: "pending",
+        attemptsDone: 0,
+        nextTryAt: sql`now()`,
+        lastError: null,
+        updatedAt: sql`now()`,
+      },
+    });
 }
 
 export async function claimDueIntegratorPushJobs(
   db: Pool | PoolClient,
   limit: number,
 ): Promise<IntegratorPushOutboxRow[]> {
-  const res = await db.query<{
-    id: string;
-    kind: string;
-    idempotency_key: string;
-    payload: Record<string, unknown>;
-    attempts_done: number;
-    max_attempts: number;
-  }>(
-    `WITH due AS (
+  const d = integratorPushExecutor(db);
+  const lim = Math.max(1, Math.trunc(limit));
+  const res = await runWebappSql<z.infer<typeof claimedIntegratorPushRowSchema>>(
+    d,
+    sql`
+    WITH due AS (
        SELECT id FROM integrator_push_outbox
        WHERE status = 'pending' AND next_try_at <= now()
        ORDER BY next_try_at ASC
-       LIMIT $1
+       LIMIT ${lim}
        FOR UPDATE SKIP LOCKED
      )
      UPDATE integrator_push_outbox o
@@ -66,32 +115,33 @@ export async function claimDueIntegratorPushJobs(
        o.idempotency_key,
        o.payload,
        o.attempts_done,
-       o.max_attempts`,
-    [Math.max(1, Math.trunc(limit))],
+       o.max_attempts
+    `,
   );
-  return res.rows
-    .filter((r) => isKind(r.kind))
-    .map((r) => ({
-      id: r.id,
-      kind: r.kind as IntegratorPushKind,
-      idempotencyKey: r.idempotency_key,
-      payload: r.payload,
-      attemptsDone: r.attempts_done,
-      maxAttempts: r.max_attempts,
-    }));
+  const out: IntegratorPushOutboxRow[] = [];
+  for (const row of res.rows) {
+    const parsed = claimedIntegratorPushRowSchema.safeParse(row);
+    if (!parsed.success) continue;
+    const mapped = mapClaimedRow(parsed.data);
+    if (mapped) out.push(mapped);
+  }
+  return out;
 }
 
 export async function completeIntegratorPushJob(db: Pool | PoolClient, id: string): Promise<void> {
-  await db.query(`UPDATE integrator_push_outbox SET status = 'done', updated_at = now() WHERE id = $1::bigint`, [
-    id,
-  ]);
+  const d = integratorPushExecutor(db);
+  await d
+    .update(integratorPushOutbox)
+    .set({ status: "done", updatedAt: sql`now()` })
+    .where(eq(integratorPushOutbox.id, pushOutboxId(id)));
 }
 
 export async function failIntegratorPushJobDead(db: Pool | PoolClient, id: string, lastError: string): Promise<void> {
-  await db.query(
-    `UPDATE integrator_push_outbox SET status = 'dead', last_error = $2, updated_at = now() WHERE id = $1::bigint`,
-    [id, lastError.slice(0, 4000)],
-  );
+  const d = integratorPushExecutor(db);
+  await d
+    .update(integratorPushOutbox)
+    .set({ status: "dead", lastError: lastError.slice(0, 4000), updatedAt: sql`now()` })
+    .where(eq(integratorPushOutbox.id, pushOutboxId(id)));
 }
 
 export async function rescheduleIntegratorPushJob(
@@ -101,16 +151,19 @@ export async function rescheduleIntegratorPushJob(
   retryDelaySeconds: number,
   lastError: string,
 ): Promise<void> {
-  await db.query(
-    `UPDATE integrator_push_outbox
-     SET status = 'pending',
-         attempts_done = $2,
-         next_try_at = now() + (($3::text || ' seconds')::interval),
-         last_error = $4,
-         updated_at = now()
-     WHERE id = $1::bigint`,
-    [id, Math.max(0, attemptsDone), String(Math.max(1, retryDelaySeconds)), lastError.slice(0, 4000)],
-  );
+  const d = integratorPushExecutor(db);
+  const delay = Math.max(1, retryDelaySeconds);
+  const attempts = Math.max(0, attemptsDone);
+  await d
+    .update(integratorPushOutbox)
+    .set({
+      status: "pending",
+      attemptsDone: attempts,
+      nextTryAt: sql`now() + (${String(delay)}::text || ' seconds')::interval`,
+      lastError: lastError.slice(0, 4000),
+      updatedAt: sql`now()`,
+    })
+    .where(eq(integratorPushOutbox.id, pushOutboxId(id)));
 }
 
 export function isRecoverableIntegratorPushFailure(err: unknown): boolean {

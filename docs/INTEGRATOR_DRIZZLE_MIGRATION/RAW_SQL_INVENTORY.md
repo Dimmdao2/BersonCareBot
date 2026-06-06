@@ -39,7 +39,7 @@
 | Integrator `await db.query` (без `migrate.ts` / scripts) | **0** prod (было 20) | **A** закрыто фазой **09**; `client.ts` → **C** (DbPort transport) | — |
 | Integrator `rubitimeApiThrottle` throttle row | **0** `client.query` (было 2) | **B** — Drizzle `execute` на том же `PoolClient` (фаза **09E**) | — |
 | Webapp `pool.query` \| `client.query` (без `*.test.ts`) | **78** prod-файлов | **A** (фазы 11–15), исключения **B/C** — в таблицах ниже | 11–15 |
-| Webapp `integratorPushOutbox.ts` | `db.query` на `Pool` \| `PoolClient` (**не** в grep `pool.query`) | **A** | 15D |
+| Webapp `integratorPushOutbox.ts` | **0** `db.query` (было 4; P15D done) | **A** закрыто **15D** | — |
 | media-worker `jobs/claim.ts` | **8** `pool.query` | **C** (`SKIP LOCKED` на dedicated pg session) | — |
 | media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **0** direct `pool.query` (фаза **10** done) | **B** — `runMediaWorkerPgText` | — |
 | media-worker settings (`watermarkEnabled`, `pipelineEnabled`) | **0** direct `pool.query` (фаза **10** done) | **B** — `runMediaWorkerPgText` + Zod | — |
@@ -170,12 +170,32 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15C.
 
 ---
 
+## Wave 3 phase 15D — integrator push outbox (2026-06-06)
+
+Подфаза **15D** закрыта: `integratorPushOutbox.ts` — runtime `db.query` = **0**; модель `public.integrator_push_outbox` из `apps/webapp/db/schema/schema.ts`.
+
+| Gate (15D) | Итог |
+|------------|------|
+| Scope file | `src/infra/integrator-push/integratorPushOutbox.ts` |
+| `db.query` | **0** (было 4: enqueue, claim, complete, fail/reschedule) |
+| Drizzle | `insert` + `onConflictDoUpdate` (enqueue); `update` (complete/dead/reschedule) |
+| Class B claim | `runWebappSql` + `execute(sql)` — CTE + `FOR UPDATE SKIP LOCKED` (как integrator `projectionOutbox`) |
+| Boundary | Zod `claimedIntegratorPushRowSchema` на RETURNING claim rows |
+| Executor | `Pool` → `getWebappSqlDb()`; `PoolClient` → `getWebappSqlFromPgClient` |
+| Tests | Vitest 15D bundle — **22 passed** (fast); devDb — opt-in; staging — **phase 17** |
+| Webapp prod tail (`pool.query`/`client.query`) | **30** файлов (без изменений — outbox был вне этого grep) |
+
+Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15D.
+
+---
+
 ## Раздел E (справочно): SQL через Drizzle `execute` / `runIntegratorSql`
 
 Здесь **нет** прямого `pool.query`, но остаётся **сырой SQL-текст** в шаблонах `sql`…`` — для миграции на «чистый» query builder это отдельный слой.
 
 | Файл                                                         | Назначение                                                                                                   | Сложн. | Вариант                                                                                                              | Риски                                 |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `apps/webapp/src/infra/integrator-push/integratorPushOutbox.ts` | Claim `integrator_push_outbox` (CTE + `FOR UPDATE SKIP LOCKED`); enqueue/complete/dead/reschedule — Drizzle builder (**P15D**). | В      | **Wave 3 P15D done:** claim `runWebappSql` + `execute(sql)`; rest Drizzle + Zod | Очередь M2M в integrator, worker tick |
 | `apps/integrator/src/infra/db/repos/projectionOutbox.ts`     | Claim событий projection outbox (CTE + `FOR UPDATE SKIP LOCKED`).                                            | В      | `execute(sql)` сохранить; view + простой `select` — отдельная постановка (backlog), если понадобится упростить claim | Регресс claim, дедлоки, порядок строк |
 | `apps/integrator/src/infra/db/repos/jobQueue.ts`             | Claim отложенных jobs очереди сообщений.                                                                     | В      | как выше                                                                                                             | Идемпотентность, конкуренция воркеров |
 | `apps/integrator/src/infra/db/repos/reminders.ts`            | Сложные операции напоминаний (в т.ч. `execute(sql)`).                                                        | В      | частично `Drizzle`, hot-path `execute(sql)`                                                                          | Доменные правила напоминаний, TZ      |
@@ -263,7 +283,7 @@ Post-audit closure — [LOG](./LOG.md) §Wave 3 phase 15C.
 | `src/infra/userLifecycleLock.ts`                    | Транзакционные `pg_advisory_xact_lock` / shared lock по user id (сериализация жизненного цикла).                                         | С      | **Wave 2 P3 done:** `pgAdvisoryLock.ts`                                    | Дедлоки, гонки lifecycle                                            |
 | `src/infra/multipartSessionLock.ts`                 | Advisory lock по id multipart-сессии.                                                                                                    | С      | **Wave 2 P3 done:** `pgAdvisoryLock.ts`                                    | Параллельные загрузки                                               |
 | `src/modules/system-settings/configAdapter.ts`      | Dual-read настроек: `SELECT value_json FROM system_settings` (admin scope) с TTL-кэшем.                                                  | Н      | **Wave 3 P11 done:** `runWebappPgText` + Zod (`parseSettingValueJson`) | Кэш/инвалидация уже есть                                            |
-| `src/infra/integrator-push/integratorPushOutbox.ts` | Запись и обновление статусов **`public.integrator_push_outbox`** на пуле webapp (`db.query` на `Pool` \| `PoolClient` — **не** в grep `pool.query`); таблица уже в Drizzle-схеме webapp. | **A** | С      | **Wave 3 фаза 15D:** `getDrizzle()` + `insert`/`update` + Zod | Очередь подписанных POST в интегратор, идемпотентность, worker tick |
+| `src/infra/integrator-push/integratorPushOutbox.ts` | Очередь signed POST в integrator: enqueue upsert, claim SKIP LOCKED, complete/dead/reschedule.                                                         | С      | **Wave 3 P15D done:** Drizzle `insert`/`update` + claim `execute(sql)` + Zod | Очередь подписанных POST в интегратор, идемпотентность, worker tick |
 | `src/infra/idempotency/pgStore.ts`                  | Хранилище идемпотентности API (insert/select).                                                                                           | С      | **Wave 3 P11 done:** `runWebappPgText` + Zod `response_body`           | Двойные побочные эффекты API                                        |
 
 ### 2.2 Аутентификация и лимиты
