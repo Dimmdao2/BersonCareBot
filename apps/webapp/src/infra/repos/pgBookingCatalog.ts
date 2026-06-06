@@ -2,6 +2,7 @@
  * Wave 3 phase 13A — domain SQL via `runWebappPgText` (Drizzle `execute(sql)`); no direct `pool.query`.
  */
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { BookingCatalogPort } from "@/modules/booking-catalog/ports";
 import type {
   BookingCity,
@@ -82,8 +83,8 @@ function mapCity(row: CityRow): BookingCity {
     title: row.title,
     isActive: row.is_active,
     sortOrder: row.sort_order,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
   };
 }
 
@@ -97,8 +98,8 @@ function mapBranch(row: BranchRow): BookingBranch {
     timezone: row.timezone,
     isActive: row.is_active,
     sortOrder: row.sort_order,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
   };
 }
 
@@ -111,8 +112,8 @@ function mapSpecialist(row: SpecialistRow): BookingSpecialist {
     rubitimeCooperatorId: row.rubitime_cooperator_id,
     isActive: row.is_active,
     sortOrder: row.sort_order,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
   };
 }
 
@@ -125,8 +126,8 @@ function mapService(row: ServiceRow): BookingService {
     priceMinor: row.price_minor,
     isActive: row.is_active,
     sortOrder: row.sort_order,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
   };
 }
 
@@ -139,8 +140,8 @@ function mapBranchService(row: BranchServiceRow): BookingBranchService {
     rubitimeServiceId: row.rubitime_service_id,
     isActive: row.is_active,
     sortOrder: row.sort_order,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
   };
 }
 
@@ -403,8 +404,8 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         rubitimeServiceId: row.bbs_rubitime_service_id,
         isActive: row.bbs_is_active,
         sortOrder: row.bbs_sort_order,
-        createdAt: row.bbs_created_at.toISOString(),
-        updatedAt: row.bbs_updated_at.toISOString(),
+        createdAt: toIsoStringSafe(row.bbs_created_at),
+        updatedAt: toIsoStringSafe(row.bbs_updated_at),
       };
       const branch = mapBranch({
         id: row.br_id,

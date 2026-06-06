@@ -51,7 +51,27 @@ describe("pgDoctorClients repo", () => {
         ],
       })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: "u1" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            user_id: "u1",
+            history_count: 1,
+            active_count: 1,
+            cancellation_count_30d: 0,
+            reschedule_count_30d: 0,
+            visited_month_count: 0,
+          },
+          {
+            user_id: "u2",
+            history_count: 0,
+            active_count: 0,
+            cancellation_count_30d: 0,
+            reschedule_count_30d: 0,
+            visited_month_count: 0,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
     const port = createPgDoctorClientsPort();
@@ -71,6 +91,7 @@ describe("pgDoctorClients repo", () => {
           { id: "u2", display_name: "B", phone_normalized: null, created_at: "2026-01-02" },
         ],
       })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });

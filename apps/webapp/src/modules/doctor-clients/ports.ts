@@ -5,6 +5,8 @@ import type { ClientSupportProfile, PatientProgramInteractionPolicy } from "./su
 /** Фильтры для списка клиентов специалиста. */
 export type DoctorClientsFilters = {
   search?: string;
+  /** Viewer user id for per-doctor read cursors (discussion unread badges). */
+  viewerUserId?: string;
   hasUpcomingAppointment?: boolean;
   /** Есть хотя бы одна активная назначенная программа лечения (`treatment_program_instances.status = 'active'`). */
   hasActiveTreatmentProgram?: boolean;
@@ -29,12 +31,22 @@ export type ClientListItem = {
   displayName: string;
   phone: string | null;
   bindings: ChannelBindings;
+  hasEmail?: boolean;
+  hasApp?: boolean;
   nextAppointmentLabel: string | null;
+  hasAppointmentHistory?: boolean;
+  activeAppointmentsCount?: number;
   /** Хотя бы одна строка `treatment_program_instances` со статусом `active` для этого клиента. */
   activeTreatmentProgram: boolean;
   /** Выбранный активный экземпляр (при нескольких — самый свежий по `updated_at`). Для ссылок врача на экран программы. */
   activeTreatmentProgramInstanceId: string | null;
   cancellationCount30d: number;
+  rescheduleCount30d?: number;
+  visitedThisCalendarMonth?: boolean;
+  hasConversation?: boolean;
+  unreadMessagesCount?: number;
+  unreadExerciseCommentsCount?: number;
+  isOnSupport?: boolean;
 };
 
 /** Базовая идентичность клиента (для профиля и агрегации). */

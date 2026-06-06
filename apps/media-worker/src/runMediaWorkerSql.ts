@@ -30,6 +30,9 @@ export async function runMediaWorkerSql<T extends QueryResultRow = QueryResultRo
 /**
  * Bridge legacy `$1..$n` PostgreSQL query text to Drizzle `execute(sql)`.
  * Parameter values are bound via Drizzle — SQL text must not embed user input.
+ *
+ * Each value is wrapped in `sql.param(...)` so JS arrays stay a single
+ * positional parameter (`$1`) for PostgreSQL array casts (`ANY($1::text[])`).
  */
 export function mediaWorkerSqlFromPgText(queryText: string, values: readonly unknown[] = []): SQL {
   const segments: SQL[] = [];
@@ -41,7 +44,7 @@ export function mediaWorkerSqlFromPgText(queryText: string, values: readonly unk
       segments.push(sql.raw(queryText.slice(lastIndex, m.index)));
     }
     const idx = Number.parseInt(m[1]!, 10) - 1;
-    segments.push(sql`${values[idx]}`);
+    segments.push(sql`${sql.param(values[idx])}`);
     lastIndex = m.index + m[0].length;
   }
   if (lastIndex < queryText.length) {

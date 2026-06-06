@@ -829,7 +829,7 @@ LIMIT 3;"
 
 ### Wave 3 phase 14E — phase verify (2026-06-06)
 
-- **Gate:** 11 scope-файлов — runtime `pool.query` = **0**; Class C `client.query` только на TX transport (см. §14E plan).
+- **Gate:** 10 scope-файлов — runtime `pool.query` = **0**; Class C `client.query` только на TX transport (см. §14E plan).
 - **Zod:** `supportAdminListQuery`, `adminAuditListQuery`, `messageLogListQuery`; admin client profile PATCH — route bodySchema.
 - **Tests:** fast bundle phase 14 — **118 passed** / **11 skipped** (repos + query modules + admin audit route).
 - **RAW_SQL / plan:** todo `w3-p14-verify` → `completed`; **фаза 14 closed**.
@@ -842,7 +842,7 @@ LIMIT 3;"
 
 #### Post-audit fixes 14E (2026-06-06)
 
-- **RAW_SQL_INVENTORY:** добавлен §Wave 3 phase 14 (gate 14E, 11 scope-файлов, Zod boundaries, счётчики тестов); строка `mergeLegacySupportConversations.ts`.
+- **RAW_SQL_INVENTORY:** добавлен §Wave 3 phase 14 (gate 14E, 10 scope-файлов, Zod boundaries, счётчики тестов); строка `mergeLegacySupportConversations.ts`.
 - **Tests:** `messageLogListQuery.test.ts` — invalid `dateFrom` и oversize `category` → filters `{}` (Zod boundary).
 - **Docs:** plan/LOG/INDEX/README/RAW_SQL — **118 passed** / **11 skipped**; scope table bridge vs baseline.
 
@@ -854,7 +854,7 @@ LIMIT 3;"
 | **14B** | `pgUserProjection` | 4 Class C TX; repo + devDb |
 | **14C** | `adminAuditLog`, merge verify | dedupe TX; audit tests + devDb |
 | **14D** | 6 comms/subscription repos | Class C channel prefs + web-push save |
-| **14E** | gate + Zod boundaries | 11 files `pool.query` = 0; **118 passed** / 11 skipped |
+| **14E** | gate + Zod boundaries | 10 files `pool.query` = 0; **118 passed** / 11 skipped |
 
 **Class C TX (phase 14):** support merge wrapper; user projection (4 entrypoints); audit dedupe; channel preferred-auth; web-push save.
 
@@ -862,10 +862,11 @@ LIMIT 3;"
 
 - **Scope table:** plan §Scope — bridge counts (14E) + pre-14 baseline; footnote про расхождения.
 - **14A commit bleed:** doctor UI в `e9a33a1e` задокументирован; история не переписывалась.
+- **14 sidecar commit:** `8d213076` (doctor KPI drill-down) попал в диапазон фазы 14; зафиксирован как отдельный sidecar в plan §Закрытие, SQL gate фазы не меняет.
 - **LOG 14A transport:** исправлен устаревший текст про `findCanonicalUserIdByIntegratorId(getPool())` — фактически `resolvePlatformUserId` → `runWebappPgText`.
 - **DevDb smokes:** opt-in only; staging/production — gate **phase 17** (не блокер 14).
 - **messageLog Zod:** strict boundary + tests invalid `dateFrom` / oversize `category` → `{}` (14E + full audit closure).
-- **Re-verify:** gate 11 files `pool.query` = 0; fast bundle **118 passed** / **11 skipped**.
+- **Re-verify:** gate 10 files `pool.query` = 0; fast bundle **118 passed** / **11 skipped**.
 - **Plan doc sync:** `wave3_phase_14` §Закрытие + INDEX / README / DRIZZLE_TRANSITION_PLAN / docs/README (2026-06-06).
 
 **Следующая фаза Wave 3:** [wave3_phase_15_webapp_long_tail.plan.md](./plans/wave3_phase_15_webapp_long_tail.plan.md).

@@ -76,14 +76,14 @@ describe("doctor clients scope and subscribers redirects", () => {
     expect(redirectMock).toHaveBeenCalledWith(`/app/doctor/clients/${encodeURIComponent(uid)}?scope=all`);
   });
 
-  it("invalid ?selected= redirects to list for current scope", async () => {
+  it("invalid ?selected= redirects to canonical list scope", async () => {
     redirectMock.mockClear();
     await expect(
       DoctorClientsListPage({
         searchParams: Promise.resolve({ scope: "appointments", selected: "not-a-uuid" }),
       }),
     ).rejects.toThrow("redirect");
-    expect(redirectMock).toHaveBeenCalledWith("/app/doctor/clients?scope=appointments");
+    expect(redirectMock).toHaveBeenCalledWith("/app/doctor/clients?scope=all");
   });
 
   it("subscribers with selected eventually resolves to profile without selected in query", async () => {

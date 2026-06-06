@@ -1,5 +1,6 @@
 /** Wave 3 phase 13C — domain SQL via `runWebappPgText`. */
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { DoctorNoteRow, DoctorNotesPort } from "@/modules/doctor-notes/ports";
 
 export function createPgDoctorNotesPort(): DoctorNotesPort {
@@ -22,8 +23,8 @@ export function createPgDoctorNotesPort(): DoctorNotesPort {
         userId: row.user_id,
         authorId: row.author_id,
         text: row.text,
-        createdAt: row.created_at.toISOString(),
-        updatedAt: row.updated_at.toISOString(),
+        createdAt: toIsoStringSafe(row.created_at),
+        updatedAt: toIsoStringSafe(row.updated_at),
       }));
     },
 
@@ -47,8 +48,8 @@ export function createPgDoctorNotesPort(): DoctorNotesPort {
         userId: row.user_id,
         authorId: row.author_id,
         text: row.text,
-        createdAt: row.created_at.toISOString(),
-        updatedAt: row.updated_at.toISOString(),
+        createdAt: toIsoStringSafe(row.created_at),
+        updatedAt: toIsoStringSafe(row.updated_at),
       };
     },
   };

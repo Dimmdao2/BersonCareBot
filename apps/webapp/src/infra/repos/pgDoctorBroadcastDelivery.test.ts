@@ -23,16 +23,18 @@ vi.mock("@/infra/db/client", () => ({
 }));
 
 import { createPgDoctorBroadcastDeliveryCommitPort } from "./pgDoctorBroadcastDelivery";
+import type { BroadcastAuditEntry } from "@/modules/doctor-broadcasts/ports";
 
-const auditBase = {
+const auditBase: Omit<BroadcastAuditEntry, "id" | "executedAt"> = {
   actorId: "doc-1",
   category: "service" as const,
   audienceFilter: "all" as const,
   messageTitle: "Hi",
   messageBody: "Body",
-  channels: ["bot_message"] as const,
+  channels: ["bot_message"],
   previewOnly: false,
   audienceSize: 1,
+  deliveryJobsTotal: 1,
   attachMenuAfterSend: false,
   sentCount: 0,
   errorCount: 0,

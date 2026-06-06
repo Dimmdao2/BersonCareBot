@@ -25,7 +25,7 @@ describe("resolveMergePreviewIntegratorUserPresenceForTest", () => {
     expect(r.checkStatus).toBe("ok");
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining("FROM integrator.users"),
-      ["188908348", "6"],
+      [["188908348", "6"]],
     );
     expect(r.target.rowExistsInIntegratorDb).toBe(false);
     expect(r.duplicate.rowExistsInIntegratorDb).toBe(true);
@@ -39,7 +39,7 @@ describe("resolveMergePreviewIntegratorUserPresenceForTest", () => {
       targetIntegratorUserId: "7",
       duplicateIntegratorUserId: "7",
     });
-    expect(pool.query).toHaveBeenCalledWith(expect.any(String), ["7"]);
+    expect(pool.query).toHaveBeenCalledWith(expect.any(String), [["7"]]);
   });
 
   it("returns query_failed when integrator query throws", async () => {

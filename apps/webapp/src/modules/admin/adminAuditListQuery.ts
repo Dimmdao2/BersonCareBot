@@ -29,6 +29,19 @@ export const adminAuditListQuerySchema = z.object({
 
 export type AdminAuditListQuery = z.infer<typeof adminAuditListQuerySchema>;
 
+export type AdminAuditListFilter = {
+  page: number;
+  limit: number;
+  action?: string;
+  targetId?: string;
+  involvesPlatformUserId?: string;
+  status?: "ok" | "partial_failure" | "error";
+  fromInclusive?: string;
+  toInclusive?: string;
+  actionPrefix?: "system_health_";
+  excludeActionPrefix?: "system_health_";
+};
+
 export function adminAuditDayStartUtcIso(date: string): string {
   return `${date}T00:00:00.000Z`;
 }
@@ -37,7 +50,7 @@ export function adminAuditDayEndUtcIso(date: string): string {
   return `${date}T23:59:59.999Z`;
 }
 
-export function adminAuditListFilterFromQuery(q: AdminAuditListQuery) {
+export function adminAuditListFilterFromQuery(q: AdminAuditListQuery): AdminAuditListFilter {
   let fromInclusive: string | undefined;
   let toInclusive: string | undefined;
   if (q.from) fromInclusive = adminAuditDayStartUtcIso(q.from);

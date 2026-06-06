@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { runPgPoolPgText } from "@/infra/db/runWebappSql";
 import { extractBroadcastBodyContent } from "@/modules/patient-broadcasts/extractBroadcastBodyContent";
 import type { PatientBroadcastsPort, PatientBroadcastView } from "@/modules/patient-broadcasts/ports";

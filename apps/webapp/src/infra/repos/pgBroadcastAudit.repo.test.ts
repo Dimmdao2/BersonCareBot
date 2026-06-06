@@ -19,7 +19,7 @@ describe("pgBroadcastAudit (repo SQL parity)", () => {
         {
           id: "1",
           actor_id: "a1",
-          category: "news",
+          category: "service",
           audience_filter: "all",
           message_title: "t",
           message_body: "b",
@@ -37,7 +37,7 @@ describe("pgBroadcastAudit (repo SQL parity)", () => {
     const port = createPgBroadcastAuditPort();
     const entry = await port.append({
       actorId: "a1",
-      category: "news",
+      category: "service",
       audienceFilter: "all",
       messageTitle: "t",
       messageBody: "b",

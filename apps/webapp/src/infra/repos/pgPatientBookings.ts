@@ -3,6 +3,7 @@
  * `booking-rubitime-sync` with `getPool()` (package owns its SQL).
  */
 import { randomUUID } from "node:crypto";
+import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getPool } from "@/infra/db/client";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import {
@@ -61,10 +62,10 @@ function mapRow(row: Row): PatientBookingRecord {
     bookingType: row.booking_type as PatientBookingRecord["bookingType"],
     city: row.city,
     category: row.category as PatientBookingRecord["category"],
-    slotStart: row.slot_start.toISOString(),
-    slotEnd: row.slot_end.toISOString(),
+    slotStart: toIsoStringSafe(row.slot_start),
+    slotEnd: toIsoStringSafe(row.slot_end),
     status: row.status as PatientBookingRecord["status"],
-    cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
+    cancelledAt: nullableToIsoStringSafe(row.cancelled_at),
     cancelReason: row.cancel_reason,
     rubitimeId: row.rubitime_id,
     gcalEventId: row.gcal_event_id,
@@ -73,8 +74,8 @@ function mapRow(row: Row): PatientBookingRecord {
     contactName: row.contact_name,
     reminder24hSent: row.reminder_24h_sent,
     reminder2hSent: row.reminder_2h_sent,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
     branchServiceId: row.branch_service_id ?? null,
     branchId: row.branch_id ?? null,
     serviceId: row.service_id ?? null,

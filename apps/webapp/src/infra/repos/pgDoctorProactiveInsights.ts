@@ -1,4 +1,5 @@
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { WELLBEING_GENERAL_MIRROR_NOTE } from "@/modules/diaries/wellbeingGeneralMirrorNote";
 import {
   detectProgramInactivityInsights,
@@ -46,7 +47,7 @@ async function listWellbeingEntries(
   const res = await runWebappPgText<{
     platform_user_id: string;
     value_0_10: number;
-    recorded_at: Date;
+    recorded_at: Date | string;
     notes: string | null;
   }>(
     `SELECT e.platform_user_id, e.value_0_10, e.recorded_at, e.notes
@@ -62,7 +63,7 @@ async function listWellbeingEntries(
   );
   return res.rows.map((r) => ({
     patientUserId: r.platform_user_id,
-    recordedAt: r.recorded_at.toISOString(),
+    recordedAt: toIsoStringSafe(r.recorded_at),
     value: Number(r.value_0_10),
     notes: r.notes,
   }));
@@ -90,7 +91,7 @@ async function listProgramActivity(patientIds: string[]): Promise<ProactiveProgr
 
   const lastDoneByInstance = new Map<string, string>();
   if (instanceIds.length > 0) {
-    const doneRes = await runWebappPgText<{ instance_id: string; last_done_at: Date | null }>(
+    const doneRes = await runWebappPgText<{ instance_id: string; last_done_at: Date | string | null }>(
       `SELECT pal.instance_id::text AS instance_id, MAX(pal.created_at) AS last_done_at
        FROM program_action_log pal
        WHERE pal.instance_id = ANY($1::uuid[])
@@ -100,7 +101,7 @@ async function listProgramActivity(patientIds: string[]): Promise<ProactiveProgr
     );
     for (const row of doneRes.rows) {
       if (row.last_done_at) {
-        lastDoneByInstance.set(row.instance_id, row.last_done_at.toISOString());
+        lastDoneByInstance.set(row.instance_id, toIsoStringSafe(row.last_done_at));
       }
     }
   }

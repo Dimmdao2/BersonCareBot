@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, max } from "drizzle-orm";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { treatmentProgramEvents as eventTable } from "../../../db/schema/treatmentProgramEvents";
 import type { TreatmentProgramEventsPort } from "@/modules/treatment-program/ports";
@@ -14,7 +15,7 @@ import { TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES } from "@/modules/treatment
 export function coerceMaxPlanMutationCreatedAtToIso(v: unknown): string | null {
   if (v == null) return null;
   if (typeof v === "string" && v.trim().length > 0) return v.trim();
-  if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString();
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return toIsoStringSafe(v);
   return null;
 }
 

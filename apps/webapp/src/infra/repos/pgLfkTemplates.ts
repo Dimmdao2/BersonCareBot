@@ -22,6 +22,7 @@ import {
   LFK_TEMPLATE_USAGE_DETAIL_LIMIT,
 } from "@/modules/lfk-templates/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 
 /** Legacy `lfk_complex` или разворот в `exercise` с `settings.lfkComplexTemplateId`. */
 function sqlTpStageItemUsesLfkComplexTemplate(alias: string): string {
@@ -35,8 +36,8 @@ function mapTemplateRow(
     description: string | null;
     status: string;
     created_by: string | null;
-    created_at: Date;
-    updated_at: Date;
+    created_at: Date | string;
+    updated_at: Date | string;
   },
   exercises: TemplateExercise[],
   exerciseCount?: number
@@ -47,8 +48,8 @@ function mapTemplateRow(
     description: row.description,
     status: row.status as TemplateStatus,
     createdBy: row.created_by ? String(row.created_by) : null,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
     exercises,
     exerciseCount,
   };
@@ -61,7 +62,7 @@ type TemplateListThumbRow = {
   media_url: string;
   media_type: string;
   sort_order: number;
-  created_at: Date;
+  created_at: Date | string;
   media_file_id: string | null;
   preview_sm_key: string | null;
   preview_md_key: string | null;
@@ -83,7 +84,7 @@ type TemplateListExerciseJoinRow = {
   em_media_url: string | null;
   em_media_type: string | null;
   em_sort_order: number | null;
-  em_created_at: Date | null;
+  em_created_at: Date | string | null;
   media_file_id: string | null;
   preview_sm_key: string | null;
   preview_md_key: string | null;
@@ -101,7 +102,7 @@ function mapListThumbMediaRow(row: Omit<TemplateListThumbRow, "template_id">): E
     mediaUrl: row.media_url,
     mediaType: row.media_type as ExerciseMediaType,
     sortOrder: row.sort_order,
-    createdAt: row.created_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
     previewSmUrl,
     previewMdUrl,
     previewStatus,
@@ -329,8 +330,8 @@ type TemplateHeaderDbRow = {
   description: string | null;
   status: string;
   created_by: string | null;
-  created_at: Date;
-  updated_at: Date;
+  created_at: Date | string;
+  updated_at: Date | string;
 };
 
 type TemplateListDbRow = TemplateHeaderDbRow & { exercise_count: number };
@@ -367,8 +368,9 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         conds.push(`t.status = $${i++}`);
         params.push(filter.status);
       } else if (filter.statusIn && filter.statusIn.length > 0) {
-        conds.push(`t.status = ANY($${i++}::text[])`);
-        params.push(filter.statusIn);
+        const statusPlaceholders = filter.statusIn.map(() => `$${i++}`);
+        conds.push(`t.status IN (${statusPlaceholders.join(", ")})`);
+        params.push(...filter.statusIn);
       }
       if (filter.search?.trim()) {
         conds.push(`t.title ILIKE $${i++}`);

@@ -18,6 +18,7 @@ describe("createPgBookingCalendarLegacyPort", () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const port = createPgBookingCalendarLegacyPort();
     await port.listAppointmentsInRange({
+      organizationId: "11111111-1111-4111-8111-111111111111",
       rangeStart: "2026-06-01T00:00:00.000Z",
       rangeEnd: "2026-06-08T00:00:00.000Z",
     });

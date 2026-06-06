@@ -2,6 +2,7 @@
  * PostgreSQL implementation of ReferencesPort (Stage 6 reference_categories / reference_items).
  */
 import { getPool } from "@/infra/db/client";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { ReferencesPort } from "@/modules/references/ports";
 import type { ReferenceCategory, ReferenceItem } from "@/modules/references/types";
 
@@ -44,7 +45,7 @@ function rowItem(row: {
         ? null
         : typeof deletedAt === "string"
           ? deletedAt
-          : deletedAt.toISOString(),
+          : toIsoStringSafe(deletedAt),
     metaJson: row.meta_json ?? {},
   };
 }

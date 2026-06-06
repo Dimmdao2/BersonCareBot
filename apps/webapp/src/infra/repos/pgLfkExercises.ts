@@ -7,6 +7,7 @@ import { getPool } from "@/infra/db/client";
 import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
 import type {
@@ -28,7 +29,7 @@ type MediaDbRow = {
   media_url: string;
   media_type: string;
   sort_order: number;
-  created_at: Date;
+  created_at: Date | string;
   media_file_id: string | null;
   preview_sm_key: string | null;
   preview_md_key: string | null;
@@ -47,8 +48,8 @@ type ExerciseDbRow = {
   tags: string[] | null;
   is_archived: boolean;
   created_by: string | null;
-  created_at: Date;
-  updated_at: Date;
+  created_at: Date | string;
+  updated_at: Date | string;
 };
 
 function mapMediaRow(row: MediaDbRow): ExerciseMedia {
@@ -62,7 +63,7 @@ function mapMediaRow(row: MediaDbRow): ExerciseMedia {
     mediaUrl: row.media_url,
     mediaType: row.media_type as ExerciseMediaType,
     sortOrder: row.sort_order,
-    createdAt: row.created_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
     previewSmUrl,
     previewMdUrl,
     previewStatus,
@@ -128,8 +129,8 @@ function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
     tags: row.tags,
     isArchived: row.is_archived,
     createdBy: row.created_by ? String(row.created_by) : null,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
     media,
   };
 }
@@ -436,7 +437,7 @@ type ExerciseListRow = ExerciseDbRow & {
   pm_url?: string | null;
   pm_type?: string | null;
   pm_order?: number | null;
-  pm_created?: Date | null;
+  pm_created?: Date | string | null;
   pm_media_file_id?: string | null;
   pm_preview_sm_key?: string | null;
   pm_preview_md_key?: string | null;
@@ -519,15 +520,21 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const result = await runWebappPgText<ExerciseListRow>(sql, params);
       return result.rows.map((row) => {
         const media: ExerciseMedia[] = [];
-        if (row.pm_id) {
+        if (
+          row.pm_id &&
+          row.pm_url &&
+          row.pm_type &&
+          row.pm_order != null &&
+          row.pm_created != null
+        ) {
           media.push(
             mapMediaRow({
               id: row.pm_id,
               exercise_id: row.id,
-              media_url: row.pm_url as string,
-              media_type: row.pm_type as string,
-              sort_order: row.pm_order as number,
-              created_at: row.pm_created as Date,
+              media_url: row.pm_url,
+              media_type: row.pm_type,
+              sort_order: row.pm_order,
+              created_at: row.pm_created,
               media_file_id: row.pm_media_file_id ?? null,
               preview_sm_key: row.pm_preview_sm_key ?? null,
               preview_md_key: row.pm_preview_md_key ?? null,

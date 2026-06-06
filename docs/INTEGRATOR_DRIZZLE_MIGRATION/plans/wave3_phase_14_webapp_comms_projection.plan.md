@@ -1,6 +1,6 @@
 ---
 name: Wave3 Phase14 Webapp comms projection
-overview: "Phase 14 completed (2026-06-06): support comms, user projection, admin audit, comms tail — runWebappPgText bridge, Zod boundaries, gate 11 files, Vitest 118/11."
+overview: "Phase 14 completed (2026-06-06): support comms, user projection, admin audit, comms tail — runWebappPgText bridge, Zod boundaries, gate 10 files, Vitest 118/11."
 status: completed
 isProject: false
 todos:
@@ -74,7 +74,7 @@ todos:
 
 #### Закрытие 14E (2026-06-06)
 
-- **Gate scope (11 файлов):** `pool.query` = **0** (runtime; JSDoc «no direct pool.query» в headers допустим); domain SQL → `runWebappPgText` / `txPgText`.
+- **Gate scope (10 файлов):** `pool.query` = **0** (runtime; JSDoc «no direct pool.query» в headers допустим); domain SQL → `runWebappPgText` / `txPgText`.
 - **Class C transport:** `pgSupportCommunication` merge wrapper (3×); `pgUserProjection` (4 TX); `adminAuditLog.upsertOpenConflictLog` (3×); `pgChannelPreferences.setPreferredAuthChannel`; `pgWebPushSubscriptions.saveSubscription` — только `BEGIN`/`COMMIT`/`ROLLBACK` (+ `SET CONSTRAINTS` в user projection TX).
 - **Zod boundaries:** `supportAdminListQuery.ts`; `adminAuditListQuery.ts`; `messageLogListQuery.ts` + admin profile PATCH bodySchema (`/api/admin/users/[userId]/profile`).
 - **Tests:** webapp fast phase-14 bundle — **118 passed** / **11 skipped** (repos + query modules + route tests); devDb opt-in smokes из 14A/14B/14C/14D — вне CI по умолчанию; staging/production smoke — gate **phase 17**, не 14.
@@ -114,7 +114,7 @@ todos:
 
 ## Проверки
 
-Gate (11 scope-файлов):
+Gate (10 scope-файлов):
 
 ```bash
 SCOPE=(
@@ -153,8 +153,9 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 | **14C** | `c288d942` | `adminAuditLog` → bridge; dedupe TX; merge helper verify-only |
 | **14D** | `18ce7e6e` | 6 comms/subscription repos → bridge; Class C channel prefs + web-push |
 | **14E** | `ae07ad0e`, `c3b18629` | gate + Zod modules; RAW_SQL §14; full audit doc sync |
+| **14 sidecar** | `8d213076` | doctor KPI drill-down fix в диапазоне фазы; задокументирован отдельно, без влияния на SQL gate 14 |
 
-**Gate:** runtime `pool.query` = **0** в 11 scope-файлах (см. §Scope, §Проверки).
+**Gate:** runtime `pool.query` = **0** в 10 scope-файлах (см. §Scope, §Проверки).
 
 **Tests:** Vitest `--project fast` phase-14 bundle — **118 passed** / **11 skipped**; devDb opt-in — `RUN_SUPPORT_COMMUNICATION_DEV_DB`, `RUN_USER_PROJECTION_DEV_DB`, `RUN_ADMIN_AUDIT_LOG_DEV_DB`, `RUN_PHASE_14D_DEV_DB` + `USE_REAL_DATABASE=1`.
 

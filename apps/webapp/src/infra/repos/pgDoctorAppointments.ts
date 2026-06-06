@@ -2,6 +2,7 @@
  * Wave 3 phase 13B — domain SQL via `runWebappPgText` (Drizzle `execute(sql)`); no direct `pool.query`.
  */
 import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
+import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
@@ -83,7 +84,7 @@ function mapListRows(
       clientLabel,
       rubitimeNameIfDifferent: rubitimeHint,
       time: "",
-      recordAtIso: row.record_at ? row.record_at.toISOString() : null,
+      recordAtIso: nullableToIsoStringSafe(row.record_at),
       dateKey: "",
       type: (payload.service_title && payload.service_title.trim()) || "Запись",
       status: row.status,

@@ -17,11 +17,15 @@ export async function findPhoneOtpLock(
 export async function findLatestPhoneChallengeCreatedAt(
   phoneNormalized: string,
 ): Promise<Date | null> {
-  const lastCh = await runWebappPgText<{ max_created: Date | null }>(
+  const lastCh = await runWebappPgText<{ max_created: Date | string | null }>(
     "SELECT max(created_at) AS max_created FROM phone_challenges WHERE phone = $1",
     [phoneNormalized],
   );
-  return lastCh.rows[0]?.max_created ?? null;
+  const raw = lastCh.rows[0]?.max_created;
+  if (!raw) return null;
+  if (raw instanceof Date) return raw;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export async function upsertPhoneOtpLock(phoneNormalized: string, lockedUntil: number): Promise<void> {

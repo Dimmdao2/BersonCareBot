@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { SystemSettingsPort, SystemSettingsUpsertRow } from "@/modules/system-settings/ports";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 
@@ -15,7 +16,7 @@ function rowToSetting(row: SystemSettingRow): SystemSetting {
     key: row.key as SystemSettingKey,
     scope: row.scope as SystemSettingScope,
     valueJson: row.value_json,
-    updatedAt: row.updated_at.toISOString(),
+    updatedAt: toIsoStringSafe(row.updated_at),
     updatedBy: row.updated_by,
   };
 }

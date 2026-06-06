@@ -3,6 +3,7 @@
  * Tables: symptom_trackings, symptom_entries (see webapp/migrations/004_symptom_trackings_and_entries.sql).
  */
 import { getPool } from "@/infra/db/client";
+import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import {
   type DrizzleTxExecute,
   upsertWarmupFeelingTrackingIdInTx as upsertWarmupFeelingTrackingSql,
@@ -37,15 +38,15 @@ function rowToTracking(row: {
     symptomKey: row.symptom_key,
     symptomTitle: row.symptom_title,
     isActive: row.is_active,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
     symptomTypeRefId: row.symptom_type_ref_id ? String(row.symptom_type_ref_id) : null,
     regionRefId: row.region_ref_id ? String(row.region_ref_id) : null,
     side: (row.side as SymptomTracking["side"]) ?? null,
     diagnosisText: row.diagnosis_text ?? null,
     diagnosisRefId: row.diagnosis_ref_id ? String(row.diagnosis_ref_id) : null,
     stageRefId: row.stage_ref_id ? String(row.stage_ref_id) : null,
-    deletedAt: row.deleted_at ? row.deleted_at.toISOString() : null,
+    deletedAt: nullableToIsoStringSafe(row.deleted_at),
   };
 }
 
@@ -72,10 +73,10 @@ function rowToEntry(row: {
     trackingId: row.tracking_id,
     value0_10: row.value_0_10,
     entryType: row.entry_type as "instant" | "daily",
-    recordedAt: row.recorded_at.toISOString(),
+    recordedAt: toIsoStringSafe(row.recorded_at),
     source: row.source as "bot" | "webapp" | "import",
     notes: row.notes,
-    createdAt: row.created_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
     ...(row.symptom_title != null && { symptomTitle: row.symptom_title }),
   };
 }
@@ -295,7 +296,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       [params.userId, params.trackingId]
     );
     const m = result.rows[0]?.m as Date | null | undefined;
-    return m ? m.toISOString() : null;
+    return nullableToIsoStringSafe(m);
   },
 
   async getEntryForUser(params) {

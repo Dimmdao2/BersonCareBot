@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
@@ -193,7 +194,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         size: parseInt(String(row.size_bytes), 10),
         userId: row.uploaded_by,
         uploadedByName: row.uploaded_by_name,
-        createdAt: row.created_at.toISOString(),
+        createdAt: toIsoStringSafe(row.created_at),
         previewStatus,
         previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(row.id, "sm") : null,
         previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, "md") : null,
@@ -335,7 +336,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           size: Number(row.size_bytes),
           userId: row.uploaded_by,
           uploadedByName: row.uploaded_by_name,
-          createdAt: row.created_at.toISOString(),
+          createdAt: toIsoStringSafe(row.created_at),
           folderId: row.folder_id,
           url: mediaAppUrl(row.id),
           previewStatus,

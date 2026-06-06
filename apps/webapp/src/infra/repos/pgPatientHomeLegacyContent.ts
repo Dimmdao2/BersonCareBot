@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { quoteDayKeyUtc, quoteIndexForDaySeed } from "@/modules/patient-home/patientHomeQuoteUtils";
 import type {
@@ -17,7 +18,7 @@ import {
 function toIsoString(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toISOString();
+  return toIsoStringSafe(d);
 }
 
 export function createPgPatientHomeLegacyContentPort(): PatientHomeLegacyContentPort {

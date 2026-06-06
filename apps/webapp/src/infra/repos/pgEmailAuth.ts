@@ -19,11 +19,15 @@ export async function findEmailSendCooldown(
   userId: string,
   emailNormalized: string,
 ): Promise<Date | null> {
-  const cooldown = await runWebappPgText<{ last_sent_at: Date }>(
+  const cooldown = await runWebappPgText<{ last_sent_at: Date | string }>(
     "SELECT last_sent_at FROM email_send_cooldowns WHERE user_id = $1 AND email_normalized = $2",
     [userId, emailNormalized],
   );
-  return cooldown.rows[0]?.last_sent_at ?? null;
+  const raw = cooldown.rows[0]?.last_sent_at;
+  if (!raw) return null;
+  if (raw instanceof Date) return raw;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export async function deleteEmailChallengesForUser(userId: string): Promise<void> {

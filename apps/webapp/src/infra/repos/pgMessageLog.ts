@@ -2,6 +2,7 @@
  * Wave 3 phase 14D — domain SQL via `runWebappPgText` (Class B dynamic filters in `buildWhere`).
  */
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { MessageLogEntry, MessageLogListFilters, MessageLogListResult, MessageLogPort } from "@/modules/doctor-messaging/ports";
 
 function normalizePage(page?: number, pageSize?: number): { page: number; pageSize: number; offset: number } {
@@ -39,7 +40,7 @@ function buildWhere(filters?: MessageLogListFilters): { whereSql: string; values
   };
 }
 
-function mapRows(rows: Array<Record<string, unknown>>): MessageLogEntry[] {
+function mapRows(rows: MessageLogRow[]): MessageLogEntry[] {
   return rows.map((row) => ({
     id: String(row.id),
     userId:
@@ -55,6 +56,19 @@ function mapRows(rows: Array<Record<string, unknown>>): MessageLogEntry[] {
     errorMessage: (row.error_message as string | null) ?? null,
   }));
 }
+
+type MessageLogRow = {
+  id: string;
+  user_id: string;
+  platform_user_id: string | null;
+  sender_id: string;
+  text: string;
+  category: string;
+  channel_bindings_used: Record<string, string> | null;
+  sent_at: Date | string;
+  outcome: MessageLogEntry["outcome"];
+  error_message: string | null;
+};
 
 export function createPgMessageLogPort(): MessageLogPort {
   return {
@@ -103,7 +117,7 @@ export function createPgMessageLogPort(): MessageLogPort {
       const paging = normalizePage(params?.page, params?.pageSize);
       const where = buildWhere({ userId });
       const [listRes, countRes] = await Promise.all([
-        runWebappPgText(
+        runWebappPgText<MessageLogRow>(
           `SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
            FROM message_log
            ${where.whereSql}
@@ -128,7 +142,7 @@ export function createPgMessageLogPort(): MessageLogPort {
       const paging = normalizePage(params?.page, params?.pageSize);
       const where = buildWhere(params?.filters);
       const [listRes, countRes] = await Promise.all([
-        runWebappPgText(
+        runWebappPgText<MessageLogRow>(
           `SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
            FROM message_log
            ${where.whereSql}

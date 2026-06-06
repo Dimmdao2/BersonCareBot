@@ -106,7 +106,7 @@
 
 ## Wave 3 phase 14 — webapp comms + projection (2026-06-06)
 
-Фаза **14A–14E** закрыта: 11 scope-файлов — runtime `pool.query` = **0**; domain SQL → `runWebappPgText` / `txPgText`.
+Фаза **14A–14E** закрыта: 10 scope-файлов — runtime `pool.query` = **0**; domain SQL → `runWebappPgText` / `txPgText`.
 
 | Gate (14E) | Итог |
 |------------|------|

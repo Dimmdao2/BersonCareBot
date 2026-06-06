@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { PhoneMessengerBindSecretRow } from "@/modules/auth/phoneMessengerBind.ports";
 import type { MessengerIdentityResolutionHints } from "@/modules/auth/identityResolutionPort";
 import type { ChannelContext } from "@/modules/auth/channelContext";
@@ -177,7 +178,7 @@ export function bindingsFromRows(rows: unknown[]): ChannelBindings {
 }
 
 function isoOrString(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
+  return value instanceof Date ? toIsoStringSafe(value) : value;
 }
 
 export function mapPhoneMessengerBindSecretRow(row: unknown): PhoneMessengerBindSecretRow {

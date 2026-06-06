@@ -2,6 +2,7 @@
  * Wave 3 phase 14D — domain SQL via `runWebappPgText`.
  */
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { BroadcastAuditEntry, BroadcastAuditPort } from "@/modules/doctor-broadcasts/ports";
 import { normalizeBroadcastChannels } from "@/modules/doctor-broadcasts/broadcastChannels";
 

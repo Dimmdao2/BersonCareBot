@@ -54,6 +54,11 @@ export async function runWebappSql<T = unknown>(
 /**
  * Bridge legacy `$1..$n` PostgreSQL query text to Drizzle `execute(sql)`.
  * Parameter values are bound via Drizzle — SQL text must not embed user input.
+ *
+ * Each value is wrapped in `sql.param(...)` so a JS array binds as a SINGLE
+ * positional parameter. A bare `sql\`${array}\`` would be expanded by Drizzle
+ * into `($1, $2, …)`, breaking PostgreSQL array casts like `ANY($1::text[])`
+ * (`cannot cast type record to text[]`).
  */
 export function webappSqlFromPgText(queryText: string, values: readonly unknown[] = []): SQL {
   const segments: SQL[] = [];
@@ -65,7 +70,7 @@ export function webappSqlFromPgText(queryText: string, values: readonly unknown[
       segments.push(sql.raw(queryText.slice(lastIndex, m.index)));
     }
     const idx = Number.parseInt(m[1]!, 10) - 1;
-    segments.push(sql`${values[idx]}`);
+    segments.push(sql`${sql.param(values[idx])}`);
     lastIndex = m.index + m[0].length;
   }
   if (lastIndex < queryText.length) {
@@ -80,6 +85,16 @@ export function webappSqlFromPgText(queryText: string, values: readonly unknown[
   return sql.join(segments, sql.raw(""));
 }
 
+/**
+ * Legacy `$1..$n` queries (Class B transport) on the unified Drizzle `execute`
+ * channel. PostgreSQL arrays (`ANY($1::uuid[])`, `&& $1::text[]`) bind correctly
+ * because `webappSqlFromPgText` wraps each value in `sql.param(...)`.
+ *
+ * NOTE: Drizzle's node-postgres `execute` returns `timestamp/timestamptz/date/
+ * interval` columns as RAW STRINGS (it overrides the pg type parsers), not `Date`.
+ * Normalize such fields with `toIsoStringSafe` / `nullableToIsoStringSafe` from
+ * `@/shared/lib/toIsoStringSafe` when mapping rows.
+ */
 export async function runWebappPgText<T = unknown>(
   queryText: string,
   values: readonly unknown[] = [],

@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type {
   EmailSetupTokenRow,
   EmailSetupTokensPort,
@@ -66,9 +67,9 @@ export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
       id: r.id,
       userId: r.user_id,
       emailNormalized: r.email_normalized,
-      expiresAt: r.expires_at.toISOString(),
-      usedAt: r.used_at?.toISOString() ?? null,
-      revokedAt: r.revoked_at?.toISOString() ?? null,
+      expiresAt: toIsoStringSafe(r.expires_at),
+      usedAt: nullableToIsoStringSafe(r.used_at),
+      revokedAt: nullableToIsoStringSafe(r.revoked_at),
     };
   },
 

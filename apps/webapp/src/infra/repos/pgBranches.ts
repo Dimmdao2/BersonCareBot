@@ -3,6 +3,7 @@
  */
 
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 
 export type BranchRow = {
   id: string;
@@ -74,8 +75,8 @@ export function createPgBranchesProjectionPort(): BranchesProjectionPort {
           typeof row.meta_json === "object" && row.meta_json !== null
             ? (row.meta_json as Record<string, unknown>)
             : {},
-        createdAt: row.created_at.toISOString(),
-        updatedAt: row.updated_at.toISOString(),
+        createdAt: toIsoStringSafe(row.created_at),
+        updatedAt: toIsoStringSafe(row.updated_at),
       };
     },
   };

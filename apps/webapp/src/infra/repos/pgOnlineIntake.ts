@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { PoolClient } from "pg";
 /**
  * Wave 3 phase 12A — Class C transport only: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` for multipart tx
@@ -85,8 +86,8 @@ function mapRequest(row: RequestRow): IntakeRequest {
     type: row.type as IntakeType,
     status: row.status as IntakeStatus,
     summary: row.summary,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
   };
 }
 
@@ -97,7 +98,7 @@ function mapAnswer(row: AnswerRow): IntakeAnswer {
     questionId: row.question_id,
     ordinal: row.ordinal,
     value: row.value,
-    createdAt: row.created_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
   };
 }
 
@@ -111,7 +112,7 @@ function mapAttachment(row: AttachmentRow): IntakeAttachment {
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes !== null ? Number(row.size_bytes) : null,
     originalName: row.original_name,
-    createdAt: row.created_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
   };
 }
 
@@ -123,7 +124,7 @@ function mapHistory(row: HistoryRow): IntakeStatusHistoryEntry {
     toStatus: row.to_status as IntakeStatus,
     changedBy: row.changed_by,
     note: row.note,
-    changedAt: row.changed_at.toISOString(),
+    changedAt: toIsoStringSafe(row.changed_at),
   };
 }
 

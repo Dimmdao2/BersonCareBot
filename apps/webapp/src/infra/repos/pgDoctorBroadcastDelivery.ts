@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import type { BroadcastAuditEntry, DoctorBroadcastDeliveryCommitPort } from "@/modules/doctor-broadcasts/ports";
 import { normalizeBroadcastChannels } from "@/modules/doctor-broadcasts/broadcastChannels";

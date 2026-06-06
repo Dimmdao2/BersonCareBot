@@ -28,13 +28,15 @@ function baseItem(overrides: Partial<ClientListItem> = {}): ClientListItem {
 }
 
 describe("DoctorClientsPanel", () => {
-  it("renders phone, Telegram and MAX channel indicators in order", () => {
+  it("renders phone, Telegram, MAX, email and app indicators", () => {
     const list = [
       baseItem({
         userId: "a",
         displayName: "A",
         phone: "+7 900 000-00-00",
         bindings: { telegramId: "tg1", maxId: "m1" },
+        hasEmail: true,
+        hasApp: true,
       }),
     ];
     render(
@@ -50,6 +52,8 @@ describe("DoctorClientsPanel", () => {
     expect(scope.getByLabelText("Телефон указан")).toBeInTheDocument();
     expect(scope.getByLabelText("Подключён Telegram")).toBeInTheDocument();
     expect(scope.getByLabelText("Подключён MAX")).toBeInTheDocument();
+    expect(scope.getByLabelText("Указан email")).toBeInTheDocument();
+    expect(scope.getByLabelText("Есть приложение")).toBeInTheDocument();
   });
 
   it("renders only phone indicator when other channels are absent", () => {
@@ -60,12 +64,27 @@ describe("DoctorClientsPanel", () => {
     expect(screen.queryByLabelText("Подключён Telegram")).toBeNull();
   });
 
-  it("shows compact cancellation badge when cancellationCount30d > 0", () => {
-    const list = [baseItem({ userId: "c", displayName: "C", cancellationCount30d: 2 })];
+  it("renders activity icon badges for appointment/messages/comments", () => {
+    const list = [
+      baseItem({
+        userId: "c",
+        displayName: "C",
+        hasAppointmentHistory: true,
+        activeAppointmentsCount: 2,
+        hasConversation: true,
+        unreadMessagesCount: 3,
+        activeTreatmentProgram: true,
+        unreadExerciseCommentsCount: 1,
+        isOnSupport: true,
+      }),
+    ];
     render(<DoctorClientsPanel allClients={list} urlParams={{}} basePath="/app/doctor/clients" />);
     const row = document.getElementById("doctor-clients-card-c");
-    expect(within(row!).getByText(/2/)).toBeInTheDocument();
-    expect(within(row!).getByText(/отмены/)).toBeInTheDocument();
+    const scope = within(row!);
+    expect(scope.getByLabelText("История записей, активных: 2")).toBeInTheDocument();
+    expect(scope.getByLabelText("Переписка, непрочитанных: 3")).toBeInTheDocument();
+    expect(scope.getByLabelText("Программа тренировок, новых комментариев: 1")).toBeInTheDocument();
+    expect(scope.getByLabelText("Клиент на сопровождении")).toBeInTheDocument();
   });
 
   it("links patient row to canonical client card route", () => {

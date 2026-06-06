@@ -4,6 +4,7 @@
  */
 
 import { getPool } from "@/infra/db/client";
+import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 
 export type AppointmentRecordRow = {
@@ -58,7 +59,7 @@ function mapRow(r: {
     id: r.id,
     integratorRecordId: r.integrator_record_id,
     phoneNormalized: r.phone_normalized,
-    recordAt: r.record_at ? r.record_at.toISOString() : null,
+    recordAt: nullableToIsoStringSafe(r.record_at),
     status: r.status,
     payloadJson:
       typeof r.payload_json === "object" && r.payload_json !== null
@@ -66,9 +67,9 @@ function mapRow(r: {
         : {},
     lastEvent: r.last_event ?? "",
     branchId: r.branch_id ?? null,
-    createdAt: r.created_at.toISOString(),
-    updatedAt: r.updated_at.toISOString(),
-    deletedAt: r.deleted_at ? r.deleted_at.toISOString() : null,
+    createdAt: toIsoStringSafe(r.created_at),
+    updatedAt: toIsoStringSafe(r.updated_at),
+    deletedAt: nullableToIsoStringSafe(r.deleted_at),
   };
 }
 

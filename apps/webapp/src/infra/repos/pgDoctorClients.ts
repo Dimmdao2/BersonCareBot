@@ -2,6 +2,7 @@
  * Wave 3 phase 13C — domain SQL via `runWebappPgText`; canonical helpers still accept `getPool()`.
  */
 import { getPool } from "@/infra/db/client";
+import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import type { ChannelBindings } from "@/shared/types/session";
@@ -77,18 +78,25 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         filters.archivedOnly === true
           ? `COALESCE(is_archived, false) = true`
           : `COALESCE(is_archived, false) = false`;
-      const listBase = `SELECT id, display_name, phone_normalized, created_at
+      const listBase = `SELECT id, display_name, phone_normalized, created_at, email, email_verified_at
          FROM platform_users pu
          WHERE pu.role = 'client' AND pu.merged_into_id IS NULL AND ${archivedClause}`;
       const listQ = appendSqlExcludeUserIds(listBase, "pu.id", excluded, []);
-      const clientRows = await runWebappPgText(
+      const clientRows = await runWebappPgText<{
+        id: string;
+        display_name: string | null;
+        phone_normalized: string | null;
+        created_at: string;
+        email: string | null;
+        email_verified_at: string | null;
+      }>(
         `${listQ.sql}
          ORDER BY display_name, id`,
         listQ.params,
       );
       if (clientRows.rows.length === 0) return [];
 
-      const userIds = clientRows.rows.map((r: { id: string }) => r.id);
+      const userIds = clientRows.rows.map((r) => r.id);
       const bindingsRows = await runWebappPgText(
         `SELECT user_id, channel_code, external_id FROM user_channel_bindings WHERE user_id = ANY($1::uuid[])`,
         [userIds]
@@ -100,50 +108,179 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         bindingsByUser.set(row.user_id, list);
       }
 
-      const [upcomingUsers, activeProgramPatients] = await Promise.all([
-        runWebappPgText<{ id: string }>(
-          `SELECT DISTINCT pu.id
-           FROM platform_users pu
-           INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
-           WHERE pu.id = ANY($1::uuid[])
-             AND ar.deleted_at IS NULL
-             AND ar.status IN ('created', 'updated')
-             AND ar.record_at IS NOT NULL
-             AND ar.record_at >= NOW()`,
-          [userIds],
-        ),
-        runWebappPgText<{ patient_user_id: string; instance_id: string }>(
-          `SELECT DISTINCT ON (patient_user_id)
-             patient_user_id,
-             id AS instance_id
-           FROM treatment_program_instances
-           WHERE status = 'active' AND assignment_source = 'doctor'
-           ORDER BY patient_user_id, updated_at DESC NULLS LAST`,
-        ),
-      ]);
-      const userHasUpcomingAppointment = new Set(upcomingUsers.rows.map((row) => row.id));
+      const [appointmentAggRows, supportConversationRows, activeProgramPatients, onSupportIds, unreadExerciseCommentRows] =
+        await Promise.all([
+          runWebappPgText<{
+            user_id: string;
+            history_count: number;
+            active_count: number;
+            cancellation_count_30d: number;
+            reschedule_count_30d: number;
+            visited_month_count: number;
+          }>(
+            `SELECT
+               pu.id::text AS user_id,
+               COUNT(*) FILTER (
+                 WHERE ar.deleted_at IS NULL
+               )::int AS history_count,
+               COUNT(*) FILTER (
+                 WHERE ar.deleted_at IS NULL
+                   AND ar.status IN ('created', 'updated')
+                   AND ar.record_at IS NOT NULL
+                   AND ar.record_at >= NOW()
+               )::int AS active_count,
+               COUNT(*) FILTER (
+                 WHERE ar.deleted_at IS NULL
+                   AND ar.status = 'canceled'
+                   AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
+                   AND ar.updated_at >= NOW() - INTERVAL '30 days'
+               )::int AS cancellation_count_30d,
+               COUNT(*) FILTER (
+                 WHERE ar.deleted_at IS NULL
+                   AND ar.status = 'updated'
+                   AND ar.updated_at >= NOW() - INTERVAL '30 days'
+               )::int AS reschedule_count_30d,
+               COUNT(*) FILTER (
+                 WHERE ar.deleted_at IS NULL
+                   AND ar.record_at IS NOT NULL
+                   AND ar.record_at >= date_trunc('month', NOW())
+                   AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
+                   AND ar.record_at < NOW()
+                   AND ar.status IN ('created', 'updated')
+               )::int AS visited_month_count
+             FROM platform_users pu
+             LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
+             WHERE pu.id = ANY($1::uuid[])
+             GROUP BY pu.id`,
+            [userIds],
+          ),
+          runWebappPgText<{
+            user_id: string;
+            conversation_count: number;
+            unread_count: number;
+          }>(
+            `SELECT
+               sc.platform_user_id::text AS user_id,
+               COUNT(DISTINCT sc.id)::int AS conversation_count,
+               COUNT(m.id) FILTER (
+                 WHERE m.sender_role = 'user'
+                   AND m.read_at IS NULL
+               )::int AS unread_count
+             FROM support_conversations sc
+             LEFT JOIN support_conversation_messages m ON m.conversation_id = sc.id
+             WHERE sc.platform_user_id = ANY($1::uuid[])
+             GROUP BY sc.platform_user_id`,
+            [userIds],
+          ),
+          runWebappPgText<{ patient_user_id: string; instance_id: string }>(
+            `SELECT DISTINCT ON (patient_user_id)
+               patient_user_id,
+               id AS instance_id
+             FROM treatment_program_instances
+             WHERE status = 'active' AND assignment_source = 'doctor'
+             ORDER BY patient_user_id, updated_at DESC NULLS LAST`,
+          ),
+          listOnSupportPatientUserIds(),
+          filters.viewerUserId
+            ? runWebappPgText<{ patient_user_id: string; unread_comments_count: number }>(
+                `WITH active_items AS (
+                   SELECT
+                     tpi.patient_user_id,
+                     tpsi.id AS stage_item_id
+                   FROM treatment_program_instances tpi
+                   INNER JOIN treatment_program_instance_stages tps ON tps.instance_id = tpi.id
+                   INNER JOIN treatment_program_instance_stage_items tpsi ON tpsi.stage_id = tps.id
+                   WHERE tpi.status = 'active'
+                     AND tpi.assignment_source = 'doctor'
+                     AND tpi.patient_user_id = ANY($1::uuid[])
+                     AND tpsi.status = 'active'
+                     AND tpsi.item_type = 'exercise'
+                 ),
+                 latest_by_item AS (
+                   SELECT DISTINCT ON (m.instance_stage_item_id)
+                     m.instance_stage_item_id,
+                     m.created_at,
+                     m.sender_role,
+                     m.media_file_id
+                   FROM program_item_discussion_messages m
+                   INNER JOIN active_items ai ON ai.stage_item_id = m.instance_stage_item_id
+                   ORDER BY m.instance_stage_item_id, m.created_at DESC, m.id DESC
+                 )
+                 SELECT
+                   ai.patient_user_id::text AS patient_user_id,
+                   COUNT(*) FILTER (
+                     WHERE latest_by_item.sender_role = 'patient'
+                       AND latest_by_item.media_file_id IS NULL
+                       AND (r.last_read_at IS NULL OR latest_by_item.created_at > r.last_read_at)
+                   )::int AS unread_comments_count
+                 FROM active_items ai
+                 INNER JOIN latest_by_item ON latest_by_item.instance_stage_item_id = ai.stage_item_id
+                 LEFT JOIN program_item_discussion_reads r
+                   ON r.instance_stage_item_id = ai.stage_item_id
+                  AND r.patient_user_id = $2::uuid
+                 GROUP BY ai.patient_user_id`,
+                [userIds, filters.viewerUserId],
+              )
+            : Promise.resolve({ rows: [] as { patient_user_id: string; unread_comments_count: number }[] }),
+        ]);
+
+      const appointmentAggByUserId = new Map(
+        appointmentAggRows.rows.map((row) => [
+          row.user_id,
+          {
+            hasHistory: Number(row.history_count ?? 0) > 0,
+            activeCount: Number(row.active_count ?? 0),
+            cancellationCount30d: Number(row.cancellation_count_30d ?? 0),
+            rescheduleCount30d: Number(row.reschedule_count_30d ?? 0),
+            visitedThisCalendarMonth: Number(row.visited_month_count ?? 0) > 0,
+          },
+        ]),
+      );
+      const supportConversationByUserId = new Map(
+        supportConversationRows.rows.map((row) => [
+          row.user_id,
+          {
+            hasConversation: Number(row.conversation_count ?? 0) > 0,
+            unreadCount: Number(row.unread_count ?? 0),
+          },
+        ]),
+      );
       const activeProgramInstanceByPatient = new Map<string, string>(
         activeProgramPatients.rows.map((row) => [row.patient_user_id, row.instance_id]),
       );
+      const unreadExerciseCommentsByPatientId = new Map<string, number>(
+        unreadExerciseCommentRows.rows.map((row) => [row.patient_user_id, Number(row.unread_comments_count ?? 0)]),
+      );
 
-      let list: ClientListItem[] = clientRows.rows.map(
-        (r: { id: string; display_name: string; phone_normalized: string | null; created_at: string }) => {
+      let list: ClientListItem[] = clientRows.rows.map((r) => {
           const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
           const phone = r.phone_normalized;
-          const hasUpcoming = userHasUpcomingAppointment.has(r.id);
+          const appointmentAgg = appointmentAggByUserId.get(r.id);
+          const supportConversation = supportConversationByUserId.get(r.id);
+          const activeAppointmentsCount = appointmentAgg?.activeCount ?? 0;
           const activeInstanceId = activeProgramInstanceByPatient.get(r.id) ?? null;
+          const email = r.email?.trim() ?? "";
           return {
             userId: r.id,
             displayName: r.display_name ?? "",
             phone,
             bindings,
-            nextAppointmentLabel: hasUpcoming ? "Есть запись" : null,
+            hasEmail: Boolean(email) || Boolean(r.email_verified_at),
+            hasApp: true,
+            nextAppointmentLabel: activeAppointmentsCount > 0 ? "Есть запись" : null,
+            hasAppointmentHistory: appointmentAgg?.hasHistory ?? false,
+            activeAppointmentsCount,
             activeTreatmentProgram: activeInstanceId != null,
             activeTreatmentProgramInstanceId: activeInstanceId,
-            cancellationCount30d: 0,
+            cancellationCount30d: appointmentAgg?.cancellationCount30d ?? 0,
+            rescheduleCount30d: appointmentAgg?.rescheduleCount30d ?? 0,
+            visitedThisCalendarMonth: appointmentAgg?.visitedThisCalendarMonth ?? false,
+            hasConversation: supportConversation?.hasConversation ?? false,
+            unreadMessagesCount: supportConversation?.unreadCount ?? 0,
+            unreadExerciseCommentsCount: unreadExerciseCommentsByPatientId.get(r.id) ?? 0,
+            isOnSupport: onSupportIds.has(r.id),
           };
-        }
-      );
+        });
 
       if (filters.search?.trim()) {
         const s = filters.search.trim();
@@ -156,51 +293,23 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         list = list.filter((item) => Boolean(item.bindings.maxId?.trim()));
       }
       if (filters.hasUpcomingAppointment === true) {
-        list = list.filter((item) => Boolean(item.nextAppointmentLabel));
+        list = list.filter((item) => (item.activeAppointmentsCount ?? 0) > 0);
       }
       if (filters.hasActiveTreatmentProgram === true) {
         list = list.filter((item) => item.activeTreatmentProgram);
       }
       if (filters.onlyWithAppointmentRecords === true && !filters.archivedOnly) {
-        const withAnyRecord = await runWebappPgText<{ id: string }>(
-          `SELECT DISTINCT pu.id
-           FROM platform_users pu
-           INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
-           WHERE pu.id = ANY($1::uuid[])
-             AND ar.deleted_at IS NULL`,
-          [list.map((item) => item.userId)],
-        );
-        const idSet = new Set(withAnyRecord.rows.map((row) => row.id));
-        list = list.filter((item) => idSet.has(item.userId));
+        list = list.filter((item) => item.hasAppointmentHistory === true);
       }
       if (filters.visitedThisCalendarMonth === true && !filters.archivedOnly) {
-        const visited = await runWebappPgText<{ id: string }>(
-          `SELECT DISTINCT pu.id
-           FROM platform_users pu
-           INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
-           WHERE pu.role = 'client'
-             AND pu.merged_into_id IS NULL
-             AND COALESCE(pu.is_archived, false) = false
-             AND pu.id = ANY($1::uuid[])
-             AND ar.record_at IS NOT NULL
-             AND ar.record_at >= date_trunc('month', NOW())
-             AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
-             AND ar.record_at < NOW()
-             AND ar.status IN ('created', 'updated')
-             AND ar.deleted_at IS NULL`,
-          [list.map((item) => item.userId)],
-        );
-        const idSet = new Set(visited.rows.map((r) => r.id));
-        list = list.filter((item) => idSet.has(item.userId));
+        list = list.filter((item) => item.visitedThisCalendarMonth === true);
       }
       if (filters.supportStatus === "on") {
-        const onSupportIds = await listOnSupportPatientUserIds();
-        list = list.filter((item) => onSupportIds.has(item.userId));
+        list = list.filter((item) => item.isOnSupport === true);
       }
       if (filters.supportStatus === "programWithoutSupport") {
-        const onSupportIds = await listOnSupportPatientUserIds();
         list = list.filter(
-          (item) => item.activeTreatmentProgram && !onSupportIds.has(item.userId),
+          (item) => item.activeTreatmentProgram && item.isOnSupport !== true,
         );
       }
       return list;
@@ -318,7 +427,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         created_at: Date;
       }[]) {
         channelBindingDates[br.channel_code] =
-          br.created_at instanceof Date ? br.created_at.toISOString() : String(br.created_at);
+          br.created_at instanceof Date ? toIsoStringSafe(br.created_at) : String(br.created_at);
       }
       return {
         userId: r.id,
@@ -335,7 +444,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         email: r.email,
         emailVerifiedAt: r.email_verified_at
           ? r.email_verified_at instanceof Date
-            ? r.email_verified_at.toISOString()
+            ? toIsoStringSafe(r.email_verified_at)
             : String(r.email_verified_at)
           : null,
       };

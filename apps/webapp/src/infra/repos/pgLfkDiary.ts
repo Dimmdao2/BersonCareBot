@@ -3,6 +3,7 @@
  * Tables: lfk_complexes, lfk_sessions (see webapp/migrations/005_lfk_complexes_and_sessions.sql).
  */
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { LfkDiaryPort } from "@/modules/diaries/ports";
 import type { LfkComplex, LfkComplexExerciseLine, LfkSession } from "@/modules/diaries/types";
@@ -55,8 +56,8 @@ function rowToComplex(row: {
     coverKind,
     origin: row.origin as "manual" | "assigned_by_specialist",
     isActive: row.is_active,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: toIsoStringSafe(row.created_at),
+    updatedAt: toIsoStringSafe(row.updated_at),
     symptomTrackingId: row.symptom_tracking_id ? String(row.symptom_tracking_id) : null,
     regionRefId: row.region_ref_id ? String(row.region_ref_id) : null,
     side: (row.side as LfkComplex["side"]) ?? null,
@@ -83,10 +84,10 @@ function rowToSession(row: {
     id: String(row.id),
     userId: row.user_id,
     complexId: row.complex_id,
-    completedAt: row.completed_at.toISOString(),
+    completedAt: toIsoStringSafe(row.completed_at),
     source: row.source as "bot" | "webapp",
-    createdAt: row.created_at.toISOString(),
-    recordedAt: row.recorded_at ? row.recorded_at.toISOString() : null,
+    createdAt: toIsoStringSafe(row.created_at),
+    recordedAt: nullableToIsoStringSafe(row.recorded_at),
     durationMinutes: row.duration_minutes ?? null,
     difficulty0_10: row.difficulty_0_10 ?? null,
     pain0_10: row.pain_0_10 ?? null,
@@ -285,11 +286,11 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async minCompletedAtForUser(userId) {
-    const result = await runWebappPgText<{ m: Date | null }>(`SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = $1`, [
+    const result = await runWebappPgText<{ m: Date | string | null }>(`SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = $1`, [
       userId,
     ]);
-    const m = result.rows[0]?.m as Date | null | undefined;
-    return m ? m.toISOString() : null;
+    const m = result.rows[0]?.m as Date | string | null | undefined;
+    return nullableToIsoStringSafe(m);
   },
 
   async getSessionForUser(params) {

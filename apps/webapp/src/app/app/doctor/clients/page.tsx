@@ -9,17 +9,19 @@ import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorClientsPanel } from "./DoctorClientsPanel";
 import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 
-type ClientsScope = "all" | "appointments" | "archived";
+type ClientsScope = "all" | "archived";
 
 type Props = {
   searchParams: Promise<{
     q?: string;
+    segment?: string;
     telegram?: string;
     max?: string;
-    appointment?: string;
-    treatmentProgram?: string;
-    support?: string;
+    email?: string;
+    phone?: string;
     visitedMonth?: string;
+    cancellations?: string;
+    reschedules?: string;
     selected?: string;
     scope?: string;
   }>;
@@ -29,16 +31,14 @@ const BASE = "/app/doctor/clients";
 
 function listPathForScope(scope: ClientsScope): string {
   if (scope === "all") return `${BASE}?scope=all`;
-  if (scope === "archived") return `${BASE}?scope=archived`;
-  return `${BASE}?scope=appointments`;
+  return `${BASE}?scope=archived`;
 }
 
 export default async function DoctorClientsPage({ searchParams }: Props) {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
   const params = await searchParams;
-  const scope: ClientsScope =
-    params.scope === "all" ? "all" : params.scope === "archived" ? "archived" : "appointments";
+  const scope: ClientsScope = params.scope === "archived" ? "archived" : "all";
 
   const selected = params.selected?.trim();
   if (selected) {
@@ -51,24 +51,10 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
 
   const { selected: _legacySelected, ...listUrlParams } = params;
 
-  const supportStatus =
-    scope === "all" &&
-    (params.support === "on" || params.support === "programWithoutSupport")
-      ? params.support
-      : undefined;
-
-  const allClients = await deps.doctorClients.listClients(
-    scope === "archived"
-      ? { archivedOnly: true }
-      : scope === "all"
-        ? supportStatus
-          ? { supportStatus }
-          : {}
-        : {
-            onlyWithAppointmentRecords: true,
-            visitedThisCalendarMonth: params.visitedMonth === "1",
-          },
-  );
+  const allClients = await deps.doctorClients.listClients({
+    archivedOnly: scope === "archived",
+    viewerUserId: session.user.userId,
+  });
 
   return (
     <DoctorAppShell title="Клиенты" user={session.user}>
@@ -80,7 +66,6 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
           allClients={allClients}
           urlParams={listUrlParams}
           basePath={BASE}
-          showAdminNameMatchHintsLink={session.user.role === "admin" && Boolean(session.adminMode)}
         />
       </section>
     </DoctorAppShell>

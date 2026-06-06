@@ -3,6 +3,7 @@
  * Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
  */
 import { getPool } from "@/infra/db/client";
+import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import { findCanonicalUserIdByChannelBinding } from "@/infra/repos/pgCanonicalPlatformUser";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
@@ -658,7 +659,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
       return { outcome: "skipped_invalid_email" as const };
     }
     const phone = params.phoneNormalized.trim();
-    const row = await runWebappPgText<{ id: string; email_verified_at: Date | null }>(
+    const row = await runWebappPgText<{ id: string; email_verified_at: Date | string | null }>(
       `SELECT id, email_verified_at FROM platform_users
        WHERE phone_normalized = $1 AND merged_into_id IS NULL`,
       [phone],
@@ -692,7 +693,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async getProfileEmailFields(platformUserId) {
-    const result = await runWebappPgText<{ email: string | null; email_verified_at: Date | null }>(
+    const result = await runWebappPgText<{ email: string | null; email_verified_at: Date | string | null }>(
       "SELECT email, email_verified_at FROM platform_users WHERE id = $1",
       [platformUserId],
     );
@@ -702,7 +703,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const row = result.rows[0];
     return {
       email: row.email,
-      emailVerifiedAt: row.email_verified_at ? row.email_verified_at.toISOString() : null,
+      emailVerifiedAt: nullableToIsoStringSafe(row.email_verified_at),
     };
   },
 
