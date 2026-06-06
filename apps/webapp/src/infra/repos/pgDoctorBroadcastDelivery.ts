@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
 import type { BroadcastAuditEntry, DoctorBroadcastDeliveryCommitPort } from "@/modules/doctor-broadcasts/ports";
 import { normalizeBroadcastChannels } from "@/modules/doctor-broadcasts/broadcastChannels";
 
@@ -25,6 +26,7 @@ function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
   };
 }
 
+/** Wave 3 phase 13D — Class C TX; domain SQL via `runWebappPgText` on tx client. */
 export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeliveryCommitPort {
   return {
     async commitAuditAndDeliveryQueue(input) {
@@ -32,9 +34,10 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
       const deliveryTotal = input.jobs.length;
       const pool = getPool();
       const client = await pool.connect();
+      const tx = getWebappSqlFromPgClient(client);
       try {
         await client.query("BEGIN");
-        const ins = await client.query(
+        const ins = await runWebappPgText<Record<string, unknown>>(
           `INSERT INTO broadcast_audit (
              id,
              actor_id,
@@ -66,9 +69,10 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
             input.audit.sentCount,
             input.audit.errorCount,
           ],
+          tx,
         );
         for (const job of input.jobs) {
-          const insJob = await client.query(
+          const insJob = await runWebappPgText<{ id: string }>(
             `INSERT INTO outgoing_delivery_queue (
                event_id,
                kind,
@@ -82,17 +86,19 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
              ON CONFLICT (event_id) DO NOTHING
              RETURNING id`,
             [job.eventId, job.kind, job.channel, JSON.stringify(job.payloadJson), job.maxAttempts],
+            tx,
           );
-          if (insJob.rowCount !== 1) {
+          if ((insJob.rowCount ?? 0) !== 1) {
             throw new Error("outgoing_delivery_queue_insert_conflict_or_skipped");
           }
         }
         const recipientIds = [...new Set(input.recipientUserIds.map((id) => id.trim()).filter(Boolean))];
         if (recipientIds.length > 0) {
-          await client.query(
+          await runWebappPgText(
             `INSERT INTO broadcast_audit_recipients (audit_id, platform_user_id)
              SELECT $1::uuid, unnest($2::uuid[])`,
             [auditId, recipientIds],
+            tx,
           );
         }
         await client.query("COMMIT");

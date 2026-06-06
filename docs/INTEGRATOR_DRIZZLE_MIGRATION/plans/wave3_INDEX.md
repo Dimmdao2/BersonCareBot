@@ -62,7 +62,7 @@
 - **13A:** booking catalog (**done** 2026-06-06; `runWebappPgText`, devDb smoke `RUN_BOOKING_CATALOG_DEV_DB`)
 - **13B:** patient bookings + doctor appointments (**done** 2026-06-06; Rubitime sync invariant preserved)
 - **13C:** doctor clients + analytics (**done** 2026-06-06)
-- **13D:** motivation + doctor tails
+- **13D:** motivation + doctor tails (**done** 2026-06-06)
 - **13E:** phase verify
 - **14A:** support communication core
 - **14B:** user projection core

@@ -11,4 +11,14 @@ export type MotivationQuoteEditorRow = {
 
 export type DoctorMotivationQuotesEditorPort = {
   listQuotesForEditor(): Promise<MotivationQuoteEditorRow[]>;
+  upsertQuote(params: {
+    id?: string;
+    bodyText: string;
+    author: string | null;
+    isActive: boolean;
+    sortOrder?: number;
+  }): Promise<void>;
+  setQuoteArchived(id: string, archived: boolean): Promise<void>;
+  setQuoteActive(id: string, nextActive: boolean): Promise<void>;
+  reorderQuotes(orderedIds: string[]): Promise<void>;
 };

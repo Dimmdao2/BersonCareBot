@@ -704,3 +704,12 @@ LIMIT 3;"
 - **Tests:** mock `runWebappPgText`; parity table 26 metric keys; repo/createDoctorClient edge cases; opt-in devDb `RUN_DOCTOR_CLIENTS_DEV_DB` / `RUN_DOCTOR_ANALYTICS_DEV_DB`.
 - **RAW_SQL / plan:** todo `w3-p13c-doctor-clients-analytics` → `completed`.
 
+### Wave 3 phase 13D — motivation + doctor tails (2026-06-06)
+
+- **Scope:** `motivation/actions.ts`, `pgDoctorBroadcastDelivery.ts`, `pgDoctorProactiveInsights.ts`, расширение `pgDoctorMotivationQuotesEditor.ts`.
+- **Transport:** SQL в infra; actions → `buildAppDeps().doctorMotivationQuotesEditor`; broadcast/proactive/motivation writes → `runWebappPgText`.
+- **Class C:** broadcast commit TX; motivation `reorderQuotes` TX.
+- **Проверки:** `pool.query` = 0 в actions/proactive; Vitest fast bundle 13D — **12 passed**.
+- **Post-audit:** motivation archive/active + reorder mismatch tests; proactive full query chain; opt-in devDb `RUN_DOCTOR_PHASE_13D_DEV_DB`.
+- **RAW_SQL / plan:** todo `w3-p13d-motivation-and-tail` → `completed`.
+

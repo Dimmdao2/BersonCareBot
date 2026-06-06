@@ -1,4 +1,4 @@
-import { getPool } from "@/infra/db/client";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { WELLBEING_GENERAL_MIRROR_NOTE } from "@/modules/diaries/wellbeingGeneralMirrorNote";
 import {
   detectProgramInactivityInsights,
@@ -19,8 +19,9 @@ import { DateTime } from "luxon";
 
 const BUILD_INSIGHTS_CAP = 500;
 
-async function listOnSupportPatients(pool: ReturnType<typeof getPool>): Promise<ProactivePatientRef[]> {
-  const res = await pool.query<{ id: string; display_name: string | null }>(
+/** Wave 3 phase 13D — domain SQL via `runWebappPgText`. */
+async function listOnSupportPatients(): Promise<ProactivePatientRef[]> {
+  const res = await runWebappPgText<{ id: string; display_name: string | null }>(
     `SELECT pu.id, pu.display_name
      FROM doctor_patient_support dps
      JOIN platform_users pu ON pu.id = dps.patient_user_id
@@ -37,13 +38,12 @@ async function listOnSupportPatients(pool: ReturnType<typeof getPool>): Promise<
 }
 
 async function listWellbeingEntries(
-  pool: ReturnType<typeof getPool>,
   patientIds: string[],
   fromIso: string,
   toExclusiveIso: string,
 ): Promise<ProactiveWellbeingEntry[]> {
   if (patientIds.length === 0) return [];
-  const res = await pool.query<{
+  const res = await runWebappPgText<{
     platform_user_id: string;
     value_0_10: number;
     recorded_at: Date;
@@ -68,13 +68,10 @@ async function listWellbeingEntries(
   }));
 }
 
-async function listProgramActivity(
-  pool: ReturnType<typeof getPool>,
-  patientIds: string[],
-): Promise<ProactiveProgramActivity[]> {
+async function listProgramActivity(patientIds: string[]): Promise<ProactiveProgramActivity[]> {
   if (patientIds.length === 0) return [];
 
-  const activeRes = await pool.query<{ patient_user_id: string; instance_id: string }>(
+  const activeRes = await runWebappPgText<{ patient_user_id: string; instance_id: string }>(
     `SELECT DISTINCT ON (tpi.patient_user_id)
        tpi.patient_user_id,
        tpi.id::text AS instance_id
@@ -93,7 +90,7 @@ async function listProgramActivity(
 
   const lastDoneByInstance = new Map<string, string>();
   if (instanceIds.length > 0) {
-    const doneRes = await pool.query<{ instance_id: string; last_done_at: Date | null }>(
+    const doneRes = await runWebappPgText<{ instance_id: string; last_done_at: Date | null }>(
       `SELECT pal.instance_id::text AS instance_id, MAX(pal.created_at) AS last_done_at
        FROM program_action_log pal
        WHERE pal.instance_id = ANY($1::uuid[])
@@ -119,11 +116,8 @@ async function listProgramActivity(
   });
 }
 
-async function getOnSupportPatientRef(
-  pool: ReturnType<typeof getPool>,
-  patientUserId: string,
-): Promise<ProactivePatientRef | null> {
-  const res = await pool.query<{ id: string; display_name: string | null }>(
+async function getOnSupportPatientRef(patientUserId: string): Promise<ProactivePatientRef | null> {
+  const res = await runWebappPgText<{ id: string; display_name: string | null }>(
     `SELECT pu.id, pu.display_name
      FROM doctor_patient_support dps
      JOIN platform_users pu ON pu.id = dps.patient_user_id
@@ -148,13 +142,12 @@ async function buildInsights(
   limit: number,
   filterPatientIds?: readonly string[],
 ): Promise<ProactiveInsightRow[]> {
-  const pool = getPool();
   let patients: ProactivePatientRef[];
   if (filterPatientIds?.length === 1) {
-    const ref = await getOnSupportPatientRef(pool, filterPatientIds[0]!);
+    const ref = await getOnSupportPatientRef(filterPatientIds[0]!);
     patients = ref ? [ref] : [];
   } else {
-    patients = await listOnSupportPatients(pool);
+    patients = await listOnSupportPatients();
     if (filterPatientIds?.length) {
       const allowed = new Set(filterPatientIds);
       patients = patients.filter((p) => allowed.has(p.patientUserId));
@@ -172,8 +165,8 @@ async function buildInsights(
   const wellbeingTo = now.plus({ days: 1 }).startOf("day").toUTC().toISO()!;
 
   const [entries, activity] = await Promise.all([
-    listWellbeingEntries(pool, patientIds, wellbeingFrom, wellbeingTo),
-    listProgramActivity(pool, patientIds),
+    listWellbeingEntries(patientIds, wellbeingFrom, wellbeingTo),
+    listProgramActivity(patientIds),
   ]);
 
   const wellbeing = detectWellbeingLowStreakInsights({

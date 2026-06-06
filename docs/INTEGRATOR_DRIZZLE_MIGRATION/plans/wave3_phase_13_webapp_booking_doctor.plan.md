@@ -15,7 +15,7 @@ todos:
     status: completed
   - id: w3-p13d-motivation-and-tail
     content: "13D: motivation/actions.ts (10), pgDoctorBroadcastDelivery.ts (6), pgDoctorProactiveInsights.ts (5) — SQL в infra портовом слое."
-    status: pending
+    status: completed
   - id: w3-p13-verify
     content: "13E: booking-rubitime-sync consumer tests + doctor clients/appointments/analytics parity checks + rg ноль по scope."
     status: pending
@@ -86,6 +86,14 @@ todos:
 - Проверка:
   - targeted tests motivation/proactive/broadcast paths.
   - `rg "pool\\.query|client\\.query" apps/webapp/src/app/app/doctor/content/motivation/actions.ts apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts apps/webapp/src/infra/repos/pgDoctorProactiveInsights.ts`.
+
+#### Закрытие 13D (2026-06-06)
+
+- `motivation/actions.ts` — thin server actions через `buildAppDeps().doctorMotivationQuotesEditor`; writes/reorder в `pgDoctorMotivationQuotesEditor` (`runWebappPgText`; Class C TX на reorder).
+- `pgDoctorBroadcastDelivery` — Class C TX; domain INSERT через `runWebappPgText` + `getWebappSqlFromPgClient`; `rowCount` guard на queue insert.
+- `pgDoctorProactiveInsights` — 5 read paths → `runWebappPgText`.
+- Vitest fast bundle 13D — **12 passed**; gate: `pool.query` = 0 в scope (Class C transport только в broadcast + motivation reorder).
+- **Post-audit (2026-06-06):** motivation archive/active + reorder error tests; proactive multi-query path; opt-in devDb `RUN_DOCTOR_PHASE_13D_DEV_DB`.
 
 ### 13E — phase verify
 

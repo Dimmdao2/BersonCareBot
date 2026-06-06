@@ -4,4 +4,8 @@ export const inMemoryDoctorMotivationQuotesEditorPort: DoctorMotivationQuotesEdi
   async listQuotesForEditor() {
     return [];
   },
+  async upsertQuote() {},
+  async setQuoteArchived() {},
+  async setQuoteActive() {},
+  async reorderQuotes() {},
 };
