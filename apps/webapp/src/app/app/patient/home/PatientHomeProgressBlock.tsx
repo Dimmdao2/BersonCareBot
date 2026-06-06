@@ -97,7 +97,7 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                 >
                   <Info className="size-4" aria-hidden />
                 </PopoverTrigger>
-                <PopoverContent className="max-w-[min(18rem,calc(100vw-2rem))] text-xs leading-snug">
+                <PopoverContent className="max-w-[min(18rem,calc(100vw_-_2rem))] text-xs leading-snug">
                   {PROGRESS_HINT}
                 </PopoverContent>
               </Popover>

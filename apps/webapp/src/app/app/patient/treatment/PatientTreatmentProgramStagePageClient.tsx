@@ -405,7 +405,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
             <span
               className={cn(
                 patientPillClass,
-                "absolute right-3 top-3 max-w-[min(12rem,calc(100%-1rem))] truncate text-right lg:right-4 lg:top-4",
+                "absolute right-3 top-3 max-w-[min(12rem,calc(100%_-_1rem))] truncate text-right lg:right-4 lg:top-4",
               )}
             >
               {pastStageHeroBadge(stageForUi, appDisplayTimeZone)}
@@ -464,7 +464,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
             <span
               className={cn(
                 patientPillClass,
-                "absolute right-3 top-3 max-w-[min(10rem,calc(100%-1rem))] truncate text-right text-xs lg:right-4 lg:top-4",
+                "absolute right-3 top-3 max-w-[min(10rem,calc(100%_-_1rem))] truncate text-right text-xs lg:right-4 lg:top-4",
               )}
             >
               {formatTreatmentProgramStageStatusRu(stageForUi.status)}

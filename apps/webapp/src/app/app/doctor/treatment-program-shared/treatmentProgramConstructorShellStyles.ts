@@ -32,7 +32,7 @@ export const tplToolbarTextBtnClass = "h-7 min-h-7 px-2 text-xs";
 
 /** Sticky toolbar редактора инстанса: компенсация `px-3` контейнера `#app-shell-doctor`. */
 export const INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS =
-  "sticky z-20 -mx-3 border-b border-border bg-card/95 px-3 py-2 backdrop-blur-sm top-[calc(3.5rem+env(safe-area-inset-top,0px))]";
+  "sticky z-20 -mx-3 border-b border-border bg-card/95 px-3 py-2 backdrop-blur-sm top-[calc(3.5rem_+_env(safe-area-inset-top,0px))]";
 
 export function instanceGroupHeaderSurfaceStyle(g: TreatmentProgramInstanceStageGroup): CSSProperties {
   if (g.systemKind === "recommendations") {

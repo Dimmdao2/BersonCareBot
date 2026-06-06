@@ -523,7 +523,7 @@ export function DoctorClientsPanel({
       </form>
 
       <div className="grid min-h-0 gap-3 lg:grid-cols-2 lg:items-start">
-        <section className="flex min-h-0 flex-col rounded-lg border border-border bg-card lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-10rem)] lg:overflow-hidden">
+        <section className="flex min-h-0 flex-col rounded-lg border border-border bg-card lg:h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_10rem)] lg:overflow-hidden">
           <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 bg-card px-5 py-2">
             <p className="min-w-0 truncate text-xs text-muted-foreground">Пациентов: {filtered.length}</p>
             <div className={CLIENT_ICON_RAIL_CLASS} aria-label="Фильтры списка">

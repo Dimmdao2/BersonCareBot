@@ -37,7 +37,7 @@ describe("PatientAppShell width variants", () => {
     expect(shell).toHaveClass("overflow-x-clip");
     expect(shell).toHaveClass("safe-padding-patient-horiz");
     expect(shell).toHaveClass("max-patient-desktop:max-w-[430px]");
-    expect(shell).toHaveClass("patient-desktop:max-w-[min(1180px,calc(100%-2rem))]");
+    expect(shell).toHaveClass("patient-desktop:max-w-[min(1180px,calc(100%_-_2rem))]");
     expect(shell).toHaveAttribute("data-patient-shell-max-px", "430");
   });
 

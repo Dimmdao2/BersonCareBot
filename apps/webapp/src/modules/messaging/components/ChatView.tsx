@@ -26,8 +26,6 @@ type ChatViewProps = {
   messages: SerializedSupportMessage[];
   emptyText?: string;
   composer: ReactNode;
-  /** Keep composer pinned to bottom while only messages scroll. */
-  stickyComposer?: boolean;
   /**
    * Пациент: подпись дата и время под пузырём (сегодня / вчера / 5 июня / … год),
    * без блоковых разделителей по дням.
@@ -42,7 +40,6 @@ export function ChatView({
   messages,
   emptyText,
   composer,
-  stickyComposer = false,
   relativeFooters = false,
   className,
 }: ChatViewProps) {
@@ -57,10 +54,7 @@ export function ChatView({
     () => [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [messages],
   );
-  const scrollClasses = cn(
-    "min-h-0 flex-1 overflow-y-auto space-y-4 pt-1",
-    stickyComposer ? "overscroll-contain pb-[7rem] md:pb-[8rem]" : "pb-4 md:pb-5",
-  );
+  const scrollClasses = "min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-4 pb-4 pt-1 md:pb-5";
 
   const patientBubbleMine = cn(
     "max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]",
@@ -142,7 +136,7 @@ export function ChatView({
           ))}
         <div ref={bottomRef} />
       </div>
-      <div className={cn("mt-auto shrink-0", stickyComposer && "sticky bottom-0 z-20")}>{composer}</div>
+      <div className="mt-auto shrink-0">{composer}</div>
     </div>
   );
 }

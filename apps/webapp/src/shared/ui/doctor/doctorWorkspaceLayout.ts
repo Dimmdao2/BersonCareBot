@@ -7,15 +7,15 @@ export const DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS = "w-56";
 
 /** `position: sticky` под фиксированной шапкой (совпадает с низом `DOCTOR_WORKSPACE_TOP_PADDING_CLASS`). */
 export const DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS =
-  "md:top-[var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))]";
+  "md:top-[var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))]";
 
 /** Основной контент под фиксированной шапкой (safe-area + h-14, без лишнего зазора). */
 export const DOCTOR_WORKSPACE_TOP_PADDING_CLASS =
-  "pt-[var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))]";
+  "pt-[var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))]";
 
 /** Липкая подшапка страницы (фильтры и т.п.) сразу под `DoctorHeader`. */
 export const DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS =
-  "top-[var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))]";
+  "top-[var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))]";
 
 /** Внутренний ряд шапки: во всю ширину viewport (поля по краям), меню слева — только под шапкой. */
 export const DOCTOR_HEADER_INNER_CLASS =
@@ -35,37 +35,37 @@ export const DOCTOR_CATALOG_STICKY_BAR_CLASS =
  * Левая колонка master-detail под липкой шапкой страницы и одним липким блоком фильтров (~3.25rem).
  */
 export const DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_CLASS =
-  "lg:sticky lg:top-[calc(var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))+3.25rem)] lg:h-[calc(100dvh-var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))-3.25rem-1rem)]";
+  "lg:sticky lg:top-[calc(var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_+_3.25rem)] lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_3.25rem_-_1rem)]";
 
 /**
  * То же при двух строках липкой полосы (фильтры + второй ряд управления списком), ~6.5rem под блок под шапкой.
  */
 export const DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_DOUBLE_ROW_CLASS =
-  "lg:sticky lg:top-[calc(var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))+6.5rem)] lg:h-[calc(100dvh-var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))-6.5rem-1rem)]";
+  "lg:sticky lg:top-[calc(var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_+_6.5rem)] lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6.5rem_-_1rem)]";
 
 /**
  * Desktop `CatalogSplitLayout`: высота под шапкой + один ряд липких фильтров (~3.25rem).
  */
 export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE =
-  "lg:h-[calc(100dvh-var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))-3.25rem-1rem)] lg:overflow-hidden";
+  "lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_3.25rem_-_1rem)] lg:overflow-hidden";
 
 /**
  * То же, когда липкий тулбар фильтров в два ряда (~6.5rem под блок).
  */
 export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED =
-  "lg:h-[calc(100dvh-var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))-6.5rem-1rem)] lg:overflow-hidden";
+  "lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6.5rem_-_1rem)] lg:overflow-hidden";
 
 /**
  * Desktop master/detail: ограничение высоты под шапкой + safe-area (без липкого блока над сеткой).
  */
 export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS =
-  "lg:min-h-0 lg:max-h-[calc(100dvh-var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))-5rem)] lg:overflow-hidden";
+  "lg:min-h-0 lg:max-h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_5rem)] lg:overflow-hidden";
 
 /**
  * То же, с большим запасом под липкий блок фильтров над двухколоночной сеткой (упражнения).
  */
 export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_WITH_FILTERS_CLASS =
-  "lg:min-h-0 lg:max-h-[calc(100dvh-var(--doctor-sticky-offset,calc(3.5rem+env(safe-area-inset-top,0px)))-10rem)] lg:overflow-hidden";
+  "lg:min-h-0 lg:max-h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_10rem)] lg:overflow-hidden";
 
 /** Админ «Запись»: компактные карточки настроек (2 колонки md, 3 xl). */
 export const BOOKING_CARD_GRID_CLASS = "grid gap-4 md:grid-cols-2 xl:grid-cols-3";

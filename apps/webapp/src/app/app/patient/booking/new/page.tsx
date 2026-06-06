@@ -32,7 +32,7 @@ type PageProps = {
 
 function BookingFormatPromoBanner() {
   return (
-    <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 max-w-none shrink-0">
+    <div className="-mx-4 w-[calc(100%_+_2rem)] min-w-0 max-w-none shrink-0">
       <div
         className={cn(
           patientHomePlanCardClass,

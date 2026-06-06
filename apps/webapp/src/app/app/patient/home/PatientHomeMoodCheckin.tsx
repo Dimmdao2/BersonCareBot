@@ -196,7 +196,7 @@ export function PatientHomeMoodCheckin({
                   className={cn(
                     "order-1 flex min-h-0 w-full min-w-0 flex-col",
                     /** Ряд с 560px (кастом); Tailwind `sm` = 640px. Минимум ширины колонки иконок — как при 50% при viewport 640. */
-                    "min-[560px]:order-2 min-[560px]:flex-1 min-[560px]:basis-0 min-[560px]:min-w-[calc((640px-5.5rem)/2)]",
+                    "min-[560px]:order-2 min-[560px]:flex-1 min-[560px]:basis-0 min-[560px]:min-w-[calc((640px_-_5.5rem)_/_2)]",
                   )}
                 >
                   <h3 id="patient-home-mood-heading" className={patientHomeMoodColumnHeadingClass}>

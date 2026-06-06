@@ -21,7 +21,7 @@ export function CatalogSplitLayout({
   return (
     <div
       className={cn(
-        "relative min-h-[calc(100dvh-8rem)] overflow-hidden lg:grid lg:min-h-0 lg:grid-cols-2 lg:items-stretch lg:gap-3 lg:overflow-visible",
+        "relative min-h-[calc(100dvh_-_8rem)] overflow-hidden lg:grid lg:min-h-0 lg:grid-cols-2 lg:items-stretch lg:gap-3 lg:overflow-visible",
         className,
       )}
     >

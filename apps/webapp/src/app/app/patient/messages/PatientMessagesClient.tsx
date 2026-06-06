@@ -126,7 +126,14 @@ export function PatientMessagesClient() {
   }
 
   return (
-    <section className={cn(patientCardClass, "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden")}>
+    <section
+      className={cn(
+        patientCardClass,
+        "flex min-h-0 flex-col gap-3 overflow-hidden",
+        "h-[calc(100dvh_-_var(--patient-header-bar-height,var(--patient-header-bar-chrome-fallback))_-_var(--patient-header-fade-height,0.5rem)_-_var(--patient-bottom-nav-height,var(--patient-bottom-nav-chrome-fallback))_-_var(--patient-bottom-nav-content-gap)_-_1rem)]",
+        "patient-desktop:h-[calc(100dvh_-_var(--patient-header-bar-height,var(--patient-header-bar-chrome-fallback))_-_2rem)]",
+      )}
+    >
       {error ?
         <p className={cn(patientMutedTextClass, "shrink-0 font-medium text-[var(--patient-color-danger)]")}>
           {error}
@@ -135,7 +142,6 @@ export function PatientMessagesClient() {
       <ChatView
         variant="patient"
         relativeFooters
-        stickyComposer
         messages={messages}
         emptyText="Напишите сообщение поддержке — ответ появится здесь."
         className="min-h-0 flex-1"

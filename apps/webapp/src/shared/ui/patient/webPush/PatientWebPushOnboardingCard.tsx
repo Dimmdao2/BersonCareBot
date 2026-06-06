@@ -53,7 +53,7 @@ export function PatientWebPushOnboardingCard() {
         showCloseButton={false}
         className={cn(
           patientPortalModalSurfaceClass,
-          "max-w-[min(22rem,calc(100%-1.5rem))] gap-0 rounded-[var(--patient-card-radius-mobile)] border border-[#e5e7eb] p-4 shadow-[0_8px_24px_rgba(15,23,42,0.12)] sm:max-w-sm sm:rounded-[var(--patient-card-radius-desktop)] sm:p-5",
+          "max-w-[min(22rem,calc(100%_-_1.5rem))] gap-0 rounded-[var(--patient-card-radius-mobile)] border border-[#e5e7eb] p-4 shadow-[0_8px_24px_rgba(15,23,42,0.12)] sm:max-w-sm sm:rounded-[var(--patient-card-radius-desktop)] sm:p-5",
         )}
         aria-describedby="patient-web-push-onboarding-desc"
       >

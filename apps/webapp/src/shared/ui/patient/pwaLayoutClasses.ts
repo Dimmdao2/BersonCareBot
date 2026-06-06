@@ -17,11 +17,11 @@ export const PATIENT_SHELL_CONTAINER_BOTTOM_NAV_CLASS =
 export const PATIENT_SHELL_MOBILE_MAX_CLASS = "max-patient-desktop:max-w-[430px]" as const;
 
 export const PATIENT_SHELL_DESKTOP_MAX_CLASS =
-  "patient-desktop:max-w-[min(1180px,calc(100%-2rem))]" as const;
+  "patient-desktop:max-w-[min(1180px,calc(100%_-_2rem))]" as const;
 
 /** Desktop inner row (top nav и т.п.) — без 100vw. */
 export const PATIENT_DESKTOP_INNER_MAX_CLASS =
-  "mx-auto w-full max-w-[min(1180px,calc(100%-2rem))]";
+  "mx-auto w-full max-w-[min(1180px,calc(100%_-_2rem))]";
 
 /** Fixed top chrome на mobile: на всю ширину viewport, safe-area сверху внутри блока. */
 export const PATIENT_TOP_NAV_FIXED_MOBILE_CLASS =

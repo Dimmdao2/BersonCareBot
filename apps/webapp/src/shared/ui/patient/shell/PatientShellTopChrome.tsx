@@ -30,7 +30,7 @@ const MOBILE_HEADER_TITLE_CLASS =
 
 /** Заголовок не уходит под профиль; без back начинается от визуального края содержимого карточек. */
 const MOBILE_HEADER_TITLE_ROW_CLASS =
-  "flex w-full min-w-0 items-center justify-start gap-1.5 pr-[calc(var(--patient-shell-chrome-action-width,2.25rem)+0.375rem)]";
+  "flex w-full min-w-0 items-center justify-start gap-1.5 pr-[calc(var(--patient-shell-chrome-action-width,2.25rem)_+_0.375rem)]";
 
 function profileIconBtnClass(isActive: boolean): string {
   return cn(
@@ -120,7 +120,7 @@ export function PatientShellTopChrome({
               className={cn(
                 MOBILE_HEADER_TITLE_ROW_CLASS,
                 showBack ?
-                  "pl-[calc(var(--patient-shell-chrome-action-width,2.25rem)+0.375rem)]"
+                  "pl-[calc(var(--patient-shell-chrome-action-width,2.25rem)_+_0.375rem)]"
                 : "pl-[var(--patient-shell-content-visual-inset,1.125rem)]",
               )}
             >

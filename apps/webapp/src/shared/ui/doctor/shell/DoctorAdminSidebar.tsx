@@ -35,7 +35,7 @@ export function DoctorAdminSidebar({ userDisplayName, menuAccess }: DoctorAdminS
         DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
         "shrink-0 flex-col border-r border-border/70 bg-background pb-4 pl-3 pr-2 pt-4",
         "md:sticky md:self-start md:overflow-y-auto",
-        "md:max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-0.5rem)]",
+        "md:max-h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_0.5rem)]",
         DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
       )}
       aria-label="Разделы кабинета"
