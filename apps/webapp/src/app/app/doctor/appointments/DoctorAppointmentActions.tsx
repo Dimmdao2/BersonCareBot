@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
+import { isStaffDeletableCancelledStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
 
 const API_BASE = "/api/doctor/booking-engine";
 
@@ -26,14 +27,22 @@ const CANCEL_TYPES = [
 
 type Props = {
   recordId: string;
+  status: string;
+  onChanged?: () => void;
 };
 
 function isCanonicalAppointmentId(id: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
-export function DoctorAppointmentActions({ recordId }: Props) {
-  const [pending, setPending] = useState<"cancel" | "reschedule" | null>(null);
+function actionErrorLabel(error: string | undefined): string {
+  if (!error) return "unknown";
+  if (error === "not_cancelled") return "Сначала отмените запись.";
+  return error;
+}
+
+export function DoctorAppointmentActions({ recordId, status, onChanged }: Props) {
+  const [pending, setPending] = useState<"cancel" | "reschedule" | "delete" | null>(null);
   const [note, setNote] = useState<string>("");
   const [cancelType, setCancelType] = useState("free");
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
@@ -64,8 +73,28 @@ export function DoctorAppointmentActions({ recordId }: Props) {
         decisionType: cancelType,
       });
       setNote("Отменено.");
+      onChanged?.();
     } catch (err) {
-      setNote(`Ошибка отмены: ${err instanceof Error ? err.message : "unknown"}`);
+      setNote(`Ошибка отмены: ${err instanceof Error ? actionErrorLabel(err.message) : "unknown"}`);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function onDelete() {
+    if (!isCanonicalAppointmentId(recordId)) {
+      setNote("Запись без канонического id — откройте календарь.");
+      return;
+    }
+    if (!window.confirm("Удалить запись из списка и кабинета пациента?")) return;
+    setPending("delete");
+    setNote("");
+    try {
+      await callApi(`${API_BASE}/appointments/${encodeURIComponent(recordId)}/delete`, {});
+      setNote("Удалено.");
+      onChanged?.();
+    } catch (err) {
+      setNote(`Ошибка удаления: ${err instanceof Error ? actionErrorLabel(err.message) : "unknown"}`);
     } finally {
       setPending(null);
     }
@@ -89,6 +118,7 @@ export function DoctorAppointmentActions({ recordId }: Props) {
       });
       setNote("Перенесено.");
       setRescheduleOpen(false);
+      onChanged?.();
     } catch (err) {
       setNote(`Ошибка переноса: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {
@@ -134,6 +164,19 @@ export function DoctorAppointmentActions({ recordId }: Props) {
         >
           Отменить
         </Button>
+        {isStaffDeletableCancelledStatus(status) ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-destructive"
+            onClick={onDelete}
+            disabled={pending !== null}
+            aria-label={`doctor-appointment-delete-${recordId}`}
+          >
+            Удалить
+          </Button>
+        ) : null}
       </div>
       {rescheduleOpen ? (
         <div className="space-y-2 rounded-lg border border-border p-2">

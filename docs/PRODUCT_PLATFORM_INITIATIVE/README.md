@@ -13,7 +13,7 @@
 
 Карточка отложенной работы: [`../TODO_NOT_NOW/product-platform-mass-patient.md`](../TODO_NOT_NOW/product-platform-mass-patient.md).
 
-**Ближайший приоритет вместо этого:** [`../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md).
+**Вместо Product Platform выполнено (2026-06-07):** [`../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md) — **done** (план [`.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md`](../../.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md)).
 
 ## Документы (архив инициативы)
 

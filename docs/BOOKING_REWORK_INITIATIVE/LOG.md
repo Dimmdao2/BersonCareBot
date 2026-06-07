@@ -1,5 +1,31 @@
 # LOG — BOOKING_REWORK_INITIATIVE
 
+## 2026-06-07 — Staff delete отменённых записей (doctor + admin)
+
+**План:** [`.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md`](../../.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md) (`status: completed`).
+
+**Продукт:** сначала `manual-cancel` (одно уведомление) → затем «Удалить» (тихо, без второго `booking.cancelled`). Delete только для `cancelled_by_*` / `late_cancellation`; канон `be_appointments` не hard-delete.
+
+**Код:**
+
+- Whitelist `STAFF_DELETABLE_STATUSES` / `isStaffDeletableCancelledStatus` (без `no_show`).
+- Projection purge: `softDeleteByCanonicalAppointmentId`, tombstone `be:{id}` при отсутствии row, DELETE `patient_bookings`, `isIntegratorRecordPurged`.
+- Orchestrator `staffPurgeCancelledAppointment` + `emitBookingDeletedEvent` (refactor admin legacy soft-delete).
+- API `POST /api/doctor|admin/booking-engine/appointments/[id]/delete` (`403/404/409/503/200`, optional `rubitimeMirrorFailed`).
+- Purge filter `infra/repos/doctorAppointmentPurgeFilter.ts`: calendar, canonical list, **stats dashboard**, analytics KPI (7 canonical SQL + drizzle `BE_APPOINTMENTS_NOT_PURGED`).
+- Inbound `appointment.record.upserted` → `skipped_purged` при `deleted_at`.
+- UI: «Удалить» в `DoctorCalendarEventPanel` + `DoctorAppointmentActions`; `onChanged` / `router.refresh()` в списке записей.
+
+**Проверки:** targeted vitest bundle **48** tests; полный **`pnpm run ci` green** (2026-06-07). Ключевые файлы: `appointmentStatusLabels`, `pgAppointmentProjection.softDelete`, `staffPurgeCancelledAppointment`, doctor/admin delete `route.test.ts`, `doctorAppointmentPurgeFilter`, `pgBookingCalendar` / `pgDoctorCanonicalAppointments`, `bookingMirrorDesyncMatrix` #10, `events.test.ts` `skipped_purged`, `pgDoctorAnalyticsMetricAccounts`, `pgDoctorAppointments`.
+
+**Документация:** [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md) §Staff delete, [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) smoke #10 + SD-1..SD-6, [`ROADMAP.md`](ROADMAP.md), `api.md`, `INTEGRATOR_CONTRACT.md`, `patient-booking.md`, `booking-calendar.md`.
+
+**Post-deploy (оператор):** ручной smoke SD-1..SD-6 — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § staff delete.
+
+**Синхронизация docs/plan (финал):** план перенесён в [`.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md`](../../.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md) (`status: completed`, `p4-manual-smoke: cancelled`); индекс [`.cursor/plans/archive/README.md`](../../.cursor/plans/archive/README.md); архив инициативы [`docs/archive/2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md`](../archive/2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md); smoke #10 — полный список vitest-файлов в [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md).
+
+---
+
 ## 2026-06-06 — Booking sync desync fix (prod smoke rebook / manage / FK / 410)
 
 **План:** [`.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md`](../../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md) (`status: completed`; sync-only; cancel = status 4, без `remove-record` на normal cancel).

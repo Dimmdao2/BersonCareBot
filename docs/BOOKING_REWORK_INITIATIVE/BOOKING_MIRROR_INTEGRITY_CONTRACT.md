@@ -55,3 +55,18 @@
 ## M2M timezone
 
 - `update-record` использует branch timezone при наличии branch context (как create), иначе app display timezone.
+
+## Staff delete (отменённая запись)
+
+Продуктовый порядок: **сначала** `manual-cancel` (одно уведомление) → **потом** `POST …/appointments/[id]/delete` (тихо).
+
+| Правило | Деталь |
+|---------|--------|
+| Whitelist | `cancelled_by_patient`, `cancelled_by_specialist`, `late_cancellation` — **не** `no_show` / active / completed |
+| Канон `be_appointments` | **Не** hard-delete; audit в `be_appointment_cancellations` сохраняется |
+| Local purge (TX) | `appointment_records.deleted_at`; **DELETE** `patient_bookings` (upcoming + history) |
+| Rubitime | Только после local purge; `remove-record` / `deleteRecord` (не `cancelRecord`) при bridge on |
+| Events | Только **`booking.deleted`** (`idempotencyKey: booking.deleted:staff:{appointmentId}`); **запрещён** `booking.cancelled` на delete path |
+| Partial | `ok: true` + optional **`rubitimeMirrorFailed`** — не 502 после локального purge |
+| Inbound | `appointment.record.upserted` на purged row → `skipped_purged` (без revive) |
+| Read surfaces | Purged скрыты из canonical calendar/list/stats/KPI (`infra/repos/doctorAppointmentPurgeFilter`) |

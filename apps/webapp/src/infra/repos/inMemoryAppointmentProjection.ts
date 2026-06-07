@@ -1,4 +1,14 @@
-import type { AppointmentProjectionPort, AppointmentRecordRow } from "./pgAppointmentProjection";
+import {
+  nativeIntegratorRecordId,
+  resolveDoctorProjectionIntegratorRecordId,
+} from "@/modules/patient-booking/projectCanonicalAppointment";
+import type {
+  AppointmentProjectionPort,
+  AppointmentRecordRow,
+  SoftDeleteByIntegratorIdOpts,
+} from "./pgAppointmentProjection";
+
+const purgedPatientBookingKeys = new Set<string>();
 
 const recordsByIntegratorId = new Map<
   string,
@@ -106,11 +116,79 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
     return list.slice(0, limit);
   },
 
-  async softDeleteByIntegratorId(integratorRecordId: string): Promise<boolean> {
+  async softDeleteByIntegratorId(
+    integratorRecordId: string,
+    opts?: SoftDeleteByIntegratorIdOpts,
+  ): Promise<boolean> {
     const v = recordsByIntegratorId.get(integratorRecordId);
-    if (!v || v.deletedAt) return false;
+    if (!v) return false;
     const now = new Date().toISOString();
-    recordsByIntegratorId.set(integratorRecordId, { ...v, deletedAt: now, updatedAt: now });
+    if (!v.deletedAt) {
+      recordsByIntegratorId.set(integratorRecordId, { ...v, deletedAt: now, updatedAt: now });
+    }
+    if (opts?.purgePatientBookings) {
+      purgedPatientBookingKeys.add(integratorRecordId);
+      if (opts.canonicalAppointmentId) {
+        purgedPatientBookingKeys.add(`canonical:${opts.canonicalAppointmentId}`);
+      }
+    }
     return true;
   },
+
+  async softDeleteByCanonicalAppointmentId(
+    appointmentId: string,
+    rubitimeFromMapping?: string | null,
+  ): Promise<boolean> {
+    const primaryId = resolveDoctorProjectionIntegratorRecordId(appointmentId, rubitimeFromMapping);
+    const ok = await inMemoryAppointmentProjectionPort.softDeleteByIntegratorId(primaryId, {
+      canonicalAppointmentId: appointmentId,
+      purgePatientBookings: true,
+      cancelReason: "staff_delete",
+    });
+    if (ok) return true;
+    if (primaryId !== nativeIntegratorRecordId(appointmentId)) {
+      const fallbackOk = await inMemoryAppointmentProjectionPort.softDeleteByIntegratorId(
+        nativeIntegratorRecordId(appointmentId),
+        {
+          canonicalAppointmentId: appointmentId,
+          purgePatientBookings: true,
+          cancelReason: "staff_delete",
+        },
+      );
+      if (fallbackOk) return true;
+    }
+    const now = new Date().toISOString();
+    const tombstoneId = nativeIntegratorRecordId(appointmentId);
+    recordsByIntegratorId.set(tombstoneId, {
+      integratorRecordId: tombstoneId,
+      phoneNormalized: null,
+      recordAt: null,
+      status: "canceled",
+      payloadJson: {},
+      lastEvent: "staff_delete",
+      branchId: null,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: now,
+    });
+    purgedPatientBookingKeys.add(`canonical:${appointmentId}`);
+    const rt = rubitimeFromMapping?.trim();
+    if (rt) purgedPatientBookingKeys.add(rt);
+    return true;
+  },
+
+  async isIntegratorRecordPurged(integratorRecordId: string): Promise<boolean> {
+    const v = recordsByIntegratorId.get(integratorRecordId);
+    return v?.deletedAt != null;
+  },
 };
+
+/** Test helper: in-memory purge tracking for patient_bookings simulation. */
+export function inMemoryPurgedPatientBookingKeys(): Set<string> {
+  return purgedPatientBookingKeys;
+}
+
+export function resetInMemoryAppointmentProjectionState(): void {
+  recordsByIntegratorId.clear();
+  purgedPatientBookingKeys.clear();
+}

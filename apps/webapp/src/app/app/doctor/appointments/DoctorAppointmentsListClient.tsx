@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import type { AppointmentRow } from "@/modules/doctor-appointments/ports";
 import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
@@ -54,6 +55,7 @@ function groupByDateKey(
 }
 
 export function DoctorAppointmentsListClient({ appointments, view }: Props) {
+  const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [archiveRows, setArchiveRows] = useState<AppointmentRow[]>(appointments);
   const [archiveOffset, setArchiveOffset] = useState(appointments.length);
@@ -151,7 +153,14 @@ export function DoctorAppointmentsListClient({ appointments, view }: Props) {
                     </button>
                     {expandedId === a.id ? (
                       <div className="border-t border-border pt-2">
-                        <DoctorAppointmentActions recordId={a.id} />
+                        <DoctorAppointmentActions
+                          recordId={a.id}
+                          status={a.status}
+                          onChanged={() => {
+                            setExpandedId(null);
+                            router.refresh();
+                          }}
+                        />
                       </div>
                     ) : null}
                   </li>

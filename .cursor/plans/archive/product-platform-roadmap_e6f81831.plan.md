@@ -1,6 +1,6 @@
 ---
 name: product-platform-roadmap
-overview: "DEFERRED 2026-06-06: guest отменён; mass/patient split on hold. Этап 0 (канон docs) done. Ближайшая волна — DOCTOR_PATIENT_PWA_SPLIT + push."
+overview: "DEFERRED 2026-06-06: guest отменён; mass/patient split on hold. Этап 0 (канон docs) done. DOCTOR_PATIENT_PWA_SPLIT волна 2 (§A+§B+§C) — done 2026-06-07 (commit 290df2ba)."
 todos:
   - id: phase-0-canon
     content: Зафиксировать терминологию access-tier vs product-status и границы каналов
@@ -46,7 +46,7 @@ isProject: false
 
 - Карточка: [`docs/TODO_NOT_NOW/product-platform-mass-patient.md`](../../docs/TODO_NOT_NOW/product-platform-mass-patient.md)
 - Инициатива: [`docs/PRODUCT_PLATFORM_INITIATIVE/README.md`](../../docs/PRODUCT_PLATFORM_INITIATIVE/README.md)
-- **Ближайший приоритет:** [`docs/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../../docs/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md) (Doctor Cabinet only; Patient PWA frozen)
+- **DOCTOR_PATIENT_PWA_SPLIT:** **done** 2026-06-07 — [`doctor_patient_pwa_split_wave2.plan.md`](doctor_patient_pwa_split_wave2.plan.md) · [`docs/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../../docs/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md)
 
 ---
 

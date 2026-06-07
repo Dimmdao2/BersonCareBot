@@ -18,6 +18,7 @@ import {
 import { patientBookings, platformUsers } from "../../../db/schema/schema";
 import type { BookingCalendarPort } from "@/modules/booking-calendar/ports";
 import type { CalendarAppointmentEvent, CalendarFilterMeta, CalendarFilters } from "@/modules/booking-calendar/types";
+import { filterCanonicalRowsNotPurged } from "@/infra/repos/doctorAppointmentPurgeFilter";
 
 function patientDisplayName(row: {
   displayName: string;
@@ -282,7 +283,9 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
         }
       }
 
-      return rows.map((row) => {
+      const visibleRows = await filterCanonicalRowsNotPurged(filters.organizationId, rows);
+
+      return visibleRows.map((row) => {
         const attr = (row.attributionJson ?? {}) as Record<string, unknown>;
         const attrName = contactNameFromAttribution(attr);
         const linkedName =

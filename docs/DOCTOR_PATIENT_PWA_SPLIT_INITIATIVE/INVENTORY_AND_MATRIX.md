@@ -85,7 +85,12 @@ Entry staff — **`redirectPolicy.ts`**, без изменений в волне
 | Install | `/`, `/app/patient/install` | `/app/doctor/install` |
 | Иконки | `pwa-icon-*` | `staff-pwa-icon-*` |
 | SW | `public/sw.js`, scope `/app` | тот же SW |
-| Push | patient stack | **нет** в §B |
+| Push API | `/api/patient/web-push/*` | `/api/doctor/web-push/*` |
+| Push UI | `/app/patient/notifications` | `/app/settings` (матрица 2 тем) |
+| Push bootstrap | patient context | `StaffWebPushBootstrap` + `StaffPwaPushOptIn` |
+| Темы | patient profile topics | `doctor_specialist_task_reminders`, `doctor_patient_messages` |
+
+Канон staff push: `modules/doctor-notifications/`, `staffWebPushApi.ts`, `subscribeStaffWebPush.ts`, `DoctorNotificationChannelsSection.tsx`.
 
 ## Тесты
 
@@ -112,7 +117,15 @@ Entry staff — **`redirectPolicy.ts`**, без изменений в волне
 | `e2e/doctor-staff-pwa-install.test.ts` | layouts metadata |
 | `smoke-app-router-rsc-pages-inprocess.test.ts` | `doctor/install` page |
 
-**Команда:** [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §Проверки (**49** fast).
+### §C (14)
+
+| Файл | Покрытие |
+|------|----------|
+| `doctor-notifications/*.test.ts` | resolve, defaults, patient message fan-out |
+| `api/doctor/web-push/status/route.test.ts` | status route |
+| `dispatchDueReminders.test.ts` | per-owner channel resolve |
+
+**Команда:** [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) §Проверки (**63** fast = 49 §A+§B + 14 §C).
 
 ## Риски (остаток)
 
@@ -123,4 +136,4 @@ Entry staff — **`redirectPolicy.ts`**, без изменений в волне
 | ~~Staff install vs patient PWA~~ | Закрыто волна 2 §B |
 | `patient.css` на всех `/app/**` | Backlog route-group split |
 | Login shell = `PatientAppShell` на `/app` | Документировано |
-| Ручной smoke staff install на стенде | Опционально оператору |
+| Ручной smoke staff install + push на стенде | Опционально оператору |

@@ -33,6 +33,7 @@
 - `POST .../appointments/manual`: canonical create -> synchronous Rubitime `createRecord` -> при конфликте rollback (hard delete/fallback cancel) + `409 external_slot_taken`.
 - `POST .../appointments/[id]/manual-reschedule`: Rubitime sync first (`AppointmentMirrorSync` / normalized `update-record`) -> canonical `staffReschedule`; при конфликте Rubitime canonical запись не меняется, `409 external_slot_taken`.
 - `POST .../appointments/[id]/manual-cancel`: сначала `staffCancel` в каноне, затем при успехе — `cancelRecord` (status 4) в Rubitime.
+- `POST .../appointments/[id]/delete`: только уже отменённые (`cancelled_by_*`, `late_cancellation`); local purge → `remove-record` (bridge on) → `booking.deleted` (без второго уведомления). См. [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](../../../../docs/BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md) §Staff delete.
 
 Единый контракт конфликтов:
 

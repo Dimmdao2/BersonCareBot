@@ -28,3 +28,16 @@ export function isCancelledAppointmentStatus(status: string): boolean {
     || status === "no_show"
   );
 }
+
+/** Staff «Удалить» — только явная отмена (без no_show). */
+export const STAFF_DELETABLE_STATUSES = [
+  "cancelled_by_patient",
+  "cancelled_by_specialist",
+  "late_cancellation",
+] as const;
+
+export type StaffDeletableCancelledStatus = (typeof STAFF_DELETABLE_STATUSES)[number];
+
+export function isStaffDeletableCancelledStatus(status: string): boolean {
+  return (STAFF_DELETABLE_STATUSES as readonly string[]).includes(status);
+}

@@ -33,6 +33,10 @@ const syncPort = vi.hoisted(() => ({
   emitBookingEvent: vi.fn(),
 }));
 
+vi.mock("@/modules/integrator/bookingM2mApi", () => ({
+  createBookingSyncPort: () => syncPort,
+}));
+
 function sampleRow(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
     id: "b1111111-1111-4111-8111-111111111111",
@@ -144,6 +148,8 @@ describe("booking mirror desync matrix (P2)", () => {
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const deps: IntegratorEventsDeps = {
       diaries: {
@@ -250,6 +256,85 @@ describe("booking mirror desync matrix (P2)", () => {
       status: "confirmed",
     });
     expect(skip).toBe(true);
+  });
+
+  it("10 staff delete after cancel → projection purged, booking.deleted not booking.cancelled", async () => {
+    const { staffPurgeCancelledAppointment } = await import(
+      "@/app-layer/booking/staffPurgeCancelledAppointment"
+    );
+    const {
+      inMemoryAppointmentProjectionPort,
+      resetInMemoryAppointmentProjectionState,
+    } = await import("@/infra/repos/inMemoryAppointmentProjection");
+
+    resetInMemoryAppointmentProjectionState();
+    syncPort.emitBookingEvent.mockReset();
+    syncPort.deleteRecord.mockResolvedValue(undefined);
+
+    const apptId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    await inMemoryAppointmentProjectionPort.upsertRecordFromProjection({
+      integratorRecordId: "r-staff-del",
+      phoneNormalized: "+79990000000",
+      recordAt: "2026-06-01T10:00:00.000Z",
+      status: "cancelled",
+      payloadJson: {},
+      lastEvent: "native.cancelled",
+      updatedAt: new Date().toISOString(),
+    });
+
+    const result = await staffPurgeCancelledAppointment({
+      deps: {
+        bookingEngine: {
+          getAppointment: vi.fn().mockResolvedValue({
+            id: apptId,
+            organizationId: "org-1",
+            status: "cancelled_by_specialist",
+            startAt: "2026-06-01T10:00:00.000Z",
+          }),
+        },
+        appointmentProjection: inMemoryAppointmentProjectionPort,
+        patientBooking: {
+          getBookingByCanonicalAppointment: vi.fn().mockResolvedValue(
+            sampleRow({
+              status: "cancelled",
+              canonicalAppointmentId: apptId,
+              rubitimeId: "r-staff-del",
+            }),
+          ),
+          getByRubitimeId: vi.fn().mockResolvedValue(
+            sampleRow({
+              status: "cancelled",
+              canonicalAppointmentId: apptId,
+              rubitimeId: "r-staff-del",
+            }),
+          ),
+        },
+        systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
+        rubitimeCanonicalProjection: { isBridgeEnabled: vi.fn().mockResolvedValue(true) },
+      } as never,
+      organizationId: "org-1",
+      appointmentId: apptId,
+      actorId: "doc-1",
+      getRubitimeAppointmentId: vi.fn().mockResolvedValue("r-staff-del"),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(await inMemoryAppointmentProjectionPort.isIntegratorRecordPurged("r-staff-del")).toBe(true);
+    expect(syncPort.deleteRecord).toHaveBeenCalledWith("r-staff-del");
+    expect(syncPort.emitBookingEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "booking.deleted",
+        idempotencyKey: `booking.deleted:staff:${apptId}`,
+      }),
+    );
+    const cancelledCalls = syncPort.emitBookingEvent.mock.calls.filter(
+      (call) => (call[0] as { eventType?: string })?.eventType === "booking.cancelled",
+    );
+    expect(cancelledCalls).toHaveLength(0);
+    const { inMemoryPurgedPatientBookingKeys } = await import(
+      "@/infra/repos/inMemoryAppointmentProjection"
+    );
+    expect(inMemoryPurgedPatientBookingKeys().has(`canonical:${apptId}`)).toBe(true);
   });
 
   it("7 partial mirror fail on cancel → local cancel still completes", async () => {

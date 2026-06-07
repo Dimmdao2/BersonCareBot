@@ -123,7 +123,7 @@ pnpm --dir apps/integrator exec vitest run \
   src/integrations/rubitime/recordM2mRoute.test.ts
 ```
 
-## Smoke-матрица (9 + post-deploy ops)
+## Smoke-матрица (10 + post-deploy ops)
 
 | # | Сценарий | Ожидание | Авто |
 |---|----------|----------|------|
@@ -135,11 +135,25 @@ pnpm --dir apps/integrator exec vitest run \
 | 6 | Patient cancel/reschedule + rubitimeId | mirror patch + `stampCanonicalOutbound` | patientMirrorOutbound |
 | 7 | CR-A-fail (slow projection) | `rubitime_projection_not_ready`, rollback `deleteRecord`, нет duplicate canon | `canonicalCreate.test.ts`, `rubitimeCreateRollback.test.ts` |
 | 8 | Partial cancel (Rubitime down) | HTTP `ok: true` + `rubitimeMirrorFailed`; UI success + warning toast | `bookingPartialOutcomeToast.test.ts`, `CabinetBookingActions.test.tsx` |
-| 9 | Rebook после cancel (prod #4) | тот же слот не `slot_overlap`; `patient_bookings` cancelled + URL null; staff cancel закрывает mirror | `bookingMirrorDesyncMatrix.test.ts` (7/7), `pgPatientBookings.test.ts`, `upsertPatientBookingFromRubitime.test.ts`, `closeActivePatientBookingsByRubitimeId.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts`, `events.test.ts`, integrator GCal/Rubitime idempotent tests |
+| 9 | Rebook после cancel (prod #4) | тот же слот не `slot_overlap`; `patient_bookings` cancelled + URL null; staff cancel закрывает mirror | `bookingMirrorDesyncMatrix.test.ts`, `pgPatientBookings.test.ts`, `upsertPatientBookingFromRubitime.test.ts`, `closeActivePatientBookingsByRubitimeId.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts`, `events.test.ts`, integrator GCal/Rubitime idempotent tests |
+| 10 | Staff delete после cancel | local purge (`deleted_at` + DELETE `patient_bookings`); только `booking.deleted`; `409 not_cancelled` на active; idempotent 200 (tombstone) | `staffPurgeCancelledAppointment.test.ts`, doctor/admin delete `route.test.ts`, `doctorAppointmentPurgeFilter.test.ts`, `pgBookingCalendar.test.ts`, `pgDoctorCanonicalAppointments.test.ts`, `bookingMirrorDesyncMatrix.test.ts` #10, `appointmentStatusLabels.test.ts`, `events.test.ts` `skipped_purged`, `pgDoctorAnalyticsMetricAccounts.test.ts` |
 
-\* при `booking_doctor_appointments_read_source=canonical` календарь читает `be_appointments`.
+\* при `booking_doctor_appointments_read_source=canonical` календарь читает `be_appointments`; purged projection скрыта из calendar/list.
 
 Post-deploy smoke (ручной): CR-A, CR-A-fail, CN-P, RS-P, partial, **rebook после cancel (#9)** — [`LOG.md`](LOG.md) §2026-06-06 desync fix.
+
+### Post-deploy ops gate — staff delete (SD-1..SD-6)
+
+После деплоя staff delete (см. [`LOG.md`](LOG.md) §2026-06-07):
+
+| ID | Шаг | Ожидание |
+|----|-----|----------|
+| SD-1 | Календарь: активная запись | нет кнопки «Удалить» |
+| SD-2 | Отменить (free) | одно уведомление пациенту; статус cancelled в panel |
+| SD-3 | Удалить | запись пропала из календаря и списка; **второго** уведомления нет |
+| SD-4 | Кабинет пациента → прошлые записи | записи нет |
+| SD-5 | Повторный delete (API) | 200 idempotent |
+| SD-6 | Rubitime journal | `remove-record`, если bridge on |
 
 ### Post-deploy ops gate — sync desync fix (2026-06-06)
 

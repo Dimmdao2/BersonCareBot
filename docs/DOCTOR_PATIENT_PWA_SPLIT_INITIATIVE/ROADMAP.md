@@ -9,7 +9,7 @@
 | Волна | Что | Документ | Статус |
 |-------|-----|----------|--------|
 | **1** | Runtime: guards, CSS, redirects (браузер) | этот файл §ниже | **done** (2026-06-06) |
-| **2** | Блок чужих зон + Staff PWA (install, manifest) | [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) | **done** (§A + §B) |
+| **2** | Блок чужих зон + Staff PWA + staff push | [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) | **done** (§A + §B + §C) |
 
 **Где делать PWA кабинета:** волна **2** этой инициативы + фаза 5 в [`PWA_INITIATIVE/BACKLOG.md`](../PWA_INITIATIVE/BACKLOG.md). Волна 1 PWA пациента уже закрыта; staff install — **новый** контур, не правка patient manifest.
 
@@ -124,14 +124,16 @@ pnpm --filter webapp exec vitest run src/app/app/doctor --passWithNoTests 2>/dev
 |------|--------|---------|
 | **§A** Блок + toast | **done 100%** (2026-06-06) | [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) §A |
 | **§B** Staff PWA | **done** (2026-06-07, 2.B0–2.B8) | [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) §B |
+| **§C** Staff web push | **done** (2026-06-07, 2.C0–2.C4) | [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) §C |
 
 1. **§A:** cross-zone block + `react-hot-toast` на своём hub (включая browser client через `next=`).
 2. **§B:** LOGO_BERSONADMIN, `manifest-staff`, `/app/doctor/install`, навигация, `staffPwaInstallState` — см. [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md).
+3. **§C:** staff web push, матрица каналов в `/app/settings`, per-staff delivery — см. [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md) post-§B.
 
 ## Definition of Done (волна 2)
 
-- [x] §A + §B — см. [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) DoD.
-- [x] Vitest fast: **49 tests** (38 §A + 11 §B).
+- [x] §A + §B + §C — см. [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) DoD.
+- [x] Vitest fast: **63 tests** (38 §A + 11 §B + 14 §C).
 - [x] Patient PWA frozen — без регрессии.
 
-Полный план: [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md). Журнал: [`LOG.md`](LOG.md).
+Полный план: [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md). Архив Cursor-плана: [`.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md`](../../.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md). Журнал: [`LOG.md`](LOG.md).

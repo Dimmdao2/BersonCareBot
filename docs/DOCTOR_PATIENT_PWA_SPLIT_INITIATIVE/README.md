@@ -30,12 +30,13 @@ UI/CSS split закрыт ранее: [`PATIENT_DOCTOR_UI_SPLIT`](../archive/202
 
 1. [`ROADMAP.md`](ROADMAP.md) — обе волны, индекс.
 2. [`ACCEPTANCE_WAVE1.md`](ACCEPTANCE_WAVE1.md) — приёмка волны 1.
-3. [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) — приёмка волны 2 (§A + §B).
+3. [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) — приёмка волны 2 (§A + §B + §C).
 4. [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md) — ADR staff manifest/install (2.B0).
 5. [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) — план и DoD волны 2.
 6. [`SCOPE_BOUNDARIES.md`](SCOPE_BOUNDARIES.md) — patient frozen.
 7. [`INVENTORY_AND_MATRIX.md`](INVENTORY_AND_MATRIX.md) — маршруты, матрица ролей, PWA.
 8. [`LOG.md`](LOG.md) — журнал.
+9. Cursor-план (архив): [`.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md`](../../.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md).
 
 ## Вне scope инициативы
 

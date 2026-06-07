@@ -1,5 +1,23 @@
 # PWA — журнал
 
+## 2026-06-07 — Фаза 5: Staff PWA + staff web push (DOCTOR_PATIENT_PWA_SPLIT волна 2)
+
+**Контекст:** отдельный install-контур врача/админа (LOGO_BERSONADMIN) + cross-zone toast + staff push без правок patient PWA.
+
+**Сделано (staff):**
+
+- §A: cross-zone block + `AppAccessDeniedToastEffect` (hub + install `next=`).
+- §B: `/manifest-staff.webmanifest`, `/app/doctor/install`, `StaffPwaBootstrap`, `staffPwaInstallState`.
+- §C: `/api/doctor/web-push/*`, матрица каналов в `/app/settings`, per-staff delivery (tg/max/push), `StaffWebPushBootstrap`, integrator `sync-user-message`.
+
+**Patient frozen:** `manifest.ts`, gate, `sw.js`, `/api/patient/web-push/*` — **не в diff**.
+
+**Документация:** [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md), Cursor-план [`.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md`](../../.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md).
+
+**Проверки:** vitest fast **63** (§A+§B+§C); `pnpm run ci` green · commit `290df2ba`.
+
+---
+
 ## 2026-05-27 — Inbox: рассылки и запись в PWA-чат + бейдж непрочитанного
 
 **Проблема:** рассылки и уведомления о записи не были в чате; push вёл на отдельную страницу или 404; точка на «Сегодня» могла не сходиться с пустым чатом.

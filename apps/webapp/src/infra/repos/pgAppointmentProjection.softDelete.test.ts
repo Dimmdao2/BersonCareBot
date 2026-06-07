@@ -39,6 +39,7 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
 
   it("runs domain SQL via runWebappPgText on tx client and commits when updated", async () => {
     runWebappPgTextMock
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: null }] })
       .mockResolvedValueOnce({ rowCount: 1, rows: [] })
       .mockResolvedValueOnce({ rowCount: 0, rows: [] });
 
@@ -48,12 +49,12 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
     expect(ok).toBe(true);
     expect(clientQueryMock).toHaveBeenCalledWith("BEGIN");
     expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
-    expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
-    const appointmentUpdateSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(3);
+    const appointmentUpdateSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
     expect(appointmentUpdateSql).toContain("appointment_records");
-    const bookingUpdateSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    const bookingUpdateSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
     expect(bookingUpdateSql).toContain("patient_bookings");
-    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual(["rt-record-1", "admin_soft_delete"]);
+    expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual(["rt-record-1", "admin_soft_delete"]);
   });
 
   it("returns false without patient_bookings update when appointment row missing", async () => {
@@ -64,6 +65,44 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
 
     expect(ok).toBe(false);
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
-    expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
+    expect(clientQueryMock).toHaveBeenCalledWith("ROLLBACK");
+  });
+
+  it("staff purge deletes patient_bookings when purgePatientBookings is set", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: null }] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+    const port = createPgAppointmentProjectionPort();
+    const ok = await port.softDeleteByIntegratorId("rt-purge", {
+      purgePatientBookings: true,
+      canonicalAppointmentId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      cancelReason: "staff_delete",
+    });
+
+    expect(ok).toBe(true);
+    const deleteSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    expect(deleteSql).toContain("DELETE FROM patient_bookings");
+  });
+
+  it("is idempotent when appointment_records already soft-deleted", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: new Date("2026-01-01") }] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+    const port = createPgAppointmentProjectionPort();
+    const ok = await port.softDeleteByIntegratorId("rt-purged", {
+      purgePatientBookings: true,
+      canonicalAppointmentId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      cancelReason: "staff_delete",
+    });
+
+    expect(ok).toBe(true);
+    const updateSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    expect(updateSql).not.toContain("UPDATE appointment_records");
+    expect(String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "")).toContain("DELETE FROM patient_bookings");
   });
 });

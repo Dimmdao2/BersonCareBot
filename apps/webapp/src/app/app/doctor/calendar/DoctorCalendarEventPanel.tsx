@@ -29,7 +29,10 @@ import type {
   AppointmentCancellationRecord,
   AppointmentRescheduleRecord,
 } from "@/modules/booking-appointment-lifecycle/ports";
-import { appointmentStatusLabel } from "@/modules/booking-calendar/appointmentStatusLabels";
+import {
+  appointmentStatusLabel,
+  isStaffDeletableCancelledStatus,
+} from "@/modules/booking-calendar/appointmentStatusLabels";
 import {
   cancellationDecisionTypeLabel,
   paymentStatusLabel,
@@ -80,6 +83,7 @@ function panelErrorLabel(error: string | undefined): string {
   if (!error) return "Ошибка";
   if (error === "external_slot_taken") return "Время уже занято во внешней записи.";
   if (error === "slot_overlap") return "Слот уже занят.";
+  if (error === "not_cancelled") return "Сначала отмените запись.";
   return error;
 }
 
@@ -387,6 +391,30 @@ function DoctorCalendarEventPanelInner({
         >
           Отменить
         </Button>
+        {isStaffDeletableCancelledStatus(selected.status) ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="text-destructive"
+            disabled={pending}
+            onClick={() => {
+              if (!window.confirm("Удалить запись из календаря и кабинета пациента?")) return;
+              startTransition(async () => {
+                const res = await fetch(`${apiBase}/appointments/${encodeURIComponent(selected.id)}/delete`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({}),
+                });
+                const json = (await res.json()) as { ok?: boolean; error?: string };
+                setMessage(json.ok ? "Удалено" : panelErrorLabel(json.error));
+                if (json.ok) onChanged();
+              });
+            }}
+          >
+            Удалить
+          </Button>
+        ) : null}
       </div>
       {message ? <p className="mt-2 text-xs text-muted-foreground">{message}</p> : null}
     </div>

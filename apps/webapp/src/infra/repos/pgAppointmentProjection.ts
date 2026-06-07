@@ -6,6 +6,17 @@
 import { getPool } from "@/infra/db/client";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
+import {
+  nativeIntegratorRecordId,
+  resolveDoctorProjectionIntegratorRecordId,
+} from "@/modules/patient-booking/projectCanonicalAppointment";
+
+export type SoftDeleteByIntegratorIdOpts = {
+  cancelReason?: string;
+  canonicalAppointmentId?: string;
+  /** Staff delete: DELETE patient_bookings (not only UPDATE active). */
+  purgePatientBookings?: boolean;
+};
 
 export type AppointmentRecordRow = {
   id: string;
@@ -38,8 +49,16 @@ export type AppointmentProjectionPort = {
   listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]>;
   /** Все записи по телефону для истории (исключая soft-delete). */
   listHistoryByPhoneNormalized(phoneNormalized: string, limit?: number): Promise<AppointmentRecordRow[]>;
-  /** Админ: пометить запись удалённой. */
-  softDeleteByIntegratorId(integratorRecordId: string): Promise<boolean>;
+  /** Админ / staff: пометить запись удалённой. */
+  softDeleteByIntegratorId(
+    integratorRecordId: string,
+    opts?: SoftDeleteByIntegratorIdOpts,
+  ): Promise<boolean>;
+  softDeleteByCanonicalAppointmentId(
+    appointmentId: string,
+    rubitimeFromMapping?: string | null,
+  ): Promise<boolean>;
+  isIntegratorRecordPurged(integratorRecordId: string): Promise<boolean>;
 };
 
 function mapRow(r: {
@@ -71,6 +90,46 @@ function mapRow(r: {
     updatedAt: toIsoStringSafe(r.updated_at),
     deletedAt: nullableToIsoStringSafe(r.deleted_at),
   };
+}
+
+/** Staff delete when cancel left no projection row — tombstone + DELETE patient_bookings. */
+async function purgeCanonicalStaffDeleteTombstone(
+  appointmentId: string,
+  rubitimeFromMapping?: string | null,
+): Promise<boolean> {
+  const pool = getPool();
+  const client = await pool.connect();
+  const tombstoneId = nativeIntegratorRecordId(appointmentId);
+  const rubitimeId = rubitimeFromMapping?.trim() || null;
+  try {
+    await client.query("BEGIN");
+    const tx = getWebappSqlFromPgClient(client);
+    await runWebappPgText(
+      `INSERT INTO appointment_records (
+        integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at, deleted_at
+      ) VALUES ($1, NULL, NULL, 'canceled', '{}'::jsonb, 'staff_delete', now(), now())
+      ON CONFLICT (integrator_record_id) DO UPDATE SET
+        deleted_at = COALESCE(appointment_records.deleted_at, now()),
+        updated_at = now()`,
+      [tombstoneId],
+      tx,
+    );
+    if (rubitimeId) {
+      await runWebappPgText(`DELETE FROM patient_bookings WHERE rubitime_id = $1`, [rubitimeId], tx);
+    }
+    await runWebappPgText(
+      `DELETE FROM patient_bookings WHERE canonical_appointment_id = $1::uuid`,
+      [appointmentId],
+      tx,
+    );
+    await client.query("COMMIT");
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
@@ -207,20 +266,51 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       return result.rows.map(mapRow);
     },
 
-    async softDeleteByIntegratorId(integratorRecordId: string): Promise<boolean> {
+    async softDeleteByIntegratorId(
+      integratorRecordId: string,
+      opts?: SoftDeleteByIntegratorIdOpts,
+    ): Promise<boolean> {
       const pool = getPool();
       const client = await pool.connect();
+      const cancelReason = opts?.cancelReason ?? "admin_soft_delete";
+      const purgePatientBookings = opts?.purgePatientBookings === true;
       try {
         await client.query("BEGIN");
         const tx = getWebappSqlFromPgClient(client);
-        const r = await runWebappPgText(
-          `UPDATE appointment_records SET deleted_at = now(), updated_at = now()
-           WHERE integrator_record_id = $1 AND deleted_at IS NULL`,
+        const existing = await runWebappPgText<{ deleted_at: Date | null }>(
+          `SELECT deleted_at FROM appointment_records WHERE integrator_record_id = $1 LIMIT 1`,
           [integratorRecordId],
           tx,
         );
-        const updated = (r.rowCount ?? 0) > 0;
-        if (updated) {
+        const row = existing.rows[0];
+        if (!row) {
+          await client.query("ROLLBACK");
+          return false;
+        }
+
+        if (!row.deleted_at) {
+          await runWebappPgText(
+            `UPDATE appointment_records SET deleted_at = now(), updated_at = now()
+             WHERE integrator_record_id = $1 AND deleted_at IS NULL`,
+            [integratorRecordId],
+            tx,
+          );
+        }
+
+        if (purgePatientBookings) {
+          await runWebappPgText(
+            `DELETE FROM patient_bookings WHERE rubitime_id = $1`,
+            [integratorRecordId],
+            tx,
+          );
+          if (opts?.canonicalAppointmentId) {
+            await runWebappPgText(
+              `DELETE FROM patient_bookings WHERE canonical_appointment_id = $1::uuid`,
+              [opts.canonicalAppointmentId],
+              tx,
+            );
+          }
+        } else if (!row.deleted_at) {
           await runWebappPgText(
             `UPDATE patient_bookings
              SET status = 'cancelled',
@@ -239,18 +329,50 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
                  'cancel_failed',
                  'failed_sync'
                )`,
-            [integratorRecordId, "admin_soft_delete"],
+            [integratorRecordId, cancelReason],
             tx,
           );
         }
+
         await client.query("COMMIT");
-        return updated;
+        return true;
       } catch (err) {
         await client.query("ROLLBACK");
         throw err;
       } finally {
         client.release();
       }
+    },
+
+    async softDeleteByCanonicalAppointmentId(
+      appointmentId: string,
+      rubitimeFromMapping?: string | null,
+    ): Promise<boolean> {
+      const purgeOpts = {
+        canonicalAppointmentId: appointmentId,
+        purgePatientBookings: true as const,
+        cancelReason: "staff_delete",
+      };
+      const primaryId = resolveDoctorProjectionIntegratorRecordId(appointmentId, rubitimeFromMapping);
+      const ok = await this.softDeleteByIntegratorId(primaryId, purgeOpts);
+      if (ok) return true;
+      if (primaryId !== nativeIntegratorRecordId(appointmentId)) {
+        const fallbackOk = await this.softDeleteByIntegratorId(
+          nativeIntegratorRecordId(appointmentId),
+          purgeOpts,
+        );
+        if (fallbackOk) return true;
+      }
+      return purgeCanonicalStaffDeleteTombstone(appointmentId, rubitimeFromMapping);
+    },
+
+    async isIntegratorRecordPurged(integratorRecordId: string): Promise<boolean> {
+      const result = await runWebappPgText<{ deleted_at: Date | null }>(
+        `SELECT deleted_at FROM appointment_records WHERE integrator_record_id = $1 LIMIT 1`,
+        [integratorRecordId],
+      );
+      const row = result.rows[0];
+      return row?.deleted_at != null;
     },
   };
 }

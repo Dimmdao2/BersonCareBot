@@ -16,6 +16,11 @@ import {
   sqlActiveMessengerBinding,
   sqlActiveTelegramBinding,
 } from "@/modules/doctor-clients/activeMessengerBindingSql";
+import { PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL } from "@/infra/repos/doctorAppointmentPurgeFilter";
+
+/** Exclude staff-purged canonical appointments from calendar-like KPI slices. */
+const CANONICAL_PURGED_FILTER_SQL = `
+               AND ${PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL}`;
 
 const CANCELLED_BE_STATUSES = [
   "cancelled_by_patient",
@@ -158,7 +163,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                AND a.start_at >= $2::timestamptz
                AND a.start_at < $3::timestamptz
                AND a.start_at < now()
-               AND a.status <> ALL($4::text[])${ex.andSql}
+               AND a.status <> ALL($4::text[])${CANONICAL_PURGED_FILTER_SQL}${ex.andSql}
              ORDER BY a.start_at DESC, user_id ASC
              LIMIT $5::int OFFSET $6::int`,
             ex.params,
@@ -213,7 +218,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at < $3::timestamptz
-               AND a.status = ANY($4::text[])
+               AND a.status = ANY($4::text[])${CANONICAL_PURGED_FILTER_SQL}
              ${ex.andSql}
              ORDER BY a.start_at DESC, user_id ASC
              LIMIT $5::int OFFSET $6::int`,
@@ -265,7 +270,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.created_at >= $2::timestamptz
-               AND a.created_at < $3::timestamptz
+               AND a.created_at < $3::timestamptz${CANONICAL_PURGED_FILTER_SQL}
              ${ex.andSql}
              ORDER BY a.created_at DESC, user_id ASC
              LIMIT $4::int OFFSET $5::int`,
@@ -320,7 +325,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE c.organization_id = $1::uuid
                AND c.created_at >= $2::timestamptz
-               AND c.created_at < $3::timestamptz
+               AND c.created_at < $3::timestamptz${CANONICAL_PURGED_FILTER_SQL}
              ${ex.andSql}
              ORDER BY c.created_at DESC, user_id ASC
              LIMIT $4::int OFFSET $5::int`,
@@ -765,7 +770,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at <= $3::timestamptz
-               AND a.status <> ALL($4::text[])${ex.andSql}
+               AND a.status <> ALL($4::text[])${CANONICAL_PURGED_FILTER_SQL}${ex.andSql}
              ORDER BY a.start_at DESC, user_id ASC
              LIMIT $5::int OFFSET $6::int`,
             ex.params,
@@ -820,7 +825,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              WHERE a.organization_id = $1::uuid
                AND a.start_at >= $2::timestamptz
                AND a.start_at < $3::timestamptz
-               AND a.status <> ALL($4::text[])${ex.andSql}
+               AND a.status <> ALL($4::text[])${CANONICAL_PURGED_FILTER_SQL}${ex.andSql}
              ORDER BY a.start_at DESC, user_id ASC
              LIMIT $5::int OFFSET $6::int`,
             ex.params,
@@ -872,7 +877,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              LEFT JOIN platform_users pcanon ON pcanon.id = COALESCE(pu.merged_into_id, pu.id)
              WHERE a.organization_id = $1::uuid
                AND a.status = ANY($2::text[])
-               AND a.updated_at >= NOW() - interval '30 days'${ex.andSql}
+               AND a.updated_at >= NOW() - interval '30 days'${CANONICAL_PURGED_FILTER_SQL}${ex.andSql}
              ORDER BY a.updated_at DESC, user_id ASC
              LIMIT $3::int OFFSET $4::int`,
             ex.params,

@@ -1,6 +1,6 @@
 # BOOKING_REWORK_INITIATIVE (закрыта 2026-06-06)
 
-**Статус:** `done` — этапы 0–5, mirror sync, gaps closeout, sync desync fix (code).
+**Статус:** `done` — этапы 0–5, mirror sync, gaps closeout, sync desync fix, staff delete (2026-06-07, code).
 
 Операционные документы (контракт mirror, acceptance, LOG, runbook smoke) остаются в [`docs/BOOKING_REWORK_INITIATIVE/`](../../BOOKING_REWORK_INITIATIVE/README.md) — стабильные ссылки из кода и architecture docs.
 
@@ -13,5 +13,6 @@
 | [`booking_scenarios_audit_e9c4ce97`](../../../../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md) | аудит write-сценариев (prod-инцидент) |
 | [`booking_mirror_integrity_hardening_8f043ac3`](../../../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md) | partial flags, lifecycle, inbound dedup |
 | [`bidirectional_appointment_sync_14c1fa2c`](../../../../.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md) | `AppointmentMirrorSync` live path |
+| [`staff_cancelled_delete_5c59a30e`](../../../../.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md) | staff delete отменённых (doctor/admin); smoke #10; SD-1..SD-6 post-deploy |
 
-Post-deploy ops (не блокирует закрытие): [`ACCEPTANCE_MIRROR_SYNC.md`](../../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md) § post-deploy.
+Post-deploy ops (не блокирует закрытие кода): [`ACCEPTANCE_MIRROR_SYNC.md`](../../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md) § post-deploy + § staff delete.

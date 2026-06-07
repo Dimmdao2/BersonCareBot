@@ -137,6 +137,44 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
     expect(sql).not.toContain("be_appointments");
   });
 
+  it("appointments_cancellation_actions excludes staff-purged canonical rows", async () => {
+    const port = createPgDoctorAnalyticsMetricAccountsPort(async () => ORG_ID);
+    await port.listMetricAccounts({
+      metric: "appointments_cancellation_actions",
+      period: { preset: "week" },
+      limit: 10,
+      offset: 0,
+      iana: "Europe/Moscow",
+      excludedUserIds: [],
+    });
+
+    const firstCall = runWebappPgTextMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const sql = String(firstCall![0]);
+    expect(sql).toContain("be_appointment_cancellations");
+    expect(sql).toContain("appointment_records");
+    expect(sql).toContain("deleted_at IS NOT NULL");
+  });
+
+  it("appointments_cancelled_visits excludes staff-purged canonical rows", async () => {
+    const port = createPgDoctorAnalyticsMetricAccountsPort(async () => ORG_ID);
+    await port.listMetricAccounts({
+      metric: "appointments_cancelled_visits",
+      period: { preset: "week" },
+      limit: 10,
+      offset: 0,
+      iana: "Europe/Moscow",
+      excludedUserIds: [],
+    });
+
+    const firstCall = runWebappPgTextMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const sql = String(firstCall![0]);
+    expect(sql).toContain("be_appointments");
+    expect(sql).toContain("appointment_records");
+    expect(sql).toContain("deleted_at IS NOT NULL");
+  });
+
   it("notif_push_opened queries product_analytics_events_recent with windowHours", async () => {
     const port = createPgDoctorAnalyticsMetricAccountsPort(async () => ORG_ID);
     await port.listMetricAccounts({

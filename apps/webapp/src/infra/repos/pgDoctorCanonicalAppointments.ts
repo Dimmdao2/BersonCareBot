@@ -14,6 +14,10 @@ import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/res
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
 import { appointmentStatusLabel } from "@/modules/booking-calendar/appointmentStatusLabels";
+import {
+  filterCanonicalRowsNotPurged,
+  PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL,
+} from "@/infra/repos/doctorAppointmentPurgeFilter";
 import type { AppointmentStatus } from "@/modules/booking-engine/types";
 import type {
   AppointmentRow,
@@ -38,6 +42,8 @@ function appointmentUserAudienceCond(excludedUserIds: string[]) {
     notInArray(beAppointments.platformUserId, excludedUserIds),
   );
 }
+
+const BE_APPOINTMENTS_NOT_PURGED = sql.raw(PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL);
 
 const ACTIVE_UPCOMING_STATUSES = [
   "created",
@@ -246,7 +252,8 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .orderBy(sql`${beAppointments.updatedAt} DESC`);
       }
 
-      return rows.map(mapListRow);
+      const visibleRows = await filterCanonicalRowsNotPurged(organizationId, rows);
+      return visibleRows.map(mapListRow);
     },
 
     async getAppointmentStats(
@@ -280,7 +287,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
         rescheduleActionsRow,
         cancel30Row,
       ] = await Promise.all([
-        db.select({ count: count() }).from(beAppointments).where(rangeCond),
+        db.select({ count: count() }).from(beAppointments).where(and(rangeCond, BE_APPOINTMENTS_NOT_PURGED)),
         db
           .select({ count: count() })
           .from(beAppointments)
@@ -294,8 +301,13 @@ export function createPgDoctorCanonicalAppointmentsPort(
         db
           .select({ count: count() })
           .from(beAppointments)
-          .where(and(rangeCond, inArray(beAppointments.status, [...CANCELLED_STATUSES]))),
-        db.select({ count: count() }).from(beAppointments).where(createdInRangeCond),
+          .where(
+            and(rangeCond, inArray(beAppointments.status, [...CANCELLED_STATUSES]), BE_APPOINTMENTS_NOT_PURGED),
+          ),
+        db
+          .select({ count: count() })
+          .from(beAppointments)
+          .where(and(createdInRangeCond, BE_APPOINTMENTS_NOT_PURGED)),
         db
           .select({ count: count() })
           .from(beAppointmentCancellations)
@@ -329,6 +341,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`NOW() - interval '30 days'`),
               userAudience,
+              BE_APPOINTMENTS_NOT_PURGED,
             ),
           ),
       ]);
@@ -363,6 +376,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               isNotNull(beAppointments.startAt),
               gte(beAppointments.startAt, nowIso),
               inArray(beAppointments.status, [...ACTIVE_UPCOMING_STATUSES]),
+              BE_APPOINTMENTS_NOT_PURGED,
             ),
           ),
         db
@@ -374,6 +388,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               isNotNull(beAppointments.startAt),
               gte(beAppointments.startAt, sql`date_trunc('month', NOW())`),
               lte(beAppointments.startAt, sql`date_trunc('month', NOW()) + interval '1 month'`),
+              BE_APPOINTMENTS_NOT_PURGED,
             ),
           ),
         db
@@ -385,6 +400,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
               inArray(beAppointments.status, [...CANCELLED_STATUSES]),
               gte(beAppointments.updatedAt, sql`date_trunc('month', NOW())`),
               lte(beAppointments.updatedAt, sql`date_trunc('month', NOW()) + interval '1 month'`),
+              BE_APPOINTMENTS_NOT_PURGED,
             ),
           ),
       ]);

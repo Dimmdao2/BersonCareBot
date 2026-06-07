@@ -61,6 +61,16 @@ describe("pgDoctorAppointments cancellation rules", () => {
     expect(last30Query).toContain(CANCELLATION_LAST_EVENT_EXCLUSION_SQL);
   });
 
+  it("listAppointmentsForSpecialist excludes soft-deleted appointment_records", async () => {
+    const port = createPgDoctorAppointmentsPort();
+    await port.listAppointmentsForSpecialist({ kind: "futureActive" });
+
+    const queries = runWebappPgTextMock.mock.calls.map((call) => String(call[0]));
+    const listQuery = queries.find((sql) => sql.includes("integrator_record_id"));
+    expect(listQuery).toBeDefined();
+    expect(listQuery).toContain("deleted_at IS NULL");
+  });
+
   it("getAppointmentStats excludes soft-deleted rows", async () => {
     const port = createPgDoctorAppointmentsPort();
     await port.getAppointmentStats({ kind: "range", range: "week" });

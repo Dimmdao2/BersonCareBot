@@ -1,7 +1,7 @@
 # BOOKING_REWORK_INITIATIVE — доработка записи
 
-**Статус:** `done` (этапы 0–5 — `done`; mirror sync + gaps closeout + sync desync fix code — `done`; post-deploy ops gate — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § post-deploy). Архивный индекс: [`docs/archive/2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md`](../archive/2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md).
-**Дата старта:** 2026-06-04 · **Дата закрытия:** 2026-06-06
+**Статус:** `done` (этапы 0–5 — `done`; mirror sync + gaps closeout + sync desync fix + **staff delete** — `done`; post-deploy ops gate — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § post-deploy + § staff delete SD-1..SD-6). Архивный индекс: [`docs/archive/2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md`](../archive/2026-06-initiatives/BOOKING_REWORK_INITIATIVE/README.md).
+**Дата старта:** 2026-06-04 · **Дата закрытия этапов 0–5:** 2026-06-06 · **Staff delete (доп.):** 2026-06-07
 **Владелец постановки:** Дмитрий Берсон
 
 Инициатива фиксирует переработку кабинета записи после внедрения собственного booking engine. Главная цель — перестать показывать пользователю внутреннюю переходную модель (`booking_*`, `be_*`, Rubitime-дубли специалистов, `branchServiceId`, кабинеты/resources) и собрать рабочий интерфейс под текущий продуктовый сценарий: **один специалист работает со своими клиентами, имеет несколько локаций, общий список услуг, разные услуги/расписания по локациям и переходный Rubitime-маппинг**.
@@ -28,6 +28,7 @@
 16. План gaps closeout (архив, 2026-06-06, `status: completed`): [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md) — rubitime-first overlap class, G4/G6, patient partial UI, shared rollback; CI green (agent-сессия closeout) — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § gaps closeout.
 17. План аудита сценариев (архив): [`.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md`](../../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md) — prod-инцидент 2026-06-06, предшественник gaps closeout.
 18. План sync desync fix (архив, 2026-06-06, `status: completed`): [`.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md`](../../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md) — cancel mirror, rebook overlap, FK branch, GCal/Rubitime idempotent delete/update, matrix 7/7; CI green — [`LOG.md`](LOG.md) §2026-06-06 desync fix, [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) § верификация desync fix + smoke #9; post-deploy ops gate — ACCEPTANCE § post-deploy.
+19. План staff delete (архив, 2026-06-07, `status: completed`): [`.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md`](../../.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md) — тихое удаление отменённых (doctor/admin); контракт — [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md) §Staff delete; приёмка — [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) smoke #10 + SD-1..SD-6; журнал — [`LOG.md`](LOG.md) §2026-06-07.
 
 **Этап 3 (кратко):** комментарий к пакету (`notes`), индивидуальный абонемент без названия в UI, `GET …/sessions`, `POST …/package/detach`, карточка клиента (`PatientPackageCard` / `PatientPackageSessionsList`), настройка `booking_allow_doctor_unlink_past_package_sessions` — см. [`LOG.md`](LOG.md).
 

@@ -1,5 +1,10 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { isPrepaymentPending } from "./pgBookingCalendar";
+
+const repoDir = dirname(fileURLToPath(import.meta.url));
 
 describe("pgBookingCalendar prepayment flag", () => {
   it("marks awaiting_payment appointments", () => {
@@ -13,5 +18,13 @@ describe("pgBookingCalendar prepayment flag", () => {
 
   it("is false for captured payments", () => {
     expect(isPrepaymentPending("paid", "succeeded")).toBe(false);
+  });
+});
+
+describe("pgBookingCalendar purge filter", () => {
+  it("listAppointmentsInRange post-filters staff-purged canonical rows", () => {
+    const src = readFileSync(join(repoDir, "pgBookingCalendar.ts"), "utf8");
+    expect(src).toContain("filterCanonicalRowsNotPurged");
+    expect(src).toMatch(/visibleRows = await filterCanonicalRowsNotPurged/);
   });
 });

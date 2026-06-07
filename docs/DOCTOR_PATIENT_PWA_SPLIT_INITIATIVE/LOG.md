@@ -1,5 +1,18 @@
 # DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE — LOG
 
+## 2026-06-07 — Финальная синхронизация docs / logs / plans (инициатива closed)
+
+**Сделано:**
+
+- `ROADMAP`, `INVENTORY` — §C staff push, **63** fast-теста, таблица push-контуров.
+- `docs/README.md`, `PWA_INITIATIVE/ROADMAP`, `BACKLOG`, `LOG` — фаза 5 + staff push **done**.
+- Архив Cursor-плана: [`.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md`](../../.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md).
+- `product-platform-roadmap` — ближайшая волна DOCTOR_PATIENT_PWA → **done** (commit `290df2ba`).
+
+**Итог:** инициатива **полностью закрыта** (волны 1–2, §A+§B+§C); ручной smoke install/push на стенде — опционально.
+
+---
+
 ## 2026-06-07 — Staff web push + матрица уведомлений (post-§B)
 
 **Сделано:**
@@ -10,7 +23,7 @@
 - Docs: `STAFF_PWA_ADR` post-§B, `README`, `WAVE2`, `ACCEPTANCE_WAVE2` §C, `SCOPE_BOUNDARIES`, `api.md`, `INTEGRATOR_CONTRACT`.
 - Тесты: **63** fast (49 + 14 push); fix `StaffPwaInstallSection.test` после push opt-in.
 
-**Проверки:** `pnpm run ci` перед commit.
+**Проверки:** `pnpm run ci` green · commit `290df2ba`.
 
 ---
 
@@ -20,7 +33,7 @@
 
 - Единый статус **done** во всех docs инициативы: `README`, `ROADMAP`, `WAVE2_STAFF_PWA`, `ACCEPTANCE_WAVE2`, `INVENTORY`, `SCOPE_BOUNDARIES`, `STAFF_PWA_ADR`.
 - `docs/README.md`, `PWA_INITIATIVE/ROADMAP.md` — фаза 5 Staff PWA → **done**.
-- `INVENTORY` — таблица Staff PWA §B, тесты 49, дата 2026-06-07.
+- `INVENTORY` — таблица Staff PWA §B (позже дополнен §C push), тесты 49→63, дата 2026-06-07.
 - `WAVE2` — этапы 2.B7–2.B8, combined vitest command.
 
 **Итог инициативы:** волны 1–2 закрыты; ручной smoke install на стенде — опционально (`ACCEPTANCE_WAVE2`).

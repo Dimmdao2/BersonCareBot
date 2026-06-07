@@ -901,6 +901,10 @@ export async function handleIntegratorEvent(
         retryable: false,
       };
     }
+    const purgedRow = await ap.getRecordByIntegratorId(integratorRecordId);
+    if (purgedRow?.deletedAt) {
+      return { accepted: true, reason: "skipped_purged" };
+    }
     const recordAt = typeof p.recordAt === "string" ? p.recordAt : null;
     const payloadJson =
       typeof p.payloadJson === "object" && p.payloadJson !== null

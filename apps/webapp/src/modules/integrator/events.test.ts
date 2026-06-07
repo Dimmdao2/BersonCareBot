@@ -1269,6 +1269,45 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     expect(result.retryable).toBe(false);
   });
 
+  it("appointment.record.upserted skips purged projection rows", async () => {
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn().mockResolvedValue({
+        id: "ar-purged",
+        integratorRecordId: "rec-purged",
+        phoneNormalized: "+79990000000",
+        recordAt: "2026-06-01T10:00:00.000Z",
+        status: "canceled",
+        payloadJson: {},
+        lastEvent: "event-remove-record",
+        branchId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        deletedAt: "2026-06-02T00:00:00.000Z",
+      }),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn(),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(true),
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-purged",
+          status: "created",
+          payloadJson: {},
+          lastEvent: "event-update",
+          updatedAt: "2026-06-03T00:00:00.000Z",
+        },
+      },
+      { ...mockDeps, appointmentProjection: mockAp },
+    );
+    expect(result).toEqual({ accepted: true, reason: "skipped_purged" });
+    expect(mockAp.upsertRecordFromProjection).not.toHaveBeenCalled();
+  });
+
   it("appointment.record.upserted branch FK violation is non-retryable (422 path)", async () => {
     const pgErr = Object.assign(new Error("insert or update on table \"appointment_records\" violates foreign key constraint \"appointment_records_branch_id_fkey\""), {
       code: "23503",
@@ -1280,6 +1319,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockRejectedValue(pgErr),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const result = await handleIntegratorEvent(
       {
@@ -1309,6 +1350,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockRejectedValue(pgErr),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const result = await handleIntegratorEvent(
       {
@@ -1377,6 +1420,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const applyRubitimeUpdate = vi.fn().mockResolvedValue(undefined);
     const deps: IntegratorEventsDeps = {
@@ -1433,6 +1478,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection,
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const deps: IntegratorEventsDeps = {
       ...mockDeps,
@@ -1495,6 +1542,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection,
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const deps: IntegratorEventsDeps = {
       ...mockDeps,
@@ -1546,6 +1595,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const deps: IntegratorEventsDeps = {
       ...mockDeps,
@@ -1592,6 +1643,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const deps: IntegratorEventsDeps = {
       ...mockDeps,
@@ -1682,6 +1735,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const deps: IntegratorEventsDeps = {
       ...mockDeps,
@@ -1744,6 +1799,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const deps: IntegratorEventsDeps = {
       ...mockDeps,
@@ -1784,6 +1841,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const depsIdem: IntegratorEventsDeps = { ...mockDeps, appointmentProjection: mockAp };
     const payload = {
@@ -1828,6 +1887,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const stubPatientBooking = {
       getSlots: vi.fn().mockResolvedValue([]),
@@ -1883,6 +1944,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const deps: IntegratorEventsDeps = {
       ...mockDeps,
@@ -1924,6 +1987,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const depsIdem: IntegratorEventsDeps = { ...mockDeps, appointmentProjection: mockAp };
     const createPayload = {
@@ -2255,6 +2320,8 @@ describe("handleIntegratorEvent: Stage 11 subscription/mailing projection ingest
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
       listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
       softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+      softDeleteByCanonicalAppointmentId: vi.fn().mockResolvedValue(false),
+      isIntegratorRecordPurged: vi.fn().mockResolvedValue(false),
     };
     const result = await handleIntegratorEvent(
       {

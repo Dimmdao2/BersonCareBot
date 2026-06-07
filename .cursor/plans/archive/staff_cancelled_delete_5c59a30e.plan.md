@@ -1,45 +1,46 @@
 ---
 name: Staff cancelled delete
 overview: "Тихое удаление только уже отменённых записей в кабинете врача/админа: manual-cancel (уведомление) → delete (без booking.cancelled); Rubitime remove-record; purge зеркал; скрытие из календаря/списков/истории пациента. Канон be_appointments не hard-delete."
-status: pending
-canonicalPath: .cursor/plans/staff_cancelled_delete_5c59a30e.plan.md
+status: completed
+completedAt: 2026-06-07
+canonicalPath: .cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md
 todos:
   - id: p0-contract-helpers
     content: "P0: isStaffDeletableCancelledStatus + STAFF_DELETABLE_STATUSES export; тесты; отличие от isCancelledAppointmentStatus (no_show вне delete)"
-    status: pending
+    status: completed
   - id: p0-projection-purge
     content: "P0: расширить AppointmentProjectionPort + pg/inMemory softDelete (cancelReason, DELETE patient_bookings by rubitime_id OR canonical_id); softDeleteByCanonicalAppointmentId; isIntegratorRecordPurged"
-    status: pending
+    status: completed
   - id: p1-emit-deleted-helper
     content: "P1: вынести emitBookingDeletedEvent из admin soft-delete route; рефактор admin legacy route на shared helper (без смены auth)"
-    status: pending
+    status: completed
   - id: p1-staff-purge-orchestrator
     content: "P1: staffPurgeCancelledAppointment (gate, idempotent, bridge, deleteRecord, booking.deleted only) + staffPurgeCancelledAppointment.test.ts"
-    status: pending
+    status: completed
   - id: p1-api-routes
     content: "P1: POST doctor+admin .../appointments/[id]/delete + route.test.ts (403/404/409/200/partial)"
-    status: pending
+    status: completed
   - id: p2-read-surfaces-filter
-    content: "P2: purge filter в pgBookingCalendar + pgDoctorCanonicalAppointments + pgDoctorAnalyticsMetricAccounts (canonical KPI не считать purged)"
-    status: pending
+    content: "P2: purge filter в pgBookingCalendar + pgDoctorCanonicalAppointments (list+stats) + pgDoctorAnalyticsMetricAccounts — infra/repos/doctorAppointmentPurgeFilter.ts"
+    status: completed
   - id: p2-legacy-read-source
-    content: "P2: при rubitime_legacy — pgDoctorAppointments уже учитывает deleted_at; верифицировать + тест что soft-delete скрывает строку"
-    status: pending
+    content: "P2: rubitime_legacy — pgDoctorAppointments уже фильтрует deleted_at (без изменений)"
+    status: completed
   - id: p2-inbound-guard
-    content: "P2: inbound remove/delete webhook не revive purged row (echo-guard / deleted_at check в events или upsert path) + тест"
-    status: pending
+    content: "P2: inbound upsert → skipped_purged при deleted_at"
+    status: completed
   - id: p3-doctor-ui
-    content: "P3: Удалить в DoctorCalendarEventPanel + DoctorAppointmentActions; panelErrorLabel; confirm; refresh"
-    status: pending
+    content: "P3: Удалить в DoctorCalendarEventPanel + DoctorAppointmentActions; panelErrorLabel; confirm; onChanged + router.refresh в списке"
+    status: completed
   - id: p3-mirror-matrix
-    content: "P3: +1 сценарий в bookingMirrorDesyncMatrix (staff delete после cancel — нет второго notify, patient_bookings gone)"
-    status: pending
+    content: "P3: сценарий #10 в bookingMirrorDesyncMatrix"
+    status: completed
   - id: p4-docs-acceptance
     content: "P4: BOOKING_MIRROR_INTEGRITY_CONTRACT §delete, ACCEPTANCE smoke #10, api.md, INTEGRATOR_CONTRACT, patient-booking.md, LOG.md"
-    status: pending
+    status: completed
   - id: p4-manual-smoke
-    content: "P4: ручной smoke чеклист SD-1..SD-5 (calendar → cancel → delete → patient cabinet → re-delete idempotent)"
-    status: pending
+    content: "P4: ручной smoke SD-1..SD-6 — post-deploy оператор"
+    status: cancelled
 isProject: false
 ---
 
@@ -175,8 +176,8 @@ route.ts (doctor/admin, thin)
 
 **Checklist:**
 
-- [ ] `appointmentStatusLabels.test.ts`: deletable vs `no_show` vs `confirmed`
-- [ ] `rg 'isStaffDeletableCancelledStatus' apps/webapp/src/app/app/doctor` — UI импортирует helper
+- [x] `appointmentStatusLabels.test.ts`: deletable vs `no_show` vs `confirmed`
+- [x] `rg 'isStaffDeletableCancelledStatus' apps/webapp/src/app/app/doctor` — UI импортирует helper
 
 ### P0.2 Projection port
 
@@ -194,13 +195,14 @@ route.ts (doctor/admin, thin)
 - `primaryId = resolveDoctorProjectionIntegratorRecordId(appointmentId, rubitimeFromMapping)`
 - try `softDeleteByIntegratorId(primaryId, { canonicalAppointmentId: appointmentId, cancelReason: 'staff_delete' })`
 - fallback: try `be:{appointmentId}` если primary был rubitime и row не найден
+- tombstone: `purgeCanonicalStaffDeleteTombstone` если projection row отсутствует (idempotent 200)
 
 **`isIntegratorRecordPurged(integratorRecordId): Promise<boolean>`** — для idempotent gate / inbound.
 
 **Checklist:**
 
-- [ ] `pgAppointmentProjection.softDelete.test.ts`: DELETE cancelled patient_bookings; cancelReason `staff_delete`; idempotent second call
-- [ ] inMemory port — те же контракты
+- [x] `pgAppointmentProjection.softDelete.test.ts`: DELETE cancelled patient_bookings; cancelReason `staff_delete`; idempotent second call
+- [x] inMemory port — те же контракты (+ tombstone path)
 
 ---
 
@@ -236,8 +238,8 @@ route.ts (doctor/admin, thin)
 
 **Checklist:**
 
-- [ ] `doctor/.../delete/route.test.ts` — 409 на confirmed, 200 на cancelled, partial flag
-- [ ] `admin/.../delete/route.test.ts` — то же
+- [x] `doctor/.../delete/route.test.ts` — 403/404/409/503/200/partial
+- [x] `admin/.../delete/route.test.ts` — то же
 
 ---
 
@@ -251,7 +253,7 @@ route.ts (doctor/admin, thin)
   - `integrator_record_id = be_external_entity_mappings.external_id` (rubitime), **или**
   - `integrator_record_id = 'be:' || be_appointments.id`
 
-Helper (shared): `apps/webapp/src/modules/patient-booking/isAppointmentPurged.ts` или SQL fragment в `doctorAppointmentPurgeFilter.ts` — **не** дублировать join в 3 местах.
+Helper (shared): `apps/webapp/src/infra/repos/doctorAppointmentPurgeFilter.ts` — **не** дублировать join в 3 местах.
 
 [`pgDoctorCanonicalAppointments`](apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts) — тот же filter для `listAppointmentsForSpecialist` (все `filter.kind`).
 
@@ -261,8 +263,8 @@ Helper (shared): `apps/webapp/src/modules/patient-booking/isAppointmentPurged.ts
 
 **Checklist:**
 
-- [ ] `pgBookingCalendar.test.ts` — purged excluded
-- [ ] `pgDoctorCanonicalAppointments.test.ts` — purged excluded from futureActive/range/past
+- [x] `pgBookingCalendar.test.ts` + `doctorAppointmentPurgeFilter.test.ts` — purged excluded
+- [x] `pgDoctorCanonicalAppointments.test.ts` — list filter + stats `BE_APPOINTMENTS_NOT_PURGED`
 
 ### P2.3 Legacy read source `rubitime_legacy`
 
@@ -270,8 +272,8 @@ Helper (shared): `apps/webapp/src/modules/patient-booking/isAppointmentPurged.ts
 
 **Checklist:**
 
-- [ ] `pgDoctorAppointments.test.ts` или parity test: row with `deleted_at` not in list
-- [ ] Не ломать `AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL` (remove-record events)
+- [x] `pgDoctorAppointments.test.ts` — list `deleted_at IS NULL`
+- [x] Не ломать `AR_CANCELLATION_LAST_EVENT_EXCLUSION_SQL` (remove-record events)
 
 ### P2.4 Inbound anti-revive
 
@@ -283,8 +285,8 @@ Helper (shared): `apps/webapp/src/modules/patient-booking/isAppointmentPurged.ts
 
 **Checklist:**
 
-- [ ] Тест: purged record + inbound upsert → patient_bookings не recreated
-- [ ] `rg 'skipped_purged|deleted_at' apps/webapp/src/modules/integrator/events.test.ts`
+- [x] Тест: purged record + inbound upsert → `skipped_purged`, без revive
+- [x] `events.test.ts` — `skipped_purged`
 
 ---
 
@@ -308,8 +310,8 @@ Helper (shared): `apps/webapp/src/modules/patient-booking/isAppointmentPurged.ts
 
 **Checklist:**
 
-- [ ] `DoctorAppointmentsListClient` передаёт `status` / `recordAtIso` в actions
-- [ ] `rg 'Удалить' apps/webapp/src/app/app/doctor` — только 2 файла
+- [x] `DoctorAppointmentsListClient` передаёт `status`; `onChanged` → `router.refresh()`
+- [x] Кнопка «Удалить» только в `DoctorCalendarEventPanel` + `DoctorAppointmentActions` (booking)
 
 ---
 
@@ -385,11 +387,17 @@ pnpm --dir apps/webapp exec vitest run \
   src/app-layer/booking/staffPurgeCancelledAppointment.test.ts \
   src/app/api/doctor/booking-engine/appointments/\[id\]/delete/route.test.ts \
   src/app/api/admin/booking-engine/appointments/\[id\]/delete/route.test.ts \
+  src/infra/repos/doctorAppointmentPurgeFilter.test.ts \
   src/infra/repos/pgBookingCalendar.test.ts \
   src/infra/repos/pgDoctorCanonicalAppointments.test.ts \
-  src/modules/patient-booking/bookingMirrorDesyncMatrix.test.ts
+  src/modules/patient-booking/bookingMirrorDesyncMatrix.test.ts \
+  src/modules/integrator/events.test.ts \
+  src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts \
+  src/infra/repos/pgDoctorAppointments.test.ts
 
 pnpm --dir apps/webapp run typecheck
+# полный барьер перед push:
+pnpm run ci
 ```
 
 Перед push: полный `pnpm run ci` (правило репо).
@@ -398,16 +406,16 @@ pnpm --dir apps/webapp run typecheck
 
 ## Definition of Done
 
-- [ ] Whitelist gate `not_cancelled` на API и UI
-- [ ] Delete path никогда не эмитит `booking.cancelled` (unit proof)
-- [ ] `patient_bookings` удалены из upcoming **и** history
-- [ ] Purged скрыты из canonical calendar + doctor list + не ломают legacy `deleted_at` list
-- [ ] Inbound не revive purged rows
-- [ ] Idempotent повторный delete → 200
-- [ ] `rubitimeMirrorFailed` partial flag документирован
-- [ ] Docs + ACCEPTANCE #10 + LOG
-- [ ] Targeted vitest bundle green
-- [ ] Ручной smoke SD-1..SD-6 пройден на staging/prod после деплоя
+- [x] Whitelist gate `not_cancelled` на API и UI
+- [x] Delete path никогда не эмитит `booking.cancelled` (unit proof — `bookingMirrorDesyncMatrix` #10)
+- [x] `patient_bookings` удалены из upcoming **и** history
+- [x] Purged скрыты из canonical calendar + doctor list + analytics KPI + legacy `deleted_at` list
+- [x] Inbound не revive purged rows (`skipped_purged` + `events.test.ts`)
+- [x] Idempotent повторный delete → 200 (включая tombstone без projection row)
+- [x] `rubitimeMirrorFailed` partial flag документирован
+- [x] Docs + ACCEPTANCE #10 + LOG
+- [x] Targeted vitest bundle green (48 tests); `pnpm run ci` green (2026-06-07)
+- [ ] Ручной smoke SD-1..SD-6 пройден на staging/prod после деплоя (post-deploy оператор)
 
 ---
 
@@ -420,4 +428,4 @@ pnpm --dir apps/webapp run typecheck
 | Двойное уведомление | delete без `booking.cancelled`; тест mock |
 | Delayed webhook revive | inbound `skipped_purged` guard |
 | `rubitime_legacy` list drift | soft-delete по rubitime id → `deleted_at` уже в legacy SQL |
-| Нет `appointment_records` row | fallback `be:{id}`; если cancel прошёл — projection должна существовать (cancel вызывает `projectCanonicalAppointmentCancelled`) |
+| Нет `appointment_records` row | fallback `be:{id}` soft-delete; tombstone INSERT + DELETE `patient_bookings` если row отсутствует |
