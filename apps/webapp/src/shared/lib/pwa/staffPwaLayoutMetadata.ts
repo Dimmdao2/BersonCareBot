@@ -11,7 +11,7 @@ export const staffPwaLayoutMetadata: Metadata = {
   manifest: STAFF_PWA_MANIFEST_PATH,
   appleWebApp: {
     capable: true,
-    title: "BersonCare Staff",
+    title: "BersonAdmin",
     statusBarStyle: "default",
   },
   icons: {

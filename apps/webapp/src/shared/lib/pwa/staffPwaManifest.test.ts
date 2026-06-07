@@ -11,6 +11,8 @@ describe("staffPwaManifest", () => {
     expect(m.id).toBe("/app-staff");
     expect(m.start_url).toBe("/app/doctor");
     expect(m.scope).toBe("/app");
+    expect(m.short_name).toBe("BersonAdmin");
+    expect(m.name).toBe("BersonAdmin");
     expect(m.icons?.[0]?.src).toBe(STAFF_PWA_ICON_192);
   });
 
