@@ -2476,7 +2476,7 @@ describe('executeAction', () => {
       id: 'cl-max',
       type: 'webapp.channelLink.complete',
       mode: 'sync',
-      params: { linkToken: 'tok', channelCode: 'max', externalId: 'max-42' },
+      params: { linkToken: 'tok', channelCode: 'max', externalId: '42' },
     };
     const result = await executeAction(action, ctx, {
       webappEventsPort,
@@ -2485,7 +2485,7 @@ describe('executeAction', () => {
     expect(completeChannelLink).toHaveBeenCalledWith({
       linkToken: 'tok',
       channelCode: 'max',
-      externalId: 'max-42',
+      externalId: '42',
     });
     expect(dispatchOutgoing).toHaveBeenCalled();
     expect(result.status).toBe('success');

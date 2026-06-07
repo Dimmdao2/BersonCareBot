@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { maxUserRecipient, readMaxOutboundRecipient } from './maxRecipient.js';
+import { maxBindingRecipient, maxUserRecipient, readMaxOutboundRecipient } from './maxRecipient.js';
 
 describe('maxRecipient', () => {
   it('maxUserRecipient parses string platform user id', () => {
@@ -16,5 +16,9 @@ describe('maxRecipient', () => {
 
   it('readMaxOutboundRecipient falls back to chatId for in-dialog sends', () => {
     expect(readMaxOutboundRecipient({ chatId: 9001 })).toEqual({ chatId: 9001 });
+  });
+
+  it('maxBindingRecipient falls back to legacy chatId when externalId is non-numeric', () => {
+    expect(maxBindingRecipient('max-ext-1', 7)).toEqual({ userId: 7 });
   });
 });

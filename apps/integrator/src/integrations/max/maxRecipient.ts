@@ -14,6 +14,20 @@ export function maxUserRecipient(platformUserId: string | number): { userId: num
   return { userId };
 }
 
+/** Binding-sourced send: prefer identities.external_id; legacy pipelines duplicated it as chatId. */
+export function maxBindingRecipient(
+  externalId: string | number,
+  legacyChatId?: number,
+): { userId: number } {
+  const userId =
+    parseMaxPlatformUserId(externalId)
+    ?? (legacyChatId !== undefined ? parseMaxPlatformUserId(legacyChatId) : undefined);
+  if (userId === undefined || userId <= 0) {
+    throw new Error('MAX_RECIPIENT_INVALID: platform user id required');
+  }
+  return { userId };
+}
+
 /** Outbound to an active dialog by chat id (`POST /messages?chat_id=`). */
 export function maxChatRecipient(chatId: string | number): { chatId: number } {
   const id = parseMaxPlatformUserId(chatId);
