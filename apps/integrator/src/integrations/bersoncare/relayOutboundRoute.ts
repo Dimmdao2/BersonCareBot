@@ -54,11 +54,15 @@ function buildIntent(parsed: RelayPayload) {
       Array.isArray((rawMarkup as { inline_keyboard?: unknown }).inline_keyboard)
         ? (rawMarkup as { inline_keyboard: unknown[] })
         : undefined;
+    const recipient =
+      parsed.channel === 'max'
+        ? { userId: parsed.recipient }
+        : { chatId: parsed.recipient };
     return {
       type: 'message.send' as const,
       meta,
       payload: {
-        recipient: { chatId: parsed.recipient },
+        recipient,
         message: { text: parsed.text },
         ...(replyMarkup ? { replyMarkup } : {}),
         delivery: { channels: [parsed.channel] },

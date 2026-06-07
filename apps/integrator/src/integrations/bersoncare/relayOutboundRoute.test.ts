@@ -208,7 +208,7 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     expect(JSON.parse(res.body)).toMatchObject({ ok: false, error: 'missing_headers' });
   });
 
-  it('dispatches with correct chatId payload for max channel', async () => {
+  it('dispatches with userId payload for max channel (binding platform user id)', async () => {
     const body = makeRelayBody({ channel: 'max', recipient: '5551234', text: 'max message' });
     const rawBody = JSON.stringify(body);
     await app.inject({
@@ -222,7 +222,7 @@ describe('POST /api/bersoncare/relay-outbound', () => {
       expect.objectContaining({
         type: 'message.send',
         payload: expect.objectContaining({
-          recipient: { chatId: '5551234' },
+          recipient: { userId: '5551234' },
           message: { text: 'max message' },
           delivery: { channels: ['max'] },
         }),

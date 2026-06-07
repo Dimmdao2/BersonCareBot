@@ -25,6 +25,7 @@ import {
 } from './normalizeUpdateRecordPatch.js';
 import { createGetBranchTimezoneWithDataQuality } from '../../infra/db/branchTimezone.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
+import { maxUserRecipient } from '../max/maxRecipient.js';
 import type { z } from 'zod';
 import {
   parseBookingLifecycleEvent,
@@ -190,7 +191,7 @@ async function sendLinkedChannelMessage(input: {
         source: 'max',
       },
       payload: {
-        recipient: { chatId: bindings.maxId.trim() },
+        recipient: maxUserRecipient(bindings.maxId.trim()),
         message: { text: input.text },
         delivery: { channels: ['max'], maxAttempts: 3 },
       },
@@ -260,7 +261,7 @@ async function scheduleBookingReminders(input: {
     targets.push({ resource: 'telegram', address: { chatId: bindings.telegramId.trim() } });
   }
   if (typeof bindings.maxId === 'string' && bindings.maxId.trim()) {
-    targets.push({ resource: 'max', address: { chatId: bindings.maxId.trim() } });
+    targets.push({ resource: 'max', address: maxUserRecipient(bindings.maxId.trim()) });
   }
   if (targets.length === 0) return;
 

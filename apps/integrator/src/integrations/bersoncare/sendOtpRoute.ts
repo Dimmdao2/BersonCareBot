@@ -5,6 +5,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { maxUserRecipient } from '../../integrations/max/maxRecipient.js';
 import type { DispatchPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 
@@ -82,6 +83,8 @@ export async function registerBersoncareSendOtpRoute(
     const { channel, recipientId, code } = parsed.data;
     const text = `Код для входа в BersonCare: ${code}`;
     const eventId = `otp:${channel}:${randomUUID()}`;
+    const recipient =
+      channel === 'max' ? maxUserRecipient(recipientId) : { chatId: recipientId };
     const intent = {
       type: 'message.send' as const,
       meta: {
@@ -92,7 +95,7 @@ export async function registerBersoncareSendOtpRoute(
         correlationId: `otp-dispatch:${eventId}`,
       },
       payload: {
-        recipient: { chatId: recipientId },
+        recipient,
         message: { text },
         delivery: { channels: [channel] },
       },

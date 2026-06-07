@@ -154,7 +154,7 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
               eventId,
               channel: "max",
               clientUserId: client.userId,
-              recipient: { chatId: mx },
+              recipient: { userId: mx },
               text: messengerText,
               deliveryChannels: ["max"],
               parseMode: "HTML",

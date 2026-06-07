@@ -46,6 +46,7 @@ import {
 } from '../../reminders/reminderInlineKeyboard.js';
 import type { InlineKeyboardButton, ReminderOpenLinkSpec } from '../../reminders/reminderInlineKeyboard.js';
 import { buildExerciseReminderWebAppUrls } from '../../reminders/reminderMessengerWebAppUrls.js';
+import { maxUserRecipient } from '../../../../integrations/max/maxRecipient.js';
 import { getAppBaseUrl } from '../../../../config/appBaseUrl.js';
 import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
 
@@ -743,7 +744,7 @@ export async function handleReminders(
             userId: occ.userId,
           },
           payload: {
-            recipient: { chatId },
+            recipient: channel === 'max' ? maxUserRecipient(externalId) : { chatId },
             message: { text },
             replyMarkup,
             parse_mode: 'HTML',

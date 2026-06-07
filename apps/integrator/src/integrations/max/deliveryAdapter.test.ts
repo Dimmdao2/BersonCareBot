@@ -44,6 +44,40 @@ describe('max deliveryAdapter', () => {
     expect(adapter.canHandle(intent)).toBe(true);
   });
 
+  it('send message.send uses sendMessageToUser when recipient.userId is set', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.send' as const,
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        recipient: { userId: 207278131 },
+        message: { text: 'Hello' },
+        delivery: { channels: ['max'] },
+      },
+    });
+    expect(sendMaxMessageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ userId: 207278131, text: 'Hello' }),
+    );
+  });
+
+  it('send message.send uses sendMessageToChat when only recipient.chatId is set (in-dialog)', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.send' as const,
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        recipient: { chatId: 100 },
+        message: { text: 'Hi' },
+        delivery: { channels: ['max'] },
+      },
+    });
+    expect(sendMaxMessageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ chatId: 100, text: 'Hi' }),
+    );
+  });
+
   it('canHandle callback.answer when source is max', () => {
     const adapter = createMaxDeliveryAdapter();
     const intent = {

@@ -2,6 +2,7 @@
  * Shared types and helpers for the executor. Used by the dispatcher and by handler modules.
  * Handlers must not import integrations; they use only ctx.base.facts, ctx.event, action params, and ports.
  */
+import { maxUserRecipient } from '../../../integrations/max/maxRecipient.js';
 import type {
   Action,
   ActionResult,
@@ -552,7 +553,7 @@ export async function resolveTargets(
         });
       }
       if (maxId && (!resource || resource === 'max')) {
-        targets.push({ resource: 'max', address: { channelId: maxId } });
+        targets.push({ resource: 'max', address: maxUserRecipient(maxId) });
       }
       if (targets.length > 0) return targets;
     }

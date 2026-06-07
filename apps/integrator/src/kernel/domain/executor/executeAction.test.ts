@@ -233,7 +233,7 @@ describe('executeAction', () => {
       message: { text: 'Booking confirmed' },
     });
     expect(maxIntent?.payload).toMatchObject({
-      recipient: { chatId: 456 },
+      recipient: { userId: 456 },
       delivery: { channels: ['max'], maxAttempts: 1 },
       message: { text: 'Booking confirmed' },
     });
@@ -2451,7 +2451,7 @@ describe('executeAction', () => {
       expect(result.status).toBe('success');
       expect(result.intents?.some((i) => i.type === 'message.copy')).toBe(false);
       const userSendIntent = result.intents?.find(
-        (i) => i.type === 'message.send' && (i.payload as { recipient?: { chatId?: number } })?.recipient?.chatId === 456,
+        (i) => i.type === 'message.send' && (i.payload as { recipient?: { userId?: number } })?.recipient?.userId === 456,
       );
       expect(userSendIntent).toBeDefined();
       expect((userSendIntent?.payload as { delivery?: { channels?: string[] } }).delivery?.channels).toEqual(['max']);

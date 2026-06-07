@@ -333,7 +333,7 @@ Canonical linking rules:
 {
   "messageId": "webapp-msg:uuid",
   "channel": "telegram" | "max" | "sms" | "email",
-  "recipient": "chatId или phoneNormalized",
+  "recipient": "Telegram chat id, MAX platform user id, или phoneNormalized (SMS)",
   "text": "Текст сообщения",
   "idempotencyKey": "messageId:channel:recipient",
   "metadata": { "optional": "meta" }

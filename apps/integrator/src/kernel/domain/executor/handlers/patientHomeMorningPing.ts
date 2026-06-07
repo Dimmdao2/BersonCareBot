@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon';
 import { z } from 'zod';
-import type { Action, ActionResult, DomainContext } from '../../../contracts/index.js';
-import type { OutgoingIntent } from '../../../contracts/events.js';
+import { maxUserRecipient } from '../../../../integrations/max/maxRecipient.js';
+import type { Action, ActionResult, DomainContext, OutgoingIntent } from '../../../contracts/index.js';
 import type { ExecutorDeps } from '../helpers.js';
 import { nowIso } from '../helpers.js';
 import { createDbPort } from '../../../../infra/db/client.js';
@@ -149,10 +149,12 @@ export async function handlePatientHomeMorningPing(
     const idemKey = `morning_warmup_ping:${dateKey}:${rec.userId}:${channel}`;
     const acquired = await tryAcquireMorningPingKey(db, idemKey);
     if (!acquired) continue;
-    const chatId = Number(rec.externalId);
-    if (!Number.isFinite(chatId) || chatId <= 0) continue;
+    const platformId = Number(rec.externalId);
+    if (!Number.isFinite(platformId) || platformId <= 0) continue;
 
     const inlineKeyboard = [[{ text: 'Открыть', web_app: { url: openUrl } }]];
+    const recipient =
+      channel === 'max' ? maxUserRecipient(platformId) : { chatId: platformId };
 
     if (useQueue) {
       const staggerSec = Math.min(queueStaggerIndex, 120);
@@ -169,13 +171,13 @@ export async function handlePatientHomeMorningPing(
               userId: rec.userId,
             },
             payload: {
-              recipient: { chatId },
+              recipient,
               message: { text: PING_TEXT },
               replyMarkup: { inline_keyboard: inlineKeyboard },
               delivery: { channels: [channel], maxAttempts: 1 },
             },
           },
-          targets: [{ resource: channel, address: { chatId } }],
+          targets: [{ resource: channel, address: recipient }],
           retry: { maxAttempts: 1, backoffSeconds: [staggerSec] },
         },
       });
@@ -190,7 +192,7 @@ export async function handlePatientHomeMorningPing(
           userId: rec.userId,
         },
         payload: {
-          recipient: { chatId },
+          recipient,
           message: { text: PING_TEXT },
           replyMarkup: {
             inline_keyboard: inlineKeyboard,

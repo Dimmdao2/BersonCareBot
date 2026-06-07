@@ -22,6 +22,7 @@ import {
   renderText,
 } from '../helpers.js';
 import { ADMIN, RELAY_USER } from '../templateKeys.js';
+import { maxUserRecipient } from '../../../../integrations/max/maxRecipient.js';
 import { isWebappPlatformConversationId } from '../../../../shared/support/platformConversationId.js';
 import { webappPlatformConversationId } from '../../../../shared/support/platformConversationId.js';
 import {
@@ -31,6 +32,21 @@ import {
   resolvePlatformUserIdForChannel,
 } from '../../support/webappSupportSync.js';
 import { buildProgramNoteReplyState } from '../../../../shared/support/programNoteReplyState.js';
+
+function resolvePatientMessengerRecipient(
+  source: string,
+  conversation: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (source === 'max') {
+    const channelUserId = asString(conversation.user_channel_id);
+    if (!channelUserId) return null;
+    return maxUserRecipient(channelUserId);
+  }
+  const userChatIdRaw = asString(conversation.user_chat_id) || asString(conversation.user_channel_id);
+  const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
+  if (!Number.isFinite(userChatId)) return null;
+  return { chatId: userChatId };
+}
 
 function channelDeliveryPayload(channel: string) {
   return { channels: [channel], maxAttempts: 1 };
@@ -366,9 +382,8 @@ export async function handleConversationAdminReply(
     params: { id: conversationId },
   });
   const sourceForConversation = asString(conversation?.source) ?? ctx.event.meta.source;
-  const userChatIdRaw = asString(conversation?.user_chat_id) || asString(conversation?.user_channel_id);
-  const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
-  if (!conversation || !Number.isFinite(userChatId)) {
+  const patientRecipient = conversation ? resolvePatientMessengerRecipient(sourceForConversation, conversation) : null;
+  if (!conversation || !patientRecipient) {
     return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_NOT_FOUND' };
   }
   const policy = deps.supportRelayPolicy;
@@ -447,7 +462,7 @@ export async function handleConversationAdminReply(
       type: 'message.send',
       meta: buildIntentMeta(action, ctx),
       payload: {
-        recipient: { chatId: userChatId },
+        recipient: patientRecipient,
         message: { text },
         delivery: channelDeliveryPayload(sourceForConversation),
       },
@@ -463,7 +478,7 @@ export async function handleConversationAdminReply(
       type: 'message.copy',
       meta: buildIntentMeta(action, ctx),
       payload: {
-        recipient: { chatId: userChatId },
+        recipient: patientRecipient,
         from_chat_id: adminChatId,
         message_id: adminMessageIdFinite,
         delivery: channelDeliveryPayload(sourceForConversation),

@@ -4,6 +4,7 @@ import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../
 import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import * as maxClient from './client.js';
 import { MaxSendError } from './client.js';
+import { parseMaxPlatformUserId, readMaxOutboundRecipient } from './maxRecipient.js';
 import { getMaxApiKey } from './runtimeConfig.js';
 
 /**
@@ -21,7 +22,7 @@ export type MaxOpenAppButtonPayload = {
 };
 
 type DeliveryPayload = {
-  recipient?: { chatId?: unknown };
+  recipient?: { chatId?: unknown; userId?: unknown; channelId?: unknown };
   message?: { text?: unknown };
   messageId?: unknown;
   callbackQueryId?: unknown;
@@ -31,21 +32,14 @@ type DeliveryPayload = {
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
 
-/** MAX user id for `open_app.contact_id` (initData / login context). */
-function parseMaxPlatformUserId(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
-  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim());
-  return undefined;
-}
-
 /**
  * **`open_app.contact_id`** в MAX API — платформенный user id пользователя.
- * Из payload берём **`recipient.chatId`** (обычно `chat_id` диалога в исходящих после вебхука);
- * если нет — fallback на **`meta.userId`** для jobs/fan-out.
+ * Prefer **`recipient.userId`** (bindings); else dialog **`recipient.chatId`**; else **`meta.userId`**.
  */
 function maxContactIdForOpenApp(intent: OutgoingIntent, payload: DeliveryPayload): number | undefined {
-  const fromRecipient = parseMaxPlatformUserId(payload.recipient?.chatId);
-  if (fromRecipient !== undefined) return fromRecipient;
+  const resolved = readMaxOutboundRecipient(payload.recipient);
+  if (resolved.userId !== undefined) return resolved.userId;
+  if (resolved.chatId !== undefined) return resolved.chatId;
   return parseMaxPlatformUserId(intent.meta?.userId);
 }
 
@@ -58,15 +52,6 @@ function readChannel(intent: OutgoingIntent): string | null {
     if (normalized.length > 0) return normalized[0] as string;
   }
   return intent.meta?.source ?? null;
-}
-
-function asChatId(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim().length > 0) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -153,13 +138,12 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       const config = { apiKey };
       const payload = intent.payload as DeliveryPayload;
       const text = asNonEmptyString(payload.message?.text);
-      const rawChatId = payload.recipient?.chatId;
       const messageId = payload.messageId;
 
       if (intent.type === 'message.send') {
-        const chatId = asChatId(rawChatId);
-        if (chatId === null || !text) {
-          throw new Error('MAX_PAYLOAD_INVALID: recipient.chatId and message.text required');
+        const { userId, chatId } = readMaxOutboundRecipient(payload.recipient);
+        if ((userId === undefined && chatId === undefined) || !text) {
+          throw new Error('MAX_PAYLOAD_INVALID: recipient (userId or chatId) and message.text required');
         }
         const sendContactId = maxContactIdForOpenApp(intent, payload);
         const attachments = toMaxInlineKeyboard(
@@ -168,7 +152,7 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         );
         try {
           const result = await maxClient.sendMaxMessage(config, {
-            chatId,
+            ...(userId !== undefined ? { userId } : { chatId: chatId! }),
             text,
             extra: {
               ...(payload.parse_mode === 'HTML' ? { format: 'html' as const } : {}),

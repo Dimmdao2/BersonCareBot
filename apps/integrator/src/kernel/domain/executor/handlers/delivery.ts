@@ -1,3 +1,4 @@
+import { maxUserRecipient } from '../../../../integrations/max/maxRecipient.js';
 import type { Action, ActionResult, DomainContext, OutgoingIntent } from '../../../contracts/index.js';
 import type { ExecutorDeps } from '../helpers.js';
 import {
@@ -155,10 +156,13 @@ export async function handleDelivery(
           : 1;
         const intents: OutgoingIntent[] = await Promise.all(
           targets.map(async (target) => {
-            const chatId = target.channel === 'telegram' ? Number(target.externalId) : (Number(target.externalId) || target.externalId);
+            const recipient =
+              target.channel === 'max'
+                ? maxUserRecipient(target.externalId)
+                : { chatId: Number(target.externalId) };
             let payload: Record<string, unknown> = {
               ...resolvedParams,
-              recipient: { chatId },
+              recipient,
               delivery: { channels: [target.channel], maxAttempts },
             };
             payload = await enrichMessageSendPayloadWithMaxMainInlineIfApplicable(payload, ctx, deps);

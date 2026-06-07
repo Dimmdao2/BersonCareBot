@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DbWriteMutation, DbWritePort, DispatchPort } from '../../kernel/contracts/index.js';
 import { persistWrites } from '../../kernel/domain/executor/helpers.js';
+import { maxUserRecipient } from '../max/maxRecipient.js';
 
 /** Синхронно с telegram:user/templates.json / requestContactRoute. */
 export const BERSONCARE_REQUEST_CONTACT_CONFIRM_TEXT =
@@ -32,7 +33,7 @@ export type DispatchRequestContactParams = {
   dispatchPort: DispatchPort;
   writePort?: DbWritePort;
   channel: 'telegram' | 'max';
-  /** Личка: chat id в TG/MAX. */
+  /** Личка: Telegram chat id; MAX platform user id. */
   recipientId: string;
   /** Для корреляции в meta (не дедуп внутри этой функции). */
   correlationId?: string;
@@ -74,6 +75,9 @@ export async function dispatchRequestContactToUser(params: DispatchRequestContac
   const eventId = `request-contact:${channel}:${randomUUID()}`;
   const replyMarkup = channel === 'telegram' ? telegramReplyMarkup() : maxInlineReplyMarkup();
 
+  const recipient =
+    channel === 'max' ? maxUserRecipient(recipientId) : { chatId: recipientId };
+
   await dispatchPort.dispatchOutgoing({
     type: 'message.send',
     meta: {
@@ -83,7 +87,7 @@ export async function dispatchRequestContactToUser(params: DispatchRequestContac
       ...(correlationId ? { correlationId } : {}),
     },
     payload: {
-      recipient: { chatId: recipientId },
+      recipient,
       message: { text: BERSONCARE_REQUEST_CONTACT_CONFIRM_TEXT },
       replyMarkup,
       delivery: { channels: [channel] },
