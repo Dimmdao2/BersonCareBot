@@ -57,7 +57,10 @@ export function resolveAdminStatsLocalRange(
   let fromStart: DateTime;
   let toEndInclusiveStart: DateTime;
 
-  if (preset === "week") {
+  if (preset === "day") {
+    fromStart = todayStart;
+    toEndInclusiveStart = todayStart;
+  } else if (preset === "week") {
     fromStart = todayStart.minus({ days: 6 });
     toEndInclusiveStart = todayStart;
   } else if (preset === "month") {

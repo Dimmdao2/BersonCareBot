@@ -7,6 +7,7 @@ import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { DoctorProgramDiscussionMessagesPanel } from "./DoctorProgramDiscussionMessagesPanel";
+import { markDoctorProgramDiscussionReadForStageItems } from "@/app/app/doctor/doctorProgramDiscussionMarkRead";
 import { sendDoctorProgramDiscussionReply } from "./doctorProgramDiscussionReply";
 
 export const DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS = "__all__";
@@ -24,12 +25,17 @@ type DiscussionPageResponse = {
     nextCursor?: string | null;
     stageItemIdFilter?: string | null;
   };
+  peerLastReadAtByStageItemId?: Record<string, string | null>;
 };
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
   const byDate = a.createdAt.localeCompare(b.createdAt);
   if (byDate !== 0) return byDate;
   return a.id.localeCompare(b.id);
+}
+
+function uniqueStageItemIds(messages: ProgramItemDiscussionMessage[]): string[] {
+  return [...new Set(messages.map((m) => m.instanceStageItemId))];
 }
 
 export function DoctorProgramInstanceDiscussionDialog(props: {
@@ -46,6 +52,9 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [messageCountByItemId, setMessageCountByItemId] = useState<Record<string, number>>({});
+  const [peerLastReadAtByStageItemId, setPeerLastReadAtByStageItemId] = useState<Record<string, string | null>>(
+    {},
+  );
   const loadGenerationRef = useRef(0);
   const filterStageItemIdRef = useRef(filterStageItemId);
 
@@ -81,7 +90,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       appendOlder: boolean,
       stageItemId: string,
       generation: number,
-    ) => {
+    ): Promise<ProgramItemDiscussionMessage[] | null> => {
       const url = new URL(basePath, window.location.origin);
       url.searchParams.set("direction", "backward");
       url.searchParams.set("limit", "50");
@@ -91,7 +100,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
       if (cursor) url.searchParams.set("cursor", cursor);
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
-      if (generation !== loadGenerationRef.current) return;
+      if (generation !== loadGenerationRef.current) return null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
         throw new Error(data?.error ?? "Не удалось загрузить обсуждения");
       }
@@ -103,8 +112,23 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
         return [...map.values()].sort(compareMessages);
       });
       setNextCursor(typeof data.pageInfo?.nextCursor === "string" ? data.pageInfo.nextCursor : null);
+      if (data.peerLastReadAtByStageItemId) {
+        setPeerLastReadAtByStageItemId((prev) => ({ ...prev, ...data.peerLastReadAtByStageItemId }));
+      }
+      return loaded;
     },
     [basePath],
+  );
+
+  const markVisibleDiscussionRead = useCallback(
+    (loaded: ProgramItemDiscussionMessage[], stageItemIdFilter: string) => {
+      const stageItemIds =
+        stageItemIdFilter !== DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS
+          ? [stageItemIdFilter]
+          : uniqueStageItemIds(loaded);
+      void markDoctorProgramDiscussionReadForStageItems({ instanceId, stageItemIds });
+    },
+    [instanceId],
   );
 
   const bootstrap = useCallback(async () => {
@@ -115,7 +139,10 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
     setMessages([]);
     setNextCursor(null);
     try {
-      await loadPage(null, false, filterStageItemId, generation);
+      const loaded = await loadPage(null, false, filterStageItemId, generation);
+      if (loaded) {
+        markVisibleDiscussionRead(loaded, filterStageItemId);
+      }
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
       const msg = e instanceof Error ? e.message : "Не удалось загрузить обсуждения";
@@ -125,7 +152,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
         setLoading(false);
       }
     }
-  }, [filterStageItemId, loadPage]);
+  }, [filterStageItemId, loadPage, markVisibleDiscussionRead]);
 
   const refreshSummary = useCallback(async (generation: number = loadGenerationRef.current) => {
     try {
@@ -178,6 +205,25 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
     void refreshSummary(loadGenerationRef.current);
   }, [open, refreshSummary]);
 
+  useEffect(() => {
+    if (!open) return;
+    const refreshPeerRead = async () => {
+      const url = new URL(basePath, window.location.origin);
+      url.searchParams.set("direction", "backward");
+      url.searchParams.set("limit", "1");
+      if (filterStageItemIdRef.current !== DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS) {
+        url.searchParams.set("stageItemId", filterStageItemIdRef.current);
+      }
+      const res = await fetch(url.toString());
+      const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
+      if (res.ok && data?.ok && data.peerLastReadAtByStageItemId) {
+        setPeerLastReadAtByStageItemId((prev) => ({ ...prev, ...data.peerLastReadAtByStageItemId }));
+      }
+    };
+    const id = window.setInterval(() => void refreshPeerRead(), 15000);
+    return () => window.clearInterval(id);
+  }, [open, basePath]);
+
   const showItemLabels = filterStageItemId === DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS;
 
   return (
@@ -211,6 +257,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
             loadingOlder={loadingOlder}
             error={error}
             nextCursor={nextCursor}
+            peerLastReadAtByStageItemId={peerLastReadAtByStageItemId}
             itemLabelById={showItemLabels ? itemLabelById : undefined}
             onSelectItemFilter={(stageItemId) => setFilterStageItemId(stageItemId)}
             onSendReply={async (stageItemId, text) => {
@@ -242,6 +289,9 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
               const generation = loadGenerationRef.current;
               setLoadingOlder(true);
               void loadPage(nextCursor, true, filterStageItemId, generation)
+                .then((loaded) => {
+                  if (loaded) markVisibleDiscussionRead(loaded, filterStageItemId);
+                })
                 .catch((e) => {
                   if (generation !== loadGenerationRef.current) return;
                   setError(e instanceof Error ? e.message : "Не удалось загрузить обсуждения");

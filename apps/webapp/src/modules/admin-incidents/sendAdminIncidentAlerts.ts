@@ -6,10 +6,13 @@ import { getConfigValue } from "@/modules/system-settings/configAdapter";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import {
   ADMIN_INCIDENT_ALERT_CONFIG_KEY,
+  ADMIN_INCIDENT_TOPIC_LABELS,
   type AdminIncidentTopicKey,
   isAdminIncidentTopicEnabled,
   parseAdminIncidentAlertConfig,
 } from "./adminIncidentAlertConfig";
+import { getAdminIncidentStaffPushDeps } from "./adminIncidentStaffPushRuntime";
+import { sendAdminIncidentStaffWebPush } from "./sendAdminIncidentStaffWebPush";
 
 const MAX_LINE = 500;
 
@@ -53,7 +56,8 @@ function clip(s: string, max: number): string {
 }
 
 /**
- * Best-effort relay to admin Telegram/Max lists per system_settings toggles.
+ * Best-effort relay to admin Telegram/Max lists and staff web push per system_settings toggles.
+ * Delivery is fire-and-forget — callers must not rely on await for channel completion.
  */
 export async function sendAdminIncidentRelayAlert(input: {
   topic: AdminIncidentTopicKey;
@@ -68,7 +72,9 @@ export async function sendAdminIncidentRelayAlert(input: {
   if (!text.trim()) return;
 
   const dk = clip(input.dedupKey.replace(/[^a-zA-Z0-9:_-]/g, "_"), 120);
-  const sends: Promise<void>[] = [];
+  const pushTitle = ADMIN_INCIDENT_TOPIC_LABELS[input.topic];
+  const pushBody = clip(input.lines.find((line) => line.trim().length > 0) ?? text, 160);
+  const pushUrl = "/app/doctor/admin/technical";
 
   if (cfg.channels.telegram) {
     if (targets.telegram.length === 0) {
@@ -76,23 +82,21 @@ export async function sendAdminIncidentRelayAlert(input: {
     } else {
       for (const id of targets.telegram) {
         const messageId = `admin-incident:${input.topic}:${dk}:telegram:${id}`;
-        sends.push(
-          relayOutbound({ messageId, channel: "telegram", recipient: id, text }).then((r) => {
-            if (!r.ok) {
-              logger.warn(
-                {
-                  scope: "admin_incident",
-                  event: "admin_incident_relay_failed",
-                  topic: input.topic,
-                  channel: "telegram",
-                  recipient: id,
-                  reason: r.reason,
-                },
-                "relay failed",
-              );
-            }
-          }),
-        );
+        void relayOutbound({ messageId, channel: "telegram", recipient: id, text }).then((r) => {
+          if (!r.ok) {
+            logger.warn(
+              {
+                scope: "admin_incident",
+                event: "admin_incident_relay_failed",
+                topic: input.topic,
+                channel: "telegram",
+                recipient: id,
+                reason: r.reason,
+              },
+              "relay failed",
+            );
+          }
+        });
       }
     }
   }
@@ -103,28 +107,59 @@ export async function sendAdminIncidentRelayAlert(input: {
     } else {
       for (const id of targets.max) {
         const messageId = `admin-incident:${input.topic}:${dk}:max:${id}`;
-        sends.push(
-          relayOutbound({ messageId, channel: "max", recipient: id, text }).then((r) => {
-            if (!r.ok) {
-              logger.warn(
-                {
-                  scope: "admin_incident",
-                  event: "admin_incident_relay_failed",
-                  topic: input.topic,
-                  channel: "max",
-                  recipient: id,
-                  reason: r.reason,
-                },
-                "relay failed",
-              );
-            }
-          }),
-        );
+        void relayOutbound({ messageId, channel: "max", recipient: id, text }).then((r) => {
+          if (!r.ok) {
+            logger.warn(
+              {
+                scope: "admin_incident",
+                event: "admin_incident_relay_failed",
+                topic: input.topic,
+                channel: "max",
+                recipient: id,
+                reason: r.reason,
+              },
+              "relay failed",
+            );
+          }
+        });
       }
     }
   }
 
-  await Promise.all(sends);
+  if (cfg.channels.web_push) {
+    const pushDeps = getAdminIncidentStaffPushDeps();
+    if (!pushDeps) {
+      logger.info({
+        scope: "admin_incident",
+        event: "admin_incident_alert_skipped_no_push_runtime",
+        channel: "web_push",
+      });
+    } else {
+      void sendAdminIncidentStaffWebPush(
+        {
+          topic: input.topic,
+          dedupKey: dk,
+          pushTitle,
+          pushBody,
+          pushUrl,
+        },
+        pushDeps,
+      )
+        .then((delivered) => {
+          if (delivered === 0) {
+            logger.info({
+              scope: "admin_incident",
+              event: "admin_incident_alert_skipped_no_recipients",
+              channel: "web_push",
+              topic: input.topic,
+            });
+          }
+        })
+        .catch((err: unknown) => {
+          logger.warn({ err, topic: input.topic }, "admin incident web push dispatch failed");
+        });
+    }
+  }
 }
 
 export type ChannelLinkBindingConflictCtx = {

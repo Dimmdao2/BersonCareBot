@@ -7,7 +7,7 @@ import { allowedDoctorChannelsForTopic, type DoctorTopicChannelCode } from "./do
 export function defaultDoctorTopicFallbackChannels(
   topicCode: DoctorNotificationTopicCode,
 ): readonly SpecialistTaskReminderChannelCode[] {
-  if (topicCode === "doctor_patient_messages") {
+  if (topicCode === "doctor_patient_messages" || topicCode === "doctor_patient_program_notes") {
     return ["telegram", "max"];
   }
   return [];

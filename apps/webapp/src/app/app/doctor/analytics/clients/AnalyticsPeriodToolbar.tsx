@@ -32,6 +32,14 @@ export function AnalyticsPeriodToolbar({
         <Button
           type="button"
           size="sm"
+          variant={period.preset === "day" ? "default" : "outline"}
+          onClick={() => onPresetChange("day")}
+        >
+          Сутки
+        </Button>
+        <Button
+          type="button"
+          size="sm"
           variant={period.preset === "week" ? "default" : "outline"}
           onClick={() => onPresetChange("week")}
         >

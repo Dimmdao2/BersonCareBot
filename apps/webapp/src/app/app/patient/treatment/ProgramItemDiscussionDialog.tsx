@@ -13,6 +13,8 @@ import {
   patientPrimaryActionClass,
 } from "@/shared/ui/patient/patientVisual";
 import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/modules/messaging/messageFormatting";
+import { chatMessageDeliveryStatus } from "@/modules/messaging/chatMessageDeliveryStatus";
+import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
 import { ProgramItemDiscussionMediaPicker } from "@/app/app/patient/treatment/ProgramItemDiscussionMediaPicker";
 import { ProgramItemDiscussionMessageBody } from "@/app/app/patient/treatment/ProgramItemDiscussionMessageBody";
 import { notifyPatientSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
@@ -24,6 +26,7 @@ type DiscussionPageResponse = {
   pageInfo?: {
     nextCursor?: string | null;
   };
+  peerLastReadAt?: string | null;
 };
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
@@ -48,6 +51,7 @@ export function ProgramItemDiscussionDialog(props: {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
 
   const basePath = useMemo(
     () =>
@@ -82,6 +86,9 @@ export function ProgramItemDiscussionDialog(props: {
         return [...map.values()].sort(compareMessages);
       });
       setNextCursor(typeof data.pageInfo?.nextCursor === "string" ? data.pageInfo.nextCursor : null);
+      if (data.peerLastReadAt !== undefined) {
+        setPeerLastReadAt(data.peerLastReadAt);
+      }
     },
     [basePath],
   );
@@ -105,6 +112,22 @@ export function ProgramItemDiscussionDialog(props: {
     void bootstrap();
   }, [open, bootstrap]);
 
+  useEffect(() => {
+    if (!open) return;
+    const refreshPeerRead = async () => {
+      const url = new URL(basePath, window.location.origin);
+      url.searchParams.set("direction", "backward");
+      url.searchParams.set("limit", "1");
+      const res = await fetch(url.toString());
+      const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
+      if (res.ok && data?.ok && data.peerLastReadAt !== undefined) {
+        setPeerLastReadAt(data.peerLastReadAt);
+      }
+    };
+    const id = window.setInterval(() => void refreshPeerRead(), 15000);
+    return () => window.clearInterval(id);
+  }, [open, basePath]);
+
   const sendText = useCallback(async () => {
     const body = draft.trim();
     if (!body || sending) return;
@@ -116,19 +139,30 @@ export function ProgramItemDiscussionDialog(props: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body }),
       });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        message?: ProgramItemDiscussionMessage | null;
+      } | null;
       if (!res.ok || !data?.ok) {
         setError(data?.error ?? "Не удалось отправить комментарий");
         return;
       }
       setDraft("");
-      await bootstrap();
+      if (data.message) {
+        setMessages((prev) => {
+          const map = new Map(prev.map((m) => [m.id, m]));
+          map.set(data.message!.id, data.message!);
+          return [...map.values()].sort(compareMessages);
+        });
+      }
+      void onRead?.();
     } catch {
       setError("Ошибка сети");
     } finally {
       setSending(false);
     }
-  }, [basePath, bootstrap, draft, sending]);
+  }, [basePath, draft, onRead, sending]);
 
   const sortedMessages = useMemo(() => [...messages].sort(compareMessages), [messages]);
 
@@ -171,6 +205,9 @@ export function ProgramItemDiscussionDialog(props: {
               </p>
             : sortedMessages.map((m) => {
                 const mine = m.senderRole === "patient";
+                const deliveryStatus = mine
+                  ? chatMessageDeliveryStatus({ createdAt: m.createdAt, peerLastReadAt })
+                  : null;
                 return (
                   <div key={m.id} className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
                     <div className={cn("flex max-w-[min(100%,22rem)]", mine ? "justify-end" : "justify-start")}>
@@ -184,18 +221,26 @@ export function ProgramItemDiscussionDialog(props: {
                         )}
                       >
                         <ProgramItemDiscussionMessageBody message={m} mine={mine} />
+                        {mine && deliveryStatus ?
+                          <ChatBubbleOutgoingMeta
+                            timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                            deliveryStatus={deliveryStatus}
+                          />
+                        : null}
                       </div>
                     </div>
-                    <p
-                      className={cn(
-                        "max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]",
-                        patientChatMetaLineClass,
-                        mine ? "text-end" : "text-start",
-                      )}
-                    >
-                      {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{" "}
-                      {formatChatMessageTimeRu(m.createdAt)}
-                    </p>
+                    {!mine ?
+                      <p
+                        className={cn(
+                          "max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]",
+                          patientChatMetaLineClass,
+                          "text-start",
+                        )}
+                      >
+                        {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{" "}
+                        {formatChatMessageTimeRu(m.createdAt)}
+                      </p>
+                    : null}
                   </div>
                 );
               })

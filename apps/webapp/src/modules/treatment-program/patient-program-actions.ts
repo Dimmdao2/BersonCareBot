@@ -6,6 +6,7 @@ import type {
   TreatmentProgramInstanceStageItemView,
 } from "./types";
 import type { ProgramItemDiscussionService } from "@/modules/program-item-discussion/service";
+import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import {
   isInstanceStageItemActiveForPatient,
@@ -408,7 +409,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       instanceId: string;
       stageItemId: string;
       note: string;
-    }): Promise<void> {
+    }): Promise<ProgramItemDiscussionMessage | null> {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
@@ -444,8 +445,9 @@ export function createTreatmentProgramPatientActionService(deps: {
         payload: { source: "patient_observation" },
         note: noteTrim.slice(0, 4000),
       });
+      let savedMessage: ProgramItemDiscussionMessage | null = null;
       if (detail.assignmentSource === "doctor" && deps.discussion) {
-        await deps.discussion.appendMessage({
+        savedMessage = await deps.discussion.appendMessage({
           instanceStageItemId: input.stageItemId,
           patientUserId: input.patientUserId,
           senderRole: "patient",
@@ -457,16 +459,24 @@ export function createTreatmentProgramPatientActionService(deps: {
         const snap = item.snapshot as Record<string, unknown>;
         const title =
           typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "Пункт программы";
-        const patientLabel = await deps.resolvePatientLabel(input.patientUserId);
-        await deps.notifyDoctorOfProgramNote({
+        const notifyInput = {
           patientUserId: input.patientUserId,
           instanceId: input.instanceId,
           stageItemId: input.stageItemId,
-          patientLabel,
           exerciseTitle: title,
           noteText: noteTrim,
+        };
+        void (async () => {
+          const patientLabel = await deps.resolvePatientLabel!(input.patientUserId);
+          await deps.notifyDoctorOfProgramNote!({
+            ...notifyInput,
+            patientLabel,
+          });
+        })().catch((err: unknown) => {
+          console.error("[patient-program-note] notify failed", err);
         });
       }
+      return savedMessage;
     },
 
     /** Медиа пациента по пункту программы (discussion message + журнал). */
@@ -523,14 +533,21 @@ export function createTreatmentProgramPatientActionService(deps: {
         const snap = item.snapshot as Record<string, unknown>;
         const title =
           typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "Пункт программы";
-        const patientLabel = await deps.resolvePatientLabel(input.patientUserId);
-        await deps.notifyDoctorOfProgramNote({
+        const notifyInput = {
           patientUserId: input.patientUserId,
           instanceId: input.instanceId,
           stageItemId: input.stageItemId,
-          patientLabel,
           exerciseTitle: title,
           noteText: "Медиафайл",
+        };
+        void (async () => {
+          const patientLabel = await deps.resolvePatientLabel!(input.patientUserId);
+          await deps.notifyDoctorOfProgramNote!({
+            ...notifyInput,
+            patientLabel,
+          });
+        })().catch((err: unknown) => {
+          console.error("[patient-program-note] notify failed", err);
         });
       }
     },

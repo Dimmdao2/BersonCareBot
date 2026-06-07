@@ -7,6 +7,7 @@ import {
 } from "@/shared/lib/doctorCatalogListStatus";
 import { isDoctorCatalogMissingFilterToken } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { parseDoctorCatalogRegionQueryParam, resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
+import { doctorCatalogClientFilterUrlHints } from "@/shared/lib/doctorCatalogClientUrlSync";
 import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
   assessmentKindWriteAllowSet,
@@ -93,6 +94,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
           assessmentKind,
           invalidAssessmentQuery: assessmentRaw !== "" && !assessmentKind,
           listStatus,
+          ...doctorCatalogClientFilterUrlHints(sp),
         }}
       />
     </DoctorAppShell>

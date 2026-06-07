@@ -36,6 +36,8 @@ const samplePayload = {
   practiceBySource: {} as Record<string, number>,
   practiceTopPages: [] as Array<{ contentPageId: string; section: string; slug: string; count: number }>,
   warmupVideoTopPages: [] as Array<{ contentPageId: string; section: string; slug: string; count: number }>,
+  warmupVideoEstimatedWatchMinutes: 0,
+  videoPlaybackEstimatedWatchMinutes: 0,
   videoPlayback: {
     byDelivery: { hls: 0, mp4: 0, file: 0 },
     fallbackTotal: 0,

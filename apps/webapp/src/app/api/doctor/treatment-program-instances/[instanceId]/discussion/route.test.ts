@@ -23,7 +23,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     treatmentProgramInstance: { getInstanceById: getInstanceMock },
     doctorClientsPort: { getClientIdentity: getClientIdentityMock },
-    programItemDiscussion: {},
+    programItemDiscussion: {
+      getLastReadAtForViewer: async () => null,
+    },
   }),
 }));
 

@@ -34,6 +34,8 @@ const {
   listActionLogForInstanceMock,
   appendObservationNoteMock,
   getPatientProgramInteractionPolicyMock,
+  listActiveStaffUserIdsMock,
+  getMaxLastReadAtForViewersMock,
 } = vi.hoisted(() => {
   const getPatientProgramInteractionPolicyMockInner = vi.fn();
   const getSettingMockInner = vi.fn();
@@ -47,6 +49,8 @@ const {
   const getUnreadCountMockInner = vi.fn();
   const listActionLogForInstanceMockInner = vi.fn();
   const appendObservationNoteMockInner = vi.fn();
+  const listActiveStaffUserIdsMockInner = vi.fn();
+  const getMaxLastReadAtForViewersMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
     getSettingMock: getSettingMockInner,
@@ -61,6 +65,8 @@ const {
     listActionLogForInstanceMock: listActionLogForInstanceMockInner,
     appendObservationNoteMock: appendObservationNoteMockInner,
     getPatientProgramInteractionPolicyMock: getPatientProgramInteractionPolicyMockInner,
+    listActiveStaffUserIdsMock: listActiveStaffUserIdsMockInner,
+    getMaxLastReadAtForViewersMock: getMaxLastReadAtForViewersMockInner,
     buildAppDepsMock: vi.fn(() => ({
       systemSettings: { getSetting: getSettingMockInner },
       doctorClients: {
@@ -75,7 +81,9 @@ const {
         countLegacyAdminRepliesForStageItem: countLegacyAdminRepliesMockInner,
         listLinkedSupportMessageIdsForStageItem: listLinkedSupportMessageIdsMockInner,
         getUnreadCount: getUnreadCountMockInner,
+        getMaxLastReadAtForViewers: getMaxLastReadAtForViewersMockInner,
       },
+      staffUsers: { listActiveStaffUserIds: listActiveStaffUserIdsMockInner },
       programActionLog: { listForInstance: listActionLogForInstanceMockInner },
       treatmentProgramPatientActions: {
         patientAppendObservationNote: appendObservationNoteMockInner,
@@ -127,6 +135,8 @@ describe("patient item discussion route", () => {
     listActionLogForInstanceMock.mockReset();
     appendObservationNoteMock.mockReset();
     getPatientProgramInteractionPolicyMock.mockReset();
+    listActiveStaffUserIdsMock.mockReset();
+    getMaxLastReadAtForViewersMock.mockReset();
 
     gateMock.mockResolvedValue(okGate());
     getSettingMock.mockResolvedValue({ valueJson: { value: true } });
@@ -151,6 +161,8 @@ describe("patient item discussion route", () => {
       ],
     });
     getUnreadCountMock.mockResolvedValue(2);
+    listActiveStaffUserIdsMock.mockResolvedValue([]);
+    getMaxLastReadAtForViewersMock.mockResolvedValue(null);
     listActionLogForInstanceMock.mockResolvedValue([
       {
         instanceStageItemId: itemId,
@@ -281,7 +293,6 @@ describe("patient item discussion route", () => {
   });
 
   it("POST proxies comment through observation dual-write path", async () => {
-    appendObservationNoteMock.mockResolvedValue(undefined);
     const posted: DiscussionMsg = {
       id: "00000000-0000-4000-8000-000000000099",
       instanceStageItemId: itemId,
@@ -293,6 +304,7 @@ describe("patient item discussion route", () => {
       supportMessageId: null,
       createdAt: "2026-05-30T10:09:00.000Z",
     };
+    appendObservationNoteMock.mockResolvedValue(posted);
     listMessagesPageMock.mockResolvedValue([posted]);
     listMessagesForStageItemMock.mockResolvedValue([
       posted,

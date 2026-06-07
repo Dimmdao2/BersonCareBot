@@ -357,6 +357,26 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       return row?.lastReadAt ?? null;
     },
 
+    async getMaxLastReadAtForViewers(params: {
+      stageItemId: string;
+      viewerUserIds: string[];
+    }): Promise<string | null> {
+      if (params.viewerUserIds.length === 0) return null;
+      const db = getDrizzle();
+      const [row] = await db
+        .select({
+          maxLastReadAt: sql<string | null>`max(${programItemDiscussionReads.lastReadAt})`,
+        })
+        .from(programItemDiscussionReads)
+        .where(
+          and(
+            eq(programItemDiscussionReads.instanceStageItemId, params.stageItemId),
+            inArray(programItemDiscussionReads.patientUserId, params.viewerUserIds),
+          ),
+        );
+      return row?.maxLastReadAt ?? null;
+    },
+
     async listLinkedSupportMessageIdsForStageItem(stageItemId: string): Promise<string[]> {
       const db = getDrizzle();
       const rows = await db

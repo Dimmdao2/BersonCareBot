@@ -34,3 +34,15 @@ export async function markDoctorProgramDiscussionRead(
   }
   return { ok: true };
 }
+
+/** Mark read for each stage item (best-effort; errors are ignored). */
+export async function markDoctorProgramDiscussionReadForStageItems(input: {
+  instanceId: string;
+  stageItemIds: string[];
+}): Promise<void> {
+  const ids = [...new Set(input.stageItemIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return;
+  await Promise.all(
+    ids.map((stageItemId) => markDoctorProgramDiscussionRead({ instanceId: input.instanceId, stageItemId })),
+  );
+}

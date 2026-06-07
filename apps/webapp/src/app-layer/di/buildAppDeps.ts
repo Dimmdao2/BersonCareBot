@@ -176,6 +176,7 @@ import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorS
 import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatientDoctorReply";
 import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPatientMessage";
 import { notifyDoctorPatientProgramNote } from "@/modules/messaging/notifyDoctorPatientProgramNote";
+import { registerAdminIncidentStaffPushDeps } from "@/modules/admin-incidents/adminIncidentStaffPushRuntime";
 import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
 import { createSendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
@@ -757,6 +758,29 @@ const patientCalendarTimezoneSet = inMemoryRepos
 const patientCalendarTimezoneTryInitial = inMemoryRepos
   ? async (_userId: string, _raw: string | null) => {}
   : trySetInitialCalendarTimezoneIfEmpty;
+const doctorPatientMessageStaffDeps = {
+  staffUsers: staffUsersPort,
+  topicChannelPrefs: topicChannelPrefsPort,
+  channelPreferences: channelPreferencesPort,
+  webPushSubscriptions: webPushSubscriptionsPort,
+  systemSettings: systemSettingsService,
+  getChannelBindings: loadPlatformUserChannelBindings,
+};
+registerAdminIncidentStaffPushDeps({
+  staffUsers: staffUsersPort,
+  channelPreferences: channelPreferencesPort,
+  webPushSubscriptions: webPushSubscriptionsPort,
+  systemSettings: systemSettingsService,
+});
+const resolvePatientLabelForDoctorNotify = async (platformUserId: string): Promise<string> => {
+  const identity = await doctorClientsPort.getClientIdentity(platformUserId);
+  return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";
+};
+const notifyDoctorOfProgramNoteImpl = async (
+  input: Parameters<typeof notifyDoctorPatientProgramNote>[0],
+) => {
+  await notifyDoctorPatientProgramNote(input, { staffDeps: doctorPatientMessageStaffDeps });
+};
 const treatmentProgramPatientActions = createTreatmentProgramPatientActionService({
   instances: treatmentProgramInstancePort,
   actionLog: programActionLogPort,
@@ -764,11 +788,8 @@ const treatmentProgramPatientActions = createTreatmentProgramPatientActionServic
   discussion: programItemDiscussionService,
   getAppDefaultTimezoneIana: getAppDisplayTimeZone,
   getPatientCalendarTimezoneIana: patientCalendarTimezoneGet,
-  resolvePatientLabel: async (platformUserId) => {
-    const identity = await doctorClientsPort.getClientIdentity(platformUserId);
-    return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";
-  },
-  notifyDoctorOfProgramNote: notifyDoctorPatientProgramNote,
+  resolvePatientLabel: resolvePatientLabelForDoctorNotify,
+  notifyDoctorOfProgramNote: notifyDoctorOfProgramNoteImpl,
 });
 const treatmentProgramItemSnapshotPort = !inMemoryRepos
   ? createPgTreatmentProgramItemSnapshotPort()
@@ -945,19 +966,6 @@ const sendProgramNoteReply = createSendProgramNoteReply({
   discussion: programItemDiscussionService,
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
 });
-const doctorPatientMessageStaffDeps = {
-  staffUsers: staffUsersPort,
-  topicChannelPrefs: topicChannelPrefsPort,
-  channelPreferences: channelPreferencesPort,
-  webPushSubscriptions: webPushSubscriptionsPort,
-  systemSettings: systemSettingsService,
-  getChannelBindings: loadPlatformUserChannelBindings,
-};
-
-const resolvePatientLabelForDoctorNotify = async (platformUserId: string): Promise<string> => {
-  const identity = await doctorClientsPort.getClientIdentity(platformUserId);
-  return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";
-};
 
 const notifyDoctorOfPatientMessageImpl = async (input: {
   platformUserId: string;

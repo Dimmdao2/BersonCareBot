@@ -56,36 +56,28 @@ export function PatientMessagesClient() {
     };
   }, [loadBootstrap]);
 
-  const lastCreatedAt = messages.length ? messages[messages.length - 1]!.createdAt : null;
-
   const poll = useCallback(async () => {
-    if (!conversationId || !lastCreatedAt) return;
-    const u = new URL("/api/patient/messages", window.location.origin);
-    u.searchParams.set("conversationId", conversationId);
-    u.searchParams.set("since", lastCreatedAt);
-    const res = await fetch(u.toString());
-    const data = (await res.json()) as { ok?: boolean; messages?: SerializedSupportMessage[] };
-    if (!res.ok || !data.ok) return;
-    const incoming = data.messages ?? [];
-    if (incoming.length === 0) return;
-    setMessages((prev) => {
-      const ids = new Set(prev.map((m) => m.id));
-      const merged = [...prev];
-      for (const m of incoming) {
-        if (!ids.has(m.id)) merged.push(m);
-      }
-      merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      return merged;
-    });
-    const readRes = await fetch("/api/patient/messages/read", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversationId }),
-    });
-    if (readRes.ok) notifyPatientSupportUnreadCountChanged();
-  }, [conversationId, lastCreatedAt]);
+    if (!conversationId) return;
+    try {
+      const fullRes = await fetch(`/api/patient/messages?conversationId=${encodeURIComponent(conversationId)}`);
+      const fullData = (await fullRes.json()) as {
+        ok?: boolean;
+        messages?: SerializedSupportMessage[];
+      };
+      if (!fullRes.ok || !fullData.ok || !Array.isArray(fullData.messages)) return;
+      setMessages(fullData.messages);
+      const readRes = await fetch("/api/patient/messages/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      });
+      if (readRes.ok) notifyPatientSupportUnreadCountChanged();
+    } catch {
+      // Polling is best-effort.
+    }
+  }, [conversationId]);
 
-  useMessagePolling(poll, Boolean(conversationId && lastCreatedAt), 18000);
+  useMessagePolling(poll, Boolean(conversationId), 18000);
 
   const send = async () => {
     const t = draft.trim();
@@ -98,18 +90,26 @@ export function PatientMessagesClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: t, conversationId }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok) {
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        message?: SerializedSupportMessage;
+      };
+      if (!res.ok || !data.ok) {
         setError(data.error ?? "Не отправлено");
         return;
       }
       setDraft("");
       setComposerExpanded(false);
-      const res2 = await fetch(
-        `/api/patient/messages?conversationId=${encodeURIComponent(conversationId)}`
-      );
-      const j = (await res2.json()) as { messages?: SerializedSupportMessage[] };
-      if (res2.ok && j.messages) setMessages(j.messages);
+      if (data.message) {
+        setMessages((prev) => {
+          const ids = new Set(prev.map((m) => m.id));
+          if (ids.has(data.message!.id)) return prev;
+          const merged = [...prev, data.message!];
+          merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+          return merged;
+        });
+      }
     } catch {
       setError("Ошибка сети");
     } finally {

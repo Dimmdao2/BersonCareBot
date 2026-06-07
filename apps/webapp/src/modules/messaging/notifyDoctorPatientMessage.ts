@@ -75,43 +75,37 @@ export async function notifyDoctorPatientMessage(
     replyConversationId,
   });
   const preview = input.messageText.trim().slice(0, 120);
-
-  let staffTelegram = 0;
-  let staffMax = 0;
+  const replyMarkup = {
+    inline_keyboard: [[{ text: "Ответить", callback_data: `admin_reply:${replyConversationId}` }]],
+  };
 
   if (opts?.staffDeps) {
-    const staffResult = await notifyDoctorPatientMessageToStaff(
+    void notifyDoctorPatientMessageToStaff(
       {
-        messageId: input.messageId,
+        topicCode: "doctor_patient_messages",
+        messageId: `patient-msg-notify:${input.messageId}`,
         text,
         pushTitle: "Сообщение от пациента",
         pushBody: `${input.patientLabel}: ${preview}`,
         pushUrl: openPath,
-        replyConversationId,
+        replyMarkup,
       },
       opts.staffDeps,
     ).catch((err: unknown) => {
       console.error("[notifyDoctorPatientMessage] staff notify error:", err);
-      return { telegramDelivered: 0, maxDelivered: 0, pushDelivered: 0 };
     });
-    staffTelegram = staffResult.telegramDelivered;
-    staffMax = staffResult.maxDelivered;
+    return;
   }
 
-  if (staffTelegram === 0 && staffMax === 0) {
-    const targets = await loadDoctorNotifyTargets();
-    if (targets.telegram.length > 0 || targets.max.length > 0) {
-      const replyMarkup = {
-        inline_keyboard: [[{ text: "Ответить", callback_data: `admin_reply:${replyConversationId}` }]],
-      };
-      await relayTextToDoctorTargets(
-        `patient-msg-notify:${input.messageId}`,
-        targets,
-        text,
-        "patient-msg-notify",
-        replyMarkup,
-      );
-    }
+  const targets = await loadDoctorNotifyTargets();
+  if (targets.telegram.length > 0 || targets.max.length > 0) {
+    await relayTextToDoctorTargets(
+      `patient-msg-notify:${input.messageId}`,
+      targets,
+      text,
+      "patient-msg-notify",
+      replyMarkup,
+    );
   }
 }
 

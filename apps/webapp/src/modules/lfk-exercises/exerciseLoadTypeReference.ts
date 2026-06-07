@@ -6,6 +6,8 @@ import {
 } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import type { ExerciseLoadType } from "./types";
 
+const LOAD_TYPE_CODE_TOKEN = /^[a-z0-9_]+$/;
+
 /**
  * Тип нагрузки упражнения — код в `lfk_exercises.load_type` сверяется со справочником
  * `reference_categories` / `reference_items` (`load_type`).
@@ -69,6 +71,23 @@ export function parseExerciseLoadFilterQueryParam(
     return DOCTOR_CATALOG_FILTER_MISSING;
   }
   return parseExerciseLoadQueryParam(raw, allowSet);
+}
+
+/**
+ * Клиентский `?load=` (и SSR hint): формат кода как у `region`, без allowlist —
+ * список в UI приходит из справочника, а жёсткая проверка allowSet на клиенте ломала фильтр
+ * для кодов, добавленных в БД после сида.
+ */
+export function parseExerciseLoadCatalogUrlParam(
+  raw: string | null | undefined,
+): ExerciseLoadType | DoctorCatalogMissingFilter | undefined {
+  if (raw == null) return undefined;
+  const t = raw.trim();
+  if (!t) return undefined;
+  if (isDoctorCatalogMissingFilterToken(t)) return DOCTOR_CATALOG_FILTER_MISSING;
+  const lower = t.toLowerCase();
+  if (!LOAD_TYPE_CODE_TOKEN.test(lower)) return undefined;
+  return lower as ExerciseLoadType;
 }
 
 export function parseExerciseLoadFormValue(

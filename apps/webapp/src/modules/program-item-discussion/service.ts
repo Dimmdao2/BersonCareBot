@@ -196,6 +196,18 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
       });
     },
 
+    async getMaxLastReadAtForViewers(input: {
+      stageItemId: string;
+      viewerUserIds: string[];
+    }): Promise<string | null> {
+      const viewerUserIds = [...new Set(input.viewerUserIds.map((id) => assertUuid(id, "viewer_user_id")))];
+      if (viewerUserIds.length === 0) return null;
+      return port.getMaxLastReadAtForViewers({
+        stageItemId: assertUuid(input.stageItemId, "stage_item_id"),
+        viewerUserIds,
+      });
+    },
+
     async getUnreadCount(input: { patientUserId: string; stageItemId: string; exerciseTitle?: string }): Promise<number> {
       const patientUserId = assertUuid(input.patientUserId, "patient_user_id");
       const stageItemId = assertUuid(input.stageItemId, "stage_item_id");

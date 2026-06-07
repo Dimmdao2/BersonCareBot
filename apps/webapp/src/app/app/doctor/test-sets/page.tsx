@@ -5,6 +5,7 @@ import {
   testSetListFilterFromPubArch,
 } from "@/shared/lib/doctorCatalogListStatus";
 import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
+import { doctorCatalogClientFilterUrlHints } from "@/shared/lib/doctorCatalogClientUrlSync";
 import { clinicalTestLibraryRows } from "./clinicalTestLibraryRows";
 import { TestSetsPageClient } from "./TestSetsPageClient";
 
@@ -57,6 +58,7 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
           q,
           regionCode: regionParsed.regionCode,
           listPubArch,
+          ...doctorCatalogClientFilterUrlHints(sp),
         }}
       />
     </DoctorAppShell>

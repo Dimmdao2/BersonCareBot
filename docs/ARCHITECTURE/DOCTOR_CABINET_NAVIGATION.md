@@ -33,11 +33,11 @@
 | Сегодня (рабочий inbox) | `/app/doctor` | KPI + очереди; см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md) |
 | Календарь записей | `/app/doctor/calendar` | Read switch: `appointment_records` (default) или `be_appointments` (`booking_doctor_appointments_read_source`); API `/api/doctor/booking-engine/calendar` (`readSource`, `freeSlotsEnabled`) |
 | Список записей | `/app/doctor/appointments` | `?tab=appointments\|schedule` · `?view=future\|past`; tab=**schedule** — только admin; RSC fetch через `DoctorAppointmentsReadSwitch`; API пагинации архива: `GET /api/doctor/appointments/list?view=past&offset=N` |
-| Аналитика по клиентам | `/app/doctor/analytics/clients` | Бывш. `/app/doctor/stats`; графики регистраций/подписчиков |
+| Аналитика по клиентам | `/app/doctor/analytics/clients` | Бывш. `/app/doctor/stats`; пресет **«Сутки»** (`preset=day`) + week/month/custom |
 | Статистика (legacy URL) | `/app/doctor/stats` | **Редирект** → `analytics/clients` |
-| По контенту | `/app/doctor/material-ratings` | Оценки материалов |
-| По уведомлениям | `/app/doctor/analytics/notifications` | Бывш. `?adminTab=reminder-stats` |
-| Использование (product) | `/app/doctor/usage` | Бывш. `?adminTab=product-analytics` |
+| По контенту | `/app/doctor/material-ratings` | UI «Статистика материалов»: дашборд **`content-stats`** + таблицы оценок; см. [`MATERIAL_RATINGS.md`](MATERIAL_RATINGS.md) |
+| По уведомлениям | `/app/doctor/analytics/notifications` | Бывш. `?adminTab=reminder-stats`; **`windowHours`** 24 ч / 7 дн. / 30 дн. |
+| Использование (product) | `/app/doctor/usage` | Бывш. `?adminTab=product-analytics`; те же пресеты **`windowHours`** |
 | Здоровье системы | `/app/doctor/system-health` | `GET /api/admin/system-health` |
 | Архив сбоев | `/app/doctor/health-archive` | |
 | Журнал операций | `/app/doctor/audit-log` | `GET /api/admin/audit-log`; сверху — ошибки регистрации (`GET /api/admin/auth-registration-events`) |
@@ -49,6 +49,16 @@
 | Технические режимы | `/app/doctor/admin/technical` | |
 
 Редиректы `?adminTab=` → см. `ADMIN_TAB_REDIRECTS` в `apps/webapp/src/app/app/settings/adminSettingsData.ts`.
+
+## Окна аналитики (doctor)
+
+| Экран | Query | Пресеты UI |
+|-------|--------|------------|
+| По клиентам | `preset=day\|week\|month\|custom` (+ `from`/`to`) | «Сутки», «Неделя», «Месяц», произвольный |
+| По контенту, уведомлениям, использованию | `windowHours` (1…720, default **168**) | **24 ч**, **7 дн.**, **30 дн.** — [`analyticsWindowHourPresets.ts`](../../apps/webapp/src/app/app/doctor/analytics/shared/analyticsWindowHourPresets.ts) |
+| Детализация оценки материала | `preset=week\|month\|custom` | «Сутки» на экране `[kind]/[id]` — локальный пресет дня |
+
+Общий загрузчик контента/напоминаний: **`loadContentEngagementStats`** — [`loadAdminReminderStats.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts); канон полей дашборда — [`MATERIAL_RATINGS.md`](MATERIAL_RATINGS.md) §«Дашборд content-stats».
 
 ## Экран «Сегодня» — KPI и health-баннер
 

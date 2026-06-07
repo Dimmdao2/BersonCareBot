@@ -92,6 +92,11 @@ export async function GET(
 
     const { page, nextCursor, hasMore, totalCount } = pageResult;
 
+    const peerLastReadAt = await deps.programItemDiscussion.getLastReadAtForViewer({
+      viewerUserId: instance.patientUserId,
+      stageItemId,
+    });
+
     return NextResponse.json({
       ok: true,
       messages: page,
@@ -102,6 +107,7 @@ export async function GET(
         hasMore,
       },
       totalCount,
+      peerLastReadAt,
     });
   } catch {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });

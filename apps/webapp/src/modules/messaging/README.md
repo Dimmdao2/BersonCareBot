@@ -27,5 +27,7 @@
 
 ## UI
 
-- [`components/ChatView.tsx`](components/ChatView.tsx)
+- [`components/ChatView.tsx`](components/ChatView.tsx) — support-чат; ✓ / ✓✓ на исходящих ([`CHAT_READ_RECEIPTS.md`](../../../../docs/ARCHITECTURE/CHAT_READ_RECEIPTS.md))
+- [`chatMessageDeliveryStatus.ts`](chatMessageDeliveryStatus.ts), [`shared/ui/chat/ChatMessageDeliveryTicks.tsx`](../../shared/ui/chat/ChatMessageDeliveryTicks.tsx)
 - Страница: [`app/app/patient/messages/PatientMessagesClient.tsx`](../../app/app/patient/messages/PatientMessagesClient.tsx)
+- Комментарии к упражнению: [`ProgramItemDiscussionDialog.tsx`](../../app/app/patient/treatment/ProgramItemDiscussionDialog.tsx), [`DoctorProgramDiscussionMessagesPanel.tsx`](../../app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramDiscussionMessagesPanel.tsx)

@@ -1124,7 +1124,7 @@ describe("PATCH /api/admin/settings", () => {
         messenger_phone_bind_anomaly: false,
         system_health_db_guard: true,
       },
-      channels: { telegram: true, max: false },
+      channels: { telegram: true, max: false, web_push: true },
     };
     updateSettingMock.mockResolvedValue({
       key: "admin_incident_alert_config",
@@ -1156,7 +1156,7 @@ describe("PATCH /api/admin/settings", () => {
         messenger_phone_bind_anomaly: true,
         system_health_db_guard: false,
       },
-      channels: { telegram: true, max: true },
+      channels: { telegram: true, max: true, web_push: true },
     };
     updateSettingMock.mockResolvedValue({
       key: "admin_incident_alert_config",
@@ -1179,7 +1179,7 @@ describe("PATCH /api/admin/settings", () => {
                 auto_merge_conflict_anomaly: true,
                 messenger_phone_bind_blocked: true,
               },
-              channels: { telegram: true, max: true },
+              channels: { telegram: true, max: true, web_push: true },
             },
           },
         }),
@@ -1201,7 +1201,7 @@ describe("PATCH /api/admin/settings", () => {
         messenger_phone_bind_anomaly: true,
         system_health_db_guard: false,
       },
-      channels: { telegram: true, max: false },
+      channels: { telegram: true, max: false, web_push: true },
     };
     updateSettingMock.mockResolvedValue({
       key: "admin_incident_alert_config",
@@ -1226,7 +1226,7 @@ describe("PATCH /api/admin/settings", () => {
                 messenger_phone_bind_anomaly: true,
                 future_topic: false,
               },
-              channels: { telegram: true, max: false },
+              channels: { telegram: true, max: false, web_push: true },
             },
           },
         }),

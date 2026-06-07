@@ -83,35 +83,21 @@ export function DoctorChatPanel({
     };
   }, [conversationId, initialMessages, loadMessages, markRead]);
 
-  const lastCreatedAt = messages.length ? messages[messages.length - 1]!.createdAt : null;
-
   const poll = useCallback(async () => {
+    if (!conversationId) return;
     try {
-      const u = new URL(`/api/doctor/messages/${encodeURIComponent(conversationId)}`, window.location.origin);
-      if (lastCreatedAt) {
-        u.searchParams.set("since", lastCreatedAt);
-      }
-      const res = await fetch(u.toString());
+      const res = await fetch(`/api/doctor/messages/${encodeURIComponent(conversationId)}`);
       const data = (await res.json()) as { ok?: boolean; messages?: SerializedSupportMessage[] };
       if (!res.ok || !data.ok) return;
-      const incoming = data.messages ?? [];
-      if (incoming.length === 0) return;
-      setMessages((prev) => {
-        const ids = new Set(prev.map((m) => m.id));
-        const merged = [...prev];
-        for (const m of incoming) {
-          if (!ids.has(m.id)) merged.push(m);
-        }
-        merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-        return merged;
-      });
-      if (incoming.some((m) => m.senderRole === "user")) {
+      const list = data.messages ?? [];
+      setMessages(list);
+      if (list.some((m) => m.senderRole === "user" && !m.readAt)) {
         await markRead();
       }
     } catch {
       // Polling is best-effort; keep current messages and avoid noisy UI flapping.
     }
-  }, [conversationId, lastCreatedAt, markRead]);
+  }, [conversationId, markRead]);
 
   useMessagePolling(poll, Boolean(conversationId), 18000);
 

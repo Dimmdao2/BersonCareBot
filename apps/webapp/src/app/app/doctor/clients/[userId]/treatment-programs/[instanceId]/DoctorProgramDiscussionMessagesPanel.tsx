@@ -7,6 +7,8 @@ import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { cn } from "@/lib/utils";
 import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/modules/messaging/messageFormatting";
+import { chatMessageDeliveryStatus } from "@/modules/messaging/chatMessageDeliveryStatus";
+import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
 import { ProgramItemDiscussionMessageBody } from "@/app/app/patient/treatment/ProgramItemDiscussionMessageBody";
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
@@ -25,6 +27,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   itemLabelById?: Map<string, string>;
   onSelectItemFilter?: (stageItemId: string) => void;
   onSendReply?: (stageItemId: string, text: string) => Promise<{ ok: boolean; error?: string }>;
+  peerLastReadAt?: string | null;
+  peerLastReadAtByStageItemId?: Record<string, string | null>;
 }) {
   const {
     messages,
@@ -36,6 +40,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     itemLabelById,
     onSelectItemFilter,
     onSendReply,
+    peerLastReadAt = null,
+    peerLastReadAtByStageItemId,
   } = props;
   const sortedMessages = useMemo(() => [...messages].sort(compareMessages), [messages]);
   const showItemLabels = itemLabelById != null && itemLabelById.size > 0;
@@ -139,6 +145,11 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
             const fromPatient = m.senderRole === "patient";
             const itemLabel = showItemLabels ? itemLabelById.get(m.instanceStageItemId) : null;
             const authorLabel = fromPatient ? "Пациент" : "Врач";
+            const peerCursor =
+              peerLastReadAtByStageItemId?.[m.instanceStageItemId] ?? peerLastReadAt ?? null;
+            const deliveryStatus = !fromPatient
+              ? chatMessageDeliveryStatus({ createdAt: m.createdAt, peerLastReadAt: peerCursor })
+              : null;
             const replyAffordanceVisible =
               fromPatient && onSendReply
                 ? activeReplyMessageId === m.id || touchReplyTargetId === m.id
@@ -176,7 +187,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                   )
                 ) : null}
                 <p className="text-xs text-muted-foreground">
-                  {authorLabel} · {formatChatRelativeDateLabelRu(m.createdAt, new Date())} · {formatChatMessageTimeRu(m.createdAt)}
+                  {authorLabel} · {formatChatRelativeDateLabelRu(m.createdAt, new Date())}
+                  {fromPatient ? ` · ${formatChatMessageTimeRu(m.createdAt)}` : null}
                 </p>
                 <div
                   className={cn(
@@ -229,6 +241,13 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                   }
                 >
                   <ProgramItemDiscussionMessageBody message={m} mine={false} />
+                  {!fromPatient && deliveryStatus ?
+                    <ChatBubbleOutgoingMeta
+                      timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                      deliveryStatus={deliveryStatus}
+                      ticksClassName="text-primary"
+                    />
+                  : null}
                 </div>
                 {fromPatient && onSendReply ? (
                   <Button

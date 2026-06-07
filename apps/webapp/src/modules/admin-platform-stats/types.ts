@@ -1,5 +1,5 @@
 /** Окно времени для админских графиков. Legacy `?preset=today` в HTTP нормализуется в `week`. */
-export type AdminStatsTimePreset = "week" | "month" | "custom";
+export type AdminStatsTimePreset = "day" | "week" | "month" | "custom";
 
 export type AdminRegistrationDayPoint = {
   /** YYYY-MM-DD в календаре `iana` */

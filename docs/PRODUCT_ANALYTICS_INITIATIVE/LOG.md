@@ -280,3 +280,22 @@
 | `vitest` `product-analytics/retention/route.test.ts` (tick mock) | OK |
 | `vitest` `collectCronJobsHealth.test.ts`, `system-health/route.test.ts` | OK |
 | `pnpm --dir apps/webapp run typecheck` | OK |
+
+---
+
+## 2026-06-07 — Content engagement: push sent, video minutes, пресеты 24 ч
+
+### Сделано
+
+1. **`pushOpensSummary.sent`:** считается из **`product_push_notifications`**, не из **`product_analytics_hourly`**; **`opened`** — **`product_analytics_events_recent`** (`push_open`). Unit-тесты `mergePushOpenBuckets` / `summarizePushOpens` в [`loadAdminReminderStats.test.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.test.ts).
+2. **KPI минут просмотра:** **`warmupVideoEstimatedWatchMinutes`**, **`videoPlaybackEstimatedWatchMinutes`** в **`loadContentEngagementStats`**; fallback платформенных минут — средняя **`media_files.video_duration_seconds`** × **`videoPlayback.totalResolutions`**, если resolution-событий нет.
+3. **Разминки:** парсинг **`content_pages.video_url`** — канонический **`/api/media/{uuid}`** (query/hash отрезаются), как в [`materialRatingTargetVideoMediaIds.ts`](../../apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts).
+4. **UI пресеты окна:** **24 ч** / **7 дн.** / **30 дн.** (`DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS`) на material-ratings, notifications, usage; **«Сутки»** (`preset=day`) на analytics/clients и детализации оценок.
+5. **Каталог упражнений:** фильтр **`load=`** — merge SSR только при наличии param в URL (`hasLoadParam` / `doctorCatalogClientFilterUrlHints` в [`doctorCatalogClientUrlSync.ts`](../../apps/webapp/src/shared/lib/doctorCatalogClientUrlSync.ts)).
+6. **Документация:** [`api.md`](../../apps/webapp/src/app/api/api.md), [`MATERIAL_RATINGS.md`](../ARCHITECTURE/MATERIAL_RATINGS.md), [`DOCTOR_CABINET_NAVIGATION.md`](../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md), [`reminders.md`](../../apps/webapp/src/modules/reminders/reminders.md).
+
+### Проверки
+
+| Проверка | Результат |
+|----------|-----------|
+| `vitest` `loadAdminReminderStats.test.ts`, `doctorCatalogClientUrlSync.test.ts` | OK (локально) |

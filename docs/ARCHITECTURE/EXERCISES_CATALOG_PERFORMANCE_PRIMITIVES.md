@@ -72,6 +72,15 @@
 4. Для карточек использовать `VirtualizedItemGrid<T>`, где `T` — доменный тип новой страницы.
 5. Не импортировать доменные компоненты в `src/shared/ui/*`.
 
+## Фильтры каталога и URL (client merge)
+
+Doctor-каталоги (упражнения, комплексы, тесты, …) синхронизируют query **без** `router.replace`: [`DoctorCatalogFiltersForm`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersForm.tsx) → `history.replaceState` + событие **`doctorcatalog:urlsync`**.
+
+- Чтение среза URL: [`doctorCatalogClientUrlSync.ts`](../../apps/webapp/src/shared/lib/doctorCatalogClientUrlSync.ts) (`readDoctorCatalogClientFilterUrlSlice`, флаги **`hasLoadParam`** / **`hasRegionParam`** / …).
+- Merge с SSR-ответом списка: [`useDoctorCatalogClientFilterMerge.ts`](../../apps/webapp/src/shared/hooks/useDoctorCatalogClientFilterMerge.ts) — поле с сервера подставляется **только если** соответствующий query-ключ был в URL (иначе «Без типа нагрузки» не залипает после снятия `?load=`).
+- SSR hints для hydration: **`doctorCatalogClientFilterUrlHints(searchParams)`** на `page.tsx` каталога.
+- Парсинг **`load=`:** [`parseExerciseLoadCatalogUrlParam`](../../apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeReference.ts) (справочник `load_type`).
+
 ## Валидация
 
 В каталоге `apps/webapp`:

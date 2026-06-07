@@ -36,12 +36,15 @@ describe("notifyDoctorPatientMessageToStaff", () => {
   it("delivers telegram to staff with default fallback and binding", async () => {
     const result = await notifyDoctorPatientMessageToStaff(
       {
-        messageId: "m1",
+        topicCode: "doctor_patient_messages",
+        messageId: "patient-msg-notify:m1",
         text: "hello",
         pushTitle: "t",
         pushBody: "b",
         pushUrl: "/app/doctor/messages",
-        replyConversationId: "webapp:platform:u1",
+        replyMarkup: {
+          inline_keyboard: [[{ text: "Ответить", callback_data: "admin_reply:webapp:platform:u1" }]],
+        },
       },
       {
         staffUsers: { listActiveStaffUserIds: async () => ["doc-1"] },
@@ -66,12 +69,15 @@ describe("notifyDoctorPatientMessageToStaff", () => {
   it("skips telegram when explicitly disabled in prefs", async () => {
     const result = await notifyDoctorPatientMessageToStaff(
       {
-        messageId: "m2",
+        topicCode: "doctor_patient_messages",
+        messageId: "patient-msg-notify:m2",
         text: "hello",
         pushTitle: "t",
         pushBody: "b",
         pushUrl: "/app/doctor/messages",
-        replyConversationId: "webapp:platform:u1",
+        replyMarkup: {
+          inline_keyboard: [[{ text: "Ответить", callback_data: "admin_reply:webapp:platform:u1" }]],
+        },
       },
       {
         staffUsers: { listActiveStaffUserIds: async () => ["doc-1"] },

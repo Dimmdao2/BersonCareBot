@@ -12,6 +12,7 @@ import {
   recommendationArchiveScopeFromListScope,
 } from "@/shared/lib/doctorCatalogListStatus";
 import { resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
+import { doctorCatalogClientFilterUrlHints } from "@/shared/lib/doctorCatalogClientUrlSync";
 import { RecommendationsPageClient, type RecommendationTitleSort } from "./RecommendationsPageClient";
 
 type PageProps = {
@@ -89,6 +90,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
           listStatus,
           invalidDomainQuery: catalogQuery.invalidDomainQuery,
           domain: catalogQuery.domainCodeForCatalog,
+          ...doctorCatalogClientFilterUrlHints(sp),
         }}
       />
     </DoctorAppShell>

@@ -10,6 +10,7 @@ describe("parseAdminIncidentAlertConfig", () => {
     const c = parseAdminIncidentAlertConfig(null);
     expect(c.channels.telegram).toBe(true);
     expect(c.channels.max).toBe(true);
+    expect(c.channels.web_push).toBe(true);
     expect(c.topics.channel_link).toBe(true);
     expect(c.topics.messenger_phone_bind_anomaly).toBe(true);
     expect(c.topics.system_health_db_guard).toBe(false);
@@ -125,7 +126,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.channels).toEqual({ telegram: false, max: true });
+      expect(r.value.channels).toEqual({ telegram: false, max: true, web_push: true });
     }
   });
 

@@ -4,6 +4,7 @@ import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalytics
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { parseAdminStatsTimePreset } from "@/modules/admin-platform-stats/parseAdminStatsTimePreset";
 import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
 import { z } from "zod";
 
@@ -12,10 +13,8 @@ const dayParam = z
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 
-/** Legacy `today` и неизвестные значения → `week`. */
 function parsePreset(raw: string | null): AdminStatsTimePreset {
-  if (raw === "month" || raw === "custom") return raw;
-  return "week";
+  return parseAdminStatsTimePreset(raw);
 }
 
 export async function GET(req: Request) {

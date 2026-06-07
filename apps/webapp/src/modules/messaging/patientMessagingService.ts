@@ -2,6 +2,7 @@
  * Сообщения поддержки для пациента (webapp thread `webapp:platform:{userId}`).
  */
 import type { SupportCommunicationPort, SupportConversationMessageRow } from "@/infra/repos/pgSupportCommunication";
+import { serializeSupportMessage, type SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 
 const MAX_LEN = 4000;
 
@@ -51,7 +52,10 @@ export function createPatientMessagingService(
       return { messages };
     },
 
-    async sendText(platformUserId: string, conversationId: string, text: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    async sendText(platformUserId: string, conversationId: string, text: string): Promise<
+      | { ok: true; message: SerializedSupportMessage }
+      | { ok: false; error: string }
+    > {
       const conv = await port.getConversationIfOwnedByUser(conversationId, platformUserId);
       if (!conv) return { ok: false, error: "not_found" };
       if (options?.isUserMessagingBlocked) {
@@ -68,7 +72,7 @@ export function createPatientMessagingService(
       });
       const { id: targetConversationId } = await port.ensureWebappConversationForUser(platformUserId);
 
-      await port.appendWebappMessage({
+      const { id: messageId } = await port.appendWebappMessage({
         conversationId: targetConversationId,
         integratorMessageId,
         senderRole: "user",
@@ -78,22 +82,40 @@ export function createPatientMessagingService(
       });
 
       if (options?.notifyDoctorOfPatientMessage) {
-        const patientLabel = options.resolvePatientLabel
-          ? await options.resolvePatientLabel(platformUserId)
-          : "Пациент";
-        options
-          .notifyDoctorOfPatientMessage({
+        void (async () => {
+          const patientLabel = options.resolvePatientLabel
+            ? await options.resolvePatientLabel(platformUserId)
+            : "Пациент";
+          await options.notifyDoctorOfPatientMessage!({
             platformUserId,
             messageId: integratorMessageId,
             messageText: trimmed,
             patientLabel,
-          })
-          .catch((err: unknown) => {
-            console.error("[patientMessaging] doctor notify error:", err);
           });
+        })().catch((err: unknown) => {
+          console.error("[patientMessaging] doctor notify error:", err);
+        });
       }
 
-      return { ok: true };
+      const message: SupportConversationMessageRow = {
+        id: messageId,
+        integratorMessageId,
+        conversationId: targetConversationId,
+        senderRole: "user",
+        messageType: "text",
+        text: trimmed,
+        source: "webapp",
+        externalChatId: null,
+        externalMessageId: null,
+        deliveryStatus: null,
+        createdAt: now,
+        readAt: null,
+        deliveredAt: now,
+        mediaUrl: null,
+        mediaType: null,
+      };
+
+      return { ok: true, message: serializeSupportMessage(message) };
     },
 
     async markInboundRead(platformUserId: string, conversationId: string): Promise<void> {

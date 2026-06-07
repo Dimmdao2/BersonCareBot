@@ -78,6 +78,17 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
     if (audienceFiltered) {
       try {
         totalsRows = await audienceTotalsQuery();
+        let audienceTotal = 0;
+        for (const row of totalsRows) {
+          audienceTotal += Number.parseInt(row.resolvedSum, 10) || 0;
+        }
+        if (audienceTotal === 0) {
+          totalsRows = await hourlyTotalsQuery();
+          logger.warn(
+            { windowHours, excludedUserIds: excludedUserIds.length },
+            "playback_resolution_events_empty_fallback_hourly",
+          );
+        }
       } catch (eventsErr) {
         const code =
           eventsErr && typeof eventsErr === "object" && "code" in eventsErr

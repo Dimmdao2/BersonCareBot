@@ -22,6 +22,7 @@ export type AdminIncidentTopicKey = (typeof ADMIN_INCIDENT_V1_TOPIC_KEYS)[number
 export type AdminIncidentAlertChannels = {
   telegram: boolean;
   max: boolean;
+  web_push: boolean;
 };
 
 export type AdminIncidentAlertConfig = {
@@ -38,9 +39,19 @@ const DEFAULT_TOPICS: Record<AdminIncidentTopicKey, boolean> = {
   system_health_db_guard: false,
 };
 
+export const ADMIN_INCIDENT_TOPIC_LABELS: Record<AdminIncidentTopicKey, string> = {
+  channel_link: "Конфликт привязки канала",
+  auto_merge_conflict: "Новый открытый конфликт автомержа",
+  auto_merge_conflict_anomaly: "Аномалия автомержа (пустые кандидаты)",
+  messenger_phone_bind_blocked: "Блокировка привязки телефона (мессенджер)",
+  messenger_phone_bind_anomaly: "Аномалия привязки телефона (мессенджер)",
+  system_health_db_guard: "Очередь синка в integrator (system health)",
+};
+
 const DEFAULT_CHANNELS: AdminIncidentAlertChannels = {
   telegram: true,
   max: true,
+  web_push: true,
 };
 
 function defaultConfig(): AdminIncidentAlertConfig {
@@ -78,6 +89,7 @@ export function parseAdminIncidentAlertConfig(valueJson: unknown): AdminIncident
     const c = o.channels as Record<string, unknown>;
     if (isBool(c.telegram)) out.channels.telegram = c.telegram;
     if (isBool(c.max)) out.channels.max = c.max;
+    if (isBool(c.web_push)) out.channels.web_push = c.web_push;
   }
   return out;
 }
@@ -120,6 +132,9 @@ export function normalizeAdminIncidentAlertConfigForAdminPatch(
     } else if (k === "max") {
       if (!isBool(cObj.max)) return { ok: false };
       channels.max = cObj.max;
+    } else if (k === "web_push") {
+      if (!isBool(cObj.web_push)) return { ok: false };
+      channels.web_push = cObj.web_push;
     }
   }
 

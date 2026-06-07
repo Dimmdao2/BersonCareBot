@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 import { drizzleExcludeUserIdColumn, drizzleSqlUuidInList } from "@/modules/analytics/analyticsAudience";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { loadAdminPlaybackHealthMetrics, type AdminPlaybackHealthMetrics } from "@/app-layer/media/adminPlaybackHealthMetrics";
@@ -10,9 +10,14 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 import { buildReminderSendsLast24hClock, type HourlyClockSlice } from "@/app-layer/stats/reminderHourlyClock";
 import { patientDailyWarmupVideoViews } from "../../../db/schema/patientDailyWarmupVideoView";
 import { patientPracticeCompletions } from "../../../db/schema/patientPractice";
-import { productAnalyticsEventsRecent } from "../../../db/schema/productAnalytics";
+import {
+  productAnalyticsEventsRecent,
+  productPushNotifications,
+} from "../../../db/schema/productAnalytics";
 import {
   contentPages,
+  mediaFiles,
+  mediaPlaybackResolutionEvents,
   reminderOccurrenceHistory,
   reminderRules,
 } from "../../../db/schema/schema";
@@ -41,7 +46,7 @@ export type OccurrenceHourlyBucket = {
 /** Сутки в `app_display_timezone`. */
 export type OccurrenceDailyBucket = OccurrenceHourlyBucket;
 
-/** Час / сутки в `app_display_timezone` (`product_analytics_hourly`: push_open, push_sent). */
+/** Час / сутки в `app_display_timezone` (`push_open` — events_recent; `push_sent` — product_push_notifications). */
 export type PushOpenBucket = {
   bucket: string;
   opened: number;
@@ -72,6 +77,10 @@ export type ContentEngagementStatsResponse = {
   practiceTopPages: ContentEngagementTopPageRow[];
   /** Открытия видео разминки дня (`patient_daily_warmup_video_views`), не завершения практики. */
   warmupVideoTopPages: ContentEngagementTopPageRow[];
+  /** Оценка минут просмотра разминок: сумма `video_duration_seconds` каталожного видео по открытиям. */
+  warmupVideoEstimatedWatchMinutes: number;
+  /** Оценка минут просмотра всех видео: сумма длительностей по `media_playback_resolution_events`. */
+  videoPlaybackEstimatedWatchMinutes: number;
   /** Same rolling window as other blocks; reuses `loadAdminPlaybackHealthMetrics`. */
   videoPlayback: AdminPlaybackHealthMetrics;
   /** Ошибки воспроизведения в браузере; тот же helper, что `GET /api/admin/system-health` → `videoPlaybackClient`. */
@@ -115,9 +124,8 @@ function mergeOccurrenceHourly(
     .map(([bucket, v]) => ({ bucket, sent: v.sent, failed: v.failed }));
 }
 
-const PUSH_ANALYTICS_EVENT_TYPES = ["push_open", "push_sent"] as const;
-
-function mergePushOpenBuckets(
+/** @visibleForTesting — merge hourly/daily push_open + push_sent rows into one bucket series. */
+export function mergePushOpenBuckets(
   rows: Array<{ bucket: string; eventType: string; n: unknown }>,
 ): PushOpenBucket[] {
   const map = new Map<string, { opened: number; sent: number }>();
@@ -133,7 +141,8 @@ function mergePushOpenBuckets(
     .map(([bucket, v]) => ({ bucket, opened: v.opened, sent: v.sent }));
 }
 
-function summarizePushOpens(buckets: PushOpenBucket[]): PushOpensSummary {
+/** @visibleForTesting — aggregate opened/sent/openRate across buckets. */
+export function summarizePushOpens(buckets: PushOpenBucket[]): PushOpensSummary {
   let opened = 0;
   let sent = 0;
   for (const b of buckets) {
@@ -178,25 +187,41 @@ export async function loadContentEngagementStats(opts: {
 
   const hourTruncOcc = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${reminderOccurrenceHistory.occurredAt}))`;
   const dayTruncOcc = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${reminderOccurrenceHistory.occurredAt}))`;
-  const hourTruncPush = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${productAnalyticsEventsRecent.occurredAt}))`;
-  const dayTruncPush = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${productAnalyticsEventsRecent.occurredAt}))`;
+  const hourTruncPushOpen = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${productAnalyticsEventsRecent.occurredAt}))`;
+  const dayTruncPushOpen = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${productAnalyticsEventsRecent.occurredAt}))`;
+  const hourTruncPushSent = sql`date_trunc('hour', timezone(${displayTimezoneSql}, ${productPushNotifications.createdAt}))`;
+  const dayTruncPushSent = sql`date_trunc('day', timezone(${displayTimezoneSql}, ${productPushNotifications.createdAt}))`;
   const occurrenceAudience = reminderOccurrenceAudienceSql(excludedUserIds);
   const practiceUserExclude = drizzleExcludeUserIdColumn(
     patientPracticeCompletions.userId,
     excludedUserIds,
   );
   const warmupUserExclude = drizzleExcludeUserIdColumn(patientDailyWarmupVideoViews.userId, excludedUserIds);
-  const pushUserExclude = drizzleExcludeUserIdColumn(productAnalyticsEventsRecent.userId, excludedUserIds);
+  const pushOpenUserExclude = drizzleExcludeUserIdColumn(productAnalyticsEventsRecent.userId, excludedUserIds);
+  const pushSentUserExclude = drizzleExcludeUserIdColumn(productPushNotifications.userId, excludedUserIds);
+  const resolutionUserExclude = drizzleExcludeUserIdColumn(mediaPlaybackResolutionEvents.userId, excludedUserIds);
+  const trimmedContentVideoUrl = sql`trim(split_part(split_part(${contentPages.videoUrl}, '#', 1), '?', 1))`;
+  const apiMediaIdFromContentVideoUrl = sql`(
+    substring(
+      ${trimmedContentVideoUrl}
+      from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
+    )
+  )::uuid`;
 
   const [
     occRows,
     occDailyRows,
     occClockRows,
-    pushHourlyRows,
-    pushDailyRows,
+    pushOpenHourlyRows,
+    pushOpenDailyRows,
+    pushSentHourlyRows,
+    pushSentDailyRows,
     practiceSourceRows,
     practicePageRows,
     warmupVideoPageRows,
+    warmupWatchMinutesRow,
+    videoWatchMinutesRow,
+    avgVideoDurationRow,
     peopleWithNotifications,
     reminderRulesEnabledRow,
     videoPlayback,
@@ -240,35 +265,51 @@ export async function loadContentEngagementStats(opts: {
       .orderBy(sql`1`),
     db
       .select({
-        bucket: sql<string>`${hourTruncPush}::text`.as("bucket"),
-        eventType: productAnalyticsEventsRecent.eventType,
+        bucket: sql<string>`${hourTruncPushOpen}::text`.as("bucket"),
         n: count(),
       })
       .from(productAnalyticsEventsRecent)
       .where(
         and(
           gte(productAnalyticsEventsRecent.occurredAt, windowCutoffSql),
-          inArray(productAnalyticsEventsRecent.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
-          pushUserExclude,
+          eq(productAnalyticsEventsRecent.eventType, "push_open"),
+          pushOpenUserExclude,
         ),
       )
-      .groupBy(sql`1`, sql`2`)
+      .groupBy(sql`1`)
       .orderBy(sql`1`),
     db
       .select({
-        bucket: sql<string>`${dayTruncPush}::text`.as("bucket"),
-        eventType: productAnalyticsEventsRecent.eventType,
+        bucket: sql<string>`${dayTruncPushOpen}::text`.as("bucket"),
         n: count(),
       })
       .from(productAnalyticsEventsRecent)
       .where(
         and(
           gte(productAnalyticsEventsRecent.occurredAt, windowCutoffSql),
-          inArray(productAnalyticsEventsRecent.eventType, [...PUSH_ANALYTICS_EVENT_TYPES]),
-          pushUserExclude,
+          eq(productAnalyticsEventsRecent.eventType, "push_open"),
+          pushOpenUserExclude,
         ),
       )
-      .groupBy(sql`1`, sql`2`)
+      .groupBy(sql`1`)
+      .orderBy(sql`1`),
+    db
+      .select({
+        bucket: sql<string>`${hourTruncPushSent}::text`.as("bucket"),
+        n: count(),
+      })
+      .from(productPushNotifications)
+      .where(and(gte(productPushNotifications.createdAt, windowCutoffSql), pushSentUserExclude))
+      .groupBy(sql`1`)
+      .orderBy(sql`1`),
+    db
+      .select({
+        bucket: sql<string>`${dayTruncPushSent}::text`.as("bucket"),
+        n: count(),
+      })
+      .from(productPushNotifications)
+      .where(and(gte(productPushNotifications.createdAt, windowCutoffSql), pushSentUserExclude))
+      .groupBy(sql`1`)
       .orderBy(sql`1`),
     db
       .select({
@@ -304,18 +345,47 @@ export async function loadContentEngagementStats(opts: {
       .groupBy(patientDailyWarmupVideoViews.contentPageId, contentPages.section, contentPages.slug)
       .orderBy(desc(count()))
       .limit(15),
+    db
+      .select({
+        totalSeconds: sql<number>`COALESCE(SUM(COALESCE(${mediaFiles.videoDurationSeconds}, 0)), 0)::int`.as(
+          "total_seconds",
+        ),
+      })
+      .from(patientDailyWarmupVideoViews)
+      .innerJoin(contentPages, eq(patientDailyWarmupVideoViews.contentPageId, contentPages.id))
+      .innerJoin(mediaFiles, eq(mediaFiles.id, apiMediaIdFromContentVideoUrl))
+      .where(and(gte(patientDailyWarmupVideoViews.viewedAt, windowCutoffSql), warmupUserExclude)),
+    db
+      .select({
+        totalSeconds: sql<number>`COALESCE(SUM(COALESCE(${mediaFiles.videoDurationSeconds}, 0)), 0)::int`.as(
+          "total_seconds",
+        ),
+      })
+      .from(mediaPlaybackResolutionEvents)
+      .innerJoin(mediaFiles, eq(mediaPlaybackResolutionEvents.mediaId, mediaFiles.id))
+      .where(and(gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql), resolutionUserExclude)),
+    db
+      .select({
+        avgSeconds: sql<number>`COALESCE(AVG(NULLIF(${mediaFiles.videoDurationSeconds}, 0)), 0)::float`.as(
+          "avg_seconds",
+        ),
+      })
+      .from(mediaFiles)
+      .where(sql`${mediaFiles.videoDurationSeconds} IS NOT NULL AND ${mediaFiles.videoDurationSeconds} > 0`),
     loadReminderPeopleWithNotificationsStats({ windowHours, displayTimezone, excludedUserIds }),
     db.select({ cnt: count() }).from(reminderRules).where(eq(reminderRules.isEnabled, true)),
     loadAdminPlaybackHealthMetrics({ windowHours, excludedUserIds }),
     loadAdminPlaybackClientHealthMetrics({ windowHours, excludedUserIds }),
   ]);
 
-  const pushOpensHourly = mergePushOpenBuckets(
-    pushHourlyRows.map((r) => ({ bucket: r.bucket, eventType: r.eventType, n: r.n })),
-  );
-  const pushOpensDaily = mergePushOpenBuckets(
-    pushDailyRows.map((r) => ({ bucket: r.bucket, eventType: r.eventType, n: r.n })),
-  );
+  const pushOpensHourly = mergePushOpenBuckets([
+    ...pushOpenHourlyRows.map((r) => ({ bucket: r.bucket, eventType: "push_open", n: r.n })),
+    ...pushSentHourlyRows.map((r) => ({ bucket: r.bucket, eventType: "push_sent", n: r.n })),
+  ]);
+  const pushOpensDaily = mergePushOpenBuckets([
+    ...pushOpenDailyRows.map((r) => ({ bucket: r.bucket, eventType: "push_open", n: r.n })),
+    ...pushSentDailyRows.map((r) => ({ bucket: r.bucket, eventType: "push_sent", n: r.n })),
+  ]);
   const pushOpensSummary = summarizePushOpens(pushOpensHourly);
 
   const practiceBySource: Record<string, number> = {};
@@ -330,6 +400,14 @@ export async function loadContentEngagementStats(opts: {
   );
 
   const reminderRulesEnabledCount = Number(reminderRulesEnabledRow[0]?.cnt ?? 0);
+  const warmupVideoEstimatedWatchMinutes = Math.round(Number(warmupWatchMinutesRow[0]?.totalSeconds ?? 0) / 60);
+  let videoPlaybackEstimatedWatchMinutes = Math.round(Number(videoWatchMinutesRow[0]?.totalSeconds ?? 0) / 60);
+  if (videoPlaybackEstimatedWatchMinutes === 0 && videoPlayback.totalResolutions > 0) {
+    const avgSeconds = Number(avgVideoDurationRow[0]?.avgSeconds ?? 0);
+    if (avgSeconds > 0) {
+      videoPlaybackEstimatedWatchMinutes = Math.round((videoPlayback.totalResolutions * avgSeconds) / 60);
+    }
+  }
 
   return {
     windowHours,
@@ -359,6 +437,8 @@ export async function loadContentEngagementStats(opts: {
       slug: r.slug,
       count: Number(r.n ?? 0),
     })),
+    warmupVideoEstimatedWatchMinutes,
+    videoPlaybackEstimatedWatchMinutes,
     videoPlayback,
     videoPlaybackClient,
   };

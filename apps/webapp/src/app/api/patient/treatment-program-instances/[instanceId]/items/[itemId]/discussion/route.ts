@@ -158,7 +158,7 @@ export async function GET(
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }
 
-  const [pageResult, unreadCount, actionLogRows] = await Promise.all([
+  const [pageResult, unreadCount, actionLogRows, staffUserIds] = await Promise.all([
     listDiscussionPageMerged({
       discussion: itemContext.deps.programItemDiscussion,
       stageItemId: itemId,
@@ -174,7 +174,13 @@ export async function GET(
       exerciseTitle: itemContext.exerciseTitle,
     }),
     itemContext.deps.programActionLog.listForInstance({ instanceId, limit: 500 }),
+    itemContext.deps.staffUsers.listActiveStaffUserIds(),
   ]);
+
+  const peerLastReadAt = await itemContext.deps.programItemDiscussion.getMaxLastReadAtForViewers({
+    stageItemId: itemId,
+    viewerUserIds: staffUserIds,
+  });
 
   const { page, nextCursor, hasMore, totalCount } = pageResult;
   const lastMessage =
@@ -197,6 +203,7 @@ export async function GET(
     unreadCount,
     lastMessage,
     lastDoneSummary: getLastDoneSummary({ actionLogRows, itemId }),
+    peerLastReadAt,
   });
 }
 
@@ -246,20 +253,13 @@ export async function POST(
   }
 
   try {
-    await itemContext.deps.treatmentProgramPatientActions.patientAppendObservationNote({
+    const message = await itemContext.deps.treatmentProgramPatientActions.patientAppendObservationNote({
       patientUserId: gate.session.user.userId,
       instanceId,
       stageItemId: itemId,
       note: parsed.data.body,
     });
-    const latestRows = await itemContext.deps.programItemDiscussion.listMessagesPage({
-      stageItemId: itemId,
-      limit: 1,
-      direction: "backward",
-      cursor: null,
-    });
-    const latest = latestRows.at(-1) ?? null;
-    return NextResponse.json({ ok: true, message: latest });
+    return NextResponse.json({ ok: true, message });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
     const status = msg.includes("не найден") ? 404 : 400;

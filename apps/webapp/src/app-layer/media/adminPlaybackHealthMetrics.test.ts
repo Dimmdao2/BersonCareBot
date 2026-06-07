@@ -10,7 +10,7 @@ vi.mock("@/app-layer/db/drizzle", () => ({
 }));
 
 vi.mock("@/app-layer/logging/logger", () => ({
-  logger: { error: loggerErrorMock },
+  logger: { error: loggerErrorMock, warn: vi.fn() },
 }));
 
 import {
@@ -55,6 +55,39 @@ describe("loadAdminPlaybackHealthMetrics", () => {
       uniquePlaybackPairsFirstSeenInWindow: 5,
     });
     expect(loggerErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to hourly totals when audience resolution events are empty", async () => {
+    const hourlyRows = [{ delivery: "hls", resolvedSum: "9", fallbackSum: "1" }];
+    const uniqueRows = [{ c: "2" }];
+
+    const audienceGroupByMock = vi.fn().mockResolvedValue([]);
+    const audienceWhereMock = vi.fn(() => ({ groupBy: audienceGroupByMock }));
+    const audienceFromMock = vi.fn(() => ({ where: audienceWhereMock }));
+
+    const hourlyGroupByMock = vi.fn().mockResolvedValue(hourlyRows);
+    const hourlyWhereMock = vi.fn(() => ({ groupBy: hourlyGroupByMock }));
+    const hourlyFromMock = vi.fn(() => ({ where: hourlyWhereMock }));
+
+    const uniqueWhereMock = vi.fn().mockResolvedValue(uniqueRows);
+    const uniqueFromMock = vi.fn(() => ({ where: uniqueWhereMock }));
+
+    const selectMock = vi
+      .fn()
+      .mockImplementationOnce(() => ({ from: audienceFromMock }))
+      .mockImplementationOnce(() => ({ from: hourlyFromMock }))
+      .mockImplementationOnce(() => ({ from: uniqueFromMock }));
+
+    getDrizzleMock.mockReturnValue({ select: selectMock });
+
+    const result = await loadAdminPlaybackHealthMetrics({
+      windowHours: 24,
+      excludedUserIds: ["cccccccc-cccc-4ccc-8ccc-cccccccccccc"],
+    });
+
+    expect(result.totalResolutions).toBe(9);
+    expect(audienceFromMock).toHaveBeenCalled();
+    expect(hourlyFromMock).toHaveBeenCalled();
   });
 
   it("aggregates from per-user resolution events when excludedUserIds provided", async () => {

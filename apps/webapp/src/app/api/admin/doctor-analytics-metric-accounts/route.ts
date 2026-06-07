@@ -5,6 +5,8 @@ import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalytics
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { parseReminderStatsWindowHours } from "@/app-layer/stats/loadAdminReminderStats";
+import { parseAdminStatsTimePreset } from "@/modules/admin-platform-stats/parseAdminStatsTimePreset";
+import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
 import type { DoctorAnalyticsMetricKey } from "@/modules/doctor-analytics-metric-accounts/ports";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 
@@ -44,9 +46,8 @@ const dayParam = z
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 
-function parsePreset(raw: string | null): "week" | "month" | "custom" {
-  if (raw === "month" || raw === "custom") return raw;
-  return "week";
+function parsePreset(raw: string | null): AdminStatsTimePreset {
+  return parseAdminStatsTimePreset(raw);
 }
 
 export async function GET(req: Request) {

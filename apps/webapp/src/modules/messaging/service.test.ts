@@ -40,7 +40,15 @@ describe("createPatientMessagingService", () => {
       resolvePatientLabel: async () => "Иван",
     });
     const r = await svc.sendText("u1", "00000000-0000-4000-8000-000000000001", "Привет");
-    expect(r).toEqual({ ok: true });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.message).toMatchObject({
+        id: "m1",
+        text: "Привет",
+        senderRole: "user",
+      });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(notifyDoctorOfPatientMessage).toHaveBeenCalledWith(
       expect.objectContaining({ messageText: "Привет", patientLabel: "Иван" }),
     );

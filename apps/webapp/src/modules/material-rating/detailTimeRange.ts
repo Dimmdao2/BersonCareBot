@@ -22,7 +22,7 @@ function enumerateLocalDayKeysInclusive(iana: string, fromDay: string, toDay: st
 }
 
 /** Пресеты периода детализации оценок (максимум 31 календарный день). */
-export type MaterialRatingDetailPreset = "week" | "month" | "custom";
+export type MaterialRatingDetailPreset = "day" | "week" | "month" | "custom";
 
 export type ResolvedMaterialRatingDetailLocalRange = {
   fromDay: string;
@@ -50,7 +50,10 @@ export function resolveMaterialRatingDetailLocalRange(
   let fromStart: DateTime;
   let toEndInclusiveStart: DateTime;
 
-  if (preset === "week") {
+  if (preset === "day") {
+    fromStart = todayStart;
+    toEndInclusiveStart = todayStart;
+  } else if (preset === "week") {
     fromStart = todayStart.minus({ days: 6 });
     toEndInclusiveStart = todayStart;
   } else if (preset === "month") {

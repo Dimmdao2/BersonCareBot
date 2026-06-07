@@ -9,13 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
+import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from "@/app/app/doctor/analytics/shared/analyticsWindowHourPresets";
 import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
 
-const PRESETS = [
-  { hours: 24, label: "24 ч" },
-  { hours: 168, label: "7 дн." },
-  { hours: 720, label: "30 дн." },
-] as const;
+const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
 function formatPushOpenRate(rate: number): string {
   if (!Number.isFinite(rate) || rate <= 0) return "0%";

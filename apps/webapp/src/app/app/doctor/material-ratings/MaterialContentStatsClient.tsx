@@ -20,15 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
+import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from "@/app/app/doctor/analytics/shared/analyticsWindowHourPresets";
 import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { PushOpensAnalyticsCard } from "@/app/app/doctor/analytics/shared/PushOpensAnalyticsCard";
 import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
-const PRESETS = [
-  { hours: 168, label: "7 дн." },
-  { hours: 720, label: "30 дн." },
-] as const;
+const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
 const FILL_PRACTICE = "hsl(142 45% 42% / 0.9)";
 const FILL_WARMUP_VIDEO = "hsl(215 55% 48% / 0.9)";
@@ -233,7 +231,13 @@ export function MaterialContentStatsClient() {
             <CardHeader className="py-2">
               <CardTitle className="text-sm">Открытия видео разминок по страницам (топ)</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <DoctorStatCard
+                id="content-stats-warmup-watch-minutes"
+                title="Минут просмотра"
+                value={data.warmupVideoEstimatedWatchMinutes}
+                hint="оценка по длительности роликов"
+              />
               <TopPagesHorizontalBarChart data={warmupVideoChartData} barName="Просмотров" fill={FILL_WARMUP_VIDEO} />
             </CardContent>
           </Card>
@@ -243,12 +247,19 @@ export function MaterialContentStatsClient() {
               <CardTitle className="text-sm">Видео: платформа</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
                 <DoctorStatCard
                   id="content-stats-video-resolutions"
                   title="Выдач всего"
                   value={data.videoPlayback.totalResolutions}
                   hint="за период"
+                  href="/app/doctor/system-health"
+                />
+                <DoctorStatCard
+                  id="content-stats-video-watch-minutes"
+                  title="Минут просмотра"
+                  value={data.videoPlaybackEstimatedWatchMinutes}
+                  hint="оценка по длительности роликов"
                   href="/app/doctor/system-health"
                 />
                 <DoctorStatCard

@@ -85,6 +85,9 @@ export function MaterialRatingDetailClient({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant={preset === "day" ? "default" : "outline"} onClick={() => setPreset("day")}>
+          Сутки
+        </Button>
         <Button type="button" size="sm" variant={preset === "week" ? "default" : "outline"} onClick={() => setPreset("week")}>
           7 дней
         </Button>

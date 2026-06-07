@@ -16,14 +16,14 @@ const dayParam = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 
 function parsePreset(raw: string | null): MaterialRatingDetailPreset {
-  if (raw === "week" || raw === "month" || raw === "custom") return raw;
+  if (raw === "day" || raw === "week" || raw === "month" || raw === "custom") return raw;
   return "week";
 }
 
 const querySchema = z.object({
   kind: z.enum(["content_page", "lfk_exercise", "lfk_complex"]),
   id: z.string().uuid(),
-  preset: z.enum(["week", "month", "custom"]).optional(),
+  preset: z.enum(["day", "week", "month", "custom"]).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
 });

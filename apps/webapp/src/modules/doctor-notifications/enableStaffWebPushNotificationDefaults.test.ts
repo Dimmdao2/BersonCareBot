@@ -20,9 +20,11 @@ describe("enableStaffWebPushNotificationDefaults", () => {
     expect(enabled).toEqual([
       "doctor_specialist_task_reminders",
       "doctor_patient_messages",
+      "doctor_patient_program_notes",
     ]);
-    expect(upsert).toHaveBeenCalledTimes(2);
+    expect(upsert).toHaveBeenCalledTimes(3);
     expect(upsert).toHaveBeenCalledWith("doc-1", "doctor_specialist_task_reminders", "web_push", true);
     expect(upsert).toHaveBeenCalledWith("doc-1", "doctor_patient_messages", "web_push", true);
+    expect(upsert).toHaveBeenCalledWith("doc-1", "doctor_patient_program_notes", "web_push", true);
   });
 });

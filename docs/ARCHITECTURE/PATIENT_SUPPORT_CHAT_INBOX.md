@@ -46,6 +46,12 @@
 
 **Мгновенное обновление UI:** после успешного read в [`PatientMessagesClient.tsx`](../../apps/webapp/src/app/app/patient/messages/PatientMessagesClient.tsx) (bootstrap и poll) — `notifyPatientSupportUnreadCountChanged()`; hook слушает событие `bersoncare:patient-support-unread-refresh`.
 
+## Статусы доставки (✓ / ✓✓)
+
+На исходящих сообщениях в support-чате: одна галочка — записано в БД; две — прочитано собеседником (`read_at` на `support_conversation_messages`). Polling refetch обновляет галочки без перезагрузки страницы.
+
+Канон: [`CHAT_READ_RECEIPTS.md`](CHAT_READ_RECEIPTS.md).
+
 ## Код (webapp)
 
 | Область | Путь |

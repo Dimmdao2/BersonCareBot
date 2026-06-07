@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { loadContentEngagementStats, parseReminderStatsWindowHours } from "./loadAdminReminderStats";
+import {
+  loadContentEngagementStats,
+  mergePushOpenBuckets,
+  parseReminderStatsWindowHours,
+  summarizePushOpens,
+} from "./loadAdminReminderStats";
 
 describe("parseReminderStatsWindowHours", () => {
   it("defaults to 168 when param is missing or empty", () => {
@@ -17,6 +22,36 @@ describe("parseReminderStatsWindowHours", () => {
 
   it("returns default for non-numeric input", () => {
     expect(parseReminderStatsWindowHours("abc")).toBe(168);
+  });
+});
+
+describe("mergePushOpenBuckets + summarizePushOpens", () => {
+  it("merges push_open and push_sent into the same bucket", () => {
+    const hourly = mergePushOpenBuckets([
+      { bucket: "2026-06-07T10:00:00", eventType: "push_open", n: 18 },
+      { bucket: "2026-06-07T10:00:00", eventType: "push_sent", n: 142 },
+      { bucket: "2026-06-07T11:00:00", eventType: "push_open", n: 3 },
+    ]);
+    expect(hourly).toEqual([
+      { bucket: "2026-06-07T10:00:00", opened: 18, sent: 142 },
+      { bucket: "2026-06-07T11:00:00", opened: 3, sent: 0 },
+    ]);
+  });
+
+  it("summarizes sent from push_sent buckets, not only push_open", () => {
+    const summary = summarizePushOpens([
+      { bucket: "a", opened: 18, sent: 142 },
+      { bucket: "b", opened: 3, sent: 58 },
+    ]);
+    expect(summary).toEqual({ opened: 21, sent: 200, openRate: 21 / 200 });
+  });
+
+  it("returns openRate 0 when sent is 0", () => {
+    expect(summarizePushOpens([{ bucket: "a", opened: 5, sent: 0 }])).toEqual({
+      opened: 5,
+      sent: 0,
+      openRate: 0,
+    });
   });
 });
 

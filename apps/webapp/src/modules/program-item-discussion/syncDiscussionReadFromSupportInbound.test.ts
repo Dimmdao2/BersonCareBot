@@ -22,6 +22,7 @@ describe("syncDiscussionReadFromSupportInboundMessages", () => {
       markRead: vi.fn(),
       getUnreadCount: vi.fn(),
       getLastReadAt: vi.fn(),
+      getMaxLastReadAtForViewers: vi.fn(),
       countLegacyUnreadAdminReplies: vi.fn(),
       listLinkedSupportMessageIdsForStageItem: vi.fn(),
       findStageItemIdBySupportMessageId: vi.fn(),

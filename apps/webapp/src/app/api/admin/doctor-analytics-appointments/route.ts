@@ -6,6 +6,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/resolveAppointmentStatsBounds";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { parseAdminStatsTimePreset } from "@/modules/admin-platform-stats/parseAdminStatsTimePreset";
 import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
 
 const dayParam = z
@@ -14,8 +15,7 @@ const dayParam = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 
 function parsePreset(raw: string | null): AdminStatsTimePreset {
-  if (raw === "month" || raw === "custom") return raw;
-  return "week";
+  return parseAdminStatsTimePreset(raw);
 }
 
 export async function GET(req: Request) {

@@ -20,6 +20,21 @@
 - Блок звёзд: `MaterialRatingBlock` (+ нативный fallback `MaterialRatingNativeStars`), встраивается на пациентских страницах контента/ЛФК и в формах врача/CMS там, где нужна обратная связь по материалу.
 - Кабинет врача: **`/app/doctor/material-ratings`** (пункт меню «Статистика материалов») — сверху дашборд платформенных метрик (**`GET /api/doctor/content-stats`**, тот же JSON, что **`GET /api/admin/reminder-stats`**, загрузчик **`loadContentEngagementStats`** в [`loadAdminReminderStats.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts); агрегаты **по всей платформе**, не фильтр «только пациенты этого врача»); UI: [`MaterialContentStatsClient.tsx`](../../apps/webapp/src/app/app/doctor/material-ratings/MaterialContentStatsClient.tsx); ниже постраничная сводка по оценкам; **`/app/doctor/material-ratings/[kind]/[id]`** — детализация за период ≤31 дня (график и список оценивших).
 
+## Дашборд content-stats (верх «Статистика материалов»)
+
+Query **`windowHours`** (целое **1…720**, по умолчанию **168**); в UI — пресеты **24 ч** / **7 дн.** / **30 дн.**
+
+| Поле | Смысл |
+|------|--------|
+| **`warmupVideoTopPages`** | Топ страниц по открытиям видео разминки (`patient_daily_warmup_video_views`). |
+| **`warmupVideoEstimatedWatchMinutes`** | Оценка минут просмотра разминок: сумма **`media_files.video_duration_seconds`** по открытиям; UUID из **`content_pages.video_url`** — канонический **`/api/media/{uuid}`** (query/hash отрезаются). |
+| **`videoPlayback.totalResolutions`** | Выдачи видео за окно (`loadAdminPlaybackHealthMetrics`; fallback на **`media_playback_stats_hourly`**, если событий resolution нет). |
+| **`videoPlaybackEstimatedWatchMinutes`** | Оценка минут по **`media_playback_resolution_events`** × длительность; если **0** при **`totalResolutions > 0`** — fallback: средняя длительность видео в библиотеке × **`totalResolutions`**. |
+| **`practiceTopPages`** / **`practiceBySource`** | Завершения практики (`patient_practice_completions`). |
+| **`pushOpensSummary`** | **`opened`** — **`product_analytics_events_recent`** (`push_open`); **`sent`** — **`product_push_notifications`**; **`openRate`** = opened/sent. |
+
+Блоки напоминаний (`occurrenceHistory*`, `peopleWithNotifications`) на этой странице не показываются — они на **`/app/doctor/analytics/notifications`**.
+
 ## Детализация для врача (`GET /api/doctor/material-ratings/detail`)
 
 Границы периода — календарные дни в **`app_display_timezone`**, данные в полуинтервале **`[startUtcIso, endExclusiveUtcIso)`**.

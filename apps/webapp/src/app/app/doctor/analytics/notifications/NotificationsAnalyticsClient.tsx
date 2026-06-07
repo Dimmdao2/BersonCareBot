@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
+import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from "@/app/app/doctor/analytics/shared/analyticsWindowHourPresets";
 import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { MetricAccountsDialog } from "@/app/app/doctor/analytics/clients/MetricAccountsDialog";
@@ -30,11 +31,7 @@ import { PushOpensAnalyticsCard } from "@/app/app/doctor/analytics/shared/PushOp
 import { ReminderSendsHourlyClockChart } from "@/app/app/doctor/analytics/shared/ReminderSendsHourlyClockChart";
 import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
 
-const PRESETS = [
-  { hours: 24, label: "24 ч" },
-  { hours: 168, label: "7 дн." },
-  { hours: 720, label: "30 дн." },
-] as const;
+const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
 const FILL_PRACTICE = "hsl(142 45% 42% / 0.9)";
 const FILL_WARMUP_VIDEO = "hsl(215 55% 48% / 0.9)";
@@ -298,7 +295,13 @@ export function NotificationsAnalyticsClient() {
               <CardHeader className="py-2">
                 <CardTitle className="text-sm">Открытия видео разминок по страницам (топ)</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
+                <DoctorStatCard
+                  id="notif-warmup-watch-minutes"
+                  title="Минут просмотра"
+                  value={data.warmupVideoEstimatedWatchMinutes}
+                  hint="оценка по длительности роликов"
+                />
                 <TopPagesHorizontalBarChart data={warmupVideoChartData} barName="Просмотров" fill={FILL_WARMUP_VIDEO} />
               </CardContent>
             </Card>

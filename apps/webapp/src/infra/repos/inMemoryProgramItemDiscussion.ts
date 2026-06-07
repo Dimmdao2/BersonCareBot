@@ -151,6 +151,20 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       return reads.get(readKey(params.patientUserId, params.stageItemId)) ?? null;
     },
 
+    async getMaxLastReadAtForViewers(params: {
+      stageItemId: string;
+      viewerUserIds: string[];
+    }): Promise<string | null> {
+      if (params.viewerUserIds.length === 0) return null;
+      let max: string | null = null;
+      for (const viewerUserId of params.viewerUserIds) {
+        const value = reads.get(readKey(viewerUserId, params.stageItemId)) ?? null;
+        if (!value) continue;
+        if (!max || value > max) max = value;
+      }
+      return max;
+    },
+
     async listLinkedSupportMessageIdsForStageItem(stageItemId: string): Promise<string[]> {
       return [...rows.values()]
         .filter((x) => x.instanceStageItemId === stageItemId && x.supportMessageId)

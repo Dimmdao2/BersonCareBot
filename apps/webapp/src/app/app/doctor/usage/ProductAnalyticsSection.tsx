@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
+import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from "@/app/app/doctor/analytics/shared/analyticsWindowHourPresets";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { PRODUCT_ANALYTICS_PUSH_TOPIC_HINT } from "@/modules/product-analytics/productAnalyticsTopicLabels";
 import type { ProductAnalyticsAdminDashboard } from "@/modules/product-analytics/types";
@@ -24,11 +25,7 @@ import { ProductAnalyticsEntryChannelChart } from "./ProductAnalyticsEntryChanne
 import { ProductAnalyticsPushByTopicChart } from "./ProductAnalyticsPushByTopicChart";
 import { ProductAnalyticsTopPagesChart } from "./ProductAnalyticsTopPagesChart";
 
-const PRESETS = [
-  { hours: 24, label: "24 ч" },
-  { hours: 168, label: "7 дн." },
-  { hours: 720, label: "30 дн." },
-] as const;
+const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
 const CHANNEL_LABEL: Record<string, string> = {
   pwa: "PWA",

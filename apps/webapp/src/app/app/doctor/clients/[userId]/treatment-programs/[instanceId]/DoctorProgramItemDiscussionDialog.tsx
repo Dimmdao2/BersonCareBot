@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { DoctorProgramDiscussionMessagesPanel } from "./DoctorProgramDiscussionMessagesPanel";
+import { markDoctorProgramDiscussionRead } from "@/app/app/doctor/doctorProgramDiscussionMarkRead";
 import { sendDoctorProgramDiscussionReply } from "./doctorProgramDiscussionReply";
 
 type DiscussionPageResponse = {
@@ -13,6 +14,7 @@ type DiscussionPageResponse = {
   pageInfo?: {
     nextCursor?: string | null;
   };
+  peerLastReadAt?: string | null;
 };
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
@@ -34,6 +36,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
   const loadGenerationRef = useRef(0);
 
   const basePath = useMemo(
@@ -62,6 +65,9 @@ export function DoctorProgramItemDiscussionDialog(props: {
         return [...map.values()].sort(compareMessages);
       });
       setNextCursor(typeof data.pageInfo?.nextCursor === "string" ? data.pageInfo.nextCursor : null);
+      if (data.peerLastReadAt !== undefined) {
+        setPeerLastReadAt(data.peerLastReadAt);
+      }
     },
     [basePath],
   );
@@ -75,6 +81,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
     setNextCursor(null);
     try {
       await loadPage(null, false, generation);
+      void markDoctorProgramDiscussionRead({ instanceId, stageItemId: itemId });
     } catch (e) {
       if (generation !== loadGenerationRef.current) return;
       const msg = e instanceof Error ? e.message : "Не удалось загрузить обсуждение";
@@ -84,12 +91,28 @@ export function DoctorProgramItemDiscussionDialog(props: {
         setLoading(false);
       }
     }
-  }, [loadPage]);
+  }, [loadPage, instanceId, itemId]);
 
   useEffect(() => {
     if (!open) return;
     void bootstrap();
   }, [open, bootstrap]);
+
+  useEffect(() => {
+    if (!open) return;
+    const refreshPeerRead = async () => {
+      const url = new URL(basePath, window.location.origin);
+      url.searchParams.set("direction", "backward");
+      url.searchParams.set("limit", "1");
+      const res = await fetch(url.toString());
+      const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
+      if (res.ok && data?.ok && data.peerLastReadAt !== undefined) {
+        setPeerLastReadAt(data.peerLastReadAt);
+      }
+    };
+    const id = window.setInterval(() => void refreshPeerRead(), 15000);
+    return () => window.clearInterval(id);
+  }, [open, basePath]);
 
   useEffect(() => {
     if (open) return;
@@ -113,6 +136,7 @@ export function DoctorProgramItemDiscussionDialog(props: {
           loadingOlder={loadingOlder}
           error={error}
           nextCursor={nextCursor}
+          peerLastReadAt={peerLastReadAt}
           onSendReply={async (_stageItemId, text) => {
             const sendResult = await sendDoctorProgramDiscussionReply({
               instanceId,

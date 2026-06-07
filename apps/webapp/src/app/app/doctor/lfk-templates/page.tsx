@@ -14,6 +14,7 @@ import {
   type DoctorCatalogPubArchQuery,
 } from "@/shared/lib/doctorCatalogListStatus";
 import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
+import { doctorCatalogClientFilterUrlHints } from "@/shared/lib/doctorCatalogClientUrlSync";
 import { LfkTemplatesPageClient } from "./LfkTemplatesPageClient";
 
 type PageProps = {
@@ -75,6 +76,7 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
             regionCode: regionParsed.regionCode,
             loadType,
             listPubArch,
+            ...doctorCatalogClientFilterUrlHints(sp),
           }}
           initialTitleSort={initialTitleSort}
         />

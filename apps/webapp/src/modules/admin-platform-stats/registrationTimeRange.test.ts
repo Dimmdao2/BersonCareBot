@@ -43,4 +43,10 @@ describe("registrationTimeRange", () => {
     const r = resolveAdminStatsLocalRange("UTC", "custom", "2026-01-01", "2026-01-01");
     expect(r.dayKeys.length).toBe(1);
   });
+
+  it("resolves day preset to a single local calendar day", () => {
+    const r = resolveAdminStatsLocalRange("UTC", "day", undefined, undefined);
+    expect(r.fromDay).toBe(r.toDay);
+    expect(r.dayKeys.length).toBe(1);
+  });
 });

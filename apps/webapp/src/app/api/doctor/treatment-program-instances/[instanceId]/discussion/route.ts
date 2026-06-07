@@ -115,6 +115,20 @@ export async function GET(
       cursor,
     });
 
+    const stageItemIdsForPeerRead =
+      stageItemIdFilter != null ? [stageItemIdFilter] : [...new Set(items.map((item) => item.stageItemId))];
+    const peerLastReadAtByStageItemId = Object.fromEntries(
+      await Promise.all(
+        stageItemIdsForPeerRead.map(async (stageItemId) => [
+          stageItemId,
+          await deps.programItemDiscussion.getLastReadAtForViewer({
+            viewerUserId: instance.patientUserId,
+            stageItemId,
+          }),
+        ]),
+      ),
+    );
+
     return NextResponse.json({
       ok: true,
       messages: pageResult.page,
@@ -126,6 +140,7 @@ export async function GET(
         stageItemIdFilter,
       },
       totalCount: pageResult.totalCount,
+      peerLastReadAtByStageItemId,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

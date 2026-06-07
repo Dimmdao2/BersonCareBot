@@ -6,19 +6,10 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Switch } from "@/shared/ui/doctor/primitives/switch";
 import { patchAdminSetting } from "./patchAdminSetting";
 import {
+  ADMIN_INCIDENT_TOPIC_LABELS,
   ADMIN_INCIDENT_V1_TOPIC_KEYS,
   type AdminIncidentAlertConfig,
-  type AdminIncidentTopicKey,
 } from "@/modules/admin-incidents/adminIncidentAlertConfig";
-
-const TOPIC_LABELS: Record<AdminIncidentTopicKey, string> = {
-  channel_link: "Конфликт привязки канала",
-  auto_merge_conflict: "Новый открытый конфликт автомержа",
-  auto_merge_conflict_anomaly: "Аномалия автомержа (пустые кандидаты)",
-  messenger_phone_bind_blocked: "Блокировка привязки телефона (мессенджер)",
-  messenger_phone_bind_anomaly: "Аномалия привязки телефона (мессенджер)",
-  system_health_db_guard: "Очередь синка в integrator (system health)",
-};
 
 export type AdminIncidentAlertsSectionProps = {
   initialConfig: AdminIncidentAlertConfig;
@@ -53,8 +44,9 @@ export function AdminIncidentAlertsSection({ initialConfig }: AdminIncidentAlert
         <p className="text-xs text-muted-foreground">
           Telegram и Max — списки получателей в{" "}
           <code className="rounded bg-muted px-1">admin_telegram_ids</code> /{" "}
-          <code className="rounded bg-muted px-1">admin_max_ids</code>. Качество данных интеграций и сценарии только
-          внутри админки сюда не входят.
+          <code className="rounded bg-muted px-1">admin_max_ids</code>. Push — всем staff (admin/doctor) с
+          включённым push в приложении. Качество данных интеграций и сценарии только внутри админки сюда не
+          входят.
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -62,6 +54,18 @@ export function AdminIncidentAlertsSection({ initialConfig }: AdminIncidentAlert
           <p className="text-sm font-medium">Каналы</p>
           <table className="w-full border-collapse text-sm">
             <tbody>
+              <tr className="border-b border-border/60 last:border-0">
+                <th scope="row" className="py-2.5 pr-4 text-left align-middle font-medium">
+                  Push
+                </th>
+                <td className="w-px whitespace-nowrap py-2.5 align-middle text-right">
+                  <Switch
+                    checked={channels.web_push}
+                    onCheckedChange={(v) => setChannels((c) => ({ ...c, web_push: v }))}
+                    aria-label="Push"
+                  />
+                </td>
+              </tr>
               <tr className="border-b border-border/60 last:border-0">
                 <th scope="row" className="py-2.5 pr-4 text-left align-middle font-medium">
                   Telegram
@@ -96,13 +100,13 @@ export function AdminIncidentAlertsSection({ initialConfig }: AdminIncidentAlert
               {ADMIN_INCIDENT_V1_TOPIC_KEYS.map((key) => (
                 <tr key={key} className="border-b border-border/60 last:border-0">
                   <th scope="row" className="py-2.5 pr-4 text-left align-middle font-medium">
-                    {TOPIC_LABELS[key]}
+                    {ADMIN_INCIDENT_TOPIC_LABELS[key]}
                   </th>
                   <td className="w-px whitespace-nowrap py-2.5 align-middle text-right">
                     <Switch
                       checked={topics[key]}
                       onCheckedChange={(v) => setTopics((t) => ({ ...t, [key]: v }))}
-                      aria-label={TOPIC_LABELS[key]}
+                      aria-label={ADMIN_INCIDENT_TOPIC_LABELS[key]}
                     />
                   </td>
                 </tr>

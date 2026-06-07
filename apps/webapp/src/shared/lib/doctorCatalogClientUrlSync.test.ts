@@ -42,7 +42,26 @@ describe("doctorCatalogClientUrlSync", () => {
     expect(s.titleSort).toBe("asc");
     expect(s.domain).toBe("nutrition");
     expect(s.assessmentKind).toBe("knee");
+    expect(s.hasLoadParam).toBe(true);
+    expect(s.hasRegionParam).toBe(true);
     window.history.replaceState({}, "", "/");
+  });
+
+  it("readDoctorCatalogClientFilterUrlSlice accepts catalog load codes outside seed allowlist", () => {
+    window.history.replaceState({}, "", "/?load=custom_load");
+    const s = readDoctorCatalogClientFilterUrlSlice();
+    expect(s.loadType).toBe("custom_load");
+    expect(s.hasLoadParam).toBe(true);
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("readDoctorCatalogClientFilterUrlSlice clears load filter when param removed", () => {
+    window.history.replaceState({}, "", "/?load=strength");
+    expect(readDoctorCatalogClientFilterUrlSlice().hasLoadParam).toBe(true);
+    window.history.replaceState({}, "", "/");
+    const s = readDoctorCatalogClientFilterUrlSlice();
+    expect(s.hasLoadParam).toBe(false);
+    expect(s.loadType).toBeUndefined();
   });
 
   it("exports sync event name", () => {

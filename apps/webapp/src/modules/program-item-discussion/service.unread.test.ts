@@ -15,6 +15,7 @@ describe("program item discussion service unread", () => {
       markRead: vi.fn(),
       getUnreadCount: vi.fn().mockResolvedValue(1),
       getLastReadAt: vi.fn().mockResolvedValue("2026-01-01T00:00:00.000Z"),
+      getMaxLastReadAtForViewers: vi.fn(),
       countLegacyUnreadAdminReplies: vi.fn().mockResolvedValue(2),
       listLinkedSupportMessageIdsForStageItem: vi.fn().mockResolvedValue(["linked-support-id"]),
       findStageItemIdBySupportMessageId: vi.fn(),

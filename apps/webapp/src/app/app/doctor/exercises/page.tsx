@@ -4,6 +4,7 @@ import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import { parseRecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { parseDoctorCatalogRegionQueryParam, resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
+import { doctorCatalogClientFilterUrlHints } from "@/shared/lib/doctorCatalogClientUrlSync";
 import type { Exercise, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import {
   EXERCISE_LOAD_TYPE_CATEGORY_CODE,
@@ -77,6 +78,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
           regionCode: regionParsed.regionCode,
           loadType,
           listStatus,
+          ...doctorCatalogClientFilterUrlHints(sp),
         }}
       />
     </DoctorAppShell>

@@ -1,8 +1,5 @@
+import { parseExerciseLoadCatalogUrlParam } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import {
-  exerciseLoadTypeWriteAllowSet,
-  parseExerciseLoadFilterQueryParam,
-} from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import type { DoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
 
@@ -24,33 +21,87 @@ export type DoctorCatalogClientFilterUrlSlice = {
   domain?: string;
   /** Клинические тесты: `assessment` из query. */
   assessmentKind?: string;
+  hasRegionParam: boolean;
+  hasLoadParam: boolean;
+  hasTitleSortParam: boolean;
+  hasDomainParam: boolean;
+  hasAssessmentParam: boolean;
 };
 
-export function readDoctorCatalogClientFilterUrlSlice(): DoctorCatalogClientFilterUrlSlice {
-  if (typeof window === "undefined") {
-    return { q: "", titleSort: null };
-  }
-  const sp = new URLSearchParams(window.location.search);
+export type DoctorCatalogClientFilterUrlHints = Pick<
+  DoctorCatalogClientFilterUrlSlice,
+  "hasRegionParam" | "hasLoadParam" | "hasTitleSortParam" | "hasDomainParam" | "hasAssessmentParam"
+>;
+
+export function emptyDoctorCatalogClientFilterUrlSlice(): DoctorCatalogClientFilterUrlSlice {
+  return {
+    q: "",
+    titleSort: null,
+    hasRegionParam: false,
+    hasLoadParam: false,
+    hasTitleSortParam: false,
+    hasDomainParam: false,
+    hasAssessmentParam: false,
+  };
+}
+
+/** Наличие query-ключей с сервера (SSR/hydration до client URL sync). */
+export function doctorCatalogClientFilterUrlHints(searchParams: {
+  region?: string;
+  load?: string;
+  titleSort?: string;
+  domain?: string;
+  assessment?: string;
+}): DoctorCatalogClientFilterUrlHints {
+  return {
+    hasRegionParam: typeof searchParams.region === "string",
+    hasLoadParam: typeof searchParams.load === "string",
+    hasTitleSortParam: searchParams.titleSort === "asc" || searchParams.titleSort === "desc",
+    hasDomainParam: typeof searchParams.domain === "string" && searchParams.domain.trim() !== "",
+    hasAssessmentParam: typeof searchParams.assessment === "string" && searchParams.assessment.trim() !== "",
+  };
+}
+
+function readDoctorCatalogClientFilterUrlSliceFromSearchParams(
+  sp: URLSearchParams,
+): DoctorCatalogClientFilterUrlSlice {
   const q = sp.get("q") ?? "";
+  const hasRegionParam = sp.has("region");
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.get("region") ?? undefined);
-  const load = sp.get("load");
-  const loadAllow = exerciseLoadTypeWriteAllowSet([]);
-  const loadType = parseExerciseLoadFilterQueryParam(load ?? undefined, loadAllow);
+  const hasLoadParam = sp.has("load");
+  const loadType = hasLoadParam ? parseExerciseLoadCatalogUrlParam(sp.get("load")) : undefined;
+  const hasTitleSortParam = sp.has("titleSort");
   const ts = sp.get("titleSort");
   const titleSort = ts === "asc" || ts === "desc" ? ts : null;
+  const hasDomainParam = sp.has("domain");
   const domainRaw = sp.get("domain");
   const domain = typeof domainRaw === "string" && domainRaw.trim() ? domainRaw.trim() : undefined;
+  const hasAssessmentParam = sp.has("assessment");
   const assessmentRaw = sp.get("assessment");
   const assessmentKind =
     typeof assessmentRaw === "string" && assessmentRaw.trim() ? assessmentRaw.trim() : undefined;
   return {
     q,
-    regionCode: regionParsed.regionCode,
+    regionCode: hasRegionParam ? regionParsed.regionCode : undefined,
     loadType,
-    titleSort,
-    domain,
-    assessmentKind,
+    titleSort: hasTitleSortParam ? titleSort : null,
+    domain: hasDomainParam ? domain : undefined,
+    assessmentKind: hasAssessmentParam ? assessmentKind : undefined,
+    hasRegionParam,
+    hasLoadParam,
+    hasTitleSortParam,
+    hasDomainParam,
+    hasAssessmentParam,
   };
+}
+
+export function readDoctorCatalogClientFilterUrlSlice(): DoctorCatalogClientFilterUrlSlice {
+  if (typeof window === "undefined") {
+    return emptyDoctorCatalogClientFilterUrlSlice();
+  }
+  return readDoctorCatalogClientFilterUrlSliceFromSearchParams(
+    new URLSearchParams(window.location.search),
+  );
 }
 
 /**

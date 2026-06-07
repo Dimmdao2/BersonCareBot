@@ -3,16 +3,26 @@ import {
   loadDoctorNotifyTargets,
   relayTextToDoctorTargets,
 } from "@/modules/messaging/doctorNotifyTargets";
+import {
+  notifyDoctorPatientMessageToStaff,
+  type NotifyDoctorPatientMessageToStaffDeps,
+} from "@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff";
+
+export function buildDoctorPatientProgramOpenPath(input: {
+  patientUserId: string;
+  instanceId: string;
+}): string {
+  return `/app/doctor/clients/${encodeURIComponent(input.patientUserId)}/treatment-programs/${encodeURIComponent(input.instanceId)}`;
+}
 
 export function buildDoctorPatientProgramDeepLink(input: {
   patientUserId: string;
   instanceId: string;
 }): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
-  if (!base) {
-    return `/app/doctor/clients/${encodeURIComponent(input.patientUserId)}/treatment-programs/${encodeURIComponent(input.instanceId)}`;
-  }
-  return `${base}/app/doctor/clients/${encodeURIComponent(input.patientUserId)}/treatment-programs/${encodeURIComponent(input.instanceId)}`;
+  const path = buildDoctorPatientProgramOpenPath(input);
+  if (!base) return path;
+  return `${base}${path}`;
 }
 
 export function buildDoctorPatientProgramNoteNotifyText(input: {
@@ -43,11 +53,13 @@ export type NotifyDoctorPatientProgramNoteInput = {
 
 export async function notifyDoctorPatientProgramNote(
   input: NotifyDoctorPatientProgramNoteInput,
+  opts?: { staffDeps?: NotifyDoctorPatientMessageToStaffDeps },
 ): Promise<void> {
-  const targets = await loadDoctorNotifyTargets();
-  if (targets.telegram.length === 0 && targets.max.length === 0) return;
-
   const deepLink = buildDoctorPatientProgramDeepLink({
+    patientUserId: input.patientUserId,
+    instanceId: input.instanceId,
+  });
+  const openPath = buildDoctorPatientProgramOpenPath({
     patientUserId: input.patientUserId,
     instanceId: input.instanceId,
   });
@@ -57,14 +69,36 @@ export async function notifyDoctorPatientProgramNote(
     notePreview: input.noteText,
     deepLink,
   });
-
+  const preview = input.noteText.trim().slice(0, 120);
+  const noteKey = input.noteText.trim().slice(0, 64).replace(/\s+/g, " ");
+  const messageId = `patient-program-note:${input.stageItemId}:${noteKey}`;
   const replyMarkup = {
     inline_keyboard: [[{ text: "Ответить", callback_data: `program_reply:${input.stageItemId}` }]],
   };
 
-  const noteKey = input.noteText.trim().slice(0, 64).replace(/\s+/g, " ");
+  if (opts?.staffDeps) {
+    void notifyDoctorPatientMessageToStaff(
+      {
+        topicCode: "doctor_patient_program_notes",
+        messageId,
+        text,
+        pushTitle: "Комментарий к упражнению",
+        pushBody: `${input.patientLabel}: ${preview}`,
+        pushUrl: openPath,
+        replyMarkup,
+      },
+      opts.staffDeps,
+    ).catch((err: unknown) => {
+      console.error("[notifyDoctorPatientProgramNote] staff notify error:", err);
+    });
+    return;
+  }
+
+  const targets = await loadDoctorNotifyTargets();
+  if (targets.telegram.length === 0 && targets.max.length === 0) return;
+
   await relayTextToDoctorTargets(
-    `patient-program-note:${input.stageItemId}:${noteKey}`,
+    messageId,
     targets,
     text,
     "patient-program-note",

@@ -8,13 +8,18 @@ import { DoctorProgramDiscussionMessagesPanel } from "./DoctorProgramDiscussionM
 
 const itemA = "22222222-2222-4222-8222-222222222222";
 
-function message(id: string, body: string, stageItemId = itemA): ProgramItemDiscussionMessage {
+function message(
+  id: string,
+  body: string,
+  stageItemId = itemA,
+  senderRole: ProgramItemDiscussionMessage["senderRole"] = "patient",
+): ProgramItemDiscussionMessage {
   return {
     id,
     instanceStageItemId: stageItemId,
     patientUserId: "00000000-0000-4000-8000-000000000001",
-    senderRole: "patient",
-    origin: "patient_observation",
+    senderRole,
+    origin: senderRole === "patient" ? "patient_observation" : "support_admin_reply",
     body,
     mediaFileId: null,
     supportMessageId: null,
@@ -78,5 +83,21 @@ describe("DoctorProgramDiscussionMessagesPanel", () => {
     await user.click(screen.getByRole("button", { name: /отправить ответ/i }));
 
     expect(onSendReply).toHaveBeenCalledWith(itemA, "Ответ врача");
+  });
+
+  it("shows read delivery tick on doctor outgoing when patient read cursor covers message", () => {
+    render(
+      <DoctorProgramDiscussionMessagesPanel
+        messages={[message("m-admin", "Ответ врача", itemA, "admin")]}
+        loading={false}
+        loadingOlder={false}
+        error={null}
+        nextCursor={null}
+        onLoadOlder={() => {}}
+        peerLastReadAt="2026-06-01T12:00:00.000Z"
+      />,
+    );
+    expect(screen.getByText("Ответ врача")).toBeInTheDocument();
+    expect(document.querySelector('[data-delivery-status="read"]')).toBeInTheDocument();
   });
 });

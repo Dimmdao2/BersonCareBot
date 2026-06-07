@@ -3,7 +3,9 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
 import { patientBodyTextClass, patientChatMetaLineClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { chatMessageDeliveryStatus } from "../chatMessageDeliveryStatus";
 import {
   formatChatMessageTimeRu,
   formatChatRelativeDateLabelRu,
@@ -80,6 +82,9 @@ export function ChatView({
         : relativeFooters ?
           flatSorted.map((m) => {
             const mine = isAlignedRight(m.senderRole, variant);
+            const deliveryStatus = mine
+              ? chatMessageDeliveryStatus({ createdAt: m.createdAt, readAt: m.readAt })
+              : null;
             return (
               <div key={m.id} className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
                 <div className={cn("flex max-w-[min(100%,22rem)]", mine ? "justify-end" : "justify-start")}>
@@ -92,18 +97,26 @@ export function ChatView({
                     >
                       {m.text}
                     </p>
+                    {mine && deliveryStatus ?
+                      <ChatBubbleOutgoingMeta
+                        timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                        deliveryStatus={deliveryStatus}
+                      />
+                    : null}
                   </div>
                 </div>
-                <p
-                  className={cn(
-                    "max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]",
-                    patientRelative ? patientChatMetaLineClass : "text-[11px] leading-snug tabular-nums text-muted-foreground",
-                    mine ? "text-end" : "text-start",
-                  )}
-                >
-                  {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{" "}
-                  {formatChatMessageTimeRu(m.createdAt)}
-                </p>
+                {!mine ?
+                  <p
+                    className={cn(
+                      "max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]",
+                      patientRelative ? patientChatMetaLineClass : "text-[11px] leading-snug tabular-nums text-muted-foreground",
+                      "text-start",
+                    )}
+                  >
+                    {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{" "}
+                    {formatChatMessageTimeRu(m.createdAt)}
+                  </p>
+                : null}
               </div>
             );
           })
@@ -113,6 +126,9 @@ export function ChatView({
               <div className="space-y-2">
                 {g.items.map((m) => {
                   const mine = isAlignedRight(m.senderRole, variant);
+                  const deliveryStatus = mine
+                    ? chatMessageDeliveryStatus({ createdAt: m.createdAt, readAt: m.readAt })
+                    : null;
                   return (
                     <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
                       <div
@@ -124,9 +140,16 @@ export function ChatView({
                         )}
                       >
                         <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                        <p className="mt-1 text-[10px] tabular-nums opacity-70">
-                          {formatChatMessageTimeRu(m.createdAt)}
-                        </p>
+                        {mine && deliveryStatus ?
+                          <ChatBubbleOutgoingMeta
+                            timeLabel={formatChatMessageTimeRu(m.createdAt)}
+                            deliveryStatus={deliveryStatus}
+                          />
+                        : (
+                          <p className="mt-1 text-[10px] tabular-nums opacity-70">
+                            {formatChatMessageTimeRu(m.createdAt)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );
