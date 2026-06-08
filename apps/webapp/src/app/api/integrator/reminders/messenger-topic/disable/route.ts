@@ -77,6 +77,7 @@ export async function POST(request: Request) {
       channelPreferences: deps.channelPreferencesPort,
       topicChannelPrefs: deps.topicChannelPrefs,
       webPushSubscriptions: deps.webPushSubscriptions,
+      getProfileEmailFields: (platformUserId) => deps.userProjection.getProfileEmailFields(platformUserId),
     },
     {
       platformUserId,

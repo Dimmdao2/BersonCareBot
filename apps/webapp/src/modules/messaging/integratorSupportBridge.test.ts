@@ -24,7 +24,12 @@ describe("createIntegratorSupportBridge", () => {
     expect(appendWebappMessage).toHaveBeenCalledWith(
       expect.objectContaining({ senderRole: "admin", text: "Ответ врача" }),
     );
-    expect(notifyPatientOfDoctorReply).toHaveBeenCalled();
+    expect(notifyPatientOfDoctorReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platformUserId,
+        topicCode: "support_messages",
+      }),
+    );
   });
 
   it("applyAdminReply prefixes text when programNoteStageItemId is set", async () => {

@@ -40,6 +40,9 @@ export type DisableReminderMessengerDeps = {
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
   webPushSubscriptions: Pick<WebPushSubscriptionsPort, "hasAnyForUserId">;
+  getProfileEmailFields: (
+    platformUserId: string,
+  ) => Promise<{ email: string | null; emailVerifiedAt: string | null }>;
 };
 
 /** Integrator-signed: disable messenger reminders for occurrence's mailing topic (`user_notification_topic_channels`). */
@@ -102,6 +105,7 @@ export async function disableReminderMessengerTopicForOccurrence(
   await deps.topicChannelPrefs.upsert(params.platformUserId, topicCode, params.messengerChannel, false);
 
   const bindings = await loadBindings(pool, params.platformUserId);
+  const emailFields = await deps.getProfileEmailFields(params.platformUserId);
   const activeLabels = await resolveActiveReminderDeliveryLabelsForTopic({
     platformUserId: params.platformUserId,
     topicCode,
@@ -109,6 +113,10 @@ export async function disableReminderMessengerTopicForOccurrence(
     channelPreferences: deps.channelPreferences,
     topicChannelPrefs: deps.topicChannelPrefs,
     webPushSubscriptions: deps.webPushSubscriptions,
+    email: {
+      hasEmail: Boolean(emailFields.email?.trim()),
+      verified: Boolean(emailFields.emailVerifiedAt),
+    },
   });
 
   const listCsv = formatReminderDeliveryChannelsListRu(activeLabels);

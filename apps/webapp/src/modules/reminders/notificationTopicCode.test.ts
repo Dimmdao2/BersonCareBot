@@ -15,11 +15,22 @@ describe("notificationTopicCodeFromReminderRule", () => {
     ).toBe(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT);
   });
 
+  it("maps lfk category with warmup intent to warmup topic", () => {
+    expect(
+      notificationTopicCodeFromReminderRule({
+        category: "lfk",
+        linkedObjectType: "lfk_complex",
+        reminderIntent: "warmup",
+      }),
+    ).toBe("warmup_reminders");
+  });
+
   it("maps lfk category", () => {
     expect(
       notificationTopicCodeFromReminderRule({
         category: "lfk",
         linkedObjectType: "lfk_complex",
+        reminderIntent: "generic",
       }),
     ).toBe(REMINDER_NOTIFICATION_TOPIC_EXERCISE);
   });

@@ -764,6 +764,13 @@
       "when": 1785100000000,
       "tag": "0108_notification_topics_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1785200000000,
+      "tag": "0109_notification_topics_v2_followup",
+      "breakpoints": true
     }
   ]
 }

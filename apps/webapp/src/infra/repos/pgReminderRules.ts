@@ -196,6 +196,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
       const notificationTopicCode = notificationTopicCodeFromReminderRule({
         category,
         linkedObjectType: input.linkedObjectType,
+        reminderIntent,
       });
       const scheduleDataJson = scheduleData ? JSON.stringify(scheduleData) : null;
       const r = await runWebappSql<RuleRow>(

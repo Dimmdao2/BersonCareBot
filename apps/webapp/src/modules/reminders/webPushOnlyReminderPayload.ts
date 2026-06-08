@@ -3,6 +3,7 @@ import {
   type BuildReminderDeepLinkOptions,
 } from "./buildReminderDeepLink";
 import type { ReminderIntentSectionLookup } from "./resolveReminderIntentForLinkedObject";
+import type { ReminderIntent } from "./types";
 import { notificationTopicCodeFromReminderRule } from "./notificationTopicCode";
 import type { WebPushOnlyReminderRuleRow } from "./webPushOnlyPorts";
 
@@ -12,6 +13,7 @@ export function resolveWebPushOnlyReminderTopicCode(rule: WebPushOnlyReminderRul
   return notificationTopicCodeFromReminderRule({
     category: rule.category,
     linkedObjectType: rule.linkedObjectType,
+    reminderIntent: (rule.reminderIntent ?? "generic") as ReminderIntent,
   });
 }
 

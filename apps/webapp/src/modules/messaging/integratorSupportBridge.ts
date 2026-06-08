@@ -4,6 +4,7 @@ import {
   webappPlatformConversationId,
 } from "@/modules/messaging/supportConversationIds";
 import type { NotifyPatientDoctorReplyParams } from "@/modules/messaging/notifyPatientDoctorReply";
+import { NOTIFICATION_TOPIC_SUPPORT_MESSAGES } from "@/modules/patient-notifications/notificationTopicCodes";
 import type { SendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
 
 export type IntegratorSupportSyncMessageInput = {
@@ -127,6 +128,7 @@ export function createIntegratorSupportBridge(deps: {
           platformUserId,
           messageId: integratorMessageId,
           text: trimmed,
+          topicCode: NOTIFICATION_TOPIC_SUPPORT_MESSAGES,
         });
       }
 

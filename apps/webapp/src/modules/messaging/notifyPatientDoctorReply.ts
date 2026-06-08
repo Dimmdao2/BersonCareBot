@@ -23,6 +23,8 @@ export type NotifyPatientDoctorReplyParams = {
   platformUserId: string;
   messageId: string;
   text: string;
+  /** Defaults to {@link NOTIFICATION_TOPIC_SPECIALIST_MESSAGES}. */
+  topicCode?: string;
 };
 
 export type NotifyPatientDoctorReplyDeps = RelayOutboundDeps & {
@@ -87,7 +89,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    const topicCode = NOTIFICATION_TOPIC_SPECIALIST_MESSAGES;
+    const topicCode = params.topicCode?.trim() || NOTIFICATION_TOPIC_SPECIALIST_MESSAGES;
     const [prefs, availability, topicRows, gate] = await Promise.all([
       deps.channelPreferences.getPreferences(platformUserId),
       buildAvailability(deps, platformUserId),

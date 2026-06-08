@@ -41,6 +41,7 @@ export async function resolveActiveReminderDeliveryLabelsForTopic(input: {
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
   webPushSubscriptions: Pick<WebPushSubscriptionsPort, "hasAnyForUserId">;
+  email?: { hasEmail: boolean; verified: boolean };
 }): Promise<string[]> {
   const prefs = await input.channelPreferences.getPreferences(input.platformUserId);
   const byCode = new Map(prefs.map((p) => [p.channelCode, p]));
@@ -74,7 +75,9 @@ export async function resolveActiveReminderDeliveryLabelsForTopic(input: {
         break;
       case "email":
         if (byCode.get("email")?.isEnabledForNotifications === false) break;
-        active.push(CHANNEL_LABEL_RU.email);
+        if (input.email?.hasEmail && input.email.verified) {
+          active.push(CHANNEL_LABEL_RU.email);
+        }
         break;
       default:
         break;

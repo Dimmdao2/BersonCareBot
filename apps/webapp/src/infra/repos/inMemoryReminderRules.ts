@@ -108,6 +108,7 @@ export function createInMemoryReminderRulesPort(
         notificationTopicCode: notificationTopicCodeFromReminderRule({
           category,
           linkedObjectType: input.linkedObjectType,
+          reminderIntent: input.reminderIntent ?? "generic",
         }),
         updatedAt: new Date().toISOString(),
       };
