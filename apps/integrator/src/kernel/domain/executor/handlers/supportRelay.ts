@@ -10,6 +10,7 @@ import {
   asRecord,
   asString,
   buildIntentMeta,
+  appendTelegramUsernameMentionToLabel,
   formatActorLabel,
   persistWrites,
   readConversationId,
@@ -218,7 +219,11 @@ export async function handleConversationUserMessage(
   const replyButtonText = deps.templatePort
     ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
     : 'Ответить';
-  const notificationOnlyText = `Новое сообщение в диалоге\nОт: ${userLabel}`;
+  const senderLabel =
+    source === 'telegram'
+      ? appendTelegramUsernameMentionToLabel(userLabel, asString(conversation?.username))
+      : userLabel;
+  const notificationOnlyText = `Новое сообщение в диалоге\nОт: ${senderLabel}`;
   const incoming = readIncoming(ctx);
   const userChatId = asNumber(incoming.chatId);
   const userMessageIdRaw = readIncomingMessageId(ctx);

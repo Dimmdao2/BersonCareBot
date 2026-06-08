@@ -7,6 +7,10 @@ import {
   notifyDoctorPatientMessageToStaff,
   type NotifyDoctorPatientMessageToStaffDeps,
 } from "@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff";
+import {
+  buildPatientNotifyFromLine,
+  resolvePatientTelegramUsernameMention,
+} from "@/modules/messaging/patientTelegramUsernameMention";
 
 export function buildDoctorPatientProgramOpenPath(input: {
   patientUserId: string;
@@ -30,13 +34,14 @@ export function buildDoctorPatientProgramNoteNotifyText(input: {
   exerciseTitle: string;
   notePreview: string;
   deepLink: string;
+  telegramUsernameMention?: string | null;
 }): string {
   const preview = input.notePreview.trim().slice(0, 500);
   const title = input.exerciseTitle.trim() || "Пункт программы";
   const linkPart = input.deepLink ? `\nПрограмма: ${input.deepLink}` : "";
   return (
     `Комментарий пациента к упражнению\n` +
-    `От: ${input.patientLabel}\n` +
+    `${buildPatientNotifyFromLine(input.patientLabel, input.telegramUsernameMention)}\n` +
     `${title}\n` +
     `${preview}${linkPart}`
   );
@@ -53,7 +58,10 @@ export type NotifyDoctorPatientProgramNoteInput = {
 
 export async function notifyDoctorPatientProgramNote(
   input: NotifyDoctorPatientProgramNoteInput,
-  opts?: { staffDeps?: NotifyDoctorPatientMessageToStaffDeps },
+  opts?: {
+    staffDeps?: NotifyDoctorPatientMessageToStaffDeps;
+    resolveTelegramUsernameMention?: (platformUserId: string) => Promise<string | null>;
+  },
 ): Promise<void> {
   const deepLink = buildDoctorPatientProgramDeepLink({
     patientUserId: input.patientUserId,
@@ -63,11 +71,14 @@ export async function notifyDoctorPatientProgramNote(
     patientUserId: input.patientUserId,
     instanceId: input.instanceId,
   });
+  const resolveMention = opts?.resolveTelegramUsernameMention ?? resolvePatientTelegramUsernameMention;
+  const telegramUsernameMention = await resolveMention(input.patientUserId).catch(() => null);
   const text = buildDoctorPatientProgramNoteNotifyText({
     patientLabel: input.patientLabel,
     exerciseTitle: input.exerciseTitle,
     notePreview: input.noteText,
     deepLink,
+    telegramUsernameMention,
   });
   const preview = input.noteText.trim().slice(0, 120);
   const noteKey = input.noteText.trim().slice(0, 64).replace(/\s+/g, " ");

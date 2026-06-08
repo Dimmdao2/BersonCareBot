@@ -8,6 +8,10 @@ import {
   type NotifyDoctorPatientMessageToStaffDeps,
 } from "@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff";
 import {
+  buildPatientNotifyFromLine,
+  resolvePatientTelegramUsernameMention,
+} from "@/modules/messaging/patientTelegramUsernameMention";
+import {
   isWebappPlatformConversationId,
   webappPlatformConversationId,
 } from "@/modules/messaging/supportConversationIds";
@@ -30,6 +34,7 @@ export function buildDoctorPatientMessageNotifyText(input: {
   source: "webapp" | "telegram" | "max";
   deepLink: string;
   replyConversationId: string;
+  telegramUsernameMention?: string | null;
 }): string {
   const sourceLabel =
     input.source === "webapp"
@@ -41,7 +46,7 @@ export function buildDoctorPatientMessageNotifyText(input: {
   const linkPart = input.deepLink ? `\nЧат: ${input.deepLink}` : "";
   return (
     `Новое сообщение от пациента (${sourceLabel})\n` +
-    `От: ${input.patientLabel}\n` +
+    `${buildPatientNotifyFromLine(input.patientLabel, input.telegramUsernameMention)}\n` +
     `${preview}${linkPart}\n` +
     `(Ответьте кнопкой «Ответить» или в кабинете)`
   );
@@ -62,17 +67,23 @@ export type NotifyDoctorPatientMessageInput = {
 
 export async function notifyDoctorPatientMessage(
   input: NotifyDoctorPatientMessageInput,
-  opts?: { staffDeps?: NotifyDoctorPatientMessageToStaffDeps },
+  opts?: {
+    staffDeps?: NotifyDoctorPatientMessageToStaffDeps;
+    resolveTelegramUsernameMention?: (platformUserId: string) => Promise<string | null>;
+  },
 ): Promise<void> {
   const deepLink = buildDoctorMessagesDeepLink(input.platformUserId);
   const openPath = buildDoctorMessagesOpenPath(input.platformUserId);
   const replyConversationId = doctorReplyCallbackConversationId(input.platformUserId);
+  const resolveMention = opts?.resolveTelegramUsernameMention ?? resolvePatientTelegramUsernameMention;
+  const telegramUsernameMention = await resolveMention(input.platformUserId).catch(() => null);
   const text = buildDoctorPatientMessageNotifyText({
     patientLabel: input.patientLabel,
     messageText: input.messageText,
     source: input.source,
     deepLink,
     replyConversationId,
+    telegramUsernameMention,
   });
   const preview = input.messageText.trim().slice(0, 120);
   const replyMarkup = {

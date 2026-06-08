@@ -88,6 +88,17 @@ describe("notifyDoctorPatientProgramNote", () => {
     expect(text).toContain("Программа: https://app.example/p");
   });
 
+  it("buildDoctorPatientProgramNoteNotifyText appends telegram @nickname", () => {
+    const text = buildDoctorPatientProgramNoteNotifyText({
+      patientLabel: "Иван",
+      exerciseTitle: "Присед",
+      notePreview: "Болит колено",
+      deepLink: "https://app.example/p",
+      telegramUsernameMention: "@ivan_tg",
+    });
+    expect(text).toContain("От: Иван @ivan_tg");
+  });
+
   it("notifyDoctorPatientProgramNote uses staff topic delivery when staffDeps provided", async () => {
     await notifyDoctorPatientProgramNote(
       {
@@ -98,12 +109,16 @@ describe("notifyDoctorPatientProgramNote", () => {
         exerciseTitle: "Присед",
         noteText: "Комментарий",
       },
-      { staffDeps },
+      {
+        staffDeps,
+        resolveTelegramUsernameMention: async () => "@ivan_tg",
+      },
     );
     expect(notifyDoctorPatientMessageToStaff).toHaveBeenCalledWith(
       expect.objectContaining({
         topicCode: "doctor_patient_program_notes",
         messageId: expect.stringMatching(/^patient-program-note:/),
+        text: expect.stringContaining("От: Иван @ivan_tg"),
         pushTitle: "Комментарий к упражнению",
         pushBody: "Иван: Комментарий",
         replyMarkup: expect.objectContaining({

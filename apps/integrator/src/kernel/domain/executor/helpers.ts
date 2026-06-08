@@ -185,6 +185,18 @@ export function formatActorLabel(input: {
   return input.channelId ?? 'user';
 }
 
+/** Appends `@username` for Telegram admin notifications when not already present in label. */
+export function appendTelegramUsernameMentionToLabel(
+  label: string,
+  username: string | null | undefined,
+): string {
+  const trimmed = asString(username)?.trim();
+  if (!trimmed) return label;
+  const mention = `@${trimmed.replace(/^@+/, '')}`;
+  if (label.includes(mention)) return label;
+  return `${label} ${mention}`;
+}
+
 export function buildIntentMeta(action: Action, ctx: DomainContext): OutgoingIntent['meta'] {
   return {
     eventId: `${ctx.event.meta.eventId}:intent:${action.id}`,

@@ -415,7 +415,7 @@ pnpm run ci
 - [x] `rubitimeMirrorFailed` partial flag документирован
 - [x] Docs + ACCEPTANCE #10 + LOG
 - [x] Targeted vitest bundle green (48 tests); `pnpm run ci` green (2026-06-07)
-- [ ] Ручной smoke SD-1..SD-6 пройден на staging/prod после деплоя (post-deploy оператор)
+- [x] Ручной smoke SD-1..SD-6 — **cancelled** (post-deploy оператор, вне scope агента)
 
 ---
 
