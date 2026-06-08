@@ -40,9 +40,6 @@ describe("doctor-clients service", () => {
     async getDashboardPatientMetrics() {
       return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0 };
     },
-    async countRecentClientsWithoutMessagingChannels() {
-      return 0;
-    },
     async getClientContactBreakdown() {
       return emptyClientContactBreakdown();
     },
@@ -223,9 +220,6 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     },
     async getDashboardPatientMetrics() {
       return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0 };
-    },
-    async countRecentClientsWithoutMessagingChannels() {
-      return 0;
     },
     async getClientContactBreakdown() {
       return emptyClientContactBreakdown();

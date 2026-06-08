@@ -16,8 +16,8 @@ const availabilityBase = {
 describe("buildProfileNotificationTopicModels", () => {
   it("hides Push column when global web_push pref is off but topic-channel rows stay in DB", () => {
     const topics = buildProfileNotificationTopicModels(
-      [{ id: "exercise_reminders", title: "Занятия" }],
-      [{ topicCode: "exercise_reminders", channelCode: "web_push", isEnabled: true }],
+      [{ id: "training_reminders", title: "Занятия" }],
+      [{ topicCode: "training_reminders", channelCode: "web_push", isEnabled: true }],
       [],
       { ...availabilityBase, globalWebPushEnabled: false, hasWebPushSubscription: true },
     );
@@ -26,8 +26,8 @@ describe("buildProfileNotificationTopicModels", () => {
 
   it("shows Push column when subscription and global pref are on", () => {
     const topics = buildProfileNotificationTopicModels(
-      [{ id: "exercise_reminders", title: "Занятия" }],
-      [{ topicCode: "exercise_reminders", channelCode: "web_push", isEnabled: false }],
+      [{ id: "training_reminders", title: "Занятия" }],
+      [{ topicCode: "training_reminders", channelCode: "web_push", isEnabled: false }],
       [],
       availabilityBase,
     );
@@ -36,21 +36,11 @@ describe("buildProfileNotificationTopicModels", () => {
     expect(push?.isEnabled).toBe(false);
   });
 
-  it("sets topicMasterEnabled from user_notification_topics rows", () => {
+  it("always exposes topicMasterEnabled true (master switch removed from UI)", () => {
     const topics = buildProfileNotificationTopicModels(
-      [{ id: "news", title: "Новости" }],
+      [{ id: "patient_news", title: "Новости" }],
       [],
-      [{ topicCode: "news", isEnabled: false }],
-      { ...availabilityBase, hasWebPushSubscription: false },
-    );
-    expect(topics[0]?.topicMasterEnabled).toBe(false);
-  });
-
-  it("defaults topicMasterEnabled to true when no master row", () => {
-    const topics = buildProfileNotificationTopicModels(
-      [{ id: "news", title: "Новости" }],
-      [],
-      [],
+      [{ topicCode: "patient_news", isEnabled: false }],
       { ...availabilityBase, hasWebPushSubscription: false },
     );
     expect(topics[0]?.topicMasterEnabled).toBe(true);
@@ -60,8 +50,8 @@ describe("buildProfileNotificationTopicModels", () => {
 describe("applyWebPushColumnAvailability", () => {
   it("shows disabled push column when push is not effective", () => {
     const topics = buildProfileNotificationTopicModels(
-      [{ id: "exercise_reminders", title: "Занятия" }],
-      [{ topicCode: "exercise_reminders", channelCode: "web_push", isEnabled: true }],
+      [{ id: "training_reminders", title: "Занятия" }],
+      [{ topicCode: "training_reminders", channelCode: "web_push", isEnabled: true }],
       [],
       { ...availabilityBase, globalWebPushEnabled: false },
     );
@@ -76,7 +66,7 @@ describe("applyWebPushColumnAvailability", () => {
 describe("ensureWebPushInNotificationTopics", () => {
   it("adds Push column when subscription exists and global pref is on", () => {
     const topics = buildProfileNotificationTopicModels(
-      [{ id: "exercise_reminders", title: "Занятия" }],
+      [{ id: "training_reminders", title: "Занятия" }],
       [],
       [],
       { ...availabilityBase, globalWebPushEnabled: false },
@@ -87,8 +77,8 @@ describe("ensureWebPushInNotificationTopics", () => {
 
   it("does not add Push when global pref is off", () => {
     const topics = buildProfileNotificationTopicModels(
-      [{ id: "exercise_reminders", title: "Занятия" }],
-      [{ topicCode: "exercise_reminders", channelCode: "web_push", isEnabled: true }],
+      [{ id: "training_reminders", title: "Занятия" }],
+      [{ topicCode: "training_reminders", channelCode: "web_push", isEnabled: true }],
       [],
       { ...availabilityBase, globalWebPushEnabled: false },
     );

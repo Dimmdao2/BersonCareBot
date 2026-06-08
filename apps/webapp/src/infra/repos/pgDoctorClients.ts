@@ -26,7 +26,6 @@ import {
 import { appendSqlExcludeUserIds } from "@/modules/analytics/analyticsAudience";
 import {
   sqlActiveMaxBinding,
-  sqlActiveMessengerBinding,
   sqlActiveTelegramBinding,
   sqlMessengerBotBlocked,
 } from "@/modules/doctor-clients/activeMessengerBindingSql";
@@ -392,24 +391,6 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         onSupportCount: parseInt(supportR.rows[0]?.c ?? "0", 10),
         visitedThisCalendarMonthCount: parseInt(visitedR.rows[0]?.c ?? "0", 10),
       };
-    },
-
-    async countRecentClientsWithoutMessagingChannels(
-      days: number,
-      audience?: { excludedUserIds?: string[] },
-    ): Promise<number> {
-      const safeDays = Math.max(1, Math.min(365, Math.floor(days)));
-      const excluded = audience?.excludedUserIds ?? [];
-      const base = `SELECT COUNT(*)::text AS c
-         FROM platform_users pu
-         WHERE pu.role = 'client'
-           AND pu.merged_into_id IS NULL
-           AND COALESCE(pu.is_archived, false) = false
-           AND pu.created_at >= NOW() - ($1::int * interval '1 day')
-           AND NOT ${sqlActiveMessengerBinding("pu.id")}`;
-      const q = appendSqlExcludeUserIds(base, "pu.id", excluded, [safeDays]);
-      const r = await runWebappPgText<{ c: string }>(q.sql, q.params);
-      return parseInt(r.rows[0]?.c ?? "0", 10);
     },
 
     async getPatientClientIdentity(userId: string): Promise<ClientIdentity | null> {

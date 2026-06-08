@@ -14,6 +14,7 @@ describe("fanOutBroadcastWebPush", () => {
     const result = await fanOutBroadcastWebPush(
       {
         auditId: "audit-1",
+        broadcastCategory: "marketing",
         broadcastTitle: "Акция",
         eligibleClients: [{ userId: "u1" } as never, { userId: "u2" } as never],
         webPushEligibleUserIds: new Set(["u1"]),
@@ -26,7 +27,7 @@ describe("fanOutBroadcastWebPush", () => {
       expect.objectContaining({
         platformUserId: "u1",
         intentType: "news",
-        topicCode: "news",
+        topicCode: "patient_news",
         broadcastTitle: "Акция",
         openUrl: expect.stringContaining("/app/patient/messages"),
       }),

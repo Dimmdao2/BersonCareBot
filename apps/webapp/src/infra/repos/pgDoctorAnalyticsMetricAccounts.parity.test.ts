@@ -47,7 +47,6 @@ const METRIC_SQL_MARKERS: Record<DoctorAnalyticsMetricKey, string[]> = {
   today_appointments_today: ["Запись сегодня", "be_appointments", "a.status <> ALL"],
   today_appointments_week: ["Запись на неделе", "be_appointments", "a.status <> ALL"],
   today_cancellations_30d: ["interval '30 days'", "be_appointments"],
-  today_new_clients_no_channels_7d: ["Новый без каналов", "channel_code IN ('telegram', 'max')", "bot_blocked_at IS NULL"],
   notif_reminders_sent: ["reminder_occurrence_history", "Отправлено", "roh.status = $2"],
   notif_reminders_failed: ["reminder_occurrence_history", "Ошибка", "roh.status = $2"],
   notif_push_opened: ["product_analytics_events_recent", "push_open"],

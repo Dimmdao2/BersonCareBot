@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { platformUsers, userNotificationTopics } from "../../../db/schema/schema";
+import { platformUsers } from "../../../db/schema/schema";
 
 export type ReminderTopicGateResult = {
   muted: boolean;
@@ -28,12 +28,7 @@ export async function readReminderWebappNotifyGate(
   const mutedUntil = puRows[0]?.reminderMutedUntil;
   const muted = Boolean(mutedUntil && mutedUntil > now);
 
-  const topicRows = await db
-    .select({ isEnabled: userNotificationTopics.isEnabled })
-    .from(userNotificationTopics)
-    .where(and(eq(userNotificationTopics.userId, platformUserId), eq(userNotificationTopics.topicCode, topicCode.trim())));
-
-  const topicMasterEnabled = topicRows[0] ? topicRows[0].isEnabled : true;
+  const topicMasterEnabled = true;
 
   return { muted, topicMasterEnabled };
 }

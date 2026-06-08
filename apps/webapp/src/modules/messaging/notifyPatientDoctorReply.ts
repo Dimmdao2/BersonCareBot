@@ -2,7 +2,12 @@ import { routePaths } from "@/app-layer/routes/paths";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import { logger } from "@/infra/logging/logger";
 import { smtpInnerFromValueJson, sendTransactionalSmtpEmail } from "@/modules/outbound-email/sendTransactionalSmtp";
-import type { PatientNotificationChannelAvailability } from "@/modules/patient-notifications/resolveNotificationChannels";
+import { NOTIFICATION_TOPIC_SPECIALIST_MESSAGES } from "@/modules/patient-notifications/notificationTopicCodes";
+import {
+  resolvePatientNotificationChannels,
+  type PatientNotificationChannelAvailability,
+} from "@/modules/patient-notifications/resolveNotificationChannels";
+import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
@@ -11,7 +16,6 @@ import { buildMessagePushCopy } from "@/modules/web-push/pushNotificationCopy";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
 import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
-import { resolvePatientMessageChannels } from "./resolvePatientMessageChannels";
 
 const EMAIL_SUBJECT = "Новое сообщение в чате";
 
@@ -23,8 +27,10 @@ export type NotifyPatientDoctorReplyParams = {
 
 export type NotifyPatientDoctorReplyDeps = RelayOutboundDeps & {
   channelPreferences: ChannelPreferencesPort;
+  topicChannelPrefs: TopicChannelPrefsPort;
   webPushSubscriptions: WebPushSubscriptionsPort;
   systemSettings: Pick<SystemSettingsService, "getSetting">;
+  readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<{ muted: boolean }>;
   getProfileEmailFields: (
     platformUserId: string,
   ) => Promise<{ email: string | null; emailVerifiedAt: string | null }>;
@@ -81,9 +87,20 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    const prefs = await deps.channelPreferences.getPreferences(platformUserId);
-    const availability = await buildAvailability(deps, platformUserId);
-    const { selectedChannels } = resolvePatientMessageChannels({ availability, channelPrefs: prefs });
+    const topicCode = NOTIFICATION_TOPIC_SPECIALIST_MESSAGES;
+    const [prefs, availability, topicRows, gate] = await Promise.all([
+      deps.channelPreferences.getPreferences(platformUserId),
+      buildAvailability(deps, platformUserId),
+      deps.topicChannelPrefs.listByUserId(platformUserId),
+      deps.readReminderNotifyGate(platformUserId, topicCode),
+    ]);
+    const { selectedChannels } = resolvePatientNotificationChannels({
+      topicCode,
+      availability,
+      channelPrefs: prefs,
+      topicChannelRows: topicRows,
+      gate: { muted: gate.muted, topicMasterEnabled: true },
+    });
 
     const verbose = await isOperationalVerboseLogEnabled({ systemSettings: deps.systemSettings });
     if (verbose) {

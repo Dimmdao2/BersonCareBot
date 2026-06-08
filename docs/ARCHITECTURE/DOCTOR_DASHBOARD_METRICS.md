@@ -63,6 +63,18 @@
 
 ---
 
+---
+
+## Каналы связи (терминология)
+
+**Канон:** каналом связи считается **любой** способ контакта и доставки сообщений клиенту: Telegram, MAX, email, телефон, SMS, web push и другие каналы из матрицы уведомлений.
+
+На **`/app/doctor/analytics/clients`** блок «Каналы связи» показывает **комбинации имеющихся контактов** (круговая диаграмма и плитки «Только телефон», «Гости приложения» — клиенты без любого из контактов: телефона, подтверждённого email, Telegram, MAX).
+
+Мессенджеры Telegram/MAX **не** являются единственными «каналами»; отдельные KPI «без каналов» только по TG/MAX **не используются**.
+
+---
+
 ## Экран «Сегодня» (`/app/doctor`) — KPI
 
 Верхние плитки (`DoctorTodayDashboard`, `deps.doctorStats.getStats()`):
@@ -72,7 +84,6 @@
 | Записи сегодня | Число записей на текущий день (`start_at` в окне «сегодня», `app_display_timezone`) |
 | Записи на неделю | `getAppointmentStats({ range: 'week' }).total` — все строки с `start_at` в окне недели |
 | Отмены за 30 дн. | `getAppointmentStats` → `cancellations30d` (канон: cancel-статусы, `updated_at` за 30 дней) |
-| Новые клиенты за 7 дн. без каналов связи | `countRecentClientsWithoutMessagingChannels(7)` — `platform_users` с `created_at` ≥ now−7d, без привязок telegram/max |
 
 Клик по плитке открывает список аккаунтов (`GET /api/doctor/analytics-metric-accounts`, ключи `today_*`).
 

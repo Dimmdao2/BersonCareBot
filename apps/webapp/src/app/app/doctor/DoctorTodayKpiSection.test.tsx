@@ -20,7 +20,7 @@ vi.mock("./analytics/clients/MetricAccountsDialog", () => ({
 
 const kpiStats = {
   appointments: { total: 4, cancellations30d: 1 },
-  clients: { newClients7dWithNoChannels: 2 },
+  clients: {},
 } as import("@/modules/doctor-stats/service").DoctorStatsState;
 
 describe("DoctorTodayKpiSection", () => {

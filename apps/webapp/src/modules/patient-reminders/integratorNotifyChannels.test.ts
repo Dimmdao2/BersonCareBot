@@ -128,19 +128,27 @@ describe("runPatientReminderIntegratorNotify", () => {
     expect(sendWebPushMock).not.toHaveBeenCalled();
   });
 
-  it("returns topic_disabled with resolved skippedChannels", async () => {
-    const result = await runPatientReminderIntegratorNotify(baseBody, buildDeps({
-      readReminderNotifyGate: async () => ({ muted: false, topicMasterEnabled: false }),
+  it("returns skipped when all topic channels disabled", async () => {
+    const result = await runPatientReminderIntegratorNotify(
+      { ...baseBody, topicCode: "training_reminders" },
+      buildDeps({
+      topicChannelPrefs: {
+        listByUserId: async () => [
+          { topicCode: "training_reminders", channelCode: "telegram", isEnabled: false },
+          { topicCode: "training_reminders", channelCode: "web_push", isEnabled: false },
+        ],
+        upsert: async () => {},
+      },
     }));
-    expect(result).toMatchObject({ ok: true, skipped: "topic_disabled" });
+    expect(result.selectedChannels).toEqual([]);
     const skipped = result.skippedChannels as Array<{ reason: string }>;
-    expect(skipped.every((s) => s.reason === "topic_disabled")).toBe(true);
+    expect(skipped.some((s) => s.reason === "disabled_by_user_topic_channel")).toBe(true);
     expect(sendWebPushMock).not.toHaveBeenCalled();
   });
 
   it("skips web_push when there are no active subscriptions", async () => {
     const result = await runPatientReminderIntegratorNotify(
-      { ...baseBody, topicCode: "exercise_reminders" },
+      { ...baseBody, topicCode: "training_reminders" },
       buildDeps({
         webPushSubscriptions: {
           ...webPushSubscriptionsPort,
@@ -158,7 +166,7 @@ describe("runPatientReminderIntegratorNotify", () => {
 
   it("delivers web_push when selected", async () => {
     const result = await runPatientReminderIntegratorNotify(
-      { ...baseBody, topicCode: "exercise_reminders" },
+      { ...baseBody, topicCode: "training_reminders" },
       buildDeps({
         webPushSubscriptions: webPushSubscriptionsPort,
         getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
@@ -172,7 +180,7 @@ describe("runPatientReminderIntegratorNotify", () => {
   it("records web_push provider errors and deactivated subscriptions", async () => {
     sendWebPushMock.mockResolvedValue({ delivered: 0, errors: 2, deactivated: 1 });
     const result = await runPatientReminderIntegratorNotify(
-      { ...baseBody, topicCode: "exercise_reminders" },
+      { ...baseBody, topicCode: "training_reminders" },
       buildDeps({
         getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
       }),

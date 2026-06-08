@@ -1,6 +1,7 @@
 import type { ReminderCategory, ReminderRuleRecord } from '../../contracts/reminders.js';
 
-const EXERCISE_TOPIC = 'exercise_reminders';
+const WARMUP_TOPIC = 'warmup_reminders';
+const TRAINING_TOPIC = 'training_reminders';
 
 /**
  * Webapp `notifications_topics.id` for `GET /api/integrator/delivery-targets?topic=`.
@@ -10,7 +11,7 @@ const EXERCISE_TOPIC = 'exercise_reminders';
  * Precedence: persisted `rule.notificationTopicCode` (from webapp) > legacy heuristic on intent/category.
  *
  * **`water`:** integrator category for webapp «важное» (`integratorCategoryFromRule`). Must not inherit
- * `exercise_reminders` from `reminderIntent === 'generic'` — delivery stays without per-topic filtering.
+ * exercise topics from `reminderIntent === 'generic'` — delivery stays without per-topic filtering.
  */
 export function reminderOccurrenceTopicCode(
   rule: ReminderRuleRecord | undefined,
@@ -26,8 +27,9 @@ export function reminderOccurrenceTopicCode(
 
   if (rule) {
     const intent = typeof rule.reminderIntent === 'string' ? rule.reminderIntent.trim().toLowerCase() : '';
-    if (intent === 'warmup' || intent === 'exercises' || intent === 'stretch' || intent === 'generic') {
-      return EXERCISE_TOPIC;
+    if (intent === 'warmup') return WARMUP_TOPIC;
+    if (intent === 'exercises' || intent === 'stretch' || intent === 'generic') {
+      return TRAINING_TOPIC;
     }
     const lot = typeof rule.linkedObjectType === 'string' ? rule.linkedObjectType.trim() : '';
     if (
@@ -37,14 +39,15 @@ export function reminderOccurrenceTopicCode(
       lot === 'content_page' ||
       lot === 'content_section'
     ) {
-      return EXERCISE_TOPIC;
+      return intent === 'warmup' ? WARMUP_TOPIC : TRAINING_TOPIC;
     }
   }
   switch (occCategory) {
-    case 'exercise':
     case 'warmup':
+      return WARMUP_TOPIC;
+    case 'exercise':
     case 'breathing':
-      return EXERCISE_TOPIC;
+      return TRAINING_TOPIC;
     default:
       return undefined;
   }

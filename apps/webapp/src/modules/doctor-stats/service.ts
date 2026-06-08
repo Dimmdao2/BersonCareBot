@@ -24,8 +24,6 @@ export type DoctorStatsState = {
     contactBreakdown: ClientContactBreakdown;
     /** Клиенты с маркером «бот заблокирован» по каналу (активная привязка отсутствует). */
     messengerBotBlocked: ClientContactBreakdown["messengerBotBlocked"];
-    /** Созданы за последние 7 суток, без telegram/max (KPI «Сегодня»). */
-    newClients7dWithNoChannels: number;
   };
 };
 
@@ -64,17 +62,15 @@ export type DoctorStatsServiceDeps = {
   getClientContactBreakdown: (audience?: AudienceArg) => Promise<ClientContactBreakdown>;
   getDashboardPatientMetrics: (audience?: AudienceArg) => Promise<DoctorDashboardPatientMetrics>;
   getDashboardAppointmentMetrics: (audience?: AudienceArg) => Promise<DoctorDashboardAppointmentMetrics>;
-  countRecentClientsWithoutMessagingChannels: (days: number, audience?: AudienceArg) => Promise<number>;
 };
 
 export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
   return {
     async getStats(audience: AnalyticsAudienceContext): Promise<DoctorStatsState> {
       const aud = { excludedUserIds: audience.excludedUserIds };
-      const [appointmentStats, contactBreakdown, newClients7dWithNoChannels] = await Promise.all([
+      const [appointmentStats, contactBreakdown] = await Promise.all([
         deps.getAppointmentStats({ kind: "range", range: "week" }, aud),
         deps.getClientContactBreakdown(aud),
-        deps.countRecentClientsWithoutMessagingChannels(7, aud),
       ]);
 
       return {
@@ -93,7 +89,6 @@ export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
           appGuests: contactBreakdown.appGuests,
           contactBreakdown,
           messengerBotBlocked: contactBreakdown.messengerBotBlocked,
-          newClients7dWithNoChannels,
         },
       };
     },

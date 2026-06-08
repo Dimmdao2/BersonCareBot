@@ -18,11 +18,11 @@ const baseRule = {
 
 describe('reminderOccurrenceTopicCode', () => {
   it('maps exercise categories without rule', () => {
-    expect(reminderOccurrenceTopicCode(undefined, 'warmup')).toBe('exercise_reminders');
+    expect(reminderOccurrenceTopicCode(undefined, 'warmup')).toBe('warmup_reminders');
     expect(reminderOccurrenceTopicCode(undefined, 'water')).toBeUndefined();
   });
 
-  it('maps linked treatment program to exercise topic when rule category is exercise', () => {
+  it('maps linked treatment program to training topic when rule category is exercise', () => {
     const rule = {
       ...baseRule,
       category: 'exercise',
@@ -30,7 +30,7 @@ describe('reminderOccurrenceTopicCode', () => {
       linkedObjectId: 'a:b',
       reminderIntent: 'generic',
     } satisfies ReminderRuleRecord;
-    expect(reminderOccurrenceTopicCode(rule, 'exercise')).toBe('exercise_reminders');
+    expect(reminderOccurrenceTopicCode(rule, 'exercise')).toBe('training_reminders');
   });
 
   it('does not apply exercise topic for important (water) when reminderIntent is generic', () => {

@@ -153,8 +153,8 @@ export async function runPatientWebPushNotify(
   }
 
   const gate = await deps.readReminderNotifyGate(uid, body.topicCode);
-  if (gate.muted || !gate.topicMasterEnabled) {
-    return { ok: true, skipped: gate.muted ? "muted" : "topic_disabled" };
+  if (gate.muted) {
+    return { ok: true, skipped: "muted" };
   }
 
   const prefs = await deps.channelPreferences.getPreferences(uid);

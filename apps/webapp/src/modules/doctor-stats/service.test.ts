@@ -32,7 +32,6 @@ describe("doctor-stats service", () => {
       recordsInCalendarMonthTotal: 12,
       cancellationsInCalendarMonth: 1,
     }),
-    countRecentClientsWithoutMessagingChannels: async () => 2,
   });
 
   const audience = { includeTestAccounts: false, excludedUserIds: [] as string[] };
@@ -47,7 +46,6 @@ describe("doctor-stats service", () => {
     expect(stats.clients.phoneOnly).toBe(1);
     expect(stats.clients.appGuests).toBe(1);
     expect(stats.clients.contactBreakdown.pie.telegram_only).toBe(1);
-    expect(stats.clients.newClients7dWithNoChannels).toBe(2);
     expect(stats.clients.messengerBotBlocked).toEqual(contactBreakdown.messengerBotBlocked);
   });
 
@@ -84,7 +82,6 @@ describe("doctor-stats service", () => {
         recordsInCalendarMonthTotal: 0,
         cancellationsInCalendarMonth: 0,
       }),
-      countRecentClientsWithoutMessagingChannels: async () => 2,
     });
 
     await optimizedService.getStats(audience);

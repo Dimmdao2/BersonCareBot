@@ -5,7 +5,10 @@ import { allowedChannelsForTopic } from "@/modules/patient-notifications/topicCh
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 
-export const EXERCISE_REMINDERS_TOPIC = "exercise_reminders";
+import { NOTIFICATION_TOPIC_TRAINING } from "@/modules/patient-notifications/notificationTopicCodes";
+
+/** Topic for exercise/LFK reminder delivery labels (warmup uses {@link NOTIFICATION_TOPIC_WARMUP}). */
+export const EXERCISE_REMINDERS_TOPIC = NOTIFICATION_TOPIC_TRAINING;
 
 const CHANNEL_LABEL_RU: Record<PatientTopicChannelCode, string> = {
   web_push: "Push",

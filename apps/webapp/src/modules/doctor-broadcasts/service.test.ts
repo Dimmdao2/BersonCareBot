@@ -52,6 +52,7 @@ describe("doctor-broadcasts service", () => {
     return async (
       filter: BroadcastAudienceFilter,
       channels: BroadcastChannel[],
+      _category: import("./ports").BroadcastCategory,
     ): Promise<BroadcastAudienceResolveResult> => {
       const prefsMap = new Map();
       const eligibleClients = filterEligibleBroadcastClients(effectiveClients, channels, filter, prefsMap);
@@ -196,8 +197,8 @@ describe("doctor-broadcasts service", () => {
 
   it("preview passes segmentSize when resolver returns it", async () => {
     const svc = createDoctorBroadcastsService({
-      resolveBroadcastAudience: async (filter, channels) => ({
-        ...(await makeResolve([client("x", { bindings: { telegramId: "1" } })])(filter, channels)),
+      resolveBroadcastAudience: async (filter, channels, category) => ({
+        ...(await makeResolve([client("x", { bindings: { telegramId: "1" } })])(filter, channels, category)),
         audienceSize: 1,
         segmentSize: 75,
       }),
@@ -259,8 +260,8 @@ describe("doctor-broadcasts service", () => {
     const fanOut = vi.fn().mockResolvedValue({ attempted: 1, delivered: 1, errors: 0, skipped: 0 });
     const pushEligible = new Set(["u1"]);
     const svc = createDoctorBroadcastsService({
-      resolveBroadcastAudience: async (filter, channels) => ({
-        ...(await makeResolve([client("u1", { bindings: {} })])(filter, channels)),
+      resolveBroadcastAudience: async (filter, channels, category) => ({
+        ...(await makeResolve([client("u1", { bindings: {} })])(filter, channels, category)),
         webPushEligibleUserIds: pushEligible,
       }),
       broadcastAuditPort,

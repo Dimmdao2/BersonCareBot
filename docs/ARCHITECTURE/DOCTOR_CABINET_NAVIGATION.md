@@ -62,7 +62,7 @@
 
 ## Экран «Сегодня» — KPI и health-баннер
 
-**KPI-плитки** (верх страницы): записи сегодня, записи на неделю, отмены за 30 дн., **«Новые клиенты за 7 дн. без каналов связи»** (`countRecentClientsWithoutMessagingChannels(7)` — клиенты с `created_at` за 7 суток без telegram/max). Это **не** общий счётчик «без каналов»; последний — на `/app/doctor/analytics/clients`.
+**KPI-плитки** (верх страницы): новые сообщения (ссылка в inbox), записи сегодня, записи на неделю, отмены за 30 дн. Определения — [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md).
 
 **Баннер** «Требуется внимание к здоровью системы» (только `role === admin`): те же **критичные** сигналы, что сводка system-health (`adminDoctorTodayHealthBannerFromSystemHealth` в `collectAdminSystemHealthData`), **без** некритичных `mediaPreview` / `videoPlayback` / `videoPlaybackClient`.
 

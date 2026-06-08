@@ -4,7 +4,10 @@
  * Parity regressions: `reminderOccurrenceTopicCode.parity.test.ts`.
  */
 
-const EXERCISE_TOPIC = "exercise_reminders";
+import {
+  NOTIFICATION_TOPIC_TRAINING,
+  NOTIFICATION_TOPIC_WARMUP,
+} from "@/modules/patient-notifications/notificationTopicCodes";
 
 export type ReminderRuleForTopicCode = {
   category?: string;
@@ -12,6 +15,13 @@ export type ReminderRuleForTopicCode = {
   reminderIntent?: string | null;
   linkedObjectType?: string | null;
 };
+
+function trainingTopicFromRule(rule: ReminderRuleForTopicCode): string {
+  const intent =
+    typeof rule.reminderIntent === "string" ? rule.reminderIntent.trim().toLowerCase() : "";
+  if (intent === "warmup") return NOTIFICATION_TOPIC_WARMUP;
+  return NOTIFICATION_TOPIC_TRAINING;
+}
 
 /** @see integrator reminderOccurrenceTopicCode */
 export function reminderOccurrenceTopicCode(
@@ -29,13 +39,9 @@ export function reminderOccurrenceTopicCode(
   if (rule) {
     const intent =
       typeof rule.reminderIntent === "string" ? rule.reminderIntent.trim().toLowerCase() : "";
-    if (
-      intent === "warmup" ||
-      intent === "exercises" ||
-      intent === "stretch" ||
-      intent === "generic"
-    ) {
-      return EXERCISE_TOPIC;
+    if (intent === "warmup") return NOTIFICATION_TOPIC_WARMUP;
+    if (intent === "exercises" || intent === "stretch" || intent === "generic") {
+      return NOTIFICATION_TOPIC_TRAINING;
     }
     const lot =
       typeof rule.linkedObjectType === "string" ? rule.linkedObjectType.trim() : "";
@@ -46,15 +52,16 @@ export function reminderOccurrenceTopicCode(
       lot === "content_page" ||
       lot === "content_section"
     ) {
-      return EXERCISE_TOPIC;
+      return trainingTopicFromRule(rule);
     }
   }
   const cat = occCategory.trim();
   switch (cat) {
-    case "exercise":
     case "warmup":
+      return NOTIFICATION_TOPIC_WARMUP;
+    case "exercise":
     case "breathing":
-      return EXERCISE_TOPIC;
+      return NOTIFICATION_TOPIC_TRAINING;
     default:
       return undefined;
   }

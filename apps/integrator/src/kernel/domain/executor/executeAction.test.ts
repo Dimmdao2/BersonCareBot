@@ -3135,7 +3135,7 @@ describe('executeAction', () => {
       expect(getTargetsByChannelBinding).toHaveBeenCalledWith({
         telegramId: '42',
         maxId: 'max-ext-1',
-        topic: 'exercise_reminders',
+        topic: 'warmup_reminders',
         integratorUserId: 'user-1',
       });
       const sends = result.intents?.filter((i) => i.type === 'message.send') ?? [];
@@ -3182,7 +3182,7 @@ describe('executeAction', () => {
       const arg = notifyPatientReminderChannels.mock.calls[0]?.[0];
       expect(arg?.idempotencyKey).toBe('prn:occ-1:channels');
       const parsed = JSON.parse(arg?.body ?? '{}') as { topicCode?: string; integratorUserId?: string };
-      expect(parsed.topicCode).toBe('exercise_reminders');
+      expect(parsed.topicCode).toBe('warmup_reminders');
       expect(parsed.integratorUserId).toBe('user-1');
     });
 

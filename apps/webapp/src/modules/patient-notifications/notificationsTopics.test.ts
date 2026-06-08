@@ -8,13 +8,13 @@ import {
   parseNotificationsTopics,
 } from "./notificationsTopics";
 
-/** Литерал `value_json` в `083_notifications_topics.sql` и зеркале integrator — при изменении дефолта править все три места или сломается тест ниже. */
-const MIGRATION_083_NOTIFICATIONS_TOPICS_VALUE_JSON =
-  '{"value":[{"id":"exercise_reminders","title":"Напоминания об упражнениях"},{"id":"symptom_reminders","title":"Напоминания о симптомах"},{"id":"appointment_reminders","title":"Напоминания о записях"},{"id":"news","title":"Новости и обновления"}]}';
+/** Литерал value_json для миграции 0108 — при изменении дефолта править migration + DEFAULT_NOTIFICATION_TOPICS. */
+const MIGRATION_0108_NOTIFICATIONS_TOPICS_VALUE_JSON =
+  '{"value":[{"id":"warmup_reminders","title":"Напоминания о разминках"},{"id":"training_reminders","title":"Напоминания о тренировках"},{"id":"appointment_reminders","title":"Напоминания о записях"},{"id":"patient_news","title":"Новости и уведомления"},{"id":"specialist_messages","title":"Сообщения специалиста"},{"id":"support_messages","title":"Сообщения поддержки"},{"id":"important_broadcasts","title":"Важные рассылки"}]}';
 
 describe("notificationsTopicsDefaultValueJsonString", () => {
-  it("matches migration 083_notifications_topics.sql default value_json literal", () => {
-    expect(notificationsTopicsDefaultValueJsonString()).toBe(MIGRATION_083_NOTIFICATIONS_TOPICS_VALUE_JSON);
+  it("matches migration 0108 default value_json literal", () => {
+    expect(notificationsTopicsDefaultValueJsonString()).toBe(MIGRATION_0108_NOTIFICATIONS_TOPICS_VALUE_JSON);
   });
 
   it("round-trips with parseNotificationsTopics", () => {
@@ -26,8 +26,8 @@ describe("notificationsTopicsDefaultValueJsonString", () => {
 
 describe("isValidNotificationTopicId / isValidNotificationTopicTitle", () => {
   it("accepts canonical codes", () => {
-    expect(isValidNotificationTopicId("exercise_reminders")).toBe(true);
-    expect(isValidNotificationTopicTitle("Напоминания об упражнениях")).toBe(true);
+    expect(isValidNotificationTopicId("warmup_reminders")).toBe(true);
+    expect(isValidNotificationTopicTitle("Разминки")).toBe(true);
   });
 
   it("rejects invalid id charset and empty title", () => {
@@ -59,8 +59,8 @@ describe("parseNotificationsTopics", () => {
     expect(
       parseNotificationsTopics({
         value: [
-          { id: "news", title: "One" },
-          { id: "news", title: "Two" },
+          { id: "patient_news", title: "One" },
+          { id: "patient_news", title: "Two" },
         ],
       }),
     ).toEqual([...DEFAULT_NOTIFICATION_TOPICS.map((r) => ({ ...r }))]);

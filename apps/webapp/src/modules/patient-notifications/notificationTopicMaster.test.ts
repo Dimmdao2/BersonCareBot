@@ -6,10 +6,10 @@ const basePrefs = [
   { channelCode: "web_push" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
 ];
 
-describe("topic master vs topic-channel prefs", () => {
-  it("topic_disabled blocks delivery but topic-channel rows can remain enabled in prefs", () => {
+describe("topic-channel prefs", () => {
+  it("all channels off for topic yields empty delivery", () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: {
         hasTelegram: true,
         hasMax: false,
@@ -20,19 +20,18 @@ describe("topic master vs topic-channel prefs", () => {
       },
       channelPrefs: basePrefs,
       topicChannelRows: [
-        { topicCode: "exercise_reminders", channelCode: "telegram", isEnabled: true },
-        { topicCode: "exercise_reminders", channelCode: "web_push", isEnabled: true },
+        { topicCode: "training_reminders", channelCode: "telegram", isEnabled: false },
+        { topicCode: "training_reminders", channelCode: "web_push", isEnabled: false },
       ],
-      gate: { muted: false, topicMasterEnabled: false },
     });
     expect(r.selectedChannels).toEqual([]);
-    expect(r.skippedChannels.every((s) => s.reason === "topic_disabled")).toBe(true);
+    expect(r.skippedChannels.length).toBeGreaterThan(0);
   });
 
-  it("re-enabling topic master does not require changing topic-channel rows", () => {
-    const rows = [{ topicCode: "exercise_reminders", channelCode: "telegram" as const, isEnabled: true }];
+  it("enabled per-channel rows deliver without master switch", () => {
+    const rows = [{ topicCode: "training_reminders", channelCode: "telegram" as const, isEnabled: true }];
     const enabled = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: {
         hasTelegram: true,
         hasMax: false,
@@ -43,7 +42,6 @@ describe("topic master vs topic-channel prefs", () => {
       },
       channelPrefs: basePrefs,
       topicChannelRows: rows,
-      gate: { muted: false, topicMasterEnabled: true },
     });
     expect(enabled.selectedChannels).toContain("telegram");
   });

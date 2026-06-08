@@ -63,7 +63,7 @@ describe("resolvePatientNotificationChannels", () => {
 
   it("selects web_push when subscription and VAPID exist", () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: { ...allAvailable, hasTelegram: false, hasMax: false, hasEmail: false, emailVerified: false },
       channelPrefs: basePrefs,
       topicChannelRows: [],
@@ -73,7 +73,7 @@ describe("resolvePatientNotificationChannels", () => {
 
   it("skips web_push with no_active_subscriptions", () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: { ...allAvailable, hasWebPushSubscription: false, hasTelegram: false, hasMax: false, hasEmail: false, emailVerified: false },
       channelPrefs: basePrefs,
       topicChannelRows: [],
@@ -83,7 +83,7 @@ describe("resolvePatientNotificationChannels", () => {
 
   it("skips web_push with vapid_missing", () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: { ...allAvailable, vapidConfigured: false, hasTelegram: false, hasMax: false, hasEmail: false, emailVerified: false },
       channelPrefs: basePrefs,
       topicChannelRows: [],
@@ -131,21 +131,24 @@ describe("resolvePatientNotificationChannels", () => {
     expect(r.skippedChannels.find((s) => s.channel === "email")?.reason).toBe("provider_disabled");
   });
 
-  it("skips all allowed channels when topic disabled", () => {
+  it("skips all allowed channels when every topic channel is off", () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: allAvailable,
       channelPrefs: basePrefs,
-      topicChannelRows: [],
-      gate: { muted: false, topicMasterEnabled: false },
+      topicChannelRows: [
+        { topicCode: "training_reminders", channelCode: "telegram", isEnabled: false },
+        { topicCode: "training_reminders", channelCode: "max", isEnabled: false },
+        { topicCode: "training_reminders", channelCode: "web_push", isEnabled: false },
+      ],
     });
     expect(r.selectedChannels).toEqual([]);
-    expect(r.skippedChannels.every((s) => s.reason === "topic_disabled")).toBe(true);
+    expect(r.skippedChannels.some((s) => s.reason === "disabled_by_user_topic_channel")).toBe(true);
   });
 
   it("skips with disabled_by_user_global", () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: { ...allAvailable, hasMax: false, hasEmail: false, emailVerified: false },
       channelPrefs: basePrefs.map((p) =>
         p.channelCode === "telegram" ? { ...p, isEnabledForNotifications: false } : p,
@@ -158,17 +161,17 @@ describe("resolvePatientNotificationChannels", () => {
 
   it("skips with disabled_by_user_topic_channel", () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: { ...allAvailable, hasMax: false, hasEmail: false, emailVerified: false },
       channelPrefs: basePrefs,
-      topicChannelRows: [{ topicCode: "exercise_reminders", channelCode: "web_push", isEnabled: false }],
+      topicChannelRows: [{ topicCode: "training_reminders", channelCode: "web_push", isEnabled: false }],
     });
     expect(r.skippedChannels.find((s) => s.channel === "web_push")?.reason).toBe("disabled_by_user_topic_channel");
   });
 
-  it("skips email on exercise_reminders with channel_not_allowed_for_topic", () => {
+  it("skips email on training_reminders with channel_not_allowed_for_topic", () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: allAvailable,
       channelPrefs: basePrefs,
       topicChannelRows: [],
@@ -178,7 +181,7 @@ describe("resolvePatientNotificationChannels", () => {
 
   it("skips all allowed channels when muted", () => {
     const r = resolvePatientNotificationChannels({
-      topicCode: "exercise_reminders",
+      topicCode: "training_reminders",
       availability: allAvailable,
       channelPrefs: basePrefs,
       topicChannelRows: [],

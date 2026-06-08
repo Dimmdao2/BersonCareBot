@@ -52,6 +52,14 @@ export async function mergeLegacySupportConversationsForPlatformUser(
            SELECT pu.integrator_user_id FROM platform_users pu
            WHERE pu.id = $1::uuid AND pu.integrator_user_id IS NOT NULL
          )
+         OR EXISTS (
+           SELECT 1 FROM user_channel_bindings ucb
+           WHERE ucb.user_id = $1::uuid
+             AND sc.channel_code IS NOT NULL
+             AND sc.channel_external_id IS NOT NULL
+             AND ucb.channel_code = sc.channel_code
+             AND ucb.external_id = sc.channel_external_id
+         )
        )`,
     [platformUserId, canonicalKey],
   );

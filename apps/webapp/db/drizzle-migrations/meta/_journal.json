@@ -757,6 +757,13 @@
       "when": 1785000000000,
       "tag": "0107_messenger_bot_blocked",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1785100000000,
+      "tag": "0108_notification_topics_v2",
+      "breakpoints": true
     }
   ]
 }

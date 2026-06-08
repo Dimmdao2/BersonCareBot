@@ -13,10 +13,16 @@ export function isPatientTopicChannelCode(v: string): v is PatientTopicChannelCo
 /** Channels that may appear for a mailing topic in the patient UI / delivery fan-out. */
 export function allowedChannelsForTopic(topicCode: string): readonly PatientTopicChannelCode[] {
   const t = topicCode.trim();
-  if (t === "exercise_reminders" || t === "symptom_reminders") {
+  if (t === "warmup_reminders" || t === "training_reminders") {
     return ["telegram", "max", "web_push"];
   }
-  if (t === "appointment_reminders" || t === "news") {
+  if (
+    t === "appointment_reminders" ||
+    t === "patient_news" ||
+    t === "specialist_messages" ||
+    t === "support_messages" ||
+    t === "important_broadcasts"
+  ) {
     return ["telegram", "max", "email", "web_push"];
   }
   return PATIENT_TOPIC_CHANNEL_CODES;

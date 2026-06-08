@@ -96,9 +96,6 @@ export async function runPlatformUserReminderWebPushNotify(
   if (gate.muted) {
     return { ok: true, delivered: 0, skipped: "muted" };
   }
-  if (!gate.topicMasterEnabled) {
-    return { ok: true, delivered: 0, skipped: "topic_disabled" };
-  }
 
   const prefs = await deps.channelPreferences.getPreferences(input.platformUserId);
   const topicRows = await deps.topicChannelPrefs.listByUserId(input.platformUserId);

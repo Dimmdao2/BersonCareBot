@@ -73,10 +73,6 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     };
   },
 
-  async countRecentClientsWithoutMessagingChannels(_days: number): Promise<number> {
-    return 0;
-  },
-
   async getClientContactBreakdown() {
     return emptyClientContactBreakdown();
   },

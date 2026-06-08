@@ -76,7 +76,6 @@ const emptyKpi: DoctorStatsState = {
       messengerBotBlocked: { telegram: 0, max: 0 },
     },
     messengerBotBlocked: { telegram: 0, max: 0 },
-    newClients7dWithNoChannels: 0,
   },
 };
 
@@ -109,7 +108,6 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.queryByRole("heading", { name: "К проверке" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Новые онлайн-заявки" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Непрочитанные сообщения" })).not.toBeInTheDocument();
-    expect(screen.getByText("Новые клиенты за 7 дн. без каналов связи")).toBeInTheDocument();
   });
 
   it("shows empty states and CTAs for on-support, today appointments, and upcoming", () => {

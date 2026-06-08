@@ -26,10 +26,13 @@ export function isValidNotificationTopicTitle(raw: string): boolean {
 
 /** Единственный источник дефолта для парсера, SQL-миграций и админ-формы до первого сохранения. */
 export const DEFAULT_NOTIFICATION_TOPICS: readonly Readonly<{ id: string; title: string }>[] = [
-  { id: "exercise_reminders", title: "Напоминания об упражнениях" },
-  { id: "symptom_reminders", title: "Напоминания о симптомах" },
+  { id: "warmup_reminders", title: "Напоминания о разминках" },
+  { id: "training_reminders", title: "Напоминания о тренировках" },
   { id: "appointment_reminders", title: "Напоминания о записях" },
-  { id: "news", title: "Новости и обновления" },
+  { id: "patient_news", title: "Новости и уведомления" },
+  { id: "specialist_messages", title: "Сообщения специалиста" },
+  { id: "support_messages", title: "Сообщения поддержки" },
+  { id: "important_broadcasts", title: "Важные рассылки" },
 ];
 
 /** JSON для колонки `value_json` при дефолтном INSERT (совпадает с {@link DEFAULT_NOTIFICATION_TOPICS}). */

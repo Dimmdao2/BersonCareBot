@@ -25,7 +25,6 @@ export type DoctorAnalyticsMetricKey =
   | "today_appointments_today"
   | "today_appointments_week"
   | "today_cancellations_30d"
-  | "today_new_clients_no_channels_7d"
   | "notif_reminders_sent"
   | "notif_reminders_failed"
   | "notif_push_opened";
@@ -35,7 +34,6 @@ export const DOCTOR_TODAY_METRIC_KEYS = [
   "today_appointments_today",
   "today_appointments_week",
   "today_cancellations_30d",
-  "today_new_clients_no_channels_7d",
 ] as const satisfies readonly DoctorAnalyticsMetricKey[];
 
 export const NOTIFICATION_METRIC_KEYS = [

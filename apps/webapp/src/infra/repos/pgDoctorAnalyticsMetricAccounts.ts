@@ -884,27 +884,6 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           );
           return r.rows;
         }
-        if (metricKey === "today_new_clients_no_channels_7d") {
-          const clientEx = sqlExcludeUsers(excluded, [7, safeLimit + 1, safeOffset], "pu.id");
-          const r = await runWebappPgText<ListRow>(
-            `SELECT
-               pu.id::text AS user_id,
-               pu.display_name,
-               pu.phone_normalized,
-               pu.created_at::text AS event_at,
-               'Новый без каналов'::text AS event_label
-             FROM platform_users pu
-             WHERE pu.role = 'client'
-               AND pu.merged_into_id IS NULL
-               AND COALESCE(pu.is_archived, false) = false
-               AND pu.created_at >= NOW() - ($1::int * interval '1 day')
-               AND NOT ${sqlActiveMessengerBinding("pu.id")}${clientEx.andSql}
-             ORDER BY pu.created_at DESC, pu.id ASC
-             LIMIT $2::int OFFSET $3::int`,
-            clientEx.params,
-          );
-          return r.rows;
-        }
         if (metricKey === "clients_messenger_bot_blocked_telegram" || metricKey === "clients_messenger_bot_blocked_max") {
           const channel = metricKey === "clients_messenger_bot_blocked_telegram" ? "telegram" : "max";
           const clientEx = sqlExcludeUsers(excluded, [channel, safeLimit + 1, safeOffset], "pu.id");

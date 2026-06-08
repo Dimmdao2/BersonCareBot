@@ -956,8 +956,10 @@ const lfkAssignmentsService = createLfkAssignmentsService(lfkAssignmentsPortReso
 const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
   shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
   channelPreferences: channelPreferencesPort,
+  topicChannelPrefs: topicChannelPrefsPort,
   webPushSubscriptions: webPushSubscriptionsPort,
   systemSettings: systemSettingsService,
+  readReminderNotifyGate: readReminderWebappNotifyGate,
   getProfileEmailFields: (platformUserId) => userProjectionPort.getProfileEmailFields(platformUserId),
   getChannelBindings: loadPlatformUserChannelBindings,
 });
@@ -1261,14 +1263,12 @@ function _buildAppDeps() {
       getDashboardPatientMetrics: (audience) => doctorClientsPort.getDashboardPatientMetrics(audience),
       getDashboardAppointmentMetrics: (audience) =>
         doctorAppointmentsPort.getDashboardAppointmentMetrics(audience),
-      countRecentClientsWithoutMessagingChannels: (days, audience) =>
-        doctorClientsPort.countRecentClientsWithoutMessagingChannels(days, audience),
     }),
     doctorAnalyticsMetricAccounts: doctorAnalyticsMetricAccountsPort,
     adminPlatformUserStats,
     productAnalytics,
     doctorBroadcasts: createDoctorBroadcastsService({
-      resolveBroadcastAudience: async (filter, channels) => {
+      resolveBroadcastAudience: async (filter, channels, category) => {
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
         const { devMode, testAccounts } = await systemSettingsService.getRelayDevContext();
         const { effective, nominal, cappedByDevMode } = resolveBroadcastEffectiveClients(
@@ -1279,7 +1279,7 @@ function _buildAppDeps() {
         );
         const prefsMap = await channelPreferencesPort.getBroadcastNotificationFlagsBatch(effective.map((c) => c.userId));
         const webPushEligibleUserIds = channels.includes("push")
-          ? await resolveBroadcastWebPushEligibleUserIds(effective, {
+          ? await resolveBroadcastWebPushEligibleUserIds(effective, category, {
               webPushSubscriptions: webPushSubscriptionsPort,
               channelPreferences: channelPreferencesPort,
               topicChannelPrefs: topicChannelPrefsPort,

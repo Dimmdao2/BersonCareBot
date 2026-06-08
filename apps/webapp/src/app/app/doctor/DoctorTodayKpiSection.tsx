@@ -54,15 +54,6 @@ export function DoctorTodayKpiSection({ kpiStats, appointmentsTodayCount, unread
           tone="warning"
           onClick={() => openMetric("today_cancellations_30d", "Отмены за 30 дн.")}
         />
-        <DoctorStatCard
-          id="doctor-today-kpi-clients-no-channels"
-          title="Новые клиенты за 7 дн. без каналов связи"
-          value={kpiStats.clients.newClients7dWithNoChannels}
-          tone={kpiStats.clients.newClients7dWithNoChannels > 0 ? "warning" : "neutral"}
-          onClick={() =>
-            openMetric("today_new_clients_no_channels_7d", "Новые клиенты за 7 дн. без каналов связи")
-          }
-        />
       </DoctorMetricList>
 
       <MetricAccountsDialog

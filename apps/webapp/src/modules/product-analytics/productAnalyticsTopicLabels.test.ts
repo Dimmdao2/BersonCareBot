@@ -4,8 +4,8 @@ import { labelProductAnalyticsTopicCode } from "@/modules/product-analytics/prod
 
 describe("labelProductAnalyticsTopicCode", () => {
   it("maps default notification topic ids", () => {
-    expect(labelProductAnalyticsTopicCode("exercise_reminders")).toBe("Напоминания об упражнениях");
-    expect(labelProductAnalyticsTopicCode("news")).toBe("Новости и обновления");
+    expect(labelProductAnalyticsTopicCode("warmup_reminders")).toBe("Напоминания о разминках");
+    expect(labelProductAnalyticsTopicCode("patient_news")).toBe("Новости и уведомления");
   });
 
   it("maps legacy warmup topic code", () => {

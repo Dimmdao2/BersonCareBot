@@ -5,18 +5,19 @@ import {
   runPatientWebPushNotify,
   type PatientWebPushNotifyDeps,
 } from "@/modules/patient-notifications/patientWebPushNotify";
+import { broadcastNotificationTopicCode } from "@/modules/patient-notifications/notificationTopicCodes";
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import { broadcastIncludeWebPushJob } from "./broadcastEligible";
+import type { BroadcastCategory } from "./ports";
 
 function buildPatientMessagesOpenUrl(): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
   return `${base}${routePaths.patientMessages}`;
 }
 
-const NEWS_TOPIC_CODE = "news";
-
 export type FanOutBroadcastWebPushInput = {
   auditId: string;
+  broadcastCategory: BroadcastCategory;
   broadcastTitle: string;
   eligibleClients: readonly ClientListItem[];
   webPushEligibleUserIds: ReadonlySet<string>;
@@ -37,6 +38,7 @@ export async function fanOutBroadcastWebPush(
   let delivered = 0;
   let errors = 0;
   let skipped = 0;
+  const topicCode = broadcastNotificationTopicCode(input.broadcastCategory);
 
   for (const client of input.eligibleClients) {
     if (!broadcastIncludeWebPushJob(["push"], input.webPushEligibleUserIds, client.userId)) {
@@ -49,7 +51,7 @@ export async function fanOutBroadcastWebPush(
       const result = await runPatientWebPushNotify(
         {
           platformUserId: client.userId,
-          topicCode: NEWS_TOPIC_CODE,
+          topicCode,
           intentType: "news",
           broadcastTitle: input.broadcastTitle,
           openUrl,

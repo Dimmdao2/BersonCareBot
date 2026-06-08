@@ -90,23 +90,4 @@ describe("GET /api/doctor/analytics-metric-accounts", () => {
     );
     expect(listMetricAccountsMock).not.toHaveBeenCalled();
   });
-
-  it("passes empty excludedUserIds for non-appointment today metric", async () => {
-    loadDoctorAnalyticsAudienceMock.mockResolvedValue({
-      includeTestAccounts: true,
-      excludedUserIds: [],
-    });
-    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
-    const res = await GET(
-      new Request("http://localhost/api/doctor/analytics-metric-accounts?metric=today_new_clients_no_channels_7d"),
-    );
-    expect(res.status).toBe(200);
-    expect(listMetricAccountsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metric: "today_new_clients_no_channels_7d",
-        excludedUserIds: [],
-      }),
-    );
-    expect(listAppointmentsForSpecialistMock).not.toHaveBeenCalled();
-  });
 });

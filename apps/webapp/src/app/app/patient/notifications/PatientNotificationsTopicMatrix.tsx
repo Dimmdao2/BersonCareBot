@@ -4,10 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import { Switch } from "@/shared/ui/patient/primitives/switch";
 import type { ProfileNotificationTopicModel } from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import {
-  setNotificationTopicMasterEnabled,
-  setTopicChannelNotificationEnabled,
-} from "./notificationPrefsActions";
+import { setTopicChannelNotificationEnabled } from "./notificationPrefsActions";
 
 const CHANNEL_ORDER = ["web_push", "telegram", "max", "email"] as const;
 
@@ -41,17 +38,6 @@ export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }
       label: labels.get(code) ?? code,
     }));
   })();
-
-  const onMasterToggle = useCallback((topicId: string, next: boolean) => {
-    startTransition(async () => {
-      const res = await setNotificationTopicMasterEnabled(topicId, next);
-      if (res.ok) {
-        setTopics((prev) =>
-          prev.map((t) => (t.topicId !== topicId ? t : { ...t, topicMasterEnabled: next })),
-        );
-      }
-    });
-  }, []);
 
   const onChannelToggle = useCallback((topicId: string, channelCode: string, next: boolean) => {
     startTransition(async () => {
@@ -95,48 +81,35 @@ export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }
           </tr>
         </thead>
         <tbody>
-          {topics.map((t) => {
-            const channelsDisabled = !t.topicMasterEnabled;
-            return (
-              <tr key={t.topicId} className="border-b border-[var(--patient-border)]/40">
-                <td className="max-w-[9rem] py-3 pr-3 align-top sm:max-w-[10rem]">
-                  <div className="flex items-start gap-2">
-                    <Switch
-                      checked={t.topicMasterEnabled}
-                      disabled={pending}
-                      onCheckedChange={(v) => onMasterToggle(t.topicId, v)}
-                      aria-label={`${t.displayTitle}: тема`}
-                    />
-                    <span className={TOPIC_TITLE_CELL_CLASS}>{t.displayTitle}</span>
-                  </div>
-                </td>
-                {channelLabels.map((ch) => {
-                  const cell = t.channels.find((c) => c.code === ch.code);
-                  if (!cell) {
-                    return (
-                      <td key={ch.code} className="px-2 py-3 text-center align-middle text-muted-foreground">
-                        —
-                      </td>
-                    );
-                  }
-                  const channelLocked =
-                    channelsDisabled ||
-                    cell.isEditable === false ||
-                    (ch.code === "web_push" && !pushEffective);
+          {topics.map((t) => (
+            <tr key={t.topicId} className="border-b border-[var(--patient-border)]/40">
+              <td className={`max-w-[9rem] py-3 pr-3 align-top sm:max-w-[10rem] ${TOPIC_TITLE_CELL_CLASS}`}>
+                {t.displayTitle}
+              </td>
+              {channelLabels.map((ch) => {
+                const cell = t.channels.find((c) => c.code === ch.code);
+                if (!cell) {
                   return (
-                    <td key={ch.code} className="px-2 py-3 text-center align-middle">
-                      <Switch
-                        checked={channelLocked && ch.code === "web_push" ? false : cell.isEnabled}
-                        disabled={pending || channelLocked}
-                        onCheckedChange={(v) => onChannelToggle(t.topicId, ch.code, v)}
-                        aria-label={`${t.displayTitle}: ${ch.label}`}
-                      />
+                    <td key={ch.code} className="px-2 py-3 text-center align-middle text-muted-foreground">
+                      —
                     </td>
                   );
-                })}
-              </tr>
-            );
-          })}
+                }
+                const channelLocked =
+                  cell.isEditable === false || (ch.code === "web_push" && !pushEffective);
+                return (
+                  <td key={ch.code} className="px-2 py-3 text-center align-middle">
+                    <Switch
+                      checked={channelLocked && ch.code === "web_push" ? false : cell.isEnabled}
+                      disabled={pending || channelLocked}
+                      onCheckedChange={(v) => onChannelToggle(t.topicId, ch.code, v)}
+                      aria-label={`${t.displayTitle}: ${ch.label}`}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

@@ -28,6 +28,7 @@ export type DoctorBroadcastsServiceDeps = {
   resolveBroadcastAudience(
     filter: BroadcastAudienceFilter,
     channels: BroadcastChannel[],
+    category: BroadcastCategory,
   ): Promise<BroadcastAudienceResolveResult>;
   broadcastAuditPort: BroadcastAuditPort;
   doctorBroadcastDeliveryCommitPort: DoctorBroadcastDeliveryCommitPort;
@@ -62,7 +63,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async preview(command: BroadcastCommand): Promise<BroadcastPreviewResult> {
       const channels = resolvedChannels(command);
-      const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels);
+      const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels, command.category);
       const { audienceSize, segmentSize, recipientsPreview, deliveryPolicyKind, deliveryPolicyDescriptionRu } = resolved;
       return {
         audienceSize,
@@ -78,7 +79,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async execute(command: BroadcastCommand): Promise<{ auditEntry: BroadcastAuditEntry }> {
       const channels = resolvedChannels(command);
-      const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels);
+      const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels, command.category);
       const { audienceSize, eligibleClients, notificationPrefsByUserId, webPushEligibleUserIds } = resolved;
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
       const auditId = randomUUID();
@@ -144,6 +145,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         await deps.fanOutBroadcastWebPush(
           {
             auditId,
+            broadcastCategory: command.category,
             broadcastTitle: command.message.title,
             eligibleClients,
             webPushEligibleUserIds,

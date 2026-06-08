@@ -81,7 +81,7 @@ export function buildProfileNotificationTopicModels(
     return {
       topicId: t.id,
       displayTitle: patientNotificationTopicDisplayTitle(t.id, t.title),
-      topicMasterEnabled: resolveTopicMasterEnabled(topicMasterRows, t.id),
+      topicMasterEnabled: true,
       channels,
     };
   });

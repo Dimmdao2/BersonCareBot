@@ -359,30 +359,54 @@ function mapAdminConversationListRow(row: AdminConversationListDbRow): AdminConv
   };
 }
 
-async function resolvePlatformUserId(integratorUserId: string | null): Promise<string | null> {
-  if (integratorUserId == null || integratorUserId === "") return null;
-  const r = await runWebappPgText<{ id: string }>(
-    `SELECT id FROM platform_users
-     WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
-     ORDER BY created_at ASC
-     LIMIT 3`,
-    [integratorUserId],
-  );
-  if (r.rows.length === 0) return null;
-  if (r.rows.length > 1) {
-    console.error("[canonical] multiple canonical rows for integrator_user_id", {
-      integratorUserId,
-      ids: r.rows.map((x) => x.id),
-    });
-    return null;
+async function resolvePlatformUserId(
+  integratorUserId: string | null,
+  channel?: { channelCode: string | null; channelExternalId: string | null },
+): Promise<string | null> {
+  if (integratorUserId != null && integratorUserId !== "") {
+    const r = await runWebappPgText<{ id: string }>(
+      `SELECT id FROM platform_users
+       WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
+       ORDER BY created_at ASC
+       LIMIT 3`,
+      [integratorUserId],
+    );
+    if (r.rows.length === 0) {
+      /* fall through to channel binding */
+    } else if (r.rows.length > 1) {
+      console.error("[canonical] multiple canonical rows for integrator_user_id", {
+        integratorUserId,
+        ids: r.rows.map((x) => x.id),
+      });
+    } else {
+      return r.rows[0]!.id;
+    }
   }
-  return r.rows[0]!.id;
+
+  const channelCode = channel?.channelCode?.trim() ?? "";
+  const channelExternalId = channel?.channelExternalId?.trim() ?? "";
+  if (!channelCode || !channelExternalId) return null;
+
+  const binding = await runWebappPgText<{ user_id: string }>(
+    `SELECT ucb.user_id
+     FROM user_channel_bindings ucb
+     INNER JOIN platform_users pu ON pu.id = ucb.user_id
+     WHERE ucb.channel_code = $1
+       AND ucb.external_id = $2
+       AND pu.merged_into_id IS NULL
+     LIMIT 1`,
+    [channelCode, channelExternalId],
+  );
+  return binding.rows[0]?.user_id ?? null;
 }
 
 export function createPgSupportCommunicationPort(): SupportCommunicationPort {
   return {
     async upsertConversationFromProjection(params) {
-      const platformUserId = await resolvePlatformUserId(params.integratorUserId);
+      const platformUserId = await resolvePlatformUserId(params.integratorUserId, {
+        channelCode: params.channelCode ?? null,
+        channelExternalId: params.channelExternalId ?? null,
+      });
       const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_conversations (
           integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
@@ -412,7 +436,15 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           params.channelExternalId ?? null,
         ]
       );
-      return { id: r.rows[0]!.id };
+      const convId = r.rows[0]!.id;
+      if (platformUserId) {
+        try {
+          await runMergeLegacySupportConversations(getPool(), platformUserId);
+        } catch (err) {
+          console.error("[support] merge legacy conversations failed", { platformUserId, err });
+        }
+      }
+      return { id: convId };
     },
 
     async appendConversationMessageFromProjection(params) {
@@ -477,6 +509,33 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         `UPDATE support_conversations SET last_message_at = GREATEST(last_message_at, $2::timestamptz), updated_at = now() WHERE id = $1`,
         [conversationId, params.createdAt]
       );
+      await runWebappPgText(
+        `UPDATE support_conversations sc
+         SET platform_user_id = ucb.user_id,
+             updated_at = now()
+         FROM user_channel_bindings ucb
+         INNER JOIN platform_users pu ON pu.id = ucb.user_id
+         WHERE sc.id = $1::uuid
+           AND sc.platform_user_id IS NULL
+           AND sc.channel_code IS NOT NULL
+           AND sc.channel_external_id IS NOT NULL
+           AND ucb.channel_code = sc.channel_code
+           AND ucb.external_id = sc.channel_external_id
+           AND pu.merged_into_id IS NULL`,
+        [conversationId],
+      );
+      const healed = await runWebappPgText<{ platform_user_id: string | null }>(
+        `SELECT platform_user_id FROM support_conversations WHERE id = $1::uuid`,
+        [conversationId],
+      );
+      const healedUserId = healed.rows[0]?.platform_user_id ?? null;
+      if (healedUserId) {
+        try {
+          await runMergeLegacySupportConversations(getPool(), healedUserId);
+        } catch (err) {
+          console.error("[support] merge legacy conversations failed", { platformUserId: healedUserId, err });
+        }
+      }
       return { id: r.rows[0]!.id };
     },
 

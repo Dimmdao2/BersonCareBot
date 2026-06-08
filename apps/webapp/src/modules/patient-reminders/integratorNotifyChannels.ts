@@ -266,9 +266,9 @@ export async function runPatientReminderIntegratorNotify(
   }
 
   const gate = await deps.readReminderNotifyGate(uid, body.topicCode);
-  if (gate.muted || !gate.topicMasterEnabled) {
+  if (gate.muted) {
     const gateResolved = resolveChannelsForGateOnly(body.topicCode, gate);
-    const flowSkipped = gate.muted ? "muted" : "topic_disabled";
+    const flowSkipped = "muted";
     logResolvedChannels({
       verbose,
       integratorUserId: body.integratorUserId,
