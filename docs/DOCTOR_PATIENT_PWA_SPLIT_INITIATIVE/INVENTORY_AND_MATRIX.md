@@ -88,7 +88,8 @@ Entry staff — **`redirectPolicy.ts`**, без изменений в волне
 | Push API | `/api/patient/web-push/*` | `/api/doctor/web-push/*` |
 | Push UI | `/app/patient/notifications` | `/app/settings` (матрица 2 тем) |
 | Push bootstrap | patient context | `StaffWebPushBootstrap` + `StaffPwaPushOptIn` |
-| Темы | patient profile topics | `doctor_specialist_task_reminders`, `doctor_patient_messages` |
+| Темы | patient profile topics | `doctor_specialist_task_reminders`, `doctor_patient_messages`, `doctor_patient_program_notes` |
+| Дефолт каналов (staff, patient comms) | **`web_push` → telegram → max** | `defaultDoctorTopicFallbackChannels` — см. [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) |
 
 Канон staff push: `modules/doctor-notifications/`, `staffWebPushApi.ts`, `subscribeStaffWebPush.ts`, `DoctorNotificationChannelsSection.tsx`.
 

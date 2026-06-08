@@ -1,4 +1,4 @@
-# Образец правил sudo для пользователя deploy (несколько проектов).
+# Образец правил sudo для пользователя deploy (BersonCareBot).
 # Вставить в visudo или в файл в /etc/sudoers.d/ (например 99-deploy).
 # Не переименовывать в .sudoers — это не сам sudoers, а пример для копирования.
 
@@ -7,6 +7,11 @@
 # =============================================================================
 deploy ALL=(root) NOPASSWD: /opt/backups/scripts/postgres-backup.sh pre-migrations
 deploy ALL=(root) NOPASSWD: /bin/systemctl daemon-reload
+# Deploy maintenance page (nginx flag file — см. deploy/nginx/webapp-maintenance-pages.example.conf)
+deploy ALL=(root) NOPASSWD: /bin/mkdir -p /var/lib/bersoncarebot
+deploy ALL=(root) NOPASSWD: /usr/bin/touch /var/lib/bersoncarebot/deploy-maintenance.on
+deploy ALL=(root) NOPASSWD: /bin/rm -f /var/lib/bersoncarebot/deploy-maintenance.on
+deploy ALL=(root) NOPASSWD: /usr/bin/test -f /var/lib/bersoncarebot/deploy-maintenance.on
 
 # =============================================================================
 # BersonCareBot: копирование юнитов, enable, restart, is-active, journalctl
@@ -42,14 +47,3 @@ deploy ALL=(root) NOPASSWD: \
     /usr/bin/journalctl -u bersoncarebot-scheduler-prod.service -n 40 --no-pager, \
     /usr/bin/journalctl -u bersoncarebot-webapp-prod.service -n 40 --no-pager, \
     /usr/bin/journalctl -u bersoncarebot-media-worker-prod.service -n 40 --no-pager
-
-# =============================================================================
-# Storylama: web и api (restart, status, is-active)
-# =============================================================================
-deploy ALL=(root) NOPASSWD: \
-    /bin/systemctl restart storylama-web-prod.service, \
-    /bin/systemctl status storylama-web-prod.service, \
-    /bin/systemctl is-active storylama-web-prod.service, \
-    /bin/systemctl restart storylama-api-prod.service, \
-    /bin/systemctl status storylama-api-prod.service, \
-    /bin/systemctl is-active storylama-api-prod.service

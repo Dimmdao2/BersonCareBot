@@ -6,6 +6,8 @@
 
 Форма **категории**, **сегмента аудитории**, **каналов** (`bot_message`, `sms`), текста; **предпросмотр** → **подтверждение** → одна транзакция webapp: **`broadcast_audit`** + пакетная вставка в **`public.outgoing_delivery_queue`** (`kind = doctor_broadcast_intent`). **Журнал** на той же странице.
 
+Для подписчиков PWA параллельно идёт **Web Push** (основной канал в приложении) + запись в PWA-чат — см. [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md), [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
+
 ## Код (webapp)
 
 | Область | Путь |

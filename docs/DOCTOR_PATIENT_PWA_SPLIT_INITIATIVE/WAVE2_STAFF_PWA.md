@@ -152,7 +152,7 @@
 |------|------------|
 | **2.C0** ✅ | API `/api/doctor/web-push/*`, subscribe/unsubscribe, VAPID из admin settings |
 | **2.C1** ✅ | `/app/settings` — push + матрица тем (`doctor_specialist_task_reminders`, `doctor_patient_messages`) |
-| **2.C2** ✅ | Доставка: задачи per-owner; сообщения per-staff (tg/max/push); integrator sync |
+| **2.C2** ✅ | Доставка: задачи per-owner; сообщения per-staff (**push-first**: web_push → tg → max); integrator sync — канон [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) |
 | **2.C3** ✅ | `StaffWebPushBootstrap`, defaults при subscribe, opt-in на install |
 | **2.C4** ✅ | Тесты + docs (`STAFF_PWA_ADR` post-§B, `api.md`, `INTEGRATOR_CONTRACT`) |
 

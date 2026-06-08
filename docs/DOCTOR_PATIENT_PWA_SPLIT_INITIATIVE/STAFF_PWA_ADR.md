@@ -36,9 +36,9 @@ Patient PWA (`manifest.ts`, `start_url: /app/patient`) — **без измене
 | Подписка | Тот же `public/sw.js`, `user_web_push_subscriptions` |
 | Настройки | `/app/settings` — матрица тем × каналов (`doctor_specialist_task_reminders`, `doctor_patient_messages`) |
 | Доставка задач | Per-owner `user_notification_topic_channels` + fallback `doctor_specialist_task_reminder_channels` |
-| Сообщения пациентов | Per-staff tg/max/push; integrator `sync-user-message` → notify; env tg/max — fallback |
+| Сообщения пациентов | Per-staff **push-first** (`web_push` → telegram → max); integrator `sync-user-message` → notify; env tg/max — fallback только для мессенджеров |
 | Auto-restore | `StaffWebPushBootstrap` (`WEB_PUSH_SUBSCRIPTION_CHANGE`) |
-| Defaults при subscribe | `enableStaffWebPushNotificationDefaults` — web_push для обеих doctor-тем |
+| Defaults при subscribe | `enableStaffWebPushNotificationDefaults` — web_push для doctor-тем; **дефолт без prefs** — `web_push` + telegram + max — см. [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) |
 
 Код: `modules/doctor-notifications/`, `shared/lib/webPush/staffWebPushApi.ts`, `subscribeStaffWebPush.ts`.
 

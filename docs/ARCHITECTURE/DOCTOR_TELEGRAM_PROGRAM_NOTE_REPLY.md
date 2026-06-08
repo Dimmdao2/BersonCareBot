@@ -29,9 +29,9 @@
 
 После успешной записи (только **`assignment_source: doctor`**):
 
-- [`notifyDoctorPatientProgramNote`](../../apps/webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts) → [`relayTextToDoctorTargets`](../../apps/webapp/src/modules/messaging/doctorNotifyTargets.ts).
-- Получатели: объединение **`admin_telegram_ids`** / **`admin_max_ids`** и **`doctor_telegram_ids`** / **`doctor_max_ids`** из `system_settings` (scope `admin`).
-- Inline-кнопка **«Ответить»**: callback **`program_reply:{stageItemId}`** (укладывается в лимит Telegram 64 байта для `callback_data`; в отличие от `admin_reply:webapp:platform:{uuid}`, который занимает 64 байта без места под контекст упражнения).
+- [`notifyDoctorPatientProgramNote`](../../apps/webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts) → [`notifyDoctorPatientMessageToStaff`](../../apps/webapp/src/modules/doctor-notifications/notifyDoctorPatientMessageToStaff.ts) (topic `doctor_patient_program_notes`).
+- **Канон каналов:** **Web Push основной**; по умолчанию **`web_push` → telegram → max** per-staff — см. [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md). Матрица `/app/settings`; env `doctor_*_ids` / `admin_*_ids` — **fallback только для telegram/max**, если per-staff мессенджеры не доставили.
+- Inline-кнопка **«Ответить»** (telegram/max): callback **`program_reply:{stageItemId}`** (укладывается в лимит Telegram 64 байта для `callback_data`; в отличие от `admin_reply:webapp:platform:{uuid}`, который занимает 64 байта без места под контекст упражнения).
 
 ## Integrator: начало ответа (`program_reply`)
 

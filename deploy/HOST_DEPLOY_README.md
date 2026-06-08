@@ -281,6 +281,30 @@ bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
 - `curl -s http://127.0.0.1:6200/api/health` -> `{"ok":true}`.
 - в логах webapp нет ошибок OAuth callback/CORS после переключения домена.
 
+### Страница «идёт обновление» (деплой / рестарт webapp)
+
+**Почему не из Next.js:** во время `systemctl restart bersoncarebot-webapp-prod` процесс на `127.0.0.1:6200` недоступен — приложение не может отдать React-страницу; nginx отвечает **502/503**, что в браузере часто выглядит как «Internal Server Error».
+
+**Решение (один раз на хосте):** статическая страница в репозитории `apps/webapp/public/maintenance.html` + фрагмент nginx [`deploy/nginx/webapp-maintenance-pages.example.conf`](../nginx/webapp-maintenance-pages.example.conf):
+
+1. Включить `error_page 502 503 504` → `/maintenance.html` (alias на файл в `/opt/projects/bersoncarebot/apps/webapp/public/maintenance.html`).
+2. Опционально — флаг `/var/lib/bersoncarebot/deploy-maintenance.on` на всё время `deploy-prod.sh` (скрипт `deploy/host/deploy-maintenance.sh`; sudoers — [`deploy/sudoers-deploy.example`](../sudoers-deploy.example)).
+3. `sudo nginx -t && sudo systemctl reload nginx`.
+
+`deploy-prod.sh` сам включает/выключает флаг **если** у пользователя `deploy` есть NOPASSWD на `touch`/`rm` флага (см. sudoers). Без флага остаётся только `error_page` на короткий простой при рестарте.
+
+Проверка:
+
+```bash
+sudo touch /var/lib/bersoncarebot/deploy-maintenance.on
+curl -s https://bersoncare.ru/app | head -20
+sudo rm -f /var/lib/bersoncarebot/deploy-maintenance.on
+```
+
+Текст на странице: обновление займёт не больше минуты, откройте приложение позже; авто-обновление каждые 20 с.
+
+Отдельно от этого: **режим техработ пациента** (`patient_app_maintenance_enabled` в admin Settings) — in-app экран при работающем webapp; не заменяет nginx-страницу на время деплоя.
+
 ### Client IP and Rate Limiting (webapp)
 
 - Публичный трафик на webapp должен идти **только через nginx** на upstream `http://127.0.0.1:6200`. Сервис слушает **loopback** (см. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`: `HOSTNAME`/`HOST` для webapp prod — `127.0.0.1`); прямой доступ к порту `6200` из интернета не должен быть открыт (firewall / отсутствие bind на `0.0.0.0`).

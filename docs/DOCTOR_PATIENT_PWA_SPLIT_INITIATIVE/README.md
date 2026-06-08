@@ -22,7 +22,7 @@ Staff runtime: `/app/doctor/**`, `/app/settings/**`, `/app/admin/**`, guards, do
 | **1** | Кабинет специалиста — самостоятельный runtime в браузере (guards, CSS, redirects) |
 | **2 §A** | Cross-zone block + toast на своём hub (без forbidden-экранов) |
 | **2 §B** | Staff PWA: manifest, иконки BersonAdmin, install, SW register |
-| **post-§B** | Staff web push + матрица каналов уведомлений (`/app/settings`, `/api/doctor/web-push/*`) |
+| **post-§B** | Staff web push + матрица каналов (`/app/settings`, `/api/doctor/web-push/*`); **push — основной канал** — [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) |
 
 UI/CSS split закрыт ранее: [`PATIENT_DOCTOR_UI_SPLIT`](../archive/2026-06-initiatives/PATIENT_DOCTOR_UI_SPLIT_INITIATIVE/README.md).
 
@@ -33,10 +33,11 @@ UI/CSS split закрыт ранее: [`PATIENT_DOCTOR_UI_SPLIT`](../archive/202
 3. [`ACCEPTANCE_WAVE2.md`](ACCEPTANCE_WAVE2.md) — приёмка волны 2 (§A + §B + §C).
 4. [`STAFF_PWA_ADR.md`](STAFF_PWA_ADR.md) — ADR staff manifest/install (2.B0).
 5. [`WAVE2_STAFF_PWA.md`](WAVE2_STAFF_PWA.md) — план и DoD волны 2.
-6. [`SCOPE_BOUNDARIES.md`](SCOPE_BOUNDARIES.md) — patient frozen.
-7. [`INVENTORY_AND_MATRIX.md`](INVENTORY_AND_MATRIX.md) — маршруты, матрица ролей, PWA.
-8. [`LOG.md`](LOG.md) — журнал.
-9. Cursor-план (архив): [`.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md`](../../.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md).
+6. [`../ARCHITECTURE/NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) — канон: **Web Push основной** (пациент + staff).
+7. [`SCOPE_BOUNDARIES.md`](SCOPE_BOUNDARIES.md) — patient frozen.
+8. [`INVENTORY_AND_MATRIX.md`](INVENTORY_AND_MATRIX.md) — маршруты, матрица ролей, PWA.
+9. [`LOG.md`](LOG.md) — журнал.
+10. Cursor-план (архив): [`.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md`](../../.cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md).
 
 ## Вне scope инициативы
 

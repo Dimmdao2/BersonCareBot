@@ -3,7 +3,7 @@
 Монорепозиторий платформы BersonCare: PWA webapp (кабинеты пациента и врача, CMS, программы лечения, запись), integrator (Telegram/MAX, webhook, доставка, Rubitime) и media-worker (HLS-транскод).
 
 - **Стек:** TypeScript (ESM), Next.js, Fastify, PostgreSQL (Drizzle + SQL-migrations integrator), grammY, Vitest
-- **Каналы:** PWA (`/app`), Telegram, MAX, SMS, Web Push; запись — собственный движок + legacy Rubitime
+- **Каналы:** PWA (`/app`) — основной UI; **Web Push — основной канал уведомлений**; Telegram, MAX, SMS, email — дополнительные; запись — собственный движок + legacy Rubitime (см. [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md))
 - **Инфраструктура:** host deploy (systemd, nginx, cron) + GitHub Actions
 
 Суть продукта (пациент / специалист): [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md). Оглавление документации: [`docs/README.md`](docs/README.md). Контракт слоёв integrator: [`ARCHITECTURE.md`](ARCHITECTURE.md). Эксплуатация на хосте: [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](docs/ARCHITECTURE/SERVER%20CONVENTIONS.md). В каталогах `apps/*/src/**` лежат файлы `имя_папки.md` с кратким назначением модуля — при изменении модуля их стоит дополнять.

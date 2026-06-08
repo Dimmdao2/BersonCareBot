@@ -2,7 +2,7 @@
 
 Канонический маршрут: **`/app/patient/messages`**. Отдельного «центра уведомлений» и списка прошлых рассылок в меню **нет** — история в одном thread `webapp:platform:{platformUserId}`.
 
-Связанные документы: [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md) (рассылки врача), [`RUBITIME_BOOKING_PIPELINE.md`](RUBITIME_BOOKING_PIPELINE.md) (запись), [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §patient Web Push.
+Связанные документы: [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md) (рассылки врача), [`RUBITIME_BOOKING_PIPELINE.md`](RUBITIME_BOOKING_PIPELINE.md) (запись), [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md) (**Web Push — основной канал**), [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §patient Web Push.
 
 ## Что попадает в чат
 
@@ -12,6 +12,17 @@
 | Запись: создана / отменена (`appointment_lifecycle`) | Copy из `buildAppointmentLifecyclePushCopy` | `/app/patient/messages` | Как раньше (`sendLinkedChannelMessage` в integrator) |
 | Ответ врача в чате (1:1) | Текст ответа | `/app/patient/messages` (`notifyPatientDoctorReply`) | Preview + ссылка на чат |
 | Ответ врача на **наблюдение по упражнению** (program note) | `Ответ на ваш комментарий к упражнению «…»:` + текст | `/app/patient/messages` | То же (`notifyPatientDoctorReply`); кнопка в боте — `program_reply:{stageItemId}` |
+
+## Уведомление врача (пациент → staff)
+
+Сообщение в support-чат или комментарий к упражнению запускает staff-notify (`notifyDoctorPatientMessage` / `notifyDoctorPatientProgramNote` → `notifyDoctorPatientMessageToStaff`).
+
+| Событие | Staff topic | Каналы по умолчанию |
+|---------|-------------|---------------------|
+| Сообщение пациента (webapp / бот) | `doctor_patient_messages` | **web_push** → telegram → max |
+| Комментарий к пункту программы | `doctor_patient_program_notes` | **web_push** → telegram → max |
+
+Канон: [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md). Настройки: `/app/settings` (Staff PWA). Логи: `doctor_staff_notify.channels`, `web_push_provider_response`.
 
 Идемпотентность входящих: стабильный `integrator_message_id` + `ON CONFLICT DO NOTHING` в `appendWebappMessage`.
 

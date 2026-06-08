@@ -115,7 +115,7 @@
 | C1 | API `/api/doctor/web-push/*` (doctor/admin) | [x] |
 | C2 | Матрица каналов в `/app/settings` (2 темы) | [x] |
 | C3 | Напоминания о задачах — per-owner каналы + push | [x] |
-| C4 | Сообщения пациентов — per-staff tg/max/push; integrator sync | [x] |
+| C4 | Сообщения пациентов — per-staff **push-first** (web_push → tg → max); integrator sync — канон [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) | [x] |
 | C5 | `StaffWebPushBootstrap` + opt-in на install | [x] |
 | C6 | Patient push/manifest/gate/SW — **не в diff** | [x] |
 

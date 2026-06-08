@@ -52,6 +52,16 @@ if [ -z "${DEPLOY_PROD_RERUN:-}" ]; then
   exec bash deploy/host/deploy-prod.sh
 fi
 
+DEPLOY_MAINTENANCE_SCRIPT="${PROJECT_ROOT}/deploy/host/deploy-maintenance.sh"
+deploy_maintenance_off() {
+  if [ -x "${DEPLOY_MAINTENANCE_SCRIPT}" ]; then
+    bash "${DEPLOY_MAINTENANCE_SCRIPT}" off 2>/dev/null || true
+  fi
+}
+if [ -x "${DEPLOY_MAINTENANCE_SCRIPT}" ] && bash "${DEPLOY_MAINTENANCE_SCRIPT}" on 2>/dev/null; then
+  trap deploy_maintenance_off EXIT
+fi
+
 # Reinstall systemd units from repo so WorkingDirectory/ExecStart match current layout (apps/integrator).
 # Requires deploy user to have NOPASSWD for install and systemctl daemon-reload (see HOST_DEPLOY_README).
 require_sudo_rule "systemd unit install API (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-api-prod.service" /etc/systemd/system/bersoncarebot-api-prod.service

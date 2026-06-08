@@ -1,5 +1,16 @@
 # DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE — LOG
 
+## 2026-06-08 — Push-first для staff patient comms (канон + docs)
+
+**Сделано:**
+
+- Код: дефолт `doctor_patient_messages` / `doctor_patient_program_notes` → **`web_push`, telegram, max`** (`doctorTopicChannelDefaults.ts`); порядок allowed channels; логи `doctor_staff_notify.channels` + `web_push_provider_response` на staff-path.
+- Документация: канон [`ARCHITECTURE/NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md); обновлены `PRODUCT_OVERVIEW`, `CONFIGURATION_ENV_VS_DATABASE`, `STAFF_PWA_ADR`, `INVENTORY`, `WAVE2`, `DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY`, `PATIENT_SUPPORT_CHAT_INBOX`, `INTEGRATOR_CONTRACT`, `api.md`.
+
+**Итог:** Web Push — **основной** канал уведомлений staff о сообщениях/комментариях пациента; TG/MAX остаются дополнительными.
+
+---
+
 ## 2026-06-07 — Финальная синхронизация docs / logs / plans (инициатива closed)
 
 **Сделано:**

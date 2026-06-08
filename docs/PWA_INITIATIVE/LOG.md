@@ -1,5 +1,11 @@
 # PWA — журнал
 
+## 2026-06-08 — Канон: Web Push основной канал уведомлений
+
+**Сделано:** [`ARCHITECTURE/NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) — push-first для пациента и staff; дефолты `doctor_patient_messages` / `doctor_patient_program_notes` в коде; синхронизация docs (см. [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/LOG.md`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/LOG.md) §2026-06-08).
+
+---
+
 ## 2026-06-07 — Фаза 5: Staff PWA + staff web push (DOCTOR_PATIENT_PWA_SPLIT волна 2)
 
 **Контекст:** отдельный install-контур врача/админа (LOGO_BERSONADMIN) + cross-zone toast + staff push без правок patient PWA.
@@ -8,7 +14,7 @@
 
 - §A: cross-zone block + `AppAccessDeniedToastEffect` (hub + install `next=`).
 - §B: `/manifest-staff.webmanifest`, `/app/doctor/install`, `StaffPwaBootstrap`, `staffPwaInstallState`.
-- §C: `/api/doctor/web-push/*`, матрица каналов в `/app/settings`, per-staff delivery (tg/max/push), `StaffWebPushBootstrap`, integrator `sync-user-message`.
+- §C: `/api/doctor/web-push/*`, матрица каналов в `/app/settings`, per-staff delivery (**push-first** — актуальный канон §2026-06-08), `StaffWebPushBootstrap`, integrator `sync-user-message`.
 
 **Patient frozen:** `manifest.ts`, gate, `sw.js`, `/api/patient/web-push/*` — **не в diff**.
 
