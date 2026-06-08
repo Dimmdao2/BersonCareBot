@@ -5,6 +5,7 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { exerciseTitleFromSnapshot } from "@/modules/messaging/programNoteReplyContext";
 import { listInstanceDiscussionPageMerged } from "@/modules/program-item-discussion/listInstanceDiscussionPage";
+import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
 const directionSchema = z.enum(["backward", "forward"]);
 
@@ -144,7 +145,7 @@ export async function GET(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
-    if (msg.includes("не найден")) {
+    if (doctorTreatmentProgramInstanceRouteErrorStatus(msg) === 404) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
     return NextResponse.json({ ok: false, error: "internal_error" }, { status: 500 });

@@ -459,7 +459,90 @@ describe("instanceEditorDraft", () => {
 
     const normalized = normalizeInstanceEditorDraft(draft, baseline);
     expect(normalized.groupPatches[groupId]).toEqual({ title: "Renamed draft group" });
-    expect(normalized.itemPatches[itemId]).toEqual({ localComment: "Draft comment" });
+    expect(normalized.itemPatches[itemId]).toBeUndefined();
+    expect(normalized.itemCreates[0]).toMatchObject({
+      kind: "library_item",
+      clientId: itemId,
+      localComment: "Draft comment",
+    });
+  });
+
+  it("normalize folds draft expand line structural patch into itemCreates", () => {
+    const baseline = minimalDetail();
+    const lineId = createInstanceEditorDraftClientId();
+    const groupB = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemCreates.push({
+      kind: "lfk_complex_expand",
+      stageId: "22222222-2222-4222-8222-222222222222",
+      groupId: "33333333-3333-4333-8333-333333333333",
+      complexTemplateId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      items: [
+        {
+          clientId: lineId,
+          itemRefId: "99999999-9999-4999-8999-999999999999",
+          snapshot: { title: "Упр" },
+        },
+      ],
+    });
+    draft.itemStructuralPatches[lineId] = { groupId: groupB, status: "disabled" };
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.itemStructuralPatches).toEqual({});
+    expect(normalized.itemCreates[0]).toMatchObject({
+      kind: "lfk_complex_expand",
+      items: [{ clientId: lineId, groupId: groupB, status: "disabled" }],
+    });
+  });
+
+  it("normalize folds draft item structural patch into itemCreates", () => {
+    const baseline = minimalDetail();
+    const itemId = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemCreates.push({
+      kind: "freeform_recommendation",
+      clientId: itemId,
+      stageId: "22222222-2222-4222-8222-222222222222",
+      title: "Рек",
+      bodyMd: "Текст",
+      snapshot: { title: "Рек", bodyMd: "Текст" },
+    });
+    draft.itemStructuralPatches[itemId] = { isActionable: true };
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.itemStructuralPatches).toEqual({});
+    expect(normalized.itemCreates[0]).toMatchObject({ isActionable: true });
+  });
+
+  it("normalize drops persisted itemPatches for ids missing from baseline", () => {
+    const baseline = minimalDetail();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemPatches["99999999-9999-4999-8999-999999999999"] = { localComment: "orphan" };
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.itemPatches).toEqual({});
+    expect(isInstanceEditorDraftDirty(draft, baseline)).toBe(false);
+  });
+
+  it("normalize folds draft item loadSettings into itemCreates", () => {
+    const baseline = minimalDetail();
+    const itemId = createInstanceEditorDraftClientId();
+    const draft = createEmptyInstanceEditorDraft();
+    draft.itemCreates.push({
+      kind: "library_item",
+      clientId: itemId,
+      stageId: "22222222-2222-4222-8222-222222222222",
+      itemType: "exercise",
+      itemRefId: "99999999-9999-4999-8999-999999999999",
+      snapshot: { title: "Упр" },
+    });
+    draft.itemPatches[itemId] = { loadSettings: { reps: 12, sets: 3, maxPain: 2 } };
+
+    const normalized = normalizeInstanceEditorDraft(draft, baseline);
+    expect(normalized.itemPatches).toEqual({});
+    expect(normalized.itemCreates[0]).toMatchObject({
+      loadSettings: { reps: 12, sets: 3, maxPain: 2 },
+    });
   });
 
   it("stageOrder keeps stage zero first", () => {

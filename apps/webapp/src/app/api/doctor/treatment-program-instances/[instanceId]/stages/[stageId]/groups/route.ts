@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
 const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
@@ -51,7 +52,7 @@ export async function POST(
     return NextResponse.json({ ok: true, group });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
-    const status = msg.includes("не найден") ? 404 : 400;
+    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

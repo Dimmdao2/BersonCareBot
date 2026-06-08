@@ -88,7 +88,9 @@ const libraryItemCreateSchema = z
     groupId: instanceEditorBatchIdSchema.nullable().optional(),
     snapshot: z.record(z.string(), z.unknown()),
     localComment: z.union([z.string(), z.null()]).optional(),
+    loadSettings: loadSettingsPatchSchema.optional(),
     isActionable: z.boolean().nullable().optional(),
+    status: z.enum(["active", "disabled"]).optional(),
   })
   .strict();
 
@@ -100,6 +102,9 @@ const freeformCreateSchema = z
     title: z.string().min(1).max(2000),
     bodyMd: z.string(),
     snapshot: z.record(z.string(), z.unknown()),
+    localComment: z.union([z.string(), z.null()]).optional(),
+    isActionable: z.boolean().nullable().optional(),
+    status: z.enum(["active", "disabled"]).optional(),
   })
   .strict();
 
@@ -108,6 +113,10 @@ const expandLineSchema = z
     clientId: instanceEditorBatchIdSchema,
     itemRefId: z.string().uuid(),
     snapshot: z.record(z.string(), z.unknown()),
+    localComment: z.union([z.string(), z.null()]).optional(),
+    loadSettings: loadSettingsPatchSchema.optional(),
+    groupId: instanceEditorBatchIdSchema.nullable().optional(),
+    status: z.enum(["active", "disabled"]).optional(),
   })
   .strict();
 

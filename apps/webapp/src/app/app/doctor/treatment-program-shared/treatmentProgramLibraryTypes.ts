@@ -1,7 +1,10 @@
+import type { InstanceEditorItemLoadSettingsPatch } from "./instanceEditorLoadSettings";
+
 /** Строки каталогов для модалки «Элемент из библиотеки» (шаблон и экземпляр программы). */
 export type TreatmentProgramLibraryExpandLine = {
   itemRefId: string;
   snapshot: Record<string, unknown>;
+  loadSettings?: InstanceEditorItemLoadSettingsPatch;
 };
 
 export type TreatmentProgramLibraryRow = {

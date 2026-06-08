@@ -5,6 +5,7 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { instanceEditorBatchBodySchema } from "@/modules/treatment-program/instanceEditorBatchSchema";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
+import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
 export async function POST(
   request: Request,
@@ -47,7 +48,7 @@ export async function POST(
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
-    const status = msg.includes("не найден") ? 404 : 400;
+    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

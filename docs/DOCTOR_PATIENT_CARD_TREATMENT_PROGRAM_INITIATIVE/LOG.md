@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-06-09 — Editor-batch: стабильность save + канонический snapshot
+
+- **Симптом:** нестабильное «Сохранить изменения» — **404 «Элемент не найден»** при правках новых строк (`draft:`) до первого batch-save.
+- **Клиент:** `patchItem` / `patchItemStructural` / `normalize` — fold metadata и structural в **`itemCreates`**; orphan-патчи на отсутствующие в baseline uuid отбрасываются; expand lines (`lfk_complex_expand`) — per-line `groupId`, `status`, `loadSettings` из шаблона комплекса.
+- **Save path:** `instanceEditorLoadSettings` (валидация нагрузки); `saveDraft` — refresh baseline перед POST; stale entity not-found → повторный sync + подсказка в toast.
+- **Сервер:** skip всех `draft:` в `itemPatches` / `itemStructuralPatches`; pre-validate `loadSettings` на `itemCreates`; `itemCreates` / replace → **`buildSnapshot`** (не browser preview); `doctorTreatmentProgramInstanceRouteErrorStatus` (каталог **400**, entity **404**).
+- **Ops:** backfill уже записанных preview-snapshot — [`docs/OPERATIONS/TREATMENT_PROGRAM_EDITOR_DRAFT_SNAPSHOT_BACKFILL.md`](../OPERATIONS/TREATMENT_PROGRAM_EDITOR_DRAFT_SNAPSHOT_BACKFILL.md); скрипт `backfill-treatment-program-editor-draft-snapshots.ts`.
+- **Проверки:** vitest `treatment-program-shared` + `instanceEditorBatch` + `editor-batch/route` (167+ в зоне); `tsc --noEmit` webapp; `api.md`, `treatment-program-shared/README.md` обновлены.
+
+---
+
 ## 2026-06-03 — Фаза 7 batch-toolbar: закрыта полностью (итог + audit); **план в archive**
 
 - **История:** `program_changed` → «Программа изменена»; детализация `payload.diff` (строки на русском) — `formatProgramChangedDiffDetailLinesRu`; раскрытие по клику в «История правок программы» (`DoctorProgramInstanceTimelineEventRow`).

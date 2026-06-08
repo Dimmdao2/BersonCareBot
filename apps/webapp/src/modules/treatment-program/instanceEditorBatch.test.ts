@@ -343,6 +343,289 @@ describe("doctorApplyInstanceEditorBatch", () => {
     expect(detail!.stages.find((s) => s.id === stage.id)?.title).toBe(originalTitle);
   });
 
+  it("itemCreates library_item persists catalog buildSnapshot, not draft preview snapshot", async () => {
+    const exRef = "66666666-6666-4666-8666-666666666666";
+    const buildSnapshot = vi.fn(async (type: string, id: string) => ({
+      itemType: type,
+      id,
+      title: "Каталог",
+      media: [{ url: `/api/media/${id}`, type: "video", sortOrder: 0 }],
+    }));
+    const snapshots = { buildSnapshot };
+    const localInstSvc = createTreatmentProgramInstanceService({
+      instances: persistence.instancePort,
+      templates: tplSvc,
+      snapshots,
+      itemRefs,
+      events: persistence.eventsPort,
+      testAttempts: persistence.testAttemptsPort,
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК" });
+    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: exRef, groupId: grp.id });
+    const inst = await localInstSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "77777777-7777-4777-8777-777777777777",
+      assignedBy: doctor,
+    });
+    const stage = inst.stages.find((s) => s.sortOrder === 1)!;
+    const instanceGroup = stage.groups.find((g) => !g.systemKind)!;
+
+    await localInstSvc.doctorApplyInstanceEditorBatch({
+      instanceId: inst.id,
+      actorId: doctor,
+      draft: {
+        ...emptyBatchDraft(),
+        itemCreates: [
+          {
+            kind: "library_item",
+            clientId: "draft:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            stageId: stage.id,
+            itemType: "exercise",
+            itemRefId: exRef,
+            groupId: instanceGroup.id,
+            snapshot: {
+              title: "Черновик",
+              media: [{ mediaUrl: `/api/media/${exRef}/preview/sm`, mediaType: "image", sortOrder: 0 }],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(buildSnapshot).toHaveBeenCalledWith("exercise", exRef);
+    const detail = await localInstSvc.getInstanceById(inst.id);
+    const created = detail!.stages
+      .flatMap((s) => s.items)
+      .find((i) => i.itemRefId === exRef && i.sortOrder > 0);
+    expect(created?.snapshot).toMatchObject({
+      media: [{ url: `/api/media/${exRef}`, type: "video", sortOrder: 0 }],
+    });
+  });
+
+  it("creates library exercise with loadSettings and localComment from itemCreates", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК" });
+    const exRef = "66666666-6666-4666-8666-666666666666";
+    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: exRef, groupId: grp.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "99999999-9999-4999-8999-999999999999",
+      assignedBy: doctor,
+    });
+    const stage = inst.stages.find((s) => s.sortOrder === 1)!;
+    const instanceGroup = stage.groups.find((g) => !g.systemKind)!;
+    const clientItemId = "draft:cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+    const next = await instSvc.doctorApplyInstanceEditorBatch({
+      instanceId: inst.id,
+      actorId: doctor,
+      draft: {
+        ...emptyBatchDraft(),
+        itemCreates: [
+          {
+            kind: "library_item",
+            clientId: clientItemId,
+            stageId: stage.id,
+            itemType: "exercise",
+            itemRefId: exRef,
+            groupId: instanceGroup.id,
+            snapshot: { title: "Новое упр" },
+            localComment: "Коммент при создании",
+            loadSettings: { reps: 10, sets: 2, maxPain: 3 },
+          },
+        ],
+      },
+    });
+
+    const created = next.stages
+      .flatMap((s) => s.items)
+      .find((i) => i.localComment === "Коммент при создании");
+    expect(created).toBeDefined();
+    expect(created?.settings).toMatchObject({ reps: 10, sets: 2, maxPain: 3 });
+  });
+
+  it("creates freeform stage-0 recommendation with localComment and isActionable from itemCreates", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "abababab-abab-4aba-8bab-abababababab",
+      assignedBy: doctor,
+    });
+    const stageZero = inst.stages.find((s) => s.sortOrder === 0)!;
+    const clientItemId = "draft:dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+    const next = await instSvc.doctorApplyInstanceEditorBatch({
+      instanceId: inst.id,
+      actorId: doctor,
+      draft: {
+        ...emptyBatchDraft(),
+        itemCreates: [
+          {
+            kind: "freeform_recommendation",
+            clientId: clientItemId,
+            stageId: stageZero.id,
+            title: "Общая рекомендация",
+            bodyMd: "Текст рекомендации",
+            snapshot: { title: "Общая рекомендация", bodyMd: "Текст рекомендации" },
+            localComment: "Индивидуальный комментарий",
+            isActionable: true,
+          },
+        ],
+      },
+    });
+
+    const created = next.stages
+      .flatMap((s) => s.items)
+      .find((i) => i.localComment === "Индивидуальный комментарий");
+    expect(created).toBeDefined();
+    expect(created?.isActionable).toBe(true);
+    expect(created?.snapshot).toMatchObject({ title: "Общая рекомендация" });
+  });
+
+  it("ignores legacy itemPatches keyed by draft client id", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК" });
+    const exRef = "66666666-6666-4666-8666-666666666666";
+    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: exRef, groupId: grp.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "bcbcbcbc-bcbc-4cbc-8cbc-bcbcbcbcbcbc",
+      assignedBy: doctor,
+    });
+    const stage = inst.stages.find((s) => s.sortOrder === 1)!;
+    const instanceGroup = stage.groups.find((g) => !g.systemKind)!;
+    const draftItemId = "draft:eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+
+    const next = await instSvc.doctorApplyInstanceEditorBatch({
+      instanceId: inst.id,
+      actorId: doctor,
+      draft: {
+        ...emptyBatchDraft(),
+        itemCreates: [
+          {
+            kind: "library_item",
+            clientId: draftItemId,
+            stageId: stage.id,
+            itemType: "exercise",
+            itemRefId: exRef,
+            groupId: instanceGroup.id,
+            snapshot: { title: "Новое" },
+            localComment: "из create",
+          },
+        ],
+        itemPatches: {
+          [draftItemId]: { localComment: "из orphan patch" },
+        },
+      },
+    });
+
+    const created = next.stages
+      .flatMap((s) => s.items)
+      .find((i) => i.localComment === "из create");
+    expect(created).toBeDefined();
+    expect(
+      next.stages.flatMap((s) => s.items).some((i) => i.localComment === "из orphan patch"),
+    ).toBe(false);
+  });
+
+  it("creates lfk_complex_expand lines with loadSettings and per-line groupId", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
+    const grpA = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК A" });
+    const grpB = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК B" });
+    const exRef1 = "77777777-7777-4777-8777-777777777771";
+    const exRef2 = "77777777-7777-4777-8777-777777777772";
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd",
+      assignedBy: doctor,
+    });
+    const stage = inst.stages.find((s) => s.sortOrder === 1)!;
+    const instanceGroupA = stage.groups.find((g) => g.title === "ЛФК A")!;
+    const instanceGroupB = stage.groups.find((g) => g.title === "ЛФК B")!;
+    const line1 = "draft:11111111-1111-4111-8111-111111111111";
+    const line2 = "draft:22222222-2222-4222-8222-222222222222";
+
+    const next = await instSvc.doctorApplyInstanceEditorBatch({
+      instanceId: inst.id,
+      actorId: doctor,
+      draft: {
+        ...emptyBatchDraft(),
+        itemCreates: [
+          {
+            kind: "lfk_complex_expand",
+            stageId: stage.id,
+            groupId: instanceGroupA.id,
+            complexTemplateId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            items: [
+              {
+                clientId: line1,
+                itemRefId: exRef1,
+                snapshot: { title: "Упр 1" },
+                loadSettings: { reps: 8, sets: 2, maxPain: 1 },
+              },
+              {
+                clientId: line2,
+                itemRefId: exRef2,
+                snapshot: { title: "Упр 2" },
+                groupId: instanceGroupB.id,
+                loadSettings: { reps: 5, sets: 1, maxPain: 2 },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const items = next.stages.flatMap((s) => s.items).filter((i) => i.itemRefId === exRef1 || i.itemRefId === exRef2);
+    expect(items).toHaveLength(2);
+    const moved = items.find((i) => i.itemRefId === exRef2);
+    expect(moved?.groupId).toBe(instanceGroupB.id);
+    expect(moved?.settings).toMatchObject({ reps: 5, sets: 1, maxPain: 2 });
+  });
+
+  it("rejects invalid loadSettings on itemCreates before mutation", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК" });
+    const exRef = "66666666-6666-4666-8666-666666666666";
+    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: exRef, groupId: grp.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "dededede-dede-4ded-8ded-edededededed",
+      assignedBy: doctor,
+    });
+    const stage = inst.stages.find((s) => s.sortOrder === 1)!;
+    const instanceGroup = stage.groups.find((g) => !g.systemKind)!;
+
+    await expect(
+      instSvc.doctorApplyInstanceEditorBatch({
+        instanceId: inst.id,
+        actorId: doctor,
+        draft: {
+          ...emptyBatchDraft(),
+          itemCreates: [
+            {
+              kind: "library_item",
+              clientId: "draft:ffffffff-ffff-4fff-8fff-ffffffffffff",
+              stageId: stage.id,
+              itemType: "exercise",
+              itemRefId: exRef,
+              groupId: instanceGroup.id,
+              snapshot: { title: "X" },
+              loadSettings: { reps: 0, sets: null, maxPain: null },
+            },
+          ],
+        },
+      }),
+    ).rejects.toThrow(/Повторы/);
+  });
+
   it("rejects invalid item reorder before mutation", async () => {
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });

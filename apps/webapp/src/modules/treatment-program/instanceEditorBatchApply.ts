@@ -16,12 +16,22 @@ import {
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageItemRow,
+  TreatmentProgramItemType,
   UpdateTreatmentProgramInstanceStageGroupInput,
   UpdateTreatmentProgramInstanceStageMetadataInput,
 } from "./types";
 import { isStageZero, assertTreatmentProgramStageItemFitsSystemGroup } from "./stage-semantics";
 
 const DRAFT_ID_PREFIX = "draft:";
+
+/** Канонический снимок каталога при сохранении editor-batch (не preview-черновик из браузера). */
+async function catalogSnapshotForEditorBatch(
+  snapshots: TreatmentProgramItemSnapshotPort,
+  itemType: TreatmentProgramItemType,
+  itemRefId: string,
+): Promise<Record<string, unknown>> {
+  return snapshots.buildSnapshot(itemType, itemRefId);
+}
 
 export function isInstanceEditorBatchClientId(id: string): boolean {
   return id.startsWith(DRAFT_ID_PREFIX);
@@ -283,6 +293,9 @@ async function validateInstanceEditorBatchDraft(
           throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
         }
       }
+      if (create.itemType === "exercise" && create.loadSettings) {
+        mergeLoadSettings(null, create.loadSettings);
+      }
     } else if (create.kind === "freeform_recommendation") {
       assertPersistedStageInDetail(
         detail,
@@ -301,12 +314,15 @@ async function validateInstanceEditorBatchDraft(
       resolveBatchId(create.groupId, previewIdMap, "Группа");
       for (const line of create.items) {
         await itemRefs.assertItemRefExists("exercise", line.itemRefId);
+        if (line.loadSettings) {
+          mergeLoadSettings(null, line.loadSettings);
+        }
       }
     }
   }
 
   for (const [groupIdRaw] of Object.entries(draft.groupHides)) {
-    if (isInstanceEditorBatchClientId(groupIdRaw) && !previewIdMap.has(groupIdRaw)) continue;
+    if (isInstanceEditorBatchClientId(groupIdRaw)) continue;
     const groupId = resolveBatchId(groupIdRaw, previewIdMap, "Группа");
     const gr = detail.stages.flatMap((s) => s.groups).find((g) => g.id === groupId);
     if (!gr) continue;
@@ -316,7 +332,7 @@ async function validateInstanceEditorBatchDraft(
   }
 
   for (const [itemIdRaw] of Object.entries(draft.itemDeletes)) {
-    if (isInstanceEditorBatchClientId(itemIdRaw) && !previewIdMap.has(itemIdRaw)) continue;
+    if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
     const itemId = resolveBatchId(itemIdRaw, previewIdMap, "Элемент");
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === itemId);
     if (!item) continue;
@@ -324,7 +340,7 @@ async function validateInstanceEditorBatchDraft(
   }
 
   for (const [itemIdRaw, patch] of Object.entries(draft.itemStructuralPatches)) {
-    if (isInstanceEditorBatchClientId(itemIdRaw) && !previewIdMap.has(itemIdRaw)) continue;
+    if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
     const itemId = resolveBatchId(itemIdRaw, previewIdMap, "Элемент");
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === itemId);
     if (!item) throw new Error("Элемент не найден");
@@ -366,7 +382,7 @@ async function validateInstanceEditorBatchDraft(
   }
 
   for (const [itemIdRaw, patch] of Object.entries(draft.itemPatches)) {
-    if (isInstanceEditorBatchClientId(itemIdRaw) && !previewIdMap.has(itemIdRaw)) continue;
+    if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
     const itemId = resolveBatchId(itemIdRaw, previewIdMap, "Элемент");
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === itemId);
     if (!item) throw new Error("Элемент не найден");
@@ -400,7 +416,7 @@ export async function applyInstanceEditorBatch(
 
   const idMap = new Map<string, string>();
   const diff = createEmptyProgramChangedDiff();
-  const { instances, itemRefs, testAttempts } = deps;
+  const { instances, itemRefs, testAttempts, snapshots } = deps;
 
   let detail = await instances.getInstanceById(input.instanceId);
   if (!detail) throw new Error("Программа не найдена");
@@ -493,15 +509,19 @@ export async function applyInstanceEditorBatch(
         assertTreatmentProgramStageItemFitsSystemGroup(g, create.itemType);
       }
       const maxOrder = stage.items.reduce((m, i) => Math.max(m, i.sortOrder), -1);
+      const settings =
+        create.itemType === "exercise" && create.loadSettings
+          ? mergeLoadSettings(null, create.loadSettings)
+          : null;
       const row = await instances.addInstanceStageItem(input.instanceId, stageId, {
         itemType: create.itemType,
         itemRefId: create.itemRefId,
         sortOrder: maxOrder + 1,
         comment: null,
-        settings: null,
-        snapshot: create.snapshot,
+        settings,
+        snapshot: await catalogSnapshotForEditorBatch(snapshots, create.itemType, create.itemRefId),
         isActionable: create.isActionable ?? (create.itemType === "recommendation" ? false : null),
-        status: "active",
+        status: create.status ?? "active",
         groupId: resolvedGroupId,
       });
       if (!row) throw new Error("Не удалось добавить элемент");
@@ -521,6 +541,20 @@ export async function applyInstanceEditorBatch(
       });
       if (!result) throw new Error("Не удалось добавить рекомендацию");
       idMap.set(create.clientId, result.item.id);
+      if (create.localComment !== undefined) {
+        await instances.updateStageItemLocalComment(input.instanceId, result.item.id, create.localComment);
+      }
+      const freeformPatch: { isActionable?: boolean | null; status?: "active" | "disabled" } = {};
+      if (create.isActionable !== undefined) {
+        freeformPatch.isActionable = create.isActionable;
+      }
+      if (create.status !== undefined && create.status !== "active") {
+        freeformPatch.status = create.status;
+      }
+      if (Object.keys(freeformPatch).length > 0) {
+        const row = await instances.patchInstanceStageItem(input.instanceId, result.item.id, freeformPatch);
+        if (!row) throw new Error("Элемент не найден");
+      }
       diff.itemsAdded += 1;
     } else if (create.kind === "test_set_expand") {
       const stageId = resolveBatchId(create.stageId, idMap, "Элемент");
@@ -532,41 +566,55 @@ export async function applyInstanceEditorBatch(
       for (const line of create.items) {
         await itemRefs.assertItemRefExists("clinical_test", line.itemRefId);
         sortOrder += 1;
+        const resolvedGroupId = line.groupId
+          ? resolveBatchId(line.groupId, idMap, "Группа")
+          : testsGroup.id;
+        const grp = stage.groups.find((g) => g.id === resolvedGroupId);
+        assertTreatmentProgramStageItemFitsSystemGroup(grp, "clinical_test");
         const row = await instances.addInstanceStageItem(input.instanceId, stageId, {
           itemType: "clinical_test",
           itemRefId: line.itemRefId,
           sortOrder,
           comment: null,
           settings: null,
-          snapshot: line.snapshot,
-          status: "active",
-          groupId: testsGroup.id,
+          snapshot: await catalogSnapshotForEditorBatch(snapshots, "clinical_test", line.itemRefId),
+          status: line.status ?? "active",
+          groupId: resolvedGroupId,
         });
         if (!row) throw new Error("Не удалось добавить элемент");
         idMap.set(line.clientId, row.id);
+        if (line.localComment !== undefined) {
+          await instances.updateStageItemLocalComment(input.instanceId, row.id, line.localComment);
+        }
         diff.itemsAdded += 1;
       }
     } else {
       const stageId = resolveBatchId(create.stageId, idMap, "Элемент");
-      const groupId = resolveBatchId(create.groupId, idMap, "Группа");
       const stage = detail.stages.find((s) => s.id === stageId);
       if (!stage) throw new Error("Этап не найден");
       let sortOrder = stage.items.reduce((m, i) => Math.max(m, i.sortOrder), -1);
       for (const line of create.items) {
         await itemRefs.assertItemRefExists("exercise", line.itemRefId);
         sortOrder += 1;
+        const groupId = resolveBatchId(line.groupId ?? create.groupId, idMap, "Группа");
+        const grp = stage.groups.find((g) => g.id === groupId);
+        assertTreatmentProgramStageItemFitsSystemGroup(grp, "exercise");
+        const settings = line.loadSettings ? mergeLoadSettings(null, line.loadSettings) : null;
         const row = await instances.addInstanceStageItem(input.instanceId, stageId, {
           itemType: "exercise",
           itemRefId: line.itemRefId,
           sortOrder,
           comment: null,
-          settings: null,
-          snapshot: line.snapshot,
-          status: "active",
+          settings,
+          snapshot: await catalogSnapshotForEditorBatch(snapshots, "exercise", line.itemRefId),
+          status: line.status ?? "active",
           groupId,
         });
         if (!row) throw new Error("Не удалось добавить элемент");
         idMap.set(line.clientId, row.id);
+        if (line.localComment !== undefined) {
+          await instances.updateStageItemLocalComment(input.instanceId, row.id, line.localComment);
+        }
         diff.itemsAdded += 1;
       }
     }
@@ -624,7 +672,7 @@ export async function applyInstanceEditorBatch(
   detail = (await instances.getInstanceById(input.instanceId))!;
 
   for (const [itemIdRaw, patch] of Object.entries(input.draft.itemStructuralPatches)) {
-    if (isInstanceEditorBatchClientId(itemIdRaw) && !idMap.has(itemIdRaw)) continue;
+    if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
     const itemId = resolveBatchId(itemIdRaw, idMap, "Элемент");
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === itemId);
     if (!item) throw new Error("Элемент не найден");
@@ -635,7 +683,11 @@ export async function applyInstanceEditorBatch(
       const row = await instances.replaceInstanceStageItem(input.instanceId, itemId, {
         itemType: patch.replace.itemType,
         itemRefId: patch.replace.itemRefId,
-        snapshot: patch.replace.snapshot,
+        snapshot: await catalogSnapshotForEditorBatch(
+          snapshots,
+          patch.replace.itemType,
+          patch.replace.itemRefId,
+        ),
       });
       if (!row) throw new Error("Не удалось заменить элемент");
       diff.itemsStructuralUpdated += 1;
@@ -692,7 +744,7 @@ export async function applyInstanceEditorBatch(
   detail = (await instances.getInstanceById(input.instanceId))!;
 
   for (const [itemIdRaw] of Object.entries(input.draft.itemDeletes)) {
-    if (isInstanceEditorBatchClientId(itemIdRaw) && !idMap.has(itemIdRaw)) continue;
+    if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
     const itemId = resolveBatchId(itemIdRaw, idMap, "Элемент");
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === itemId);
     if (!item) continue;
@@ -705,7 +757,7 @@ export async function applyInstanceEditorBatch(
   detail = (await instances.getInstanceById(input.instanceId))!;
 
   for (const [groupIdRaw] of Object.entries(input.draft.groupHides)) {
-    if (isInstanceEditorBatchClientId(groupIdRaw) && !idMap.has(groupIdRaw)) continue;
+    if (isInstanceEditorBatchClientId(groupIdRaw)) continue;
     const groupId = resolveBatchId(groupIdRaw, idMap, "Группа");
     const gr = detail.stages.flatMap((s) => s.groups).find((g) => g.id === groupId);
     if (!gr) continue;
@@ -756,7 +808,7 @@ export async function applyInstanceEditorBatch(
   }
 
   for (const [itemIdRaw, patch] of Object.entries(input.draft.itemPatches)) {
-    if (isInstanceEditorBatchClientId(itemIdRaw) && !idMap.has(itemIdRaw)) continue;
+    if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
     const itemId = resolveBatchId(itemIdRaw, idMap, "Элемент");
     if (patch.localComment !== undefined) {
       const row = await instances.updateStageItemLocalComment(

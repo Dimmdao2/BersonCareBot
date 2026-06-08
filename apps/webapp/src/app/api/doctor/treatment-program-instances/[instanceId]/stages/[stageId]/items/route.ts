@@ -5,6 +5,7 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { TREATMENT_PROGRAM_ITEM_TYPES } from "@/modules/treatment-program/types";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
+import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
 const postBodySchema = z.object({
   itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES),
@@ -61,7 +62,7 @@ export async function POST(
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
-    const status = msg.includes("не найден") ? 404 : 400;
+    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

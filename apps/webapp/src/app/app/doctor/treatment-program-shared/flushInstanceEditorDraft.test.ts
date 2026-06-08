@@ -145,6 +145,25 @@ describe("flushInstanceEditorDraft", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("returns load validation error without POST", async () => {
+    const baseline = minimalDetail();
+    const result = await flushInstanceEditorDraft({
+      instanceId: baseline.id,
+      programStatus: "active",
+      draft: {
+        ...createEmptyInstanceEditorDraft(),
+        itemPatches: {
+          "44444444-4444-4444-8444-444444444444": {
+            loadSettings: { reps: 0, sets: null, maxPain: null },
+          },
+        },
+      },
+      baseline,
+    });
+    expect(result).toEqual({ ok: false, error: "Повторы: целое число от 1 до 999" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("returns error when editor-batch fails", async () => {
     fetchMock.mockResolvedValue({
       ok: false,

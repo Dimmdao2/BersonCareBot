@@ -8,6 +8,9 @@ import type {
 } from "@/modules/treatment-program/types";
 import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
 import { sortByOrderThenId } from "./treatmentProgramReorderHelpers";
+import type { InstanceEditorItemLoadSettingsPatch } from "./instanceEditorLoadSettings";
+
+export type { InstanceEditorItemLoadSettingsPatch };
 
 export const INSTANCE_EDITOR_DRAFT_ID_PREFIX = "draft:";
 
@@ -32,12 +35,6 @@ export type InstanceEditorGroupPatch = {
   title?: string;
   description?: string | null;
   scheduleText?: string | null;
-};
-
-export type InstanceEditorItemLoadSettingsPatch = {
-  reps: number | null;
-  sets: number | null;
-  maxPain: number | null;
 };
 
 export type InstanceEditorItemPatch = {
@@ -72,7 +69,9 @@ export type InstanceEditorItemCreateLibraryItem = {
   groupId?: string | null;
   snapshot: Record<string, unknown>;
   localComment?: string | null;
+  loadSettings?: InstanceEditorItemLoadSettingsPatch;
   isActionable?: boolean | null;
+  status?: TreatmentProgramInstanceStageItemStatus;
 };
 
 export type InstanceEditorItemCreateFreeformRecommendation = {
@@ -82,17 +81,26 @@ export type InstanceEditorItemCreateFreeformRecommendation = {
   title: string;
   bodyMd: string;
   snapshot: Record<string, unknown>;
+  localComment?: string | null;
+  isActionable?: boolean | null;
+  status?: TreatmentProgramInstanceStageItemStatus;
 };
 
 export type InstanceEditorItemCreateTestSetExpand = {
   kind: "test_set_expand";
   stageId: string;
   testSetId: string;
-  items: Array<{
-    clientId: string;
-    itemRefId: string;
-    snapshot: Record<string, unknown>;
-  }>;
+  items: Array<InstanceEditorItemCreateExpandLine>;
+};
+
+export type InstanceEditorItemCreateExpandLine = {
+  clientId: string;
+  itemRefId: string;
+  snapshot: Record<string, unknown>;
+  localComment?: string | null;
+  loadSettings?: InstanceEditorItemLoadSettingsPatch;
+  groupId?: string | null;
+  status?: TreatmentProgramInstanceStageItemStatus;
 };
 
 export type InstanceEditorItemCreateLfkComplexExpand = {
@@ -100,11 +108,7 @@ export type InstanceEditorItemCreateLfkComplexExpand = {
   stageId: string;
   groupId: string;
   complexTemplateId: string;
-  items: Array<{
-    clientId: string;
-    itemRefId: string;
-    snapshot: Record<string, unknown>;
-  }>;
+  items: Array<InstanceEditorItemCreateExpandLine>;
 };
 
 export type InstanceEditorItemCreate =
@@ -130,6 +134,10 @@ export type InstanceEditorItemCreateInput =
         clientId?: string;
         itemRefId: string;
         snapshot: Record<string, unknown>;
+        localComment?: string | null;
+        loadSettings?: InstanceEditorItemLoadSettingsPatch;
+        groupId?: string | null;
+        status?: TreatmentProgramInstanceStageItemStatus;
       }>;
     }
   | {
@@ -141,6 +149,10 @@ export type InstanceEditorItemCreateInput =
         clientId?: string;
         itemRefId: string;
         snapshot: Record<string, unknown>;
+        localComment?: string | null;
+        loadSettings?: InstanceEditorItemLoadSettingsPatch;
+        groupId?: string | null;
+        status?: TreatmentProgramInstanceStageItemStatus;
       }>;
     };
 
@@ -201,6 +213,101 @@ export function prepareInstanceEditorItemCreate(input: InstanceEditorItemCreateI
     localComment: input.localComment,
     isActionable: input.isActionable,
   };
+}
+
+/** Комментарий/нагрузка для ещё не сохранённого элемента — в itemCreates, не в itemPatches. */
+export function applyItemPatchToItemCreates(
+  creates: InstanceEditorItemCreate[],
+  itemId: string,
+  patch: InstanceEditorItemPatch,
+): InstanceEditorItemCreate[] {
+  if (patch.localComment === undefined && patch.loadSettings === undefined) {
+    return creates;
+  }
+  return creates.map((create): InstanceEditorItemCreate => {
+    if (create.kind === "library_item" && create.clientId === itemId) {
+      return {
+        ...create,
+        ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
+        ...(patch.loadSettings !== undefined ? { loadSettings: patch.loadSettings } : {}),
+      };
+    }
+    if (create.kind === "freeform_recommendation" && create.clientId === itemId) {
+      return {
+        ...create,
+        ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
+      };
+    }
+    if (create.kind === "test_set_expand" || create.kind === "lfk_complex_expand") {
+      const lineIdx = create.items.findIndex((line) => line.clientId === itemId);
+      if (lineIdx === -1) return create;
+      const items = [...create.items];
+      const line = items[lineIdx]!;
+      items[lineIdx] = {
+        ...line,
+        ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
+        ...(patch.loadSettings !== undefined ? { loadSettings: patch.loadSettings } : {}),
+      };
+      return { ...create, items };
+    }
+    return create;
+  });
+}
+
+/** Структурные правки (группа, режим рекомендации, статус) для ещё не сохранённого элемента — в itemCreates. */
+export function applyItemStructuralPatchToItemCreates(
+  creates: InstanceEditorItemCreate[],
+  itemId: string,
+  patch: InstanceEditorItemStructuralPatch,
+): InstanceEditorItemCreate[] {
+  const hasStructural =
+    patch.groupId !== undefined ||
+    patch.isActionable !== undefined ||
+    patch.status !== undefined ||
+    patch.replace !== undefined;
+  if (!hasStructural) return creates;
+
+  return creates.map((create): InstanceEditorItemCreate => {
+    if (create.kind === "library_item" && create.clientId === itemId) {
+      if (patch.replace) {
+        return {
+          ...create,
+          itemType: patch.replace.itemType,
+          itemRefId: patch.replace.itemRefId,
+          snapshot: patch.replace.snapshot,
+          ...(patch.groupId !== undefined ? { groupId: patch.groupId } : {}),
+          ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
+          ...(patch.status !== undefined ? { status: patch.status } : {}),
+        };
+      }
+      return {
+        ...create,
+        ...(patch.groupId !== undefined ? { groupId: patch.groupId } : {}),
+        ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+      };
+    }
+    if (create.kind === "freeform_recommendation" && create.clientId === itemId) {
+      return {
+        ...create,
+        ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+      };
+    }
+    if (create.kind === "test_set_expand" || create.kind === "lfk_complex_expand") {
+      const lineIdx = create.items.findIndex((line) => line.clientId === itemId);
+      if (lineIdx === -1) return create;
+      const items = [...create.items];
+      const line = items[lineIdx]!;
+      items[lineIdx] = {
+        ...line,
+        ...(patch.groupId !== undefined ? { groupId: patch.groupId } : {}),
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+      };
+      return { ...create, items };
+    }
+    return create;
+  });
 }
 
 export function removeItemFromInstanceEditorItemCreates(
@@ -369,6 +476,14 @@ function findItem(baseline: TreatmentProgramInstanceDetail, itemId: string) {
   return findItemInDetail(baseline, itemId);
 }
 
+function findGroupInBaseline(baseline: TreatmentProgramInstanceDetail, groupId: string) {
+  for (const st of baseline.stages) {
+    const group = findGroup(st, groupId);
+    if (group) return group;
+  }
+  return null;
+}
+
 function baselineStageIdOrder(stages: TreatmentProgramInstanceDetail["stages"]): string[] {
   return sortByOrderThenId(stages).map((s) => s.id);
 }
@@ -485,7 +600,9 @@ function buildDraftItemRowFromParts(input: {
   groupId?: string | null;
   snapshot: Record<string, unknown>;
   localComment?: string | null;
+  loadSettings?: InstanceEditorItemLoadSettingsPatch;
   isActionable?: boolean | null;
+  status?: TreatmentProgramInstanceStageItemStatus;
 }): TreatmentProgramInstanceStageItemView {
   const row: TreatmentProgramInstanceStageItemRow = {
     id: input.clientId,
@@ -495,11 +612,14 @@ function buildDraftItemRowFromParts(input: {
     sortOrder: 9999,
     comment: null,
     localComment: input.localComment ?? null,
-    settings: null,
+    settings:
+      input.loadSettings != null
+        ? mergeItemSettings(null, input.loadSettings)
+        : null,
     snapshot: input.snapshot,
     completedAt: null,
     isActionable: input.isActionable ?? null,
-    status: "active",
+    status: input.status ?? "active",
     groupId: input.groupId ?? null,
     createdAt: new Date(0).toISOString(),
     lastViewedAt: null,
@@ -519,7 +639,20 @@ function materializeItemCreatesForStage(
     if (create.stageId !== stageId) continue;
     switch (create.kind) {
       case "library_item":
-        rows.push(buildDraftItemRowFromParts(create));
+        rows.push(
+          buildDraftItemRowFromParts({
+            clientId: create.clientId,
+            stageId: create.stageId,
+            itemType: create.itemType,
+            itemRefId: create.itemRefId,
+            groupId: create.groupId,
+            snapshot: create.snapshot,
+            localComment: create.localComment,
+            loadSettings: create.loadSettings,
+            isActionable: create.isActionable,
+            status: create.status,
+          }),
+        );
         break;
       case "freeform_recommendation":
         rows.push(
@@ -529,6 +662,9 @@ function materializeItemCreatesForStage(
             itemType: "recommendation",
             itemRefId: create.clientId,
             snapshot: create.snapshot,
+            localComment: create.localComment,
+            isActionable: create.isActionable,
+            status: create.status,
           }),
         );
         break;
@@ -540,7 +676,10 @@ function materializeItemCreatesForStage(
               stageId: create.stageId,
               itemType: "clinical_test",
               itemRefId: item.itemRefId,
+              groupId: item.groupId ?? null,
               snapshot: item.snapshot,
+              localComment: item.localComment,
+              status: item.status,
             }),
           );
         }
@@ -553,8 +692,11 @@ function materializeItemCreatesForStage(
               stageId: create.stageId,
               itemType: "exercise",
               itemRefId: item.itemRefId,
-              groupId: create.groupId,
+              groupId: item.groupId ?? create.groupId,
               snapshot: item.snapshot,
+              localComment: item.localComment,
+              loadSettings: item.loadSettings,
+              status: item.status,
             }),
           );
         }
@@ -626,9 +768,14 @@ function mergeItemSettings(
     settings != null && typeof settings === "object" && !Array.isArray(settings)
       ? { ...settings }
       : {};
-  base.reps = loadSettings.reps;
-  base.sets = loadSettings.sets;
-  base.maxPain = loadSettings.maxPain;
+  for (const [key, value] of [
+    ["reps", loadSettings.reps],
+    ["sets", loadSettings.sets],
+    ["maxPain", loadSettings.maxPain],
+  ] as const) {
+    if (value === null) delete base[key];
+    else if (value !== undefined) base[key] = value;
+  }
   return base;
 }
 
@@ -856,6 +1003,9 @@ export function normalizeInstanceEditorDraft(
   const mergedForPatches = mergeInstanceEditorDraftIntoDetailRaw(baseline, partialForPatchCompare);
 
   for (const [groupId, patch] of Object.entries(draft.groupPatches)) {
+    if (!isInstanceEditorDraftClientId(groupId) && !findGroupInBaseline(baseline, groupId)) {
+      continue;
+    }
     for (const st of mergedForPatches.stages) {
       const group = findGroup(st, groupId);
       if (group && groupPatchDiffers(group, patch)) {
@@ -866,6 +1016,11 @@ export function normalizeInstanceEditorDraft(
   }
 
   for (const [itemId, patch] of Object.entries(draft.itemPatches)) {
+    if (isInstanceEditorDraftClientId(itemId)) {
+      next.itemCreates = applyItemPatchToItemCreates(next.itemCreates, itemId, patch);
+      continue;
+    }
+    if (!findItem(baseline, itemId)) continue;
     const item = findItemInDetail(mergedForPatches, itemId);
     if (item && itemPatchDiffers(item, patch)) {
       next.itemPatches[itemId] = patch;
@@ -932,6 +1087,11 @@ export function normalizeInstanceEditorDraft(
   const mergedForStructural = mergeInstanceEditorDraftIntoDetailRaw(baseline, partialForStructural);
 
   for (const [itemId, patch] of Object.entries(draft.itemStructuralPatches)) {
+    if (isInstanceEditorDraftClientId(itemId)) {
+      next.itemCreates = applyItemStructuralPatchToItemCreates(next.itemCreates, itemId, patch);
+      continue;
+    }
+    if (!findItem(baseline, itemId)) continue;
     const item = findItemInDetail(mergedForStructural, itemId);
     if (item && itemStructuralPatchDiffers(item, patch)) {
       next.itemStructuralPatches[itemId] = patch;

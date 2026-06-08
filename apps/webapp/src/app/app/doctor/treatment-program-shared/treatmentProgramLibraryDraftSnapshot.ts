@@ -1,7 +1,7 @@
 import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
 import type { TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
 
-/** Минимальный снимок каталожной строки для preview черновика редактора экземпляра. */
+/** Минимальный снимок каталожной строки только для in-memory preview редактора; при сохранении editor-batch сервер строит канонический снимок через `buildSnapshot`. */
 export function libraryRowToItemDraftSnapshot(
   row: TreatmentProgramLibraryRow,
   itemType: TreatmentProgramLibraryPickType,

@@ -66,6 +66,12 @@ import {
   useInstanceEditorDraft,
 } from "@/app/app/doctor/treatment-program-shared/InstanceEditorDraftContext";
 import type { InstanceEditorItemStructuralPatch } from "@/app/app/doctor/treatment-program-shared/instanceEditorDraft";
+import {
+  INSTANCE_EDITOR_LOAD_MAX_PAIN_RANGE,
+  INSTANCE_EDITOR_LOAD_REPS_RANGE,
+  INSTANCE_EDITOR_LOAD_SETS_RANGE,
+  parseInstanceEditorLoadField,
+} from "@/app/app/doctor/treatment-program-shared/instanceEditorLoadSettings";
 import { InstanceEditorToolbar } from "@/app/app/doctor/treatment-program-shared/InstanceEditorToolbar";
 import { InstanceEditorAddStageDialog } from "@/app/app/doctor/treatment-program-shared/InstanceEditorAddStageDialog";
 import { InstanceEditorStageOrderDialog } from "@/app/app/doctor/treatment-program-shared/InstanceEditorStageOrderDialog";
@@ -333,16 +339,6 @@ function DoctorInstanceStageItemPreviewBlock(props: { item: InstanceStageItemT }
   );
 }
 
-function parseLoadField(raw: string, label: string): number | null {
-  const t = raw.trim();
-  if (t === "") return null;
-  const n = Number.parseInt(t, 10);
-  if (!Number.isFinite(n) || String(n) !== t.trim()) {
-    throw new Error(`${label}: целое число или пусто`);
-  }
-  return n;
-}
-
 function DoctorInstanceStageItemLoadForm(props: {
   item: InstanceStageItemT;
   editLocked: boolean;
@@ -367,9 +363,9 @@ function DoctorInstanceStageItemLoadForm(props: {
     if (editLocked) return;
     try {
       patchItemLoadSettings(item.id, {
-        reps: parseLoadField(nextReps, "Повторы"),
-        sets: parseLoadField(nextSets, "Подходы"),
-        maxPain: parseLoadField(nextMaxPain, "Макс. боль"),
+        reps: parseInstanceEditorLoadField(nextReps, "Повторы", INSTANCE_EDITOR_LOAD_REPS_RANGE),
+        sets: parseInstanceEditorLoadField(nextSets, "Подходы", INSTANCE_EDITOR_LOAD_SETS_RANGE),
+        maxPain: parseInstanceEditorLoadField(nextMaxPain, "Макс. боль", INSTANCE_EDITOR_LOAD_MAX_PAIN_RANGE),
       });
       setMsg(null);
     } catch (err) {
@@ -739,7 +735,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   const [programEvents, setProgramEvents] = useState<TreatmentProgramEventRow[]>(props.initialEvents);
   const [actionLog, setActionLog] = useState<ProgramActionLogListRow[]>(props.initialActionLog);
 
-  const refreshBaseline = useCallback(async () => {
+  const refreshBaseline = useCallback(async (): Promise<TreatmentProgramInstanceDetail> => {
     const res = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(baseline.id)}`);
     const data = (await res.json().catch(() => null)) as { ok?: boolean; item?: TreatmentProgramInstanceDetail };
     if (!res.ok || !data.ok || !data.item) {
@@ -755,6 +751,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
       entries?: ProgramActionLogListRow[];
     };
     if (alRes.ok && alData.ok && alData.entries) setActionLog(alData.entries);
+    return data.item;
   }, [baseline.id]);
 
   return (
@@ -798,7 +795,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   setProgramEvents: (events: TreatmentProgramEventRow[]) => void;
   actionLog: ProgramActionLogListRow[];
   setActionLog: (rows: ProgramActionLogListRow[]) => void;
-  refreshBaseline: () => Promise<void>;
+  refreshBaseline: () => Promise<TreatmentProgramInstanceDetail>;
 }) {
   const {
     patientProfileHref,

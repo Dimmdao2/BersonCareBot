@@ -81,7 +81,7 @@ describe("DoctorOnlineIntakeClient", () => {
     );
   });
 
-  it("loads detail for deep-linked requestId when not in filtered list", async () => {
+  it("deep-linked closed request switches to «Все» and does not show orphan card on «Открытые»", async () => {
     const deepId = "00000000-0000-0000-0000-0000000000dd";
     globalThis.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -102,22 +102,45 @@ describe("DoctorOnlineIntakeClient", () => {
           }),
         } as Response);
       }
+      if (url.includes("open=1")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            items: [],
+            total: 0,
+            page: 1,
+            totalPages: 0,
+          }),
+        } as Response);
+      }
       return Promise.resolve({
         ok: true,
         json: async () => ({
-          items: [],
-          total: 0,
+          items: [
+            {
+              id: deepId,
+              patientUserId: PATIENT_ID,
+              type: "lfk",
+              status: "closed",
+              summary: "Текст по ссылке",
+              patientName: "Deep Имя",
+              patientPhone: "+79001112233",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+          total: 1,
           page: 1,
-          totalPages: 0,
+          totalPages: 1,
         }),
       } as Response);
     }) as typeof fetch;
 
     render(<DoctorOnlineIntakeClient initialOpenRequestId={deepId} />);
     await waitFor(() => {
-      expect(screen.getByText("Заявка по ссылке")).toBeInTheDocument();
+      expect(screen.getByText("Deep Имя")).toBeInTheDocument();
     });
-    expect(screen.getByText("Deep Имя")).toBeInTheDocument();
-    expect(screen.getByText("Текст по ссылке")).toBeInTheDocument();
+    expect(screen.queryByText("Заявка по ссылке")).not.toBeInTheDocument();
+    expect(screen.getByText("Закрыта")).toBeInTheDocument();
   });
 });

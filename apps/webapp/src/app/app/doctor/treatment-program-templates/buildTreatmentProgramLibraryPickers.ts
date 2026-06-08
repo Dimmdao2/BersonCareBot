@@ -106,7 +106,21 @@ export function buildTreatmentProgramLibraryPickers(params: {
                 }
               : {}),
           };
-          return { itemRefId: line.exerciseId, snapshot };
+          const hasLoad =
+            line.reps != null || line.sets != null || line.maxPain0_10 != null;
+          return {
+            itemRefId: line.exerciseId,
+            snapshot,
+            ...(hasLoad
+              ? {
+                  loadSettings: {
+                    reps: line.reps,
+                    sets: line.sets,
+                    maxPain: line.maxPain0_10,
+                  },
+                }
+              : {}),
+          };
         }),
       };
     }),

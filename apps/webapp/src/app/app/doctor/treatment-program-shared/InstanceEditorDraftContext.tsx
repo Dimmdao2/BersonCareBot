@@ -9,8 +9,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
+import type {
+  TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceStatus,
+} from "@/modules/treatment-program/types";
 import {
+  applyItemPatchToItemCreates,
+  applyItemStructuralPatchToItemCreates,
   createEmptyInstanceEditorDraft,
   createInstanceEditorDraftClientId,
   hasInstanceEditorDraftFlushableChanges,
@@ -32,6 +37,7 @@ import {
   type InstanceEditorStageMetadataPatch,
 } from "./instanceEditorDraft";
 import { flushInstanceEditorDraft } from "./flushInstanceEditorDraft";
+import { formatInstanceEditorSaveError, isStaleInstanceEditorSaveError } from "./instanceEditorLoadSettings";
 
 type InstanceEditorDraftContextValue = {
   programStatus: TreatmentProgramInstanceStatus;
@@ -71,7 +77,7 @@ const InstanceEditorDraftContext = createContext<InstanceEditorDraftContextValue
 export function InstanceEditorDraftProvider(props: {
   baseline: TreatmentProgramInstanceDetail;
   programStatus: TreatmentProgramInstanceStatus;
-  onBaselineSynced: () => Promise<void>;
+  onBaselineSynced: () => Promise<TreatmentProgramInstanceDetail | void>;
   children: ReactNode;
 }) {
   const { baseline, programStatus, onBaselineSynced, children } = props;
@@ -134,10 +140,20 @@ export function InstanceEditorDraftProvider(props: {
 
   const patchItem = useCallback(
     (itemId: string, patch: InstanceEditorItemPatch) => {
-      mergeDraft((prev) => ({
-        ...prev,
-        itemPatches: { ...prev.itemPatches, [itemId]: { ...prev.itemPatches[itemId], ...patch } },
-      }));
+      mergeDraft((prev) => {
+        if (isInstanceEditorDraftClientId(itemId)) {
+          const { [itemId]: _removed, ...itemPatches } = prev.itemPatches;
+          return {
+            ...prev,
+            itemCreates: applyItemPatchToItemCreates(prev.itemCreates, itemId, patch),
+            itemPatches,
+          };
+        }
+        return {
+          ...prev,
+          itemPatches: { ...prev.itemPatches, [itemId]: { ...prev.itemPatches[itemId], ...patch } },
+        };
+      });
     },
     [mergeDraft],
   );
@@ -258,13 +274,23 @@ export function InstanceEditorDraftProvider(props: {
 
   const patchItemStructural = useCallback(
     (itemId: string, patch: InstanceEditorItemStructuralPatch) => {
-      mergeDraft((prev) => ({
-        ...prev,
-        itemStructuralPatches: {
-          ...prev.itemStructuralPatches,
-          [itemId]: { ...prev.itemStructuralPatches[itemId], ...patch },
-        },
-      }));
+      mergeDraft((prev) => {
+        if (isInstanceEditorDraftClientId(itemId)) {
+          const { [itemId]: _removed, ...itemStructuralPatches } = prev.itemStructuralPatches;
+          return {
+            ...prev,
+            itemCreates: applyItemStructuralPatchToItemCreates(prev.itemCreates, itemId, patch),
+            itemStructuralPatches,
+          };
+        }
+        return {
+          ...prev,
+          itemStructuralPatches: {
+            ...prev.itemStructuralPatches,
+            [itemId]: { ...prev.itemStructuralPatches[itemId], ...patch },
+          },
+        };
+      });
     },
     [mergeDraft],
   );
@@ -278,15 +304,37 @@ export function InstanceEditorDraftProvider(props: {
 
     setSaving(true);
     try {
+      let saveBaseline = baseline;
+      try {
+        const synced = await onBaselineSynced();
+        if (synced && typeof synced === "object" && "stages" in synced) {
+          saveBaseline = synced;
+        }
+      } catch {
+        // keep current baseline if refresh failed
+      }
+      const saveDraft = normalizeInstanceEditorDraft(draft, saveBaseline);
       const result = await flushInstanceEditorDraft({
-        instanceId: baseline.id,
+        instanceId: saveBaseline.id,
         programStatus,
-        draft,
-        baseline,
+        draft: saveDraft,
+        baseline: saveBaseline,
       });
       if (!result.ok) {
         if (result.cancelled) return { ok: false, cancelled: true };
-        return { ok: false, error: result.error };
+        let staleRefreshed = false;
+        if (result.error && isStaleInstanceEditorSaveError(result.error)) {
+          try {
+            await onBaselineSynced();
+            staleRefreshed = true;
+          } catch {
+            staleRefreshed = false;
+          }
+        }
+        return {
+          ok: false,
+          error: formatInstanceEditorSaveError(result.error ?? "Ошибка сохранения", staleRefreshed),
+        };
       }
       setDraft(createEmptyInstanceEditorDraft());
       await onBaselineSynced();

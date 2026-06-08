@@ -5,6 +5,7 @@ import {
   normalizeInstanceEditorDraft,
   type InstanceEditorDraft,
 } from "./instanceEditorDraft";
+import { validateInstanceEditorDraftLoadSettings } from "./instanceEditorLoadSettings";
 
 /** Сохранить накопленный черновик редактора одним POST editor-batch. */
 export async function flushInstanceEditorDraft(input: {
@@ -16,6 +17,13 @@ export async function flushInstanceEditorDraft(input: {
   const normalized = normalizeInstanceEditorDraft(input.draft, input.baseline);
   if (!isInstanceEditorDraftDirty(normalized, input.baseline)) {
     return { ok: true };
+  }
+
+  const loadError = validateInstanceEditorDraftLoadSettings(normalized, input.baseline, {
+    alreadyNormalized: true,
+  });
+  if (loadError) {
+    return { ok: false, error: loadError };
   }
 
   if (!confirmActiveProgramInstanceBatchSave(input.programStatus)) {

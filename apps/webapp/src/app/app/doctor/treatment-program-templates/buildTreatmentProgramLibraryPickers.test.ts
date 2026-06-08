@@ -95,6 +95,50 @@ describe("buildTreatmentProgramLibraryPickers", () => {
     ]);
   });
 
+  it("maps template exercise load into lfkComplex expandLines", () => {
+    const exercises = [
+      minimalExercise({ id: "e1", title: "Упражнение", difficulty1_10: 3, regionRefIds: [] }),
+    ];
+    const lfkTemplates = [
+      {
+        id: "tpl-1",
+        title: "Комплекс",
+        description: null,
+        status: "published" as const,
+        createdBy: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        exercises: [
+          {
+            id: "line-1",
+            templateId: "tpl-1",
+            exerciseId: "e1",
+            exerciseTitle: "Упражнение",
+            sortOrder: 0,
+            reps: 10,
+            sets: 3,
+            side: null,
+            maxPain0_10: 4,
+            comment: null,
+          },
+        ],
+      },
+    ];
+    const pickers = buildTreatmentProgramLibraryPickers({
+      exercises,
+      lfkTemplates,
+      testSets: [],
+      clinicalTests: [],
+      recommendations: [],
+      contentPagesAll: [],
+    });
+    expect(pickers.lfkComplexes[0]?.expandLines?.[0]?.loadSettings).toEqual({
+      reps: 10,
+      sets: 3,
+      maxPain: 4,
+    });
+  });
+
   it("builds expandLines for test sets", () => {
     const pickers = buildTreatmentProgramLibraryPickers({
       exercises: [],

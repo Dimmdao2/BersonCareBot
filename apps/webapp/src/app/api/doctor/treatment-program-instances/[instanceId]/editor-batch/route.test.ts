@@ -139,6 +139,21 @@ describe("POST .../editor-batch", () => {
     expect(doctorApplyInstanceEditorBatchMock).not.toHaveBeenCalled();
   });
 
+  it("400 when apply throws catalog unavailable", async () => {
+    doctorApplyInstanceEditorBatchMock.mockRejectedValue(
+      new Error("Объект для типа «exercise» не найден или недоступен"),
+    );
+    const res = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft: emptyDraft }),
+      }),
+      { params: Promise.resolve({ instanceId }) },
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("404 when patient is not in doctor clients", async () => {
     getClientIdentityMock.mockResolvedValue(null);
     const res = await POST(

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
 
 const patchBodySchema = z.object({
   normalizedDecision: z.enum(["passed", "failed", "partial"]),
@@ -45,7 +46,7 @@ export async function PATCH(
     return NextResponse.json({ ok: true, result: row });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
-    const status = msg.includes("не найден") ? 404 : 400;
+    const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

@@ -204,6 +204,7 @@ export function InstanceAddLibraryItemDialog(props: {
         items: lines.map((line) => ({
           itemRefId: line.itemRefId,
           snapshot: line.snapshot,
+          ...(line.loadSettings ? { loadSettings: line.loadSettings } : {}),
         })),
       });
       handleOpenChange(false);
@@ -228,6 +229,7 @@ export function InstanceAddLibraryItemDialog(props: {
         items: lines.map((line) => ({
           itemRefId: line.itemRefId,
           snapshot: line.snapshot,
+          ...(line.loadSettings ? { loadSettings: line.loadSettings } : {}),
         })),
       });
       handleOpenChange(false);

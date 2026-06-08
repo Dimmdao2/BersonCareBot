@@ -8,6 +8,7 @@ import {
   useInstanceEditorDraft,
 } from "./InstanceEditorDraftContext";
 import { createInstanceEditorDraftClientId, createEmptyInstanceEditorDraft, isInstanceEditorDraftDirty } from "./instanceEditorDraft";
+import { flushInstanceEditorDraft } from "./flushInstanceEditorDraft";
 
 vi.mock("./flushInstanceEditorDraft", () => ({
   flushInstanceEditorDraft: vi.fn(async () => ({ ok: true as const })),
@@ -48,7 +49,10 @@ function minimalDetail(): TreatmentProgramInstanceDetail {
   };
 }
 
-function wrapper(baseline: TreatmentProgramInstanceDetail, onBaselineSynced = vi.fn(async () => {})) {
+function wrapper(
+  baseline: TreatmentProgramInstanceDetail,
+  onBaselineSynced: () => Promise<TreatmentProgramInstanceDetail | void> = vi.fn(async () => {}),
+) {
   return function Provider({ children }: { children: ReactNode }) {
     return (
       <InstanceEditorDraftProvider
@@ -160,6 +164,31 @@ describe("InstanceEditorDraftContext", () => {
     ).toBe(false);
   });
 
+  it("metadata patches on draft-created item go to itemCreates, not itemPatches", () => {
+    const baseline = minimalDetail();
+    const { result } = renderHook(() => useInstanceEditorDraft(), { wrapper: wrapper(baseline) });
+    const stageId = baseline.stages[0]!.id;
+    let draftItemId = "";
+
+    act(() => {
+      [draftItemId] = result.current.addItemCreate({
+        kind: "library_item",
+        stageId,
+        itemType: "exercise",
+        itemRefId: "66666666-6666-4666-8666-666666666666",
+        snapshot: { title: "Новое упр" },
+      });
+      result.current.patchItemLocalComment(draftItemId, "Коммент к новому");
+      result.current.patchItemLoadSettings(draftItemId, { reps: 8, sets: 2, maxPain: 1 });
+    });
+
+    const item = result.current.displayDetail.stages[0]!.items.find((it) => it.id === draftItemId);
+    expect(item?.localComment).toBe("Коммент к новому");
+    expect(item?.settings).toMatchObject({ reps: 8, sets: 2, maxPain: 1 });
+    expect(result.current.isFlushableDirty).toBe(false);
+    expect(result.current.isDirty).toBe(true);
+  });
+
   it("addItemCreate and metadata patches update displayDetail without fetch", () => {
     const baseline = minimalDetail();
     const itemId = "55555555-5555-4555-8555-555555555555";
@@ -204,6 +233,51 @@ describe("InstanceEditorDraftContext", () => {
     expect(patched?.localComment).toBe("Коммент врача");
     expect(patched?.settings).toMatchObject({ reps: 10, sets: 2, maxPain: 3 });
     expect(result.current.isDirty).toBe(true);
+  });
+
+  it("saveDraft syncs baseline before flush", async () => {
+    const baseline = minimalDetail();
+    const synced = { ...baseline, title: "С сервера" };
+    const onBaselineSynced = vi.fn(async () => synced);
+    const { result } = renderHook(() => useInstanceEditorDraft(), {
+      wrapper: wrapper(baseline, onBaselineSynced),
+    });
+
+    act(() => {
+      result.current.addStageCreate({ title: "Draft stage" });
+    });
+
+    await act(async () => {
+      await result.current.saveDraft();
+    });
+
+    expect(onBaselineSynced).toHaveBeenCalled();
+  });
+
+  it("saveDraft refreshes baseline on stale not-found error", async () => {
+    const baseline = minimalDetail();
+    const onBaselineSynced = vi.fn(async () => {});
+    vi.mocked(flushInstanceEditorDraft).mockResolvedValueOnce({
+      ok: false,
+      error: "Элемент не найден",
+    });
+
+    const { result } = renderHook(() => useInstanceEditorDraft(), {
+      wrapper: wrapper(baseline, onBaselineSynced),
+    });
+
+    act(() => {
+      result.current.addStageCreate({ title: "Draft stage" });
+    });
+
+    let saveResult: Awaited<ReturnType<typeof result.current.saveDraft>> | undefined;
+    await act(async () => {
+      saveResult = await result.current.saveDraft();
+    });
+
+    expect(onBaselineSynced.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(saveResult?.ok).toBe(false);
+    expect(saveResult?.error).toContain("Программа обновлена");
   });
 });
 

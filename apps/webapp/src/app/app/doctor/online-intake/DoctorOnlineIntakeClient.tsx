@@ -255,7 +255,11 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
           setDetailId(null);
           return;
         }
-        setDetail((await res.json()) as IntakeDetail);
+        const loaded = (await res.json()) as IntakeDetail;
+        setDetail(loaded);
+        if (loaded.status === "closed") {
+          setFilter("all");
+        }
       } finally {
         if (!cancelled) {
           setDetailLoading(false);
@@ -279,7 +283,12 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
       if (res.ok) {
         await loadItems();
         if (detailId === id) {
-          await refreshDetail(id);
+          if (filter === "open") {
+            setDetailId(null);
+            setDetail(null);
+          } else {
+            await refreshDetail(id);
+          }
         }
       }
     } finally {
@@ -288,7 +297,8 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
   }
 
   const showOrphanDetail =
-    Boolean(detail && detailId && !items.some((i) => i.id === detailId));
+    Boolean(detail && detailId && !items.some((i) => i.id === detailId)) &&
+    detail?.status !== "closed";
 
   return (
     <div className="flex flex-col gap-3">
