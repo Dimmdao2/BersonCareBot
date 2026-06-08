@@ -105,6 +105,37 @@ describe("flushInstanceEditorDraft", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("POSTs wire draft without catalog snapshots", async () => {
+    const baseline = minimalDetail();
+    const result = await flushInstanceEditorDraft({
+      instanceId: baseline.id,
+      programStatus: "active",
+      draft: {
+        ...createEmptyInstanceEditorDraft(),
+        itemCreates: [
+          {
+            kind: "library_item",
+            clientId: "draft:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            stageId: "22222222-2222-4222-8222-222222222222",
+            itemType: "exercise",
+            itemRefId: "55555555-5555-4555-8555-555555555555",
+            groupId: "33333333-3333-4333-8333-333333333333",
+            snapshot: {
+              media: [{ mediaUrl: "/api/media/x/preview/sm", mediaType: "image" }],
+            },
+          },
+        ],
+      },
+      baseline,
+    });
+    expect(result).toEqual({ ok: true });
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as {
+      draft: { itemCreates: Array<Record<string, unknown>> };
+    };
+    expect(body.draft.itemCreates[0]).not.toHaveProperty("snapshot");
+    expect(JSON.stringify(body)).not.toContain("preview/sm");
+  });
+
   it("POSTs editor-batch for structural draft", async () => {
     const baseline = minimalDetail();
     const result = await flushInstanceEditorDraft({

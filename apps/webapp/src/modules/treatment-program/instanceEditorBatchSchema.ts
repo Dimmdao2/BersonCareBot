@@ -72,7 +72,8 @@ const itemStructuralPatchSchema = z
       .object({
         itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES),
         itemRefId: z.string().uuid(),
-        snapshot: z.record(z.string(), z.unknown()),
+        /** Не используется при persist; сервер строит `buildSnapshot`. */
+        snapshot: z.record(z.string(), z.unknown()).optional(),
       })
       .optional(),
   })
@@ -86,7 +87,7 @@ const libraryItemCreateSchema = z
     itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES),
     itemRefId: z.string().uuid(),
     groupId: instanceEditorBatchIdSchema.nullable().optional(),
-    snapshot: z.record(z.string(), z.unknown()),
+    snapshot: z.record(z.string(), z.unknown()).optional(),
     localComment: z.union([z.string(), z.null()]).optional(),
     loadSettings: loadSettingsPatchSchema.optional(),
     isActionable: z.boolean().nullable().optional(),
@@ -101,7 +102,7 @@ const freeformCreateSchema = z
     stageId: instanceEditorBatchIdSchema,
     title: z.string().min(1).max(2000),
     bodyMd: z.string(),
-    snapshot: z.record(z.string(), z.unknown()),
+    snapshot: z.record(z.string(), z.unknown()).optional(),
     localComment: z.union([z.string(), z.null()]).optional(),
     isActionable: z.boolean().nullable().optional(),
     status: z.enum(["active", "disabled"]).optional(),
@@ -112,7 +113,7 @@ const expandLineSchema = z
   .object({
     clientId: instanceEditorBatchIdSchema,
     itemRefId: z.string().uuid(),
-    snapshot: z.record(z.string(), z.unknown()),
+    snapshot: z.record(z.string(), z.unknown()).optional(),
     localComment: z.union([z.string(), z.null()]).optional(),
     loadSettings: loadSettingsPatchSchema.optional(),
     groupId: instanceEditorBatchIdSchema.nullable().optional(),

@@ -6,6 +6,7 @@ import {
   type InstanceEditorDraft,
 } from "./instanceEditorDraft";
 import { validateInstanceEditorDraftLoadSettings } from "./instanceEditorLoadSettings";
+import { serializeInstanceEditorBatchDraftForApi } from "./serializeInstanceEditorBatchDraftForApi";
 
 /** Сохранить накопленный черновик редактора одним POST editor-batch. */
 export async function flushInstanceEditorDraft(input: {
@@ -31,10 +32,11 @@ export async function flushInstanceEditorDraft(input: {
   }
 
   const encInstance = encodeURIComponent(input.instanceId);
+  const wireDraft = serializeInstanceEditorBatchDraftForApi(normalized);
   const res = await fetch(`/api/doctor/treatment-program-instances/${encInstance}/editor-batch`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ draft: normalized }),
+    body: JSON.stringify({ draft: wireDraft }),
   });
   const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
   if (!res.ok || !data?.ok) {

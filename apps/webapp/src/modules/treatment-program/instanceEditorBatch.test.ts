@@ -405,6 +405,57 @@ describe("doctorApplyInstanceEditorBatch", () => {
     });
   });
 
+  it("itemCreates library_item without wire snapshot still persists buildSnapshot", async () => {
+    const exRef = "66666666-6666-4666-8666-666666666667";
+    const buildSnapshot = vi.fn(async (type: string, id: string) => ({
+      itemType: type,
+      id,
+      title: "Каталог",
+      media: [{ url: `/api/media/${id}`, type: "video", sortOrder: 0 }],
+    }));
+    const snapshots = { buildSnapshot };
+    const localInstSvc = createTreatmentProgramInstanceService({
+      instances: persistence.instancePort,
+      templates: tplSvc,
+      snapshots,
+      itemRefs,
+      events: persistence.eventsPort,
+      testAttempts: persistence.testAttemptsPort,
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК" });
+    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: exRef, groupId: grp.id });
+    const inst = await localInstSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "77777777-7777-4777-8777-777777777778",
+      assignedBy: doctor,
+    });
+    const stage = inst.stages.find((s) => s.sortOrder === 1)!;
+    const instanceGroup = stage.groups.find((g) => !g.systemKind)!;
+
+    await localInstSvc.doctorApplyInstanceEditorBatch({
+      instanceId: inst.id,
+      actorId: doctor,
+      draft: {
+        ...emptyBatchDraft(),
+        itemCreates: [
+          {
+            kind: "library_item",
+            clientId: "draft:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            stageId: stage.id,
+            itemType: "exercise",
+            itemRefId: exRef,
+            groupId: instanceGroup.id,
+          },
+        ],
+      },
+    });
+
+    expect(buildSnapshot).toHaveBeenCalledWith("exercise", exRef);
+  });
+
   it("creates library exercise with loadSettings and localComment from itemCreates", async () => {
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
