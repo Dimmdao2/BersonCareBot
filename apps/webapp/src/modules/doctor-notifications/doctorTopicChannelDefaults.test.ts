@@ -1,10 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  defaultDoctorTopicFallbackChannels,
   isDoctorTopicChannelEnabled,
   resolveConfiguredDoctorTopicChannels,
 } from "./doctorTopicChannelDefaults";
 
 describe("doctorTopicChannelDefaults", () => {
+  it("defaults patient communication topics to web_push first", () => {
+    expect(defaultDoctorTopicFallbackChannels("doctor_patient_messages")).toEqual([
+      "web_push",
+      "telegram",
+      "max",
+    ]);
+    expect(defaultDoctorTopicFallbackChannels("doctor_patient_program_notes")).toEqual([
+      "web_push",
+      "telegram",
+      "max",
+    ]);
+  });
+
   it("uses global fallback when no pref rows exist", () => {
     expect(
       isDoctorTopicChannelEnabled([], "doctor_specialist_task_reminders", "telegram", [

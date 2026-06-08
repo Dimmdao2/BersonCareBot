@@ -16,7 +16,7 @@ export function allowedDoctorChannelsForTopic(
     return ["telegram", "max", "email", "web_push"];
   }
   if (t === "doctor_patient_messages" || t === "doctor_patient_program_notes") {
-    return ["telegram", "max", "web_push"];
+    return ["web_push", "telegram", "max"];
   }
   return DOCTOR_TOPIC_CHANNEL_CODES;
 }

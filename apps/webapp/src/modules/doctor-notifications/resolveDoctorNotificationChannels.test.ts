@@ -74,6 +74,24 @@ describe("resolveDoctorNotificationChannels", () => {
     expect(channels).not.toContain("email");
   });
 
+  it("enables web_push for patient messages when subscription exists and no prefs", () => {
+    const channels = resolveDoctorNotificationChannels({
+      topicCode: "doctor_patient_messages",
+      availability: {
+        hasTelegram: true,
+        hasMax: false,
+        hasEmail: false,
+        emailVerified: false,
+        hasWebPushSubscription: true,
+        vapidConfigured: true,
+      },
+      channelPrefs: [],
+      topicChannelRows: [],
+      globalFallbackChannels: ["web_push", "telegram", "max"],
+    });
+    expect(channels).toEqual(["web_push", "telegram"]);
+  });
+
   it("skips web_push when subscription missing", () => {
     const channels = resolveDoctorNotificationChannels({
       topicCode: "doctor_patient_messages",

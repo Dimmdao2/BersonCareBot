@@ -89,6 +89,19 @@ export async function notifyDoctorPatientMessageToStaff(
       globalFallbackChannels: globalFallback,
     });
 
+    logger.info(
+      {
+        event: "doctor_staff_notify.channels",
+        userId,
+        topicCode: input.topicCode,
+        messageId: input.messageId,
+        selectedChannels: channels,
+        hasWebPushSubscription: hasPush,
+        vapidConfigured: Boolean(vapid),
+      },
+      "doctor staff notify channels",
+    );
+
     if (channels.includes("telegram") && bindings.telegramId?.trim()) {
       const recipient = bindings.telegramId.trim();
       const result = await relayOutbound({
@@ -136,6 +149,7 @@ export async function notifyDoctorPatientMessageToStaff(
         onSubscriptionDead: async (endpoint) => {
           await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
         },
+        verbose: true,
         logContext: { userId, topicCode: input.topicCode },
       }).catch((err: unknown) => {
         logger.warn({ err, userId, topicCode: input.topicCode }, "doctor staff web push failed");

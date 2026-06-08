@@ -105,4 +105,39 @@ describe("notifyDoctorPatientMessageToStaff", () => {
     expect(result.telegramDelivered).toBe(0);
     expect(relayMock).not.toHaveBeenCalled();
   });
+
+  it("delivers web_push by default when subscription and vapid exist", async () => {
+    const result = await notifyDoctorPatientMessageToStaff(
+      {
+        topicCode: "doctor_patient_messages",
+        messageId: "patient-msg-notify:m3",
+        text: "hello",
+        pushTitle: "Сообщение от пациента",
+        pushBody: "Иван: hi",
+        pushUrl: "/app/doctor/messages",
+      },
+      {
+        staffUsers: { listActiveStaffUserIds: async () => ["doc-1"] },
+        topicChannelPrefs: { listByUserId: async () => [], upsert: async () => {} },
+        channelPreferences: { getPreferences: async () => [] } as unknown as ChannelPreferencesPort,
+        webPushSubscriptions: {
+          hasAnyForUserId: async () => true,
+          listActiveByUserId: async () => [
+            {
+              endpoint: "https://push.example/sub",
+              expirationTime: null,
+              keys: { p256dh: "k", auth: "a" },
+            },
+          ],
+          deleteByEndpointIfExists: async () => true,
+        } as unknown as WebPushSubscriptionsPort,
+        systemSettings: { getSetting: async () => null },
+        getChannelBindings: async () => ({}),
+      },
+    );
+
+    expect(result.pushDelivered).toBe(1);
+    expect(sendPushMock).toHaveBeenCalled();
+    expect(relayMock).not.toHaveBeenCalled();
+  });
 });
