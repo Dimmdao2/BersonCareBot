@@ -57,25 +57,17 @@ describe("loadAdminPlaybackHealthMetrics", () => {
     expect(loggerErrorMock).not.toHaveBeenCalled();
   });
 
-  it("falls back to hourly totals when audience resolution events are empty", async () => {
-    const hourlyRows = [{ delivery: "hls", resolvedSum: "9", fallbackSum: "1" }];
-    const uniqueRows = [{ c: "2" }];
-
+  it("does not fall back to hourly totals when audience is filtered and resolution events are empty", async () => {
     const audienceGroupByMock = vi.fn().mockResolvedValue([]);
     const audienceWhereMock = vi.fn(() => ({ groupBy: audienceGroupByMock }));
     const audienceFromMock = vi.fn(() => ({ where: audienceWhereMock }));
 
-    const hourlyGroupByMock = vi.fn().mockResolvedValue(hourlyRows);
-    const hourlyWhereMock = vi.fn(() => ({ groupBy: hourlyGroupByMock }));
-    const hourlyFromMock = vi.fn(() => ({ where: hourlyWhereMock }));
-
-    const uniqueWhereMock = vi.fn().mockResolvedValue(uniqueRows);
+    const uniqueWhereMock = vi.fn().mockResolvedValue([{ c: "0" }]);
     const uniqueFromMock = vi.fn(() => ({ where: uniqueWhereMock }));
 
     const selectMock = vi
       .fn()
       .mockImplementationOnce(() => ({ from: audienceFromMock }))
-      .mockImplementationOnce(() => ({ from: hourlyFromMock }))
       .mockImplementationOnce(() => ({ from: uniqueFromMock }));
 
     getDrizzleMock.mockReturnValue({ select: selectMock });
@@ -85,9 +77,9 @@ describe("loadAdminPlaybackHealthMetrics", () => {
       excludedUserIds: ["cccccccc-cccc-4ccc-8ccc-cccccccccccc"],
     });
 
-    expect(result.totalResolutions).toBe(9);
-    expect(audienceFromMock).toHaveBeenCalled();
-    expect(hourlyFromMock).toHaveBeenCalled();
+    expect(result.totalResolutions).toBe(0);
+    expect(audienceFromMock).toHaveBeenCalledTimes(1);
+    expect(selectMock).toHaveBeenCalledTimes(2);
   });
 
   it("aggregates from per-user resolution events when excludedUserIds provided", async () => {
@@ -132,11 +124,13 @@ describe("loadAdminPlaybackHealthMetrics", () => {
     const totalsFromMock = vi.fn(() => ({ where: totalsWhereMock }));
     const uniqueWhereMock = vi.fn().mockResolvedValue([{ c: "0" }]);
     const uniqueFromMock = vi.fn(() => ({ where: uniqueWhereMock }));
-    const selectMock = vi
-      .fn()
-      .mockImplementationOnce(() => ({ from: totalsFromMock }))
-      .mockImplementationOnce(() => ({ from: uniqueFromMock }));
-    getDrizzleMock.mockReturnValue({ select: selectMock });
+    getDrizzleMock.mockReturnValue({
+      select: vi
+        .fn()
+        .mockImplementationOnce(() => ({ from: totalsFromMock }))
+        .mockImplementationOnce(() => ({ from: totalsFromMock }))
+        .mockImplementationOnce(() => ({ from: uniqueFromMock })),
+    });
 
     await expect(loadAdminPlaybackHealthMetrics({ windowHours: -1 })).resolves.toEqual({
       byDelivery: { hls: 0, mp4: 0, file: 0 },

@@ -15,9 +15,9 @@ describe("analyticsAudience", () => {
   });
 
   describe("readAnalyticsIncludeTestAccounts", () => {
-    it("returns false when both flags off", async () => {
-      const getSetting = vi.fn(async (key: "dev_mode" | "debug_forward_to_admin") => ({
-        key,
+    it("returns false when dev_mode off", async () => {
+      const getSetting = vi.fn(async () => ({
+        key: "dev_mode" as const,
         scope: "admin" as const,
         valueJson: { value: false },
         updatedAt: "",
@@ -29,32 +29,6 @@ describe("analyticsAudience", () => {
     });
 
     it("returns true when dev_mode on", async () => {
-      const getSetting = vi.fn(async (key: "dev_mode" | "debug_forward_to_admin") => ({
-        key,
-        scope: "admin" as const,
-        valueJson: { value: key === "dev_mode" },
-        updatedAt: "",
-        updatedBy: null,
-      }));
-      await expect(
-        readAnalyticsIncludeTestAccounts({ systemSettings: { getSetting } }),
-      ).resolves.toBe(true);
-    });
-
-    it("returns true when debug_forward_to_admin on", async () => {
-      const getSetting = vi.fn(async (key: "dev_mode" | "debug_forward_to_admin") => ({
-        key,
-        scope: "admin" as const,
-        valueJson: { value: key === "debug_forward_to_admin" },
-        updatedAt: "",
-        updatedBy: null,
-      }));
-      await expect(
-        readAnalyticsIncludeTestAccounts({ systemSettings: { getSetting } }),
-      ).resolves.toBe(true);
-    });
-
-    it("returns true when both dev_mode and debug_forward_to_admin on", async () => {
       const getSetting = vi.fn(async () => ({
         key: "dev_mode" as const,
         scope: "admin" as const,
@@ -65,6 +39,21 @@ describe("analyticsAudience", () => {
       await expect(
         readAnalyticsIncludeTestAccounts({ systemSettings: { getSetting } }),
       ).resolves.toBe(true);
+    });
+
+    it("returns false when only debug_forward_to_admin would be on (not read)", async () => {
+      const getSetting = vi.fn(async () => ({
+        key: "dev_mode" as const,
+        scope: "admin" as const,
+        valueJson: { value: false },
+        updatedAt: "",
+        updatedBy: null,
+      }));
+      await expect(
+        readAnalyticsIncludeTestAccounts({ systemSettings: { getSetting } }),
+      ).resolves.toBe(false);
+      expect(getSetting).toHaveBeenCalledWith("dev_mode", "admin");
+      expect(getSetting).not.toHaveBeenCalledWith("debug_forward_to_admin", "admin");
     });
   });
 

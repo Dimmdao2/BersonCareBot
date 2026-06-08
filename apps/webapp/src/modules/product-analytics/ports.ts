@@ -17,7 +17,7 @@ export type ProductAnalyticsPort = {
   recordPushOpen(input: RecordPushOpenInput): Promise<{ deduped: boolean }>;
   getAdminDashboard(params: {
     windowHours: number;
-    /** When true (dev_mode || debug_forward_to_admin), test accounts stay in aggregates. */
+    /** When true (dev_mode), test accounts stay in aggregates. */
     includeTestAccounts?: boolean;
   }): Promise<ProductAnalyticsAdminDashboard>;
   purgeRecentOlderThan(days: number, options?: ProductAnalyticsPurgeOptions): Promise<{ deleted: number }>;

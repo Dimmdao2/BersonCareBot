@@ -28,6 +28,8 @@ import {
 import { readVideoWatermarkEnabled } from "./watermarkEnabled.js";
 import { resolveWatermarkFontPath } from "./watermarkFont.js";
 import { processProgramSubmissionTranscodeJob } from "./processProgramSubmissionTranscode.js";
+import { probeVideoDurationSeconds } from "./ffmpeg/probeVideoDurationSeconds.js";
+import { probeAndPersistVideoDurationSeconds } from "./persistVideoDurationSeconds.js";
 
 /** Short token for structured logs (no multi-line FFmpeg stderr / URLs). */
 function compactTranscodeLogErrorCode(message: string): string {
@@ -56,6 +58,7 @@ type MediaRow = {
   s3_key: string | null;
   hls_master_playlist_s3_key: string | null;
   video_processing_status: string | null;
+  video_duration_seconds: number | null;
   usage_purpose: string | null;
 };
 
@@ -76,7 +79,7 @@ async function fetchTerminalJobDurationMs(pool: Pool, jobId: string): Promise<nu
 async function loadMedia(pool: Pool, mediaId: string): Promise<MediaRow | null> {
   const r = await runMediaWorkerPgText<MediaRow>(
     pool,
-    `SELECT id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status, usage_purpose
+    `SELECT id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status, video_duration_seconds, usage_purpose
      FROM public.media_files WHERE id = $1::uuid`,
     [mediaId],
   );
@@ -243,6 +246,27 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
   if (masterKeyExisting && media.video_processing_status === "ready") {
     const exists = await headObjectExists(ctx.s3Client, ctx.bucket, masterKeyExisting);
     if (exists) {
+      if (
+        (media.video_duration_seconds == null || media.video_duration_seconds <= 0) &&
+        media.s3_key?.trim()
+      ) {
+        const tmpRoot = await mkdtemp(join(tmpdir(), "mw-dur-"));
+        const src = join(tmpRoot, "source.bin");
+        try {
+          await downloadObjectToFile(ctx.s3Client, ctx.bucket, media.s3_key.trim(), src);
+          await probeAndPersistVideoDurationSeconds(ctx.pool, {
+            mediaId: job.mediaId,
+            localPath: src,
+            ffmpegBin: ctx.ffmpegBin,
+            timeoutMs: Math.min(ctx.ffmpegTimeoutMs, 120_000),
+            log: ctx.log,
+          });
+        } catch (e) {
+          ctx.log.warn({ err: e, mediaId: job.mediaId }, "video_duration_backfill_failed");
+        } finally {
+          await rm(tmpRoot, { recursive: true, force: true });
+        }
+      }
       await markJobDone(ctx.pool, job.id);
       const durationMs = await fetchTerminalJobDurationMs(ctx.pool, job.id);
       ctx.log.info(
@@ -307,6 +331,7 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     await mkdir(dir480, { recursive: true });
     await mkdir(posterDir, { recursive: true });
     await downloadObjectToFile(ctx.s3Client, ctx.bucket, media.s3_key, src);
+    const videoDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, 60_000);
 
     let wmDrawtext: WatermarkDrawtextParams | null = null;
     if (watermarkEnabled && fontPath) {
@@ -441,9 +466,10 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
         hls_master_playlist_s3_key = $1,
         hls_artifact_prefix = $2,
         poster_s3_key = $3,
-        available_qualities_json = $4::jsonb
+        available_qualities_json = $4::jsonb,
+        video_duration_seconds = COALESCE($6, video_duration_seconds)
       WHERE id = $5::uuid`,
-      [masterKey, hlsBaseKeyPrefix, posterKey, qualitiesJson, job.mediaId],
+      [masterKey, hlsBaseKeyPrefix, posterKey, qualitiesJson, job.mediaId, videoDurationSeconds],
     );
     await markJobDone(ctx.pool, job.id);
     const durationMs = await fetchTerminalJobDurationMs(ctx.pool, job.id);

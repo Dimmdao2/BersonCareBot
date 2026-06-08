@@ -12,6 +12,7 @@ import {
   posterObjectKeyFromMediaRoot,
 } from "./hlsStorageLayout.js";
 import { runMediaWorkerPgText } from "./runMediaWorkerSql.js";
+import { probeVideoDurationSeconds } from "./ffmpeg/probeVideoDurationSeconds.js";
 import { downloadObjectToFile, headObjectExists, putObjectWithRetry, contentTypeForKey } from "./s3.js";
 
 function submission480pKeyFromMediaRoot(mediaRoot: string): string {
@@ -91,6 +92,7 @@ export async function processProgramSubmissionTranscodeJob(
 
     const mp4Buf = await readFile(outMp4);
     await putObjectWithRetry(ctx.s3Client, ctx.bucket, outputKey, mp4Buf, "video/mp4", ctx.log);
+    const videoDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, outMp4, 60_000);
 
     await mkdir(posterDir, { recursive: true });
     const posterArgs = buildPosterFfmpegArgs(src, posterLocal);
@@ -143,9 +145,10 @@ export async function processProgramSubmissionTranscodeJob(
         available_qualities_json = $2::jsonb,
         hls_master_playlist_s3_key = NULL,
         hls_artifact_prefix = NULL,
-        poster_s3_key = $4
+        poster_s3_key = $4,
+        video_duration_seconds = COALESCE($5, video_duration_seconds)
       WHERE id = $3::uuid`,
-      [outputKey, qualitiesJson, job.mediaId, posterKey],
+      [outputKey, qualitiesJson, job.mediaId, posterKey, videoDurationSeconds],
     );
 
     await runMediaWorkerPgText(

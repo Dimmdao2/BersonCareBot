@@ -29,14 +29,11 @@ function readBooleanValueJson(valueJson: unknown): boolean {
 }
 
 type SettingsReader = {
-  getSetting(
-    key: "dev_mode" | "debug_forward_to_admin",
-    scope: "admin",
-  ): Promise<SystemSetting | null>;
+  getSetting(key: "dev_mode", scope: "admin"): Promise<SystemSetting | null>;
 };
 
 /**
- * Test users are included in analytics only when dev_mode or debug_forward_to_admin is on.
+ * Test users are included in analytics only when dev_mode is on.
  */
 export async function readAnalyticsIncludeTestAccounts(deps: {
   systemSettings: SettingsReader;
@@ -46,13 +43,8 @@ export async function readAnalyticsIncludeTestAccounts(deps: {
     return includeTestCache.value;
   }
   try {
-    const [devRow, debugRow] = await Promise.all([
-      deps.systemSettings.getSetting("dev_mode", "admin"),
-      deps.systemSettings.getSetting("debug_forward_to_admin", "admin"),
-    ]);
-    const value =
-      readBooleanValueJson(devRow?.valueJson ?? null) ||
-      readBooleanValueJson(debugRow?.valueJson ?? null);
+    const devRow = await deps.systemSettings.getSetting("dev_mode", "admin");
+    const value = readBooleanValueJson(devRow?.valueJson ?? null);
     includeTestCache = { value, expiresAt: now + TTL_MS };
     return value;
   } catch {

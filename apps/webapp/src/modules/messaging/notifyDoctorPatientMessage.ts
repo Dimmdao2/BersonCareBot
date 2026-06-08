@@ -7,10 +7,8 @@ import {
   notifyDoctorPatientMessageToStaff,
   type NotifyDoctorPatientMessageToStaffDeps,
 } from "@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff";
-import {
-  buildPatientNotifyFromLine,
-  resolvePatientTelegramUsernameMention,
-} from "@/modules/messaging/patientTelegramUsernameMention";
+import { resolvePatientTelegramUsernameMention } from "@/app-layer/messaging/resolvePatientTelegramUsernameMention";
+import { buildPatientNotifyFromLine } from "@/modules/messaging/patientTelegramUsernameMention";
 import {
   isWebappPlatformConversationId,
   webappPlatformConversationId,

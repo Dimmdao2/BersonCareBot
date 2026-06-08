@@ -76,6 +76,9 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
       fallbackSum: string;
     }>;
     if (audienceFiltered) {
+      // Per-user resolution events only — hourly rollups cannot exclude test accounts.
+      totalsRows = await audienceTotalsQuery();
+    } else {
       try {
         totalsRows = await audienceTotalsQuery();
         let audienceTotal = 0;
@@ -84,10 +87,6 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
         }
         if (audienceTotal === 0) {
           totalsRows = await hourlyTotalsQuery();
-          logger.warn(
-            { windowHours, excludedUserIds: excludedUserIds.length },
-            "playback_resolution_events_empty_fallback_hourly",
-          );
         }
       } catch (eventsErr) {
         const code =
@@ -95,14 +94,9 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
             ? String((eventsErr as { code?: string }).code)
             : "";
         if (code !== "42P01") throw eventsErr;
-        logger.warn(
-          { err: eventsErr },
-          "playback_resolution_events_missing_fallback_hourly",
-        );
+        logger.warn({ err: eventsErr }, "playback_resolution_events_missing_fallback_hourly");
         totalsRows = await hourlyTotalsQuery();
       }
-    } else {
-      totalsRows = await hourlyTotalsQuery();
     }
 
     const uniqueRow = await db

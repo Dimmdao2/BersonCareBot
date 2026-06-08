@@ -20,11 +20,12 @@ export const ALLOWED_KEYS = [
   "debug_forward_to_admin",
   /** Полный сырой initData в логах webapp (journalctl) при открытии миниаппа (POST max-init / telegram-init). Выкл. на проде. Ключ исторический (раньше включали `/max-debug`). */
   "max_debug_page_enabled",
+  /** Dev relay guard + включение тестовых аккаунтов в аналитику кабинета (KPI/графики/drill-down) при `true`. */
   "dev_mode",
   "important_fallback_delay_minutes",
   /** Legacy: раньше whitelist для dev_mode по internal id; в текущем webapp не в основном UI, relay-guard не использует. Остаётся в `ALLOWED_KEYS` для совместимости и ручного PATCH. */
   "integration_test_ids",
-  /** Тестовые аккаунты: телефоны (E.164), Telegram user id, Max user id — для bypass техработ и dev_mode relay. */
+  /** Тестовые аккаунты: телефоны (E.164), Telegram user id, Max user id — bypass техработ, dev_mode relay, исключение из аналитики (пока `dev_mode` выключен). */
   "test_account_identifiers",
   // Non-secret runtime config
   /** Публичный origin веб-приложения (https://…), без завершающего /. Ссылки /app/… строятся от него. Fallback: env APP_BASE_URL. */

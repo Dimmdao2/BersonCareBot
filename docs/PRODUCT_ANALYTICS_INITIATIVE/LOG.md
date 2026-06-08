@@ -288,7 +288,7 @@
 ### Сделано
 
 1. **`pushOpensSummary.sent`:** считается из **`product_push_notifications`**, не из **`product_analytics_hourly`**; **`opened`** — **`product_analytics_events_recent`** (`push_open`). Unit-тесты `mergePushOpenBuckets` / `summarizePushOpens` в [`loadAdminReminderStats.test.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.test.ts).
-2. **KPI минут просмотра:** **`warmupVideoEstimatedWatchMinutes`**, **`videoPlaybackEstimatedWatchMinutes`** в **`loadContentEngagementStats`**; fallback платформенных минут — средняя **`media_files.video_duration_seconds`** × **`videoPlayback.totalResolutions`**, если resolution-событий нет.
+2. **KPI минут просмотра:** **`warmupVideoEstimatedWatchMinutes`**, **`videoPlaybackEstimatedWatchMinutes`** в **`loadContentEngagementStats`**; fallback — число событий (открытий / resolution) × средняя длительность каталога или **120 с** (`estimateWatchMinutes`). *Уточнение 2026-06-08:* не через **`videoPlayback.totalResolutions`**; длительность пишет media-worker в **`video_duration_seconds`**.
 3. **Разминки:** парсинг **`content_pages.video_url`** — канонический **`/api/media/{uuid}`** (query/hash отрезаются), как в [`materialRatingTargetVideoMediaIds.ts`](../../apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts).
 4. **UI пресеты окна:** **24 ч** / **7 дн.** / **30 дн.** (`DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS`) на material-ratings, notifications, usage; **«Сутки»** (`preset=day`) на analytics/clients и детализации оценок.
 5. **Каталог упражнений:** фильтр **`load=`** — merge SSR только при наличии param в URL (`hasLoadParam` / `doctorCatalogClientFilterUrlHints` в [`doctorCatalogClientUrlSync.ts`](../../apps/webapp/src/shared/lib/doctorCatalogClientUrlSync.ts)).
@@ -299,3 +299,10 @@
 | Проверка | Результат |
 |----------|-----------|
 | `vitest` `loadAdminReminderStats.test.ts`, `doctorCatalogClientUrlSync.test.ts` | OK (локально) |
+
+## 2026-06-08 — Audience push/video + doc sync
+
+### Сделано
+
+1. **Код (ранее в сессии):** `readAnalyticsIncludeTestAccounts` — только **`dev_mode`**; `adminPlaybackHealthMetrics` без hourly fallback при audience-фильтре; минуты просмотра через **`estimateWatchMinutes`** + **`video_duration_seconds`** из media-worker.
+2. **Документация:** выровнены [`MATERIAL_RATINGS.md`](../ARCHITECTURE/MATERIAL_RATINGS.md), [`DOCTOR_DASHBOARD_METRICS.md`](../ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md), [`api.md`](../../apps/webapp/src/app/api/api.md), [`reminders.md`](../../apps/webapp/src/modules/reminders/reminders.md); уточнён пункт 2 в блоке 2026-06-07 выше (fallback минут не через `videoPlayback.totalResolutions`).

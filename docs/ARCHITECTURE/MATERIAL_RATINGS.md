@@ -18,7 +18,7 @@
 ## UI
 
 - Блок звёзд: `MaterialRatingBlock` (+ нативный fallback `MaterialRatingNativeStars`), встраивается на пациентских страницах контента/ЛФК и в формах врача/CMS там, где нужна обратная связь по материалу.
-- Кабинет врача: **`/app/doctor/material-ratings`** (пункт меню «Статистика материалов») — сверху дашборд платформенных метрик (**`GET /api/doctor/content-stats`**, тот же JSON, что **`GET /api/admin/reminder-stats`**, загрузчик **`loadContentEngagementStats`** в [`loadAdminReminderStats.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts); агрегаты **по всей платформе**, не фильтр «только пациенты этого врача»); UI: [`MaterialContentStatsClient.tsx`](../../apps/webapp/src/app/app/doctor/material-ratings/MaterialContentStatsClient.tsx); ниже постраничная сводка по оценкам; **`/app/doctor/material-ratings/[kind]/[id]`** — детализация за период ≤31 дня (график и список оценивших).
+- Кабинет врача: **`/app/doctor/material-ratings`** (пункт меню «Статистика материалов») — сверху дашборд платформенных метрик (**`GET /api/doctor/content-stats`**, тот же JSON, что **`GET /api/admin/reminder-stats`**, загрузчик **`loadContentEngagementStats`**; агрегаты **по всей платформе**, не касeload врача; тестовые аккаунты исключены без **`dev_mode`** — см. §«Дашборд content-stats» ниже); UI: [`MaterialContentStatsClient.tsx`](../../apps/webapp/src/app/app/doctor/material-ratings/MaterialContentStatsClient.tsx); ниже постраничная сводка по оценкам; **`/app/doctor/material-ratings/[kind]/[id]`** — детализация за период ≤31 дня (график и список оценивших).
 
 ## Дашборд content-stats (верх «Статистика материалов»)
 
@@ -27,13 +27,15 @@ Query **`windowHours`** (целое **1…720**, по умолчанию **168**
 | Поле | Смысл |
 |------|--------|
 | **`warmupVideoTopPages`** | Топ страниц по открытиям видео разминки (`patient_daily_warmup_video_views`). |
-| **`warmupVideoEstimatedWatchMinutes`** | Оценка минут просмотра разминок: сумма **`media_files.video_duration_seconds`** по открытиям; UUID из **`content_pages.video_url`** — канонический **`/api/media/{uuid}`** (query/hash отрезаются). |
-| **`videoPlayback.totalResolutions`** | Выдачи видео за окно (`loadAdminPlaybackHealthMetrics`; fallback на **`media_playback_stats_hourly`**, если событий resolution нет). |
-| **`videoPlaybackEstimatedWatchMinutes`** | Оценка минут по **`media_playback_resolution_events`** × длительность; если **0** при **`totalResolutions > 0`** — fallback: средняя длительность видео в библиотеке × **`totalResolutions`**. |
+| **`warmupVideoEstimatedWatchMinutes`** | Оценка минут просмотра разминок: сумма **`media_files.video_duration_seconds`** по открытиям **`patient_daily_warmup_video_views`**; UUID из **`content_pages.video_url`** — сегмент **`/api/media/{uuid}`** (query/hash отрезаются, допускается полный URL). Если длительности в БД нет — оценка по числу открытий × средняя длительность каталога или **120 с** на открытие. |
+| **`videoPlayback.totalResolutions`** | Выдачи видео за окно (`loadAdminPlaybackHealthMetrics`): **`COUNT(*)`** из **`media_playback_resolution_events`** с учётом audience; при **отсутствии** audience-фильтра и нуле событий — fallback на **`media_playback_stats_hourly`**. При активном audience-фильтре hourly **не** подмешивается (нет per-user разбивки). |
+| **`videoPlaybackEstimatedWatchMinutes`** | Сумма **`media_playback_resolution_events`** × **`media_files.video_duration_seconds`** (отдельный filtered `COUNT` событий); при нулевой сумме длительностей — **число resolution-событий** × средняя длительность каталога или **120 с** на событие (`estimateWatchMinutes`). Длительность пишет **media-worker** при транскоде; для уже готовых роликов без длительности — backfill при повторном job (`already_ready`). |
 | **`practiceTopPages`** / **`practiceBySource`** | Завершения практики (`patient_practice_completions`). |
 | **`pushOpensSummary`** | **`opened`** — **`product_analytics_events_recent`** (`push_open`); **`sent`** — **`product_push_notifications`**; **`openRate`** = opened/sent. |
 
 Блоки напоминаний (`occurrenceHistory*`, `peopleWithNotifications`) на этой странице не показываются — они на **`/app/doctor/analytics/notifications`**.
+
+**Аудитория:** `GET /api/doctor/content-stats` и `GET /api/admin/reminder-stats` передают `excludedUserIds` из `loadDoctorAnalyticsAudience()` (тестовые аккаунты исключены, пока выключен **`dev_mode`**; **`debug_forward_to_admin`** не влияет). Агрегаты **по всей платформе**, не «только пациенты этого врача». Фильтр по пользователю применяется к **push** (`push_open`, `product_push_notifications`), **видео** (`media_playback_resolution_events`, `media_playback_user_video_first_resolve`, `media_playback_client_events`), **разминкам**, **практике** (`patient_daily_warmup_video_views`, `patient_practice_completions`), **напоминаниям** (`occurrenceHistory*`, `peopleWithNotifications`). Почасовые rollups `media_playback_stats_hourly` в doctor-facing аналитике **не** подмешиваются при активном audience-фильтре.
 
 ## Детализация для врача (`GET /api/doctor/material-ratings/detail`)
 

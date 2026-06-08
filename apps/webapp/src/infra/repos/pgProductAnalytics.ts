@@ -462,6 +462,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
 
     async listRegistrationEvents(params: ListRegistrationEventsParams): Promise<ListRegistrationEventsResult> {
       const db = getDrizzle();
+      // Operational auth funnel journal — always exclude test accounts (not gated by dev_mode).
       const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
         includeTestAccounts: false,
         excludeStaffRoles: true,

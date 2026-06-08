@@ -25,6 +25,7 @@ import {
   loadReminderPeopleWithNotificationsStats,
   type ReminderPeopleWithNotificationsStats,
 } from "@/app-layer/stats/reminderNotificationPeopleStats";
+import { estimateWatchMinutes } from "@/app-layer/stats/estimateWatchMinutes";
 
 export type ContentEngagementTopPageRow = {
   contentPageId: string;
@@ -204,7 +205,7 @@ export async function loadContentEngagementStats(opts: {
   const apiMediaIdFromContentVideoUrl = sql`(
     substring(
       ${trimmedContentVideoUrl}
-      from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
+      from '/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
     )
   )::uuid`;
 
@@ -220,7 +221,9 @@ export async function loadContentEngagementStats(opts: {
     practicePageRows,
     warmupVideoPageRows,
     warmupWatchMinutesRow,
+    warmupViewsCountRow,
     videoWatchMinutesRow,
+    videoResolutionCountRow,
     avgVideoDurationRow,
     peopleWithNotifications,
     reminderRulesEnabledRow,
@@ -353,7 +356,11 @@ export async function loadContentEngagementStats(opts: {
       })
       .from(patientDailyWarmupVideoViews)
       .innerJoin(contentPages, eq(patientDailyWarmupVideoViews.contentPageId, contentPages.id))
-      .innerJoin(mediaFiles, eq(mediaFiles.id, apiMediaIdFromContentVideoUrl))
+      .leftJoin(mediaFiles, eq(mediaFiles.id, apiMediaIdFromContentVideoUrl))
+      .where(and(gte(patientDailyWarmupVideoViews.viewedAt, windowCutoffSql), warmupUserExclude)),
+    db
+      .select({ n: count() })
+      .from(patientDailyWarmupVideoViews)
       .where(and(gte(patientDailyWarmupVideoViews.viewedAt, windowCutoffSql), warmupUserExclude)),
     db
       .select({
@@ -363,6 +370,10 @@ export async function loadContentEngagementStats(opts: {
       })
       .from(mediaPlaybackResolutionEvents)
       .innerJoin(mediaFiles, eq(mediaPlaybackResolutionEvents.mediaId, mediaFiles.id))
+      .where(and(gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql), resolutionUserExclude)),
+    db
+      .select({ n: count() })
+      .from(mediaPlaybackResolutionEvents)
       .where(and(gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql), resolutionUserExclude)),
     db
       .select({
@@ -400,14 +411,17 @@ export async function loadContentEngagementStats(opts: {
   );
 
   const reminderRulesEnabledCount = Number(reminderRulesEnabledRow[0]?.cnt ?? 0);
-  const warmupVideoEstimatedWatchMinutes = Math.round(Number(warmupWatchMinutesRow[0]?.totalSeconds ?? 0) / 60);
-  let videoPlaybackEstimatedWatchMinutes = Math.round(Number(videoWatchMinutesRow[0]?.totalSeconds ?? 0) / 60);
-  if (videoPlaybackEstimatedWatchMinutes === 0 && videoPlayback.totalResolutions > 0) {
-    const avgSeconds = Number(avgVideoDurationRow[0]?.avgSeconds ?? 0);
-    if (avgSeconds > 0) {
-      videoPlaybackEstimatedWatchMinutes = Math.round((videoPlayback.totalResolutions * avgSeconds) / 60);
-    }
-  }
+  const avgVideoDurationSeconds = Number(avgVideoDurationRow[0]?.avgSeconds ?? 0);
+  const warmupVideoEstimatedWatchMinutes = estimateWatchMinutes({
+    totalSeconds: Number(warmupWatchMinutesRow[0]?.totalSeconds ?? 0),
+    eventCount: Number(warmupViewsCountRow[0]?.n ?? 0),
+    avgSecondsFallback: avgVideoDurationSeconds,
+  });
+  const videoPlaybackEstimatedWatchMinutes = estimateWatchMinutes({
+    totalSeconds: Number(videoWatchMinutesRow[0]?.totalSeconds ?? 0),
+    eventCount: Number(videoResolutionCountRow[0]?.n ?? 0),
+    avgSecondsFallback: avgVideoDurationSeconds,
+  });
 
   return {
     windowHours,

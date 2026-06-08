@@ -21,6 +21,11 @@
 - **`POST /api/patient/pwa/launch`** — только **`heartbeat`** + metadata `pwa_launch_snapshot` (не `app_open`).
 - **Push:** `product_push_notifications` при отправке; **`push_open`** из SW → `POST /api/patient/analytics/push-open` (dedupe по `trackingId`).
 
+## Исключение тестовых аккаунтов
+
+- Дашборд «Использование» (`GET /api/admin/product-analytics`) читает `includeTestAccounts` из `loadProductAnalyticsAudience()` — тестовые попадают в агрегаты **только** при **`dev_mode`**; `debug_forward_to_admin` не влияет. См. [`DOCTOR_DASHBOARD_METRICS.md`](../ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md).
+- Журнал `auth_register_*` на `/app/doctor/audit-log` **всегда** без тестовых (операционный аудит).
+
 ## Admin UI (кроме «Использование»)
 
 - **Ошибки регистрации:** `/app/doctor/audit-log` — `AdminAuthRegistrationEventsSection` → `GET /api/admin/auth-registration-events` (фильтры по eventType, errorClass, authMethod, preset).
