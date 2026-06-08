@@ -283,11 +283,13 @@ bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
 
 ### Страница «идёт обновление» (только рестарт webapp)
 
-**Почему не из Next.js:** во время `systemctl restart bersoncarebot-webapp-prod` процесс на `127.0.0.1:6200` недоступен — nginx отдаёт **502/503** («Internal Server Error» в браузере).
+**Статус production:** включено **2026-06-08** (см. [`deploy/LOG.md`](LOG.md), `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → Public URLs / nginx).
 
-**Решение (один раз на хосте):** `apps/webapp/public/maintenance.html` + фрагмент [`deploy/nginx/webapp-maintenance-pages.example.conf`](../nginx/webapp-maintenance-pages.example.conf) в **`/etc/nginx/sites-available/bersoncarebot-webapp`** (см. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`). Только `error_page` на 502/503/504 — **без** флага на весь деплой; во время `pnpm build` старый webapp продолжает отвечать.
+**Почему не из Next.js:** во время `systemctl restart bersoncarebot-webapp-prod` процесс на `127.0.0.1:6200` недоступен — nginx отдаёт **502/503** («Internal Server Error» в браузере без `error_page`).
 
-Проверка после `nginx reload`: кратко остановить webapp (`sudo systemctl stop bersoncarebot-webapp-prod.service`), `curl -s https://bersoncare.ru/app | head -5`, затем `sudo systemctl start bersoncarebot-webapp-prod.service`.
+**Решение (один раз на хосте):** `apps/webapp/public/maintenance.html` + фрагмент [`deploy/nginx/webapp-maintenance-pages.example.conf`](../nginx/webapp-maintenance-pages.example.conf) в **`/etc/nginx/sites-available/bersoncarebot-webapp`**. Только `error_page` на 502/503/504 — **без** флага на весь деплой; во время `pnpm build` старый webapp продолжает отвечать.
+
+Проверка: `sudo systemctl stop bersoncarebot-webapp-prod.service` → `curl -s https://bersoncare.ru/app | head -10` → HTML «BersonCare — обновление» → `sudo systemctl start bersoncarebot-webapp-prod.service`.
 
 Отдельно: **режим техработ пациента** (`patient_app_maintenance_enabled` в admin Settings) — in-app при работающем webapp.
 

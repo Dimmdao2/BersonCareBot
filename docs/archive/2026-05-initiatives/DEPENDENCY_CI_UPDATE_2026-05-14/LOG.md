@@ -27,3 +27,10 @@
 - `pnpm install` (lockfile обновлён).
 - `pnpm run ci` — **OK** (локально, ~4m).
 - `cd admin && npm install && npm run build` — **OK** (Vite 7; рекомендуемый Node для Vite — `>=22.12` или `>=20.19`).
+
+---
+
+## 2026-06-08 — deploy job: ssh-agent cleanup
+
+- [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml): `webfactory/ssh-agent@v0.8.0` → **`v0.9.1`** — убирает post-job warning `The "file" argument must be of type string. Received undefined` при остановке SSH agent (баг cleanup в v0.8.0, см. [webfactory/ssh-agent#208](https://github.com/webfactory/ssh-agent/issues/208)).
+- Связанный operational log: [`deploy/LOG.md`](../../../deploy/LOG.md).

@@ -146,7 +146,21 @@
 | Integrator API | `/etc/nginx/sites-available/tgcarebot.conf` | `tgcarebot.bersonservices.ru` → `127.0.0.1:3200` |
 | TLS (webapp) | `/etc/letsencrypt/live/bersoncare.ru/fullchain.pem`, `.../privkey.pem` | Let's Encrypt |
 
-Правки vhost webapp (maintenance page, `client_max_body_size`, `/api/internal/` loopback) — в **`/etc/nginx/sites-available/bersoncarebot-webapp`**, затем `sudo nginx -t && sudo systemctl reload nginx`. Пример фрагмента maintenance: `deploy/nginx/webapp-maintenance-pages.example.conf`.
+Правки vhost webapp (`client_max_body_size`, `/api/internal/` loopback, maintenance page) — в **`/etc/nginx/sites-available/bersoncarebot-webapp`**, затем `sudo nginx -t && sudo systemctl reload nginx`.
+
+**Страница «идёт обновление» при рестарте webapp** (подтверждено на production **2026-06-08**):
+
+| Параметр | Значение |
+|----------|----------|
+| Когда показывается | Только при **502/503/504** от upstream `127.0.0.1:6200` (краткий простой на `systemctl restart bersoncarebot-webapp-prod.service`). **Не** на весь деплой: во время `pnpm build` старый процесс продолжает отвечать. |
+| nginx | В HTTPS `server {}` для `bersoncare.ru`: `error_page 502 503 504 =200 /maintenance.html;` + `location = /maintenance.html` с `internal` (фрагмент: [`deploy/nginx/webapp-maintenance-pages.example.conf`](../../deploy/nginx/webapp-maintenance-pages.example.conf)) |
+| Статика | `/opt/projects/bersoncarebot/apps/webapp/public/maintenance.html` (в репозитории: `apps/webapp/public/maintenance.html`; попадает на хост через `deploy-prod.sh`) |
+| Флаг deploy | **Нет** — `/var/lib/bersoncarebot/deploy-maintenance.on` и скрипт `deploy-maintenance.sh` не используются |
+| Проверка на хосте | `sudo systemctl stop bersoncarebot-webapp-prod.service` → `curl -s https://bersoncare.ru/app \| head -10` → HTML «BersonCare — обновление» → `sudo systemctl start bersoncarebot-webapp-prod.service` |
+
+Отдельно: **режим техработ пациента** (`patient_app_maintenance_enabled` в admin Settings) — in-app экран при **работающем** webapp; не заменяет nginx-страницу на рестарте.
+
+Журнал внедрения: [`deploy/LOG.md`](../../deploy/LOG.md).
 
 Как найти активный include, если `grep sites-enabled` пустой:
 
