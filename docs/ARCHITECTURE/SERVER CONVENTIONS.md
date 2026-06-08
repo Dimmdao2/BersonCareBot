@@ -138,6 +138,25 @@
 - `https://tgcarebot.bersonservices.ru` -> `http://127.0.0.1:3200`
 - `https://bersoncare.ru` -> `http://127.0.0.1:6200`
 
+**Файлы конфигурации на production-хосте** (подтверждено 2026-06-08, `nginx -T` + `ls /etc/nginx/sites-available/`):
+
+| Назначение | Файл на диске | `server_name` / примечание |
+|------------|---------------|----------------------------|
+| Webapp | `/etc/nginx/sites-available/bersoncarebot-webapp` | `bersoncare.ru`, `www.bersoncare.ru`; HTTP → HTTPS; `www` → канон `https://bersoncare.ru`; `proxy_pass http://127.0.0.1:6200` |
+| Integrator API | `/etc/nginx/sites-available/tgcarebot.conf` | `tgcarebot.bersonservices.ru` → `127.0.0.1:3200` |
+| TLS (webapp) | `/etc/letsencrypt/live/bersoncare.ru/fullchain.pem`, `.../privkey.pem` | Let's Encrypt |
+
+Правки vhost webapp (maintenance page, `client_max_body_size`, `/api/internal/` loopback) — в **`/etc/nginx/sites-available/bersoncarebot-webapp`**, затем `sudo nginx -t && sudo systemctl reload nginx`. Пример фрагмента maintenance: `deploy/nginx/webapp-maintenance-pages.example.conf`.
+
+Как найти активный include, если `grep sites-enabled` пустой:
+
+```bash
+sudo nginx -T 2>/dev/null | grep -n "bersoncare.ru\|127.0.0.1:6200"
+sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
+```
+
+В `sites-available/` на том же хосте также лежат vhost **других** проектов (`storylama*`, `fs.bersonservices.ru`, `minio.bersonservices.ru`, …) — **не** путать с BersonCareBot.
+
 **Projection health (`projection_outbox`, integrator DB):** канонически **`GET /health/projection`** на хосте integrator (публичный пример: `https://tgcarebot.bersonservices.ru/health/projection`). На webapp добавлены прокси с тем же JSON: **`GET /api/health/projection`**, **`GET /health/projection`**, **`GET /app/health/projection`** — серверный fetch на `{INTEGRATOR_API_URL}/health/projection`; при пустом `INTEGRATOR_API_URL` ответ **503** `integrator_url_not_configured`.
 
 **Operator health probes (MVP, synthetic MAX + Rubitime):** integrator принимает **`POST /internal/operator-health-probe`** только с подписью **`x-bersoncare-timestamp`** + **`x-bersoncare-signature`** (HMAC-SHA256 от `timestamp + '.' + rawBody`, secret — **`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** из `api.prod`, длина ≥ 16). Публичного неподписанного доступа нет. Канонический вызов с хоста: скрипт репозитория [`deploy/host/operator-health-probe.sh`](../../deploy/host/operator-health-probe.sh) (по умолчанию `http://127.0.0.1:3200`, переопределение `INTEGRATOR_API_URL`). Периодический запуск — **cron** или **systemd timer** от пользователя с правом `curl` к loopback и чтением `api.prod` (частота: раз в час или реже; см. `deploy/HOST_DEPLOY_README.md`).

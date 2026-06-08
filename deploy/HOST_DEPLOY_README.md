@@ -281,29 +281,15 @@ bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
 - `curl -s http://127.0.0.1:6200/api/health` -> `{"ok":true}`.
 - в логах webapp нет ошибок OAuth callback/CORS после переключения домена.
 
-### Страница «идёт обновление» (деплой / рестарт webapp)
+### Страница «идёт обновление» (только рестарт webapp)
 
-**Почему не из Next.js:** во время `systemctl restart bersoncarebot-webapp-prod` процесс на `127.0.0.1:6200` недоступен — приложение не может отдать React-страницу; nginx отвечает **502/503**, что в браузере часто выглядит как «Internal Server Error».
+**Почему не из Next.js:** во время `systemctl restart bersoncarebot-webapp-prod` процесс на `127.0.0.1:6200` недоступен — nginx отдаёт **502/503** («Internal Server Error» в браузере).
 
-**Решение (один раз на хосте):** статическая страница в репозитории `apps/webapp/public/maintenance.html` + фрагмент nginx [`deploy/nginx/webapp-maintenance-pages.example.conf`](../nginx/webapp-maintenance-pages.example.conf):
+**Решение (один раз на хосте):** `apps/webapp/public/maintenance.html` + фрагмент [`deploy/nginx/webapp-maintenance-pages.example.conf`](../nginx/webapp-maintenance-pages.example.conf) в **`/etc/nginx/sites-available/bersoncarebot-webapp`** (см. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`). Только `error_page` на 502/503/504 — **без** флага на весь деплой; во время `pnpm build` старый webapp продолжает отвечать.
 
-1. Включить `error_page 502 503 504` → `/maintenance.html` (alias на файл в `/opt/projects/bersoncarebot/apps/webapp/public/maintenance.html`).
-2. Опционально — флаг `/var/lib/bersoncarebot/deploy-maintenance.on` на всё время `deploy-prod.sh` (скрипт `deploy/host/deploy-maintenance.sh`; sudoers — [`deploy/sudoers-deploy.example`](../sudoers-deploy.example)).
-3. `sudo nginx -t && sudo systemctl reload nginx`.
+Проверка после `nginx reload`: кратко остановить webapp (`sudo systemctl stop bersoncarebot-webapp-prod.service`), `curl -s https://bersoncare.ru/app | head -5`, затем `sudo systemctl start bersoncarebot-webapp-prod.service`.
 
-`deploy-prod.sh` сам включает/выключает флаг **если** у пользователя `deploy` есть NOPASSWD на `touch`/`rm` флага (см. sudoers). Без флага остаётся только `error_page` на короткий простой при рестарте.
-
-Проверка:
-
-```bash
-sudo touch /var/lib/bersoncarebot/deploy-maintenance.on
-curl -s https://bersoncare.ru/app | head -20
-sudo rm -f /var/lib/bersoncarebot/deploy-maintenance.on
-```
-
-Текст на странице: обновление займёт не больше минуты, откройте приложение позже; авто-обновление каждые 20 с.
-
-Отдельно от этого: **режим техработ пациента** (`patient_app_maintenance_enabled` в admin Settings) — in-app экран при работающем webapp; не заменяет nginx-страницу на время деплоя.
+Отдельно: **режим техработ пациента** (`patient_app_maintenance_enabled` в admin Settings) — in-app при работающем webapp.
 
 ### Client IP and Rate Limiting (webapp)
 
