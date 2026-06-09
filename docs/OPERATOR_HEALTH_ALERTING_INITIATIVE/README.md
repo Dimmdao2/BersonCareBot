@@ -4,13 +4,12 @@
 
 **Канонический план:** [`MASTER_PLAN.md`](MASTER_PLAN.md).
 
-**Wave 2 (активно, 2026-06-09):** [`ROADMAP_WAVE2.md`](ROADMAP_WAVE2.md) · **решения:** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) · трекер: [`.cursor/plans/operator_health_alerting_wave2.plan.md`](../../.cursor/plans/operator_health_alerting_wave2.plan.md).
+**Wave 2 (закрыто, 2026-06-09):** [`ROADMAP_WAVE2.md`](ROADMAP_WAVE2.md) · **решения:** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) · план: [`.cursor/plans/archive/operator_health_alerting_wave2.plan.md`](../../.cursor/plans/archive/operator_health_alerting_wave2.plan.md).
 
 | Фаза / волна | Статус |
 |--------------|--------|
 | MVP | **Closed** |
-| Wave 0–4 (код) | **Closed** |
-| Wave 2 финал (`w-final-ci`) | **Closed** (ci); prod cron ops — **Pending** |
+| Wave 0–4 + `w-final-ci` | **Closed** |
 | PHASE A | Partial (incidents в integrator) |
 | PHASE B | **Closed** (пробы Wave 4) |
 | PHASE C | **Closed** (last-status Wave 4) |

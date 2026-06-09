@@ -1,8 +1,8 @@
 # ROADMAP Wave 2 — Операторские уведомления
 
-**Статус:** волны 0–4 закрыты в коде (2026-06-09); финал §9 — `w-final-ci` + prod cron ops.  
-**Решения:** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) — читать **до** кода.  
-**Трекер:** [`.cursor/plans/operator_health_alerting_wave2.plan.md`](../../.cursor/plans/operator_health_alerting_wave2.plan.md).  
+**Статус:** **Closed** (2026-06-09) — волны 0–4, `w-final-ci`, prod cron Wave 2 на хосте.  
+**Решения:** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) — канон продукт/архитектура.  
+**Трекер (архив):** [`.cursor/plans/archive/operator_health_alerting_wave2.plan.md`](../../.cursor/plans/archive/operator_health_alerting_wave2.plan.md).  
 **Журнал:** [`LOG.md`](LOG.md).  
 **Предшественник:** [`MASTER_PLAN.md`](MASTER_PLAN.md) + MVP (закрыт); PHASE E **superseded**.
 
@@ -13,7 +13,7 @@
 | Документ | Роль | Статус |
 |----------|------|--------|
 | [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) | Канон продукт/архитектура/Ops | **Active** |
-| **ROADMAP_WAVE2** (этот файл) | Волны, шаги, DoD | **Active** |
+| **ROADMAP_WAVE2** (этот файл) | Волны, шаги, DoD | **Closed** |
 | [`MASTER_PLAN.md`](MASTER_PLAN.md) | Полное видение интеграций | Reference; доставка — Wave 2 |
 | [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md) | Сделано в коде до Wave 2 | **Closed** |
 | PHASE A | Модель инцидентов | **Partial** (integrator path; Wave 2 scope закрыт) |
@@ -326,7 +326,7 @@ cron/internal tick
 ## 9. Definition of Done — вся Wave 2
 
 - [x] §8.0–8.4 закрыты в коде и LOG.
-- [ ] Prod cron на хосте установлен (ops; шаблоны в `deploy/host/cron.d/`, см. LOG).
+- [x] Prod cron на хосте установлен (`/etc/cron.d/bersoncarebot-operator-health-*`, `bersoncarebot-system-health-guard`; LOG § Wave 2 closeout).
 - [x] Матрица §3 SCOPE_DECISIONS покрыта unit-тестами classify/digest.
 - [x] `operator_health_alert_config` — единственный ключ; три блока со своими каналами; `digestTime` default 09:00; mirror integrator.
 - [x] PHASE E помечен superseded; MASTER ссылается на Wave 2.

@@ -1,6 +1,7 @@
 ---
 name: Operator health alerting wave 2
 overview: "Wave 2: dispatchOperatorAlert, critical tick, digest 1x/day digestTime 09:00, per-block channels, account_conflicts one checkbox. PHASE E superseded."
+status: completed
 todos:
   - id: w0-dispatcher
     content: 0.1 dispatchOperatorAlert + operator_health_alert_sent dedup + integrator unified recipients
@@ -31,15 +32,15 @@ isProject: false
 
 # Operator Health Alerting — Wave 2
 
-**Канон:** [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/SCOPE_DECISIONS.md`](../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/SCOPE_DECISIONS.md) → [`ROADMAP_WAVE2.md`](../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/ROADMAP_WAVE2.md)
+**Канон:** [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/SCOPE_DECISIONS.md`](../../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/SCOPE_DECISIONS.md) → [`ROADMAP_WAVE2.md`](../../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/ROADMAP_WAVE2.md)
 
-**Журнал:** [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`](../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md)
+**Журнал:** [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`](../../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md)
 
 ---
 
 ## Перед стартом (агент)
 
-1. Прочитать [`SCOPE_DECISIONS.md`](../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/SCOPE_DECISIONS.md).
+1. Прочитать [`SCOPE_DECISIONS.md`](../../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/SCOPE_DECISIONS.md).
 2. Правила: `plan-authoring-execution-standard`, `000-critical-integration-config-in-db`, `clean-architecture-module-isolation`, `system-settings-integrator-mirror`, `test-execution-policy`.
 3. Между волнами — targeted vitest/typecheck из ROADMAP; **полный `pnpm run ci`** — todo `w-final-ci` только.
 
@@ -60,7 +61,7 @@ isProject: false
 
 ## Superseded
 
-- [`PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md`](../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md) — отдельный recovery push отменён.
+- [`PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md`](../../../docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md) — отдельный recovery push отменён.
 
 ## Вне scope
 

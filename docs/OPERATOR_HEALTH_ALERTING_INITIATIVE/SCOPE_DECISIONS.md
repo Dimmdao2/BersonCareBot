@@ -1,9 +1,9 @@
 # Scope decisions — Wave 2 (канон доставки)
 
 **Дата:** 2026-06-09 (обновление по продукту).  
-**Статус:** зафиксировано для исполнения Wave 2. **Wave 2 — единственный канон** доставки; MASTER/фазы — справочник.  
+**Статус:** **Closed** (2026-06-09) — канон доставки Wave 2; MASTER/фазы — справочник.  
 **Заменяет** для доставки уведомлений: [`PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md`](PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md) (отдельный push «восстановлено» — **отменён**).  
-**Активный план:** [`ROADMAP_WAVE2.md`](ROADMAP_WAVE2.md).
+**Roadmap:** [`ROADMAP_WAVE2.md`](ROADMAP_WAVE2.md) · **план (архив):** [`.cursor/plans/archive/operator_health_alerting_wave2.plan.md`](../../.cursor/plans/archive/operator_health_alerting_wave2.plan.md).
 
 ---
 

@@ -105,7 +105,12 @@
 
 - **`pnpm run ci`** зелёный после выравнивания доков и теста mirror `operator_health_alert_config`.
 - **План Wave 2:** все todos `completed`.
-- **Остаётся ops:** установка cron на prod-хосте (§9 ROADMAP) — вне merge-блокера кода.
+
+### 2026-06-09 — Wave 2 **закрыто** (closeout)
+
+- **Prod cron:** `/etc/cron.d/bersoncarebot-operator-health-critical`, `bersoncarebot-operator-health-digest`, `bersoncarebot-system-health-guard` (установка от root, шаблоны `deploy/host/cron.d/`).
+- **Доки:** `ROADMAP_WAVE2` §9 — все пункты [x]; README инициативы — Wave 2 **Closed**.
+- **План:** [`.cursor/plans/archive/operator_health_alerting_wave2.plan.md`](../../.cursor/plans/archive/operator_health_alerting_wave2.plan.md) (`status: completed`).
 
 ### 2026-06-09 — Wave 1 (critical tick) **закрыто в коде**
 
