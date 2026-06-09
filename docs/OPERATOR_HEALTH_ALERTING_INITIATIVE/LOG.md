@@ -32,11 +32,27 @@
 
 ### 2026-06-09 — Wave 2 (суточная сводка) **закрыто в коде**
 
-- **`buildOperatorHealthDigest`** (`modules/operator-health/`): окно с прошлой сводки (или 24 ч); audit errors, incidents opened/resolved, job failures, non-critical degraded snapshot; `⚠️`/`✅`, ≤15 строк, ссылка `/app/doctor/system-health`; recovery без строки после `operator_incidents_resolve_all` в окне.
-- **`runOperatorHealthDigestTick`** + **`POST /api/internal/operator-health-digest/tick`**; dedup `digest:{YYYY-MM-DD}`; cron registry `operator_health_digest` (`health.operator_health_digest.tick`).
+- **`buildOperatorHealthDigest`** (`modules/operator-health/`): окно с прошлой сводки (или 24 ч); audit errors, incidents opened/resolved, job failures, snapshot (ongoing critical через `classifyCriticalHealthSignals` + non-critical degraded); `⚠️`/`✅`, ≤15 строк, ссылка `/app/doctor/system-health`; recovery без строки после `operator_incidents_resolve_all` в окне.
+- **`runOperatorHealthDigestTick`** + **`POST /api/internal/operator-health-digest/tick`**; dedup `digest:{YYYY-MM-DD}`; cron registry `operator_health.digest.daily` (`health.operator_health_digest.tick`).
 - **Порты:** `OperatorHealthDigestReadPort` (`pgOperatorHealthDigestRead`); dedup `getLatestSentAtByDedupKeyPrefix('digest:')`.
 - **UI:** `SystemHealthSection` — «Последняя сводка: …» из `operatorHealthDigest.lastSentAt` в `GET /api/admin/system-health`.
-- **Проверки:** `buildOperatorHealthDigest.test.ts`, `runOperatorHealthDigestTick.test.ts`, `operator-health-digest/tick/route.test.ts`, `SystemHealthSection.operatorHealthDigest.test.tsx`; `pnpm --dir apps/webapp typecheck`.
+- **Проверки:** `buildOperatorHealthDigest.test.ts`, `extractDigestDegradedLines.test.ts`, `digestHealthSnapshotLines.test.ts`, `digestSchedule.test.ts`, `runOperatorHealthDigestTick.test.ts`, `operator-health-digest/tick/route.test.ts`, `SystemHealthSection.operatorHealthDigest.test.tsx`; `pnpm --dir apps/webapp typecheck`.
+
+### 2026-06-09 — Wave 2 аудит-фиксы
+
+- **Snapshot critical в сводке:** `buildDigestHealthSnapshotLines` — ongoing critical (матрица §3) + non-critical degraded; устранён ложный `✅` при длительном critical без событий в окне.
+- **`digestTime` PATCH:** только целый час (`:00`) — согласовано с cron `0 * * * *`.
+- **Тесты:** truncation ≤15 строк, incidents/jobs, `disabled`, `extractDigestDegradedLines`, `digestSchedule`, critical snapshot.
+- **Доки:** ROADMAP §6 чеклисты [x]; путь digest build в таблице §2.
+- **Ops (не подтверждено на prod):** шаблон `bersoncarebot-operator-health-digest.cron.template` в репо; установка на хост — manual/deploy-prod (см. HOST_DEPLOY_README).
+
+### 2026-06-09 — Wave 2 верификация пост-аудита
+
+- **`digestTime` read/runtime:** `normalizeDigestTimeHour` при parse + `normalizeDigestTimeSlot` в `isDigestSendSlot` (legacy `09:30` → слот `09:00`).
+- **UI:** `step={3600}`, нормализация часа при вводе и save.
+- **Поле digest input:** `degradedLines` → `snapshotLines` в `OperatorHealthDigestInput`.
+- **Дедуп строк:** при probe 3-strike не дублируется «Открытые инциденты».
+- **Проверки:** 37 targeted vitest W2; `typecheck` ok.
 
 ### 2026-06-09 — Wave 1 (critical tick) **закрыто в коде**
 

@@ -48,13 +48,13 @@ describe("operatorHealthAlertConfig", () => {
       { value: { topics: { channel_link: true }, channels: { telegram: true, max: true } } },
     );
     expect(cfg.topics.critical_enabled).toBe(false);
-    expect(cfg.digestTime).toBe("10:30");
+    expect(cfg.digestTime).toBe("10:00");
     expect(cfg.channels.critical.max).toBe(false);
   });
 
   it("parseOperatorHealthAlertConfig normalizes digestTime", () => {
     const cfg = parseOperatorHealthAlertConfig({ value: { digestTime: "9:05" } });
-    expect(cfg.digestTime).toBe("09:05");
+    expect(cfg.digestTime).toBe("09:00");
   });
 
   it("normalizeOperatorHealthAlertConfigForAdminPatch rejects bad digestTime", () => {
@@ -62,6 +62,15 @@ describe("operatorHealthAlertConfig", () => {
       topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true },
       channels: defaultOperatorHealthAlertConfig().channels,
       digestTime: "25:00",
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("normalizeOperatorHealthAlertConfigForAdminPatch rejects digestTime not on hour boundary", () => {
+    const r = normalizeOperatorHealthAlertConfigForAdminPatch({
+      topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true },
+      channels: defaultOperatorHealthAlertConfig().channels,
+      digestTime: "09:30",
     });
     expect(r.ok).toBe(false);
   });

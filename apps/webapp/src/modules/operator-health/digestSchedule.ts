@@ -21,8 +21,15 @@ export function formatLocalYmd(date: Date, timeZone: string): string {
   }).format(date);
 }
 
+export function normalizeDigestTimeSlot(digestTime: string): string {
+  const t = digestTime.trim();
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(t);
+  if (!m) return "09:00";
+  return `${m[1]!.padStart(2, "0")}:00`;
+}
+
 export function isDigestSendSlot(now: Date, timeZone: string, digestTime: string): boolean {
-  return formatLocalHm(now, timeZone) === digestTime;
+  return formatLocalHm(now, timeZone) === normalizeDigestTimeSlot(digestTime);
 }
 
 export function buildDigestDedupKey(now: Date, timeZone: string): string {

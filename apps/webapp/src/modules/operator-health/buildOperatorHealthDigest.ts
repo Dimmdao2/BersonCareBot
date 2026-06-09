@@ -8,7 +8,8 @@ export type OperatorHealthDigestInput = {
   incidentsOpened: OperatorIncidentDigestRow[];
   incidentsResolved: OperatorIncidentDigestRow[];
   jobFailures: OperatorJobFailureDigestRow[];
-  degradedLines: string[];
+  /** Текущий health-snapshot: ongoing critical + non-critical degraded. */
+  snapshotLines: string[];
   /** true после ручного resolve-all в окне — без строк recovery. */
   suppressRecovery: boolean;
 };
@@ -33,7 +34,7 @@ export function buildOperatorHealthDigest(input: OperatorHealthDigestInput): Ope
     detailLines.push(`…и ещё ${input.incidentsOpened.length - 3} инцидентов`);
   }
 
-  detailLines.push(...input.degradedLines);
+  detailLines.push(...input.snapshotLines);
 
   if (!input.suppressRecovery) {
     for (const inc of input.incidentsResolved.slice(0, 2)) {

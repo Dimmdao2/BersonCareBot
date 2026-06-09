@@ -7,6 +7,7 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Switch } from "@/shared/ui/doctor/primitives/switch";
 import { patchAdminSetting } from "./patchAdminSetting";
 import {
+  normalizeDigestTimeHour,
   type OperatorAlertBlock,
   type OperatorAlertChannels,
   type OperatorHealthAlertConfig,
@@ -69,15 +70,17 @@ export function OperatorHealthAlertsSection({ initialConfig }: OperatorHealthAle
   function handleSave() {
     setSaved(false);
     setError(null);
-    if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(digestTime.trim())) {
+    const trimmedDigestTime = digestTime.trim();
+    if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(trimmedDigestTime)) {
       setError("Не удалось сохранить");
       return;
     }
+    const normalizedDigestTime = normalizeDigestTimeHour(trimmedDigestTime);
     startTransition(async () => {
       const ok = await patchAdminSetting("operator_health_alert_config", {
         topics,
         channels,
-        digestTime: digestTime.trim(),
+        digestTime: normalizedDigestTime,
       });
       if (!ok) {
         setError("Не удалось сохранить");
@@ -108,8 +111,9 @@ export function OperatorHealthAlertsSection({ initialConfig }: OperatorHealthAle
                 <span className="text-xs font-medium text-muted-foreground">Время</span>
                 <Input
                   type="time"
+                  step={3600}
                   value={digestTime}
-                  onChange={(e) => setDigestTime(e.target.value)}
+                  onChange={(e) => setDigestTime(normalizeDigestTimeHour(e.target.value))}
                   className="w-36"
                   aria-label="Время суточной сводки"
                 />

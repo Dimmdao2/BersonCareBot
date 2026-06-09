@@ -111,7 +111,7 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     internalPath: "/api/internal/operator-health-critical/tick",
   },
   {
-    id: "operator_health_digest",
+    id: "operator_health.digest.daily",
     jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
     jobKey: OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY,
     label: "Digest health tick",

@@ -79,7 +79,7 @@ cron/internal tick
 | Конфиг | `operator_health_alert_config` + merge legacy `admin_incident_alert_config` |
 | Диспетчер (функция, не процесс) | `dispatchOperatorAlert` → существующие `relayOutbound` + `outgoing_delivery_queue` + integrator worker |
 | Critical classify | `apps/webapp/src/modules/operator-health/criticalHealthSignals.ts` |
-| Digest build | `apps/webapp/src/app-layer/health/buildOperatorHealthDigest.ts` |
+| Digest build | `apps/webapp/src/modules/operator-health/buildOperatorHealthDigest.ts` (+ `digestHealthSnapshotLines`, `collectOperatorHealthDigestInput`) |
 | Dedup sent | `apps/webapp/db/schema/operatorHealthAlertSent.ts` (имя уточнить в миграции) |
 | Integrator enqueue | `reportOperatorFailure` → unified payload + `admin_telegram_ids` lists |
 | Ticks | `operator-health-critical/tick`, `operator-health-digest/tick`, `system-health-guard/tick` |
@@ -230,13 +230,13 @@ cron/internal tick
 ### Шаг 2.1 — `buildOperatorHealthDigest`
 
 1. Окно: с прошлой успешной сводки ([`SCOPE_DECISIONS` A5](SCOPE_DECISIONS.md)).
-2. Источники: audit log, incidents, job failures, snapshot non-critical degraded.
+2. Источники: audit log, incidents, job failures, snapshot (ongoing critical + non-critical degraded, матрица §3).
 3. Формат: `⚠️` или `✅`; тело ≤15 строк; ссылка `/app/doctor/system-health`.
 
 **Checklist:**
 
-- [ ] Unit: пустое окно → `✅`; audit error → `⚠️`.
-- [ ] Recovery-строка при `resolved_at` в окне.
+- [x] Unit: пустое окно → `✅`; audit error → `⚠️`.
+- [x] Recovery-строка при `resolved_at` в окне.
 
 ### Шаг 2.2 — `POST /api/internal/operator-health-digest/tick`
 
@@ -246,8 +246,8 @@ cron/internal tick
 
 **Checklist:**
 
-- [ ] Повтор в тот же день → `alerted: false`.
-- [ ] `cronJobRegistry`: `operator_health.digest.daily`.
+- [x] Повтор в тот же день → `sent: false`, `reason: dedup`.
+- [x] `cronJobRegistry`: `operator_health.digest.daily` (`job_key=health.operator_health_digest.tick`).
 
 ### Шаг 2.3 — UI
 
@@ -256,10 +256,12 @@ cron/internal tick
 
 ### DoD волны 2 (§8.2)
 
-- [ ] 1×/сутки в `digestTime` — одно сообщение; пустой день — `✅`; каналы сводки отдельные.
-- [ ] LOG § Wave 2.
+- [x] 1×/сутки в `digestTime` — одно сообщение; пустой день — `✅`; каналы сводки отдельные.
+- [x] LOG § Wave 2.
 
-**Проверки:** `buildOperatorHealthDigest.test.ts`, digest route test, RTL строка в SystemHealthSection при mock.
+**Проверки:** `buildOperatorHealthDigest.test.ts`, `extractDigestDegradedLines.test.ts`, `digestHealthSnapshotLines.test.ts`, `digestSchedule.test.ts`, digest route test, RTL строка в SystemHealthSection при mock.
+
+**Ограничение v1:** `digestTime` — только целый час (`:00`); cron digest `0 * * * *` (SCOPE O3).
 
 ---
 

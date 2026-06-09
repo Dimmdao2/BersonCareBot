@@ -52,7 +52,7 @@ describe("runOperatorHealthDigestTick", () => {
       incidentsOpened: [],
       incidentsResolved: [],
       jobFailures: [],
-      degradedLines: [],
+      snapshotLines: [],
       suppressRecovery: false,
     });
     dispatchMock.mockResolvedValue({ dispatched: true });
@@ -77,6 +77,28 @@ describe("runOperatorHealthDigestTick", () => {
         dedupKey: "digest:2026-06-09",
       }),
     );
+  });
+
+  it("skips when digest block is disabled", async () => {
+    getConfigValueMock.mockImplementation(async (key: string) => {
+      if (key === "operator_health_alert_config") {
+        return JSON.stringify({
+          topics: { critical_enabled: true, digest_enabled: false, account_conflicts: true },
+          digestTime: "09:00",
+          channels: {
+            critical: { telegram: true, max: true, web_push: true },
+            digest: { telegram: true, max: true, web_push: true },
+            account_conflicts: { telegram: true, max: true, web_push: true },
+          },
+        });
+      }
+      return "";
+    });
+    const now = new Date("2026-06-09T06:00:00.000Z");
+    const result = await runOperatorHealthDigestTick(now);
+    expect(result.sent).toBe(false);
+    expect(result.reason).toBe("disabled");
+    expect(dispatchMock).not.toHaveBeenCalled();
   });
 
   it("dedups second send same calendar day", async () => {

@@ -12,7 +12,7 @@ describe("buildOperatorHealthDigest", () => {
       incidentsOpened: [],
       incidentsResolved: [],
       jobFailures: [],
-      degradedLines: [],
+      snapshotLines: [],
       suppressRecovery: false,
     });
     expect(result.icon).toBe("✅");
@@ -28,7 +28,7 @@ describe("buildOperatorHealthDigest", () => {
       incidentsOpened: [],
       incidentsResolved: [],
       jobFailures: [],
-      degradedLines: [],
+      snapshotLines: [],
       suppressRecovery: false,
     });
     expect(result.icon).toBe("⚠️");
@@ -42,7 +42,7 @@ describe("buildOperatorHealthDigest", () => {
       incidentsOpened: [],
       incidentsResolved: [{ integration: "max", errorClass: "probe_outbound" }],
       jobFailures: [],
-      degradedLines: [],
+      snapshotLines: [],
       suppressRecovery: false,
     });
     expect(result.lines.some((l) => l.includes("Восстановлено: max / probe_outbound"))).toBe(true);
@@ -54,9 +54,38 @@ describe("buildOperatorHealthDigest", () => {
       incidentsOpened: [],
       incidentsResolved: [{ integration: "max", errorClass: "probe_outbound" }],
       jobFailures: [],
-      degradedLines: [],
+      snapshotLines: [],
       suppressRecovery: true,
     });
     expect(result.lines.some((l) => l.startsWith("Восстановлено:"))).toBe(false);
+  });
+
+  it("includes incidents opened and job failures in window", () => {
+    const result = buildOperatorHealthDigest({
+      auditErrorCount: 0,
+      incidentsOpened: [{ integration: "rubitime", errorClass: "probe_failed" }],
+      incidentsResolved: [],
+      jobFailures: [{ jobFamily: "health", jobKey: "health.operator_health_critical.tick", lastFailureAt: "x" }],
+      snapshotLines: [],
+      suppressRecovery: false,
+    });
+    expect(result.lines.some((l) => l.includes("Инцидент: rubitime"))).toBe(true);
+    expect(result.lines.some((l) => l.includes("health.operator_health_critical.tick"))).toBe(true);
+  });
+
+  it("truncates detail lines to MAX minus header and link", () => {
+    const result = buildOperatorHealthDigest({
+      auditErrorCount: 0,
+      incidentsOpened: [],
+      incidentsResolved: [],
+      jobFailures: [],
+      snapshotLines: Array.from({ length: 20 }, (_, i) => `line-${i}`),
+      suppressRecovery: false,
+    });
+    expect(result.lines.length).toBeLessThanOrEqual(MAX_OPERATOR_HEALTH_DIGEST_LINES);
+    expect(result.lines[0]).toMatch(/^⚠️/);
+    expect(result.lines.at(-1)).toBe(OPERATOR_HEALTH_DIGEST_LINK);
+    const detailCount = result.lines.length - 2;
+    expect(detailCount).toBe(MAX_OPERATOR_HEALTH_DIGEST_LINES - 2);
   });
 });

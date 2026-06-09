@@ -1371,6 +1371,31 @@ describe("PATCH /api/admin/settings", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 for operator_health_alert_config digestTime not on hour boundary", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "operator_health_alert_config",
+          value: {
+            value: {
+              topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true },
+              digestTime: "09:30",
+              channels: {
+                critical: { telegram: true, max: true, web_push: true },
+                digest: { telegram: true, max: true, web_push: true },
+                account_conflicts: { telegram: true, max: true, web_push: true },
+              },
+            },
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("returns 200 for notifications_topics when ids are subset of projection codes", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     getSettingMock.mockResolvedValue(null);

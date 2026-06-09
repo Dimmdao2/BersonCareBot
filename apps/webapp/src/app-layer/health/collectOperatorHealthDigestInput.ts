@@ -1,7 +1,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { collectAdminSystemHealthData } from "@/app-layer/health/collectAdminSystemHealthData";
 import type { OperatorHealthDigestInput } from "@/modules/operator-health/buildOperatorHealthDigest";
-import { extractDigestDegradedLines } from "@/modules/operator-health/extractDigestDegradedLines";
+import { buildDigestHealthSnapshotLines } from "@/modules/operator-health/digestHealthSnapshotLines";
 
 export async function collectOperatorHealthDigestInput(params: {
   windowStartIso: string;
@@ -20,20 +20,27 @@ export async function collectOperatorHealthDigestInput(params: {
   ]);
 
   const projectionSnapshot = health.projection.snapshot;
-  const degradedLines = extractDigestDegradedLines({
-    projection: {
-      probeStatus: health.projection.status,
-      deadCount: typeof projectionSnapshot?.deadCount === "number" ? projectionSnapshot.deadCount : 0,
-      retriesOverThreshold:
-        typeof projectionSnapshot?.retriesOverThreshold === "number"
-          ? projectionSnapshot.retriesOverThreshold
-          : 0,
-    },
+  const projection = {
+    probeStatus: health.projection.status,
+    deadCount: typeof projectionSnapshot?.deadCount === "number" ? projectionSnapshot.deadCount : 0,
+    retriesOverThreshold:
+      typeof projectionSnapshot?.retriesOverThreshold === "number"
+        ? projectionSnapshot.retriesOverThreshold
+        : 0,
+  };
+  const snapshotLines = buildDigestHealthSnapshotLines({
+    webappDb: health.webappDb,
+    integratorApi: health.integratorApi.status,
+    projection,
     outgoingDelivery: {
       dueBacklog: health.outgoingDelivery.dueBacklog,
       deadTotal: health.outgoingDelivery.deadTotal,
     },
     integratorPushOutbox: health.integratorPushOutbox,
+    backupJobs: Object.fromEntries(
+      Object.entries(health.backupJobs).map(([jobKey, row]) => [jobKey, { lastStatus: row.lastStatus }]),
+    ),
+    probeConsecutiveFailRuns: health.probeOutbound.consecutiveFailRuns,
     videoTranscodeStatus: health.videoTranscode.status,
     cronJobs: health.cronJobs,
     operatorIncidentsOpenCount: health.operatorIncidentsOpen.length,
@@ -44,7 +51,7 @@ export async function collectOperatorHealthDigestInput(params: {
     incidentsOpened,
     incidentsResolved,
     jobFailures,
-    degradedLines,
+    snapshotLines,
     suppressRecovery: params.suppressRecovery,
   };
 }

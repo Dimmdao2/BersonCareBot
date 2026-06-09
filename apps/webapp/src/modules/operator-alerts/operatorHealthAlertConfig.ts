@@ -75,12 +75,17 @@ function parseChannelsBlock(raw: unknown, fallback: OperatorAlertChannels): Oper
   };
 }
 
-function normalizeDigestTime(raw: unknown): string {
+/** Слот сводки — только целый час (`:00`), согласовано с cron `0 * * * *`. */
+export function normalizeDigestTimeHour(raw: unknown): string {
   if (typeof raw !== "string") return "09:00";
   const t = raw.trim();
   const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(t);
   if (!m) return "09:00";
-  return `${m[1]!.padStart(2, "0")}:${m[2]}`;
+  return `${m[1]!.padStart(2, "0")}:00`;
+}
+
+function normalizeDigestTime(raw: unknown): string {
+  return normalizeDigestTimeHour(raw);
 }
 
 function unwrapValueJson(valueJson: unknown): unknown {
@@ -205,7 +210,8 @@ export function normalizeOperatorHealthAlertConfigForAdminPatch(
     const s = typeof o.digestTime === "string" ? o.digestTime.trim() : "";
     if (!/^([01]?\d|2[0-3]):([0-5]\d)$/.test(s)) return { ok: false };
     const [hs, ms] = s.split(":");
-    digestTime = `${hs!.padStart(2, "0")}:${ms}`;
+    if (ms !== "00") return { ok: false };
+    digestTime = `${hs!.padStart(2, "0")}:00`;
   }
 
   return {
