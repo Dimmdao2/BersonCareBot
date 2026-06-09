@@ -14,6 +14,13 @@ export const inMemoryOperatorHealthAlertSentPort: OperatorAlertDedupPort = {
   async recordSent(input: { dedupKey: string; severity: OperatorAlertBlock }): Promise<void> {
     rows.push({ ...input, sentAt: new Date().toISOString() });
   },
+
+  async getLatestSentAtByDedupKeyPrefix(prefix: string): Promise<string | null> {
+    const matched = rows
+      .filter((r) => r.dedupKey.startsWith(prefix))
+      .sort((a, b) => Date.parse(b.sentAt) - Date.parse(a.sentAt));
+    return matched[0]?.sentAt ?? null;
+  },
 };
 
 export function resetInMemoryOperatorHealthAlertSent(): void {

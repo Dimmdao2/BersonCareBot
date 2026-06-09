@@ -13,6 +13,7 @@ export const OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY = "analytics.product_a
 export const OPERATOR_HEALTH_JOB_FAMILY = "health";
 export const OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY = "health.system_health_guard.tick";
 export const OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY = "health.operator_health_critical.tick";
+export const OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY = "health.operator_health_digest.tick";
 export const OPERATOR_OUTBOUND_PROBE_JOB_KEY = "health.outbound_probe.run";
 
 export const OPERATOR_BACKUP_JOB_FAMILY = "backup";

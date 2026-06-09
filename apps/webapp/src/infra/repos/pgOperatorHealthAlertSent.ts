@@ -1,4 +1,4 @@
-import { and, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, like } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { operatorHealthAlertSent } from "../../../db/schema/operatorHealthAlertSent";
 import type { OperatorAlertDedupPort } from "@/modules/operator-alerts/ports";
@@ -23,5 +23,16 @@ export const pgOperatorHealthAlertSentPort: OperatorAlertDedupPort = {
       severity: input.severity,
       sentAt: new Date().toISOString(),
     });
+  },
+
+  async getLatestSentAtByDedupKeyPrefix(prefix: string): Promise<string | null> {
+    const db = getDrizzle();
+    const rows = await db
+      .select({ sentAt: operatorHealthAlertSent.sentAt })
+      .from(operatorHealthAlertSent)
+      .where(like(operatorHealthAlertSent.dedupKey, `${prefix}%`))
+      .orderBy(desc(operatorHealthAlertSent.sentAt))
+      .limit(1);
+    return rows[0]?.sentAt ?? null;
   },
 };

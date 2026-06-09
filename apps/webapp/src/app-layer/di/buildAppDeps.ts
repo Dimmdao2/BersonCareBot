@@ -257,6 +257,8 @@ import { pgLfkAssignmentsPort } from "@/infra/repos/pgLfkAssignments";
 import { checkDbHealth } from "@/infra/db/client";
 import { pgOperatorHealthReadPort } from "@/infra/repos/pgOperatorHealthRead";
 import { inMemoryOperatorHealthReadPort } from "@/infra/repos/inMemoryOperatorHealthRead";
+import { pgOperatorHealthDigestReadPort } from "@/infra/repos/pgOperatorHealthDigestRead";
+import { inMemoryOperatorHealthDigestReadPort } from "@/infra/repos/inMemoryOperatorHealthDigestRead";
 import { pgOperatorHealthWritePort } from "@/infra/repos/pgOperatorHealthWrite";
 import { inMemoryOperatorHealthWritePort } from "@/infra/repos/inMemoryOperatorHealthWrite";
 import { pgHealthFailureArchivePort } from "@/infra/repos/pgHealthFailureArchive";
@@ -352,6 +354,9 @@ const productAnalyticsPort = !inMemoryRepos
 const productAnalytics = createProductAnalyticsService(productAnalyticsPort);
 
 const operatorHealthReadPort = !inMemoryRepos ? pgOperatorHealthReadPort : inMemoryOperatorHealthReadPort;
+const operatorHealthDigestReadPort = !inMemoryRepos
+  ? pgOperatorHealthDigestReadPort
+  : inMemoryOperatorHealthDigestReadPort;
 const operatorHealthWritePort = !inMemoryRepos ? pgOperatorHealthWritePort : inMemoryOperatorHealthWritePort;
 const healthFailureArchivePort = !inMemoryRepos
   ? pgHealthFailureArchivePort
@@ -1389,6 +1394,7 @@ function _buildAppDeps() {
       checkDbHealth,
     },
     operatorHealthRead: operatorHealthReadPort,
+    operatorHealthDigestRead: operatorHealthDigestReadPort,
     operatorHealthWrite: operatorHealthWritePort,
     healthFailureArchive,
     notificationDelivery,

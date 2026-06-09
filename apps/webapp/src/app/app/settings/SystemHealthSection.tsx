@@ -286,6 +286,7 @@ type SystemHealthPayload = {
       metaJson: Record<string, unknown>;
     } | null;
   };
+  operatorHealthDigest?: { lastSentAt: string | null };
   meta?: {
     probes?: {
       webappDb?: { status: string; durationMs: number; errorCode?: string };
@@ -859,7 +860,14 @@ export function SystemHealthSection() {
           {error ? <p className="text-destructive">Не удалось загрузить данные ({error}).</p> : null}
           {loading ? <p className="text-muted-foreground">Загрузка…</p> : null}
           {!loading && !error && (
-            <p className="text-muted-foreground">Снимок на: {formatDateTime(data?.fetchedAt)}</p>
+            <>
+              <p className="text-muted-foreground">Снимок на: {formatDateTime(data?.fetchedAt)}</p>
+              {data?.operatorHealthDigest?.lastSentAt ? (
+                <p className="text-muted-foreground">
+                  Последняя сводка: {formatDateTime(data.operatorHealthDigest.lastSentAt)}
+                </p>
+              ) : null}
+            </>
           )}
         </CardContent>
       </Card>

@@ -52,6 +52,7 @@ import {
   loadAdminNotificationDeliveryHealthMetrics,
   type NotificationDeliveryHealthPayload,
 } from "@/app-layer/health/adminNotificationDeliveryHealthMetrics";
+import { getOperatorAlertDedupPort } from "@/modules/operator-alerts/operatorAlertRuntime";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -272,6 +273,8 @@ export type SystemHealthResponse = {
   cronJobs: CronJobsHealthPayload;
   /** Счётчик подряд неуспешных outbound probe-run (integrator → `operator_job_status`). */
   probeOutbound: { consecutiveFailRuns: number };
+  /** Последняя успешная суточная сводка (`operator_health_alert_sent`, `digest:*`). */
+  operatorHealthDigest: { lastSentAt: string | null };
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
@@ -1165,6 +1168,16 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         ? "degraded"
         : "ok";
 
+  let operatorHealthDigestLastSentAt: string | null = null;
+  try {
+    const dedupPort = getOperatorAlertDedupPort();
+    if (dedupPort) {
+      operatorHealthDigestLastSentAt = await dedupPort.getLatestSentAtByDedupKeyPrefix("digest:");
+    }
+  } catch {
+    operatorHealthDigestLastSentAt = null;
+  }
+
   const response: SystemHealthResponse = {
     webappDb: webappDbResult.ok ? webappDbResult.value : "down",
     integratorApi: integratorApiResult.ok
@@ -1200,6 +1213,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     notificationDelivery: notificationDeliveryPayload,
     cronJobs: cronJobsPayload,
     probeOutbound: { consecutiveFailRuns: probeOutboundConsecutiveFailRuns },
+    operatorHealthDigest: { lastSentAt: operatorHealthDigestLastSentAt },
     meta: {
       probes: {
         webappDb: {

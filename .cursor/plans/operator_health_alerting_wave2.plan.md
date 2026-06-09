@@ -17,7 +17,7 @@ todos:
     status: completed
   - id: w2-digest
     content: "2.1–2.3 buildOperatorHealthDigest + hourly digest tick (send at digestTime) + UI time field"
-    status: pending
+    status: completed
   - id: w3-hooks
     content: "3.1–3.3 projection/media thresholds + recovery lines in digest only"
     status: pending

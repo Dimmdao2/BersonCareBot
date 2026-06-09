@@ -30,6 +30,14 @@
 - **Guard tick:** только классификация ipo + TTL purge архива; critical push по ipo — только `operator-health-critical/tick` (убрано дублирование).
 - **Тесты:** `runOperatorHealthCriticalTick` (dedup), `runIntegratorPushOutboxHealthGuardTick`, `operatorHealthDrizzle.recordProbeRun`, расширены classifier/banner/probe-runner.
 
+### 2026-06-09 — Wave 2 (суточная сводка) **закрыто в коде**
+
+- **`buildOperatorHealthDigest`** (`modules/operator-health/`): окно с прошлой сводки (или 24 ч); audit errors, incidents opened/resolved, job failures, non-critical degraded snapshot; `⚠️`/`✅`, ≤15 строк, ссылка `/app/doctor/system-health`; recovery без строки после `operator_incidents_resolve_all` в окне.
+- **`runOperatorHealthDigestTick`** + **`POST /api/internal/operator-health-digest/tick`**; dedup `digest:{YYYY-MM-DD}`; cron registry `operator_health_digest` (`health.operator_health_digest.tick`).
+- **Порты:** `OperatorHealthDigestReadPort` (`pgOperatorHealthDigestRead`); dedup `getLatestSentAtByDedupKeyPrefix('digest:')`.
+- **UI:** `SystemHealthSection` — «Последняя сводка: …» из `operatorHealthDigest.lastSentAt` в `GET /api/admin/system-health`.
+- **Проверки:** `buildOperatorHealthDigest.test.ts`, `runOperatorHealthDigestTick.test.ts`, `operator-health-digest/tick/route.test.ts`, `SystemHealthSection.operatorHealthDigest.test.tsx`; `pnpm --dir apps/webapp typecheck`.
+
 ### 2026-06-09 — Wave 1 (critical tick) **закрыто в коде**
 
 - **`criticalHealthSignals.ts`:** `classifyCriticalHealthSignals`, `classifyOperatorHealthBannerSignals` (единые пороги §3); projection critical по `deadCount`, retries — banner-only; due backlog — banner-only; ipo `error` — critical, `degraded` — нет; probe **3-strike** (`PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS=3`).
