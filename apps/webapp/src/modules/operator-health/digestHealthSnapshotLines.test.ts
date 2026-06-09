@@ -52,6 +52,23 @@ describe("buildDigestHealthSnapshotLines", () => {
     expect(lines.some((l) => l.includes("Синтетические пробы"))).toBe(true);
   });
 
+  it("includes projection retries only when debounce allows", () => {
+    const withDebounce = buildDigestHealthSnapshotLines({
+      ...base,
+      webappDb: "up",
+      projection: { probeStatus: "ok", deadCount: 0, retriesOverThreshold: 3 },
+      projectionDigestDebounce: { includeRetriesLine: true, includeStalePendingLine: false },
+    });
+    expect(withDebounce).toContain("Projection: ретраи (3)");
+
+    const withoutDebounce = buildDigestHealthSnapshotLines({
+      ...base,
+      webappDb: "up",
+      projection: { probeStatus: "ok", deadCount: 0, retriesOverThreshold: 3 },
+    });
+    expect(withoutDebounce.some((l) => l.includes("ретраи"))).toBe(false);
+  });
+
   it("omits open incidents line when probe already critical", () => {
     const lines = buildDigestHealthSnapshotLines({
       ...base,

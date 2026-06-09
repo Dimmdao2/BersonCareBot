@@ -126,6 +126,8 @@ export const ALLOWED_KEYS = [
   "admin_incident_alert_config",
   /** Уведомления админу: критичные / сводка / конфликты аккаунтов + каналы по блокам (см. operatorHealthAlertConfig). */
   "operator_health_alert_config",
+  /** Пороги projection outbox для debounce строк в суточной сводке (retries / stale pending). */
+  "operator_health_projection_thresholds",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",

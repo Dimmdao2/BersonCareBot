@@ -2,6 +2,7 @@ import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPag
 import { loadAdminSettingsPageData } from "@/app/app/settings/adminSettingsData";
 import { AdminSettingsSection } from "@/app/app/settings/AdminSettingsSection";
 import { OperatorHealthAlertsSection } from "@/app/app/settings/OperatorHealthAlertsSection";
+import { OperatorHealthProjectionThresholdsSection } from "@/app/app/settings/OperatorHealthProjectionThresholdsSection";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
@@ -36,6 +37,9 @@ export default async function DoctorAdminTechnicalPage() {
           patientBookingUrl={diagnostics.patientBookingUrl}
         />
         <OperatorHealthAlertsSection initialConfig={diagnostics.operatorHealthAlertsConfig} />
+        <OperatorHealthProjectionThresholdsSection
+          initialThresholds={diagnostics.operatorHealthProjectionThresholds}
+        />
       </div>
     </div>
   );

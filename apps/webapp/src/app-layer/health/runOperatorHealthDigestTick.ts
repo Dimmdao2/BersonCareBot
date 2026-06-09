@@ -1,4 +1,5 @@
 import { collectOperatorHealthDigestInput } from "@/app-layer/health/collectOperatorHealthDigestInput";
+import { tickProjectionDigestDebounce } from "@/app-layer/health/tickProjectionDigestDebounce";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { buildOperatorHealthDigest } from "@/modules/operator-health/buildOperatorHealthDigest";
 import {
@@ -47,6 +48,8 @@ async function loadDigestConfig(): Promise<OperatorHealthAlertConfig> {
 export async function runOperatorHealthDigestTick(
   now = new Date(),
 ): Promise<RunOperatorHealthDigestTickResult> {
+  await tickProjectionDigestDebounce(now.getTime());
+
   const cfg = await loadDigestConfig();
   if (!isOperatorAlertBlockEnabled(cfg, "digest")) {
     return { sent: false, reason: "disabled" };

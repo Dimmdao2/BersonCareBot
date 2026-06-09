@@ -54,6 +54,28 @@
 - **Дедуп строк:** при probe 3-strike не дублируется «Открытые инциденты».
 - **Проверки:** 37 targeted vitest W2; `typecheck` ok.
 
+### 2026-06-09 — Wave 3 (хуки + recovery в сводке) **закрыто в коде**
+
+- **Projection debounce (digest only):** `operator_health_projection_thresholds` в `ALLOWED_KEYS` + PATCH `/api/admin/settings` (default retries/stale **15** мин, oldest pending stale **30** мин); `projectionDigestDebounce.ts` + state в `operator_job_status` (`health.projection_digest.debounce`); advance на каждом digest tick (`tickProjectionDigestDebounce`); flags для строк сводки — `evaluateProjectionDigestDebounceFlags` по state + snapshot из `collectAdminSystemHealthData`; critical projection сбрасывает state и не даёт debounced строк.
+- **Digest lines:** `extractDigestDegradedLines` — retries/stale pending только при флагах debounce; stale pending по `oldestPendingAt`.
+- **Recovery:** `buildOperatorHealthDigest` — заголовок **«Восстановлено за окно:»** + строки `integration / errorClass` (без отдельного TG push; suppress после `operator_incidents_resolve_all`).
+- **Transcode:** `error` → critical (W1); `degraded` → digest (W2) — без изменений в W3.
+- **Проверки:** `projectionDigestDebounce.test.ts`, `operatorHealthProjectionThresholds.test.ts`, обновлены `extractDigestDegradedLines.test.ts`, `buildOperatorHealthDigest.test.ts`, `route.test.ts`; `pnpm --dir apps/webapp typecheck`.
+
+### 2026-06-09 — Wave 3 аудит-фиксы
+
+- **Debounce runtime:** `tickProjectionDigestDebounce` на **каждом** `runOperatorHealthDigestTick` (включая `not_slot` / `disabled`); лёгкий probe `probeProjectionDigestSignal`; state через `runProjectionDigestDebounceTick`; `collectOperatorHealthDigestInput` — `evaluateProjectionDigestDebounceFlags` по тому же snapshot, что и строки сводки (без рассинхрона двух probe).
+- **extractDigestDegradedLines:** retries/stale только при явных debounce flags (убран fallback без debounce).
+- **UI:** `OperatorHealthProjectionThresholdsSection` на `/app/doctor/admin/technical`.
+- **Тесты:** `runProjectionDigestDebounceTick.test.ts`, `runOperatorHealthDigestTick` (debounce на not_slot, suppressRecovery), stale pending / digestHealthSnapshot debounce, UI section RTL.
+
+### 2026-06-09 — Wave 3 верификация пост-аудита
+
+- **Flags vs snapshot:** `evaluateProjectionDigestDebounceFlags` в `collectOperatorHealthDigestInput` — строки сводки по тому же projection snapshot, что `collectAdminSystemHealthData` (без рассинхрона лёгкого probe tick и полного health).
+- **UI:** «Долгий pending, мин» вместо англ. Stale pending.
+- **LOG § Wave 3:** убрана устаревшая формулировка про advance в `collectOperatorHealthDigestInput`.
+- **Проверки:** 89 targeted vitest W3; `typecheck` ok.
+
 ### 2026-06-09 — Wave 1 (critical tick) **закрыто в коде**
 
 - **`criticalHealthSignals.ts`:** `classifyCriticalHealthSignals`, `classifyOperatorHealthBannerSignals` (единые пороги §3); projection critical по `deadCount`, retries — banner-only; due backlog — banner-only; ipo `error` — critical, `degraded` — нет; probe **3-strike** (`PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS=3`).

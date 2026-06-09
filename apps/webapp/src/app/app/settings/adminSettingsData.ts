@@ -29,6 +29,10 @@ import {
   mergeOperatorHealthAlertConfigFromLegacy,
   type OperatorHealthAlertConfig,
 } from "@/modules/operator-alerts/operatorHealthAlertConfig";
+import {
+  parseOperatorHealthProjectionThresholds,
+  type OperatorHealthProjectionThresholds,
+} from "@/modules/operator-health/operatorHealthProjectionThresholds";
 
 export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
   "system-health": "/app/doctor/system-health",
@@ -149,6 +153,7 @@ export type AdminDiagnosticsSettings = {
   patientProgramDiscussionMediaSubmissionEnabled: boolean;
   patientBookingUrl: string;
   operatorHealthAlertsConfig: OperatorHealthAlertConfig;
+  operatorHealthProjectionThresholds: OperatorHealthProjectionThresholds;
 };
 
 export type AdminSettingsPageData = {
@@ -292,6 +297,9 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
     operatorHealthAlertsConfig: mergeOperatorHealthAlertConfigFromLegacy(
       adminSettingsList.find((x) => x.key === "operator_health_alert_config")?.valueJson ?? null,
       adminSettingsList.find((x) => x.key === "admin_incident_alert_config")?.valueJson ?? null,
+    ),
+    operatorHealthProjectionThresholds: parseOperatorHealthProjectionThresholds(
+      adminSettingsList.find((x) => x.key === "operator_health_projection_thresholds")?.valueJson ?? null,
     ),
   };
 

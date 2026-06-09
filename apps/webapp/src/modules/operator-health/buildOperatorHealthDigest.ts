@@ -36,9 +36,10 @@ export function buildOperatorHealthDigest(input: OperatorHealthDigestInput): Ope
 
   detailLines.push(...input.snapshotLines);
 
-  if (!input.suppressRecovery) {
+  if (!input.suppressRecovery && input.incidentsResolved.length > 0) {
+    detailLines.push("Восстановлено за окно:");
     for (const inc of input.incidentsResolved.slice(0, 2)) {
-      detailLines.push(`Восстановлено: ${inc.integration} / ${inc.errorClass}`);
+      detailLines.push(`${inc.integration} / ${inc.errorClass}`);
     }
     if (input.incidentsResolved.length > 2) {
       detailLines.push(`…и ещё ${input.incidentsResolved.length - 2} восстановлений`);

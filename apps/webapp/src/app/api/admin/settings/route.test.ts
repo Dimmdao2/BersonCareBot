@@ -146,6 +146,10 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
     expect(ALLOWED_KEYS).toContain("operator_health_alert_config");
   });
 
+  it("includes operator_health_projection_thresholds", () => {
+    expect(ALLOWED_KEYS).toContain("operator_health_projection_thresholds");
+  });
+
   it("includes repeat cooldown and warmup chain keys", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_daily_warmup_repeat_cooldown_minutes");
     expect(ALLOWED_KEYS).toContain("patient_treatment_plan_item_done_repeat_cooldown_minutes");
@@ -1365,6 +1369,52 @@ describe("PATCH /api/admin/settings", () => {
               },
             },
           },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 200 for operator_health_projection_thresholds", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    const value = {
+      retriesDebounceMinutes: 15,
+      stalePendingDebounceMinutes: 15,
+      oldestPendingStaleMinutes: 30,
+    };
+    updateSettingMock.mockResolvedValue({
+      key: "operator_health_projection_thresholds",
+      scope: "admin",
+      valueJson: { value },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "operator_health_projection_thresholds", value: { value } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "operator_health_projection_thresholds",
+      "admin",
+      { value },
+      "a1",
+    );
+  });
+
+  it("returns 400 for operator_health_projection_thresholds invalid minutes", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "operator_health_projection_thresholds",
+          value: { value: { retriesDebounceMinutes: "bad" } },
         }),
       }),
     );

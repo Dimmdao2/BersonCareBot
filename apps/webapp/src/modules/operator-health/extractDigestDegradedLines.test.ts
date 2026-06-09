@@ -16,9 +16,23 @@ const emptyIpo = {
 };
 
 describe("extractDigestDegradedLines", () => {
-  it("includes projection retries when not critical", () => {
+  it("skips projection retries when debounce flag is false", () => {
     const lines = extractDigestDegradedLines({
       projection: { probeStatus: "ok", deadCount: 0, retriesOverThreshold: 4 },
+      projectionDigestDebounce: { includeRetriesLine: false, includeStalePendingLine: false },
+      outgoingDelivery: { dueBacklog: 0, deadTotal: 0 },
+      integratorPushOutbox: emptyIpo,
+      videoTranscodeStatus: "ok",
+      cronJobs: emptyCronJobs,
+      operatorIncidentsOpenCount: 0,
+    });
+    expect(lines.some((l) => l.includes("ретраи"))).toBe(false);
+  });
+
+  it("includes projection retries when debounce allows", () => {
+    const lines = extractDigestDegradedLines({
+      projection: { probeStatus: "ok", deadCount: 0, retriesOverThreshold: 4 },
+      projectionDigestDebounce: { includeRetriesLine: true, includeStalePendingLine: false },
       outgoingDelivery: { dueBacklog: 0, deadTotal: 0 },
       integratorPushOutbox: emptyIpo,
       videoTranscodeStatus: "ok",
@@ -26,6 +40,37 @@ describe("extractDigestDegradedLines", () => {
       operatorIncidentsOpenCount: 0,
     });
     expect(lines).toContain("Projection: ретраи (4)");
+  });
+
+  it("omits projection retries without debounce flags", () => {
+    const lines = extractDigestDegradedLines({
+      projection: { probeStatus: "degraded", deadCount: 0, retriesOverThreshold: 4 },
+      outgoingDelivery: { dueBacklog: 0, deadTotal: 0 },
+      integratorPushOutbox: emptyIpo,
+      videoTranscodeStatus: "ok",
+      cronJobs: emptyCronJobs,
+      operatorIncidentsOpenCount: 0,
+    });
+    expect(lines.some((l) => l.includes("ретраи"))).toBe(false);
+    expect(lines.some((l) => l.includes("деградация"))).toBe(false);
+  });
+
+  it("includes stale pending line when debounce allows", () => {
+    const lines = extractDigestDegradedLines({
+      projection: {
+        probeStatus: "ok",
+        deadCount: 0,
+        retriesOverThreshold: 0,
+        oldestPendingAt: "2026-06-09T08:00:00.000Z",
+      },
+      projectionDigestDebounce: { includeRetriesLine: false, includeStalePendingLine: true },
+      outgoingDelivery: { dueBacklog: 0, deadTotal: 0 },
+      integratorPushOutbox: emptyIpo,
+      videoTranscodeStatus: "ok",
+      cronJobs: emptyCronJobs,
+      operatorIncidentsOpenCount: 0,
+    });
+    expect(lines.some((l) => l.includes("stale pending"))).toBe(true);
   });
 
   it("includes due backlog at warning threshold", () => {

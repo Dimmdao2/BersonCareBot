@@ -275,6 +275,12 @@ cron/internal tick
 2. retries / stale pending: debounce 15 мин → только digest line.
 3. Ключ `operator_health_projection_thresholds` в `ALLOWED_KEYS`.
 
+**Checklist:**
+
+- [x] `projectionDigestDebounce.ts` + state `health.projection_digest.debounce` в `operator_job_status`.
+- [x] PATCH `operator_health_projection_thresholds` + unit parse/normalize.
+- [x] `extractDigestDegradedLines` — retries/stale только после debounce.
+
 ### Шаг 3.2 — Transcode (D.4)
 
 1. `videoTranscode.status === "error"` → critical (**сделано в волне 1**).
@@ -285,11 +291,18 @@ cron/internal tick
 1. Агрегатор digest добавляет секцию «Восстановлено за окно» из `operator_incidents.resolved_at`.
 2. Ручной resolve-all — **без** строки recovery ([`health_ui_operator_actions`](../.cursor/plans/archive/health_ui_operator_actions.plan.md)).
 
+**Checklist:**
+
+- [x] `buildOperatorHealthDigest` — заголовок «Восстановлено за окно:» (не отдельный push).
+- [x] `suppressRecovery` после `operator_incidents_resolve_all` в окне.
+
 ### DoD волны 3 (§8.3)
 
-- [ ] Нет отдельного TG «восстановлено».
-- [ ] Projection/media по матрице §3.
-- [ ] LOG § Wave 3.
+- [x] Нет отдельного TG «восстановлено».
+- [x] Projection/media по матрице §3.
+- [x] LOG § Wave 3.
+
+**Проверки:** `projectionDigestDebounce.test.ts`, `operatorHealthProjectionThresholds.test.ts`, `extractDigestDegradedLines.test.ts`, `buildOperatorHealthDigest.test.ts`, `route.test.ts` (projection thresholds); `pnpm --dir apps/webapp typecheck`.
 
 ---
 

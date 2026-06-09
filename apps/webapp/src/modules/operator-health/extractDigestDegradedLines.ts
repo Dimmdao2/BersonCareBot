@@ -9,6 +9,12 @@ export type DigestDegradedSnapshot = {
     probeStatus: "ok" | "degraded" | "unreachable" | "error";
     deadCount: number;
     retriesOverThreshold: number;
+    oldestPendingAt?: string | null;
+  };
+  /** W3: debounce retries/stale pending для сводки (только digest, не critical push). */
+  projectionDigestDebounce?: {
+    includeRetriesLine: boolean;
+    includeStalePendingLine: boolean;
   };
   outgoingDelivery: { dueBacklog: number; deadTotal: number };
   integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
@@ -28,15 +34,20 @@ export function extractDigestDegradedLines(snapshot: DigestDegradedSnapshot): st
     deadCount: snapshot.projection.deadCount,
     retriesOverThreshold: snapshot.projection.retriesOverThreshold,
   });
-  if (
-    !projectionCritical &&
-    (snapshot.projection.probeStatus === "degraded" || snapshot.projection.retriesOverThreshold > 0)
-  ) {
-    lines.push(
-      snapshot.projection.retriesOverThreshold > 0
-        ? `Projection: ретраи (${snapshot.projection.retriesOverThreshold})`
-        : "Projection: деградация",
+  const includeRetries = snapshot.projectionDigestDebounce?.includeRetriesLine === true;
+  if (!projectionCritical && includeRetries) {
+    if (snapshot.projection.retriesOverThreshold > 0) {
+      lines.push(`Projection: ретраи (${snapshot.projection.retriesOverThreshold})`);
+    } else if (snapshot.projection.probeStatus === "degraded") {
+      lines.push("Projection: деградация");
+    }
+  }
+  const includeStale = snapshot.projectionDigestDebounce?.includeStalePendingLine === true;
+  if (!projectionCritical && includeStale && snapshot.projection.oldestPendingAt) {
+    const ageMin = Math.floor(
+      (Date.now() - Date.parse(snapshot.projection.oldestPendingAt)) / (60 * 1000),
     );
+    lines.push(`Projection: stale pending (${ageMin} мин)`);
   }
 
   if (snapshot.outgoingDelivery.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) {

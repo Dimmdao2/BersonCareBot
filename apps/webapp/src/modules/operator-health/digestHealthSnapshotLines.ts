@@ -16,6 +16,11 @@ export type DigestHealthSnapshotInput = {
     probeStatus: ProjectionProbeStatus;
     deadCount: number;
     retriesOverThreshold: number;
+    oldestPendingAt?: string | null;
+  };
+  projectionDigestDebounce?: {
+    includeRetriesLine: boolean;
+    includeStalePendingLine: boolean;
   };
   outgoingDelivery: { dueBacklog: number; deadTotal: number };
   integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
@@ -45,6 +50,7 @@ export function buildDigestHealthSnapshotLines(input: DigestHealthSnapshotInput)
     input.probeConsecutiveFailRuns >= PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS;
   const degradedLines = extractDigestDegradedLines({
     projection: input.projection,
+    projectionDigestDebounce: input.projectionDigestDebounce,
     outgoingDelivery: input.outgoingDelivery,
     integratorPushOutbox: input.integratorPushOutbox,
     videoTranscodeStatus: input.videoTranscodeStatus,
