@@ -1,6 +1,7 @@
 import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "./adminHealthThresholds";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "./integratorPushOutboxHealth";
-import type { IntegratorPushOutboxHealthSnapshot, OutgoingDeliveryQueueHealthSnapshot } from "./ports";
+import type { IntegratorPushOutboxHealthSnapshot, OutgoingDeliveryQueueHealthSnapshot, WebhookBurstRow } from "./ports";
+import { isWebhookBurstCritical, WEBHOOK_BURST_MIN_COUNT } from "./webhookBurst";
 
 export const PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3;
 
@@ -26,6 +27,8 @@ export type CriticalHealthSignalsInput = {
   /** Из `operator_job_status.meta_json.consecutiveFailRuns` (outbound probe). */
   probeConsecutiveFailRuns: number;
   videoTranscodeStatus: VideoTranscodeHealthStatus;
+  /** Burst inbound webhook errors (P8); omit when lightweight collect skips webhook table. */
+  webhookBursts?: WebhookBurstRow[];
 };
 
 export type OperatorHealthBannerInput = CriticalHealthSignalsInput & {
@@ -59,6 +62,7 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
   if (Object.values(input.backupJobs).some((j) => j.lastStatus === "failure")) return true;
   if (input.operatorIncidentsOpenCount > 0) return true;
   if (input.probeConsecutiveFailRuns >= PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS) return true;
+  if ((input.webhookBursts ?? []).some(isWebhookBurstCritical)) return true;
   const od = input.outgoingDelivery;
   if (od.deadTotal > 0 || od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) return true;
   if (classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox) !== "ok") return true;
@@ -144,9 +148,9 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
     out.push({
       topic: "probe_outbound",
       dedupKey: "critical:probe_outbound:3strike",
-      pushTitle: "Критичный сбой: пробы MAX/Rubitime",
+      pushTitle: "Критичный сбой: исходящие пробы",
       lines: [
-        `Синтетические пробы: ${input.probeConsecutiveFailRuns} подряд неуспешных запусков`,
+        `Синтетические пробы интеграций: ${input.probeConsecutiveFailRuns} подряд неуспешных запусков`,
         `Порог critical: ${PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS}`,
       ],
     });
@@ -158,6 +162,19 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
       dedupKey: "critical:video_transcode:error",
       pushTitle: "Критичный сбой: транскод HLS",
       lines: ["Очередь транскода HLS: error"],
+    });
+  }
+
+  for (const burst of input.webhookBursts ?? []) {
+    if (!isWebhookBurstCritical(burst)) continue;
+    out.push({
+      topic: "webhook_burst",
+      dedupKey: `critical:webhook_burst:${burst.source}:${burst.errorClass}`,
+      pushTitle: "Критичный сбой: вебхук",
+      lines: [
+        `Вебхук ${burst.source}: ${burst.errorClass}`,
+        `Ошибок за окно: ${burst.count} (порог ${WEBHOOK_BURST_MIN_COUNT})`,
+      ],
     });
   }
 

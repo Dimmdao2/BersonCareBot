@@ -30,6 +30,8 @@ function buildDedupKey(direction: string, integration: string, errorClass: strin
 const PROBE_ERROR_CLASSES_NO_IMMEDIATE_CRITICAL = new Set([
   'max_probe_failed',
   'rubitime_get_schedule_failed',
+  'telegram_probe_failed',
+  'google_calendar_probe_failed',
 ]);
 
 /**
@@ -49,6 +51,11 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
   if (occurrenceCount !== 1) return;
 
   if (PROBE_ERROR_CLASSES_NO_IMMEDIATE_CRITICAL.has(input.errorClass)) {
+    return;
+  }
+
+  /** P8: inbound webhook critical — только burst в webapp critical tick. */
+  if (input.direction === 'inbound_webhook') {
     return;
   }
 

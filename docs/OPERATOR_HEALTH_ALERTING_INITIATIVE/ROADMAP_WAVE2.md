@@ -318,8 +318,8 @@ cron/internal tick
 
 ### DoD волны 4 (§8.4)
 
-- [ ] Блок outbound/inbound в system-health.
-- [ ] LOG § Wave 4.
+- [x] Блок outbound/inbound в system-health.
+- [x] LOG § Wave 4.
 
 ---
 

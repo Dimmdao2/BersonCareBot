@@ -99,6 +99,18 @@ describe('reportOperatorFailure', () => {
     expect(enqueueMock).not.toHaveBeenCalled();
   });
 
+  it('does not enqueue for inbound_webhook (P8 burst policy)', async () => {
+    await reportOperatorFailure({
+      direction: 'inbound_webhook',
+      integration: 'telegram',
+      errorClass: 'webhook_parse_failed',
+      alertLines: ['parse failed'],
+    });
+
+    expect(openOrTouchMock).toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
   it('does not alert on repeat occurrence', async () => {
     openOrTouchMock.mockResolvedValue({ id: 'incident-uuid-1', occurrenceCount: 2 });
 

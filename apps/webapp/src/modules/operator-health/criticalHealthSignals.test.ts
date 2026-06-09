@@ -32,6 +32,7 @@ function healthyInput(overrides: Partial<CriticalHealthSignalsInput> = {}): Crit
     backupJobs: {},
     probeConsecutiveFailRuns: 0,
     videoTranscodeStatus: "ok",
+    webhookBursts: [],
     ...overrides,
   };
 }
@@ -124,6 +125,19 @@ describe("classifyCriticalHealthSignals", () => {
     ).toBe(false);
   });
 
+  it("webhook burst P8 at threshold", () => {
+    expect(
+      classifyCriticalHealthSignals(
+        healthyInput({ webhookBursts: [{ source: "telegram", errorClass: "webhook_parse_failed", count: 4 }] }),
+      ).some((x) => x.topic === "webhook_burst"),
+    ).toBe(false);
+    expect(
+      classifyCriticalHealthSignals(
+        healthyInput({ webhookBursts: [{ source: "telegram", errorClass: "webhook_parse_failed", count: 5 }] }),
+      ).some((x) => x.topic === "webhook_burst"),
+    ).toBe(true);
+  });
+
   it("probe 3-strike only at threshold", () => {
     expect(
       classifyCriticalHealthSignals(healthyInput({ probeConsecutiveFailRuns: 2 })).some(
@@ -156,6 +170,23 @@ describe("classifyOperatorHealthBannerSignals", () => {
 
   it("shows banner for open operator incidents", () => {
     expect(classifyOperatorHealthBannerSignals(healthyBanner({ operatorIncidentsOpenCount: 2 }))).toBe(true);
+  });
+
+  it("shows banner for webhook burst P8", () => {
+    expect(
+      classifyOperatorHealthBannerSignals(
+        healthyBanner({
+          webhookBursts: [{ source: "telegram", errorClass: "webhook_parse_failed", count: 5 }],
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      classifyOperatorHealthBannerSignals(
+        healthyBanner({
+          webhookBursts: [{ source: "telegram", errorClass: "webhook_parse_failed", count: 4 }],
+        }),
+      ),
+    ).toBe(false);
   });
 
   it("shows banner for probe 3-strike and video transcode error", () => {

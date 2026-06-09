@@ -287,6 +287,13 @@ type SystemHealthPayload = {
     } | null;
   };
   operatorHealthDigest?: { lastSentAt: string | null };
+  probeOutbound?: { consecutiveFailRuns: number };
+  integrations?: {
+    rubitime: IntegrationHealthEntryPayload;
+    telegram: IntegrationHealthEntryPayload;
+    max: IntegrationHealthEntryPayload;
+    google_calendar: { outbound: IntegrationOutboundHealthPayload };
+  };
   meta?: {
     probes?: {
       webappDb?: { status: string; durationMs: number; errorCode?: string };
@@ -309,6 +316,24 @@ type SystemHealthPayload = {
     };
   };
   fetchedAt: string;
+};
+
+type IntegrationOutboundHealthPayload = {
+  status: "ok" | "fail" | "skipped_not_configured" | "no_data";
+  lastFinishedAt: string | null;
+};
+
+type IntegrationInboundHealthPayload = {
+  receivedAt: string | null;
+  processedOk: boolean | null;
+  errorClass: string | null;
+  httpStatusReturned: number | null;
+  detail: string | null;
+};
+
+type IntegrationHealthEntryPayload = {
+  outbound: IntegrationOutboundHealthPayload;
+  inbound?: IntegrationInboundHealthPayload;
 };
 
 /** Marker for RTL: copy outside this subtree must stay operator-friendly (plan §7). */
@@ -620,11 +645,32 @@ function operatorIncidentIntegrationHuman(code: string): string {
 }
 
 /** Краткая интерпретация для оператора; сырой `error_class` — только в техническом блоке. */
+function probeIntegrationStatusHuman(status: string): string {
+  if (status === "ok") return "успешно";
+  if (status === "fail") return "ошибка";
+  if (status === "skipped_not_configured") return "не настроено";
+  return "нет данных";
+}
+
+function integrationEntryAccordionStatus(entry: IntegrationHealthEntryPayload): "ok" | "degraded" | "error" | "no_data" {
+  if (entry.outbound.status === "fail") return "error";
+  if (entry.inbound?.processedOk === false) return "degraded";
+  if (entry.outbound.status === "no_data" && (entry.inbound?.receivedAt ?? null) === null) return "no_data";
+  if (entry.outbound.status === "ok" && (entry.inbound?.processedOk ?? true)) return "ok";
+  return "degraded";
+}
+
 function operatorIncidentSynopsisHuman(errorClass: string): string {
   const e = errorClass.trim();
   const known: Record<string, string> = {
     max_probe_failed: "проверка интеграции MAX завершилась с ошибкой",
     rubitime_get_schedule_failed: "не удалось получить расписание Rubitime",
+    telegram_probe_failed: "проверка Telegram завершилась с ошибкой",
+    google_calendar_probe_failed: "проверка Google Calendar завершилась с ошибкой",
+    webhook_auth_failed: "ошибка авторизации вебхука",
+    webhook_parse_failed: "не удалось разобрать тело вебхука",
+    webhook_dispatch_failed: "ошибка обработки вебхука",
+    webhook_internal_error: "внутренняя ошибка при обработке вебхука",
     GOOGLE_EVENT_ID_MISSING: "у события нет связи с Google Calendar",
     unknown_error_class: "ошибка без детальной классификации",
   };
@@ -640,7 +686,7 @@ function operatorIncidentSynopsisHuman(errorClass: string): string {
 function operatorIncidentDirectionHuman(direction: string): string {
   const d = direction.trim().toLowerCase();
   if (d === "outbound") return "исходящий запрос к интеграции";
-  if (d === "inbound") return "входящий вызов / вебхук";
+  if (d === "inbound" || d === "inbound_webhook") return "входящий вебхук";
   return direction;
 }
 
@@ -1238,6 +1284,93 @@ export function SystemHealthSection() {
                 <DetailRow label="Последняя сверка старых видео" value="ещё не было записей в статусе оператора" />
               )}
               <ProbeInfo probe={data?.meta?.probes?.videoTranscode} />
+            </HealthAccordionItem>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Интеграции</p>
+            <HealthAccordionItem
+              name="Интеграции"
+              status={
+                data?.integrations
+                  ? (["rubitime", "telegram", "max"] as const).some(
+                      (k) => integrationEntryAccordionStatus(data.integrations![k]) === "error",
+                    )
+                    ? "error"
+                    : (["rubitime", "telegram", "max"] as const).some(
+                          (k) => integrationEntryAccordionStatus(data.integrations![k]) === "degraded",
+                        )
+                      ? "degraded"
+                      : data.integrations.google_calendar.outbound.status === "fail"
+                        ? "error"
+                        : "ok"
+                  : "no_data"
+              }
+            >
+              {data?.probeOutbound && data.probeOutbound.consecutiveFailRuns > 0 ? (
+                <DetailRow
+                  label="Подряд неуспешных проб"
+                  value={String(data.probeOutbound.consecutiveFailRuns)}
+                />
+              ) : null}
+              {data?.integrations ? (
+                <div className="space-y-2">
+                  {(["rubitime", "telegram", "max"] as const).map((key) => {
+                    const entry = data.integrations![key];
+                    return (
+                      <div key={key} className="rounded border border-border/50 p-2 text-[11px] leading-snug">
+                        <DetailRow label="Интеграция" value={operatorIncidentIntegrationHuman(key)} />
+                        <DetailRow
+                          label="Исходящий (API)"
+                          value={probeIntegrationStatusHuman(entry.outbound.status)}
+                        />
+                        <DetailRow
+                          label="Последняя проба"
+                          value={formatDateTime(entry.outbound.lastFinishedAt)}
+                        />
+                        <DetailRow
+                          label="Входящий (вебхук)"
+                          value={
+                            entry.inbound?.receivedAt
+                              ? entry.inbound.processedOk
+                                ? "успешно"
+                                : "ошибка"
+                              : "нет данных"
+                          }
+                        />
+                        {entry.inbound?.receivedAt ? (
+                          <DetailRow label="Последний вебхук" value={formatDateTime(entry.inbound.receivedAt)} />
+                        ) : null}
+                        {entry.inbound?.errorClass ? (
+                          <DetailRow
+                            label="Тип ошибки"
+                            value={operatorIncidentSynopsisHuman(entry.inbound.errorClass)}
+                          />
+                        ) : null}
+                        <TechDiagBlock>
+                          <DetailRow label="Код исходящего (БД)" value={entry.outbound.status} />
+                          {entry.inbound?.errorClass ? (
+                            <DetailRow label="Класс ошибки (БД)" value={entry.inbound.errorClass} />
+                          ) : null}
+                        </TechDiagBlock>
+                      </div>
+                    );
+                  })}
+                  <div className="rounded border border-border/50 p-2 text-[11px] leading-snug">
+                    <DetailRow label="Интеграция" value={operatorIncidentIntegrationHuman("google_calendar")} />
+                    <DetailRow
+                      label="Исходящий (API)"
+                      value={probeIntegrationStatusHuman(data.integrations.google_calendar.outbound.status)}
+                    />
+                    <DetailRow
+                      label="Последняя проба"
+                      value={formatDateTime(data.integrations.google_calendar.outbound.lastFinishedAt)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <DetailRow label="Данные" value="нет" />
+              )}
             </HealthAccordionItem>
           </div>
 

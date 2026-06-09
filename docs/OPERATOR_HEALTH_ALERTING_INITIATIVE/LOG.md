@@ -74,7 +74,26 @@
 - **Flags vs snapshot:** `evaluateProjectionDigestDebounceFlags` в `collectOperatorHealthDigestInput` — строки сводки по тому же projection snapshot, что `collectAdminSystemHealthData` (без рассинхрона лёгкого probe tick и полного health).
 - **UI:** «Долгий pending, мин» вместо англ. Stale pending.
 - **LOG § Wave 3:** убрана устаревшая формулировка про advance в `collectOperatorHealthDigestInput`.
-- **Проверки:** 89 targeted vitest W3; `typecheck` ok.
+
+### 2026-06-09 — Wave 4 (интеграции B/C/F) **закрыто в коде**
+
+- **Схема:** `integration_webhook_last_status`, `integration_webhook_error_events` (миграция `0112`, `@bersoncare/operator-db-schema`).
+- **Integrator probes (B):** `operatorHealthProbeRunner` — Telegram `getMe`, Google Calendar `events.list` maxResults=1; meta `telegram`/`google_calendar`; P7 3-strike без immediate push (`telegram_probe_failed`, `google_calendar_probe_failed`).
+- **Webhooks (C):** `recordIntegrationWebhookOutcome` в rubitime/telegram/max webhooks; last-status upsert + error events; инциденты `direction=inbound_webhook` без immediate push (P8 burst в webapp).
+- **Webapp (F):** `integrations` в `GET /api/admin/system-health`; `buildIntegrationsHealthSnapshot`; P8 в `classifyCriticalHealthSignals`; UI «Интеграции» в `SystemHealthSection`.
+- **Проверки:** `integrationHealthSnapshot.test.ts`, `criticalHealthSignals.test.ts` (burst), `probeOutboundMeta.test.ts`, `integrationWebhookStatusDrizzle.test.ts`, `operatorHealthProbeRunner.test.ts`; `pnpm --dir apps/webapp typecheck`, `pnpm --dir apps/integrator test` (targeted).
+
+### 2026-06-09 — Wave 4 аудит-фиксы
+
+- **Integrator typecheck:** `recordProbeRun.test.ts` (telegram/google_calendar), типы в `integrationWebhookStatusDrizzle.test.ts`, `exactOptionalPropertyTypes` в `recordIntegrationWebhookOutcome`.
+- **Webapp:** мок `listIntegrationWebhookLastStatus` в `route.test.ts`; RTL `SystemHealthSection.integrations.test.tsx`; баннер при P8 burst; TTL purge `integration_webhook_error_events` в guard tick (48 ч).
+- **Тесты:** `recordIntegrationWebhookOutcome.test.ts`, `reportOperatorFailure` inbound_webhook, probe runner TG/GCal fail, guard tick webhook purge.
+- **Проверки:** targeted vitest W4 (webapp 32 + integrator 20); `typecheck` webapp/integrator ok; RTL `SystemHealthSection.integrations.test.tsx` — селектор аккордеона `Интеграции ошибка`, assert по классу ошибки вебхука.
+
+### 2026-06-09 — Wave 4 финал (w-final-ci)
+
+- **Lint:** удалён неиспользуемый `eq` в `integrationWebhookStatusDrizzle.ts`.
+- **CI:** мок `listWebhookBurstSignals` в `collectCriticalHealthSignals.test.ts`; полный `pnpm run ci` зелёный.
 
 ### 2026-06-09 — Wave 1 (critical tick) **закрыто в коде**
 

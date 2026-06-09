@@ -58,12 +58,31 @@ export type IntegratorPushOutboxHealthSnapshot = {
   lastQueueActivityAt: string | null;
 };
 
+export type IntegrationWebhookLastStatusRow = {
+  source: string;
+  receivedAt: string;
+  processedOk: number;
+  errorClass: string | null;
+  httpStatusReturned: number | null;
+  detail: string | null;
+};
+
+export type WebhookBurstRow = {
+  source: string;
+  errorClass: string;
+  count: number;
+};
+
 export type OperatorHealthReadPort = {
   listOpenIncidents(limit: number): Promise<OperatorIncidentOpenRow[]>;
   /** Строки `operator_job_status` с `job_family = backup` (ключи `backup.hourly`, …). */
   listBackupJobStatus(): Promise<OperatorBackupJobStatusRow[]>;
   /** Одна строка `operator_job_status` или `null`, если ключ ещё не появлялся. */
   getOperatorJobStatus(jobFamily: string, jobKey: string): Promise<OperatorJobStatusTickRow | null>;
+  /** Последний статус входящих вебхуков (`integration_webhook_last_status`). */
+  listIntegrationWebhookLastStatus(): Promise<IntegrationWebhookLastStatusRow[]>;
+  /** Ошибки вебхуков за скользящее окно (burst P8). */
+  listWebhookBurstSignals(windowMinutes: number, minCount: number): Promise<WebhookBurstRow[]>;
   /** Метрики `public.outgoing_delivery_queue` для админских health-экранов. */
   getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot>;
   /** Метрики `public.integrator_push_outbox` (ретраи signed POST в integrator). */
@@ -110,4 +129,6 @@ export type OperatorHealthWritePort = {
   }): Promise<void>;
   /** Закрыть все открытые строки `operator_incidents` (ручной сброс из «Здоровье системы»). */
   resolveAllOpenIncidents(): Promise<{ resolved: number }>;
+  /** TTL purge `integration_webhook_error_events` (burst P8). */
+  purgeIntegrationWebhookErrorEventsOlderThanHours(hours: number): Promise<{ deleted: number }>;
 };

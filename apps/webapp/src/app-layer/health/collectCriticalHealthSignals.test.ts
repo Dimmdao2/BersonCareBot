@@ -40,6 +40,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       }),
       listBackupJobStatus: vi.fn().mockResolvedValue([]),
       getOperatorJobStatus: getOperatorJobStatusMock,
+      listWebhookBurstSignals: vi.fn().mockResolvedValue([]),
     },
   }),
 }));

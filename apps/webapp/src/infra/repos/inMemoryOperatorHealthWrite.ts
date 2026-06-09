@@ -111,4 +111,8 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
   async resolveAllOpenIncidents() {
     return { resolved: 0 };
   },
+
+  async purgeIntegrationWebhookErrorEventsOlderThanHours() {
+    return { deleted: 0 };
+  },
 };

@@ -65,6 +65,7 @@ const {
   getOutgoingDeliveryQueueHealthMock,
   getIntegratorPushOutboxHealthMock,
   getOperatorJobStatusMock,
+  listIntegrationWebhookLastStatusMock,
   loadAdminReminderPipelineMetricsMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
@@ -88,6 +89,7 @@ const {
   getOutgoingDeliveryQueueHealthMock: vi.fn(),
   getIntegratorPushOutboxHealthMock: vi.fn(),
   getOperatorJobStatusMock: vi.fn(),
+  listIntegrationWebhookLastStatusMock: vi.fn(),
   loadAdminReminderPipelineMetricsMock: vi.fn(),
 }));
 
@@ -119,6 +121,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getOperatorJobStatus: getOperatorJobStatusMock,
       getOutgoingDeliveryQueueHealth: getOutgoingDeliveryQueueHealthMock,
       getIntegratorPushOutboxHealth: getIntegratorPushOutboxHealthMock,
+      listIntegrationWebhookLastStatus: listIntegrationWebhookLastStatusMock,
     },
   })),
 }));
@@ -251,6 +254,7 @@ describe("GET /api/admin/system-health", () => {
     getOutgoingDeliveryQueueHealthMock.mockResolvedValue({ ...zeroOutgoingSnapshot });
     getIntegratorPushOutboxHealthMock.mockResolvedValue({ ...zeroIntegratorPushOutboxSnapshot });
     getOperatorJobStatusMock.mockResolvedValue(null);
+    listIntegrationWebhookLastStatusMock.mockResolvedValue([]);
     loadAdminReminderPipelineMetricsMock.mockResolvedValue({
       ok: true,
       value: {
@@ -347,6 +351,9 @@ describe("GET /api/admin/system-health", () => {
     expect(body.integratorApi).toEqual({ status: "ok", db: "up" });
     expect(body.projection.status).toBe("degraded");
     expect(body.projection.snapshot?.deadCount).toBe(1);
+    expect((body as { integrations?: { rubitime: { outbound: { status: string } } } }).integrations?.rubitime.outbound.status).toBe(
+      "no_data",
+    );
     expect(body.meta?.probes?.projection?.status).toBe("degraded");
     expect(typeof body.meta?.probes?.projection?.durationMs).toBe("number");
     expect(typeof body.fetchedAt).toBe("string");

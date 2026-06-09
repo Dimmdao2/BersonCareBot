@@ -7,6 +7,11 @@ const pickTripleMock = vi.hoisted(() => vi.fn());
 const reportOperatorFailureMock = vi.hoisted(() => vi.fn());
 const resolvePrefixMock = vi.hoisted(() => vi.fn());
 const recordProbeRunMock = vi.hoisted(() => vi.fn());
+const getBotInstanceMock = vi.hoisted(() => vi.fn());
+const getMeMock = vi.hoisted(() => vi.fn());
+const telegramConfigMock = vi.hoisted(() => ({ botToken: '' }));
+const getGoogleCalendarConfigMock = vi.hoisted(() => vi.fn());
+const probeGoogleCalendarAccessMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../integrations/max/client.js', () => ({
   getMaxBotInfo: getMaxBotInfoMock,
@@ -30,6 +35,18 @@ vi.mock('../infra/db/repos/operatorHealthDrizzle.js', () => ({
 vi.mock('../infra/db/client.js', () => ({
   createDbPort: vi.fn(() => ({ query: vi.fn() })),
 }));
+vi.mock('../integrations/telegram/client.js', () => ({
+  getBotInstance: getBotInstanceMock,
+}));
+vi.mock('../integrations/telegram/config.js', () => ({
+  telegramConfig: telegramConfigMock,
+}));
+vi.mock('../integrations/google-calendar/runtimeConfig.js', () => ({
+  getGoogleCalendarConfig: getGoogleCalendarConfigMock,
+}));
+vi.mock('../integrations/google-calendar/probe.js', () => ({
+  probeGoogleCalendarAccess: probeGoogleCalendarAccessMock,
+}));
 
 import { runOperatorHealthProbes } from './operatorHealthProbeRunner.js';
 
@@ -38,11 +55,16 @@ describe('runOperatorHealthProbes', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    telegramConfigMock.botToken = '';
     resolvePrefixMock.mockResolvedValue(0);
     recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 0 });
     reportOperatorFailureMock.mockResolvedValue(undefined);
     pickTripleMock.mockResolvedValue({ branchId: 1, cooperatorId: 2, serviceId: 3 });
     fetchRubitimeScheduleMock.mockResolvedValue({});
+    getMeMock.mockResolvedValue({ id: 1 });
+    getBotInstanceMock.mockReturnValue({ api: { getMe: getMeMock } });
+    getGoogleCalendarConfigMock.mockResolvedValue({ enabled: false });
+    probeGoogleCalendarAccessMock.mockResolvedValue(undefined);
   });
 
   it('MAX ok resolves probe prefix; Rubitime ok resolves prefix', async () => {
@@ -68,7 +90,7 @@ describe('runOperatorHealthProbes', () => {
     );
     expect(resolvePrefixMock).not.toHaveBeenCalledWith('outbound:max:');
     expect(recordProbeRunMock).toHaveBeenCalledWith(
-      expect.objectContaining({ max: 'fail', anyFail: true }),
+      expect.objectContaining({ max: 'fail', telegram: 'skipped_not_configured', anyFail: true }),
     );
     expect(r.details.consecutiveFailRuns).toBe('1');
   });
@@ -92,6 +114,43 @@ describe('runOperatorHealthProbes', () => {
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.rubitime).toBe('skipped_not_configured');
     expect(fetchRubitimeScheduleMock).not.toHaveBeenCalled();
+  });
+
+  it('Telegram getMe fail reports telegram_probe_failed', async () => {
+    getMaxBotInfoMock.mockResolvedValue({ id: 1 });
+    pickTripleMock.mockResolvedValue(null);
+    telegramConfigMock.botToken = 'tg-token';
+    getMeMock.mockRejectedValue(new Error('telegram_down'));
+    const r = await runOperatorHealthProbes({ dispatchPort });
+    expect(r.telegram).toBe('fail');
+    expect(reportOperatorFailureMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        integration: 'telegram',
+        errorClass: 'telegram_probe_failed',
+      }),
+    );
+  });
+
+  it('Google Calendar probe fail reports google_calendar_probe_failed', async () => {
+    getMaxBotInfoMock.mockResolvedValue({ id: 1 });
+    pickTripleMock.mockResolvedValue(null);
+    getGoogleCalendarConfigMock.mockResolvedValue({
+      enabled: true,
+      refreshToken: 'rt',
+      calendarId: 'cal',
+      clientId: 'cid',
+      clientSecret: 'sec',
+      redirectUri: 'http://localhost',
+    });
+    probeGoogleCalendarAccessMock.mockRejectedValue(new Error('GOOGLE_CALENDAR_HTTP_403'));
+    const r = await runOperatorHealthProbes({ dispatchPort });
+    expect(r.google_calendar).toBe('fail');
+    expect(reportOperatorFailureMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        integration: 'google_calendar',
+        errorClass: 'google_calendar_probe_failed',
+      }),
+    );
   });
 
   it('MAX probe fails when getMaxBotInfo exceeds timeout', async () => {

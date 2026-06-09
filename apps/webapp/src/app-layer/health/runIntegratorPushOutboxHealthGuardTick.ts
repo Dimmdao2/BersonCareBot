@@ -1,6 +1,23 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
+import { WEBHOOK_ERROR_EVENTS_RETENTION_HOURS } from "@/modules/operator-health/webhookBurst";
+
+async function purgeIntegrationWebhookErrorEventsBestEffort(): Promise<void> {
+  try {
+    const purge = await buildAppDeps().operatorHealthWrite.purgeIntegrationWebhookErrorEventsOlderThanHours(
+      WEBHOOK_ERROR_EVENTS_RETENTION_HOURS,
+    );
+    if (purge.deleted > 0) {
+      logger.info(
+        { deleted: purge.deleted, retentionHours: WEBHOOK_ERROR_EVENTS_RETENTION_HOURS },
+        "[system-health-guard] integration_webhook_error_events ttl purge",
+      );
+    }
+  } catch (e) {
+    logger.warn({ err: e }, "[system-health-guard] integration_webhook_error_events_purge_failed");
+  }
+}
 
 async function purgeHealthFailureArchiveTtlBestEffort(): Promise<void> {
   try {
@@ -24,5 +41,6 @@ export async function runIntegratorPushOutboxHealthGuardTick(): Promise<{
   const snapshot = await buildAppDeps().operatorHealthRead.getIntegratorPushOutboxHealth();
   const status = classifyIntegratorPushOutboxSystemHealthStatus(snapshot);
   await purgeHealthFailureArchiveTtlBestEffort();
+  await purgeIntegrationWebhookErrorEventsBestEffort();
   return { status, alerted: false };
 }

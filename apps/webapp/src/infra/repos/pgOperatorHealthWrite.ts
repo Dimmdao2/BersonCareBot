@@ -1,6 +1,10 @@
-import { isNull } from "drizzle-orm";
+import { isNull, lt, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { operatorIncidents, operatorJobStatus } from "../../../db/schema/operatorHealth";
+import {
+  integrationWebhookErrorEvents,
+  operatorIncidents,
+  operatorJobStatus,
+} from "../../../db/schema/operatorHealth";
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
@@ -162,5 +166,20 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
       .where(isNull(operatorIncidents.resolvedAt))
       .returning({ id: operatorIncidents.id });
     return { resolved: rows.length };
+  },
+
+  async purgeIntegrationWebhookErrorEventsOlderThanHours(hours: number) {
+    const db = getDrizzle();
+    const h = Math.max(1, Math.trunc(hours));
+    const rows = await db
+      .delete(integrationWebhookErrorEvents)
+      .where(
+        lt(
+          integrationWebhookErrorEvents.occurredAt,
+          sql`now() - (${h}::int * interval '1 hour')`,
+        ),
+      )
+      .returning({ id: integrationWebhookErrorEvents.id });
+    return { deleted: rows.length };
   },
 };

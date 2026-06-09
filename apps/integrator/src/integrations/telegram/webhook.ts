@@ -13,6 +13,7 @@ import { ensureNoMenuButtonForUser, setupTelegramMenuButton } from './setupMenuB
 import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js';
+import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/recordIntegrationWebhookOutcome.js';
 
 function joinDisplayName(input: { first_name?: string | undefined; last_name?: string | undefined }): string | undefined {
   const parts = [input.first_name, input.last_name]
@@ -203,6 +204,13 @@ export async function registerTelegramWebhookRoutes(
         const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
         if (headerSecret !== secret) {
           reqLogger.warn('telegram webhook secret mismatch');
+          void recordIntegrationWebhookOutcome({
+            source: 'telegram',
+            processedOk: false,
+            httpStatusReturned: 200,
+            errorClass: 'webhook_auth_failed',
+            detail: 'secret mismatch',
+          });
           return reply.code(200).send({ ok: false, error: 'Forbidden' });
         }
       }
@@ -213,6 +221,13 @@ export async function registerTelegramWebhookRoutes(
           { err: parseResult.error.flatten(), hasBody: request.body != null },
           'telegram webhook body validation failed',
         );
+        void recordIntegrationWebhookOutcome({
+          source: 'telegram',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_parse_failed',
+          detail: 'body validation failed',
+        });
         return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
       }
 
@@ -233,6 +248,11 @@ export async function registerTelegramWebhookRoutes(
             'telegram webhook: callback_query dropped (mapBodyToIncoming returned null)',
           );
         }
+        void recordIntegrationWebhookOutcome({
+          source: 'telegram',
+          processedOk: true,
+          httpStatusReturned: 200,
+        });
         return reply.code(200).send({ ok: true });
       }
 
@@ -275,11 +295,31 @@ export async function registerTelegramWebhookRoutes(
       const result = await deps.eventGateway.handleIncomingEvent(event);
       if (result.status === 'rejected') {
         reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'telegram webhook pipeline rejected');
+        void recordIntegrationWebhookOutcome({
+          source: 'telegram',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_dispatch_failed',
+          detail: result.reason,
+        });
         return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
+      void recordIntegrationWebhookOutcome({
+        source: 'telegram',
+        processedOk: true,
+        httpStatusReturned: 200,
+      });
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'telegram webhook failed');
+      const msg = err instanceof Error ? err.message : String(err);
+      void recordIntegrationWebhookOutcome({
+        source: 'telegram',
+        processedOk: false,
+        httpStatusReturned: 200,
+        errorClass: 'webhook_internal_error',
+        detail: msg,
+      });
       return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });

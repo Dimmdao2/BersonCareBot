@@ -20,6 +20,7 @@ import { getRubitimeWebhookToken } from './runtimeConfig.js';
 import { parseRubitimeBody } from './schema.js';
 import { mapGoogleCalendarSyncErrorToClass } from '../../infra/operatorIncident/googleCalendarErrorClass.js';
 import { reportOperatorFailure } from '../../infra/operatorIncident/reportOperatorFailure.js';
+import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/recordIntegrationWebhookOutcome.js';
 
 /** Dependencies for Rubitime webhook handler registration. */
 export type RubitimeWebhookDeps = {
@@ -140,6 +141,14 @@ export async function registerRubitimeWebhookRoutes(
       const webhookToken = await getRubitimeWebhookToken();
       if (params.token !== webhookToken) {
         reqLogger.warn('rubitime webhook token mismatch');
+        void recordIntegrationWebhookOutcome({
+          source: 'rubitime',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_auth_failed',
+          detail: 'token mismatch',
+          dispatchPort: deps.dispatchPort,
+        });
         return reply.code(200).send({ ok: false, error: 'Forbidden' });
       }
 
@@ -149,6 +158,14 @@ export async function registerRubitimeWebhookRoutes(
           { err: parseResult.error.flatten(), hasBody: request.body != null },
           'rubitime webhook body validation failed',
         );
+        void recordIntegrationWebhookOutcome({
+          source: 'rubitime',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_parse_failed',
+          detail: 'body validation failed',
+          dispatchPort: deps.dispatchPort,
+        });
         return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
       }
 
@@ -163,11 +180,34 @@ export async function registerRubitimeWebhookRoutes(
       });
       if (result?.status === 'rejected') {
         reqLogger.warn({ reason: result.reason }, 'rubitime webhook pipeline rejected');
+        void recordIntegrationWebhookOutcome({
+          source: 'rubitime',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_dispatch_failed',
+          detail: result.reason,
+          dispatchPort: deps.dispatchPort,
+        });
         return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
+      void recordIntegrationWebhookOutcome({
+        source: 'rubitime',
+        processedOk: true,
+        httpStatusReturned: 200,
+        dispatchPort: deps.dispatchPort,
+      });
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'rubitime webhook failed');
+      const msg = err instanceof Error ? err.message : String(err);
+      void recordIntegrationWebhookOutcome({
+        source: 'rubitime',
+        processedOk: false,
+        httpStatusReturned: 200,
+        errorClass: 'webhook_internal_error',
+        detail: msg,
+        dispatchPort: deps.dispatchPort,
+      });
       return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });
@@ -181,6 +221,14 @@ export async function registerRubitimeWebhookRoutes(
     const webhookToken = await getRubitimeWebhookToken();
     if (params.token !== webhookToken) {
       reqLogger.warn('rubitime record_success token mismatch');
+      void recordIntegrationWebhookOutcome({
+        source: 'rubitime',
+        processedOk: false,
+        httpStatusReturned: 200,
+        errorClass: 'webhook_auth_failed',
+        detail: 'record_success token mismatch',
+        dispatchPort: deps.dispatchPort,
+      });
       return reply.code(200).send({ ok: false, error: 'Missing or invalid token' });
     }
 
@@ -189,6 +237,14 @@ export async function registerRubitimeWebhookRoutes(
         ? params.record_success.trim()
         : null;
       if (!recordId) {
+        void recordIntegrationWebhookOutcome({
+          source: 'rubitime',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_parse_failed',
+          detail: 'record_success is required',
+          dispatchPort: deps.dispatchPort,
+        });
         return reply.code(200).send({ ok: false, error: 'record_success is required' });
       }
 
@@ -208,11 +264,34 @@ export async function registerRubitimeWebhookRoutes(
       });
       if (result?.status === 'rejected') {
         reqLogger.warn({ reason: result.reason }, 'rubitime record_success pipeline rejected');
+        void recordIntegrationWebhookOutcome({
+          source: 'rubitime',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_dispatch_failed',
+          detail: result.reason,
+          dispatchPort: deps.dispatchPort,
+        });
         return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
+      void recordIntegrationWebhookOutcome({
+        source: 'rubitime',
+        processedOk: true,
+        httpStatusReturned: 200,
+        dispatchPort: deps.dispatchPort,
+      });
       return reply.code(200).send({ ok: true, source: 'record_success', recordId });
     } catch (err) {
       reqLogger.error({ err }, 'rubitime record_success callback failed');
+      const msg = err instanceof Error ? err.message : String(err);
+      void recordIntegrationWebhookOutcome({
+        source: 'rubitime',
+        processedOk: false,
+        httpStatusReturned: 200,
+        errorClass: 'webhook_internal_error',
+        detail: msg,
+        dispatchPort: deps.dispatchPort,
+      });
       return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });

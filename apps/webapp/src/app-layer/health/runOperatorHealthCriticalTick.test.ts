@@ -76,6 +76,7 @@ describe("runOperatorHealthCriticalTick", () => {
       backupJobs: {},
       probeConsecutiveFailRuns: 0,
       videoTranscodeStatus: "ok",
+      webhookBursts: [],
     });
   });
 

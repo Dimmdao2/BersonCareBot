@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getIpoMock = vi.hoisted(() => vi.fn());
 const purgeMock = vi.hoisted(() => vi.fn());
+const purgeWebhookEventsMock = vi.hoisted(() => vi.fn());
 const dispatchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     operatorHealthRead: { getIntegratorPushOutboxHealth: getIpoMock },
     healthFailureArchive: { purgeExpired: purgeMock },
+    operatorHealthWrite: { purgeIntegrationWebhookErrorEventsOlderThanHours: purgeWebhookEventsMock },
   }),
 }));
 
@@ -34,6 +36,7 @@ describe("runIntegratorPushOutboxHealthGuardTick", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     purgeMock.mockResolvedValue({ deleted: 0 });
+    purgeWebhookEventsMock.mockResolvedValue({ deleted: 0 });
     dispatchMock.mockResolvedValue({ dispatched: true });
   });
 
@@ -48,6 +51,7 @@ describe("runIntegratorPushOutboxHealthGuardTick", () => {
     expect(r.alerted).toBe(false);
     expect(dispatchMock).not.toHaveBeenCalled();
     expect(purgeMock).toHaveBeenCalled();
+    expect(purgeWebhookEventsMock).toHaveBeenCalled();
   });
 
   it("purges archive on ok status", async () => {
@@ -56,5 +60,6 @@ describe("runIntegratorPushOutboxHealthGuardTick", () => {
     expect(r.status).toBe("ok");
     expect(r.alerted).toBe(false);
     expect(purgeMock).toHaveBeenCalled();
+    expect(purgeWebhookEventsMock).toHaveBeenCalled();
   });
 });

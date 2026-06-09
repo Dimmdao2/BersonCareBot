@@ -1,15 +1,22 @@
-import { and, asc, count, desc, eq, inArray, isNull, lte, max, min, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte, max, min, ne, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { integratorPushOutbox } from "../../../db/schema/schema";
-import { operatorIncidents, operatorJobStatus } from "../../../db/schema/operatorHealth";
+import {
+  integrationWebhookErrorEvents,
+  integrationWebhookLastStatus,
+  operatorIncidents,
+  operatorJobStatus,
+} from "../../../db/schema/operatorHealth";
 import { outgoingDeliveryQueue } from "../../../db/schema/outgoingDeliveryQueue";
 import type {
   IntegratorPushOutboxHealthSnapshot,
+  IntegrationWebhookLastStatusRow,
   OperatorBackupJobStatusRow,
   OperatorHealthReadPort,
   OperatorIncidentOpenRow,
   OperatorJobStatusTickRow,
   OutgoingDeliveryQueueHealthSnapshot,
+  WebhookBurstRow,
 } from "@/modules/operator-health/ports";
 
 /** Dead queue rows that count toward operator degradation (excludes blocked-bot finals). */
@@ -78,6 +85,55 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       lastFailureAt: r.lastFailureAt ?? null,
       lastDurationMs: r.lastDurationMs ?? null,
       lastError: r.lastError ?? null,
+    }));
+  },
+
+  async listIntegrationWebhookLastStatus(): Promise<IntegrationWebhookLastStatusRow[]> {
+    const db = getDrizzle();
+    const rows = await db
+      .select({
+        source: integrationWebhookLastStatus.source,
+        receivedAt: integrationWebhookLastStatus.receivedAt,
+        processedOk: integrationWebhookLastStatus.processedOk,
+        errorClass: integrationWebhookLastStatus.errorClass,
+        httpStatusReturned: integrationWebhookLastStatus.httpStatusReturned,
+        detail: integrationWebhookLastStatus.detail,
+      })
+      .from(integrationWebhookLastStatus)
+      .orderBy(integrationWebhookLastStatus.source);
+    return rows.map((r) => ({
+      source: r.source,
+      receivedAt: r.receivedAt,
+      processedOk: r.processedOk,
+      errorClass: r.errorClass ?? null,
+      httpStatusReturned: r.httpStatusReturned ?? null,
+      detail: r.detail ?? null,
+    }));
+  },
+
+  async listWebhookBurstSignals(windowMinutes: number, minCount: number): Promise<WebhookBurstRow[]> {
+    const db = getDrizzle();
+    const window = Math.max(1, Math.trunc(windowMinutes));
+    const threshold = Math.max(1, Math.trunc(minCount));
+    const rows = await db
+      .select({
+        source: integrationWebhookErrorEvents.source,
+        errorClass: integrationWebhookErrorEvents.errorClass,
+        count: count(),
+      })
+      .from(integrationWebhookErrorEvents)
+      .where(
+        gte(
+          integrationWebhookErrorEvents.occurredAt,
+          sql`now() - (${window}::int * interval '1 minute')`,
+        ),
+      )
+      .groupBy(integrationWebhookErrorEvents.source, integrationWebhookErrorEvents.errorClass)
+      .having(sql`count(*) >= ${threshold}`);
+    return rows.map((r) => ({
+      source: r.source,
+      errorClass: r.errorClass,
+      count: Number(r.count ?? 0),
     }));
   },
 

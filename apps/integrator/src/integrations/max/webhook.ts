@@ -12,6 +12,7 @@ import type { MaxUpdateValidated } from './schema.js';
 import type { ResolveMessengerStaffAdmin } from '../../kernel/contracts/index.js';
 import { createDbPort } from '../../infra/db/client.js';
 import { getOperationalVerboseLogEnabled } from '../../infra/db/repos/operationalVerboseLog.js';
+import { recordIntegrationWebhookOutcome } from '../../infra/operatorIncident/recordIntegrationWebhookOutcome.js';
 
 export type MaxWebhookDeps = {
   eventGateway: EventGateway;
@@ -133,6 +134,13 @@ export async function registerMaxWebhookRoutes(
         const headerSecret = request.headers['x-max-bot-api-secret'];
         if (headerSecret !== webhookSecret) {
           reqLogger.warn('max webhook secret mismatch');
+          void recordIntegrationWebhookOutcome({
+            source: 'max',
+            processedOk: false,
+            httpStatusReturned: 200,
+            errorClass: 'webhook_auth_failed',
+            detail: 'secret mismatch',
+          });
           return reply.code(200).send({ ok: false, error: 'Forbidden' });
         }
       }
@@ -143,6 +151,13 @@ export async function registerMaxWebhookRoutes(
           { err: parseResult.error.flatten(), hasBody: request.body != null },
           'max webhook body validation failed',
         );
+        void recordIntegrationWebhookOutcome({
+          source: 'max',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_parse_failed',
+          detail: 'body validation failed',
+        });
         return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
       }
 
@@ -167,6 +182,11 @@ export async function registerMaxWebhookRoutes(
         if (verbose) {
           reqLogger.info({ update_type: data.update_type }, 'max webhook skipped (unsupported or missing chatId/userId)');
         }
+        void recordIntegrationWebhookOutcome({
+          source: 'max',
+          processedOk: true,
+          httpStatusReturned: 200,
+        });
         return reply.code(200).send({ ok: true });
       }
 
@@ -201,11 +221,31 @@ export async function registerMaxWebhookRoutes(
       const result = await deps.eventGateway.handleIncomingEvent(event);
       if (result.status === 'rejected') {
         reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'max webhook pipeline rejected');
+        void recordIntegrationWebhookOutcome({
+          source: 'max',
+          processedOk: false,
+          httpStatusReturned: 200,
+          errorClass: 'webhook_dispatch_failed',
+          detail: result.reason,
+        });
         return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
+      void recordIntegrationWebhookOutcome({
+        source: 'max',
+        processedOk: true,
+        httpStatusReturned: 200,
+      });
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'max webhook failed');
+      const msg = err instanceof Error ? err.message : String(err);
+      void recordIntegrationWebhookOutcome({
+        source: 'max',
+        processedOk: false,
+        httpStatusReturned: 200,
+        errorClass: 'webhook_internal_error',
+        detail: msg,
+      });
       return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });

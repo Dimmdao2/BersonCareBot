@@ -15,6 +15,12 @@ export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
   async getOperatorJobStatus(): Promise<OperatorJobStatusTickRow | null> {
     return null;
   },
+  async listIntegrationWebhookLastStatus() {
+    return [];
+  },
+  async listWebhookBurstSignals() {
+    return [];
+  },
   async getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot> {
     return {
       dueBacklog: 0,

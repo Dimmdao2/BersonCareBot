@@ -99,6 +99,8 @@ const OPERATOR_OUTBOUND_PROBE_JOB_KEY = 'health.outbound_probe.run';
 export async function recordOperatorOutboundProbeRun(input: {
   max: string;
   rubitime: string;
+  telegram: string;
+  google_calendar: string;
   anyFail: boolean;
 }): Promise<{ consecutiveFailRuns: number }> {
   const db = getIntegratorDrizzle();
@@ -121,6 +123,8 @@ export async function recordOperatorOutboundProbeRun(input: {
   const metaJson = {
     max: input.max,
     rubitime: input.rubitime,
+    telegram: input.telegram,
+    google_calendar: input.google_calendar,
     consecutiveFailRuns,
   };
 

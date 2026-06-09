@@ -23,10 +23,10 @@ todos:
     status: completed
   - id: w4-integrations
     content: "4.1–4.3 PHASE B/C/F — probes TG/GCal, webhook last-status, UI integrations block"
-    status: pending
+    status: completed
   - id: w-final-ci
     content: "DoD Wave 2: api.md, LOG waves, pnpm run ci green"
-    status: pending
+    status: completed
 isProject: false
 ---
 
