@@ -95,6 +95,18 @@
 - **Lint:** удалён неиспользуемый `eq` в `integrationWebhookStatusDrizzle.ts`.
 - **CI:** мок `listWebhookBurstSignals` в `collectCriticalHealthSignals.test.ts`; полный `pnpm run ci` зелёный.
 
+### 2026-06-09 — Подготовка к w-final (доки + тест mirror)
+
+- **Доки:** ROADMAP §0/§4/§9 и README инициативы выровнены с фактом (волны 0–4 closed; §9: prod cron ops и `pnpm run ci` — pending).
+- **Тест:** `service.test.ts` — `operator_health_alert_config` → `syncSettingToIntegrator` (integrator mirror).
+- **План:** `w-final-ci` → `pending`; prod cron на хосте — **не подтверждён** (шаблоны в `deploy/host/cron.d/`).
+
+### 2026-06-09 — w-final-ci закрыт
+
+- **`pnpm run ci`** зелёный после выравнивания доков и теста mirror `operator_health_alert_config`.
+- **План Wave 2:** все todos `completed`.
+- **Остаётся ops:** установка cron на prod-хосте (§9 ROADMAP) — вне merge-блокера кода.
+
 ### 2026-06-09 — Wave 1 (critical tick) **закрыто в коде**
 
 - **`criticalHealthSignals.ts`:** `classifyCriticalHealthSignals`, `classifyOperatorHealthBannerSignals` (единые пороги §3); projection critical по `deadCount`, retries — banner-only; due backlog — banner-only; ipo `error` — critical, `degraded` — нет; probe **3-strike** (`PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS=3`).

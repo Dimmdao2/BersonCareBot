@@ -72,6 +72,33 @@ describe("SystemSettingsService", () => {
     });
   });
 
+  it("updateSetting operator_health_alert_config — mirror в integrator после upsert", async () => {
+    const port = makePort();
+    const service = createSystemSettingsService(port);
+    const value = {
+      topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true },
+      digestTime: "09:00",
+      channels: {
+        critical: { telegram: true, max: true, web_push: true },
+        digest: { telegram: true, max: false, web_push: true },
+        account_conflicts: { telegram: true, max: true, web_push: false },
+      },
+    };
+    await service.updateSetting("operator_health_alert_config", "admin", { value }, "admin-uuid");
+    expect(port.upsert).toHaveBeenCalledWith(
+      "operator_health_alert_config",
+      "admin",
+      { value },
+      "admin-uuid",
+    );
+    expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
+      key: "operator_health_alert_config",
+      scope: "admin",
+      valueJson: { value },
+      updatedBy: "admin-uuid",
+    });
+  });
+
   it("persistAdminModesBatch — upsertManyInTransaction и sync по каждому ключу", async () => {
     const upsertManyInTransaction = vi.fn().mockResolvedValue([
       { key: "dev_mode", scope: "admin", valueJson: { value: false }, updatedAt: "", updatedBy: "u1" },

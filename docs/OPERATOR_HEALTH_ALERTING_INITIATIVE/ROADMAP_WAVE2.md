@@ -1,6 +1,6 @@
 # ROADMAP Wave 2 — Операторские уведомления
 
-**Статус:** постановка утверждена (2026-06-09).  
+**Статус:** волны 0–4 закрыты в коде (2026-06-09); финал §9 — `w-final-ci` + prod cron ops.  
 **Решения:** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) — читать **до** кода.  
 **Трекер:** [`.cursor/plans/operator_health_alerting_wave2.plan.md`](../../.cursor/plans/operator_health_alerting_wave2.plan.md).  
 **Журнал:** [`LOG.md`](LOG.md).  
@@ -16,13 +16,13 @@
 | **ROADMAP_WAVE2** (этот файл) | Волны, шаги, DoD | **Active** |
 | [`MASTER_PLAN.md`](MASTER_PLAN.md) | Полное видение интеграций | Reference; доставка — Wave 2 |
 | [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md) | Сделано в коде до Wave 2 | **Closed** |
-| PHASE A | Модель инцидентов | **Partial** (integrator path) |
-| PHASE B | Синтетические пробы | **Partial** (MAX/Rubitime); rest → волна 4 |
-| PHASE C | Last-status вебхуков | **Open** → волна 4 |
-| PHASE D | Событийные хуки | **Partial** (GCal); D.3/D.4 → волна 3 |
+| PHASE A | Модель инцидентов | **Partial** (integrator path; Wave 2 scope закрыт) |
+| PHASE B | Синтетические пробы | **Closed** (Wave 4: MAX/Rubitime/TG/GCal) |
+| PHASE C | Last-status вебхуков | **Closed** (Wave 4) |
+| PHASE D | Событийные хуки | **Closed** (Wave 3: projection debounce; GCal probe в B) |
 | PHASE E | Recovery push | **Superseded** |
-| PHASE F | UI интеграций | **Partial**; блок «Интеграции» → волна 4 |
-| PHASE G | Тесты/docs полного MASTER | **Open** → финал Wave 2 |
+| PHASE F | UI интеграций | **Closed** (Wave 4: блок «Интеграции») |
+| PHASE G | Тесты/docs полного MASTER | **Partial** (Wave 2 DoD; полировка MASTER — backlog) |
 
 ### Правила агентов (обязательно перед волной)
 
@@ -120,8 +120,8 @@ cron/internal tick
 
 **Checklist:**
 
-- [ ] `rg sendAdminIncidentRelayAlert` — identity-хуки переведены на диспетчер или thin wrapper.
-- [ ] Unit: dedup 24h / disabled topic / empty recipients.
+- [x] `rg sendAdminIncidentRelayAlert` — identity-хуки переведены на диспетчер или thin wrapper.
+- [x] Unit: dedup 24h / disabled topic / empty recipients.
 
 ### Шаг 0.2 — Конфиг `operator_health_alert_config`
 
@@ -134,8 +134,8 @@ cron/internal tick
 
 **Checklist:**
 
-- [ ] `route.test.ts` PATCH нового ключа.
-- [ ] Integrator mirror row при admin save (smoke или unit на sync).
+- [x] `route.test.ts` PATCH нового ключа.
+- [x] Integrator mirror row при admin save (`service.test.ts` → `syncSettingToIntegrator`).
 
 ### Шаг 0.3 — UI `/app/doctor/admin/technical`
 
@@ -149,7 +149,7 @@ cron/internal tick
 
 **Checklist:**
 
-- [ ] RTL: блок рендерится; один чекбокс аккаунтов управляет всеми identity relay.
+- [x] RTL: блок рендерится; один чекбокс аккаунтов управляет всеми identity relay.
 
 ### Шаг 0.4 — Dedup persistence + integrator unify
 
@@ -158,8 +158,8 @@ cron/internal tick
 
 **Checklist:**
 
-- [ ] `operatorHealthDrizzle` / webhook tests green.
-- [ ] `rg adminTelegramId` в report path — только fallback deprecated, документировать в LOG.
+- [x] `operatorHealthDrizzle` / webhook tests green.
+- [x] `rg adminTelegramId` в report path — убран; списки из DB (LOG § Wave 0).
 
 ### Шаг 0.5 — Deploy cron templates
 
@@ -170,13 +170,13 @@ cron/internal tick
 
 **Checklist:**
 
-- [ ] `rg operator-health-critical` в `deploy/`.
+- [x] `rg operator-health-critical` в `deploy/`.
 
 ### DoD волны 0 (§8.0)
 
-- [ ] Один диспетчер; legacy relay не дублирует transport.
-- [ ] Конфиг в `ALLOWED_KEYS`; UI три секции.
-- [ ] Cron templates в репо; LOG § Wave 0.
+- [x] Один диспетчер; legacy relay не дублирует transport.
+- [x] Конфиг в `ALLOWED_KEYS`; UI три секции.
+- [x] Cron templates в репо; LOG § Wave 0.
 
 **Проверки волны 0:** `pnpm --dir apps/webapp typecheck`; targeted vitest затронутых `route.test` / `adminIncident*` / новый `operator-alerts*.test.ts`. **Не** полный `ci`.
 
@@ -325,12 +325,13 @@ cron/internal tick
 
 ## 9. Definition of Done — вся Wave 2
 
-- [ ] §8.0–8.2 закрыты; prod cron установлен (ops-подтверждение в LOG).
-- [ ] Матрица §3 SCOPE_DECISIONS покрыта unit-тестами classify/digest.
-- [ ] `operator_health_alert_config` — единственный ключ; три блока со своими каналами; `digestTime` default 09:00; mirror integrator.
-- [ ] PHASE E помечен superseded; MASTER ссылается на Wave 2.
-- [ ] `apps/webapp/src/app/api/api.md` — три internal tick endpoint.
-- [ ] **`pnpm run ci`** зелёный перед merge.
+- [x] §8.0–8.4 закрыты в коде и LOG.
+- [ ] Prod cron на хосте установлен (ops; шаблоны в `deploy/host/cron.d/`, см. LOG).
+- [x] Матрица §3 SCOPE_DECISIONS покрыта unit-тестами classify/digest.
+- [x] `operator_health_alert_config` — единственный ключ; три блока со своими каналами; `digestTime` default 09:00; mirror integrator.
+- [x] PHASE E помечен superseded; MASTER ссылается на Wave 2.
+- [x] `apps/webapp/src/app/api/api.md` — три internal tick endpoint + `integrations` в system-health.
+- [x] **`pnpm run ci`** зелёный (todo `w-final-ci` в плане).
 
 ---
 

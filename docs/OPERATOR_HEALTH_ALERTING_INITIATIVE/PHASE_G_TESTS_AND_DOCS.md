@@ -2,7 +2,7 @@
 
 Канон: [`MASTER_PLAN.md`](MASTER_PLAN.md) §5 фаза G, §7–10, `.cursor/rules/pre-push-ci.mdc`.
 
-**Статус (2026-05-14):** **MVP** закрыт по [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md) (§7–10). Этот документ описывает **расширенную** полировку после MVP; чеклисты §5 **не** являются блокером для MVP DoD. Незакрытые пункты Phase G переносятся в пост-MVP по [`MASTER_PLAN.md`](MASTER_PLAN.md).
+**Статус (2026-06-09):** **Partial** — Wave 2 DoD (classify/digest/api.md/LOG/ci) закрыт в коде; этот документ описывает **расширенную** полировку полного MASTER (runbook, e2e smoke). Не блокирует `w-final-ci`, кроме явных пунктов §9 ROADMAP (prod cron ops).
 
 ## 1. Цель этапа
 

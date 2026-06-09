@@ -9,16 +9,15 @@
 | Фаза / волна | Статус |
 |--------------|--------|
 | MVP | **Closed** |
-| Wave 0–2 | **Open** (диспетчер → critical → digest) |
-| Wave 3 | **Open** (D.3/D.4 + recovery в сводке) |
-| Wave 4 | **Open** (PHASE B/C/F остаток) |
+| Wave 0–4 (код) | **Closed** |
+| Wave 2 финал (`w-final-ci`) | **Closed** (ci); prod cron ops — **Pending** |
 | PHASE A | Partial (incidents в integrator) |
-| PHASE B | Partial (MAX/Rubitime); rest → Wave 4 |
-| PHASE C | Open → Wave 4 |
-| PHASE D | Partial (GCal); D.3/D.4 → Wave 3 |
+| PHASE B | **Closed** (пробы Wave 4) |
+| PHASE C | **Closed** (last-status Wave 4) |
+| PHASE D | **Closed** (debounce Wave 3; GCal probe) |
 | PHASE E | **Superseded** |
-| PHASE F | Partial (incidents UI); интеграции → Wave 4 |
-| PHASE G | Open → финал Wave 2 |
+| PHASE F | **Closed** (блок «Интеграции» Wave 4) |
+| PHASE G | Partial (Wave 2 DoD; расширенная полировка MASTER — backlog) |
 
 **MVP (закрыт):** [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md)
 

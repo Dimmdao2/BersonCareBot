@@ -1,28 +1,27 @@
 ---
 name: Operator health alerting wave 2
 overview: "Wave 2: dispatchOperatorAlert, critical tick, digest 1x/day digestTime 09:00, per-block channels, account_conflicts one checkbox. PHASE E superseded."
-status: draft
 todos:
   - id: w0-dispatcher
-    content: "0.1 dispatchOperatorAlert + operator_health_alert_sent dedup + integrator unified recipients"
+    content: 0.1 dispatchOperatorAlert + operator_health_alert_sent dedup + integrator unified recipients
     status: completed
   - id: w0-config-ui
-    content: "0.2–0.3 operator_health_alert_config + UI 3 блока (свои каналы, digestTime 09:00, account_conflicts)"
+    content: 0.2–0.3 operator_health_alert_config + UI 3 блока (свои каналы, digestTime 09:00, account_conflicts)
     status: completed
   - id: w0-deploy
-    content: "0.5 cron templates critical/digest/guard + HOST_DEPLOY INTERNAL_JOB_SECRET gate"
+    content: 0.5 cron templates critical/digest/guard + HOST_DEPLOY INTERNAL_JOB_SECRET gate
     status: completed
   - id: w1-critical
-    content: "1.1–1.3 criticalHealthSignals + lightweight collect + critical tick */5 + 3-strike probe"
+    content: 1.1–1.3 criticalHealthSignals + lightweight collect + critical tick */5 + 3-strike probe
     status: completed
   - id: w2-digest
-    content: "2.1–2.3 buildOperatorHealthDigest + hourly digest tick (send at digestTime) + UI time field"
+    content: 2.1–2.3 buildOperatorHealthDigest + hourly digest tick (send at digestTime) + UI time field
     status: completed
   - id: w3-hooks
-    content: "3.1–3.3 projection/media thresholds + recovery lines in digest only"
+    content: 3.1–3.3 projection/media thresholds + recovery lines in digest only
     status: completed
   - id: w4-integrations
-    content: "4.1–4.3 PHASE B/C/F — probes TG/GCal, webhook last-status, UI integrations block"
+    content: 4.1–4.3 PHASE B/C/F — probes TG/GCal, webhook last-status, UI integrations block
     status: completed
   - id: w-final-ci
     content: "DoD Wave 2: api.md, LOG waves, pnpm run ci green"
