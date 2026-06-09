@@ -9,6 +9,7 @@ import {
   deletePendingMediaFileById,
   insertPendingProgramSubmissionMediaFileTx,
 } from "@/app-layer/media/s3MediaStorage";
+import { pgEnsureClientPatientFolder } from "@/infra/repos/pgClientMediaFolders";
 import { presignPutUrl, s3ObjectKey } from "@/app-layer/media/s3Client";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
   const readUrl = `/api/media/${mediaId}`;
 
   try {
+    const patientFolder = await pgEnsureClientPatientFolder(gate.session.user.userId);
     await withUserLifecycleLock(getPool(), gate.session.user.userId, "shared", async (client) => {
       await insertPendingProgramSubmissionMediaFileTx(client, {
         id: mediaId,
@@ -79,6 +81,7 @@ export async function POST(request: Request) {
         mimeType: mime,
         sizeBytes: parsed.data.size,
         userId: gate.session.user.userId,
+        folderId: patientFolder.id,
       });
     });
     const uploadUrl = await presignPutUrl(key, mime);

@@ -63,6 +63,10 @@ export const mockMediaStoragePort: MediaStoragePort = {
       .map((item) => item.record)
       .filter((item) => {
         if (params.kind && params.kind !== "all" && item.kind !== params.kind) return false;
+        if (params.excludeClientFiles !== false && params.folderId === undefined) {
+          const folder = item.folderId ? folders.get(item.folderId) : null;
+          if (folder?.kind === "client_files_root" || folder?.kind === "client_patient") return false;
+        }
         if (params.folderId !== undefined) {
           if (params.folderId === null) {
             if (item.folderId != null) return false;

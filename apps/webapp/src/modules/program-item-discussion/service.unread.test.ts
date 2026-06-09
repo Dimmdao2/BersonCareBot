@@ -20,6 +20,8 @@ describe("program item discussion service unread", () => {
       listLinkedSupportMessageIdsForStageItem: vi.fn().mockResolvedValue(["linked-support-id"]),
       findStageItemIdBySupportMessageId: vi.fn(),
       listStageItemIdsByExerciseTitleForPatient: vi.fn(),
+      getMessageById: vi.fn(),
+      deleteMessageById: vi.fn(),
     };
     const service = createProgramItemDiscussionService(port);
 

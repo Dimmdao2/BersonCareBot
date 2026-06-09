@@ -9,6 +9,7 @@ import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discus
 import { DoctorProgramDiscussionMessagesPanel } from "./DoctorProgramDiscussionMessagesPanel";
 import { markDoctorProgramDiscussionReadForStageItems } from "@/app/app/doctor/doctorProgramDiscussionMarkRead";
 import { sendDoctorProgramDiscussionReply } from "./doctorProgramDiscussionReply";
+import { deleteDoctorProgramDiscussionMediaMessage } from "./doctorProgramDiscussionDeleteMedia";
 
 export const DOCTOR_INSTANCE_DISCUSSION_ALL_ITEMS = "__all__";
 
@@ -279,6 +280,21 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
               } catch {
                 if (generation === loadGenerationRef.current) {
                   setError("Ответ отправлен, но список не обновился. Откройте обсуждение заново.");
+                }
+              }
+              void refreshSummary(generation);
+              return { ok: true as const };
+            }}
+            onDeleteMediaMessage={async (messageId) => {
+              const deleteResult = await deleteDoctorProgramDiscussionMediaMessage({ instanceId, messageId });
+              if (!deleteResult.ok) return deleteResult;
+              const generation = loadGenerationRef.current;
+              const currentFilter = filterStageItemIdRef.current;
+              try {
+                await loadPage(null, false, currentFilter, generation);
+              } catch {
+                if (generation === loadGenerationRef.current) {
+                  setError("Файл удалён из чата, но список не обновился. Откройте обсуждение заново.");
                 }
               }
               void refreshSummary(generation);

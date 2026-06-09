@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/shared/ui/doctor/primitives/select";
 import type { MediaFolderRecord } from "@/modules/media/types";
+import { CLIENT_FILES_ROOT_FOLDER_NAME } from "@/modules/media/clientFilesFolders";
 import { cn } from "@/lib/utils";
 import { mediaFolderPathLabel, sortMediaFoldersByPathRu } from "./mediaFolderScopeUtils";
 
@@ -20,6 +21,8 @@ export type MediaLibraryFolderScopeSelectProps = {
   onChange: (next: MediaFolderScopeValue) => void;
   folders: MediaFolderRecord[];
   foldersLoaded: boolean;
+  /** System «Файлы клиентов» root folder id (if present). */
+  clientFilesRootId?: string | null;
   /** Если `false`, в списке только «Корень» и папки (без «Все папки»). По умолчанию `true`. */
   allowAllFolders?: boolean;
   disabled?: boolean;
@@ -44,9 +47,11 @@ function displayLabel(
   value: MediaFolderScopeValue,
   folders: MediaFolderRecord[],
   foldersLoaded: boolean,
+  clientFilesRootId: string | null | undefined,
 ): string {
   if (value === undefined) return "Все папки";
   if (value === null) return "Корень";
+  if (clientFilesRootId && value === clientFilesRootId) return CLIENT_FILES_ROOT_FOLDER_NAME;
   const f = folders.find((x) => x.id === value);
   if (f) return mediaFolderPathLabel(f, folders);
   return foldersLoaded ? value : "Загрузка…";
@@ -63,6 +68,7 @@ export function MediaLibraryFolderScopeSelect({
   onChange,
   folders,
   foldersLoaded,
+  clientFilesRootId = null,
   allowAllFolders = true,
   disabled,
   className,
@@ -71,7 +77,7 @@ export function MediaLibraryFolderScopeSelect({
 }: MediaLibraryFolderScopeSelectProps) {
   const sorted = sortMediaFoldersByPathRu(folders);
   const internalValue = selectItemValue(value);
-  const labelText = displayLabel(value, folders, foldersLoaded);
+  const labelText = displayLabel(value, folders, foldersLoaded, clientFilesRootId);
 
   return (
     <div className={cn("flex min-w-[10rem] flex-1 flex-col gap-1", className)}>
@@ -90,6 +96,9 @@ export function MediaLibraryFolderScopeSelect({
         <SelectContent>
           {allowAllFolders ? <SelectItem value="__all__">Все папки</SelectItem> : null}
           <SelectItem value="__root__">Корень</SelectItem>
+          {clientFilesRootId ? (
+            <SelectItem value={clientFilesRootId}>{CLIENT_FILES_ROOT_FOLDER_NAME}</SelectItem>
+          ) : null}
           {sorted.map((f) => (
             <SelectItem key={f.id} value={f.id}>
               {mediaFolderPathLabel(f, folders)}

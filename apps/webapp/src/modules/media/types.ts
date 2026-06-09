@@ -57,10 +57,14 @@ export type MediaRecord = {
   videoDeliveryOverride?: VideoDeliveryOverride | null;
 };
 
+export type MediaFolderKind = "standard" | "client_files_root" | "client_patient";
+
 export type MediaFolderRecord = {
   id: string;
   parentId: string | null;
   name: string;
+  kind?: MediaFolderKind;
+  patientUserId?: string | null;
   createdAt: string;
 };
 
@@ -81,6 +85,11 @@ export type MediaListParams = {
   folderId?: string | null;
   /** When `folderId` is a uuid, include files in descendant folders (recursive). */
   includeDescendants?: boolean;
+  /**
+   * When listing without an explicit folder scope (`folderId` omitted), hide files
+   * stored under the «Файлы клиентов» subtree. Defaults to true.
+   */
+  excludeClientFiles?: boolean;
 };
 
 export type MediaListResult = {

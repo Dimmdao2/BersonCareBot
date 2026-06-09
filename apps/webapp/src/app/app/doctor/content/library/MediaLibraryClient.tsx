@@ -34,6 +34,12 @@ import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
 import { MediaLibraryFolderScopeSelect } from "@/shared/ui/doctor/media/MediaLibraryFolderScopeSelect";
 import { buildCrumbsForMediaFolder } from "@/shared/ui/doctor/media/mediaFolderScopeUtils";
 import { useFlatMediaFolders } from "@/shared/ui/doctor/media/useFlatMediaFolders";
+import {
+  findClientFilesRootFolder,
+  foldersForLibraryScopeSelect,
+  isClientFilesFolderKind,
+} from "@/modules/media/clientFilesFolders";
+import type { MediaFolderRecord } from "@/modules/media/types";
 import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
@@ -59,7 +65,7 @@ type MediaItem = {
   sourceHeight?: number | null;
 };
 
-type FolderRow = { id: string; parentId: string | null; name: string; createdAt: string };
+type FolderRow = MediaFolderRecord;
 
 type Crumb = { id: string | null; label: string };
 
@@ -218,9 +224,25 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const listRequestRef = useRef(0);
 
+  const clientFilesRoot = useMemo(
+    () => findClientFilesRootFolder(flatFolderRecords),
+    [flatFolderRecords],
+  );
+  const scopeSelectFolders = useMemo(
+    () => foldersForLibraryScopeSelect(flatFolderRecords),
+    [flatFolderRecords],
+  );
+
   const currentFolderId = crumbs[crumbs.length - 1]?.id ?? null;
   const parentForChildFolders = viewAllFiles ? null : currentFolderId;
   const uploadTargetFolderId = viewAllFiles ? null : currentFolderId;
+
+  const currentFolderRecord = currentFolderId
+    ? flatFolderRecords.find((f) => f.id === currentFolderId)
+    : null;
+  const insideClientFilesSubtree =
+    currentFolderRecord != null && isClientFilesFolderKind(currentFolderRecord.kind);
+  const systemManagedFolder = insideClientFilesSubtree;
 
   const searchParams = useMemo(() => {
     const p = new URLSearchParams();
@@ -1168,7 +1190,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               >
                 {c.label}
               </button>
-              {c.id ? (
+              {c.id && !isClientFilesFolderKind(flatFolderRecords.find((f) => f.id === c.id)?.kind) ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted"
@@ -1213,31 +1235,35 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                 >
                   {f.name}
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-muted"
-                    aria-label={`Действия: ${f.name}`}
-                  >
-                    <MoreHorizontal className="size-3" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-44">
-                    <DropdownMenuItem onClick={() => openFolderRename({ id: f.id, name: f.name })}>
-                      Переименовать
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openFolderMove({ id: f.id, name: f.name }, currentFolderId)}>
-                      Переместить…
-                    </DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onClick={() => openFolderDelete({ id: f.id, name: f.name })}>
-                      Удалить…
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {!isClientFilesFolderKind(f.kind) ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-muted"
+                      aria-label={`Действия: ${f.name}`}
+                    >
+                      <MoreHorizontal className="size-3" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="min-w-44">
+                      <DropdownMenuItem onClick={() => openFolderRename({ id: f.id, name: f.name })}>
+                        Переименовать
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openFolderMove({ id: f.id, name: f.name }, currentFolderId)}>
+                        Переместить…
+                      </DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onClick={() => openFolderDelete({ id: f.id, name: f.name })}>
+                        Удалить…
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
               </span>
             ))
           )}
-          <Button type="button" variant="outline" size="sm" onClick={() => setNewFolderDialog({ name: "" })}>
-            Новая папка
-          </Button>
+          {!systemManagedFolder ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setNewFolderDialog({ name: "" })}>
+              Новая папка
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -1296,8 +1322,9 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
           className="min-w-[12rem] max-w-[min(100%,22rem)]"
           value={folderScopeSelectValue}
           onChange={handleFolderScopeChange}
-          folders={flatFolderRecords}
+          folders={scopeSelectFolders}
           foldersLoaded={flatFoldersLoaded}
+          clientFilesRootId={clientFilesRoot?.id ?? null}
         />
 
         <label className="flex min-w-[9rem] flex-col gap-1 text-sm">

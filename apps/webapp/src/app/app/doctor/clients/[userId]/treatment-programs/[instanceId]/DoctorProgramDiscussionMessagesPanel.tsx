@@ -1,8 +1,16 @@
 "use client";
 
-import { CornerDownLeft, SendHorizontal } from "lucide-react";
+import { CornerDownLeft, SendHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/ui/doctor/primitives/dialog";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
 import { cn } from "@/lib/utils";
@@ -27,6 +35,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   itemLabelById?: Map<string, string>;
   onSelectItemFilter?: (stageItemId: string) => void;
   onSendReply?: (stageItemId: string, text: string) => Promise<{ ok: boolean; error?: string }>;
+  onDeleteMediaMessage?: (messageId: string) => Promise<{ ok: boolean; error?: string }>;
   peerLastReadAt?: string | null;
   peerLastReadAtByStageItemId?: Record<string, string | null>;
 }) {
@@ -40,6 +49,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     itemLabelById,
     onSelectItemFilter,
     onSendReply,
+    onDeleteMediaMessage,
     peerLastReadAt = null,
     peerLastReadAtByStageItemId,
   } = props;
@@ -52,6 +62,9 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   const [touchReplyTargetId, setTouchReplyTargetId] = useState<string | null>(null);
   const [touchEnabled, setTouchEnabled] = useState(false);
   const [supportsHover, setSupportsHover] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<ProgramItemDiscussionMessage | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const touchDragRef = useRef<{
     messageId: string;
     startX: number;
@@ -100,6 +113,22 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     setReplyError(null);
   };
 
+  const confirmDeleteMedia = async () => {
+    if (!deleteTarget || !onDeleteMediaMessage || deletePending) return;
+    setDeletePending(true);
+    setDeleteError(null);
+    try {
+      const result = await onDeleteMediaMessage(deleteTarget.id);
+      if (!result.ok) {
+        setDeleteError(result.error ?? "Не удалось удалить файл из чата");
+        return;
+      }
+      setDeleteTarget(null);
+    } finally {
+      setDeletePending(false);
+    }
+  };
+
   const submitReply = async (message: ProgramItemDiscussionMessage) => {
     if (!onSendReply || replySending) return;
     const text = replyDraft.trim();
@@ -123,6 +152,25 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
 
   return (
     <div className="flex h-[min(75vh,34rem)] min-h-[20rem] flex-col gap-2">
+      <Dialog open={deleteTarget != null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Удалить файл из чата?</DialogTitle>
+            <DialogDescription>
+              Файл исчезнет из обсуждения с клиентом, но останется в библиотеке «Файлы клиентов».
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError ? <p className="text-sm text-destructive">{deleteError}</p> : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={deletePending}>
+              Отмена
+            </Button>
+            <Button type="button" variant="destructive" onClick={() => void confirmDeleteMedia()} disabled={deletePending}>
+              Удалить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {nextCursor ? (
         <Button
@@ -154,12 +202,13 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
               fromPatient && onSendReply
                 ? activeReplyMessageId === m.id || touchReplyTargetId === m.id
                 : false;
+            const canDeleteMedia = fromPatient && Boolean(m.mediaFileId) && Boolean(onDeleteMediaMessage);
             return (
               <div
                 key={m.id}
                 className={cn(
                   "group/row relative flex w-full flex-col gap-1",
-                  fromPatient ? "items-start pr-12" : "items-end",
+                  fromPatient ? (canDeleteMedia ? "items-start pr-20" : "items-start pr-12") : "items-end",
                 )}
                 onClick={() => {
                   if (!touchEnabled || supportsHover || !fromPatient || !onSendReply) return;
@@ -269,6 +318,28 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                     }}
                   >
                     <CornerDownLeft className="size-4" />
+                  </Button>
+                ) : null}
+                {canDeleteMedia ? (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className={cn(
+                      "absolute bottom-1 size-8 rounded-full border-border/70 bg-background/95 shadow-sm transition-opacity",
+                      onSendReply ? "right-10" : "right-0",
+                      touchEnabled && !supportsHover
+                        ? "opacity-100"
+                        : "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100",
+                    )}
+                    aria-label="Удалить файл из чата"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDeleteError(null);
+                      setDeleteTarget(m);
+                    }}
+                  >
+                    <Trash2 className="size-4" />
                   </Button>
                 ) : null}
                 {fromPatient && onSendReply && activeReplyMessageId === m.id ? (

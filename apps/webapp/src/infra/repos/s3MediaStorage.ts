@@ -18,6 +18,7 @@ import {
   pgMoveFolder,
   pgRenameFolder,
 } from "@/infra/repos/mediaFoldersRepo";
+import { clientFilesSubtreeFolderIdsSql } from "@/infra/repos/pgClientMediaFolders";
 import { mediaFolderExists } from "@/infra/repos/pgMediaFolderLookup";
 import { pgMediaUsageSummaryForMediaId } from "@/infra/repos/pgMediaUsageSummary";
 import { s3DeleteObject, s3ListObjectKeysUnderPrefix, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/infra/s3/client";
@@ -255,6 +256,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         } else {
           whereParts.push(sql`m.folder_id = ${params.folderId}::uuid`);
         }
+      } else if (params.excludeClientFiles !== false) {
+        whereParts.push(sql`(m.folder_id IS NULL OR m.folder_id NOT IN ${clientFilesSubtreeFolderIdsSql()})`);
       }
 
       const whereSql = sql.join(whereParts, sql` AND `);
@@ -525,6 +528,7 @@ export async function insertPendingProgramSubmissionMediaFileTx(
     mimeType: string;
     sizeBytes: number;
     userId: string;
+    folderId: string;
   },
 ): Promise<void> {
   const isVideo = params.mimeType.toLowerCase().startsWith("video/");
@@ -538,6 +542,7 @@ export async function insertPendingProgramSubmissionMediaFileTx(
     sizeBytes: params.sizeBytes,
     status: "pending",
     uploadedBy: params.userId,
+    folderId: params.folderId,
     usagePurpose: "program_item_submission",
     videoDeliveryOverride: isVideo ? "mp4" : null,
   });

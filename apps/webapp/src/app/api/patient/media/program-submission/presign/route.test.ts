@@ -36,6 +36,11 @@ vi.mock("@/app-layer/locks/userLifecycleLock", () => ({
   withUserLifecycleLock: (...args: unknown[]) => lockMock(...args),
 }));
 
+const ensurePatientFolderMock = vi.fn();
+vi.mock("@/infra/repos/pgClientMediaFolders", () => ({
+  pgEnsureClientPatientFolder: (...a: unknown[]) => ensurePatientFolderMock(...a),
+}));
+
 const getSettingMock = vi.fn();
 const getPatientProgramInteractionPolicyMock = vi.fn();
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -60,6 +65,15 @@ describe("POST /api/patient/media/program-submission/presign", () => {
     deleteMock.mockReset();
     presignMock.mockReset();
     lockMock.mockReset();
+    ensurePatientFolderMock.mockReset();
+    ensurePatientFolderMock.mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      parentId: "22222222-2222-4222-8222-222222222222",
+      name: "Клиент · 00000000",
+      kind: "client_patient",
+      patientUserId: "00000000-0000-4000-8000-000000000001",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
     getSettingMock.mockReset();
     getPatientProgramInteractionPolicyMock.mockReset();
     gateMock.mockReset();

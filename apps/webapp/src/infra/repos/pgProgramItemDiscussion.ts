@@ -453,6 +453,25 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       return row?.instanceStageItemId ?? null;
     },
 
+    async getMessageById(messageId: string): Promise<ProgramItemDiscussionMessage | null> {
+      const db = getDrizzle();
+      const [row] = await db
+        .select()
+        .from(programItemDiscussionMessages)
+        .where(eq(programItemDiscussionMessages.id, messageId))
+        .limit(1);
+      return row ? mapMessage(row) : null;
+    },
+
+    async deleteMessageById(messageId: string): Promise<boolean> {
+      const db = getDrizzle();
+      const rows = await db
+        .delete(programItemDiscussionMessages)
+        .where(eq(programItemDiscussionMessages.id, messageId))
+        .returning({ id: programItemDiscussionMessages.id });
+      return rows.length > 0;
+    },
+
     async listStageItemIdsByExerciseTitleForPatient(
       patientUserId: string,
       exerciseTitle: string,

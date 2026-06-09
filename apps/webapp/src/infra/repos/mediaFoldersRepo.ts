@@ -1,4 +1,4 @@
-import { asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { mediaFiles, mediaFolders } from "../../../db/schema/schema";
 import type { MediaFolderRecord } from "@/modules/media/types";
@@ -7,12 +7,16 @@ function mapFolderRow(row: {
   id: string;
   parentId: string | null;
   name: string;
+  kind: string;
+  patientUserId: string | null;
   createdAt: string;
 }): MediaFolderRecord {
   return {
     id: row.id,
     parentId: row.parentId,
     name: row.name,
+    kind: row.kind as MediaFolderRecord["kind"],
+    patientUserId: row.patientUserId,
     createdAt: row.createdAt,
   };
 }
@@ -24,10 +28,16 @@ export async function pgListFolders(parentId: string | null): Promise<MediaFolde
       id: mediaFolders.id,
       parentId: mediaFolders.parentId,
       name: mediaFolders.name,
+      kind: mediaFolders.kind,
+      patientUserId: mediaFolders.patientUserId,
       createdAt: mediaFolders.createdAt,
     })
     .from(mediaFolders)
-    .where(parentId === null ? isNull(mediaFolders.parentId) : eq(mediaFolders.parentId, parentId))
+    .where(
+      parentId === null
+        ? and(isNull(mediaFolders.parentId), eq(mediaFolders.kind, "standard"))
+        : eq(mediaFolders.parentId, parentId),
+    )
     .orderBy(asc(mediaFolders.nameNormalized));
   return rows.map(mapFolderRow);
 }
@@ -49,6 +59,8 @@ export async function pgCreateFolder(params: {
       id: mediaFolders.id,
       parentId: mediaFolders.parentId,
       name: mediaFolders.name,
+      kind: mediaFolders.kind,
+      patientUserId: mediaFolders.patientUserId,
       createdAt: mediaFolders.createdAt,
     });
   const row = rows[0];
@@ -98,6 +110,23 @@ export async function pgDeleteFolderIfEmpty(folderId: string): Promise<{ ok: tru
   return del.length > 0 ? { ok: true } : { ok: false, error: "not_empty" };
 }
 
+export async function pgGetMediaFolderById(id: string): Promise<MediaFolderRecord | null> {
+  const db = getDrizzle();
+  const [row] = await db
+    .select({
+      id: mediaFolders.id,
+      parentId: mediaFolders.parentId,
+      name: mediaFolders.name,
+      kind: mediaFolders.kind,
+      patientUserId: mediaFolders.patientUserId,
+      createdAt: mediaFolders.createdAt,
+    })
+    .from(mediaFolders)
+    .where(eq(mediaFolders.id, id))
+    .limit(1);
+  return row ? mapFolderRow(row) : null;
+}
+
 export async function pgFolderExists(id: string): Promise<boolean> {
   const db = getDrizzle();
   const rows = await db
@@ -115,6 +144,8 @@ export async function pgListAllFolders(): Promise<MediaFolderRecord[]> {
       id: mediaFolders.id,
       parentId: mediaFolders.parentId,
       name: mediaFolders.name,
+      kind: mediaFolders.kind,
+      patientUserId: mediaFolders.patientUserId,
       createdAt: mediaFolders.createdAt,
     })
     .from(mediaFolders)

@@ -1825,6 +1825,8 @@ export const mediaFolders = pgTable("media_folders", {
 	parentId: uuid("parent_id"),
 	name: text().notNull(),
 	nameNormalized: text("name_normalized").generatedAlwaysAs(sql`lower(TRIM(BOTH FROM name))`),
+	kind: text().default('standard').notNull(),
+	patientUserId: uuid("patient_user_id"),
 	createdBy: uuid("created_by"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -1832,6 +1834,8 @@ export const mediaFolders = pgTable("media_folders", {
 	index("idx_media_folders_parent_id").using("btree", table.parentId.asc().nullsLast().op("uuid_ops")),
 	uniqueIndex("uq_media_folders_child_name").using("btree", table.parentId.asc().nullsLast().op("uuid_ops"), table.nameNormalized.asc().nullsLast().op("text_ops")).where(sql`(parent_id IS NOT NULL)`),
 	uniqueIndex("uq_media_folders_root_name").using("btree", table.nameNormalized.asc().nullsLast().op("text_ops")).where(sql`(parent_id IS NULL)`),
+	uniqueIndex("uq_media_folders_client_patient_user").using("btree", table.patientUserId.asc().nullsLast().op("uuid_ops")).where(sql`((kind = 'client_patient'::text) AND (patient_user_id IS NOT NULL))`),
+	uniqueIndex("uq_media_folders_client_files_root").using("btree", sql`(1)`).where(sql`(kind = 'client_files_root'::text)`),
 	foreignKey({
 			columns: [table.createdBy],
 			foreignColumns: [platformUsers.id],
@@ -1842,8 +1846,14 @@ export const mediaFolders = pgTable("media_folders", {
 			foreignColumns: [table.id],
 			name: "media_folders_parent_id_fkey"
 		}).onDelete("restrict"),
+	foreignKey({
+			columns: [table.patientUserId],
+			foreignColumns: [platformUsers.id],
+			name: "media_folders_patient_user_id_fkey"
+		}).onDelete("set null"),
 	check("media_folders_check", sql`(parent_id IS NULL) OR (parent_id <> id)`),
 	check("media_folders_name_check", sql`(length(TRIM(BOTH FROM name)) > 0) AND (char_length(name) <= 180)`),
+	check("media_folders_kind_check", sql`kind = ANY (ARRAY['standard'::text, 'client_files_root'::text, 'client_patient'::text])`),
 ]);
 
 export const mediaUploadSessions = pgTable("media_upload_sessions", {

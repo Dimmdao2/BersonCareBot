@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
+import { pgGetMediaFolderById } from "@/infra/repos/mediaFoldersRepo";
+import { isSystemManagedMediaFolder } from "@/infra/repos/pgClientMediaFolders";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 
@@ -37,6 +39,13 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
+  const existing = await pgGetMediaFolderById(id);
+  if (!existing) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  if (isSystemManagedMediaFolder(existing.kind)) {
+    return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
+  }
 
   if (parsed.data.parentId !== undefined) {
     if (parsed.data.parentId !== null) {
@@ -81,6 +90,14 @@ export async function DELETE(
   const { id } = await params;
   if (!UUID_RE.test(id)) {
     return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  }
+
+  const existing = await pgGetMediaFolderById(id);
+  if (!existing) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  if (isSystemManagedMediaFolder(existing.kind)) {
+    return NextResponse.json({ ok: false, error: "system_folder_readonly" }, { status: 409 });
   }
 
   const deps = buildAppDeps();

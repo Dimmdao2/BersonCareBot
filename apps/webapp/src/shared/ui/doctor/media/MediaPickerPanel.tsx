@@ -24,6 +24,10 @@ import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { MediaLibraryFolderScopeSelect } from "@/shared/ui/doctor/media/MediaLibraryFolderScopeSelect";
 import { mediaFolderPathLabel } from "@/shared/ui/doctor/media/mediaFolderScopeUtils";
 import {
+  findClientFilesRootFolder,
+  foldersForLibraryScopeSelect,
+} from "@/modules/media/clientFilesFolders";
+import {
   MEDIA_LIBRARY_LIST_SORT_OPTIONS,
   type MediaLibraryListSortPreset,
   mediaLibraryListSortLabel,
@@ -155,6 +159,8 @@ export function MediaPickerPanel({
   >({});
   const [usageReady, setUsageReady] = useState(false);
   const [libraryReloadKey, setLibraryReloadKey] = useState(0);
+  const clientFilesRoot = useMemo(() => findClientFilesRootFolder(folders), [folders]);
+  const scopeSelectFolders = useMemo(() => foldersForLibraryScopeSelect(folders), [folders]);
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -451,8 +457,9 @@ export function MediaPickerPanel({
                 className="min-w-0 sm:max-w-md"
                 value={folderId}
                 onChange={onPickerFolderIdChange}
-                folders={folders}
+                folders={scopeSelectFolders}
                 foldersLoaded={foldersLoaded}
+                clientFilesRootId={clientFilesRoot?.id ?? null}
               />
             ) : null}
             {exercisePicker ? (

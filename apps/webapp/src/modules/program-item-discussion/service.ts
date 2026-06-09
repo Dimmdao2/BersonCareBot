@@ -238,6 +238,21 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
         inboundAdminMessages: input.inboundAdminMessages,
       });
     },
+
+    async deletePatientMediaMessage(input: {
+      messageId: string;
+      patientUserId: string;
+    }): Promise<void> {
+      const messageId = assertUuid(input.messageId, "message_id");
+      const patientUserId = assertUuid(input.patientUserId, "patient_user_id");
+      const message = await port.getMessageById(messageId);
+      if (!message) throw new Error("message_not_found");
+      if (message.patientUserId !== patientUserId) throw new Error("message_not_found");
+      if (!message.mediaFileId) throw new Error("message_not_media");
+      if (message.senderRole !== "patient") throw new Error("message_not_deletable");
+      const deleted = await port.deleteMessageById(messageId);
+      if (!deleted) throw new Error("message_not_found");
+    },
   };
 }
 

@@ -23,4 +23,6 @@ export type ProgramItemDiscussionPort = {
   listLinkedSupportMessageIdsForStageItem(stageItemId: string): Promise<string[]>;
   findStageItemIdBySupportMessageId(supportMessageId: string): Promise<string | null>;
   listStageItemIdsByExerciseTitleForPatient(patientUserId: string, exerciseTitle: string): Promise<string[]>;
+  getMessageById(messageId: string): Promise<ProgramItemDiscussionMessage | null>;
+  deleteMessageById(messageId: string): Promise<boolean>;
 };

@@ -185,5 +185,18 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
     async listStageItemIdsByExerciseTitleForPatient(_patientUserId: string, _exerciseTitle: string): Promise<string[]> {
       return [];
     },
+
+    async getMessageById(messageId: string): Promise<ProgramItemDiscussionMessage | null> {
+      const row = rows.get(messageId);
+      return row ? { ...row } : null;
+    },
+
+    async deleteMessageById(messageId: string): Promise<boolean> {
+      const row = rows.get(messageId);
+      if (!row) return false;
+      rows.delete(messageId);
+      if (row.supportMessageId) bySupportMessageId.delete(row.supportMessageId);
+      return true;
+    },
   };
 }
