@@ -23,10 +23,12 @@ import {
   type HealthFailureArchiveProbe,
 } from "@/modules/operator-health/healthFailureArchiveConstants";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
-import { parseAdminIncidentAlertConfig } from "@/modules/admin-incidents/adminIncidentAlertConfig";
 import { redactAdminSettingsForClient } from "@/modules/system-settings/webPushVapidRuntime";
 import type { NotificationTopicRow } from "@/modules/patient-notifications/notificationsTopics";
-import type { AdminIncidentAlertConfig } from "@/modules/admin-incidents/adminIncidentAlertConfig";
+import {
+  mergeOperatorHealthAlertConfigFromLegacy,
+  type OperatorHealthAlertConfig,
+} from "@/modules/operator-alerts/operatorHealthAlertConfig";
 
 export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
   "system-health": "/app/doctor/system-health",
@@ -146,7 +148,7 @@ export type AdminDiagnosticsSettings = {
   patientProgramDiscussionUiEnabled: boolean;
   patientProgramDiscussionMediaSubmissionEnabled: boolean;
   patientBookingUrl: string;
-  incidentAlertsConfig: AdminIncidentAlertConfig;
+  operatorHealthAlertsConfig: OperatorHealthAlertConfig;
 };
 
 export type AdminSettingsPageData = {
@@ -287,7 +289,8 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
       const s = typeof raw === "string" ? raw.trim() : "";
       return s.length > 0 ? s : DEFAULT_PATIENT_BOOKING_URL;
     })(),
-    incidentAlertsConfig: parseAdminIncidentAlertConfig(
+    operatorHealthAlertsConfig: mergeOperatorHealthAlertConfigFromLegacy(
+      adminSettingsList.find((x) => x.key === "operator_health_alert_config")?.valueJson ?? null,
       adminSettingsList.find((x) => x.key === "admin_incident_alert_config")?.valueJson ?? null,
     ),
   };

@@ -1,0 +1,2 @@
+# Operator health: critical signals tick (every 5 min). Requires INTERNAL_JOB_SECRET in webapp.prod.
+*/5 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/operator-health-critical/tick" >/dev/null'

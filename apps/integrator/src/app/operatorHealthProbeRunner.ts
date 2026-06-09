@@ -6,7 +6,10 @@ import { maxConfig } from '../integrations/max/config.js';
 import { fetchRubitimeSchedule } from '../integrations/rubitime/client.js';
 import { pickAnyActiveRubitimeScheduleTriple } from '../integrations/rubitime/db/bookingProfilesRepo.js';
 import { reportOperatorFailure } from '../infra/operatorIncident/reportOperatorFailure.js';
-import { resolveOpenOperatorIncidentsByDedupKeyPrefix } from '../infra/db/repos/operatorHealthDrizzle.js';
+import {
+  recordOperatorOutboundProbeRun,
+  resolveOpenOperatorIncidentsByDedupKeyPrefix,
+} from '../infra/db/repos/operatorHealthDrizzle.js';
 
 export type ProbeOutcome = 'ok' | 'fail' | 'skipped_not_configured';
 
@@ -107,6 +110,18 @@ export async function runOperatorHealthProbes(input: {
         alertLines: ['Rubitime get-schedule probe failed', msg],
       });
     }
+  }
+
+  const anyFail = max === 'fail' || rubitime === 'fail';
+  try {
+    const streak = await recordOperatorOutboundProbeRun({
+      max,
+      rubitime,
+      anyFail,
+    });
+    details.consecutiveFailRuns = String(streak.consecutiveFailRuns);
+  } catch (err) {
+    logger.warn({ err }, 'operator_health_probe_job_status_failed');
   }
 
   logger.info({ max, rubitime, details }, 'operator_health_probes_done');

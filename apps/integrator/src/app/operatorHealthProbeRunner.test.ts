@@ -6,6 +6,7 @@ const fetchRubitimeScheduleMock = vi.hoisted(() => vi.fn());
 const pickTripleMock = vi.hoisted(() => vi.fn());
 const reportOperatorFailureMock = vi.hoisted(() => vi.fn());
 const resolvePrefixMock = vi.hoisted(() => vi.fn());
+const recordProbeRunMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../integrations/max/client.js', () => ({
   getMaxBotInfo: getMaxBotInfoMock,
@@ -24,6 +25,7 @@ vi.mock('../infra/operatorIncident/reportOperatorFailure.js', () => ({
 }));
 vi.mock('../infra/db/repos/operatorHealthDrizzle.js', () => ({
   resolveOpenOperatorIncidentsByDedupKeyPrefix: resolvePrefixMock,
+  recordOperatorOutboundProbeRun: recordProbeRunMock,
 }));
 vi.mock('../infra/db/client.js', () => ({
   createDbPort: vi.fn(() => ({ query: vi.fn() })),
@@ -37,6 +39,7 @@ describe('runOperatorHealthProbes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resolvePrefixMock.mockResolvedValue(0);
+    recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 0 });
     reportOperatorFailureMock.mockResolvedValue(undefined);
     pickTripleMock.mockResolvedValue({ branchId: 1, cooperatorId: 2, serviceId: 3 });
     fetchRubitimeScheduleMock.mockResolvedValue({});
@@ -54,6 +57,7 @@ describe('runOperatorHealthProbes', () => {
 
   it('MAX fail reports failure and does not resolve', async () => {
     getMaxBotInfoMock.mockResolvedValue(null);
+    recordProbeRunMock.mockResolvedValue({ consecutiveFailRuns: 1 });
     const r = await runOperatorHealthProbes({ dispatchPort });
     expect(r.max).toBe('fail');
     expect(reportOperatorFailureMock).toHaveBeenCalledWith(
@@ -63,6 +67,10 @@ describe('runOperatorHealthProbes', () => {
       }),
     );
     expect(resolvePrefixMock).not.toHaveBeenCalledWith('outbound:max:');
+    expect(recordProbeRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({ max: 'fail', anyFail: true }),
+    );
+    expect(r.details.consecutiveFailRuns).toBe('1');
   });
 
   it('Rubitime schedule throw reports failure', async () => {

@@ -12,8 +12,8 @@
 | # | Вопрос | Решение |
 |---|--------|---------|
 | P1 | Wave 2 vs PHASE E | **Wave 2 — канон.** Recovery только строкой в сводке; отдельный TG/email «восстановлено» не делаем. |
-| P2 | Сводка при пустом дне | **Всегда** слать утро и вечер: либо `⚠️` + пункты, либо `✅ Всё в порядке`. Без opt-out «тихих OK» в v1. |
-| P3 | Критичный список (immediate) | См. матрицу §3. `projection`: critical только `unreachable` \| `error` или `degraded` с `deadCount > 0`. `retriesOverThreshold` без dead — **не** critical. |
+| P2 | Суточная сводка | **1 раз в сутки** в время из админки: поле **`digestTime`** (`HH:mm`), дефолт **`09:00`**, TZ **`app_display_timezone`**. Каждый день: либо `⚠️` + пункты за окно с прошлой сводки, либо `✅ Всё в порядке`. Без opt-out «тихих OK» в v1. |
+| P3 | Критичный список (immediate) | См. матрицу §3. Включает **очередь синка в integrator** (`integrator_push_outbox` **error**; **degraded** — в сводку). `projection`: critical только `unreachable` \| `error` или `deadCount > 0`. Retries без dead — **не** critical. Отдельного чекбокса для outbox в UI **нет** — входит в блок **«Критичные сбои»**. |
 | P4 | `dueBacklog` без dead | **Не** immediate. In-app баннер «Сегодня» + строка в сводке при наличии в окне. |
 | P5 | Backup `failure` | Immediate при **любом** tier с `lastStatus === "failure"` (последний прогон). |
 | P6 | Конфликты аккаунтов | **Один чекбокс** «Конфликты аккаунтов» в блоке «Уведомления админу». Вкл. → немедленный push по всем identity-событиям (внутри: `channel_link`, `auto_merge_*`, `messenger_phone_*` → флаг `topics.account_conflicts`). Не в сводку. |
@@ -29,11 +29,11 @@
 |---|--------|---------|
 | A1 | Единый диспетчер, без новых процессов | **`dispatchOperatorAlert`** — тонкая функция в webapp, **не** новый systemd/worker. Доставка только через **существующий** контур: `relayOutbound` / staff Web Push / `outgoing_delivery_queue` + **integrator worker** (`outgoingDeliveryWorker`). Integrator при инцидентах — только enqueue в ту же очередь; **не** `adminTelegramId` в один чат. |
 | A2 | Ключ конфигурации | Один ключ **`operator_health_alert_config`** в блоке **«Уведомления админу»** (`scope=admin`, `ALLOWED_KEYS`). Lazy merge из legacy **`admin_incident_alert_config`**. |
-| A3 | UI настроек | Один блок **«Уведомления админу»**: каналы (TG / Max / Push), чекбоксы **«Критичные сбои»**, **«Суточная сводка»**, **«Конфликты аккаунтов»**, часы сводки. Без пяти отдельных identity-строк. |
+| A3 | UI настроек | Блок **«Уведомления админу»**: три подблока — **Критичные сбои**, **Суточная сводка**, **Конфликты аккаунтов**. У каждого: вкл/выкл + **свои** переключатели TG / Max / Push. У сводки — одно поле времени (`digestTime`, default `09:00`). Без пяти identity-строк. |
 | A4 | Dedup critical | Таблица **`operator_health_alert_sent`** (`dedup_key`, `severity`, `sent_at`) или эквивалент в Drizzle; повторный tick с тем же ключом — no-op 24 ч или до `resolved`/нормализации (зафиксировать в миграции). |
-| A5 | Окна сводки | **Утро 08:00:** с предыдущего **вечернего** слота (20:00 вчера) до 08:00 сегодня. **Вечер 20:00:** с 08:00 до 20:00 того же дня. TZ: **`app_display_timezone`**. |
+| A5 | Окно сводки | С **момента прошлой успешной сводки** до текущего запуска (первый запуск — последние 24 ч). Время срабатывания = `digestTime` в TZ `app_display_timezone`. Dedup: `digest:{YYYY-MM-DD}` — не более одной сводки в календарные сутки. |
 | A6 | Critical tick нагрузка | **Облегчённый** `collectCriticalHealthSignals()` (порты read-only, без media preview / engagement). Полный `collectAdminSystemHealthData` — только digest tick и UI. |
-| A7 | Health UI vs push | **Не вопрос на обсуждение — правило:** красное/жёлтое на странице «Здоровье системы» = **информация в кабинете**; Telegram/Max/Push — **отдельно**, по матрице §3. Пример: очередь «забилась» (due backlog) — видно в UI и попадёт в вечернюю сводку, **но не** разбудит ночью. |
+| A7 | Health UI vs push | Красное/жёлтое в «Здоровье системы» — для кабинета; push — по §3. Пример: due backlog — в UI и в **дневной** сводке, без ночного critical-push. |
 
 ---
 
@@ -67,7 +67,7 @@
 |---|--------|---------|
 | O1 | Cron-артефакты | Обязательные шаблоны в `deploy/host/cron.d/`: `bersoncarebot-operator-health-critical`, `bersoncarebot-operator-health-digest`, `bersoncarebot-system-health-guard`. Установка — в `deploy-prod.sh` или documented manual step в HOST_DEPLOY. |
 | O2 | `INTERNAL_JOB_SECRET` | **Обязателен** на prod для всех internal ticks. Gate в deploy README: без секрета ticks не работают. |
-| O3 | Интервалы cron | critical `*/5 * * * *`; guard `*/15 * * * *`; digest — `0 8,20 * * *` с `CRON_TZ` = значение `app_display_timezone` на хосте (оператор синхронизирует с Settings). |
+| O3 | Интервалы cron | critical `*/5 * * * *`; guard `*/15 * * * *` (входит в critical-контур); digest tick **`0 * * * *`** (ежечасно в :00) — отправка **только** когда локальное время (TZ из конфига) совпало с `digestTime` и dedup за день ещё не был. |
 
 ---
 

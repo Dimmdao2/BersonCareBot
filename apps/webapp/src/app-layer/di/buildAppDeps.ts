@@ -177,6 +177,9 @@ import { createNotifyPatientDoctorReply } from "@/modules/messaging/notifyPatien
 import { notifyDoctorPatientMessage } from "@/modules/messaging/notifyDoctorPatientMessage";
 import { notifyDoctorPatientProgramNote } from "@/modules/messaging/notifyDoctorPatientProgramNote";
 import { registerAdminIncidentStaffPushDeps } from "@/modules/admin-incidents/adminIncidentStaffPushRuntime";
+import { registerOperatorAlertDedupPort } from "@/modules/operator-alerts/operatorAlertRuntime";
+import { pgOperatorHealthAlertSentPort } from "@/infra/repos/pgOperatorHealthAlertSent";
+import { inMemoryOperatorHealthAlertSentPort } from "@/infra/repos/inMemoryOperatorHealthAlertSent";
 import { createIntegratorSupportBridge } from "@/modules/messaging/integratorSupportBridge";
 import { createSendProgramNoteReply } from "@/modules/messaging/sendProgramNoteReply";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
@@ -772,6 +775,9 @@ registerAdminIncidentStaffPushDeps({
   webPushSubscriptions: webPushSubscriptionsPort,
   systemSettings: systemSettingsService,
 });
+registerOperatorAlertDedupPort(
+  !inMemoryRepos ? pgOperatorHealthAlertSentPort : inMemoryOperatorHealthAlertSentPort,
+);
 const resolvePatientLabelForDoctorNotify = async (platformUserId: string): Promise<string> => {
   const identity = await doctorClientsPort.getClientIdentity(platformUserId);
   return identity?.displayName?.trim() || identity?.phone?.trim() || "Пациент";

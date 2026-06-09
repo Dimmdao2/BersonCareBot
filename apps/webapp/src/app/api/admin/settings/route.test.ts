@@ -142,6 +142,10 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_local_time");
   });
 
+  it("includes operator_health_alert_config", () => {
+    expect(ALLOWED_KEYS).toContain("operator_health_alert_config");
+  });
+
   it("includes repeat cooldown and warmup chain keys", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_daily_warmup_repeat_cooldown_minutes");
     expect(ALLOWED_KEYS).toContain("patient_treatment_plan_item_done_repeat_cooldown_minutes");
@@ -1310,6 +1314,61 @@ describe("PATCH /api/admin/settings", () => {
     );
     expect(res.status).toBe(200);
     expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value: expectedValue }, "a1");
+  });
+
+  it("returns 200 for operator_health_alert_config full shape", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    const value = {
+      topics: { critical_enabled: true, digest_enabled: true, account_conflicts: false },
+      digestTime: "09:00",
+      channels: {
+        critical: { telegram: true, max: true, web_push: true },
+        digest: { telegram: true, max: false, web_push: true },
+        account_conflicts: { telegram: false, max: true, web_push: false },
+      },
+    };
+    updateSettingMock.mockResolvedValue({
+      key: "operator_health_alert_config",
+      scope: "admin",
+      valueJson: { value },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "operator_health_alert_config", value: { value } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("operator_health_alert_config", "admin", { value }, "a1");
+  });
+
+  it("returns 400 for operator_health_alert_config invalid digestTime", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "operator_health_alert_config",
+          value: {
+            value: {
+              topics: { critical_enabled: true, digest_enabled: true, account_conflicts: true },
+              digestTime: "99:00",
+              channels: {
+                critical: { telegram: true, max: true, web_push: true },
+                digest: { telegram: true, max: true, web_push: true },
+                account_conflicts: { telegram: true, max: true, web_push: true },
+              },
+            },
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
   });
 
   it("returns 200 for notifications_topics when ids are subset of projection codes", async () => {

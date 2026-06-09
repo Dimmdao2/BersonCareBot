@@ -1,14 +1,19 @@
 import type { DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
-import { telegramConfig } from '../../integrations/telegram/config.js';
-import {
-  openOrTouchOperatorIncident,
-} from '../db/repos/operatorHealthDrizzle.js';
+import { sendMaxMessage } from '../../integrations/max/client.js';
+import { maxConfig } from '../../integrations/max/config.js';
+import { getMaxApiKey } from '../../integrations/max/runtimeConfig.js';
+import { logger } from '../observability/logger.js';
+import { openOrTouchOperatorIncident } from '../db/repos/operatorHealthDrizzle.js';
 import { createDbPort } from '../db/client.js';
 import { enqueueOutgoingDeliveryIfAbsent } from '../db/repos/outgoingDeliveryQueue.js';
 import { OPERATOR_ALERT_DELIVERY_MAX_ATTEMPTS } from '../delivery/deliveryContract.js';
+import {
+  loadAdminMessengerIdLists,
+  loadOperatorHealthAlertConfigIntegrator,
+} from './operatorHealthAlertConfigIntegrator.js';
 
 export type ReportOperatorFailureInput = {
-  /** @deprecated Оставлено для совместимости вызовов; доставка идёт через `outgoing_delivery_queue`. */
+  /** @deprecated Оставлено для совместимости вызовов; доставка идёт через `outgoing_delivery_queue` / Max API. */
   dispatchPort?: DispatchPort;
   direction: string;
   integration: string;
@@ -21,12 +26,19 @@ function buildDedupKey(direction: string, integration: string, errorClass: strin
   return `${direction}:${integration}:${errorClass}`;
 }
 
+/** Probe fails: incident only; critical push — после 3-strike в webapp critical tick (SCOPE P7). */
+const PROBE_ERROR_CLASSES_NO_IMMEDIATE_CRITICAL = new Set([
+  'max_probe_failed',
+  'rubitime_get_schedule_failed',
+]);
+
 /**
- * Открыть/обновить операторский инцидент; при первом открытии (occurrence_count === 1) — поставить TG-алерт в очередь доставки.
+ * Открыть/обновить операторский инцидент; при первом открытии (occurrence_count === 1) — алерт админам
+ * по спискам `admin_telegram_ids` / `admin_max_ids` и `operator_health_alert_config.channels.critical`.
  */
 export async function reportOperatorFailure(input: ReportOperatorFailureInput): Promise<void> {
   const dedupKey = buildDedupKey(input.direction, input.integration, input.errorClass);
-  const { id, occurrenceCount } = await openOrTouchOperatorIncident({
+  const { id: incidentId, occurrenceCount } = await openOrTouchOperatorIncident({
     dedupKey,
     direction: input.direction,
     integration: input.integration,
@@ -36,31 +48,98 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
 
   if (occurrenceCount !== 1) return;
 
-  const adminId = telegramConfig.adminTelegramId;
-  if (typeof adminId !== 'number' || !Number.isFinite(adminId)) return;
-
-  const text = input.alertLines.join('\n');
-  const intent: OutgoingIntent = {
-    type: 'message.send',
-    meta: {
-      eventId: `op-inc:${dedupKey}`.slice(0, 240),
-      occurredAt: new Date().toISOString(),
-      source: 'telegram',
-    },
-    payload: {
-      recipient: { chatId: adminId },
-      message: { text },
-      delivery: { channels: ['telegram'], maxAttempts: 1 },
-    },
-  };
+  if (PROBE_ERROR_CLASSES_NO_IMMEDIATE_CRITICAL.has(input.errorClass)) {
+    return;
+  }
 
   const db = createDbPort();
-  const eventId = `op-alert:${id}`.slice(0, 240);
-  await enqueueOutgoingDeliveryIfAbsent(db, {
-    eventId,
-    kind: 'operator_alert',
-    channel: 'telegram',
-    payloadJson: { incidentId: id, intent },
-    maxAttempts: OPERATOR_ALERT_DELIVERY_MAX_ATTEMPTS,
-  });
+  let cfg;
+  try {
+    cfg = await loadOperatorHealthAlertConfigIntegrator(db);
+  } catch (err) {
+    logger.warn({ err }, '[operator_incident] load operator_health_alert_config failed');
+    return;
+  }
+
+  if (!cfg.topics.critical_enabled) return;
+
+  const channels = cfg.channels.critical;
+  const text = input.alertLines.join('\n');
+  if (!text.trim()) return;
+
+  let lists: { telegram: string[]; max: string[] };
+  try {
+    lists = await loadAdminMessengerIdLists(db);
+  } catch (err) {
+    logger.warn({ err }, '[operator_incident] load admin messenger id lists failed');
+    return;
+  }
+
+  if (channels.telegram && lists.telegram.length > 0) {
+    for (const recipientId of lists.telegram) {
+      const chatId = Number(recipientId);
+      if (!Number.isFinite(chatId)) continue;
+      const eventId = `op-alert:${incidentId}:${recipientId}:${dedupKey}`.slice(0, 240);
+      const intent: OutgoingIntent = {
+        type: 'message.send',
+        meta: {
+          eventId: `op-inc:${dedupKey}:${recipientId}`.slice(0, 240),
+          occurredAt: new Date().toISOString(),
+          source: 'telegram',
+        },
+        payload: {
+          recipient: { chatId },
+          message: { text },
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      };
+      await enqueueOutgoingDeliveryIfAbsent(db, {
+        eventId,
+        kind: 'operator_alert',
+        channel: 'telegram',
+        payloadJson: { incidentId, intent },
+        maxAttempts: OPERATOR_ALERT_DELIVERY_MAX_ATTEMPTS,
+      });
+    }
+  } else if (channels.telegram) {
+    logger.info(
+      { scope: 'operator_incident', event: 'operator_alert_skipped_no_recipients', channel: 'telegram' },
+      'skipped',
+    );
+  }
+
+  if (channels.max && maxConfig.enabled && lists.max.length > 0) {
+    const apiKey = await getMaxApiKey();
+    if (!apiKey.trim()) {
+      logger.info(
+        { scope: 'operator_incident', event: 'operator_alert_skipped_no_max_api_key', channel: 'max' },
+        'skipped',
+      );
+    } else {
+      const config = { apiKey };
+      for (const id of lists.max) {
+        const userId = Number(id);
+        if (!Number.isFinite(userId)) continue;
+        try {
+          await sendMaxMessage(config, { userId, text });
+        } catch (err) {
+          logger.warn(
+            {
+              err,
+              scope: 'operator_incident',
+              event: 'operator_alert_relay_failed',
+              channel: 'max',
+              recipient: id,
+            },
+            'relay failed',
+          );
+        }
+      }
+    }
+  } else if (channels.max) {
+    logger.info(
+      { scope: 'operator_incident', event: 'operator_alert_skipped_no_recipients', channel: 'max' },
+      'skipped',
+    );
+  }
 }

@@ -1,6 +1,7 @@
-import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "@/modules/operator-health/adminHealthThresholds";
-import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
-import { collectAdminSystemHealthData, type SystemHealthResponse } from "./collectAdminSystemHealthData";
+import { classifyOperatorHealthBannerSignals } from "@/modules/operator-health/criticalHealthSignals";
+import { collectOperatorHealthBannerInput } from "./collectCriticalHealthSignals";
+import type { SystemHealthResponse } from "./collectAdminSystemHealthData";
+import type { OperatorHealthBannerInput } from "@/modules/operator-health/criticalHealthSignals";
 
 const SYSTEM_HEALTH_HREF = "/app/doctor/system-health";
 
@@ -14,23 +15,51 @@ const BANNER_ON: AdminDoctorTodayHealthBanner = {
   title: "Требуется внимание к здоровью системы",
 };
 
+function mapSystemHealthToBannerInput(s: SystemHealthResponse): OperatorHealthBannerInput {
+  const snap = s.projection.snapshot;
+  const deadCount = typeof snap?.deadCount === "number" ? snap.deadCount : 0;
+  const retriesOverThreshold =
+    typeof snap?.retriesOverThreshold === "number" ? snap.retriesOverThreshold : 0;
+
+  const backupJobs: Record<string, { lastStatus: string }> = {};
+  for (const [jobKey, job] of Object.entries(s.backupJobs)) {
+    backupJobs[jobKey] = { lastStatus: job.lastStatus };
+  }
+
+  return {
+    webappDb: s.webappDb,
+    integratorApi: s.integratorApi.status,
+    projection: {
+      probeStatus: s.projection.status,
+      deadCount,
+      retriesOverThreshold,
+    },
+    outgoingDelivery: {
+      deadTotal: s.outgoingDelivery.deadTotal,
+      dueBacklog: s.outgoingDelivery.dueBacklog,
+    },
+    integratorPushOutbox: s.integratorPushOutbox,
+    backupJobs,
+    probeConsecutiveFailRuns: s.probeOutbound?.consecutiveFailRuns ?? 0,
+    videoTranscodeStatus: s.videoTranscode.status,
+    operatorIncidentsOpenCount: s.operatorIncidentsOpen.length,
+  };
+}
+
 /**
- * Те же критерии «важно для оператора», что и сводка `GET /api/admin/system-health`
- * (без дублирования порогов в нескольких местах вручную).
+ * Критерии баннера «Сегодня» — `classifyOperatorHealthBannerSignals` (матрица §3, warn + critical).
  */
 export function adminDoctorTodayHealthBannerFromSystemHealth(s: SystemHealthResponse): AdminDoctorTodayHealthBanner {
-  if (s.webappDb === "down") return BANNER_ON;
-  if (s.integratorApi.status !== "ok") return BANNER_ON;
-  if (s.projection.status !== "ok") return BANNER_ON;
-  if (Object.values(s.backupJobs).some((j) => j.lastStatus === "failure")) return BANNER_ON;
-  if (s.operatorIncidentsOpen.length > 0) return BANNER_ON;
-  const od = s.outgoingDelivery;
-  if (od.deadTotal > 0 || od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) return BANNER_ON;
-  if (classifyIntegratorPushOutboxSystemHealthStatus(s.integratorPushOutbox) !== "ok") return BANNER_ON;
+  if (classifyOperatorHealthBannerSignals(mapSystemHealthToBannerInput(s))) {
+    return BANNER_ON;
+  }
   return { show: false };
 }
 
 export async function loadAdminDoctorTodayHealthBanner(): Promise<AdminDoctorTodayHealthBanner> {
-  const snapshot = await collectAdminSystemHealthData();
-  return adminDoctorTodayHealthBannerFromSystemHealth(snapshot);
+  const input = await collectOperatorHealthBannerInput();
+  if (classifyOperatorHealthBannerSignals(input)) {
+    return BANNER_ON;
+  }
+  return { show: false };
 }

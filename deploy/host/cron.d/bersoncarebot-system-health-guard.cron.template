@@ -1,0 +1,2 @@
+# Integrator push outbox guard (critical block when error). Requires INTERNAL_JOB_SECRET in webapp.prod.
+*/15 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/system-health-guard/tick" >/dev/null'

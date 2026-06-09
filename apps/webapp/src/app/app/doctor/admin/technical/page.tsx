@@ -1,7 +1,7 @@
 import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
 import { loadAdminSettingsPageData } from "@/app/app/settings/adminSettingsData";
 import { AdminSettingsSection } from "@/app/app/settings/AdminSettingsSection";
-import { AdminIncidentAlertsSection } from "@/app/app/settings/AdminIncidentAlertsSection";
+import { OperatorHealthAlertsSection } from "@/app/app/settings/OperatorHealthAlertsSection";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
@@ -35,7 +35,7 @@ export default async function DoctorAdminTechnicalPage() {
           patientProgramDiscussionMediaSubmissionEnabled={diagnostics.patientProgramDiscussionMediaSubmissionEnabled}
           patientBookingUrl={diagnostics.patientBookingUrl}
         />
-        <AdminIncidentAlertsSection initialConfig={diagnostics.incidentAlertsConfig} />
+        <OperatorHealthAlertsSection initialConfig={diagnostics.operatorHealthAlertsConfig} />
       </div>
     </div>
   );

@@ -28,6 +28,7 @@ import {
   parsePatientHomeDailyWarmupRotationTimes,
 } from "@/modules/patient-home/patientHomeDailyWarmupRotationSettings";
 import { normalizeAdminIncidentAlertConfigForAdminPatch } from "@/modules/admin-incidents/adminIncidentAlertConfig";
+import { normalizeOperatorHealthAlertConfigForAdminPatch } from "@/modules/operator-alerts/operatorHealthAlertConfig";
 import { parseSmtpOutboundPatchValue } from "@/modules/system-settings/smtpOutboundPatch";
 import {
   hasStoredWebPushVapidPrivate,
@@ -137,6 +138,7 @@ const ADMIN_SCOPE_KEYS = [
   "doctor_phones",
   "allowed_phones",
   "admin_incident_alert_config",
+  "operator_health_alert_config",
 ] as const;
 
 const patchSchema = z.object({
@@ -510,6 +512,15 @@ export async function PATCH(request: Request) {
   if (parsed.data.key === "admin_incident_alert_config") {
     const inner = normalizedValue.value;
     const checked = normalizeAdminIncidentAlertConfigForAdminPatch(inner);
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: checked.value };
+  }
+
+  if (parsed.data.key === "operator_health_alert_config") {
+    const inner = normalizedValue.value;
+    const checked = normalizeOperatorHealthAlertConfigForAdminPatch(inner);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }

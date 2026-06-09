@@ -6,11 +6,45 @@
 
 ### 2026-06-09 — Wave 2: scope decisions + усиление ROADMAP (**постановка**)
 
-- **Продукт:** critical immediate (матрица §3); digest 08:00/20:00 всегда (`⚠️` / `✅`); не push на каждый `degraded`; identity — immediate; probe 3-strike; webhook burst 5/15m.
-- **Архитектура:** `dispatchOperatorAlert`; ключ `operator_health_alert_config`; каналы `critical` / `digest` / `immediate`; dedup table; облегчённый critical collect.
+- **Продукт:** critical immediate (матрица §3); digest 1×/день `digestTime` (default 09:00); не push на каждый `degraded`; account_conflicts один чекбокс; probe 3-strike; webhook burst 5/15m.
+- **Архитектура:** `dispatchOperatorAlert`; `operator_health_alert_config`; каналы **отдельно** у critical / digest / account_conflicts; dedup table; облегчённый critical collect.
 - **Доки:** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md), [`ROADMAP_WAVE2.md`](ROADMAP_WAVE2.md) (волны 0–4, DoD, правила агентов); MASTER §supersede; PHASE E superseded; README таблица фаз.
 - **Код:** не менялся.
 - **Уточнение продукта:** один чекбокс «Конфликты аккаунтов»; доставка только через существующий worker/очередь, без новых сервисов; health UI ≠ срочный push — зафиксировано как правило (не открытый вопрос).
+- **2026-06-09 (2):** сводка **1×/день**, поле `digestTime` default **09:00**; каналы TG/Max/Push **отдельно** у каждого из трёх блоков; очередь синка integrator — в «Критичные сбои», без отдельного чекбокса.
+
+### 2026-06-09 — Wave 0 (фундамент) **закрыто в коде**
+
+- **`dispatchOperatorAlert`** (`apps/webapp/src/modules/operator-alerts/`), dedup **`operator_health_alert_sent`** (миграция `0111`), порт `pgOperatorHealthAlertSent`.
+- Ключ **`operator_health_alert_config`** в `ALLOWED_KEYS` + PATCH `/api/admin/settings`; lazy merge из `admin_incident_alert_config`.
+- UI **«Уведомления админу»** (`OperatorHealthAlertsSection`) — три блока, свои каналы, `digestTime` default 09:00.
+- `sendAdminIncidentRelayAlert` → thin wrapper; guard tick (на момент W0 — critical ipo; **с W1 audit:** только purge + классификация, push в `operator-health-critical/tick`).
+- Integrator **`reportOperatorFailure`**: списки `admin_telegram_ids` / `admin_max_ids`, `channels.critical` из DB (без `adminTelegramId`).
+- Cron templates: `deploy/host/cron.d/bersoncarebot-operator-health-{critical,digest}.cron.template`, `bersoncarebot-system-health-guard.cron.template`.
+- Проверки: `operatorHealthAlertConfig.test.ts`, `dispatchOperatorAlert.test.ts`, `route.test.ts` (operator_health_alert_config).
+
+### 2026-06-09 — Wave 1 аудит-фиксы
+
+- **`videoTranscode` `error`:** critical + баннер (матрица §3); lightweight collect в `collectCriticalHealthSignals`.
+- **Sync-баннер:** `probeOutbound.consecutiveFailRuns` в `SystemHealthResponse` + `videoTranscode.status` в mapper.
+- **Guard tick:** только классификация ipo + TTL purge архива; critical push по ipo — только `operator-health-critical/tick` (убрано дублирование).
+- **Тесты:** `runOperatorHealthCriticalTick` (dedup), `runIntegratorPushOutboxHealthGuardTick`, `operatorHealthDrizzle.recordProbeRun`, расширены classifier/banner/probe-runner.
+
+### 2026-06-09 — Wave 1 (critical tick) **закрыто в коде**
+
+- **`criticalHealthSignals.ts`:** `classifyCriticalHealthSignals`, `classifyOperatorHealthBannerSignals` (единые пороги §3); projection critical по `deadCount`, retries — banner-only; due backlog — banner-only; ipo `error` — critical, `degraded` — нет; probe **3-strike** (`PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS=3`).
+- **`collectCriticalHealthSignals` / `collectOperatorHealthBannerInput`** — облегчённый сбор в `app-layer/health`.
+- **`runOperatorHealthCriticalTick`** + **`POST /api/internal/operator-health-critical/tick`** (`INTERNAL_JOB_SECRET`); cron registry `operator_health_critical`.
+- **`adminDoctorTodayHealthBanner`** — banner через shared classifier + `loadAdminDoctorTodayHealthBanner`.
+- **Integrator probe 3-strike:** `recordOperatorOutboundProbeRun` в `operator_job_status` (`meta_json.consecutiveFailRuns`); `reportOperatorFailure` — без немедленного TG/Max для `max_probe_failed` / `rubitime_get_schedule_failed`.
+- **Проверки:** `criticalHealthSignals.test.ts`, `operator-health-critical/tick/route.test.ts`, `adminDoctorTodayHealthBanner.test.ts`, `reportOperatorFailure.test.ts`; `pnpm --dir apps/webapp typecheck`.
+
+### 2026-06-09 — Wave 0 аудит и фиксы
+
+- **`reportOperatorFailure`:** исправлен shadowing — в `payloadJson.incidentId` попадал telegram recipient вместо UUID инцидента.
+- **`dispatchOperatorAlert`:** dedup пишется только при фактической попытке доставки (`anyChannelAttempted`), не при `no_recipients`.
+- Комментарии guard tick / HOST_DEPLOY — `operator_health_alert_config` critical вместо legacy `system_health_db_guard`.
+- RTL: `OperatorHealthAlertsSection.test.tsx`; integrator: `reportOperatorFailure.test.ts`.
 - **Следующий шаг:** волна 0 по ROADMAP §4.
 
 ### 2026-06-07 — UI: операторский сброс инцидентов и dead-очередей (**закрыто**)

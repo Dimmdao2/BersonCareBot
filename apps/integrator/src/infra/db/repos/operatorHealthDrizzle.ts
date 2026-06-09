@@ -2,7 +2,7 @@
  * Запись и обновление operator health таблиц через Drizzle (без сырого SQL в приложении).
  */
 import { and, eq, isNull, like, sql } from 'drizzle-orm';
-import { operatorIncidents } from '@bersoncare/operator-db-schema';
+import { operatorIncidents, operatorJobStatus } from '@bersoncare/operator-db-schema';
 import { getIntegratorDrizzle } from '../drizzle.js';
 
 const ERROR_DETAIL_MAX = 900;
@@ -90,6 +90,83 @@ export async function getOperatorIncidentAlertState(
 /**
  * Закрыть все открытые инциденты, чей dedup_key начинается с префикса (MVP: resolve проб MAX/Rubitime).
  */
+const OPERATOR_HEALTH_JOB_FAMILY = 'health';
+const OPERATOR_OUTBOUND_PROBE_JOB_KEY = 'health.outbound_probe.run';
+
+/**
+ * Записать результат синтетических проб (MAX/Rubitime) в `operator_job_status` для 3-strike critical tick.
+ */
+export async function recordOperatorOutboundProbeRun(input: {
+  max: string;
+  rubitime: string;
+  anyFail: boolean;
+}): Promise<{ consecutiveFailRuns: number }> {
+  const db = getIntegratorDrizzle();
+  const existing = await db
+    .select({ metaJson: operatorJobStatus.metaJson })
+    .from(operatorJobStatus)
+    .where(eq(operatorJobStatus.jobKey, OPERATOR_OUTBOUND_PROBE_JOB_KEY))
+    .limit(1);
+
+  const prevMeta =
+    existing[0]?.metaJson && typeof existing[0].metaJson === 'object' && !Array.isArray(existing[0].metaJson)
+      ? (existing[0].metaJson as Record<string, unknown>)
+      : {};
+  const prevStreak =
+    typeof prevMeta.consecutiveFailRuns === 'number' && Number.isFinite(prevMeta.consecutiveFailRuns)
+      ? Math.max(0, Math.trunc(prevMeta.consecutiveFailRuns))
+      : 0;
+  const consecutiveFailRuns = input.anyFail ? prevStreak + 1 : 0;
+  const finishedIso = new Date().toISOString();
+  const metaJson = {
+    max: input.max,
+    rubitime: input.rubitime,
+    consecutiveFailRuns,
+  };
+
+  const conflictSet = input.anyFail
+    ? {
+        jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
+        lastStatus: 'failure' as const,
+        lastFinishedAt: finishedIso,
+        lastFailureAt: finishedIso,
+        lastDurationMs: 0,
+        lastError: 'probe_fail',
+        metaJson,
+      }
+    : {
+        jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
+        lastStatus: 'success' as const,
+        lastFinishedAt: finishedIso,
+        lastSuccessAt: finishedIso,
+        lastFailureAt: null,
+        lastDurationMs: 0,
+        lastError: null,
+        metaJson,
+      };
+
+  await db
+    .insert(operatorJobStatus)
+    .values({
+      jobKey: OPERATOR_OUTBOUND_PROBE_JOB_KEY,
+      jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
+      lastStatus: input.anyFail ? 'failure' : 'success',
+      lastStartedAt: finishedIso,
+      lastFinishedAt: finishedIso,
+      lastSuccessAt: input.anyFail ? null : finishedIso,
+      lastFailureAt: input.anyFail ? finishedIso : null,
+      lastDurationMs: 0,
+      lastError: input.anyFail ? 'probe_fail' : null,
+      metaJson,
+    })
+    .onConflictDoUpdate({
+      target: operatorJobStatus.jobKey,
+      set: conflictSet,
+    });
+
+  return { consecutiveFailRuns };
+}
+
 export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(prefix: string): Promise<number> {
   const db = getIntegratorDrizzle();
   const pattern = `${prefix}%`;

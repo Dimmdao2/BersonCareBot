@@ -1,62 +1,14 @@
 import { createHash } from "node:crypto";
 import { computeChannelLinkOwnershipConflictKey, type UpsertOpenConflictLogResult } from "@/infra/adminAuditLog";
-import { logger } from "@/infra/logging/logger";
-import { relayOutbound } from "@/modules/messaging/relayOutbound";
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
-import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import {
-  ADMIN_INCIDENT_ALERT_CONFIG_KEY,
   ADMIN_INCIDENT_TOPIC_LABELS,
   type AdminIncidentTopicKey,
-  isAdminIncidentTopicEnabled,
-  parseAdminIncidentAlertConfig,
 } from "./adminIncidentAlertConfig";
-import { getAdminIncidentStaffPushDeps } from "./adminIncidentStaffPushRuntime";
-import { sendAdminIncidentStaffWebPush } from "./sendAdminIncidentStaffWebPush";
-
-const MAX_LINE = 500;
-
-function dedupe(ids: string[]): string[] {
-  return [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
-}
-
-async function loadAdminRelayTargets(): Promise<{ telegram: string[]; max: string[] }> {
-  const [adminTg, adminMax] = await Promise.all([
-    getConfigValue("admin_telegram_ids", ""),
-    getConfigValue("admin_max_ids", ""),
-  ]);
-  return {
-    telegram: dedupe(parseIdTokens(adminTg)),
-    max: dedupe(parseIdTokens(adminMax)),
-  };
-}
-
-async function loadParsedConfigFromDb(): Promise<ReturnType<typeof parseAdminIncidentAlertConfig>> {
-  try {
-    const raw = await getConfigValue(ADMIN_INCIDENT_ALERT_CONFIG_KEY, "");
-    const trimmed = raw.trim();
-    if (!trimmed) return parseAdminIncidentAlertConfig(null);
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(trimmed) as unknown;
-    } catch {
-      return parseAdminIncidentAlertConfig(null);
-    }
-    return parseAdminIncidentAlertConfig(parsed);
-  } catch (err) {
-    logger.warn({ err }, "[admin_incident] load config failed, using defaults");
-    return parseAdminIncidentAlertConfig(null);
-  }
-}
-
-function clip(s: string, max: number): string {
-  const t = s.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max - 1)}…`;
-}
+import { dispatchOperatorAlert } from "@/modules/operator-alerts/dispatchOperatorAlert";
+import { adminIncidentTopicToAlertBlock } from "@/modules/operator-alerts/operatorHealthAlertConfig";
 
 /**
- * Best-effort relay to admin Telegram/Max lists and staff web push per system_settings toggles.
+ * Best-effort relay to admin Telegram/Max lists and staff web push per `operator_health_alert_config`.
  * Delivery is fire-and-forget — callers must not rely on await for channel completion.
  */
 export async function sendAdminIncidentRelayAlert(input: {
@@ -64,102 +16,16 @@ export async function sendAdminIncidentRelayAlert(input: {
   dedupKey: string;
   lines: string[];
 }): Promise<void> {
-  const cfg = await loadParsedConfigFromDb();
-  if (!isAdminIncidentTopicEnabled(cfg, input.topic)) return;
+  const block = adminIncidentTopicToAlertBlock(input.topic);
+  if (!block) return;
 
-  const targets = await loadAdminRelayTargets();
-  const text = clip(input.lines.map((l) => clip(l, MAX_LINE)).join("\n"), 3900);
-  if (!text.trim()) return;
-
-  const dk = clip(input.dedupKey.replace(/[^a-zA-Z0-9:_-]/g, "_"), 120);
-  const pushTitle = ADMIN_INCIDENT_TOPIC_LABELS[input.topic];
-  const pushBody = clip(input.lines.find((line) => line.trim().length > 0) ?? text, 160);
-  const pushUrl = "/app/doctor/admin/technical";
-
-  if (cfg.channels.telegram) {
-    if (targets.telegram.length === 0) {
-      logger.info({ scope: "admin_incident", event: "admin_incident_alert_skipped_no_recipients", channel: "telegram" });
-    } else {
-      for (const id of targets.telegram) {
-        const messageId = `admin-incident:${input.topic}:${dk}:telegram:${id}`;
-        void relayOutbound({ messageId, channel: "telegram", recipient: id, text }).then((r) => {
-          if (!r.ok) {
-            logger.warn(
-              {
-                scope: "admin_incident",
-                event: "admin_incident_relay_failed",
-                topic: input.topic,
-                channel: "telegram",
-                recipient: id,
-                reason: r.reason,
-              },
-              "relay failed",
-            );
-          }
-        });
-      }
-    }
-  }
-
-  if (cfg.channels.max) {
-    if (targets.max.length === 0) {
-      logger.info({ scope: "admin_incident", event: "admin_incident_alert_skipped_no_recipients", channel: "max" });
-    } else {
-      for (const id of targets.max) {
-        const messageId = `admin-incident:${input.topic}:${dk}:max:${id}`;
-        void relayOutbound({ messageId, channel: "max", recipient: id, text }).then((r) => {
-          if (!r.ok) {
-            logger.warn(
-              {
-                scope: "admin_incident",
-                event: "admin_incident_relay_failed",
-                topic: input.topic,
-                channel: "max",
-                recipient: id,
-                reason: r.reason,
-              },
-              "relay failed",
-            );
-          }
-        });
-      }
-    }
-  }
-
-  if (cfg.channels.web_push) {
-    const pushDeps = getAdminIncidentStaffPushDeps();
-    if (!pushDeps) {
-      logger.info({
-        scope: "admin_incident",
-        event: "admin_incident_alert_skipped_no_push_runtime",
-        channel: "web_push",
-      });
-    } else {
-      void sendAdminIncidentStaffWebPush(
-        {
-          topic: input.topic,
-          dedupKey: dk,
-          pushTitle,
-          pushBody,
-          pushUrl,
-        },
-        pushDeps,
-      )
-        .then((delivered) => {
-          if (delivered === 0) {
-            logger.info({
-              scope: "admin_incident",
-              event: "admin_incident_alert_skipped_no_recipients",
-              channel: "web_push",
-              topic: input.topic,
-            });
-          }
-        })
-        .catch((err: unknown) => {
-          logger.warn({ err, topic: input.topic }, "admin incident web push dispatch failed");
-        });
-    }
-  }
+  await dispatchOperatorAlert({
+    block,
+    topic: input.topic,
+    dedupKey: input.dedupKey,
+    lines: input.lines,
+    pushTitle: ADMIN_INCIDENT_TOPIC_LABELS[input.topic],
+  });
 }
 
 export type ChannelLinkBindingConflictCtx = {

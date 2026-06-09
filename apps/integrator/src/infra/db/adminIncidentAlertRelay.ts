@@ -5,11 +5,11 @@ import { sendMaxMessage } from '../../integrations/max/client.js';
 import { maxConfig } from '../../integrations/max/config.js';
 import { getMaxApiKey } from '../../integrations/max/runtimeConfig.js';
 import { logger } from '../observability/logger.js';
-import { parseMessengerIdTokens } from './parseMessengerIdTokens.js';
+import { extractSystemSettingInnerValue } from './publicSystemSettings.js';
 import {
-  extractSystemSettingInnerValue,
-  fetchPublicSystemSettingValueJson,
-} from './publicSystemSettings.js';
+  loadAdminMessengerIdLists,
+  loadOperatorHealthAlertConfigIntegrator,
+} from '../operatorIncident/operatorHealthAlertConfigIntegrator.js';
 
 const ADMIN_INCIDENT_V1_TOPIC_KEYS = [
   'channel_link',
@@ -82,18 +82,6 @@ export function parseAdminIncidentAlertConfigIntegrator(valueJson: unknown): Adm
   return out;
 }
 
-async function loadSettingInner(db: DbPort, key: string): Promise<unknown> {
-  const valueJson = await fetchPublicSystemSettingValueJson(db, key);
-  if (valueJson === null) return null;
-  const inner = extractSystemSettingInnerValue(valueJson);
-  return inner === undefined ? valueJson : inner;
-}
-
-async function loadAdminIdList(db: DbPort, key: 'admin_telegram_ids' | 'admin_max_ids'): Promise<string[]> {
-  const inner = await loadSettingInner(db, key);
-  return [...new Set(parseMessengerIdTokens(inner).map((x) => x.trim()).filter(Boolean))];
-}
-
 function clip(s: string, max: number): string {
   const t = s.trim();
   if (t.length <= max) return t;
@@ -114,16 +102,17 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
   dedupKey: string;
   lines: string[];
 }): Promise<void> {
-  let cfg: AdminIncidentAlertConfig;
+  let operatorCfg;
   try {
-    const valueJson = await fetchPublicSystemSettingValueJson(input.db, 'admin_incident_alert_config');
-    cfg = parseAdminIncidentAlertConfigIntegrator(valueJson);
+    operatorCfg = await loadOperatorHealthAlertConfigIntegrator(input.db);
   } catch (err) {
-    logger.warn({ err }, '[admin_incident] integrator: load admin_incident_alert_config failed, defaults');
-    cfg = parseAdminIncidentAlertConfigIntegrator(null);
+    logger.warn({ err }, '[admin_incident] integrator: load operator_health_alert_config failed');
+    return;
   }
 
-  if (!cfg.topics[input.topic]) return;
+  if (!operatorCfg.topics.account_conflicts) return;
+
+  const channels = operatorCfg.channels.account_conflicts;
 
   const dk = clip(input.dedupKey.replace(/[^a-zA-Z0-9:_-]/g, '_'), 120);
   const text = clip(input.lines.map((l) => clip(l, MAX_LINE)).join('\n'), 3900);
@@ -131,10 +120,11 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
 
   const dispatch = input.getDispatchPort?.();
 
-  if (cfg.channels.telegram) {
+  if (channels.telegram) {
     let telegramIds: string[] = [];
     try {
-      telegramIds = await loadAdminIdList(input.db, 'admin_telegram_ids');
+      const lists = await loadAdminMessengerIdLists(input.db);
+      telegramIds = lists.telegram;
     } catch (err) {
       logger.warn({ err }, '[admin_incident] integrator: load admin_telegram_ids failed');
     }
@@ -185,10 +175,11 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
     }
   }
 
-  if (cfg.channels.max && maxConfig.enabled) {
+  if (channels.max && maxConfig.enabled) {
     let maxIds: string[] = [];
     try {
-      maxIds = await loadAdminIdList(input.db, 'admin_max_ids');
+      const lists = await loadAdminMessengerIdLists(input.db);
+      maxIds = lists.max;
     } catch (err) {
       logger.warn({ err }, '[admin_incident] integrator: load admin_max_ids failed');
     }

@@ -14,6 +14,7 @@ import {
   OPERATOR_SPECIALIST_TASKS_JOB_FAMILY,
   OPERATOR_SPECIALIST_TASK_REMINDERS_TICK_JOB_KEY,
   OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY,
+  OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
   OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
 
@@ -97,6 +98,16 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     staleAfterSec: 35 * 60,
     kind: "internal_http",
     internalPath: "/api/internal/system-health-guard/tick",
+  },
+  {
+    id: "operator_health_critical",
+    jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
+    jobKey: OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
+    label: "Critical health tick",
+    scheduleHint: "каждые 5 мин",
+    staleAfterSec: 12 * 60,
+    kind: "internal_http",
+    internalPath: "/api/internal/operator-health-critical/tick",
   },
   {
     id: "playback_retention",

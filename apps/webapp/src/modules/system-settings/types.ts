@@ -122,8 +122,10 @@ export const ALLOWED_KEYS = [
    * Пустой `privateKey` в PATCH при уже сохранённом приватном — merge, не сброс.
    */
   "web_push_vapid",
-  /** Операторские алерты идентичности: темы + каналы TG/Max для relay на admin_*_ids (см. adminIncidentAlertConfig). */
+  /** Операторские алерты идентичности: темы + каналы TG/Max для relay на admin_*_ids (legacy; см. operator_health_alert_config). */
   "admin_incident_alert_config",
+  /** Уведомления админу: критичные / сводка / конфликты аккаунтов + каналы по блокам (см. operatorHealthAlertConfig). */
+  "operator_health_alert_config",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",

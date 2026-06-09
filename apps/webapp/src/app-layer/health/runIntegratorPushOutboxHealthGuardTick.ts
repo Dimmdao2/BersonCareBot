@@ -1,6 +1,5 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
-import { sendAdminIncidentRelayAlert } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
 
 async function purgeHealthFailureArchiveTtlBestEffort(): Promise<void> {
@@ -16,6 +15,7 @@ async function purgeHealthFailureArchiveTtlBestEffort(): Promise<void> {
 
 /**
  * Проактивная проверка `integrator_push_outbox` для cron (`POST /api/internal/system-health-guard/tick`).
+ * Critical push по ipo error — в `operator-health-critical/tick` (каждые 5 мин); guard только классифицирует и чистит архив.
  */
 export async function runIntegratorPushOutboxHealthGuardTick(): Promise<{
   status: "ok" | "degraded" | "error";
@@ -23,26 +23,6 @@ export async function runIntegratorPushOutboxHealthGuardTick(): Promise<{
 }> {
   const snapshot = await buildAppDeps().operatorHealthRead.getIntegratorPushOutboxHealth();
   const status = classifyIntegratorPushOutboxSystemHealthStatus(snapshot);
-
-  if (status === "ok") {
-    await purgeHealthFailureArchiveTtlBestEffort();
-    return { status, alerted: false };
-  }
-
-  const hourKey = new Date().toISOString().slice(0, 13);
-  await sendAdminIncidentRelayAlert({
-    topic: "system_health_db_guard",
-    dedupKey: `ipo:${hourKey}:${status}`,
-    lines: [
-      `Очередь integrator_push_outbox: ${status}`,
-      `Ждут (due): ${snapshot.dueBacklog}, dead: ${snapshot.deadTotal}, processing: ${snapshot.processingCount}`,
-      snapshot.oldestDueAgeSeconds != null ? `Старейший due (с): ${snapshot.oldestDueAgeSeconds}` : "",
-      snapshot.oldestProcessingAgeSeconds != null
-        ? `Старейший processing (с): ${snapshot.oldestProcessingAgeSeconds}`
-        : "",
-    ].filter((l) => l.length > 0),
-  });
-
   await purgeHealthFailureArchiveTtlBestEffort();
-  return { status, alerted: true };
+  return { status, alerted: false };
 }

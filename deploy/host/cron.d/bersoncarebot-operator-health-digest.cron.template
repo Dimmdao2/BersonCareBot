@@ -1,0 +1,2 @@
+# Operator health: daily digest tick (hourly; sends at digestTime from operator_health_alert_config). Requires INTERNAL_JOB_SECRET.
+0 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/operator-health-digest/tick" >/dev/null'

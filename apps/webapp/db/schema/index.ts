@@ -15,6 +15,7 @@ export * from "./materialRatings";
 export * from "./patientContentRatingFeedback";
 export * from "./patientDiarySnapshots";
 export * from "./operatorHealth";
+export * from "./operatorHealthAlertSent";
 export * from "./outgoingDeliveryQueue";
 export * from "./operatorHealthFailureArchive";
 export * from "./notificationDeliveryAttempts";

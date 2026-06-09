@@ -12,11 +12,14 @@ import {
 } from "@/app-layer/media/adminHlsProxyHealthMetrics";
 import { loadAdminTranscodeHealthMetrics } from "@/app-layer/media/adminTranscodeHealthMetrics";
 import {
+  OPERATOR_HEALTH_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+  OPERATOR_OUTBOUND_PROBE_JOB_KEY,
   OPERATOR_REMINDERS_JOB_FAMILY,
   OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
 } from "@/modules/operator-health/reconcileJobKeys";
+import { readProbeConsecutiveFailRuns } from "@/modules/operator-health/probeOutboundMeta";
 import { classifyWebPushOnlyReminderTickSystemHealthStatus } from "@/modules/operator-health/adminHealthThresholds";
 import { getPool } from "@/app-layer/db/client";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
@@ -267,6 +270,8 @@ export type SystemHealthResponse = {
   notificationDelivery: NotificationDeliveryHealthPayload;
   /** Host cron / internal periodic jobs (`operator_job_status` + backup tiers). */
   cronJobs: CronJobsHealthPayload;
+  /** Счётчик подряд неуспешных outbound probe-run (integrator → `operator_job_status`). */
+  probeOutbound: { consecutiveFailRuns: number };
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
@@ -813,16 +818,18 @@ async function probeOperatorHealthData(): Promise<
     backupJobs: Record<string, OperatorBackupJobPayload>;
     outgoingDelivery: OutgoingDeliveryHealthPayload;
     integratorPushOutbox: IntegratorPushOutboxHealthPayload;
+    probeOutboundConsecutiveFailRuns: number;
   }>
 > {
   const startedAt = Date.now();
   try {
     const read = buildAppDeps().operatorHealthRead;
-    const [incidents, jobRows, outgoingSnapshot, ipoSnapshot] = await Promise.all([
+    const [incidents, jobRows, outgoingSnapshot, ipoSnapshot, probeJob] = await Promise.all([
       read.listOpenIncidents(20),
       read.listBackupJobStatus(),
       read.getOutgoingDeliveryQueueHealth(),
       read.getIntegratorPushOutboxHealth(),
+      read.getOperatorJobStatus(OPERATOR_HEALTH_JOB_FAMILY, OPERATOR_OUTBOUND_PROBE_JOB_KEY),
     ]);
     const backupJobs: Record<string, OperatorBackupJobPayload> = {};
     for (const r of jobRows) {
@@ -864,6 +871,7 @@ async function probeOperatorHealthData(): Promise<
           oldestProcessingAgeSeconds: ipoSnapshot.oldestProcessingAgeSeconds,
           lastQueueActivityAt: ipoSnapshot.lastQueueActivityAt,
         },
+        probeOutboundConsecutiveFailRuns: readProbeConsecutiveFailRuns(probeJob?.metaJson),
       },
       durationMs: elapsedMs(startedAt),
     };
@@ -1041,6 +1049,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     backupJobs: Record<string, OperatorBackupJobPayload>;
     outgoingDelivery: OutgoingDeliveryHealthPayload;
     integratorPushOutbox: IntegratorPushOutboxHealthPayload;
+    probeOutboundConsecutiveFailRuns: number;
   }> =
     operatorHealth.status === "fulfilled"
       ? operatorHealth.value
@@ -1055,6 +1064,10 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const integratorPushOutboxPayload: IntegratorPushOutboxHealthPayload = operatorHealthResult.ok
     ? operatorHealthResult.value.integratorPushOutbox
     : emptyIntegratorPushOutboxHealthPayload();
+
+  const probeOutboundConsecutiveFailRuns = operatorHealthResult.ok
+    ? operatorHealthResult.value.probeOutboundConsecutiveFailRuns
+    : 0;
 
   const remindersPipelineStartedAt = Date.now();
   const remindersPipelineResult = await loadAdminReminderPipelineMetrics(outgoingDeliveryPayload);
@@ -1186,6 +1199,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     webPushOnlyReminderTick: webPushOnlyReminderTickPayload,
     notificationDelivery: notificationDeliveryPayload,
     cronJobs: cronJobsPayload,
+    probeOutbound: { consecutiveFailRuns: probeOutboundConsecutiveFailRuns },
     meta: {
       probes: {
         webappDb: {

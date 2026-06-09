@@ -1,22 +1,22 @@
 ---
 name: Operator health alerting wave 2
-overview: "Wave 2: SCOPE_DECISIONS + ROADMAP — единый dispatchOperatorAlert, critical tick, digest 08/20 (⚠️/✅), без spam на degraded. PHASE E superseded."
+overview: "Wave 2: dispatchOperatorAlert, critical tick, digest 1x/day digestTime 09:00, per-block channels, account_conflicts one checkbox. PHASE E superseded."
 status: draft
 todos:
   - id: w0-dispatcher
     content: "0.1 dispatchOperatorAlert + operator_health_alert_sent dedup + integrator unified recipients"
-    status: pending
+    status: completed
   - id: w0-config-ui
-    content: "0.2–0.3 operator_health_alert_config (ALLOWED_KEYS, merge legacy) + UI «Оповещения админу» 3 секции"
-    status: pending
+    content: "0.2–0.3 operator_health_alert_config + UI 3 блока (свои каналы, digestTime 09:00, account_conflicts)"
+    status: completed
   - id: w0-deploy
     content: "0.5 cron templates critical/digest/guard + HOST_DEPLOY INTERNAL_JOB_SECRET gate"
-    status: pending
+    status: completed
   - id: w1-critical
     content: "1.1–1.3 criticalHealthSignals + lightweight collect + critical tick */5 + 3-strike probe"
-    status: pending
+    status: completed
   - id: w2-digest
-    content: "2.1–2.3 buildOperatorHealthDigest + digest tick morning/evening + UI last digest"
+    content: "2.1–2.3 buildOperatorHealthDigest + hourly digest tick (send at digestTime) + UI time field"
     status: pending
   - id: w3-hooks
     content: "3.1–3.3 projection/media thresholds + recovery lines in digest only"

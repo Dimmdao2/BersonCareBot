@@ -41,27 +41,25 @@
 flowchart LR
   subgraph immediate [Немедленно]
     C[critical tick 5m]
-    I[identity immediate]
+    A[конфликты аккаунтов]
   end
-  subgraph scheduled [2x в день]
-    D[digest morning 08:00]
-    E[digest evening 20:00]
+  subgraph scheduled [1x в сутки]
+    D[digest digestTime default 09:00]
   end
   subgraph inapp [Только in-app]
     B[баннер Сегодня warn]
   end
-  C --> TG[TG / Max / Push]
-  I --> TG
-  D --> TG
-  E --> TG
+  C --> TGc[TG / Max / Push critical]
+  A --> TGa[TG / Max / Push accounts]
+  D --> TGd[TG / Max / Push digest]
 ```
 
-| Уровень | Когда | Формат |
-|---------|--------|--------|
-| **critical** | Падения из §3 SCOPE_DECISIONS | Один push на `dedup_key`; tick ≤5 мин |
-| **account_conflicts** | Чекбокс «Конфликты аккаунтов» — все identity-события | Немедленно, те же каналы TG/Max/Push |
-| **digest** | 08:00 и 20:00 (`app_display_timezone`) | `⚠️` + до ~15 строк **или** `✅ Всё в порядке` |
-| **warn** | due backlog, projection retries, … | Баннер + попадание в сводку за окно |
+| Уровень | Когда | Каналы | Формат |
+|---------|--------|--------|--------|
+| **critical** | Падения из §3 (вкл. outbox **error**) | Свои TG/Max/Push | Один push на `dedup_key`; tick ≤5 мин |
+| **account_conflicts** | Чекбокс «Конфликты аккаунтов» | Свои TG/Max/Push | Немедленно |
+| **digest** | 1×/день в `digestTime` (default `09:00`) | Свои TG/Max/Push | `⚠️` + до ~15 строк **или** `✅ Всё в порядке` |
+| **warn** | due backlog, projection retries, … | — | Баннер + сводка за окно |
 
 **Не делаем:** push на каждый `degraded` в health UI.
 
@@ -94,7 +92,7 @@ cron/internal tick
 |-------|------|--------|----------|
 | **0** | Диспетчер, конфиг, UI, dedup table, deploy snippets | 2–3 дн | DoD §8.0 |
 | **1** | Critical tick + classify + баннер из общей матрицы | 2–3 дн | DoD §8.1 |
-| **2** | Digest утро/вечер ⚠️/✅ | 3–4 дн | DoD §8.2 |
+| **2** | Суточная сводка 1× (`digestTime`, default 09:00) ⚠️/✅ | 3–4 дн | DoD §8.2 |
 | **3** | Projection/media хуки + recovery в сводке | 3–4 дн | DoD §8.3 |
 | **4** | PHASE B/C/F остаток | 4–5 дн | DoD §8.4 |
 
@@ -115,9 +113,9 @@ cron/internal tick
 
 ### Шаг 0.1 — `dispatchOperatorAlert`
 
-1. API: `dispatchOperatorAlert({ severity: "critical" | "digest" | "immediate"; topic; dedupKey; lines })`.
-2. Читает `operator_health_alert_config`; выбирает `channels.critical` / `channels.digest` / `channels.immediate`.
-3. Проверяет `topics[topic]` и dedup в `operator_health_alert_sent`.
+1. API: `dispatchOperatorAlert({ block: "critical" | "digest" | "account_conflicts"; topic; dedupKey; lines })`.
+2. Читает `operator_health_alert_config`: `topics.*` + `channels.critical` / `channels.digest` / `channels.account_conflicts` (каждый блок — свои TG/Max/Push).
+3. Проверяет включение блока и dedup в `operator_health_alert_sent`.
 4. Делегирует в существующий relay (TG/Max/staff push).
 
 **Checklist:**
@@ -127,8 +125,11 @@ cron/internal tick
 
 ### Шаг 0.2 — Конфиг `operator_health_alert_config`
 
-1. Zod + `ALLOWED_KEYS`; структура в [`SCOPE_DECISIONS.md` A2–A3](SCOPE_DECISIONS.md).
-2. Lazy merge из `admin_incident_alert_config` при пустом новом ключе.
+1. Zod + `ALLOWED_KEYS`. Минимальная форма:
+   - `topics.critical_enabled`, `topics.digest_enabled`, `topics.account_conflicts`
+   - `digestTime`: `"09:00"` (строка `HH:mm`)
+   - `channels.critical`, `channels.digest`, `channels.account_conflicts` — каждый `{ telegram, max, web_push }`
+2. Lazy merge из `admin_incident_alert_config` (legacy per-topic → `account_conflicts`; `system_health_db_guard` → не отдельный UI, покрывается `critical_enabled`).
 3. `syncSettingToIntegrator` после `updateSetting`.
 
 **Checklist:**
@@ -138,9 +139,12 @@ cron/internal tick
 
 ### Шаг 0.3 — UI `/app/doctor/admin/technical`
 
-1. Один блок **«Уведомления админу»** (вместо «Инциденты идентичности»).
-2. Чекбоксы: **Критичные сбои**, **Суточная сводка**, **Конфликты аккаунтов**; каналы TG / Max / Push; часы сводки (default 8 / 20).
-3. Внутри кода `account_conflicts` → все legacy identity topic keys; в UI **не** показывать пять отдельных тем.
+1. Блок **«Уведомления админу»** (вместо «Инциденты идентичности»).
+2. Три подблока, у каждого: **вкл** + TG / Max / Push:
+   - **Критичные сбои** (вкл. очередь синка integrator — без отдельного пункта)
+   - **Суточная сводка** + одно поле времени (`digestTime`, default **09:00**)
+   - **Конфликты аккаунтов**
+3. В коде `account_conflicts` мапит все legacy identity topics.
 4. Без лишних поясняющих абзацев ([`ui-copy-no-excess-labels`](../../.cursor/rules/ui-copy-no-excess-labels.mdc)).
 
 **Checklist:**
@@ -188,8 +192,8 @@ cron/internal tick
 
 **Checklist:**
 
-- [ ] Unit: матрица §3 SCOPE_DECISIONS (табличные кейсы).
-- [ ] `adminDoctorTodayHealthBanner` использует banner-classifier.
+- [x] Unit: матрица §3 SCOPE_DECISIONS (табличные кейсы).
+- [x] `adminDoctorTodayHealthBanner` использует banner-classifier.
 
 ### Шаг 1.2 — `POST /api/internal/operator-health-critical/tick`
 
@@ -199,8 +203,8 @@ cron/internal tick
 
 **Checklist:**
 
-- [ ] `route.test.ts` 401/200.
-- [ ] Повтор при том же dedup → `alerted: 0`.
+- [x] `route.test.ts` 401/200.
+- [x] Повтор при том же dedup → `alerted: 0`.
 
 ### Шаг 1.3 — Probe incidents (3-strike)
 
@@ -209,50 +213,50 @@ cron/internal tick
 
 **Checklist:**
 
-- [ ] Unit: 1–2 fail → не critical; 3 → critical.
+- [x] Unit: 1–2 fail → не critical; 3 → critical.
 
 ### DoD волны 1 (§8.1)
 
-- [ ] Critical из матрицы §3 → push ≤5 мин.
-- [ ] due-only backlog → не push.
-- [ ] LOG § Wave 1.
+- [x] Critical из матрицы §3 → push ≤5 мин.
+- [x] due-only backlog → не push.
+- [x] LOG § Wave 1.
 
 **Проверки:** vitest `criticalHealthSignals.test.ts`, `operator-health-critical/tick/route.test.ts`, `adminDoctorTodayHealthBanner` test.
 
 ---
 
-## 6. Волна 2 — Digest
+## 6. Волна 2 — Суточная сводка
 
 ### Шаг 2.1 — `buildOperatorHealthDigest`
 
-1. Окна: [`SCOPE_DECISIONS` A5](SCOPE_DECISIONS.md).
+1. Окно: с прошлой успешной сводки ([`SCOPE_DECISIONS` A5](SCOPE_DECISIONS.md)).
 2. Источники: audit log, incidents, job failures, snapshot non-critical degraded.
-3. Формат: первая строка `⚠️` или `✅`; тело ≤15 строк; последняя — ссылка `/app/doctor/system-health`.
+3. Формат: `⚠️` или `✅`; тело ≤15 строк; ссылка `/app/doctor/system-health`.
 
 **Checklist:**
 
 - [ ] Unit: пустое окно → `✅`; audit error → `⚠️`.
-- [ ] Recovery-строка «За окно восстановлено: …» при `resolved_at` в окне.
+- [ ] Recovery-строка при `resolved_at` в окне.
 
 ### Шаг 2.2 — `POST /api/internal/operator-health-digest/tick`
 
-1. Query `slot=morning|evening`.
-2. Dedup: `digest:{YYYY-MM-DD}:{slot}` в `operator_health_alert_sent`.
-3. Cron templates с `CRON_TZ`.
+1. Сравнение локального времени с `digestTime` из конфига (`app_display_timezone`).
+2. Dedup: `digest:{YYYY-MM-DD}` в `operator_health_alert_sent`.
+3. Cron **`0 * * * *`**; отправка `channels.digest` только при совпадении времени.
 
 **Checklist:**
 
-- [ ] Двойной POST → второй `alerted: false`.
-- [ ] `cronJobRegistry` entries `operator_health.digest.morning|evening`.
+- [ ] Повтор в тот же день → `alerted: false`.
+- [ ] `cronJobRegistry`: `operator_health.digest.daily`.
 
 ### Шаг 2.3 — UI
 
-1. Technical settings: часы утро/вечер (`digestSchedule`).
-2. System-health: «Последняя сводка: …» из job status.
+1. Поле времени в подблоке «Суточная сводка» (default 09:00).
+2. System-health: «Последняя сводка: …».
 
 ### DoD волны 2 (§8.2)
 
-- [ ] 08:00 и 20:00 — ровно одно сообщение; пустой день — `✅`.
+- [ ] 1×/сутки в `digestTime` — одно сообщение; пустой день — `✅`; каналы сводки отдельные.
 - [ ] LOG § Wave 2.
 
 **Проверки:** `buildOperatorHealthDigest.test.ts`, digest route test, RTL строка в SystemHealthSection при mock.
@@ -271,8 +275,8 @@ cron/internal tick
 
 ### Шаг 3.2 — Transcode (D.4)
 
-1. `videoTranscode.status === "error"` → critical.
-2. `degraded` → digest only.
+1. `videoTranscode.status === "error"` → critical (**сделано в волне 1**).
+2. `degraded` → digest only (волна 2).
 
 ### Шаг 3.3 — Recovery без отдельного push
 
@@ -308,7 +312,7 @@ cron/internal tick
 
 - [ ] §8.0–8.2 закрыты; prod cron установлен (ops-подтверждение в LOG).
 - [ ] Матрица §3 SCOPE_DECISIONS покрыта unit-тестами classify/digest.
-- [ ] `operator_health_alert_config` — единственный ключ для PATCH; mirror integrator.
+- [ ] `operator_health_alert_config` — единственный ключ; три блока со своими каналами; `digestTime` default 09:00; mirror integrator.
 - [ ] PHASE E помечен superseded; MASTER ссылается на Wave 2.
 - [ ] `apps/webapp/src/app/api/api.md` — три internal tick endpoint.
 - [ ] **`pnpm run ci`** зелёный перед merge.
