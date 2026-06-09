@@ -2,21 +2,35 @@
 
 **Канон runtime (pick, API, UI):** [`apps/webapp/src/modules/patient-home/patient-home.md`](../../apps/webapp/src/modules/patient-home/patient-home.md).
 
-## Сделано (2026-05-28) — ротация после просмотра видео
+## Сделано (2026-06-09) — scheduled rotation + completion advance
 
 ### Поведение
-- **Главная (patient tier):** показывается **presented** (`patient_daily_warmup_presentations.content_page_id`) или, если записи нет, **последняя выполненная** `daily_warmup` (та же страница, не «следующая» после completion).
-- **Push-напоминание:** заголовок и deeplink — **следующая** разминка после текущей главной (`resolveDailyWarmupPickIndex` с consumer `push_reminder`); `/app/patient/go/daily-warmup?from=reminder` → push pick, без `from=reminder` / CTA с главной → home pick.
-- **Сдвиг ротации:** после первого воспроизведения видео (событие `playing` в `PatientMediaPlaybackVideo`) или клика по hosted iframe — `POST /api/patient/daily-warmup/video-viewed` → presented = следующая после просмотренной страницы; `revalidatePath(/app/patient)` + `router.refresh` на клиенте.
-- **Completion** по-прежнему пишет `patient_practice_completions`, но **не** меняет pick на главной.
+- **Автосмена:** 1–3 слота/сутки (`patient_home_daily_warmup_rotation_*`), TZ пациента; lazy sync при pick/read.
+- **Manual:** видео или completion `daily_warmup` сдвигают круг (CAS: только если anchor === presented); skip одной следующей scheduled-смены.
+- **Fallback:** без presented — следующая после last completed (не та же).
+- **Деплой:** backfill `last_rotation_at` без ретро-слотов.
 
-### Код / DDL
-- Таблица `patient_daily_warmup_presentations` (migration `0084_patient_daily_warmup_presentations.sql`).
-- Модули: `resolveDailyWarmupHomePickIndex`, `advanceDailyWarmupPresentationAfterVideoView`, `recordDailyWarmupVideoView`, `buildPatientHomeWarmupPickContext`; порт `patientDailyWarmupPresentation` в `buildAppDeps`.
-- UI: `PatientDailyWarmupVideoEngagement` на странице разминки (`isDailyWarmup`).
+### Код
+- Migration `0110_patient_daily_warmup_rotation_state.sql`; `ensureDailyWarmupPresentationSynced`, `advanceDailyWarmupPresentationManually`, `PatientHomeDailyWarmupRotationPanel`.
+- Legacy `advanceDailyWarmupPresentationAfterVideoView` удалён; runtime — только `advanceDailyWarmupPresentationManually`.
+
+### Пост-аудит (тот же день)
+- JSDoc `todayConfig`, deprecated-комментарий `skip_to_next` в `types.ts`, `api.md` §completion, doctor UI панелей на `/app/doctor/patient-home`.
+- `buildPatientHomeWarmupPickContext` без legacy `getPresentedContentPageId`; push loader опирается на `presentationSyncDeps`.
 
 ### Проверки
-- Targeted vitest: `todayConfig`, `resolveDailyWarmupHomePickIndex`, `advanceDailyWarmupPresentationAfterVideoView`, `loadWarmupPushDynamicContext`, `resolvePatientReminderGoTargets`, `video-viewed/route`, `PatientHomeToday`.
+- Targeted vitest: slot/sync/CAS modules, `todayConfig` (с `presentationSyncDeps`), go/push, completion/video-viewed routes, admin settings PATCH; `pnpm run ci`.
+
+## Сделано (2026-05-28) — ротация после просмотра видео *(superseded 2026-06-09)*
+
+Исторический baseline до scheduled rotation. Актуальное поведение — §2026-06-09 и [`patient-home.md`](../../apps/webapp/src/modules/patient-home/patient-home.md).
+
+### Поведение (на момент 2026-05-28)
+- Presented после `video-viewed`; fallback без строки — last completed (та же страница).
+- Completion не сдвигал pick.
+
+### Код / DDL (на момент 2026-05-28)
+- Migration `0084`; `advanceDailyWarmupPresentationAfterVideoView` (удалён в 2026-06-09), `recordDailyWarmupVideoView`, `PatientDailyWarmupVideoEngagement`.
 
 ## Сделано (2026-05-26)
 

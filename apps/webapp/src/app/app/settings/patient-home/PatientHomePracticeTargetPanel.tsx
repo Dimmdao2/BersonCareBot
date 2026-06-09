@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { savePatientHomePracticeTargetAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
+import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
 export function PatientHomePracticeTargetPanel(props: { initialTarget: number }) {
   const [value, setValue] = useState(String(props.initialTarget));
@@ -33,14 +34,11 @@ export function PatientHomePracticeTargetPanel(props: { initialTarget: number })
   }
 
   return (
-    <section
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm"
-      aria-labelledby="patient-home-practice-target-heading"
-    >
-      <h2 id="patient-home-practice-target-heading" className="text-base font-semibold">
+    <section className={doctorSectionCardClass} aria-labelledby="patient-home-practice-target-heading">
+      <h2 id="patient-home-practice-target-heading" className={doctorSectionTitleClass}>
         Цель практик на главной
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         Сколько коротких практик в день показывать как цель прогресса (1–10). По умолчанию 3.
       </p>
       <div className="mt-4 flex flex-wrap items-end gap-3">

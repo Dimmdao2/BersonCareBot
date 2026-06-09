@@ -7,9 +7,19 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 const mockRecord = vi.hoisted(() => vi.fn());
+const mockAdvanceDailyWarmup = vi.hoisted(() => vi.fn());
+vi.mock("@/modules/patient-home/advanceDailyWarmupPresentationManually", () => ({
+  advanceDailyWarmupPresentationManually: mockAdvanceDailyWarmup,
+}));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientPractice: { record: mockRecord },
+    patientHomeBlocks: {},
+    contentPages: {},
+    contentSections: {},
+    systemSettings: { getSetting: vi.fn() },
+    patientDailyWarmupPresentation: {},
+    patientCalendarTimezone: { getIanaForUser: vi.fn() },
   }),
 }));
 
@@ -35,8 +45,10 @@ describe("POST /api/patient/practice/completion", () => {
   beforeEach(() => {
     mockRequirePatientApiBusinessAccess.mockReset();
     mockRecord.mockReset();
+    mockAdvanceDailyWarmup.mockReset();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
     mockRecord.mockResolvedValue({ ok: true, id: "completion-1" });
+    mockAdvanceDailyWarmup.mockResolvedValue({ advanced: true, nextContentPageId: "next" });
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -66,6 +78,17 @@ describe("POST /api/patient/practice/completion", () => {
     expect(json.error).toBe("invalid_content_page");
   });
 
+  it("does not advance warmup presentation for non-daily_warmup source", async () => {
+    const res = await POST(
+      makeRequest({
+        contentPageId: "550e8400-e29b-41d4-a716-446655440002",
+        source: "section_page",
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockAdvanceDailyWarmup).not.toHaveBeenCalled();
+  });
+
   it("returns 200 with id", async () => {
     const res = await POST(
       makeRequest({
@@ -85,6 +108,11 @@ describe("POST /api/patient/practice/completion", () => {
         source: "daily_warmup",
         feeling: 3,
       }),
+    );
+    expect(mockAdvanceDailyWarmup).toHaveBeenCalledWith(
+      SESSION.user.userId,
+      "550e8400-e29b-41d4-a716-446655440002",
+      expect.any(Object),
     );
   });
 

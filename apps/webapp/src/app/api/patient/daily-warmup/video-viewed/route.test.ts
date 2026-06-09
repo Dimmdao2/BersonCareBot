@@ -19,6 +19,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     systemSettings: {},
     patientDailyWarmupPresentation: {},
     patientDailyWarmupVideoViews: { recordView: vi.fn() },
+    patientPractice: { getLatestDailyWarmupCompletedContentPageId: vi.fn() },
+    patientCalendarTimezone: { getIanaForUser: vi.fn() },
   }),
 }));
 
@@ -66,7 +68,14 @@ describe("POST /api/patient/daily-warmup/video-viewed", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(mockRecordDailyWarmupVideoView).toHaveBeenCalledWith(SESSION.user.userId, PAGE_ID, expect.any(Object));
+    expect(mockRecordDailyWarmupVideoView).toHaveBeenCalledWith(
+      SESSION.user.userId,
+      PAGE_ID,
+      expect.objectContaining({
+        patientPractice: expect.any(Object),
+        patientCalendarTimezone: expect.any(Object),
+      }),
+    );
   });
 
   it("returns 403 when page is not in daily_warmup block", async () => {

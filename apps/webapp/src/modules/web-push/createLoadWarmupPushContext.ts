@@ -1,3 +1,5 @@
+import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
+import type { DailyWarmupPresentationSyncDeps } from "@/modules/patient-home/ensureDailyWarmupPresentationSynced";
 import {
   loadWarmupPushDynamicContext,
   type LoadWarmupPushDynamicContextDeps,
@@ -14,12 +16,11 @@ export type LoadWarmupPushContextDeps = {
     ) => Promise<Awaited<ReturnType<LoadWarmupPushDynamicContextDeps["listPracticeCompletionsInRange"]>>>;
     getLatestDailyWarmupCompletedContentPageId: LoadWarmupPushDynamicContextDeps["getLatestDailyWarmupCompletedContentPageId"];
   };
-  patientDailyWarmupPresentation: {
-    getPresentedContentPageId: LoadWarmupPushDynamicContextDeps["getPresentedDailyWarmupContentPageId"];
-  };
-  patientHomeBlocks: LoadWarmupPushDynamicContextDeps["patientHomeBlocks"];
-  contentPages: LoadWarmupPushDynamicContextDeps["contentPages"];
-  contentSections: LoadWarmupPushDynamicContextDeps["contentSections"];
+  patientDailyWarmupPresentation: DailyWarmupPresentationSyncDeps["patientDailyWarmupPresentation"];
+  patientHomeBlocks: DailyWarmupPresentationSyncDeps["patientHomeBlocks"];
+  contentPages: DailyWarmupPresentationSyncDeps["contentPages"];
+  contentSections: DailyWarmupPresentationSyncDeps["contentSections"];
+  systemSettings: DailyWarmupPresentationSyncDeps["systemSettings"];
   patientCalendarTimezone: { getIanaForUser: LoadWarmupPushDynamicContextDeps["getPatientCalendarIana"] };
 };
 
@@ -34,8 +35,15 @@ export function createLoadWarmupPushContext(deps: LoadWarmupPushContextDeps) {
     getPatientCalendarIana: (userId) => deps.patientCalendarTimezone.getIanaForUser(userId),
     getLatestDailyWarmupCompletedContentPageId: (userId) =>
       deps.patientPractice.getLatestDailyWarmupCompletedContentPageId(userId),
-    getPresentedDailyWarmupContentPageId: (userId) =>
-      deps.patientDailyWarmupPresentation.getPresentedContentPageId(userId),
+    presentationSyncDeps: buildDailyWarmupPresentationSyncDeps({
+      patientHomeBlocks: deps.patientHomeBlocks,
+      contentPages: deps.contentPages,
+      contentSections: deps.contentSections,
+      systemSettings: deps.systemSettings,
+      patientDailyWarmupPresentation: deps.patientDailyWarmupPresentation,
+      patientPractice: deps.patientPractice,
+      patientCalendarTimezone: deps.patientCalendarTimezone,
+    }),
   };
   return (platformUserId: string) => loadWarmupPushDynamicContext(platformUserId, loaderDeps);
 }

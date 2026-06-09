@@ -982,14 +982,31 @@ async function mergeExtendedUserOwnedData(
   await client.query(`DELETE FROM material_ratings WHERE user_id = $1::uuid`, [duplicateId]);
 
   await client.query(
-    `INSERT INTO patient_daily_warmup_presentations (user_id, content_page_id, updated_at)
-     SELECT $1::uuid, content_page_id, updated_at
+    `INSERT INTO patient_daily_warmup_presentations (
+       user_id, content_page_id, updated_at, last_rotation_at, skip_next_scheduled_rotation
+     )
+     SELECT $1::uuid, content_page_id, updated_at, last_rotation_at, skip_next_scheduled_rotation
      FROM patient_daily_warmup_presentations WHERE user_id = $2::uuid
      ON CONFLICT (user_id) DO UPDATE SET
        content_page_id = CASE
-         WHEN EXCLUDED.updated_at >= patient_daily_warmup_presentations.updated_at
+         WHEN GREATEST(
+           COALESCE(EXCLUDED.last_rotation_at, EXCLUDED.updated_at),
+           COALESCE(patient_daily_warmup_presentations.last_rotation_at, patient_daily_warmup_presentations.updated_at)
+         ) = COALESCE(EXCLUDED.last_rotation_at, EXCLUDED.updated_at)
          THEN EXCLUDED.content_page_id
          ELSE patient_daily_warmup_presentations.content_page_id
+       END,
+       last_rotation_at = GREATEST(
+         COALESCE(EXCLUDED.last_rotation_at, EXCLUDED.updated_at),
+         COALESCE(patient_daily_warmup_presentations.last_rotation_at, patient_daily_warmup_presentations.updated_at)
+       ),
+       skip_next_scheduled_rotation = CASE
+         WHEN GREATEST(
+           COALESCE(EXCLUDED.last_rotation_at, EXCLUDED.updated_at),
+           COALESCE(patient_daily_warmup_presentations.last_rotation_at, patient_daily_warmup_presentations.updated_at)
+         ) = COALESCE(EXCLUDED.last_rotation_at, EXCLUDED.updated_at)
+         THEN EXCLUDED.skip_next_scheduled_rotation
+         ELSE patient_daily_warmup_presentations.skip_next_scheduled_rotation
        END,
        updated_at = GREATEST(patient_daily_warmup_presentations.updated_at, EXCLUDED.updated_at)`,
     [targetId, duplicateId],

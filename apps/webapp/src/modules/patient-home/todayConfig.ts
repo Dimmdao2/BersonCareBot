@@ -1,6 +1,8 @@
 import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-home/ports";
 import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
 import { isPatientHomeContentPageCandidateForBlock } from "@/modules/patient-home/blocks";
+import type { DailyWarmupPresentationSyncDeps } from "@/modules/patient-home/ensureDailyWarmupPresentationSynced";
+import { ensureDailyWarmupPresentationSynced } from "@/modules/patient-home/ensureDailyWarmupPresentationSynced";
 import { pickDailyWarmupFromOrderedList } from "@/modules/patient-home/pickDailyWarmupFromOrderedList";
 import { resolveDailyWarmupHomePickIndex } from "@/modules/patient-home/resolveDailyWarmupHomePickIndex";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
@@ -176,33 +178,40 @@ export async function resolveDailyWarmupPickIndex(
   pages: ReadonlyArray<Pick<DailyWarmupListEntry, "contentPageId">>,
   pickContext?: PatientHomeWarmupPickContext,
   consumer: DailyWarmupPickConsumer = "home",
+  presentationSyncDeps?: DailyWarmupPresentationSyncDeps,
 ): Promise<number> {
   if (pages.length === 0) return 0;
   if (!pickContext || pickContext.tier !== "patient" || !pickContext.userId) {
     return 0;
   }
 
-  const presentedId = pickContext.getPresentedContentPageId
-    ? await pickContext.getPresentedContentPageId(pickContext.userId)
-    : null;
+  const userId = pickContext.userId;
+  let presentedId: string | null = null;
+  if (presentationSyncDeps) {
+    presentedId = await ensureDailyWarmupPresentationSynced(userId, presentationSyncDeps);
+  } else if (pickContext.getPresentedContentPageId) {
+    presentedId = await pickContext.getPresentedContentPageId(userId);
+  }
+
   const lastCompletedId = pickContext.getLatestCompletedContentPageId
-    ? await pickContext.getLatestCompletedContentPageId(pickContext.userId)
+    ? await pickContext.getLatestCompletedContentPageId(userId)
     : null;
 
   const homeIndex = resolveDailyWarmupHomePickIndex(pages, presentedId, lastCompletedId);
   if (consumer === "home") return homeIndex;
 
-  const homePageId = pages[homeIndex]?.contentPageId ?? null;
+  const homePageId = pages[homeIndex]?.contentPageId ?? presentedId;
   return pickDailyWarmupFromOrderedList(pages, homePageId);
 }
 
 /**
  * Конфиг «Сегодня» для главной пациента: разминка из блока `daily_warmup` + целевое число практик.
- * Ротация (patient): главная — presented (после открытия push) или последняя выполненная; push-напоминание — следующая после главной.
+ * Ротация (patient): lazy sync presented; главная — synced presented или следующая после last completed; push — следующая после home pick.
  */
 export async function getPatientHomeTodayConfig(
   deps: PatientHomeTodayConfigDeps,
   pickContext?: PatientHomeWarmupPickContext,
+  presentationSyncDeps?: DailyWarmupPresentationSyncDeps,
 ): Promise<PatientHomeTodayConfigResult> {
   const setting = await deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin");
   const practiceTarget = parsePatientHomeDailyPracticeTarget(setting?.valueJson ?? null);
@@ -217,7 +226,12 @@ export async function getPatientHomeTodayConfig(
     };
   }
 
-  const pickIndex = await resolveDailyWarmupPickIndex(dailyPages, pickContext);
+  const pickIndex = await resolveDailyWarmupPickIndex(
+    dailyPages,
+    pickContext,
+    "home",
+    presentationSyncDeps,
+  );
   const entry = dailyPages[pickIndex]!;
   const { blockItem, ...page } = entry;
 

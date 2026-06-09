@@ -4,6 +4,8 @@ import { z } from "zod";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
+import { advanceDailyWarmupPresentationManually } from "@/modules/patient-home/advanceDailyWarmupPresentationManually";
+import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
 
 const bodySchema = z.object({
   contentPageId: z.string().uuid(),
@@ -37,6 +39,14 @@ export async function POST(req: Request) {
 
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+  }
+
+  if (parsed.data.source === "daily_warmup") {
+    await advanceDailyWarmupPresentationManually(
+      gate.session.user.userId,
+      parsed.data.contentPageId,
+      buildDailyWarmupPresentationSyncDeps(deps),
+    );
   }
 
   revalidatePath(routePaths.patient);

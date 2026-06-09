@@ -4,7 +4,23 @@
 
 **Канонический план:** [`MASTER_PLAN.md`](MASTER_PLAN.md).
 
-**MVP (улучшенный план реализации):** [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md)
+**Wave 2 (активно, 2026-06-09):** [`ROADMAP_WAVE2.md`](ROADMAP_WAVE2.md) · **решения:** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) · трекер: [`.cursor/plans/operator_health_alerting_wave2.plan.md`](../../.cursor/plans/operator_health_alerting_wave2.plan.md).
+
+| Фаза / волна | Статус |
+|--------------|--------|
+| MVP | **Closed** |
+| Wave 0–2 | **Open** (диспетчер → critical → digest) |
+| Wave 3 | **Open** (D.3/D.4 + recovery в сводке) |
+| Wave 4 | **Open** (PHASE B/C/F остаток) |
+| PHASE A | Partial (incidents в integrator) |
+| PHASE B | Partial (MAX/Rubitime); rest → Wave 4 |
+| PHASE C | Open → Wave 4 |
+| PHASE D | Partial (GCal); D.3/D.4 → Wave 3 |
+| PHASE E | **Superseded** |
+| PHASE F | Partial (incidents UI); интеграции → Wave 4 |
+| PHASE G | Open → финал Wave 2 |
+
+**MVP (закрыт):** [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md)
 
 **Фазы (детальные планы):** [A](PHASE_A_DATA_MODEL_AND_CORE_ALERTING.md) · [B](PHASE_B_SYNTHETIC_PROBES_CRON.md) · [C](PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md) · [D](PHASE_D_EVENT_HOOKS.md) · [E](PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md) · [F](PHASE_F_UI_AND_ADMIN_API.md) · [G](PHASE_G_TESTS_AND_DOCS.md).
 

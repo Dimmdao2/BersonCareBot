@@ -1,16 +1,15 @@
-import { advanceDailyWarmupPresentationAfterVideoView } from "@/modules/patient-home/advanceDailyWarmupPresentationAfterVideoView";
+import { advanceDailyWarmupPresentationManually } from "@/modules/patient-home/advanceDailyWarmupPresentationManually";
+import type { SyncDailyWarmupScheduledRotationDeps } from "@/modules/patient-home/syncDailyWarmupScheduledRotation";
 import {
   isContentPageInDailyWarmupBlock,
-  listDailyWarmupPagesForHome,
   type PatientHomeTodayConfigDeps,
 } from "@/modules/patient-home/todayConfig";
-import type { PatientDailyWarmupPresentationPort } from "@/modules/patient-home/dailyWarmupPresentationPorts";
 import type { PatientDailyWarmupVideoViewPort } from "@/modules/patient-home/dailyWarmupVideoViewPorts";
 
-export type RecordDailyWarmupVideoViewDeps = PatientHomeTodayConfigDeps & {
-  patientDailyWarmupPresentation: PatientDailyWarmupPresentationPort;
-  patientDailyWarmupVideoViews: PatientDailyWarmupVideoViewPort;
-};
+export type RecordDailyWarmupVideoViewDeps = PatientHomeTodayConfigDeps &
+  SyncDailyWarmupScheduledRotationDeps & {
+    patientDailyWarmupVideoViews: PatientDailyWarmupVideoViewPort;
+  };
 
 export async function recordDailyWarmupVideoView(
   userId: string,
@@ -22,13 +21,8 @@ export async function recordDailyWarmupVideoView(
     return { ok: false, error: "not_daily_warmup" };
   }
 
-  const pages = await listDailyWarmupPagesForHome(deps);
-  await advanceDailyWarmupPresentationAfterVideoView(userId, contentPageId, pages, {
-    setPresentedContentPageId: deps.patientDailyWarmupPresentation.setPresentedContentPageId.bind(
-      deps.patientDailyWarmupPresentation,
-    ),
-  });
   await deps.patientDailyWarmupVideoViews.recordView(userId, contentPageId);
+  await advanceDailyWarmupPresentationManually(userId, contentPageId, deps);
 
   return { ok: true };
 }

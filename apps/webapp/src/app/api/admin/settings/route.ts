@@ -22,6 +22,11 @@ import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
 } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
+import {
+  isValidPatientHomeDailyWarmupRotationTimesPayload,
+  normalizeDailyWarmupRotationTime,
+  parsePatientHomeDailyWarmupRotationTimes,
+} from "@/modules/patient-home/patientHomeDailyWarmupRotationSettings";
 import { normalizeAdminIncidentAlertConfigForAdminPatch } from "@/modules/admin-incidents/adminIncidentAlertConfig";
 import { parseSmtpOutboundPatchValue } from "@/modules/system-settings/smtpOutboundPatch";
 import {
@@ -45,6 +50,7 @@ const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   "video_hls_new_uploads_auto_transcode",
   "video_hls_reconcile_enabled",
   "patient_home_morning_ping_enabled",
+  "patient_home_daily_warmup_rotation_enabled",
   "patient_home_warmup_skip_to_next_available_enabled",
   "patient_program_discussion_doctor_reply_from_log_enabled",
   "patient_program_discussion_ui_enabled",
@@ -94,6 +100,8 @@ const ADMIN_SCOPE_KEYS = [
   "patient_home_daily_practice_target",
   "patient_home_morning_ping_enabled",
   "patient_home_morning_ping_local_time",
+  "patient_home_daily_warmup_rotation_enabled",
+  "patient_home_daily_warmup_rotation_times",
   "patient_home_daily_warmup_repeat_cooldown_minutes",
   "patient_treatment_plan_item_done_repeat_cooldown_minutes",
   "patient_home_warmup_skip_to_next_available_enabled",
@@ -415,6 +423,18 @@ export async function PATCH(request: Request) {
     const [hs, ms] = s.split(":");
     const pad = `${hs!.padStart(2, "0")}:${ms}`;
     normalizedValue = { value: pad };
+  }
+
+  if (parsed.data.key === "patient_home_daily_warmup_rotation_times") {
+    const inner = normalizedValue.value;
+    if (!isValidPatientHomeDailyWarmupRotationTimesPayload(inner)) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    const sorted = [...inner]
+      .map((t) => normalizeDailyWarmupRotationTime(t))
+      .filter((t): t is string => t !== null)
+      .sort();
+    normalizedValue = { value: parsePatientHomeDailyWarmupRotationTimes({ value: sorted }) };
   }
 
   if (parsed.data.key === "patient_home_mood_icons") {

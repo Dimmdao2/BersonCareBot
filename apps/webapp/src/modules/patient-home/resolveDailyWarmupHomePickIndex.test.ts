@@ -8,8 +8,8 @@ describe("resolveDailyWarmupHomePickIndex", () => {
     expect(resolveDailyWarmupHomePickIndex(pages, "b", "a")).toBe(1);
   });
 
-  it("falls back to last completed index", () => {
-    expect(resolveDailyWarmupHomePickIndex(pages, null, "a")).toBe(0);
+  it("falls back to next after last completed", () => {
+    expect(resolveDailyWarmupHomePickIndex(pages, null, "a")).toBe(1);
   });
 
   it("returns 0 when no anchors", () => {

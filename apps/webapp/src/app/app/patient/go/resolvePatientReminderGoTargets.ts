@@ -1,6 +1,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolveFirstPendingProgramTabItemId } from "@/app/app/patient/home/resolveFirstPendingProgramTabItemId";
+import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
 import { buildPatientHomeWarmupPickContext } from "@/modules/patient-home/buildPatientHomeWarmupPickContext";
 import { resolvePatientCanViewContent } from "@/modules/platform-access";
 import {
@@ -73,8 +74,9 @@ export async function resolveDailyWarmupStartPathForPatient(
     preferredSlug = todayCfg.dailyWarmupItem?.page?.slug?.trim() ?? null;
   } else {
     const warmupPick = buildPatientHomeWarmupPickContext(session.user.userId, deps);
+    const presentationSyncDeps = buildDailyWarmupPresentationSyncDeps(deps);
     if (pickConsumer === "home") {
-      const todayCfg = await getPatientHomeTodayConfig(homeDeps, warmupPick);
+      const todayCfg = await getPatientHomeTodayConfig(homeDeps, warmupPick, presentationSyncDeps);
       preferredSlug = todayCfg.dailyWarmupItem?.page?.slug?.trim() ?? null;
     } else {
       orderedDailyWarmupPages = await listDailyWarmupPagesForHome(homeDeps);
@@ -82,6 +84,7 @@ export async function resolveDailyWarmupStartPathForPatient(
         orderedDailyWarmupPages,
         warmupPick,
         "push_reminder",
+        presentationSyncDeps,
       );
       preferredSlug = orderedDailyWarmupPages[pickIndex]?.slug?.trim() ?? null;
     }

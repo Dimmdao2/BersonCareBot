@@ -15,6 +15,7 @@ import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
   clampRepeatCooldownMinutes,
 } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
+import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
 const MINUTE_OPTIONS: number[] = Array.from(
   { length: (PATIENT_REPEAT_COOLDOWN_MINUTES_MAX - PATIENT_REPEAT_COOLDOWN_MINUTES_MIN) / 5 + 1 },
@@ -80,14 +81,11 @@ export function PatientHomeRepeatCooldownPanel(props: Props) {
   }
 
   return (
-    <section
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm"
-      aria-labelledby="patient-home-repeat-cooldown-heading"
-    >
-      <h2 id="patient-home-repeat-cooldown-heading" className="text-base font-semibold">
+    <section className={doctorSectionCardClass} aria-labelledby="patient-home-repeat-cooldown-heading">
+      <h2 id="patient-home-repeat-cooldown-heading" className={doctorSectionTitleClass}>
         Паузы повтора
       </h2>
-      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">Разминка (мин)</span>
           <Select value={warmupMin} onValueChange={(v) => { if (v) setWarmupMin(v); }} disabled={pending}>

@@ -1,4 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/modules/system-settings/appDisplayTimezone", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/system-settings/appDisplayTimezone")>();
+  return {
+    ...actual,
+    getAppDisplayTimeZone: vi.fn(async () => "Europe/Moscow"),
+  };
+});
+import { createInMemoryPatientDailyWarmupPresentationPort } from "@/infra/repos/inMemoryPatientDailyWarmupPresentation";
+import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
 import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-home/ports";
 import type { SystemSetting } from "@/modules/system-settings/types";
 import {
@@ -265,7 +275,7 @@ describe("getPatientHomeTodayConfig", () => {
     expect(getLatestCompletedContentPageId).not.toHaveBeenCalled();
   });
 
-  it("patient tier keeps home on last completed until presented advances (e.g. after video)", async () => {
+  it("patient tier shows next after last completed on home; push targets page after home pick", async () => {
     const getBySlug = vi.fn(async (slug: string) =>
       slug === "warm-a" || slug === "warm-b" ?
         {
@@ -313,26 +323,34 @@ describe("getPatientHomeTodayConfig", () => {
       contentSections: warmSection,
       systemSettings: { getSetting: async () => null },
     };
-    const none = await getPatientHomeTodayConfig(deps, {
-      tier: "patient",
-      userId: "user-1",
-      getLatestCompletedContentPageId: async () => null,
-    });
+    const buildSync = (lastCompleted: string | null, port = createInMemoryPatientDailyWarmupPresentationPort()) => {
+      const getLatest = vi.fn(async () => lastCompleted);
+      const syncDeps = buildDailyWarmupPresentationSyncDeps({
+        ...deps,
+        patientDailyWarmupPresentation: port,
+        patientPractice: { getLatestDailyWarmupCompletedContentPageId: getLatest },
+        patientCalendarTimezone: { getIanaForUser: async () => "Europe/Moscow" },
+      });
+      const pickCtx = { tier: "patient" as const, userId: "user-1", getLatestCompletedContentPageId: getLatest };
+      return { syncDeps, pickCtx, port, getLatest };
+    };
+
+    const noneCtx = buildSync(null);
+    const none = await getPatientHomeTodayConfig(deps, noneCtx.pickCtx, noneCtx.syncDeps);
     expect(none.dailyWarmupItem?.page?.slug).toBe("warm-a");
 
-    const afterFirst = await getPatientHomeTodayConfig(deps, {
-      tier: "patient",
-      userId: "user-1",
-      getLatestCompletedContentPageId: async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    });
-    expect(afterFirst.dailyWarmupItem?.page?.slug).toBe("warm-a");
+    const firstCtx = buildSync("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    const afterFirst = await getPatientHomeTodayConfig(deps, firstCtx.pickCtx, firstCtx.syncDeps);
+    expect(afterFirst.dailyWarmupItem?.page?.slug).toBe("warm-b");
 
-    const afterPresented = await getPatientHomeTodayConfig(deps, {
-      tier: "patient",
-      userId: "user-1",
-      getLatestCompletedContentPageId: async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      getPresentedContentPageId: async () => "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    const presentedPort = createInMemoryPatientDailyWarmupPresentationPort();
+    await presentedPort.upsertPresentationState("user-1", {
+      contentPageId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      lastRotationAt: new Date().toISOString(),
+      skipNextScheduledRotation: false,
     });
+    const presentedCtx = buildSync("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", presentedPort);
+    const afterPresented = await getPatientHomeTodayConfig(deps, presentedCtx.pickCtx, presentedCtx.syncDeps);
     expect(afterPresented.dailyWarmupItem?.page?.slug).toBe("warm-b");
 
     const pushPick = await resolveDailyWarmupPickIndex(
@@ -340,15 +358,11 @@ describe("getPatientHomeTodayConfig", () => {
         { contentPageId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
         { contentPageId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
       ],
-      {
-        tier: "patient",
-        userId: "user-1",
-        getLatestCompletedContentPageId: async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        getPresentedContentPageId: async () => null,
-      },
+      presentedCtx.pickCtx,
       "push_reminder",
+      presentedCtx.syncDeps,
     );
-    expect(pushPick).toBe(1);
+    expect(pushPick).toBe(0);
   });
 
   it("patient tier falls back to first when last completed is not in list", async () => {

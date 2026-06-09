@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { patchAdminSetting } from "@/app/app/settings/patchAdminSetting";
+import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
 type Props = {
   initialEnabled: boolean;
@@ -42,19 +43,15 @@ export function PatientHomeMorningPingPanel(props: Props) {
   }
 
   return (
-    <section
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm"
-      aria-labelledby="patient-home-daily-bot-reminder-heading"
-    >
-      <h2 id="patient-home-daily-bot-reminder-heading" className="text-base font-semibold">
+    <section className={doctorSectionCardClass} aria-labelledby="patient-home-daily-bot-reminder-heading">
+      <h2 id="patient-home-daily-bot-reminder-heading" className={doctorSectionTitleClass}>
         Ежедневное напоминание от бота
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Исходящее сообщение пациентам в подключённом мессенджере о «Разминке дня». Одно время на всех
-        (глобально для продукта). Время считается в таймзоне приложения (как «app_display_timezone»). Состав
-        разминки задаётся в блоке главной `daily_warmup`. Настраивает только администратор — не контент врача.
+      <p className="text-sm text-muted-foreground">
+        Исходящее сообщение в мессенджере о разминке дня. Одно время на всех, таймзона приложения
+        (`app_display_timezone`). Не меняет разминку на главной — см. автосмену выше.
       </p>
-      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

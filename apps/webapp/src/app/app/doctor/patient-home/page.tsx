@@ -5,6 +5,7 @@ import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctor/doctorWorkspaceL
 import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import { PatientHomeBlocksSettingsPageClient } from "@/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient";
 import { PatientHomePracticeTargetPanel } from "@/app/app/settings/patient-home/PatientHomePracticeTargetPanel";
+import { PatientHomeDailyWarmupRotationPanel } from "@/app/app/settings/patient-home/PatientHomeDailyWarmupRotationPanel";
 import { PatientHomeMorningPingPanel } from "@/app/app/settings/patient-home/PatientHomeMorningPingPanel";
 import { PatientHomeRepeatCooldownPanel } from "@/app/app/settings/patient-home/PatientHomeRepeatCooldownPanel";
 import { PatientHomeMoodIconsPanel } from "./PatientHomeMoodIconsPanel";
@@ -17,6 +18,10 @@ import {
   parsePatientHomeMorningPingEnabled,
   parsePatientHomeMorningPingLocalTime,
 } from "@/modules/patient-home/patientHomeMorningPingSettings";
+import {
+  parsePatientHomeDailyWarmupRotationEnabled,
+  parsePatientHomeDailyWarmupRotationTimes,
+} from "@/modules/patient-home/patientHomeDailyWarmupRotationSettings";
 import { buildPatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import {
   buildPatientHomeResolverSyncContext,
@@ -30,8 +35,20 @@ export default async function DoctorPatientHomeSettingsPage() {
   const isAdmin = session.user.role === "admin";
 
   const deps = buildAppDeps();
-  const [blocks, pages, sections, courses, practiceSetting, moodSetting, morningPingEn, morningPingT, warmupCd, planCd] =
-    await Promise.all([
+  const [
+    blocks,
+    pages,
+    sections,
+    courses,
+    practiceSetting,
+    moodSetting,
+    morningPingEn,
+    morningPingT,
+    warmupRotationEn,
+    warmupRotationTimes,
+    warmupCd,
+    planCd,
+  ] = await Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
     deps.contentPages.listAll(),
     deps.contentSections.listAll(),
@@ -40,6 +57,8 @@ export default async function DoctorPatientHomeSettingsPage() {
     deps.systemSettings.getSetting("patient_home_mood_icons", "admin"),
     isAdmin ? deps.systemSettings.getSetting("patient_home_morning_ping_enabled", "admin") : Promise.resolve(null),
     isAdmin ? deps.systemSettings.getSetting("patient_home_morning_ping_local_time", "admin") : Promise.resolve(null),
+    isAdmin ? deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_enabled", "admin") : Promise.resolve(null),
+    isAdmin ? deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_times", "admin") : Promise.resolve(null),
     isAdmin ? deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin") : Promise.resolve(null),
     isAdmin ? deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin") : Promise.resolve(null),
   ]);
@@ -47,6 +66,12 @@ export default async function DoctorPatientHomeSettingsPage() {
   const moodOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
   const initialMorningPingEnabled = parsePatientHomeMorningPingEnabled(morningPingEn?.valueJson ?? null);
   const initialMorningPingTime = parsePatientHomeMorningPingLocalTime(morningPingT?.valueJson ?? null);
+  const initialWarmupRotationEnabled = parsePatientHomeDailyWarmupRotationEnabled(
+    warmupRotationEn?.valueJson ?? null,
+  );
+  const initialWarmupRotationTimes = parsePatientHomeDailyWarmupRotationTimes(
+    warmupRotationTimes?.valueJson ?? null,
+  );
   const initialWarmupRepeatMinutes = parsePatientHomeDailyWarmupRepeatCooldownMinutes(warmupCd?.valueJson ?? null);
   const initialPlanItemRepeatMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(planCd?.valueJson ?? null);
 
@@ -105,7 +130,11 @@ export default async function DoctorPatientHomeSettingsPage() {
         </div>
       ) : null}
       {isAdmin ? (
-        <div className="mb-6">
+        <div className="mb-6 flex flex-col gap-6">
+          <PatientHomeDailyWarmupRotationPanel
+            initialEnabled={initialWarmupRotationEnabled}
+            initialTimes={initialWarmupRotationTimes}
+          />
           <PatientHomeMorningPingPanel
             initialEnabled={initialMorningPingEnabled}
             initialLocalTime={initialMorningPingTime}

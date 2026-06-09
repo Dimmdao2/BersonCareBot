@@ -1,6 +1,6 @@
 # patient-home
 
-Модуль витрины «Сегодня», таблицы блоков главной (`patient_home_*`) и связанные **scalar** ключи `system_settings` (`scope=admin`). UI блоков и часть настроек — [`/app/settings/patient-home`](../../app/app/settings/patient-home/page.tsx); паузы повтора разминки/плана и утренний пинг — только **admin** на [`/app/doctor/patient-home`](../../app/app/doctor/patient-home/page.tsx) (см. разделы ниже).
+Модуль витрины «Сегодня», таблицы блоков главной (`patient_home_*`) и связанные **scalar** ключи `system_settings` (`scope=admin`). UI блоков и часть настроек — [`/app/settings/patient-home`](../../app/app/settings/patient-home/page.tsx); паузы повтора, автосмена разминок и утренний пинг — только **admin** на [`/app/doctor/patient-home`](../../app/app/doctor/patient-home/page.tsx) (см. разделы ниже).
 
 ## Runtime source of truth
 
@@ -20,10 +20,15 @@
 - `ports.ts` - контракт хранилища `patient_home_blocks` / `patient_home_block_items`.
 - `service.ts` - валидация команд admin UI (show/hide, reorder, add/update/delete item), без прямого доступа к infra.
 - `todayConfig.ts` — список разминок, nav pager, `getPatientHomeTodayConfig`, `resolveDailyWarmupPickIndex` (`home` | `push_reminder`). См. **Daily warmup rotation** ниже.
-- `resolveDailyWarmupHomePickIndex.ts` — индекс на главной: presented → last completed → первая.
-- `pickDailyWarmupFromOrderedList.ts` — следующая страница после anchor (push pick, сдвиг после видео).
-- `buildPatientHomeWarmupPickContext.ts` — pick context для patient tier (`patientPractice` + `patientDailyWarmupPresentation`).
-- `recordDailyWarmupVideoView.ts` / `advanceDailyWarmupPresentationAfterVideoView.ts` — бизнес-логика после просмотра видео.
+- `resolveDailyWarmupHomePickIndex.ts` — индекс на главной: presented → следующая после last completed → первая.
+- `pickDailyWarmupFromOrderedList.ts` — следующая страница после anchor (push pick, manual advance).
+- `buildPatientHomeWarmupPickContext.ts` — pick context для patient tier (`patientPractice`; presented — через `presentationSyncDeps`).
+- `ensureDailyWarmupPresentationSynced.ts` / `syncDailyWarmupScheduledRotation.ts` — lazy sync scheduled-слотов перед pick.
+- `collectDailyWarmupRotationSlotInstants.ts` / `applyDailyWarmupScheduledRotations.ts` — pure: слоты и применение ротации.
+- `advanceDailyWarmupPresentationManually.ts` — CAS-сдвиг после видео или completion `daily_warmup`.
+- `patientHomeDailyWarmupRotationSettings.ts` — парсеры `patient_home_daily_warmup_rotation_*`.
+- `buildDailyWarmupPresentationSyncDeps.ts` — сбор deps sync из `buildAppDeps`.
+- `recordDailyWarmupVideoView.ts` — журнал просмотра + manual advance.
 - `dailyWarmupPresentationPorts.ts` + `infra/repos/pgPatientDailyWarmupPresentation.ts` — таблица `patient_daily_warmup_presentations`.
 - `dailyWarmupVideoViewPorts.ts` + `infra/repos/pgPatientDailyWarmupVideoView.ts` — журнал `patient_daily_warmup_video_views` (агрегат **`warmupVideoTopPages`** в **`loadContentEngagementStats`**).
 - `dailyWarmupHeroCooldownGate.ts` — hero «Разминка выполнена» только при `dailyWarmupCount === 1`.
@@ -38,7 +43,8 @@
 
 Главная пациента: `app/app/patient/home/PatientHomeToday.tsx` и дочерние компоненты.
 
-- Паузы повтора разминки / пунктов плана (только роль admin): `app/app/settings/patient-home/PatientHomeRepeatCooldownPanel.tsx` на `/app/doctor/patient-home`; сохранение через server action `savePatientHomeRepeatCooldownsAction` в `app/app/doctor/patient-home/patientHomeDoctorSettingsActions.ts` (`updateSetting` ×2 + `revalidatePath` для `/app/doctor/patient-home`, `/app/settings/patient-home`, `/app/patient`).
+- Паузы повтора разминки / пунктов плана (только роль admin): `PatientHomeRepeatCooldownPanel.tsx` на `/app/doctor/patient-home`; сохранение через `savePatientHomeRepeatCooldownsAction` (`updateSetting` ×2 + `revalidatePath`).
+- Автосмена разминок (admin): `PatientHomeDailyWarmupRotationPanel.tsx` на `/app/doctor/patient-home` (`patchAdminSetting` для `patient_home_daily_warmup_rotation_*`).
 - Mobile и `md`: линейный порядок секций из `patient_home_blocks.sort_order`.
 - `lg+`: `PatientHomeTodayLayout` — desktop dashboard (`lg:grid-cols-12`): верхний ряд — `daily_warmup` (8) + `useful_post` (4); второй — `situations` (8) + `booking` (4); третий — `progress` (8) + `next_reminder` (4); затем **`sos` на всю ширину (12)**; далее `plan` (8) + `mood_checkin` (4); нижний ряд — `courses` (8) + `subscription_carousel` (4).
 - Progress приходит из `modules/patient-practice`.
@@ -52,18 +58,22 @@
 
 **Ordered list:** `listDailyWarmupPagesForHome` — visible items блока `daily_warmup` по `sortOrder`.
 
+Перед pick (patient tier): `ensureDailyWarmupPresentationSynced` — lazy-применение scheduled-слотов и upsert при изменении.
+
 | Consumer | Кто использует | Правило (patient tier) |
 |----------|----------------|-------------------------|
-| `home` | Главная, CTA «Начать разминку», `go/daily-warmup` без `from=reminder` | Индекс **presented** в `patient_daily_warmup_presentations`, иначе индекс **последней** `daily_warmup` completion, иначе `0` |
-| `push_reminder` | `loadWarmupPushDynamicContext`, `go/daily-warmup?from=reminder` | Следующая после home pick (`pickDailyWarmupFromOrderedList` от content page главной) |
+| `home` | Главная, CTA «Начать разминку», `go/daily-warmup` без `from=reminder` | Synced **presented**; fallback без строки — **следующая** после последней `daily_warmup` completion, иначе `0` |
+| `push_reminder` | `loadWarmupPushDynamicContext`, `go/daily-warmup?from=reminder` | Следующая после home pick (`pickDailyWarmupFromOrderedList`) |
 
-**Сдвиг presented:** `POST /api/patient/daily-warmup/video-viewed` `{ contentPageId }` (только страницы из блока `daily_warmup`) — после первого `playing` каталожного плеера или pointer down на hosted iframe; presented := следующая после просмотренной; `revalidatePath(routePaths.patient)`.
+**Scheduled rotation (admin):** `patient_home_daily_warmup_rotation_enabled` (default **false**), `patient_home_daily_warmup_rotation_times` (1–3 × `HH:MM`) — UI `/app/doctor/patient-home`. Слоты в **календарной TZ пациента**. При включении без ретро: backfill `last_rotation_at = updated_at` (migration `0110`).
 
-**Не сдвигает pick:** отметка «выполнил(а) практику» (`patient_practice_completions`, `source=daily_warmup`).
+**Manual advance (CAS `presented === anchor`):** `POST /api/patient/daily-warmup/video-viewed` (первый `playing` / pointer на iframe) и `POST /api/patient/practice/completion` при `source=daily_warmup` — presented := следующая; `skip_next_scheduled_rotation := true`. Повторный триггер на той же странице или действие на «чужой» разминке (pager) — no-op.
 
-**Guest / no tier:** всегда первая страница в list; `patient_daily_warmup_presentations` не читается.
+**Legacy:** `patient_home_warmup_skip_to_next_available_enabled` — **deprecated**, pick не читает.
 
-**DDL:** migration `0084_patient_daily_warmup_presentations.sql` — `user_id` PK, `content_page_id`, `updated_at`; migration `0085_patient_daily_warmup_video_views.sql` — журнал просмотров (`id`, `user_id`, `content_page_id`, `viewed_at`).
+**Guest / no tier:** первая страница в list; `patient_daily_warmup_presentations` не читается.
+
+**DDL:** `0084` — presentations; `0085` — video views; `0110` — `last_rotation_at`, `skip_next_scheduled_rotation`.
 
 Журнал продукта: [`docs/PATIENT_DAILY_WARMUP_UX/LOG.md`](../../../../docs/PATIENT_DAILY_WARMUP_UX/LOG.md).
 
@@ -74,6 +84,13 @@
 `PatientHomeToday` принимает `session: AppSession | null`; персональные запросы (`reminders`, `treatmentProgramInstance`, practice progress, mood) выполняются только при `personalTierOk && session`.
 
 Auth-on-drilldown: `patientHomeGuestNav.ts` строит login href с `next`. Для анонима превью `/api/media/*` на главной не используются; политика `GET /api/media/:id` не меняется.
+
+## Автосмена разминок на главной (admin)
+
+- `patient_home_daily_warmup_rotation_enabled` (default **false**)
+- `patient_home_daily_warmup_rotation_times` (1–3 × `HH:MM`, сортировка при сохранении)
+
+UI: `PatientHomeDailyWarmupRotationPanel` на `/app/doctor/patient-home` (только admin). Слоты в календарной TZ пациента; lazy sync при pick. См. **Daily warmup rotation** выше.
 
 ## Ежедневное напоминание от бота (Phase 8)
 

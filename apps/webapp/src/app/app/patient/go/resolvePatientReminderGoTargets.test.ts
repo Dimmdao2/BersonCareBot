@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-home/ports";
+import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
+import { createInMemoryPatientDailyWarmupPresentationPort } from "@/infra/repos/inMemoryPatientDailyWarmupPresentation";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { resolveDailyWarmupStartPathForPatient } from "./resolvePatientReminderGoTargets";
 
@@ -57,7 +59,6 @@ type BuildDepsOptions = {
 
 function buildDeps(
   getLatestCompletedContentPageId: (userId: string) => Promise<string | null>,
-  getPresentedContentPageId: (userId: string) => Promise<string | null> = async () => null,
   options: BuildDepsOptions = {},
 ) {
   const granted = new Set(options.grantedSlugs ?? []);
@@ -85,15 +86,17 @@ function buildDeps(
       hasActiveContentGrant: vi.fn(async (_userId: string, slug: string) => granted.has(slug)),
     },
     patientPractice: { getLatestDailyWarmupCompletedContentPageId: getLatestCompletedContentPageId },
-    patientDailyWarmupPresentation: { getPresentedContentPageId, setPresentedContentPageId: async () => {} },
+    patientDailyWarmupPresentation: createInMemoryPatientDailyWarmupPresentationPort(),
+    patientCalendarTimezone: { getIanaForUser: async () => "Europe/Moscow" },
   };
 }
 
 describe("resolveDailyWarmupStartPathForPatient", () => {
-  it("home uses last completed; reminder go uses next warmup for push", async () => {
+  it("home uses next after last completed; reminder go uses next warmup for push", async () => {
     const getLatest = vi.fn(async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     const deps = buildDeps(getLatest);
     const session = { user: { userId: "user-1", role: "client" as const, phone: "+79990001122" } };
+    const presentationSyncDeps = buildDailyWarmupPresentationSyncDeps(deps);
 
     const todayCfg = await getPatientHomeTodayConfig(
       {
@@ -106,8 +109,8 @@ describe("resolveDailyWarmupStartPathForPatient", () => {
         tier: "patient",
         userId: session.user.userId,
         getLatestCompletedContentPageId: getLatest,
-        getPresentedContentPageId: async () => null,
       },
+      presentationSyncDeps,
     );
 
     const homePath = await resolveDailyWarmupStartPathForPatient(deps as never, session as never, true, "home");
@@ -117,14 +120,14 @@ describe("resolveDailyWarmupStartPathForPatient", () => {
       true,
       "push_reminder",
     );
-    expect(todayCfg.dailyWarmupItem?.page?.slug).toBe("warm-a");
-    expect(homePath).toBe("/app/patient/content/warm-a?from=daily_warmup");
-    expect(reminderPath).toBe("/app/patient/content/warm-b?from=daily_warmup");
+    expect(todayCfg.dailyWarmupItem?.page?.slug).toBe("warm-b");
+    expect(homePath).toBe("/app/patient/content/warm-b?from=daily_warmup");
+    expect(reminderPath).toBe("/app/patient/content/warm-a?from=daily_warmup");
   });
 
   it("falls back to first accessible warmup for no-tier patient", async () => {
     const getLatest = vi.fn(async () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
-    const deps = buildDeps(getLatest, async () => null, {
+    const deps = buildDeps(getLatest, {
       requiresAuthBySlug: { "warm-a": true, "warm-b": false },
     });
     const session = { user: { userId: "user-1", role: "client" as const, phone: null } };

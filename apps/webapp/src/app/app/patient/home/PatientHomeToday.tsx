@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { AppSession } from "@/shared/types/session";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
 import { buildPatientHomeWarmupPickContext } from "@/modules/patient-home/buildPatientHomeWarmupPickContext";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { formatPatientHomeWarmupCooldownCaption } from "@/modules/patient-home/dailyWarmupHeroCooldown";
@@ -143,15 +144,16 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       { tier: "no_tier" as const }
     : { tier: "guest" as const };
 
-  const todayCfg = await getPatientHomeTodayConfig(
-    {
-      patientHomeBlocks: deps.patientHomeBlocks,
-      contentPages: deps.contentPages,
-      contentSections: deps.contentSections,
-      systemSettings: deps.systemSettings,
-    },
-    warmupPick,
-  );
+  const homeConfigDeps = {
+    patientHomeBlocks: deps.patientHomeBlocks,
+    contentPages: deps.contentPages,
+    contentSections: deps.contentSections,
+    systemSettings: deps.systemSettings,
+  };
+  const presentationSyncDeps =
+    session && personalTierOk ? buildDailyWarmupPresentationSyncDeps(deps) : undefined;
+
+  const todayCfg = await getPatientHomeTodayConfig(homeConfigDeps, warmupPick, presentationSyncDeps);
   const moodIconOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
 
   const resolverDeps = {

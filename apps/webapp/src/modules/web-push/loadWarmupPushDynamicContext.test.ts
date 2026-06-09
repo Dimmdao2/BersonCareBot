@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-home/ports";
+import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
+import { createInMemoryPatientDailyWarmupPresentationPort } from "@/infra/repos/inMemoryPatientDailyWarmupPresentation";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { loadWarmupPushDynamicContext } from "./loadWarmupPushDynamicContext";
 
@@ -75,13 +77,23 @@ describe("loadWarmupPushDynamicContext", () => {
       systemSettings: { getSetting: async () => null },
     };
 
-    const getPresented = vi.fn(async () => null);
-    const todayCfg = await getPatientHomeTodayConfig(homeDeps, {
-      tier: "patient",
-      userId: "user-1",
-      getLatestCompletedContentPageId: getLatest,
-      getPresentedContentPageId: getPresented,
+    const presentationPort = createInMemoryPatientDailyWarmupPresentationPort();
+    const syncDeps = buildDailyWarmupPresentationSyncDeps({
+      ...homeDeps,
+      patientDailyWarmupPresentation: presentationPort,
+      patientPractice: { getLatestDailyWarmupCompletedContentPageId: getLatest },
+      patientCalendarTimezone: { getIanaForUser: async () => "Europe/Moscow" },
     });
+
+    const todayCfg = await getPatientHomeTodayConfig(
+      homeDeps,
+      {
+        tier: "patient",
+        userId: "user-1",
+        getLatestCompletedContentPageId: getLatest,
+      },
+      syncDeps,
+    );
 
     const pushCtx = await loadWarmupPushDynamicContext("user-1", {
       listRulesByUser: async () => [],
@@ -91,10 +103,10 @@ describe("loadWarmupPushDynamicContext", () => {
       contentSections: homeDeps.contentSections,
       getPatientCalendarIana: async () => null,
       getLatestDailyWarmupCompletedContentPageId: getLatest,
-      getPresentedDailyWarmupContentPageId: getPresented,
+      presentationSyncDeps: syncDeps,
     });
 
-    expect(todayCfg.dailyWarmupItem?.page?.title).toBe("Warm A");
-    expect(pushCtx.dailyWarmupTitle).toBe("Warm B");
+    expect(todayCfg.dailyWarmupItem?.page?.title).toBe("Warm B");
+    expect(pushCtx.dailyWarmupTitle).toBe("Warm A");
   });
 });

@@ -2,6 +2,8 @@
 
 Дата черновика: 2026-05-03.
 
+> **Активная доставка уведомлений (2026-06-09):** канон — [`ROADMAP_WAVE2.md`](ROADMAP_WAVE2.md) + [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md). Этот файл — **справочник по интеграциям и фазам A–G**; §3.3 (email обязателен), §7 DoD (recovery push) **пересмотрены**: recovery — строка в суточной сводке; email — backlog после Wave 2. [`PHASE_E`](PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md) — **superseded**.
+
 ## 1. Цель
 
 Обеспечить **операторскую видимость** здоровья системы и внешних интеграций:

@@ -4,6 +4,15 @@
 
 ## Записи
 
+### 2026-06-09 — Wave 2: scope decisions + усиление ROADMAP (**постановка**)
+
+- **Продукт:** critical immediate (матрица §3); digest 08:00/20:00 всегда (`⚠️` / `✅`); не push на каждый `degraded`; identity — immediate; probe 3-strike; webhook burst 5/15m.
+- **Архитектура:** `dispatchOperatorAlert`; ключ `operator_health_alert_config`; каналы `critical` / `digest` / `immediate`; dedup table; облегчённый critical collect.
+- **Доки:** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md), [`ROADMAP_WAVE2.md`](ROADMAP_WAVE2.md) (волны 0–4, DoD, правила агентов); MASTER §supersede; PHASE E superseded; README таблица фаз.
+- **Код:** не менялся.
+- **Уточнение продукта:** один чекбокс «Конфликты аккаунтов»; доставка только через существующий worker/очередь, без новых сервисов; health UI ≠ срочный push — зафиксировано как правило (не открытый вопрос).
+- **Следующий шаг:** волна 0 по ROADMAP §4.
+
 ### 2026-06-07 — UI: операторский сброс инцидентов и dead-очередей (**закрыто**)
 
 План: [`.cursor/plans/archive/health_ui_operator_actions.plan.md`](../../.cursor/plans/archive/health_ui_operator_actions.plan.md).

@@ -1,4 +1,6 @@
-/** Индекс разминки на главной: presented → иначе последняя выполненная (не «следующая») → первая. */
+import { pickDailyWarmupFromOrderedList } from "@/modules/patient-home/pickDailyWarmupFromOrderedList";
+
+/** Индекс разминки на главной: presented → иначе следующая после последней выполненной → первая. */
 export function resolveDailyWarmupHomePickIndex(
   pages: ReadonlyArray<{ contentPageId: string }>,
   presentedContentPageId: string | null,
@@ -11,8 +13,7 @@ export function resolveDailyWarmupHomePickIndex(
     if (presentedIdx >= 0) return presentedIdx;
   }
   if (lastCompletedContentPageId) {
-    const completedIdx = pages.findIndex((p) => p.contentPageId === lastCompletedContentPageId);
-    if (completedIdx >= 0) return completedIdx;
+    return pickDailyWarmupFromOrderedList(pages, lastCompletedContentPageId);
   }
   return 0;
 }

@@ -4,6 +4,7 @@ import {
   patientHomeLocalDayUtcWindow,
 } from "@/modules/patient-home/patientHomeTodayProgress";
 import { countPlannedHomeLinkedReminderOccurrencesWithPredicate } from "@/modules/patient-home/nextReminderOccurrence";
+import type { DailyWarmupPresentationSyncDeps } from "@/modules/patient-home/ensureDailyWarmupPresentationSynced";
 import {
   listDailyWarmupPagesForHome,
   resolveDailyWarmupPickIndex,
@@ -28,7 +29,9 @@ export type LoadWarmupPushDynamicContextDeps = {
   contentSections: Parameters<typeof listDailyWarmupPagesForHome>[0]["contentSections"];
   getPatientCalendarIana: (userId: string) => Promise<string | null>;
   getLatestDailyWarmupCompletedContentPageId: (userId: string) => Promise<string | null>;
-  getPresentedDailyWarmupContentPageId: (userId: string) => Promise<string | null>;
+  /** Legacy fallback без `presentationSyncDeps` (production всегда передаёт sync). */
+  getPresentedDailyWarmupContentPageId?: (userId: string) => Promise<string | null>;
+  presentationSyncDeps?: DailyWarmupPresentationSyncDeps;
 };
 
 export async function loadWarmupPushDynamicContext(
@@ -58,9 +61,12 @@ export async function loadWarmupPushDynamicContext(
       tier: "patient",
       userId: platformUserId,
       getLatestCompletedContentPageId: deps.getLatestDailyWarmupCompletedContentPageId,
-      getPresentedContentPageId: deps.getPresentedDailyWarmupContentPageId,
+      getPresentedContentPageId: deps.presentationSyncDeps
+        ? undefined
+        : deps.getPresentedDailyWarmupContentPageId,
     },
     "push_reminder",
+    deps.presentationSyncDeps,
   );
   const dailyWarmupTitle = dailyPages[pickIndex]?.title?.trim() || null;
 

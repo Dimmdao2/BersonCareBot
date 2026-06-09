@@ -146,6 +146,8 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_daily_warmup_repeat_cooldown_minutes");
     expect(ALLOWED_KEYS).toContain("patient_treatment_plan_item_done_repeat_cooldown_minutes");
     expect(ALLOWED_KEYS).toContain("patient_home_warmup_skip_to_next_available_enabled");
+    expect(ALLOWED_KEYS).toContain("patient_home_daily_warmup_rotation_enabled");
+    expect(ALLOWED_KEYS).toContain("patient_home_daily_warmup_rotation_times");
   });
 
   it("includes patient maintenance keys", () => {
@@ -956,6 +958,80 @@ describe("PATCH /api/admin/settings", () => {
       { value: "09:30" },
       "a1",
     );
+  });
+
+  it("returns 200 for patient_home_daily_warmup_rotation_enabled boolean", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_home_daily_warmup_rotation_enabled",
+      scope: "admin",
+      valueJson: { value: true },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_daily_warmup_rotation_enabled",
+          value: { value: true },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_home_daily_warmup_rotation_enabled",
+      "admin",
+      { value: true },
+      "a1",
+    );
+  });
+
+  it("returns 200 for patient_home_daily_warmup_rotation_times sorted", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_home_daily_warmup_rotation_times",
+      scope: "admin",
+      valueJson: { value: ["08:00", "14:00", "20:00"] },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_daily_warmup_rotation_times",
+          value: { value: ["20:00", "8:00", "14:00"] },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_home_daily_warmup_rotation_times",
+      "admin",
+      { value: ["08:00", "14:00", "20:00"] },
+      "a1",
+    );
+  });
+
+  it("returns 400 for patient_home_daily_warmup_rotation_times invalid", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_daily_warmup_rotation_times",
+          value: { value: [] },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 for patient_home_morning_ping_local_time invalid", async () => {

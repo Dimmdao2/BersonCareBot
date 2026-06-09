@@ -1,4 +1,4 @@
-import { index, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
 import { contentPages, platformUsers } from "./schema";
 
 /** Текущая разминка дня на главной (обновляется при открытии push-напоминания). */
@@ -13,6 +13,10 @@ export const patientDailyWarmupPresentations = pgTable(
       .notNull()
       .references(() => contentPages.id, { onDelete: "cascade" }),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    /** Момент последней смены presented (scheduled или manual); слоты применяются только после этой точки. */
+    lastRotationAt: timestamp("last_rotation_at", { withTimezone: true, mode: "string" }),
+    /** Пропустить ровно одну ближайшую scheduled-смену после manual advance. */
+    skipNextScheduledRotation: boolean("skip_next_scheduled_rotation").default(false).notNull(),
   },
   (table) => [
     index("idx_patient_daily_warmup_presentations_content_page").on(table.contentPageId),

@@ -53,6 +53,10 @@ export const ALLOWED_KEYS = [
   "patient_home_morning_ping_enabled",
   /** Локальное время ежедневного напоминания (HH:MM) в таймзоне приложения, default 09:00. */
   "patient_home_morning_ping_local_time",
+  /** Автосмена разминки дня на главной по расписанию (глобально). Default false до первой настройки. */
+  "patient_home_daily_warmup_rotation_enabled",
+  /** 1–3 времени автосмены (HH:MM) в календарной TZ пациента. */
+  "patient_home_daily_warmup_rotation_times",
   /** Режим техработ для patient app: один экран без навигации (клиенты; doctor/admin preview не затрагивается). */
   "patient_app_maintenance_enabled",
   /** Текст на экране техработ (пациентское приложение). */
@@ -105,7 +109,7 @@ export const ALLOWED_KEYS = [
   "patient_home_daily_warmup_repeat_cooldown_minutes",
   /** Пауза (мин) перед повторным «Выполнено» у простого пункта программы реабилитации; default 60, clamp 5–180. */
   "patient_treatment_plan_item_done_repeat_cooldown_minutes",
-  /** Если true — в ротации разминок пропускать страницы в hero-cooldown и брать следующую доступную (как сейчас). */
+  /** @deprecated Legacy: pick разминки дня не читает; парсер только для compat / PATCH admin. */
   "patient_home_warmup_skip_to_next_available_enabled",
   /** Иконки чек-ина настроения на главной: 5 записей score 1-5, label + imageUrl (/api/media/...). */
   "patient_home_mood_icons",
