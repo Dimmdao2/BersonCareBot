@@ -36,6 +36,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS "uq_media_folders_client_files_root"
   ON "media_folders" ((1))
   WHERE "kind" = 'client_files_root';
 
+UPDATE "media_folders"
+SET "kind" = 'client_files_root', "updated_at" = now()
+WHERE "parent_id" IS NULL
+  AND "kind" = 'standard'
+  AND "name_normalized" = lower(trim('Файлы клиентов'))
+  AND NOT EXISTS (SELECT 1 FROM "media_folders" WHERE "kind" = 'client_files_root');
+
 INSERT INTO "media_folders" ("name", "parent_id", "kind", "created_at", "updated_at")
 SELECT 'Файлы клиентов', NULL, 'client_files_root', now(), now()
 WHERE NOT EXISTS (SELECT 1 FROM "media_folders" WHERE "kind" = 'client_files_root');
@@ -48,7 +55,7 @@ SELECT
       NULLIF(TRIM(CONCAT_WS(' ', pu.first_name, pu.last_name)), ''),
       NULLIF(TRIM(pu.display_name), ''),
       'Клиент'
-    ) || ' · ' || LEFT(pu.id::text, 8),
+    ),
     180
   ),
   root.id,

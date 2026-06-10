@@ -1,1 +1,4 @@
-export { pgFolderExists } from "@/infra/repos/mediaFoldersRepo";
+export {
+  pgFolderExists,
+  pgGetMediaFolderById,
+} from "@/infra/repos/mediaFoldersRepo";

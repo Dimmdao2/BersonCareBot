@@ -2,13 +2,15 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, moveFolderMock, renameFolderMock, deleteFolderMock, pgExistsMock } = vi.hoisted(() => ({
-  getSessionMock: vi.fn(),
-  moveFolderMock: vi.fn(),
-  renameFolderMock: vi.fn(),
-  deleteFolderMock: vi.fn(),
-  pgExistsMock: vi.fn(),
-}));
+const { getSessionMock, moveFolderMock, renameFolderMock, deleteFolderMock, pgExistsMock, pgGetByIdMock } =
+  vi.hoisted(() => ({
+    getSessionMock: vi.fn(),
+    moveFolderMock: vi.fn(),
+    renameFolderMock: vi.fn(),
+    deleteFolderMock: vi.fn(),
+    pgExistsMock: vi.fn(),
+    pgGetByIdMock: vi.fn(),
+  }));
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getSessionMock,
@@ -26,12 +28,31 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
   pgFolderExists: (...a: unknown[]) => pgExistsMock(...a),
+  pgGetMediaFolderById: (...a: unknown[]) => pgGetByIdMock(...a),
 }));
+
+const validateParentMock = vi.fn();
+vi.mock("@/app-layer/media/clientMediaFolders", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app-layer/media/clientMediaFolders")>();
+  return {
+    ...actual,
+    pgValidateManualFolderParent: (...a: unknown[]) => validateParentMock(...a),
+  };
+});
 
 import { DELETE, PATCH } from "./route";
 
 const FOLDER_ID = "11111111-1111-4111-8111-111111111111";
 const PARENT_ID = "22222222-2222-4222-8222-222222222222";
+
+const standardFolder = {
+  id: FOLDER_ID,
+  parentId: null,
+  name: "Standard",
+  kind: "standard" as const,
+  patientUserId: null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
 
 describe("PATCH /api/admin/media/folders/[id]", () => {
   beforeEach(() => {
@@ -40,6 +61,10 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
     renameFolderMock.mockReset();
     deleteFolderMock.mockReset();
     pgExistsMock.mockReset();
+    pgGetByIdMock.mockReset();
+    pgGetByIdMock.mockResolvedValue(standardFolder);
+    validateParentMock.mockReset();
+    validateParentMock.mockResolvedValue({ ok: true });
     getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
   });
 
@@ -68,6 +93,24 @@ describe("PATCH /api/admin/media/folders/[id]", () => {
     expect(res.status).toBe(404);
   });
 
+  it("returns 409 for system-managed folder", async () => {
+    pgGetByIdMock.mockResolvedValue({
+      ...standardFolder,
+      kind: "client_patient",
+      name: "Иван · abcd1234",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/media/folders/x", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Hack" }),
+      }),
+      { params: Promise.resolve({ id: FOLDER_ID }) },
+    );
+    expect(res.status).toBe(409);
+    expect(renameFolderMock).not.toHaveBeenCalled();
+  });
+
   it("returns 200 on rename", async () => {
     renameFolderMock.mockResolvedValue(true);
     const res = await PATCH(
@@ -87,6 +130,10 @@ describe("DELETE /api/admin/media/folders/[id]", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     deleteFolderMock.mockReset();
+    pgGetByIdMock.mockReset();
+    pgGetByIdMock.mockResolvedValue(standardFolder);
+    validateParentMock.mockReset();
+    validateParentMock.mockResolvedValue({ ok: true });
     getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
   });
 

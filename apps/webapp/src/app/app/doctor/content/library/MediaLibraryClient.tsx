@@ -168,10 +168,6 @@ function mediaTitle(item: MediaItem): string {
   return item.displayName?.trim() || item.filename;
 }
 
-function usageHasNonOverridableRefs(usage: UsageRef[]): boolean {
-  return usage.some((u) => u.field === "program_item_discussion_media_only");
-}
-
 export type MediaLibraryClientProps = {
   /** Только admin в admin mode — см. страницу delete-errors и ops/debug сценарий. */
   canSeeDeleteErrorsLink?: boolean;
@@ -243,6 +239,8 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   const insideClientFilesSubtree =
     currentFolderRecord != null && isClientFilesFolderKind(currentFolderRecord.kind);
   const systemManagedFolder = insideClientFilesSubtree;
+  const uploadBlockedAtClientRoot = currentFolderRecord?.kind === "client_files_root";
+  const uploadTargetFolderIdResolved = uploadBlockedAtClientRoot ? null : uploadTargetFolderId;
 
   const searchParams = useMemo(() => {
     const p = new URLSearchParams();
@@ -477,7 +475,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
   }
 
   async function uploadBatch(files: File[]) {
-    if (files.length === 0) return;
+    if (files.length === 0 || uploadBlockedAtClientRoot) return;
     setUploading(true);
     setUploadPercent(0);
     setUploadStatus(null);
@@ -505,8 +503,8 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         if (!useS3Multipart) {
           const fd = new FormData();
           fd.set("file", file);
-          if (uploadTargetFolderId === null) fd.set("folderId", "root");
-          else if (uploadTargetFolderId) fd.set("folderId", uploadTargetFolderId);
+          if (uploadTargetFolderIdResolved === null) fd.set("folderId", "root");
+          else if (uploadTargetFolderIdResolved) fd.set("folderId", uploadTargetFolderIdResolved);
           await uploadWithProgress<UploadOkResponse>({
             url: "/api/media/upload",
             formData: fd,
@@ -520,7 +518,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
           multipartSessionRef.current = null;
           await libraryMultipartUpload({
             file,
-            folderId: uploadTargetFolderId,
+            folderId: uploadTargetFolderIdResolved,
             signal: ac.signal,
             onSessionReady: (sid) => {
               multipartSessionRef.current = sid;
@@ -905,29 +903,20 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
                 {deleteDialog.usage.length > 12 ? (
                   <p className="text-xs text-muted-foreground">…и ещё {deleteDialog.usage.length - 12}</p>
                 ) : null}
-                {usageHasNonOverridableRefs(deleteDialog.usage) ? (
-                  <p className="font-medium text-foreground">
-                    В этом списке есть сообщения пациента, где файл является единственным содержимым, поэтому
-                    удаление заблокировано.
-                  </p>
-                ) : (
-                  <p className="font-medium text-foreground">Удалить всё равно?</p>
-                )}
+                <p className="font-medium text-foreground">Удалить всё равно?</p>
               </div>
               <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
                 <Button type="button" variant="outline" onClick={() => setDeleteDialog(null)} disabled={deletingId !== null}>
                   Отмена
                 </Button>
-                {!usageHasNonOverridableRefs(deleteDialog.usage) ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={deletingId !== null}
-                    onClick={() => void executeDelete(true)}
-                  >
-                    {deletingId === deleteItem.id ? "Удаление..." : "Удалить всё равно"}
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={deletingId !== null}
+                  onClick={() => void executeDelete(true)}
+                >
+                  {deletingId === deleteItem.id ? "Удаление..." : "Удалить всё равно"}
+                </Button>
               </DialogFooter>
             </>
           ) : null}
@@ -1218,6 +1207,9 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
             </span>
           ))}
         </div>
+        {uploadBlockedAtClientRoot ? (
+          <p className="text-xs text-muted-foreground">Откройте папку клиента, чтобы загрузить файл.</p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {foldersLoading ? (
             <span className="text-xs text-muted-foreground">Загрузка папок…</span>
@@ -1368,7 +1360,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               type="button"
               variant="outline"
               className="h-10"
-              disabled={uploading}
+              disabled={uploading || uploadBlockedAtClientRoot}
               onClick={() => mobileCaptureInputRef.current?.click()}
             >
               Снять фото/видео
@@ -1377,7 +1369,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
               type="button"
               variant="outline"
               className="h-10"
-              disabled={uploading}
+              disabled={uploading || uploadBlockedAtClientRoot}
               onClick={() => mobileFilesInputRef.current?.click()}
             >
               {uploading ? "Загрузка..." : "Выбрать из файлов"}
@@ -1388,7 +1380,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
             type="button"
             variant="outline"
             className="h-10"
-            disabled={uploading}
+            disabled={uploading || uploadBlockedAtClientRoot}
             onClick={() => desktopUploadInputRef.current?.click()}
           >
             {uploading ? "Загрузка..." : "Загрузить файлы"}
@@ -1396,7 +1388,7 @@ export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibr
         )}
       </div>
 
-      {!isMobileUploadUi ? (
+      {!isMobileUploadUi && !uploadBlockedAtClientRoot ? (
         <label
           onDragEnter={(e) => {
             if (!e.dataTransfer.types.includes("Files")) return;

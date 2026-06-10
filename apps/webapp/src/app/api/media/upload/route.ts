@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
 import { logger } from "@/app-layer/logging/logger";
 import { ALLOWED_MEDIA_MIME, MAX_PROXY_UPLOAD_BYTES } from "@/modules/media/uploadAllowedMime";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -171,6 +172,10 @@ async function resolveUploadFolderIdFromForm(
   const exists = await folderExists(t);
   if (!exists) {
     return { ok: false, status: 400, payload: { error: "folder_not_found" } };
+  }
+  const assignable = await pgValidateUserAssignableMediaFolder(t);
+  if (!assignable.ok) {
+    return { ok: false, status: 400, payload: { error: assignable.error } };
   }
   return { ok: true, folderId: t };
 }

@@ -3,9 +3,11 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import { mediaFolders, platformUsers } from "../../../db/schema/schema";
 import {
   CLIENT_FILES_ROOT_FOLDER_NAME,
-  formatClientPatientFolderName,
+  clientPatientFolderBaseName,
+  clientPatientFolderFallbackName,
 } from "@/modules/media/clientFilesFolders";
 import type { MediaFolderKind, MediaFolderRecord } from "@/modules/media/types";
+import { pgGetMediaFolderById } from "./mediaFoldersRepo";
 
 function mapFolderRow(row: {
   id: string;
@@ -25,6 +27,26 @@ function mapFolderRow(row: {
   };
 }
 
+async function promoteLegacyClientFilesRootFolder(db: ReturnType<typeof getDrizzle>): Promise<void> {
+  const [hasRoot] = await db
+    .select({ id: mediaFolders.id })
+    .from(mediaFolders)
+    .where(eq(mediaFolders.kind, "client_files_root"))
+    .limit(1);
+  if (hasRoot) return;
+
+  await db
+    .update(mediaFolders)
+    .set({ kind: "client_files_root", updatedAt: sql`now()` })
+    .where(
+      and(
+        sql`${mediaFolders.parentId} IS NULL`,
+        eq(mediaFolders.kind, "standard"),
+        eq(mediaFolders.nameNormalized, CLIENT_FILES_ROOT_FOLDER_NAME.toLowerCase()),
+      ),
+    );
+}
+
 export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord> {
   const db = getDrizzle();
   const [existing] = await db
@@ -33,6 +55,15 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
     .where(eq(mediaFolders.kind, "client_files_root"))
     .limit(1);
   if (existing) return mapFolderRow(existing);
+
+  await promoteLegacyClientFilesRootFolder(db);
+
+  const [promoted] = await db
+    .select()
+    .from(mediaFolders)
+    .where(eq(mediaFolders.kind, "client_files_root"))
+    .limit(1);
+  if (promoted) return mapFolderRow(promoted);
 
   const [created] = await db
     .insert(mediaFolders)
@@ -62,6 +93,23 @@ async function resolvePatientDisplayName(patientUserId: string): Promise<string>
   return full || row.displayName?.trim() || "Клиент";
 }
 
+async function insertClientPatientFolder(
+  db: ReturnType<typeof getDrizzle>,
+  params: { parentId: string; patientUserId: string; name: string },
+): Promise<MediaFolderRecord> {
+  const [created] = await db
+    .insert(mediaFolders)
+    .values({
+      name: params.name,
+      parentId: params.parentId,
+      kind: "client_patient",
+      patientUserId: params.patientUserId,
+    })
+    .returning();
+  if (!created) throw new Error("client_patient_folder_create_failed");
+  return mapFolderRow(created);
+}
+
 export async function pgEnsureClientPatientFolder(patientUserId: string): Promise<MediaFolderRecord> {
   const db = getDrizzle();
   const [existing] = await db
@@ -73,32 +121,40 @@ export async function pgEnsureClientPatientFolder(patientUserId: string): Promis
 
   const root = await pgEnsureClientFilesRootFolder();
   const displayName = await resolvePatientDisplayName(patientUserId);
-  const name = formatClientPatientFolderName(displayName, patientUserId);
+  const primaryName = clientPatientFolderBaseName(displayName);
+  const fallbackName = clientPatientFolderFallbackName(displayName, patientUserId);
 
   try {
-    const [created] = await db
-      .insert(mediaFolders)
-      .values({
-        name,
-        parentId: root.id,
-        kind: "client_patient",
-        patientUserId,
-      })
-      .returning();
-    if (!created) throw new Error("client_patient_folder_create_failed");
-    return mapFolderRow(created);
+    return await insertClientPatientFolder(db, {
+      parentId: root.id,
+      patientUserId,
+      name: primaryName,
+    });
   } catch (error) {
     const code = typeof error === "object" && error && "code" in error ? (error as { code?: string }).code : null;
-    if (code === "23505") {
-      const [retry] = await db
-        .select()
-        .from(mediaFolders)
-        .where(and(eq(mediaFolders.kind, "client_patient"), eq(mediaFolders.patientUserId, patientUserId)))
-        .limit(1);
-      if (retry) return mapFolderRow(retry);
-    }
-    throw error;
+    if (code !== "23505") throw error;
   }
+
+  if (primaryName !== fallbackName) {
+    try {
+      return await insertClientPatientFolder(db, {
+        parentId: root.id,
+        patientUserId,
+        name: fallbackName,
+      });
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? (error as { code?: string }).code : null;
+      if (code !== "23505") throw error;
+    }
+  }
+
+  const [retry] = await db
+    .select()
+    .from(mediaFolders)
+    .where(and(eq(mediaFolders.kind, "client_patient"), eq(mediaFolders.patientUserId, patientUserId)))
+    .limit(1);
+  if (retry) return mapFolderRow(retry);
+  throw new Error("client_patient_folder_create_failed");
 }
 
 /** SQL fragment: folder ids in the client-files subtree (root + patient folders). */
@@ -115,4 +171,29 @@ export function clientFilesSubtreeFolderIdsSql(): ReturnType<typeof sql> {
 
 export function isSystemManagedMediaFolder(kind: MediaFolderKind | undefined): boolean {
   return kind === "client_files_root" || kind === "client_patient";
+}
+
+export type MediaFolderAssignmentError =
+  | "folder_not_found"
+  | "client_folder_requires_patient"
+  | "system_folder_readonly";
+
+export async function pgValidateUserAssignableMediaFolder(
+  folderId: string | null,
+): Promise<{ ok: true } | { ok: false; error: MediaFolderAssignmentError }> {
+  if (folderId === null) return { ok: true };
+  const folder = await pgGetMediaFolderById(folderId);
+  if (!folder) return { ok: false, error: "folder_not_found" };
+  if (folder.kind === "client_files_root") return { ok: false, error: "client_folder_requires_patient" };
+  return { ok: true };
+}
+
+export async function pgValidateManualFolderParent(
+  parentId: string | null,
+): Promise<{ ok: true } | { ok: false; error: MediaFolderAssignmentError }> {
+  if (parentId === null) return { ok: true };
+  const parent = await pgGetMediaFolderById(parentId);
+  if (!parent) return { ok: false, error: "folder_not_found" };
+  if (isSystemManagedMediaFolder(parent.kind)) return { ok: false, error: "system_folder_readonly" };
+  return { ok: true };
 }

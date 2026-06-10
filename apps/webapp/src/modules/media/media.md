@@ -9,8 +9,9 @@
 - Получение медиа по id: `GET /api/media/{id}` (сессия, 302 на presigned GET в private-бакет).
 - Видео: **`GET /api/media/{id}/playback`** (дескриптор); при выдаче **HLS** master и сегменты идут через **`GET /api/media/{id}/hls/...`** (прокси webapp, не presigned master). Контракт — `src/app/api/api.md`.
 - Листинг с фильтрацией/сортировкой и **папками**: `folderId`, `includeDescendants` в list API.
-- **Иерархия папок** (`media_folders`): CRUD через admin API; в UI библиотеки — хлебные крошки и дочерние папки с действиями переименовать / переместить / удалить (пустая папка). Перемещение файла — `PATCH /api/admin/media/[id]` с `folderId`.
-- Поиск использований в CMS (`content_pages`); **`GET /api/admin/media/[id]/usage-summary`** — агрегат по зонам (материалы, упражнения, тесты, рекомендации, разделы); hard-delete с подтверждением в UI.
+- **Иерархия папок** (`media_folders`): CRUD через admin API; в UI библиотеки — хлебные крошки и дочерние папки с действиями переименовать / переместить / удалить (пустая папка). Перемещение файла — `PATCH /api/admin/media/[id]` с `folderId`. Колонки **`kind`** (`standard` \| `client_files_root` \| `client_patient`) и **`patient_user_id`** (миграции **`0113`**, **`0114`**): системная папка **«Файлы клиентов»** и подпапки по пациентам; логика в [`clientFilesFolders.ts`](./clientFilesFolders.ts) и [`pgClientMediaFolders.ts`](../../infra/repos/pgClientMediaFolders.ts). Presign submission пациента и (при явном `folderId`) врачебная загрузка валидируют назначаемую папку; корень клиентских файлов для новых объектов запрещён.
+- Листинг без `folderId` исключает поддерево клиентских файлов (`s3MediaStorage.list`, `excludeClientFiles`).
+- Поиск использований в CMS и программах; **`GET /api/admin/media/[id]/usage-summary`** — агрегат по зонам (материалы, упражнения, тесты, рекомендации, разделы, **обсуждения программы**); hard-delete с подтверждением `confirmUsed` в UI. Удаление сообщения с медиа из чата врачом (**не** из библиотеки) — `DELETE …/discussion/messages/[messageId]` (модуль `program-item-discussion`).
 - Канонические ссылки в контенте остаются **`/api/media/{uuid}`**; смена папки не меняет id.
 
 ## Лимиты и MIME

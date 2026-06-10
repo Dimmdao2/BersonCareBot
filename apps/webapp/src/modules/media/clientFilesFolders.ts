@@ -15,9 +15,20 @@ export function foldersForLibraryScopeSelect(folders: MediaFolderRecord[]): Medi
   return folders.filter((f) => f.kind === "standard");
 }
 
-export function formatClientPatientFolderName(displayName: string, patientUserId: string): string {
+export function clientPatientFolderBaseName(displayName: string): string {
   const base = displayName.trim() || "Клиент";
+  return base.length <= 180 ? base : base.slice(0, 180);
+}
+
+/** Fallback when plain display name collides under the same parent. */
+export function clientPatientFolderFallbackName(displayName: string, patientUserId: string): string {
+  const base = clientPatientFolderBaseName(displayName);
   const suffix = patientUserId.slice(0, 8);
   const candidate = `${base} · ${suffix}`;
   return candidate.length <= 180 ? candidate : candidate.slice(0, 180);
+}
+
+/** @deprecated Use clientPatientFolderBaseName / clientPatientFolderFallbackName */
+export function formatClientPatientFolderName(displayName: string, patientUserId: string): string {
+  return clientPatientFolderFallbackName(displayName, patientUserId);
 }

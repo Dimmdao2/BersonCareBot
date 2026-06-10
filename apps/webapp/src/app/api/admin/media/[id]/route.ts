@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
+import { pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import type { MediaUsageRef } from "@/modules/media/types";
@@ -83,12 +84,6 @@ export async function DELETE(
 
   const deps = buildAppDeps();
   const usage = await deps.media.findUsage(id);
-  const hasNonOverridableUsage = usage.some(
-    (entry: MediaUsageRef) => entry.field === "program_item_discussion_media_only",
-  );
-  if (hasNonOverridableUsage) {
-    return NextResponse.json({ ok: false, error: "media_in_use", usage }, { status: 409 });
-  }
   if (usage.length > 0 && !confirmUsed) {
     return NextResponse.json({ ok: false, error: "media_in_use", usage }, { status: 409 });
   }
@@ -129,6 +124,11 @@ export async function PATCH(
   const deps = buildAppDeps();
 
   if (parsedBody.data.folderId !== undefined) {
+    const folderGate = await pgValidateUserAssignableMediaFolder(parsedBody.data.folderId);
+    if (!folderGate.ok) {
+      const status = folderGate.error === "folder_not_found" ? 404 : 400;
+      return NextResponse.json({ ok: false, error: folderGate.error }, { status });
+    }
     if (parsedBody.data.folderId !== null) {
       const exists = await pgFolderExists(parsedBody.data.folderId);
       if (!exists) {

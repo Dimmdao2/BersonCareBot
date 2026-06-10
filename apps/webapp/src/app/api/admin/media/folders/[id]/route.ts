@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
-import { pgGetMediaFolderById } from "@/infra/repos/mediaFoldersRepo";
-import { isSystemManagedMediaFolder } from "@/infra/repos/pgClientMediaFolders";
+import { isSystemManagedMediaFolder, pgValidateManualFolderParent } from "@/app-layer/media/clientMediaFolders";
+import { pgGetMediaFolderById } from "@/app-layer/media/mediaFoldersRepo";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 
@@ -51,6 +51,14 @@ export async function PATCH(
     if (parsed.data.parentId !== null) {
       if (parsed.data.parentId === id) {
         return NextResponse.json({ ok: false, error: "invalid_parent" }, { status: 400 });
+      }
+      const parentGate = await pgValidateManualFolderParent(parsed.data.parentId);
+      if (!parentGate.ok) {
+        const status =
+          parentGate.error === "folder_not_found" ? 404
+          : parentGate.error === "system_folder_readonly" ? 409
+          : 400;
+        return NextResponse.json({ ok: false, error: parentGate.error }, { status });
       }
       const exists = await pgFolderExists(parsed.data.parentId);
       if (!exists) {
