@@ -6,7 +6,7 @@
 - **Каналы:** PWA (`/app`) — основной UI; **Web Push — основной канал уведомлений**; Telegram, MAX, SMS, email — дополнительные; запись — собственный движок + legacy Rubitime (см. [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md))
 - **Инфраструктура:** host deploy (systemd, nginx, cron) + GitHub Actions
 
-Суть продукта (пациент / специалист): [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md). Оглавление документации: [`docs/README.md`](docs/README.md). Контракт слоёв integrator: [`ARCHITECTURE.md`](ARCHITECTURE.md). Эксплуатация на хосте: [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](docs/ARCHITECTURE/SERVER%20CONVENTIONS.md). В каталогах `apps/*/src/**` лежат файлы `имя_папки.md` с кратким назначением модуля — при изменении модуля их стоит дополнять.
+Суть продукта (пациент / специалист): [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md). Оглавление документации: [`docs/README.md`](docs/README.md). **Инструкции для AI-агентов:** [`AGENTS.md`](AGENTS.md) (дублирует `.cursor/rules/`). Контракт слоёв integrator: [`ARCHITECTURE.md`](ARCHITECTURE.md). Эксплуатация на хосте: [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](docs/ARCHITECTURE/SERVER%20CONVENTIONS.md). В каталогах `apps/*/src/**` лежат файлы `имя_папки.md` с кратким назначением модуля — при изменении модуля их стоит дополнять.
 
 ## Состав монорепо
 
@@ -29,6 +29,8 @@ cp apps/webapp/.env.example apps/webapp/.env.dev
 pnpm run migrate          # integrator SQL + webapp Drizzle (нужна поднятая БД)
 pnpm run dev              # integrator + webapp параллельно
 ```
+
+**База локально:** целевая модель — **одна** PostgreSQL с схемами **`public`** + **`integrator`** (тот же `DATABASE_URL` в корневом `.env` и в `apps/webapp/.env.dev`). См. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md). Шаблоны env: [`deploy/env/README.md`](deploy/env/README.md).
 
 Dev-порты по умолчанию: **webapp** `http://127.0.0.1:5200`, **integrator API** `http://127.0.0.1:4200` (см. `.env` и `apps/webapp/.env.dev`).
 
@@ -110,7 +112,7 @@ pnpm run build && pnpm run build:webapp
 - `event-create-record`: при привязке Telegram/MAX — сразу в мессенджер; иначе delayed job (2 проверки/мин) → SMS fallback
 - `event-remove-record`, `event-update-record`: без ожидания, в доступный канал (мессенджер или SMS)
 
-Параллельно развивается **собственный движок записи** — см. [`docs/OWN_BOOKING_ENGINE_INITIATIVE/README.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/README.md).
+**Собственный движок записи** (этапы 1–9 закрыты; Rubitime — зеркало/legacy) — см. [`docs/OWN_BOOKING_ENGINE_INITIATIVE/README.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/README.md).
 
 ## Деплой
 

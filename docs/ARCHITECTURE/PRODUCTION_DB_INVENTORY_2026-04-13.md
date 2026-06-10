@@ -1,5 +1,7 @@
 # Production DB: инвентаризация схемы (снимок 2026-04-13)
 
+**Исторический снимок.** Актуальная логическая карта таблиц — [`DB_STRUCTURE.md`](./DB_STRUCTURE.md); операционные факты подключения — [`SERVER CONVENTIONS.md`](./SERVER%20CONVENTIONS.md). После крупных миграций переснимать `\dt` / `pg_dump --schema-only` на хосте и при необходимости обновлять этот файл или добавлять новый датированный снимок.
+
 Снимок структуры **без секретов**: получен на production-хосте командами из `SERVER CONVENTIONS.md` (`set -a && source /opt/env/bersoncarebot/webapp.prod && set +a`, затем `psql` / `pg_dump --schema-only`). Имена базы и роли — **операционные факты** с хоста; при смене окружения переснять инвентаризацию.
 
 **Связанные документы:** `DATABASE_UNIFIED_POSTGRES.md` (модель одной БД, `public` + `integrator`), `DB_STRUCTURE.md` (логическая группировка таблиц).
