@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
+import { pgValidateManualFolderParent } from "@/app-layer/media/clientMediaFolders";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 
@@ -56,6 +57,14 @@ export async function POST(request: Request) {
   }
 
   const parentId = parsed.data.parentId === undefined ? null : parsed.data.parentId;
+  const parentGate = await pgValidateManualFolderParent(parentId);
+  if (!parentGate.ok) {
+    const status =
+      parentGate.error === "folder_not_found" ? 404
+      : parentGate.error === "system_folder_readonly" ? 409
+      : 400;
+    return NextResponse.json({ ok: false, error: parentGate.error }, { status });
+  }
   if (parentId !== null) {
     const exists = await pgFolderExists(parentId);
     if (!exists) {

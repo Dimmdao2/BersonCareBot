@@ -5,6 +5,7 @@ import { env, isS3MediaEnabled } from "@/config/env";
 import { getPool } from "@/app-layer/db/client";
 import { logger } from "@/app-layer/logging/logger";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
+import { pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
 import { insertUploadSessionTx } from "@/app-layer/media/mediaUploadSessionsRepo";
 import { insertPendingMediaFileTx, deletePendingMediaFileById } from "@/app-layer/media/s3MediaStorage";
 import { s3AbortMultipartUpload, s3CreateMultipartUpload, s3ObjectKey } from "@/app-layer/media/s3Client";
@@ -57,6 +58,11 @@ export async function POST(request: Request) {
 
   let folderId: string | null = null;
   if (parsed.data.folderId !== undefined && parsed.data.folderId !== null) {
+    const assignable = await pgValidateUserAssignableMediaFolder(parsed.data.folderId);
+    if (!assignable.ok) {
+      const status = assignable.error === "folder_not_found" ? 404 : 400;
+      return NextResponse.json({ ok: false, error: assignable.error }, { status });
+    }
     const exists = await pgFolderExists(parsed.data.folderId);
     if (!exists) {
       return NextResponse.json({ ok: false, error: "folder_not_found" }, { status: 404 });

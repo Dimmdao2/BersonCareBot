@@ -85,6 +85,43 @@ describe("DoctorProgramDiscussionMessagesPanel", () => {
     expect(onSendReply).toHaveBeenCalledWith(itemA, "Ответ врача");
   });
 
+  it("deletes patient media message after confirmation", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("matchMedia", () => ({
+      matches: true,
+      media: "(hover: none), (pointer: coarse)",
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+      addListener: () => {},
+      removeListener: () => {},
+    }));
+    const onDeleteMediaMessage = vi.fn(async () => ({ ok: true as const }));
+    const mediaMessage: ProgramItemDiscussionMessage = {
+      ...message("m-media", "", itemA, "patient"),
+      mediaFileId: "33333333-3333-4333-8333-333333333333",
+      body: null,
+    };
+
+    render(
+      <DoctorProgramDiscussionMessagesPanel
+        messages={[mediaMessage]}
+        loading={false}
+        loadingOlder={false}
+        error={null}
+        nextCursor={null}
+        onLoadOlder={() => {}}
+        onDeleteMediaMessage={onDeleteMediaMessage}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /удалить файл из чата/i }));
+    expect(screen.getByText(/удалить файл из чата\?/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^удалить$/i }));
+    expect(onDeleteMediaMessage).toHaveBeenCalledWith("m-media");
+  });
+
   it("shows read delivery tick on doctor outgoing when patient read cursor covers message", () => {
     render(
       <DoctorProgramDiscussionMessagesPanel

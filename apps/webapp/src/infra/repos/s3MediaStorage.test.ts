@@ -115,6 +115,15 @@ describe("createS3MediaStoragePort", () => {
     expect(url).toBeNull();
   });
 
+  it("list without folder scope excludes client-files subtree", async () => {
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [] });
+    const port = createS3MediaStoragePort();
+    await port.list({ limit: 10, offset: 0 });
+    const listSql = approxSqlAt(0);
+    expect(listSql).toMatch(/client_tree/i);
+    expect(listSql).toMatch(/client_files_root/i);
+  });
+
   it("deleteHard queues pending_delete for S3-backed file (no immediate s3 delete)", async () => {
     runWebappSqlMock
       .mockResolvedValueOnce({ rows: [{ s3_key: "media/x/f.mp4", status: "ready" }] })

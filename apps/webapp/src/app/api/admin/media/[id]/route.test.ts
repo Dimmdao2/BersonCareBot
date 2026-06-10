@@ -148,7 +148,7 @@ describe("DELETE /api/admin/media/[id]", () => {
     expect(deleteHardMock).toHaveBeenCalledWith(mediaId);
   });
 
-  it("blocks delete even with confirmUsed when media is non-overridable usage", async () => {
+  it("deletes discussion-only media when confirmUsed is set", async () => {
     getSessionMock.mockResolvedValue({ user: { role: "admin" } });
     findUsageMock.mockResolvedValue([
       {
@@ -157,14 +157,15 @@ describe("DELETE /api/admin/media/[id]", () => {
         field: "program_item_discussion_media_only",
       },
     ]);
+    deleteHardMock.mockResolvedValue(true);
     const res = await DELETE(
       new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true&confirmUsed=true`),
       {
         params: Promise.resolve({ id: mediaId }),
       },
     );
-    expect(res.status).toBe(409);
-    expect(deleteHardMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(deleteHardMock).toHaveBeenCalledWith(mediaId);
   });
 
   it("returns 404 if media already removed", async () => {

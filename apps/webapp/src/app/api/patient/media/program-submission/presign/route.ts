@@ -9,7 +9,7 @@ import {
   deletePendingMediaFileById,
   insertPendingProgramSubmissionMediaFileTx,
 } from "@/app-layer/media/s3MediaStorage";
-import { pgEnsureClientPatientFolder } from "@/infra/repos/pgClientMediaFolders";
+import { pgEnsureClientPatientFolder } from "@/app-layer/media/clientMediaFolders";
 import { presignPutUrl, s3ObjectKey } from "@/app-layer/media/s3Client";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";

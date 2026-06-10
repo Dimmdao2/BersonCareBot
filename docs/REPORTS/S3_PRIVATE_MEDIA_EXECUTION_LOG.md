@@ -75,6 +75,13 @@
 - **Purge retry:** колонки `delete_attempts`, `next_attempt_at`; миграция `060_media_files_status_retry.sql` (CHECK на `status`); при сбое S3 — backoff до 1 суток; ответ purge `{ removed, errors }`.
 - **Админ/UI:** `GET /api/admin/media/delete-errors`, страница `/app/doctor/content/library/delete-errors`, бейдж в библиотеке при `total > 0`.
 
+## Revision 6 (2026-06-10, клиентские файлы + обсуждение программы)
+
+- **Папки клиентов:** `media_folders.kind` / `patient_user_id` (Drizzle `0113`, fixup `0114`); системная **«Файлы клиентов»** и подпапки по `platform_users`. Загрузки пациента (`program-submission/presign`) попадают в подпапку клиента.
+- **Листинг библиотеки:** без `folderId` поддерево клиентских файлов скрыто; область «Файлы клиентов» в UI — отдельный scope.
+- **Обсуждение программы:** врач может **`DELETE`** сообщение с медиа пациента из чата; файл в S3/библиотеке остаётся. Удаление из библиотеки при ссылке в discussion — через `confirmUsed`, без жёсткого запрета только по discussion.
+- **Системные папки:** CRUD через admin API запрещён (`409 system_folder_readonly`); загрузка только в `client_patient`, не в корень.
+
 ## Revision 4 (2026-04-09, multipart + папки)
 
 - **Multipart:** для крупных файлов — `POST /api/media/multipart/init`, `part-url`, PUT частей в S3 с **ETag**, `POST /api/media/multipart/complete` переводит `media_files` в `ready` и возвращает `url` без отдельного `confirm`. Отмена: `POST /api/media/multipart/abort`. Легаси путь `presign` → PUT → `confirm` сохранён для малых/внешних клиентов.

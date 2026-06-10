@@ -28,6 +28,11 @@ vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
   pgFolderExists: (...a: unknown[]) => pgExistsMock(...a),
 }));
 
+const validateParentMock = vi.fn();
+vi.mock("@/app-layer/media/clientMediaFolders", () => ({
+  pgValidateManualFolderParent: (...a: unknown[]) => validateParentMock(...a),
+}));
+
 import { GET, POST } from "./route";
 
 describe("GET /api/admin/media/folders", () => {
@@ -37,6 +42,8 @@ describe("GET /api/admin/media/folders", () => {
     listAllMock.mockReset();
     createFolderMock.mockReset();
     pgExistsMock.mockReset();
+    validateParentMock.mockReset();
+    validateParentMock.mockResolvedValue({ ok: true });
   });
 
   it("returns 401 without session", async () => {
@@ -71,6 +78,8 @@ describe("POST /api/admin/media/folders", () => {
     getSessionMock.mockReset();
     createFolderMock.mockReset();
     pgExistsMock.mockReset();
+    validateParentMock.mockReset();
+    validateParentMock.mockResolvedValue({ ok: true });
     getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "doctor" } });
   });
 
@@ -85,6 +94,20 @@ describe("POST /api/admin/media/folders", () => {
       }),
     );
     expect(res.status).toBe(404);
+  });
+
+  it("returns 409 when parent is system-managed folder", async () => {
+    const pid = "11111111-1111-4111-8111-111111111111";
+    validateParentMock.mockResolvedValue({ ok: false, error: "system_folder_readonly" });
+    const res = await POST(
+      new Request("http://localhost/api/admin/media/folders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Sub", parentId: pid }),
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(createFolderMock).not.toHaveBeenCalled();
   });
 
   it("returns 200 when create succeeds", async () => {
