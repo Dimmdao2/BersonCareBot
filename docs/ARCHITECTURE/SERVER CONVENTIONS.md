@@ -329,13 +329,15 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 - `DATABASE_URL` — **webapp dev** DB;
 - `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — **integrator dev** DB.
 
-Подтвержденные **имена dev БД** (по env preview в workspace, без секретов):
+Подтвержденные **имена dev БД** (по env preview в workspace, без секретов; **2026-06-10** — unified dev на audited host):
 
 | Назначение | Файл env | Переменная | Имя БД |
 |------------|----------|------------|--------|
-| Integrator dev | `/home/dev/dev-projects/BersonCareBot/.env` | `DATABASE_URL` | `bersoncarebot_dev` |
+| Integrator dev | `/home/dev/dev-projects/BersonCareBot/.env` | `DATABASE_URL` | `bcb_webapp_dev` (та же БД, что webapp) |
 | Webapp dev | `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` | `DATABASE_URL` | `bcb_webapp_dev` |
-| Integrator для dev cutover/backfill/reconcile | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev` | `INTEGRATOR_DATABASE_URL` | должно указывать на `bersoncarebot_dev` |
+| Dev cutover/backfill/reconcile | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev` | `INTEGRATOR_DATABASE_URL` | при unified — **тот же** URL, что `DATABASE_URL`; отдельный URL — только legacy cutover |
+
+**Целевая dev-модель:** один `DATABASE_URL` в `.env` и `apps/webapp/.env.dev`, обе схемы `public` + `integrator` в одной базе. Имя `bersoncarebot_dev` как отдельная integrator-only БД — **legacy** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md)).
 
 ### Integrator dev env loading
 

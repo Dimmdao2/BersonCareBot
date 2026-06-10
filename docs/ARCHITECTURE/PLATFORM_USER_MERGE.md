@@ -274,7 +274,7 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 Отдельный раздел аккордеона **«История операций (admin)»**: **`GET /api/admin/audit-log?involvesPlatformUserId=<текущий uuid>`** — строки, где пользователь в `target_id` или в `details.candidateIds` у `auto_merge_conflict`; локальный счётчик нерешённых — только среди **загруженной страницы** (по умолчанию до 20 строк), не глобальный. Запрос выполняется при открытии раздела.
 
-Вкладка **«Лог операций»** в `/app/settings`: бейдж с **`openAutoMergeConflictCount`** — число **строк** `auto_merge_conflict` с `resolved_at IS NULL` (дедуп по `conflict_key` даёт одну открытую строку на конфликт; `repeat_count` на бейдж не влияет).
+Журнал операций **`/app/doctor/audit-log`**: бейдж с **`openAutoMergeConflictCount`** — число **строк** `auto_merge_conflict` с `resolved_at IS NULL` (дедуп по `conflict_key` даёт одну открытую строку на конфликт; `repeat_count` на бейдж не влияет). Legacy URL `?adminTab=audit-log` редиректит сюда.
 
 **Устойчивость UI и навигация (после hardening):**
 - `merge-preview` в `AdminMergeAccountsPanel`: предыдущий запрос отменяется через `AbortController`; ответы от устаревших запросов не применяются (монотонный счётчик запроса), чтобы при быстрой смене второй записи или опций не показывался чужой preview. Пока раздел merge в аккордеоне карточки **не открыт** (`suspendHeavyFetch`), кандидаты / preview / поиск второй записи не запрашиваются, активные запросы отменяются.

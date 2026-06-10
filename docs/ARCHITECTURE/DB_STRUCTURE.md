@@ -1,364 +1,304 @@
 # Текущая структура БД
 
-Документ описывает объекты PostgreSQL по **схемам** и по приложениям в репозитории.
+Документ описывает объекты PostgreSQL по **схемам** в **unified** Postgres: одна база, `DATABASE_URL` общий для api и webapp — см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md), [`SERVER CONVENTIONS.md`](./SERVER%20CONVENTIONS.md).
 
-**Целевой production (2026-04):** webapp и integrator подключаются к **одной** базе одной и той же **строкой `DATABASE_URL`** и **одной ролью** PostgreSQL; разделение данных — схемы **`integrator`** и **`public`**, не отдельные базы и не два URL в runtime — см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md), [`SERVER CONVENTIONS.md`](./SERVER%20CONVENTIONS.md).
+## Верификация (источник правды)
 
-Ниже разделы названы по **схемам** (как в SQL). Дампы в `DB_DUMPS/` могли сниматься с отдельных dev-баз; логическая карта та же.
+| Параметр | Значение |
+|----------|----------|
+| Сверка | **2026-06-10** после `pnpm run migrate` на dev |
+| База | `bcb_webapp_dev` (`apps/webapp/.env.dev`) |
+| Таблиц `integrator` | **33** |
+| Таблиц `public` | **199** |
+| Последняя Drizzle-миграция webapp | **`0114_client_media_folders_fixup`** |
+| DDL-снимки | [`DB_DUMPS/`](./DB_DUMPS/README.md) (`integrator_*`, `public_*`) |
 
-Источник:
+Полный машиночитаемый реестр — [§ Приложение A](#приложение-a-полный-реестр-таблиц). При расхождении с текстом ниже приоритет у **живой БД** и дампов.
 
-- `docs/ARCHITECTURE/DB_DUMPS/integrator_bersoncarebot_dev_schema.sql`
-- `docs/ARCHITECTURE/DB_DUMPS/webapp_bcb_webapp_dev_schema.sql`
-- текущие migrations и db-порты в репозитории
+Миграции в репозитории: `apps/integrator/src/infra/db/migrations/` (журнал `integrator.schema_migrations`), `apps/webapp/db/drizzle-migrations/` + `apps/webapp/db/schema/` (журнал `drizzle.__drizzle_migrations`). Legacy SQL webapp — `apps/webapp/migrations/` (журнал `public.webapp_schema_migrations`, не шаг обычного deploy).
 
 ## Scope
 
-Документ покрывает:
+1. Схема **`integrator`** — ingress, runtime integrator, зеркала настроек.
+2. Схема **`public`** — канон webapp, проекции, booking engine, CMS, программы лечения.
 
-1. схему **`integrator`** (код и миграции в `apps/integrator`);
-2. схему **`public`** (webapp-канон; legacy SQL-миграции в `apps/webapp/migrations`, новые таблицы инициативы программ лечения — в `apps/webapp/db/drizzle-migrations` и `apps/webapp/db/schema`).
+В **`public`** часть таблиц с теми же именами, что в `integrator`, — **legacy shadow / backfill-копии** (см. [§ 2.0](#20-legacy-shadow-таблицы-в-public)). Product owner для person, support, reminders, appointments — webapp-таблицы с префиксами `support_*`, `reminder_*`, `platform_users` и т.д.; статусы — [`STAGE13_OWNERSHIP_MAP.md`](./STAGE13_OWNERSHIP_MAP.md).
 
 ---
 
-## 1. Схема `integrator`
+## 1. Схема `integrator` (33 таблицы)
 
 ### 1.1 User / identity / contacts
 
-Таблицы:
-
-- `users` (в т.ч. `merged_into_user_id` → `users.id`, nullable: каноническая строка = NULL; alias после merge указывает на канонический `id`; CHECK запрещает self-reference)
+- `users` — `merged_into_user_id` → канон после merge (CHECK без self-reference)
 - `identities`
 - `contacts`
 
-Связи:
-
-- `identities.user_id -> users.id`
-- `contacts.user_id -> users.id`
-- `users.merged_into_user_id -> users.id` (опционально)
-
 ### 1.2 Telegram
-
-Таблицы:
 
 - `telegram_state`
 - `telegram_users`
 
 ### 1.3 Booking / RubiTime
 
-Таблицы:
-
-- `rubitime_records` (см. также поток и журнал: `RUBITIME_BOOKING_PIPELINE.md`)
+- `rubitime_records` — канон записей ingress; см. [`RUBITIME_BOOKING_PIPELINE.md`](./RUBITIME_BOOKING_PIPELINE.md)
+- `rubitime_branches`, `rubitime_cooperators`, `rubitime_services`, `rubitime_events`
+- `rubitime_booking_profiles`, `rubitime_create_retry_jobs`, `rubitime_api_throttle`
+- `booking_calendar_map`
 
 ### 1.4 Messaging / support
 
-Таблицы:
-
-- `conversations`
-- `conversation_messages`
-- `user_questions`
-- `question_messages`
+- `conversations`, `conversation_messages`
+- `user_questions`, `question_messages`
 - `message_drafts`
 
 ### 1.5 Reminders / content access
 
-Таблицы:
-
-- `user_reminder_rules`
-- `user_reminder_occurrences`
-- `user_reminder_delivery_logs`
+- `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs`
 - `content_access_grants`
 
 ### 1.6 Mailings / subscriptions
 
-Таблицы:
+- `mailing_topics`, `mailings`, `mailing_logs`
+- `user_subscriptions` — **frozen legacy** (триггер запрета записи; reconcile/read)
 
-- `mailing_topics`
-- `mailings`
-- `mailing_logs`
-- `user_subscriptions`
+### 1.7 Configuration
 
-### 1.7 Runtime / technical
+- `system_settings` — зеркало `public.system_settings` (`key`, `scope`, `value_json`); webapp пишет канон и синхронизирует в integrator — см. [`CONFIGURATION_ENV_VS_DATABASE.md`](./CONFIGURATION_ENV_VS_DATABASE.md)
 
-Таблицы:
+### 1.8 Data quality / incidents
 
-- `idempotency_keys`
+- `integration_data_quality_incidents`
+
+### 1.9 Runtime / technical
+
+- `idempotency_keys` — дедуп входящих вебхуков и исходящих операций
 - `delivery_attempt_logs`
-- `projection_outbox` (очередь событий для проекции в webapp; мониторинг через projection health)
+- `projection_outbox` — очередь проекции в webapp (fallback; целевой путь — прямой SQL)
 - `schema_migrations` — журнал SQL-миграций integrator (`version`, например `core:…`, `telegram:…`)
 
 ---
 
-## 2. Схема `public` (webapp)
+## 2. Схема `public` (199 таблиц)
 
-### 2.1 Users / bindings / preferences
+### 2.0 Legacy shadow-таблицы в `public`
 
-Таблицы:
+Те же **имена**, что в `integrator`, остаются в `public` для backfill, reconcile и исторического кода. **Не** считать их product owner для UI/API webapp:
 
-- `platform_users` — канон платформы; **`merged_into_id`** — ссылка на канона для alias-строки после merge; **`merged_at`** — момент пометки alias (merge / channel-link claim), для операционной статистики и отличия от прочих обновлений `updated_at` (миграция **`0067_platform_users_merged_at.sql`**).
-- `platform_user_contacts` — supplementary phone/email и др. для UI врача; **не** участвует в login/identity; FK `platform_user_id` → `platform_users` (CASCADE); unique `(platform_user_id, contact_type, value_normalized)`; миграция **`0097_platform_user_contacts.sql`**. См. [`PLATFORM_USER_MERGE.md`](PLATFORM_USER_MERGE.md) §Supplementary contacts.
-- `user_channel_bindings`
-- `user_channel_preferences`
-- `user_notification_topics`
+`users`, `identities`, `contacts`, `telegram_state`, `telegram_users`, `conversations`, `conversation_messages`, `user_questions`, `question_messages`, `message_drafts`, `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs`, `content_access_grants`, `mailing_topics`, `mailings`, `mailing_logs`, `user_subscriptions`, `rubitime_records`, `rubitime_branches`, `rubitime_cooperators`, `rubitime_services`, `rubitime_events`, `rubitime_booking_profiles`, `rubitime_create_retry_jobs`, `rubitime_api_throttle`, `booking_calendar_map`, `delivery_attempt_logs`, `projection_outbox`, `idempotency_keys`, `integration_data_quality_incidents`, `schema_migrations`.
 
-### 2.2 Diaries
+Канонические webapp-аналоги — § 2.1–2.7, `platform_users`, `support_*`, `reminder_*`, `appointment_records`, `be_*` и т.д.
 
-Таблицы:
+### 2.1 Users / bindings / preferences / auth
 
-- `symptom_trackings`
-- `symptom_entries`
-- `lfk_complexes`
-- `lfk_sessions`
+- `platform_users` — канон платформы; `merged_into_id`, `merged_at` (миграция `0067`)
+- `platform_user_contacts` — supplementary phone/email для UI врача (`0097`)
+- `user_channel_bindings`, `user_channel_preferences`, `user_notification_topics`, `user_notification_topic_channels` (`0055`, `0108`–`0109`)
+- `user_web_push_subscriptions` (`0071`)
+- `user_oauth_bindings`, `user_password_credentials`, `user_email_setup_tokens` (`0070`, `0076`)
+- `user_phone_history`, `user_pins`
+- `phone_challenges`, `phone_otp_locks`, `phone_messenger_bind_secrets` (`0078`)
+- `email_challenges`, `email_send_cooldowns`
+- `login_tokens`, `channel_link_secrets`
+- `auth_rate_limit_events`
 
-### 2.3 Auth / audit / logs
+### 2.2 Diaries / LFK / patient practice
 
-Таблицы:
+- `symptom_trackings`, `symptom_entries`
+- `lfk_complexes`, `lfk_sessions`
+- `lfk_exercises`, `lfk_exercise_media`, `lfk_exercise_regions`
+- `lfk_complex_templates`, `lfk_complex_template_exercises`, `lfk_complex_exercises`
+- `patient_lfk_assignments`
+- `patient_diary_day_snapshots` (`0052`)
+- `patient_practice_completions`
+- `patient_daily_warmup_presentations`, `patient_daily_warmup_video_views` (`0084`–`0085`, `0110`)
+- `patient_content_rating_feedback` (`0079`)
 
-- `phone_challenges`
+### 2.3 Auth / audit / logs / runtime
+
 - `message_log`
-- `broadcast_audit` — журнал намерения рассылки из `/app/doctor/broadcasts` (каналы, размер аудитории, автор, полный текст `message_body`); подробнее см. [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md).
-- `broadcast_audit_recipients` — получатели рассылки `(audit_id, platform_user_id)` для журнала врача и ACL; полный текст пациенту — в **`support_conversation_messages`** (см. [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md)); legacy URL **`/app/patient/broadcasts/[auditId]`** редиректит в чат; миграция Drizzle **`0080_broadcast_audit_recipients`**.
-- `admin_audit_log` — персистентный журнал операций админки (опасные действия, смена настроек, конфликты auto-merge, снимки `system_health_*` и т.д.); UI «Журнал операций» — **`/app/doctor/audit-log`**, API `GET /api/admin/audit-log` (фильтры `excludeSystemHealth` / `systemHealthOnly`). Миграция `066_admin_audit_log.sql`. Подробности: [`DOCTOR_CABINET_NAVIGATION.md`](DOCTOR_CABINET_NAVIGATION.md), `docs/REPORTS/STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md`.
-- `idempotency_keys`
-- `webapp_schema_migrations` — учёт **legacy** SQL-миграций webapp (`apps/webapp/migrations/*.sql`). Записи появляются только при ручном прогоне **`pnpm --dir apps/webapp run migrate:legacy`** (`apps/webapp/scripts/run-migrations.mjs`, режим `WEBAPP_LEGACY_MIGRATIONS_MODE=bootstrap|emergency`). Это **не** шаг регулярного production deploy: `deploy/host/deploy-prod.sh` и `deploy/host/deploy-webapp-prod.sh` вызывают только Drizzle (`pnpm migrate` / `pnpm --dir apps/webapp run migrate`) и post-migrate guardrail. Раннер legacy используют для bootstrap пустой БД, восстановления после сбоя или применения SQL вне Drizzle-журнала (**emergency / historical**). Отдельное имя от `integrator.schema_migrations` (`version`) и от исторической `public.schema_migrations (filename)`. Канонический прогон схемы webapp в нормальной разработке — Drizzle (`pnpm --dir apps/webapp run migrate`).
+- `broadcast_audit`, `broadcast_audit_recipients` (`0080`)
+- `admin_audit_log` — журнал админки; UI `/app/doctor/audit-log`
+- `idempotency_keys` — идемпотентность HTTP webapp
+- `webapp_schema_migrations` — журнал legacy SQL (`migrate:legacy`)
+- `integrator_push_outbox` — исходящая синхронизация настроек в integrator
+- `outgoing_delivery_queue` (`0060`)
+- `notification_delivery_attempts` (`0073`)
 
-### 2.4 Support / communication (проекция из integrator)
+### 2.4 Support / communication (проекция)
 
-Таблицы (миграции 009, backfill-communication-history):
-
-- `support_conversations`
-- `support_conversation_messages`
-- `support_questions`
-- `support_question_messages`
+- `support_conversations`, `support_conversation_messages`
+- `support_questions`, `support_question_messages`
 - `support_delivery_events`
+- `doctor_patient_support` (`0101`)
+- `doctor_notes`
 
-Источник в integrator: `conversations`, `conversation_messages`, `user_questions`, `question_messages`, `delivery_attempt_logs` (по контракту проекции).
+### 2.5 Reminders / content access (проекция + канон)
 
-### 2.5 Reminders / content access (проекция из integrator)
-
-Таблицы (миграции 010, backfill-reminders-domain; webapp **`084_reminder_rehab_slots_mute.sql`** — `schedule_data`, `reminder_intent`, rehab/mute; integrator **`20260509_0001_reminder_rules_multi_and_enrichment.sql`** — multi-rule / enrichment):
-
-- `reminder_rules` — **канонические продуктовые правила** (webapp SoT); integrator хранит зеркало для dispatch после M2M upsert.
-- `reminder_occurrence_history`
-- `reminder_delivery_events`
+- `reminder_rules` — **канон** продуктовых правил (webapp SoT)
+- `reminder_occurrence_history`, `reminder_delivery_events`
+- `reminder_journal`
+- `webapp_reminder_occurrences` (`0075`)
 - `content_access_grants_webapp`
+- `platform_users.reminder_muted_until` — user-level mute
 
-Колонка **`platform_users.reminder_muted_until`** — user-level mute для цепочки dispatch (см. [`PATIENT_REMINDER_UX_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md)).
+### 2.6 Appointments / booking
 
-Источник в integrator: `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs`, `content_access_grants`.
+**Проекция Rubitime:**
 
-### 2.6 Appointments (проекция из integrator)
+- `appointment_records` ← `integrator.rubitime_records`
 
-Таблицы (миграции 011, backfill-appointments-domain):
+**Legacy каталог (не удалён):**
 
-- `appointment_records`
+- `booking_cities`, `booking_branches`, `booking_branch_services`, `booking_services`, `booking_specialists`, `booking_calendar_map`
+- `branches`, `patient_bookings`
 
-Источник в integrator: `rubitime_records`. Связь по `integrator_record_id`.
+**Booking engine (`be_*`, Drizzle `0086`–`0096`, `0100`):**
 
-#### Каноническая модель записи (OWN_BOOKING_ENGINE, этап 1)
+Организация и каталог: `be_organizations`, `be_branches`, `be_rooms`, `be_specialists`, `be_specialist_locations`, `be_specialist_rooms`, `be_clinic_services`, `be_specialist_service_availability`, `be_service_location_availability`.
 
-Drizzle: `apps/webapp/db/schema/bookingEngine.ts`, `bookingScheduling.ts`, `bookingPolicies.ts`, `bookingPayments.ts`, `bookingMemberships.ts`, `patientMergeCandidate.ts`; миграции `0086`–`0094` (`0089` — поля формы, рабочие часы, блокировки, exclusion, `canonical_appointment_id`; `0090` — `be_appointments.attribution_json`, `patient_merge_candidates`; `0091` — политики отмены/переноса; `0092`–`0093` — платёжный слой и предоплата, `patient_bookings.status` + `awaiting_payment`; `0094` — абонементы: `be_subscription_packages`, `be_patient_packages`, `be_package_usages`, `be_package_history_events`; остаток по позициям — производный от usages, отдельной таблицы баланса нет).
+Записи и расписание: `be_appointments`, `be_appointment_events`, `be_appointment_history_events`, `be_appointment_staff_comments`, `be_appointment_reschedules`, `be_appointment_cancellations`, `be_working_hours`, `be_availability_rules`, `be_schedule_blocks`, `be_booking_form_fields`, `be_booking_form_submissions`, `be_patient_timeline_events`, `be_external_entity_mappings`, `patient_merge_candidates`.
 
-Таблицы (префикс `be_*`, tenant `organization_id`):
+Политики: `be_cancellation_policies`, `be_reschedule_policies`, `be_prepayment_policies`.
 
-- `be_organizations`, `be_branches`, `be_rooms`, `be_specialists`, `be_specialist_locations`, `be_specialist_rooms`
-- `be_clinic_services`, `be_specialist_service_availability`, `be_service_location_availability`
-- `be_appointments` (`source` включает `public_widget`, `attribution_json` — этап 3), `be_appointment_events` (append-only); exclusion constraint на пересечение активных записей по специалисту (этап 2)
-- `patient_merge_candidates` — кандидаты ручного мерджа после публичной записи (этап 3)
-- `be_booking_form_fields`, `be_booking_form_submissions`; `be_working_hours`, `be_availability_rules`, `be_schedule_blocks` (этап 2)
-- `be_patient_timeline_events`, `be_appointment_history_events`
-- `be_cancellation_policies`, `be_reschedule_policies` (уровни organization / specialist / service / product; этап 4)
-- `be_appointment_reschedules`, `be_appointment_cancellations` (append-only история переносов и отмен, поле `notifications_sent`; этап 4)
-- `be_prepayment_policies` (очная услуга **или** `online_category`: rehab_lfk | nutrition | general; этап 5)
-- `be_payment_intents`, `be_payments`, `be_refunds`, `be_payment_provider_events`, `be_payment_history_events` (этап 5; `be_appointments.payment_ref`)
-- `be_external_entity_mappings` (внешние id Rubitime, не в канонических колонках)
+Платежи (этап 5): `be_payment_intents`, `be_payments`, `be_refunds`, `be_payment_provider_events`, `be_payment_history_events`.
 
-`patient_bookings.status` включает `awaiting_payment` (check синхронизирован с миграцией `0092` и Drizzle `schema.ts`).
+Абонементы (этап 6, `0094`, `0105`): `be_subscription_packages`, `be_package_items`, `be_patient_packages`, `be_patient_package_items`, `be_package_usages`, `be_package_history_events`, `be_patient_booking_profiles`.
 
-Legacy `booking_*` / `patient_bookings` / `appointment_records` **не удалены**; backfill копирует каталог в `be_*`. При `booking_rubitime_bridge_enabled`: **live mirror** (`AppointmentMirrorSync`) синхронизирует mapped appointments в `be_appointments` и `appointment_records`; ops backfill — `POST /api/admin/booking-engine/bridge`. См. [`CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md) § Live mirror, [`ACCEPTANCE_MIRROR_SYNC.md`](../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md).
+Продукты / pay-links (этап 7, `0095`): `be_products`, `be_product_pay_links`, `be_product_purchases`, `be_product_history_events`.
 
-### 2.7 Subscription / mailing (проекция из integrator)
+`patient_bookings.status` включает `awaiting_payment`. См. [`CANONICAL_MODEL.md`](../OWN_BOOKING_ENGINE_INITIATIVE/CANONICAL_MODEL.md).
 
-Таблицы (миграции 012, backfill-subscription-mailing-domain):
+### 2.7 Subscription / mailing (проекция)
 
-- `mailing_topics_webapp`
-- `user_subscriptions_webapp`
-- `mailing_logs_webapp`
+- `mailing_topics_webapp`, `user_subscriptions_webapp`, `mailing_logs_webapp`
 
-Источник в integrator: `mailing_topics`, `user_subscriptions`, `mailing_logs`.
+### 2.8 CMS: контент и медиа
 
-### 2.8 CMS media / библиотека
+**Страницы и разделы:**
 
-Таблицы (миграции `028`, `044`, `060`, `065`, **`067_media_folders_and_multipart.sql`**, Drizzle **`0113_client_media_folders`**, **`0114_client_media_folders_fixup`** и др.):
+- `content_sections`, `content_pages`, `content_section_slug_history`
 
-- `media_files` — объекты библиотеки (в т.ч. `s3_key`, `status`, `uploaded_by`, `folder_id` → `media_folders`, лимит `size_bytes` до 3 GiB).
-- `media_folders` — иерархия папок (`parent_id`, нормализованное имя, триггеры против циклов и ограничение глубины); с **`0113`**: `kind` (`standard` \| `client_files_root` \| `client_patient`), `patient_user_id` (FK → `platform_users`, для подпапки клиента). Системная корневая **«Файлы клиентов»** (`client_files_root`, одна на БД) и дочерние папки по пациентам (`client_patient`).
-- `media_upload_sessions` — multipart-загрузки в S3 (`upload_id`, `expires_at`, статусы `initiated` … `completed`/`expired`/`aborted`/`failed`).
+**Медиа-библиотека:**
 
-Связи: `media_files.folder_id` → `media_folders.id` (ON DELETE RESTRICT). Канонический URL в приложении: `/api/media/{uuid}`.
+- `media_files`, `media_folders` (`0113`–`0114`: `kind`, `patient_user_id`, корень «Файлы клиентов»)
+- `media_upload_sessions`
+- `media_transcode_jobs`, `media_hls_proxy_error_events` (`0061`)
+- `media_playback_client_events`, `media_playback_resolution_events` (`0059`, `0106`)
+- `media_playback_stats_hourly`, `media_playback_user_video_first_resolve`
 
-### 2.9 TREATMENT_PROGRAM_INITIATIVE / программы лечения
+**Справочники каталога:**
 
-Новые таблицы инициативы заведены через **Drizzle ORM** (`apps/webapp/db/schema/*.ts`, миграции `apps/webapp/db/drizzle-migrations/0001` ... `0007`), а не через legacy SQL-папку `apps/webapp/migrations/`.
+- `reference_categories`, `reference_items`
+- `recommendations`, `recommendation_regions` (`0063`)
+- `motivational_quotes`
 
-#### Библиотека блоков (фаза 2)
+### 2.9 LFK / clinical tests (каталог для программ)
 
-- `tests`
-- `test_sets`
-- `test_set_items`
-- `recommendations`
+- `tests`, `test_sets`, `test_set_items` — библиотека блоков программ лечения
+- `clinical_test_measure_kinds`, `clinical_test_regions` — M2M регионов для клинических тестов
 
-Связи:
+### 2.10 Treatment program initiative
 
-- `tests.created_by` → `platform_users.id` (SET NULL)
-- `test_sets.created_by` → `platform_users.id` (SET NULL)
-- `test_set_items.test_set_id` → `test_sets.id` (CASCADE)
-- `test_set_items.test_id` → `tests.id` (RESTRICT)
-- `recommendations.created_by` → `platform_users.id` (SET NULL)
+Шаблоны: `treatment_program_templates`, `treatment_program_template_stages`, `treatment_program_template_stage_groups`, `treatment_program_template_stage_items`.
 
-#### Шаблоны программ (фаза 3)
+Экземпляры: `treatment_program_instances`, `treatment_program_instance_stages`, `treatment_program_instance_stage_groups`, `treatment_program_instance_stage_items`.
 
-- `treatment_program_templates`
-- `treatment_program_template_stages` — **уникальная пара** `(template_id, sort_order)` (инвариант порядка этапов, включая этап 0 «Общие рекомендации»).
-- `treatment_program_template_stage_groups` — системные блоки `system_kind` ∈ (`recommendations`, `tests`); partial unique: одна строка «Рекомендации» и одна «Тестирование» на этап.
-- `treatment_program_template_stage_items`
+Прохождение: `test_attempts`, `test_results` (FK `test_id` → **`tests.id`**), `comments`, `treatment_program_events`, `courses`, `material_ratings`.
 
-Связи и инварианты:
+Обсуждения пунктов (`0098`): `program_item_discussion_messages`, `program_item_discussion_reads`, `program_action_log`.
 
-- `treatment_program_templates.created_by` → `platform_users.id` (SET NULL)
-- `treatment_program_template_stages.template_id` → `treatment_program_templates.id` (CASCADE)
-- `treatment_program_template_stage_items.stage_id` → `treatment_program_template_stages.id` (CASCADE)
-- `treatment_program_template_stage_items.item_ref_id` — **без FK**, полиморфная ссылка; валидируется сервисным слоем (в т.ч. соответствие типа элемента системной группе и правила этапа 0).
+См. Drizzle `apps/webapp/db/schema/`, логику — [`SYSTEM_LOGIC_SCHEMA`](../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md).
 
-#### Экземпляры программ / назначение (фаза 4)
+### 2.11 Patient home / online intake
 
-- `treatment_program_instances`
-- `treatment_program_instance_stages`
-- `treatment_program_instance_stage_items`
+- `patient_home_blocks`, `patient_home_block_items`
+- `online_intake_requests`, `online_intake_answers`, `online_intake_attachments`, `online_intake_status_history`
 
-Связи и инварианты:
+### 2.12 Operator health / jobs / webhooks
 
-- `treatment_program_instances.template_id` → `treatment_program_templates.id` (SET NULL)
-- `treatment_program_instances.patient_user_id` → `platform_users.id` (CASCADE)
-- `treatment_program_instances.assigned_by` → `platform_users.id` (SET NULL)
-- `treatment_program_instance_stages.instance_id` → `treatment_program_instances.id` (CASCADE)
-- `treatment_program_instance_stages.source_stage_id` → `treatment_program_template_stages.id` (SET NULL)
-- `treatment_program_instance_stage_items.stage_id` → `treatment_program_instance_stages.id` (CASCADE)
-- `treatment_program_instance_stage_items.item_ref_id` — **без FK**
-- `treatment_program_instance_stage_items.snapshot` — снимок блока на момент назначения
-- Статусы строки этапа экземпляра (`locked` / `available` / `in_progress` / `completed` / `skipped`): перевод в **`completed`** или **`skipped`** только действием врача; пациент не закрывает этап автоматически при отметках пунктов или тестах (см. FSM в [`PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`](PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md)). Повторное открытие этапа врачом не очищает автоматически `completed_at` у пунктов — там же.
+- `operator_incidents`, `operator_job_status`, `operator_health_failure_archive` (`0057`–`0058`, `0068`)
+- `operator_health_alert_sent` (`0111`)
+- `integration_webhook_last_status`, `integration_webhook_error_events` (`0112`)
 
-#### Комментарии (фаза 5)
+### 2.13 Analytics / product notifications
 
-- `comments`
+- `product_analytics_events_recent`, `product_analytics_hourly`, `product_analytics_user_hourly` (`0083`)
+- `product_push_notifications`
 
-Связи и инварианты:
+### 2.14 Configuration
 
-- `comments.author_id` → `platform_users.id` (RESTRICT)
-- `(target_type, target_id)` — полиморфная ссылка **без FK**
-- индекс `idx_comments_target_type_target_id`
+- `system_settings` — канон runtime-конфигурации webapp (`scope` `admin` | `doctor` | `global`); синхронизация в `integrator.system_settings` через `updateSetting` — см. [`CONFIGURATION_ENV_VS_DATABASE.md`](./CONFIGURATION_ENV_VS_DATABASE.md)
 
-#### Прохождение и тесты (фаза 6)
+### 2.15 Staff tasks
 
-- `test_attempts`
-- `test_results`
-
-Связи:
-
-- `test_attempts.instance_stage_item_id` → `treatment_program_instance_stage_items.id` (CASCADE)
-- `test_attempts.patient_user_id` → `platform_users.id` (CASCADE)
-- `test_results.attempt_id` → `test_attempts.id` (CASCADE)
-- `test_results.test_id` → `clinical_tests.id` (RESTRICT)
-- `test_results.decided_by` → `platform_users.id` (SET NULL)
-
-Инварианты **`test_attempts`:** **`started_at`** при создании; ровно одна **открытая** попытка на пару `(instance_stage_item_id, patient_user_id)` с **`submitted_at IS NULL`** (partial unique index); **`submitted_at`** — пациент отправил полный набор тестов снимка (идемпотентная фиксация первого значения); **`accepted_at` / `accepted_by`** — **исторический** факт приёма **конкретной** попытки и **не сбрасываются** при новом круге или при приёме другой попытки. Зачёт пункта в чеклисте — **`instance_stage_item.completed_at`**, выставляется только при **`acceptAttempt`** для **актуальной** хвостовой отправленной попытки (нет более новой открытой или отправленной попытки по тому же пункту и пациенту). Старт новой попытки — атомарно **`startNewAttemptAfterSubmitted`**: сброс **`completed_at`** пункта и вставка новой открытой попытки после наличия хотя бы одной отправленной. Регрессия ключевых веток lifecycle — `apps/webapp/src/modules/treatment-program/progress-service.test.ts`; см. [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md) (2026-05-14).
-
-Дополнения к уже существующим таблицам инициативы:
-
-- `treatment_program_instance_stages.skip_reason`
-- `treatment_program_instance_stage_items.completed_at`
-
-#### История изменений (фаза 7)
-
-- `treatment_program_events`
-
-Связи и инварианты:
-
-- `treatment_program_events.instance_id` → `treatment_program_instances.id` (CASCADE)
-- `treatment_program_events.actor_id` → `platform_users.id` (SET NULL)
-- `target_type` = `stage | stage_item | program`
-- `reason` обязателен на уровне сервиса для `stage_skipped` и `item_removed`
-
-#### Курсы (фаза 8)
-
-- `courses`
-
-Связи и инварианты:
-
-- `courses.program_template_id` → `treatment_program_templates.id` (RESTRICT)
-- `courses.intro_lesson_page_id` → `content_pages.id` (SET NULL)
-- курс хранит метаданные и ссылку на шаблон программы; собственных таблиц прохождения не создаёт
-
-#### Оценки материалов (звёзды 1–5)
-
-- `material_ratings`
-
-Связи:
-
-- `material_ratings.user_id` → `platform_users.id` (CASCADE)
-
-Инварианты: уникальная пара пользователь + цель (`target_kind`, `target_id`); `target_kind` ограничен CHECK; `stars` в диапазоне 1…5. См. [`MATERIAL_RATINGS.md`](./MATERIAL_RATINGS.md) (в т.ч. дашборд врача **`GET /api/doctor/content-stats`** и связанные таблицы напоминаний / практики в том же контракте, не в `material_ratings`).
+- `specialist_tasks` (`0102`)
 
 ---
 
 ## 3. Наблюдаемые особенности схемы
 
-### 3.1 `integrator`
+### 3.1 Дубли имён между схемами
 
-- `users` / `identities` / `contacts` уже существуют как отдельный слой.
-- В схеме одновременно присутствуют `telegram_state` и `telegram_users`.
-- Booking хранится в `rubitime_records`.
-- В `integrator` уже есть отдельные домены для messaging, reminders, mailings и runtime tables.
+В unified БД одноимённые таблицы в `integrator` и `public` — **разные объекты** (разные `search_path`). Product read/write для пациента и врача — `public` (канон); integrator — ingress и runtime.
 
-### 3.2 Схема `public`
+### 3.2 `idempotency_keys`
 
-- Канон платформы: `platform_users`, `user_channel_bindings`, `user_notification_topics`.
-- Дневники: symptom, LFK и связанные таблицы.
-- Auth / audit / runtime в `public` (в т.ч. idempotency для webapp).
-- Таблицы 2.4–2.7 — проекция данных из integrator; первичный перенос через backfill. **Актуально (2026-04):** одна БД, схемы `integrator` + `public`; целевой путь — **прямой SQL** из integrator в `public`, HTTP projection и worker — **legacy / fallback** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md), [Stage 13 ownership map](./STAGE13_OWNERSHIP_MAP.md)).
-- Таблицы 2.9 — новый контур **TREATMENT_PROGRAM_INITIATIVE**; для него source of truth по логике — [`SYSTEM_LOGIC_SCHEMA` в архиве инициативы](../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md), по структуре БД — Drizzle schema + `db/drizzle-migrations`.
+- `integrator.idempotency_keys` — входящие события integrator
+- `public.idempotency_keys` — исходящие/входящие HTTP webapp
 
-### 3.3 Общие имена таблиц
+Колонки согласованы: `key`, `request_hash`, `status`, `response_body`, `expires_at`.
 
-В одной БД (unified) таблица `idempotency_keys` может существовать в обеих схемах:
+### 3.3 `system_settings`
 
-- `integrator.idempotency_keys`
-- `public.idempotency_keys` (исторически «webapp»)
+Пара `(key, scope)` в обеих схемах; webapp — writer, integrator — mirror до полного перехода на прямой SQL.
 
-Целевой набор колонок в обеих схемах совпадает: `key` (PK), `request_hash`, `status`, `response_body`, `expires_at`. Webapp использует это для идемпотентности HTTP (`apps/webapp/src/infra/idempotency/pgStore.ts`, POST `/api/integrator/events`). Входящие вебхуки integrator (Telegram, Max и др.) дедуплицируются через `createPostgresIdempotencyPort` в `apps/integrator/src/infra/db/repos/idempotencyKeys.ts`: для строк только дедупа шлюза пишется sentinel `request_hash` (`__integrator_incoming_event__`), `status = 200`, `response_body = {}`. Старые установки integrator, где таблица была только с `key` + `expires_at`, подтягиваются миграцией `20260414_0001_integrator_idempotency_keys_webapp_columns.sql`.
+### 3.4 Журналы миграций
+
+| Журнал | Назначение |
+|--------|------------|
+| `integrator.schema_migrations` | SQL integrator |
+| `drizzle.__drizzle_migrations` | Drizzle webapp |
+| `public.webapp_schema_migrations` | Legacy SQL webapp |
+| `public.schema_migrations` | Исторический webapp (legacy) |
 
 ---
 
-## 4. Dumps
+## 4. DDL-дампы
 
-- [Дамп схемы integrator](./DB_DUMPS/integrator_bersoncarebot_dev_schema.sql) (исторически снят с отдельной dev-базы)
-- [Дамп схемы public](./DB_DUMPS/webapp_bcb_webapp_dev_schema.sql) (webapp; unified — обе схемы в одной БД)
+См. [`DB_DUMPS/README.md`](./DB_DUMPS/README.md):
 
-Актуальный список таблиц в коде: миграции `apps/integrator` (integrator), `apps/webapp/migrations/` (legacy webapp SQL) и `apps/webapp/db/drizzle-migrations/` + `apps/webapp/db/schema/` (новые таблицы инициативы и последующих Drizzle-изменений). Дампы в DB_DUMPS могут отставать от последних миграций; для полной схемы после миграций смотреть `\dt` в psql или вывод миграций.
+- [`integrator_bcb_webapp_dev_schema.sql`](./DB_DUMPS/integrator_bcb_webapp_dev_schema.sql)
+- [`public_bcb_webapp_dev_schema.sql`](./DB_DUMPS/public_bcb_webapp_dev_schema.sql)
+
+Переснимать после значимых миграций или перед крупными doc-аудитами.
 
 ## 5. Перенос данных (backfill / reconcile)
 
-- **Окружение:** при **unified** Postgres один и тот же `DATABASE_URL` (и та же роль БД) для api и webapp; скрипты читают схему **`integrator`** как источник и **`public`** как цель (в `cutover.*` второй URL часто **дублирует** первый).
-- **Legacy:** при двух отдельных базах — разные URL в `cutover.prod`; порядок скриптов тот же.
-- **Скрипты backfill и reconcile:** см. [DATA_MIGRATION_CHECKLIST.md](../../deploy/DATA_MIGRATION_CHECKLIST.md).
-- **Владелец данных и статусы таблиц:** [STAGE13_OWNERSHIP_MAP.md](./STAGE13_OWNERSHIP_MAP.md).
+- **Окружение:** один `DATABASE_URL`; скрипты: `integrator` → `public`.
+- **Скрипты:** [`DATA_MIGRATION_CHECKLIST.md`](../../deploy/DATA_MIGRATION_CHECKLIST.md).
+- **Владение:** [`STAGE13_OWNERSHIP_MAP.md`](./STAGE13_OWNERSHIP_MAP.md).
+
+---
+
+## Приложение A. Полный реестр таблиц
+
+Сверено с `pg_tables` на `bcb_webapp_dev`, 2026-06-10.
+
+### `integrator` (33)
+
+`booking_calendar_map`, `contacts`, `content_access_grants`, `conversation_messages`, `conversations`, `delivery_attempt_logs`, `idempotency_keys`, `identities`, `integration_data_quality_incidents`, `mailing_logs`, `mailing_topics`, `mailings`, `message_drafts`, `projection_outbox`, `question_messages`, `rubitime_api_throttle`, `rubitime_booking_profiles`, `rubitime_branches`, `rubitime_cooperators`, `rubitime_create_retry_jobs`, `rubitime_events`, `rubitime_records`, `rubitime_services`, `schema_migrations`, `system_settings`, `telegram_state`, `telegram_users`, `user_questions`, `user_reminder_delivery_logs`, `user_reminder_occurrences`, `user_reminder_rules`, `user_subscriptions`, `users`.
+
+### `public` (199)
+
+`admin_audit_log`, `appointment_records`, `auth_rate_limit_events`, `be_appointment_cancellations`, `be_appointment_events`, `be_appointment_history_events`, `be_appointment_reschedules`, `be_appointment_staff_comments`, `be_appointments`, `be_availability_rules`, `be_booking_form_fields`, `be_booking_form_submissions`, `be_branches`, `be_cancellation_policies`, `be_clinic_services`, `be_external_entity_mappings`, `be_organizations`, `be_package_history_events`, `be_package_items`, `be_package_usages`, `be_patient_booking_profiles`, `be_patient_package_items`, `be_patient_packages`, `be_patient_timeline_events`, `be_payment_history_events`, `be_payment_intents`, `be_payment_provider_events`, `be_payments`, `be_prepayment_policies`, `be_product_history_events`, `be_product_pay_links`, `be_product_purchases`, `be_products`, `be_refunds`, `be_reschedule_policies`, `be_rooms`, `be_schedule_blocks`, `be_service_location_availability`, `be_specialist_locations`, `be_specialist_rooms`, `be_specialist_service_availability`, `be_specialists`, `be_subscription_packages`, `be_working_hours`, `booking_branch_services`, `booking_branches`, `booking_calendar_map`, `booking_cities`, `booking_services`, `booking_specialists`, `branches`, `broadcast_audit`, `broadcast_audit_recipients`, `channel_link_secrets`, `clinical_test_measure_kinds`, `clinical_test_regions`, `comments`, `contacts`, `content_access_grants`, `content_access_grants_webapp`, `content_pages`, `content_section_slug_history`, `content_sections`, `conversation_messages`, `conversations`, `courses`, `delivery_attempt_logs`, `doctor_notes`, `doctor_patient_support`, `email_challenges`, `email_send_cooldowns`, `idempotency_keys`, `identities`, `integration_data_quality_incidents`, `integration_webhook_error_events`, `integration_webhook_last_status`, `integrator_push_outbox`, `lfk_complex_exercises`, `lfk_complex_template_exercises`, `lfk_complex_templates`, `lfk_complexes`, `lfk_exercise_media`, `lfk_exercise_regions`, `lfk_exercises`, `lfk_sessions`, `login_tokens`, `mailing_logs`, `mailing_logs_webapp`, `mailing_topics`, `mailing_topics_webapp`, `mailings`, `material_ratings`, `media_files`, `media_folders`, `media_hls_proxy_error_events`, `media_playback_client_events`, `media_playback_resolution_events`, `media_playback_stats_hourly`, `media_playback_user_video_first_resolve`, `media_transcode_jobs`, `media_upload_sessions`, `message_drafts`, `message_log`, `motivational_quotes`, `notification_delivery_attempts`, `online_intake_answers`, `online_intake_attachments`, `online_intake_requests`, `online_intake_status_history`, `operator_health_alert_sent`, `operator_health_failure_archive`, `operator_incidents`, `operator_job_status`, `outgoing_delivery_queue`, `patient_bookings`, `patient_content_rating_feedback`, `patient_daily_warmup_presentations`, `patient_daily_warmup_video_views`, `patient_diary_day_snapshots`, `patient_home_block_items`, `patient_home_blocks`, `patient_lfk_assignments`, `patient_merge_candidates`, `patient_practice_completions`, `phone_challenges`, `phone_messenger_bind_secrets`, `phone_otp_locks`, `platform_user_contacts`, `platform_users`, `product_analytics_events_recent`, `product_analytics_hourly`, `product_analytics_user_hourly`, `product_push_notifications`, `program_action_log`, `program_item_discussion_messages`, `program_item_discussion_reads`, `projection_outbox`, `question_messages`, `recommendation_regions`, `recommendations`, `reference_categories`, `reference_items`, `reminder_delivery_events`, `reminder_journal`, `reminder_occurrence_history`, `reminder_rules`, `rubitime_api_throttle`, `rubitime_booking_profiles`, `rubitime_branches`, `rubitime_cooperators`, `rubitime_create_retry_jobs`, `rubitime_events`, `rubitime_records`, `rubitime_services`, `schema_migrations`, `specialist_tasks`, `support_conversation_messages`, `support_conversations`, `support_delivery_events`, `support_question_messages`, `support_questions`, `symptom_entries`, `symptom_trackings`, `system_settings`, `telegram_state`, `telegram_users`, `test_attempts`, `test_results`, `test_set_items`, `test_sets`, `tests`, `treatment_program_events`, `treatment_program_instance_stage_groups`, `treatment_program_instance_stage_items`, `treatment_program_instance_stages`, `treatment_program_instances`, `treatment_program_template_stage_groups`, `treatment_program_template_stage_items`, `treatment_program_template_stages`, `treatment_program_templates`, `user_channel_bindings`, `user_channel_preferences`, `user_email_setup_tokens`, `user_notification_topic_channels`, `user_notification_topics`, `user_oauth_bindings`, `user_password_credentials`, `user_phone_history`, `user_pins`, `user_questions`, `user_reminder_delivery_logs`, `user_reminder_occurrences`, `user_reminder_rules`, `user_subscriptions`, `user_subscriptions_webapp`, `user_web_push_subscriptions`, `users`, `webapp_reminder_occurrences`, `webapp_schema_migrations`.
 
 ---
 
 ## Связанные документы
 
 - [DB ownership contract](../../apps/integrator/src/infra/db/schema.md)
-- [Telegram DB schema](../../apps/integrator/src/integrations/telegram/db/schema.md)
 - [Stage 13 ownership map](./STAGE13_OWNERSHIP_MAP.md)
+- [Configuration env vs database](./CONFIGURATION_ENV_VS_DATABASE.md)
 - [Data migration checklist](../../deploy/DATA_MIGRATION_CHECKLIST.md)
 - [Treatment program system logic](../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md)
