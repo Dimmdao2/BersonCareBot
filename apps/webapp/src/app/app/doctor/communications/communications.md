@@ -117,6 +117,11 @@ typecheck/lint/тесты затронутых пакетов + живой dev (
 
 ## Журнал
 
+- **2026-06-11 · TODO#3 Block 2** — таб «Комментарии» на doctor-wide запрос + ленивая история/поиск:
+  `loadDoctorExerciseCommentsForTab` (один doctor-wide запрос, совместим с `TodayExerciseCommentAttentionItem`),
+  `GET /api/doctor/exercise-comments` (история cursor + поиск `?q=`),
+  `DoctorCommentsTab` (клиент, SSR-пропы, «Загрузить ещё», reuse `DoctorExerciseCommentsList`),
+  `useDoctorExerciseCommentsSearch` (клиент-фильтр + debounced серверный добор). 28 тестов.
 - **2026-06-11 · TODO#1 ✅** — стаб вкладки «Комментарии» заменён рабочим списком; загрузчик
   `loadDoctorExerciseCommentAttention` извлечён из `loadDoctorTodayDashboard` (чистый code-move),
   форматтеры → `doctorTodayFormat.ts`, группировка переиспользована диалогом. Коммит `5b3708c4`.

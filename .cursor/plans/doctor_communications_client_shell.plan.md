@@ -14,31 +14,31 @@ status: pending
 todos:
   - id: e0-rules-baseline
     content: "Этап 0 — прочитать релевантные .cursor/rules/*.mdc + DOCTOR_APP_UI_STYLE_GUIDE.md + AGENTS.md; завести LOG.md; зафиксировать зелёный baseline (typecheck/lint/тесты затронутых зон)"
-    status: pending
+    status: completed
   - id: e1a-types-ports
     content: "Этап 1.A — типы (DoctorExerciseCommentRow, Input+cursor) в types.ts + сигнатуры listUnreadExerciseCommentsForDoctor / listExerciseCommentsForDoctor в ports.ts"
-    status: pending
+    status: completed
   - id: e1b-pg-infra
     content: "Этап 1.B — реализация в pgProgramItemDiscussion: один индексированный запрос (DISTINCT ON последнего сообщения, join read-стейта viewer'а, WHERE patientUserId IN on-support); EXPLAIN + решение по индексу"
-    status: pending
+    status: completed
   - id: e1c-inmemory
     content: "Этап 1.C — параллельная реализация в inMemoryProgramItemDiscussion (паритет поведения для unit-тестов)"
-    status: pending
+    status: completed
   - id: e1d-service-di
     content: "Этап 1.D — обёртки в service.ts (assertUuid/clamp/курсор) + проводка в buildAppDeps; unit-тесты сервиса и инфры (pg integration + inMemory)"
-    status: pending
+    status: completed
   - id: e2a-loader
     content: "Этап 2.A — comments-загрузчик: резолв on-support ОДИН раз (doctorClientsPort + analytics exclusion), один вызов doctor-wide метода; имя/href в загрузчике; unit-тест"
-    status: pending
+    status: completed
   - id: e2b-route
     content: "Этап 2.B — API route / server action под ленивую историю (курсор) и серверный добор поиска; requireDoctorAccess; тест 401/пагинация/добор"
-    status: pending
+    status: completed
   - id: e2c-tab-ui
     content: "Этап 2.C — компонент-таб «Комментарии»: непрочитанные сверху (SSR), история лениво на скролле; reuse ProgramItemDiscussionMessageBody/DoctorExerciseCommentsList"
-    status: pending
+    status: completed
   - id: e2d-search
     content: "Этап 2.D — поиск по пациенту/тексту: клиент-сначала + серверный добор по канону useMediaLibraryPickerServerSearch; тест фильтрации+добора"
-    status: pending
+    status: completed
   - id: e3a-registry
     content: "Этап 3.A — реестр табов (декларативный массив id/loader/deepLinkKeys) + типы; добавление таба = компонент + строка реестра"
     status: pending
