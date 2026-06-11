@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DoctorSupportInbox } from "./DoctorSupportInbox";
 
@@ -76,5 +76,48 @@ describe("DoctorSupportInbox", () => {
     await waitFor(() => {
       expect(screen.getByText("Нет открытых диалогов")).toBeInTheDocument();
     });
+  });
+});
+
+describe("DoctorSupportInbox — polling", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  });
+
+  it("does not start polling interval when active is false", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, conversations: [] }))),
+    );
+    const spy = vi.spyOn(window, "setInterval");
+    render(<DoctorSupportInbox active={false} />);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("does not fetch during poll ticks when document is not visible", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, conversations: [] })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DoctorSupportInbox active={true} />);
+    // flush initial effects (initial load runs regardless of visibility)
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const callsAfterInit = fetchMock.mock.calls.length;
+
+    // advance past 3 poll intervals — pollOnce should bail early (not visible)
+    await act(async () => {
+      vi.advanceTimersByTime(3_500);
+    });
+
+    expect(fetchMock.mock.calls.length).toBe(callsAfterInit);
   });
 });

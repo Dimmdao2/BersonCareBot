@@ -3,7 +3,7 @@
 import { DoctorSupportInbox } from "../../messages/DoctorSupportInbox";
 import type { CommunicationsTabProps } from "../communicationsTabRegistry";
 
-/** Таб «Чаты» — оболочка вокруг DoctorSupportInbox. Block 4 добавит умный поллинг. */
-export function ChatsTab(_: CommunicationsTabProps) {
-  return <DoctorSupportInbox />;
+/** Таб «Чаты» — поллинг только когда активный таб + видимое окно. */
+export function ChatsTab({ isActive }: CommunicationsTabProps) {
+  return <DoctorSupportInbox active={isActive ?? true} />;
 }

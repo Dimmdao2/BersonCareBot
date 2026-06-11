@@ -9,6 +9,8 @@ export type CommunicationsTabProps = {
   onDeepLinkChange: (key: string, value: string | null) => void;
   /** SSR-данные, предзагруженные серверной страницей (типизация в каждом табе своя). */
   initialData?: unknown;
+  /** Признак активного таба. Используется для управления поллингом (ChatsTab). По умолчанию true. */
+  isActive?: boolean;
 };
 
 export type CommunicationsTabRegistryEntry = {

@@ -85,3 +85,32 @@
 - Умный поллинг чатов (только активный+видимый таб) — Block 4.
 - Полный deep-link write-sync для intake (onDeepLinkChange при открытии карточки) — Block 4.
 - `page.tsx` (серверный вход-шелл с requireDoctorAccess + бейджи) — Block 6.
+
+## Block 4 (2026-06-11) — Компоненты-табы
+
+### Что сделано
+- **4.A** `CommunicationsTabProps` — добавлен `isActive?: boolean`; шелл прокидывает `isActive={tabId === activeTab}`.
+- **4.A** `DoctorSupportInbox.tsx` — добавлен `active?: boolean` проп; поллинг-`useEffect` (POLL_INTERVAL_MS=1000):
+  `setInterval` только при `active=true`, внутри `pollOnce` guard `document.visibilityState !== "visible"` → ранний выход;
+  `convSignature` на основе `conversationId+lastMessageAt+unreadFromUserCount` — `setState` только при реальном изменении.
+  Также обновлён `sigRef` в `loadList` для корректного первого poll-tick.
+- **4.A** `ChatsTab.tsx` — прокидывает `active={isActive ?? true}` в `DoctorSupportInbox`.
+- **4.B** `DoctorOnlineIntakeClient.tsx` — добавлен `onDetailChange?: (id: string | null) => void`;
+  вызывается при открытии (`onDetailChange(id)`), закрытии и неудачной загрузке (`onDetailChange(null)`).
+- **4.B** `IntakeTab.tsx` — прокидывает `onDetailChange={(id) => onDeepLinkChange("id", id)}`.
+- **4.C** `tabs/BroadcastsTab.test.tsx` — 3 теста: default-вид (Form), archive=1 (ArchiveClient), кнопка «← Рассылки».
+
+### Проверки
+- messages zone — 5 passed (3 старых + 2 новых polling-теста)
+- online-intake zone — 5 passed (3 старых + 2 новых onDetailChange-теста)
+- broadcasts zone — все зелёные
+- communications zone — 20 passed + 3 новых BroadcastsTab = 23 passed
+- `pnpm --dir apps/webapp typecheck` — зелёный
+
+### rg-чеклисты
+- `rg "setInterval" src/app/app/doctor/messages/DoctorSupportInbox.tsx` → найдено ✅
+- `rg "onDetailChange" src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` → найдено ✅
+
+### Сознательно не сделано
+- `page.tsx` (серверный вход-шелл с requireDoctorAccess + бейджи) — Block 6.
+- Живая проверка поллинга в браузере — Block 7.

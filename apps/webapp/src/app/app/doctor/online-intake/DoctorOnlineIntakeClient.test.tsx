@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { DoctorOnlineIntakeClient } from "./DoctorOnlineIntakeClient";
 
 const PATIENT_ID = "00000000-0000-0000-0000-0000000000aa";
@@ -79,6 +80,24 @@ describe("DoctorOnlineIntakeClient", () => {
       "href",
       `/app/doctor/clients/${PATIENT_ID}?scope=appointments&chat=1`,
     );
+  });
+
+  it("calls onDetailChange(id) when user opens a detail", async () => {
+    const onDetailChange = vi.fn();
+    render(<DoctorOnlineIntakeClient onDetailChange={onDetailChange} />);
+    await waitFor(() => screen.getByText("Список Имя"));
+    await userEvent.click(screen.getByRole("button", { name: "Подробнее" }));
+    expect(onDetailChange).toHaveBeenCalledWith(REQUEST_ID);
+  });
+
+  it("calls onDetailChange(null) when user closes a detail", async () => {
+    const onDetailChange = vi.fn();
+    render(<DoctorOnlineIntakeClient onDetailChange={onDetailChange} />);
+    await waitFor(() => screen.getByText("Список Имя"));
+    await userEvent.click(screen.getByRole("button", { name: "Подробнее" }));
+    await waitFor(() => screen.getByRole("button", { name: "Скрыть детали" }));
+    await userEvent.click(screen.getByRole("button", { name: "Скрыть детали" }));
+    expect(onDetailChange).toHaveBeenLastCalledWith(null);
   });
 
   it("deep-linked closed request switches to «Все» and does not show orphan card on «Открытые»", async () => {

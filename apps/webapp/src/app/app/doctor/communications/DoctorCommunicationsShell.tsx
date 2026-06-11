@@ -171,6 +171,7 @@ export function DoctorCommunicationsShell({
               deepLinkParams={deepLinks[tabId] ?? {}}
               onDeepLinkChange={(key, value) => handleDeepLinkChange(tabId, key, value)}
               initialData={initialTabData?.[tabId]}
+              isActive={tabId === activeTab}
             />
           </div>
         );

@@ -130,6 +130,13 @@ typecheck/lint/тесты затронутых пакетов + живой dev (
   unit-тесты. Коммит `7d16040e`.
 - **2026-06-11 · TODO#2 Block 2 ✅** — все 4 страницы вкладок передают `badges` в таб-бар;
   живо проверено (dev:doctor): «Чаты 3» виден и на вкладке «Рассылки» (кросс-таб). Коммит `a36306d2`.
+- **2026-06-11 · TODO#3 Block 4** — 4 компонента-таба (чаты-поллинг, заявки, рассылки, комментарии):
+  `DoctorSupportInbox` — `active` prop + поллинг 1/сек только при активном табе + видимом окне (`visibilitychange`) + сигнатурный guard (`setList` только при реальном изменении);
+  `ChatsTab` — прокидывает `isActive` → `active`;
+  `DoctorOnlineIntakeClient` — `onDetailChange` prop (открытие/закрытие карточки → URL-sync);
+  `IntakeTab` — wires `onDetailChange → onDeepLinkChange("id", ...)`;
+  `BroadcastsTab` — без изменений (уже реализован в Block 3), добавлены 3 теста (`archive=1`, кнопка «← Рассылки»).
+  7 новых тестов. Коммит `57da243a`.
 - **2026-06-11 · TODO#3 Block 3** — клиентский шелл + реестр + URL-sync:
   `communicationsTabRegistry.ts` (типы + массив 4 табов + `CommunicationsTabProps`),
   `DoctorCommunicationsShell.tsx` (`next/dynamic` module-level, keepMounted Set+hidden, `history.replaceState`, `popstate`),

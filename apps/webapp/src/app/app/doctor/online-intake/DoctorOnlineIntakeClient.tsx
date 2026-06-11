@@ -161,9 +161,11 @@ function IntakeCardActions({
 export type DoctorOnlineIntakeClientProps = {
   /** Открыть карточку по id (deep-link `/app/doctor/online-intake/[requestId]`). */
   initialOpenRequestId?: string | null;
+  /** Вызывается при открытии/закрытии карточки заявки. null — карточка закрыта. */
+  onDetailChange?: (id: string | null) => void;
 };
 
-export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: DoctorOnlineIntakeClientProps) {
+export function DoctorOnlineIntakeClient({ initialOpenRequestId = null, onDetailChange }: DoctorOnlineIntakeClientProps) {
   const [items, setItems] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"open" | "all">("open");
@@ -189,15 +191,18 @@ export function DoctorOnlineIntakeClient({ initialOpenRequestId = null }: Doctor
     if (detailId === id && detail) {
       setDetailId(null);
       setDetail(null);
+      onDetailChange?.(null);
       return;
     }
     setDetailId(id);
+    onDetailChange?.(id);
     setDetailLoading(true);
     try {
       const res = await fetch(`/api/doctor/online-intake/${id}`);
       if (!res.ok) {
         setDetail(null);
         setDetailId(null);
+        onDetailChange?.(null);
         return;
       }
       setDetail((await res.json()) as IntakeDetail);

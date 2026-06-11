@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
 import { doctorPageStackClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+
+/** Интервал поллинга списка диалогов — ~1/сек. */
+const POLL_INTERVAL_MS = 1_000;
 
 type ConvRow = {
   conversationId: string;
@@ -14,6 +17,17 @@ type ConvRow = {
   lastSenderRole: string | null;
   unreadFromUserCount: number;
   hasUnreadFromUser: boolean;
+};
+
+type ConversationApiRow = {
+  conversationId: string;
+  displayName: string;
+  phoneNormalized: string | null;
+  lastMessageAt: string;
+  lastMessageText: string | null;
+  lastSenderRole: string | null;
+  unreadFromUserCount?: number;
+  hasUnreadFromUser?: boolean;
 };
 
 function formatConversationTime(value: string): string {
@@ -27,12 +41,42 @@ function formatConversationTime(value: string): string {
   });
 }
 
-export function DoctorSupportInbox() {
+function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
+  return conversations.map((c) => ({
+    conversationId: c.conversationId,
+    displayName: c.displayName,
+    phoneNormalized: c.phoneNormalized,
+    lastMessageAt: c.lastMessageAt,
+    lastMessageText: c.lastMessageText,
+    lastSenderRole: c.lastSenderRole,
+    unreadFromUserCount: c.unreadFromUserCount ?? 0,
+    hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
+  }));
+}
+
+/** Хэш-сигнатура для обнаружения реального изменения при поллинге. */
+function convSignature(rows: ConvRow[]): string {
+  return rows
+    .map((r) => `${r.conversationId}:${r.lastMessageAt}:${r.unreadFromUserCount}`)
+    .join("|");
+}
+
+export type DoctorSupportInboxProps = {
+  /**
+   * Признак активного таба. Когда false — поллинг останавливается.
+   * По умолчанию true (для использования вне шелла коммуникаций).
+   */
+  active?: boolean;
+};
+
+export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
   const [list, setList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** Сигнатура последнего отрисованного состояния списка — для skip при поллинге без изменений. */
+  const sigRef = useRef<string>("");
 
   const loadList = useCallback(async () => {
     setError(null);
@@ -42,36 +86,21 @@ export function DoctorSupportInbox() {
       const res = await fetch(url.toString());
       const data = (await res.json()) as {
         ok?: boolean;
-        conversations?: {
-          conversationId: string;
-          displayName: string;
-          phoneNormalized: string | null;
-          lastMessageAt: string;
-          lastMessageText: string | null;
-          lastSenderRole: string | null;
-          unreadFromUserCount?: number;
-          hasUnreadFromUser?: boolean;
-        }[];
+        conversations?: ConversationApiRow[];
       };
       if (!res.ok || !data.ok || !data.conversations) {
         setError("Не удалось загрузить диалоги");
         setList([]);
+        sigRef.current = "";
         return;
       }
-      const rows = data.conversations.map((c) => ({
-        conversationId: c.conversationId,
-        displayName: c.displayName,
-        phoneNormalized: c.phoneNormalized,
-        lastMessageAt: c.lastMessageAt,
-        lastMessageText: c.lastMessageText,
-        lastSenderRole: c.lastSenderRole,
-        unreadFromUserCount: c.unreadFromUserCount ?? 0,
-        hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
-      }));
+      const rows = mapConvRows(data.conversations);
+      sigRef.current = convSignature(rows);
       setList(rows);
     } catch {
       setError("Ошибка сети при загрузке диалогов");
       setList([]);
+      sigRef.current = "";
     }
   }, [unreadOnly]);
 
@@ -89,6 +118,46 @@ export function DoctorSupportInbox() {
       cancelled = true;
     };
   }, [loadList]);
+
+  // Умный поллинг: только активный таб + видимое окно; setState только при реальном изменении.
+  useEffect(() => {
+    if (!active) return;
+
+    const pollOnce = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const url = new URL("/api/doctor/messages/conversations", window.location.origin);
+        if (unreadOnly) url.searchParams.set("unread", "1");
+        const res = await fetch(url.toString());
+        const data = (await res.json()) as {
+          ok?: boolean;
+          conversations?: ConversationApiRow[];
+        };
+        if (!res.ok || !data.ok || !data.conversations) return;
+        const rows = mapConvRows(data.conversations);
+        const sig = convSignature(rows);
+        if (sig === sigRef.current) return;
+        sigRef.current = sig;
+        setList(rows);
+      } catch {
+        // silently skip poll errors — не сбрасываем отображённый список
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void pollOnce();
+    };
+
+    const timerId = setInterval(() => {
+      void pollOnce();
+    }, POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      clearInterval(timerId);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [active, unreadOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return <p className="text-muted-foreground">Загрузка…</p>;

@@ -50,13 +50,13 @@ todos:
     status: completed
   - id: e4a-chats
     content: "Этап 4.A — таб «Чаты» (DoctorSupportInbox): поллинг только активный+видимый таб (visibilitychange) и только при реальном изменении (since/сравнение); тест отсутствия поллинга/ре-рендера"
-    status: pending
+    status: completed
   - id: e4b-intake
     content: "Этап 4.B — таб «Заявки» (DoctorOnlineIntakeClient) с deep-link id ↔ шелл; тест открытия детали"
-    status: pending
+    status: completed
   - id: e4c-broadcasts
     content: "Этап 4.C — таб «Рассылки» (BroadcastForm + ленивый BroadcastAuditLog) с deep-link archive ↔ шелл; тест archive=1"
-    status: pending
+    status: completed
   - id: e5a-redirects
     content: "Этап 5.A — убрать ветку internal-rewrite для /communications из doctorRouteRedirects.ts; оставить 308 со старых URL + deep-links; schedule не трогать"
     status: pending
