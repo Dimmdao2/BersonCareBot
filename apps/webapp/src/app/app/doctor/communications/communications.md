@@ -3,22 +3,20 @@
 Агрегатный экран кабинета врача: весь входящий/исходящий поток с пациентами под одним
 заголовком «Коммуникации» и единым таб-баром. Wireframe: `docs/design/doctor-cabinet-wireframe.html#p-comms`.
 
-## Маршрутизация (rewrite, без дублирования страниц)
+## Маршрутизация (клиентский шелл, без rewrite)
 
-`/app/doctor/communications?tab=<id>` — агрегатный URL. `middleware/doctorRouteRedirects.ts`
-делает **internal-rewrite** на легаси-страницу вкладки; браузерный URL остаётся
-`/communications?tab=<id>`. Старые прямые URL → 308 на агрегатный.
+`/app/doctor/communications` — настоящая страница-шелл (`page.tsx` → `DoctorCommunicationsShell`).
+Internal-rewrite убран (Block 5 TODO#3). Старые прямые URL → **308** на агрегатный URL.
 
-| Вкладка | id | `?tab=` rewrite → страница | Старый URL (308 → агрегатный) |
-|---------|------|---------------------------|-------------------------------|
-| Чаты | `chats` (default) | `/app/doctor/messages` | `/app/doctor/messages` |
-| Заявки | `intake` | `/app/doctor/online-intake[/:id]` | `/app/doctor/online-intake`, `/online-intake/:id` |
-| Комментарии | `comments` | `/app/doctor/comments` | `/app/doctor/comments` |
-| Рассылки | `broadcasts` | `/app/doctor/broadcasts[/archive]` | `/app/doctor/broadcasts`, `/broadcasts/archive` |
+| Вкладка | id | Старый URL (308 → агрегатный) |
+|---------|------|-------------------------------|
+| Чаты | `chats` (default) | `/app/doctor/messages` |
+| Заявки | `intake` | `/app/doctor/online-intake`, `/online-intake/:id` (→ `?tab=intake&id=:id`) |
+| Комментарии | `comments` | `/app/doctor/comments` |
+| Рассылки | `broadcasts` | `/app/doctor/broadcasts`, `/broadcasts/archive` (→ `?tab=broadcasts&archive=1`) |
 
-**Петля редиректов:** в Next 16 (proxy-конвенция) внутренний `rewrite` повторно проходит через
-proxy. Защита — заголовок-маркер `x-bc-doctor-rewrite` (см. `doctorRouteRedirects.ts`). Тесты:
-`doctorRouteRedirects.test.ts`.
+**Защита от петли redirсts** больше не нужна для communications (rewrite убран).
+Маркер `x-bc-doctor-rewrite` сохранён только для `/schedule`. Тесты: `doctorRouteRedirects.test.ts`.
 
 ## Компоненты таб-бара
 
@@ -130,6 +128,10 @@ typecheck/lint/тесты затронутых пакетов + живой dev (
   unit-тесты. Коммит `7d16040e`.
 - **2026-06-11 · TODO#2 Block 2 ✅** — все 4 страницы вкладок передают `badges` в таб-бар;
   живо проверено (dev:doctor): «Чаты 3» виден и на вкладке «Рассылки» (кросс-таб). Коммит `a36306d2`.
+- **2026-06-12 · TODO#3 Block 5** — убран internal-rewrite communications из `doctorRouteRedirects.ts`;
+  `/communications` проходит насквозь → рендерится страница-шелл; 308 со старых URL сохранены;
+  `schedule` rewrite не тронут. 7 тестов-passthrough добавлены, 7 старых rewrite-тестов заменены.
+  27 тестов зелёные.
 - **2026-06-11 · TODO#3 Block 4** — 4 компонента-таба (чаты-поллинг, заявки, рассылки, комментарии):
   `DoctorSupportInbox` — `active` prop + поллинг 1/сек только при активном табе + видимом окне (`visibilitychange`) + сигнатурный guard (`setList` только при реальном изменении);
   `ChatsTab` — прокидывает `isActive` → `active`;

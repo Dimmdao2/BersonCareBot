@@ -59,10 +59,10 @@ todos:
     status: completed
   - id: e5a-redirects
     content: "Этап 5.A — убрать ветку internal-rewrite для /communications из doctorRouteRedirects.ts; оставить 308 со старых URL + deep-links; schedule не трогать"
-    status: pending
+    status: completed
   - id: e5b-redirect-tests
     content: "Этап 5.B — обновить doctorRouteRedirects.test.ts: communications проходит без rewrite (null), 308-кейсы сохранены, schedule-кейсы зелёные"
-    status: pending
+    status: completed
   - id: e6a-shell-page
     content: "Этап 6.A — app/app/doctor/communications/page.tsx как серверный вход-шелл: requireDoctorAccess + бейджи + предзагрузка непрочитанных → DoctorCommunicationsShell(initialTab)"
     status: pending

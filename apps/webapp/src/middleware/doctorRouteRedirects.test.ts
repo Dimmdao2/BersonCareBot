@@ -82,7 +82,7 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
   });
 });
 
-describe("doctorRouteRedirectResponse — internal rewrites (new URLs → legacy pages)", () => {
+describe("doctorRouteRedirectResponse — internal rewrites (schedule only)", () => {
   const isRewrite = (res: ReturnType<typeof doctorRouteRedirectResponse>) =>
     res !== null && res.status !== 308 && res.headers.has("x-middleware-rewrite");
 
@@ -110,54 +110,6 @@ describe("doctorRouteRedirectResponse — internal rewrites (new URLs → legacy
     expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/appointments");
   });
 
-  it("rewrites /app/doctor/communications (no tab) to /app/doctor/messages", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/communications"));
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/messages");
-  });
-
-  it("rewrites /app/doctor/communications?tab=chats to /app/doctor/messages", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/communications?tab=chats"));
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/messages");
-  });
-
-  it("rewrites communications?tab=intake to /app/doctor/online-intake", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/communications?tab=intake"));
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/online-intake");
-    expect(res!.headers.get("x-middleware-rewrite")).not.toContain("/online-intake/");
-  });
-
-  it("rewrites communications?tab=intake&id=xyz to /app/doctor/online-intake/xyz", () => {
-    const res = doctorRouteRedirectResponse(
-      req("/app/doctor/communications?tab=intake&id=xyz-456"),
-    );
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/online-intake/xyz-456");
-  });
-
-  it("rewrites communications?tab=comments to /app/doctor/comments", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/communications?tab=comments"));
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/comments");
-  });
-
-  it("rewrites communications?tab=broadcasts to /app/doctor/broadcasts", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/communications?tab=broadcasts"));
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/broadcasts");
-    expect(res!.headers.get("x-middleware-rewrite")).not.toContain("archive");
-  });
-
-  it("rewrites communications?tab=broadcasts&archive=1 to /app/doctor/broadcasts/archive", () => {
-    const res = doctorRouteRedirectResponse(
-      req("/app/doctor/communications?tab=broadcasts&archive=1"),
-    );
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/broadcasts/archive");
-  });
-
   it("rewrites rewritten URL does NOT have search params (no tab= leaks to legacy page)", () => {
     const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=calendar"));
     const rewriteTarget = res!.headers.get("x-middleware-rewrite") ?? "";
@@ -168,6 +120,49 @@ describe("doctorRouteRedirectResponse — internal rewrites (new URLs → legacy
     const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=calendar"));
     // Маркер прокидывается в заголовки переписанного запроса (request override).
     expect(res!.headers.get("x-middleware-override-headers")).toContain("x-bc-doctor-rewrite");
+  });
+});
+
+describe("doctorRouteRedirectResponse — communications passes through (no rewrite)", () => {
+  // /app/doctor/communications — настоящая страница-шелл; rewrite убран в Block 5.
+  // 308-редиректы со старых URL сохранены выше; сам /communications проходит насквозь.
+
+  it("passes through /app/doctor/communications (no tab) — null, not rewrite", () => {
+    expect(doctorRouteRedirectResponse(req("/app/doctor/communications"))).toBeNull();
+  });
+
+  it("passes through /app/doctor/communications?tab=chats — null", () => {
+    expect(doctorRouteRedirectResponse(req("/app/doctor/communications?tab=chats"))).toBeNull();
+  });
+
+  it("passes through communications?tab=intake — null", () => {
+    expect(
+      doctorRouteRedirectResponse(req("/app/doctor/communications?tab=intake")),
+    ).toBeNull();
+  });
+
+  it("passes through communications?tab=intake&id=xyz — null", () => {
+    expect(
+      doctorRouteRedirectResponse(req("/app/doctor/communications?tab=intake&id=xyz-456")),
+    ).toBeNull();
+  });
+
+  it("passes through communications?tab=comments — null", () => {
+    expect(
+      doctorRouteRedirectResponse(req("/app/doctor/communications?tab=comments")),
+    ).toBeNull();
+  });
+
+  it("passes through communications?tab=broadcasts — null", () => {
+    expect(
+      doctorRouteRedirectResponse(req("/app/doctor/communications?tab=broadcasts")),
+    ).toBeNull();
+  });
+
+  it("passes through communications?tab=broadcasts&archive=1 — null", () => {
+    expect(
+      doctorRouteRedirectResponse(req("/app/doctor/communications?tab=broadcasts&archive=1")),
+    ).toBeNull();
   });
 });
 

@@ -87,28 +87,8 @@ export function doctorRouteRedirectResponse(
     return rewriteWithMarker(url);
   }
 
-  if (pathname === "/app/doctor/communications") {
-    const tab = request.nextUrl.searchParams.get("tab") ?? "chats";
-    const url = request.nextUrl.clone();
-    url.search = "";
-
-    if (tab === "intake") {
-      const id = request.nextUrl.searchParams.get("id");
-      url.pathname = id ? `/app/doctor/online-intake/${id}` : "/app/doctor/online-intake";
-    } else if (tab === "comments") {
-      url.pathname = "/app/doctor/comments";
-    } else if (tab === "broadcasts") {
-      url.pathname =
-        request.nextUrl.searchParams.get("archive") === "1"
-          ? "/app/doctor/broadcasts/archive"
-          : "/app/doctor/broadcasts";
-    } else {
-      // chats or unknown default
-      url.pathname = "/app/doctor/messages";
-    }
-
-    return rewriteWithMarker(url);
-  }
+  // /app/doctor/communications теперь настоящая страница-шелл — rewrite убран.
+  // 308 со старых прямых URL выше сохранены; schedule rewrite ниже не трогаем.
 
   return null;
 }

@@ -114,3 +114,21 @@
 ### Сознательно не сделано
 - `page.tsx` (серверный вход-шелл с requireDoctorAccess + бейджи) — Block 6.
 - Живая проверка поллинга в браузере — Block 7.
+
+## Block 5 (2026-06-12) — Routing: убрать internal-rewrite communications
+
+### Что сделано
+- **5.A** `doctorRouteRedirects.ts` — удалён блок `if (pathname === "/app/doctor/communications")` (rewrite на легаси-страницы);
+  `/communications` теперь проходит насквозь (null) → рендерится настоящая страница-шелл.
+  308-редиректы со старых URL (`/messages`, `/online-intake`, `/comments`, `/broadcasts[/archive]`, deep-link `id`) сохранены.
+  `schedule` rewrite не тронут.
+- **5.B** `doctorRouteRedirects.test.ts` — удалены 7 старых тестов на communications-rewrite;
+  добавлен describe «communications passes through (no rewrite)» — 7 тестов на `null`;
+  describe «internal rewrites» переименован в «schedule only»; schedule-тесты и re-entry guard без изменений.
+
+### Проверки
+- `pnpm --dir apps/webapp exec vitest run src/middleware/doctorRouteRedirects` — **27 passed (1 файл)**
+- rg-чеклист: `rg "pathname.*communications" src/middleware/doctorRouteRedirects.ts` → нет ветки rewrite ✅
+
+### Сознательно не сделано
+- `page.tsx` (серверный вход-шелл с requireDoctorAccess + бейджи) — Block 6.
