@@ -53,6 +53,7 @@ export function doctorRouteRedirectResponse(
   const legacyRedirects: Record<string, string> = {
     "/app/doctor/messages": "/app/doctor/communications?tab=chats",
     "/app/doctor/online-intake": "/app/doctor/communications?tab=intake",
+    "/app/doctor/comments": "/app/doctor/communications?tab=comments",
     "/app/doctor/broadcasts/archive": "/app/doctor/communications?tab=broadcasts&archive=1",
     "/app/doctor/broadcasts": "/app/doctor/communications?tab=broadcasts",
     "/app/doctor/appointments": "/app/doctor/schedule?tab=calendar",
@@ -70,7 +71,8 @@ export function doctorRouteRedirectResponse(
   }
 
   // ── Internal rewrites: new aggregate URLs → legacy pages ──────────────────
-  // NextResponse.rewrite не вызывает повторный проход middleware, петли нет.
+  // Внутренний rewrite в Next 16 (proxy) повторно проходит через proxy — защита от
+  // петли через REWRITE_MARKER_HEADER (см. docstring функции).
 
   if (pathname === "/app/doctor/schedule") {
     const tab = request.nextUrl.searchParams.get("tab") ?? "calendar";
@@ -88,13 +90,15 @@ export function doctorRouteRedirectResponse(
     if (tab === "intake") {
       const id = request.nextUrl.searchParams.get("id");
       url.pathname = id ? `/app/doctor/online-intake/${id}` : "/app/doctor/online-intake";
+    } else if (tab === "comments") {
+      url.pathname = "/app/doctor/comments";
     } else if (tab === "broadcasts") {
       url.pathname =
         request.nextUrl.searchParams.get("archive") === "1"
           ? "/app/doctor/broadcasts/archive"
           : "/app/doctor/broadcasts";
     } else {
-      // chats, comments, or unknown default
+      // chats or unknown default
       url.pathname = "/app/doctor/messages";
     }
 

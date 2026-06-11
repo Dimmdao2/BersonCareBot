@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorCommunicationsTabsNav } from "../communications/DoctorCommunicationsTabsNav";
 import { listBroadcastAuditAction } from "./actions";
 import { BroadcastForm } from "./BroadcastForm";
 import { BroadcastAuditLog } from "./BroadcastAuditLog";
@@ -21,7 +22,8 @@ export default async function DoctorBroadcastsPage() {
   const auditEntries = await listBroadcastAuditAction(50);
 
   return (
-    <DoctorAppShell title="Рассылки" user={session.user}>
+    <DoctorAppShell title="Коммуникации" user={session.user}>
+      <DoctorCommunicationsTabsNav activeTab="broadcasts" />
       <div className={doctorPageStackClass}>
         <p className="text-sm text-muted-foreground">
           После отправки сообщения ставятся в очередь доставки; счётчики в журнале обновляются по мере работы воркера.{" "}

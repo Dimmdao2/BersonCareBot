@@ -4,13 +4,15 @@
  */
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
+import { DoctorCommunicationsTabsNav } from "../communications/DoctorCommunicationsTabsNav";
 import { DoctorSupportInbox } from "./DoctorSupportInbox";
 
 export default async function DoctorMessagesPage() {
   const session = await requireDoctorAccess();
 
   return (
-    <DoctorAppShell title="Сообщения" user={session.user}>
+    <DoctorAppShell title="Коммуникации" user={session.user}>
+      <DoctorCommunicationsTabsNav activeTab="chats" />
       <DoctorSupportInbox />
     </DoctorAppShell>
   );

@@ -47,6 +47,14 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
     );
   });
 
+  it("redirects /app/doctor/comments to communications?tab=comments", () => {
+    const res = doctorRouteRedirectResponse(req("/app/doctor/comments"));
+    expect(res?.status).toBe(308);
+    expect(res?.headers.get("location")).toBe(
+      "http://localhost/app/doctor/communications?tab=comments",
+    );
+  });
+
   it("redirects online-intake detail to communications?tab=intake&id=...", () => {
     const res = doctorRouteRedirectResponse(req("/app/doctor/online-intake/abc-123"));
     expect(res?.status).toBe(308);
@@ -125,6 +133,12 @@ describe("doctorRouteRedirectResponse — internal rewrites (new URLs → legacy
     );
     expect(isRewrite(res)).toBe(true);
     expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/online-intake/xyz-456");
+  });
+
+  it("rewrites communications?tab=comments to /app/doctor/comments", () => {
+    const res = doctorRouteRedirectResponse(req("/app/doctor/communications?tab=comments"));
+    expect(isRewrite(res)).toBe(true);
+    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/comments");
   });
 
   it("rewrites communications?tab=broadcasts to /app/doctor/broadcasts", () => {
