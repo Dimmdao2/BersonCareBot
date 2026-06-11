@@ -32,12 +32,39 @@ assert_not_prod_port() {
   done
 }
 
+listen_pids_on_port() {
+  local port="$1"
+  local pids=""
+
+  if command -v lsof >/dev/null 2>&1; then
+    pids="$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$pids" ]] && command -v fuser >/dev/null 2>&1; then
+    # Minimized Ubuntu hosts often lack lsof; fuser sees TCP listeners.
+    pids="$(fuser -n tcp "$port" 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ' || true)"
+  fi
+
+  if [[ -z "$pids" ]] && command -v ss >/dev/null 2>&1; then
+    pids="$(
+      ss -tlnp "sport = :$port" 2>/dev/null \
+        | grep -oE 'pid=[0-9]+' \
+        | cut -d= -f2 \
+        | sort -u \
+        | tr '\n' ' ' \
+        || true
+    )"
+  fi
+
+  echo "$pids" | xargs
+}
+
 kill_listeners_on_port() {
   local port="$1"
   assert_not_prod_port "$port"
 
   local pids
-  pids="$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  pids="$(listen_pids_on_port "$port")"
   if [[ -z "$pids" ]]; then
     echo "port $port: nothing listening"
     return 0
@@ -47,7 +74,7 @@ kill_listeners_on_port() {
   # shellcheck disable=SC2086
   kill $pids 2>/dev/null || true
   sleep 0.4
-  pids="$(lsof -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  pids="$(listen_pids_on_port "$port")"
   if [[ -n "$pids" ]]; then
     echo "port $port: SIGKILL PID(s): $pids"
     # shellcheck disable=SC2086
