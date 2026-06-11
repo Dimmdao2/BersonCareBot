@@ -57,6 +57,57 @@ body{font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-seri
 .list{display:flex;flex-direction:column;gap:6px}
 .minh-s{min-height:96px}.minh-m{min-height:150px}.minh-l{min-height:210px}
 @media (max-width:760px){.layout{grid-template-columns:1fr}.sidebar{display:none}}
+
+/* ===== PATIENT CARD ===== */
+.pcpane{display:none}.pcpane.on{display:block}
+.ptabs{display:flex;gap:6px;flex-wrap:wrap}
+.ptab{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:5px 13px;font-size:12.5px;color:var(--ink-2);cursor:pointer;user-select:none}
+.ptab.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.ptab .b{display:inline-block;min-width:15px;text-align:center;font-size:10px;font-weight:700;background:var(--danger-soft);color:var(--danger);border-radius:8px;padding:0 4px;margin-left:4px}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:10px}
+.icbtn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer;font-size:13px;color:var(--ink-2)}
+.icbtn:hover{border-color:var(--primary);color:var(--primary)}
+.sect-label{font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.plus{width:20px;height:20px;border:1px solid var(--line);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-2);font-size:14px;line-height:1;background:#fff;flex:none}
+.plus:hover{color:var(--primary);border-color:var(--primary)}
+.visit{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.visit-head{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;background:#fafbfc;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.visit-body{padding:12px 14px}
+.vsec{margin-bottom:10px}.vsec:last-child{margin-bottom:0}
+.vsec-t{font-size:11px;font-weight:700;color:var(--ink-2);margin-bottom:3px}
+.vsec-c{font-size:12.5px;color:var(--ink);white-space:pre-line}
+.vtype{font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:9px}
+.vtype.first{background:var(--danger-soft);color:#9f3a2c}
+.vtype.repeat{background:var(--primary-soft);color:var(--primary)}
+.staterow{display:flex;align-items:flex-start;gap:8px;border:1px solid #ecd9d5;background:#fbf5f4;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:6px;color:var(--ink)}
+.staterow.calm{border-color:var(--line);background:#fafbfc}
+.staterow .d{margin-left:auto;color:var(--ink-3);font-size:11px;white-space:nowrap;padding-left:8px}
+.flag{color:var(--danger);font-size:12px;flex:none;margin-top:1px}
+.ed{color:var(--ink-3);cursor:pointer;font-size:11px;margin-left:8px;flex:none;align-self:center}
+.ed:hover{color:var(--primary)}
+.mtabs{display:flex;gap:4px;flex-wrap:wrap}
+.mtab{font-size:11px;padding:2px 10px;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--ink-2);cursor:pointer}
+.mtab.on{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
+table.anam{width:100%;border-collapse:collapse;font-size:12px}
+table.anam th{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;text-align:left;font-weight:600;padding:3px 8px}
+table.anam td{border-top:1px dashed var(--line);padding:6px 8px;vertical-align:top;cursor:pointer}
+.fileitem{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;font-size:12.5px}
+.fileico{width:34px;height:34px;border-radius:6px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:15px;flex:none}
+/* --- new visit mode --- */
+.col-karta{transition:filter .25s}
+.adding .col-karta{filter:blur(2.5px) brightness(.96);pointer-events:none;user-select:none}
+.adding .kgrid{grid-template-columns:1fr !important}
+.adding.vh-hidden .col-karta{filter:none;pointer-events:auto}
+.col-visits{transition:transform .28s,opacity .28s}
+.adding .col-visits{position:fixed;top:58px;bottom:12px;right:calc(45% + 22px);width:30%;z-index:25;overflow-y:auto;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:0 8px 30px rgba(22,32,46,.14)}
+.adding.vh-hidden .col-visits{transform:translateX(-60px);opacity:0;pointer-events:none}
+.visit-panel{position:fixed;top:58px;right:10px;bottom:12px;width:45%;z-index:26;transform:translateX(115%);transition:transform .3s;overflow-y:auto;background:#fff;border:1px solid var(--primary);border-radius:12px;box-shadow:-8px 0 30px rgba(22,32,46,.18)}
+.adding .visit-panel{transform:none}
+#vh-toggle{display:none}
+.adding #vh-toggle{display:inline-flex}
+.adding #btn-new-visit{display:none}
+.vh-tab{display:none;position:fixed;right:calc(45% + 24px);top:50%;transform:translateY(-50%);z-index:27;width:26px;height:60px;background:#fff;border:1px solid var(--line);border-radius:8px 0 0 8px;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-2);box-shadow:-2px 0 8px rgba(0,0,0,.08)}
+.adding.vh-hidden .vh-tab{display:flex}
 </style>
 </head>
 <body>
@@ -152,12 +203,371 @@ body{font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-seri
           <div class="hint" style="margin-top:4px;">Программа: «Шея, острый период» · с 12.04.2026</div>
           <div class="hint">Записей: 14 · отмен: 2 · последний приём: 03.06</div>
           <div class="hint" style="margin-top:4px;">Метки: <span style="color:var(--danger);font-weight:600;">проблемный</span> · абонемент активен</div>
-          <div style="margin-top:6px;"><span class="tab on">Открыть карточку</span></div>
+          <div style="margin-top:6px;"><span class="tab on" id="open-patient-card" style="cursor:pointer;">Открыть карточку</span></div>
         </div>
         <div class="hint" style="margin-top:8px;border-top:1px dashed var(--line);padding-top:6px;">появляется под фильтрами в правой колонке, в нижней четверти экрана. БЕЗ прокрутки страницы — фиксированная высота. Карточка пациента целиком открывается только по кнопке «Открыть карточку»</div>
       </div>
     </div>
   </div>
+</section>
+
+<section class="pane" id="p-patient-card">
+<!-- ===================== HEADER ===================== -->
+<div class="wf" style="border-style:solid;padding:0;overflow:hidden;">
+  <div style="padding:14px 16px 10px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+    <div style="flex:1;min-width:280px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h1 style="font-size:19px;font-weight:700;">Антонов Егор Александрович</h1>
+        <span class="chip" style="background:var(--primary-soft);color:var(--primary);">★ На сопровождении · 4 мес</span>
+      </div>
+      <div style="color:var(--ink-3);font-size:13px;margin-top:3px;">15.03.1976 · 50 лет</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        <span style="font-family:ui-monospace,monospace;font-size:13px;cursor:pointer;" title="Скопировать">+7 921 224-91-12 ⧉</span>
+        <span style="display:flex;gap:4px;">
+          <span class="icbtn" title="Открыть чат">💬</span>
+          <span class="icbtn" title="Telegram">✈️</span>
+          <span class="icbtn" title="MAX">Ⓜ️</span>
+          <span class="icbtn" title="Написать email">✉️</span>
+        </span>
+        <span class="hint">— иконки каналов: есть подключение → активна, клик = действие (чат / послать сообщение)</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:18px;align-items:flex-start;padding-top:2px;">
+      <div>
+        <div class="sect-label" style="margin-bottom:2px;">Прошлый визит</div>
+        <div style="font-size:13px;font-weight:600;">22.01.2026</div>
+        <div class="hint">повторный · Москва</div>
+      </div>
+      <div>
+        <div class="sect-label" style="margin-bottom:2px;">Следующая запись</div>
+        <div style="font-size:13px;font-weight:600;">17.06 · 14:00</div>
+        <div class="hint">СПб · Очный приём</div>
+      </div>
+      <div style="cursor:pointer;" title="Клик — детали: отмены, переносы">
+        <div class="sect-label" style="margin-bottom:2px;">Визитов</div>
+        <div style="font-size:13px;font-weight:600;">8</div>
+        <div class="hint">с 09.2025 · детали ▾</div>
+      </div>
+    </div>
+
+  </div>
+  <div style="padding:8px 16px;border-top:1px solid var(--line);background:#fafbfc;">
+    <div class="ptabs">
+      <span class="ptab" data-p="overview">Обзор</span>
+      <span class="ptab on" data-p="karta">Карта</span>
+      <span class="ptab" data-p="program">Программа<span class="b">11</span></span>
+      <span class="ptab" data-p="records">Записи</span>
+      <span class="ptab" data-p="files">Файлы</span>
+      <span class="ptab" data-p="comms">Коммуникации</span>
+      <span class="ptab" data-p="stats">Аналитика</span>
+      <span class="ptab" data-p="account">Учётка</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ===================== KARTA TAB ===================== -->
+<div class="pcpane on" id="pp-karta">
+  <div class="grid kgrid" style="grid-template-columns:1.15fr 1fr;align-items:start;">
+
+    <!-- LEFT: current state (KARTA) -->
+    <div class="col-karta" style="display:flex;flex-direction:column;gap:10px;">
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="display:flex;align-items:center;gap:7px;"><h3 style="font-size:13px;">Жалобы</h3><span class="plus" title="Добавить жалобу">+</span></span>
+          <span class="mtabs" style="margin:0;"><span class="mtab on">Актуальные</span><span class="mtab">История</span></span>
+        </div>
+        <div class="staterow"><span class="flag">⚑</span><span>Бедро / правое / боль ноющая / лёжа на правом боку более 30 мин</span><span style="flex:none;font-size:10.5px;font-weight:700;color:var(--primary);background:var(--primary-soft);border-radius:8px;padding:1px 7px;align-self:center;margin-left:8px;">2/10</span><svg width="44" height="14" style="flex:none;align-self:center;margin-left:4px;"><polyline points="3,3 22,6 41,11" fill="none" stroke="var(--primary)" stroke-width="1.5"/><circle cx="41" cy="11" r="2" fill="var(--primary)"/></svg><span class="ed" title="Редактировать">✎</span><span class="d">с 05.01</span></div>
+        <div class="staterow"><span style="width:12px;flex:none;"></span><span>Поясница (низ) / слева / боль тянущая, мышечная / при нагрузках, ходьбе, наклонах</span><span style="flex:none;font-size:10.5px;font-weight:700;color:var(--primary);background:var(--primary-soft);border-radius:8px;padding:1px 7px;align-self:center;margin-left:8px;">4/10</span><svg width="44" height="14" style="flex:none;align-self:center;margin-left:4px;"><polyline points="3,5 22,8 41,9" fill="none" stroke="var(--primary)" stroke-width="1.5"/><circle cx="41" cy="9" r="2" fill="var(--primary)"/></svg><span class="ed" title="Редактировать">✎</span><span class="d">с 05.01</span></div>
+        <div class="hint" style="margin-top:6px;">⚑ — приоритет · N/10 — выраженность (обновляется каждым визитом, по значениям строится график динамики) · ✎ — правка: снять / в историю</div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="display:flex;align-items:center;gap:7px;"><h3 style="font-size:13px;">Актуальный диагноз</h3><span class="plus" title="Добавить диагноз">+</span></span>
+          <span class="mtabs" style="margin:0;"><span class="mtab on">Текущий</span><span class="mtab">История</span></span>
+        </div>
+        <div class="staterow"><span class="flag">⚑</span><span>Тендинопатия сухожилия большой ягодичной мышцы</span><span class="ed" title="Редактировать">✎</span><span class="d">уточнён 22.01</span></div>
+        <div class="staterow calm"><span style="width:12px;flex:none;"></span><span>Миофасциальный болевой синдром поясничного отдела, хронический (обострение)</span><span class="ed" title="Редактировать">✎</span><span class="d">поставлен 05.01</span></div>
+        <div class="hint" style="margin-top:6px;">по клику на диагноз: уточнить · снять (уходит в историю с датой)</div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="display:flex;align-items:center;gap:7px;"><h3 style="font-size:13px;">Сопутствующие заболевания</h3><span class="plus" title="Добавить">+</span></span>
+          <span class="mtabs" style="margin:0;"><span class="mtab on">Текущие</span><span class="mtab">Снятые</span></span>
+        </div>
+        <div class="staterow calm" style="border-color:#f0e3c5;background:#fffdf5;"><span style="color:var(--warn);flex:none;">●</span><span>Диабет 2 типа, скомпенсированный</span><span class="ed" title="Редактировать">✎</span><span class="d">с 2017</span></div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><h3 style="font-size:13px;">Анамнез</h3><span class="hint">клик по строке — правка</span></div>
+
+        <div class="sect-label" style="display:flex;align-items:center;gap:6px;">Травмы и операции <span class="plus" style="width:17px;height:17px;font-size:12px;" title="Добавить">+</span></div>
+        <table class="anam" style="margin-bottom:10px;">
+          <tr><th>Год</th><th>Что</th><th>Тип</th><th>Иммоб.</th></tr>
+          <tr><td>1991 (15 лет)</td><td>Падение с лошади, перелом копчика</td><td>Травма</td><td>4 нед лёжа</td></tr>
+          <tr><td>1993 (18 лет)</td><td>Варикоцеле</td><td>Операция</td><td>—</td></tr>
+          <tr><td>2003 (28 лет)</td><td>Аппендэктомия, полостная</td><td>Операция</td><td>без осложнений</td></tr>
+        </table>
+
+        <div class="sect-label" style="display:flex;align-items:center;gap:6px;">Болезни, стрессы <span class="plus" style="width:17px;height:17px;font-size:12px;" title="Добавить">+</span></div>
+        <table class="anam" style="margin-bottom:10px;">
+          <tr><th>Период</th><th>Что</th><th>Комментарий</th></tr>
+          <tr><td>1999–2000</td><td>Стресс · 8 мес</td><td>Начались панические атаки</td></tr>
+          <tr><td>2020</td><td>Ковид</td><td>Госпитализация</td></tr>
+        </table>
+
+        <div class="sect-label" style="display:flex;align-items:center;gap:6px;">Образ жизни <span class="plus" style="width:17px;height:17px;font-size:12px;" title="Добавить запись">+</span></div>
+        <div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;background:#fafbfc;margin-bottom:6px;">
+          <div class="hint" style="margin-bottom:2px;">Запись от 18.01.2026</div>
+          Работа сидячая, 8–10 часов. В выходные летом прогулки, зимой лыжи. Тренажёры — занятия с тренером последние полгода.
+        </div>
+        <div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;background:#fafbfc;">
+          <div class="hint" style="margin-bottom:2px;">Запись от 22.02.2026</div>
+          Последний месяц без тренажёров, плавание в бассейне 3 раза в неделю.
+        </div>
+      </div>
+
+      <p class="note">Карта — слева, это центральная сущность экрана: жалобы и диагнозы рождаются из визитов, но редактируются и здесь. Анамнез — три блока, заполняются один раз и пополняются.</p>
+    </div>
+    <!-- RIGHT: visits feed -->
+    <div class="col-visits" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <h2 style="font-size:14px;">История визитов</h2>
+        <span class="hint">8 визитов</span>
+        <span class="tab on" style="margin-left:auto;" id="btn-new-visit">+ Новый визит</span>
+        <span class="tab" id="vh-toggle" title="Скрыть историю — увидеть карту">◀</span>
+      </div>
+
+      <!-- VISIT CARD: repeat (latest) -->
+      <div class="visit">
+        <div class="visit-head">
+          <b style="font-size:13.5px;">22 января 2026</b>
+          <span class="vtype repeat">Повторный</span>
+          <span class="hint">Москва · Точка здоровья · Очный приём · 60 мин</span>
+          <span style="margin-left:auto;color:var(--ink-3);font-size:11px;">свернуть ▴</span>
+        </div>
+        <div class="visit-body">
+          <div class="vsec"><div class="vsec-t">Динамика симптомов</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <div style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fafbfc;">
+                <div style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:6px;"><span class="flag" style="font-size:10px;">⚑</span>Бедро / правое / боль ноющая <span style="margin-left:auto;font-weight:700;color:var(--primary);">5/10 → 2/10</span></div>
+                <div class="vsec-c" style="margin-top:2px;">Боли реже и меньше — после 2 часов ходьбы. Онемение в бедре лёжа на правом боку (ближе к утру).</div>
+              </div>
+              <div style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fafbfc;">
+                <div style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:6px;">Поясница (низ) / слева / боль тянущая <span style="margin-left:auto;font-weight:700;color:var(--primary);">6/10 → 4/10</span></div>
+                <div class="vsec-c" style="margin-top:2px;">При сидении и после ходьбы почти не беспокоит, осталось в наклоне — при удержании положения.</div>
+              </div>
+            </div></div>
+          <div class="vsec"><div class="vsec-t">Осмотр</div><div class="vsec-c">Наклон вперёд болезненный на 30 град (на 2 балла). Прогиб без боли. Тест Тренделенбурга — динамика положительная (50%). Боль при пальпации локализовалась в области проксимального сухожилия БЯМ (медиально — крестец/КПС).</div></div>
+          <div class="vsec"><div class="vsec-t">Уточнение диагноза</div><div class="vsec-c">Тендинопатия большой ягодичной. МФС квадратной мышцы поясницы справа.</div></div>
+          <div class="vsec"><div class="vsec-t">Проведённые манипуляции</div><div class="vsec-c">Сухая игла на область сух прав БЯМ. ФМ по ФУ бедра и поясницы.</div></div>
+          <div class="vsec"><div class="vsec-t">Рекомендации / Назначения — коррекция</div><div class="vsec-c">Продолжаем программу ЛФК для ТБС, акцент больше на ягодичный мост и отведение. Добавляем подъём на ступени с весом.</div></div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+            <div class="fileitem" style="padding:5px 9px;"><span style="font-size:13px;">📷</span><span>тест_наклона_22-01.jpg</span></div>
+            <span class="hint" style="align-self:center;">— файлы, прикреплённые к визиту</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- VISIT CARD: repeat (collapsed) -->
+      <div class="visit">
+        <div class="visit-head">
+          <b style="font-size:13.5px;">15 января 2026</b>
+          <span class="vtype repeat">Повторный</span>
+          <span class="hint">Москва · Точка здоровья · 60 мин</span>
+          <span style="margin-left:auto;color:var(--ink-3);font-size:11px;">развернуть ▾</span>
+        </div>
+      </div>
+
+      <!-- VISIT CARD: first (collapsed) -->
+      <div class="visit">
+        <div class="visit-head">
+          <b style="font-size:13.5px;">5 января 2026</b>
+          <span class="vtype first">Первичный</span>
+          <span class="hint">Москва · Точка здоровья · 90 мин · 📎 2</span>
+          <span style="margin-left:auto;color:var(--ink-3);font-size:11px;">развернуть ▾</span>
+        </div>
+      </div>
+
+      <p class="note">История визитов — справа. «+ Новый визит» переключает экран в режим добавления: карта блюрится, история съезжает влево (под ней видна карта), справа выезжает панель визита. История и панель скроллятся независимо. Стрелка ◀ скрывает историю — карта снова видна чётко рядом с формой; язычок ▶ слева возвращает историю.</p>
+    </div>
+
+  </div>
+
+  <!-- NEW VISIT slide-in panel -->
+  <div class="visit-panel" id="visit-panel">
+
+        <div style="padding:10px 14px;background:var(--primary-soft);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <b style="font-size:13.5px;">Новый визит</b>
+          <span style="display:flex;gap:4px;">
+            <span class="mtab on" data-vt="first">Первичный</span>
+            <span class="mtab" data-vt="repeat">Повторный</span>
+          </span>
+          <span class="icbtn" id="visit-close" title="Закрыть" style="margin-left:auto;order:20;">✕</span>
+          <span style="display:flex;gap:6px;font-size:11.5px;color:var(--ink-2);flex-wrap:wrap;">
+            <span style="border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 8px;">11.06.2026 ▾</span>
+            <span style="border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 8px;">СПб · Скандинавия ▾</span>
+            <span style="border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 8px;">Очный приём ▾</span>
+            <span style="border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 8px;">90 мин ▾</span>
+          </span>
+        </div>
+        <div class="hint" style="padding:6px 14px;border-bottom:1px solid var(--line);">Если у пациента есть запись на сегодня — дата, локация, услуга и длительность подставляются из неё автоматически</div>
+
+        <!-- FIRST visit sections -->
+        <div id="vf-first" style="padding:12px 14px;display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <div class="vsec-t" style="display:flex;align-items:center;gap:6px;">Жалобы <span class="plus" style="width:17px;height:17px;font-size:12px;" title="Добавить жалобу">+</span></div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <div style="display:flex;gap:7px;align-items:center;">
+                <span class="flag" style="cursor:pointer;" title="Приоритет: вкл">⚑</span>
+                <input value="Бедро правое: боль ноющая после часа ходьбы" style="flex:1;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:inherit;">
+                <span style="display:flex;align-items:center;gap:3px;flex:none;font-size:11.5px;color:var(--ink-2);"><input type="number" min="0" max="10" value="5" style="width:42px;border:1px solid var(--line);border-radius:6px;padding:5px 4px;font-size:12px;text-align:center;font-family:inherit;">/10</span>
+                <span class="ed" title="Удалить">✕</span>
+              </div>
+              <div style="display:flex;gap:7px;align-items:center;">
+                <span style="color:var(--ink-3);font-size:12px;cursor:pointer;flex:none;" title="Приоритет: выкл">⚑</span>
+                <input value="Поясница (низ) слева: боль тянущая при нагрузках, ходьбе, наклонах" style="flex:1;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:inherit;">
+                <span style="display:flex;align-items:center;gap:3px;flex:none;font-size:11.5px;color:var(--ink-2);"><input type="number" min="0" max="10" value="6" style="width:42px;border:1px solid var(--line);border-radius:6px;padding:5px 4px;font-size:12px;text-align:center;font-family:inherit;">/10</span>
+                <span class="ed" title="Удалить">✕</span>
+              </div>
+            </div>
+            <div class="hint" style="margin-top:4px;">Каждая строка — жалоба-сущность с выраженностью 0–10: попадает в карту как «актуальная». Значение обновляется на каждом визите → график динамики. Enter — следующая, ⚑ — приоритет</div>
+          </div>
+          <div><div class="vsec-t">Осмотр</div><textarea style="width:100%;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;min-height:54px;resize:vertical;" placeholder="РДН ~1 см пр>лев, тест Адамса отрицательный..."></textarea></div>
+          <div>
+            <div class="vsec-t" style="display:flex;align-items:center;gap:6px;">Предварительный диагноз <span class="plus" style="width:17px;height:17px;font-size:12px;" title="Добавить диагноз">+</span></div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <div style="display:flex;gap:7px;align-items:center;">
+                <span class="flag" style="cursor:pointer;">⚑</span>
+                <input value="Трохантерит, тендинопатия средней ягодичной" style="flex:1;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:inherit;">
+                <span class="ed" title="Удалить">✕</span>
+              </div>
+              <div style="display:flex;gap:7px;align-items:center;">
+                <span style="color:var(--ink-3);font-size:12px;cursor:pointer;flex:none;">⚑</span>
+                <input value="МФС квадратной мышцы поясницы справа" style="flex:1;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:inherit;">
+                <span class="ed" title="Удалить">✕</span>
+              </div>
+              <div>
+                <div style="display:flex;gap:7px;align-items:center;">
+                  <span style="color:var(--ink-3);font-size:12px;flex:none;">⚑</span>
+                  <input value="неспец" placeholder="Начните вводить — поиск по справочнику..." style="flex:1;border:1px solid var(--primary);border-radius:7px 7px 0 0;padding:7px 10px;font-size:12.5px;font-family:inherit;">
+                  <span class="ed" title="Удалить">✕</span>
+                </div>
+                <div style="margin-left:19px;margin-right:19px;border:1px solid var(--primary);border-top:none;border-radius:0 0 7px 7px;background:#fff;font-size:12px;overflow:hidden;">
+                  <div style="padding:6px 10px;background:var(--primary-soft);cursor:pointer;"><b>Неспец</b>ифическая боль в нижней части спины <span class="hint">· справочник · исп. 12 раз</span></div>
+                  <div style="padding:6px 10px;cursor:pointer;border-top:1px solid var(--line);"><b>Неспец</b>ифическая боль в шейном отделе <span class="hint">· справочник · исп. 7 раз</span></div>
+                  <div style="padding:6px 10px;cursor:pointer;border-top:1px solid var(--line);color:var(--primary);font-weight:600;">+ Создать в справочнике: «неспец…»</div>
+                </div>
+              </div>
+            </div>
+            <div class="hint" style="margin-top:4px;">Диагнозы — из справочника клинических диагнозов (не МКБ): автокомплит по вводу, новый создаётся в справочнике и переиспользуется у других пациентов</div>
+          </div>
+          <div><div class="vsec-t">Проведённые манипуляции</div><textarea style="width:100%;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;min-height:38px;resize:vertical;" placeholder="ФМ на область поясницы, трохантера, ягодицы"></textarea></div>
+          <div><div class="vsec-t">Результаты пробного лечения</div><textarea style="width:100%;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;min-height:38px;resize:vertical;" placeholder="Уменьшение боли в наклоне"></textarea></div>
+          <div><div class="vsec-t">Рекомендации / Назначения</div><textarea style="width:100%;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;min-height:38px;resize:vertical;" placeholder="ЛФК, курс 3 сеанса фасциальных манипуляций"></textarea></div>
+        </div>
+
+        <!-- REPEAT visit sections -->
+        <div id="vf-repeat" style="padding:12px 14px;display:none;flex-direction:column;gap:12px;">
+          <div>
+            <div class="vsec-t">Динамика симптомов — по актуальным жалобам</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fafbfc;">
+                <div style="font-size:11.5px;color:var(--ink-2);display:flex;gap:6px;align-items:center;"><span class="flag">⚑</span>Бедро / правое / боль ноющая / лёжа на боку 30+ мин <span class="hint" style="margin-left:auto;">с 15.01</span></div>
+                <textarea style="width:100%;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:inherit;min-height:40px;resize:vertical;margin-top:6px;" placeholder="Боли реже и меньше — после 2 часов ходьбы..."></textarea>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:5px;flex-wrap:wrap;">
+                  <span style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--ink-2);">Выраженность: <span class="hint">было 5/10</span> → <input type="number" min="0" max="10" value="2" style="width:42px;border:1px solid var(--line);border-radius:6px;padding:4px;font-size:12px;text-align:center;font-family:inherit;">/10</span>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);cursor:pointer;"><input type="checkbox" style="margin:0;">Решена — снять</label>
+                </div>
+              </div>
+              <div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fafbfc;">
+                <div style="font-size:11.5px;color:var(--ink-2);">Поясница (низ) / слева / боль тянущая / при нагрузках <span class="hint" style="float:right;">с 15.01</span></div>
+                <textarea style="width:100%;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:inherit;min-height:40px;resize:vertical;margin-top:6px;" placeholder="При сидении и после ходьбы почти не беспокоит..."></textarea>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:5px;flex-wrap:wrap;">
+                  <span style="display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--ink-2);">Выраженность: <span class="hint">было 6/10</span> → <input type="number" min="0" max="10" value="4" style="width:42px;border:1px solid var(--line);border-radius:6px;padding:4px;font-size:12px;text-align:center;font-family:inherit;">/10</span>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);cursor:pointer;"><input type="checkbox" style="margin:0;">Решена — снять</label>
+                </div>
+              </div>
+            </div>
+            <div class="hint" style="margin-top:4px;">Динамика и новая выраженность 0–10 пишутся к каждой жалобе (связь жалоба ↔ визит) — из значений строится график по визитам</div>
+            <div style="margin-top:5px;"><span class="plus" style="width:17px;height:17px;font-size:12px;" title="Новая жалоба">+</span> <span class="hint">новая жалоба, появившаяся к этому визиту</span></div>
+          </div>
+          <div><div class="vsec-t">Осмотр</div><textarea style="width:100%;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;min-height:54px;resize:vertical;" placeholder="Наклон вперёд болезненный на 30 град (на 2 балла)..."></textarea></div>
+          <div>
+            <div class="vsec-t">Уточнение диагноза — по текущим</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fafbfc;">
+                <div style="font-size:11.5px;color:var(--ink-2);display:flex;gap:6px;align-items:center;"><span class="flag">⚑</span>Тендинопатия сухожилия большой ягодичной мышцы <span class="hint" style="margin-left:auto;">уточнён 22.01</span></div>
+                <input placeholder="Уточнение (из справочника)..." style="width:100%;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:inherit;margin-top:6px;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);margin-top:5px;cursor:pointer;"><input type="checkbox" style="margin:0;">Снять диагноз</label>
+              </div>
+              <div style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fafbfc;">
+                <div style="font-size:11.5px;color:var(--ink-2);">Миофасциальный болевой синдром поясничного отдела, хронический <span class="hint" style="float:right;">поставлен 05.01</span></div>
+                <input placeholder="Уточнение (из справочника)..." style="width:100%;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12.5px;font-family:inherit;margin-top:6px;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);margin-top:5px;cursor:pointer;"><input type="checkbox" style="margin:0;">Снять диагноз</label>
+              </div>
+            </div>
+            <div style="margin-top:5px;"><span class="plus" style="width:17px;height:17px;font-size:12px;" title="Новый диагноз">+</span> <span class="hint">новый диагноз — из справочника</span></div>
+          </div>
+          <div><div class="vsec-t">Проведённые манипуляции</div><textarea style="width:100%;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;min-height:38px;resize:vertical;" placeholder="Сухая игла на область сух прав БЯМ..."></textarea></div>
+          <div><div class="vsec-t">Рекомендации / Назначения — коррекция</div><textarea style="width:100%;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;min-height:38px;resize:vertical;" placeholder="Продолжаем программу ЛФК для ТБС, акцент на ягодичный мост..."></textarea></div>
+        </div>
+
+        <div style="padding:10px 14px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;background:#fafbfc;">
+          <span class="tab on">Сохранить визит</span>
+          <span class="tab">📎 Прикрепить файлы</span>
+          <span class="hint" style="margin-left:auto;">Пустые секции не сохраняются и не показываются в ленте</span>
+        </div>
+      
+  </div>
+  <div class="vh-tab" id="vh-tab" title="Показать историю визитов">▶</div>
+</div>
+
+
+<!-- ===================== STUB TABS ===================== -->
+<div class="pcpane" id="pp-overview"><div class="wf"><b>Обзор</b><div class="hint" style="margin-top:6px;line-height:1.7;">Сводка: программа-виджет · самочувствие · задачи · заметки · сигналы. Остаётся как сейчас, чистится от лишнего. Прорабатываем следующим заходом.</div></div></div>
+<div class="pcpane" id="pp-program"><div class="wf"><b>Программа</b><div class="hint" style="margin-top:6px;">ЛФК как сейчас (комментарии и медиа, тесты, активная программа, назначение). Без изменений на этом этапе.</div></div></div>
+<div class="pcpane" id="pp-records"><div class="wf"><b>Записи</b><div class="hint" style="margin-top:6px;line-height:1.7;">Предстоящие записи · история записей · абонементы. Чистится: booking-репутация и merge уезжают в Учётку/Админ. Из записи можно создать визит («Оформить визит» на прошедшей записи). Прорабатываем отдельным заходом.</div></div></div>
+
+<div class="pcpane" id="pp-files">
+  <div class="grid" style="grid-template-columns:1.15fr 1fr;align-items:start;">
+    <div class="wf" style="border-style:solid;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <span style="display:flex;align-items:center;gap:7px;"><h3 style="font-size:13px;">Файлы пациента</h3><span class="plus" title="Загрузить">+</span></span>
+        <span class="mtabs" style="margin-left:auto;"><span class="mtab on">☰ Список</span><span class="mtab">▦ Карточки</span></span>
+      </div>
+      <div class="mtabs" style="margin-bottom:8px;">
+        <span class="mtab on">Все · 6</span><span class="mtab">Выписки</span><span class="mtab">Снимки</span><span class="mtab">Анализы</span><span class="mtab">Фото тестов</span><span class="mtab">Прочее</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div class="fileitem" style="border-color:var(--primary);background:var(--primary-soft);"><span class="fileico">🩻</span><div style="flex:1;min-width:0;"><div style="font-weight:600;color:var(--ink);">МРТ_поясница_окт2025.pdf</div><div class="hint">Снимок · 14.10.2025 · визит 05.01.2026</div></div><span class="hint">18 МБ</span></div>
+        <div class="fileitem"><span class="fileico">📄</span><div style="flex:1;min-width:0;"><div style="font-weight:600;color:var(--ink);">Выписка_невролог_дек2025.pdf</div><div class="hint">Выписка · 28.12.2025 · без привязки</div></div><span class="hint">2.4 МБ</span></div>
+        <div class="fileitem"><span class="fileico">📷</span><div style="flex:1;min-width:0;"><div style="font-weight:600;color:var(--ink);">тест_наклона_22-01.jpg</div><div class="hint">Фото теста · 22.01.2026 · визит 22.01.2026</div></div><span class="hint">1.1 МБ</span></div>
+        <div class="fileitem"><span class="fileico">🧪</span><div style="flex:1;min-width:0;"><div style="font-weight:600;color:var(--ink);">ОАК_янв2026.pdf</div><div class="hint">Анализ · 11.01.2026</div></div><span class="hint">340 КБ</span></div>
+      </div>
+      <p class="note" style="margin-top:10px;">Переключатель вида: список ⇄ сетка карточек с превью-миниатюрами. Файл: категория · дата · опциональная привязка к визиту. Файлы из визитов появляются и здесь.</p>
+    </div>
+    <div class="wf" style="border-style:solid;padding:0;overflow:hidden;min-height:340px;display:flex;flex-direction:column;">
+      <div style="padding:9px 14px;border-bottom:1px solid var(--line);background:#fafbfc;display:flex;align-items:center;gap:8px;">
+        <b style="font-size:12.5px;color:var(--ink);">МРТ_поясница_окт2025.pdf</b>
+        <span class="hint" style="margin-left:auto;">Скачать · Открыть · Привязать к визиту ▾</span>
+      </div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(45deg,#f6f8fb,#f6f8fb 12px,#eef1f6 12px,#eef1f6 24px);color:var(--ink-3);font-size:12.5px;">
+        Предпросмотр: изображение / PDF / документ
+      </div>
+      <div style="padding:8px 14px;border-top:1px solid var(--line);background:#fafbfc;" class="hint">Снимок · загружен 14.10.2025 · привязан к визиту 05.01.2026 · 18 МБ</div>
+    </div>
+  </div>
+  <p class="note">Будущее: AI-разбор загруженных PDF (выписки, анализы) в структурированную историю.</p>
+</div>
+
+<div class="pcpane" id="pp-comms"><div class="wf"><b>Коммуникации</b><div class="hint" style="margin-top:6px;">Чат поддержки как сейчас.</div></div></div>
+<div class="pcpane" id="pp-stats"><div class="wf"><b>Аналитика</b><div class="hint" style="margin-top:6px;line-height:1.7;">Техническая активность пациента: использование приложения · выполнение упражнений · полученные рассылки · открытия плана. Прорабатываем позже. Врачебная статистика (динамика жалоб, тесты) живёт в Карте.</div></div></div>
+<div class="pcpane" id="pp-account"><div class="wf"><b>Учётка</b><div class="hint" style="margin-top:6px;">Контакты и каналы · сопровождение · lifecycle · блокировки · админ (merge, audit). Как сейчас, плюс сюда переезжает booking-репутация из Записей.</div></div></div>
+
 </section>
 
 <section class="pane" id="p-schedule">
@@ -539,15 +949,12 @@ body{font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-seri
         <div style="font-size:13px;font-weight:600;color:var(--ink-2);">Выберите чат слева</div>
         <div class="hint" style="font-size:11.5px;text-align:center;margin-top:6px;padding:0 24px;">Когда диалог выбран — здесь появляется тред переписки с полем ответа</div>
       </div>
-        </div>
-
-      </div>
     </div>
     <p class="note">Звезда ★ — пациент на сопровождении (видно прямо в строке диалога). Фильтры наверху: Непрочитанные · 3 / На сопровождении · 6. Правая часть пустует до выбора чата — позже сюда можно положить настройки или статистику чатов.</p>
   </div>
 
   <div class="cpane" id="ct-intake" style="display:none;flex-direction:column;gap:10px;">
-    <div class="grid" style="grid-template-columns:1fr 1.4fr;align-items:start;gap:10px;min-width:0;">
+    <div class="grid" style="grid-template-columns:1fr 1.4fr;gap:10px;min-width:0;">
       <div class="wf" style="padding:0;overflow:hidden;">
         <div style="padding:8px 12px;border-bottom:1px solid var(--line);background:#fafbfc;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
           <span class="tab on" style="font-size:11px;padding:2px 9px;">Новые · 1</span>
@@ -575,8 +982,8 @@ body{font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-seri
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px;">
-        <details open class="wf" style="padding:0;overflow:hidden;">
-          <summary style="padding:8px 12px;border-bottom:1px solid var(--line);background:#fafbfc;font-size:12px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;list-style:none;flex-wrap:wrap;gap:6px;">
+        <div class="wf" style="padding:0;overflow:hidden;width:100%;box-sizing:border-box;">
+          <div style="padding:8px 12px;border-bottom:1px solid var(--line);background:#fafbfc;font-size:12px;font-weight:600;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
             <span>Статистика заявок ▾</span>
             <span style="display:flex;gap:4px;">
               <span class="tab" style="font-size:10.5px;padding:1px 8px;">7 дн</span>
@@ -584,7 +991,7 @@ body{font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-seri
               <span class="tab" style="font-size:10.5px;padding:1px 8px;">90 дн</span>
               <span class="tab" style="font-size:10.5px;padding:1px 8px;">Год</span>
             </span>
-          </summary>
+          </div>
           <div style="display:grid;grid-template-columns:repeat(5,1fr);">
             <div style="padding:10px 8px;border-right:1px solid var(--line);"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;">Всего</div><div style="font-size:18px;font-weight:700;margin-top:2px;">23</div></div>
             <div style="padding:10px 8px;border-right:1px solid var(--line);background:var(--danger-soft);"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;">Новые</div><div style="font-size:18px;font-weight:700;margin-top:2px;color:var(--danger);">1</div></div>
@@ -593,7 +1000,7 @@ body{font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-seri
             <div style="padding:10px 8px;"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;">Отказ</div><div style="font-size:18px;font-weight:700;margin-top:2px;color:var(--ink-3);">4</div></div>
           </div>
           <div class="hint" style="padding:8px 12px;border-top:1px solid var(--line);background:#fafbfc;font-size:11.5px;">Конверсия в запись: <b style="color:var(--ink);">65%</b> · Среднее время ответа: <b style="color:var(--ink);">2 ч 14 мин</b></div>
-        </details>
+        </div>
         <div class="wf" style="padding:0;overflow:hidden;">
           <div style="padding:10px 14px;border-bottom:1px solid var(--line);background:var(--primary-soft);">
             <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
@@ -629,7 +1036,7 @@ body{font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-seri
   </div>
 
   <div class="cpane" id="ct-comments" style="display:none;flex-direction:column;gap:10px;">
-    <div class="grid" style="grid-template-columns:1fr 1.4fr;align-items:start;gap:10px;min-width:0;">
+    <div class="grid" style="grid-template-columns:1fr 1.4fr;gap:10px;min-width:0;">
       <div class="wf" style="padding:0;overflow:hidden;">
         <div style="padding:8px 12px;border-bottom:1px solid var(--line);background:#fafbfc;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span class="tab on" style="font-size:11px;padding:2px 9px;">Новые</span>
@@ -706,7 +1113,7 @@ body{font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-seri
   </div>
 
   <div class="cpane" id="ct-broadcasts" style="display:none;flex-direction:column;gap:10px;">
-    <div class="grid" style="grid-template-columns:1fr 1.2fr;align-items:start;gap:10px;min-width:0;">
+    <div class="grid" style="grid-template-columns:1fr 1.2fr;gap:10px;min-width:0;">
 
       <div class="wf" style="padding:0;overflow:hidden;">
         <div style="padding:9px 14px;border-bottom:1px solid var(--line);background:#fafbfc;font-weight:600;font-size:13px;">Новая рассылка</div>
@@ -992,6 +1399,33 @@ ctabs.forEach(t=>t.addEventListener('click',()=>{
   const el=document.getElementById('ct-'+t.dataset.ct);
   if(el) el.style.display='flex';
 }));
+
+/* ===== PATIENT CARD ===== */
+document.getElementById('open-patient-card').addEventListener('click',()=>{
+  panes.forEach(p=>p.classList.toggle('on',p.id==='p-patient-card'));
+  ttl.textContent='Карта пациента';
+});
+document.querySelectorAll('.ptab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.ptab').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    document.querySelectorAll('.pcpane').forEach(p=>p.classList.remove('on'));
+    document.getElementById('pp-'+t.dataset.p).classList.add('on');
+  });
+});
+const pcStage=document.getElementById('pp-karta');
+document.getElementById('btn-new-visit').addEventListener('click',()=>pcStage.classList.add('adding'));
+document.getElementById('visit-close').addEventListener('click',()=>pcStage.classList.remove('adding','vh-hidden'));
+document.getElementById('vh-toggle').addEventListener('click',()=>pcStage.classList.add('vh-hidden'));
+document.getElementById('vh-tab').addEventListener('click',()=>pcStage.classList.remove('vh-hidden'));
+document.querySelectorAll('[data-vt]').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('[data-vt]').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');
+    document.getElementById('vf-first').style.display = t.dataset.vt==='first'?'flex':'none';
+    document.getElementById('vf-repeat').style.display = t.dataset.vt==='repeat'?'flex':'none';
+  });
+});
 </script>
 </body>
 </html>
