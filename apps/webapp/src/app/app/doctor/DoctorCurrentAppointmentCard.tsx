@@ -6,7 +6,7 @@ import {
   doctorSectionSubtitleClass,
   doctorInlineLinkClass,
 } from "@/shared/ui/doctor/doctorVisual";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
 
 /** Парсит "HH:MM" → минуты с полуночи. Возвращает -1 при ошибке. */
