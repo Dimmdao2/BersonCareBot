@@ -130,6 +130,11 @@ typecheck/lint/тесты затронутых пакетов + живой dev (
   unit-тесты. Коммит `7d16040e`.
 - **2026-06-11 · TODO#2 Block 2 ✅** — все 4 страницы вкладок передают `badges` в таб-бар;
   живо проверено (dev:doctor): «Чаты 3» виден и на вкладке «Рассылки» (кросс-таб). Коммит `a36306d2`.
+- **2026-06-11 · TODO#3 Block 3** — клиентский шелл + реестр + URL-sync:
+  `communicationsTabRegistry.ts` (типы + массив 4 табов + `CommunicationsTabProps`),
+  `DoctorCommunicationsShell.tsx` (`next/dynamic` module-level, keepMounted Set+hidden, `history.replaceState`, `popstate`),
+  `DoctorCommunicationsTabsNav` (`onTabClick?` backwards-compat), 4 таб-обёртки в `tabs/`,
+  10 тестов (keepMounted, URL-sync, deep-link id/archive). Коммит `7ae6cab3`.
 - **2026-06-11 · TODO#3 — ТЗ зафиксировано** (обсуждение с владельцем). Решение: вариант C
   (единый клиентский шелл + ленивые компоненты-табы), мгновенное переключение; чат-поллинг только
   активным+видимым окном и только при изменении; комментарии — непрочитанные одним doctor-wide
