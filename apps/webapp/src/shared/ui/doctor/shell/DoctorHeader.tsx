@@ -122,9 +122,9 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, hideMenuO
               <Users className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             </Link>
             <Link
-              href="/app/doctor/messages"
+              href={routePaths.doctorCommunications}
               prefetch={false}
-              aria-label="Сообщения"
+              aria-label="Коммуникации"
               className={HEADER_ICON_CLASS}
             >
               <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />

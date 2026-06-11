@@ -96,8 +96,12 @@ function readOpenClustersFromStorage(): Set<string> | null {
       try {
         const parsed: unknown = JSON.parse(v2);
         if (Array.isArray(parsed)) {
+          // Пустой массив = пользователь явно закрыл все кластеры.
+          if (parsed.length === 0) return new Set();
           const ids = parsed.filter((x): x is string => typeof x === "string" && isDoctorMenuClusterId(x));
-          if (ids.length === 0) return new Set();
+          // Все сохранённые id устарели (например, после миграции структуры меню) →
+          // вернуть null, чтобы использовался дефолт DOCTOR_MENU_DEFAULT_CLUSTER_ID.
+          if (ids.length === 0) return null;
           return new Set([ids[ids.length - 1]!]);
         }
       } catch {
@@ -173,9 +177,17 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
     });
   }, []);
 
-  const items = getDoctorMenuItems(menuAccess);
+  // menuAccess — plain-объект, пересоздаётся в родителе при каждом ре-рендере;
+  // используем примитивные поля как зависимости, чтобы избежать лишних пересчётов.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const items = useMemo(() => getDoctorMenuItems(menuAccess), [menuAccess.role, menuAccess.adminMode]);
 
   const renderLink = (item: DoctorMenuLinkItem, navPrefix: "sidebar" | "menu", icon?: ElementType) => {
+    const href = item.href;
+    // renderLink вызывается только для пунктов с href (не раскрывающихся);
+    // ранний return вместо non-null assertion — безопасно и для TypeScript.
+    if (!href) return null;
+
     const rawCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
     const badgeText = item.badgeKey ? formatNavBadgeCount(rawCount) : null;
     const aria = badgeText ? linkAriaLabelWhenBadged(item, badgeText) : undefined;
@@ -185,13 +197,13 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
       <Link
         key={item.id}
         id={navPrefix === "sidebar" ? `doctor-sidebar-link-${item.id}` : `doctor-menu-link-${item.id}`}
-        href={item.href!}
+        href={href}
         prefetch={false}
         onClick={onNavigate}
         aria-label={aria}
         className={cn(
           linkClass,
-          isDoctorNavItemActive(item.href!, pathname) &&
+          isDoctorNavItemActive(href, pathname) &&
             "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
         )}
       >

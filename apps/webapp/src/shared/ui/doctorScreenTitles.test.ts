@@ -67,6 +67,11 @@ describe("getDoctorScreenTitle", () => {
   it("normalizes trailing slash on today", () => {
     expect(getDoctorScreenTitle("/app/doctor/")).toBe("Сегодня");
   });
+  it("returns titles for new aggregate URLs (middleware rewrite — usePathname returns new URL)", () => {
+    expect(getDoctorScreenTitle("/app/doctor/schedule")).toBe("Расписание");
+    expect(getDoctorScreenTitle("/app/doctor/communications")).toBe("Коммуникации");
+  });
+
   it("returns fallback for unknown doctor path", () => {
     expect(getDoctorScreenTitle("/app/doctor/unknown-section")).toBe("Кабинет");
   });

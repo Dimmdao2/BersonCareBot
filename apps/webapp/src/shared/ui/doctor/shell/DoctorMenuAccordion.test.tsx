@@ -184,6 +184,29 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("falls back to default (library) when stored v2 IDs are all unrecognised after migration", async () => {
+    // Before migration users had e.g. "patients-work" or "lfk-catalog" in storage.
+    // After migration those IDs no longer exist → should use default "library", not collapse all.
+    localStorage.setItem(
+      DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
+      JSON.stringify(["patients-work"]),
+    );
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("respects explicitly empty clusters array (user intentionally closed all)", async () => {
+    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify([]));
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
+    // explicitly collapsed — do NOT fall back to default
+    expect(screen.queryByRole("link", { name: "Упражнения" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("saves cluster id to localStorage on toggle", async () => {
     const user = userEvent.setup();
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
