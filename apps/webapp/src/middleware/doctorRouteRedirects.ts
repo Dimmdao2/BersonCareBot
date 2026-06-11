@@ -5,12 +5,36 @@ import type { NextRequest } from "next/server";
  * Обрабатывает маршруты кабинета врача:
  * 1. 308-редиректы: старые URL → новые агрегирующие страницы (видны браузеру).
  * 2. Внутренние rewrite: новые URL → легаси-страницы (браузер видит новый URL, рендерится легаси).
- *    Rewrite не вызывает повторный проход middleware → бесконечный цикл исключён.
+ *
+ * ВАЖНО: в Next 16 (proxy-конвенция) внутренний rewrite ПОВТОРНО проходит через proxy
+ * (в отличие от старого middleware). Без защиты это давало петлю:
+ * schedule →(rewrite)→ calendar →(re-entry)→ legacyRedirect → 308 schedule → ∞.
+ * Защита — маркер `REWRITE_MARKER_HEADER` в заголовках переписанного запроса:
+ * на повторном входе функция сразу возвращает null.
  */
+/**
+ * Маркер внутреннего rewrite. В Next 16 (proxy-конвенция) внутренний
+ * `NextResponse.rewrite` ПОВТОРНО проходит через proxy — в отличие от старого
+ * middleware. Без защиты возникает петля: schedule →(rewrite)→ calendar →(re-entry)→
+ * legacyRedirect → 308 schedule → ∞. Маркер прокидывается в заголовки переписанного
+ * запроса и на повторном входе заставляет нас сразу выйти.
+ */
+const REWRITE_MARKER_HEADER = "x-bc-doctor-rewrite";
+
 export function doctorRouteRedirectResponse(
   request: NextRequest,
 ): NextResponse | null {
   const { pathname } = request.nextUrl;
+
+  // Повторный вход после внутреннего rewrite — пропускаем всю логику, петли нет.
+  if (request.headers.get(REWRITE_MARKER_HEADER) === "1") return null;
+
+  // Хелпер: rewrite с маркером в заголовках переписанного запроса.
+  const rewriteWithMarker = (url: URL): NextResponse => {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(REWRITE_MARKER_HEADER, "1");
+    return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+  };
 
   // ── 308 redirects: old URLs → new aggregate URLs ──────────────────────────
 
@@ -53,7 +77,7 @@ export function doctorRouteRedirectResponse(
     const url = request.nextUrl.clone();
     url.search = "";
     url.pathname = tab === "setup" ? "/app/doctor/admin/booking" : "/app/doctor/calendar";
-    return NextResponse.rewrite(url);
+    return rewriteWithMarker(url);
   }
 
   if (pathname === "/app/doctor/communications") {
@@ -74,7 +98,7 @@ export function doctorRouteRedirectResponse(
       url.pathname = "/app/doctor/messages";
     }
 
-    return NextResponse.rewrite(url);
+    return rewriteWithMarker(url);
   }
 
   return null;

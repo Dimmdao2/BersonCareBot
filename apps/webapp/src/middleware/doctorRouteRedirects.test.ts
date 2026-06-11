@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { doctorRouteRedirectResponse } from "@/middleware/doctorRouteRedirects";
 
-function req(path: string) {
-  return new NextRequest(new URL(path, "http://localhost"));
+function req(path: string, headers?: Record<string, string>) {
+  return new NextRequest(new URL(path, "http://localhost"), headers ? { headers } : undefined);
 }
 
 describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () => {
@@ -146,5 +146,41 @@ describe("doctorRouteRedirectResponse — internal rewrites (new URLs → legacy
     const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=calendar"));
     const rewriteTarget = res!.headers.get("x-middleware-rewrite") ?? "";
     expect(rewriteTarget).not.toContain("tab=");
+  });
+
+  it("rewrite carries re-entry marker header on the rewritten request", () => {
+    const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=calendar"));
+    // Маркер прокидывается в заголовки переписанного запроса (request override).
+    expect(res!.headers.get("x-middleware-override-headers")).toContain("x-bc-doctor-rewrite");
+  });
+});
+
+describe("doctorRouteRedirectResponse — re-entry guard (loop prevention)", () => {
+  // В Next 16 (proxy) внутренний rewrite повторно проходит через proxy.
+  // На повторном входе запрос несёт маркер → вся логика пропускается, петли нет.
+  it("returns null for rewrite target /app/doctor/calendar when marker present", () => {
+    const res = doctorRouteRedirectResponse(
+      req("/app/doctor/calendar", { "x-bc-doctor-rewrite": "1" }),
+    );
+    expect(res).toBeNull();
+  });
+
+  it("returns null for /app/doctor/messages when marker present", () => {
+    const res = doctorRouteRedirectResponse(
+      req("/app/doctor/messages", { "x-bc-doctor-rewrite": "1" }),
+    );
+    expect(res).toBeNull();
+  });
+
+  it("returns null for /app/doctor/online-intake/abc when marker present", () => {
+    const res = doctorRouteRedirectResponse(
+      req("/app/doctor/online-intake/abc-123", { "x-bc-doctor-rewrite": "1" }),
+    );
+    expect(res).toBeNull();
+  });
+
+  it("still redirects legacy URL when marker is absent (direct hit)", () => {
+    const res = doctorRouteRedirectResponse(req("/app/doctor/calendar"));
+    expect(res?.status).toBe(308);
   });
 });
