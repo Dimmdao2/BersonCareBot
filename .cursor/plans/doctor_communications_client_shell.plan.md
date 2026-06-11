@@ -41,13 +41,13 @@ todos:
     status: completed
   - id: e3a-registry
     content: "Этап 3.A — реестр табов (декларативный массив id/loader/deepLinkKeys) + типы; добавление таба = компонент + строка реестра"
-    status: pending
+    status: completed
   - id: e3b-shell
     content: "Этап 3.B — DoctorCommunicationsShell (client): DoctorAppShell+TabsNav, ленивый next/dynamic монтаж активного таба + кэш уже открытых (keepMounted)"
-    status: pending
+    status: completed
   - id: e3c-urlsync
     content: "Этап 3.C — синхронизация ?tab + под-параметров (intake id, broadcasts archive) ↔ URL без полного перехода (history.replaceState/router), restore при back/forward; тест (прогрев чанков в beforeAll)"
-    status: pending
+    status: completed
   - id: e4a-chats
     content: "Этап 4.A — таб «Чаты» (DoctorSupportInbox): поллинг только активный+видимый таб (visibilitychange) и только при реальном изменении (since/сравнение); тест отсутствия поллинга/ре-рендера"
     status: pending

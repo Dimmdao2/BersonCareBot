@@ -55,3 +55,33 @@
 ### Сознательно не сделано
 - Серверная пагинация поиска (глобальный поиск не нужен по scope).
 - Интеграция в shell/page.tsx — это Этапы 3 и 6.
+
+## Block 3 (2026-06-11) — Клиентский шелл с реестром и URL-sync
+
+### Что сделано
+- **3.A** `communicationsTabRegistry.ts` — реестр: `CommunicationsTabProps` (deepLinkParams / onDeepLinkChange / initialData),
+  `CommunicationsTabRegistryEntry` (id / loader / deepLinkKeys), массив 4 записей; добавление таба = компонент + строка.
+- **3.B** `DoctorCommunicationsShell.tsx` — `"use client"`: `DoctorAppShell` + `DoctorCommunicationsTabsNav` (reuse),
+  `DYNAMIC_TABS` Map (module-level, `next/dynamic` + `ssr:false`), `mountedTabs` (Set, только растёт — keepMounted),
+  `deepLinks` per-tab state, `handleTabChange` / `handleDeepLinkChange`.
+- **3.B** `DoctorCommunicationsTabsNav.tsx` — добавлен опциональный `onTabClick?: (tab) => void`;
+  при наличии рендерит `<button>` вместо `<Link>` (backwards-compatible).
+- **3.B** `tabs/ChatsTab.tsx` — тонкая обёртка над `DoctorSupportInbox` (Block 4 добавит поллинг).
+- **3.B** `tabs/IntakeTab.tsx` — обёртка над `DoctorOnlineIntakeClient`, передаёт `initialOpenRequestId={deepLinkParams.id}`.
+- **3.B** `tabs/CommentsTab.tsx` — обёртка над `DoctorCommentsTab`, `initialData` → props (fallback пустой список).
+- **3.B** `tabs/BroadcastsTab.tsx` — `deepLinkParams.archive === "1"` → `BroadcastDeliveryArchiveClient` с кнопкой «←»;
+  иначе `BroadcastForm` + ленивая загрузка `BroadcastAuditLog` через `listBroadcastAuditAction`.
+- **3.C** URL-sync: смена таба → `history.replaceState(?tab=<id>)`, deep-link-параметры добавляются/удаляются из URL;
+  `popstate`-слушатель восстанавливает состояние при back/forward; инициализация deepLinks из `window.location.search` в `useEffect`.
+- **3.C** `DoctorCommunicationsShell.test.tsx` — 10 тестов (jsdom): рендер, keepMounted кэш, hidden-атрибут,
+  replaceState при смене таба, повторный переход не перемонтирует, чтение ?id/?archive из URL, запись ?id/?archive через onDeepLinkChange.
+  Чанки прогреты в `beforeAll` (правило webapp-tests-lean-no-bloat).
+
+### Проверки
+- `pnpm --dir apps/webapp typecheck` — зелёный
+- `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/communications` — 20 passed (3 файла)
+
+### Сознательно не сделано
+- Умный поллинг чатов (только активный+видимый таб) — Block 4.
+- Полный deep-link write-sync для intake (onDeepLinkChange при открытии карточки) — Block 4.
+- `page.tsx` (серверный вход-шелл с requireDoctorAccess + бейджи) — Block 6.

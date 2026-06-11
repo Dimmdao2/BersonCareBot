@@ -11,16 +11,20 @@ type Props = {
   activeTab: CommunicationsTabId;
   /**
    * Опциональные счётчики-бейджи на вкладках. Страница передаёт то, что уже загрузила.
-   * Кросс-вкладочная синхронизация бейджей — TODO (см. communications.md).
    */
   badges?: Partial<Record<CommunicationsTabId, number>>;
+  /**
+   * Если задан — клики по табам вызывают обработчик вместо перехода по Link.
+   * Используется в DoctorCommunicationsShell для мгновенного переключения без навигации.
+   */
+  onTabClick?: (tab: CommunicationsTabId) => void;
 };
 
 /**
  * Единый таб-бар экрана «Коммуникации». Зеркалит паттерн `BookingAdminTabsNav`:
  * sticky-полоса со ссылками на агрегатные URL `/communications?tab=<id>`.
  */
-export function DoctorCommunicationsTabsNav({ activeTab, badges }: Props) {
+export function DoctorCommunicationsTabsNav({ activeTab, badges, onTabClick }: Props) {
   return (
     <nav
       id="doctor-communications-tabs"
@@ -34,31 +38,46 @@ export function DoctorCommunicationsTabsNav({ activeTab, badges }: Props) {
         {COMMUNICATIONS_TABS.map((tab) => {
           const active = tab.id === activeTab;
           const badge = badges?.[tab.id];
-          return (
+          const itemClass = cn(
+            "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+            active
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          );
+          const badgeEl =
+            badge && badge > 0 ? (
+              <span
+                className={cn(
+                  "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none tabular-nums",
+                  active
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : "bg-destructive/10 text-destructive",
+                )}
+              >
+                {badge}
+              </span>
+            ) : null;
+
+          return onTabClick ? (
+            <button
+              key={tab.id}
+              type="button"
+              aria-current={active ? "page" : undefined}
+              onClick={() => onTabClick(tab.id)}
+              className={itemClass}
+            >
+              {tab.label}
+              {badgeEl}
+            </button>
+          ) : (
             <Link
               key={tab.id}
               href={tab.href}
               aria-current={active ? "page" : undefined}
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
+              className={itemClass}
             >
               {tab.label}
-              {badge && badge > 0 ? (
-                <span
-                  className={cn(
-                    "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none tabular-nums",
-                    active
-                      ? "bg-primary-foreground/20 text-primary-foreground"
-                      : "bg-destructive/10 text-destructive",
-                  )}
-                >
-                  {badge}
-                </span>
-              ) : null}
+              {badgeEl}
             </Link>
           );
         })}
