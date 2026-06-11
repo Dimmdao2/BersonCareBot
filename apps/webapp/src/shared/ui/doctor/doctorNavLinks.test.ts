@@ -128,8 +128,28 @@ describe("doctor menu structure", () => {
     expect(today?.href).toBe("/app/doctor");
   });
 
+  it("schedule is expandable with calendar, appointments, and admin setup", () => {
+    const items = getDoctorMenuItems(adminAccess);
+    const schedule = items.find((i) => i.id === "schedule");
+    expect(schedule?.items?.map((i) => i.id)).toEqual([
+      "schedule-calendar",
+      "schedule-appointments",
+      "schedule-setup",
+    ]);
+    expect(schedule?.items?.find((i) => i.id === "schedule-appointments")?.href).toBe(
+      "/app/doctor/appointments",
+    );
+  });
+
+  it("schedule for doctor hides admin setup sub-item", () => {
+    const items = getDoctorMenuItems(doctorAccess);
+    const schedule = items.find((i) => i.id === "schedule");
+    expect(schedule?.items?.map((i) => i.id)).toEqual(["schedule-calendar", "schedule-appointments"]);
+  });
+
   it("isDoctorMenuClusterId returns true for expandable items only", () => {
     expect(isDoctorMenuClusterId("library")).toBe(true);
+    expect(isDoctorMenuClusterId("schedule")).toBe(true);
     expect(isDoctorMenuClusterId("analytics")).toBe(true);
     expect(isDoctorMenuClusterId("settings")).toBe(true);
     expect(isDoctorMenuClusterId("system")).toBe(true);
@@ -149,7 +169,8 @@ describe("doctor menu structure", () => {
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Пациенты")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Комплексы ЛФК")).toBe(true);
     expect(hrefs).toContain("/app/doctor/communications");
-    expect(hrefs).toContain("/app/doctor/schedule");
+    expect(hrefs).toContain("/app/doctor/schedule?tab=calendar");
+    expect(hrefs).toContain("/app/doctor/appointments");
     expect(hrefs).not.toContain("/app/settings");
   });
 

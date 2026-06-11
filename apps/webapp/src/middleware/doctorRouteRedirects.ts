@@ -56,7 +56,6 @@ export function doctorRouteRedirectResponse(
     "/app/doctor/comments": "/app/doctor/communications?tab=comments",
     "/app/doctor/broadcasts/archive": "/app/doctor/communications?tab=broadcasts&archive=1",
     "/app/doctor/broadcasts": "/app/doctor/communications?tab=broadcasts",
-    "/app/doctor/appointments": "/app/doctor/schedule?tab=calendar",
     "/app/doctor/calendar": "/app/doctor/schedule?tab=calendar",
     "/app/doctor/admin/booking": "/app/doctor/schedule?tab=setup",
   };
@@ -78,7 +77,13 @@ export function doctorRouteRedirectResponse(
     const tab = request.nextUrl.searchParams.get("tab") ?? "calendar";
     const url = request.nextUrl.clone();
     url.search = "";
-    url.pathname = tab === "setup" ? "/app/doctor/admin/booking" : "/app/doctor/calendar";
+    if (tab === "setup") {
+      url.pathname = "/app/doctor/admin/booking";
+    } else if (tab === "appointments") {
+      url.pathname = "/app/doctor/appointments";
+    } else {
+      url.pathname = "/app/doctor/calendar";
+    }
     return rewriteWithMarker(url);
   }
 

@@ -44,7 +44,24 @@ export function isDoctorMenuLinkVisible(item: DoctorMenuLinkItem, access: Doctor
 const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: "today", label: "Сегодня", href: "/app/doctor", badgeKey: "todayAttention" },
   { id: "clients", label: "Пациенты", href: "/app/doctor/clients?scope=appointments" },
-  { id: "schedule", label: "Расписание", href: routePaths.doctorSchedule },
+  {
+    id: "schedule",
+    label: "Расписание",
+    items: [
+      {
+        id: "schedule-calendar",
+        label: "Календарь",
+        href: `${routePaths.doctorSchedule}?tab=calendar`,
+      },
+      { id: "schedule-appointments", label: "Записи", href: "/app/doctor/appointments" },
+      {
+        id: "schedule-setup",
+        label: "Настройка записи",
+        href: `${routePaths.doctorSchedule}?tab=setup`,
+        requiresAdminMode: true,
+      },
+    ],
+  },
   {
     id: "communications",
     label: "Коммуникации",

@@ -15,12 +15,8 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
     );
   });
 
-  it("redirects /app/doctor/appointments to schedule?tab=calendar", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/appointments"));
-    expect(res?.status).toBe(308);
-    expect(res?.headers.get("location")).toBe(
-      "http://localhost/app/doctor/schedule?tab=calendar",
-    );
+  it("does not redirect /app/doctor/appointments (list stays direct until schedule shell)", () => {
+    expect(doctorRouteRedirectResponse(req("/app/doctor/appointments"))).toBeNull();
   });
 
   it("redirects /app/doctor/admin/booking to schedule?tab=setup", () => {
@@ -106,6 +102,12 @@ describe("doctorRouteRedirectResponse — internal rewrites (new URLs → legacy
     const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=setup"));
     expect(isRewrite(res)).toBe(true);
     expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/admin/booking");
+  });
+
+  it("rewrites /app/doctor/schedule?tab=appointments to /app/doctor/appointments", () => {
+    const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=appointments"));
+    expect(isRewrite(res)).toBe(true);
+    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/appointments");
   });
 
   it("rewrites /app/doctor/communications (no tab) to /app/doctor/messages", () => {
