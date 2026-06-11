@@ -10,19 +10,24 @@
 import Link from "next/link";
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorCommunicationsTabsNav } from "../communications/DoctorCommunicationsTabsNav";
+import { loadDoctorCommunicationsBadges } from "../communications/loadDoctorCommunicationsBadges";
 import { loadDoctorExerciseCommentAttention } from "../loadDoctorExerciseCommentAttention";
 import { DoctorExerciseCommentsList } from "./DoctorExerciseCommentsList";
 
 export default async function DoctorCommentsPage() {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
-  const audience = await loadDoctorAnalyticsAudience();
+  const [audience, badges] = await Promise.all([
+    loadDoctorAnalyticsAudience(),
+    loadDoctorCommunicationsBadges(deps, getOnlineIntakeService()),
+  ]);
   const clientAudience = audience?.excludedUserIds?.length
     ? { excludedUserIds: audience.excludedUserIds }
     : undefined;
@@ -42,7 +47,7 @@ export default async function DoctorCommentsPage() {
 
   return (
     <DoctorAppShell title="Коммуникации" user={session.user}>
-      <DoctorCommunicationsTabsNav activeTab="comments" />
+      <DoctorCommunicationsTabsNav activeTab="comments" badges={badges} />
       <DoctorSection id="doctor-communications-comments">
         <DoctorSectionTitle>Новые комментарии по упражнениям</DoctorSectionTitle>
         {items.length === 0 ? (
