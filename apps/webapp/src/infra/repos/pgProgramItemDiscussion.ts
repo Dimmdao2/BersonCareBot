@@ -13,6 +13,8 @@ import {
 import { extractPatientExerciseCommentReplyBody } from "@/modules/messaging/programNoteReplyContext";
 import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
 import type {
+  DoctorExerciseCommentRow,
+  ListDoctorExerciseCommentsInput,
   ProgramItemDiscussionLegacyMergeInput,
   ProgramItemDiscussionLegacyUnreadInput,
   ProgramItemDiscussionListPageInput,
@@ -34,6 +36,141 @@ function mapMessage(row: typeof programItemDiscussionMessages.$inferSelect): Pro
     supportMessageId: row.supportMessageId,
     createdAt: row.createdAt,
   };
+}
+
+function mapMessageFields(row: {
+  id: string;
+  instanceStageItemId: string;
+  patientUserId: string;
+  senderRole: string;
+  origin: string;
+  body: string | null;
+  mediaFileId: string | null;
+  supportMessageId: string | null;
+  createdAt: string;
+}): ProgramItemDiscussionMessage {
+  return {
+    id: row.id,
+    instanceStageItemId: row.instanceStageItemId,
+    patientUserId: row.patientUserId,
+    senderRole: row.senderRole as ProgramItemDiscussionSenderRole,
+    origin: row.origin as ProgramItemDiscussionOrigin,
+    body: row.body,
+    mediaFileId: row.mediaFileId,
+    supportMessageId: row.supportMessageId,
+    createdAt: row.createdAt,
+  };
+}
+
+function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
+  const raw = snapshot.title;
+  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
+  return "Упражнение";
+}
+
+async function queryDoctorExerciseComments(
+  input: ListDoctorExerciseCommentsInput,
+  opts: { unreadOnly: boolean },
+): Promise<DoctorExerciseCommentRow[]> {
+  const { patientUserIds, viewerUserId, limit, cursor } = input;
+  if (patientUserIds.length === 0) return [];
+  const safeLimit = Math.max(1, Math.trunc(limit));
+  const db = getDrizzle();
+
+  // CTE: latest patient text-message per exercise stage-item (DISTINCT ON = one row per item)
+  const latestCte = db.$with("latest").as(
+    db
+      .selectDistinctOn([programItemDiscussionMessages.instanceStageItemId], {
+        id: programItemDiscussionMessages.id,
+        instanceStageItemId: programItemDiscussionMessages.instanceStageItemId,
+        patientUserId: programItemDiscussionMessages.patientUserId,
+        senderRole: programItemDiscussionMessages.senderRole,
+        origin: programItemDiscussionMessages.origin,
+        body: programItemDiscussionMessages.body,
+        mediaFileId: programItemDiscussionMessages.mediaFileId,
+        supportMessageId: programItemDiscussionMessages.supportMessageId,
+        createdAt: programItemDiscussionMessages.createdAt,
+        snapshot: treatmentProgramInstanceStageItems.snapshot,
+        instanceId: treatmentProgramInstances.id,
+        lastReadAt: programItemDiscussionReads.lastReadAt,
+      })
+      .from(programItemDiscussionMessages)
+      .innerJoin(
+        treatmentProgramInstanceStageItems,
+        eq(
+          treatmentProgramInstanceStageItems.id,
+          programItemDiscussionMessages.instanceStageItemId,
+        ),
+      )
+      .innerJoin(
+        treatmentProgramInstanceStages,
+        eq(
+          treatmentProgramInstanceStages.id,
+          treatmentProgramInstanceStageItems.stageId,
+        ),
+      )
+      .innerJoin(
+        treatmentProgramInstances,
+        eq(treatmentProgramInstances.id, treatmentProgramInstanceStages.instanceId),
+      )
+      .leftJoin(
+        programItemDiscussionReads,
+        and(
+          eq(
+            programItemDiscussionReads.instanceStageItemId,
+            programItemDiscussionMessages.instanceStageItemId,
+          ),
+          eq(programItemDiscussionReads.patientUserId, viewerUserId),
+        ),
+      )
+      .where(
+        and(
+          inArray(treatmentProgramInstances.patientUserId, patientUserIds),
+          eq(treatmentProgramInstances.status, "active"),
+          sql`${treatmentProgramInstances.assignmentSource} = ANY(ARRAY['doctor','course']::text[])`,
+          eq(treatmentProgramInstanceStageItems.itemType, "exercise"),
+          eq(treatmentProgramInstanceStageItems.status, "active"),
+        ),
+      )
+      .orderBy(
+        asc(programItemDiscussionMessages.instanceStageItemId),
+        desc(programItemDiscussionMessages.createdAt),
+        desc(programItemDiscussionMessages.id),
+      ),
+  );
+
+  // outer: keep only items where latest message is a patient text; apply unread + cursor filters
+  const outerConditions: ReturnType<typeof sql>[] = [
+    sql`${latestCte.senderRole} = 'patient'`,
+    sql`${latestCte.mediaFileId} IS NULL`,
+  ];
+  if (opts.unreadOnly) {
+    outerConditions.push(
+      sql`${latestCte.createdAt} > COALESCE(${latestCte.lastReadAt}, '-infinity'::timestamptz)`,
+    );
+  }
+  if (cursor) {
+    outerConditions.push(
+      sql`(${latestCte.createdAt}, ${latestCte.id}) < (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)`,
+    );
+  }
+
+  const rows = await db
+    .with(latestCte)
+    .select()
+    .from(latestCte)
+    .where(and(...outerConditions))
+    .orderBy(desc(latestCte.createdAt), desc(latestCte.id))
+    .limit(safeLimit);
+
+  return rows.map((row) => ({
+    patientUserId: row.patientUserId,
+    instanceId: row.instanceId,
+    stageItemId: row.instanceStageItemId,
+    stageItemTitle: stageItemSnapshotTitle(row.snapshot as Record<string, unknown>),
+    latestMessage: mapMessageFields(row),
+    createdAt: row.createdAt,
+  }));
 }
 
 export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
@@ -470,6 +607,18 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
         .where(eq(programItemDiscussionMessages.id, messageId))
         .returning({ id: programItemDiscussionMessages.id });
       return rows.length > 0;
+    },
+
+    async listUnreadExerciseCommentsForDoctor(
+      input: ListDoctorExerciseCommentsInput,
+    ): Promise<DoctorExerciseCommentRow[]> {
+      return queryDoctorExerciseComments(input, { unreadOnly: true });
+    },
+
+    async listExerciseCommentsForDoctor(
+      input: ListDoctorExerciseCommentsInput,
+    ): Promise<DoctorExerciseCommentRow[]> {
+      return queryDoctorExerciseComments(input, { unreadOnly: false });
     },
 
     async listStageItemIdsByExerciseTitleForPatient(

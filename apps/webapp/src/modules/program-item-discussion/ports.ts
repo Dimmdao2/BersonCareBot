@@ -1,4 +1,6 @@
 import type {
+  DoctorExerciseCommentRow,
+  ListDoctorExerciseCommentsInput,
   ProgramItemDiscussionLegacyMergeInput,
   ProgramItemDiscussionLegacyUnreadInput,
   ProgramItemDiscussionAttentionSummary,
@@ -25,4 +27,14 @@ export type ProgramItemDiscussionPort = {
   listStageItemIdsByExerciseTitleForPatient(patientUserId: string, exerciseTitle: string): Promise<string[]>;
   getMessageById(messageId: string): Promise<ProgramItemDiscussionMessage | null>;
   deleteMessageById(messageId: string): Promise<boolean>;
+  /**
+   * Один индексированный запрос — последнее непрочитанное врачом сообщение-от-пациента
+   * по каждому exercise-элементу всех пациентов из списка. Новые сверху, keyset-пагинация.
+   */
+  listUnreadExerciseCommentsForDoctor(input: ListDoctorExerciseCommentsInput): Promise<DoctorExerciseCommentRow[]>;
+  /**
+   * История: последнее сообщение-от-пациента по каждому exercise-элементу (прочитанные
+   * и непрочитанные). Новые сверху, keyset-пагинация. Для ленивой подгрузки в табе.
+   */
+  listExerciseCommentsForDoctor(input: ListDoctorExerciseCommentsInput): Promise<DoctorExerciseCommentRow[]>;
 };

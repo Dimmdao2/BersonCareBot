@@ -62,3 +62,32 @@ export type ProgramItemDiscussionLegacyUnreadInput = {
   excludeSupportMessageIds?: string[];
   lastReadAt: string | null;
 };
+
+/** Cursor-ключ для keyset-пагинации doctor-wide запросов. */
+export type DoctorExerciseCommentCursor = {
+  createdAt: string;
+  id: string;
+};
+
+/** Входные данные для doctor-wide запросов непрочитанных / истории комментариев. */
+export type ListDoctorExerciseCommentsInput = {
+  /** Список patient_user_id пациентов на сопровождении (резолвит загрузчик, не порт). */
+  patientUserIds: string[];
+  /** User id врача-viewer'а для чтения lastReadAt из _reads. */
+  viewerUserId: string;
+  limit: number;
+  cursor?: DoctorExerciseCommentCursor | null;
+};
+
+/**
+ * Одна строка результата doctor-wide запроса: последнее сообщение пациента по exercise-элементу.
+ * `instanceId` и `stageItemTitle` пусты в inMemory-реализации (нет доступа к схеме программы).
+ */
+export type DoctorExerciseCommentRow = {
+  patientUserId: string;
+  instanceId: string;
+  stageItemId: string;
+  stageItemTitle: string;
+  latestMessage: ProgramItemDiscussionMessage;
+  createdAt: string;
+};

@@ -29,6 +29,8 @@ describe("syncDiscussionReadFromSupportInboundMessages", () => {
       listStageItemIdsByExerciseTitleForPatient: vi.fn(),
       getMessageById: vi.fn(),
       deleteMessageById: vi.fn(),
+      listUnreadExerciseCommentsForDoctor: vi.fn(),
+      listExerciseCommentsForDoctor: vi.fn(),
     };
   });
 
