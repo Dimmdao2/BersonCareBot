@@ -215,15 +215,6 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
                     {(c.lastMessageText ?? "").slice(0, 80)}
                     {(c.lastMessageText?.length ?? 0) > 80 ? "…" : ""}
                   </span>
-                  <span className="block w-full text-[11px] text-muted-foreground/90">
-                    {c.phoneNormalized ? `Телефон: ${c.phoneNormalized}` : "Телефон не указан"} ·{" "}
-                    {new Date(c.lastMessageAt).toLocaleString("ru-RU", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
                 </Button>
               </li>
             ))

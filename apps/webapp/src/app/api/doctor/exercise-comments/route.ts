@@ -74,7 +74,9 @@ export async function GET(request: Request) {
   });
 
   const hasMoreRaw = rows.length > PAGE_SIZE;
-  const pageRows = q ? rows.slice(0, PAGE_SIZE) : rows.slice(0, PAGE_SIZE);
+  // Серверный добор: фильтрация первой страницы в JS.
+  // Глобальный full-text SQL-поиск по body/name выходит за scope TODO#3.
+  const pageRows = rows.slice(0, PAGE_SIZE);
 
   let items: TodayExerciseCommentAttentionItem[] = pageRows.map((row) => ({
     patientUserId: row.patientUserId,
