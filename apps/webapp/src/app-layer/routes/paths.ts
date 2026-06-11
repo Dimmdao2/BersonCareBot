@@ -112,6 +112,10 @@ export const routePaths = {
   intakeNutrition: "/app/patient/intake/nutrition",
   /** Doctor online-intake inbox. */
   doctorOnlineIntake: "/app/doctor/online-intake",
+  /** Расписание врача (новый URL, объединяет calendar + appointments + admin/booking). */
+  doctorSchedule: "/app/doctor/schedule",
+  /** Коммуникации врача (новый URL, объединяет messages + online-intake + broadcasts). */
+  doctorCommunications: "/app/doctor/communications",
 } as const;
 
 /**
