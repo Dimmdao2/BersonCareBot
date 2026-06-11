@@ -11,6 +11,7 @@ import {
 } from "@/shared/ui/doctor/doctorNavLinks";
 
 const menuAccess = { role: "doctor" as const, adminMode: false };
+const adminAccess = { role: "admin" as const, adminMode: true };
 
 const pathnameRef = vi.hoisted(() => ({ value: "/app/doctor" }));
 const unreadCountRef = vi.hoisted(() => ({ value: 0 }));
@@ -95,101 +96,81 @@ describe("DoctorMenuAccordion", () => {
     proactiveInsightsCountRef.value = 0;
   });
 
-  it("opens Работа с пациентами by default when localStorage empty", async () => {
+  it("opens Библиотека by default when localStorage empty", async () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
+      // top-level links always visible
+      expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Пациенты/ })).toBeInTheDocument();
+      // sub-items of library visible because it's open by default
+      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     });
+    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("toggles Библиотека closed and open on header click", async () => {
+    const user = userEvent.setup();
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+    await waitFor(() => screen.getByRole("link", { name: "Упражнения" }));
+    await user.click(screen.getByRole("button", { name: "Библиотека" }));
     expect(screen.queryByRole("link", { name: "Упражнения" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Работа с пациентами" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getByRole("button", { name: "Каталог ЛФК" })).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("toggles Работа с пациентами closed and open on header click", async () => {
-    const user = userEvent.setup();
-    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("link", { name: "Сегодня" }));
-    await user.click(screen.getByRole("button", { name: "Работа с пациентами" }));
-    expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Пациенты" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Работа с пациентами" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    await user.click(screen.getByRole("button", { name: "Работа с пациентами" }));
+    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "false");
+    await user.click(screen.getByRole("button", { name: "Библиотека" }));
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Пациенты" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Работа с пациентами" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("opens lfk-catalog and closes other clusters when its header clicked", async () => {
-    const user = userEvent.setup();
+  it("top-level direct links are always visible regardless of open cluster", async () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("link", { name: "Сегодня" }));
-    await user.click(screen.getByRole("button", { name: "Каталог ЛФК" }));
-    expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Пациенты" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Каталог ЛФК" })).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("button", { name: "Работа с пациентами" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    const raw = localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY);
-    expect(raw).toBeTruthy();
-    const ids = JSON.parse(raw!) as string[];
-    expect(ids).toEqual(["lfk-catalog"]);
-    expect(localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY)).toBeNull();
+    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
+    expect(screen.getByRole("link", { name: /Пациенты/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Расписание/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Коммуникации/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Контент/ })).toBeInTheDocument();
   });
 
-  it("shows Библиотека файлов inside Контент cluster when expanded", async () => {
-    const user = userEvent.setup();
+  it("hides settings and system for doctor role", async () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: "Контент" }));
-    await user.click(screen.getByRole("button", { name: "Контент" }));
-    expect(screen.getByRole("link", { name: "Библиотека файлов" })).toHaveAttribute(
-      "href",
-      "/app/doctor/content/library",
-    );
+    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
+    expect(screen.queryByRole("button", { name: "Настройки" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Система" })).not.toBeInTheDocument();
+  });
+
+  it("shows settings and system for admin role", async () => {
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={adminAccess} />);
+    await waitFor(() => screen.getByRole("button", { name: "Настройки" }));
+    expect(screen.getByRole("button", { name: "Система" })).toBeInTheDocument();
   });
 
   it("restores from legacy v1 single-cluster key when v2 absent", async () => {
-    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY, "lfk-catalog");
+    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY, "library");
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     });
-    expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
   });
 
   it("restores open clusters from localStorage (JSON array)", async () => {
-    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify(["lfk-catalog"]));
+    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify(["library"]));
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     });
-    expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
   });
 
-  it("keeps only the last cluster when restoring legacy multi-open storage", async () => {
+  it("keeps only the last cluster when restoring multi-open storage", async () => {
+    // only last valid id retained; analytics is admin-only sub-items but still a valid cluster id
     localStorage.setItem(
       DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
-      JSON.stringify(["patients-work", "lfk-catalog"]),
+      JSON.stringify(["analytics", "library"]),
     );
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     });
-    expect(screen.queryByRole("link", { name: "Пациенты" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Каталог ЛФК" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("falls back to default cluster when localStorage invalid for both keys", async () => {
@@ -197,76 +178,72 @@ describe("DoctorMenuAccordion", () => {
     localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY, "no-such-cluster");
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Сегодня/ })).toBeInTheDocument();
     });
+    // falls back to library open by default
+    expect(screen.getByRole("button", { name: "Библиотека" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("saves cluster id to localStorage on toggle", async () => {
+    const user = userEvent.setup();
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
+    await waitFor(() => screen.getByRole("link", { name: "Упражнения" }));
+    // close library
+    await user.click(screen.getByRole("button", { name: "Библиотека" }));
+    const raw = localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY);
+    expect(raw).toBeTruthy();
+    expect(JSON.parse(raw!)).toEqual([]);
+    expect(localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY)).toBeNull();
   });
 
   it("calls onNavigate when link clicked", async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn();
     render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} onNavigate={onNavigate} />);
-    await waitFor(() => screen.getByRole("link", { name: "Сегодня" }));
-    await user.click(screen.getByRole("link", { name: "Сегодня" }));
+    await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
+    await user.click(screen.getByRole("link", { name: /Сегодня/ }));
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 
-  it("shows online-intake and messages badges in sidebar when counts > 0", async () => {
-    const user = userEvent.setup();
+  it("shows communicationsTotal badge on Коммуникации link when counts > 0", async () => {
     intakeCountRef.value = 4;
     unreadCountRef.value = 2;
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: "Коммуникации" }));
-    await user.click(screen.getByRole("button", { name: "Коммуникации" }));
     await waitFor(() => {
-      const intake = screen.getByRole("link", { name: /Онлайн-заявки/ });
-      const messages = screen.getByRole("link", { name: /Сообщения/ });
-      expect(intake).toHaveAttribute("id", "doctor-sidebar-link-online-intake");
-      expect(intake).toHaveTextContent("4");
-      expect(messages).toHaveAttribute("id", "doctor-sidebar-link-messages");
-      expect(messages).toHaveTextContent("2");
+      const comms = screen.getByRole("link", { name: /Коммуникации/ });
+      expect(comms).toHaveTextContent("6");
+      expect(comms).toHaveAttribute("aria-label", "Коммуникации. Непрочитанных: 6.");
     });
   });
 
-  it("shows the same badges in sheet variant", async () => {
-    const user = userEvent.setup();
+  it("shows communicationsTotal badge in sheet variant", async () => {
     intakeCountRef.value = 1;
     unreadCountRef.value = 5;
     render(<DoctorMenuAccordion variant="sheet" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: "Коммуникации" }));
-    await user.click(screen.getByRole("button", { name: "Коммуникации" }));
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: /Онлайн-заявки/ })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: /Коммуникации/ })).toHaveAttribute(
         "id",
-        "doctor-menu-link-online-intake",
+        "doctor-menu-link-communications",
       );
-      expect(screen.getByRole("link", { name: /Сообщения/ })).toHaveAttribute("id", "doctor-menu-link-messages");
     });
   });
 
-  it("hides badges when counts are zero", async () => {
-    const user = userEvent.setup();
+  it("hides communications badge when counts are zero", async () => {
     intakeCountRef.value = 0;
     unreadCountRef.value = 0;
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: "Коммуникации" }));
-    await user.click(screen.getByRole("button", { name: "Коммуникации" }));
-    await waitFor(() => screen.getByRole("link", { name: /Онлайн-заявки/ }));
+    await waitFor(() => screen.getByRole("link", { name: /Коммуникации/ }));
     expect(
-      screen.getByRole("link", { name: /Онлайн-заявки/ }).querySelector("[aria-label^='Новых заявок']"),
-    ).toBeNull();
-    expect(
-      screen.getByRole("link", { name: /Сообщения/ }).querySelector("[aria-label^='Непрочитанных сообщений']"),
+      screen.getByRole("link", { name: /Коммуникации/ }).querySelector("[aria-label^='Непрочитанных']"),
     ).toBeNull();
   });
 
-  it("shows 99+ when count is at least 100", async () => {
-    const user = userEvent.setup();
-    intakeCountRef.value = 150;
+  it("shows 99+ when communicationsTotal is at least 100", async () => {
+    intakeCountRef.value = 80;
+    unreadCountRef.value = 25;
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    await waitFor(() => screen.getByRole("button", { name: "Коммуникации" }));
-    await user.click(screen.getByRole("button", { name: "Коммуникации" }));
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: /Онлайн-заявки/ })).toHaveTextContent("99+");
+      expect(screen.getByRole("link", { name: /Коммуникации/ })).toHaveTextContent("99+");
     });
   });
 

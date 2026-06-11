@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server } from "lucide-react";
+import type { ElementType } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
@@ -14,7 +15,7 @@ import {
   DOCTOR_MENU_DEFAULT_CLUSTER_ID,
   DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY,
   DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
-  getDoctorMenuRenderSections,
+  getDoctorMenuItems,
   isDoctorMenuClusterId,
   isDoctorNavItemActive,
   type DoctorMenuAccess,
@@ -35,6 +36,7 @@ function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): st
   if (badgeKey === "registrationSystemFailures") return `Сбоев регистрации: ${formatted}`;
   if (badgeKey === "pendingProgramTests") return `К проверке: ${formatted}`;
   if (badgeKey === "todayAttention") return `Требует внимания: ${formatted}`;
+  if (badgeKey === "communicationsTotal") return `Непрочитанных: ${formatted}`;
   return `Непрочитанных сообщений: ${formatted}`;
 }
 
@@ -44,6 +46,7 @@ function linkAriaLabelWhenBadged(item: DoctorMenuLinkItem, formatted: string): s
   if (item.badgeKey === "registrationSystemFailures") return `${item.label}. Сбоев регистрации: ${formatted}.`;
   if (item.badgeKey === "pendingProgramTests") return `${item.label}. К проверке: ${formatted}.`;
   if (item.badgeKey === "todayAttention") return `${item.label}. Требует внимания: ${formatted}.`;
+  if (item.badgeKey === "communicationsTotal") return `${item.label}. Непрочитанных: ${formatted}.`;
   return `${item.label}. Непрочитанных сообщений: ${formatted}.`;
 }
 
@@ -52,6 +55,21 @@ function navBadgeClassName(badgeKey: DoctorMenuBadgeKey): string {
     return "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium tabular-nums leading-none text-destructive-foreground";
   }
   return "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums leading-none text-muted-foreground";
+}
+
+function getIconForMenuId(id: string): ElementType | null {
+  switch (id) {
+    case "today": return LayoutDashboard;
+    case "clients": return Users;
+    case "schedule": return Calendar;
+    case "communications": return MessageCircle;
+    case "library": return BookOpen;
+    case "content": return FileText;
+    case "analytics": return BarChart3;
+    case "settings": return Settings;
+    case "system": return Server;
+    default: return null;
+  }
 }
 
 const SIDEBAR_LINK_CLASS = cn(
@@ -106,6 +124,7 @@ export type DoctorMenuAccordionProps = {
 
 export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate }: DoctorMenuAccordionProps) {
   const linkClass = variant === "sidebar" ? SIDEBAR_LINK_CLASS : SHEET_LINK_CLASS;
+  const iconSize = variant === "sidebar" ? 16 : 18;
 
   const messagesUnread = useDoctorSupportUnreadCount();
   const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
@@ -121,6 +140,7 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
         registrationSystemFailures,
         pendingProgramTests,
         todayAttention: pendingProgramTests + proactiveInsights,
+        communicationsTotal: onlineIntakeNew + messagesUnread,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
     [onlineIntakeNew, messagesUnread, registrationSystemFailures, pendingProgramTests, proactiveInsights],
   );
@@ -133,7 +153,6 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
     if (typeof window === "undefined") return;
     const fromStorage = readOpenClustersFromStorage();
     if (fromStorage !== null) {
-      // Hydration: затем подтягиваем сохранённый набор открытых кластеров (или миграция с v1).
       // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional post-mount read from localStorage
       setOpenClusterIds(fromStorage);
     }
@@ -154,29 +173,40 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
     });
   }, []);
 
-  const sections = getDoctorMenuRenderSections(menuAccess);
+  const items = getDoctorMenuItems(menuAccess);
 
-  const renderLink = (item: DoctorMenuLinkItem, navPrefix: "sidebar" | "menu") => {
+  const renderLink = (item: DoctorMenuLinkItem, navPrefix: "sidebar" | "menu", icon?: ElementType) => {
     const rawCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
     const badgeText = item.badgeKey ? formatNavBadgeCount(rawCount) : null;
     const aria = badgeText ? linkAriaLabelWhenBadged(item, badgeText) : undefined;
+    const Icon = icon ?? null;
 
     return (
       <Link
         key={item.id}
         id={navPrefix === "sidebar" ? `doctor-sidebar-link-${item.id}` : `doctor-menu-link-${item.id}`}
-        href={item.href}
+        href={item.href!}
         prefetch={false}
         onClick={onNavigate}
         aria-label={aria}
         className={cn(
           linkClass,
-          isDoctorNavItemActive(item.href, pathname) &&
+          isDoctorNavItemActive(item.href!, pathname) &&
             "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
         )}
       >
         <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-          <span className="min-w-0 flex-1 text-left">{item.label}</span>
+          <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            {Icon && (
+              <Icon
+                size={iconSize}
+                strokeWidth={NAV_STRIP_ICON_STROKE}
+                aria-hidden
+                className="shrink-0"
+              />
+            )}
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+          </span>
           {badgeText && item.badgeKey ? (
             <span
               className={navBadgeClassName(item.badgeKey)}
@@ -192,29 +222,29 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
 
   return (
     <div className={cn("flex flex-col gap-1.5", variant === "sheet" && "gap-2")}>
-      {sections.map((section) => {
-        if (section.type === "standalone") {
-          return (
-            <div key="standalone-library" className="flex flex-col gap-0.5">
-              {section.links.map((item) => renderLink(item, variant === "sidebar" ? "sidebar" : "menu"))}
-            </div>
-          );
+      {items.map((item) => {
+        const navPrefix = variant === "sidebar" ? "sidebar" : "menu";
+
+        if (!item.items) {
+          // Простая ссылка верхнего уровня: рендерим с иконкой
+          return renderLink(item, navPrefix, getIconForMenuId(item.id) ?? undefined);
         }
 
-        const { cluster } = section;
-        const open = openClusterIds.has(cluster.id);
-        const panelId = `doctor-menu-cluster-panel-${cluster.id}`;
-        const triggerId = `doctor-menu-cluster-trigger-${cluster.id}`;
+        // Раскрывающийся блок
+        const open = openClusterIds.has(item.id);
+        const panelId = `doctor-menu-cluster-panel-${item.id}`;
+        const triggerId = `doctor-menu-cluster-trigger-${item.id}`;
+        const Icon = getIconForMenuId(item.id);
 
         return (
-          <div key={cluster.id} className="flex flex-col">
+          <div key={item.id} className="flex flex-col">
             <button
               type="button"
               id={triggerId}
               aria-expanded={open}
               aria-controls={panelId}
               className={CLUSTER_TRIGGER_CLASS}
-              onClick={() => toggleCluster(cluster.id)}
+              onClick={() => toggleCluster(item.id)}
             >
               <ChevronRight
                 className={cn(
@@ -224,7 +254,15 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
                 strokeWidth={NAV_STRIP_ICON_STROKE}
                 aria-hidden
               />
-              <span className="min-w-0 flex-1 text-left">{cluster.label}</span>
+              {Icon && (
+                <Icon
+                  size={iconSize}
+                  strokeWidth={NAV_STRIP_ICON_STROKE}
+                  aria-hidden
+                  className="shrink-0"
+                />
+              )}
+              <span className="min-w-0 flex-1 text-left">{item.label}</span>
             </button>
             <div
               id={panelId}
@@ -232,7 +270,7 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
               aria-labelledby={triggerId}
               className={cn("flex flex-col gap-0.5 pl-3 pr-2", open && "pb-1.5")}
             >
-              {open ? cluster.items.map((item) => renderLink(item, variant === "sidebar" ? "sidebar" : "menu")) : null}
+              {open ? item.items.map((sub) => renderLink(sub, navPrefix)) : null}
             </div>
           </div>
         );
