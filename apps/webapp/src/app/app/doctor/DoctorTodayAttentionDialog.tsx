@@ -14,11 +14,11 @@ import { sendDoctorProgramDiscussionReply } from "@/app/app/doctor/clients/[user
 import type { TodayPendingProgramTestItem } from "./mapPendingProgramTestsForToday";
 import type { TodayProactiveInsightItem } from "./mapProactiveInsightsForToday";
 import { markDoctorProgramDiscussionRead } from "./doctorProgramDiscussionMarkRead";
-import type {
-  TodayExerciseCommentAttentionItem,
-  TodayIntakeItem,
-  TodayUnreadConversationItem,
-} from "./loadDoctorTodayDashboard";
+import {
+  groupExerciseCommentAttentionByPatient,
+  type TodayExerciseCommentAttentionItem,
+} from "./loadDoctorExerciseCommentAttention";
+import type { TodayIntakeItem, TodayUnreadConversationItem } from "./loadDoctorTodayDashboard";
 
 export type DoctorTodayAttentionKind =
   | "intake"
@@ -316,27 +316,10 @@ export function DoctorTodayAttentionDialog({
   onExerciseCommentResolved,
 }: Props) {
   const title = kind ? TITLES[kind] : "";
-  const exerciseCommentsByPatient = useMemo(() => {
-    const groups = new Map<
-      string,
-      { patientUserId: string; patientDisplayName: string; items: TodayExerciseCommentAttentionItem[] }
-    >();
-    for (const row of exerciseCommentAttentionItems) {
-      const key = row.patientUserId;
-      const current = groups.get(key);
-      if (current) {
-        current.items.push(row);
-      } else {
-        groups.set(key, { patientUserId: row.patientUserId, patientDisplayName: row.patientDisplayName, items: [row] });
-      }
-    }
-    for (const group of groups.values()) {
-      group.items.sort((a, b) => b.latestMessage.createdAt.localeCompare(a.latestMessage.createdAt));
-    }
-    return [...groups.values()].sort((a, b) =>
-      a.patientDisplayName.localeCompare(b.patientDisplayName, "ru", { sensitivity: "base" }),
-    );
-  }, [exerciseCommentAttentionItems]);
+  const exerciseCommentsByPatient = useMemo(
+    () => groupExerciseCommentAttentionByPatient(exerciseCommentAttentionItems),
+    [exerciseCommentAttentionItems],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

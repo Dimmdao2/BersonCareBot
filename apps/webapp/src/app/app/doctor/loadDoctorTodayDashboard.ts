@@ -35,7 +35,14 @@ import {
   DOCTOR_CLIENT_PROGRAM_SECTION_ANCHOR,
   doctorClientProfileHref,
 } from "./clients/doctorClientProfileHref";
-import { doctorClientTreatmentProgramInstanceHref } from "./clients/doctorClientInstanceHref";
+import { formatDateTimeRu, truncateText } from "./doctorTodayFormat";
+import {
+  loadDoctorExerciseCommentAttention,
+  type TodayExerciseCommentAttentionItem,
+} from "./loadDoctorExerciseCommentAttention";
+
+export { formatDateTimeRu, truncateText } from "./doctorTodayFormat";
+export type { TodayExerciseCommentAttentionItem } from "./loadDoctorExerciseCommentAttention";
 
 /** Сколько карточек клиентов показывать на «Сегодня»; полный список — `/app/doctor/clients?scope=all&support=on`. */
 export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
@@ -154,17 +161,6 @@ export type TodayOnSupportClientItem = {
   newExerciseCommentsCount: number;
 };
 
-export type TodayExerciseCommentAttentionItem = {
-  patientUserId: string;
-  patientDisplayName: string;
-  instanceId: string;
-  stageItemId: string;
-  stageItemTitle: string;
-  latestMessage: ProgramItemDiscussionMessage;
-  latestMessageAtLabel: string;
-  href: string;
-};
-
 export type TodayDashboardData = {
   todayAppointments: TodayAppointmentItem[];
   newIntakeRequests: TodayIntakeItem[];
@@ -198,22 +194,6 @@ export const ON_SUPPORT_LIST_HREF = "/app/doctor/clients?scope=all&support=on";
 
 export const PROGRAM_WITHOUT_SUPPORT_LIST_HREF =
   "/app/doctor/clients?scope=all&support=programWithoutSupport";
-
-const TEXT_PREVIEW_MAX = 160;
-export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
-
-export function truncateText(text: string | null | undefined, max = TEXT_PREVIEW_MAX): string | null {
-  if (text == null || text === "") return null;
-  const t = text.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max - 1)}…`;
-}
-
-export function formatDateTimeRu(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
-}
 
 export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointmentItem {
   const uid = row.clientUserId?.trim() ?? "";
@@ -275,108 +255,6 @@ export function mapConversationToTodayItem(row: TodayConversationSourceRow): Tod
     lastMessagePreview: truncateText(row.lastMessageText),
     unreadFromUserCount: row.unreadFromUserCount,
     href: MESSAGES_HREF,
-  };
-}
-
-function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
-  const raw = snapshot.title;
-  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
-  return "Упражнение";
-}
-
-async function loadTodayExerciseCommentAttention(
-  deps: DoctorTodayDashboardDeps,
-  onSupportListRaw: ClientListItem[],
-): Promise<{
-  items: TodayExerciseCommentAttentionItem[];
-  total: number;
-  truncated: boolean;
-}> {
-  if (
-    !deps.programItemDiscussion ||
-    !deps.treatmentProgramInstance ||
-    !deps.doctorUserId ||
-    onSupportListRaw.length === 0
-  ) {
-    return { items: [], total: 0, truncated: false };
-  }
-
-  const patientDisplayNameById = new Map<string, string>();
-  for (const row of onSupportListRaw) {
-    const uid = row.userId.trim();
-    if (!uid) continue;
-    patientDisplayNameById.set(uid, row.displayName.trim() || "—");
-  }
-
-  const perPatientRows = await Promise.all(
-    [...patientDisplayNameById.keys()].map(async (patientUserId) => {
-      try {
-        const instances = await deps.treatmentProgramInstance!.listForPatientClinicalView(patientUserId);
-        const active = pickActivePlanInstance(instances);
-        if (!active) return [] as TodayExerciseCommentAttentionItem[];
-        const detail = await deps.treatmentProgramInstance!.getInstanceById(active.id);
-        const activeExerciseItems = detail.stages.flatMap((stage) =>
-          stage.items.filter((item) => item.status === "active" && item.itemType === "exercise"),
-        );
-        if (activeExerciseItems.length === 0) return [] as TodayExerciseCommentAttentionItem[];
-
-        const summary = await deps.programItemDiscussion!.listAttentionSummaryForStageItems(
-          activeExerciseItems.map((item) => item.id),
-        );
-        const attentionStageItemIds = summary.filter((row) => row.comments > 0).map((row) => row.stageItemId);
-        if (attentionStageItemIds.length === 0) return [] as TodayExerciseCommentAttentionItem[];
-
-        const itemById = new Map(activeExerciseItems.map((item) => [item.id, item]));
-        const rows = await Promise.all(
-          attentionStageItemIds.map(async (stageItemId) => {
-            const [latestList, lastReadAt] = await Promise.all([
-              deps.programItemDiscussion!.listMessagesPage({
-                stageItemId,
-                limit: 1,
-                direction: "backward",
-                cursor: null,
-              }),
-              deps.programItemDiscussion!.getLastReadAtForViewer({
-                viewerUserId: deps.doctorUserId!,
-                stageItemId,
-              }),
-            ]);
-            const latest = latestList[latestList.length - 1] ?? null;
-            if (!latest || latest.senderRole !== "patient" || latest.mediaFileId) return null;
-            if (lastReadAt && latest.createdAt <= lastReadAt) return null;
-            const item = itemById.get(stageItemId);
-            if (!item) return null;
-            return {
-              patientUserId,
-              patientDisplayName: patientDisplayNameById.get(patientUserId) ?? "—",
-              instanceId: active.id,
-              stageItemId,
-              stageItemTitle: stageItemSnapshotTitle(item.snapshot),
-              latestMessage: latest,
-              latestMessageAtLabel: formatDateTimeRu(latest.createdAt),
-              href: doctorClientTreatmentProgramInstanceHref(patientUserId, active.id, {
-                profileListScope: "appointments",
-                discussionItemId: stageItemId,
-              }),
-            } satisfies TodayExerciseCommentAttentionItem;
-          }),
-        );
-        return rows.filter((row): row is TodayExerciseCommentAttentionItem => row !== null);
-      } catch {
-        return [] as TodayExerciseCommentAttentionItem[];
-      }
-    }),
-  );
-
-  const allRows = perPatientRows
-    .flat()
-    .sort((a, b) => b.latestMessage.createdAt.localeCompare(a.latestMessage.createdAt));
-  const total = allRows.length;
-  const items = allRows.slice(0, DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT);
-  return {
-    items,
-    total,
-    truncated: total > items.length,
   };
 }
 
@@ -542,7 +420,7 @@ export async function loadDoctorTodayDashboard(
           displayIana: deps.displayIana,
         })
       : Promise.resolve({ items: [], totalCount: 0 }),
-    loadTodayExerciseCommentAttention(deps, onSupportListRaw),
+    loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
   ]);
 
   const unreadExerciseCommentsByPatientId = new Map<string, number>();
