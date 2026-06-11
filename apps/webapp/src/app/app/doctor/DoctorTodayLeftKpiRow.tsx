@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "./analytics/clients/DoctorStatCard";
 import {
@@ -9,6 +8,7 @@ import {
   type DoctorTodayAttentionKind,
 } from "./DoctorTodayAttentionDialog";
 import type { TodayDashboardData } from "./loadDoctorTodayDashboard";
+import { routePaths } from "@/app-layer/routes/paths";
 
 type Props = Pick<
   TodayDashboardData,
@@ -26,14 +26,12 @@ type Props = Pick<
   | "exerciseCommentAttentionTruncated"
 > & {
   intakeCount: number;
-  pendingTestsCount: number;
-  proactiveCount: number;
+  pendingTestsTotal: number;
 };
 
-export function DoctorTodayAttentionSection({
+export function DoctorTodayLeftKpiRow({
   intakeCount,
-  pendingTestsCount,
-  proactiveCount,
+  pendingTestsTotal,
   newIntakeRequests,
   unreadConversations,
   unreadTotal,
@@ -60,39 +58,44 @@ export function DoctorTodayAttentionSection({
 
   return (
     <>
-      <DoctorSection id="doctor-today-section-attention" className="h-full gap-2">
-        <DoctorSectionTitle>Требует внимания</DoctorSectionTitle>
-        <DoctorMetricList aria-label="Требует внимания" className="grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2">
-          <DoctorStatCard
-            id="doctor-today-attention-intake"
-            title="Онлайн-заявки"
-            value={intakeCount}
-            tone={intakeCount > 0 ? "warning" : "neutral"}
-            onClick={() => openDialog("intake")}
-          />
-          <DoctorStatCard
-            id="doctor-today-attention-pending-tests"
-            title="Тесты к проверке"
-            value={pendingTestsCount}
-            tone={pendingTestsCount > 0 ? "warning" : "neutral"}
-            onClick={() => openDialog("pendingTests")}
-          />
-          <DoctorStatCard
-            id="doctor-today-attention-proactive"
-            title="Сигналы пациентов"
-            value={proactiveCount}
-            tone={proactiveCount > 0 ? "warning" : "neutral"}
-            onClick={() => openDialog("proactive")}
-          />
-          <DoctorStatCard
-            id="doctor-today-attention-exercise-comments"
-            title="Новые комментарии по упражнениям"
-            value={exerciseCommentsState.total}
-            tone={exerciseCommentsState.total > 0 ? "warning" : "neutral"}
-            onClick={() => openDialog("exerciseComments")}
-          />
-        </DoctorMetricList>
-      </DoctorSection>
+      <DoctorMetricList
+        id="doctor-today-left-kpi"
+        aria-label="Входящий поток"
+        className="grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4"
+      >
+        {/* Сообщения → прямая ссылка на коммуникации */}
+        <DoctorStatCard
+          id="doctor-today-left-kpi-messages"
+          title="Сообщения"
+          value={unreadTotal}
+          tone={unreadTotal > 0 ? "warning" : "neutral"}
+          href={routePaths.doctorCommunications}
+        />
+        {/* Комментарии к упражнениям → диалог */}
+        <DoctorStatCard
+          id="doctor-today-left-kpi-comments"
+          title="Комментарии"
+          value={exerciseCommentsState.total}
+          tone={exerciseCommentsState.total > 0 ? "warning" : "neutral"}
+          onClick={() => openDialog("exerciseComments")}
+        />
+        {/* Онлайн-заявки → диалог */}
+        <DoctorStatCard
+          id="doctor-today-left-kpi-intake"
+          title="Заявки"
+          value={intakeCount}
+          tone={intakeCount > 0 ? "warning" : "neutral"}
+          onClick={() => openDialog("intake")}
+        />
+        {/* Тесты к проверке → диалог */}
+        <DoctorStatCard
+          id="doctor-today-left-kpi-tests"
+          title="Тесты"
+          value={pendingTestsTotal}
+          tone={pendingTestsTotal > 0 ? "warning" : "neutral"}
+          onClick={() => openDialog("pendingTests")}
+        />
+      </DoctorMetricList>
 
       <DoctorTodayAttentionDialog
         open={dialogKind !== null}

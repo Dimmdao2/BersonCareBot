@@ -9,14 +9,30 @@ import { cn } from "@/lib/utils";
 import { SpecialistTaskFormDialog } from "./clients/SpecialistTaskFormDialog";
 import { SpecialistTaskRow as TaskRow } from "./clients/SpecialistTaskRow";
 
+/** Сортировка: сначала задачи с дедлайном сегодня, затем по дате дедлайна, затем без срока. */
+function sortTasksByDeadline(tasks: SpecialistTaskRow[], todayIso: string): SpecialistTaskRow[] {
+  return [...tasks].sort((a, b) => {
+    const aToday = a.dueAt != null && a.dueAt.startsWith(todayIso);
+    const bToday = b.dueAt != null && b.dueAt.startsWith(todayIso);
+    if (aToday !== bToday) return aToday ? -1 : 1;
+    if (!a.dueAt && !b.dueAt) return 0;
+    if (!a.dueAt) return 1;
+    if (!b.dueAt) return -1;
+    return a.dueAt.localeCompare(b.dueAt);
+  });
+}
+
 export function DoctorGlobalTasksSection({
   initialTasks,
+  todayIso,
   className,
 }: {
   initialTasks: SpecialistTaskRow[];
+  /** Дата сегодня в формате YYYY-MM-DD (из сервера) для сортировки по дедлайну. */
+  todayIso: string;
   className?: string;
 }) {
-  const [tasks, setTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState(() => sortTasksByDeadline(initialTasks, todayIso));
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<SpecialistTaskRow | null>(null);
@@ -32,7 +48,7 @@ export function DoctorGlobalTasksSection({
         return;
       }
       const data = (await res.json()) as { tasks?: SpecialistTaskRow[] };
-      setTasks(data.tasks ?? []);
+      setTasks(sortTasksByDeadline(data.tasks ?? [], todayIso));
     });
   }, []);
 
@@ -46,7 +62,7 @@ export function DoctorGlobalTasksSection({
   return (
     <DoctorSection id="doctor-today-global-tasks" className={cn("h-full gap-2", className)}>
       <div className="flex items-center justify-between gap-2">
-        <DoctorSectionTitle>Рабочие задачи на сегодня</DoctorSectionTitle>
+        <DoctorSectionTitle>Задачи</DoctorSectionTitle>
         <Button type="button" size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
           Новая
         </Button>

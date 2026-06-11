@@ -17,12 +17,15 @@ vi.mock("next/link", () => ({
     href: string;
     id?: string;
     className?: string;
+    title?: string;
   }) => (
     <a href={href} {...props}>
       {children}
     </a>
   ),
 }));
+
+const DEFAULT_DISPLAY_IANA = "Europe/Moscow";
 
 function emptyData(): TodayDashboardData {
   return {
@@ -79,18 +82,26 @@ const emptyKpi: DoctorStatsState = {
   },
 };
 
-async function openAttentionDialog(label: RegExp) {
+function defaultProps() {
+  return {
+    data: emptyData(),
+    kpiStats: emptyKpi,
+    appointmentsTodayCount: 0,
+    monthAppointmentCount: 0,
+    displayIana: DEFAULT_DISPLAY_IANA,
+  };
+}
+
+async function openLeftKpiDialog(label: RegExp) {
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: label }));
 }
 
 describe("DoctorTodayDashboard", () => {
-  it("renders title, KPI, attention block, and remaining section headings", () => {
+  it("renders page title, analytics link, section headings for new layout", () => {
     render(
       <DoctorTodayDashboard
-        data={emptyData()}
-        kpiStats={emptyKpi}
-        appointmentsTodayCount={0}
+        {...defaultProps()}
         showAnalyticsLink
       />,
     );
@@ -100,161 +111,57 @@ describe("DoctorTodayDashboard", () => {
       "/app/doctor/analytics/clients",
     );
     expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Требует внимания" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Рабочие задачи на сегодня" })).toBeInTheDocument();
-    expect(document.getElementById("doctor-today-primary-row")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Записи сегодня" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Ближайшие записи" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "К проверке" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Новые онлайн-заявки" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Непрочитанные сообщения" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Задачи" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Сигналы пациентов" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Следующая запись" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Расписание на сегодня" })).toBeInTheDocument();
+    // Старые секции должны отсутствовать
+    expect(screen.queryByRole("heading", { name: "Требует внимания" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Рабочие задачи на сегодня" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Записи сегодня" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Ближайшие записи" })).not.toBeInTheDocument();
   });
 
-  it("shows empty states and CTAs for on-support, today appointments, and upcoming", () => {
+  it("renders left KPI row with 4 compact counters", () => {
     render(
-      <DoctorTodayDashboard data={emptyData()} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        data={{ ...emptyData(), unreadTotal: 3, newIntakeRequests: [], pendingProgramTestsTotal: 5, exerciseCommentAttentionTotal: 1 }}
+      />,
     );
+    // Сообщения — ссылка (не кнопка)
+    expect(screen.getByRole("link", { name: /Сообщения/i })).toBeInTheDocument();
+    // Кнопочные KPI
+    expect(screen.getByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Заявки/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Тесты/i })).toBeInTheDocument();
+  });
+
+  it("renders right KPI row with 3 appointment counters", () => {
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        appointmentsTodayCount={3}
+        kpiStats={{ ...emptyKpi, appointments: { ...emptyKpi.appointments, total: 12 } }}
+        monthAppointmentCount={45}
+      />,
+    );
+    expect(screen.getByRole("link", { name: /Сегодня/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Неделя/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Месяц/i })).toBeInTheDocument();
+  });
+
+  it("shows empty states for on-support and mini-calendar when no data", () => {
+    render(<DoctorTodayDashboard {...defaultProps()} />);
     expect(screen.getByText("Клиентов на сопровождении нет")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Список клиентов" })).toHaveAttribute(
       "href",
       "/app/doctor/clients?scope=all&support=on",
     );
+    // Мини-календарь: нет записей
+    expect(screen.getByText("Записей на сегодня нет")).toBeInTheDocument();
+    // Карточка приёма: нет записей
     expect(screen.getByText("На сегодня записей нет")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть записи" })).toHaveAttribute(
-      "href",
-      "/app/doctor/appointments",
-    );
-    expect(screen.getByText("Ближайших записей на неделе нет")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "Все записи" })[0]).toHaveAttribute(
-      "href",
-      "/app/doctor/appointments?view=future",
-    );
-  });
-
-  it("hides upcoming appointments when today has appointments", () => {
-    const data: TodayDashboardData = {
-      ...emptyData(),
-      todayAppointments: [
-        {
-          id: "ap1",
-          time: "09:00",
-          clientLabel: "Клиент",
-          clientUserId: "user-1",
-          type: "Осмотр",
-          status: "created",
-          branchName: null,
-          scheduleProvenancePrefix: null,
-          rubitimeNameIfDifferent: null,
-          href: "/app/doctor/clients/user-1?scope=appointments",
-          ctaLabel: "Открыть карточку",
-        },
-      ],
-      upcomingAppointments: [
-        {
-          id: "ap2",
-          time: "Пн 10:00",
-          clientLabel: "Будущий",
-          clientUserId: "user-2",
-          type: "Осмотр",
-          status: "created",
-          branchName: null,
-          scheduleProvenancePrefix: null,
-          rubitimeNameIfDifferent: null,
-          href: "/app/doctor/clients/user-2?scope=appointments",
-          ctaLabel: "Открыть карточку",
-        },
-      ],
-    };
-    render(
-      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={1} />,
-    );
-    expect(screen.queryByRole("heading", { name: "Ближайшие записи" })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Пн 10:00 · Будущий/)).not.toBeInTheDocument();
-  });
-
-  it("renders today appointment with card link", () => {
-    const data: TodayDashboardData = {
-      ...emptyData(),
-      todayAppointments: [
-        {
-          id: "ap1",
-          time: "09:00",
-          clientLabel: "Клиент",
-          clientUserId: "user-1",
-          type: "Осмотр",
-          status: "created",
-          branchName: "Филиал А",
-          scheduleProvenancePrefix: "Rubitime",
-          rubitimeNameIfDifferent: null,
-          href: "/app/doctor/clients/user-1?scope=appointments",
-          ctaLabel: "Открыть карточку",
-        },
-      ],
-    };
-    render(
-      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={1} />,
-    );
-    expect(screen.getByText("09:00 ·")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Клиент" })).toHaveAttribute(
-      "href",
-      "/app/doctor/clients/user-1?scope=appointments",
-    );
-    expect(screen.getByText(/Осмотр · created/)).toBeInTheDocument();
-    expect(screen.getByText(/Филиал А/)).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Открыть карточку" })).not.toBeInTheDocument();
-  });
-
-  it("renders Rubitime name hint when different from profile label", () => {
-    const data: TodayDashboardData = {
-      ...emptyData(),
-      todayAppointments: [
-        {
-          id: "ap2",
-          time: "10:00",
-          clientLabel: "Иван",
-          rubitimeNameIfDifferent: "Иванов И.И.",
-          clientUserId: "user-2",
-          type: "Осмотр",
-          status: "created",
-          branchName: null,
-          scheduleProvenancePrefix: null,
-          href: "/app/doctor/clients/user-2?scope=appointments",
-          ctaLabel: "Открыть карточку",
-        },
-      ],
-    };
-    render(
-      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={1} />,
-    );
-    expect(screen.getByText("В Rubitime: Иванов И.И.")).toBeInTheDocument();
-  });
-
-  it("opens intake details in attention dialog", async () => {
-    const data: TodayDashboardData = {
-      ...emptyData(),
-      newIntakeRequests: [
-        {
-          id: "int1",
-          patientName: "Анна",
-          patientPhone: "+7000",
-          typeLabel: "ЛФК",
-          summary: "Текст",
-          summaryPreview: "Текст",
-          createdAtLabel: "02.05.2026",
-          href: "/app/doctor/online-intake/int1",
-        },
-      ],
-    };
-    render(
-      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
-    );
-    await openAttentionDialog(/Онлайн-заявки/);
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Анна")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Открыть заявку" })).toHaveAttribute(
-      "href",
-      "/app/doctor/online-intake/int1",
-    );
   });
 
   it("renders on-support clients and truncated footer", () => {
@@ -281,9 +188,7 @@ describe("DoctorTodayDashboard", () => {
       ],
       onSupportListTruncated: true,
     };
-    render(
-      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
-    );
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     expect(screen.getByText(/Клиентов: 2/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Анна" })).toHaveAttribute(
       "href",
@@ -299,7 +204,33 @@ describe("DoctorTodayDashboard", () => {
     );
   });
 
-  it("opens pending program tests in attention dialog", async () => {
+  it("opens intake details in attention dialog via left KPI card", async () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      newIntakeRequests: [
+        {
+          id: "int1",
+          patientName: "Анна",
+          patientPhone: "+7000",
+          typeLabel: "ЛФК",
+          summary: "Текст",
+          summaryPreview: "Текст",
+          createdAtLabel: "02.05.2026",
+          href: "/app/doctor/online-intake/int1",
+        },
+      ],
+    };
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    await openLeftKpiDialog(/Заявки/);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Анна")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Открыть заявку" })).toHaveAttribute(
+      "href",
+      "/app/doctor/online-intake/int1",
+    );
+  });
+
+  it("opens pending program tests in attention dialog via left KPI card", async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       pendingProgramTestsTotal: 12,
@@ -318,10 +249,8 @@ describe("DoctorTodayDashboard", () => {
         },
       ],
     };
-    render(
-      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
-    );
-    await openAttentionDialog(/Тесты к проверке/);
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    await openLeftKpiDialog(/Тесты/);
     expect(screen.getByText(/Попыток без оценки: 12/)).toBeInTheDocument();
     expect(screen.getByText("Иванова")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Оценить" })).toHaveAttribute(
@@ -331,7 +260,8 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByText("Показаны первые 1 из 12")).toBeInTheDocument();
   });
 
-  it("opens proactive patient insights in attention dialog", async () => {
+  it("opens proactive patient insights via signals section button", async () => {
+    const user = userEvent.setup();
     const data: TodayDashboardData = {
       ...emptyData(),
       proactiveInsightsTotal: 2,
@@ -347,13 +277,15 @@ describe("DoctorTodayDashboard", () => {
         },
       ],
     };
-    render(<DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />);
-    await openAttentionDialog(/Сигналы пациентов/);
-    expect(screen.getByRole("heading", { name: "Сигналы пациентов" })).toBeInTheDocument();
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    // Кнопка счётчика в секции «Сигналы пациентов»
+    const signalBtn = screen.getByRole("button", { name: "2" });
+    await user.click(signalBtn);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Петров")).toBeInTheDocument();
   });
 
-  it("shows unread messages KPI as quick link to chat inbox", () => {
+  it("shows unread messages KPI as link to communications", () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       unreadTotal: 5,
@@ -370,13 +302,13 @@ describe("DoctorTodayDashboard", () => {
         },
       ],
     };
-    render(<DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />);
-    const unreadCardLink = screen.getByRole("link", { name: /Новые сообщения/i });
-    expect(unreadCardLink).toHaveAttribute("href", "/app/doctor/messages");
-    expect(screen.getByText("5")).toBeInTheDocument();
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    // «Сообщения» — ссылка (не кнопка) ведёт на communications
+    const msgLink = screen.getByRole("link", { name: /Сообщения/i });
+    expect(msgLink).toHaveAttribute("href", "/app/doctor/communications");
   });
 
-  it("opens exercise comments attention dialog grouped by patient", async () => {
+  it("opens exercise comments attention dialog via left KPI card", async () => {
     const data: TodayDashboardData = {
       ...emptyData(),
       exerciseCommentAttentionTotal: 1,
@@ -404,16 +336,58 @@ describe("DoctorTodayDashboard", () => {
         },
       ],
     };
-    render(
-      <DoctorTodayDashboard data={data} kpiStats={emptyKpi} appointmentsTodayCount={0} />,
-    );
-    await openAttentionDialog(/Новые комментарии по упражнениям/);
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    await openLeftKpiDialog(/Комментарии/);
     expect(screen.getByRole("heading", { name: "Новые комментарии по упражнениям" })).toBeInTheDocument();
     expect(screen.getByText("Иванов Иван")).toBeInTheDocument();
     expect(screen.getByText("Приседания")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть комментарии в программе" })).toHaveAttribute(
       "href",
       "/app/doctor/clients/u1/treatment-programs/inst-1?scope=appointments&discussionItem=item-1",
+    );
+  });
+
+  it("renders today appointments in mini-calendar section", () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      todayAppointments: [
+        {
+          id: "ap1",
+          time: "09:00",
+          clientLabel: "Клиент Тест",
+          clientUserId: "user-1",
+          type: "Осмотр",
+          status: "created",
+          branchName: null,
+          scheduleProvenancePrefix: null,
+          rubitimeNameIfDifferent: null,
+          href: "/app/doctor/clients/user-1?scope=appointments",
+          ctaLabel: "Открыть карточку",
+        },
+      ],
+    };
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    // Мини-календарь должен показать запись
+    expect(screen.getByRole("heading", { name: "Расписание на сегодня" })).toBeInTheDocument();
+    // Карточка приёма
+    expect(screen.getByRole("heading", { name: /Следующая запись|Сейчас на приёме/ })).toBeInTheDocument();
+  });
+
+  it("shows admin banners when provided", () => {
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        adminHealthBanner={{ show: true, title: "Внимание: сбой", href: "/app/doctor/system-health" }}
+        adminRegistrationFailureBanner={{ show: true, title: "Сбой регистрации", href: "/app/doctor/health-archive", count: 1 }}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Внимание: сбой" })).toHaveAttribute(
+      "href",
+      "/app/doctor/system-health",
+    );
+    expect(screen.getByRole("link", { name: "Сбой регистрации" })).toHaveAttribute(
+      "href",
+      "/app/doctor/health-archive",
     );
   });
 });
