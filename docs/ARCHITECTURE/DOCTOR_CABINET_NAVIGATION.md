@@ -50,6 +50,27 @@
 
 Редиректы `?adminTab=` → см. `ADMIN_TAB_REDIRECTS` в `apps/webapp/src/app/app/settings/adminSettingsData.ts`.
 
+## Агрегатные экраны (rewrite) — Расписание и Коммуникации
+
+С 2026-06 кабинет использует агрегатные URL с вкладками; `middleware/doctorRouteRedirects.ts`
+делает **internal-rewrite** на легаси-страницы, старые URL → **308** на агрегатный.
+
+| Агрегатный URL | Вкладки (`?tab=`) → страница |
+|----------------|------------------------------|
+| `/app/doctor/schedule` | `calendar` → `/app/doctor/calendar`; `setup` → `/app/doctor/admin/booking` |
+| `/app/doctor/communications` | `chats` → `messages`; `intake` → `online-intake[/:id]`; `comments` → `comments`; `broadcasts` → `broadcasts[/archive]` |
+
+308-редиректы старых URL: `messages`, `online-intake[/:id]`, `comments`, `broadcasts[/archive]`,
+`appointments`, `calendar`, `admin/booking` → соответствующий `?tab=`.
+
+**Петля редиректов (важно):** в Next 16 (proxy-конвенция) внутренний `NextResponse.rewrite`
+**повторно** проходит через proxy (в отличие от старого `middleware.ts`). Защита от петли —
+заголовок-маркер `x-bc-doctor-rewrite`, прокидываемый в переписанный запрос; на повторном входе
+`doctorRouteRedirectResponse` сразу возвращает `null`. Тесты: `apps/webapp/src/middleware/doctorRouteRedirects.test.ts`.
+
+Таб-бар коммуникаций: `apps/webapp/src/app/app/doctor/communications/` (`doctorCommunicationsTabs.ts`,
+`DoctorCommunicationsTabsNav.tsx`, `communications.md`).
+
 ## Окна аналитики (doctor)
 
 | Экран | Query | Пресеты UI |
