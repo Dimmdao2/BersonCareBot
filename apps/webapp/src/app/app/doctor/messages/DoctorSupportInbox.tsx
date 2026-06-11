@@ -157,7 +157,7 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
       clearInterval(timerId);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [active, unreadOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, unreadOnly]);
 
   if (loading) {
     return <p className="text-muted-foreground">Загрузка…</p>;

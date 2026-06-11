@@ -49,8 +49,18 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
   }, []);
 
   useEffect(() => {
-    void refreshLog();
-  }, [refreshLog]);
+    let cancelled = false;
+    void (async () => {
+      const data = await listBroadcastAuditAction(50);
+      if (!cancelled) {
+        setEntries(data);
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className={doctorPageStackClass}>

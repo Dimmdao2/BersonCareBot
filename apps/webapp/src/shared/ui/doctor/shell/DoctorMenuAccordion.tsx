@@ -157,7 +157,6 @@ export function DoctorMenuAccordion({ variant, pathname, menuAccess, onNavigate 
     if (typeof window === "undefined") return;
     const fromStorage = readOpenClustersFromStorage();
     if (fromStorage !== null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional post-mount read from localStorage
       setOpenClusterIds(fromStorage);
     }
   }, []);

@@ -27,6 +27,23 @@ const DYNAMIC_TABS = new Map<CommunicationsTabId, ComponentType<CommunicationsTa
   ]),
 );
 
+function readDeepLinksFromSearchParams(
+  params: URLSearchParams,
+): Partial<Record<CommunicationsTabId, Record<string, string>>> {
+  const initial: Partial<Record<CommunicationsTabId, Record<string, string>>> = {};
+  for (const entry of COMMUNICATIONS_TAB_REGISTRY) {
+    const tabParams: Record<string, string> = {};
+    for (const key of entry.deepLinkKeys) {
+      const val = params.get(key);
+      if (val) tabParams[key] = val;
+    }
+    if (Object.keys(tabParams).length > 0) {
+      initial[entry.id] = tabParams;
+    }
+  }
+  return initial;
+}
+
 export type DoctorCommunicationsShellProps = {
   /** Начальный таб (от серверной страницы). Если не задан — берётся из URL ?tab=. */
   initialTab?: CommunicationsTabId;
@@ -60,58 +77,42 @@ export function DoctorCommunicationsShell({
 
   const [activeTab, setActiveTab] = useState<CommunicationsTabId>(resolvedInit);
   const activeTabRef = useRef(activeTab);
-  activeTabRef.current = activeTab;
 
   // Множество смонтированных табов — только растёт (keepMounted).
   const [mountedTabs, setMountedTabs] = useState<ReadonlySet<CommunicationsTabId>>(
     () => new Set<CommunicationsTabId>([resolvedInit]),
   );
 
-  // Текущие deep-link параметры по каждому табу.
-  const [deepLinks, setDeepLinks] = useState<Partial<Record<CommunicationsTabId, Record<string, string>>>>({});
+  // Текущие deep-link параметры по каждому табу (из URL при первом клиентском рендере).
+  const [deepLinks, setDeepLinks] = useState<
+    Partial<Record<CommunicationsTabId, Record<string, string>>>
+  >(() =>
+    typeof window !== "undefined"
+      ? readDeepLinksFromSearchParams(new URLSearchParams(window.location.search))
+      : {},
+  );
   const deepLinksRef = useRef(deepLinks);
-  deepLinksRef.current = deepLinks;
 
-  // Читаем deep-link параметры из URL при монтировании (клиентская инициализация).
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const initial: Partial<Record<CommunicationsTabId, Record<string, string>>> = {};
-    for (const entry of COMMUNICATIONS_TAB_REGISTRY) {
-      const tabParams: Record<string, string> = {};
-      for (const key of entry.deepLinkKeys) {
-        const val = params.get(key);
-        if (val) tabParams[key] = val;
-      }
-      if (Object.keys(tabParams).length > 0) {
-        initial[entry.id] = tabParams;
-      }
-    }
-    if (Object.keys(initial).length > 0) {
-      setDeepLinks(initial);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    deepLinksRef.current = deepLinks;
+  }, [deepLinks]);
 
   // Восстанавливаем состояние при навигации браузера (back / forward).
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tab = communicationsTabFromQuery(params.get("tab"));
-      const restored: Partial<Record<CommunicationsTabId, Record<string, string>>> = {};
-      for (const entry of COMMUNICATIONS_TAB_REGISTRY) {
-        const tabParams: Record<string, string> = {};
-        for (const key of entry.deepLinkKeys) {
-          const val = params.get(key);
-          if (val) tabParams[key] = val;
-        }
-        if (Object.keys(tabParams).length > 0) restored[entry.id] = tabParams;
-      }
       setActiveTab(tab);
       setMountedTabs((prev) => new Set([...prev, tab]));
-      setDeepLinks(restored);
+      setDeepLinks(readDeepLinksFromSearchParams(params));
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const buildTabUrl = useCallback(
     (tabId: CommunicationsTabId, tabDeepLinks: Record<string, string>): string => {
