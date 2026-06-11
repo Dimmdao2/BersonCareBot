@@ -47,30 +47,49 @@ function computeRange(appointments: TodayAppointmentItem[]): { startHour: number
   return { startHour, endHour };
 }
 
+/** Возвращает минуты с полуночи в заданной IANA-таймзоне без сторонних библиотек. */
+function nowMinutesInZone(displayIana: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: displayIana,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const h = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
+    const m = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0", 10);
+    // Intl может вернуть "24" для полуночи в некоторых средах
+    return (h % 24) * 60 + m;
+  } catch {
+    // Fallback на локальное время если таймзона не поддерживается
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }
+}
+
 type Props = {
   appointments: TodayAppointmentItem[];
   /** Минуты с полуночи в бизнес-таймзоне (вычислены на сервере для hydration). */
   nowMinutes: number;
   /** Подпись даты, напр. «ср, 11 июня». */
   todayDateLabel: string;
+  /** IANA-таймзона для корректного обновления линии «сейчас» на клиенте. */
+  displayIana: string;
 };
 
-export function DoctorTodayMiniCalendar({ appointments, nowMinutes, todayDateLabel }: Props) {
+export function DoctorTodayMiniCalendar({ appointments, nowMinutes, todayDateLabel, displayIana }: Props) {
   const { startHour, endHour } = computeRange(appointments);
   const totalHours = endHour - startHour;
   const totalHeight = totalHours * HOUR_HEIGHT_PX;
 
-  // Красная линия «сейчас» — обновляется каждую минуту
+  // Красная линия «сейчас» — обновляется каждую минуту в бизнес-таймзоне
   const [currentNowMinutes, setCurrentNowMinutes] = useState(nowMinutes);
   useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setCurrentNowMinutes(now.getHours() * 60 + now.getMinutes());
-    };
+    const update = () => setCurrentNowMinutes(nowMinutesInZone(displayIana));
     update();
     const id = setInterval(update, 60_000);
     return () => clearInterval(id);
-  }, []);
+  }, [displayIana]);
 
   const nowTopPx =
     currentNowMinutes >= startHour * 60 && currentNowMinutes <= endHour * 60

@@ -248,6 +248,7 @@ export function DoctorTodayDashboard({
             appointments={data.todayAppointments}
             nowMinutes={nowMinutes}
             todayDateLabel={todayDateLabel}
+            displayIana={displayIana}
           />
         </div>
       </div>

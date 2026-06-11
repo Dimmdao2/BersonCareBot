@@ -50,7 +50,7 @@ export function DoctorGlobalTasksSection({
       const data = (await res.json()) as { tasks?: SpecialistTaskRow[] };
       setTasks(sortTasksByDeadline(data.tasks ?? [], todayIso));
     });
-  }, []);
+  }, [todayIso]);
 
   function handleComplete(taskId: string) {
     startTransition(async () => {

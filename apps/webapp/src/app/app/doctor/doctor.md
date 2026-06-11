@@ -20,3 +20,13 @@
 - Источник: `modules/booking-scheduling/service.ts`
 - Нужна функция `getAppWorkingHours(): Promise<{ startHour: number; endHour: number }>`
 - Передать как проп `workingHoursRange` в `DoctorTodayMiniCalendar`
+
+### TODO#3: «Все задачи» и лимит в DoctorGlobalTasksSection
+`loadDoctorTodayDashboard.ts` запрашивает не более 8 задач (`listGlobalOpen(userId, 8)`). Если задач больше — врач не увидит остальные.
+- Вариант A: добавить `globalOpenTasksTruncated: boolean` в `TodayDashboardData` (fetch N+1, truncate при необходимости)
+- Вариант B: создать страницу `/app/doctor/tasks` и добавить ссылку в `DoctorGlobalTasksSection` при `tasks.length >= 8`
+
+### TODO#4: длительность записи в DoctorCurrentAppointmentCard и DoctorTodayMiniCalendar
+Оба компонента используют stub-длительность (90 и 60 мин соответственно) вместо реальной.
+- Добавить поле `durationMinutes?: number` в `TodayAppointmentItem`
+- Заполнять в `mapAppointmentToTodayItem` из поля `duration` в `AppointmentRow`

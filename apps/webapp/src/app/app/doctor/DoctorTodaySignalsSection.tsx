@@ -10,6 +10,17 @@ import {
 } from "./DoctorTodayAttentionDialog";
 import type { TodayDashboardData } from "./loadDoctorTodayDashboard";
 
+/** Правильное склонение слова «сигнал» для русского языка. */
+function russianSignalPlural(n: number): string {
+  const abs = Math.abs(n);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 19) return "сигналов";
+  if (mod10 === 1) return "сигнал";
+  if (mod10 >= 2 && mod10 <= 4) return "сигнала";
+  return "сигналов";
+}
+
 type Props = Pick<
   TodayDashboardData,
   | "proactiveInsights"
@@ -81,8 +92,8 @@ export function DoctorTodaySignalsSection({
                 className="w-fit text-left text-xs text-primary underline underline-offset-2"
                 onClick={openDialog}
               >
-                Ещё {proactiveInsightsTotal - 1} сигнал
-                {proactiveInsightsTotal - 1 === 1 ? "" : "а"}
+                Ещё {proactiveInsightsTotal - 1}{" "}
+                {russianSignalPlural(proactiveInsightsTotal - 1)}
               </button>
             ) : null}
           </div>

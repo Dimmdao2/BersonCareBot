@@ -29,7 +29,7 @@ function findCurrentOrNext(
   next: TodayAppointmentItem | null;
 } {
   // Предполагаем 1.5-часовую длительность как stub (нет поля duration в TodayAppointmentItem).
-  // TODO doctor.md TODO#1: добавить duration в TodayAppointmentItem для точного расчёта.
+  // TODO: добавить duration в TodayAppointmentItem для точного определения текущего приёма.
   const STUB_DURATION_MINUTES = 90;
 
   let ongoing: TodayAppointmentItem | null = null;
