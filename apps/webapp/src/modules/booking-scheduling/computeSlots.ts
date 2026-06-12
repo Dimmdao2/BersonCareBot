@@ -13,14 +13,30 @@ export type WorkingDayRow = {
   workDate: string; // YYYY-MM-DD
   startMinute: number | null;
   endMinute: number | null;
+  /** Legacy single-break (backward-compat; used when breaks[] is empty). */
   breakStartMinute: number | null;
   breakEndMinute: number | null;
+  /** N-break model (migration 0116). Primary source. */
+  breaks?: { startMinute: number; endMinute: number }[];
   isClosed: boolean;
 };
 
 /**
- * Split a working day into one or two intervals around an optional break.
- * Returns [dayStart, breakStart] + [breakEnd, dayEnd] if break is set, otherwise [dayStart, dayEnd].
+ * Resolve effective breaks for a WorkingDayRow.
+ * Priority: breaks[] (if non-empty) → legacy scalar columns → [].
+ */
+function resolveWorkingDayBreaks(row: WorkingDayRow): { startMinute: number; endMinute: number }[] {
+  if (row.breaks && row.breaks.length > 0) return row.breaks;
+  if (row.breakStartMinute != null && row.breakEndMinute != null) {
+    return [{ startMinute: row.breakStartMinute, endMinute: row.breakEndMinute }];
+  }
+  return [];
+}
+
+/**
+ * Split a working day into N+1 intervals around N breaks (sorted ascending by startMinute).
+ * If no breaks, returns a single [dayStart, dayEnd] interval.
+ * Supports both legacy single-break (breakStartMinute/breakEndMinute) and N-break (breaks[]).
  */
 export function splitByBreak(
   row: WorkingDayRow,
@@ -35,18 +51,40 @@ export function splitByBreak(
   const dayEndMs = new Date(endIso).getTime() - bufferMinutes * 60_000;
   if (dayEndMs <= dayStartMs) return [];
 
-  if (row.breakStartMinute != null && row.breakEndMinute != null) {
-    const bsIso = wallClockToUtcIso(dateKey, Math.floor(row.breakStartMinute / 60), row.breakStartMinute % 60, timeZone);
-    const beIso = wallClockToUtcIso(dateKey, Math.floor(row.breakEndMinute / 60), row.breakEndMinute % 60, timeZone);
-    const bsMs = new Date(bsIso).getTime();
-    const beMs = new Date(beIso).getTime();
-    const result: TimeInterval[] = [];
-    if (bsMs > dayStartMs) result.push({ startMs: dayStartMs, endMs: Math.min(bsMs, dayEndMs) });
-    if (beMs < dayEndMs) result.push({ startMs: Math.max(beMs, dayStartMs), endMs: dayEndMs });
-    return result.filter((iv) => iv.endMs > iv.startMs);
+  const breaks = resolveWorkingDayBreaks(row);
+  if (breaks.length === 0) {
+    return [{ startMs: dayStartMs, endMs: dayEndMs }];
   }
 
-  return [{ startMs: dayStartMs, endMs: dayEndMs }];
+  // Sort breaks by startMinute (defensive — should already be sorted by service validation)
+  const sorted = [...breaks].sort((a, b) => a.startMinute - b.startMinute);
+
+  // Build N+1 intervals: work through cursor from dayStart, punching holes for each break
+  const result: TimeInterval[] = [];
+  let cursorMs = dayStartMs;
+
+  for (const brk of sorted) {
+    const bsIso = wallClockToUtcIso(dateKey, Math.floor(brk.startMinute / 60), brk.startMinute % 60, timeZone);
+    const beIso = wallClockToUtcIso(dateKey, Math.floor(brk.endMinute / 60), brk.endMinute % 60, timeZone);
+    const bsMs = new Date(bsIso).getTime();
+    const beMs = new Date(beIso).getTime();
+
+    // Clamp break to day bounds after buffer
+    const clampedBsMs = Math.max(bsMs, cursorMs);
+    const clampedBeMs = Math.min(beMs, dayEndMs);
+
+    if (clampedBsMs > cursorMs) {
+      result.push({ startMs: cursorMs, endMs: Math.min(clampedBsMs, dayEndMs) });
+    }
+    cursorMs = Math.max(cursorMs, clampedBeMs);
+  }
+
+  // Tail interval after the last break
+  if (cursorMs < dayEndMs) {
+    result.push({ startMs: cursorMs, endMs: dayEndMs });
+  }
+
+  return result.filter((iv) => iv.endMs > iv.startMs);
 }
 
 export type BusyInterval = { startAt: string; endAt: string };

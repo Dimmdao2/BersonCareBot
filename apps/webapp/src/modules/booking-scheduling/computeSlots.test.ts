@@ -57,6 +57,7 @@ describe("booking-scheduling computeSlots", () => {
         endMinute: 19 * 60,
         breakStartMinute: null,
         breakEndMinute: null,
+        breaks: [],
         isClosed: false,
         ...partial,
       };
@@ -81,7 +82,31 @@ describe("booking-scheduling computeSlots", () => {
       expect(intervals).toHaveLength(0);
     });
 
-    it("break splits the day into two intervals", () => {
+    it("zero breaks: single working interval", () => {
+      const intervals = splitByBreak(
+        perDay({ startMinute: 9 * 60, endMinute: 18 * 60, breaks: [] }),
+        "2026-06-01",
+        "UTC",
+        0,
+      );
+      expect(intervals).toHaveLength(1);
+      expect(new Date(intervals[0]!.startMs).getUTCHours()).toBe(9);
+      expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(18);
+    });
+
+    it("single break (breaks[]) splits the day into two intervals", () => {
+      const intervals = splitByBreak(
+        perDay({ startMinute: 11 * 60, endMinute: 19 * 60, breaks: [{ startMinute: 14 * 60, endMinute: 15 * 60 }] }),
+        "2026-06-01",
+        "UTC",
+        0,
+      );
+      expect(intervals).toHaveLength(2);
+      expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(14);
+      expect(new Date(intervals[1]!.startMs).getUTCHours()).toBe(15);
+    });
+
+    it("legacy single break (breakStartMinute/breakEndMinute) still works", () => {
       const intervals = splitByBreak(
         perDay({ startMinute: 11 * 60, endMinute: 19 * 60, breakStartMinute: 14 * 60, breakEndMinute: 15 * 60 }),
         "2026-06-01",
@@ -91,6 +116,108 @@ describe("booking-scheduling computeSlots", () => {
       expect(intervals).toHaveLength(2);
       expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(14);
       expect(new Date(intervals[1]!.startMs).getUTCHours()).toBe(15);
+    });
+
+    it("two breaks produce three working intervals", () => {
+      // 9:00–18:00 with breaks at 12–13 and 15–16 → three windows: 9–12, 13–15, 16–18
+      const intervals = splitByBreak(
+        perDay({
+          startMinute: 9 * 60,
+          endMinute: 18 * 60,
+          breaks: [
+            { startMinute: 12 * 60, endMinute: 13 * 60 },
+            { startMinute: 15 * 60, endMinute: 16 * 60 },
+          ],
+        }),
+        "2026-06-01",
+        "UTC",
+        0,
+      );
+      expect(intervals).toHaveLength(3);
+      expect(new Date(intervals[0]!.startMs).getUTCHours()).toBe(9);
+      expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(12);
+      expect(new Date(intervals[1]!.startMs).getUTCHours()).toBe(13);
+      expect(new Date(intervals[1]!.endMs).getUTCHours()).toBe(15);
+      expect(new Date(intervals[2]!.startMs).getUTCHours()).toBe(16);
+      expect(new Date(intervals[2]!.endMs).getUTCHours()).toBe(18);
+    });
+
+    it("three breaks produce four working intervals", () => {
+      // 8:00–20:00, breaks at 10–11, 13–14, 16–17
+      const intervals = splitByBreak(
+        perDay({
+          startMinute: 8 * 60,
+          endMinute: 20 * 60,
+          breaks: [
+            { startMinute: 10 * 60, endMinute: 11 * 60 },
+            { startMinute: 13 * 60, endMinute: 14 * 60 },
+            { startMinute: 16 * 60, endMinute: 17 * 60 },
+          ],
+        }),
+        "2026-06-01",
+        "UTC",
+        0,
+      );
+      expect(intervals).toHaveLength(4);
+      expect(new Date(intervals[0]!.startMs).getUTCHours()).toBe(8);
+      expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(10);
+      expect(new Date(intervals[3]!.startMs).getUTCHours()).toBe(17);
+      expect(new Date(intervals[3]!.endMs).getUTCHours()).toBe(20);
+    });
+
+    it("break flush at day start leaves only the tail interval", () => {
+      // 9:00–18:00, break starts exactly at dayStart (9:00–10:00) → only 10–18
+      const intervals = splitByBreak(
+        perDay({
+          startMinute: 9 * 60,
+          endMinute: 18 * 60,
+          breaks: [{ startMinute: 9 * 60, endMinute: 10 * 60 }],
+        }),
+        "2026-06-01",
+        "UTC",
+        0,
+      );
+      expect(intervals).toHaveLength(1);
+      expect(new Date(intervals[0]!.startMs).getUTCHours()).toBe(10);
+      expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(18);
+    });
+
+    it("break flush at day end leaves only the head interval", () => {
+      // 9:00–18:00, break at 17:00–18:00 → only 9–17
+      const intervals = splitByBreak(
+        perDay({
+          startMinute: 9 * 60,
+          endMinute: 18 * 60,
+          breaks: [{ startMinute: 17 * 60, endMinute: 18 * 60 }],
+        }),
+        "2026-06-01",
+        "UTC",
+        0,
+      );
+      expect(intervals).toHaveLength(1);
+      expect(new Date(intervals[0]!.startMs).getUTCHours()).toBe(9);
+      expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(17);
+    });
+
+    it("breaks[] takes priority over legacy breakStartMinute/breakEndMinute", () => {
+      // breaks[] has two breaks; legacy scalar says different single break — breaks[] wins
+      const intervals = splitByBreak(
+        perDay({
+          startMinute: 9 * 60,
+          endMinute: 18 * 60,
+          breakStartMinute: 14 * 60,
+          breakEndMinute: 15 * 60,
+          breaks: [
+            { startMinute: 12 * 60, endMinute: 13 * 60 },
+            { startMinute: 16 * 60, endMinute: 17 * 60 },
+          ],
+        }),
+        "2026-06-01",
+        "UTC",
+        0,
+      );
+      // breaks[] controls: 3 intervals (9–12, 13–16, 17–18)
+      expect(intervals).toHaveLength(3);
     });
 
     it("falls back to weekday hours when no per-date row (backward-compatible)", () => {
