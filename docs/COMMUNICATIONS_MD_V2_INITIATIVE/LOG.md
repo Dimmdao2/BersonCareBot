@@ -1,5 +1,110 @@
 # COMMUNICATIONS_MD_V2 — Execution Log
 
+## Этап 5a — бэкенд-агрегация комментариев
+
+**Дата:** 2026-06-13
+
+### Что сделано
+
+#### 1. Новый тип `StageItemViewerUnreadCount` и порт-метод
+
+- `modules/program-item-discussion/types.ts` — добавлен тип `StageItemViewerUnreadCount` (`stageItemId`, `total`, `unread`, `latestMessageAt`). Семантика: `total` = все пациентские сообщения, `unread` = после `lastReadAt` для viewer'а.
+- `modules/program-item-discussion/ports.ts` — аддитивно добавлен метод `listUnreadCountsForViewerByStageItems({ stageItemIds, viewerUserId })` — batch-запрос «всего/непрочитанных» по массиву stageItemId.
+- `modules/program-item-discussion/service.ts` — обёртка `listUnreadCountsForViewerByStageItems` в сервисе (UUID-валидация).
+
+#### 2. InMemory-паритет
+
+- `infra/repos/inMemoryProgramItemDiscussion.ts` — реализован `listUnreadCountsForViewerByStageItems`: итерирует по `rows`, считает patient messages per stageItem, учитывает `reads` map для viewer'а, возвращает строку для каждого переданного id.
+
+#### 3. Pg-реализация
+
+- `infra/repos/pgProgramItemDiscussion.ts` — реализован `listUnreadCountsForViewerByStageItems` через Drizzle: два отдельных SELECT (totals per stageItem + read cursors), затем WHERE с subquery для items с lastReadAt. Всё через Drizzle ORM, без pool.query/client.query.
+
+#### 4. Загрузчик списка пациентов (левый пейн)
+
+- `app/app/doctor/comments/loadDoctorCommentPatients.ts` — новый загрузчик:
+  - Фетчит пациентов `supportStatus: "on"`, затем `listUnreadExerciseCommentsForDoctor` (limit=2000 — практически без пагинации, т.к. врач ведёт десятки пациентов).
+  - Считает `unreadCount` = число stageItem'ов с непрочитанным последним сообщением (приближение, см. развилки ниже).
+  - Возвращает `CommentPatientRow[]`: `patientUserId`, `isOnSupport: true`, `unreadCount`, поля для поиска (`displayName`, `phone`, `telegramId`, `maxId`).
+  - Сортировка: unreadCount DESC → displayName ASC.
+  - Не включает пациентов с нулевыми непрочитанными.
+
+#### 5. Загрузчик упражнений пациента (правый пейн, state B)
+
+- `app/app/doctor/comments/loadDoctorPatientExercisesWithComments.ts` — новый загрузчик:
+  - Получает активный инстанс через `pickActivePlanInstance` → `getInstanceById`.
+  - Обходит **все** этапы и **все** items (active + disabled) — в отличие от `loadDoctorExerciseCommentAttention` (только active).
+  - Фетчит `listUnreadCountsForViewerByStageItems` batch для всех exercise-items.
+  - Фильтрует: только `itemType === "exercise"` + `total > 0`.
+  - Группирует по этапам: активные (`in_progress` | `available`) сверху + `isActive: true`, закрытые снизу + `isActive: false`.
+  - Внутри этапа — сортировка по `latestCommentAt` DESC.
+  - Параметр `includePastPrograms` (дефолт false): при `true` — fallback на последний по updatedAt инстанс.
+  - Возвращает `PatientExercisesWithCommentsResult` с метаданными + `groups[]`.
+
+#### 6. API-роут (state B)
+
+- `app/api/doctor/comments/patients/[patientUserId]/exercises/route.ts` — тонкий GET:
+  - `requireDoctorApiSession` + UUID-валидация patientUserId.
+  - Query param `includePastPrograms=true` опционально.
+  - Возвращает `{ ok: true, data: PatientExercisesWithCommentsResult | null }`.
+
+#### 7. Тред (state C) — существующие роуты достаточны
+
+Для треда упражнения (state C) новых роутов не создавалось — всё уже есть:
+- **Чтение треда:** `GET /api/doctor/treatment-program-instances/[instanceId]/items/[stageItemId]/discussion` → `listDiscussionPageMerged` (с legacy-merge). Возвращает `messages`, `pageInfo`, `totalCount`, `peerLastReadAt`.
+- **Ответ:** `POST /api/doctor/treatment-program-instances/[instanceId]/items/[stageItemId]/program-note-reply` → `sendProgramNoteReply`.
+- **Mark read:** `POST /api/doctor/treatment-program-instances/[instanceId]/items/[stageItemId]/discussion/read` → `markReadForViewer(viewerUserId, stageItemId)`.
+
+#### 8. Тесты
+
+- `loadDoctorCommentPatients.test.ts` — 9 тестов: пустой список, без unread, счётчик, сортировка, поля поиска, excludedUserIds.
+- `loadDoctorPatientExercisesWithComments.test.ts` — 8 тестов: null без instances, пустые группы, группировка active/closed, сортировка, total/unread агрегация, includePastPrograms, фильтр типов.
+- `inMemoryProgramItemDiscussion.test.ts` — добавлены 7 тестов для `listUnreadCountsForViewerByStageItems`.
+- `service.unread.test.ts`, `syncDiscussionReadFromSupportInbound.test.ts` — добавлены vi.fn() для нового метода (TypeScript-паритет).
+
+### Проверки
+
+- `npx tsc --noEmit` — **0 ошибок** в наших файлах (pre-existing в schedule/booking-** — параллельная инициатива).
+- `npx vitest run` по 9 файлам — **71 passed (9 files)**, все GREEN.
+- `webappPhase15F.verify.test.ts` — **5/5 GREEN**. Все новые SQL через Drizzle, pool.query не добавлялись.
+- `npx eslint` по всем изменённым/новым файлам — **0 ошибок**.
+
+### Затронутые файлы
+
+**Новые:**
+- `apps/webapp/src/app/app/doctor/comments/loadDoctorCommentPatients.ts`
+- `apps/webapp/src/app/app/doctor/comments/loadDoctorCommentPatients.test.ts`
+- `apps/webapp/src/app/app/doctor/comments/loadDoctorPatientExercisesWithComments.ts`
+- `apps/webapp/src/app/app/doctor/comments/loadDoctorPatientExercisesWithComments.test.ts`
+- `apps/webapp/src/app/api/doctor/comments/patients/[patientUserId]/exercises/route.ts`
+
+**Изменённые (аддитивно):**
+- `apps/webapp/src/modules/program-item-discussion/types.ts` — новый тип `StageItemViewerUnreadCount`
+- `apps/webapp/src/modules/program-item-discussion/ports.ts` — новый метод порта
+- `apps/webapp/src/modules/program-item-discussion/service.ts` — сервисная обёртка
+- `apps/webapp/src/infra/repos/inMemoryProgramItemDiscussion.ts` — inMemory реализация
+- `apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts` — pg/Drizzle реализация
+- `apps/webapp/src/modules/program-item-discussion/service.unread.test.ts` — добавлен vi.fn()
+- `apps/webapp/src/modules/program-item-discussion/syncDiscussionReadFromSupportInbound.test.ts` — добавлен vi.fn()
+- `apps/webapp/src/infra/repos/inMemoryProgramItemDiscussion.test.ts` — 7 новых тестов
+
+### Сознательно не сделано / вне scope
+
+- **UI (state B, C)** — этап 5b.
+- **Тред state C** — роуты уже существуют, задокументированы выше. UI 5b подключится к ним напрямую.
+
+### Развилки (для фиксации)
+
+1. **Email в поиске по пациентам.** `ClientListItem` содержит только `hasEmail: boolean`, без email-строки. Для полнотекстового поиска нужен `getClientIdentity` per-patient — дорого на больших списках (N×1 запрос). **Решение:** email в поиск не включён. `CommentPatientRow` содержит `phone`, `telegramId`, `maxId`, `displayName`. UI 5b реализует клиентский поиск по этим полям. Добавить email позже можно через отдельный batch-метод `listClientIdentitiesBatch` в порте.
+
+2. **Семантика «unreadCount» в левом пейне.** Сейчас: `unreadCount` = число отдельных stageItem'ов (упражнений) с непрочитанным последним сообщением. Это приближение: если пациент написал 5 комментариев к одному упражнению — считается как 1. Альтернатива: реальное число сообщений (через `listUnreadCountsForViewerByStageItems` + fanout по программам). Отложено, текущее поведение достаточно для бейджа в левом пейне.
+
+3. **Прошлые программы (includePastPrograms).** Параметр реализован в загрузчике, но в основном UI-потоке не используется. Стратегия: показывать только активную программу (дефолт). Прошлые — опциональная кнопка/раскрытие в UI 5b. Данные уже готовы к передаче через `includePastPrograms=true` в API.
+
+4. **«Всего» в бейдже упражнения (state B).** `totalComments` = число patient-сообщений (без admin/doctor-ответов). Это соответствует семантике обсуждения. Если нужен счётчик "всего включая ответы врача" — нужно добавить отдельный count в порт.
+
+---
+
 ## Этап 4b — UI формы рассылки
 
 **Дата:** 2026-06-13

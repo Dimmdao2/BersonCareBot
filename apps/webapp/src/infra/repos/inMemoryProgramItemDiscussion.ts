@@ -7,6 +7,7 @@ import type {
   ProgramItemDiscussionListPageInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
+  StageItemViewerUnreadCount,
 } from "@/modules/program-item-discussion/types";
 
 function isoNow(): string {
@@ -261,6 +262,31 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       rows.delete(messageId);
       if (row.supportMessageId) bySupportMessageId.delete(row.supportMessageId);
       return true;
+    },
+
+    async listUnreadCountsForViewerByStageItems(input: {
+      stageItemIds: string[];
+      viewerUserId: string;
+    }): Promise<StageItemViewerUnreadCount[]> {
+      const { stageItemIds, viewerUserId } = input;
+      return stageItemIds.map((stageItemId) => {
+        const msgs = [...rows.values()].filter(
+          (m) => m.instanceStageItemId === stageItemId && m.senderRole === "patient",
+        );
+        const lastReadAt = reads.get(readKey(viewerUserId, stageItemId)) ?? null;
+        const total = msgs.length;
+        const unread = msgs.filter((m) => !lastReadAt || m.createdAt > lastReadAt).length;
+        const latestMsg = msgs.reduce<ProgramItemDiscussionMessage | null>((acc, m) => {
+          if (!acc || m.createdAt > acc.createdAt || (m.createdAt === acc.createdAt && m.id > acc.id)) return m;
+          return acc;
+        }, null);
+        return {
+          stageItemId,
+          total,
+          unread,
+          latestMessageAt: latestMsg ? latestMsg.createdAt : null,
+        };
+      });
     },
 
     async listUnreadExerciseCommentsForDoctor(

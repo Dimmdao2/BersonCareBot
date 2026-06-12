@@ -7,6 +7,7 @@ import type {
   ProgramItemDiscussionListPageInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
+  StageItemViewerUnreadCount,
 } from "./types";
 import {
   PROGRAM_ITEM_DISCUSSION_ORIGINS,
@@ -273,6 +274,16 @@ export function createProgramItemDiscussionService(port: ProgramItemDiscussionPo
         limit: safeLimit,
         cursor: input.cursor ?? null,
       });
+    },
+
+    async listUnreadCountsForViewerByStageItems(input: {
+      stageItemIds: string[];
+      viewerUserId: string;
+    }): Promise<StageItemViewerUnreadCount[]> {
+      const ids = [...new Set(input.stageItemIds.map((id) => assertUuid(id, "stage_item_id")))];
+      const viewerUserId = assertUuid(input.viewerUserId, "viewer_user_id");
+      if (ids.length === 0) return [];
+      return port.listUnreadCountsForViewerByStageItems({ stageItemIds: ids, viewerUserId });
     },
 
     async deletePatientMediaMessage(input: {

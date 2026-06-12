@@ -80,6 +80,22 @@ export type ListDoctorExerciseCommentsInput = {
 };
 
 /**
+ * Счётчик «всего / непрочитанных врачом» сообщений-от-пациента по одному stageItem.
+ * Используется в state B drill-down комментариев (список упражнений пациента).
+ *
+ * Семантика:
+ * - `total`  = все сообщения пациента по данному stageItem (текст + медиа).
+ * - `unread` = из них — те, чьё `createdAt` > lastReadAt для viewerUserId (или все, если lastReadAt == null).
+ * - `latestMessageAt` = ISO-дата последнего сообщения пациента (для сортировки).
+ */
+export type StageItemViewerUnreadCount = {
+  stageItemId: string;
+  total: number;
+  unread: number;
+  latestMessageAt: string | null;
+};
+
+/**
  * Одна строка результата doctor-wide запроса: последнее сообщение пациента по exercise-элементу.
  * `instanceId` и `stageItemTitle` пусты в inMemory-реализации (нет доступа к схеме программы).
  */

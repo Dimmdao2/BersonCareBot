@@ -31,6 +31,7 @@ describe("syncDiscussionReadFromSupportInboundMessages", () => {
       deleteMessageById: vi.fn(),
       listUnreadExerciseCommentsForDoctor: vi.fn(),
       listExerciseCommentsForDoctor: vi.fn(),
+      listUnreadCountsForViewerByStageItems: vi.fn(),
     };
   });
 

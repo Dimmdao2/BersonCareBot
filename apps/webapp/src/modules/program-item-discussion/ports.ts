@@ -7,6 +7,7 @@ import type {
   ProgramItemDiscussionListPageInput,
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
+  StageItemViewerUnreadCount,
 } from "./types";
 
 export type ProgramItemDiscussionPort = {
@@ -37,4 +38,14 @@ export type ProgramItemDiscussionPort = {
    * и непрочитанные). Новые сверху, keyset-пагинация. Для ленивой подгрузки в табе.
    */
   listExerciseCommentsForDoctor(input: ListDoctorExerciseCommentsInput): Promise<DoctorExerciseCommentRow[]>;
+
+  /**
+   * Batch: «всего / непрочитанных viewer'ом» по списку stageItemIds (для state B drill-down).
+   * Возвращает строку для каждого переданного id (даже если 0 сообщений — total=0, unread=0).
+   * `viewerUserId` — userId врача (ключ lastReadAt совпадает с его `markReadForViewer`).
+   */
+  listUnreadCountsForViewerByStageItems(input: {
+    stageItemIds: string[];
+    viewerUserId: string;
+  }): Promise<StageItemViewerUnreadCount[]>;
 };

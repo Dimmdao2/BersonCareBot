@@ -142,6 +142,116 @@ describe("inMemoryProgramItemDiscussionPort — listUnreadExerciseCommentsForDoc
   });
 });
 
+describe("inMemoryProgramItemDiscussionPort — listUnreadCountsForViewerByStageItems", () => {
+  it("returns zero counts for stageItem with no messages", async () => {
+    const port = createInMemoryProgramItemDiscussionPort();
+    const result = await port.listUnreadCountsForViewerByStageItems({
+      stageItemIds: [ITEM1],
+      viewerUserId: VIEWER,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      stageItemId: ITEM1,
+      total: 0,
+      unread: 0,
+      latestMessageAt: null,
+    });
+  });
+
+  it("counts only patient messages in total", async () => {
+    const port = createInMemoryProgramItemDiscussionPort();
+    await port.insertMessage(msg(ITEM1, PA, "2026-01-01T10:00:00.000Z"));
+    await port.insertMessage(msg(ITEM1, PA, "2026-01-02T10:00:00.000Z", { senderRole: "admin" }));
+
+    const result = await port.listUnreadCountsForViewerByStageItems({
+      stageItemIds: [ITEM1],
+      viewerUserId: VIEWER,
+    });
+    expect(result[0]!.total).toBe(1); // only patient msg
+    expect(result[0]!.unread).toBe(1);
+  });
+
+  it("sets unread=0 for messages read by viewer", async () => {
+    const port = createInMemoryProgramItemDiscussionPort();
+    await port.insertMessage(msg(ITEM1, PA, "2026-01-01T10:00:00.000Z"));
+    await port.markRead({
+      patientUserId: VIEWER,
+      stageItemId: ITEM1,
+      lastReadAt: "2026-01-02T00:00:00.000Z",
+    });
+
+    const result = await port.listUnreadCountsForViewerByStageItems({
+      stageItemIds: [ITEM1],
+      viewerUserId: VIEWER,
+    });
+    expect(result[0]!.total).toBe(1);
+    expect(result[0]!.unread).toBe(0); // read before
+  });
+
+  it("unread = messages after lastReadAt", async () => {
+    const port = createInMemoryProgramItemDiscussionPort();
+    await port.insertMessage(msg(ITEM1, PA, "2026-01-01T10:00:00.000Z")); // before read
+    await port.insertMessage(msg(ITEM1, PA, "2026-01-03T10:00:00.000Z")); // after read
+    await port.markRead({
+      patientUserId: VIEWER,
+      stageItemId: ITEM1,
+      lastReadAt: "2026-01-02T00:00:00.000Z",
+    });
+
+    const result = await port.listUnreadCountsForViewerByStageItems({
+      stageItemIds: [ITEM1],
+      viewerUserId: VIEWER,
+    });
+    expect(result[0]!.total).toBe(2);
+    expect(result[0]!.unread).toBe(1); // only msg after lastReadAt
+  });
+
+  it("returns latestMessageAt as ISO date of latest patient message", async () => {
+    const port = createInMemoryProgramItemDiscussionPort();
+    await port.insertMessage(msg(ITEM1, PA, "2026-01-01T10:00:00.000Z"));
+    await port.insertMessage(msg(ITEM1, PA, "2026-01-03T10:00:00.000Z"));
+
+    const result = await port.listUnreadCountsForViewerByStageItems({
+      stageItemIds: [ITEM1],
+      viewerUserId: VIEWER,
+    });
+    expect(result[0]!.latestMessageAt).toBe("2026-01-03T10:00:00.000Z");
+  });
+
+  it("handles multiple stageItems in batch", async () => {
+    const port = createInMemoryProgramItemDiscussionPort();
+    await port.insertMessage(msg(ITEM1, PA, "2026-01-01T10:00:00.000Z"));
+    await port.insertMessage(msg(ITEM1, PA, "2026-01-02T10:00:00.000Z"));
+    await port.insertMessage(msg(ITEM2, PB, "2026-01-05T10:00:00.000Z"));
+
+    const result = await port.listUnreadCountsForViewerByStageItems({
+      stageItemIds: [ITEM1, ITEM2, ITEM3],
+      viewerUserId: VIEWER,
+    });
+    expect(result).toHaveLength(3);
+
+    const r1 = result.find((r) => r.stageItemId === ITEM1)!;
+    expect(r1.total).toBe(2);
+    expect(r1.unread).toBe(2);
+
+    const r2 = result.find((r) => r.stageItemId === ITEM2)!;
+    expect(r2.total).toBe(1);
+
+    const r3 = result.find((r) => r.stageItemId === ITEM3)!;
+    expect(r3.total).toBe(0);
+    expect(r3.latestMessageAt).toBeNull();
+  });
+
+  it("returns empty array for empty stageItemIds", async () => {
+    const port = createInMemoryProgramItemDiscussionPort();
+    const result = await port.listUnreadCountsForViewerByStageItems({
+      stageItemIds: [],
+      viewerUserId: VIEWER,
+    });
+    expect(result).toHaveLength(0);
+  });
+});
+
 describe("inMemoryProgramItemDiscussionPort — listExerciseCommentsForDoctor", () => {
   it("includes read and unread items, newest first", async () => {
     const port = createInMemoryProgramItemDiscussionPort();

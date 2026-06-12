@@ -24,6 +24,7 @@ describe("program item discussion service unread", () => {
       deleteMessageById: vi.fn(),
       listUnreadExerciseCommentsForDoctor: vi.fn(),
       listExerciseCommentsForDoctor: vi.fn(),
+      listUnreadCountsForViewerByStageItems: vi.fn(),
     };
     const service = createProgramItemDiscussionService(port);
 

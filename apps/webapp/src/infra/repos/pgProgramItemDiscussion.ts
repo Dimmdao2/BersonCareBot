@@ -22,6 +22,7 @@ import type {
   ProgramItemDiscussionMessageInsert,
   ProgramItemDiscussionOrigin,
   ProgramItemDiscussionSenderRole,
+  StageItemViewerUnreadCount,
 } from "@/modules/program-item-discussion/types";
 
 function mapMessage(row: typeof programItemDiscussionMessages.$inferSelect): ProgramItemDiscussionMessage {
@@ -622,6 +623,110 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       input: ListDoctorExerciseCommentsInput,
     ): Promise<DoctorExerciseCommentRow[]> {
       return queryDoctorExerciseComments(input, { unreadOnly: false });
+    },
+
+    async listUnreadCountsForViewerByStageItems(input: {
+      stageItemIds: string[];
+      viewerUserId: string;
+    }): Promise<StageItemViewerUnreadCount[]> {
+      if (input.stageItemIds.length === 0) return [];
+      const db = getDrizzle();
+
+      // Total patient messages per stageItem + latest message date
+      const totals = await db
+        .select({
+          stageItemId: programItemDiscussionMessages.instanceStageItemId,
+          total: sql<number>`cast(count(*) as int)`,
+          latestAt: sql<string | null>`max(${programItemDiscussionMessages.createdAt})`,
+        })
+        .from(programItemDiscussionMessages)
+        .where(
+          and(
+            inArray(programItemDiscussionMessages.instanceStageItemId, input.stageItemIds),
+            eq(programItemDiscussionMessages.senderRole, "patient"),
+          ),
+        )
+        .groupBy(programItemDiscussionMessages.instanceStageItemId);
+
+      const totalMap = new Map<string, { total: number; latestAt: string | null }>(
+        totals.map((r) => [r.stageItemId, { total: r.total, latestAt: r.latestAt }]),
+      );
+
+      // lastReadAt for viewer per stageItem
+      const reads = await db
+        .select({
+          stageItemId: programItemDiscussionReads.instanceStageItemId,
+          lastReadAt: programItemDiscussionReads.lastReadAt,
+        })
+        .from(programItemDiscussionReads)
+        .where(
+          and(
+            inArray(programItemDiscussionReads.instanceStageItemId, input.stageItemIds),
+            eq(programItemDiscussionReads.patientUserId, input.viewerUserId),
+          ),
+        );
+
+      const readMap = new Map<string, string>(reads.map((r) => [r.stageItemId, r.lastReadAt]));
+
+      // For items where viewerUserId has read cursor: count messages after lastReadAt
+      const unreadCounts = await db
+        .select({
+          stageItemId: programItemDiscussionMessages.instanceStageItemId,
+          unread: sql<number>`cast(count(*) as int)`,
+        })
+        .from(programItemDiscussionMessages)
+        .where(
+          and(
+            inArray(programItemDiscussionMessages.instanceStageItemId, input.stageItemIds),
+            eq(programItemDiscussionMessages.senderRole, "patient"),
+          ),
+        )
+        .groupBy(programItemDiscussionMessages.instanceStageItemId);
+
+      // Build per-item result (unread = total unless lastReadAt is set)
+      const unreadCountMap = new Map<string, number>(unreadCounts.map((r) => [r.stageItemId, r.unread]));
+
+      // For items where lastReadAt is set, we need the real unread count (messages after lastReadAt)
+      const itemsWithRead = input.stageItemIds.filter((id) => readMap.has(id));
+      if (itemsWithRead.length > 0) {
+        const unreadAfterRead = await db
+          .select({
+            stageItemId: programItemDiscussionMessages.instanceStageItemId,
+            unread: sql<number>`cast(count(*) as int)`,
+          })
+          .from(programItemDiscussionMessages)
+          .where(
+            and(
+              inArray(programItemDiscussionMessages.instanceStageItemId, itemsWithRead),
+              eq(programItemDiscussionMessages.senderRole, "patient"),
+              sql`${programItemDiscussionMessages.createdAt} > (
+                SELECT last_read_at FROM program_item_discussion_reads
+                WHERE instance_stage_item_id = ${programItemDiscussionMessages.instanceStageItemId}
+                  AND patient_user_id = ${input.viewerUserId}
+                LIMIT 1
+              )`,
+            ),
+          )
+          .groupBy(programItemDiscussionMessages.instanceStageItemId);
+
+        for (const r of unreadAfterRead) {
+          unreadCountMap.set(r.stageItemId, r.unread);
+        }
+        // For items with read cursor but no unread rows above, set unread to 0
+        for (const id of itemsWithRead) {
+          if (!unreadAfterRead.some((r) => r.stageItemId === id)) {
+            unreadCountMap.set(id, 0);
+          }
+        }
+      }
+
+      return input.stageItemIds.map((stageItemId) => {
+        const entry = totalMap.get(stageItemId);
+        const total = entry?.total ?? 0;
+        const latestMessageAt = entry?.latestAt ?? null;
+        const unread = total === 0 ? 0 : (unreadCountMap.get(stageItemId) ?? total);
+        return { stageItemId, total, unread, latestMessageAt };
+      });
     },
 
     async listStageItemIdsByExerciseTitleForPatient(
