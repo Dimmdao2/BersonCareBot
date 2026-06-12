@@ -76,6 +76,11 @@ import { createPgDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/pgDocto
 import { createInMemoryDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/inMemoryDoctorBroadcastDelivery";
 import { createPgPatientBroadcastsPort } from "@/infra/repos/pgPatientBroadcasts";
 import { inMemoryPatientBroadcastsPort } from "@/infra/repos/inMemoryPatientBroadcasts";
+import { createPgBroadcastDraftPort } from "@/infra/repos/pgBroadcastDrafts";
+import { createInMemoryBroadcastDraftPort } from "@/infra/repos/inMemoryBroadcastDrafts";
+import type { BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
+import { createPgBroadcastChannelCountsPort } from "@/infra/repos/broadcastChannelCounts";
+import { createInMemoryBroadcastChannelCountsPort } from "@/infra/repos/inMemoryBroadcastChannelCounts";
 import { createPgDoctorMotivationQuotesEditorPort } from "@/infra/repos/pgDoctorMotivationQuotesEditor";
 import { inMemoryDoctorMotivationQuotesEditorPort } from "@/infra/repos/inMemoryDoctorMotivationQuotesEditor";
 import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppointments";
@@ -402,6 +407,12 @@ const doctorBroadcastDeliveryCommitPort = !inMemoryRepos
   ? createPgDoctorBroadcastDeliveryCommitPort()
   : createInMemoryDoctorBroadcastDeliveryCommitPort();
 const patientBroadcastsPort = !inMemoryRepos ? createPgPatientBroadcastsPort() : inMemoryPatientBroadcastsPort;
+const broadcastDraftPort = !inMemoryRepos
+  ? createPgBroadcastDraftPort()
+  : createInMemoryBroadcastDraftPort();
+const broadcastChannelCountsPort = !inMemoryRepos
+  ? createPgBroadcastChannelCountsPort()
+  : createInMemoryBroadcastChannelCountsPort();
 const doctorMotivationQuotesEditorPort = !inMemoryRepos
   ? createPgDoctorMotivationQuotesEditorPort()
   : inMemoryDoctorMotivationQuotesEditorPort;
@@ -1346,6 +1357,12 @@ function _buildAppDeps() {
         patientInboundChatPort: supportCommunicationPort,
       },
     }),
+    doctorBroadcastComposer: {
+      loadDraft: (doctorUserId: string) => broadcastDraftPort.loadDraft(doctorUserId),
+      saveDraft: (doctorUserId: string, draft: BroadcastDraft) =>
+        broadcastDraftPort.saveDraft(doctorUserId, draft),
+      getChannelCounts: () => broadcastChannelCountsPort.getChannelConnectionCounts(),
+    },
     doctorMotivationQuotesEditor: doctorMotivationQuotesEditorPort,
     purchases: {
       getPurchaseSectionState,

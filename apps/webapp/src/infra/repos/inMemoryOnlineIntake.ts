@@ -6,6 +6,7 @@ import type {
   CreateNutritionIntakeInput,
   IntakeAnswer,
   IntakeAttachment,
+  IntakeDoctorStats,
   IntakeRequest,
   IntakeRequestFull,
   IntakeRequestFullWithPatientIdentity,
@@ -250,6 +251,24 @@ export function createInMemoryOnlineIntake(deps?: {
       const updated: IntakeRequest = { ...req, status: input.toStatus, updatedAt: ts };
       requests.set(input.requestId, updated);
       return updated;
+    },
+
+    async getDoctorStats(days: number): Promise<IntakeDoctorStats> {
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      const all = [...requests.values()].filter((r) => r.createdAt >= since);
+      const byStatus: Record<string, number> = {};
+      for (const r of all) {
+        byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+      }
+      const booked = byStatus["booked"] ?? 0;
+      const rejected = byStatus["rejected"] ?? 0;
+      const denominator = booked + rejected;
+      return {
+        days,
+        total: all.length,
+        byStatus: byStatus as Record<IntakeStatus, number>,
+        conversionRate: denominator > 0 ? booked / denominator : null,
+      };
     },
   };
 }

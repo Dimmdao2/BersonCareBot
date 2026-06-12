@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { cn } from "@/lib/utils";
+import { Input } from "@/shared/ui/doctor/primitives/input";
 import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
-import { doctorPageStackClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 
-/** Интервал поллинга списка диалогов — ~1/сек. */
 const POLL_INTERVAL_MS = 1_000;
 
 type ConvRow = {
@@ -17,6 +16,7 @@ type ConvRow = {
   lastSenderRole: string | null;
   unreadFromUserCount: number;
   hasUnreadFromUser: boolean;
+  onSupport: boolean;
 };
 
 type ConversationApiRow = {
@@ -28,17 +28,27 @@ type ConversationApiRow = {
   lastSenderRole: string | null;
   unreadFromUserCount?: number;
   hasUnreadFromUser?: boolean;
+  onSupport?: boolean;
 };
 
 function formatConversationTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const now = new Date();
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
+  const time = date.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  if (isToday) return time;
+  const dayMonth = date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit" });
+  return `${dayMonth} · ${time}`;
+}
+
+function getSenderPrefix(conv: ConvRow): string {
+  if (conv.lastSenderRole === "admin") return "Вы";
+  const firstName = (conv.displayName.split(" ")[0] ?? "").trim();
+  return firstName || "Пациент";
 }
 
 function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
@@ -51,58 +61,61 @@ function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
     lastSenderRole: c.lastSenderRole,
     unreadFromUserCount: c.unreadFromUserCount ?? 0,
     hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
+    onSupport: c.onSupport ?? false,
   }));
 }
 
-/** Хэш-сигнатура для обнаружения реального изменения при поллинге. */
 function convSignature(rows: ConvRow[]): string {
   return rows
-    .map((r) => `${r.conversationId}:${r.lastMessageAt}:${r.unreadFromUserCount}`)
+    .map(
+      (r) =>
+        `${r.conversationId}:${r.lastMessageAt}:${r.unreadFromUserCount}:${r.onSupport ? "1" : "0"}`,
+    )
     .join("|");
 }
 
 export type DoctorSupportInboxProps = {
-  /**
-   * Признак активного таба. Когда false — поллинг останавливается.
-   * По умолчанию true (для использования вне шелла коммуникаций).
-   */
   active?: boolean;
 };
 
+type FilterMode = "all" | "unread" | "onSupport";
+
 export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
-  const [list, setList] = useState<ConvRow[]>([]);
+  const [allList, setAllList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [filter, setFilter] = useState<FilterMode>("all");
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  /** Сигнатура последнего отрисованного состояния списка — для skip при поллинге без изменений. */
   const sigRef = useRef<string>("");
 
-  const loadList = useCallback(async () => {
-    setError(null);
+  const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
     try {
       const url = new URL("/api/doctor/messages/conversations", window.location.origin);
-      if (unreadOnly) url.searchParams.set("unread", "1");
       const res = await fetch(url.toString());
       const data = (await res.json()) as {
         ok?: boolean;
         conversations?: ConversationApiRow[];
       };
-      if (!res.ok || !data.ok || !data.conversations) {
-        setError("Не удалось загрузить диалоги");
-        setList([]);
-        sigRef.current = "";
-        return;
-      }
-      const rows = mapConvRows(data.conversations);
-      sigRef.current = convSignature(rows);
-      setList(rows);
+      if (!res.ok || !data.ok || !data.conversations) return null;
+      return mapConvRows(data.conversations);
     } catch {
-      setError("Ошибка сети при загрузке диалогов");
-      setList([]);
-      sigRef.current = "";
+      return null;
     }
-  }, [unreadOnly]);
+  }, []);
+
+  const loadList = useCallback(async () => {
+    setError(null);
+    const rows = await fetchList();
+    if (rows === null) {
+      setError("Не удалось загрузить диалоги");
+      setAllList([]);
+      sigRef.current = "";
+    } else {
+      sigRef.current = convSignature(rows);
+      setAllList(rows);
+    }
+  }, [fetchList]);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,29 +132,16 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
     };
   }, [loadList]);
 
-  // Умный поллинг: только активный таб + видимое окно; setState только при реальном изменении.
-  // Интервал паузится при скрытии окна и возобновляется при возврате — нет холостых тиков.
   useEffect(() => {
     if (!active) return;
 
     const pollOnce = async () => {
-      try {
-        const url = new URL("/api/doctor/messages/conversations", window.location.origin);
-        if (unreadOnly) url.searchParams.set("unread", "1");
-        const res = await fetch(url.toString());
-        const data = (await res.json()) as {
-          ok?: boolean;
-          conversations?: ConversationApiRow[];
-        };
-        if (!res.ok || !data.ok || !data.conversations) return;
-        const rows = mapConvRows(data.conversations);
-        const sig = convSignature(rows);
-        if (sig === sigRef.current) return;
-        sigRef.current = sig;
-        setList(rows);
-      } catch {
-        // silently skip poll errors — не сбрасываем отображённый список
-      }
+      const rows = await fetchList();
+      if (rows === null) return;
+      const sig = convSignature(rows);
+      if (sig === sigRef.current) return;
+      sigRef.current = sig;
+      setAllList(rows);
     };
 
     let timerId: ReturnType<typeof setInterval> | null = null;
@@ -160,99 +160,167 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        void pollOnce(); // немедленный poll при возврате видимости
+        void pollOnce();
         startInterval();
       } else {
-        stopInterval(); // пауза — нет холостых тиков при скрытом окне
+        stopInterval();
       }
     };
 
-    // Запускаем интервал только если окно уже видимо при монтировании
-    if (document.visibilityState === "visible") {
-      startInterval();
-    }
+    if (document.visibilityState === "visible") startInterval();
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       stopInterval();
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [active, unreadOnly]);
+  }, [active, fetchList]);
+
+  const unreadCount = allList.filter((c) => c.unreadFromUserCount > 0).length;
+  const onSupportCount = allList.filter((c) => c.onSupport).length;
+
+  const filteredByChip =
+    filter === "unread"
+      ? allList.filter((c) => c.unreadFromUserCount > 0)
+      : filter === "onSupport"
+        ? allList.filter((c) => c.onSupport)
+        : allList;
+
+  const filteredList = query.trim()
+    ? filteredByChip.filter((c) => c.displayName.toLowerCase().includes(query.toLowerCase()))
+    : filteredByChip;
 
   if (loading) {
-    return <p className="text-muted-foreground">Загрузка…</p>;
+    return (
+      <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+        Загрузка…
+      </div>
+    );
   }
 
   return (
-    <section id="doctor-support-inbox" className={doctorPageStackClass}>
-      <h2 className={doctorSectionTitleClass}>Поддержка (чат)</h2>
-      <div className="flex flex-wrap gap-2" aria-label="Фильтр диалогов">
-        <Button type="button" size="sm" variant={!unreadOnly ? "default" : "outline"} onClick={() => setUnreadOnly(false)}>
-          Все
-        </Button>
-        <Button type="button" size="sm" variant={unreadOnly ? "default" : "outline"} onClick={() => setUnreadOnly(true)}>
-          Непрочитанные
-        </Button>
-      </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr]">
-        <ul className="space-y-1 border border-border/60 rounded-lg p-2 max-h-[60vh] overflow-y-auto">
-          {list.length === 0 ? (
-            <li className="text-sm text-muted-foreground px-2 py-2">
-              {unreadOnly ? "Нет непрочитанных диалогов" : "Нет открытых диалогов"}
-            </li>
+    <div
+      id="doctor-support-inbox"
+      className="grid min-h-[400px] gap-3"
+      style={{ gridTemplateColumns: "1.4fr 1fr" }}
+    >
+      {/* ── Left: conversation list ── */}
+      <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        {/* Header: search + filter chips */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-3 py-2">
+          <Input
+            type="search"
+            placeholder="Поиск по имени пациента"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-8 min-w-[120px] flex-1"
+            aria-label="Поиск по имени пациента"
+          />
+          <button
+            type="button"
+            onClick={() => setFilter(filter === "unread" ? "all" : "unread")}
+            className={cn(
+              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              filter === "unread"
+                ? "bg-primary/15 text-primary"
+                : "border border-border text-muted-foreground hover:bg-muted/40",
+            )}
+            aria-pressed={filter === "unread"}
+          >
+            Непрочитанные · {unreadCount}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter(filter === "onSupport" ? "all" : "onSupport")}
+            className={cn(
+              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              filter === "onSupport"
+                ? "bg-primary/15 text-primary"
+                : "border border-border text-muted-foreground hover:bg-muted/40",
+            )}
+            aria-pressed={filter === "onSupport"}
+          >
+            ★ На сопровождении · {onSupportCount}
+          </button>
+        </div>
+
+        {error && (
+          <p className="border-b border-border px-3 py-2 text-xs text-destructive">{error}</p>
+        )}
+
+        {/* Conversation rows */}
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          {filteredList.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center py-8 text-sm text-muted-foreground">
+              {query.trim()
+                ? "Ничего не найдено"
+                : filter === "unread"
+                  ? "Нет непрочитанных диалогов"
+                  : filter === "onSupport"
+                    ? "Нет диалогов на сопровождении"
+                    : "Нет открытых диалогов"}
+            </div>
           ) : (
-            list.map((c) => (
-              <li key={c.conversationId}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={
-                    selectedId === c.conversationId
-                      ? "h-auto w-full flex-col items-stretch gap-0.5 rounded-md px-2 py-2 text-left text-sm font-normal"
-                      : "h-auto w-full flex-col items-stretch gap-0.5 rounded-md px-2 py-2 text-left text-sm font-normal hover:bg-muted/60"
-                  }
-                  onClick={() => {
-                    setSelectedId(c.conversationId);
-                  }}
-                >
-                  <span className="flex w-full items-center justify-between gap-2">
-                    <span className="truncate font-medium">{c.displayName || "Без имени"}</span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="text-[10px] text-muted-foreground">{formatConversationTime(c.lastMessageAt)}</span>
-                      {c.unreadFromUserCount > 0 ? (
-                        <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                          {c.unreadFromUserCount}
-                        </span>
-                      ) : null}
+            filteredList.map((c) => (
+              <button
+                key={c.conversationId}
+                type="button"
+                onClick={() => setSelectedId(c.conversationId)}
+                className={cn(
+                  "flex w-full cursor-pointer gap-2 border-b border-border px-3 py-2.5 text-left transition-colors",
+                  selectedId === c.conversationId
+                    ? "bg-primary/15"
+                    : "hover:bg-muted/40",
+                )}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="truncate text-sm font-semibold">
+                      {c.displayName || "Без имени"}
+                      {c.onSupport && (
+                        <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
+                      )}
                     </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatConversationTime(c.lastMessageAt)}
+                    </span>
+                  </div>
+                  {c.lastMessageText && (
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground/80">{getSenderPrefix(c)}:</span>{" "}
+                      {c.lastMessageText}
+                    </div>
+                  )}
+                </div>
+                {c.unreadFromUserCount > 0 && (
+                  <span className="self-center rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                    {c.unreadFromUserCount}
                   </span>
-                  <span className="block w-full truncate text-xs text-muted-foreground">
-                    {c.phoneNormalized ? `Телефон: ${c.phoneNormalized}` : "Телефон не указан"}
-                  </span>
-                  <span className="block w-full text-xs text-muted-foreground">
-                    {c.hasUnreadFromUser ? "Пациент · " : c.lastSenderRole === "user" ? "Пациент · " : ""}
-                    {(c.lastMessageText ?? "").slice(0, 80)}
-                    {(c.lastMessageText?.length ?? 0) > 80 ? "…" : ""}
-                  </span>
-                </Button>
-              </li>
+                )}
+              </button>
             ))
-          )}
-        </ul>
-        <div>
-          {!selectedId ? (
-            <p className="text-muted-foreground text-sm">Выберите диалог слева</p>
-          ) : (
-            <DoctorChatPanel
-              key={selectedId}
-              conversationId={selectedId}
-              onReadStateChanged={loadList}
-              onSent={loadList}
-            />
           )}
         </div>
       </div>
-    </section>
+
+      {/* ── Right: empty state or chat panel ── */}
+      <div className="flex min-h-[300px] flex-col overflow-hidden rounded-lg border border-border bg-card">
+        {!selectedId ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6">
+            <p className="text-sm font-semibold text-foreground">Выберите чат слева</p>
+            <p className="text-center text-xs text-muted-foreground">
+              Когда диалог выбран — здесь появляется тред переписки с полем ответа
+            </p>
+          </div>
+        ) : (
+          <DoctorChatPanel
+            key={selectedId}
+            conversationId={selectedId}
+            onReadStateChanged={loadList}
+            onSent={loadList}
+          />
+        )}
+      </div>
+    </div>
   );
 }

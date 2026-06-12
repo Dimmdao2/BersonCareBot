@@ -8,6 +8,9 @@ const previewMock = vi.fn();
 const executeMock = vi.fn();
 const listAuditMock = vi.fn();
 const revalidatePathMock = vi.fn();
+const loadDraftMock = vi.fn();
+const saveDraftMock = vi.fn();
+const getChannelCountsMock = vi.fn();
 
 vi.mock("next/cache", () => ({
   revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
@@ -24,6 +27,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       execute: executeMock,
       listAudit: listAuditMock,
     },
+    doctorBroadcastComposer: {
+      loadDraft: loadDraftMock,
+      saveDraft: saveDraftMock,
+      getChannelCounts: getChannelCountsMock,
+    },
   }),
 }));
 
@@ -31,7 +39,11 @@ import {
   previewBroadcastAction,
   executeBroadcastAction,
   listBroadcastAuditAction,
+  loadDraftAction,
+  saveDraftAction,
+  getChannelCountsAction,
 } from "./actions";
+import type { BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
 import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
 
 const baseCommand = {
@@ -115,5 +127,58 @@ describe("listBroadcastAuditAction", () => {
     await listBroadcastAuditAction();
 
     expect(listAuditMock).toHaveBeenCalledWith(undefined);
+  });
+});
+
+describe("loadDraftAction", () => {
+  beforeEach(() => loadDraftMock.mockClear());
+
+  it("loads the draft for the session doctor", async () => {
+    const draft: BroadcastDraft = {
+      category: "reminder",
+      audience: "with_telegram",
+      channels: ["bot_message"],
+      title: "T",
+      body: "B",
+    };
+    loadDraftMock.mockResolvedValue(draft);
+
+    const result = await loadDraftAction();
+
+    expect(loadDraftMock).toHaveBeenCalledWith("doctor-1");
+    expect(result).toEqual(draft);
+  });
+});
+
+describe("saveDraftAction", () => {
+  beforeEach(() => saveDraftMock.mockClear());
+
+  it("saves the draft for the session doctor", async () => {
+    const draft: BroadcastDraft = {
+      category: null,
+      audience: null,
+      channels: ["sms"],
+      title: "T",
+      body: "B",
+    };
+    saveDraftMock.mockResolvedValue(undefined);
+
+    await saveDraftAction(draft);
+
+    expect(saveDraftMock).toHaveBeenCalledWith("doctor-1", draft);
+  });
+});
+
+describe("getChannelCountsAction", () => {
+  beforeEach(() => getChannelCountsMock.mockClear());
+
+  it("returns channel counts from the composer", async () => {
+    const counts = { bot_message: 10, sms: 5, push: 0 };
+    getChannelCountsMock.mockResolvedValue(counts);
+
+    const result = await getChannelCountsAction();
+
+    expect(getChannelCountsMock).toHaveBeenCalled();
+    expect(result).toEqual(counts);
   });
 });

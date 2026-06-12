@@ -8,6 +8,7 @@ import type {
   BroadcastCommand,
   BroadcastPreviewResult,
 } from "@/modules/doctor-broadcasts/ports";
+import type { BroadcastChannelCounts, BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
 
 export async function previewBroadcastAction(
   command: Omit<BroadcastCommand, "actorId">
@@ -31,4 +32,22 @@ export async function listBroadcastAuditAction(limit?: number): Promise<Broadcas
   await requireDoctorAccess();
   const deps = buildAppDeps();
   return deps.doctorBroadcasts.listAudit(limit);
+}
+
+export async function loadDraftAction(): Promise<BroadcastDraft | null> {
+  const session = await requireDoctorAccess();
+  const deps = buildAppDeps();
+  return deps.doctorBroadcastComposer.loadDraft(session.user.userId);
+}
+
+export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
+  const session = await requireDoctorAccess();
+  const deps = buildAppDeps();
+  await deps.doctorBroadcastComposer.saveDraft(session.user.userId, draft);
+}
+
+export async function getChannelCountsAction(): Promise<BroadcastChannelCounts> {
+  await requireDoctorAccess();
+  const deps = buildAppDeps();
+  return deps.doctorBroadcastComposer.getChannelCounts();
 }

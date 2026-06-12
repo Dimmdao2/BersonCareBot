@@ -5,7 +5,7 @@ import { canAccessDoctor } from "@/modules/roles/service";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 
 const bodySchema = z.object({
-  status: z.enum(["in_review", "contacted", "closed"]),
+  status: z.enum(["in_review", "contacted", "booked", "rejected", "closed"]),
   note: z.string().max(500).optional(),
 });
 

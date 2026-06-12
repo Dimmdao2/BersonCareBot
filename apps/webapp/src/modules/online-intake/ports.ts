@@ -2,6 +2,7 @@ import type {
   ChangeIntakeStatusInput,
   CreateLfkIntakeInput,
   CreateNutritionIntakeInput,
+  IntakeDoctorStats,
   IntakeRequest,
   IntakeRequestFull,
   IntakeRequestFullWithPatientIdentity,
@@ -34,6 +35,7 @@ export type OnlineIntakePort = {
   }>;
   countActiveByUser(userId: string, type: IntakeType): Promise<number>;
   changeStatus(input: ChangeIntakeStatusInput): Promise<IntakeRequest>;
+  getDoctorStats(days: number): Promise<IntakeDoctorStats>;
 };
 
 export type IntakeNotificationPort = {
@@ -55,4 +57,5 @@ export type OnlineIntakeService = {
   getRequestForDoctor(id: string): Promise<IntakeRequestFullWithPatientIdentity | null>;
   listForDoctor(query: ListIntakeQuery): Promise<{ items: IntakeRequestWithPatientIdentity[]; total: number }>;
   changeStatus(input: ChangeIntakeStatusInput): Promise<IntakeRequest>;
+  getDoctorStats(days: number): Promise<IntakeDoctorStats>;
 };

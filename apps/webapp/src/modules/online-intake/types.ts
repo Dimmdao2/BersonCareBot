@@ -1,6 +1,6 @@
 export type IntakeType = "lfk" | "nutrition";
 
-export type IntakeStatus = "new" | "in_review" | "contacted" | "closed";
+export type IntakeStatus = "new" | "in_review" | "contacted" | "booked" | "rejected" | "closed";
 
 export type IntakeAttachmentType = "file" | "url";
 
@@ -96,10 +96,20 @@ export type ChangeIntakeStatusInput = {
 };
 
 export const VALID_STATUS_TRANSITIONS: Record<IntakeStatus, IntakeStatus[]> = {
-  new: ["in_review", "contacted", "closed"],
-  in_review: ["contacted", "closed"],
-  contacted: ["closed"],
+  new: ["in_review", "contacted", "booked", "rejected", "closed"],
+  in_review: ["contacted", "booked", "rejected", "closed"],
+  contacted: ["booked", "rejected", "closed"],
+  booked: ["closed"],
+  rejected: ["closed"],
   closed: [],
 };
 
 export const MAX_ACTIVE_INTAKE_PER_USER = 3;
+
+export type IntakeDoctorStats = {
+  days: number;
+  total: number;
+  byStatus: Record<IntakeStatus, number>;
+  /** booked / (booked + rejected) when denominator > 0, else null. */
+  conversionRate: number | null;
+};

@@ -16,6 +16,7 @@ import type {
   CreateNutritionIntakeInput,
   IntakeAnswer,
   IntakeAttachment,
+  IntakeDoctorStats,
   IntakeRequest,
   IntakeRequestFull,
   IntakeRequestFullWithPatientIdentity,
@@ -451,6 +452,37 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       } finally {
         client.release();
       }
+    },
+
+    async getDoctorStats(days: number): Promise<IntakeDoctorStats> {
+      const pool = getPool();
+      const { rows } = await pool.query<{ status: string; cnt: string }>(
+        `SELECT status, COUNT(*) AS cnt
+         FROM online_intake_requests
+         WHERE created_at >= NOW() - ($1 || ' days')::interval
+         GROUP BY status`,
+        [days],
+      );
+
+      const byStatus: Record<string, number> = {};
+      let total = 0;
+      for (const row of rows) {
+        const count = parseInt(row.cnt, 10);
+        byStatus[row.status] = count;
+        total += count;
+      }
+
+      const booked = byStatus["booked"] ?? 0;
+      const rejected = byStatus["rejected"] ?? 0;
+      const denominator = booked + rejected;
+      const conversionRate = denominator > 0 ? booked / denominator : null;
+
+      return {
+        days,
+        total,
+        byStatus: byStatus as Record<IntakeStatus, number>,
+        conversionRate,
+      };
     },
   };
 }

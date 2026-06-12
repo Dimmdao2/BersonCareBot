@@ -9,7 +9,6 @@ import { BroadcastDeliveryArchiveClient } from "../../broadcasts/BroadcastDelive
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import {
   doctorInlineLinkClass,
-  doctorPageStackClass,
   doctorSectionCardClass,
   doctorSectionTitleClass,
 } from "@/shared/ui/doctor/doctorVisual";
@@ -19,7 +18,7 @@ import type { CommunicationsTabProps } from "../communicationsTabRegistry";
 export function BroadcastsTab({ deepLinkParams, onDeepLinkChange }: CommunicationsTabProps) {
   if (deepLinkParams.archive === "1") {
     return (
-      <div className={doctorPageStackClass}>
+      <div className="flex flex-col gap-4">
         <div>
           <Button
             type="button"
@@ -63,26 +62,34 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
   }, []);
 
   return (
-    <div className={doctorPageStackClass}>
-      <p className="text-sm text-muted-foreground">
-        После отправки сообщения ставятся в очередь доставки; счётчики в журнале обновляются по
-        мере работы воркера.{" "}
-        <button type="button" onClick={onArchive} className={doctorInlineLinkClass}>
-          Архив ошибок доставки
-        </button>
-      </p>
+    <div
+      className="grid min-h-0 gap-4"
+      style={{ gridTemplateColumns: "1fr 1.2fr" }}
+    >
+      {/* Left: form */}
       <section className={doctorSectionCardClass}>
         <h2 className={`mb-3 ${doctorSectionTitleClass}`}>Новая рассылка</h2>
         <BroadcastForm onBroadcastSent={() => void refreshLog()} />
       </section>
-      <section className={doctorSectionCardClass}>
-        <h2 className={`mb-3 ${doctorSectionTitleClass}`}>Журнал рассылок</h2>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Загрузка…</p>
-        ) : (
-          <BroadcastAuditLog entries={entries} />
-        )}
-      </section>
+
+      {/* Right: audit log */}
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">
+          После отправки сообщения ставятся в очередь; счётчики в журнале обновляются по мере
+          работы воркера.{" "}
+          <button type="button" onClick={onArchive} className={doctorInlineLinkClass}>
+            Архив ошибок доставки
+          </button>
+        </p>
+        <section className={doctorSectionCardClass}>
+          <h2 className={`mb-3 ${doctorSectionTitleClass}`}>Журнал рассылок</h2>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Загрузка…</p>
+          ) : (
+            <BroadcastAuditLog entries={entries} />
+          )}
+        </section>
+      </div>
     </div>
   );
 }
