@@ -91,7 +91,10 @@ async function queryDoctorExerciseComments(
         supportMessageId: programItemDiscussionMessages.supportMessageId,
         createdAt: programItemDiscussionMessages.createdAt,
         snapshot: treatmentProgramInstanceStageItems.snapshot,
-        instanceId: treatmentProgramInstances.id,
+        // ВАЖНО: явный алиас instance_id — иначе колонка тоже зовётся "id" и
+        // CTE получает дубликат столбца "id" (вместе с messages.id) → Postgres падает
+        // ("Failed query … select "id", …, "id", …"). См. TODO#3 fix.
+        instanceId: sql<string>`${treatmentProgramInstances.id}`.as("instance_id"),
         lastReadAt: programItemDiscussionReads.lastReadAt,
       })
       .from(programItemDiscussionMessages)
