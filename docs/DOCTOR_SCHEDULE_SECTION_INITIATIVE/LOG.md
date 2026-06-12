@@ -705,3 +705,126 @@
   (Drizzle-инференс типобезопасен; тестирование требовало бы фиктивной `$inferSelect` структуры —
   избыточно; покрыт косвенно через route.test.ts mock-calls).
 - Полный `pnpm run ci` не запускался (оркестратор запустит отдельно по завершении всего свипа).
+
+---
+
+## 2026-06-12 — Этап B — Перерывы (breaks jsonb) + короткое имя филиала (v26_rebuild)
+
+### B1 — Drizzle-схема + миграции
+
+**Изменения в схеме:**
+- `apps/webapp/db/schema/bookingScheduling.ts`:
+  - `beWorkingDays` и `beScheduleTemplates`: добавлена колонка `breaks` (`jsonb NOT NULL DEFAULT '[]'::jsonb`, `$type<Array<{startMinute,endMinute}>>`) — N-break модель.
+  - Легаси-колонки `breakStartMinute`/`breakEndMinute` оставлены nullable для backward-compat.
+- `apps/webapp/db/schema/bookingEngine.ts`:
+  - `beBranches`: добавлена колонка `shortTitle` (`text`, nullable) — migration 0117.
+
+**Миграции (ручные SQL, не drizzle-kit — `bookingScheduling.ts` не в `drizzle.config.ts`):**
+- `0116_breaks_jsonb_working_days_templates.sql`:
+  - `ALTER TABLE be_working_days ADD COLUMN IF NOT EXISTS breaks jsonb NOT NULL DEFAULT '[]'::jsonb`
+  - `ALTER TABLE be_schedule_templates ADD COLUMN IF NOT EXISTS breaks jsonb NOT NULL DEFAULT '[]'::jsonb`
+  - Бэкфилл: `UPDATE … SET breaks = jsonb_build_array(…) WHERE break_start_minute IS NOT NULL AND … AND breaks = '[]'::jsonb`
+  - Применена к dev-БД: бэкфилл 5 строк в `working_days`, 0 в `templates`. Идемпотентна.
+- `0117_be_branches_short_title.sql`:
+  - `ALTER TABLE be_branches ADD COLUMN IF NOT EXISTS short_title text`
+  - Применена к dev-БД. Идемпотентна.
+- `meta/_journal.json`: добавлены записи idx=116 (`when=1785900000000`) и idx=117 (`when=1786000000000`).
+
+**Решение — fallback на легаси-скалары:** если `breaks = []` после бэкфилла (строка без перерыва),
+синтезировать из `breakStartMinute`/`breakEndMinute` только в runtime (`resolveBreaks` helper в
+pgBookingScheduling). Это безопасно: строки с `breaks IS NULL` не существуют (DEFAULT `'[]'`).
+
+### B2 — Порты / Сервис / Репозиторий / Zod-валидация
+
+**Типы и порты:**
+- `modules/booking-scheduling/ports.ts`:
+  - `BreakInterval = { startMinute: number; endMinute: number }`.
+  - `breaks: BreakInterval[]` → `WorkingDayRecord`, `ScheduleTemplateRecord`.
+  - `breaks?: BreakInterval[]` → `UpsertWorkingDaysInput`, `CreateScheduleTemplateInput`.
+
+**Сервис (`modules/booking-scheduling/service.ts`):**
+- `validateBreaks(breaks, dayStart, dayEnd)`: count ≤ 6 (`MAX_BREAKS`), каждый ⊂ [dayStart, dayEnd],
+  без пересечений (sorted prev.end ≤ cur.start).
+- `validateUpsertInput` и `validateScheduleTemplateInput` вызывают `validateBreaks` при `breaks.length > 0`.
+- `applyScheduleTemplate`: `effectiveBreaks` = `tmpl.breaks.length > 0 ? tmpl.breaks : (legacy scalar fallback)`.
+
+**Репозиторий (`infra/repos/pgBookingScheduling.ts`):**
+- `resolveBreaks(breaks, legacyStart, legacyEnd)` helper — централизованный fallback.
+- `mapWorkingDayRow`, `mapRawWorkingDayRow`, `mapTemplateRow` — включают `breaks`.
+- `RawWorkingDayRow` расширен полем `breaks: Array<…> | null`.
+- Raw SQL в `upsertWorkingDays`/`closeWorkingDays` включает колонку `breaks`.
+- `createScheduleTemplate` пишет `effectiveBreaks`.
+
+**Zod-валидация в API-роутах:**
+- `working-days/route.ts`: `breakIntervalSchema = z.object({startMinute, endMinute})`;
+  `breaks: z.array(breakIntervalSchema).max(6).optional()` в `upsertSchema`.
+- `working-schedule-templates/route.ts`: аналогично в `createBody`.
+
+**Тесты:**
+- `pgBookingScheduling.mappers.test.ts`: +3 новых теста (breaks=[] при нет легаси, легаси→синтез, breaks[] приоритет). Итого 5/5.
+- `modules/booking-scheduling/service.test.ts`: `breaks: []` добавлен в фикстуру `WorkingDayRecord` (type-fix). 3/3.
+
+### B3 — Слот-движок: N перерывов
+
+**Изменения в `computeSlots.ts`:**
+- `WorkingDayRow` type: добавлено опциональное поле `breaks?`.
+- `resolveWorkingDayBreaks(row)`: возвращает `BreakInterval[]` с fallback на legacy scalars.
+- `splitByBreak(row, dateKey, tz, buffer)` — полный рерайт с cursor-based подходом:
+  - Сортировка breaks по `startMinute`.
+  - Курсор `cursorMs` движется от `dayStartMs`; при каждом break (clamp к [dayStart, dayEnd])
+    добавляет интервал `[cursor, breakStart]` и двигает курсор на `breakEnd`.
+  - Финальный хвост `[cursor, dayEnd]` добавляется если `cursor < dayEnd`.
+  - Результат: N+1 интервалов для N перерывов.
+
+**Тесты `computeSlots.test.ts`:** +11 новых тестов (0 перерывов, 1 через breaks[], 1 через legacy scalar, 2 перерыва, 3 перерыва, flush start, flush end, breaks[] приоритет, closed day, weekday fallback). Итого 16/16.
+
+### B4 — be_branches.short_title: чтение + UI
+
+**Типы и порты:**
+- `modules/booking-engine/types.ts`: `BeBranch.shortTitle: string | null`.
+- `modules/booking-engine/ports.ts`: `OrganizationCatalogPort.upsertBranch` — `shortTitle?: string | null`.
+- `modules/booking-calendar/types.ts`: `CalendarFilterOption.shortLabel?: string | null`.
+
+**Репозитории:**
+- `infra/repos/pgBookingEngine.ts`:
+  - `mapBranch()`: читает `row.shortTitle ?? null`.
+  - `upsertBranch()`: пишет `shortTitle` (key-in-input check для обновлений).
+- `infra/repos/pgBookingCalendar.ts`:
+  - `listFilterMeta`: `select` включает `shortTitle: beBranches.shortTitle`;
+    маппинг branches: `{ id, label, shortLabel: r.shortTitle ?? null }`.
+
+**API-роут:**
+- `branches/[id]/route.ts`: `PatchSchema` расширена полем `shortTitle: z.string().trim().max(12).nullable().optional()`.
+  `upsertBranch` call: `shortTitle` передаётся только если присутствует в `parsed.data` (preserve-existing семантика).
+
+**Settings UI:**
+- `app/app/settings/bookingSoloAdminApi.ts`: `SoloOverview.branches` — добавлено поле `shortTitle: string | null`.
+- `app/app/settings/BookingSoloLocationsSection.tsx`:
+  - `editShortTitle` state.
+  - Столбец «Короткое название» в таблице (header + cell).
+  - В режиме редактирования: `<Input placeholder="СПб, Мск" maxLength={12} …>`.
+  - Инициализация при нажатии «Изм.»: `setEditShortTitle(b.shortTitle ?? "")`.
+  - Сохранение: `shortTitle: editShortTitle.trim() || null` в PATCH body.
+
+**Проверки B4:**
+- `tsc --noEmit --skipLibCheck`: EXIT 0.
+- Таргетные тесты (24/24): `pgBookingScheduling.mappers.test.ts` (5/5),
+  `computeSlots.test.ts` (16/16), `service.test.ts` (3/3).
+
+### Коммиты (все в feat/doctor-ui-rebuild)
+
+1. **`feat(booking-scheduling): B1+B4-schema — breaks jsonb (0116) + be_branches.short_title (0117)`**
+   — db/schema, migrations, _journal.json.
+2. **`feat(booking-scheduling): B2 — breaks BreakInterval ports/service/pg/Zod validation`**
+   — ports.ts, service.ts, pgBookingScheduling.ts, mappers.test.ts, service.test.ts, API routes.
+3. **`feat(booking-scheduling): B3 — computeSlots N-break cursor engine + 11 tests`**
+   — computeSlots.ts, computeSlots.test.ts.
+4. **`feat(booking-engine): B4 — be_branches.short_title + CalendarFilterOption.shortLabel + settings UI`**
+   — types.ts, ports.ts (engine+calendar), pgBookingEngine.ts, pgBookingCalendar.ts, branches/[id]/route.ts, BookingSoloLocationsSection.tsx, bookingSoloAdminApi.ts.
+
+### Сознательно НЕ делали
+
+- UI перерывов в `ScheduleWorkTab` (панель «N перерывов», форма добавления перерыва) — Этапы E4/E5.
+- Метка `shortTitle` на карточках дней в `ScheduleWorkTab` — Этап E2.
+- Паритет `inMemory` для breaks/shortTitle (stub, нет данных).
+- Удаление легаси-колонок `break_start_minute`/`break_end_minute` — намеренно backward-compat.

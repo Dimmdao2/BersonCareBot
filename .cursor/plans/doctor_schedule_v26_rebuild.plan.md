@@ -35,16 +35,16 @@ todos:
     status: completed
   - id: b1-breaks-schema
     content: "B1 — Drizzle: колонка breaks jsonb $type<{startMinute,endMinute}[]> default '[]' в beWorkingDays + beScheduleTemplates; миграция 0116 через drizzle-kit generate + ревью SQL; бэкфилл из break_start/end_minute в массив; легаси-колонки nullable; ослабить старые break-check. Проверки: drizzle-kit generate diff, применить на dev (host-psql), idempotent re-run"
-    status: pending
+    status: completed
   - id: b2-breaks-ports
     content: "B2 — booking-scheduling ports/service/pg/inMemory: breaks в WorkingDayRecord/UpsertWorkingDaysInput/ScheduleTemplateRecord/apply; Zod-валидация массива (каждый ⊂ дня, без пересечений, сортировка, ≤6); чтение breaks с fallback на легаси при пустом. Проверки: vitest booking-scheduling/service + pgBookingScheduling.mappers"
-    status: pending
+    status: completed
   - id: b3-breaks-slot-engine
     content: "B3 — computeSlots.ts:workingIntervalsForDate — вычитать N перерывов (сорт + N+1 интервалов) вместо одного; unit-тесты 0/1/2/3 перерыва, граничные, closed, fallback на weekday, регресс существующих. Проверки: vitest computeSlots"
-    status: pending
+    status: completed
   - id: b4-branch-short-title
     content: "B4 — Drizzle be_branches.short_title text nullable + миграция 0117; чтение shortTitle в booking-engine overview/branch-листы + CalendarFilterOption(branches) + источник филиалов work-таба; поле «Короткое название» в BookingSoloLocationsSection (Zod trim ≤12). Проверки: drizzle-kit generate, vitest затронутых reads, tsc"
-    status: pending
+    status: completed
   - id: c1-feed-ranges
     content: "C1 — диапазоны фида для 3days/day/feed через getCalendar(rangeStart,rangeEnd) без слома week/month; контракт-тест диапазона. Проверки: vitest booking-calendar/service + calendar route"
     status: pending
