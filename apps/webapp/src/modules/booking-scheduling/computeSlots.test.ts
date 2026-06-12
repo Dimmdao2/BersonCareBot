@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeNearestFreeWindowFromData,
   generateSlotsFromFree,
   isChainFree,
   pickWorkingHours,
@@ -226,5 +227,66 @@ describe("booking-scheduling computeSlots", () => {
       expect(new Date(intervals[0]!.startMs).getUTCHours()).toBe(9);
       expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(18);
     });
+  });
+});
+
+describe("computeNearestFreeWindowFromData (C3 — ближайшее свободное окно)", () => {
+  const TZ = "Europe/Moscow";
+  const DAY = "2026-06-01"; // 09:00 MSK = 06:00Z, 18:00 MSK = 15:00Z
+
+  function workDay(partial: Partial<WorkingDayRow> = {}): WorkingDayRow {
+    return {
+      workDate: DAY,
+      startMinute: 9 * 60,
+      endMinute: 18 * 60,
+      breakStartMinute: null,
+      breakEndMinute: null,
+      breaks: [],
+      isClosed: false,
+      ...partial,
+    };
+  }
+
+  it("clamps window start to now and ends at the next busy block", () => {
+    const busy = [{ startAt: "2026-06-01T08:00:00.000Z", endAt: "2026-06-01T09:00:00.000Z" }];
+    const nowMs = Date.parse("2026-06-01T07:30:00.000Z");
+    expect(computeNearestFreeWindowFromData(DAY, TZ, [], workDay(), busy, nowMs)).toEqual({
+      from: "2026-06-01T07:30:00.000Z",
+      to: "2026-06-01T08:00:00.000Z",
+    });
+  });
+
+  it("returns the free interval after a busy block when now is inside busy", () => {
+    const busy = [{ startAt: "2026-06-01T07:00:00.000Z", endAt: "2026-06-01T09:00:00.000Z" }];
+    const nowMs = Date.parse("2026-06-01T08:00:00.000Z");
+    expect(computeNearestFreeWindowFromData(DAY, TZ, [], workDay(), busy, nowMs)).toEqual({
+      from: "2026-06-01T09:00:00.000Z",
+      to: "2026-06-01T15:00:00.000Z",
+    });
+  });
+
+  it("returns null when the day is fully busy", () => {
+    const busy = [{ startAt: "2026-06-01T06:00:00.000Z", endAt: "2026-06-01T15:00:00.000Z" }];
+    const nowMs = Date.parse("2026-06-01T06:00:00.000Z");
+    expect(computeNearestFreeWindowFromData(DAY, TZ, [], workDay(), busy, nowMs)).toBeNull();
+  });
+
+  it("returns null when the day is closed", () => {
+    const nowMs = Date.parse("2026-06-01T06:00:00.000Z");
+    expect(
+      computeNearestFreeWindowFromData(
+        DAY,
+        TZ,
+        [],
+        workDay({ isClosed: true, startMinute: null, endMinute: null }),
+        [],
+        nowMs,
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null when now is past working hours", () => {
+    const nowMs = Date.parse("2026-06-01T16:00:00.000Z"); // 19:00 MSK
+    expect(computeNearestFreeWindowFromData(DAY, TZ, [], workDay(), [], nowMs)).toBeNull();
   });
 });

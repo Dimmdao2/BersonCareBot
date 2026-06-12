@@ -47,13 +47,13 @@ todos:
     status: completed
   - id: c1-feed-ranges
     content: "C1 — диапазоны фида для 3days/day/feed через getCalendar(rangeStart,rangeEnd) без слома week/month; контракт-тест диапазона. Проверки: vitest booking-calendar/service + calendar route"
-    status: pending
+    status: completed
   - id: c2-feed-hours
     content: "C2 — часы сетки часовых видов из working-событий видимых дней ±1ч (клиент из фида или workingBounds в ответе — решить, LOG); fallback дефолт. Проверки: unit на derive границ"
-    status: pending
+    status: completed
   - id: c3-nearest-free-window
     content: "C3 — booking-scheduling: nearestFreeWindow(dateKey,scope)→{from,to}|null (порт+pg+inMemory; тонкий роут или поле фида); unit «окно после последней записи дня», «нет окна→null». Проверки: vitest"
-    status: pending
+    status: completed
   - id: d1-zapisi-toolbar
     content: "D1 — ScheduleCalendarTab тулбар: переключатель 3 дня/Неделя/Месяц/Лента (без «День») + ◀label▶ (скрыт в feed) + фильтры Локация/Услуга + «+ Создать запись»; helper visibleRange(view,anchor,tz). Проверки: RTL переключение видов"
     status: pending

@@ -828,3 +828,26 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 - Метка `shortTitle` на карточках дней в `ScheduleWorkTab` — Этап E2.
 - Паритет `inMemory` для breaks/shortTitle (stub, нет данных).
 - Удаление легаси-колонок `break_start_minute`/`break_end_minute` — намеренно backward-compat.
+
+## Этап C — Фид диапазоны/часы ±1ч + ближайшее свободное окно
+
+**Сделано:**
+- **C1** `parseCalendarQuery`: виды `3days` (якорь+2 дня) и `feed` (±30 дней §13.6, либо явные `from/to`);
+  явные `from/to` перекрывают расчёт по view; `month` строго 1-е..последнее (без overflow-дней). Не сломаны
+  `week`/`weeklist`/`day`.
+- **C2** `booking-calendar`: тип `WorkingBounds` + `deriveWorkingBounds` (min/max из `working`-событий ±60 мин,
+  зажато в [0,1440]; null если нет рабочих) → поле `workingBounds` в `CalendarAggregate`. Решение: считаем на
+  сервере и отдаём в ответе фида (клиент берёт готовое; fallback-дефолт при null).
+- **C3** `booking-scheduling`: `nearestFreeWindow(input)` (порт+сервис+pg) через чистую
+  `computeNearestFreeWindowFromData(todayKey,tz,workingHours,perDayRow,busy,nowMs)` — переиспользует
+  `workingIntervalsForDate` (N перерывов) + `subtractBusy`; зажимает старт окна к `now`. Тонкий роут
+  `GET /api/doctor/schedule/nearest-free-window` (guard `requireDoctorBookingEngine` + Zod + graceful
+  degradation: при ошибке/недоступности → `window:null`, не 500 + pino-лог). inMemory booking-scheduling в
+  репо нет — паритет неприменим.
+
+**Проверки:** `tsc --noEmit` = 0; целевые vitest зелёные — добавлены 5 тестов `computeNearestFreeWindowFromData`
+(окно после busy с зажимом к now; окно после busy при now внутри busy; полностью занят→null; закрыт→null;
+после рабочих часов→null) и 4 теста `parseCalendarQuery` (3days, month strict, feed ±30, явные from/to).
+
+**Решения/нюансы:** workingBounds считаем на сервере (проще и тестируемо). `feed`-окно по умолчанию ±30 дней
+(§13.6). Коммиты: `e3368c98` (реализация) + отдельный коммит тестов+plan+LOG.
