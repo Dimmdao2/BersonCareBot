@@ -140,17 +140,19 @@ export function DoctorCommunicationsShell({
 
   const handleDeepLinkChange = useCallback(
     (tabId: CommunicationsTabId, key: string, value: string | null) => {
-      setDeepLinks((prev) => {
-        const tabParams = { ...(prev[tabId] ?? {}) };
-        if (value === null) delete tabParams[key];
-        else tabParams[key] = value;
-        const next = { ...prev, [tabId]: tabParams };
-        deepLinksRef.current = next;
-        if (activeTabRef.current === tabId) {
-          window.history.replaceState(null, "", buildTabUrl(tabId, tabParams));
-        }
-        return next;
-      });
+      // Side effects (history + ref) must run in the event handler, NOT inside a
+      // setState updater — the updater executes during render, and replaceState there
+      // updates the Router mid-render ("setState in render" warning).
+      const prev = deepLinksRef.current;
+      const tabParams = { ...(prev[tabId] ?? {}) };
+      if (value === null) delete tabParams[key];
+      else tabParams[key] = value;
+      const next = { ...prev, [tabId]: tabParams };
+      deepLinksRef.current = next;
+      setDeepLinks(next);
+      if (activeTabRef.current === tabId) {
+        window.history.replaceState(null, "", buildTabUrl(tabId, tabParams));
+      }
     },
     [buildTabUrl],
   );

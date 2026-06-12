@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { DateTime } from "luxon";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
+import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { DoctorCalendarEventPanel } from "../../calendar/DoctorCalendarEventPanel";
 import { DoctorCalendarToolbarFilter } from "../../calendar/DoctorCalendarToolbarFilter";
@@ -167,17 +169,17 @@ function WeekListView({ events, anchorDate, timeZone, onSelect }: WeekListViewPr
 
   if (groups.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground" data-testid="weeklist-empty">
-        На этой неделе записей нет.
-      </div>
+      <DoctorSection className="p-6" data-testid="weeklist-empty">
+        <DoctorEmptyState>На этой неделе записей нет.</DoctorEmptyState>
+      </DoctorSection>
     );
   }
 
   return (
     <div className="flex flex-col gap-3" data-testid="weeklist-view">
       {groups.map(({ dateKey, label, appointments }) => (
-        <div key={dateKey} className="rounded-xl border border-border bg-card p-3" data-testid={`weeklist-day-${dateKey}`}>
-          <p className="mb-2 text-sm font-semibold text-foreground capitalize">{label}</p>
+        <DoctorSection key={dateKey} data-testid={`weeklist-day-${dateKey}`}>
+          <p className="text-sm font-semibold text-foreground capitalize">{label}</p>
           <div className="flex flex-col gap-1.5">
             {appointments.map((appt) => (
               <button
@@ -200,7 +202,7 @@ function WeekListView({ events, anchorDate, timeZone, onSelect }: WeekListViewPr
               </button>
             ))}
           </div>
-        </div>
+        </DoctorSection>
       ))}
     </div>
   );

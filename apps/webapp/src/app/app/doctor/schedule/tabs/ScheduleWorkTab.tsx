@@ -19,7 +19,9 @@ import {
   minuteToTimeLabel,
   timeLabelToMinute,
 } from "@/app/app/settings/bookingSoloAdminApi";
-import { doctorSectionCardClass, doctorSectionTitleClass, doctorEmptyStateClass } from "@/shared/ui/doctor/doctorVisual";
+import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
+import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { cn } from "@/lib/utils";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
@@ -524,7 +526,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className={doctorSectionCardClass} data-testid="schedule-work-tab">
+    <DoctorSection data-testid="schedule-work-tab">
       {/* Toolbar: branch switcher + month nav */}
       <div className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}>
         {/* Branch switcher */}
@@ -602,8 +604,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
         {/* Hours panel — visible when ≥1 day selected */}
         {selectedCount > 0 ? (
-          <div
-            className="rounded-xl border border-primary/40 bg-primary/5 p-3 flex flex-col gap-3"
+          <DoctorSection
+            className="border-primary/40 bg-primary/5"
             data-testid="hours-panel"
           >
             <h3 className={cn(doctorSectionTitleClass, "text-primary")}>
@@ -720,17 +722,17 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 Очистить выбор
               </Button>
             </div>
-          </div>
+          </DoctorSection>
         ) : (
-          <div className={cn(doctorSectionCardClass, "border-dashed")}>
-            <p className={doctorEmptyStateClass.replace("text-sm", "text-xs")}>
+          <DoctorSection className="border-dashed">
+            <DoctorEmptyState size="xs">
               Выберите дни в сетке — появится панель настройки часов.
-            </p>
-          </div>
+            </DoctorEmptyState>
+          </DoctorSection>
         )}
 
         {/* Templates panel */}
-        <div className={doctorSectionCardClass} data-testid="templates-panel">
+        <DoctorSection data-testid="templates-panel">
           <div className="flex items-center justify-between gap-2">
             <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
             <Button
@@ -745,7 +747,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           </div>
 
           {templates.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Нет шаблонов.</p>
+            <DoctorEmptyState size="xs">Нет шаблонов.</DoctorEmptyState>
           ) : (
             <ul className="flex flex-col gap-1.5">
               {templates.filter((t) => t.isActive).map((tpl) => (
@@ -788,7 +790,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           {selectedCount === 0 && templates.length > 0 && (
             <p className="text-[10px] text-muted-foreground">Выберите дни для применения шаблона.</p>
           )}
-        </div>
+        </DoctorSection>
       </div>
 
       {/* Create template dialog */}
@@ -868,6 +870,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </DoctorSection>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
 
@@ -100,9 +99,6 @@ export function BroadcastDeliveryArchiveClient() {
       ) : null}
 
       <p className="text-xs text-muted-foreground">Счётчики журнала рассылки при архивации не меняются.</p>
-      <Link href="/app/doctor/broadcasts" className="text-sm underline underline-offset-2">
-        К рассылкам
-      </Link>
     </div>
   );
 }
