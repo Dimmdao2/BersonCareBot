@@ -1,5 +1,73 @@
 # COMMUNICATIONS_MD_V2 — Execution Log
 
+## Этап 4b — UI формы рассылки
+
+**Дата:** 2026-06-13
+
+### Что сделано
+
+1. **Порядок полей формы (Задача 1)**
+   - Изменён на: Аудитория → Категория → Каналы → Заголовок → Текст → кнопки.
+   - Раньше: Аудитория → Каналы → Категория → … Перемещение: секция «Категория» поднята над «Каналы · куда отправить».
+
+2. **Аудитория — замена нативного `<select>` на доктор-дропдаун (Задача 2)**
+   - `BroadcastAudienceSelect.tsx` переписан: нативный `<select>` → `ReferenceSelect` с `prefetchedItems` (псевдо-справочник из `BROADCAST_AUDIENCE_FILTERS_ORDER`).
+   - Реализация: `prefetchedItems` строятся из массива фильтров, каждый элемент `{id, code, title, sortOrder}`. `valueMatch="id"`, `searchable={false}`, `showAllOnFocus` — дропдаун без ввода текста.
+   - `displayLabel` реализован через `Input` из `ReferenceSelect` (отображает `selectedLabel`). Сырые uuid не показываются.
+   - `isAudienceEstimateApproximate`-предупреждение (`broadcast-audience-form-warning`) — сохранено.
+   - Новые сегменты с новыми DB-фильтрами и «Выбрать вручную» (диалог) — НЕ реализованы (развилка, зафиксирована ниже).
+
+3. **Категория — 4 тоггл-чипа (Задача 3)**
+   - `labels.ts`: аддитивно добавлен `BROADCAST_FORM_CATEGORIES` — массив 4 объектов `{value, label}` в порядке ТЗ §5.2:
+     `organizational`→«Организационное», `important_notice`→«Важное», `service`→«Сервисное», `marketing`→«Рекламное».
+   - `CATEGORY_LABELS` и `AUDIENCE_LABELS` — не тронуты (используются в журнале рассылок).
+   - В `BroadcastForm.tsx` старый `CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS)` (8 элементов) заменён на `BROADCAST_FORM_CATEGORIES` (4 элемента).
+   - Дефолт `category=""` → `"organizational"` в `useState` И в `handleReset`.
+   - При загрузке черновика: `if (draft.category) setCategory(draft.category)` — черновик имеет приоритет над дефолтом.
+
+4. **Каналы — дефолт изменён (Задача 4)**
+   - `useState`: `new Set(["bot_message", "sms"])` → `new Set(BROADCAST_DEFAULT_CHANNELS)` (т.е. `["telegram","max","push"]`).
+   - `handleReset`: аналогичная замена.
+   - `BROADCAST_DEFAULT_CHANNELS` уже определён в `broadcastChannels.ts` (этап 4a).
+   - Плитки рендерятся из `BROADCAST_ACTIVE_CHANNELS` (5 каналов: Telegram · MAX · Push · SMS · Email).
+   - Под каждой плиткой — точная цифра из `channelCounts[ch]` (типы расширены в этапе 4a).
+
+5. **Отступ заголовка «Новая рассылка» (Задача 5)**
+   - В `BroadcastsTab.tsx`: `mb-3` → `mb-1` у `<h2>`.
+
+6. **Независимый скролл вкладки рассылок (Задача 6)**
+   - `BroadcastsMainView` переведён с `grid min-h-0 gap-4` на `CatalogSplitLayout` + `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE`.
+   - Левый пейн (`leftPane`) — форма с `overflow-y-auto`; правый пейн (`rightPane`) — журнал с `overflow-y-auto`.
+   - Соотношение колонок: `lg:grid-cols-[1fr_1.2fr]` (форма : журнал ~ 1:1.2, аналогично чатам).
+   - Паттерн идентичен `DoctorSupportInbox.tsx` (Этап 2) и `DoctorOnlineIntakeClient.tsx` (Этап 3).
+
+### Проверки
+
+- `npx tsc --noEmit` — **0 ошибок** в наших файлах (pre-existing ошибки в `schedule/**`, `booking-**` — параллельная инициативa).
+- `npx vitest run BroadcastForm.test.tsx BroadcastAudienceSelect.test.tsx BroadcastsTab.test.tsx` — **24 passed (3 files)**.
+- `npx eslint` по всем изменённым файлам — **0 ошибок**.
+
+### Затронутые файлы
+
+- `apps/webapp/src/app/app/doctor/broadcasts/BroadcastForm.tsx` — порядок полей, категории, дефолты.
+- `apps/webapp/src/app/app/doctor/broadcasts/BroadcastAudienceSelect.tsx` — переписан на `ReferenceSelect`.
+- `apps/webapp/src/app/app/doctor/broadcasts/labels.ts` — аддитивно добавлен `BROADCAST_FORM_CATEGORIES`.
+- `apps/webapp/src/app/app/doctor/communications/tabs/BroadcastsTab.tsx` — `CatalogSplitLayout`, отступ заголовка.
+- Тест-файлы: `BroadcastForm.test.tsx`, `BroadcastAudienceSelect.test.tsx`, `BroadcastsTab.test.tsx` — обновлены под новый порядок, дропдаун, дефолты.
+
+### Сознательно не сделано
+
+- **«Выбрать вручную» (диалог со списком пациентов)** — не реализован. Требует нового сегмента `manual` в `BroadcastAudienceFilter`, диалога с поиском пациентов, доступа к `DoctorClientsPort`. Выходит за рамки этапа, пересекается с зоной параллельной инициативы (`doctor-appointments`). Зафиксировано как развилка.
+- **Новые сегменты аудитории** (`on_support`, `with_program`, `with_subscription`, и др.) — не добавлены. Требуют новых DB-фильтров в `modules/doctor-broadcasts/broadcastEligible.ts` и, возможно, джойнов с `modules/doctor-appointments`. Зафиксировано как развилка.
+
+### Развилки
+
+- **Новые сегменты аудитории (§5.1):** В ТЗ перечислены сегменты «На сопровождении», «С программой», «Приём в этом месяце», «С абонементами», «Подписчики», «Новые», «Бывшие», «С отменами». Их реализация требует: (a) добавления новых значений `BroadcastAudienceFilter`, (b) реализации фильтрации в `resolveBroadcastAudience` через порты, (c) потенциального пересечения с `pgDoctorAppointments.ts` (чужая зона). Не делать без явного согласования скопа.
+- **«Выбрать вручную»:** Диалог со списком пациентов и чекбоксами — отдельный большой кусок UI/бэкенда. Требует хранения `userId[]` вместо enum-фильтра в команде рассылки. Обсудить с владельцем продукта.
+- **Мобильный UX BroadcastsTab:** `CatalogSplitLayout` использует `mobileView="list"` (фиксированный). Правый пейн (журнал) на мобиле не доступен без переключения. Для мобильного UX нужно добавить `mobileView` state и кнопку переключения, аналогично чатам/заявкам.
+
+---
+
 ## Этап 4a — бэкенд каналов рассылок
 
 **Дата:** 2026-06-13

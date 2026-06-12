@@ -34,12 +34,20 @@ function previewResult(
   };
 }
 
-/** Click the «Напоминание» category chip + pick audience + fill title/body. */
+/**
+ * Fill a valid form.
+ * - Category defaults to "organizational" (pre-selected chip).
+ * - Audience: click combobox, then pick "Все клиенты".
+ * - Title and body via typing.
+ */
 async function fillValidForm() {
-  // Category chip "Напоминание" (reminder)
-  await userEvent.click(screen.getByRole("button", { name: "Напоминание" }));
-  // Audience select
-  await userEvent.selectOptions(screen.getByLabelText(/аудитория/i), "with_telegram");
+  // Audience: click combobox to open, then pick an option
+  const audienceInput = screen.getByRole("combobox");
+  await userEvent.click(audienceInput);
+  await waitFor(() => {
+    expect(audienceInput).toHaveAttribute("aria-expanded", "true");
+  });
+  await userEvent.click(screen.getByRole("button", { name: "Все клиенты" }));
   await userEvent.type(screen.getByLabelText(/заголовок/i), "Заголовок теста");
   await userEvent.type(screen.getByLabelText(/текст сообщения/i), "Достаточно длинный текст");
 }
@@ -50,7 +58,14 @@ describe("BroadcastForm", () => {
     executeBroadcastAction.mockReset();
     loadDraftAction.mockResolvedValue(null);
     saveDraftAction.mockResolvedValue(undefined);
-    getChannelCountsAction.mockResolvedValue({ bot_message: 42, sms: 15, push: 0 });
+    getChannelCountsAction.mockResolvedValue({
+      bot_message: 42,
+      telegram: 42,
+      max: 18,
+      sms: 15,
+      push: 10,
+      email: 25,
+    });
   });
 
   it("does not call preview action when required fields are incomplete (preview button disabled)", async () => {
@@ -61,13 +76,36 @@ describe("BroadcastForm", () => {
     expect(previewBroadcastAction).not.toHaveBeenCalled();
   });
 
+  it("renders 4 category chips in correct order: Организационное · Важное · Сервисное · Рекламное", () => {
+    render(<BroadcastForm />);
+    const chips = ["Организационное", "Важное", "Сервисное", "Рекламное"];
+    const buttons = chips.map((name) => screen.getByRole("button", { name }));
+    expect(buttons).toHaveLength(4);
+    // Verify order: position of Организационное < Важное < Сервисное < Рекламное
+    const allText = buttons.map((b) => b.textContent);
+    expect(allText).toEqual(chips);
+  });
+
+  it("default category is 'organizational' (Организационное chip is pre-selected)", () => {
+    render(<BroadcastForm />);
+    const orgChip = screen.getByRole("button", { name: "Организационное" });
+    expect(orgChip).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Важное" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("legacy category chips (Напоминание, etc.) are not rendered in form", () => {
+    render(<BroadcastForm />);
+    expect(screen.queryByRole("button", { name: "Напоминание" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Маркетинговое" })).not.toBeInTheDocument();
+  });
+
   it("calls previewBroadcastAction with correct BroadcastCommand when form is valid", async () => {
     previewBroadcastAction.mockResolvedValue(
       previewResult({
         audienceSize: 30,
-        category: "reminder",
-        audienceFilter: "with_telegram",
-        channels: ["bot_message", "sms"],
+        category: "organizational",
+        audienceFilter: "all",
+        channels: ["telegram", "max", "push"],
       }),
     );
 
@@ -78,22 +116,29 @@ describe("BroadcastForm", () => {
     await waitFor(() => {
       expect(previewBroadcastAction).toHaveBeenCalledWith(
         expect.objectContaining({
-          category: "reminder",
-          audienceFilter: "with_telegram",
+          category: "organizational",
+          audienceFilter: "all",
           message: { title: "Заголовок теста", body: "Достаточно длинный текст" },
           attachMenuAfterSend: false,
         }),
       );
     });
+    // Default channels should be telegram/max/push, not bot_message/sms
+    const call = previewBroadcastAction.mock.calls[0]?.[0];
+    expect(call.channels).toContain("telegram");
+    expect(call.channels).toContain("max");
+    expect(call.channels).toContain("push");
+    expect(call.channels).not.toContain("bot_message");
   });
 
   it("category chips toggle correctly: clicking selected chip deselects it", async () => {
     render(<BroadcastForm />);
-    const chip = screen.getByRole("button", { name: "Напоминание" });
-    await userEvent.click(chip);
-    expect(chip).toHaveAttribute("aria-pressed", "true");
+    const chip = screen.getByRole("button", { name: "Организационное" });
+    expect(chip).toHaveAttribute("aria-pressed", "true"); // pre-selected by default
     await userEvent.click(chip);
     expect(chip).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(chip);
+    expect(chip).toHaveAttribute("aria-pressed", "true");
   });
 
   it("disables preview button while previewing", async () => {
@@ -116,9 +161,9 @@ describe("BroadcastForm", () => {
     resolvePreview!(
       previewResult({
         audienceSize: 5,
-        category: "reminder",
-        audienceFilter: "with_telegram",
-        channels: ["bot_message", "sms"],
+        category: "organizational",
+        audienceFilter: "all",
+        channels: ["telegram", "max", "push"],
       }),
     );
     await waitFor(() => {
@@ -128,9 +173,24 @@ describe("BroadcastForm", () => {
 
   it("shows audience form warning only for approximate segments", async () => {
     render(<BroadcastForm />);
-    await userEvent.selectOptions(screen.getByLabelText(/аудитория/i), "inactive");
+    const audienceInput = screen.getByRole("combobox");
+    // Open dropdown and pick "inactive"
+    await userEvent.click(audienceInput);
+    await waitFor(() => {
+      expect(audienceInput).toHaveAttribute("aria-expanded", "true");
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: /неактивные.*90.*дней/i }),
+    );
     expect(document.getElementById("broadcast-audience-form-warning")).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText(/аудитория/i), "with_telegram");
+    // Now pick a non-approximate option
+    await userEvent.click(audienceInput);
+    await waitFor(() => {
+      expect(audienceInput).toHaveAttribute("aria-expanded", "true");
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Все клиенты" }),
+    );
     expect(document.getElementById("broadcast-audience-form-warning")).not.toBeInTheDocument();
   });
 
@@ -138,9 +198,9 @@ describe("BroadcastForm", () => {
     previewBroadcastAction.mockResolvedValue(
       previewResult({
         audienceSize: 99,
-        category: "reminder",
-        audienceFilter: "with_telegram",
-        channels: ["bot_message", "sms"],
+        category: "organizational",
+        audienceFilter: "all",
+        channels: ["telegram", "max", "push"],
       }),
     );
 
@@ -158,20 +218,20 @@ describe("BroadcastForm", () => {
     previewBroadcastAction.mockResolvedValue(
       previewResult({
         audienceSize: 2,
-        category: "reminder",
-        audienceFilter: "with_telegram",
-        channels: ["bot_message", "sms"],
+        category: "organizational",
+        audienceFilter: "all",
+        channels: ["telegram", "max", "push"],
       }),
     );
     executeBroadcastAction.mockResolvedValue({
       auditEntry: {
         id: "a1",
         actorId: "doctor-1",
-        category: "reminder",
-        audienceFilter: "with_telegram",
+        category: "organizational",
+        audienceFilter: "all",
         messageTitle: "Заголовок теста",
         messageBody: "",
-        channels: ["bot_message", "sms"],
+        channels: ["telegram", "max", "push"],
         executedAt: new Date().toISOString(),
         previewOnly: false,
         audienceSize: 2,
@@ -208,7 +268,7 @@ describe("BroadcastForm", () => {
     });
   });
 
-  it("loads draft from loadDraftAction on mount", async () => {
+  it("loads draft from loadDraftAction on mount (draft category takes priority over default)", async () => {
     loadDraftAction.mockResolvedValue({
       category: "service",
       audience: "all",
@@ -222,10 +282,28 @@ describe("BroadcastForm", () => {
       expect(screen.getByDisplayValue("Черновик заголовок")).toBeInTheDocument();
     });
     expect(screen.getByDisplayValue("Черновик текст")).toBeInTheDocument();
+    // Draft category "service" overrides default "organizational"
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Сервисное" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+    expect(screen.getByRole("button", { name: "Организационное" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("shows channel counts from getChannelCountsAction", async () => {
-    getChannelCountsAction.mockResolvedValue({ bot_message: 77, sms: 33, push: 0 });
+    getChannelCountsAction.mockResolvedValue({
+      bot_message: 42,
+      telegram: 77,
+      max: 33,
+      sms: 15,
+      push: 10,
+      email: 25,
+    });
     render(<BroadcastForm />);
     await waitFor(() => {
       expect(screen.getByText("77")).toBeInTheDocument();

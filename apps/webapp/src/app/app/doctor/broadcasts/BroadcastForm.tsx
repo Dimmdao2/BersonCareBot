@@ -10,8 +10,14 @@ import type {
   BroadcastCommand,
   BroadcastPreviewResult,
 } from "@/modules/doctor-broadcasts/ports";
-import { BROADCAST_ACTIVE_CHANNELS } from "@/modules/doctor-broadcasts/broadcastChannels";
-import { CATEGORY_LABELS, isAudienceEstimateApproximate } from "./labels";
+import {
+  BROADCAST_ACTIVE_CHANNELS,
+  BROADCAST_DEFAULT_CHANNELS,
+} from "@/modules/doctor-broadcasts/broadcastChannels";
+import {
+  BROADCAST_FORM_CATEGORIES,
+  isAudienceEstimateApproximate,
+} from "./labels";
 import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
 import { BroadcastSentMessage } from "./BroadcastSentMessage";
@@ -26,8 +32,6 @@ import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "@/modules/doctor-broadcast
 import type { BroadcastChannelCounts } from "@/modules/doctor-broadcasts/draftPort";
 
 type Stage = "idle" | "previewing" | "previewed" | "confirming" | "sent" | "error";
-
-const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS) as [BroadcastCategory, string][];
 
 const CHANNEL_TILE_LABELS: Record<BroadcastChannel, string> = {
   bot_message: "Telegram+MAX", // legacy
@@ -51,10 +55,10 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
   const [preview, setPreview] = useState<BroadcastPreviewResult | null>(null);
   const [sentEntry, setSentEntry] = useState<BroadcastAuditEntry | null>(null);
 
-  const [category, setCategory] = useState<BroadcastCategory | "">("");
+  const [category, setCategory] = useState<BroadcastCategory | "">("organizational");
   const [audience, setAudience] = useState<BroadcastAudienceFilter | "">("");
   const [selectedChannels, setSelectedChannels] = useState<Set<BroadcastChannel>>(
-    new Set(["bot_message", "sms"] as BroadcastChannel[]),
+    new Set(BROADCAST_DEFAULT_CHANNELS),
   );
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -153,9 +157,9 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
   }
 
   function handleReset() {
-    setCategory("");
+    setCategory("organizational");
     setAudience("");
-    setSelectedChannels(new Set(["bot_message", "sms"] as BroadcastChannel[]));
+    setSelectedChannels(new Set(BROADCAST_DEFAULT_CHANNELS));
     setTitle("");
     setBody("");
     setPreview(null);
@@ -248,7 +252,34 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
         ) : null}
       </div>
 
-      {/* Channel tiles */}
+      {/* Category chips — order: Организационное · Важное · Сервисное · Рекламное */}
+      <div className="px-3 py-2.5">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Категория
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {BROADCAST_FORM_CATEGORIES.map(({ value: v, label }) => (
+            <button
+              key={v}
+              type="button"
+              disabled={isFormLocked}
+              onClick={() => setCategory(category === v ? "" : v)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                category === v
+                  ? "bg-primary/15 text-primary"
+                  : "border border-border text-muted-foreground hover:bg-muted/40",
+                isFormLocked && "opacity-60",
+              )}
+              aria-pressed={category === v}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Channel tiles — 5 channels: Telegram · MAX · Push · SMS · Email */}
       <div className="px-3 py-2.5">
         <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           Каналы · куда отправить
@@ -288,33 +319,6 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
         <p className="mt-1.5 text-[10px] text-muted-foreground">
           Один человек может получить по нескольким каналам — это нормально.
         </p>
-      </div>
-
-      {/* Category chips */}
-      <div className="px-3 py-2.5">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          Категория
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {CATEGORY_OPTIONS.map(([v, label]) => (
-            <button
-              key={v}
-              type="button"
-              disabled={isFormLocked}
-              onClick={() => setCategory(category === v ? "" : v)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                category === v
-                  ? "bg-primary/15 text-primary"
-                  : "border border-border text-muted-foreground hover:bg-muted/40",
-                isFormLocked && "opacity-60",
-              )}
-              aria-pressed={category === v}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Title */}

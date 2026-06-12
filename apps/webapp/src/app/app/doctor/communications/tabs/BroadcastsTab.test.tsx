@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi, beforeAll } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../../broadcasts/BroadcastForm", () => ({
@@ -47,5 +47,24 @@ describe("BroadcastsTab", () => {
     render(<BroadcastsTab deepLinkParams={{ archive: "1" }} onDeepLinkChange={onDeepLinkChange} />);
     await userEvent.click(screen.getByRole("button", { name: /Рассылки/ }));
     expect(onDeepLinkChange).toHaveBeenCalledWith("archive", null);
+  });
+
+  it("renders split layout with BroadcastForm and BroadcastAuditLog after data loads", async () => {
+    const BroadcastsTab = await setup();
+    render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={() => {}} />);
+    expect(screen.getByText("BroadcastForm")).toBeInTheDocument();
+    // BroadcastAuditLog appears after the async listBroadcastAuditAction resolves
+    await waitFor(() => {
+      expect(screen.getByText("BroadcastAuditLog")).toBeInTheDocument();
+    });
+  });
+
+  it("renders Новая рассылка and Журнал рассылок headings in main view", async () => {
+    const BroadcastsTab = await setup();
+    render(<BroadcastsTab deepLinkParams={{}} onDeepLinkChange={() => {}} />);
+    expect(screen.getByRole("heading", { name: /новая рассылка/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /журнал рассылок/i })).toBeInTheDocument();
+    });
   });
 });

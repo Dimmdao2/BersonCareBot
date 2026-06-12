@@ -12,6 +12,18 @@ export const BROADCAST_AUDIENCE_FILTERS_ORDER: readonly BroadcastAudienceFilter[
   "inactive",
 ] as const;
 
+/**
+ * Категории формы рассылки (4 чипа, упорядоченные по ТЗ §5.2).
+ * Не менять `CATEGORY_LABELS` — он используется в журнале.
+ * Этот список используется только в форме создания рассылки.
+ */
+export const BROADCAST_FORM_CATEGORIES: readonly { value: BroadcastCategory; label: string }[] = [
+  { value: "organizational", label: "Организационное" },
+  { value: "important_notice", label: "Важное" },
+  { value: "service", label: "Сервисное" },
+  { value: "marketing", label: "Рекламное" },
+] as const;
+
 export const AUDIENCE_LABELS: Record<BroadcastAudienceFilter, string> = {
   all: "Все клиенты",
   active_clients: "Активные клиенты",

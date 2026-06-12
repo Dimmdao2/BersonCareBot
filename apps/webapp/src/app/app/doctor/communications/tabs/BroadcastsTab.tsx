@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import type { BroadcastAuditEntry } from "@/modules/doctor-broadcasts/ports";
 import { listBroadcastAuditAction } from "../../broadcasts/actions";
 import { BroadcastForm } from "../../broadcasts/BroadcastForm";
@@ -12,6 +13,8 @@ import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
 } from "@/shared/ui/doctor/doctorVisual";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import type { CommunicationsTabProps } from "../communicationsTabRegistry";
 
 /** Таб «Рассылки». ?archive=1 → архив ошибок доставки. */
@@ -61,35 +64,44 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
     };
   }, []);
 
+  const leftPane = (
+    <section className={cn(doctorSectionCardClass, "h-full overflow-y-auto")}>
+      <h2 className={cn(doctorSectionTitleClass, "mb-1")}>Новая рассылка</h2>
+      <BroadcastForm onBroadcastSent={() => void refreshLog()} />
+    </section>
+  );
+
+  const rightPane = (
+    <div className="flex h-full flex-col gap-3 overflow-y-auto">
+      <p className="text-sm text-muted-foreground">
+        После отправки сообщения ставятся в очередь; счётчики в журнале обновляются по мере
+        работы воркера.{" "}
+        <button type="button" onClick={onArchive} className={doctorInlineLinkClass}>
+          Архив ошибок доставки
+        </button>
+      </p>
+      <section className={doctorSectionCardClass}>
+        <h2 className={cn(doctorSectionTitleClass, "mb-1")}>Журнал рассылок</h2>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Загрузка…</p>
+        ) : (
+          <BroadcastAuditLog entries={entries} />
+        )}
+      </section>
+    </div>
+  );
+
   return (
     <div
-      className="grid min-h-0 gap-4"
-      style={{ gridTemplateColumns: "1fr 1.2fr" }}
+      id="broadcasts-main-view"
+      className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
     >
-      {/* Left: form */}
-      <section className={doctorSectionCardClass}>
-        <h2 className={`mb-3 ${doctorSectionTitleClass}`}>Новая рассылка</h2>
-        <BroadcastForm onBroadcastSent={() => void refreshLog()} />
-      </section>
-
-      {/* Right: audit log */}
-      <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          После отправки сообщения ставятся в очередь; счётчики в журнале обновляются по мере
-          работы воркера.{" "}
-          <button type="button" onClick={onArchive} className={doctorInlineLinkClass}>
-            Архив ошибок доставки
-          </button>
-        </p>
-        <section className={doctorSectionCardClass}>
-          <h2 className={`mb-3 ${doctorSectionTitleClass}`}>Журнал рассылок</h2>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Загрузка…</p>
-          ) : (
-            <BroadcastAuditLog entries={entries} />
-          )}
-        </section>
-      </div>
+      <CatalogSplitLayout
+        left={leftPane}
+        right={rightPane}
+        mobileView="list"
+        className="lg:grid-cols-[1fr_1.2fr] h-full"
+      />
     </div>
   );
 }
