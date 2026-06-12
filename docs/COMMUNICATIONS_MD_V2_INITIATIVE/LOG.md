@@ -1,5 +1,58 @@
 # COMMUNICATIONS_MD_V2 — Execution Log
 
+## Этап 3 (A2) — Заявки
+
+**Дата:** 2026-06-12
+
+### Что сделано
+
+1. **Фильтры статусов → мультитоггл (без «Все»):**
+   - Удалён тип `FilterMode` и массив `FILTER_CHIPS` со старым single-select (включая режим `"all"`).
+   - Добавлен новый `FILTER_CHIPS: { status: IntakeStatus; label: string }[]` с 4 статусами: `new`, `in_review`, `booked`, `rejected` (без «Все»).
+   - State заменён с `filterMode: FilterMode` на `selectedStatuses: Set<IntakeStatus>` (пустое множество = показать все заявки).
+   - Функция `toggleStatus(status)` — клик вкл/выкл конкретный статус. Несколько статусов можно включить одновременно.
+   - Логика фильтрации: `selectedStatuses.size === 0 ? allItems : allItems.filter(item => selectedStatuses.has(item.status))`.
+   - Атрибут `aria-pressed` на каждой кнопке отражает текущее состояние тоггла.
+   - Текст empty-state при фильтрации изменён: если нет заявок и выбраны статусы — «Нет заявок в выбранных статусах»; если список пуст совсем — «Заявок нет».
+   - Удалён неиспользуемый импорт `doctorStatCardShellClass` из `doctorVisual`.
+
+2. **Независимый скролл (CatalogSplitLayout):**
+   - Раскладка переведена с `<div className="grid min-h-[400px]" style={{gridTemplateColumns:"1fr 1.4fr"}}>` на `CatalogSplitLayout` с `className={cn(DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE, "lg:grid-cols-[1fr_1.4fr]")}`.
+   - Левый пейн (`leftPane`) — список заявок с тогглами; правый пейн (`rightPane`) — статистика + карточка детали. Каждый скроллится независимо.
+   - `mobileView` переключается автоматически: `selectedId ? "detail" : "list"`.
+   - Добавлены импорты: `CatalogSplitLayout`, `DoctorEmptyState`, `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE`.
+
+3. **Пустые состояния — `DoctorEmptyState`:**
+   - Ad-hoc `<div>...<p>Выберите заявку слева</p>...</div>` заменён на `<DoctorEmptyState>`.
+   - Состояния загрузки (левый пейн и правая карточка) также переведены на `DoctorEmptyState`.
+
+4. **Статистика заявок (7/30/90/год) — НЕ тронута** (независима от фильтра, по решению владельца).
+5. **Deep-link `?id=` и `onDetailChange`** — не сломаны; логика сохранена без изменений.
+
+### Проверки
+
+- `npx tsc --noEmit` — 0 ошибок в изменённых файлах (pre-existing ошибки в `schedule/**` — из параллельной инициативы, не наши).
+- `npx vitest run src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.test.tsx` — **18 passed (1 file)**.
+- `npx eslint DoctorOnlineIntakeClient.tsx DoctorOnlineIntakeClient.test.tsx` — **0 ошибок** (нет вывода).
+
+### Затронутые файлы
+
+- `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` — основной файл этапа.
+- `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.test.tsx` — обновлены тесты под мультитоггл; добавлены кейсы «пустой выбор = все», «клик вкл/выкл», «несколько тогглов», «нет кнопки Все».
+
+### Сознательно не сделано
+
+- Mobile-кнопка «назад» в `mobileBackSlot` — не добавлялась (по аналогии с чатами, Этап 2). `CatalogSplitLayout` поддерживает слот, но мобильный UX не является фокусом этапа. Зафиксировано как развилка.
+- Счётчики для статусов `booked` и `rejected` в чипах — не показываются (только `new` и `in_review` имеют счётчики, как было). Логика счётчиков не менялась.
+
+### Развилки
+
+- **Mobile UX заявок**: при открытии детали на мобильном (`mobileView="detail"`) пользователь не может вернуться к списку без выбора другой заявки — нет кнопки «← Назад» в `mobileBackSlot`. Аналогичная развилка из Этапа 2 (чаты). Решение — добавить `mobileBackSlot` с кнопкой ghost «← Назад» для закрытия детали.
+- **Счётчики для всех статусов в тогглах**: сейчас счётчики отображаются только для `new` и `in_review`. Можно добавить для `booked` и `rejected` — небольшое изменение, но выходит за рамки текущего scope (требует уточнения у владельца, нужны ли все счётчики или только "горячие").
+- **Начальный выбор тогглов**: дефолт — пустое множество (все заявки). Ранее дефолт был `filterMode="new"` (только новые). Изменение поведения может потребовать уточнения у владельца (если предпочтительно показывать только новые при входе). Зафиксировано как продуктовая развилка.
+
+---
+
 ## Этап 2 (A1) — Чаты
 
 **Дата:** 2026-06-12

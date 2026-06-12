@@ -92,18 +92,58 @@ describe("DoctorOnlineIntakeClient — список", () => {
     expect(screen.getAllByText(/\+79007770088/).length).toBeGreaterThan(0);
   });
 
-  it("показывает empty-state при пустом списке", async () => {
+  it("показывает empty-state «Заявок нет» при пустом списке и без фильтров", async () => {
     vi.stubGlobal("fetch", makeFetch({ list: { items: [], total: 0 } }));
     render(<DoctorOnlineIntakeClient />);
     await waitFor(() => {
-      expect(screen.getByText(/нет заявок в этом статусе/i)).toBeInTheDocument();
+      expect(screen.getByText(/заявок нет/i)).toBeInTheDocument();
     });
   });
 
-  it("фильтр «Все» показывает все заявки", async () => {
+  it("нет кнопки «Все» — фильтр убран", async () => {
     render(<DoctorOnlineIntakeClient />);
     await screen.findByText("Список Имя");
-    await userEvent.click(screen.getByRole("button", { name: /^Все$/i }));
+    expect(screen.queryByRole("button", { name: /^Все$/i })).not.toBeInTheDocument();
+  });
+
+  it("пустой выбор тогглов = показать все заявки (дефолт)", async () => {
+    render(<DoctorOnlineIntakeClient />);
+    // Заявка со статусом new должна быть видна при дефолтном пустом выборе
+    expect(await screen.findByText("Список Имя")).toBeInTheDocument();
+  });
+
+  it("клик тоггл включает фильтр, повторный клик снимает — возвращаются все заявки", async () => {
+    render(<DoctorOnlineIntakeClient />);
+    await screen.findByText("Список Имя");
+
+    // Включаем фильтр «В работе» — заявка со статусом new исчезает
+    const inReviewBtn = screen.getByRole("button", { name: /В работе/i });
+    await userEvent.click(inReviewBtn);
+    expect(inReviewBtn).toHaveAttribute("aria-pressed", "true");
+    // Заявка «new» не входит в «in_review»
+    await waitFor(() => {
+      expect(screen.queryByText("Список Имя")).not.toBeInTheDocument();
+    });
+
+    // Повторный клик — фильтр снимается, все заявки снова видны
+    await userEvent.click(inReviewBtn);
+    expect(inReviewBtn).toHaveAttribute("aria-pressed", "false");
+    expect(await screen.findByText("Список Имя")).toBeInTheDocument();
+  });
+
+  it("можно включить несколько тогглов одновременно", async () => {
+    render(<DoctorOnlineIntakeClient />);
+    await screen.findByText("Список Имя");
+
+    const newBtn = screen.getByRole("button", { name: /Новые/i });
+    const inReviewBtn = screen.getByRole("button", { name: /В работе/i });
+
+    await userEvent.click(newBtn);
+    await userEvent.click(inReviewBtn);
+
+    expect(newBtn).toHaveAttribute("aria-pressed", "true");
+    expect(inReviewBtn).toHaveAttribute("aria-pressed", "true");
+    // Заявка «new» должна быть видна (входит в выбранные статусы)
     expect(screen.getByText("Список Имя")).toBeInTheDocument();
   });
 });
