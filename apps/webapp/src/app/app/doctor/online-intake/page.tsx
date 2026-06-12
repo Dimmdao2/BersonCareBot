@@ -1,5 +1,5 @@
 import { permanentRedirect } from "next/navigation";
 
-export default function DoctorOnlineIntakePage() {
+export default async function DoctorOnlineIntakePage() {
   permanentRedirect("/app/doctor/communications?tab=intake");
 }
