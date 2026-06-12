@@ -50,6 +50,7 @@ function mapBranch(row: typeof beBranches.$inferSelect): BeBranch {
     id: row.id,
     organizationId: row.organizationId,
     title: row.title,
+    shortTitle: row.shortTitle ?? null,
     cityCode: row.cityCode,
     address: row.address ?? null,
     timezone: row.timezone,
@@ -199,18 +200,20 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const db = getDrizzle();
       const now = new Date().toISOString();
       if (input.id) {
-        await db
-          .update(beBranches)
-          .set({
-            title: input.title,
-            cityCode: input.cityCode,
-            address: input.address ?? null,
-            timezone: input.timezone ?? "Europe/Moscow",
-            isActive: input.isActive,
-            sortOrder: input.sortOrder,
-            updatedAt: now,
-          })
-          .where(eq(beBranches.id, input.id));
+        const patch: Partial<typeof beBranches.$inferInsert> = {
+          title: input.title,
+          cityCode: input.cityCode,
+          address: input.address ?? null,
+          timezone: input.timezone ?? "Europe/Moscow",
+          isActive: input.isActive,
+          sortOrder: input.sortOrder,
+          updatedAt: now,
+        };
+        // Only write shortTitle when explicitly provided (preserve existing value otherwise)
+        if ("shortTitle" in input) {
+          patch.shortTitle = (input as { shortTitle?: string | null }).shortTitle ?? null;
+        }
+        await db.update(beBranches).set(patch).where(eq(beBranches.id, input.id));
         const row = await this.getBranch(input.id);
         if (!row) throw new Error("branch_not_found");
         return row;
@@ -220,6 +223,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .values({
           organizationId: input.organizationId,
           title: input.title,
+          shortTitle: (input as { shortTitle?: string | null }).shortTitle ?? null,
           cityCode: input.cityCode,
           address: input.address ?? null,
           timezone: input.timezone ?? "Europe/Moscow",

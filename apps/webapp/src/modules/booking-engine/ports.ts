@@ -29,6 +29,8 @@ export type OrganizationCatalogPort = {
     organizationId: string;
     id?: string;
     title: string;
+    /** Short display name (e.g. «СПб»). Optional; when omitted, existing value is preserved. */
+    shortTitle?: string | null;
     cityCode: string;
     address?: string | null;
     timezone?: string;

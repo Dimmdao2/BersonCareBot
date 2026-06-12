@@ -23,7 +23,12 @@ export type CalendarFilters = {
   includeFreeSlots?: boolean;
 };
 
-export type CalendarFilterOption = { id: string; label: string };
+export type CalendarFilterOption = {
+  id: string;
+  label: string;
+  /** Short display name (only populated for branch options, migration 0117). */
+  shortLabel?: string | null;
+};
 
 export type CalendarServiceFilterOption = CalendarFilterOption & { durationMinutes: number };
 

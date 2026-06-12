@@ -27,6 +27,8 @@ export type BeBranch = {
   id: string;
   organizationId: string;
   title: string;
+  /** Short display name (e.g. «СПб», «Мск»). Nullable; UI falls back to title. Migration 0117. */
+  shortTitle: string | null;
   cityCode: string;
   address: string | null;
   timezone: string;

@@ -9,6 +9,8 @@ export type SoloOverview = {
   branches: {
     id: string;
     title: string;
+    /** Short display name (e.g. «СПб», «Мск»). Migration 0117. */
+    shortTitle: string | null;
     cityCode: string;
     address: string | null;
     timezone: string;
