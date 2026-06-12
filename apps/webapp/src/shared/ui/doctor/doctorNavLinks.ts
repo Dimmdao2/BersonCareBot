@@ -47,24 +47,7 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   {
     id: "schedule",
     label: "Расписание",
-    items: [
-      {
-        id: "schedule-cal",
-        label: "Календарь записей",
-        href: `${routePaths.doctorSchedule}?tab=cal`,
-      },
-      {
-        id: "schedule-work",
-        label: "График работы",
-        href: `${routePaths.doctorSchedule}?tab=work`,
-      },
-      {
-        id: "schedule-setup",
-        label: "Настройки записи",
-        href: `${routePaths.doctorSchedule}?tab=setup`,
-        requiresAdminMode: true,
-      },
-    ],
+    href: routePaths.doctorSchedule,
   },
   {
     id: "communications",

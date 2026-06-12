@@ -35,11 +35,11 @@ describe("doctorScheduleTabs", () => {
       }
     });
 
-    it("tab labels are correct", () => {
+    it("tab labels are correct (F3: cal=«Записи», setup=«Настройки»)", () => {
       const labels: Record<ScheduleTabId, string> = {
-        cal: "Календарь записей",
+        cal: "Записи",
         work: "График работы",
-        setup: "Настройки записи",
+        setup: "Настройки",
       };
       for (const tab of SCHEDULE_TABS) {
         expect(tab.label).toBe(labels[tab.id]);

@@ -3,6 +3,9 @@
  * RTL-тест DoctorScheduleShell: монтаж активного таба + кэш уже открытых (keepMounted).
  * URL-sync: ?tab + под-параметры ↔ history.replaceState; restore при back/forward (popstate).
  *
+ * KPI (9 метрик) живут только внутри ScheduleCalendarTab (Этап D/F) — шелл их не знает.
+ * Этот тест проверяет только шелл: табы, keepMounted, URL-sync.
+ *
  * webapp-tests-lean: тяжёлые компоненты табов замоканы; прогрев модуля Shell в beforeAll.
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -15,7 +18,6 @@ vi.mock("next/dynamic", () => ({
   default: (loader: () => Promise<{ default: React.ComponentType<unknown> }>) => {
     // Немедленно возвращает компонент-заглушку, имитирующую реальный таб
     const LazyMock = (props: ScheduleTabProps & { "data-tabid"?: string }) => {
-      // Находим id из среды вызова (получаем из deepLinkParams или по имени loader)
       return <div data-testid="tab-mock-inner" data-deeplink={JSON.stringify(props.deepLinkParams)} />;
     };
     LazyMock.displayName = "LazyTabMock";
@@ -31,37 +33,20 @@ vi.mock("@/shared/ui/doctor/DoctorAppShell", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({ buildAppDeps: vi.fn() }));
 
-// Мок модуля system-settings (не нужен в клиентских тестах)
-vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
-  getAppDisplayTimeZone: async () => "Europe/Moscow",
-}));
-
 // ── Прогрев модуля ──────────────────────────────────────────────────────────
 
 let DoctorScheduleShell: typeof import("./DoctorScheduleShell").DoctorScheduleShell;
-let defaultKpis: import("@/modules/doctor-appointments/ports").ScheduleKpis;
 
 beforeAll(async () => {
   const mod = await import("./DoctorScheduleShell");
   DoctorScheduleShell = mod.DoctorScheduleShell;
-  defaultKpis = {
-    recordsInPeriod: 40,
-    pastInPeriod: 32,
-    futureInPeriod: 8,
-    bySubscriptionInPeriod: 3,
-    firstVisitInPeriod: 4,
-    repeatVisitInPeriod: 36,
-    uniquePatientsInPeriod: 28,
-    cancellationsInPeriod: 9,
-    reschedulesInPeriod: 5,
-  };
 });
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 function setup(props: Partial<React.ComponentProps<typeof DoctorScheduleShell>> = {}) {
   return render(
-    <DoctorScheduleShell initialTab="cal" initialKpis={defaultKpis} {...props} />,
+    <DoctorScheduleShell initialTab="cal" {...props} />,
   );
 }
 
@@ -73,25 +58,9 @@ describe("DoctorScheduleShell — базовый рендер", () => {
     expect(screen.getByTestId("doctor-app-shell")).toBeDefined();
   });
 
-  it("показывает KPI-строку с карточками", () => {
+  it("НЕ содержит schedule-kpi-row (KPI только в табе «Записи»)", () => {
     setup();
-    expect(screen.getByTestId("schedule-kpi-row")).toBeDefined();
-    expect(screen.getByTestId("kpi-records")).toBeDefined();
-    expect(screen.getByTestId("kpi-unique")).toBeDefined();
-    expect(screen.getByTestId("kpi-first-visit")).toBeDefined();
-    expect(screen.getByTestId("kpi-cancellations")).toBeDefined();
-    expect(screen.getByTestId("kpi-reschedules")).toBeDefined();
-    expect(screen.getByTestId("kpi-period")).toBeDefined();
-  });
-
-  it("показывает значения KPI из initialKpis", () => {
-    setup();
-    const kpiRow = screen.getByTestId("schedule-kpi-row");
-    expect(kpiRow.textContent).toContain("40");   // recordsInPeriod
-    expect(kpiRow.textContent).toContain("28");   // uniquePatientsInPeriod
-    expect(kpiRow.textContent).toContain("4");    // firstVisitInPeriod
-    expect(kpiRow.textContent).toContain("9");    // cancellationsInPeriod
-    expect(kpiRow.textContent).toContain("5");    // reschedulesInPeriod
+    expect(screen.queryByTestId("schedule-kpi-row")).toBeNull();
   });
 
   it("рендерит 3 кнопки табов (cal/work/setup)", () => {
@@ -178,21 +147,15 @@ describe("DoctorScheduleShell — URL-sync", () => {
     const [, , url] = spy.mock.calls[0] ?? [];
     expect(String(url)).toContain("tab=setup");
   });
-});
 
-describe("DoctorScheduleShell — period selector", () => {
-  it("показывает кнопки периода: Сегодня / 7 дн / 30 дн", () => {
-    setup({ initialPeriod: "month" });
-    const periodCard = screen.getByTestId("kpi-period");
-    expect(periodCard.textContent).toContain("Сегодня");
-    expect(periodCard.textContent).toContain("7 дн");
-    expect(periodCard.textContent).toContain("30 дн");
-  });
+  it("URL НЕ содержит ?period= (период управляется только табом)", () => {
+    const spy = vi.spyOn(window.history, "replaceState");
+    setup({ initialTab: "cal" });
+    spy.mockClear();
 
-  it("initialPeriod=month → кнопка '30 дн' aria-pressed=true", () => {
-    setup({ initialPeriod: "month" });
-    const buttons = screen.getByTestId("kpi-period").querySelectorAll("button");
-    const monthBtn = Array.from(buttons).find((b) => b.textContent?.includes("30 дн"));
-    expect(monthBtn?.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByTestId("tab-btn-work"));
+
+    const [, , url] = spy.mock.calls[0] ?? [];
+    expect(String(url)).not.toContain("period=");
   });
 });

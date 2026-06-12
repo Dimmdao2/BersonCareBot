@@ -1,17 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { cn } from "@/lib/utils";
-import {
-  doctorMetricValueClass,
-  doctorMetricLabelClass,
-  doctorStatCardShellClass,
-  doctorStatCardGridClass,
-} from "@/shared/ui/doctor/doctorVisual";
 import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import {
   SCHEDULE_BASE,
@@ -24,8 +17,6 @@ import {
   SCHEDULE_TAB_REGISTRY,
   type ScheduleTabProps,
 } from "./scheduleTabRegistry";
-import type { ScheduleKpis } from "@/modules/doctor-appointments/ports";
-import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
 
 // ---------------------------------------------------------------------------
 // Dynamic tab components — built once per module load
@@ -57,79 +48,6 @@ function readDeepLinksFromSearchParams(
     }
   }
   return initial;
-}
-
-const PERIOD_LABELS: Record<AdminStatsTimePreset, string> = {
-  day: "Сегодня",
-  week: "7 дн",
-  month: "30 дн",
-  custom: "Период",
-};
-
-// ---------------------------------------------------------------------------
-// KPI row
-// ---------------------------------------------------------------------------
-
-type KpiRowProps = {
-  kpis: ScheduleKpis | null;
-  period: AdminStatsTimePreset;
-  onPeriodChange: (p: AdminStatsTimePreset) => void;
-};
-
-function KpiRow({ kpis, period, onPeriodChange }: KpiRowProps) {
-  const PRESETS: AdminStatsTimePreset[] = ["day", "week", "month"];
-
-  return (
-    <div className={doctorStatCardGridClass} data-testid="schedule-kpi-row">
-      {/* Записей за период */}
-      <div className={cn(doctorStatCardShellClass)} data-testid="kpi-records">
-        <p className={doctorMetricLabelClass}>Записей за период</p>
-        <p className={doctorMetricValueClass}>{kpis?.recordsInPeriod ?? "—"}</p>
-      </div>
-      {/* Уникальных */}
-      <div className={cn(doctorStatCardShellClass)} data-testid="kpi-unique">
-        <p className={doctorMetricLabelClass}>Уникальных</p>
-        <p className={doctorMetricValueClass}>{kpis?.uniquePatientsInPeriod ?? "—"}</p>
-      </div>
-      {/* Первичных */}
-      <div className={cn(doctorStatCardShellClass)} data-testid="kpi-first-visit">
-        <p className={doctorMetricLabelClass}>Первичных</p>
-        <p className={doctorMetricValueClass}>{kpis?.firstVisitInPeriod ?? "—"}</p>
-      </div>
-      {/* Отмены */}
-      <div className={cn(doctorStatCardShellClass)} data-testid="kpi-cancellations">
-        <p className={doctorMetricLabelClass}>Отмены</p>
-        <p className={doctorMetricValueClass}>{kpis?.cancellationsInPeriod ?? "—"}</p>
-      </div>
-      {/* Переносы */}
-      <div className={cn(doctorStatCardShellClass)} data-testid="kpi-reschedules">
-        <p className={doctorMetricLabelClass}>Переносы</p>
-        <p className={doctorMetricValueClass}>{kpis?.reschedulesInPeriod ?? "—"}</p>
-      </div>
-      {/* Период-селектор */}
-      <div className={cn(doctorStatCardShellClass)} data-testid="kpi-period">
-        <p className={doctorMetricLabelClass}>Период</p>
-        <div className="flex gap-1 flex-wrap mt-0.5" role="group" aria-label="Период KPI">
-          {PRESETS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onPeriodChange(p)}
-              aria-pressed={period === p}
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] font-medium leading-none transition-colors",
-                period === p
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80",
-              )}
-            >
-              {PERIOD_LABELS[p]}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -185,10 +103,6 @@ function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
 export type DoctorScheduleShellProps = {
   /** Начальный таб (от серверной страницы). */
   initialTab?: ScheduleTabId;
-  /** KPI данные загруженные сервером. */
-  initialKpis?: ScheduleKpis | null;
-  /** Период KPI по умолчанию (из URL ?period=). */
-  initialPeriod?: AdminStatsTimePreset;
 };
 
 /**
@@ -197,14 +111,15 @@ export type DoctorScheduleShellProps = {
  * Паттерн keepMounted: таб монтируется при первом открытии и скрывается (hidden)
  * при переходе на другой — без размонтирования. Переключение мгновенное.
  *
- * URL-sync: смена таба и deep-link параметров отражается в ?tab=, ?period=
- * и ключах-параметрах через history.replaceState (без полной навигации).
+ * URL-sync: смена таба и deep-link параметров отражается в ?tab= и ключах-параметрах
+ * через history.replaceState (без полной навигации).
  * Restore при back/forward через popstate.
+ *
+ * KPI (9 метрик) живут только внутри таба «Записи» (ScheduleCalendarTab) и загружаются
+ * там же; шелл не знает о KPI (§3.1 ТЗ).
  */
 export function DoctorScheduleShell({
   initialTab,
-  initialKpis,
-  initialPeriod,
 }: DoctorScheduleShellProps) {
   const resolvedInit: ScheduleTabId = (() => {
     if (initialTab) return initialTab;
@@ -212,15 +127,6 @@ export function DoctorScheduleShell({
       return scheduleTabFromQuery(new URLSearchParams(window.location.search).get("tab"));
     }
     return SCHEDULE_DEFAULT_TAB;
-  })();
-
-  const resolvedPeriod: AdminStatsTimePreset = (() => {
-    if (initialPeriod) return initialPeriod;
-    if (typeof window !== "undefined") {
-      const raw = new URLSearchParams(window.location.search).get("period");
-      if (raw === "day" || raw === "week" || raw === "month") return raw;
-    }
-    return "month";
   })();
 
   const [activeTab, setActiveTab] = useState<ScheduleTabId>(resolvedInit);
@@ -239,15 +145,10 @@ export function DoctorScheduleShell({
   );
   const deepLinksRef = useRef(deepLinks);
 
-  const [kpis, setKpis] = useState<ScheduleKpis | null>(initialKpis ?? null);
-  const [period, setPeriod] = useState<AdminStatsTimePreset>(resolvedPeriod);
-  const periodRef = useRef(period);
-
   // ── sync refs ──────────────────────────────────────────────────────────────
 
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
   useEffect(() => { deepLinksRef.current = deepLinks; }, [deepLinks]);
-  useEffect(() => { periodRef.current = period; }, [period]);
 
   // ── back/forward restore ───────────────────────────────────────────────────
 
@@ -255,47 +156,12 @@ export function DoctorScheduleShell({
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tab = scheduleTabFromQuery(params.get("tab"));
-      const rawPeriod = params.get("period");
-      const nextPeriod: AdminStatsTimePreset =
-        rawPeriod === "day" || rawPeriod === "week" || rawPeriod === "month" ? rawPeriod : "month";
       setActiveTab(tab);
       setMountedTabs((prev) => new Set([...prev, tab]));
       setDeepLinks(readDeepLinksFromSearchParams(params));
-      setPeriod(nextPeriod);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  // ── period KPI fetch ───────────────────────────────────────────────────────
-  // Lightweight client fetch to re-load KPIs when period changes.
-  // Builds from/to from current date; will be replaced in Этап F when KPI moves to tab «Записи».
-  const loadKpis = useCallback(async (p: AdminStatsTimePreset) => {
-    try {
-      const now = new Date();
-      const todayKey = now.toISOString().slice(0, 10);
-      const getDayOffset = (base: string, days: number) => {
-        const d = new Date(`${base}T00:00:00Z`);
-        d.setUTCDate(d.getUTCDate() + days);
-        return d.toISOString().slice(0, 10);
-      };
-      let from = `${todayKey}T00:00:00`;
-      let to: string;
-      if (p === "day") {
-        to = `${getDayOffset(todayKey, 1)}T00:00:00`;
-      } else if (p === "week") {
-        to = `${getDayOffset(todayKey, 7)}T00:00:00`;
-      } else {
-        to = `${getDayOffset(todayKey, 3)}T00:00:00`;
-      }
-      const params = new URLSearchParams({ from, to });
-      const res = await fetch(`/api/doctor/schedule-kpis?${params.toString()}`);
-      if (!res.ok) return;
-      const json = (await res.json()) as { ok: boolean; kpis: ScheduleKpis };
-      if (json.ok && json.kpis) setKpis(json.kpis);
-    } catch {
-      // silently ignore — show last known KPIs
-    }
   }, []);
 
   // ── URL builder ───────────────────────────────────────────────────────────
@@ -304,10 +170,8 @@ export function DoctorScheduleShell({
     (
       tabId: ScheduleTabId,
       tabDeepLinks: Record<string, string>,
-      currentPeriod: AdminStatsTimePreset,
     ): string => {
       const params = new URLSearchParams({ tab: tabId });
-      if (currentPeriod !== "month") params.set("period", currentPeriod);
       for (const [k, v] of Object.entries(tabDeepLinks)) {
         if (v) params.set(k, v);
       }
@@ -325,7 +189,7 @@ export function DoctorScheduleShell({
       window.history.replaceState(
         null,
         "",
-        buildTabUrl(tabId, deepLinksRef.current[tabId] ?? {}, periodRef.current),
+        buildTabUrl(tabId, deepLinksRef.current[tabId] ?? {}),
       );
     },
     [buildTabUrl],
@@ -345,7 +209,7 @@ export function DoctorScheduleShell({
           window.history.replaceState(
             null,
             "",
-            buildTabUrl(tabId, tabParams, periodRef.current),
+            buildTabUrl(tabId, tabParams),
           );
         }
         return next;
@@ -354,25 +218,8 @@ export function DoctorScheduleShell({
     [buildTabUrl],
   );
 
-  // ── period change ─────────────────────────────────────────────────────────
-
-  const handlePeriodChange = useCallback(
-    (p: AdminStatsTimePreset) => {
-      setPeriod(p);
-      periodRef.current = p;
-      window.history.replaceState(
-        null,
-        "",
-        buildTabUrl(activeTabRef.current, deepLinksRef.current[activeTabRef.current] ?? {}, p),
-      );
-      void loadKpis(p);
-    },
-    [buildTabUrl, loadKpis],
-  );
-
   return (
     <DoctorAppShell title="Расписание">
-      <KpiRow kpis={kpis} period={period} onPeriodChange={handlePeriodChange} />
       <ScheduleTabsNav activeTab={activeTab} onTabClick={handleTabChange} />
       {SCHEDULE_TAB_REGISTRY.map((entry) => {
         if (!mountedTabs.has(entry.id)) return null;

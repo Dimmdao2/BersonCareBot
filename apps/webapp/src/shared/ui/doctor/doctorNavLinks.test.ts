@@ -32,8 +32,13 @@ describe("isDoctorNavItemActive", () => {
     );
   });
 
-  it("matches schedule and communications paths", () => {
+  it("matches schedule path — active on any ?tab", () => {
     expect(isDoctorNavItemActive("/app/doctor/schedule", "/app/doctor/schedule")).toBe(true);
+    // With query params the href is /app/doctor/schedule, path is /app/doctor/schedule → active
+    expect(isDoctorNavItemActive("/app/doctor/schedule", "/app/doctor/schedule")).toBe(true);
+  });
+
+  it("matches communications paths", () => {
     expect(isDoctorNavItemActive("/app/doctor/communications", "/app/doctor/communications")).toBe(true);
     expect(
       isDoctorNavItemActive("/app/doctor/communications", "/app/doctor/communications/foo"),
@@ -128,40 +133,29 @@ describe("doctor menu structure", () => {
     expect(today?.href).toBe("/app/doctor");
   });
 
-  it("schedule is expandable with cal, work, and admin setup sub-items", () => {
-    const items = getDoctorMenuItems(adminAccess);
-    const schedule = items.find((i) => i.id === "schedule");
-    expect(schedule?.items?.map((i) => i.id)).toEqual([
-      "schedule-cal",
-      "schedule-work",
-      "schedule-setup",
-    ]);
-    const calItem = schedule?.items?.find((i) => i.id === "schedule-cal");
-    expect(calItem?.label).toBe("Календарь записей");
-    expect(calItem?.href).toContain("?tab=cal");
-    const workItem = schedule?.items?.find((i) => i.id === "schedule-work");
-    expect(workItem?.label).toBe("График работы");
-    expect(workItem?.href).toContain("?tab=work");
-    const setupItem = schedule?.items?.find((i) => i.id === "schedule-setup");
-    expect(setupItem?.label).toBe("Настройки записи");
-    expect(setupItem?.href).toContain("?tab=setup");
-    expect(setupItem?.requiresAdminMode).toBe(true);
+  it("schedule is a direct link to /app/doctor/schedule (no accordion, no sub-items)", () => {
+    // For both doctor and admin
+    for (const access of [doctorAccess, adminAccess]) {
+      const items = getDoctorMenuItems(access);
+      const schedule = items.find((i) => i.id === "schedule");
+      expect(schedule).toBeDefined();
+      expect(schedule?.href).toBe("/app/doctor/schedule");
+      expect(schedule?.items).toBeUndefined();
+    }
   });
 
-  it("schedule for doctor hides admin setup sub-item", () => {
-    const items = getDoctorMenuItems(doctorAccess);
-    const schedule = items.find((i) => i.id === "schedule");
-    expect(schedule?.items?.map((i) => i.id)).toEqual(["schedule-cal", "schedule-work"]);
+  it("isDoctorMenuClusterId returns false for schedule (no longer accordion)", () => {
+    expect(isDoctorMenuClusterId("schedule")).toBe(false);
   });
 
   it("isDoctorMenuClusterId returns true for expandable items only", () => {
     expect(isDoctorMenuClusterId("library")).toBe(true);
-    expect(isDoctorMenuClusterId("schedule")).toBe(true);
     expect(isDoctorMenuClusterId("analytics")).toBe(true);
     expect(isDoctorMenuClusterId("settings")).toBe(true);
     expect(isDoctorMenuClusterId("system")).toBe(true);
     expect(isDoctorMenuClusterId("today")).toBe(false);
     expect(isDoctorMenuClusterId("clients")).toBe(false);
+    expect(isDoctorMenuClusterId("schedule")).toBe(false);
     expect(isDoctorMenuClusterId("unknown")).toBe(false);
   });
 
@@ -170,15 +164,18 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuClusterId(DOCTOR_MENU_DEFAULT_CLUSTER_ID)).toBe(true);
   });
 
-  it("DOCTOR_MENU_LINKS contains all navigation links flat", () => {
+  it("DOCTOR_MENU_LINKS contains schedule as flat link (not sub-items)", () => {
     const hrefs = DOCTOR_MENU_LINKS.map((l) => l.href);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Сегодня")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Пациенты")).toBe(true);
+    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Расписание")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Комплексы ЛФК")).toBe(true);
     expect(hrefs).toContain("/app/doctor/communications");
-    expect(hrefs).toContain("/app/doctor/schedule?tab=cal");
-    expect(hrefs).toContain("/app/doctor/schedule?tab=work");
-    expect(hrefs).toContain("/app/doctor/schedule?tab=setup");
+    // schedule is now a flat link (no sub-items in DOCTOR_MENU_LINKS)
+    expect(hrefs).toContain("/app/doctor/schedule");
+    expect(hrefs).not.toContain("/app/doctor/schedule?tab=cal");
+    expect(hrefs).not.toContain("/app/doctor/schedule?tab=work");
+    expect(hrefs).not.toContain("/app/doctor/schedule?tab=setup");
     expect(hrefs).not.toContain("/app/doctor/appointments");
     expect(hrefs).not.toContain("/app/settings");
   });
