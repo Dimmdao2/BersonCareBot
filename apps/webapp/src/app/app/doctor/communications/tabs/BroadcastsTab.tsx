@@ -85,7 +85,7 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
         {loading ? (
           <p className="text-sm text-muted-foreground">Загрузка…</p>
         ) : (
-          <BroadcastAuditLog entries={entries} />
+          <BroadcastAuditLog entries={entries} onArchive={onArchive} />
         )}
       </section>
     </div>
