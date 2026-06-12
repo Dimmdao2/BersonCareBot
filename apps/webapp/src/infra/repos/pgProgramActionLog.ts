@@ -355,5 +355,51 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       }
       return out;
     },
+
+    async listDoneForStageItemInWindow(params) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          id: logTable.id,
+          instanceId: logTable.instanceId,
+          instanceStageItemId: logTable.instanceStageItemId,
+          patientUserId: logTable.patientUserId,
+          sessionId: logTable.sessionId,
+          actionType: logTable.actionType,
+          payload: logTable.payload,
+          note: logTable.note,
+          createdAt: logTable.createdAt,
+        })
+        .from(logTable)
+        .where(
+          and(
+            eq(logTable.instanceId, params.instanceId),
+            eq(logTable.instanceStageItemId, params.instanceStageItemId),
+            eq(logTable.actionType, "done"),
+            gte(logTable.createdAt, params.windowStartUtcIso),
+            lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
+          ),
+        )
+        .orderBy(desc(logTable.createdAt))
+        .limit(50);
+
+      const out: ProgramActionLogListRow[] = [];
+      for (const r of rows) {
+        const at = r.actionType;
+        if (!PROGRAM_ACTION_TYPES.includes(at as ProgramActionType)) continue;
+        out.push({
+          id: r.id,
+          instanceId: r.instanceId,
+          instanceStageItemId: r.instanceStageItemId,
+          patientUserId: r.patientUserId,
+          sessionId: r.sessionId ?? null,
+          actionType: at as ProgramActionType,
+          payload: r.payload ?? null,
+          note: r.note ?? null,
+          createdAt: r.createdAt,
+        });
+      }
+      return out;
+    },
   };
 }

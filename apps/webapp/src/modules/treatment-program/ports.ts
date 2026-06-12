@@ -452,4 +452,15 @@ export type ProgramActionLogPort = {
   }): Promise<Array<{ localDate: string; itemId: string; instanceId: string }>>;
   /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
   listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;
+  /**
+   * Записи `done` по конкретному элементу экземпляра за UTC-окно.
+   * Используется для микро-графика динамики выполнения упражнения (Этап B.3).
+   * Возвращает записи в порядке убывания `created_at` (новые сверху), limit = 50.
+   */
+  listDoneForStageItemInWindow(params: {
+    instanceId: string;
+    instanceStageItemId: string;
+    windowStartUtcIso: string;
+    windowEndUtcExclusiveIso: string;
+  }): Promise<ProgramActionLogListRow[]>;
 };

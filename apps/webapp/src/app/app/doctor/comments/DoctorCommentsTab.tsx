@@ -24,6 +24,10 @@ import { useDoctorExerciseCommentsSearch } from "./useDoctorExerciseCommentsSear
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import {
+  ExerciseMicroChart,
+  type ExerciseMetricPoint,
+} from "@/shared/ui/doctor/ExerciseMicroChart";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +56,11 @@ type ThreadApiResponse = {
   };
   totalCount: number;
   peerLastReadAt: string | null;
+};
+
+type MetricsApiResponse = {
+  ok: boolean;
+  points?: ExerciseMetricPoint[];
 };
 
 export type DoctorCommentsTabProps = {
@@ -410,6 +419,10 @@ export function DoctorCommentsTab({
   const [markReadSent, setMarkReadSent] = useState(false);
   const [peerLastReadAt, setPeerLastReadAt] = useState<string | null>(null);
 
+  // State C: exercise metrics micro-chart
+  const [metricsPoints, setMetricsPoints] = useState<ExerciseMetricPoint[] | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+
   const threadVersionRef = useRef(0);
 
   // ── Computed: filtered patients ──
@@ -512,6 +525,31 @@ export function DoctorCommentsTab({
     void loadThread(exercisesData.instanceId, selectedExercise.stageItemId);
   }, [selectedExercise, exercisesData, loadThread]);
 
+  // ── Load exercise metrics for micro-chart (state C) ──
+  const loadMetrics = useCallback(async (instanceId: string, stageItemId: string) => {
+    setMetricsLoading(true);
+    setMetricsPoints(null);
+    try {
+      const params = new URLSearchParams({ instanceId, stageItemId });
+      const res = await fetch(`/api/doctor/comments/exercise-metrics?${params.toString()}`);
+      const data = (await res.json()) as MetricsApiResponse;
+      if (data.ok && data.points) {
+        setMetricsPoints(data.points);
+      } else {
+        setMetricsPoints([]);
+      }
+    } catch {
+      setMetricsPoints([]);
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedExercise || !exercisesData) return;
+    void loadMetrics(exercisesData.instanceId, selectedExercise.stageItemId);
+  }, [selectedExercise, exercisesData, loadMetrics]);
+
   useEffect(() => {
     if (
       !selectedExercise ||
@@ -554,6 +592,7 @@ export function DoctorCommentsTab({
     setSelectedExercise(null);
     setThreadMessages([]);
     setMarkReadSent(false);
+    setMetricsPoints(null);
   }
 
   function handleDeselectPatient() {
@@ -562,17 +601,20 @@ export function DoctorCommentsTab({
     setThreadMessages([]);
     setExercisesData(null);
     setMarkReadSent(false);
+    setMetricsPoints(null);
   }
 
   function handleSelectExercise(exercise: ExerciseCommentItem) {
     setSelectedExercise(exercise);
     setMarkReadSent(false);
+    setMetricsPoints(null);
   }
 
   function handleCloseThread() {
     setSelectedExercise(null);
     setThreadMessages([]);
     setMarkReadSent(false);
+    setMetricsPoints(null);
   }
 
   // ── Left pane ────────────────────────────────────────────────────────────
@@ -832,6 +874,15 @@ export function DoctorCommentsTab({
                   )}
                 </span>
               </div>
+              {/* Микро-график статистики за последнюю неделю */}
+              {metricsLoading && (
+                <p className="mt-1.5 text-[10px] text-muted-foreground">Загрузка статистики…</p>
+              )}
+              {!metricsLoading && metricsPoints !== null && (
+                <div className="mt-2">
+                  <ExerciseMicroChart points={metricsPoints} />
+                </div>
+              )}
             </div>
             <button
               type="button"

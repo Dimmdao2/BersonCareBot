@@ -293,5 +293,33 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       }
       return out;
     },
+
+    async listDoneForStageItemInWindow(params) {
+      const filtered = rows.filter(
+        (r) =>
+          r.instanceId === params.instanceId &&
+          r.instanceStageItemId === params.instanceStageItemId &&
+          r.actionType === "done" &&
+          r.createdAt >= params.windowStartUtcIso &&
+          r.createdAt < params.windowEndUtcExclusiveIso,
+      );
+      filtered.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+      const out: ProgramActionLogListRow[] = [];
+      for (const r of filtered.slice(0, 50)) {
+        if (!PROGRAM_ACTION_TYPES.includes(r.actionType as ProgramActionType)) continue;
+        out.push({
+          id: r.id,
+          instanceId: r.instanceId,
+          instanceStageItemId: r.instanceStageItemId,
+          patientUserId: r.patientUserId,
+          sessionId: r.sessionId ?? null,
+          actionType: r.actionType as ProgramActionType,
+          payload: r.payload ?? null,
+          note: r.note ?? null,
+          createdAt: r.createdAt,
+        });
+      }
+      return out;
+    },
   };
 }

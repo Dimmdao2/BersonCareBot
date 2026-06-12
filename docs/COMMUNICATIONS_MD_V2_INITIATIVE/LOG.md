@@ -1,5 +1,129 @@
 # COMMUNICATIONS_MD_V2 — Execution Log
 
+## Этап 6 — микро-график статистики упражнения
+
+**Дата:** 2026-06-13
+
+### Что сделано
+
+#### 1. Тип `ExerciseMetricPoint` (modules/treatment-program/types.ts)
+
+Новый тип `ExerciseMetricPoint` — одна точка данных для микро-графика:
+- `at: string` — ISO-строка `created_at`
+- `reps: number | null`
+- `weightKg: number | null`
+- `sets: number | null` — **зарезервировано для Фазы C** (сейчас всегда `null`)
+- `difficulty: "easy" | "medium" | "hard" | null`
+
+Поля извлекаются из `program_action_log.payload` (источник: `patientCompleteSimpleItem` пишет `perceivedDifficulty`, `reps`, `weightKg`).
+
+#### 2. Порт `listDoneForStageItemInWindow` (ports.ts + pg + inMemory — аддитивно)
+
+Новый аддитивный метод в `ProgramActionLogPort`:
+```
+listDoneForStageItemInWindow(params: {
+  instanceId, instanceStageItemId, windowStartUtcIso, windowEndUtcExclusiveIso
+}): Promise<ProgramActionLogListRow[]>
+```
+- `pgProgramActionLog.ts` — Drizzle-запрос: `WHERE instanceId AND instanceStageItemId AND actionType='done' AND createdAt IN [start, end)`, ORDER BY `createdAt DESC`, LIMIT 50.
+- `inMemoryProgramActionLog.ts` — полный паритет: фильтрует по тем же полям, сортирует, обрезает до 50.
+
+#### 3. Метод сервиса `listExerciseMetricsForWeek` (progress-service.ts — аддитивно)
+
+```
+listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise<ExerciseMetricPoint[]>
+```
+- Окно: последние 7 дней (UTC-now − 7d … now+1min). Буфер +1 мин на верхней границе обеспечивает включение строк, вставленных в текущую секунду (нужно для тестов, безопасно для продакшена).
+- Маппинг payload: `reps`, `weightKg`, `sets` (всегда null пока Фаза C), `perceivedDifficulty` → `difficulty`.
+
+#### 4. API-роут `GET /api/doctor/comments/exercise-metrics` (новый файл)
+
+Тонкий роут в `app/api/doctor/comments/exercise-metrics/route.ts`:
+- Auth: `getCurrentSession` + `canAccessDoctor`.
+- Zod-валидация: `instanceId: z.string().uuid()`, `stageItemId: z.string().uuid()`.
+- Вызывает `deps.treatmentProgramProgress.listExerciseMetricsForWeek`.
+- Ответ: `{ ok: true, points: ExerciseMetricPoint[] }`.
+
+Выбор: отдельный лёгкий эндпоинт вместо добавления в тред-роут (не раздувает тред, независимо загружается).
+
+#### 5. Компонент `ExerciseMicroChart` (shared/ui/doctor/ExerciseMicroChart.tsx — новый)
+
+Переиспользуемый компонент (пригодится для страницы пациента, Фаза C):
+- Принимает `points: ExerciseMetricPoint[]`.
+- Показывает только те метрики, по которым есть хотя бы одна ненулевая точка.
+- `reps`, `weightKg`, `sets` — вертикальные столбики (div-bars) пропорционально max, высота 4–28px.
+- `difficulty` — цветные кружки (easy=зелёный, medium=жёлтый, hard=красный).
+- Метки на осях: `text-[9px]` (дата) и `text-[10px]` (название метрики) — по стайлгайду.
+- Пустые состояния: «Нет данных за последние 7 дней» (нет точек), «Выполнено N раз, метрики не зафиксированы» (точки есть, но все поля null).
+- **sets зарезервирован**: когда Фаза C добавит запись подходов — строка `hasSets` подхватит их автоматически без переделки компонента.
+- Реализован на чистых div-барах без recharts — компактнее для шапки, каноничнее для микро-элемента.
+
+#### 6. Интеграция в `DoctorCommentsTab.tsx` (State C шапка)
+
+- Добавлен импорт `ExerciseMicroChart` + тип `ExerciseMetricPoint` из `@/shared/ui/doctor/ExerciseMicroChart`.
+- Добавлен тип `MetricsApiResponse`.
+- Новое состояние: `metricsPoints: ExerciseMetricPoint[] | null`, `metricsLoading: boolean`.
+- `loadMetrics(instanceId, stageItemId)` — `useCallback`, вызывается через `useEffect` при смене `selectedExercise`.
+- Сброс `metricsPoints = null` при `handleSelectPatient`, `handleDeselectPatient`, `handleSelectExercise`, `handleCloseThread`.
+- В шапке State C (после счётчика сообщений): `metricsLoading` → «Загрузка статистики…»; `metricsPoints !== null` → `<ExerciseMicroChart points={metricsPoints} />`.
+
+#### 7. Тесты
+
+**Расширен** `inMemoryProgramActionLog.listDoneItems.test.ts` (6 новых тестов):
+- `listDoneForStageItemInWindow`: фильтрация по stageItemId, пустой результат вне окна.
+- `listExerciseMetricsForWeek`: агрегация reps/weightKg/difficulty, частичные метрики, нет данных.
+
+**Новый** `ExerciseMicroChart.test.tsx` (10 тестов):
+- Пустые состояния (нет точек, нулевые метрики).
+- Рендер каждой метрики: reps, weightKg, difficulty, sets (Фаза C path).
+- Множественные метрики одновременно.
+- Счёт баров (bars по non-null reps).
+- Порядок старые→новые.
+
+**Обновлён** `DoctorCommentsTab.test.tsx`:
+- Моки `fetch` в `renderStateC` переведены с `callCount` на URL-routing (устойчивее с добавлением metrics-фетча).
+- Добавлены 3 теста блока «микро-график метрик (B.3)»: вызов metrics-эндпоинта с правильными params, пустой массив → «нет данных», массив с reps → метка «повт.».
+
+### Проверки
+
+- `npx tsc --noEmit` — **0 ошибок** (в наших файлах).
+- `npx eslint <изменённые файлы>` — **0 предупреждений**.
+- `npx vitest run` по 4 файлам — **49 passed** (4 files).
+  - `inMemoryProgramActionLog.listDoneItems.test.ts` — 6/6 ✓
+  - `ExerciseMicroChart.test.tsx` — 10/10 ✓
+  - `DoctorCommentsTab.test.tsx` — 28/28 ✓
+  - `webappPhase15F.verify.test.ts` — 5/5 ✓ (gate зелёный)
+
+### Затронутые файлы
+
+**Изменённые:**
+- `apps/webapp/src/modules/treatment-program/types.ts` — добавлен тип `ExerciseMetricPoint`
+- `apps/webapp/src/modules/treatment-program/ports.ts` — добавлен `listDoneForStageItemInWindow` в `ProgramActionLogPort`
+- `apps/webapp/src/modules/treatment-program/progress-service.ts` — добавлен метод `listExerciseMetricsForWeek`
+- `apps/webapp/src/infra/repos/pgProgramActionLog.ts` — реализован `listDoneForStageItemInWindow` (Drizzle)
+- `apps/webapp/src/infra/repos/inMemoryProgramActionLog.ts` — реализован `listDoneForStageItemInWindow` (inMemory паритет)
+- `apps/webapp/src/infra/repos/inMemoryProgramActionLog.listDoneItems.test.ts` — расширен (6 новых тестов)
+- `apps/webapp/src/app/app/doctor/comments/DoctorCommentsTab.tsx` — интеграция микро-графика
+- `apps/webapp/src/app/app/doctor/comments/DoctorCommentsTab.test.tsx` — обновлён (URL-routing моки + 3 новых теста)
+
+**Новые файлы:**
+- `apps/webapp/src/app/api/doctor/comments/exercise-metrics/route.ts` — API-роут метрик
+- `apps/webapp/src/shared/ui/doctor/ExerciseMicroChart.tsx` — компонент микро-графика
+- `apps/webapp/src/shared/ui/doctor/ExerciseMicroChart.test.tsx` — тесты компонента
+
+### Сознательно не сделано
+
+- **Фаза C (sets)**: поле `sets: null` зарезервировано в `ExerciseMetricPoint` и компонент автоматически покажет строку `подх.` когда данные появятся. Запись подходов — вне scope этого этапа.
+- **Агрегация по дням**: возвращаются индивидуальные записи выполнения, не суммированные по дням. Одно выполнение = одна полоска. При нескольких выполнениях в день все они отображаются. Альтернатива — агрегация по локальному дню — зафиксирована как развилка (см. ниже).
+- **Страница пациента**: компонент `ExerciseMicroChart` переиспользуемый, но подключается только в комментариях (Фаза C per README §C.2).
+
+### Развилки (зафиксировать, не угадывать)
+
+1. **Агрегация по дням vs. по выполнениям**: сейчас каждое выполнение = отдельная полоска (максимум 50 за 7 дней). Если пациент делает упражнение несколько раз в день — в графике несколько полосок за одну дату. Альтернатива: GROUP BY локальная дата + агрегат (sum reps, avg difficulty). Текущий подход показывает полную детализацию. При большом количестве выполнений может потребоваться агрегация — решение владельца.
+2. **Набор метрик графика**: `reps`, `weightKg`, `difficulty` — реально пишутся через `patientCompleteSimpleItem`. `sets` — зарезервирован, всегда null. `note` в payload не показывается (это текстовое поле, не числовая метрика). Если нужно добавить новые числовые метрики из payload — достаточно расширить маппинг в `listExerciseMetricsForWeek` и добавить `MetricKey` в компоненте.
+
+---
+
 ## Этап 5b — UI drill-down комментариев
 
 **Дата:** 2026-06-13
