@@ -851,3 +851,89 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 
 **Решения/нюансы:** workingBounds считаем на сервере (проще и тестируемо). `feed`-окно по умолчанию ±30 дней
 (§13.6). Коммиты: `e3368c98` (реализация) + отдельный коммит тестов+plan+LOG.
+
+---
+
+## Этап D — Ребилд таба «Записи» (2026-06-13)
+
+### D1 — Тулбар
+
+- Переключатель **3 дня · Неделя · Месяц · Лента** (view: 3days/weekgrid/month/feed); «День» в переключателе отсутствует.
+- Лейбл периода `◀ … ▶` + стрелки скрыты в `feed`.
+- Фильтры `Локация ▾ · Услуга ▾` (`DoctorCalendarToolbarFilter`).
+- Кнопка «+ Создать запись» (primary, справа, всегда).
+- Экспортируемый helper `visibleRange(view, anchor, tz) → {from, to}` — единый источник диапазона для фида и KPI:
+  - `3days` = anchor + 2 дня; `weekgrid` = пн–вс; `month` = 1-е..последнее; `feed` = ±30 дней; `day` = один день.
+
+### D2 — KPI-ряд (9 карточек) внутри таба
+
+- Сетка `grid-cols-3 ... xl:grid-cols-9` под тулбаром.
+- Классы из `doctorVisual.ts`: `doctorStatCardShellClass`, `doctorStatCardInteractiveClass`, `doctorMetricValueClass`, `doctorMetricLabelClass`.
+- `data-testid="kpi-<key>"`, `role="button"`, `cursor-pointer`, onClick = no-op (фильтрация — следующая итерация).
+- **Скрыт** в `feed` и `day` (`showKpi = view !== "feed" && view !== "day"`).
+- Нули отображаются как `0` (не «—») после первой загрузки.
+- Параллельная загрузка: `loadFeed()` и `loadKpis()` запускаются одновременно на каждое изменение view/date/filters.
+
+### D3 — Часовые виды 3 дня и Неделя; Дневной drill-down
+
+- **3 дня** (`3days`): FullCalendar `timeGrid3days` (кастомный view с `duration:{days:3}`), сегодня+2 дня.
+- **Неделя** (`weekgrid`): FullCalendar `timeGridWeek`.
+- Клик по заголовку дня (`navLinkDayClick`) → `drillDownDay(dateKey)`:
+  - Запоминает исходный вид в `drillBackView` + `from` deep-link.
+  - Переключается на `view=day`.
+- **Дневной вид** (`day`):
+  - Кнопка `← Назад` (`data-testid="drill-back-btn"`) → возвращает в `drillBackView` (fallback `3days`).
+  - Стрелки ◀▶ листают по дням.
+  - KPI скрыт.
+- Часы сетки: `slotMinTime`/`slotMaxTime` из `workingBounds` ответа фида (бэкенд даёт ±1ч); fallback `06:00–23:00`.
+
+### D4 — Месяц и Лента
+
+- **Месяц** (`month`): `dayGridMonth`; плашка = `eventLastName()` (первое слово/фамилия); сегодня — жёлтая подсветка через CSS `fc-day-today` + `#fff8e6`; `+N` при переполнении (FullCalendar `dayMaxEvents`); клик по числу дня → `drillDownDay`.
+- **Лента** (`feed`): кастомный `FeedView` (не FullCalendar); вертикальный поток `FeedDayCard`; пустые дни пропущены; кнопки «← Загрузить более ранние» / «Загрузить ещё →» расширяют `feedRangeFrom`/`feedRangeTo` на 30 дней в каждую сторону; KPI и стрелки скрыты.
+
+### D5 — Правая панель: карточка/заглушка
+
+- Если выбрана запись или открыт create-режим: `DoctorCalendarEventPanel`.
+- Иначе: `RightPanelEmptyStub`:
+  - Иконка + «Запись не выбрана» + подсказка.
+  - CTA «+ Создать запись» → открывает `DoctorCalendarEventPanel` в create-режиме.
+  - `NearestWindowLine` — GET `/api/doctor/schedule/nearest-free-window` → «Ближайшее окно сегодня: HH:MM–HH:MM»; скрыт если `window=null` или ошибка (graceful degradation).
+- Дублирование CTA (тулбар + заглушка) — намеренное (ТЗ §2.8).
+
+### D6 — Deep-link
+
+- `scheduleTabRegistry.ts`: `deepLinkKeys` для `cal` расширен до 6 ключей: `view/date/location/service/appt/from`.
+- `from` — источник drill-down: значение вида, из которого перешли в `day`; при `← Назад` используется для восстановления.
+- URL-sync через шелл (`onDeepLinkChange`) без изменений в `DoctorScheduleShell.tsx`.
+- Допустимые значения `view`: `3days|weekgrid|month|feed|day`.
+
+### Решения
+
+- `view=weeklist` (Wave3) **не удалён** из `CalendarViewMode` (backward-compat); в переключателе таба его нет. Код в `ScheduleCalendarTab.tsx` использует только `CalV26View` (internal type); `resolveView()` знает про `weeklist` чтобы не ломать URL со старым значением — но он маппируется на `3days` (fallback).
+- KPI в шелле (`DoctorScheduleShell.tsx`) и KPI в табе временно **сосуществуют** — шелловый KPI будет убран в Этапе F.
+- `fcViews as any` — FullCalendar ViewOptions типизация не принимает кастомные string-ключи в index-signature при union с optional `dayGridMonth?: undefined`; явный cast до `any` без потери runtime-корректности.
+
+### Проверки
+
+| Артефакт | Результат |
+|----------|-----------|
+| `tsc --noEmit --skipLibCheck` | EXIT 0 (только pre-existing BroadcastForm ошибка) |
+| `vitest run "ScheduleCalendarTab.test"` | **37/37** зелёных |
+| `vitest run "scheduleTabRegistry.test"` | **16/16** зелёных |
+| Все schedule тесты (`vitest run "schedule"`) | **170/170** зелёных (21 файл) |
+| Pre-existing failures | `webappPhase15F.verify.test.ts` — 2 теста, не тронуты |
+
+### Изменённые / созданные файлы
+
+- `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleCalendarTab.tsx` — полный ребилд (D1–D5)
+- `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleCalendarTab.test.tsx` — полный ребилд (37 тестов)
+- `apps/webapp/src/app/app/doctor/schedule/scheduleTabRegistry.ts` — `from` ключ
+- `apps/webapp/src/app/app/doctor/schedule/scheduleTabRegistry.test.ts` — обновлён под 6 ключей
+
+### Сознательно НЕ делали
+
+- Перенос KPI из шелла в таб (убирается в Этапе F — `DoctorScheduleShell.tsx`).
+- Полная реализация `+N` в Месяце через кастомный popover (FullCalendar нативно показывает «+N more» → достаточно).
+- Клик по KPI-карточке для фильтрации (следующая итерация, только разметка).
+- `view=weeklist` из Wave3 убран из переключателя таба, но тип в `CalendarViewMode` сохранён.

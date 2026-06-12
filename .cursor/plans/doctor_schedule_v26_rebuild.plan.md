@@ -56,22 +56,22 @@ todos:
     status: completed
   - id: d1-zapisi-toolbar
     content: "D1 — ScheduleCalendarTab тулбар: переключатель 3 дня/Неделя/Месяц/Лента (без «День») + ◀label▶ (скрыт в feed) + фильтры Локация/Услуга + «+ Создать запись»; helper visibleRange(view,anchor,tz). Проверки: RTL переключение видов"
-    status: pending
+    status: completed
   - id: d2-zapisi-kpi
     content: "D2 — KPI-ряд 9 карточек ВНУТРИ таба под тулбаром (doctorVisual классы, cursor-pointer no-op, data-testid kpi-*), скрыт в feed/day, параллельная загрузка фид+KPI по одному диапазону+фильтрам, нули как 0. Проверки: RTL видимость KPI по видам + реакция на фильтры"
-    status: pending
+    status: completed
   - id: d3-zapisi-hourly-day
     content: "D3 — часовые виды 3 дня/Неделя (клик по заголовку дня → drill-down day) + дневной вид (← Назад через from, листание стрелками по дням, KPI скрыт). Проверки: RTL drill-down day↔Назад"
-    status: pending
+    status: completed
   - id: d4-zapisi-month-feed
     content: "D4 — Месяц (плашка=строка, фамилия; сегодня жёлтый #fff8e6; +N; клик по числу→day) + Лента (бесконечный скролл обе стороны, пустые дни пропущены, без границ недель, KPI/стрелки скрыты). Проверки: RTL месяц-плашки + лента-скролл"
-    status: pending
+    status: completed
   - id: d5-zapisi-right-panel
     content: "D5 — правая панель: запись→DoctorCalendarEventPanel; пусто→заглушка «Запись не выбрана» + CTA «+ Создать запись» + «Ближайшее окно сегодня HH:MM–HH:MM» (C3; скрыть если null). Проверки: RTL заглушка↔карточка"
-    status: pending
+    status: completed
   - id: d6-zapisi-deeplink
     content: "D6 — deep-link реестр cal: view/date/location/service/appt/from (view∈3days|weekgrid|month|feed|day); URL-sync через шелл; unit-тест ключей (прогрев чанков в beforeAll). Проверки: vitest scheduleTabRegistry + deep-link"
-    status: pending
+    status: completed
   - id: e1-work-layout
     content: "E1 — ScheduleWorkTab раскладка две колонки (§0.1.1): слева сетка дней + месяц-нав/легенда, справа панель часов, шаблоны — снизу на всю ширину; адаптив-стэк на узких. Проверки: RTL присутствие 3 зон"
     status: pending

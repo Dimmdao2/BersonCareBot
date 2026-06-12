@@ -30,7 +30,7 @@ export const SCHEDULE_TAB_REGISTRY: ScheduleTabRegistryEntry[] = [
     id: "cal",
     loader: () =>
       import("./tabs/ScheduleCalendarTab").then((m) => ({ default: m.ScheduleCalendarTab })),
-    deepLinkKeys: ["view", "date", "location", "service", "appt"],
+    deepLinkKeys: ["view", "date", "location", "service", "appt", "from"],
   },
   {
     id: "work",

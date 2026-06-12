@@ -52,8 +52,12 @@ describe("scheduleTabRegistry", () => {
       expect(getEntry("cal").deepLinkKeys).toContain("appt");
     });
 
-    it("cal tab deepLinkKeys has exactly 5 keys", () => {
-      expect(getEntry("cal").deepLinkKeys).toHaveLength(5);
+    it("cal tab deepLinkKeys includes from (drill-down source)", () => {
+      expect(getEntry("cal").deepLinkKeys).toContain("from");
+    });
+
+    it("cal tab deepLinkKeys has exactly 6 keys (view/date/location/service/appt/from)", () => {
+      expect(getEntry("cal").deepLinkKeys).toHaveLength(6);
     });
 
     it("work tab deepLinkKeys includes location", () => {
