@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
+import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import {
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+} from "@/shared/ui/doctor/doctorWorkspaceLayout";
 
 const POLL_INTERVAL_MS = 1_000;
 
@@ -198,129 +203,141 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
     );
   }
 
+  const leftPane = (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      {/* Header: search + filter chips */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-3 py-2">
+        <Input
+          type="search"
+          placeholder="Поиск по имени пациента"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="h-8 min-w-[120px] flex-1"
+          aria-label="Поиск по имени пациента"
+        />
+        <button
+          type="button"
+          onClick={() => setFilter(filter === "unread" ? "all" : "unread")}
+          className={cn(
+            "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+            filter === "unread"
+              ? "bg-primary/15 text-primary"
+              : "border border-border text-muted-foreground hover:bg-muted/40",
+          )}
+          aria-pressed={filter === "unread"}
+        >
+          Непрочитанные · {unreadCount}
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter(filter === "onSupport" ? "all" : "onSupport")}
+          className={cn(
+            "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+            filter === "onSupport"
+              ? "bg-primary/15 text-primary"
+              : "border border-border text-muted-foreground hover:bg-muted/40",
+          )}
+          aria-pressed={filter === "onSupport"}
+        >
+          ★ На сопровождении · {onSupportCount}
+        </button>
+      </div>
+
+      {error && (
+        <p className="border-b border-border px-3 py-2 text-xs text-destructive">{error}</p>
+      )}
+
+      {/* Conversation rows */}
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        {filteredList.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center py-8 text-sm text-muted-foreground">
+            {query.trim()
+              ? "Ничего не найдено"
+              : filter === "unread"
+                ? "Нет непрочитанных диалогов"
+                : filter === "onSupport"
+                  ? "Нет диалогов на сопровождении"
+                  : "Нет открытых диалогов"}
+          </div>
+        ) : (
+          filteredList.map((c) => (
+            <button
+              key={c.conversationId}
+              type="button"
+              onClick={() => setSelectedId(c.conversationId)}
+              className={cn(
+                "flex w-full cursor-pointer gap-2 border-b border-border px-3 py-2.5 text-left transition-colors",
+                selectedId === c.conversationId
+                  ? "bg-primary/15"
+                  : "hover:bg-muted/40",
+              )}
+            >
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-sm font-semibold">
+                    {c.displayName || "Без имени"}
+                    {c.onSupport && (
+                      <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatConversationTime(c.lastMessageAt)}
+                  </span>
+                </div>
+                {c.lastMessageText && (
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground/80">{getSenderPrefix(c)}:</span>{" "}
+                    {c.lastMessageText}
+                  </p>
+                )}
+              </div>
+              {c.unreadFromUserCount > 0 && (
+                <span className="self-center rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                  {c.unreadFromUserCount}
+                </span>
+              )}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  const rightPane = (
+    <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      {!selectedId ? (
+        <DoctorEmptyState
+          size="sm"
+          className="flex-1 items-center justify-center px-6 text-center"
+        >
+          <span className="font-semibold text-foreground">Выберите чат слева</span>
+          <span>Когда диалог выбран — здесь появляется тред переписки с полем ответа</span>
+        </DoctorEmptyState>
+      ) : (
+        <DoctorChatPanel
+          key={selectedId}
+          conversationId={selectedId}
+          onReadStateChanged={loadList}
+          onSent={loadList}
+        />
+      )}
+    </div>
+  );
+
   return (
     <div
       id="doctor-support-inbox"
-      className="grid min-h-[400px] gap-3"
-      style={{ gridTemplateColumns: "1.4fr 1fr" }}
+      className={cn(
+        "min-h-[400px]",
+        DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+      )}
     >
-      {/* ── Left: conversation list ── */}
-      <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        {/* Header: search + filter chips */}
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-muted/20 px-3 py-2">
-          <Input
-            type="search"
-            placeholder="Поиск по имени пациента"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="h-8 min-w-[120px] flex-1"
-            aria-label="Поиск по имени пациента"
-          />
-          <button
-            type="button"
-            onClick={() => setFilter(filter === "unread" ? "all" : "unread")}
-            className={cn(
-              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-              filter === "unread"
-                ? "bg-primary/15 text-primary"
-                : "border border-border text-muted-foreground hover:bg-muted/40",
-            )}
-            aria-pressed={filter === "unread"}
-          >
-            Непрочитанные · {unreadCount}
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter(filter === "onSupport" ? "all" : "onSupport")}
-            className={cn(
-              "shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-              filter === "onSupport"
-                ? "bg-primary/15 text-primary"
-                : "border border-border text-muted-foreground hover:bg-muted/40",
-            )}
-            aria-pressed={filter === "onSupport"}
-          >
-            ★ На сопровождении · {onSupportCount}
-          </button>
-        </div>
-
-        {error && (
-          <p className="border-b border-border px-3 py-2 text-xs text-destructive">{error}</p>
-        )}
-
-        {/* Conversation rows */}
-        <div className="flex flex-1 flex-col overflow-y-auto">
-          {filteredList.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center py-8 text-sm text-muted-foreground">
-              {query.trim()
-                ? "Ничего не найдено"
-                : filter === "unread"
-                  ? "Нет непрочитанных диалогов"
-                  : filter === "onSupport"
-                    ? "Нет диалогов на сопровождении"
-                    : "Нет открытых диалогов"}
-            </div>
-          ) : (
-            filteredList.map((c) => (
-              <button
-                key={c.conversationId}
-                type="button"
-                onClick={() => setSelectedId(c.conversationId)}
-                className={cn(
-                  "flex w-full cursor-pointer gap-2 border-b border-border px-3 py-2.5 text-left transition-colors",
-                  selectedId === c.conversationId
-                    ? "bg-primary/15"
-                    : "hover:bg-muted/40",
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-sm font-semibold">
-                      {c.displayName || "Без имени"}
-                      {c.onSupport && (
-                        <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatConversationTime(c.lastMessageAt)}
-                    </span>
-                  </div>
-                  {c.lastMessageText && (
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground/80">{getSenderPrefix(c)}:</span>{" "}
-                      {c.lastMessageText}
-                    </div>
-                  )}
-                </div>
-                {c.unreadFromUserCount > 0 && (
-                  <span className="self-center rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-                    {c.unreadFromUserCount}
-                  </span>
-                )}
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* ── Right: empty state or chat panel ── */}
-      <div className="flex min-h-[300px] flex-col overflow-hidden rounded-lg border border-border bg-card">
-        {!selectedId ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6">
-            <p className="text-sm font-semibold text-foreground">Выберите чат слева</p>
-            <p className="text-center text-xs text-muted-foreground">
-              Когда диалог выбран — здесь появляется тред переписки с полем ответа
-            </p>
-          </div>
-        ) : (
-          <DoctorChatPanel
-            key={selectedId}
-            conversationId={selectedId}
-            onReadStateChanged={loadList}
-            onSent={loadList}
-          />
-        )}
-      </div>
+      <CatalogSplitLayout
+        left={leftPane}
+        right={rightPane}
+        mobileView={selectedId ? "detail" : "list"}
+        className="lg:grid-cols-[1fr_1.2fr] h-full"
+      />
     </div>
   );
 }

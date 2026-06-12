@@ -56,7 +56,10 @@ export function ChatView({
     () => [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [messages],
   );
-  const scrollClasses = "min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-4 pb-4 pt-1 md:pb-5";
+  const scrollClasses = cn(
+    "min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-4 pb-4 pt-1 md:pb-5",
+    variant === "doctor" && "px-3",
+  );
 
   const patientBubbleMine = cn(
     "max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]",
@@ -123,7 +126,7 @@ export function ChatView({
         : grouped.map((g) => (
             <div key={g.dayKey}>
               <p className="mb-2 text-center text-xs capitalize text-muted-foreground">{g.dayLabel}</p>
-              <div className="space-y-2">
+              <div className={variant === "doctor" ? "space-y-3" : "space-y-2"}>
                 {g.items.map((m) => {
                   const mine = isAlignedRight(m.senderRole, variant);
                   const deliveryStatus = mine
@@ -159,7 +162,7 @@ export function ChatView({
           ))}
         <div ref={bottomRef} />
       </div>
-      <div className="mt-auto shrink-0">{composer}</div>
+      <div className={cn("mt-auto shrink-0", variant === "doctor" && "px-3")}>{composer}</div>
     </div>
   );
 }

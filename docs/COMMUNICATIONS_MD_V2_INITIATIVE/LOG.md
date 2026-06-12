@@ -1,5 +1,53 @@
 # COMMUNICATIONS_MD_V2 — Execution Log
 
+## Этап 2 (A1) — Чаты
+
+**Дата:** 2026-06-12
+
+### Что сделано
+
+1. **Ширины пейнов и независимый скролл:**
+   - `DoctorSupportInbox.tsx` — раскладка переведена с `grid style={gridTemplateColumns:"1.4fr 1fr"}` на `CatalogSplitLayout` с `className="lg:grid-cols-[1fr_1.2fr]"` (чат шире списка). Обёртка получила `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE` для фиксированной высоты (вьюпорт − шапка − таб-бар). Каждый пейн имеет `overflow-y-auto` внутри — список и тред скроллятся независимо.
+   - Добавлены импорты `CatalogSplitLayout`, `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE`, `DoctorEmptyState`.
+
+2. **Тред (`DoctorChatPanel`) — горизонтальный padding и интервал:**
+   - `ChatView.tsx` — добавлен `px-3` к scroll-области для `variant === "doctor"` (через `cn`). Composer-обёртка получила `px-3` для той же ветки. Интервал между сообщениями в grouped-режиме: `space-y-3` для `doctor`, `space-y-2` для `patient` (было `space-y-2` везде).
+   - `DoctorClientEmbeddedChat` использует тот же `DoctorChatPanel` с `variant="doctor"` — правки применятся и там, что ожидаемо (padding сообщений уместен в embedded-виде тоже).
+
+3. **Превью в списке чатов — одна строка с ellipsis:**
+   - Превью изменено с `<div className="... truncate">` на `<p className="... truncate">`. Добавлен `overflow-hidden` на `min-w-0 flex-1` контейнер строки для гарантированного ограничения ширины. Текст превью (`getSenderPrefix: lastMessageText`) уже был в `truncate` — `<p>` + `overflow-hidden` на родителе обеспечивает одну строку.
+
+4. **Пустое правое состояние — `DoctorEmptyState`:**
+   - Ad-hoc `<div>...<p>...</p><p>...</p></div>` заменён на `<DoctorEmptyState size="sm" className="flex-1 items-center justify-center px-6 text-center">` с двумя `<span>`. Текст «Выберите чат слева» сохранён (тест проходит).
+
+5. **Поиск, чипы «Непрочитанные»/«★ На сопровождении», логика поллинга** — не тронуты.
+
+### Проверки
+
+- `npx tsc --noEmit` — **0 ошибок** (нет вывода).
+- `npx vitest run DoctorSupportInbox.test.tsx` — **15 passed (1 file)**.
+- `npx vitest run DoctorChatPanel.test.tsx` — **3 passed (1 file)**.
+- `npx eslint DoctorSupportInbox.tsx ChatView.tsx` — **0 ошибок** (нет вывода).
+
+### Затронутые файлы
+
+- `apps/webapp/src/app/app/doctor/messages/DoctorSupportInbox.tsx` — основной файл этапа.
+- `apps/webapp/src/modules/messaging/components/ChatView.tsx` — padding и интервал для doctor-variant.
+
+### Сознательно не сделано
+
+- `DoctorChatPanel.tsx` не менялся — правки padding сделаны в `ChatView` (через ветку по `variant`), что более правильно с точки зрения разделения ответственности.
+- Mobile-навигация (кнопка «назад» в мобильном виде) — не добавлялась: `CatalogSplitLayout` имеет `mobileBackSlot` проп, но для чатов мобильный UX не является объектом этого этапа. Зафиксировано как развилка.
+- `rounded-2xl` в `ChatView` для пузырьков (`doctor` variant) — не менялся; он находится в `grouped` map и технически нарушает §A.3, но правка пузырьков чата не входила в scope этапа.
+
+### Развилки
+
+- **`rounded-2xl` в пузырьках доктора** (`ChatView` doctor grouped mode): пузырьки используют `rounded-2xl`, что запрещено по §A.3. Исправление требует осторожности (patient variant не трогать). Можно добавить ветку `variant === "doctor" ? "rounded-lg" : "rounded-2xl"`. Зафиксировано как backlog, не сделано в этом этапе.
+- **Mobile UX чатов**: `CatalogSplitLayout` поддерживает мобильный режим `mobileView="list"|"detail"`. Реализовано переключение `mobileView={selectedId ? "detail" : "list"}`, но кнопки «назад» нет (`mobileBackSlot` не задан). На мобиле правая панель будет перекрывать левую при выборе чата, но возврата к списку без выбора другого чата нет. Можно решить добавлением кнопки «← Назад» в `mobileBackSlot`.
+- **`gap-3` между таб-навом и контентом**: развилка из Этапа 1 — при фиксированной высоте через `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE` (использует `dvh`) `gap-3` из `<main className="flex flex-col gap-3">` включён в расчёт высот через CSS-переменные. При проверке tsc 0 ошибок, ожидаем что высоты работают корректно по аналогии с упражнениями.
+
+---
+
 ## Этап 1 (A0) — порядок вкладок + каркас скролла
 
 **Дата:** 2026-06-12
