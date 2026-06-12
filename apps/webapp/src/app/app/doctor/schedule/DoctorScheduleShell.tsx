@@ -91,10 +91,10 @@ function KpiRow({ kpis, period, onPeriodChange }: KpiRowProps) {
         <p className={doctorMetricLabelClass}>Уникальных</p>
         <p className={doctorMetricValueClass}>{kpis?.uniquePatientsInPeriod ?? "—"}</p>
       </div>
-      {/* Новых */}
-      <div className={cn(doctorStatCardShellClass)} data-testid="kpi-new">
-        <p className={doctorMetricLabelClass}>Новых</p>
-        <p className={doctorMetricValueClass}>{kpis?.newPatientsInPeriod ?? "—"}</p>
+      {/* Первичных */}
+      <div className={cn(doctorStatCardShellClass)} data-testid="kpi-first-visit">
+        <p className={doctorMetricLabelClass}>Первичных</p>
+        <p className={doctorMetricValueClass}>{kpis?.firstVisitInPeriod ?? "—"}</p>
       </div>
       {/* Отмены */}
       <div className={cn(doctorStatCardShellClass)} data-testid="kpi-cancellations">
@@ -268,13 +268,28 @@ export function DoctorScheduleShell({
   }, []);
 
   // ── period KPI fetch ───────────────────────────────────────────────────────
-  // When period changes (and tab is active), re-fetch KPIs via the page reload
-  // with ?period= in URL (server RSC re-render) OR via client fetch from API.
-  // Strategy: use router.replace → full page re-render for freshness, no client API needed.
-  // We do a lightweight client fetch instead to avoid full navigation (better UX).
+  // Lightweight client fetch to re-load KPIs when period changes.
+  // Builds from/to from current date; will be replaced in Этап F when KPI moves to tab «Записи».
   const loadKpis = useCallback(async (p: AdminStatsTimePreset) => {
     try {
-      const res = await fetch(`/api/doctor/schedule-kpis?period=${p}`);
+      const now = new Date();
+      const todayKey = now.toISOString().slice(0, 10);
+      const getDayOffset = (base: string, days: number) => {
+        const d = new Date(`${base}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + days);
+        return d.toISOString().slice(0, 10);
+      };
+      let from = `${todayKey}T00:00:00`;
+      let to: string;
+      if (p === "day") {
+        to = `${getDayOffset(todayKey, 1)}T00:00:00`;
+      } else if (p === "week") {
+        to = `${getDayOffset(todayKey, 7)}T00:00:00`;
+      } else {
+        to = `${getDayOffset(todayKey, 3)}T00:00:00`;
+      }
+      const params = new URLSearchParams({ from, to });
+      const res = await fetch(`/api/doctor/schedule-kpis?${params.toString()}`);
       if (!res.ok) return;
       const json = (await res.json()) as { ok: boolean; kpis: ScheduleKpis };
       if (json.ok && json.kpis) setKpis(json.kpis);

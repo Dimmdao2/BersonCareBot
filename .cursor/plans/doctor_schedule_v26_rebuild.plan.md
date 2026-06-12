@@ -20,19 +20,19 @@ status: pending
 todos:
   - id: e0-baseline
     content: "Этап 0 — прочитать .cursor/rules/*.mdc (clean-arch, plan-standard, webapp-tests, pre-push-ci, ui-copy, host-psql) + DOCTOR_APP_UI_STYLE_GUIDE.md + TZ_ZAPISI_V26.md; зафиксировать зелёный baseline (и пред-существующие красные broadcasts из 1d9f936c — НЕ наши). Проверки: rg правил, baseline-прогон затронутых тестов"
-    status: pending
+    status: completed
   - id: a1-kpi-types
     content: "A1 — ScheduleKpis +5 полей (pastInPeriod/futureInPeriod/bySubscriptionInPeriod/firstVisitInPeriod/repeatVisitInPeriod) + тип ScheduleKpisQuery{from,to,branchId?,serviceId?} в doctor-appointments/ports.ts; снять newPatientsInPeriod после rg-проверки runtime. Проверки: rg newPatientsInPeriod, tsc по webapp"
-    status: pending
+    status: completed
   - id: a2-kpi-service
     content: "A2 — service.ts getScheduleKpis(query,audience) прокидка; unit-тесты инвариантов past+future=records, first+repeat=records, нули как нули. Проверки: vitest doctor-appointments/service"
-    status: pending
+    status: completed
   - id: a3-kpi-pg-inmemory
     content: "A3 — pg (Drizzle, 9 метрик, фильтры branch/service в WHERE; join к appointment_records для Отмен/Переносов по дате визита start_at §13.1) + inMemory-паритет + read-switch. Проверки: vitest pgDoctorAppointments/inMemory паритет"
-    status: pending
+    status: completed
   - id: a4-kpi-route
     content: "A4 — роут api/doctor/schedule-kpis на {from,to,branchId?,serviceId?} (Zod) вместо ?period; requireDoctorAccess; route-тесты 401/контракт/валидация. Проверки: vitest route"
-    status: pending
+    status: completed
   - id: b1-breaks-schema
     content: "B1 — Drizzle: колонка breaks jsonb $type<{startMinute,endMinute}[]> default '[]' в beWorkingDays + beScheduleTemplates; миграция 0116 через drizzle-kit generate + ревью SQL; бэкфилл из break_start/end_minute в массив; легаси-колонки nullable; ослабить старые break-check. Проверки: drizzle-kit generate diff, применить на dev (host-psql), idempotent re-run"
     status: pending

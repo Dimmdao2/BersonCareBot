@@ -80,18 +80,36 @@ export type DoctorDashboardAppointmentMetrics = {
 
 export type DoctorAppointmentsAudience = { excludedUserIds?: string[] };
 
-/** KPI метрики для страницы «Расписание» врача (6 плиток в KPI-строке). */
+/** KPI метрики для страницы «Расписание» врача (9 плиток в KPI-строке, ТЗ §4.1). */
 export type ScheduleKpis = {
   /** Неотменённые записи в периоде по start_at. */
   recordsInPeriod: number;
+  /** Из записей в периоде: start_at < now(). */
+  pastInPeriod: number;
+  /** Из записей в периоде: start_at >= now(). */
+  futureInPeriod: number;
+  /** Неотменённые в периоде с package_usage_ref IS NOT NULL. */
+  bySubscriptionInPeriod: number;
+  /** Записи в периоде, у пациента которых НЕТ более ранней неотменённой записи. */
+  firstVisitInPeriod: number;
+  /** records − firstVisit. */
+  repeatVisitInPeriod: number;
   /** COUNT(DISTINCT platformUserId) по записям в периоде. */
   uniquePatientsInPeriod: number;
-  /** Пациенты в периоде, у которых нет более ранней записи (NOT EXISTS). */
-  newPatientsInPeriod: number;
-  /** Действия «отмена» в периоде (be_appointment_cancellations). */
+  /** Отмены: записи с start_at в окне со статусом отмены (по дате визита §13.1). */
   cancellationsInPeriod: number;
-  /** Действия «перенос» в периоде (be_appointment_reschedules). */
+  /** Переносы: записи с start_at в окне и rescheduleCount > 0 (по дате визита §13.1). */
   reschedulesInPeriod: number;
+};
+
+/** Запрос KPI по произвольному диапазону + опциональные фильтры. */
+export type ScheduleKpisQuery = {
+  /** ISO-строка начала диапазона (включительно, бизнес-таймзона). */
+  from: string;
+  /** ISO-строка конца диапазона (исключительно, бизнес-таймзона). */
+  to: string;
+  branchId?: string | null;
+  serviceId?: string | null;
 };
 
 export type DoctorAppointmentsPort = {
@@ -105,9 +123,9 @@ export type DoctorAppointmentsPort = {
   ): Promise<AppointmentStats>;
   /** Агрегаты для плиток дашборда; без React. */
   getDashboardAppointmentMetrics(audience?: { excludedUserIds?: string[] }): Promise<DoctorDashboardAppointmentMetrics>;
-  /** KPI строка раздела «Расписание»: записи / уникальные / новые / отмены / переносы. */
+  /** KPI строка раздела «Расписание»: 9 метрик по произвольному диапазону + фильтры. */
   getScheduleKpis(
-    filter: DoctorAppointmentStatsFilter,
+    query: ScheduleKpisQuery,
     audience?: DoctorAppointmentsAudience,
   ): Promise<ScheduleKpis>;
 };

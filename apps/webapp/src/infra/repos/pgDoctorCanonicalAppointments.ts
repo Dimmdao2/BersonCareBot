@@ -1,4 +1,4 @@
-import { and, asc, count, countDistinct, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   beAppointmentCancellations,
@@ -27,6 +27,7 @@ import type {
   DoctorAppointmentsPort,
   DoctorDashboardAppointmentMetrics,
   ScheduleKpis,
+  ScheduleKpisQuery,
 } from "@/modules/doctor-appointments/ports";
 
 const CANCELLED_STATUSES = [
@@ -414,65 +415,92 @@ export function createPgDoctorCanonicalAppointmentsPort(
     },
 
     async getScheduleKpis(
-      filter: DoctorAppointmentStatsFilter,
+      query: ScheduleKpisQuery,
       audience?: { excludedUserIds?: string[] },
     ): Promise<ScheduleKpis> {
       const db = getDrizzle();
       const organizationId = await getDefaultOrganizationId();
-      const iana = await getAppDisplayTimeZone();
-      const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
+      const nowIso = new Date().toISOString();
+      const { from, to: toExclusive, branchId, serviceId } = query;
       const excluded = audience?.excludedUserIds ?? [];
       const userAudience = appointmentUserAudienceCond(excluded);
 
-      const rangeCond = and(
+      // Optional branch/service filters
+      const branchCond = branchId ? eq(beAppointments.branchId, branchId) : undefined;
+      const serviceCond = serviceId ? eq(beAppointments.serviceId, serviceId) : undefined;
+
+      // Base condition: non-cancelled, start_at in [from, toExclusive)
+      const activeRangeCond = and(
         eq(beAppointments.organizationId, organizationId),
         gte(beAppointments.startAt, from),
         lt(beAppointments.startAt, toExclusive),
         notInArray(beAppointments.status, [...CANCELLED_STATUSES]),
         userAudience,
+        branchCond,
+        serviceCond,
         BE_APPOINTMENTS_NOT_PURGED,
       );
 
-      const [recordsRow, uniqueRow, cancellationRow, rescheduleRow] = await Promise.all([
-        // Total non-cancelled records in period
-        db.select({ c: count() }).from(beAppointments).where(rangeCond),
-        // Unique patients in period
-        db.select({ c: countDistinct(beAppointments.platformUserId) }).from(beAppointments).where(rangeCond),
-        // Cancellation actions in period
+      // Cancelled with start_at in window (for cancellationsInPeriod §13.1)
+      const cancelledRangeCond = and(
+        eq(beAppointments.organizationId, organizationId),
+        gte(beAppointments.startAt, from),
+        lt(beAppointments.startAt, toExclusive),
+        inArray(beAppointments.status, [...CANCELLED_STATUSES]),
+        userAudience,
+        branchCond,
+        serviceCond,
+        BE_APPOINTMENTS_NOT_PURGED,
+      );
+
+      const [
+        recordsRow,
+        pastRow,
+        futureRow,
+        bySubscriptionRow,
+        uniqueRow,
+        cancellationRow,
+        rescheduleRow,
+      ] = await Promise.all([
+        // recordsInPeriod: non-cancelled, start_at in window
+        db.select({ c: count() }).from(beAppointments).where(activeRangeCond),
+        // pastInPeriod: non-cancelled, start_at in window AND < now()
         db
           .select({ c: count() })
-          .from(beAppointmentCancellations)
-          .innerJoin(beAppointments, eq(beAppointments.id, beAppointmentCancellations.appointmentId))
-          .where(
-            and(
-              eq(beAppointmentCancellations.organizationId, organizationId),
-              gte(beAppointmentCancellations.createdAt, from),
-              lt(beAppointmentCancellations.createdAt, toExclusive),
-              userAudience,
-            ),
-          ),
-        // Reschedule actions in period
+          .from(beAppointments)
+          .where(and(activeRangeCond, lt(beAppointments.startAt, nowIso))),
+        // futureInPeriod: non-cancelled, start_at in window AND >= now()
         db
           .select({ c: count() })
-          .from(beAppointmentReschedules)
-          .innerJoin(beAppointments, eq(beAppointments.id, beAppointmentReschedules.appointmentId))
-          .where(
-            and(
-              eq(beAppointmentReschedules.organizationId, organizationId),
-              gte(beAppointmentReschedules.createdAt, from),
-              lt(beAppointmentReschedules.createdAt, toExclusive),
-              userAudience,
-            ),
-          ),
+          .from(beAppointments)
+          .where(and(activeRangeCond, gte(beAppointments.startAt, nowIso))),
+        // bySubscriptionInPeriod: non-cancelled with packageUsageRef != null
+        db
+          .select({ c: count() })
+          .from(beAppointments)
+          .where(and(activeRangeCond, isNotNull(beAppointments.packageUsageRef))),
+        // uniquePatientsInPeriod
+        db
+          .select({ c: countDistinct(beAppointments.platformUserId) })
+          .from(beAppointments)
+          .where(activeRangeCond),
+        // cancellationsInPeriod: cancelled records by date of visit (start_at in window) §13.1
+        db.select({ c: count() }).from(beAppointments).where(cancelledRangeCond),
+        // reschedulesInPeriod: non-cancelled with rescheduleCount > 0, start_at in window §13.1
+        db
+          .select({ c: count() })
+          .from(beAppointments)
+          .where(and(activeRangeCond, gt(beAppointments.rescheduleCount, 0))),
       ]);
 
-      // New patients: in period, no earlier appointment for same platformUserId in same org
-      const newPatientsRow = await db
-        .select({ c: countDistinct(beAppointments.platformUserId) })
+      // firstVisitInPeriod: non-cancelled records in window where patient has NO earlier
+      // non-cancelled appointment in same org (NOT EXISTS earlier)
+      const firstVisitRow = await db
+        .select({ c: count() })
         .from(beAppointments)
         .where(
           and(
-            rangeCond,
+            activeRangeCond,
             isNotNull(beAppointments.platformUserId),
             sql`NOT EXISTS (
               SELECT 1 FROM be_appointments earlier
@@ -484,10 +512,17 @@ export function createPgDoctorCanonicalAppointmentsPort(
           ),
         );
 
+      const recordsInPeriod = recordsRow[0]?.c ?? 0;
+      const firstVisitInPeriod = firstVisitRow[0]?.c ?? 0;
+
       return {
-        recordsInPeriod: recordsRow[0]?.c ?? 0,
+        recordsInPeriod,
+        pastInPeriod: pastRow[0]?.c ?? 0,
+        futureInPeriod: futureRow[0]?.c ?? 0,
+        bySubscriptionInPeriod: bySubscriptionRow[0]?.c ?? 0,
+        firstVisitInPeriod,
+        repeatVisitInPeriod: Math.max(0, recordsInPeriod - firstVisitInPeriod),
         uniquePatientsInPeriod: uniqueRow[0]?.c ?? 0,
-        newPatientsInPeriod: newPatientsRow[0]?.c ?? 0,
         cancellationsInPeriod: cancellationRow[0]?.c ?? 0,
         reschedulesInPeriod: rescheduleRow[0]?.c ?? 0,
       };

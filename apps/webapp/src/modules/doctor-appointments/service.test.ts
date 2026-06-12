@@ -50,8 +50,12 @@ describe("doctor-appointments service", () => {
     async getScheduleKpis() {
       return {
         recordsInPeriod: 0,
+        pastInPeriod: 0,
+        futureInPeriod: 0,
+        bySubscriptionInPeriod: 0,
+        firstVisitInPeriod: 0,
+        repeatVisitInPeriod: 0,
         uniquePatientsInPeriod: 0,
-        newPatientsInPeriod: 0,
         cancellationsInPeriod: 0,
         reschedulesInPeriod: 0,
       };
@@ -107,7 +111,7 @@ describe("doctor-appointments service", () => {
         return { futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0 };
       },
       async getScheduleKpis() {
-        return { recordsInPeriod: 0, uniquePatientsInPeriod: 0, newPatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
+        return { recordsInPeriod: 0, pastInPeriod: 0, futureInPeriod: 0, bySubscriptionInPeriod: 0, firstVisitInPeriod: 0, repeatVisitInPeriod: 0, uniquePatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
       },
     };
 
@@ -152,7 +156,7 @@ describe("doctor-appointments service", () => {
         return { futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0 };
       },
       async getScheduleKpis() {
-        return { recordsInPeriod: 0, uniquePatientsInPeriod: 0, newPatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
+        return { recordsInPeriod: 0, pastInPeriod: 0, futureInPeriod: 0, bySubscriptionInPeriod: 0, firstVisitInPeriod: 0, repeatVisitInPeriod: 0, uniquePatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
       },
     };
 
@@ -172,5 +176,99 @@ describe("doctor-appointments service", () => {
     const stats = await service.getAppointmentStats({ kind: "range", range: "today" });
     expect(stats.total).toBe(1);
     expect(stats.cancellations30d).toBe(2);
+  });
+});
+
+describe("doctor-appointments service — getScheduleKpis invariants", () => {
+  // Helper to build a port that returns specific KPI values
+  function buildPortWithKpis(kpis: import("@/modules/doctor-appointments/ports").ScheduleKpis): import("@/modules/doctor-appointments/ports").DoctorAppointmentsPort {
+    return {
+      listAppointmentsForSpecialist: async () => [],
+      getAppointmentStats: async () => ({
+        pastVisitsInPeriod: 0, cancelledVisitsInPeriod: 0, bookingsCreatedInPeriod: 0,
+        cancellationActionsInPeriod: 0, rescheduleActionsInPeriod: 0, total: 0, cancellations30d: 0,
+      }),
+      getDashboardAppointmentMetrics: async () => ({
+        futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0,
+      }),
+      getScheduleKpis: async () => kpis,
+    };
+  }
+
+  it("инвариант past + future = records", async () => {
+    const kpis = {
+      recordsInPeriod: 9,
+      pastInPeriod: 2,
+      futureInPeriod: 7,
+      bySubscriptionInPeriod: 1,
+      firstVisitInPeriod: 1,
+      repeatVisitInPeriod: 8,
+      uniquePatientsInPeriod: 5,
+      cancellationsInPeriod: 3,
+      reschedulesInPeriod: 2,
+    };
+    expect(kpis.pastInPeriod + kpis.futureInPeriod).toBe(kpis.recordsInPeriod);
+  });
+
+  it("инвариант first + repeat = records", async () => {
+    const kpis = {
+      recordsInPeriod: 9,
+      pastInPeriod: 2,
+      futureInPeriod: 7,
+      bySubscriptionInPeriod: 1,
+      firstVisitInPeriod: 1,
+      repeatVisitInPeriod: 8,
+      uniquePatientsInPeriod: 5,
+      cancellationsInPeriod: 3,
+      reschedulesInPeriod: 2,
+    };
+    expect(kpis.firstVisitInPeriod + kpis.repeatVisitInPeriod).toBe(kpis.recordsInPeriod);
+  });
+
+  it("нули как нули: getScheduleKpis с нулями возвращает 0", async () => {
+    const zeroKpis = {
+      recordsInPeriod: 0,
+      pastInPeriod: 0,
+      futureInPeriod: 0,
+      bySubscriptionInPeriod: 0,
+      firstVisitInPeriod: 0,
+      repeatVisitInPeriod: 0,
+      uniquePatientsInPeriod: 0,
+      cancellationsInPeriod: 0,
+      reschedulesInPeriod: 0,
+    };
+    const svc = createDoctorAppointmentsService({ appointmentsPort: buildPortWithKpis(zeroKpis) });
+    const result = await svc.getScheduleKpis({ from: "2026-06-01T00:00:00", to: "2026-06-04T00:00:00" });
+    expect(result.recordsInPeriod).toBe(0);
+    expect(result.pastInPeriod).toBe(0);
+    expect(result.futureInPeriod).toBe(0);
+    expect(result.firstVisitInPeriod).toBe(0);
+    expect(result.repeatVisitInPeriod).toBe(0);
+    expect(result.pastInPeriod + result.futureInPeriod).toBe(result.recordsInPeriod);
+    expect(result.firstVisitInPeriod + result.repeatVisitInPeriod).toBe(result.recordsInPeriod);
+  });
+
+  it("сервис прокидывает query и audience в порт без изменений", async () => {
+    const mockKpis = {
+      recordsInPeriod: 5,
+      pastInPeriod: 3,
+      futureInPeriod: 2,
+      bySubscriptionInPeriod: 1,
+      firstVisitInPeriod: 2,
+      repeatVisitInPeriod: 3,
+      uniquePatientsInPeriod: 4,
+      cancellationsInPeriod: 1,
+      reschedulesInPeriod: 0,
+    };
+    const spy = vi.fn().mockResolvedValue(mockKpis);
+    const port = buildPortWithKpis(mockKpis);
+    port.getScheduleKpis = spy;
+    const svc = createDoctorAppointmentsService({ appointmentsPort: port });
+
+    const query = { from: "2026-06-01T00:00:00", to: "2026-06-04T00:00:00", branchId: "branch-1" };
+    const audience = { excludedUserIds: ["user-x"] };
+    await svc.getScheduleKpis(query, audience);
+
+    expect(spy).toHaveBeenCalledWith(query, audience);
   });
 });

@@ -6,6 +6,7 @@ import type {
   DoctorAppointmentsPort,
   DoctorDashboardAppointmentMetrics,
   ScheduleKpis,
+  ScheduleKpisQuery,
 } from "@/modules/doctor-appointments/ports";
 
 export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
@@ -39,16 +40,19 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
     };
   },
   async getScheduleKpis(
-    _filter: DoctorAppointmentStatsFilter,
+    _query: ScheduleKpisQuery,
     _audience?: { excludedUserIds?: string[] },
   ): Promise<ScheduleKpis> {
-    // -stub: no in-memory appointment dataset to compute KPIs from.
-    // The in-memory port exists only for unit tests and local dev; real KPIs come from
-    // pgDoctorCanonicalAppointments. This stub intentionally returns zeros — never 0-match-paritied.
+    // Stub: no in-memory appointment dataset; returns zeros for all 9 KPI.
+    // Real KPIs come from pgDoctorCanonicalAppointments.
     return {
       recordsInPeriod: 0,
+      pastInPeriod: 0,
+      futureInPeriod: 0,
+      bySubscriptionInPeriod: 0,
+      firstVisitInPeriod: 0,
+      repeatVisitInPeriod: 0,
       uniquePatientsInPeriod: 0,
-      newPatientsInPeriod: 0,
       cancellationsInPeriod: 0,
       reschedulesInPeriod: 0,
     };

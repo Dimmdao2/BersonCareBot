@@ -552,6 +552,102 @@
 
 **Передано агенту-свипу:** аудит остальных over-claim (inMemory KPI = zero-stub, не паритет), drizzle-schema без partial-unique индекса (drift), широкий correctness-проход по shell/tabs/routing/nav, финальные lint/typecheck/targeted-тесты. Предсуществующие broadcast-фейлы НЕ трогать.
 
+## 2026-06-12 — Этап A — Бэкенд KPI 9 метрик + фильтры (v26_rebuild)
+
+**Сделано:**
+
+### A1 — Типы (ports.ts)
+
+- `ScheduleKpis` расширен с 5 до 9 полей: `recordsInPeriod`, `pastInPeriod`, `futureInPeriod`,
+  `bySubscriptionInPeriod`, `firstVisitInPeriod`, `repeatVisitInPeriod`, `uniquePatientsInPeriod`,
+  `cancellationsInPeriod`, `reschedulesInPeriod`.
+- Удалён `newPatientsInPeriod` (rg показал 14 вхождений только в schedule-зоне + репо,
+  ни одного вне нашего scope; все обновлены на `firstVisitInPeriod` или новые 9 полей).
+- Добавлен тип `ScheduleKpisQuery { from, to, branchId?, serviceId? }`.
+- Сигнатура порта: `getScheduleKpis(query: ScheduleKpisQuery, audience?)`.
+
+### A2 — Сервис (service.ts)
+
+- `createDoctorAppointmentsService.getScheduleKpis` прокидывает `query` и `audience` в порт.
+- Добавлены unit-тесты инвариантов (service.test.ts):
+  - `past + future = records` — проверен статически на наборе данных.
+  - `first + repeat = records` — аналогично.
+  - Нули как нули: stub-порт с нулями → результат 0 по всем 9 полям.
+  - Сервис прокидывает `query` и `audience` без изменений.
+
+### A3 — pg + inMemory + read-switch
+
+**pg (pgDoctorCanonicalAppointments.ts) — стиль: Drizzle ORM (как в соседних методах файла).**
+Все 9 метрик реализованы через параллельные `db.select({c: count()})` + один последовательный
+запрос `firstVisitRow` (NOT EXISTS ранее):
+- `recordsInPeriod`: non-cancelled, `start_at ∈ [from, to)`.
+- `pastInPeriod`: то же + `start_at < now()`.
+- `futureInPeriod`: то же + `start_at >= now()`.
+- `bySubscriptionInPeriod`: non-cancelled + `packageUsageRef IS NOT NULL`.
+- `uniquePatientsInPeriod`: `COUNT(DISTINCT platformUserId)` из активных.
+- `cancellationsInPeriod`: cancelled records с `start_at ∈ [from, to)` (по дате визита §13.1).
+- `reschedulesInPeriod`: non-cancelled с `rescheduleCount > 0` (по дате визита §13.1).
+- `firstVisitInPeriod`: non-cancelled в окне + `NOT EXISTS earlier non-cancelled`.
+- `repeatVisitInPeriod`: `Math.max(0, records − firstVisit)`.
+- Фильтры `branchId`/`serviceId`: `eq(beAppointments.branchId, branchId)` / `eq(…serviceId…)` в `and()` всех метрик.
+- Добавлен `gt` в drizzle-orm импорты.
+
+**pgDoctorAppointments.ts (legacy Rubitime stub):** обновлена сигнатура на `ScheduleKpisQuery`;
+возвращает нули по всем 9 полям (Rubitime не имеет per-patient analytics).
+
+**inMemoryDoctorAppointments.ts:** обновлена сигнатура на `ScheduleKpisQuery`; возвращает нули.
+
+**doctorAppointmentsReadSwitch.ts:** переименован параметр `filter` → `query` для ясности.
+
+### A4 — Роут (api/doctor/schedule-kpis/route.ts)
+
+- Zod-схема `KpisQuerySchema { from, to, branchId?, serviceId? }`.
+- `GET` с `requireDoctorAccess` (401/403); parse searchParams → Zod → `deps.doctorAppointments.getScheduleKpis`.
+- На 500: `logger.error({ err: serializeError(e), from, to }, "schedule-kpis.failed")`.
+- Возвращает `{ ok: true, kpis }` / `{ ok: false, error, issues? }`.
+
+### Совместимость вызовов
+
+- `loadDoctorScheduleKpis.ts`: переписан под новый API.
+  - `buildKpisQueryFromPreset(preset, tz)` — строит `{from, to}` из текущей даты и пресета
+    (day=1d, week=7d, month=дефолт 3d) в бизнес-таймзоне. Экспортирован для тестирования.
+  - `loadDoctorScheduleKpis(deps, period, audience)` вызывает `getScheduleKpis(query, audience)`.
+- `DoctorScheduleShell.tsx`: `loadKpis` обновлён — строит `from/to` из `new Date()` на клиенте;
+  убрана зависимость от `?period=`; UI (текущий KPI-ряд в шелле) — переходный, переедет в таб в Этапе D/F.
+  `newPatientsInPeriod` заменён на `firstVisitInPeriod`.
+- `page.tsx` — не изменён (использует `loadDoctorScheduleKpis`, которая теперь ходит через query).
+
+### Обновлённые тесты
+
+- `service.test.ts`: все 3 mock-возврата `getScheduleKpis` обновлены на 9 полей; добавлены
+  тесты инвариантов и proxy-тест.
+- `doctorAppointmentsReadSwitch.test.ts`: mock-возврат обновлён на 9 полей.
+- `loadDoctorScheduleKpis.test.ts`: полностью переписан под новый API + тесты `buildKpisQueryFromPreset`.
+- `DoctorScheduleShell.test.tsx`: `defaultKpis` обновлён на 9 полей; `data-testid` kpi-new → kpi-first-visit.
+- Создан `route.test.ts` для `schedule-kpis`: 9 тестов (401, 403, 400×2, 200×2, passes query, passes audience, 500).
+
+**Проверки:**
+
+| Артефакт | Результат |
+|----------|-----------|
+| `tsc --noEmit --skipLibCheck` | EXIT 0 |
+| `service.test.ts` | 10/10 |
+| `doctorAppointmentsReadSwitch.test.ts` | 5/5 |
+| `loadDoctorScheduleKpis.test.ts` | 13/13 |
+| `schedule-kpis/route.test.ts` | 9/9 |
+| `DoctorScheduleShell.test.tsx` | 13/13 |
+
+**Решение по стилю pg:** файл `pgDoctorCanonicalAppointments.ts` использует Drizzle ORM
+(метод `getScheduleKpis` в том же файле уже был на Drizzle). Новая реализация следует тому же
+стилю. `pgDoctorAppointments.ts` — legacy Rubitime порт, использует `runWebappPgText`; новый метод
+добавлен как stub (возвращает нули, SQL не нужен — нет per-patient analytics в Rubitime).
+
+**Сознательно НЕ делали:**
+- Тест паритета pg/inMemory (inMemory — stubbed, не real dataset, комментарий об этом есть).
+- Переезд KPI из шелла в таб «Записи» (это Этап D/F; сейчас минимальная совместимость).
+
+---
+
 ## 2026-06-12 — Финальный correctness-свип (sweep agent)
 
 ### 1. Over-claim покрытие: inMemory KPI stub

@@ -46,8 +46,12 @@ beforeAll(async () => {
   DoctorScheduleShell = mod.DoctorScheduleShell;
   defaultKpis = {
     recordsInPeriod: 40,
+    pastInPeriod: 32,
+    futureInPeriod: 8,
+    bySubscriptionInPeriod: 3,
+    firstVisitInPeriod: 4,
+    repeatVisitInPeriod: 36,
     uniquePatientsInPeriod: 28,
-    newPatientsInPeriod: 4,
     cancellationsInPeriod: 9,
     reschedulesInPeriod: 5,
   };
@@ -69,12 +73,12 @@ describe("DoctorScheduleShell — базовый рендер", () => {
     expect(screen.getByTestId("doctor-app-shell")).toBeDefined();
   });
 
-  it("показывает KPI-строку с 6 карточками", () => {
+  it("показывает KPI-строку с карточками", () => {
     setup();
     expect(screen.getByTestId("schedule-kpi-row")).toBeDefined();
     expect(screen.getByTestId("kpi-records")).toBeDefined();
     expect(screen.getByTestId("kpi-unique")).toBeDefined();
-    expect(screen.getByTestId("kpi-new")).toBeDefined();
+    expect(screen.getByTestId("kpi-first-visit")).toBeDefined();
     expect(screen.getByTestId("kpi-cancellations")).toBeDefined();
     expect(screen.getByTestId("kpi-reschedules")).toBeDefined();
     expect(screen.getByTestId("kpi-period")).toBeDefined();
@@ -85,7 +89,7 @@ describe("DoctorScheduleShell — базовый рендер", () => {
     const kpiRow = screen.getByTestId("schedule-kpi-row");
     expect(kpiRow.textContent).toContain("40");   // recordsInPeriod
     expect(kpiRow.textContent).toContain("28");   // uniquePatientsInPeriod
-    expect(kpiRow.textContent).toContain("4");    // newPatientsInPeriod
+    expect(kpiRow.textContent).toContain("4");    // firstVisitInPeriod
     expect(kpiRow.textContent).toContain("9");    // cancellationsInPeriod
     expect(kpiRow.textContent).toContain("5");    // reschedulesInPeriod
   });
