@@ -32,14 +32,14 @@ export const COMMUNICATIONS_TAB_REGISTRY: CommunicationsTabRegistryEntry[] = [
     deepLinkKeys: [],
   },
   {
-    id: "intake",
-    loader: () => import("./tabs/IntakeTab").then((m) => ({ default: m.IntakeTab })),
-    deepLinkKeys: ["id"],
-  },
-  {
     id: "comments",
     loader: () => import("./tabs/CommentsTab").then((m) => ({ default: m.CommentsTab })),
     deepLinkKeys: [],
+  },
+  {
+    id: "intake",
+    loader: () => import("./tabs/IntakeTab").then((m) => ({ default: m.IntakeTab })),
+    deepLinkKeys: ["id"],
   },
   {
     id: "broadcasts",

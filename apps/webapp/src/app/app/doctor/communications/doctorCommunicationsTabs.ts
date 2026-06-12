@@ -19,8 +19,8 @@ export type CommunicationsTab = {
 
 export const COMMUNICATIONS_TABS: CommunicationsTab[] = [
   { id: "chats", label: "Чаты", href: `${COMMUNICATIONS_BASE}?tab=chats` },
-  { id: "intake", label: "Заявки", href: `${COMMUNICATIONS_BASE}?tab=intake` },
   { id: "comments", label: "Комментарии", href: `${COMMUNICATIONS_BASE}?tab=comments` },
+  { id: "intake", label: "Заявки", href: `${COMMUNICATIONS_BASE}?tab=intake` },
   { id: "broadcasts", label: "Рассылки", href: `${COMMUNICATIONS_BASE}?tab=broadcasts` },
 ];
 

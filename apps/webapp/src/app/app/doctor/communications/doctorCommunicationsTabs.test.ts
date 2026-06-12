@@ -6,11 +6,11 @@ import {
 } from "./doctorCommunicationsTabs";
 
 describe("doctorCommunicationsTabs", () => {
-  it("declares 4 tabs in order chats/intake/comments/broadcasts", () => {
+  it("declares 4 tabs in order chats/comments/intake/broadcasts", () => {
     expect(COMMUNICATIONS_TABS.map((t) => t.id)).toEqual([
       "chats",
-      "intake",
       "comments",
+      "intake",
       "broadcasts",
     ]);
   });

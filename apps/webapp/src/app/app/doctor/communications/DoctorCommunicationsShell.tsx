@@ -169,7 +169,7 @@ export function DoctorCommunicationsShell({
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
         const tabId = entry.id;
         return (
-          <div key={tabId} hidden={tabId !== activeTab}>
+          <div key={tabId} hidden={tabId !== activeTab} className="flex-1 min-h-0">
             <TabComponent
               deepLinkParams={deepLinks[tabId] ?? {}}
               onDeepLinkChange={(key, value) => handleDeepLinkChange(tabId, key, value)}
