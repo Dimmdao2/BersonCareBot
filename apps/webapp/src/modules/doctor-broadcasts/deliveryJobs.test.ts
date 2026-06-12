@@ -164,6 +164,48 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
     expect(jobs.length).toBe(1);
     expect(jobs[0].channel).toBe("sms");
   });
+
+  it("telegram channel (explicit, not bot_message) sends only telegram", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [
+        cl({ userId: "u1", phone: null, bindings: { telegramId: "111", maxId: "mx1" } }),
+      ],
+      channels: ["telegram"],
+      messageTitle: "T",
+      messageBodyPlain: "Hello",
+    });
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].channel).toBe("telegram");
+  });
+
+  it("max channel (explicit) sends only max", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [
+        cl({ userId: "u1", phone: null, bindings: { telegramId: "111", maxId: "mx1" } }),
+      ],
+      channels: ["max"],
+      messageTitle: "T",
+      messageBodyPlain: "Hello",
+    });
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].channel).toBe("max");
+  });
+
+  it("telegram+max explicit sends both jobs", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      eligibleClients: [
+        cl({ userId: "u1", phone: null, bindings: { telegramId: "111", maxId: "mx1" } }),
+      ],
+      channels: ["telegram", "max"],
+      messageTitle: "T",
+      messageBodyPlain: "Hello",
+    });
+    expect(jobs.length).toBe(2);
+    expect(jobs.map((j) => j.channel).sort()).toEqual(["max", "telegram"]);
+  });
 });
 
 describe("buildBroadcastMessageText", () => {

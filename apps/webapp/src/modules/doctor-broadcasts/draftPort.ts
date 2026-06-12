@@ -15,9 +15,13 @@ export type BroadcastDraftPort = {
 
 /** Число подключённых получателей по каналу — для плиток каналов в форме рассылки. */
 export type BroadcastChannelCounts = {
+  /** @legacy alias for telegram (обратная совместимость). */
   bot_message: number;
-  sms: number;
+  telegram: number;
+  max: number;
   push: number;
+  sms: number;
+  email: number;
 };
 
 export type BroadcastChannelCountsPort = {

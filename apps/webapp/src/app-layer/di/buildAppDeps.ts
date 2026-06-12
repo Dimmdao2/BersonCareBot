@@ -81,6 +81,8 @@ import { createInMemoryBroadcastDraftPort } from "@/infra/repos/inMemoryBroadcas
 import type { BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
 import { createPgBroadcastChannelCountsPort } from "@/infra/repos/broadcastChannelCounts";
 import { createInMemoryBroadcastChannelCountsPort } from "@/infra/repos/inMemoryBroadcastChannelCounts";
+import { createPgBroadcastEmailRecipientsPort } from "@/infra/repos/pgBroadcastEmailRecipients";
+import { createInMemoryBroadcastEmailRecipientsPort } from "@/infra/repos/inMemoryBroadcastEmailRecipients";
 import { createPgDoctorMotivationQuotesEditorPort } from "@/infra/repos/pgDoctorMotivationQuotesEditor";
 import { inMemoryDoctorMotivationQuotesEditorPort } from "@/infra/repos/inMemoryDoctorMotivationQuotesEditor";
 import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppointments";
@@ -413,6 +415,9 @@ const broadcastDraftPort = !inMemoryRepos
 const broadcastChannelCountsPort = !inMemoryRepos
   ? createPgBroadcastChannelCountsPort()
   : createInMemoryBroadcastChannelCountsPort();
+const broadcastEmailRecipientsPort = !inMemoryRepos
+  ? createPgBroadcastEmailRecipientsPort()
+  : createInMemoryBroadcastEmailRecipientsPort();
 const doctorMotivationQuotesEditorPort = !inMemoryRepos
   ? createPgDoctorMotivationQuotesEditorPort()
   : inMemoryDoctorMotivationQuotesEditorPort;
@@ -1355,6 +1360,14 @@ function _buildAppDeps() {
         readReminderNotifyGate: readReminderWebappNotifyGate,
         recordDeliveryAttempt: (input) => notificationDelivery.recordNotificationDeliveryAttempt(input),
         patientInboundChatPort: supportCommunicationPort,
+      },
+      fanOutBroadcastEmailDeps: {
+        emailRecipientsPort: broadcastEmailRecipientsPort,
+        getSmtpValueJson: () =>
+          systemSettingsService
+            .getSetting("smtp_outbound", "admin")
+            .then((s) => s?.valueJson ?? null)
+            .catch(() => null),
       },
     }),
     doctorBroadcastComposer: {

@@ -17,6 +17,11 @@ import {
   type FanOutBroadcastWebPushResult,
 } from "./fanOutBroadcastWebPush";
 import {
+  fanOutBroadcastEmail,
+  type FanOutBroadcastEmailDeps,
+  type FanOutBroadcastEmailResult,
+} from "./fanOutBroadcastEmail";
+import {
   appendPatientInboundAdminMessage,
   broadcastChatIntegratorMessageId,
 } from "@/modules/messaging/appendPatientInboundAdminMessage";
@@ -38,6 +43,11 @@ export type DoctorBroadcastsServiceDeps = {
   ) => Promise<FanOutBroadcastWebPushResult>;
   patientWebPushNotifyDeps?: PatientWebPushNotifyDeps;
   patientInboundChatPort?: PatientInboundChatPort;
+  /**
+   * Email fan-out deps. Если не задан — email-отправка не выполняется (канал
+   * остаётся видимым, счётчик реальный, но фактическая рассылка guarded).
+   */
+  fanOutBroadcastEmailDeps?: FanOutBroadcastEmailDeps;
 };
 
 const CATEGORIES: BroadcastCategory[] = [
@@ -80,7 +90,13 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
     async execute(command: BroadcastCommand): Promise<{ auditEntry: BroadcastAuditEntry }> {
       const channels = resolvedChannels(command);
       const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels, command.category);
-      const { audienceSize, eligibleClients, notificationPrefsByUserId, webPushEligibleUserIds } = resolved;
+      const {
+        audienceSize,
+        eligibleClients,
+        notificationPrefsByUserId,
+        webPushEligibleUserIds,
+        emailEligibleUserIds,
+      } = resolved;
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
       const auditId = randomUUID();
       const jobs = buildDoctorBroadcastDeliveryJobs({
@@ -151,6 +167,22 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             webPushEligibleUserIds,
           },
           deps.patientWebPushNotifyDeps,
+        );
+      }
+
+      if (channels.includes("email") && deps.fanOutBroadcastEmailDeps) {
+        const emailClients = emailEligibleUserIds
+          ? eligibleClients.filter((c) => emailEligibleUserIds.has(c.userId))
+          : eligibleClients;
+        await fanOutBroadcastEmail(
+          {
+            auditId,
+            broadcastCategory: command.category,
+            broadcastTitle: command.message.title,
+            broadcastBody: command.message.body,
+            eligibleClients: emailClients,
+          },
+          deps.fanOutBroadcastEmailDeps,
         );
       }
 

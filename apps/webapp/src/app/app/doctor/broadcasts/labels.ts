@@ -35,9 +35,12 @@ export const CATEGORY_LABELS: Record<BroadcastCategory, string> = {
 };
 
 export const CHANNEL_LABELS: Record<BroadcastChannel, string> = {
-  bot_message: "Сообщение в боте",
+  bot_message: "Сообщение в боте", // legacy: отображается в журнале как telegram+max
+  telegram: "Telegram",
+  max: "MAX",
   sms: "SMS",
   push: "Push",
+  email: "Email",
   home_banner: "Баннер на главной",
   notification_bell: "Уведомления в приложении",
 };

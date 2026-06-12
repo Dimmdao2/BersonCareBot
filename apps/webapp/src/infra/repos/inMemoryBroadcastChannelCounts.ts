@@ -3,8 +3,17 @@ import type {
   BroadcastChannelCountsPort,
 } from "@/modules/doctor-broadcasts/draftPort";
 
+export const DEFAULT_IN_MEMORY_CHANNEL_COUNTS: BroadcastChannelCounts = {
+  bot_message: 0,
+  telegram: 0,
+  max: 0,
+  sms: 0,
+  push: 0,
+  email: 0,
+};
+
 export function createInMemoryBroadcastChannelCountsPort(
-  counts: BroadcastChannelCounts = { bot_message: 0, sms: 0, push: 0 },
+  counts: BroadcastChannelCounts = DEFAULT_IN_MEMORY_CHANNEL_COUNTS,
 ): BroadcastChannelCountsPort {
   return {
     async getChannelConnectionCounts(): Promise<BroadcastChannelCounts> {

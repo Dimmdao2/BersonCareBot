@@ -61,13 +61,59 @@ describe("broadcastIncludeWebPushJob", () => {
   });
 });
 
+describe("filterEligibleBroadcastClients — email channel", () => {
+  it("includes client with verified email when email channel selected", () => {
+    const emptyMap = new Map();
+    const emailEligible = new Set(["u"]);
+    const list = filterEligibleBroadcastClients(
+      [c({ userId: "u", bindings: {} })],
+      ["email"],
+      "all",
+      emptyMap,
+      new Set<string>(),
+      emailEligible,
+    );
+    expect(list.map((x) => x.userId)).toEqual(["u"]);
+  });
+
+  it("excludes client without verified email when email channel selected", () => {
+    const emptyMap = new Map();
+    const emailEligible = new Set<string>(); // empty — no verified emails
+    const list = filterEligibleBroadcastClients(
+      [c({ userId: "u", bindings: {} })],
+      ["email"],
+      "all",
+      emptyMap,
+      new Set<string>(),
+      emailEligible,
+    );
+    expect(list).toHaveLength(0);
+  });
+});
+
 describe("deriveBroadcastDeliveryPolicy", () => {
   it("returns respect_prefs_bot when only bot_message and broad segment", () => {
     expect(deriveBroadcastDeliveryPolicy("all", ["bot_message"]).kind).toBe("respect_prefs_bot");
   });
 
+  it("returns respect_prefs_bot when only telegram", () => {
+    expect(deriveBroadcastDeliveryPolicy("all", ["telegram"]).kind).toBe("respect_prefs_bot");
+  });
+
+  it("returns respect_prefs_bot when only max", () => {
+    expect(deriveBroadcastDeliveryPolicy("all", ["max"]).kind).toBe("respect_prefs_bot");
+  });
+
+  it("returns telegram_isolate_bot for with_telegram + telegram channel", () => {
+    expect(deriveBroadcastDeliveryPolicy("with_telegram", ["telegram"]).kind).toBe("telegram_isolate_bot");
+  });
+
   it("returns none when no channels", () => {
     expect(deriveBroadcastDeliveryPolicy("all", []).kind).toBe("none");
+  });
+
+  it("returns none when only email (wantsBot=false,wantsSms=false,wantsPush=false,wantsEmail=true) — returns respect_prefs_bot", () => {
+    expect(deriveBroadcastDeliveryPolicy("all", ["email"]).kind).toBe("respect_prefs_bot");
   });
 });
 

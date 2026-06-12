@@ -1,5 +1,81 @@
 # COMMUNICATIONS_MD_V2 — Execution Log
 
+## Этап 4a — бэкенд каналов рассылок
+
+**Дата:** 2026-06-13
+
+### Что сделано
+
+1. **5-канальная модель (`broadcastChannels.ts`)**
+   - Тип `BroadcastChannel` расширен: добавлены `"telegram"`, `"max"`, `"email"`.
+   - `BROADCAST_ACTIVE_CHANNELS` → `["telegram","max","push","sms","email"]`.
+   - Добавлен `BROADCAST_DEFAULT_CHANNELS = ["telegram","max","push"]` — используется при пустом вводе.
+   - `normalizeBroadcastChannels`: пустой ввод → default-каналы; `"bot_message"` раскрывается в `["max","telegram"]` (backward compat).
+
+2. **Перегейтирование delivery jobs (`deliveryJobs.ts`)**
+   - Разделён `wantsBot` на `wantsTelegram` / `wantsMax` с поддержкой legacy-флага `legacyBotMessage`.
+   - Telegram-job: `channels.includes("telegram") || legacyBotMessage`.
+   - Max-job: `channels.includes("max") || legacyBotMessage`.
+   - SMS — без изменений.
+
+3. **Email fan-out (новый файл `fanOutBroadcastEmail.ts`)**
+   - Отправка через `sendTransactionalSmtpEmail` по списку eligible-клиентов.
+   - Адреса resolveтся через `BroadcastEmailRecipientsPort.getVerifiedEmailsForUserIds`.
+   - SMTP-конфиг запрашивается lazy через `getSmtpValueJson: () => Promise<unknown>` — не блокирует инициализацию DI.
+   - Полностью guarded: если `fanOutBroadcastEmailDeps` не задан — email-канал виден, счётчик реальный, но письма не отправляются.
+   - Результат: `{ attempted, delivered, errors, skipped }`.
+
+4. **Реальные счётчики каналов (`broadcastChannelCounts.ts`)**
+   - Telegram: `COUNT(DISTINCT user_id) FROM user_channel_bindings WHERE channel_code = 'telegram'`.
+   - Max: `COUNT(DISTINCT user_id) FROM user_channel_bindings WHERE channel_code = 'max'`.
+   - Push: `COUNT(DISTINCT user_id) FROM user_web_push_subscriptions` (было hardcoded 0).
+   - Email: `COUNT(*) FROM platform_users WHERE email_verified_at IS NOT NULL AND email_normalized IS NOT NULL AND merged_into_id IS NULL`.
+   - SMS: `COUNT(*) FROM platform_users WHERE phone_normalized IS NOT NULL AND merged_into_id IS NULL`.
+   - Поле `bot_message` = telegram (legacy alias).
+
+5. **Инфраструктура email-recipients**
+   - `pgBroadcastEmailRecipients.ts` — Drizzle реализация (запрос по `user_id ANY(::uuid[])`, только verified, не merged).
+   - `inMemoryBroadcastEmailRecipients.ts` — in-memory stub для тестов.
+
+6. **`BroadcastChannelCounts` (`draftPort.ts`)** — добавлены поля `telegram`, `max`, `email`.
+
+7. **`BroadcastAudienceResolveResult` (`ports.ts`)** — добавлено опциональное `emailEligibleUserIds?: ReadonlySet<string>`.
+
+8. **`broadcastEligible.ts`** — `filterEligibleBroadcastClients` принимает `emailEligibleUserIds`; `deriveBroadcastDeliveryPolicy` учитывает `wantsEmail`.
+
+9. **DI wiring (`buildAppDeps.ts`)** — `createDoctorBroadcastsService` получает `fanOutBroadcastEmailDeps` с lazy getter `getSmtpValueJson`.
+
+10. **UI-файлы (минимальные)**
+    - `labels.ts` и `BroadcastForm.tsx` — добавлены метки для `telegram`, `max`, `email`.
+
+### Тесты
+
+- `broadcastChannels.test.ts` — обновлены ожидания для новых каналов по умолчанию и раскрытия `bot_message`.
+- `deliveryJobs.test.ts` — 3 новых теста: явные `telegram`/`max`/`telegram+max` каналы.
+- `service.test.ts` — исправлены ожидания каналов и policy kinds; добавлены тесты email fanout и guarded-режима.
+- `broadcastEligible.test.ts` — добавлены тесты email-eligibility и channel-policy для telegram/max/email.
+- `fanOutBroadcastEmail.test.ts` (новый) — 4 теста: отправка, skip без email, ошибки SMTP, reject resolver.
+- `inMemoryBroadcastChannelCounts.test.ts` (новый) — 3 теста.
+
+**Итог:** 8 test files, 65 tests — все GREEN.
+
+### Гейт Phase15F
+
+5/5 тестов GREEN. Все новые SQL — только через Drizzle `db.execute(sql\`...\`)`. pool.query/client.query не добавлялись.
+
+### Не сделано (scope этапа 4b)
+
+- UI изменения в `BroadcastForm.tsx` (тайлы каналов, UX email-channel) — этап 4b.
+- Фильтрация по `emailEligibleUserIds` в `resolveBroadcastAudience` (buildAppDeps) — сейчас `emailEligibleUserIds` не передаётся из audience resolver, email-фанаут отправляет всем eligible-клиентам у кого есть verified email. Для точного контроля нужно добавить resolving через `broadcastEmailRecipientsPort` в `resolveBroadcastAudience`.
+
+### Риски и решения
+
+- **Legacy bot_message**: полная backward-compat через нормализацию на входе + флаг `legacyBotMessage` в deliveryJobs.
+- **Lazy SMTP**: `getSmtpValueJson` вызывается per-execution, не при инициализации — корректно для кешированного DI.
+- **Email fanout guarded**: если SMTP не настроен — `sendTransactionalSmtpEmail` вернёт ошибку/ok:false, которая логируется и считается в `errors`, но не роняет broadcast.
+
+---
+
 ## Этап 3 (A2) — Заявки
 
 **Дата:** 2026-06-12

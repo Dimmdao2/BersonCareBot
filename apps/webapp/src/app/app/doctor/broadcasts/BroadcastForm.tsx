@@ -30,9 +30,12 @@ type Stage = "idle" | "previewing" | "previewed" | "confirming" | "sent" | "erro
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS) as [BroadcastCategory, string][];
 
 const CHANNEL_TILE_LABELS: Record<BroadcastChannel, string> = {
-  bot_message: "Telegram",
+  bot_message: "Telegram+MAX", // legacy
+  telegram: "Telegram",
+  max: "MAX",
   sms: "SMS",
   push: "Push",
+  email: "Email",
   home_banner: "Баннер",
   notification_bell: "Bell",
 };

@@ -131,51 +131,82 @@
 
 ---
 
-## Этап 4 — A4: Рассылки + фикс красного CI
+## Этап 4 — A4: Рассылки (split 4a backend / 4b UI)
 
-**Цель:** форма «Новая рассылка» по README §A4/§5; починить пред-существующий красный тест.
+**Подтверждённые факты бэкенда (recon оркестратора):**
+- `BroadcastChannel = "bot_message"|"sms"|"push"|"home_banner"|"notification_bell"`;
+  `BROADCAST_ACTIVE_CHANNELS = ["bot_message","sms","push"]`.
+- В доставке (`deliveryJobs.ts`) `bot_message` УЖЕ раскладывается на отдельные **telegram** и **max**
+  jobs по биндингам `client.bindings.telegramId` / `.maxId`. Значит разделить TG/MAX в выборе —
+  малая правка гейтинга, данные уже есть на `ClientListItem.bindings`.
+- **push** уже управляется выбором канала: `service.ts` → `channels.includes("push")` →
+  `fanOutBroadcastWebPush`. Баг только в **счётчике** push (хардкод `push: 0` в
+  `infra/repos/broadcastChannelCounts.ts`).
+- **Счётчик** `getChannelConnectionCounts` (pg, Drizzle): сейчас `bot_message`=telegram-биндинги,
+  `sms`=phone, `push`=0. Данные для всех 5 каналов в БД есть: `user_channel_bindings`
+  (`channel_code='telegram'|'max'`), `platform_users.phone_normalized`, web_push-подписки
+  (см. `pgWebPushSubscriptions`/`resolveBroadcastWebPushEligibleUserIds`), email
+  (`platform_users` email + verified).
+- **email на `ClientListItem` НЕТ** (email-поля — на профиле, не в списке аудитории). Email-отправка
+  как инфраструктура есть (`modules/outbound-email/sendTransactionalSmtp.ts`,
+  `modules/notification-delivery` знает канал `email`), но **broadcast→email фанаута в
+  `doctor-broadcasts` нет** — это единственный реально недостающий кусок доставки.
+- **Красный CI `webappPhase15F.verify.test.ts` УЖЕ ЗЕЛЁНЫЙ** (закрыт миграцией Wave3 15G). Отдельный
+  фикс НЕ нужен. ⚠️ НО: любой новый SQL в этом этапе — только Drizzle `db.execute(sql)`, НЕ
+  `pool.query`/`client.query` (иначе сломаешь этот гейт и его ассерт «tail size = 25»).
 
+### Этап 4a — бэкенд: 5-канальная модель + реальные счётчики + доставка
+**Файлы:** `modules/doctor-broadcasts/{broadcastChannels.ts,ports.ts,draftPort.ts,deliveryJobs.ts,service.ts,broadcastEligible.ts}`,
+`broadcasts/labels.ts`, `infra/repos/broadcastChannelCounts.ts`, `infra/repos/inMemoryBroadcastChannelCounts.ts`,
+их тесты. Всё **аддитивно/обратносовместимо** (зона `shared`/`doctor-appointments` не трогается).
+
+1. Добавить в `BroadcastChannel` значения `telegram`, `max`, `email`. `BROADCAST_ACTIVE_CHANNELS` →
+   `["telegram","max","push","sms","email"]`. `bot_message` оставить как **legacy** значение
+   (историч. аудит): распознаётся в `CHANNEL_LABELS` и при показе журнала маппится на telegram+max,
+   но как новый активный канал не предлагается. `normalizeBroadcastChannels` обновить.
+2. `deliveryJobs.ts`: гейтинг `wantsBot=includes("bot_message")` → `wantsTelegram=includes("telegram")`,
+   `wantsMax=includes("max")` (telegram-job под TG, max-job под MAX). sms — как есть. Сохранить
+   обратную совместимость: если в `channels` встретился legacy `bot_message` — трактовать как (telegram+max).
+3. **email-доставка:** СНАЧАЛА исследуй существующий путь (пользователь утверждает, что рассылка по
+   email уже есть в интеграциях). Проверь `notification-delivery`, `outbound-email`,
+   `fanOutBroadcastWebPush` как шаблон, DI `buildAppDeps`. Если есть переиспользуемый путь — подключи
+   email как канал (eligibility = верифицированный email; добавь email-фанаут по аналогии с web push
+   ИЛИ email-job, если так в архитектуре). Если готового broadcast-email пути нет — добавь минимальный
+   фанаут, переиспользуя `outbound-email`, eligibility по верифиц. email; **весь новый SQL — Drizzle**.
+   Если плумбинг email в аудиторию выходит за разумный объём — канал всё равно сделать видимым и с
+   **реальным счётчиком**, а фактическую отправку — guarded + детально зафиксировать в LOG.md, что
+   именно осталось. Не ломать gate phase15F.
+4. **Счётчики:** `BroadcastChannelCounts` → `{ telegram, max, push, sms, email }` (аддитивно;
+   `bot_message` можно сохранить для совместимости/легаси, но форма читает 5 новых). Реализовать
+   реальные числа в pg (Drizzle) и inMemory: telegram/max из `user_channel_bindings`, sms из phone,
+   **push — реальное число активных web_push-подписок** (не 0), email — верифиц. email.
+5. **Дефолт каналов в команде/сервисе:** где сервис подставляет каналы по умолчанию — привести к
+   `Telegram + MAX + Push`.
+6. Обновить ВСЕ затронутые тесты модуля рассылок (многие ассертят `bot_message`/старые дефолты).
+
+### Этап 4b — UI формы рассылки
 **Файлы:** `broadcasts/BroadcastForm.tsx`, `broadcasts/BroadcastAudienceSelect.tsx`,
-`broadcasts/labels.ts`, `communications/tabs/BroadcastsTab.tsx`,
-`modules/doctor-broadcasts/{broadcastChannels.ts,draftPort.ts,ports.ts,service.ts}` (аддитивно),
-`infra/repos/*` для счётчиков каналов и фикса CI.
+`broadcasts/labels.ts`, `communications/tabs/BroadcastsTab.tsx`, их тесты.
 
-1. **Порядок полей:** Аудитория → **Категория** → Каналы → Заголовок → Текст → кнопки
-   (категорию поднять НАД каналами).
-2. **Аудитория · кому:** заменить нативный `<select>` (`BroadcastAudienceSelect`) на дропдаун-паттерн
-   доктор-канона (`ReferenceSelect` со `@/shared/ui/doctor/ReferenceSelect`, с `displayLabel`/`SelectValue`,
-   `h-8`). Single-select. Это «кому», НЕ каналы: убрать из аудитории любые каналы/SMS.
-   - Набор сегментов — README §5.1. **Дефолт скоупа (если не указано иначе оркестратором):** оставить
-     существующие значения `BroadcastAudienceFilter`, переименовать подписи под §5.1 где совпадает по
-     смыслу; новые сегменты, требующие новых DB-фильтров, и опцию «Выбрать вручную» (диалог со
-     списком/чекбоксами) — **НЕ изобретать в этом этапе**, зафиксировать как развилку в LOG.md
-     (per README §7), чтобы не лезть в зону `doctor-appointments`. Существующий механизм
+1. **Порядок полей:** Аудитория → **Категория** → Каналы → Заголовок → Текст → кнопки.
+2. **Аудитория · кому:** заменить нативный `<select>` на доктор-дропдаун (`ReferenceSelect`,
+   `displayLabel`/`SelectValue`, `h-8`). Single-select, «кому» (без каналов/SMS).
+   - Набор сегментов — README §5.1. **Дефолт скоупа:** оставить существующие `BroadcastAudienceFilter`,
+     подписи под §5.1 где совпадает; новые сегменты с новыми DB-фильтрами и «Выбрать вручную» (диалог) —
+     НЕ в этом этапе, зафиксировать развилку в LOG.md (per README §7), не лезть в `doctor-appointments`.
      `isAudienceEstimateApproximate` сохранить.
-3. **Категория:** 4 тоггл-чипа в порядке **Организационное · Важное · Сервисное · Рекламное**,
-   дефолт — **Организационное** (выбрана при пустом черновике). Маппинг на `BroadcastCategory`:
-   `organizational`, `important_notice`, `service`, `marketing`. Прочие категории не показывать.
-   Сейчас дефолт пустой (`category=""`) — сделать дефолт `organizational`.
-4. **Каналы · куда:** 5 чекбоксов **Telegram · MAX · Push · SMS · Email**.
-   - `BROADCAST_ACTIVE_CHANNELS` сейчас `["bot_message","sms","push"]`. MAX и Email отсутствуют как
-     каналы. Уточнить у кода: есть ли отдельный канал MAX, или MAX идёт через `bot_message`.
-     **Если в модели нет отдельных каналов MAX/Email** — это бэкенд-расширение: добавить **аддитивно**
-     в `BroadcastChannel` + нормализацию + counts, НЕ ломая существующее. Если расширение каналов
-     выходит за разумный объём этапа — реализовать видимые 5 чекбоксов с корректными счётчиками для
-     уже существующих каналов, остальные — задизейблить с пометкой и зафиксировать развилку в LOG.md.
-   - Под каждым каналом — **точная цифра из БД** (`getChannelConnectionCounts`/`BroadcastChannelCounts`).
-     Push сейчас показывает 0/не отмечен — починить: реальная цифра + дефолт-вкл.
-   - Дефолтные отметки: **Telegram + MAX + Push** (SMS, Email — выкл). Сейчас дефолт
-     `new Set(["bot_message","sms"])` — поправить и в `useState`, и в `handleReset`.
-   - Дублирование получателей по каналам — by design, не дедуплицировать.
-5. **Отступ заголовка «Новая рассылка»** уменьшить (в `BroadcastsTab.tsx` `mb-3` → меньше / выверить).
+3. **Категория:** 4 тоггл-чипа **Организационное · Важное · Сервисное · Рекламное**, дефолт —
+   **Организационное** (`organizational`). Маппинг: `organizational`, `important_notice`, `service`,
+   `marketing`. Прочие категории не показывать. Сейчас дефолт пустой — сделать `organizational`.
+4. **Каналы · куда:** 5 чекбоксов **Telegram · MAX · Push · SMS · Email** (из 4a). Под каждым —
+   **точная цифра из БД**. Дефолт отмечены **Telegram + MAX + Push** (SMS, Email — выкл) — поправить
+   `useState` и `handleReset`. Дублирование по каналам — by design.
+5. **Отступ заголовка «Новая рассылка»** уменьшить (`BroadcastsTab.tsx`).
 6. **Независимый скролл** (общий шаблон) для вкладки рассылок.
-7. **Логику compose/preview/confirm/draft НЕ менять** (только дефолты значений и верстку полей).
-8. **Красный CI:** `infra/repos/webappPhase15F.verify.test.ts` падает из-за `pool.query` в broadcast
-   (нарушение «no raw pool.query в модулях»). Найти источник, перевести на порт/Drizzle согласно
-   clean-architecture, починить тест. Это блокер пуша по README §10 — чинить здесь.
+7. **Логику compose/preview/confirm/draft НЕ менять** (только дефолты и верстку полей).
 
-**Тесты:** `BroadcastForm.test.tsx`, `BroadcastsTab.test.tsx`, `webappPhase15F.verify.test.ts`,
-тесты затронутых модулей рассылок; tsc; eslint.
+**Тесты:** `BroadcastForm.test.tsx`, `BroadcastsTab.test.tsx`, тесты затронутых модулей рассылок,
+`webappPhase15F.verify.test.ts` (должен остаться зелёным); tsc; eslint.
 
 ---
 

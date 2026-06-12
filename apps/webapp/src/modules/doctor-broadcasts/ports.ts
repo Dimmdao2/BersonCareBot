@@ -158,6 +158,8 @@ export type BroadcastAudienceResolveResult = {
   deliveryPolicyDescriptionRu: string;
   /** Пользователи с активной PWA-подпиской и включённым web_push для темы news. */
   webPushEligibleUserIds: ReadonlySet<string>;
+  /** Пользователи с подтверждённым email (eligibility для email-канала рассылки). */
+  emailEligibleUserIds?: ReadonlySet<string>;
 };
 
 export type { BroadcastChannel } from "./broadcastChannels";

@@ -100,7 +100,10 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
   const audienceFilter = input.audienceFilter ?? "all";
   const prefsMap = input.notificationPrefsByUserId ?? new Map<string, BroadcastNotificationPrefsFlags>();
 
-  const wantsBot = input.channels.includes("bot_message");
+  // Legacy bot_message → telegram + max (обратная совместимость).
+  const legacyBotMessage = input.channels.includes("bot_message");
+  const wantsTelegram = input.channels.includes("telegram") || legacyBotMessage;
+  const wantsMax = input.channels.includes("max") || legacyBotMessage;
   const wantsSms = input.channels.includes("sms");
   const jobs: DoctorBroadcastQueueJob[] = [];
   const attachMenu = input.attachMenu === true;
@@ -114,7 +117,7 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
     const tg = client.bindings.telegramId?.trim();
     const mx = client.bindings.maxId?.trim();
 
-    if (wantsBot) {
+    if (wantsTelegram) {
       if (tg && broadcastIncludeTelegramJob(audienceFilter, prefs, true)) {
         const chatId = /^\d+$/.test(tg) ? Number(tg) : tg;
         const eventId = stableEventId(input.auditId, "telegram", client.userId, "tg");
@@ -139,6 +142,8 @@ export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJ
           },
         });
       }
+    }
+    if (wantsMax) {
       if (mx && broadcastIncludeMaxJob(audienceFilter, prefs, true)) {
         const eventId = stableEventId(input.auditId, "max", client.userId, "max");
         jobs.push({
