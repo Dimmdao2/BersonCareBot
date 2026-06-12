@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from "drizzle-orm";
+import type { BreakInterval } from "@/modules/booking-scheduling/ports";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   beAppointments,
@@ -486,20 +487,29 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       return rows.map(mapWorkingDayRow);
     },
 
-    async upsertWorkingDays({ organizationId, specialistId, branchId, roomId, dates, startMinute, endMinute, breakStartMinute, breakEndMinute }: Parameters<BookingSchedulingPort["upsertWorkingDays"]>[0]) {
+    async upsertWorkingDays({ organizationId, specialistId, branchId, roomId, dates, startMinute, endMinute, breakStartMinute, breakEndMinute, breaks }: Parameters<BookingSchedulingPort["upsertWorkingDays"]>[0]) {
       const db = getDrizzle();
       const now = new Date().toISOString();
       const results: WorkingDayRecord[] = [];
       const sentinelId = "00000000-0000-0000-0000-000000000000";
+      // Resolve effective breaks: N-break array takes priority; fall back to legacy scalars
+      const effectiveBreaks: BreakInterval[] =
+        breaks && breaks.length > 0
+          ? breaks
+          : breakStartMinute != null && breakEndMinute != null
+            ? [{ startMinute: breakStartMinute, endMinute: breakEndMinute }]
+            : [];
+      const breaksJson = JSON.stringify(effectiveBreaks);
       for (const workDate of dates) {
         // Use raw SQL for conflict target because the unique index is expression-based (COALESCE)
         const rows = await db.execute<RawWorkingDayRow>(
           sql`INSERT INTO be_working_days
             (organization_id, specialist_id, branch_id, room_id, work_date,
-             start_minute, end_minute, break_start_minute, break_end_minute, is_closed, updated_at)
+             start_minute, end_minute, break_start_minute, break_end_minute, breaks, is_closed, updated_at)
           VALUES
             (${organizationId}, ${specialistId ?? null}, ${branchId ?? null}, ${roomId ?? null}, ${workDate},
-             ${startMinute}, ${endMinute}, ${breakStartMinute ?? null}, ${breakEndMinute ?? null}, false, ${now})
+             ${startMinute}, ${endMinute}, ${breakStartMinute ?? null}, ${breakEndMinute ?? null},
+             ${breaksJson}::jsonb, false, ${now})
           ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
           DO UPDATE SET
             branch_id = EXCLUDED.branch_id,
@@ -508,6 +518,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
             end_minute = EXCLUDED.end_minute,
             break_start_minute = EXCLUDED.break_start_minute,
             break_end_minute = EXCLUDED.break_end_minute,
+            breaks = EXCLUDED.breaks,
             is_closed = false,
             updated_at = EXCLUDED.updated_at
           RETURNING *`,
@@ -527,16 +538,17 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         const rows = await db.execute<RawWorkingDayRow>(
           sql`INSERT INTO be_working_days
             (organization_id, specialist_id, branch_id, room_id, work_date,
-             start_minute, end_minute, break_start_minute, break_end_minute, is_closed, updated_at)
+             start_minute, end_minute, break_start_minute, break_end_minute, breaks, is_closed, updated_at)
           VALUES
             (${organizationId}, ${specialistId ?? null}, NULL, NULL, ${workDate},
-             NULL, NULL, NULL, NULL, true, ${now})
+             NULL, NULL, NULL, NULL, '[]'::jsonb, true, ${now})
           ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
           DO UPDATE SET
             start_minute = NULL,
             end_minute = NULL,
             break_start_minute = NULL,
             break_end_minute = NULL,
+            breaks = '[]'::jsonb,
             is_closed = true,
             updated_at = EXCLUDED.updated_at
           RETURNING *`,
@@ -574,8 +586,15 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
       return rows.map(mapTemplateRow);
     },
 
-    async createScheduleTemplate({ organizationId, branchId, name, startMinute, endMinute, breakStartMinute, breakEndMinute, sortOrder }: CreateScheduleTemplateInput) {
+    async createScheduleTemplate({ organizationId, branchId, name, startMinute, endMinute, breakStartMinute, breakEndMinute, breaks, sortOrder }: CreateScheduleTemplateInput) {
       const db = getDrizzle();
+      // Resolve effective breaks: N-break array takes priority; fall back to legacy scalars
+      const effectiveBreaks: BreakInterval[] =
+        breaks && breaks.length > 0
+          ? breaks
+          : breakStartMinute != null && breakEndMinute != null
+            ? [{ startMinute: breakStartMinute, endMinute: breakEndMinute }]
+            : [];
       const inserted = await db
         .insert(beStmpl)
         .values({
@@ -586,6 +605,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
           endMinute,
           breakStartMinute: breakStartMinute ?? null,
           breakEndMinute: breakEndMinute ?? null,
+          breaks: effectiveBreaks,
           sortOrder: sortOrder ?? 0,
           isActive: true,
         })
@@ -605,6 +625,23 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
 // ── Row mappers ──────────────────────────────────────────────────────────────
 
+/**
+ * Resolve effective breaks for a working day or template.
+ * Primary: `breaks` jsonb column (migration 0116).
+ * Fallback: legacy scalar break_start/end_minute (backward-compat for rows not yet backfilled).
+ */
+function resolveBreaks(
+  breaks: Array<{ startMinute: number; endMinute: number }> | null | undefined,
+  breakStartMinute: number | null | undefined,
+  breakEndMinute: number | null | undefined,
+): BreakInterval[] {
+  if (breaks && breaks.length > 0) return breaks;
+  if (breakStartMinute != null && breakEndMinute != null) {
+    return [{ startMinute: breakStartMinute, endMinute: breakEndMinute }];
+  }
+  return [];
+}
+
 export function mapWorkingDayRow(row: typeof beWd.$inferSelect): WorkingDayRecord {
   return {
     id: row.id,
@@ -617,6 +654,7 @@ export function mapWorkingDayRow(row: typeof beWd.$inferSelect): WorkingDayRecor
     endMinute: row.endMinute,
     breakStartMinute: row.breakStartMinute,
     breakEndMinute: row.breakEndMinute,
+    breaks: resolveBreaks(row.breaks, row.breakStartMinute, row.breakEndMinute),
     isClosed: row.isClosed,
   };
 }
@@ -636,6 +674,7 @@ export type RawWorkingDayRow = {
   end_minute: number | null;
   break_start_minute: number | null;
   break_end_minute: number | null;
+  breaks: Array<{ startMinute: number; endMinute: number }> | null;
   is_closed: boolean;
 };
 
@@ -651,6 +690,7 @@ export function mapRawWorkingDayRow(row: RawWorkingDayRow): WorkingDayRecord {
     endMinute: row.end_minute,
     breakStartMinute: row.break_start_minute,
     breakEndMinute: row.break_end_minute,
+    breaks: resolveBreaks(row.breaks, row.break_start_minute, row.break_end_minute),
     isClosed: row.is_closed,
   };
 }
@@ -665,6 +705,7 @@ function mapTemplateRow(row: typeof beStmpl.$inferSelect): ScheduleTemplateRecor
     endMinute: row.endMinute,
     breakStartMinute: row.breakStartMinute,
     breakEndMinute: row.breakEndMinute,
+    breaks: resolveBreaks(row.breaks, row.breakStartMinute, row.breakEndMinute),
     sortOrder: row.sortOrder,
     isActive: row.isActive,
   };

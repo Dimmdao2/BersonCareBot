@@ -27,6 +27,9 @@ export type CanonicalBookingContext = {
 
 // ── Per-date working days ────────────────────────────────────────────────────
 
+/** Single break window within a working day. */
+export type BreakInterval = { startMinute: number; endMinute: number };
+
 export type WorkingDayRecord = {
   id: string;
   organizationId: string;
@@ -36,8 +39,11 @@ export type WorkingDayRecord = {
   workDate: string; // YYYY-MM-DD
   startMinute: number | null;
   endMinute: number | null;
+  /** Legacy single-break columns (kept for backward-compat reads). */
   breakStartMinute: number | null;
   breakEndMinute: number | null;
+  /** N-break model (migration 0116). Primary source; fallback to legacy scalars when empty. */
+  breaks: BreakInterval[];
   isClosed: boolean;
 };
 
@@ -49,8 +55,11 @@ export type UpsertWorkingDaysInput = {
   dates: string[]; // YYYY-MM-DD[]
   startMinute: number;
   endMinute: number;
+  /** Legacy single-break (backward-compat; ignored when breaks[] provided). */
   breakStartMinute?: number | null;
   breakEndMinute?: number | null;
+  /** N-break model. Takes priority over breakStartMinute/breakEndMinute. */
+  breaks?: BreakInterval[];
 };
 
 export type CloseWorkingDaysInput = {
@@ -74,8 +83,11 @@ export type ScheduleTemplateRecord = {
   name: string;
   startMinute: number;
   endMinute: number;
+  /** Legacy single-break columns (kept for backward-compat reads). */
   breakStartMinute: number | null;
   breakEndMinute: number | null;
+  /** N-break model (migration 0116). Primary source. */
+  breaks: BreakInterval[];
   sortOrder: number;
   isActive: boolean;
 };
@@ -86,8 +98,11 @@ export type CreateScheduleTemplateInput = {
   name: string;
   startMinute: number;
   endMinute: number;
+  /** Legacy single-break (backward-compat). */
   breakStartMinute?: number | null;
   breakEndMinute?: number | null;
+  /** N-break model. Takes priority over breakStartMinute/breakEndMinute. */
+  breaks?: BreakInterval[];
   sortOrder?: number;
 };
 

@@ -36,6 +36,7 @@ function raw(overrides: Partial<RawWorkingDayRow> = {}): RawWorkingDayRow {
     end_minute: 1080,
     break_start_minute: null,
     break_end_minute: null,
+    breaks: null,
     is_closed: false,
     ...overrides,
   };
@@ -54,6 +55,7 @@ describe("mapRawWorkingDayRow — snake_case RETURNING* → WorkingDayRecord", (
     expect(rec.endMinute).toBe(1080);
     expect(rec.breakStartMinute).toBeNull();
     expect(rec.breakEndMinute).toBeNull();
+    expect(rec.breaks).toEqual([]);
     expect(rec.isClosed).toBe(false);
   });
 
@@ -65,14 +67,33 @@ describe("mapRawWorkingDayRow — snake_case RETURNING* → WorkingDayRecord", (
     expect(rec.startMinute).toBeNull();
     expect(rec.endMinute).toBeNull();
     expect(rec.specialistId).toBeNull();
+    expect(rec.breaks).toEqual([]);
   });
 
-  it("maps break minutes when present", () => {
+  it("maps break minutes when present (legacy scalar columns)", () => {
     const rec = mapRawWorkingDayRow(
       raw({ break_start_minute: 780, break_end_minute: 840 }),
     );
     expect(rec.breakStartMinute).toBe(780);
     expect(rec.breakEndMinute).toBe(840);
+    // fallback: legacy scalars → synthesised breaks array
+    expect(rec.breaks).toEqual([{ startMinute: 780, endMinute: 840 }]);
+  });
+
+  it("breaks jsonb takes priority over legacy scalar columns", () => {
+    const rec = mapRawWorkingDayRow(
+      raw({
+        break_start_minute: 780,
+        break_end_minute: 840,
+        breaks: [
+          { startMinute: 720, endMinute: 780 },
+          { startMinute: 900, endMinute: 960 },
+        ],
+      }),
+    );
+    expect(rec.breaks).toHaveLength(2);
+    expect(rec.breaks[0]).toEqual({ startMinute: 720, endMinute: 780 });
+    expect(rec.breaks[1]).toEqual({ startMinute: 900, endMinute: 960 });
   });
 
   it("null specialist_id and branch_id are preserved", () => {

@@ -3,12 +3,20 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
 
+const breakIntervalSchema = z.object({
+  startMinute: z.number().int().min(0).max(1439),
+  endMinute: z.number().int().min(1).max(1440),
+});
+
 const createBody = z.object({
   name: z.string().min(1).max(120),
   startMinute: z.number().int().min(0).max(1439),
   endMinute: z.number().int().min(1).max(1440),
+  /** Legacy single-break (backward-compat). Ignored when breaks[] provided. */
   breakStartMinute: z.number().int().min(0).max(1439).nullable().optional(),
   breakEndMinute: z.number().int().min(1).max(1440).nullable().optional(),
+  /** N-break model. Takes priority over breakStartMinute/breakEndMinute. */
+  breaks: z.array(breakIntervalSchema).max(6).optional(),
   branchId: z.string().uuid().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
 });

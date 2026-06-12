@@ -17,6 +17,7 @@ function makePort(perDayBranchId: string | null): BookingSchedulingPort {
     endMinute: 19 * 60,
     breakStartMinute: null,
     breakEndMinute: null,
+    breaks: [],
     isClosed: false,
   };
   return {

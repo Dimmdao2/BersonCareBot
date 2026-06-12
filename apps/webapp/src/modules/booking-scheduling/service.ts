@@ -1,6 +1,7 @@
 import type {
   BookingSchedulingPort,
   BookingSchedulingService,
+  BreakInterval,
   UpsertWorkingDaysInput,
   CloseWorkingDaysInput,
   ClearWorkingDaysInput,
@@ -50,6 +51,37 @@ function assertDateRangeDays(dates: string[]): void {
   }
 }
 
+const MAX_BREAKS = 6;
+
+/**
+ * Validates the breaks[] array for a working day or template.
+ * Each break must:
+ *   - have startMinute < endMinute (both in 0..1440)
+ *   - be contained within [dayStart, dayEnd]
+ *   - not overlap with any other break
+ *   - count ≤ MAX_BREAKS (6)
+ * Array must be sorted by startMinute (ascending).
+ */
+function validateBreaks(breaks: BreakInterval[], dayStart: number, dayEnd: number): void {
+  if (breaks.length === 0) return;
+  if (breaks.length > MAX_BREAKS) throw new Error(`breaks_count_exceeds_max:${MAX_BREAKS}`);
+  let prevEnd = -1;
+  for (let i = 0; i < breaks.length; i++) {
+    const b = breaks[i]!;
+    assertMinute(b.startMinute, `breaks[${i}].startMinute`);
+    assertMinute(b.endMinute, `breaks[${i}].endMinute`);
+    if (b.startMinute >= b.endMinute) throw new Error(`invalid_break_range:${i}`);
+    if (b.startMinute < dayStart) throw new Error(`break_before_start:${i}`);
+    if (b.endMinute > dayEnd) throw new Error(`break_after_end:${i}`);
+    if (b.startMinute < prevEnd) throw new Error(`breaks_overlap:${i}`);
+    // Sort invariant: each break starts after the previous one ends
+    if (i > 0 && b.startMinute < breaks[i - 1]!.endMinute) {
+      throw new Error(`breaks_not_sorted:${i}`);
+    }
+    prevEnd = b.endMinute;
+  }
+}
+
 function validateUpsertInput(input: UpsertWorkingDaysInput): void {
   assertUuid(input.organizationId, "organizationId");
   assertUuid(input.specialistId, "specialistId");
@@ -61,7 +93,10 @@ function validateUpsertInput(input: UpsertWorkingDaysInput): void {
   assertMinute(input.startMinute, "startMinute");
   assertMinute(input.endMinute, "endMinute");
   if (input.startMinute >= input.endMinute) throw new Error("invalid_working_hours_range");
-  if (input.breakStartMinute != null || input.breakEndMinute != null) {
+  // N-break validation takes priority; fall back to single-break check for backward-compat
+  if (input.breaks && input.breaks.length > 0) {
+    validateBreaks(input.breaks, input.startMinute, input.endMinute);
+  } else if (input.breakStartMinute != null || input.breakEndMinute != null) {
     assertMinute(input.breakStartMinute, "breakStartMinute");
     assertMinute(input.breakEndMinute, "breakEndMinute");
     if (input.breakStartMinute! < input.startMinute) throw new Error("break_before_start");
@@ -76,7 +111,9 @@ function validateScheduleTemplateInput(input: CreateScheduleTemplateInput): void
   assertMinute(input.startMinute, "startMinute");
   assertMinute(input.endMinute, "endMinute");
   if (input.startMinute >= input.endMinute) throw new Error("invalid_template_range");
-  if (input.breakStartMinute != null || input.breakEndMinute != null) {
+  if (input.breaks && input.breaks.length > 0) {
+    validateBreaks(input.breaks, input.startMinute, input.endMinute);
+  } else if (input.breakStartMinute != null || input.breakEndMinute != null) {
     assertMinute(input.breakStartMinute, "breakStartMinute");
     assertMinute(input.breakEndMinute, "breakEndMinute");
     if (input.breakStartMinute! < input.startMinute) throw new Error("break_before_start");
@@ -319,6 +356,13 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       const templates = await port.listScheduleTemplates(organizationId);
       const tmpl = templates.find((t) => t.id === templateId);
       if (!tmpl) throw new Error("template_not_found");
+      // Prefer N-break array; fall back to legacy scalar columns for old templates
+      const effectiveBreaks =
+        tmpl.breaks.length > 0
+          ? tmpl.breaks
+          : tmpl.breakStartMinute != null && tmpl.breakEndMinute != null
+            ? [{ startMinute: tmpl.breakStartMinute, endMinute: tmpl.breakEndMinute }]
+            : [];
       return port.upsertWorkingDays({
         organizationId,
         specialistId: specialistId ?? null,
@@ -329,6 +373,7 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         endMinute: tmpl.endMinute,
         breakStartMinute: tmpl.breakStartMinute ?? null,
         breakEndMinute: tmpl.breakEndMinute ?? null,
+        breaks: effectiveBreaks,
       });
     },
   };
