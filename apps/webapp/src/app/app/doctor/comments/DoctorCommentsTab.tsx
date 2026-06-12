@@ -13,7 +13,10 @@ import type {
   PatientExercisesWithCommentsResult,
   ExerciseCommentStageGroup,
   ExerciseCommentItem,
+  ExerciseCommentThumbMedia,
 } from "./loadDoctorPatientExercisesWithComments";
+import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
+import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
@@ -116,6 +119,22 @@ function formatRelativeTime(isoDate: string | null): string {
   return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit" }) + " · " + time;
 }
 
+/** Маппинг первого медиа снимка упражнения в `ExerciseMedia` для канон-миниатюры. */
+function thumbToExerciseMedia(thumb: ExerciseCommentThumbMedia | null): ExerciseMedia | null {
+  if (!thumb) return null;
+  return {
+    id: thumb.url,
+    exerciseId: "",
+    mediaUrl: thumb.url,
+    mediaType: thumb.mediaType,
+    sortOrder: thumb.sortOrder,
+    createdAt: "",
+    previewSmUrl: thumb.previewSmUrl,
+    previewMdUrl: thumb.previewMdUrl,
+    previewStatus: thumb.previewStatus ?? undefined,
+  };
+}
+
 // ── Left pane: patient row ───────────────────────────────────────────────────
 
 function PatientRow({
@@ -174,11 +193,8 @@ function ExerciseRow({
         isSelected ? "bg-primary/15" : "hover:bg-muted/40",
       )}
     >
-      {/* Thumbnail placeholder (no ExerciseMedia available in drill-down data) */}
-      <div
-        className="h-9 w-9 shrink-0 rounded bg-muted"
-        aria-hidden
-      />
+      {/* Превью первого медиа упражнения (канон-миниатюра 36×36). */}
+      <ExerciseListCatalogThumb media={thumbToExerciseMedia(item.thumb)} />
       <div className="min-w-0 flex-1 overflow-hidden">
         <p className="truncate text-sm font-medium">{item.title}</p>
         {item.latestCommentAt && (

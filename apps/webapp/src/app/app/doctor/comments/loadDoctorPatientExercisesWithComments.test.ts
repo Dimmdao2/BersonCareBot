@@ -34,6 +34,7 @@ function makeStageItem(
   stageId: string,
   title: string,
   sortOrder = 1,
+  media?: unknown[],
 ) {
   return {
     id,
@@ -44,7 +45,7 @@ function makeStageItem(
     comment: null,
     localComment: null,
     settings: null,
-    snapshot: { title },
+    snapshot: media ? { title, media } : { title },
     completedAt: null,
     isActionable: true,
     status: "active" as const,
@@ -356,6 +357,64 @@ describe("loadDoctorPatientExercisesWithComments", () => {
     expect(result).not.toBeNull();
     expect(result!.instanceId).toBe(INST1);
     expect(result!.groups).toHaveLength(1);
+  });
+
+  it("extracts first snapshot media (by sortOrder) into thumb; null when no media", async () => {
+    const summary = makeSummary(INST1);
+    const detail = makeDetail(INST1, [
+      {
+        id: STAGE_ACTIVE,
+        instanceId: INST1,
+        sourceStageId: null,
+        title: "Этап",
+        description: null,
+        sortOrder: 1,
+        localComment: null,
+        skipReason: null,
+        status: "in_progress",
+        startedAt: null,
+        goals: null,
+        objectives: null,
+        expectedDurationDays: null,
+        expectedDurationText: null,
+        groups: [],
+        items: [
+          // media out of order → loader picks lowest sortOrder (the video)
+          makeStageItem(ITEM_A1, STAGE_ACTIVE, "С медиа", 1, [
+            { url: "/api/media/img", type: "image", sortOrder: 1, previewSmUrl: "/p/sm", previewMdUrl: null, previewStatus: "ready" },
+            { url: "/api/media/vid", type: "video", sortOrder: 0, previewSmUrl: null, previewMdUrl: null, previewStatus: "pending" },
+          ]),
+          makeStageItem(ITEM_A2, STAGE_ACTIVE, "Без медиа", 2),
+        ],
+      },
+    ]);
+
+    const deps = makeDeps(
+      [summary],
+      detail,
+      [
+        { stageItemId: ITEM_A1, total: 2, unread: 1, latestMessageAt: "2026-06-11T10:00:00.000Z" },
+        { stageItemId: ITEM_A2, total: 1, unread: 0, latestMessageAt: "2026-06-10T10:00:00.000Z" },
+      ],
+    );
+
+    const result = await loadDoctorPatientExercisesWithComments(deps, {
+      patientUserId: PATIENT,
+      viewerUserId: VIEWER,
+    });
+
+    const exercises = result!.groups[0]!.exercises;
+    const withMedia = exercises.find((e) => e.stageItemId === ITEM_A1)!;
+    const noMedia = exercises.find((e) => e.stageItemId === ITEM_A2)!;
+    expect(withMedia.thumb).toEqual({
+      url: "/api/media/vid",
+      mediaType: "video",
+      previewSmUrl: null,
+      previewMdUrl: null,
+      previewStatus: "pending",
+      sortOrder: 0,
+    });
+    expect(noMedia.thumb).toBeNull();
   });
 
   it("only includes exercise items (skips recommendations, lessons, clinical_tests)", async () => {
