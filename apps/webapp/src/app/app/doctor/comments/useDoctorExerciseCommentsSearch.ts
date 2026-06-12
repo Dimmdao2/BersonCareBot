@@ -58,8 +58,9 @@ export function useDoctorExerciseCommentsSearch(
   const trimmed = query.trim().toLowerCase();
 
   const localFiltered = useMemo(() => {
-    if (!trimmed) return allItems;
-    return allItems.filter(
+    const source = allItems ?? [];
+    if (!trimmed) return source;
+    return source.filter(
       (item) =>
         item.patientDisplayName.toLowerCase().includes(trimmed) ||
         (item.latestMessage.body?.toLowerCase().includes(trimmed) ?? false) ||

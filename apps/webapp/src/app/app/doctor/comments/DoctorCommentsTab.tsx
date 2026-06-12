@@ -36,9 +36,11 @@ export function DoctorCommentsTab({
   initialCursor,
   hasMoreInitial,
 }: DoctorCommentsTabProps) {
-  const [allItems, setAllItems] = useState<TodayExerciseCommentAttentionItem[]>(initialItems);
-  const [cursor, setCursor] = useState<DoctorExerciseCommentCursor | null>(initialCursor);
-  const [hasMore, setHasMore] = useState(hasMoreInitial);
+  const [allItems, setAllItems] = useState<TodayExerciseCommentAttentionItem[]>(
+    initialItems ?? [],
+  );
+  const [cursor, setCursor] = useState<DoctorExerciseCommentCursor | null>(initialCursor ?? null);
+  const [hasMore, setHasMore] = useState(hasMoreInitial ?? false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
