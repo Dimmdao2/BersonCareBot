@@ -71,6 +71,8 @@ export const beBranches = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     organizationId: uuid("organization_id").notNull(),
     title: text().notNull(),
+    /** Short display name (e.g. «СПб», «Мск»). Migration 0117. Nullable; UI falls back to title. */
+    shortTitle: text("short_title"),
     cityCode: text("city_code").notNull(),
     address: text(),
     timezone: text().default("Europe/Moscow").notNull(),

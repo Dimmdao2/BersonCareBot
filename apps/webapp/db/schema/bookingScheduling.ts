@@ -191,6 +191,9 @@ export const beAvailabilityRules = pgTable(
  * Drizzle table-builder cannot express COALESCE-based expression unique indexes.
  * drizzle-kit will NOT generate this index — do NOT rely on it regenerating it.
  * If you recreate this table via drizzle-kit, manually re-add the index from migration 0115.
+ *
+ * `breaks` jsonb — N-break model (migration 0116). Supersedes single break_start/break_end_minute.
+ * Legacy scalar columns remain nullable for backward-compat; read-path falls back to them when breaks=[].
  */
 export const beWorkingDays = pgTable(
   "be_working_days",
@@ -205,6 +208,8 @@ export const beWorkingDays = pgTable(
     endMinute: integer("end_minute"),
     breakStartMinute: integer("break_start_minute"),
     breakEndMinute: integer("break_end_minute"),
+    /** N-break model. [{startMinute, endMinute}, …]. Migration 0116 adds this column. */
+    breaks: jsonb("breaks").$type<Array<{ startMinute: number; endMinute: number }>>().default(sql`'[]'::jsonb`).notNull(),
     isClosed: boolean("is_closed").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
@@ -249,6 +254,8 @@ export const beWorkingDays = pgTable(
 /**
  * Named schedule templates: reusable day patterns (e.g. "СПб день · 11–19").
  * Applied to a set of dates via applyScheduleTemplate → upsertWorkingDays.
+ *
+ * `breaks` jsonb — N-break model (migration 0116). Supersedes single break_start/break_end_minute.
  */
 export const beScheduleTemplates = pgTable(
   "be_schedule_templates",
@@ -261,6 +268,8 @@ export const beScheduleTemplates = pgTable(
     endMinute: integer("end_minute").notNull(),
     breakStartMinute: integer("break_start_minute"),
     breakEndMinute: integer("break_end_minute"),
+    /** N-break model. [{startMinute, endMinute}, …]. Migration 0116 adds this column. */
+    breaks: jsonb("breaks").$type<Array<{ startMinute: number; endMinute: number }>>().default(sql`'[]'::jsonb`).notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
