@@ -39,6 +39,11 @@ export function DoctorCommentsTab({
   initialCursor,
   hasMoreInitial,
 }: DoctorCommentsTabProps) {
+  // «Новые» (SSR-сид) держим в состоянии, чтобы отвеченный элемент можно было убрать
+  // оптимистично, не дожидаясь перезагрузки страницы.
+  const [newItems, setNewItems] = useState<TodayExerciseCommentAttentionItem[]>(
+    initialItems ?? [],
+  );
   const [allItems, setAllItems] = useState<TodayExerciseCommentAttentionItem[]>(
     initialItems ?? [],
   );
@@ -58,7 +63,7 @@ export function DoctorCommentsTab({
   const [replyError, setReplyError] = useState<string | null>(null);
   const [replySuccessId, setReplySuccessId] = useState<string | null>(null);
 
-  const baseItems = viewMode === "new" ? (initialItems ?? []) : allItems;
+  const baseItems = viewMode === "new" ? newItems : allItems;
 
   const { filteredItems, serverLoading, serverError } = useDoctorExerciseCommentsSearch(
     baseItems,
@@ -111,9 +116,18 @@ export function DoctorCommentsTab({
           REPLY_ERROR_LABELS[data.error ?? ""] ?? "Ошибка отправки. Попробуйте ещё раз.",
         );
       } else {
-        setReplySuccessId(selectedItem.stageItemId);
+        const repliedId = selectedItem.stageItemId;
+        setReplySuccessId(repliedId);
         setReplyText("");
-        setTimeout(() => setReplySuccessId(null), 3000);
+        // Показываем баннер «Ответ отправлен» 3 c, затем убираем элемент из списков
+        // оптимистично: после ответа врача последнее сообщение становится admin → на
+        // сервере он исчезнет из doctor-wide запроса при следующей загрузке.
+        setTimeout(() => {
+          setReplySuccessId(null);
+          setNewItems((prev) => prev.filter((i) => i.stageItemId !== repliedId));
+          setAllItems((prev) => prev.filter((i) => i.stageItemId !== repliedId));
+          setSelectedItemId((cur) => (cur === repliedId ? null : cur));
+        }, 3000);
       }
     } catch {
       setReplyError("Ошибка сети. Попробуйте ещё раз.");
@@ -122,7 +136,8 @@ export function DoctorCommentsTab({
     }
   }
 
-  const onSupportCount = allItems.length;
+  // Число пациентов на сопровождении среди загруженных комментариев (не число строк).
+  const onSupportPatientCount = new Set(allItems.map((i) => i.patientUserId)).size;
 
   return (
     <div
@@ -161,7 +176,7 @@ export function DoctorCommentsTab({
             Все
           </button>
           <span className="rounded-md bg-primary/15 px-2 py-1 text-xs font-medium text-primary">
-            ★ Только на сопровождении · {onSupportCount}
+            ★ На сопровождении · {onSupportPatientCount}
           </span>
           <Input
             type="search"

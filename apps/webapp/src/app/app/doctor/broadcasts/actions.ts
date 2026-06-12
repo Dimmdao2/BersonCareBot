@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
@@ -9,6 +10,43 @@ import type {
   BroadcastPreviewResult,
 } from "@/modules/doctor-broadcasts/ports";
 import type { BroadcastChannelCounts, BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
+
+/**
+ * Zod-схема для входящего черновика рассылки.
+ * Server Actions сериализуют/десериализуют аргументы, поэтому проверяем
+ * допустимые значения и длины на границе — прежде чем передавать в репозиторий.
+ */
+const draftSchema = z.object({
+  category: z
+    .enum([
+      "service",
+      "organizational",
+      "marketing",
+      "important_notice",
+      "schedule_change",
+      "reminder",
+      "education",
+      "survey",
+    ])
+    .nullable(),
+  audience: z
+    .enum([
+      "all",
+      "active_clients",
+      "with_upcoming_appointment",
+      "without_appointment",
+      "with_telegram",
+      "with_max",
+      "sms_only",
+      "inactive",
+    ])
+    .nullable(),
+  channels: z
+    .array(z.enum(["bot_message", "sms", "push", "home_banner", "notification_bell"]))
+    .max(10),
+  title: z.string().max(200),
+  body: z.string().max(4000),
+});
 
 export async function previewBroadcastAction(
   command: Omit<BroadcastCommand, "actorId">
@@ -42,8 +80,12 @@ export async function loadDraftAction(): Promise<BroadcastDraft | null> {
 
 export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
   const session = await requireDoctorAccess();
+  const parsed = draftSchema.safeParse(draft);
+  if (!parsed.success) {
+    throw new Error("draft_validation_error");
+  }
   const deps = buildAppDeps();
-  await deps.doctorBroadcastComposer.saveDraft(session.user.userId, draft);
+  await deps.doctorBroadcastComposer.saveDraft(session.user.userId, parsed.data as BroadcastDraft);
 }
 
 export async function getChannelCountsAction(): Promise<BroadcastChannelCounts> {

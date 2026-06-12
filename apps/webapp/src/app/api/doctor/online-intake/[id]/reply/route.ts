@@ -51,14 +51,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
   }
 
-  // Auto-advance "new" → "in_review" on first reply
+  // Auto-advance "new" → "in_review" on first reply.
+  // Best-effort: если переход упадёт — сообщение уже ушло пациенту, поэтому
+  // логируем ошибку и возвращаем ok:true. Врач может поменять статус вручную.
   if (intake.status === "new") {
-    await intakeService.changeStatus({
-      requestId: id,
-      changedBy: session.user.userId,
-      toStatus: "in_review",
-      note: "Автоматически при первом ответе",
-    });
+    try {
+      await intakeService.changeStatus({
+        requestId: id,
+        changedBy: session.user.userId,
+        toStatus: "in_review",
+        note: "Автоматически при первом ответе",
+      });
+    } catch (err) {
+      console.error("[reply-route] auto-transition new→in_review failed:", err);
+    }
   }
 
   return NextResponse.json({ ok: true });

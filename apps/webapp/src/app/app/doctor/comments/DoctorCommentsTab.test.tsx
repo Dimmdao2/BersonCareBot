@@ -289,7 +289,7 @@ describe("DoctorCommentsTab — фильтр чипы (Новые / Все)", ()
     );
   });
 
-  it("«★ Только на сопровождении» показывает количество элементов", () => {
+  it("«★ На сопровождении» показывает число уникальных пациентов, а не строк", () => {
     render(
       <DoctorCommentsTab
         initialItems={[ITEM_A, ITEM_B]}
@@ -297,7 +297,20 @@ describe("DoctorCommentsTab — фильтр чипы (Новые / Все)", ()
         hasMoreInitial={false}
       />,
     );
-    // initially allItems = initialItems, so count = 2
-    expect(screen.getByText(/★ Только на сопровождении · 2/)).toBeInTheDocument();
+    // ITEM_A (P1) и ITEM_B (P2) — два разных пациента → 2
+    expect(screen.getByText(/★ На сопровождении · 2/)).toBeInTheDocument();
+  });
+
+  it("счётчик «На сопровождении» считает пациентов, а не комментарии (дедуп по patientUserId)", () => {
+    // Два комментария одного пациента (P1) → счётчик должен быть 1, а не 2.
+    const sameP1 = makeItem({ stageItemId: ITEM2, patientDisplayName: "Иванов Иван" });
+    render(
+      <DoctorCommentsTab
+        initialItems={[ITEM_A, sameP1]}
+        initialCursor={null}
+        hasMoreInitial={false}
+      />,
+    );
+    expect(screen.getByText(/★ На сопровождении · 1/)).toBeInTheDocument();
   });
 });

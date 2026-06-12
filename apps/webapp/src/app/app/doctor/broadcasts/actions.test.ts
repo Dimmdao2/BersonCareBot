@@ -167,6 +167,73 @@ describe("saveDraftAction", () => {
 
     expect(saveDraftMock).toHaveBeenCalledWith("doctor-1", draft);
   });
+
+  it("сохраняет черновик с валидными non-null полями", async () => {
+    const draft: BroadcastDraft = {
+      category: "reminder",
+      audience: "with_telegram",
+      channels: ["bot_message", "sms"],
+      title: "Заголовок",
+      body: "Текст рассылки",
+    };
+    saveDraftMock.mockResolvedValue(undefined);
+
+    await saveDraftAction(draft);
+
+    expect(saveDraftMock).toHaveBeenCalledWith("doctor-1", draft);
+  });
+
+  it("бросает draft_validation_error при невалидной категории", async () => {
+    const bad = {
+      category: "INVALID_CATEGORY",
+      audience: null,
+      channels: ["sms"],
+      title: "T",
+      body: "B",
+    };
+
+    await expect(saveDraftAction(bad as BroadcastDraft)).rejects.toThrow("draft_validation_error");
+    expect(saveDraftMock).not.toHaveBeenCalled();
+  });
+
+  it("бросает draft_validation_error при слишком длинном body (>4000)", async () => {
+    const bad: BroadcastDraft = {
+      category: null,
+      audience: null,
+      channels: ["sms"],
+      title: "T",
+      body: "x".repeat(4001),
+    };
+
+    await expect(saveDraftAction(bad)).rejects.toThrow("draft_validation_error");
+    expect(saveDraftMock).not.toHaveBeenCalled();
+  });
+
+  it("бросает draft_validation_error при слишком длинном title (>200)", async () => {
+    const bad: BroadcastDraft = {
+      category: null,
+      audience: null,
+      channels: ["sms"],
+      title: "a".repeat(201),
+      body: "B",
+    };
+
+    await expect(saveDraftAction(bad)).rejects.toThrow("draft_validation_error");
+    expect(saveDraftMock).not.toHaveBeenCalled();
+  });
+
+  it("бросает draft_validation_error при невалидном канале", async () => {
+    const bad = {
+      category: null,
+      audience: null,
+      channels: ["unknown_channel"],
+      title: "T",
+      body: "B",
+    };
+
+    await expect(saveDraftAction(bad as BroadcastDraft)).rejects.toThrow("draft_validation_error");
+    expect(saveDraftMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("getChannelCountsAction", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -295,6 +295,35 @@ export function DoctorOnlineIntakeClient({
   const [replyError, setReplyError] = useState<string | null>(null);
   const [replySuccessId, setReplySuccessId] = useState<string | null>(null);
 
+  // Актуальный selectedId для эффектов/гонок без перезапуска эффектов на каждое изменение.
+  const selectedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  // Токен последнего запроса детали: применяем результат только если он всё ещё актуален
+  // (защита от гонки при быстром переключении заявок).
+  const detailReqRef = useRef(0);
+
+  const loadDetail = useCallback(async (id: string): Promise<void> => {
+    const token = ++detailReqRef.current;
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/doctor/online-intake/${encodeURIComponent(id)}`);
+      if (token !== detailReqRef.current) return;
+      if (!res.ok) {
+        // если эта заявка всё ещё выбрана — снимаем выбор
+        setSelectedId((cur) => (cur === id ? null : cur));
+        return;
+      }
+      const loaded = (await res.json()) as IntakeDetail;
+      if (token !== detailReqRef.current) return;
+      setDetail(loaded);
+    } finally {
+      if (token === detailReqRef.current) setDetailLoading(false);
+    }
+  }, []);
+
   const fetchList = useCallback(async () => {
     const res = await fetch("/api/doctor/online-intake");
     if (!res.ok) return null;
@@ -334,37 +363,25 @@ export function DoctorOnlineIntakeClient({
     }
   }, [statsDays, statsCollapsed, loadStats]);
 
-  // Deep-link: open a specific request on mount
+  // Deep-link: открыть конкретную заявку из URL (?id=).
+  // Реагируем только на ВНЕШНИЙ deep-link: если заявка уже выбрана (echo от нашего же
+  // onDetailChange после клика), повторно не грузим — иначе двойной фетч и мерцание.
   useEffect(() => {
     const id = initialOpenRequestId?.trim();
     if (!id) return;
-    let cancelled = false;
+    if (selectedIdRef.current === id) return;
     setSelectedId(id);
-    setDetailLoading(true);
-    void (async () => {
-      try {
-        const res = await fetch(`/api/doctor/online-intake/${id}`);
-        if (cancelled) return;
-        if (!res.ok) {
-          setSelectedId(null);
-          return;
-        }
-        const loaded = (await res.json()) as IntakeDetail;
-        setDetail(loaded);
-        onDetailChange?.(id);
-      } finally {
-        if (!cancelled) setDetailLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [initialOpenRequestId]); // eslint-disable-line react-hooks/exhaustive-deps
+    setDetail(null);
+    void loadDetail(id);
+  }, [initialOpenRequestId, loadDetail]);
 
-  async function openDetail(id: string) {
+  function openDetail(id: string) {
     if (selectedId === id) {
+      // toggle close: инвалидируем любой запрос детали в полёте
+      detailReqRef.current++;
       setSelectedId(null);
       setDetail(null);
+      setDetailLoading(false);
       setReplyText("");
       setReplyError(null);
       setReplySuccessId(null);
@@ -377,29 +394,20 @@ export function DoctorOnlineIntakeClient({
     setReplyError(null);
     setReplySuccessId(null);
     onDetailChange?.(id);
-    setDetailLoading(true);
-    try {
-      const res = await fetch(`/api/doctor/online-intake/${id}`);
-      if (res.ok) setDetail((await res.json()) as IntakeDetail);
-    } finally {
-      setDetailLoading(false);
-    }
+    void loadDetail(id);
   }
 
   async function changeStatus(id: string, status: IntakeStatus) {
     setUpdatingId(id);
     try {
-      const res = await fetch(`/api/doctor/online-intake/${id}/status`, {
+      const res = await fetch(`/api/doctor/online-intake/${encodeURIComponent(id)}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
         await loadList();
-        if (selectedId === id) {
-          const r = await fetch(`/api/doctor/online-intake/${id}`);
-          if (r.ok) setDetail((await r.json()) as IntakeDetail);
-        }
+        if (selectedIdRef.current === id) await loadDetail(id);
         void loadStats(statsDays);
       }
     } finally {
@@ -412,7 +420,7 @@ export function DoctorOnlineIntakeClient({
     setReplySending(true);
     setReplyError(null);
     try {
-      const res = await fetch(`/api/doctor/online-intake/${detail.id}/reply`, {
+      const res = await fetch(`/api/doctor/online-intake/${encodeURIComponent(detail.id)}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: replyText.trim() }),
@@ -422,9 +430,8 @@ export function DoctorOnlineIntakeClient({
         setReplySuccessId(detail.id);
         setReplyText("");
         await loadList();
-        // Refresh detail to show updated status
-        const dr = await fetch(`/api/doctor/online-intake/${detail.id}`);
-        if (dr.ok) setDetail((await dr.json()) as IntakeDetail);
+        // Refresh detail to show updated status (через токен-гард)
+        await loadDetail(detail.id);
         void loadStats(statsDays);
         setTimeout(() => setReplySuccessId(null), 3000);
       } else {
