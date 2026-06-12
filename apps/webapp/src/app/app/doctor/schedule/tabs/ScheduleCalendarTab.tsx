@@ -23,6 +23,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import ruLocale from "@fullcalendar/core/locales/ru";
+import type { CalendarOptions as FullCalendarOptions } from "@fullcalendar/core";
 import type {
   CalendarAppointmentEvent,
   CalendarEvent,
@@ -952,7 +953,7 @@ export function ScheduleCalendarTab({
     return fcView;
   }, [view, fcView]);
 
-  const fcViews = useMemo((): Record<string, object> => {
+  const fcViews = useMemo((): NonNullable<FullCalendarOptions["views"]> => {
     if (view === "3days") {
       return {
         timeGrid3days: {
@@ -1135,7 +1136,7 @@ export function ScheduleCalendarTab({
               locale={ruLocale}
               key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}`}
               initialView={fcInitialView}
-              views={fcViews as any}
+              views={fcViews}
               initialDate={anchorDate}
               timeZone={currentTimeZone}
               events={calendarEvents}
