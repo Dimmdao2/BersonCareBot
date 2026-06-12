@@ -122,6 +122,22 @@
 
 Только **`session.user.role === admin`**: клиентский блок загружает **`GET /api/admin/platform-user-registration-stats`** (контракт — [`api.md`](../../apps/webapp/src/app/api/api.md) в дереве `app/api`). Границы **«сегодня / N дней / произвольный период»** считаются в **IANA `app_display_timezone`** (через `getAppDisplayTimeZone()`), не в UTC-полуночи страницы записей выше. **Регистрации** — `platform_users.role = 'client'` и `created_at` в интервале, исключая аккаунты, merged в том же интервале; **слияния** — строки с `merged_into_id` и меткой времени **`merged_at`** (заполняется при merge и channel-link claim; миграция **`0067_platform_users_merged_at.sql`**). График — Recharts (`LineChart`), см. `apps/webapp/src/app/app/doctor/analytics/clients/AdminRegistrationLineChart.tsx`.
 
+## KPI раздела «Расписание» — отдельная поверхность
+
+Раздел `/app/doctor/schedule` (таб «Записи») содержит собственный **9-метричный KPI-ряд**
+(Записей/Прошло/Впереди/По абонементу/Первичных/Повторных/Уникальных/Отмены/Переносы).
+
+Эти метрики **не смешивать** с дашбордом «Сегодня» выше:
+- Реализованы через `getScheduleKpis(query: ScheduleKpisQuery)` в `modules/doctor-appointments/ports.ts`.
+- API: `GET /api/doctor/schedule-kpis?from=&to=&branchId?=&serviceId?=`.
+- Диапазон произвольный `{from, to}` (не пресет дня/недели); фильтры по филиалу/услуге.
+- `firstVisitInPeriod` = первая запись пациента вообще (`NOT EXISTS` ранних записей за весь период, §13.5 ТЗ v26).
+- Отмены/переносы считаются по дате визита (`start_at`), не по дате события (§13.1 ТЗ v26).
+- Живут только в `ScheduleCalendarTab`; шелл `DoctorScheduleShell` метрики не хранит.
+
+Подробнее: `apps/webapp/src/app/app/doctor/schedule/schedule.md`,
+`docs/DOCTOR_SCHEDULE_SECTION_INITIATIVE/`.
+
 ## Журнал изменений
 
 См. [`docs/archive/2026-04-initiatives/MIGRATION/DOCTOR_DASHBOARD_METRICS_CHANGELOG.md`](../archive/2026-04-initiatives/MIGRATION/DOCTOR_DASHBOARD_METRICS_CHANGELOG.md).

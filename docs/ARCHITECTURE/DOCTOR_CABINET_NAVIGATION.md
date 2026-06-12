@@ -24,6 +24,10 @@
 | Система *(admin)* | Здоровье системы, архив сбоев, журнал операций |
 | Администрирование *(admin)* | Настройки приложения, авторизация, интеграции, **Настройки записи**, технические режимы, **Мердж пациентов** |
 
+Пункт **«Расписание»** в меню — **одна прямая ссылка** на `/app/doctor/schedule` (не аккордеон;
+вкладки `cal/work/setup` переключаются внутри страницы). Admin-гейтинг таба «Настройки»
+обеспечивается шеллом, не пунктом меню.
+
 Пункты с `requiresAdminMode: true` видны только при `role === admin`.
 
 ## Маршруты (admin / аналитика)
@@ -60,13 +64,16 @@
 
 | `?tab=` | Вкладка | Старый URL (308) |
 |---------|---------|-----------------|
-| `cal` (default) | Календарь записей | `/app/doctor/calendar`, `/app/doctor/appointments` |
+| `cal` (default) | Записи | `/app/doctor/calendar`, `/app/doctor/appointments` |
 | `work` | График работы | — |
-| `setup` | Настройки записи *(admin)* | `/app/doctor/admin/booking` |
+| `setup` | Настройки *(admin)* | `/app/doctor/admin/booking` |
 
-Шелл: `DoctorScheduleShell` + KPI-строка (6 метрик из `getScheduleKpis`) + keepMounted-табы.
-Per-date бэкенд: таблицы `be_working_days` / `be_schedule_templates`; слот-движок учитывает
-per-date override (`workingIntervalsForDate(…, perDayRow?)`).
+Шелл: `DoctorScheduleShell` + keepMounted-табы. **KPI (9 метрик) живут только в табе «Записи»**
+(`ScheduleCalendarTab`, §3.1 ТЗ); шелл не хранит метрики.
+Per-date бэкенд: таблицы `be_working_days` / `be_schedule_templates` (breaks jsonb, миграции 0115–0116);
+`be_branches.short_title` (migration 0117); слот-движок учитывает per-date override
+(`workingIntervalsForDate(…, perDayRow?)`), N перерывов через cursor-based `splitByBreak`.
+Ближайшее окно: `GET /api/doctor/schedule/nearest-free-window` → `NearestWindowLine` в правой панели.
 Loop-guard `x-bc-doctor-rewrite` сохранён в `doctorRouteRedirects.ts`.
 Документация: `apps/webapp/src/app/app/doctor/schedule/schedule.md`,
 `docs/DOCTOR_SCHEDULE_SECTION_INITIATIVE/`.

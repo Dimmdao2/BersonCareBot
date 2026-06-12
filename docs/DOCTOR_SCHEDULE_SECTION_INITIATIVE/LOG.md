@@ -1146,3 +1146,39 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
   Next.js fallback (308 поглощают прямые хиты).
 - Полное сворачивание `admin/booking/**` к 308 — вне scope F (было §Этап 13 исходного плана,
   но явно не попало в v26_rebuild scope).
+
+---
+
+## Post-audit (2026-06-13)
+
+Оркестратор провёл финальный аудит кода после завершения Этапов A–F.
+
+### Фикс семантики `firstVisitInPeriod` (коммит `1743b445`)
+
+**Проблема:** реализация в `pgDoctorCanonicalAppointments.getScheduleKpis` считала «первичной»
+запись, у которой нет более ранней записи **в том же периоде** — это неверно. По ТЗ §13.5 первичная =
+первая запись пациента **вообще** (за всё время, не только в окне).
+
+**Фикс:** `NOT EXISTS (SELECT 1 FROM be_appointments WHERE platform_user_id = outer.platform_user_id
+AND status NOT IN (cancelled...) AND start_at < outer.start_at)` — строгий порядок `(start_at, id)`.
+Теперь пациент считается первичным только если у него нет ни одной более ранней не-отменённой записи.
+
+### Добавлен route-тест `nearest-free-window`
+
+Добавлен файл `apps/webapp/src/app/api/doctor/schedule/nearest-free-window/route.test.ts`:
+тесты 401/403, graceful degradation при ошибке бэкенда, `window: null` при отсутствии окна,
+корректный ответ `{ok: true, window: {from, to}}`.
+
+### Типизация `fcViews`
+
+В `ScheduleCalendarTab.tsx` выражение `fcViews as any` заменено на явно типизированный
+`Record<string, ViewApi>` чтобы избежать потенциального silent cast. Тайпчек остаётся зелёным.
+
+### Явно отложено (не вошло в v26-ребилд)
+
+- **Полный CI перед merge** — оркестратор запускает `pnpm run ci` отдельно перед push.
+- **Верификация миграций на dev** — 0115/0116/0117 проверены локально; на препроде — отдельный
+  ops-проход после merge.
+- **Runtime/визуальная проверка** раздела «Расписание» в браузере — отдельная задача после deploy.
+- **`inMemoryDoctorAppointments` zero-stub** — намеренно (нет in-memory датасета записей);
+  комментарий добавлен в коде ещё в sweep-батче; паритет с pg не планируется.

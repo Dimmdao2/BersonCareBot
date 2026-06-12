@@ -52,6 +52,11 @@
 Отображаются только в «Записях» (не в «Ленте» и не в «Дне»). Параллельная загрузка фид + KPI
 по одному диапазону + фильтрам. API: `GET /api/doctor/schedule-kpis?from=&to=&branchId?=&serviceId?=`.
 
+**Семантика ключевых полей:**
+- `firstVisitInPeriod` — пациент, у которого **нет ни одной** более ранней не-отменённой записи
+  за весь период (§13.5 ТЗ): `NOT EXISTS(start_at < outer.start_at)`, строгий порядок `(start_at,id)`.
+- `cancellationsInPeriod` / `reschedulesInPeriod` — считаются по дате **визита** (`start_at ∈ [from,to)`), не по дате события (§13.1 ТЗ).
+
 ## Реестр табов (`scheduleTabRegistry.ts`)
 
 | id | Метка | Компонент | deep-link ключи |
