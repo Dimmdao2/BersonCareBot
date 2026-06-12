@@ -245,6 +245,50 @@ export function isChainFree(
   return true;
 }
 
+/**
+ * C3 — Вычислить ближайшее свободное окно из уже собранных данных.
+ *
+ * @param todayKey        Ключ сегодняшнего дня YYYY-MM-DD в бизнес-таймзоне.
+ * @param timeZone        Бизнес-таймзона (IANA).
+ * @param workingHours    Строки рабочего расписания (weekday-модель).
+ * @param perDayRow       Per-date override (уже scoped: isClosed=true если не совпадает branch).
+ * @param busyIntervals   Занятые интервалы (ISO UTC, для сегодняшнего дня).
+ * @param nowMs           Текущий момент в миллисекундах.
+ * @returns               { from, to } ISO UTC или null.
+ */
+export function computeNearestFreeWindowFromData(
+  todayKey: string,
+  timeZone: string,
+  workingHours: WorkingHoursRow[],
+  perDayRow: WorkingDayRow | undefined,
+  busyIntervals: { startAt: string; endAt: string }[],
+  nowMs: number,
+): { from: string; to: string } | null {
+  const effective = pickWorkingHours(workingHours);
+  const workingIntervals = workingIntervalsForDate(todayKey, timeZone, effective, 0, perDayRow);
+  if (workingIntervals.length === 0) return null;
+
+  const busyMs = busyIntervals
+    .map((b) => ({
+      startMs: new Date(b.startAt).getTime(),
+      endMs: new Date(b.endAt).getTime(),
+    }))
+    .filter((x) => Number.isFinite(x.startMs) && Number.isFinite(x.endMs) && x.endMs > x.startMs);
+
+  const freeIntervals = subtractBusy(workingIntervals, busyMs);
+
+  for (const iv of freeIntervals) {
+    const start = Math.max(iv.startMs, nowMs);
+    if (start < iv.endMs) {
+      return {
+        from: new Date(start).toISOString(),
+        to: new Date(iv.endMs).toISOString(),
+      };
+    }
+  }
+  return null;
+}
+
 export function groupSlotsByLocalDate(
   slots: { startAt: string; endAt: string }[],
   timeZone: string,

@@ -13,6 +13,7 @@ import type {
   CalendarBlockEvent,
   CalendarFilters,
   CalendarWorkingEvent,
+  WorkingBounds,
 } from "./types";
 
 type Deps = {
@@ -64,6 +65,38 @@ function mapWorkingRows(rows: Awaited<ReturnType<BookingSchedulingPort["listWork
     startMinute: r.startMinute,
     endMinute: r.endMinute,
   }));
+}
+
+/**
+ * C2 — Вычислить границы рабочего времени из событий kind:"working" в видимом диапазоне.
+ * Возвращает { minMinute, maxMinute } ±1 час (60 мин), зажатое в [0, 1440].
+ * null если рабочих событий нет (клиент берёт дефолт).
+ */
+function deriveWorkingBounds(
+  working: CalendarWorkingEvent[],
+  timeZone: string,
+): WorkingBounds | null {
+  if (working.length === 0) return null;
+
+  let minMinute = Infinity;
+  let maxMinute = -Infinity;
+
+  for (const ev of working) {
+    const start = DateTime.fromISO(ev.startAt, { zone: timeZone });
+    const end = DateTime.fromISO(ev.endAt, { zone: timeZone });
+    if (!start.isValid || !end.isValid) continue;
+    const startM = start.hour * 60 + start.minute;
+    const endM = end.hour * 60 + end.minute;
+    if (startM < minMinute) minMinute = startM;
+    if (endM > maxMinute) maxMinute = endM;
+  }
+
+  if (!Number.isFinite(minMinute) || !Number.isFinite(maxMinute)) return null;
+
+  return {
+    minMinute: Math.max(0, minMinute - 60),
+    maxMinute: Math.min(1440, maxMinute + 60),
+  };
 }
 
 async function listWorkingAndBreakEvents(
@@ -142,6 +175,11 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
         )
         .map(mapBlock);
 
+      const timeZone = filters.timeZone ?? "Europe/Moscow";
+      const workingBounds = showWorkingHours
+        ? deriveWorkingBounds(workingAndBreak.working, timeZone)
+        : null;
+
       return {
         events: [
           ...appointmentEvents,
@@ -152,6 +190,7 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
         filters: filterMeta,
         readSource: "canonical",
         showWorkingHours,
+        workingBounds,
       };
     },
   };

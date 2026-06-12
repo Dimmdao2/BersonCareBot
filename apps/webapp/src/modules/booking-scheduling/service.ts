@@ -2,6 +2,8 @@ import type {
   BookingSchedulingPort,
   BookingSchedulingService,
   BreakInterval,
+  NearestFreeWindowInput,
+  NearestFreeWindowResult,
   UpsertWorkingDaysInput,
   CloseWorkingDaysInput,
   ClearWorkingDaysInput,
@@ -138,6 +140,10 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
   return {
     resolveInPersonContext(branchServiceId: string) {
       return port.resolveCanonicalFromBranchService(branchServiceId);
+    },
+
+    nearestFreeWindow(input: NearestFreeWindowInput): Promise<NearestFreeWindowResult> {
+      return port.nearestFreeWindow(input);
     },
 
     resolveLegacyBranchServiceId(input) {
@@ -459,3 +465,4 @@ async function computeSlotsInternal(
 
   return groupSlotsByLocalDate(allSlots, context.branchTimezone);
 }
+

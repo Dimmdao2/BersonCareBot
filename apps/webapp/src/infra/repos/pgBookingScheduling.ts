@@ -19,6 +19,12 @@ import {
 import { systemSettings } from "../../../db/schema/schema";
 import { buildSlotsForContext } from "@/modules/booking-scheduling/service";
 import {
+  computeNearestFreeWindowFromData,
+  localDateKey,
+  pickWorkingHours,
+  workingIntervalsForDate,
+} from "@/modules/booking-scheduling/computeSlots";
+import {
   legacyBranchServiceIdBySsaFromMappings,
   legacyBranchServiceIdForSsaId,
   pickPreferredSsaId,
@@ -26,6 +32,8 @@ import {
 import type {
   BookingSchedulingPort,
   CanonicalBookingContext,
+  NearestFreeWindowInput,
+  NearestFreeWindowResult,
   WorkingDayRecord,
   ScheduleTemplateRecord,
   UpsertWorkingDaysInput,
@@ -619,6 +627,65 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         .update(beStmpl)
         .set({ isActive: false, updatedAt: new Date().toISOString() })
         .where(and(eq(beStmpl.id, id), eq(beStmpl.organizationId, organizationId)));
+    },
+
+    // ── Nearest free window (C3) ─────────────────────────────────────────────
+
+    async nearestFreeWindow({ organizationId, specialistId, branchId, roomId, timeZone, nowOverride }) {
+      const now = nowOverride ?? new Date();
+      const nowMs = now.getTime();
+      const todayKey = localDateKey(now.toISOString(), timeZone);
+
+      // Рабочие часы weekday-модели
+      const workingHoursRaw = await this.listWorkingHours({ organizationId, specialistId, branchId, roomId });
+      const workingHoursRows = workingHoursRaw.map((r) => ({
+        weekday: r.weekday,
+        startMinute: r.startMinute,
+        endMinute: r.endMinute,
+      }));
+
+      // Per-date override
+      const perDayRows = await this.listWorkingDays({
+        organizationId,
+        specialistId,
+        dateFrom: todayKey,
+        dateTo: todayKey,
+      });
+      const perDayRow = perDayRows.find((r) => r.workDate === todayKey);
+
+      // Branch-scoping (инвариант из computeSlotsInternal)
+      const effectivePerDayRow =
+        perDayRow &&
+        perDayRow.branchId != null &&
+        branchId != null &&
+        perDayRow.branchId !== branchId
+          ? { ...perDayRow, isClosed: true }
+          : perDayRow;
+
+      // Рабочие интервалы для определения границ дня
+      const effectiveHours = pickWorkingHours(workingHoursRows);
+      const dayIntervals = workingIntervalsForDate(todayKey, timeZone, effectiveHours, 0, effectivePerDayRow);
+      if (dayIntervals.length === 0) return null;
+
+      const dayStartMs = dayIntervals[0]!.startMs;
+      const dayEndMs = dayIntervals[dayIntervals.length - 1]!.endMs;
+
+      const busy = await this.listBusyIntervals({
+        organizationId,
+        specialistId,
+        roomId,
+        rangeStart: new Date(dayStartMs).toISOString(),
+        rangeEnd: new Date(dayEndMs).toISOString(),
+      });
+
+      return computeNearestFreeWindowFromData(
+        todayKey,
+        timeZone,
+        workingHoursRows,
+        effectivePerDayRow,
+        busy,
+        nowMs,
+      );
     },
   };
 }

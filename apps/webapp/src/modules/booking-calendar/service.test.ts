@@ -87,6 +87,7 @@ describe("booking-calendar service", () => {
     listScheduleTemplates: vi.fn(async () => []),
     createScheduleTemplate: vi.fn(),
     deleteScheduleTemplate: vi.fn(),
+    nearestFreeWindow: vi.fn(async () => null),
   };
 
   const service = createBookingCalendarService({

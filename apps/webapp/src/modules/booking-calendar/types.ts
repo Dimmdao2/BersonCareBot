@@ -6,8 +6,10 @@ import type { AppointmentStatus } from "@/modules/booking-engine/types";
  * - "week"     — неделя·сетка (timeGridWeek в FullCalendar; сохранён для backward-compat с URL)
  * - "weeklist" — неделя·лента (кастомный рендер, без часовой сетки)
  * - "month"    — месяц (dayGridMonth в FullCalendar)
+ * - "3days"    — 3 дня (сегодня + 2 дня вперёд; часовая сетка); v26_1
+ * - "feed"     — лента (бесконечный поток; диапазон задаётся явными from/to); v26_1
  */
-export type CalendarViewMode = "day" | "week" | "weeklist" | "month";
+export type CalendarViewMode = "day" | "week" | "weeklist" | "month" | "3days" | "feed";
 
 export type CalendarReadSource = "canonical" | "rubitime_legacy";
 
@@ -118,9 +120,23 @@ export type CalendarEvent =
   | CalendarBreakEvent
   | CalendarFreeSlotEvent;
 
+/**
+ * Границы рабочего времени для часовых видов (3 дня / Неделя) ±1 час.
+ * Вычисляется из событий kind:"working" в видимом диапазоне.
+ * null — рабочих интервалов нет; клиент должен взять дефолт (напр. 06:00–23:00).
+ */
+export type WorkingBounds = {
+  /** Минимальное начало рабочего времени − 60 минут, зажатое в [0, 1440]. */
+  minMinute: number;
+  /** Максимальное окончание рабочего времени + 60 минут, зажатое в [0, 1440]. */
+  maxMinute: number;
+};
+
 export type CalendarAggregate = {
   events: CalendarEvent[];
   filters: CalendarFilterMeta;
   readSource: CalendarReadSource;
   showWorkingHours: boolean;
+  /** Границы рабочего времени ±1ч для часовых видов. null если нет рабочих интервалов. */
+  workingBounds: WorkingBounds | null;
 };

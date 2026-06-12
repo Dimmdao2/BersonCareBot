@@ -106,6 +106,21 @@ export type CreateScheduleTemplateInput = {
   sortOrder?: number;
 };
 
+// ── Nearest free window ──────────────────────────────────────────────────────
+
+export type NearestFreeWindowInput = {
+  organizationId: string;
+  specialistId: string | null;
+  branchId: string | null;
+  roomId: string | null;
+  /** Таймзона бизнеса (IANA, напр. "Europe/Moscow"). */
+  timeZone: string;
+  /** Переопределить «сегодня» (для тестов). По умолчанию — new Date(). */
+  nowOverride?: Date;
+};
+
+export type NearestFreeWindowResult = { from: string; to: string } | null;
+
 export type BookingSchedulingPort = {
   resolveCanonicalFromBranchService(branchServiceId: string): Promise<CanonicalBookingContext | null>;
   resolveLegacyBranchServiceId(input: {
@@ -170,6 +185,8 @@ export type BookingSchedulingPort = {
   listScheduleTemplates(organizationId: string): Promise<ScheduleTemplateRecord[]>;
   createScheduleTemplate(input: CreateScheduleTemplateInput): Promise<ScheduleTemplateRecord>;
   deleteScheduleTemplate(organizationId: string, id: string): Promise<void>;
+  // Nearest free window
+  nearestFreeWindow(input: NearestFreeWindowInput): Promise<NearestFreeWindowResult>;
 };
 
 export type ScheduleBlockRecord = {
@@ -308,4 +325,6 @@ export type BookingSchedulingService = {
   createScheduleTemplate(input: CreateScheduleTemplateInput): Promise<ScheduleTemplateRecord>;
   deleteScheduleTemplate(id: string, organizationId: string): Promise<void>;
   applyScheduleTemplate(input: { organizationId: string; specialistId?: string | null; templateId: string; dates: string[] }): Promise<WorkingDayRecord[]>;
+  // Nearest free window
+  nearestFreeWindow(input: NearestFreeWindowInput): Promise<NearestFreeWindowResult>;
 };
