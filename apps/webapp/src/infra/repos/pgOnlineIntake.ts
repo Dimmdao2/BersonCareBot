@@ -4,7 +4,10 @@ import type { PoolClient } from "pg";
 /**
  * Wave 3 phase 12A — Class C transport only: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` for multipart tx
  * with shared advisory lock per user id. Domain SQL — `runWebappPgText` / `getWebappSqlFromPgClient`.
+ * Wave 3 phase 15G — getDoctorStats migrated from pool.query to Drizzle db.execute(sql).
  */
+import { sql } from "drizzle-orm";
+import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import { pgAdvisoryXactLockShared } from "@/infra/db/pgAdvisoryLock";
 import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
@@ -455,14 +458,14 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
     },
 
     async getDoctorStats(days: number): Promise<IntakeDoctorStats> {
-      const pool = getPool();
-      const { rows } = await pool.query<{ status: string; cnt: string }>(
-        `SELECT status, COUNT(*) AS cnt
-         FROM online_intake_requests
-         WHERE created_at >= NOW() - ($1 || ' days')::interval
-         GROUP BY status`,
-        [days],
-      );
+      const db = getDrizzle();
+      const result = await db.execute<{ status: string; cnt: string }>(sql`
+        SELECT status, COUNT(*) AS cnt
+        FROM online_intake_requests
+        WHERE created_at >= NOW() - (${String(days)} || ' days')::interval
+        GROUP BY status
+      `);
+      const rows = result.rows as { status: string; cnt: string }[];
 
       const byStatus: Record<string, number> = {};
       let total = 0;

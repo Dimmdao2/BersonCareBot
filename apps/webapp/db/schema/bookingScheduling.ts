@@ -7,6 +7,7 @@ import {
   boolean,
   jsonb,
   timestamp,
+  date,
   index,
   foreignKey,
   check,
@@ -175,6 +176,115 @@ export const beAvailabilityRules = pgTable(
     check(
       "be_availability_rules_type_check",
       sql`rule_type = ANY (ARRAY['buffer_minutes'::text, 'max_chain_slots'::text])`,
+    ),
+  ],
+);
+
+/**
+ * Per-date working day overrides for a specialist/org.
+ * Absence of a row → fall back to weekday `be_working_hours`.
+ * Partial-unique index enforces one row per (org, specialist, date)
+ * using COALESCE(specialist_id, '00000000-0000-0000-0000-000000000000') so NULL is treated as sentinel.
+ *
+ * SCHEMA DRIFT NOTE: The partial-unique index `uq_be_working_days_scope_date` is defined
+ * ONLY in raw SQL migration 0115 (`be_working_days_and_schedule_templates.sql`) because
+ * Drizzle table-builder cannot express COALESCE-based expression unique indexes.
+ * drizzle-kit will NOT generate this index — do NOT rely on it regenerating it.
+ * If you recreate this table via drizzle-kit, manually re-add the index from migration 0115.
+ */
+export const beWorkingDays = pgTable(
+  "be_working_days",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    specialistId: uuid("specialist_id"),
+    branchId: uuid("branch_id"),
+    roomId: uuid("room_id"),
+    workDate: date("work_date").notNull(),
+    startMinute: integer("start_minute"),
+    endMinute: integer("end_minute"),
+    breakStartMinute: integer("break_start_minute"),
+    breakEndMinute: integer("break_end_minute"),
+    isClosed: boolean("is_closed").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_be_working_days_org_date").using(
+      "btree",
+      table.organizationId.asc().nullsLast().op("uuid_ops"),
+      table.workDate.asc().nullsLast(),
+    ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "be_working_days_organization_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.specialistId],
+      foreignColumns: [beSpecialists.id],
+      name: "be_working_days_specialist_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.branchId],
+      foreignColumns: [beBranches.id],
+      name: "be_working_days_branch_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.roomId],
+      foreignColumns: [beRooms.id],
+      name: "be_working_days_room_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "be_working_days_hours_check",
+      sql`is_closed OR (start_minute IS NOT NULL AND end_minute IS NOT NULL AND start_minute >= 0 AND end_minute <= 1440 AND end_minute > start_minute)`,
+    ),
+    check(
+      "be_working_days_break_check",
+      sql`break_start_minute IS NULL OR (break_end_minute IS NOT NULL AND break_start_minute >= start_minute AND break_end_minute <= end_minute AND break_end_minute > break_start_minute)`,
+    ),
+  ],
+);
+
+/**
+ * Named schedule templates: reusable day patterns (e.g. "СПб день · 11–19").
+ * Applied to a set of dates via applyScheduleTemplate → upsertWorkingDays.
+ */
+export const beScheduleTemplates = pgTable(
+  "be_schedule_templates",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    branchId: uuid("branch_id"),
+    name: text().notNull(),
+    startMinute: integer("start_minute").notNull(),
+    endMinute: integer("end_minute").notNull(),
+    breakStartMinute: integer("break_start_minute"),
+    breakEndMinute: integer("break_end_minute"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_be_schedule_templates_org").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "be_schedule_templates_organization_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.branchId],
+      foreignColumns: [beBranches.id],
+      name: "be_schedule_templates_branch_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "be_schedule_templates_minutes_check",
+      sql`start_minute >= 0 AND end_minute <= 1440 AND end_minute > start_minute`,
+    ),
+    check(
+      "be_schedule_templates_break_check",
+      sql`break_start_minute IS NULL OR (break_end_minute IS NOT NULL AND break_start_minute >= start_minute AND break_end_minute <= end_minute AND break_end_minute > break_start_minute)`,
     ),
   ],
 );

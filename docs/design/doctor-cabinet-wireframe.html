@@ -253,12 +253,11 @@ table.anam td{border-top:1px dashed var(--line);padding:6px 8px;vertical-align:t
   </div>
   <div style="padding:8px 16px;border-top:1px solid var(--line);background:#fafbfc;">
     <div class="ptabs">
-      <span class="ptab" data-p="overview">Обзор</span>
-      <span class="ptab on" data-p="karta">Карта</span>
+      <span class="ptab on" data-p="overview">Обзор</span>
+      <span class="ptab" data-p="karta">Карта</span>
       <span class="ptab" data-p="program">Программа<span class="b">11</span></span>
       <span class="ptab" data-p="records">Записи</span>
       <span class="ptab" data-p="files">Файлы</span>
-      <span class="ptab" data-p="comms">Коммуникации</span>
       <span class="ptab" data-p="stats">Аналитика</span>
       <span class="ptab" data-p="account">Учётка</span>
     </div>
@@ -267,7 +266,7 @@ table.anam td{border-top:1px dashed var(--line);padding:6px 8px;vertical-align:t
 
 
 <!-- ===================== KARTA TAB ===================== -->
-<div class="pcpane on" id="pp-karta">
+<div class="pcpane" id="pp-karta">
   <div class="grid kgrid" style="grid-template-columns:1.15fr 1fr;align-items:start;">
 
     <!-- LEFT: current state (KARTA) -->
@@ -528,9 +527,243 @@ table.anam td{border-top:1px dashed var(--line);padding:6px 8px;vertical-align:t
 
 
 <!-- ===================== STUB TABS ===================== -->
-<div class="pcpane" id="pp-overview"><div class="wf"><b>Обзор</b><div class="hint" style="margin-top:6px;line-height:1.7;">Сводка: программа-виджет · самочувствие · задачи · заметки · сигналы. Остаётся как сейчас, чистится от лишнего. Прорабатываем следующим заходом.</div></div></div>
+<div class="pcpane on" id="pp-overview">
+
+  <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start;">
+
+    <!-- LEFT: клиника и реабилитация -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <div class="kpis" style="grid-template-columns:1fr 1fr;">
+        <div class="kpi"><div class="l">Контроль</div><div class="v">через 9 дн</div><div class="hint" style="margin-top:2px;">конец этапа 2 · 21.06</div></div>
+        <div class="kpi"><div class="l">Абонемент</div><div class="v">4 из 10</div><div class="hint" style="margin-top:2px;">осталось · до 31.07</div></div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;"><h3 style="font-size:13px;">Сигналы</h3><span class="chip" style="background:var(--danger-soft);color:var(--danger);">2</span></div>
+        <div class="staterow"><span class="flag">⚠</span><span>Не выполняет упражнения 5 дней подряд</span><span class="hint" style="margin-left:auto;cursor:pointer;white-space:nowrap;">к программе →</span></div>
+        <div class="staterow"><span class="flag">⚠</span><span>Тест «Наклон вперёд» ждёт проверки 3 дня</span><span class="hint" style="margin-left:auto;cursor:pointer;white-space:nowrap;">к тесту →</span></div>
+        <div class="hint" style="margin-top:6px;">виден только при наличии сигналов · источник — «Сигналы пациентов» с «Сегодня», по этому пациенту. Карточки выше — условные: «Контроль» если у этапа есть длительность, «Абонемент» если активен.</div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <h3 style="font-size:13px;">Актуальные симптомы</h3>
+          <span class="hint" style="cursor:pointer;">открыть Карту →</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #ecd9d5;background:#fbf5f4;border-radius:8px;padding:10px 12px;">
+          <span class="flag" style="font-size:14px;">⚑</span>
+          <span style="font-size:14px;font-weight:600;color:var(--ink);">Бедро / правое / боль ноющая</span>
+          <span style="flex:none;font-size:12px;font-weight:700;color:var(--primary);background:var(--primary-soft);border-radius:9px;padding:2px 9px;">2/10</span>
+          <span class="hint" style="margin-left:auto;">с 05.01 · было 5/10</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:0 12px;font-size:12px;color:var(--ink-2);">
+          <span style="width:14px;flex:none;"></span>
+          <span>Поясница (низ) / слева / боль тянущая, мышечная</span>
+          <span style="flex:none;font-size:10.5px;font-weight:700;color:var(--primary);background:var(--primary-soft);border-radius:8px;padding:1px 7px;">4/10</span>
+          <span class="hint" style="margin-left:auto;">с 05.01</span>
+        </div>
+        <div class="hint" style="margin-top:8px;">основной симптом (⚑) — крупно, остальные актуальные — мелкими строками. Диагноз — в Карте.</div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:6px;">
+          <h3 style="font-size:13px;">Динамика симптомов</h3>
+          <span style="display:flex;gap:10px;align-items:center;font-size:11px;color:var(--ink-2);">
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:3px;background:var(--primary);"></span>⚑ Бедро · 2/10</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:9px;height:9px;border-radius:3px;background:#c2812e;"></span>Поясница · 4/10</span>
+          </span>
+        </div>
+        <svg viewBox="0 0 480 168" style="width:100%;height:auto;display:block;">
+          <g stroke="#edf0f5" stroke-width="1">
+            <line x1="34" y1="15" x2="466" y2="15"/><line x1="34" y1="39" x2="466" y2="39"/>
+            <line x1="34" y1="63" x2="466" y2="63"/><line x1="34" y1="87" x2="466" y2="87"/>
+            <line x1="34" y1="111" x2="466" y2="111"/><line x1="34" y1="135" x2="466" y2="135"/>
+          </g>
+          <g font-size="9" fill="#8b95a3">
+            <text x="26" y="18" text-anchor="end">10</text><text x="26" y="42" text-anchor="end">8</text>
+            <text x="26" y="66" text-anchor="end">6</text><text x="26" y="90" text-anchor="end">4</text>
+            <text x="26" y="114" text-anchor="end">2</text><text x="26" y="138" text-anchor="end">0</text>
+          </g>
+          <polyline points="90,63 250,75 410,87" fill="none" stroke="#c2812e" stroke-width="2"/>
+          <circle cx="90" cy="63" r="3" fill="#c2812e"/><circle cx="250" cy="75" r="3" fill="#c2812e"/><circle cx="410" cy="87" r="3.5" fill="#c2812e"/>
+          <polyline points="90,75 250,99 410,111" fill="none" stroke="var(--primary)" stroke-width="2"/>
+          <circle cx="90" cy="75" r="3" fill="var(--primary)"/><circle cx="250" cy="99" r="3" fill="var(--primary)"/><circle cx="410" cy="111" r="3.5" fill="var(--primary)"/>
+          <g font-size="9.5" fill="#5a6675">
+            <text x="90" y="156" text-anchor="middle">05.01 · первичный</text>
+            <text x="250" y="156" text-anchor="middle">15.01</text>
+            <text x="410" y="156" text-anchor="middle">22.01</text>
+          </g>
+        </svg>
+        <div class="hint" style="margin-top:4px;">линия на каждый актуальный симптом · точки — оценки из визитов. Следующий этап: сюда же лягут самоотчёты пациента по симптомам (заменят «Самочувствие»).</div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+          <div>
+            <h3 style="font-size:13px;">Выполнение упражнений · июнь</h3>
+            <div class="hint" style="margin-top:2px;">Реабилитация ТБС + поясница · начата 12.02.2026 (4 мес)</div>
+          </div>
+          <span class="mtabs" style="margin:0;"><span class="mtab on">Месяц</span><span class="mtab">Неделя</span></span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;"><div style="height:16px;font-size:9px;color:var(--ink-3);display:flex;align-items:center;justify-content:center;text-transform:uppercase;">пн</div><div style="height:16px;font-size:9px;color:var(--ink-3);display:flex;align-items:center;justify-content:center;text-transform:uppercase;">вт</div><div style="height:16px;font-size:9px;color:var(--ink-3);display:flex;align-items:center;justify-content:center;text-transform:uppercase;">ср</div><div style="height:16px;font-size:9px;color:var(--ink-3);display:flex;align-items:center;justify-content:center;text-transform:uppercase;">чт</div><div style="height:16px;font-size:9px;color:var(--ink-3);display:flex;align-items:center;justify-content:center;text-transform:uppercase;">пт</div><div style="height:16px;font-size:9px;color:var(--ink-3);display:flex;align-items:center;justify-content:center;text-transform:uppercase;">сб</div><div style="height:16px;font-size:9px;color:var(--ink-3);display:flex;align-items:center;justify-content:center;text-transform:uppercase;">вс</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;font-weight:600;">1</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:hsl(215 45% 76%);color:#fff;font-weight:600;">2</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);color:var(--ink-2);">3</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;font-weight:600;">4</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:hsl(215 45% 89%);color:var(--ink-2);">5</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;font-weight:600;">6</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f1f3f7;color:var(--ink-3);">7</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);color:var(--ink-2);">8</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);color:var(--ink-2);">9</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);color:var(--ink-2);">10</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);color:var(--ink-2);">11</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);color:var(--ink-2);box-shadow:inset 0 0 0 2px #e8c84a;">12</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">13</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">14</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">15</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">16</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">17</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">18</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">19</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">20</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">21</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">22</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">23</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">24</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">25</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">26</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">27</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">28</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">29</div><div style="height:26px;border-radius:5px;font-size:10px;display:flex;align-items:center;justify-content:center;background:#f7f8fb;color:#c2c9d4;">30</div></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;font-size:10.5px;color:var(--ink-3);">
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:var(--primary);"></span>полностью</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:hsl(215 45% 76%);"></span>частично</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#fff;border:1px solid var(--line);"></span>не выполнено</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:3px;background:#f1f3f7;"></span>нет назначений</span>
+        </div>
+        <div style="font-size:12px;color:var(--ink);margin-top:8px;">За 30 дней: <b>18 из 26</b> дней с назначением · средняя выполняемость <b>64%</b></div>
+        <div class="hint" style="margin-top:8px;">% дня = доля выполненных упражнений из назначенных. Пока по составу программы; расписание по дням/блокам — следующий этап. Сегодня — жёлтая обводка.</div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: заметки → задачи → программа/комментарии → сообщения -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;"><h3 style="font-size:13px;">Заметки</h3><span class="plus" title="Добавить заметку">+</span></div>
+        <div class="staterow" style="border-color:#f0e3c5;background:#fffdf5;"><span style="flex:none;">📌</span><span>Не давать осевую нагрузку до контрольного МРТ (июль)</span><span class="ed" title="Редактировать">✎</span></div>
+        <div class="staterow" style="border-color:#f0e3c5;background:#fffdf5;"><span style="flex:none;">📌</span><span>Мануальные техники не любит — только мягкие методики</span><span class="ed" title="Редактировать">✎</span></div>
+        <div class="staterow calm"><span style="width:12px;flex:none;"></span><span>Просил счёт для работодателя за абонемент</span><span class="ed" title="Редактировать">✎</span><span class="d">18.05</span></div>
+        <div class="hint" style="margin-top:6px;">📌 важные — закреплены и видны всегда, обычные — по дате</div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;"><h3 style="font-size:13px;">Задачи</h3><span class="plus" title="Добавить задачу">+</span></div>
+        <div class="staterow calm"><span style="flex:none;">☐</span><span>Проверить технику наклона по видео</span><span class="d" style="color:var(--danger);font-weight:600;">до 13.06</span></div>
+        <div class="staterow calm"><span style="flex:none;">☐</span><span>Скорректировать программу после контрольного МРТ</span><span class="d">до 04.07</span></div>
+        <div class="hint" style="margin-top:6px;">открытые задачи по пациенту, по дедлайну · видны и в общем списке на «Сегодня»</div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
+          <h3 style="font-size:13px;">Программа и комментарии</h3>
+          <span class="chip" style="background:var(--danger-soft);color:var(--danger);">💬 3 новых</span>
+          <span class="hint" style="margin-left:auto;cursor:pointer;">открыть программу →</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fafbfc;margin-bottom:8px;">
+          <span class="icbtn" title="Предыдущий этап" style="width:22px;height:22px;font-size:11px;">◀</span>
+          <div style="flex:1;text-align:center;">
+            <div style="font-size:12.5px;font-weight:600;color:var(--ink);">Этап 2 из 4 · Укрепление</div>
+            <div class="hint">активный · 12 дней из 21</div>
+          </div>
+          <span class="icbtn" title="Следующий этап" style="width:22px;height:22px;font-size:11px;">▶</span>
+        </div>
+
+        <div class="sect-label">Блок 1 · Силовые</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:#fff;font-size:11.5px;color:var(--ink);"><span style="width:22px;height:22px;border-radius:5px;background:#eef1f6;display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;">🏋️</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Ягодичный мост на двух ногах с резиной</span><span style="display:inline-flex;align-items:center;gap:3px;flex:none;"><svg width="13" height="13" viewBox="0 0 14 14" style="flex:none;align-self:center;"><path d="M4.4 6 A2.6 2.6 0 0 1 9.6 6" fill="none" stroke="var(--primary)" stroke-width="1.7" stroke-linecap="round"/><circle cx="7" cy="9.2" r="3.9" fill="var(--primary)"/></svg><span style="font-size:10.5px;color:var(--ink-2);font-weight:600;white-space:nowrap;">12 кг × 15</span></span><span style="display:inline-flex;align-items:center;gap:4px;flex:none;color:var(--ink-3);font-size:11px;">💬 4 <span style="width:7px;height:7px;border-radius:50%;background:var(--danger);flex:none;"></span></span></div>
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:#fff;font-size:11.5px;color:var(--ink);"><span style="width:22px;height:22px;border-radius:5px;background:#eef1f6;display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;">🦵</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Подъёмы на носок одной ноги</span><span style="display:inline-flex;align-items:center;gap:3px;flex:none;"><svg width="13" height="13" viewBox="0 0 14 14" style="flex:none;align-self:center;"><path d="M4.4 6 A2.6 2.6 0 0 1 9.6 6" fill="none" stroke="#1f9d55" stroke-width="1.7" stroke-linecap="round"/><circle cx="7" cy="9.2" r="3.9" fill="#1f9d55"/></svg><span style="font-size:10.5px;color:var(--ink-2);font-weight:600;white-space:nowrap;">× 20</span></span><span style="display:inline-flex;align-items:center;gap:4px;flex:none;color:var(--ink-3);font-size:11px;">💬 1 </span></div>
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:#fff;font-size:11.5px;color:var(--ink);"><span style="width:22px;height:22px;border-radius:5px;background:#eef1f6;display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;">🧎</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Обратный нордический наклон, эксцентрика</span><span style="display:inline-flex;align-items:center;gap:3px;flex:none;"><svg width="13" height="13" viewBox="0 0 14 14" style="flex:none;align-self:center;"><path d="M4.4 6 A2.6 2.6 0 0 1 9.6 6" fill="none" stroke="#2b3442" stroke-width="1.7" stroke-linecap="round"/><circle cx="7" cy="9.2" r="3.9" fill="#2b3442"/></svg><span style="font-size:10.5px;color:var(--ink-2);font-weight:600;white-space:nowrap;">× 8</span></span></div>
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:#fff;font-size:11.5px;color:var(--ink);"><span style="width:22px;height:22px;border-radius:5px;background:#eef1f6;display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;">🙇</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Разгибания в наклоне</span><span style="display:inline-flex;align-items:center;gap:3px;flex:none;"><svg width="13" height="13" viewBox="0 0 14 14" style="flex:none;align-self:center;"><path d="M4.4 6 A2.6 2.6 0 0 1 9.6 6" fill="none" stroke="var(--primary)" stroke-width="1.7" stroke-linecap="round"/><circle cx="7" cy="9.2" r="3.9" fill="var(--primary)"/></svg><span style="font-size:10.5px;color:var(--ink-2);font-weight:600;white-space:nowrap;">8 кг × 12</span></span><span style="display:inline-flex;align-items:center;gap:4px;flex:none;color:var(--ink-3);font-size:11px;">💬 1 </span></div>
+        </div>
+        <div class="sect-label">Блок 2 · Мобилизация и растяжка</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:#fff;font-size:11.5px;color:var(--ink);"><span style="width:22px;height:22px;border-radius:5px;background:#eef1f6;display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;">🧘</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Поза ребёнка в динамике</span><span style="display:inline-flex;align-items:center;gap:4px;flex:none;color:var(--ink-3);font-size:11px;">💬 2 <span style="width:7px;height:7px;border-radius:50%;background:var(--danger);flex:none;"></span></span></div>
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:#fff;font-size:11.5px;color:var(--ink);"><span style="width:22px;height:22px;border-radius:5px;background:#eef1f6;display:flex;align-items:center;justify-content:center;font-size:12px;flex:none;">🦿</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Вращения бедра на одной ноге</span><span style="display:inline-flex;align-items:center;gap:3px;flex:none;"><svg width="13" height="13" viewBox="0 0 14 14" style="flex:none;align-self:center;"><path d="M4.4 6 A2.6 2.6 0 0 1 9.6 6" fill="none" stroke="#1f9d55" stroke-width="1.7" stroke-linecap="round"/><circle cx="7" cy="9.2" r="3.9" fill="#1f9d55"/></svg><span style="font-size:10.5px;color:var(--ink-2);font-weight:600;white-space:nowrap;">× 12</span></span></div>
+        </div>
+
+        <div class="hint" style="margin-top:8px;line-height:1.6;">этапы листаются ◀ ▶: 1 ✓ Адаптация · <b>2 ● Укрепление</b> · 3 Силовая · 4 Возврат к спорту (не открыт). Группы — как у пациента. Справа в строке — последняя отметка: гиря <span style="color:#1f9d55;font-weight:700;">зелёная</span> легко · <span style="color:var(--primary);font-weight:700;">синяя</span> средне · <span style="color:#2b3442;font-weight:700;">тёмная</span> сложно, рядом вес × повторы (вес — если отмечался); 💬 число комментариев, красная точка — непрочитанные.</div>
+        <div class="hint" style="margin-top:4px;">графики в строках не рисуем. Потом: клик по упражнению — разворот с заметной относительной динамикой (повторы · сложность · вес), без абсолютных цифр.</div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
+          <h3 style="font-size:13px;">Сообщения</h3>
+          <span class="chip" style="background:var(--danger-soft);color:var(--danger);">2 новых</span>
+          <span class="hint" style="margin-left:auto;cursor:pointer;">вся переписка →</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <div style="border:1px solid var(--primary);background:var(--primary-soft);border-radius:8px;padding:7px 10px;font-size:12.5px;display:flex;gap:6px;align-items:flex-start;"><span><b>Егор:</b> После вчерашнего комплекса утром спина не болела — впервые за месяц</span><span class="d" style="margin-left:auto;color:var(--ink-3);font-size:11px;white-space:nowrap;">11.06</span></div>
+          <div style="border:1px solid var(--primary);background:var(--primary-soft);border-radius:8px;padding:7px 10px;font-size:12.5px;display:flex;gap:6px;align-items:flex-start;"><span><b>Егор:</b> Можно ли заменить планку на боковую? В классической тянет поясницу</span><span class="d" style="margin-left:auto;color:var(--ink-3);font-size:11px;white-space:nowrap;">11.06</span></div>
+          <div style="border:1px solid var(--line);background:#fafbfc;border-radius:8px;padding:7px 10px;font-size:12.5px;display:flex;gap:6px;align-items:flex-start;color:var(--ink-2);"><span><b>Вы:</b> Пришлите видео наклона — посмотрю технику</span><span class="d" style="margin-left:auto;color:var(--ink-3);font-size:11px;white-space:nowrap;">09.06</span></div>
+        </div>
+        <div class="hint" style="margin-top:6px;">только контекст: последние сообщения, непрочитанные подсвечены, список прокручивается. Ответ — через «вся переписка» (открывает полный чат).</div>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:10px;">Обзор отвечает на «что с человеком сейчас и что от меня требуется». Дубли шапки и полные домены сюда не возвращаем — только сжатые виджеты со ссылками в свои табы. Колонки 50/50: слева клиника и выполнение, справа заметки → задачи → программа с комментариями → сообщения. Таб «Коммуникации» из карты убран: контекст переписки здесь, комментарии — в контексте программы, полный inbox — на странице «Коммуникации».</p>
+
+</div>
 <div class="pcpane" id="pp-program"><div class="wf"><b>Программа</b><div class="hint" style="margin-top:6px;">ЛФК как сейчас (комментарии и медиа, тесты, активная программа, назначение). Без изменений на этом этапе.</div></div></div>
-<div class="pcpane" id="pp-records"><div class="wf"><b>Записи</b><div class="hint" style="margin-top:6px;line-height:1.7;">Предстоящие записи · история записей · абонементы. Чистится: booking-репутация и merge уезжают в Учётку/Админ. Из записи можно создать визит («Оформить визит» на прошедшей записи). Прорабатываем отдельным заходом.</div></div></div>
+<div class="pcpane" id="pp-records">
+
+  <div class="kpis" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi"><div class="l">Всего записей</div><div class="v">12</div><div class="hint" style="margin-top:2px;">с 09.2025</div></div>
+    <div class="kpi"><div class="l">Состоялись</div><div class="v">9</div><div class="hint" style="margin-top:2px;">визитов оформлено 8</div></div>
+    <div class="kpi" style="cursor:pointer;box-shadow:0 0 0 1px var(--danger-soft);"><div class="l">Отмены</div><div class="v">2 <span style="color:var(--danger);font-weight:800;">!</span></div><div class="hint" style="margin-top:2px;">есть неявка · детали ↓</div></div>
+    <div class="kpi"><div class="l">Переносы</div><div class="v">1</div><div class="hint" style="margin-top:2px;">за всё время</div></div>
+  </div>
+
+  <div class="wf" style="margin-top:10px;border-color:var(--danger-soft);">
+    <div class="sect-label">Отмены · детали</div>
+    <div class="staterow calm"><span class="d" style="margin-left:0;">14.04.2026</span><span>отменена клиентом · причина: болезнь</span></div>
+    <div class="staterow"><span class="d" style="margin-left:0;">03.03.2026</span><span>отменена · причина: <b>клиент не пришёл</b></span><span class="flag" style="margin-left:auto;">⚠ неявка</span></div>
+    <div class="hint" style="margin-top:6px;">панель раскрывается по клику на карточку «Отмены» · «!» на карточке — среди отмен есть неявки. Неявка — не отдельный статус, а причина отмены (как в Rubitime).</div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1.25fr 1fr;align-items:start;margin-top:10px;">
+
+    <div class="wf">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <h3 style="font-size:13px;">История записей</h3>
+        <span class="hint">новые сверху · прокручивается</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;font-size:12px;"><span style="font-weight:600;color:var(--ink);flex:none;width:78px;">04.06.2026</span><span style="color:var(--ink-3);flex:none;width:40px;">10:00</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);">Студия на Лесной · Тренировка ЛФК</span><span class="chip" style="background:#e7f4ec;color:#1f7a45;flex:none;">состоялась</span><span class="tab on" style="flex:none;font-size:11px;padding:4px 10px;">Оформить визит</span></div>
+        <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;font-size:12px;"><span style="font-weight:600;color:var(--ink);flex:none;width:78px;">28.05.2026</span><span style="color:var(--ink-3);flex:none;width:40px;">10:00</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);">Студия на Лесной · Тренировка ЛФК</span><span class="chip" style="background:#fdf3dd;color:#9a6b15;flex:none;">перенос → 04.06</span></div>
+        <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;font-size:12px;"><span style="font-weight:600;color:var(--ink);flex:none;width:78px;">14.04.2026</span><span style="color:var(--ink-3);flex:none;width:40px;">18:30</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);">Онлайн · Консультация</span><span class="chip" style="background:var(--danger-soft);color:var(--danger);flex:none;">отмена</span></div>
+        <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;font-size:12px;"><span style="font-weight:600;color:var(--ink);flex:none;width:78px;">03.03.2026</span><span style="color:var(--ink-3);flex:none;width:40px;">10:00</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);">Студия на Лесной · Тренировка ЛФК</span><span class="chip" style="background:var(--danger-soft);color:var(--danger);flex:none;">отмена ⚠</span></div>
+        <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;font-size:12px;"><span style="font-weight:600;color:var(--ink);flex:none;width:78px;">22.01.2026</span><span style="color:var(--ink-3);flex:none;width:40px;">10:00</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);">Студия на Лесной · Повторный приём</span><span class="chip" style="background:#e7f4ec;color:#1f7a45;flex:none;">состоялась</span><span class="hint" style="cursor:pointer;white-space:nowrap;flex:none;">визит 22.01 →</span></div>
+        <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;font-size:12px;"><span style="font-weight:600;color:var(--ink);flex:none;width:78px;">15.01.2026</span><span style="color:var(--ink-3);flex:none;width:40px;">18:30</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);">Онлайн · Консультация</span><span class="chip" style="background:#e7f4ec;color:#1f7a45;flex:none;">состоялась</span><span class="hint" style="cursor:pointer;white-space:nowrap;flex:none;">визит 15.01 →</span></div>
+        <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;font-size:12px;"><span style="font-weight:600;color:var(--ink);flex:none;width:78px;">05.01.2026</span><span style="color:var(--ink-3);flex:none;width:40px;">10:00</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);">Студия на Лесной · Первичный приём</span><span class="chip" style="background:#e7f4ec;color:#1f7a45;flex:none;">состоялась</span><span class="hint" style="cursor:pointer;white-space:nowrap;flex:none;">визит 05.01 →</span></div>
+      </div>
+      <div class="hint" style="margin-top:8px;line-height:1.6;">у состоявшейся записи либо ссылка «визит … →» (Карта, визит раскрыт), либо кнопка «Оформить визит», если визит не оформлен — открывает панель нового визита с подстановкой даты, локации и услуги из записи. Создание новой записи — в Расписании (один клик до календаря), кнопки «+ Записать» здесь нет.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;"><h3 style="font-size:13px;">Предстоящие</h3><span class="chip" style="background:var(--primary-soft);color:var(--primary);">1</span></div>
+        <div style="border:1px solid var(--primary);border-radius:9px;padding:10px 12px;background:var(--primary-soft);">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:700;color:var(--ink);">Чт 18.06 · 10:00</span>
+            <span class="chip" style="background:#fff;color:var(--primary);">подтверждена</span>
+          </div>
+          <div style="font-size:12px;color:var(--ink-2);margin-top:3px;">Студия на Лесной · Тренировка ЛФК · 60 мин</div>
+          <div style="display:flex;gap:6px;margin-top:9px;">
+            <span class="tab">Перенести</span><span class="tab">Отменить</span><span class="tab">Комментарий</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="wf">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;"><h3 style="font-size:13px;">Абонемент</h3><span class="chip" style="background:#e7f4ec;color:#1f7a45;">активен</span></div>
+        <div style="border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fafbfc;">
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <span style="font-size:18px;font-weight:800;color:var(--ink);">4 из 10</span>
+            <span class="hint">занятий осталось</span>
+          </div>
+          <div style="font-size:12px;color:var(--ink-2);margin-top:3px;">«Абонемент 10 занятий» · до 31.07.2026 · применяется к: Тренировка ЛФК</div>
+          <div style="display:flex;gap:6px;margin-top:9px;">
+            <span class="tab">Продлить</span><span class="tab">Оформить новый</span>
+          </div>
+        </div>
+        <div class="staterow calm" style="margin-top:6px;cursor:pointer;"><span>Прошлые абонементы</span><span class="chip" style="margin-left:auto;">2</span><span style="color:var(--ink-3);">▸</span></div>
+        <div class="hint" style="margin-top:6px;">работа с абонементом — здесь; карточка «Абонемент» на Обзоре ведёт сюда по клику. Историю списаний по записям не показываем.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:10px;">Метрики сверху — это деталка «Визитов · детали ▾» из шапки карты: клик в шапке просто переключает на этот таб, отдельного попапа нет. Booking-репутация и merge уехали в Учётку/Админ.</p>
+
+</div>
 
 <div class="pcpane" id="pp-files">
   <div class="grid" style="grid-template-columns:1.15fr 1fr;align-items:start;">
@@ -564,7 +797,6 @@ table.anam td{border-top:1px dashed var(--line);padding:6px 8px;vertical-align:t
   <p class="note">Будущее: AI-разбор загруженных PDF (выписки, анализы) в структурированную историю.</p>
 </div>
 
-<div class="pcpane" id="pp-comms"><div class="wf"><b>Коммуникации</b><div class="hint" style="margin-top:6px;">Чат поддержки как сейчас.</div></div></div>
 <div class="pcpane" id="pp-stats"><div class="wf"><b>Аналитика</b><div class="hint" style="margin-top:6px;line-height:1.7;">Техническая активность пациента: использование приложения · выполнение упражнений · полученные рассылки · открытия плана. Прорабатываем позже. Врачебная статистика (динамика жалоб, тесты) живёт в Карте.</div></div></div>
 <div class="pcpane" id="pp-account"><div class="wf"><b>Учётка</b><div class="hint" style="margin-top:6px;">Контакты и каналы · сопровождение · lifecycle · блокировки · админ (merge, audit). Как сейчас, плюс сюда переезжает booking-репутация из Записей.</div></div></div>
 

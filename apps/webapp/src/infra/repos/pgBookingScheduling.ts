@@ -12,6 +12,8 @@ import {
   beAvailabilityRules,
   beWorkingHours as beWh,
   beScheduleBlocks as beSb,
+  beWorkingDays as beWd,
+  beScheduleTemplates as beStmpl,
 } from "../../../db/schema/bookingScheduling";
 import { systemSettings } from "../../../db/schema/schema";
 import { buildSlotsForContext } from "@/modules/booking-scheduling/service";
@@ -20,7 +22,16 @@ import {
   legacyBranchServiceIdForSsaId,
   pickPreferredSsaId,
 } from "@/modules/booking-scheduling/ssaResolve";
-import type { BookingSchedulingPort, CanonicalBookingContext } from "@/modules/booking-scheduling/ports";
+import type {
+  BookingSchedulingPort,
+  CanonicalBookingContext,
+  WorkingDayRecord,
+  ScheduleTemplateRecord,
+  UpsertWorkingDaysInput,
+  CloseWorkingDaysInput,
+  ClearWorkingDaysInput,
+  CreateScheduleTemplateInput,
+} from "@/modules/booking-scheduling/ports";
 
 const ACTIVE_APPOINTMENT_STATUSES = [
   "created",
@@ -451,5 +462,210 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
         .set({ isActive: false, updatedAt: new Date().toISOString() })
         .where(and(eq(beWh.id, id), eq(beWh.organizationId, organizationId)));
     },
+
+    // ── Per-date working days ────────────────────────────────────────────────
+
+    async listWorkingDays({ organizationId, specialistId, dateFrom, dateTo }) {
+      const db = getDrizzle();
+      const baseConds = [
+        eq(beWd.organizationId, organizationId),
+        gte(beWd.workDate, dateFrom),
+        lte(beWd.workDate, dateTo),
+      ];
+      const specialistCond =
+        specialistId === null
+          ? isNull(beWd.specialistId)
+          : specialistId
+            ? eq(beWd.specialistId, specialistId)
+            : undefined;
+      const rows = await db
+        .select()
+        .from(beWd)
+        .where(and(...baseConds, specialistCond))
+        .orderBy(asc(beWd.workDate));
+      return rows.map(mapWorkingDayRow);
+    },
+
+    async upsertWorkingDays({ organizationId, specialistId, branchId, roomId, dates, startMinute, endMinute, breakStartMinute, breakEndMinute }: Parameters<BookingSchedulingPort["upsertWorkingDays"]>[0]) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      const results: WorkingDayRecord[] = [];
+      const sentinelId = "00000000-0000-0000-0000-000000000000";
+      for (const workDate of dates) {
+        // Use raw SQL for conflict target because the unique index is expression-based (COALESCE)
+        const rows = await db.execute<RawWorkingDayRow>(
+          sql`INSERT INTO be_working_days
+            (organization_id, specialist_id, branch_id, room_id, work_date,
+             start_minute, end_minute, break_start_minute, break_end_minute, is_closed, updated_at)
+          VALUES
+            (${organizationId}, ${specialistId ?? null}, ${branchId ?? null}, ${roomId ?? null}, ${workDate},
+             ${startMinute}, ${endMinute}, ${breakStartMinute ?? null}, ${breakEndMinute ?? null}, false, ${now})
+          ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
+          DO UPDATE SET
+            branch_id = EXCLUDED.branch_id,
+            room_id = EXCLUDED.room_id,
+            start_minute = EXCLUDED.start_minute,
+            end_minute = EXCLUDED.end_minute,
+            break_start_minute = EXCLUDED.break_start_minute,
+            break_end_minute = EXCLUDED.break_end_minute,
+            is_closed = false,
+            updated_at = EXCLUDED.updated_at
+          RETURNING *`,
+        );
+        const row = rows.rows[0] as RawWorkingDayRow | undefined;
+        if (row) results.push(mapRawWorkingDayRow(row));
+      }
+      return results;
+    },
+
+    async closeWorkingDays({ organizationId, specialistId, dates }: Parameters<BookingSchedulingPort["closeWorkingDays"]>[0]) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      const results: WorkingDayRecord[] = [];
+      const sentinelId = "00000000-0000-0000-0000-000000000000";
+      for (const workDate of dates) {
+        const rows = await db.execute<RawWorkingDayRow>(
+          sql`INSERT INTO be_working_days
+            (organization_id, specialist_id, branch_id, room_id, work_date,
+             start_minute, end_minute, break_start_minute, break_end_minute, is_closed, updated_at)
+          VALUES
+            (${organizationId}, ${specialistId ?? null}, NULL, NULL, ${workDate},
+             NULL, NULL, NULL, NULL, true, ${now})
+          ON CONFLICT (organization_id, COALESCE(specialist_id, ${sentinelId}::uuid), work_date)
+          DO UPDATE SET
+            start_minute = NULL,
+            end_minute = NULL,
+            break_start_minute = NULL,
+            break_end_minute = NULL,
+            is_closed = true,
+            updated_at = EXCLUDED.updated_at
+          RETURNING *`,
+        );
+        const row = rows.rows[0] as RawWorkingDayRow | undefined;
+        if (row) results.push(mapRawWorkingDayRow(row));
+      }
+      return results;
+    },
+
+    async clearWorkingDays({ organizationId, specialistId, dates }: Parameters<BookingSchedulingPort["clearWorkingDays"]>[0]) {
+      const db = getDrizzle();
+      const baseConds = [
+        eq(beWd.organizationId, organizationId),
+        inArray(beWd.workDate, dates),
+      ];
+      const specialistCond =
+        specialistId === null
+          ? isNull(beWd.specialistId)
+          : specialistId
+            ? eq(beWd.specialistId, specialistId)
+            : undefined;
+      await db.delete(beWd).where(and(...baseConds, specialistCond));
+    },
+
+    // ── Schedule templates ───────────────────────────────────────────────────
+
+    async listScheduleTemplates(organizationId) {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(beStmpl)
+        .where(and(eq(beStmpl.organizationId, organizationId), eq(beStmpl.isActive, true)))
+        .orderBy(asc(beStmpl.sortOrder), asc(beStmpl.name));
+      return rows.map(mapTemplateRow);
+    },
+
+    async createScheduleTemplate({ organizationId, branchId, name, startMinute, endMinute, breakStartMinute, breakEndMinute, sortOrder }: CreateScheduleTemplateInput) {
+      const db = getDrizzle();
+      const inserted = await db
+        .insert(beStmpl)
+        .values({
+          organizationId,
+          branchId: branchId ?? null,
+          name,
+          startMinute,
+          endMinute,
+          breakStartMinute: breakStartMinute ?? null,
+          breakEndMinute: breakEndMinute ?? null,
+          sortOrder: sortOrder ?? 0,
+          isActive: true,
+        })
+        .returning();
+      return mapTemplateRow(inserted[0]!);
+    },
+
+    async deleteScheduleTemplate(organizationId, id) {
+      const db = getDrizzle();
+      await db
+        .update(beStmpl)
+        .set({ isActive: false, updatedAt: new Date().toISOString() })
+        .where(and(eq(beStmpl.id, id), eq(beStmpl.organizationId, organizationId)));
+    },
+  };
+}
+
+// ── Row mappers ──────────────────────────────────────────────────────────────
+
+export function mapWorkingDayRow(row: typeof beWd.$inferSelect): WorkingDayRecord {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    specialistId: row.specialistId,
+    branchId: row.branchId,
+    roomId: row.roomId,
+    workDate: row.workDate,
+    startMinute: row.startMinute,
+    endMinute: row.endMinute,
+    breakStartMinute: row.breakStartMinute,
+    breakEndMinute: row.breakEndMinute,
+    isClosed: row.isClosed,
+  };
+}
+
+/**
+ * Маппер для строк из raw `db.execute(... RETURNING *)`: драйвер отдаёт ключи в snake_case
+ * (имена колонок БД), а не camelCase Drizzle-инференса, поэтому читаем по фактическим именам.
+ */
+export type RawWorkingDayRow = {
+  id: string;
+  organization_id: string;
+  specialist_id: string | null;
+  branch_id: string | null;
+  room_id: string | null;
+  work_date: string;
+  start_minute: number | null;
+  end_minute: number | null;
+  break_start_minute: number | null;
+  break_end_minute: number | null;
+  is_closed: boolean;
+};
+
+export function mapRawWorkingDayRow(row: RawWorkingDayRow): WorkingDayRecord {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    specialistId: row.specialist_id,
+    branchId: row.branch_id,
+    roomId: row.room_id,
+    workDate: row.work_date,
+    startMinute: row.start_minute,
+    endMinute: row.end_minute,
+    breakStartMinute: row.break_start_minute,
+    breakEndMinute: row.break_end_minute,
+    isClosed: row.is_closed,
+  };
+}
+
+function mapTemplateRow(row: typeof beStmpl.$inferSelect): ScheduleTemplateRecord {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    branchId: row.branchId,
+    name: row.name,
+    startMinute: row.startMinute,
+    endMinute: row.endMinute,
+    breakStartMinute: row.breakStartMinute,
+    breakEndMinute: row.breakEndMinute,
+    sortOrder: row.sortOrder,
+    isActive: row.isActive,
   };
 }

@@ -128,23 +128,30 @@ describe("doctor menu structure", () => {
     expect(today?.href).toBe("/app/doctor");
   });
 
-  it("schedule is expandable with calendar, appointments, and admin setup", () => {
+  it("schedule is expandable with cal, work, and admin setup sub-items", () => {
     const items = getDoctorMenuItems(adminAccess);
     const schedule = items.find((i) => i.id === "schedule");
     expect(schedule?.items?.map((i) => i.id)).toEqual([
-      "schedule-calendar",
-      "schedule-appointments",
+      "schedule-cal",
+      "schedule-work",
       "schedule-setup",
     ]);
-    expect(schedule?.items?.find((i) => i.id === "schedule-appointments")?.href).toBe(
-      "/app/doctor/appointments",
-    );
+    const calItem = schedule?.items?.find((i) => i.id === "schedule-cal");
+    expect(calItem?.label).toBe("Календарь записей");
+    expect(calItem?.href).toContain("?tab=cal");
+    const workItem = schedule?.items?.find((i) => i.id === "schedule-work");
+    expect(workItem?.label).toBe("График работы");
+    expect(workItem?.href).toContain("?tab=work");
+    const setupItem = schedule?.items?.find((i) => i.id === "schedule-setup");
+    expect(setupItem?.label).toBe("Настройки записи");
+    expect(setupItem?.href).toContain("?tab=setup");
+    expect(setupItem?.requiresAdminMode).toBe(true);
   });
 
   it("schedule for doctor hides admin setup sub-item", () => {
     const items = getDoctorMenuItems(doctorAccess);
     const schedule = items.find((i) => i.id === "schedule");
-    expect(schedule?.items?.map((i) => i.id)).toEqual(["schedule-calendar", "schedule-appointments"]);
+    expect(schedule?.items?.map((i) => i.id)).toEqual(["schedule-cal", "schedule-work"]);
   });
 
   it("isDoctorMenuClusterId returns true for expandable items only", () => {
@@ -169,8 +176,10 @@ describe("doctor menu structure", () => {
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Пациенты")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Комплексы ЛФК")).toBe(true);
     expect(hrefs).toContain("/app/doctor/communications");
-    expect(hrefs).toContain("/app/doctor/schedule?tab=calendar");
-    expect(hrefs).toContain("/app/doctor/appointments");
+    expect(hrefs).toContain("/app/doctor/schedule?tab=cal");
+    expect(hrefs).toContain("/app/doctor/schedule?tab=work");
+    expect(hrefs).toContain("/app/doctor/schedule?tab=setup");
+    expect(hrefs).not.toContain("/app/doctor/appointments");
     expect(hrefs).not.toContain("/app/settings");
   });
 

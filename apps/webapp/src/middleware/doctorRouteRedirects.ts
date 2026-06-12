@@ -4,20 +4,11 @@ import type { NextRequest } from "next/server";
 /**
  * Обрабатывает маршруты кабинета врача:
  * 1. 308-редиректы: старые URL → новые агрегирующие страницы (видны браузеру).
- * 2. Внутренние rewrite: новые URL → легаси-страницы (браузер видит новый URL, рендерится легаси).
  *
- * ВАЖНО: в Next 16 (proxy-конвенция) внутренний rewrite ПОВТОРНО проходит через proxy
- * (в отличие от старого middleware). Без защиты это давало петлю:
- * schedule →(rewrite)→ calendar →(re-entry)→ legacyRedirect → 308 schedule → ∞.
- * Защита — маркер `REWRITE_MARKER_HEADER` в заголовках переписанного запроса:
- * на повторном входе функция сразу возвращает null.
- */
-/**
- * Маркер внутреннего rewrite. В Next 16 (proxy-конвенция) внутренний
- * `NextResponse.rewrite` ПОВТОРНО проходит через proxy — в отличие от старого
- * middleware. Без защиты возникает петля: schedule →(rewrite)→ calendar →(re-entry)→
- * legacyRedirect → 308 schedule → ∞. Маркер прокидывается в заголовки переписанного
- * запроса и на повторном входе заставляет нас сразу выйти.
+ * После добавления реальной страницы `/app/doctor/schedule` (этап 12) виртуальный
+ * rewrite schedule → legacy был удалён. Маркер REWRITE_MARKER_HEADER сохранён для
+ * обратной совместимости с другими возможными rewrite в прокси — досрочный выход при
+ * повторном входе после rewrite.
  */
 const REWRITE_MARKER_HEADER = "x-bc-doctor-rewrite";
 
@@ -26,15 +17,8 @@ export function doctorRouteRedirectResponse(
 ): NextResponse | null {
   const { pathname } = request.nextUrl;
 
-  // Повторный вход после внутреннего rewrite — пропускаем всю логику, петли нет.
+  // Повторный вход после внутреннего rewrite (proxy.ts) — пропускаем всю логику.
   if (request.headers.get(REWRITE_MARKER_HEADER) === "1") return null;
-
-  // Хелпер: rewrite с маркером в заголовках переписанного запроса.
-  const rewriteWithMarker = (url: URL): NextResponse => {
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set(REWRITE_MARKER_HEADER, "1");
-    return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
-  };
 
   // ── 308 redirects: old URLs → new aggregate URLs ──────────────────────────
 
@@ -56,7 +40,9 @@ export function doctorRouteRedirectResponse(
     "/app/doctor/comments": "/app/doctor/communications?tab=comments",
     "/app/doctor/broadcasts/archive": "/app/doctor/communications?tab=broadcasts&archive=1",
     "/app/doctor/broadcasts": "/app/doctor/communications?tab=broadcasts",
-    "/app/doctor/calendar": "/app/doctor/schedule?tab=calendar",
+    // Schedule legacy → real page-shell (e12). Tab values align with scheduleTabFromQuery: cal/work/setup.
+    "/app/doctor/calendar": "/app/doctor/schedule?tab=cal",
+    "/app/doctor/appointments": "/app/doctor/schedule?tab=cal",
     "/app/doctor/admin/booking": "/app/doctor/schedule?tab=setup",
   };
 
@@ -69,26 +55,9 @@ export function doctorRouteRedirectResponse(
     return NextResponse.redirect(url, 308);
   }
 
-  // ── Internal rewrites: new aggregate URLs → legacy pages ──────────────────
-  // Внутренний rewrite в Next 16 (proxy) повторно проходит через proxy — защита от
-  // петли через REWRITE_MARKER_HEADER (см. docstring функции).
-
-  if (pathname === "/app/doctor/schedule") {
-    const tab = request.nextUrl.searchParams.get("tab") ?? "calendar";
-    const url = request.nextUrl.clone();
-    url.search = "";
-    if (tab === "setup") {
-      url.pathname = "/app/doctor/admin/booking";
-    } else if (tab === "appointments") {
-      url.pathname = "/app/doctor/appointments";
-    } else {
-      url.pathname = "/app/doctor/calendar";
-    }
-    return rewriteWithMarker(url);
-  }
-
-  // /app/doctor/communications теперь настоящая страница-шелл — rewrite убран.
-  // 308 со старых прямых URL выше сохранены; schedule rewrite ниже не трогаем.
+  // /app/doctor/communications и /app/doctor/schedule — настоящие страницы-шеллы.
+  // Internal rewrite не нужен: Next.js рендерит реальные page.tsx.
+  // 308 со старых прямых URL выше сохранены.
 
   return null;
 }

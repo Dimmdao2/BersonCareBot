@@ -47,6 +47,15 @@ describe("doctor-appointments service", () => {
         cancellationsInCalendarMonth: 0,
       };
     },
+    async getScheduleKpis() {
+      return {
+        recordsInPeriod: 0,
+        uniquePatientsInPeriod: 0,
+        newPatientsInPeriod: 0,
+        cancellationsInPeriod: 0,
+        reschedulesInPeriod: 0,
+      };
+    },
   };
 
   const service = createDoctorAppointmentsService({ appointmentsPort: mockPort });
@@ -97,6 +106,9 @@ describe("doctor-appointments service", () => {
       async getDashboardAppointmentMetrics() {
         return { futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0 };
       },
+      async getScheduleKpis() {
+        return { recordsInPeriod: 0, uniquePatientsInPeriod: 0, newPatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
+      },
     };
 
     const svc = createDoctorAppointmentsService({ appointmentsPort: portWithIso });
@@ -138,6 +150,9 @@ describe("doctor-appointments service", () => {
       },
       async getDashboardAppointmentMetrics() {
         return { futureActiveCount: 0, recordsInCalendarMonthTotal: 0, cancellationsInCalendarMonth: 0 };
+      },
+      async getScheduleKpis() {
+        return { recordsInPeriod: 0, uniquePatientsInPeriod: 0, newPatientsInPeriod: 0, cancellationsInPeriod: 0, reschedulesInPeriod: 0 };
       },
     };
 

@@ -49,14 +49,18 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     label: "Расписание",
     items: [
       {
-        id: "schedule-calendar",
-        label: "Календарь",
-        href: `${routePaths.doctorSchedule}?tab=calendar`,
+        id: "schedule-cal",
+        label: "Календарь записей",
+        href: `${routePaths.doctorSchedule}?tab=cal`,
       },
-      { id: "schedule-appointments", label: "Записи", href: "/app/doctor/appointments" },
+      {
+        id: "schedule-work",
+        label: "График работы",
+        href: `${routePaths.doctorSchedule}?tab=work`,
+      },
       {
         id: "schedule-setup",
-        label: "Настройка записи",
+        label: "Настройки записи",
         href: `${routePaths.doctorSchedule}?tab=setup`,
         requiresAdminMode: true,
       },

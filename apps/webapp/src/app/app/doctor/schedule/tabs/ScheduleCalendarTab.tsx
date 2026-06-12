@@ -5,6 +5,14 @@ import { DateTime } from "luxon";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { DoctorCalendarEventPanel } from "../../calendar/DoctorCalendarEventPanel";
+import { DoctorCalendarToolbarFilter } from "../../calendar/DoctorCalendarToolbarFilter";
+import { resolveCalendarCreateFieldValue } from "@/modules/booking-calendar/calendarCreateFieldMode";
+import { patchAdminSetting } from "@/app/app/settings/patchAdminSetting";
+import {
+  appointmentStatusLabel,
+  isCancelledAppointmentStatus,
+} from "@/modules/booking-calendar/appointmentStatusLabels";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -16,14 +24,7 @@ import type {
   CalendarFilterMeta,
   CalendarViewMode,
 } from "@/modules/booking-calendar/types";
-import {
-  appointmentStatusLabel,
-  isCancelledAppointmentStatus,
-} from "@/modules/booking-calendar/appointmentStatusLabels";
-import { DoctorCalendarEventPanel } from "./DoctorCalendarEventPanel";
-import { DoctorCalendarToolbarFilter } from "./DoctorCalendarToolbarFilter";
-import { resolveCalendarCreateFieldValue } from "@/modules/booking-calendar/calendarCreateFieldMode";
-import { patchAdminSetting } from "@/app/app/settings/patchAdminSetting";
+import type { ScheduleTabProps } from "../scheduleTabRegistry";
 
 const API_BASE = "/api/doctor/booking-engine";
 
@@ -39,44 +40,47 @@ type CalendarResponse = {
   error?: string;
 };
 
-type Props = {
-  initialAnchorDate: string;
-  initialView: CalendarViewMode;
-  timeZone: string;
-};
-
 type AppointmentLayout = {
   leftPercent: number;
   widthPercent: number;
 };
 
-type CalendarMsg = {
-  tone: "info" | "error";
-  text: string;
-};
+/** Нормализует view из deep-link params; fallback — weeklist (главный рабочий режим по вайрфрейму). */
+function resolveView(raw: string | undefined): CalendarViewMode {
+  if (raw === "day" || raw === "week" || raw === "weeklist" || raw === "month") return raw;
+  return "weeklist";
+}
+
+function resolveAnchorDate(raw: string | undefined, timeZone: string): string {
+  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return DateTime.now().setZone(timeZone).toISODate() ?? "2026-01-01";
+}
+
+function periodLabel(view: CalendarViewMode, anchorDate: string, zone: string): string {
+  const anchor = DateTime.fromISO(anchorDate, { zone });
+  if (view === "day") return anchor.setLocale("ru").toFormat("cccc, d LLLL yyyy");
+  if (view === "month") return anchor.setLocale("ru").toFormat("LLLL yyyy");
+  const start = anchor.startOf("week");
+  const end = anchor.endOf("week");
+  return `${start.setLocale("ru").toFormat("d LLLL")} – ${end.setLocale("ru").toFormat("d LLLL yyyy")}`;
+}
+
+function buildQuery(params: Record<string, string | null | undefined>): string {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v) sp.set(k, v);
+  }
+  return sp.toString();
+}
 
 function eventClassName(event: CalendarEvent): string {
-  if (event.kind === "freeSlot") {
-    return "bg-emerald-500/10 text-emerald-900 border-emerald-500/30 border-dashed";
-  }
-  if (event.kind === "block") {
-    return "bg-muted text-muted-foreground border-border";
-  }
-  if (event.kind === "working") {
-    return "bg-emerald-500/7";
-  }
-  if (event.kind === "break") {
-    return "bg-slate-500/10";
-  }
-  if (isCancelledAppointmentStatus(event.status)) {
-    return "bg-destructive/10 text-destructive border-destructive/30 line-through";
-  }
-  if (event.status === "awaiting_payment" || event.prepaymentPending) {
-    return "bg-amber-500/15 text-amber-900 dark:text-amber-100 border-amber-500/40";
-  }
-  if (event.packageUsageRef || event.packageTitle) {
-    return "bg-violet-500/15 text-violet-900 dark:text-violet-100 border-violet-500/40";
-  }
+  if (event.kind === "freeSlot") return "bg-emerald-500/10 text-emerald-900 border-emerald-500/30 border-dashed";
+  if (event.kind === "block") return "bg-muted text-muted-foreground border-border";
+  if (event.kind === "working") return "bg-emerald-500/7";
+  if (event.kind === "break") return "bg-slate-500/10";
+  if (isCancelledAppointmentStatus(event.status)) return "bg-destructive/10 text-destructive border-destructive/30 line-through";
+  if (event.status === "awaiting_payment" || event.prepaymentPending) return "bg-amber-500/15 text-amber-900 dark:text-amber-100 border-amber-500/40";
+  if (event.packageUsageRef || event.packageTitle) return "bg-violet-500/15 text-violet-900 dark:text-violet-100 border-violet-500/40";
   return "bg-primary/10 text-primary border-primary/30";
 }
 
@@ -88,26 +92,6 @@ function eventTitle(event: CalendarEvent): string {
   const packagePrefix = event.packageUsageRef || event.packageTitle ? "✅ " : "";
   const parts = [event.patientName ?? "Запись", event.serviceTitle].filter(Boolean);
   return `${packagePrefix}${parts.join(" · ")}`;
-}
-
-function toUiError(error: string | undefined): string {
-  if (!error) return "Ошибка календаря";
-  if (error === "external_slot_taken") return "Время уже занято во внешней записи. Обновите календарь.";
-  if (error === "slot_overlap") return "Слот уже занят в нашем расписании.";
-  if (error === "lifecycle_unavailable") return "Сервис переноса временно недоступен.";
-  if (error === "not_found") return "Запись не найдена.";
-  if (error === "invalid_body") return "Некорректные данные.";
-  return error;
-}
-
-function periodLabel(view: CalendarViewMode, anchorDate: string, zone: string): string {
-  const anchor = DateTime.fromISO(anchorDate, { zone });
-  if (view === "day") return anchor.setLocale("ru").toFormat("cccc, d LLLL yyyy");
-  if (view === "month") return anchor.setLocale("ru").toFormat("LLLL yyyy");
-  // "week" and "weeklist" both show a week range
-  const start = anchor.startOf("week");
-  const end = anchor.endOf("week");
-  return `${start.setLocale("ru").toFormat("d LLLL")} - ${end.setLocale("ru").toFormat("d LLLL yyyy")}`;
 }
 
 function computeAppointmentLayouts(events: CalendarEvent[], zone: string): Map<string, AppointmentLayout> {
@@ -127,42 +111,16 @@ function computeAppointmentLayouts(events: CalendarEvent[], zone: string): Map<s
     const cancelled = eventsInGroup.filter((e) => isCancelledAppointmentStatus(e.status));
     if (active.length === 0 || cancelled.length === 0) continue;
     const activeWidth = 75 / active.length;
-    active.forEach((e, idx) => {
-      map.set(e.id, { leftPercent: idx * activeWidth, widthPercent: activeWidth });
-    });
+    active.forEach((e, idx) => { map.set(e.id, { leftPercent: idx * activeWidth, widthPercent: activeWidth }); });
     const cancelledWidth = 25 / cancelled.length;
-    cancelled.forEach((e, idx) => {
-      map.set(e.id, { leftPercent: 75 + idx * cancelledWidth, widthPercent: cancelledWidth });
-    });
+    cancelled.forEach((e, idx) => { map.set(e.id, { leftPercent: 75 + idx * cancelledWidth, widthPercent: cancelledWidth }); });
   }
   return map;
 }
 
-function buildQuery(params: Record<string, string | null | undefined>): string {
-  const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v) sp.set(k, v);
-  }
-  return sp.toString();
-}
-
 // ---------------------------------------------------------------------------
-// Weeklist: кастомный вид «Неделя · лента» (R4 — FullCalendar не даёт нативно)
-// Дни сверху вниз, записи карточками без часовой сетки.
+// WeekList sub-components
 // ---------------------------------------------------------------------------
-
-type WeekListViewProps = {
-  events: CalendarEvent[];
-  anchorDate: string;
-  timeZone: string;
-  onSelect: (event: CalendarAppointmentEvent) => void;
-};
-
-type DayGroup = {
-  dateKey: string;
-  label: string;
-  appointments: CalendarAppointmentEvent[];
-};
 
 function buildWeekDays(anchorDate: string, timeZone: string): string[] {
   const anchor = DateTime.fromISO(anchorDate, { zone: timeZone });
@@ -170,32 +128,38 @@ function buildWeekDays(anchorDate: string, timeZone: string): string[] {
   return Array.from({ length: 7 }, (_, i) => monday.plus({ days: i }).toISODate() ?? "");
 }
 
-function groupByDay(
-  events: CalendarEvent[],
-  days: string[],
-  timeZone: string,
-): DayGroup[] {
-  const groups: DayGroup[] = [];
-  for (const day of days) {
+type DayGroup = { dateKey: string; label: string; appointments: CalendarAppointmentEvent[] };
+
+function groupByDay(events: CalendarEvent[], days: string[], timeZone: string): DayGroup[] {
+  return days.reduce<DayGroup[]>((acc, day) => {
     const anchor = DateTime.fromISO(day, { zone: timeZone });
-    const label = anchor.setLocale("ru").toFormat("cccc, d LLLL");
     const appointments = events
-      .filter(
-        (e): e is CalendarAppointmentEvent =>
-          e.kind === "appointment" &&
-          DateTime.fromISO(e.startAt).setZone(timeZone).toISODate() === day,
+      .filter((e): e is CalendarAppointmentEvent =>
+        e.kind === "appointment" &&
+        DateTime.fromISO(e.startAt).setZone(timeZone).toISODate() === day,
       )
       .sort((a, b) => (a.startAt < b.startAt ? -1 : 1));
     if (appointments.length > 0) {
-      groups.push({ dateKey: day, label, appointments });
+      acc.push({
+        dateKey: day,
+        label: anchor.setLocale("ru").toFormat("cccc, d LLLL"),
+        appointments,
+      });
     }
-  }
-  return groups;
+    return acc;
+  }, []);
 }
 
 function formatTime(iso: string, zone: string): string {
   return DateTime.fromISO(iso).setZone(zone).toFormat("HH:mm");
 }
+
+type WeekListViewProps = {
+  events: CalendarEvent[];
+  anchorDate: string;
+  timeZone: string;
+  onSelect: (appt: CalendarAppointmentEvent) => void;
+};
 
 function WeekListView({ events, anchorDate, timeZone, onSelect }: WeekListViewProps) {
   const days = buildWeekDays(anchorDate, timeZone);
@@ -203,7 +167,7 @@ function WeekListView({ events, anchorDate, timeZone, onSelect }: WeekListViewPr
 
   if (groups.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground" data-testid="weeklist-empty">
         На этой неделе записей нет.
       </div>
     );
@@ -212,11 +176,7 @@ function WeekListView({ events, anchorDate, timeZone, onSelect }: WeekListViewPr
   return (
     <div className="flex flex-col gap-3" data-testid="weeklist-view">
       {groups.map(({ dateKey, label, appointments }) => (
-        <div
-          key={dateKey}
-          className="rounded-xl border border-border bg-card p-3"
-          data-testid={`weeklist-day-${dateKey}`}
-        >
+        <div key={dateKey} className="rounded-xl border border-border bg-card p-3" data-testid={`weeklist-day-${dateKey}`}>
           <p className="mb-2 text-sm font-semibold text-foreground capitalize">{label}</p>
           <div className="flex flex-col gap-1.5">
             {appointments.map((appt) => (
@@ -230,18 +190,11 @@ function WeekListView({ events, anchorDate, timeZone, onSelect }: WeekListViewPr
                 <span className="shrink-0 font-semibold tabular-nums text-foreground">
                   {formatTime(appt.startAt, timeZone)}–{formatTime(appt.endAt, timeZone)}
                 </span>
-                <span className="min-w-0 truncate text-foreground">
-                  {appt.patientName ?? "Запись"}
-                </span>
+                <span className="min-w-0 truncate text-foreground">{appt.patientName ?? "Запись"}</span>
                 {appt.serviceTitle ? (
-                  <span className="min-w-0 shrink truncate text-xs text-muted-foreground">
-                    {appt.serviceTitle}
-                  </span>
+                  <span className="min-w-0 shrink truncate text-xs text-muted-foreground">{appt.serviceTitle}</span>
                 ) : null}
-                <Badge
-                  variant="outline"
-                  className="ml-auto shrink-0 text-[10px]"
-                >
+                <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
                   {appointmentStatusLabel(appt.status)}
                 </Badge>
               </button>
@@ -253,75 +206,89 @@ function WeekListView({ events, anchorDate, timeZone, onSelect }: WeekListViewPr
   );
 }
 
-export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, timeZone }: Props) {
-  const [view, setView] = useState<CalendarViewMode>(initialView);
-  const [anchorDate, setAnchorDate] = useState(initialAnchorDate);
-  const [specialistId, setSpecialistId] = useState<string | null>(null);
-  const [branchId, setBranchId] = useState<string | null>(null);
-  const [serviceId, setServiceId] = useState<string | null>(null);
-  const [data, setData] = useState<CalendarResponse | null>(null);
+// ---------------------------------------------------------------------------
+// ScheduleCalendarTab — главный компонент
+// ---------------------------------------------------------------------------
+
+/** Таб «Календарь записей» раздела «Расписание». */
+export function ScheduleCalendarTab({ deepLinkParams, onDeepLinkChange, isActive }: ScheduleTabProps) {
+  // Resolve state from deep-link params (URL-sync через шелл)
+  const [timeZone] = useState("Europe/Moscow"); // populated by SSR data if needed; default safe
+  const [view, setViewState] = useState<CalendarViewMode>(() => resolveView(deepLinkParams.view));
+  const [anchorDate, setAnchorDateState] = useState<string>(() =>
+    resolveAnchorDate(deepLinkParams.date, timeZone),
+  );
+  const [branchId, setBranchIdState] = useState<string | null>(deepLinkParams.location ?? null);
+  const [serviceId, setServiceIdState] = useState<string | null>(deepLinkParams.service ?? null);
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
+  const [data, setData] = useState<CalendarResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<CalendarMsg | null>(null);
-  const [pending, startTransition] = useTransition();
   const [showWorkingHours, setShowWorkingHours] = useState(true);
+  const [pending, startTransition] = useTransition();
+
+  // Sync state → deep-link
+  const setView = useCallback(
+    (v: CalendarViewMode) => {
+      setViewState(v);
+      onDeepLinkChange("view", v);
+    },
+    [onDeepLinkChange],
+  );
+
+  const setAnchorDate = useCallback(
+    (d: string) => {
+      setAnchorDateState(d);
+      onDeepLinkChange("date", d);
+    },
+    [onDeepLinkChange],
+  );
+
+  const setBranchId = useCallback(
+    (v: string | null) => {
+      setBranchIdState(v);
+      onDeepLinkChange("location", v);
+    },
+    [onDeepLinkChange],
+  );
+
+  const setServiceId = useCallback(
+    (v: string | null) => {
+      setServiceIdState(v);
+      onDeepLinkChange("service", v);
+    },
+    [onDeepLinkChange],
+  );
+
+  // Note: deepLinkParams changes from shell (popstate) are intentionally NOT reconciled here.
+  // This tab is the owner of view/date/location/service state and pushes changes via onDeepLinkChange.
+  // On first mount the state is correctly initialized from deepLinkParams (see useState initialisers above).
 
   const load = useCallback(() => {
     startTransition(async () => {
-      const qs = buildQuery({
-        view,
-        date: anchorDate,
-        specialistId,
-        branchId,
-        serviceId,
-      });
+      const qs = buildQuery({ view: view === "weeklist" ? "week" : view, date: anchorDate, branchId, serviceId });
       const res = await fetch(`${API_BASE}/calendar?${qs}`);
       const raw = await res.text();
-      if (!raw.trim()) {
-        setError(res.ok ? "load_failed" : `load_failed_${res.status}`);
-        return;
-      }
+      if (!raw.trim()) { setError(res.ok ? "load_failed" : `load_failed_${res.status}`); return; }
       let json: CalendarResponse;
-      try {
-        json = JSON.parse(raw) as CalendarResponse;
-      } catch {
-        setError("load_failed");
-        return;
-      }
-      if (!res.ok || !json.ok) {
-        setError(json.error ?? "load_failed");
-        return;
-      }
+      try { json = JSON.parse(raw) as CalendarResponse; } catch { setError("load_failed"); return; }
+      if (!res.ok || !json.ok) { setError(json.error ?? "load_failed"); return; }
       setData(json);
       setError(null);
       setShowWorkingHours(json.showWorkingHours !== false);
-      setSpecialistId((prev) =>
-        resolveCalendarCreateFieldValue(json.filters.specialists, null, prev) ??
-          json.filters.specialists[0]?.id ??
-          null,
-      );
-      setBranchId((prev) => resolveCalendarCreateFieldValue(json.filters.branches, null, prev));
-      setServiceId((prev) => resolveCalendarCreateFieldValue(json.filters.services, null, prev));
+      setBranchIdState((prev) => resolveCalendarCreateFieldValue(json.filters.branches, null, prev));
+      setServiceIdState((prev) => resolveCalendarCreateFieldValue(json.filters.services, null, prev));
     });
-  }, [anchorDate, branchId, serviceId, specialistId, view]);
+  }, [anchorDate, branchId, serviceId, view]);
+
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") load();
-    }, 30_000);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") load();
-    };
+    if (!isActive) return;
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") load(); }, 30_000);
+    const onVisibility = () => { if (document.visibilityState === "visible") load(); };
     document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [load]);
+    return () => { window.clearInterval(id); document.removeEventListener("visibilitychange", onVisibility); };
+  }, [load, isActive]);
 
   function shiftAnchor(deltaDays: number) {
     const unit =
@@ -337,51 +304,26 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
   const filters = data?.filters ?? { specialists: [], branches: [], rooms: [], services: [] };
 
   const activeFilters = useMemo(
-    () => ({
-      specialistId,
-      branchId,
-      roomId: null,
-      serviceId,
-    }),
-    [branchId, serviceId, specialistId],
+    () => ({ specialistId: null, branchId, roomId: null, serviceId }),
+    [branchId, serviceId],
   );
+
+  const currentTimeZone = data?.timeZone ?? timeZone;
+  const currentAnchor = data?.anchorDate ?? anchorDate;
+  const currentView = view; // we manage view ourselves in this tab
 
   const calendarEvents = useMemo(() => {
     if (!data) return [];
     const layouts = computeAppointmentLayouts(data.events, data.timeZone);
     return data.events.map((event) => {
       if (event.kind === "working" || event.kind === "break") {
-        return {
-          id: `${event.kind}:${event.id}`,
-          start: event.startAt,
-          end: event.endAt,
-          display: "background",
-          classNames: [eventClassName(event)],
-          editable: false,
-          extendedProps: { kind: event.kind },
-        };
+        return { id: `${event.kind}:${event.id}`, start: event.startAt, end: event.endAt, display: "background", classNames: [eventClassName(event)], editable: false, extendedProps: { kind: event.kind } };
       }
       if (event.kind === "block") {
-        return {
-          id: `block:${event.id}`,
-          start: event.startAt,
-          end: event.endAt,
-          title: eventTitle(event),
-          editable: false,
-          classNames: [eventClassName(event)],
-          extendedProps: { kind: event.kind, block: event },
-        };
+        return { id: `block:${event.id}`, start: event.startAt, end: event.endAt, title: eventTitle(event), editable: false, classNames: [eventClassName(event)], extendedProps: { kind: event.kind, block: event } };
       }
       if (event.kind === "freeSlot") {
-        return {
-          id: `free:${event.id}`,
-          start: event.startAt,
-          end: event.endAt,
-          title: eventTitle(event),
-          editable: false,
-          classNames: [eventClassName(event)],
-          extendedProps: { kind: event.kind },
-        };
+        return { id: `free:${event.id}`, start: event.startAt, end: event.endAt, title: eventTitle(event), editable: false, classNames: [eventClassName(event)], extendedProps: { kind: event.kind } };
       }
       return {
         id: event.id,
@@ -392,117 +334,88 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
         durationEditable: !isCancelledAppointmentStatus(event.status),
         startEditable: !isCancelledAppointmentStatus(event.status),
         classNames: [eventClassName(event)],
-        extendedProps: {
-          kind: event.kind,
-          appointment: event,
-          layout: layouts.get(event.id) ?? null,
-        },
+        extendedProps: { kind: event.kind, appointment: event, layout: layouts.get(event.id) ?? null },
       };
     });
   }, [data]);
 
-  const currentTimeZone = data?.timeZone ?? timeZone;
-  const currentAnchor = data?.anchorDate ?? anchorDate;
-  const currentView = data?.view ?? view;
+  const onToggleWorkingHours = useCallback(async () => {
+    const next = !showWorkingHours;
+    const ok = await patchAdminSetting("booking_calendar_show_working_hours", next);
+    if (!ok) return;
+    setShowWorkingHours(next);
+    await load();
+  }, [load, showWorkingHours]);
 
   const performReschedule = useCallback(
     async (appointment: CalendarAppointmentEvent, startAt: string, endAt: string): Promise<boolean> => {
-      const durationMinutes = Math.max(
-        1,
-        Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60_000),
-      );
+      const durationMinutes = Math.max(1, Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60_000));
       const res = await fetch(`${API_BASE}/appointments/${encodeURIComponent(appointment.id)}/manual-reschedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newStartAt: startAt, newEndAt: endAt, durationMinutes }),
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !json.ok) {
-        setMessage({ tone: "error", text: toUiError(json.error) });
-        if (json.error === "external_slot_taken") {
-          load();
-        }
-        return false;
-      }
-      setMessage({ tone: "info", text: "Перенесено" });
+      if (!res.ok || !json.ok) { load(); return false; }
       await load();
       return true;
     },
     [load],
   );
 
-  const onDrop = useCallback(
-    async (arg: any) => {
-      const appointment = arg.event.extendedProps?.appointment as CalendarAppointmentEvent | undefined;
-      if (!appointment) return arg.revert();
-      const nextStart = arg.event.start?.toISOString();
-      const nextEnd = arg.event.end?.toISOString();
-      if (!nextStart || !nextEnd) return arg.revert();
-      const ok = await performReschedule(appointment, nextStart, nextEnd);
-      if (!ok) arg.revert();
-    },
-    [performReschedule],
-  );
+  const onDrop = useCallback(async (arg: any) => {
+    const appointment = arg.event.extendedProps?.appointment as CalendarAppointmentEvent | undefined;
+    if (!appointment) return arg.revert();
+    const nextStart = arg.event.start?.toISOString();
+    const nextEnd = arg.event.end?.toISOString();
+    if (!nextStart || !nextEnd) return arg.revert();
+    const ok = await performReschedule(appointment, nextStart, nextEnd);
+    if (!ok) arg.revert();
+  }, [performReschedule]);
 
-  const onResize = useCallback(
-    async (arg: any) => {
-      const appointment = arg.event.extendedProps?.appointment as CalendarAppointmentEvent | undefined;
-      if (!appointment) return arg.revert();
-      const nextStart = arg.event.start?.toISOString();
-      const nextEnd = arg.event.end?.toISOString();
-      if (!nextStart || !nextEnd) return arg.revert();
-      const ok = await performReschedule(appointment, nextStart, nextEnd);
-      if (!ok) arg.revert();
-    },
-    [performReschedule],
-  );
-
-  const onToggleWorkingHours = useCallback(async () => {
-    const next = !showWorkingHours;
-    const ok = await patchAdminSetting("booking_calendar_show_working_hours", next);
-    if (!ok) {
-      setMessage({ tone: "error", text: "Не удалось сохранить настройку." });
-      return;
-    }
-    setShowWorkingHours(next);
-    setMessage({ tone: "info", text: next ? "Рабочее время включено." : "Рабочее время скрыто." });
-    await load();
-  }, [load, showWorkingHours]);
+  const onResize = useCallback(async (arg: any) => {
+    const appointment = arg.event.extendedProps?.appointment as CalendarAppointmentEvent | undefined;
+    if (!appointment) return arg.revert();
+    const nextStart = arg.event.start?.toISOString();
+    const nextEnd = arg.event.end?.toISOString();
+    if (!nextStart || !nextEnd) return arg.revert();
+    const ok = await performReschedule(appointment, nextStart, nextEnd);
+    if (!ok) arg.revert();
+  }, [performReschedule]);
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
       <div className="min-w-0 flex-1">
+        {/* Toolbar */}
         <div className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} mb-3 flex flex-wrap items-center gap-2`}>
-          <div className="flex gap-1">
+          {/* View switcher */}
+          <div className="flex gap-1" role="group" aria-label="Режим отображения">
             {(["day", "week", "weeklist", "month"] as const).map((v) => (
               <Button
                 key={v}
                 type="button"
                 size="sm"
-                variant={view === v ? "default" : "outline"}
+                variant={currentView === v ? "default" : "outline"}
                 onClick={() => setView(v)}
+                data-testid={`view-btn-${v}`}
               >
-                {v === "day"
-                  ? "День"
-                  : v === "week"
-                    ? "Неделя · сетка"
-                    : v === "weeklist"
-                      ? "Неделя · лента"
-                      : "Месяц"}
+                {v === "day" ? "День" : v === "week" ? "Неделя · сетка" : v === "weeklist" ? "Неделя · лента" : "Месяц"}
               </Button>
             ))}
           </div>
-          <Badge variant="outline">{periodLabel(currentView, currentAnchor, currentTimeZone)}</Badge>
+
+          {/* Period badge + nav */}
+          <Badge variant="outline" data-testid="period-label">
+            {periodLabel(currentView, currentAnchor, currentTimeZone)}
+          </Badge>
           <div className="flex gap-1">
-            <Button type="button" size="sm" variant="outline" onClick={() => shiftAnchor(-1)}>
-              ←
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => shiftAnchor(1)}>
-              →
-            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => shiftAnchor(-1)} aria-label="Предыдущий период">◀</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => shiftAnchor(1)} aria-label="Следующий период">▶</Button>
           </div>
+
+          {/* Location / Service filters */}
           <DoctorCalendarToolbarFilter
-            noneLabel="Филиал"
+            noneLabel="Локация"
             options={filters.branches}
             value={branchId}
             onChange={setBranchId}
@@ -513,32 +426,35 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
             value={serviceId}
             onChange={setServiceId}
           />
-          <Button
-            type="button"
-            size="sm"
-            variant={showWorkingHours ? "default" : "outline"}
-            onClick={onToggleWorkingHours}
-          >
-            Рабочее время
-          </Button>
+
+          {currentView !== "weeklist" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={showWorkingHours ? "default" : "outline"}
+              onClick={onToggleWorkingHours}
+            >
+              Рабочее время
+            </Button>
+          ) : null}
+
           <Button type="button" size="sm" variant="outline" disabled={pending} onClick={load}>
             Обновить
           </Button>
         </div>
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {message ? (
-          <p className={`text-sm ${message.tone === "error" ? "text-destructive" : "text-muted-foreground"}`}>
-            {message.text}
-          </p>
-        ) : null}
 
+        {/* Calendar body */}
         {currentView === "weeklist" ? (
           <WeekListView
             events={data?.events ?? []}
             anchorDate={currentAnchor}
             timeZone={currentTimeZone}
-            onSelect={setSelected}
+            onSelect={(appt) => {
+              setSelected(appt);
+              onDeepLinkChange("appt", appt.id);
+            }}
           />
         ) : (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -546,13 +462,7 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
               locale={ruLocale}
               key={`${currentView}:${currentAnchor}:${branchId ?? "all"}:${serviceId ?? "all"}`}
-              initialView={
-                currentView === "day"
-                  ? "timeGridDay"
-                  : currentView === "week"
-                    ? "timeGridWeek"
-                    : "dayGridMonth"
-              }
+              initialView={currentView === "day" ? "timeGridDay" : currentView === "week" ? "timeGridWeek" : "dayGridMonth"}
               initialDate={currentAnchor}
               timeZone={currentTimeZone}
               events={calendarEvents}
@@ -572,6 +482,7 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
                 const appointment = arg.event.extendedProps?.appointment as CalendarAppointmentEvent | undefined;
                 if (!appointment) return;
                 setSelected(appointment);
+                onDeepLinkChange("appt", appointment.id);
               }}
               eventDrop={onDrop}
               eventResize={onResize}
@@ -601,16 +512,21 @@ export function DoctorBookingCalendarClient({ initialAnchorDate, initialView, ti
         )}
       </div>
 
+      {/* Right panel: appt detail + create */}
       <aside className="w-full shrink-0 lg:w-80">
         <DoctorCalendarEventPanel
           apiBase={API_BASE}
           selected={selected}
-          timeZone={data?.timeZone ?? timeZone}
+          timeZone={currentTimeZone}
           filterMeta={filters}
           activeFilters={activeFilters}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            setSelected(null);
+            onDeepLinkChange("appt", null);
+          }}
           onChanged={() => {
             setSelected(null);
+            onDeepLinkChange("appt", null);
             load();
           }}
         />

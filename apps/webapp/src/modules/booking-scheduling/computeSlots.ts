@@ -8,6 +8,47 @@ export type WorkingHoursRow = {
   endMinute: number;
 };
 
+/** Per-date override row from be_working_days. When provided, takes priority over weekday schedule. */
+export type WorkingDayRow = {
+  workDate: string; // YYYY-MM-DD
+  startMinute: number | null;
+  endMinute: number | null;
+  breakStartMinute: number | null;
+  breakEndMinute: number | null;
+  isClosed: boolean;
+};
+
+/**
+ * Split a working day into one or two intervals around an optional break.
+ * Returns [dayStart, breakStart] + [breakEnd, dayEnd] if break is set, otherwise [dayStart, dayEnd].
+ */
+export function splitByBreak(
+  row: WorkingDayRow,
+  dateKey: string,
+  timeZone: string,
+  bufferMinutes: number,
+): TimeInterval[] {
+  if (row.isClosed || row.startMinute == null || row.endMinute == null) return [];
+  const startIso = wallClockToUtcIso(dateKey, Math.floor(row.startMinute / 60), row.startMinute % 60, timeZone);
+  const endIso = wallClockToUtcIso(dateKey, Math.floor(row.endMinute / 60), row.endMinute % 60, timeZone);
+  const dayStartMs = new Date(startIso).getTime() + bufferMinutes * 60_000;
+  const dayEndMs = new Date(endIso).getTime() - bufferMinutes * 60_000;
+  if (dayEndMs <= dayStartMs) return [];
+
+  if (row.breakStartMinute != null && row.breakEndMinute != null) {
+    const bsIso = wallClockToUtcIso(dateKey, Math.floor(row.breakStartMinute / 60), row.breakStartMinute % 60, timeZone);
+    const beIso = wallClockToUtcIso(dateKey, Math.floor(row.breakEndMinute / 60), row.breakEndMinute % 60, timeZone);
+    const bsMs = new Date(bsIso).getTime();
+    const beMs = new Date(beIso).getTime();
+    const result: TimeInterval[] = [];
+    if (bsMs > dayStartMs) result.push({ startMs: dayStartMs, endMs: Math.min(bsMs, dayEndMs) });
+    if (beMs < dayEndMs) result.push({ startMs: Math.max(beMs, dayStartMs), endMs: dayEndMs });
+    return result.filter((iv) => iv.endMs > iv.startMs);
+  }
+
+  return [{ startMs: dayStartMs, endMs: dayEndMs }];
+}
+
 export type BusyInterval = { startAt: string; endAt: string };
 
 const DEFAULT_WORKING: WorkingHoursRow[] = [
@@ -72,12 +113,26 @@ export function wallClockToUtcIso(dateKey: string, hour: number, minute: number,
   return guess.toISOString();
 }
 
+/**
+ * Compute working intervals for a given calendar date.
+ *
+ * When `perDayRow` is provided it takes full priority over weekday schedule:
+ *   - `isClosed` → empty
+ *   - `startMinute` null → empty
+ *   - otherwise → `splitByBreak` (1–2 windows)
+ *
+ * Without `perDayRow` the existing weekday-based behaviour is used (backward-compatible).
+ */
 export function workingIntervalsForDate(
   dateKey: string,
   timeZone: string,
   working: WorkingHoursRow[],
   bufferMinutes: number,
+  perDayRow?: WorkingDayRow,
 ): TimeInterval[] {
+  if (perDayRow !== undefined) {
+    return splitByBreak(perDayRow, dateKey, timeZone, bufferMinutes);
+  }
   const wd = localWeekday(dateKey, timeZone);
   const rows = working.filter((w) => w.weekday === wd);
   const out: TimeInterval[] = [];

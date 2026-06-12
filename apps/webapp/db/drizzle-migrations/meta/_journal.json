@@ -806,6 +806,13 @@
       "when": 1785700000000,
       "tag": "0114_client_media_folders_fixup",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1785800000000,
+      "tag": "0115_be_working_days_and_schedule_templates",
+      "breakpoints": true
     }
   ]
 }

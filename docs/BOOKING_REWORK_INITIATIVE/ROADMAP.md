@@ -278,6 +278,12 @@ UI:
 
 ### 7.5. Расписание
 
+> **Реализовано:** per-date слой расписания (таблицы `be_working_days` / `be_schedule_templates`,
+> интеграция со слот-движком, UI в `/app/doctor/schedule?tab=work`) реализован в
+> [`DOCTOR_SCHEDULE_SECTION_INITIATIVE`](../DOCTOR_SCHEDULE_SECTION_INITIATIVE/README.md)
+> по согласованию с этим разделом. Текущее weekday-поведение (`be_working_hours`) сохранено
+> backward-compatible.
+
 Расписание должно быть экраном управления рабочим временем, а не списком технических строк.
 
 Основной сценарий:

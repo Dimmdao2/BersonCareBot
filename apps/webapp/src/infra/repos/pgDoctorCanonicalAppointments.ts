@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, count, countDistinct, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   beAppointmentCancellations,
@@ -26,6 +26,7 @@ import type {
   DoctorAppointmentsListFilter,
   DoctorAppointmentsPort,
   DoctorDashboardAppointmentMetrics,
+  ScheduleKpis,
 } from "@/modules/doctor-appointments/ports";
 
 const CANCELLED_STATUSES = [
@@ -409,6 +410,86 @@ export function createPgDoctorCanonicalAppointmentsPort(
         futureActiveCount: futureR[0]?.c ?? 0,
         recordsInCalendarMonthTotal: monthR[0]?.c ?? 0,
         cancellationsInCalendarMonth: cancelR[0]?.c ?? 0,
+      };
+    },
+
+    async getScheduleKpis(
+      filter: DoctorAppointmentStatsFilter,
+      audience?: { excludedUserIds?: string[] },
+    ): Promise<ScheduleKpis> {
+      const db = getDrizzle();
+      const organizationId = await getDefaultOrganizationId();
+      const iana = await getAppDisplayTimeZone();
+      const { from, toExclusive } = resolveAppointmentStatsBounds(filter, iana);
+      const excluded = audience?.excludedUserIds ?? [];
+      const userAudience = appointmentUserAudienceCond(excluded);
+
+      const rangeCond = and(
+        eq(beAppointments.organizationId, organizationId),
+        gte(beAppointments.startAt, from),
+        lt(beAppointments.startAt, toExclusive),
+        notInArray(beAppointments.status, [...CANCELLED_STATUSES]),
+        userAudience,
+        BE_APPOINTMENTS_NOT_PURGED,
+      );
+
+      const [recordsRow, uniqueRow, cancellationRow, rescheduleRow] = await Promise.all([
+        // Total non-cancelled records in period
+        db.select({ c: count() }).from(beAppointments).where(rangeCond),
+        // Unique patients in period
+        db.select({ c: countDistinct(beAppointments.platformUserId) }).from(beAppointments).where(rangeCond),
+        // Cancellation actions in period
+        db
+          .select({ c: count() })
+          .from(beAppointmentCancellations)
+          .innerJoin(beAppointments, eq(beAppointments.id, beAppointmentCancellations.appointmentId))
+          .where(
+            and(
+              eq(beAppointmentCancellations.organizationId, organizationId),
+              gte(beAppointmentCancellations.createdAt, from),
+              lt(beAppointmentCancellations.createdAt, toExclusive),
+              userAudience,
+            ),
+          ),
+        // Reschedule actions in period
+        db
+          .select({ c: count() })
+          .from(beAppointmentReschedules)
+          .innerJoin(beAppointments, eq(beAppointments.id, beAppointmentReschedules.appointmentId))
+          .where(
+            and(
+              eq(beAppointmentReschedules.organizationId, organizationId),
+              gte(beAppointmentReschedules.createdAt, from),
+              lt(beAppointmentReschedules.createdAt, toExclusive),
+              userAudience,
+            ),
+          ),
+      ]);
+
+      // New patients: in period, no earlier appointment for same platformUserId in same org
+      const newPatientsRow = await db
+        .select({ c: countDistinct(beAppointments.platformUserId) })
+        .from(beAppointments)
+        .where(
+          and(
+            rangeCond,
+            isNotNull(beAppointments.platformUserId),
+            sql`NOT EXISTS (
+              SELECT 1 FROM be_appointments earlier
+              WHERE earlier.organization_id = ${organizationId}
+                AND earlier.platform_user_id = ${beAppointments.platformUserId}
+                AND earlier.start_at < ${from}
+                AND earlier.status NOT IN (${sql.join(CANCELLED_STATUSES.map((s) => sql`${s}`), sql`, `)})
+            )`,
+          ),
+        );
+
+      return {
+        recordsInPeriod: recordsRow[0]?.c ?? 0,
+        uniquePatientsInPeriod: uniqueRow[0]?.c ?? 0,
+        newPatientsInPeriod: newPatientsRow[0]?.c ?? 0,
+        cancellationsInPeriod: cancellationRow[0]?.c ?? 0,
+        reschedulesInPeriod: rescheduleRow[0]?.c ?? 0,
       };
     },
   };

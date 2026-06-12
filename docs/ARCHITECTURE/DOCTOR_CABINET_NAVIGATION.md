@@ -44,32 +44,46 @@
 | Параметры приложения | `/app/doctor/admin/app-settings` | |
 | Авторизация | `/app/doctor/admin/auth` | |
 | Интеграции | `/app/doctor/admin/integrations` | |
-| Настройки записи | `/app/doctor/admin/booking` | **4 вкладки** (`bookingAdminTabs.ts`): «Обзор и настройка» (локации, услуги, доступность, правила абонементов), «Форма и публичная запись», «Оплата», «Интеграция Rubitime»; API `/api/admin/booking-engine/*`; расписание — у врача (`/appointments?tab=schedule`) |
+| Настройки записи | `/app/doctor/admin/booking` | **308** → `/app/doctor/schedule?tab=setup` (ребилд раскладки в `ScheduleSetupTab` как 6-секционный под-экран) |
+| **Расписание** | `/app/doctor/schedule` | Агрегатный шелл с 3 табами: **Календарь записей** (`?tab=cal`), **График работы** (`?tab=work`), **Настройки записи** (`?tab=setup`); per-date модель (см. `schedule.md`); 308: `/calendar`→`?tab=cal`, `/appointments`→`?tab=cal`, `/admin/booking`→`?tab=setup` |
 | Запись → Интеграции (Rubitime catalog v2) | `/app/doctor/admin/booking/integrations` | **`RubitimeSection`** — справочник `booking_*` через `/api/admin/booking-catalog/*` (город → филиал → услуга → специалист → branch-service); inline PATCH услуг, форма «Создать услугу»; план [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md) |
 | Технические режимы | `/app/doctor/admin/technical` | |
 
 Редиректы `?adminTab=` → см. `ADMIN_TAB_REDIRECTS` в `apps/webapp/src/app/app/settings/adminSettingsData.ts`.
 
-## Агрегатные экраны (rewrite) — Расписание и Коммуникации
+## Агрегатные экраны — Расписание и Коммуникации
 
-С 2026-06 кабинет использует агрегатные URL с вкладками; `middleware/doctorRouteRedirects.ts`
-делает **internal-rewrite** на легаси-страницы, старые URL → **308** на агрегатный.
+С 2026-06 кабинет использует агрегатные URL с вкладками; оба экрана — настоящие страницы-шеллы
+(internal-rewrite убран). Старые прямые URL → **308** на агрегатный.
 
-| Агрегатный URL | Вкладки (`?tab=`) → страница |
-|----------------|------------------------------|
-| `/app/doctor/schedule` | `calendar` → `/app/doctor/calendar`; `setup` → `/app/doctor/admin/booking` |
-| `/app/doctor/communications` | `chats` → `messages`; `intake` → `online-intake[/:id]`; `comments` → `comments`; `broadcasts` → `broadcasts[/archive]` |
+### Расписание (`/app/doctor/schedule`) — 3 таба
 
-308-редиректы старых URL: `messages`, `online-intake[/:id]`, `comments`, `broadcasts[/archive]`,
-`appointments`, `calendar`, `admin/booking` → соответствующий `?tab=`.
+| `?tab=` | Вкладка | Старый URL (308) |
+|---------|---------|-----------------|
+| `cal` (default) | Календарь записей | `/app/doctor/calendar`, `/app/doctor/appointments` |
+| `work` | График работы | — |
+| `setup` | Настройки записи *(admin)* | `/app/doctor/admin/booking` |
 
-**Петля редиректов (важно):** в Next 16 (proxy-конвенция) внутренний `NextResponse.rewrite`
-**повторно** проходит через proxy (в отличие от старого `middleware.ts`). Защита от петли —
-заголовок-маркер `x-bc-doctor-rewrite`, прокидываемый в переписанный запрос; на повторном входе
-`doctorRouteRedirectResponse` сразу возвращает `null`. Тесты: `apps/webapp/src/middleware/doctorRouteRedirects.test.ts`.
+Шелл: `DoctorScheduleShell` + KPI-строка (6 метрик из `getScheduleKpis`) + keepMounted-табы.
+Per-date бэкенд: таблицы `be_working_days` / `be_schedule_templates`; слот-движок учитывает
+per-date override (`workingIntervalsForDate(…, perDayRow?)`).
+Loop-guard `x-bc-doctor-rewrite` сохранён в `doctorRouteRedirects.ts`.
+Документация: `apps/webapp/src/app/app/doctor/schedule/schedule.md`,
+`docs/DOCTOR_SCHEDULE_SECTION_INITIATIVE/`.
 
-Таб-бар коммуникаций: `apps/webapp/src/app/app/doctor/communications/` (`doctorCommunicationsTabs.ts`,
-`DoctorCommunicationsTabsNav.tsx`, `communications.md`).
+### Коммуникации (`/app/doctor/communications`) — 4 таба
+
+| `?tab=` | Вкладка | Старый URL (308) |
+|---------|---------|-----------------|
+| `chats` (default) | Чаты | `/app/doctor/messages` |
+| `intake` | Заявки | `/app/doctor/online-intake[/:id]` |
+| `comments` | Комментарии | `/app/doctor/comments` |
+| `broadcasts` | Рассылки | `/app/doctor/broadcasts[/archive]` |
+
+Таб-бар: `DoctorCommunicationsTabsNav.tsx` (`doctorCommunicationsTabs.ts`, `communications.md`).
+
+**Петля редиректов (важно):** защита от петли через заголовок `x-bc-doctor-rewrite` (актуально для
+любых будущих rewrite в proxy). Тесты: `apps/webapp/src/middleware/doctorRouteRedirects.test.ts`.
 
 ## Окна аналитики (doctor)
 

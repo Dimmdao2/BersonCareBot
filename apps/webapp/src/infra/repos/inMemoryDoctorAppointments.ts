@@ -5,6 +5,7 @@ import type {
   DoctorAppointmentsListFilter,
   DoctorAppointmentsPort,
   DoctorDashboardAppointmentMetrics,
+  ScheduleKpis,
 } from "@/modules/doctor-appointments/ports";
 
 export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
@@ -35,6 +36,21 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
       futureActiveCount: 0,
       recordsInCalendarMonthTotal: 0,
       cancellationsInCalendarMonth: 0,
+    };
+  },
+  async getScheduleKpis(
+    _filter: DoctorAppointmentStatsFilter,
+    _audience?: { excludedUserIds?: string[] },
+  ): Promise<ScheduleKpis> {
+    // -stub: no in-memory appointment dataset to compute KPIs from.
+    // The in-memory port exists only for unit tests and local dev; real KPIs come from
+    // pgDoctorCanonicalAppointments. This stub intentionally returns zeros — never 0-match-paritied.
+    return {
+      recordsInPeriod: 0,
+      uniquePatientsInPeriod: 0,
+      newPatientsInPeriod: 0,
+      cancellationsInPeriod: 0,
+      reschedulesInPeriod: 0,
     };
   },
 };

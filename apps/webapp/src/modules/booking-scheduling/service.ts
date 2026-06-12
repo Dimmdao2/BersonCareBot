@@ -1,4 +1,11 @@
-import type { BookingSchedulingPort, BookingSchedulingService } from "./ports";
+import type {
+  BookingSchedulingPort,
+  BookingSchedulingService,
+  UpsertWorkingDaysInput,
+  CloseWorkingDaysInput,
+  ClearWorkingDaysInput,
+  CreateScheduleTemplateInput,
+} from "./ports";
 import {
   busyFromRecords,
   generateSlotsFromFree,
@@ -9,6 +16,75 @@ import {
   subtractBusy,
   workingIntervalsForDate,
 } from "./computeSlots";
+
+// ── Validation helpers ───────────────────────────────────────────────────────
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_RANGE_DAYS = 92;
+
+function assertUuid(val: string | null | undefined, field: string): void {
+  if (val != null && !UUID_RE.test(val)) {
+    throw new Error(`invalid_uuid:${field}`);
+  }
+}
+
+function assertMinute(val: number | null | undefined, field: string): void {
+  if (val != null && (val < 0 || val > 1440 || !Number.isInteger(val))) {
+    throw new Error(`invalid_minute:${field}`);
+  }
+}
+
+function assertDate(val: string, field: string): void {
+  if (!DATE_RE.test(val)) throw new Error(`invalid_date:${field}`);
+}
+
+function assertDateRangeDays(dates: string[]): void {
+  if (dates.length === 0) return;
+  const sorted = [...dates].sort();
+  const from = new Date(sorted[0]!).getTime();
+  const to = new Date(sorted[sorted.length - 1]!).getTime();
+  const days = Math.round((to - from) / 86_400_000) + 1;
+  if (days > MAX_RANGE_DAYS) {
+    throw new Error(`date_range_exceeds_max:${MAX_RANGE_DAYS}`);
+  }
+}
+
+function validateUpsertInput(input: UpsertWorkingDaysInput): void {
+  assertUuid(input.organizationId, "organizationId");
+  assertUuid(input.specialistId, "specialistId");
+  assertUuid(input.branchId, "branchId");
+  assertUuid(input.roomId, "roomId");
+  if (!input.dates.length) throw new Error("dates_required");
+  for (const d of input.dates) assertDate(d, "date");
+  assertDateRangeDays(input.dates);
+  assertMinute(input.startMinute, "startMinute");
+  assertMinute(input.endMinute, "endMinute");
+  if (input.startMinute >= input.endMinute) throw new Error("invalid_working_hours_range");
+  if (input.breakStartMinute != null || input.breakEndMinute != null) {
+    assertMinute(input.breakStartMinute, "breakStartMinute");
+    assertMinute(input.breakEndMinute, "breakEndMinute");
+    if (input.breakStartMinute! < input.startMinute) throw new Error("break_before_start");
+    if (input.breakEndMinute! > input.endMinute) throw new Error("break_after_end");
+    if (input.breakStartMinute! >= input.breakEndMinute!) throw new Error("invalid_break_range");
+  }
+}
+
+function validateScheduleTemplateInput(input: CreateScheduleTemplateInput): void {
+  assertUuid(input.organizationId, "organizationId");
+  assertUuid(input.branchId, "branchId");
+  assertMinute(input.startMinute, "startMinute");
+  assertMinute(input.endMinute, "endMinute");
+  if (input.startMinute >= input.endMinute) throw new Error("invalid_template_range");
+  if (input.breakStartMinute != null || input.breakEndMinute != null) {
+    assertMinute(input.breakStartMinute, "breakStartMinute");
+    assertMinute(input.breakEndMinute, "breakEndMinute");
+    if (input.breakStartMinute! < input.startMinute) throw new Error("break_before_start");
+    if (input.breakEndMinute! > input.endMinute) throw new Error("break_after_end");
+    if (input.breakStartMinute! >= input.breakEndMinute!) throw new Error("invalid_break_range");
+  }
+  if (!input.name.trim()) throw new Error("template_name_required");
+}
 
 function addDays(dateKey: string, days: number): string {
   const [y, m, d] = dateKey.split("-").map(Number);
@@ -189,6 +265,72 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
     getMinNoticeHours(organizationId) {
       return port.getMinNoticeHours(organizationId);
     },
+
+    listWorkingDays(input) {
+      assertUuid(input.organizationId, "organizationId");
+      assertUuid(input.specialistId, "specialistId");
+      assertDate(input.dateFrom, "dateFrom");
+      assertDate(input.dateTo, "dateTo");
+      return port.listWorkingDays(input);
+    },
+
+    upsertWorkingDays(input) {
+      validateUpsertInput(input);
+      return port.upsertWorkingDays(input);
+    },
+
+    closeWorkingDays(input) {
+      assertUuid(input.organizationId, "organizationId");
+      assertUuid(input.specialistId, "specialistId");
+      if (!input.dates.length) throw new Error("dates_required");
+      for (const d of input.dates) assertDate(d, "date");
+      return port.closeWorkingDays(input);
+    },
+
+    clearWorkingDays(input) {
+      assertUuid(input.organizationId, "organizationId");
+      assertUuid(input.specialistId, "specialistId");
+      if (!input.dates.length) throw new Error("dates_required");
+      for (const d of input.dates) assertDate(d, "date");
+      return port.clearWorkingDays(input);
+    },
+
+    listScheduleTemplates(organizationId) {
+      assertUuid(organizationId, "organizationId");
+      return port.listScheduleTemplates(organizationId);
+    },
+
+    createScheduleTemplate(input) {
+      validateScheduleTemplateInput(input);
+      return port.createScheduleTemplate(input);
+    },
+
+    deleteScheduleTemplate(id, organizationId) {
+      return port.deleteScheduleTemplate(organizationId, id);
+    },
+
+    async applyScheduleTemplate({ organizationId, specialistId, templateId, dates }) {
+      assertUuid(organizationId, "organizationId");
+      assertUuid(specialistId, "specialistId");
+      assertUuid(templateId, "templateId");
+      if (!dates.length) throw new Error("dates_required");
+      for (const d of dates) assertDate(d, "date");
+      assertDateRangeDays(dates);
+      const templates = await port.listScheduleTemplates(organizationId);
+      const tmpl = templates.find((t) => t.id === templateId);
+      if (!tmpl) throw new Error("template_not_found");
+      return port.upsertWorkingDays({
+        organizationId,
+        specialistId: specialistId ?? null,
+        branchId: tmpl.branchId,
+        roomId: null,
+        dates,
+        startMinute: tmpl.startMinute,
+        endMinute: tmpl.endMinute,
+        breakStartMinute: tmpl.breakStartMinute ?? null,
+        breakEndMinute: tmpl.breakEndMinute ?? null,
+      });
+    },
   };
 }
 
@@ -216,6 +358,16 @@ async function computeSlotsInternal(
   const minSlotStartMs = Date.now() + minNoticeHours * 3_600_000;
   const rangeStart = `${context.dateFrom}T00:00:00.000Z`;
   const rangeEnd = `${context.dateTo}T23:59:59.999Z`;
+
+  // Load per-date overrides; absence → undefined → weekday fallback (backward-compatible)
+  const perDayRows = await port.listWorkingDays({
+    organizationId: context.organizationId,
+    specialistId: context.specialistId,
+    dateFrom: context.dateFrom,
+    dateTo: context.dateTo,
+  });
+  const perDayMap = new Map(perDayRows.map((r) => [r.workDate, r]));
+
   const busy = await port.listBusyIntervals({
     organizationId: context.organizationId,
     specialistId: context.specialistId,
@@ -230,7 +382,24 @@ async function computeSlotsInternal(
 
   let day = context.dateFrom;
   while (day <= context.dateTo) {
-    const workingIntervals = workingIntervalsForDate(day, context.branchTimezone, working, bufferMinutes);
+    const perDayRow = perDayMap.get(day);
+    // Per-date override is scoped to the location assigned that day (model: one branch per day).
+    // If the assigned branch differs from the queried branch, the specialist is committed elsewhere
+    // that day → no availability for this branch (mirrors branch-scoping of weekday be_working_hours).
+    const effectivePerDayRow =
+      perDayRow &&
+      perDayRow.branchId != null &&
+      context.branchId != null &&
+      perDayRow.branchId !== context.branchId
+        ? { ...perDayRow, isClosed: true }
+        : perDayRow;
+    const workingIntervals = workingIntervalsForDate(
+      day,
+      context.branchTimezone,
+      working,
+      bufferMinutes,
+      effectivePerDayRow,
+    );
     const free = subtractBusy(workingIntervals, busyMs);
     const daySlots = generateSlotsFromFree(free, totalDuration, context.durationMinutes);
     for (const slot of daySlots) {

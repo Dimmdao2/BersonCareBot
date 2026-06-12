@@ -1,6 +1,13 @@
 import type { AppointmentStatus } from "@/modules/booking-engine/types";
 
-export type CalendarViewMode = "day" | "week" | "month";
+/**
+ * Режимы отображения календаря.
+ * - "day"      — день (timeGridDay в FullCalendar)
+ * - "week"     — неделя·сетка (timeGridWeek в FullCalendar; сохранён для backward-compat с URL)
+ * - "weeklist" — неделя·лента (кастомный рендер, без часовой сетки)
+ * - "month"    — месяц (dayGridMonth в FullCalendar)
+ */
+export type CalendarViewMode = "day" | "week" | "weeklist" | "month";
 
 export type CalendarReadSource = "canonical" | "rubitime_legacy";
 

@@ -15,6 +15,7 @@ import type {
   DoctorAppointmentsListFilter,
   DoctorAppointmentsPort,
   DoctorDashboardAppointmentMetrics,
+  ScheduleKpis,
 } from "@/modules/doctor-appointments/ports";
 
 /** Заполнение строки `time` перенесено в createDoctorAppointmentsService (бизнес-таймзона из system_settings). */
@@ -349,6 +350,20 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         futureActiveCount: parseInt(futureR.rows[0]?.c ?? "0", 10),
         recordsInCalendarMonthTotal: parseInt(monthR.rows[0]?.c ?? "0", 10),
         cancellationsInCalendarMonth: parseInt(cancelR.rows[0]?.c ?? "0", 10),
+      };
+    },
+
+    // Legacy Rubitime port does not have per-patient analytics; returns zeros.
+    async getScheduleKpis(
+      _filter: DoctorAppointmentStatsFilter,
+      _audience?: { excludedUserIds?: string[] },
+    ): Promise<ScheduleKpis> {
+      return {
+        recordsInPeriod: 0,
+        uniquePatientsInPeriod: 0,
+        newPatientsInPeriod: 0,
+        cancellationsInPeriod: 0,
+        reschedulesInPeriod: 0,
       };
     },
   };

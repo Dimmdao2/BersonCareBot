@@ -7,16 +7,22 @@ function req(path: string, headers?: Record<string, string>) {
 }
 
 describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () => {
-  it("redirects /app/doctor/calendar to schedule?tab=calendar", () => {
+  // ── Schedule legacy → /schedule?tab=cal|setup ─────────────────────────────
+
+  it("redirects /app/doctor/calendar to schedule?tab=cal", () => {
     const res = doctorRouteRedirectResponse(req("/app/doctor/calendar"));
     expect(res?.status).toBe(308);
     expect(res?.headers.get("location")).toBe(
-      "http://localhost/app/doctor/schedule?tab=calendar",
+      "http://localhost/app/doctor/schedule?tab=cal",
     );
   });
 
-  it("does not redirect /app/doctor/appointments (list stays direct until schedule shell)", () => {
-    expect(doctorRouteRedirectResponse(req("/app/doctor/appointments"))).toBeNull();
+  it("redirects /app/doctor/appointments to schedule?tab=cal", () => {
+    const res = doctorRouteRedirectResponse(req("/app/doctor/appointments"));
+    expect(res?.status).toBe(308);
+    expect(res?.headers.get("location")).toBe(
+      "http://localhost/app/doctor/schedule?tab=cal",
+    );
   });
 
   it("redirects /app/doctor/admin/booking to schedule?tab=setup", () => {
@@ -26,6 +32,8 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
       "http://localhost/app/doctor/schedule?tab=setup",
     );
   });
+
+  // ── Communications legacy ─────────────────────────────────────────────────
 
   it("redirects /app/doctor/messages to communications?tab=chats", () => {
     const res = doctorRouteRedirectResponse(req("/app/doctor/messages"));
@@ -82,44 +90,24 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
   });
 });
 
-describe("doctorRouteRedirectResponse — internal rewrites (schedule only)", () => {
-  const isRewrite = (res: ReturnType<typeof doctorRouteRedirectResponse>) =>
-    res !== null && res.status !== 308 && res.headers.has("x-middleware-rewrite");
+describe("doctorRouteRedirectResponse — /app/doctor/schedule passes through (real page)", () => {
+  // /app/doctor/schedule — настоящая страница-шелл (e12); rewrite убран.
+  // 308-редиректы со старых URL сохранены выше; сам /schedule проходит насквозь.
 
-  it("rewrites /app/doctor/schedule (no tab) to /app/doctor/calendar", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/schedule"));
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/calendar");
+  it("passes through /app/doctor/schedule (no tab) — null, not rewrite", () => {
+    expect(doctorRouteRedirectResponse(req("/app/doctor/schedule"))).toBeNull();
   });
 
-  it("rewrites /app/doctor/schedule?tab=calendar to /app/doctor/calendar", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=calendar"));
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/calendar");
+  it("passes through /app/doctor/schedule?tab=cal — null", () => {
+    expect(doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=cal"))).toBeNull();
   });
 
-  it("rewrites /app/doctor/schedule?tab=setup to /app/doctor/admin/booking", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=setup"));
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/admin/booking");
+  it("passes through /app/doctor/schedule?tab=work — null", () => {
+    expect(doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=work"))).toBeNull();
   });
 
-  it("rewrites /app/doctor/schedule?tab=appointments to /app/doctor/appointments", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=appointments"));
-    expect(isRewrite(res)).toBe(true);
-    expect(res!.headers.get("x-middleware-rewrite")).toContain("/app/doctor/appointments");
-  });
-
-  it("rewrites rewritten URL does NOT have search params (no tab= leaks to legacy page)", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=calendar"));
-    const rewriteTarget = res!.headers.get("x-middleware-rewrite") ?? "";
-    expect(rewriteTarget).not.toContain("tab=");
-  });
-
-  it("rewrite carries re-entry marker header on the rewritten request", () => {
-    const res = doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=calendar"));
-    // Маркер прокидывается в заголовки переписанного запроса (request override).
-    expect(res!.headers.get("x-middleware-override-headers")).toContain("x-bc-doctor-rewrite");
+  it("passes through /app/doctor/schedule?tab=setup — null", () => {
+    expect(doctorRouteRedirectResponse(req("/app/doctor/schedule?tab=setup"))).toBeNull();
   });
 });
 
@@ -167,9 +155,9 @@ describe("doctorRouteRedirectResponse — communications passes through (no rewr
 });
 
 describe("doctorRouteRedirectResponse — re-entry guard (loop prevention)", () => {
-  // В Next 16 (proxy) внутренний rewrite повторно проходит через proxy.
-  // На повторном входе запрос несёт маркер → вся логика пропускается, петли нет.
-  it("returns null for rewrite target /app/doctor/calendar when marker present", () => {
+  // Маркер прокидывается proxy.ts при внутреннем rewrite.
+  // На повторном входе вся логика пропускается — петли нет.
+  it("returns null for /app/doctor/calendar when marker present", () => {
     const res = doctorRouteRedirectResponse(
       req("/app/doctor/calendar", { "x-bc-doctor-rewrite": "1" }),
     );

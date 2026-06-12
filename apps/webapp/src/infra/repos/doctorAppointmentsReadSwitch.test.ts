@@ -22,6 +22,13 @@ function mockPort(tag: string): DoctorAppointmentsPort {
       recordsInCalendarMonthTotal: 1,
       cancellationsInCalendarMonth: 0,
     })),
+    getScheduleKpis: vi.fn(async () => ({
+      recordsInPeriod: 0,
+      uniquePatientsInPeriod: 0,
+      newPatientsInPeriod: 0,
+      cancellationsInPeriod: 0,
+      reschedulesInPeriod: 0,
+    })),
   };
 }
 

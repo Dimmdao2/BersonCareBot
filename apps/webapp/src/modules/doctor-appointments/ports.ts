@@ -80,6 +80,20 @@ export type DoctorDashboardAppointmentMetrics = {
 
 export type DoctorAppointmentsAudience = { excludedUserIds?: string[] };
 
+/** KPI метрики для страницы «Расписание» врача (6 плиток в KPI-строке). */
+export type ScheduleKpis = {
+  /** Неотменённые записи в периоде по start_at. */
+  recordsInPeriod: number;
+  /** COUNT(DISTINCT platformUserId) по записям в периоде. */
+  uniquePatientsInPeriod: number;
+  /** Пациенты в периоде, у которых нет более ранней записи (NOT EXISTS). */
+  newPatientsInPeriod: number;
+  /** Действия «отмена» в периоде (be_appointment_cancellations). */
+  cancellationsInPeriod: number;
+  /** Действия «перенос» в периоде (be_appointment_reschedules). */
+  reschedulesInPeriod: number;
+};
+
 export type DoctorAppointmentsPort = {
   listAppointmentsForSpecialist(
     filter: DoctorAppointmentsListFilter,
@@ -91,4 +105,9 @@ export type DoctorAppointmentsPort = {
   ): Promise<AppointmentStats>;
   /** Агрегаты для плиток дашборда; без React. */
   getDashboardAppointmentMetrics(audience?: { excludedUserIds?: string[] }): Promise<DoctorDashboardAppointmentMetrics>;
+  /** KPI строка раздела «Расписание»: записи / уникальные / новые / отмены / переносы. */
+  getScheduleKpis(
+    filter: DoctorAppointmentStatsFilter,
+    audience?: DoctorAppointmentsAudience,
+  ): Promise<ScheduleKpis>;
 };

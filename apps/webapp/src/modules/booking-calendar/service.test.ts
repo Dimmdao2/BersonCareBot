@@ -79,6 +79,14 @@ describe("booking-calendar service", () => {
     deactivateWorkingHours: vi.fn(),
     upsertBufferMinutes: vi.fn(),
     getMinNoticeHours: vi.fn(async () => 0),
+    // per-date stubs
+    listWorkingDays: vi.fn(async () => []),
+    upsertWorkingDays: vi.fn(async () => []),
+    closeWorkingDays: vi.fn(async () => []),
+    clearWorkingDays: vi.fn(async () => undefined),
+    listScheduleTemplates: vi.fn(async () => []),
+    createScheduleTemplate: vi.fn(),
+    deleteScheduleTemplate: vi.fn(),
   };
 
   const service = createBookingCalendarService({
