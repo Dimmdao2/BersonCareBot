@@ -1,5 +1,44 @@
 # COMMUNICATIONS_MD_V2 — Execution Log
 
+## Итог инициативы (2026-06-13)
+
+Инициатива **полностью завершена**. Все этапы выполнены в ветке `feat/doctor-ui-rebuild` (10 коммитов).
+
+### Что сделано
+
+- **A0** — порядок вкладок Чаты→Комментарии→Заявки→Рассылки; каркас независимого скролла (`flex-1 min-h-0` в шелле).
+- **A1** — Чаты: CatalogSplitLayout (чат шире списка 1fr:1.2fr), padding треда (px-3 + space-y-3 для doctor-variant), ellipsis превью, DoctorEmptyState.
+- **A2** — Заявки: мультитоггл статусов (без «Все», пустой выбор = все), CatalogSplitLayout, DoctorEmptyState.
+- **A4a** — 5-канальная модель (telegram/max/push/sms/email); реальные счётчики (`broadcastChannelCounts` через Drizzle); email-фанаут (`fanOutBroadcastEmail`, guarded); legacy `bot_message` → telegram+max (нормализация); `pgBroadcastEmailRecipients`; DI wiring.
+- **A4b** — порядок полей формы Аудитория→Категория→Каналы→Заголовок→Текст; `ReferenceSelect` вместо нативного `<select>`; 4 категории-чипа (дефолт Организационное); 5 чекбоксов каналов (дефолт TG+MAX+Push); CatalogSplitLayout.
+- **B.1** — бэкенд-агрегация комментариев: `loadDoctorCommentPatients`, `loadDoctorPatientExercisesWithComments`, порт `listUnreadCountsForViewerByStageItems` (pg Drizzle + inMemory), API-роут `GET /api/doctor/comments/patients/[id]/exercises`.
+- **B.2** — UI drill-down комментариев: 3 состояния правого пейна (A-лента, B-упражнения, C-чат); навигация (пациент→B, упражнение→C, «Закрыть» C→B, «×» B→A); шапка с хлебной крошкой и ссылкой на дашборд пациента; реальные миниатюры упражнений через `ExerciseListCatalogThumb` (snapshot.media).
+- **B.3** — микро-график `ExerciseMicroChart` (reps/вес/тяжесть; div-bars без recharts; пустые состояния; зарезервирован `sets` для Фазы C); порт `listDoneForStageItemInWindow`; сервис `listExerciseMetricsForWeek`; API-роут `GET /api/doctor/comments/exercise-metrics`.
+- **B.4** — single-open аккордеон журнала рассылок (`useState openId`); сводка Аудитория·Каналы в свёрнутой строке; полный текст без усечения; кнопка «Открыть ошибки →».
+- **Доп.** — мобильный `mobileBackSlot` во всех 4 split-табах (Чаты, Заявки, Комментарии — 3 уровня drill-down, Рассылки — переключатель Форма↔Журнал).
+
+### Сквозной аудит
+
+| Проверка | Результат |
+|----------|-----------|
+| `npx tsc --noEmit` | **0 ошибок** |
+| `npx eslint` (все изменённые файлы) | **0** |
+| `npx vitest run` (все затронутые файлы, ~317+ тестов) | **GREEN** |
+| `webappPhase15F.verify.test.ts` | **5/5 GREEN** |
+
+Весь новый SQL — только через Drizzle `db.execute(sql\`...\`)`. `pool.query`/`client.query` не добавлялись.
+
+### Отложенные follow-ups
+
+- Новые сегменты аудитории §5.1 + «Выбрать вручную» (диалог) — нет исторических данных / пересечение с `doctor-appointments`.
+- B.4 вложенная разбивка «Доставка по каналам» + «Повторить N неудачным» + «Создать на основе» — нужен бэкенд retry + per-recipient история.
+- UI прошлых программ в комментариях — вторично, данные готовы (`includePastPrograms=true`).
+- Точный per-message unread-счётчик в левом пейне — приближение через stageItem-счёт достаточно для бейджа.
+- **Live-проверка email-рассылки** — путь реализован guarded, нужна SMTP-конфигурация dev + ручной прогон.
+- Дефолт фильтра заявок — уточнить у продукта (было «только новые», стало «все»).
+
+---
+
 ## Доработка — мобильный back-slot в split-табах
 
 **Дата:** 2026-06-13
