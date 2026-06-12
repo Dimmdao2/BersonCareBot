@@ -493,8 +493,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .where(and(activeRangeCond, gt(beAppointments.rescheduleCount, 0))),
       ]);
 
-      // firstVisitInPeriod: non-cancelled records in window where patient has NO earlier
-      // non-cancelled appointment in same org (NOT EXISTS earlier)
+      // firstVisitInPeriod: non-cancelled records in window that are the patient's first-ever
+      // non-cancelled appointment — i.e. NO earlier non-cancelled appointment than THIS one.
+      // Strict total order by (start_at, id) so each patient contributes at most one "first",
+      // even when the same new patient has several appointments inside the window.
       const firstVisitRow = await db
         .select({ c: count() })
         .from(beAppointments)
@@ -506,7 +508,10 @@ export function createPgDoctorCanonicalAppointmentsPort(
               SELECT 1 FROM be_appointments earlier
               WHERE earlier.organization_id = ${organizationId}
                 AND earlier.platform_user_id = ${beAppointments.platformUserId}
-                AND earlier.start_at < ${from}
+                AND (
+                  earlier.start_at < ${beAppointments.startAt}
+                  OR (earlier.start_at = ${beAppointments.startAt} AND earlier.id < ${beAppointments.id})
+                )
                 AND earlier.status NOT IN (${sql.join(CANCELLED_STATUSES.map((s) => sql`${s}`), sql`, `)})
             )`,
           ),
