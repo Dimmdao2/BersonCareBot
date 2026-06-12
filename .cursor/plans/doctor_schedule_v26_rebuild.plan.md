@@ -16,7 +16,7 @@ overview: >
   в секции «Локации»). Каноны: clean-arch (БД только через порты, никакого raw SQL — Drizzle+Zod), логи
   pino @/infra/logging/logger, коммиты по блокам, пуши 3 блоками после полного CI.
 isProject: false
-status: pending
+status: completed
 todos:
   - id: e0-baseline
     content: "Этап 0 — прочитать .cursor/rules/*.mdc (clean-arch, plan-standard, webapp-tests, pre-push-ci, ui-copy, host-psql) + DOCTOR_APP_UI_STYLE_GUIDE.md + TZ_ZAPISI_V26.md; зафиксировать зелёный baseline (и пред-существующие красные broadcasts из 1d9f936c — НЕ наши). Проверки: rg правил, baseline-прогон затронутых тестов"
@@ -89,19 +89,19 @@ todos:
     status: completed
   - id: f1-shell-cleanup
     content: "F1 — DoctorScheduleShell: убрать KpiRow/loadKpis/period/?period/initialKpis|Period; SSR initialData (KPI+фид «3 дня») в таб; метрики ТОЛЬКО в «Записи» (исчезают над work/setup). Проверки: RTL шелл без KPI, метрики только на cal"
-    status: pending
+    status: completed
   - id: f2-nav-link
     content: "F2 — doctorNavLinks.ts: пункт schedule аккордеон→одна ссылка href=routePaths.doctorSchedule (убрать items; admin-гейтинг setup — в шелле); обновить doctorNavLinks.test.ts; smoke активного пункта на ?tab=work. Проверки: vitest doctorNavLinks"
-    status: pending
+    status: completed
   - id: f3-labels-redirects
     content: "F3 — ярлыки табов cal→«Записи», setup→«Настройки» (doctorScheduleTabs.ts); редиректы /calendar,/appointments→?tab=cal, /admin/booking→?tab=setup сохранить, ?period убрать; обновить тесты. Проверки: vitest doctorRouteRedirects + doctorScheduleTabs"
-    status: pending
+    status: completed
   - id: f4-fidelity-pass
     content: "F4 — fidelity-проход (§7): сверить cal/work/setup-chrome против #p-schedule, закрыть мелкие расхождения (заголовки, отступы, типографика плашек, цвета статусов, пустые состояния); список найденного и закрытого — в LOG.md. Проверки: визуальная сверка (dev-login 127.0.0.1:5200) + RTL ключевых стыков"
-    status: pending
+    status: completed
   - id: f5-docs
     content: "F5 — обновить schedule.md (период-модель, 9 KPI, виды, drill-down, окно, две колонки work, N перерывов breaks, short_title, пункт меню) + initiative LOG.md; финальный pnpm run ci перед пушем. Проверки: rg ссылок, финальный CI"
-    status: pending
+    status: completed
 ---
 
 # План: Расписание врача — приведение к референсу v26_1

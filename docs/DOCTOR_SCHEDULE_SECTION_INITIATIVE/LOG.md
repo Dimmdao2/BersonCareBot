@@ -1035,3 +1035,114 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 - Accordion-раскрытие ячейки по клику (backlog; не в ТЗ E).
 - `view=weeklist` не задействован (Wave3 legacy; в schedule work-tab не используется).
 - Отдельный `branchId` фильтр на роут-тесты `working-days/route.test.ts` — минимальный изменённый контракт (Zod nullable optional), покрыт RTL E3 test.
+
+---
+
+## Этап F — Чистка шелла, меню, маршруты, fidelity, docs (2026-06-13)
+
+### F1 — KPI и период вынесены из шелла
+
+- `DoctorScheduleShell.tsx`:
+  - Удалены: `KpiRow` компонент, `loadKpis` callback, состояния `kpis`/`period`/`periodRef`,
+    `PERIOD_LABELS`, import `ScheduleKpis`, import `AdminStatsTimePreset`.
+  - Удалены пропсы `initialKpis?: ScheduleKpis | null` и `initialPeriod?: AdminStatsTimePreset`.
+  - Удалён `?period=` из URL-builder (`buildTabUrl`) и `popstate`-restorer.
+  - Остался единственный проп: `initialTab?: ScheduleTabId`.
+  - JSDoc обновлён: явно указано что KPI живут только в «Записях» (§3.1 ТЗ).
+- `page.tsx`:
+  - Убрана загрузка KPI (`loadDoctorScheduleKpis`, `loadDoctorAnalyticsAudience`, `buildAppDeps`).
+  - Убран `initialPeriod` / `resolveSchedulePeriodPreset`.
+  - Страница теперь только: `requireDoctorAccess` → `scheduleTabFromQuery` → `DoctorScheduleShell`.
+- `loadDoctorScheduleKpis.ts` и `loadDoctorScheduleKpis.test.ts` — **удалены** (rg показал
+  единственное использование — внутри самого теста).
+
+**Итог:** KPI теперь только в `ScheduleCalendarTab` (9 карточек, D2); нет дублирования над
+«Графиком работы» и «Настройками».
+
+### F2 — Меню «Расписание»: аккордеон → одна ссылка
+
+- `doctorNavLinks.ts`: пункт `id:"schedule"` — убраны `items` (3 под-пункта), добавлено
+  `href: routePaths.doctorSchedule`. Admin-гейтинг таба «Настройки» обеспечивается в шелле/странице,
+  не в меню навигации.
+- `isDoctorMenuClusterId("schedule")` теперь возвращает `false`.
+- `DOCTOR_MENU_LINKS` содержит `schedule` как плоскую ссылку (не раскрывается в под-пункты).
+
+### F3 — Ярлыки табов
+
+- `doctorScheduleTabs.ts`:
+  - `cal` label: «Календарь записей» → **«Записи»** (§5.7 ТЗ).
+  - `setup` label: «Настройки записи» → **«Настройки»** (§5.7 ТЗ).
+- Редиректы `/calendar`, `/appointments` → `?tab=cal`; `/admin/booking` → `?tab=setup` —
+  **сохранены без изменений**, `?period` в них никогда не был.
+
+### F4 — Fidelity-проход (§7)
+
+Проведён code-level осмотр всех трёх табов + шелла против референса `#p-schedule`.
+
+**Найденные и закрытые расхождения:**
+
+| # | Артефакт | Было | Стало |
+|---|---------|------|-------|
+| 1 | Tab nav — ярлык «Записи» | «Календарь записей» | «Записи» |
+| 2 | Tab nav — ярлык «Настройки» | «Настройки записи» | «Настройки» |
+| 3 | Shell — KPI-ряд | Отображался на всех 3 табах | Удалён из шелла (только в табе «Записи») |
+| 4 | Shell — `?period=` в URL | Писался при смене периода | Удалён (период управляется только табом) |
+| 5 | Nav — «Расписание» в меню | Аккордеон (3 под-пункта) | Одна ссылка (нет accordion) |
+
+**Не нашедшие расхождения (всё уже корректно из D/E):**
+- `ScheduleCalendarTab`: тулбар sticky, backdrop-blur, view switcher, KPI 9 карточек с `cursor-pointer`,
+  `doctorStatCardShellClass`/`doctorStatCardInteractiveClass`, FullCalendar wrapper `rounded-xl`.
+- `RightPanelEmptyStub`: «Запись не выбрана» + CTA + `NearestWindowLine` — корректно.
+- `ScheduleWorkTab`: две колонки lg, sticky bar, карточки `text-[11px] font-semibold`,
+  `DoctorEmptyState` при незаполненных, шаблоны снизу.
+- `ScheduleSetupTab`: 6 sub-nav кнопок, корректная под-навигация.
+- Ни в одном табе нет запрещённых классов (`rounded-2xl`, `shadow-sm`, `@/components/ui`,
+  `@/shared/ui/patient`).
+
+### F5 — Docs
+
+- `apps/webapp/src/app/app/doctor/schedule/schedule.md` — полностью переписан:
+  период-модель 3д/Неделя/Месяц/Лента, 9 KPI только в табе «Записи», drill-down День,
+  ближайшее окно, две колонки work, N перерывов breaks, short_title, пункт меню — ссылка,
+  маршруты, реестр табов.
+- `docs/DOCTOR_SCHEDULE_SECTION_INITIATIVE/LOG.md` — дописан «Этап F» (этот раздел).
+- `.cursor/plans/doctor_schedule_v26_rebuild.plan.md` — f1–f5 → completed;
+  frontmatter `status: completed`.
+
+### Проверки
+
+| Артефакт | Результат |
+|----------|-----------|
+| `tsc --noEmit --skipLibCheck` | EXIT 0 (pre-existing BroadcastForm — не наши) |
+| `DoctorScheduleShell.test.tsx` | **11/11** зелёных |
+| `doctorNavLinks.test.ts` | **20/20** зелёных |
+| `doctorScheduleTabs.test.ts` | **14/14** зелёных |
+| `doctorRouteRedirects.test.ts` | **25/25** зелёных |
+| Pre-existing failures `webappPhase15F` | не тронуты |
+| Чужие файлы (broadcasts/communications) | не затронуты |
+
+### Изменённые/удалённые файлы
+
+**Изменены:**
+- `apps/webapp/src/app/app/doctor/schedule/DoctorScheduleShell.tsx` — KPI/period removed
+- `apps/webapp/src/app/app/doctor/schedule/DoctorScheduleShell.test.tsx` — обновлены тесты
+- `apps/webapp/src/app/app/doctor/schedule/page.tsx` — упрощена (без KPI SSR-загрузки)
+- `apps/webapp/src/app/app/doctor/schedule/doctorScheduleTabs.ts` — cal/setup labels
+- `apps/webapp/src/app/app/doctor/schedule/doctorScheduleTabs.test.ts` — обновлены тесты
+- `apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts` — schedule: accordion → link
+- `apps/webapp/src/shared/ui/doctor/doctorNavLinks.test.ts` — обновлены тесты
+- `apps/webapp/src/app/app/doctor/schedule/schedule.md` — полная синхронизация с v26
+- `docs/DOCTOR_SCHEDULE_SECTION_INITIATIVE/LOG.md` — этот раздел
+- `.cursor/plans/doctor_schedule_v26_rebuild.plan.md` — f1–f5 completed, status: completed
+
+**Удалены:**
+- `apps/webapp/src/app/app/doctor/schedule/loadDoctorScheduleKpis.ts`
+- `apps/webapp/src/app/app/doctor/schedule/loadDoctorScheduleKpis.test.ts`
+
+### Сознательно НЕ делали
+
+- Клик по KPI-карточке для фильтрации (следующая итерация; разметка уже есть).
+- Удаление legacy-страниц `/calendar/page.tsx` и `/appointments/page.tsx` — сохранены как
+  Next.js fallback (308 поглощают прямые хиты).
+- Полное сворачивание `admin/booking/**` к 308 — вне scope F (было §Этап 13 исходного плана,
+  но явно не попало в v26_rebuild scope).
