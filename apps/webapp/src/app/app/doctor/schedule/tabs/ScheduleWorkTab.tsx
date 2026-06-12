@@ -37,7 +37,15 @@ const TPL_BASE = "/api/admin/booking-engine/working-schedule-templates";
 // Types
 // ---------------------------------------------------------------------------
 
-type Branch = { id: string; title: string; isActive: boolean };
+type Branch = {
+  id: string;
+  title: string;
+  /** Short display name (e.g. «СПб», «Мск»). Migration 0117. */
+  shortTitle: string | null;
+  isActive: boolean;
+};
+
+type BreakInterval = { startMinute: number; endMinute: number };
 
 type WorkingDayRecord = {
   id: string;
@@ -46,6 +54,7 @@ type WorkingDayRecord = {
   endMinute: number | null;
   breakStartMinute: number | null;
   breakEndMinute: number | null;
+  breaks: BreakInterval[];
   isClosed: boolean;
   branchId: string | null;
 };
@@ -57,10 +66,14 @@ type ScheduleTemplateRecord = {
   endMinute: number;
   breakStartMinute: number | null;
   breakEndMinute: number | null;
+  breaks: BreakInterval[];
   branchId: string | null;
   sortOrder: number;
   isActive: boolean;
 };
+
+/** A single break row state in the hours panel or template form. */
+type BreakRow = { from: string; to: string };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -78,6 +91,10 @@ function monthEnd(year: number, month: number): string {
 
 /** Parse "YYYY-MM" from deepLink or produce current month. */
 function parseMonth(raw: string | undefined): { year: number; month: number } {
+  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, m] = raw.split("-").map(Number);
+    if (y && m && m >= 1 && m <= 12) return { year: y, month: m };
+  }
   if (raw && /^\d{4}-\d{2}$/.test(raw)) {
     const [y, m] = raw.split("-").map(Number);
     if (y && m && m >= 1 && m <= 12) return { year: y, month: m };
@@ -101,14 +118,12 @@ const RU_MONTHS = [
 function buildMonthGrid(year: number, month: number): Array<string | null> {
   const first = DateTime.fromObject({ year, month, day: 1 });
   const daysInMonth = first.daysInMonth ?? 30;
-  // ISO weekday 1=Mon…7=Sun; padding at start
   const startPad = ((first.weekday - 1 + 7) % 7);
   const cells: Array<string | null> = [];
   for (let i = 0; i < startPad; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) {
     cells.push(DateTime.fromObject({ year, month, day: d }).toISODate() ?? null);
   }
-  // Pad tail to complete last row
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
 }
@@ -120,55 +135,155 @@ function formatHourRange(start: number | null, end: number | null): string {
   return `${sh}–${eh}`;
 }
 
+/** Resolve effective breaks from a record (N-break model with fallback to legacy scalars). */
+function resolveBreaks(record: WorkingDayRecord): BreakInterval[] {
+  if (record.breaks && record.breaks.length > 0) return record.breaks;
+  if (record.breakStartMinute != null && record.breakEndMinute != null) {
+    return [{ startMinute: record.breakStartMinute, endMinute: record.breakEndMinute }];
+  }
+  return [];
+}
+
+/** Format break summary for a day card: "обед HH–HH" (1 break) or "N перерывов" (multiple). */
+function formatBreakSummary(breaks: BreakInterval[]): string {
+  if (breaks.length === 0) return "";
+  if (breaks.length === 1) {
+    const b = breaks[0];
+    if (!b) return "";
+    return `обед ${Math.floor(b.startMinute / 60)}–${Math.floor(b.endMinute / 60)}`;
+  }
+  return `${breaks.length} перерыва`;
+}
+
+/** Convert BreakInterval[] to BreakRow[] for panel state. */
+function breaksToRows(breaks: BreakInterval[]): BreakRow[] {
+  return breaks.map((b) => ({
+    from: minuteToTimeLabel(b.startMinute),
+    to: minuteToTimeLabel(b.endMinute),
+  }));
+}
+
+/** Validate break rows against day start/end. Returns error string or null. */
+function validateBreakRows(
+  rows: BreakRow[],
+  dayStartMin: number,
+  dayEndMin: number,
+): string | null {
+  const parsed: BreakInterval[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row) continue;
+    let bStart: number;
+    let bEnd: number;
+    try {
+      bStart = timeLabelToMinute(row.from);
+      bEnd = timeLabelToMinute(row.to);
+    } catch {
+      return `Неверный формат перерыва ${i + 1}`;
+    }
+    if (bStart >= bEnd) return `Перерыв ${i + 1}: начало должно быть раньше конца`;
+    if (bStart < dayStartMin) return `Перерыв ${i + 1} начинается раньше начала рабочего дня`;
+    if (bEnd > dayEndMin) return `Перерыв ${i + 1} заканчивается после конца рабочего дня`;
+    // Check overlap with previous
+    for (const prev of parsed) {
+      if (bStart < prev.endMinute && bEnd > prev.startMinute) {
+        return `Перерывы ${i} и ${i + 1} пересекаются`;
+      }
+    }
+    parsed.push({ startMinute: bStart, endMinute: bEnd });
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
-// Month grid cell
+// Branch color palette
+// ---------------------------------------------------------------------------
+
+const BRANCH_COLORS = ["blue", "green", "violet", "orange"] as const;
+type BranchColor = typeof BRANCH_COLORS[number];
+
+function getBranchColor(branches: Branch[], branchId: string): BranchColor {
+  const idx = branches.findIndex((b) => b.id === branchId);
+  return BRANCH_COLORS[(idx >= 0 ? idx : 0) % BRANCH_COLORS.length] ?? "blue";
+}
+
+function branchColorActiveClass(color: BranchColor): string {
+  if (color === "blue") return "bg-blue-500 border-blue-500 text-white";
+  if (color === "green") return "bg-green-600 border-green-600 text-white";
+  if (color === "violet") return "bg-violet-600 border-violet-600 text-white";
+  return "bg-orange-500 border-orange-500 text-white";
+}
+
+function branchColorInactiveClass(color: BranchColor): string {
+  if (color === "blue") return "border-blue-500/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30";
+  if (color === "green") return "border-green-600/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30";
+  if (color === "violet") return "border-violet-500/50 text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30";
+  return "border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/30";
+}
+
+function branchCellClass(color: BranchColor): string {
+  if (color === "blue") return "bg-blue-500/10 border-blue-500/50";
+  if (color === "green") return "bg-green-600/10 border-green-600/50";
+  if (color === "violet") return "bg-violet-500/10 border-violet-500/50";
+  return "bg-orange-500/10 border-orange-500/50";
+}
+
+function branchDotClass(color: BranchColor): string {
+  if (color === "blue") return "text-blue-600";
+  if (color === "green") return "text-green-700";
+  if (color === "violet") return "text-violet-600";
+  return "text-orange-600";
+}
+
+// ---------------------------------------------------------------------------
+// Month grid cell (E2 — narrower, bigger time, shortTitle)
 // ---------------------------------------------------------------------------
 
 type DayCellProps = {
   dateKey: string | null;
   today: string;
   record: WorkingDayRecord | undefined;
-  branchColorMap: Map<string, string>;
+  branches: Branch[];
   isSelected: boolean;
   onToggle: (date: string, shift: boolean, meta: boolean) => void;
 };
 
-function DayCell({ dateKey, today, record, branchColorMap, isSelected, onToggle }: DayCellProps) {
+function DayCell({ dateKey, today, record, branches, isSelected, onToggle }: DayCellProps) {
   if (!dateKey) {
-    return <div className="min-h-[58px]" />;
+    return <div className="min-h-[52px]" />;
   }
 
   const isToday = dateKey === today;
   const isClosed = record?.isClosed === true;
   const hasSchedule = !isClosed && record?.startMinute != null;
-  const color = hasSchedule && record?.branchId ? branchColorMap.get(record.branchId) : undefined;
+  const color = hasSchedule && record?.branchId
+    ? getBranchColor(branches, record.branchId)
+    : undefined;
 
-  // Color classes for the cell background / border
-  let cellClass = "rounded-md border p-1.5 min-h-[58px] cursor-pointer select-none transition-colors ";
+  // Resolved breaks for display
+  const breaks = record ? resolveBreaks(record) : [];
+
+  let cellClass = "rounded-md border p-1 min-h-[52px] cursor-pointer select-none transition-colors ";
 
   if (isSelected) {
-    // Selected — use primary ring regardless of schedule
     cellClass += "bg-primary/15 border-primary/60 ring-1 ring-primary/40 ";
   } else if (isToday) {
     cellClass += "bg-amber-500/10 border-amber-500/50 ";
   } else if (isClosed) {
     cellClass += "bg-muted/40 border-border/40 opacity-60 ";
-  } else if (color === "blue") {
-    cellClass += "bg-blue-500/10 border-blue-500/50 ";
-  } else if (color === "green") {
-    cellClass += "bg-green-600/10 border-green-600/50 ";
-  } else if (color === "violet") {
-    cellClass += "bg-violet-500/10 border-violet-500/50 ";
+  } else if (color) {
+    cellClass += branchCellClass(color) + " ";
   } else {
     cellClass += "bg-card border-border hover:bg-muted/30 ";
   }
 
   const day = DateTime.fromISO(dateKey).day;
-  const dotColor =
-    color === "blue" ? "text-blue-600"
-    : color === "green" ? "text-green-700"
-    : color === "violet" ? "text-violet-600"
-    : "text-primary";
+
+  // Short branch label (shortTitle ?? first word of title)
+  const branchForRecord = record?.branchId ? branches.find((b) => b.id === record.branchId) : undefined;
+  const branchShortLabel = branchForRecord
+    ? (branchForRecord.shortTitle ?? branchForRecord.title.split(" ")[0] ?? branchForRecord.title)
+    : null;
 
   return (
     <div
@@ -185,18 +300,68 @@ function DayCell({ dateKey, today, record, branchColorMap, isSelected, onToggle 
         {isSelected ? `${day} ●` : day}
       </div>
       {isClosed && (
-        <div className="mt-0.5 text-[9px] text-muted-foreground">закрыт</div>
+        <div className="mt-0.5 text-[9px] text-muted-foreground">выходной</div>
       )}
       {hasSchedule && record?.startMinute != null && record?.endMinute != null && (
-        <div className={cn("mt-0.5 text-[9px] font-semibold leading-none", dotColor)}>
+        <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
           {formatHourRange(record.startMinute, record.endMinute)}
         </div>
       )}
-      {hasSchedule && record?.breakStartMinute != null && record?.breakEndMinute != null && (
-        <div className="mt-0.5 text-[8px] text-muted-foreground leading-none">
-          обед {Math.floor(record.breakStartMinute / 60)}–{Math.floor(record.breakEndMinute / 60)}
+      {branchShortLabel && hasSchedule && (
+        <div className="mt-0.5 text-[9px] text-muted-foreground leading-none truncate">
+          {branchShortLabel}
         </div>
       )}
+      {hasSchedule && breaks.length > 0 && (
+        <div className="mt-0.5 text-[9px] text-muted-foreground leading-none truncate">
+          {formatBreakSummary(breaks)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BreakRowField — single break row in hours panel or template form
+// ---------------------------------------------------------------------------
+
+type BreakRowFieldProps = {
+  index: number;
+  row: BreakRow;
+  onChange: (idx: number, field: "from" | "to", value: string) => void;
+  onRemove: (idx: number) => void;
+};
+
+function BreakRowField({ index, row, onChange, onRemove }: BreakRowFieldProps) {
+  return (
+    <div className="flex items-center gap-1.5" data-testid={`break-row-${index}`}>
+      <span className="text-xs text-muted-foreground min-w-[60px]">Перерыв {index + 1}</span>
+      <Input
+        type="time"
+        className="h-7 w-24 text-xs"
+        value={row.from}
+        onChange={(e) => onChange(index, "from", e.target.value)}
+        data-testid={`break-from-${index}`}
+      />
+      <span className="text-xs text-muted-foreground">–</span>
+      <Input
+        type="time"
+        className="h-7 w-24 text-xs"
+        value={row.to}
+        onChange={(e) => onChange(index, "to", e.target.value)}
+        data-testid={`break-to-${index}`}
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+        onClick={() => onRemove(index)}
+        aria-label={`Удалить перерыв ${index + 1}`}
+        data-testid={`break-remove-${index}`}
+      >
+        ×
+      </Button>
     </div>
   );
 }
@@ -205,7 +370,7 @@ function DayCell({ dateKey, today, record, branchColorMap, isSelected, onToggle 
 // ScheduleWorkTab
 // ---------------------------------------------------------------------------
 
-/** Таб «График работы» раздела «Расписание» — per-date редактор. */
+/** Таб «График работы» раздела «Расписание» — per-date редактор. E1–E5. */
 export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: ScheduleTabProps) {
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -214,22 +379,20 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const [viewMonth, setViewMonth] = useState(month);
 
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [activeBranchId, setActiveBranchIdState] = useState<string>(() => deepLinkParams.location ?? "");
+  // E3: "all" = no filter; specific id = filter sетку by branchId
+  const [gridBranchFilter, setGridBranchFilterState] = useState<string>("all");
   const [specialistId, setSpecialistId] = useState("");
 
   const [dayRecords, setDayRecords] = useState<WorkingDayRecord[]>([]);
   const [templates, setTemplates] = useState<ScheduleTemplateRecord[]>([]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  // For shift-range selection
   const lastClickedRef = useRef<string | null>(null);
 
-  // Panel state
+  // Panel state (E4 — строчная раскладка + N перерывов)
   const [panelStart, setPanelStart] = useState("09:00");
   const [panelEnd, setPanelEnd] = useState("18:00");
-  const [panelBreakEnabled, setPanelBreakEnabled] = useState(false);
-  const [panelBreakStart, setPanelBreakStart] = useState("13:00");
-  const [panelBreakEnd, setPanelBreakEnd] = useState("14:00");
+  const [panelBreaks, setPanelBreaks] = useState<BreakRow[]>([]);
   const [panelBranchId, setPanelBranchId] = useState("");
 
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -237,21 +400,12 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const [actionOk, setActionOk] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Create template dialog
+  // E5 — Create template dialog with N breaks
   const [tplDialogOpen, setTplDialogOpen] = useState(false);
   const [tplName, setTplName] = useState("");
   const [tplStart, setTplStart] = useState("09:00");
   const [tplEnd, setTplEnd] = useState("18:00");
-  const [tplBreakEnabled, setTplBreakEnabled] = useState(false);
-  const [tplBreakStart, setTplBreakStart] = useState("13:00");
-  const [tplBreakEnd, setTplBreakEnd] = useState("14:00");
-
-  // ── Branch color map (deterministic by index) ───────────────────────────
-
-  const BRANCH_COLORS = ["blue", "green", "violet", "orange"] as const;
-  const branchColorMap = new Map<string, string>(
-    branches.map((b, i) => [b.id, BRANCH_COLORS[i % BRANCH_COLORS.length] ?? "blue"]),
-  );
+  const [tplBreaks, setTplBreaks] = useState<BreakRow[]>([]);
 
   // ── Today string ─────────────────────────────────────────────────────────
 
@@ -259,10 +413,10 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // ── Deep-link sync ────────────────────────────────────────────────────────
 
-  const setActiveBranchId = useCallback(
+  const setGridBranchFilter = useCallback(
     (id: string) => {
-      setActiveBranchIdState(id);
-      onDeepLinkChange("location", id || null);
+      setGridBranchFilterState(id);
+      onDeepLinkChange("location", id !== "all" ? id : null);
     },
     [onDeepLinkChange],
   );
@@ -282,7 +436,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     [viewMonth, viewYear, onDeepLinkChange],
   );
 
-  // ── Load working days for visible month ───────────────────────────────────
+  // ── Load working days for visible month (E3 — pass branchId filter to backend) ──
 
   const loadMonth = useCallback(() => {
     if (!specialistId) return;
@@ -290,21 +444,25 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     const dateTo = monthEnd(viewYear, viewMonth);
     startTransition(async () => {
       const qs = new URLSearchParams({ dateFrom, dateTo, specialistId });
+      // E3: backend filter by branchId when a specific branch is selected
+      if (gridBranchFilter !== "all") {
+        qs.set("branchId", gridBranchFilter);
+      }
       try {
         const json = await apiJson<{ ok: boolean; rows: WorkingDayRecord[] }>(`${WD_BASE}?${qs.toString()}`);
-        setDayRecords(json.rows);
+        setDayRecords(json.rows ?? []);
         setLoadError(null);
       } catch (e) {
         setLoadError(e instanceof Error ? e.message : "load_failed");
       }
     });
-  }, [specialistId, viewYear, viewMonth]);
+  }, [specialistId, viewYear, viewMonth, gridBranchFilter]);
 
   const loadTemplates = useCallback(() => {
     startTransition(async () => {
       try {
         const json = await apiJson<{ ok: boolean; rows: ScheduleTemplateRecord[] }>(TPL_BASE);
-        setTemplates(json.rows);
+        setTemplates(json.rows ?? []);
       } catch {
         // non-fatal; templates panel just stays empty
       }
@@ -318,17 +476,22 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       try {
         const overview = await fetchSoloOverview();
         if (!overview) { setLoadError("booking_engine_unavailable"); return; }
-        const activeBranches = overview.branches.filter((b) => b.isActive);
+        const activeBranches = overview.branches
+          .filter((b) => b.isActive)
+          .map((b) => ({ id: b.id, title: b.title, shortTitle: b.shortTitle, isActive: b.isActive }));
         setBranches(activeBranches);
         const specId = await ensureDefaultSpecialist(overview.organization?.title);
         setSpecialistId(specId);
-        // Default branch: from deep-link, or first active
+        // E3: default filter from deep-link or "all"
         const savedId = deepLinkParams.location ?? "";
-        const resolvedBranch =
-          activeBranches.find((b) => b.id === savedId) ?? activeBranches[0];
+        const resolvedBranch = activeBranches.find((b) => b.id === savedId);
         if (resolvedBranch) {
-          setActiveBranchIdState(resolvedBranch.id);
-          setPanelBranchId(resolvedBranch.id);
+          setGridBranchFilterState(resolvedBranch.id);
+        }
+        // Panel branch default: from deep-link or first active
+        const panelDefault = resolvedBranch ?? activeBranches[0];
+        if (panelDefault) {
+          setPanelBranchId(panelDefault.id);
         }
       } catch (e) {
         setLoadError(e instanceof Error ? e.message : "load_failed");
@@ -347,6 +510,13 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive]);
 
+  // Re-load when branch filter changes
+  useEffect(() => {
+    if (!specialistId) return;
+    loadMonth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gridBranchFilter]);
+
   // ── Day selection ─────────────────────────────────────────────────────────
 
   const gridDates = buildMonthGrid(viewYear, viewMonth)
@@ -357,18 +527,15 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setSelected((prev) => {
         const next = new Set(prev);
         if (shift && lastClickedRef.current) {
-          // Range selection
           const from = lastClickedRef.current;
           const [a, b] = from < date ? [from, date] : [date, from];
           for (const d of gridDates) {
             if (d >= a && d <= b) next.add(d);
           }
         } else if (meta) {
-          // Toggle individual
           if (next.has(date)) { next.delete(date); }
           else { next.add(date); }
         } else {
-          // Single click: toggle if only this; otherwise select only this
           if (next.size === 1 && next.has(date)) { next.clear(); }
           else { next.clear(); next.add(date); }
         }
@@ -378,6 +545,20 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     },
     [gridDates],
   );
+
+  // ── Break rows helpers ────────────────────────────────────────────────────
+
+  function updateBreakRow(rows: BreakRow[], idx: number, field: "from" | "to", value: string): BreakRow[] {
+    return rows.map((r, i) => i === idx ? { ...r, [field]: value } : r);
+  }
+
+  function removeBreakRow(rows: BreakRow[], idx: number): BreakRow[] {
+    return rows.filter((_, i) => i !== idx);
+  }
+
+  function addBreakRow(rows: BreakRow[]): BreakRow[] {
+    return [...rows, { from: "13:00", to: "14:00" }];
+  }
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
@@ -399,17 +580,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   function handleSave() {
     const dates = [...selected];
     if (!dates.length) return;
-    let breakStartMinute: number | null = null;
-    let breakEndMinute: number | null = null;
-    if (panelBreakEnabled) {
-      try {
-        breakStartMinute = timeLabelToMinute(panelBreakStart);
-        breakEndMinute = timeLabelToMinute(panelBreakEnd);
-      } catch {
-        setActionError("Неверный формат перерыва");
-        return;
-      }
-    }
     let startMinute: number;
     let endMinute: number;
     try {
@@ -419,6 +589,17 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setActionError("Неверный формат времени");
       return;
     }
+    // E4 — validate break rows
+    if (panelBreaks.length > 0) {
+      const err = validateBreakRows(panelBreaks, startMinute, endMinute);
+      if (err) { setActionError(err); return; }
+    }
+    // Convert BreakRow[] → BreakInterval[]
+    const breaks: BreakInterval[] = panelBreaks.map((r) => ({
+      startMinute: timeLabelToMinute(r.from),
+      endMinute: timeLabelToMinute(r.to),
+    }));
+
     run(async () => {
       await apiJson(WD_BASE, {
         method: "PUT",
@@ -428,10 +609,9 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           dates,
           startMinute,
           endMinute,
-          breakStartMinute: breakStartMinute ?? undefined,
-          breakEndMinute: breakEndMinute ?? undefined,
+          breaks,
           specialistId,
-          branchId: panelBranchId || activeBranchId || undefined,
+          branchId: panelBranchId || undefined,
         }),
       });
       setSelected(new Set());
@@ -483,19 +663,23 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   function handleCreateTemplate() {
     let startMinute: number;
     let endMinute: number;
-    let breakStartMinute: number | null = null;
-    let breakEndMinute: number | null = null;
     try {
       startMinute = timeLabelToMinute(tplStart);
       endMinute = timeLabelToMinute(tplEnd);
-      if (tplBreakEnabled) {
-        breakStartMinute = timeLabelToMinute(tplBreakStart);
-        breakEndMinute = timeLabelToMinute(tplBreakEnd);
-      }
     } catch {
       setActionError("Неверный формат времени в шаблоне");
       return;
     }
+    // E5 — validate template breaks
+    if (tplBreaks.length > 0) {
+      const err = validateBreakRows(tplBreaks, startMinute, endMinute);
+      if (err) { setActionError(err); return; }
+    }
+    const breaks: BreakInterval[] = tplBreaks.map((r) => ({
+      startMinute: timeLabelToMinute(r.from),
+      endMinute: timeLabelToMinute(r.to),
+    }));
+
     run(async () => {
       await apiJson(TPL_BASE, {
         method: "POST",
@@ -504,13 +688,13 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           name: tplName.trim() || `${minuteToTimeLabel(startMinute)}–${minuteToTimeLabel(endMinute)}`,
           startMinute,
           endMinute,
-          breakStartMinute: breakStartMinute ?? undefined,
-          breakEndMinute: breakEndMinute ?? undefined,
-          branchId: activeBranchId || undefined,
+          breaks,
+          branchId: panelBranchId || undefined,
         }),
       });
       setTplDialogOpen(false);
       setTplName("");
+      setTplBreaks([]);
     }, "Шаблон создан");
   }
 
@@ -518,44 +702,51 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   const dayMap = new Map(dayRecords.map((r) => [r.workDate, r]));
   const cells = buildMonthGrid(viewYear, viewMonth);
-  const activeBranchLabel = branches.find((b) => b.id === activeBranchId)?.title;
-  const panelBranchLabel = branches.find((b) => b.id === panelBranchId)?.title;
   const selectedCount = selected.size;
   const selectedDates = [...selected].sort();
+  const panelBranchLabel = branches.find((b) => b.id === panelBranchId)?.title;
+
+  // E3: branch label for the filter switcher
+  function getBranchDisplayLabel(b: Branch): string {
+    return b.shortTitle ?? b.title;
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <DoctorSection data-testid="schedule-work-tab">
-      {/* Toolbar: branch switcher + month nav */}
+      {/* Sticky top bar: filter (E3) + month nav */}
       <div className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}>
-        {/* Branch switcher */}
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Локация для назначения">
+        {/* E3: Branch filter switcher (Все + individual branches) */}
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Фильтр по филиалу">
+          <button
+            type="button"
+            onClick={() => setGridBranchFilter("all")}
+            className={cn(
+              "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-medium transition-colors",
+              gridBranchFilter === "all"
+                ? "bg-foreground/90 border-foreground/80 text-background"
+                : "border-border text-muted-foreground hover:bg-muted/60",
+            )}
+            data-testid="branch-filter-all"
+          >
+            Все
+          </button>
           {branches.map((b) => {
-            const color = branchColorMap.get(b.id);
-            const isActive = b.id === activeBranchId;
+            const color = getBranchColor(branches, b.id);
+            const isActive = b.id === gridBranchFilter;
             return (
               <button
                 key={b.id}
                 type="button"
-                onClick={() => { setActiveBranchId(b.id); setPanelBranchId(b.id); }}
+                onClick={() => setGridBranchFilter(b.id)}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors",
-                  isActive
-                    ? color === "blue"
-                      ? "bg-blue-500 border-blue-500 text-white"
-                      : color === "green"
-                        ? "bg-green-600 border-green-600 text-white"
-                        : "bg-violet-600 border-violet-600 text-white"
-                    : color === "blue"
-                      ? "border-blue-500/50 text-blue-600 hover:bg-blue-50"
-                      : color === "green"
-                        ? "border-green-600/50 text-green-700 hover:bg-green-50"
-                        : "border-violet-500/50 text-violet-700 hover:bg-violet-50",
+                  "inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors",
+                  isActive ? branchColorActiveClass(color) : branchColorInactiveClass(color),
                 )}
                 data-testid={`branch-btn-${b.id}`}
               >
-                ● {b.title}
+                ● {getBranchDisplayLabel(b)}
               </button>
             );
           })}
@@ -576,187 +767,209 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       {actionError ? <p className="text-sm text-destructive" data-testid="action-error">{actionError}</p> : null}
       {actionOk ? <p className="text-sm text-green-700 dark:text-green-400" data-testid="action-ok">{actionOk}</p> : null}
 
-      {/* Month grid */}
-      <div className={cn(doctorSectionCardClass, "p-0 overflow-hidden")} data-testid="month-grid">
-        {/* Weekday header */}
-        <div className="grid grid-cols-7 gap-1 px-2 pb-1 pt-2 text-[10px] font-medium text-muted-foreground text-center">
-          {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
-            <div key={d}>{d}</div>
-          ))}
+      {/* E1: Two-column layout on large screens */}
+      <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
+        {/* LEFT: month grid */}
+        <div className="flex flex-col gap-2">
+          <div className={cn(doctorSectionCardClass, "p-0 overflow-hidden")} data-testid="month-grid">
+            {/* Weekday header */}
+            <div className="grid grid-cols-7 gap-0.5 px-1.5 pb-0.5 pt-1.5 text-[10px] font-medium text-muted-foreground text-center">
+              {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
+                <div key={d}>{d}</div>
+              ))}
+            </div>
+            {/* Day cells (E2 — компактнее, время крупнее) */}
+            <div className="grid grid-cols-7 gap-0.5 p-1.5">
+              {cells.map((dateKey, idx) => (
+                <DayCell
+                  key={dateKey ?? `pad-${idx}`}
+                  dateKey={dateKey}
+                  today={today}
+                  record={dateKey ? dayMap.get(dateKey) : undefined}
+                  branches={branches}
+                  isSelected={dateKey ? selected.has(dateKey) : false}
+                  onToggle={toggleDay}
+                />
+              ))}
+            </div>
+          </div>
         </div>
-        {/* Day cells */}
-        <div className="grid grid-cols-7 gap-1 p-2">
-          {cells.map((dateKey, idx) => (
-            <DayCell
-              key={dateKey ?? `pad-${idx}`}
-              dateKey={dateKey}
-              today={today}
-              record={dateKey ? dayMap.get(dateKey) : undefined}
-              branchColorMap={branchColorMap}
-              isSelected={dateKey ? selected.has(dateKey) : false}
-              onToggle={toggleDay}
-            />
-          ))}
+
+        {/* RIGHT: hours panel (E4) */}
+        <div>
+          {selectedCount > 0 ? (
+            <DoctorSection
+              className="border-primary/40 bg-primary/5"
+              data-testid="hours-panel"
+            >
+              <h3 className={cn(doctorSectionTitleClass, "text-primary")}>
+                Задать расписание для {selectedCount} {selectedCount === 1 ? "дня" : "дней"} ({
+                  selectedDates.length <= 3
+                    ? selectedDates.map((d) => {
+                        const dt = DateTime.fromISO(d);
+                        return `${dt.day} ${dt.setLocale("ru").toFormat("LLLL").slice(0, 3)}`;
+                      }).join(", ")
+                    : `${DateTime.fromISO(selectedDates[0] ?? "").day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1] ?? "").day} …`
+                })
+              </h3>
+
+              {/* E4 — строчная раскладка */}
+              <div className="flex flex-col gap-2">
+                {/* Start / End row */}
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="panel-start" className="text-xs">Начало</Label>
+                    <Input
+                      id="panel-start"
+                      type="time"
+                      className="h-8 w-26"
+                      value={panelStart}
+                      onChange={(e) => setPanelStart(e.target.value)}
+                      data-testid="panel-start"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="panel-end" className="text-xs">Конец</Label>
+                    <Input
+                      id="panel-end"
+                      type="time"
+                      className="h-8 w-26"
+                      value={panelEnd}
+                      onChange={(e) => setPanelEnd(e.target.value)}
+                      data-testid="panel-end"
+                    />
+                  </div>
+                </div>
+
+                {/* E4 — Break rows */}
+                <div className="flex flex-col gap-1.5" data-testid="panel-breaks">
+                  {panelBreaks.map((row, i) => (
+                    <BreakRowField
+                      key={i}
+                      index={i}
+                      row={row}
+                      onChange={(idx, field, val) => setPanelBreaks(updateBreakRow(panelBreaks, idx, field, val))}
+                      onRemove={(idx) => setPanelBreaks(removeBreakRow(panelBreaks, idx))}
+                    />
+                  ))}
+                  {panelBreaks.length < 6 && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit"
+                      onClick={() => setPanelBreaks(addBreakRow(panelBreaks))}
+                      data-testid="btn-add-break"
+                    >
+                      + перерыв
+                    </button>
+                  )}
+                </div>
+
+                {/* Location selector (E3 — in right panel, not filter bar) */}
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">Локация</Label>
+                  <Select
+                    value={panelBranchId}
+                    onValueChange={(v) => v && setPanelBranchId(v)}
+                  >
+                    <SelectTrigger className="h-8" displayLabel={panelBranchLabel} data-testid="panel-branch" />
+                    <SelectContent>
+                      {branches.map((b) => (
+                        <SelectItem key={b.id} value={b.id} label={b.title}>
+                          {b.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={pending}
+                  onClick={handleSave}
+                  data-testid="btn-save"
+                >
+                  Сохранить
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={handleClose}
+                  data-testid="btn-close-days"
+                >
+                  Закрыть выбранные дни
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleClear}
+                  data-testid="btn-clear-selection"
+                >
+                  Очистить выбор
+                </Button>
+              </div>
+            </DoctorSection>
+          ) : (
+            <DoctorSection className="border-dashed">
+              <DoctorEmptyState size="xs">
+                Выберите дни в сетке — появится панель настройки часов.
+              </DoctorEmptyState>
+            </DoctorSection>
+          )}
         </div>
       </div>
 
-      {/* Bottom area: panel + templates */}
-      <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
-        {/* Hours panel — visible when ≥1 day selected */}
-        {selectedCount > 0 ? (
-          <DoctorSection
-            className="border-primary/40 bg-primary/5"
-            data-testid="hours-panel"
+      {/* BOTTOM (full width): templates panel (E5) */}
+      <DoctorSection data-testid="templates-panel">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setTplDialogOpen(true)}
+            data-testid="btn-create-template"
           >
-            <h3 className={cn(doctorSectionTitleClass, "text-primary")}>
-              Задать расписание для {selectedCount} {selectedCount === 1 ? "дня" : selectedCount < 5 ? "дней" : "дней"} ({
-                selectedDates.length <= 3
-                  ? selectedDates.map((d) => {
-                      const dt = DateTime.fromISO(d);
-                      return `${dt.day} ${dt.setLocale("ru").toFormat("LLLL").slice(0, 3)}`;
-                    }).join(", ")
-                  : `${DateTime.fromISO(selectedDates[0]).day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1]).day} …`
-              })
-            </h3>
+            + Создать
+          </Button>
+        </div>
 
-            <div className="flex flex-wrap gap-3">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="panel-start" className="text-xs">Начало</Label>
-                <Input
-                  id="panel-start"
-                  type="time"
-                  className="h-8 w-28"
-                  value={panelStart}
-                  onChange={(e) => setPanelStart(e.target.value)}
-                  data-testid="panel-start"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="panel-end" className="text-xs">Конец</Label>
-                <Input
-                  id="panel-end"
-                  type="time"
-                  className="h-8 w-28"
-                  value={panelEnd}
-                  onChange={(e) => setPanelEnd(e.target.value)}
-                  data-testid="panel-end"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Обед</Label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    id="panel-break-enabled"
-                    checked={panelBreakEnabled}
-                    onChange={(e) => setPanelBreakEnabled(e.target.checked)}
-                    className="h-4 w-4 rounded border-border"
-                    data-testid="panel-break-enabled"
-                  />
-                  {panelBreakEnabled && (
-                    <>
-                      <Input
-                        type="time"
-                        className="h-8 w-24"
-                        value={panelBreakStart}
-                        onChange={(e) => setPanelBreakStart(e.target.value)}
-                        data-testid="panel-break-start"
-                      />
-                      <span className="text-xs text-muted-foreground">—</span>
-                      <Input
-                        type="time"
-                        className="h-8 w-24"
-                        value={panelBreakEnd}
-                        onChange={(e) => setPanelBreakEnd(e.target.value)}
-                        data-testid="panel-break-end"
-                      />
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1 min-w-[160px]">
-                <Label className="text-xs">Локация</Label>
-                <Select
-                  value={panelBranchId}
-                  onValueChange={(v) => v && setPanelBranchId(v)}
-                >
-                  <SelectTrigger className="h-8" displayLabel={panelBranchLabel} data-testid="panel-branch" />
-                  <SelectContent>
-                    {branches.map((b) => (
-                      <SelectItem key={b.id} value={b.id} label={b.title}>
-                        {b.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={pending}
-                onClick={handleSave}
-                data-testid="btn-save"
-              >
-                Сохранить
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={pending}
-                onClick={handleClose}
-                data-testid="btn-close-days"
-              >
-                Закрыть выбранные дни
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={handleClear}
-                data-testid="btn-clear-selection"
-              >
-                Очистить выбор
-              </Button>
-            </div>
-          </DoctorSection>
+        {templates.length === 0 ? (
+          <DoctorEmptyState size="xs">Нет шаблонов.</DoctorEmptyState>
         ) : (
-          <DoctorSection className="border-dashed">
-            <DoctorEmptyState size="xs">
-              Выберите дни в сетке — появится панель настройки часов.
-            </DoctorEmptyState>
-          </DoctorSection>
-        )}
+          <ul className="flex flex-col gap-1.5">
+            {templates.filter((t) => t.isActive).map((tpl) => {
+              // E5: short branch label in template
+              const tplBranch = tpl.branchId ? branches.find((b) => b.id === tpl.branchId) : undefined;
+              const tplBranchLabel = tplBranch ? (tplBranch.shortTitle ?? tplBranch.title) : null;
+              const tplBreaksSummary = (() => {
+                const b = tpl.breaks?.length > 0 ? tpl.breaks : (
+                  tpl.breakStartMinute != null && tpl.breakEndMinute != null
+                    ? [{ startMinute: tpl.breakStartMinute, endMinute: tpl.breakEndMinute }]
+                    : []
+                );
+                return formatBreakSummary(b);
+              })();
 
-        {/* Templates panel */}
-        <DoctorSection data-testid="templates-panel">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setTplDialogOpen(true)}
-              data-testid="btn-create-template"
-            >
-              + Создать
-            </Button>
-          </div>
-
-          {templates.length === 0 ? (
-            <DoctorEmptyState size="xs">Нет шаблонов.</DoctorEmptyState>
-          ) : (
-            <ul className="flex flex-col gap-1.5">
-              {templates.filter((t) => t.isActive).map((tpl) => (
+              return (
                 <li
                   key={tpl.id}
                   className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm"
                   data-testid={`template-${tpl.id}`}
                 >
-                  <span className="min-w-0 truncate text-sm">{tpl.name}</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="truncate text-sm">{tpl.name}</span>
+                    {(tplBranchLabel || tplBreaksSummary) && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">
+                        {[tplBranchLabel, tplBreaksSummary].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex shrink-0 gap-1">
                     <Button
                       type="button"
@@ -783,17 +996,17 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     </Button>
                   </div>
                 </li>
-              ))}
-            </ul>
-          )}
+              );
+            })}
+          </ul>
+        )}
 
-          {selectedCount === 0 && templates.length > 0 && (
-            <p className="text-[10px] text-muted-foreground">Выберите дни для применения шаблона.</p>
-          )}
-        </DoctorSection>
-      </div>
+        {selectedCount === 0 && templates.length > 0 && (
+          <p className="text-[10px] text-muted-foreground">Выберите дни для применения шаблона.</p>
+        )}
+      </DoctorSection>
 
-      {/* Create template dialog */}
+      {/* E5: Create template dialog with N breaks */}
       <Dialog open={tplDialogOpen} onOpenChange={setTplDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -835,27 +1048,31 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="tpl-break-enabled"
-                checked={tplBreakEnabled}
-                onChange={(e) => setTplBreakEnabled(e.target.checked)}
-                className="h-4 w-4"
-                data-testid="tpl-break-enabled"
-              />
-              <Label htmlFor="tpl-break-enabled" className="text-xs">Обед</Label>
-              {tplBreakEnabled && (
-                <>
-                  <Input type="time" className="h-8 w-24" value={tplBreakStart} onChange={(e) => setTplBreakStart(e.target.value)} data-testid="tpl-break-start" />
-                  <span className="text-xs">—</span>
-                  <Input type="time" className="h-8 w-24" value={tplBreakEnd} onChange={(e) => setTplBreakEnd(e.target.value)} data-testid="tpl-break-end" />
-                </>
+            {/* E5 — Template breaks */}
+            <div className="flex flex-col gap-1.5" data-testid="tpl-breaks">
+              {tplBreaks.map((row, i) => (
+                <BreakRowField
+                  key={i}
+                  index={i}
+                  row={row}
+                  onChange={(idx, field, val) => setTplBreaks(updateBreakRow(tplBreaks, idx, field, val))}
+                  onRemove={(idx) => setTplBreaks(removeBreakRow(tplBreaks, idx))}
+                />
+              ))}
+              {tplBreaks.length < 6 && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit"
+                  onClick={() => setTplBreaks(addBreakRow(tplBreaks))}
+                  data-testid="tpl-btn-add-break"
+                >
+                  + перерыв
+                </button>
               )}
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => setTplDialogOpen(false)}>
+            <Button type="button" variant="outline" size="sm" onClick={() => { setTplDialogOpen(false); setTplBreaks([]); }}>
               Отмена
             </Button>
             <Button

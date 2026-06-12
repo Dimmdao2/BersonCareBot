@@ -474,7 +474,7 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
 
     // ── Per-date working days ────────────────────────────────────────────────
 
-    async listWorkingDays({ organizationId, specialistId, dateFrom, dateTo }) {
+    async listWorkingDays({ organizationId, specialistId, branchId, dateFrom, dateTo }) {
       const db = getDrizzle();
       const baseConds = [
         eq(beWd.organizationId, organizationId),
@@ -487,10 +487,17 @@ export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<str
           : specialistId
             ? eq(beWd.specialistId, specialistId)
             : undefined;
+      // Optional branchId filter for E3 grid filter (§13.2)
+      const branchCond =
+        branchId === null
+          ? isNull(beWd.branchId)
+          : branchId
+            ? eq(beWd.branchId, branchId)
+            : undefined;
       const rows = await db
         .select()
         .from(beWd)
-        .where(and(...baseConds, specialistCond))
+        .where(and(...baseConds, specialistCond, branchCond))
         .orderBy(asc(beWd.workDate));
       return rows.map(mapWorkingDayRow);
     },

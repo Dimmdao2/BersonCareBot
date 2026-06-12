@@ -937,3 +937,101 @@ pgBookingScheduling). Это безопасно: строки с `breaks IS NULL
 - Полная реализация `+N` в Месяце через кастомный popover (FullCalendar нативно показывает «+N more» → достаточно).
 - Клик по KPI-карточке для фильтрации (следующая итерация, только разметка).
 - `view=weeklist` из Wave3 убран из переключателя таба, но тип в `CalendarViewMode` сохранён.
+
+---
+
+## Этап E — Ребилд таба «График работы» (2026-06-13)
+
+### E1 — Раскладка двух колонок
+
+- `ScheduleWorkTab.tsx` полностью перестроен под переопределение §0.1.1:
+  - **Слева** (основная колонка): месячная сетка дней `buildMonthGrid` + месяц-навигация `◀ Июнь 2026 ▶`.
+  - **Справа** (320px колонка): панель «Настройка часов» — появляется при `selected.size ≥ 1`; иначе — компактная заглушка «Выберите дни».
+  - **Снизу** (полная ширина): «Шаблоны расписаний» отдельным `DoctorSection`.
+  - Грид: `lg:grid-cols-[1fr_320px]` для двух колонок; на узких — стек.
+  - Sticky toolbar: фильтр филиалов + `◀ месяц ▶`, sticky `DOCTOR_CATALOG_STICKY_BAR_CLASS`.
+
+### E2 — Карточки дней
+
+- `DayCell` компонент переработан под §0.1.4:
+  - **Компактнее** (`gap-0.5` между ячейками, `p-1` внутри, `min-h-[52px]` вместо `min-h-[58px]`).
+  - **Время крупнее**: `text-[11px] font-semibold` вместо прежнего `text-[9px]` — читаемо в узкой левой колонке.
+  - **Метка филиала**: `shortTitle ?? title.split(" ")[0]` (напр. «СПб» вместо «Санкт-Петербург»).
+  - **Перерывы**: `resolveBreaks()` (N-break с fallback на легаси) → `formatBreakSummary()` → «обед HH–HH» для 1 перерыва, «N перерывов» для нескольких.
+  - **Статусы**: закрытые — «выходной» серый; сегодня — `bg-amber-500/10`; выбранные — `bg-primary/15 ring-1`; по филиалу — color-coded blue/green/violet/orange.
+
+### E3 — Реальный фильтр сетки (§13.2)
+
+- **Решение: бэкенд-фильтр** (согласно §13.2 «бэкенд-фильтр предпочтительнее»).
+- Изменения бэкенда:
+  - `modules/booking-scheduling/ports.ts`: `listWorkingDays.input.branchId?: string | null` добавлен в оба типа (`BookingSchedulingPort` и `BookingSchedulingService`).
+  - `infra/repos/pgBookingScheduling.ts`: `listWorkingDays` — добавлен `branchCond` (через `eq(beWd.branchId, branchId)` / `isNull`).
+  - `app/api/admin/booking-engine/working-days/route.ts`: GET-схема `getQuery` расширена полем `branchId: z.string().uuid().nullable().optional()`; `rawBranchId` читается из searchParams с `__none__` sentinel; передаётся в `listWorkingDays`.
+- Изменения фронтенда:
+  - Переключатель **«Все» + филиалы** в sticky toolbar; фильтр `gridBranchFilter` (дефолт `"all"`).
+  - При выборе конкретного филиала → GET `working-days?...&branchId=<id>` → бэкенд фильтрует по `branch_id`.
+  - `onDeepLinkChange("location", id)` сохраняет в URL.
+  - **Локация для назначения** (`panelBranchId`) — отдельно в правой панели (дефолт = активный фильтр при монтаже, иначе первый активный).
+  - Пустые/невыставленные дни видны всегда (фильтр на бэкенде только по `branch_id` строк; дни без строки видны как пустые ячейки).
+
+### E4 — Строчная панель часов + N перерывов
+
+- `BreakRowField` — inline компонент для одной строки перерыва: «Перерыв N [HH:MM] – [HH:MM] [×]».
+- Состояние перерывов `panelBreaks: BreakRow[]` (`{from,to}` строки времени).
+- `addBreakRow` / `removeBreakRow` / `updateBreakRow` — чистые функции изменения массива.
+- `validateBreakRows(rows, dayStart, dayEnd)` — клиентская валидация: каждый ⊂ [start,end], без пересечений, ≤ 6 штук.
+- Кнопка `+ перерыв` скрыта при 6 перерывах (максимум).
+- `handleSave()` — конвертирует `BreakRow[]` → `BreakInterval[]` → включает в PUT body как `breaks: [...]`.
+- `handleClose()` / `handleClear()` — без изменений.
+
+### E5 — Шаблоны с N перерывами
+
+- Форма создания шаблона: те же `BreakRowField` строки + кнопка `tpl-btn-add-break`.
+- Состояние `tplBreaks: BreakRow[]` — аналог `panelBreaks` для диалога шаблона.
+- `handleCreateTemplate()` — валидирует + конвертирует `tplBreaks` → `breaks: [...]` → POST.
+- В подписи каждого шаблона: `shortTitle ?? title` + `formatBreakSummary(breaks)` через `·` разделитель.
+- «Применить» доступна при `selectedCount ≥ 1`.
+
+### Тесты
+
+- `ScheduleWorkTab.test.tsx` полностью обновлён: 19 тестов (все зелёные):
+  - **E1**: 2 теста — три зоны, показ/скрытие hours-panel.
+  - **E2**: 3 теста — short title кнопок, время в ячейке, «выходной» label.
+  - **E3**: 3 теста — кнопка «Все», branchId в GET при выборе, отсутствие branchId при «Все».
+  - **E4**: 5 тестов — add/remove break row, PUT с 2 перерывами, PUT без перерывов, close, clear.
+  - **E5**: 3 теста — список с short label, apply template, create template с breaks.
+  - Навигация: 2 теста — prev month, year boundary.
+  - Прогрев чанка в `beforeAll` (webapp-tests-lean).
+
+### Решения
+
+- **Фильтр: бэкенд-фильтр** — добавлен `branchId` в GET `/working-days` query + `listWorkingDays` порт + pg WHERE. Причина выбора: данных может быть много (врач с двумя локациями и 365 днями), передавать все строки только для клиентской фильтрации неэкономно; изменение минимально (опциональный параметр, не ломает существующие вызовы без branchId).
+- **Пустые дни при фильтре**: видны всегда — фильтр только строки с `branch_id`, а ячейки без записи в базе отображаются как пустые независимо. Это соответствует §6.3 («пустые/невыставленные дни видны всегда»).
+- **shortTitle в карточках**: `shortTitle ?? title.split(" ")[0]` — разумный fallback если shortTitle не заполнен.
+- **BreakRow**: строки `{from: "13:00", to: "14:00"}` — читаемый intermediate-формат между `<input type="time">` и `BreakInterval{startMinute,endMinute}`.
+
+### Проверки
+
+| Артефакт | Результат |
+|----------|-----------|
+| `tsc --noEmit --skipLibCheck` | EXIT 0 (pre-existing BroadcastForm — не наши) |
+| `eslint ScheduleWorkTab.tsx working-days/route.ts ports.ts pgBookingScheduling.ts` | 0 предупреждений |
+| `vitest run "ScheduleWorkTab.test"` | **19/19** зелёных |
+| `vitest run "schedule"` | **181/181** зелёных (21 файл) |
+| Doctor-UI §16 rg: no `rounded-2xl`, no `@/components/ui`, no `@/shared/ui/patient` | OK |
+| Pre-existing failures `webappPhase15F` | не тронуты |
+
+### Изменённые/созданные файлы
+
+- `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx` — полный ребилд (E1–E5)
+- `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.test.tsx` — 19 тестов (E1–E5)
+- `apps/webapp/src/modules/booking-scheduling/ports.ts` — `branchId?` в `listWorkingDays`
+- `apps/webapp/src/infra/repos/pgBookingScheduling.ts` — `branchCond` в `listWorkingDays`
+- `apps/webapp/src/app/api/admin/booking-engine/working-days/route.ts` — `branchId` в GET query
+- `.cursor/plans/doctor_schedule_v26_rebuild.plan.md` — e1–e5 → completed
+
+### Сознательно НЕ делали
+
+- Accordion-раскрытие ячейки по клику (backlog; не в ТЗ E).
+- `view=weeklist` не задействован (Wave3 legacy; в schedule work-tab не используется).
+- Отдельный `branchId` фильтр на роут-тесты `working-days/route.test.ts` — минимальный изменённый контракт (Zod nullable optional), покрыт RTL E3 test.

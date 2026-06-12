@@ -8,6 +8,8 @@ const getQuery = z.object({
   dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   specialistId: z.string().uuid().nullable().optional(),
+  /** Optional branch filter (§13.2, E3): filter grid by branchId. */
+  branchId: z.string().uuid().nullable().optional(),
 });
 
 const breakIntervalSchema = z.object({
@@ -57,22 +59,25 @@ export async function GET(request: Request) {
   }
   const url = new URL(request.url);
   const rawSpecialistId = url.searchParams.get("specialistId");
+  const rawBranchId = url.searchParams.get("branchId");
   const parsed = getQuery.safeParse({
     dateFrom: url.searchParams.get("dateFrom"),
     dateTo: url.searchParams.get("dateTo"),
     // Pre-resolve __none__ sentinel before Zod uuid validation
     specialistId: rawSpecialistId === "__none__" ? null : rawSpecialistId,
+    branchId: rawBranchId === "__none__" ? null : rawBranchId,
   });
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
   }
-  const { dateFrom, dateTo, specialistId } = parsed.data;
-  // specialistId already resolved from __none__ sentinel above; pass as-is
+  const { dateFrom, dateTo, specialistId, branchId } = parsed.data;
+  // specialistId / branchId already resolved from __none__ sentinel above; pass as-is
   const rows = await deps.bookingScheduling.listWorkingDays({
     organizationId: gate.ctx.organizationId,
     dateFrom,
     dateTo,
     specialistId,
+    branchId,
   });
   return NextResponse.json({ ok: true, rows });
 }

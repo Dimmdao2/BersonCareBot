@@ -7,7 +7,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // Mocks (webapp-tests-lean: тяжёлые импорты в beforeAll)
 // ---------------------------------------------------------------------------
 
-// bookingSoloAdminApi — мокаем полностью, не грузим Luxon/fetch runtime
 vi.mock("@/app/app/settings/bookingSoloAdminApi", () => ({
   apiJson: vi.fn(),
   fetchSoloOverview: vi.fn(),
@@ -27,22 +26,23 @@ vi.mock("@/app/app/settings/bookingSoloAdminApi", () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-type MockOverview = {
-  organizationId: string;
-  organization: { id: string; title: string } | null;
-  branches: { id: string; title: string; isActive: boolean; cityCode: string; address: null; timezone: string; sortOrder: number }[];
-  specialists: { id: string; fullName: string; isActive: boolean }[];
-  services: never[];
-  specialistAvailability: never[];
-  locationAvailability: never[];
+type MockBranch = {
+  id: string;
+  title: string;
+  shortTitle: string | null;
+  isActive: boolean;
+  cityCode: string;
+  address: null;
+  timezone: string;
+  sortOrder: number;
 };
 
-const BRANCHES = [
-  { id: "branch-spb", title: "СПб", isActive: true, cityCode: "spb", address: null, timezone: "Europe/Moscow", sortOrder: 0 },
-  { id: "branch-msk", title: "МСК", isActive: true, cityCode: "msk", address: null, timezone: "Europe/Moscow", sortOrder: 1 },
+const BRANCHES: MockBranch[] = [
+  { id: "branch-spb", title: "Санкт-Петербург", shortTitle: "СПб", isActive: true, cityCode: "spb", address: null, timezone: "Europe/Moscow", sortOrder: 0 },
+  { id: "branch-msk", title: "Москва", shortTitle: "Мск", isActive: true, cityCode: "msk", address: null, timezone: "Europe/Moscow", sortOrder: 1 },
 ];
 
-const OVERVIEW: MockOverview = {
+const OVERVIEW = {
   organizationId: "org-1",
   organization: { id: "org-1", title: "Клиника" },
   branches: BRANCHES,
@@ -60,6 +60,7 @@ const WORKING_DAY_ROWS = [
     endMinute: 1140,    // 19:00
     breakStartMinute: null,
     breakEndMinute: null,
+    breaks: [],
     isClosed: false,
     branchId: "branch-spb",
   },
@@ -73,6 +74,7 @@ const TEMPLATES = [
     endMinute: 1140,
     breakStartMinute: null,
     breakEndMinute: null,
+    breaks: [],
     branchId: "branch-spb",
     sortOrder: 0,
     isActive: true,
@@ -111,73 +113,202 @@ async function renderWorkTab(deepLinkParams: Record<string, string> = {}) {
 // ---------------------------------------------------------------------------
 
 describe("ScheduleWorkTab", () => {
-  it("renders the month grid and branch switcher", async () => {
+  // ── E1: Раскладка двух колонок ──────────────────────────────────────────
+
+  it("E1: renders month-grid, templates-panel, month-label (three zones)", async () => {
     await renderWorkTab({ month: "2026-06" });
-    // Tab shell renders
+
     expect(screen.getByTestId("schedule-work-tab")).toBeInTheDocument();
-    // Month label appears
+
     await waitFor(() => {
       expect(screen.getByTestId("month-label")).toHaveTextContent("Июнь 2026");
     });
-    // Branch buttons appear after bootstrap
-    await waitFor(() => {
-      expect(screen.getByTestId("branch-btn-branch-spb")).toBeInTheDocument();
-      expect(screen.getByTestId("branch-btn-branch-msk")).toBeInTheDocument();
-    });
-  });
-
-  it("month nav buttons call onDeepLinkChange with correct month", async () => {
-    const { onDeepLinkChange } = await renderWorkTab({ month: "2026-06" });
-    const prevBtn = screen.getByTestId("month-prev");
-    fireEvent.click(prevBtn);
-    expect(onDeepLinkChange).toHaveBeenCalledWith("month", "2026-05");
-  });
-
-  it("shows hours panel when a day is selected and hides when cleared", async () => {
-    await renderWorkTab({ month: "2026-06" });
-
-    // Ensure grid is rendered
     await waitFor(() => {
       expect(screen.getByTestId("month-grid")).toBeInTheDocument();
-    });
-
-    // Clicking a day (June 10)
-    const cellJun10 = await screen.findByTestId("day-cell-2026-06-10");
-    fireEvent.click(cellJun10);
-
-    // Panel appears
-    await waitFor(() => {
-      expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
-    });
-
-    // Clear selection
-    const clearBtn = screen.getByTestId("btn-clear-selection");
-    fireEvent.click(clearBtn);
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+      expect(screen.getByTestId("templates-panel")).toBeInTheDocument();
     });
   });
 
-  it("PUT upsert with correct body when Сохранить is clicked", async () => {
-    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+  it("E1: hours panel absent before day selection, present after", async () => {
+    await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
 
-    // Select June 10
+    // Panel absent before selection
+    expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+
+    // Select a day
     const cell = await screen.findByTestId("day-cell-2026-06-10");
     fireEvent.click(cell);
 
     await waitFor(() => {
       expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
     });
+  });
 
-    // Change start/end
-    const startInput = screen.getByTestId("panel-start") as HTMLInputElement;
-    const endInput = screen.getByTestId("panel-end") as HTMLInputElement;
-    fireEvent.change(startInput, { target: { value: "11:00" } });
-    fireEvent.change(endInput, { target: { value: "19:00" } });
+  // ── E2: Карточки дней ───────────────────────────────────────────────────
 
-    // Reset mock to capture PUT call specifically
+  it("E2: renders branch filter buttons with short titles", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => {
+      expect(screen.getByTestId("branch-btn-branch-spb")).toBeInTheDocument();
+      expect(screen.getByTestId("branch-btn-branch-msk")).toBeInTheDocument();
+    });
+    // Should show short title (СПб, Мск)
+    expect(screen.getByTestId("branch-btn-branch-spb")).toHaveTextContent("СПб");
+    expect(screen.getByTestId("branch-btn-branch-msk")).toHaveTextContent("Мск");
+  });
+
+  it("E2: day cell with schedule shows time", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => {
+      // 2026-06-02 has schedule 11–19 in branch-spb
+      const cell = screen.getByTestId("day-cell-2026-06-02");
+      expect(cell).toBeInTheDocument();
+      expect(cell.textContent).toContain("11–19");
+    });
+  });
+
+  it("E2: closed day shows «выходной» label", async () => {
+    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.includes("working-days")) {
+        return {
+          ok: true,
+          rows: [{ id: "wd-c", workDate: "2026-06-03", startMinute: null, endMinute: null, breakStartMinute: null, breakEndMinute: null, breaks: [], isClosed: true, branchId: "branch-spb" }],
+        };
+      }
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
+      return { ok: true };
+    });
+    await waitFor(() => {
+      const cell = screen.getByTestId("day-cell-2026-06-03");
+      expect(cell.textContent).toContain("выходной");
+    });
+  });
+
+  // ── E3: Реальный фильтр сетки ───────────────────────────────────────────
+
+  it("E3: «Все» filter button is present and active by default", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => {
+      expect(screen.getByTestId("branch-filter-all")).toBeInTheDocument();
+    });
+  });
+
+  it("E3: clicking a branch filter includes branchId in GET request", async () => {
+    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("branch-btn-branch-spb")).toBeInTheDocument());
+
+    (apiJson as ReturnType<typeof vi.fn>).mockClear();
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.includes("working-days")) return { ok: true, rows: [] };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
+      return { ok: true };
+    });
+
+    fireEvent.click(screen.getByTestId("branch-btn-branch-spb"));
+
+    await waitFor(() => {
+      const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
+      const getCall = calls.find((c) => typeof c[0] === "string" && (c[0] as string).includes("working-days") && (c[0] as string).includes("branchId=branch-spb"));
+      expect(getCall).toBeTruthy();
+    });
+  });
+
+  it("E3: clicking «Все» filter does NOT include branchId in GET request", async () => {
+    // First select a branch, then reset to "all"
+    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("branch-filter-all")).toBeInTheDocument());
+
+    // select branch-spb
+    fireEvent.click(screen.getByTestId("branch-btn-branch-spb"));
+
+    (apiJson as ReturnType<typeof vi.fn>).mockClear();
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.includes("working-days")) return { ok: true, rows: [] };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
+      return { ok: true };
+    });
+
+    // reset to all
+    fireEvent.click(screen.getByTestId("branch-filter-all"));
+
+    await waitFor(() => {
+      const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
+      const getCall = calls.find((c) => typeof c[0] === "string" && (c[0] as string).includes("working-days"));
+      expect(getCall).toBeTruthy();
+      const url = getCall![0] as string;
+      expect(url).not.toContain("branchId=");
+    });
+  });
+
+  // ── E4: Панель часов с N перерывами ─────────────────────────────────────
+
+  it("E4: panel shows + перерыв button and can add breaks", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    const cell = await screen.findByTestId("day-cell-2026-06-10");
+    fireEvent.click(cell);
+
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // No break rows yet
+    expect(screen.queryByTestId("break-row-0")).not.toBeInTheDocument();
+
+    // Add a break
+    const addBtn = screen.getByTestId("btn-add-break");
+    fireEvent.click(addBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("break-row-0")).toBeInTheDocument();
+    });
+  });
+
+  it("E4: can remove a break row", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    const cell = await screen.findByTestId("day-cell-2026-06-10");
+    fireEvent.click(cell);
+
+    await waitFor(() => expect(screen.getByTestId("btn-add-break")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("btn-add-break"));
+    await waitFor(() => expect(screen.getByTestId("break-row-0")).toBeInTheDocument());
+
+    // Remove it
+    fireEvent.click(screen.getByTestId("break-remove-0"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("break-row-0")).not.toBeInTheDocument();
+    });
+  });
+
+  it("E4: PUT upsert sends breaks array (2 breaks)", async () => {
+    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    const cell = await screen.findByTestId("day-cell-2026-06-10");
+    fireEvent.click(cell);
+
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // Set start/end
+    fireEvent.change(screen.getByTestId("panel-start"), { target: { value: "09:00" } });
+    fireEvent.change(screen.getByTestId("panel-end"), { target: { value: "18:00" } });
+
+    // Add break 1
+    fireEvent.click(screen.getByTestId("btn-add-break"));
+    await waitFor(() => screen.getByTestId("break-from-0"));
+    fireEvent.change(screen.getByTestId("break-from-0"), { target: { value: "12:00" } });
+    fireEvent.change(screen.getByTestId("break-to-0"), { target: { value: "13:00" } });
+
+    // Add break 2
+    fireEvent.click(screen.getByTestId("btn-add-break"));
+    await waitFor(() => screen.getByTestId("break-from-1"));
+    fireEvent.change(screen.getByTestId("break-from-1"), { target: { value: "15:00" } });
+    fireEvent.change(screen.getByTestId("break-to-1"), { target: { value: "15:30" } });
+
+    // Reset mock
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
       if (url === "/api/admin/booking-engine/working-days") return { ok: true };
@@ -186,9 +317,7 @@ describe("ScheduleWorkTab", () => {
       return { ok: true };
     });
 
-    // Click Save
-    const saveBtn = screen.getByTestId("btn-save");
-    fireEvent.click(saveBtn);
+    fireEvent.click(screen.getByTestId("btn-save"));
 
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
@@ -200,22 +329,27 @@ describe("ScheduleWorkTab", () => {
       const body = JSON.parse((putCall![1] as RequestInit).body as string);
       expect(body.action).toBe("upsert");
       expect(body.dates).toContain("2026-06-10");
-      expect(body.startMinute).toBe(660);   // 11*60
-      expect(body.endMinute).toBe(1140);    // 19*60
+      expect(body.startMinute).toBe(540);  // 9*60
+      expect(body.endMinute).toBe(1080);   // 18*60
+      expect(Array.isArray(body.breaks)).toBe(true);
+      expect(body.breaks).toHaveLength(2);
+      expect(body.breaks[0].startMinute).toBe(720);   // 12:00
+      expect(body.breaks[0].endMinute).toBe(780);     // 13:00
+      expect(body.breaks[1].startMinute).toBe(900);   // 15:00
+      expect(body.breaks[1].endMinute).toBe(930);     // 15:30
     });
   });
 
-  it("PUT close with action:'close' when Закрыть is clicked", async () => {
+  it("E4: PUT upsert with no breaks sends empty breaks array", async () => {
     const { apiJson } = await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
 
-    // Select June 15
-    const cell = await screen.findByTestId("day-cell-2026-06-15");
+    const cell = await screen.findByTestId("day-cell-2026-06-12");
     fireEvent.click(cell);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
 
-    await waitFor(() => {
-      expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
-    });
+    fireEvent.change(screen.getByTestId("panel-start"), { target: { value: "11:00" } });
+    fireEvent.change(screen.getByTestId("panel-end"), { target: { value: "19:00" } });
 
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
@@ -225,8 +359,38 @@ describe("ScheduleWorkTab", () => {
       return { ok: true };
     });
 
-    const closeBtn = screen.getByTestId("btn-close-days");
-    fireEvent.click(closeBtn);
+    fireEvent.click(screen.getByTestId("btn-save"));
+
+    await waitFor(() => {
+      const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
+      const putCall = calls.find(
+        (call) => call[0] === "/api/admin/booking-engine/working-days" &&
+          (call[1] as RequestInit)?.method === "PUT",
+      );
+      expect(putCall).toBeTruthy();
+      const body = JSON.parse((putCall![1] as RequestInit).body as string);
+      expect(body.action).toBe("upsert");
+      expect(body.breaks).toEqual([]);
+    });
+  });
+
+  it("E4: PUT close with action:'close' when Закрыть is clicked", async () => {
+    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    const cell = await screen.findByTestId("day-cell-2026-06-15");
+    fireEvent.click(cell);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    (apiJson as ReturnType<typeof vi.fn>).mockClear();
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url === "/api/admin/booking-engine/working-days") return { ok: true };
+      if (url.includes("working-days")) return { ok: true, rows: [] };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
+      return { ok: true };
+    });
+
+    fireEvent.click(screen.getByTestId("btn-close-days"));
 
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
@@ -241,15 +405,41 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
-  it("Применить шаблон → POST apply with selected dates", async () => {
+  it("E4: clearing selection hides hours panel", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    const cell = await screen.findByTestId("day-cell-2026-06-10");
+    fireEvent.click(cell);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("btn-clear-selection"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
+    });
+  });
+
+  // ── E5: Шаблоны с N перерывами ──────────────────────────────────────────
+
+  it("E5: templates list renders with short branch label", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => {
+      expect(screen.getByTestId("templates-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("template-tpl-1")).toBeInTheDocument();
+    });
+    expect(screen.getByText("СПб день · 11–19")).toBeInTheDocument();
+    // Should show short branch label "СПб" somewhere in the template row
+    const tplEl = screen.getByTestId("template-tpl-1");
+    expect(tplEl.textContent).toContain("СПб");
+  });
+
+  it("E5: Применить шаблон → POST apply with selected dates", async () => {
     const { apiJson } = await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
 
-    // Select June 20
     const cell = await screen.findByTestId("day-cell-2026-06-20");
     fireEvent.click(cell);
 
-    // Wait for template to render
     await waitFor(() => {
       expect(screen.getByTestId("btn-apply-template-tpl-1")).toBeInTheDocument();
     });
@@ -262,8 +452,7 @@ describe("ScheduleWorkTab", () => {
       return { ok: true };
     });
 
-    const applyBtn = screen.getByTestId("btn-apply-template-tpl-1");
-    fireEvent.click(applyBtn);
+    fireEvent.click(screen.getByTestId("btn-apply-template-tpl-1"));
 
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
@@ -278,18 +467,67 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
-  it("templates list renders and shows шаблоны panel", async () => {
-    await renderWorkTab({ month: "2026-06" });
+  it("E5: template form shows add-break button and sends breaks on create", async () => {
+    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("btn-create-template")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("btn-create-template"));
+
     await waitFor(() => {
-      expect(screen.getByTestId("templates-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("tpl-name")).toBeInTheDocument();
+      expect(screen.getByTestId("tpl-btn-add-break")).toBeInTheDocument();
     });
+
+    // Fill in name
+    fireEvent.change(screen.getByTestId("tpl-name"), { target: { value: "Тест шаблон" } });
+    fireEvent.change(screen.getByTestId("tpl-start"), { target: { value: "10:00" } });
+    fireEvent.change(screen.getByTestId("tpl-end"), { target: { value: "18:00" } });
+
+    // Add one break
+    fireEvent.click(screen.getByTestId("tpl-btn-add-break"));
+    await waitFor(() => screen.getByTestId("break-from-0"));
+    fireEvent.change(screen.getByTestId("break-from-0"), { target: { value: "13:00" } });
+    fireEvent.change(screen.getByTestId("break-to-0"), { target: { value: "14:00" } });
+
+    (apiJson as ReturnType<typeof vi.fn>).mockClear();
+    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url === "/api/admin/booking-engine/working-schedule-templates") return { ok: true };
+      if (url.includes("working-days")) return { ok: true, rows: [] };
+      if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
+      return { ok: true };
+    });
+
+    fireEvent.click(screen.getByTestId("btn-create-template-submit"));
+
     await waitFor(() => {
-      expect(screen.getByTestId("template-tpl-1")).toBeInTheDocument();
+      const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
+      const postCall = calls.find(
+        (call) => call[0] === "/api/admin/booking-engine/working-schedule-templates" &&
+          (call[1] as RequestInit)?.method === "POST",
+      );
+      expect(postCall).toBeTruthy();
+      const body = JSON.parse((postCall![1] as RequestInit).body as string);
+      expect(body.name).toBe("Тест шаблон");
+      expect(body.startMinute).toBe(600);   // 10*60
+      expect(body.endMinute).toBe(1080);    // 18*60
+      expect(Array.isArray(body.breaks)).toBe(true);
+      expect(body.breaks).toHaveLength(1);
+      expect(body.breaks[0].startMinute).toBe(780);  // 13:00
+      expect(body.breaks[0].endMinute).toBe(840);    // 14:00
     });
-    expect(screen.getByText("СПб день · 11–19")).toBeInTheDocument();
   });
 
-  it("month prev/next navigates correctly", async () => {
+  // ── Navigation ──────────────────────────────────────────────────────────
+
+  it("month nav prev calls onDeepLinkChange with correct month", async () => {
+    const { onDeepLinkChange } = await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-label")).toHaveTextContent("Июнь 2026"));
+
+    fireEvent.click(screen.getByTestId("month-prev"));
+    expect(onDeepLinkChange).toHaveBeenCalledWith("month", "2026-05");
+  });
+
+  it("month nav next crosses year boundary", async () => {
     await renderWorkTab({ month: "2026-12" });
     await waitFor(() => expect(screen.getByTestId("month-label")).toHaveTextContent("Декабрь 2026"));
 

@@ -74,19 +74,19 @@ todos:
     status: completed
   - id: e1-work-layout
     content: "E1 — ScheduleWorkTab раскладка две колонки (§0.1.1): слева сетка дней + месяц-нав/легенда, справа панель часов, шаблоны — снизу на всю ширину; адаптив-стэк на узких. Проверки: RTL присутствие 3 зон"
-    status: pending
+    status: completed
   - id: e2-work-daycards
     content: "E2 — карточки дней: у́же по ширине, время крупнее (поднять с text-[9px]); метка короткое-имя филиала (B4), перерывы «обед HH–HH» / «N перерывов»; сегодня жёлтый, выбранные primary, закрытые серые. Проверки: RTL рендер карточки с short_title + N перерывов"
-    status: pending
+    status: completed
   - id: e3-work-branch-filter
     content: "E3 — реальный фильтр сетки по филиалу (§13.2): переключатель филиалов + «Все» (дефолт); фильтр в чтение working-days (branchId) предпочтительно бэкендом; локация назначения — в правой панели (дефолт=активный фильтр). Проверки: RTL фильтр меняет видимые дни"
-    status: pending
+    status: completed
   - id: e4-work-hours-breaks
     content: "E4 — строчная панель часов (§6.4): Начало/Конец на строке, перерывы построчно (Перерыв N: from–to ×), кнопка «+ перерыв», клиентская валидация (⊂ дня, без пересечений); Сохранить→PUT working-days с breaks; Закрыть/Очистить. Проверки: RTL выбор дней→PUT с массивом breaks (2+ перерыва)"
-    status: pending
+    status: completed
   - id: e5-work-templates
     content: "E5 — шаблоны с N перерывами (форма создания строчные перерывы → POST templates с breaks; apply на выбранные дни); подпись — короткое имя филиала. Проверки: RTL create-template с breaks + apply"
-    status: pending
+    status: completed
   - id: f1-shell-cleanup
     content: "F1 — DoctorScheduleShell: убрать KpiRow/loadKpis/period/?period/initialKpis|Period; SSR initialData (KPI+фид «3 дня») в таб; метрики ТОЛЬКО в «Записи» (исчезают над work/setup). Проверки: RTL шелл без KPI, метрики только на cal"
     status: pending

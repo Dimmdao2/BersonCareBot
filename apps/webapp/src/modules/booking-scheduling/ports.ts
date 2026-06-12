@@ -175,6 +175,8 @@ export type BookingSchedulingPort = {
   listWorkingDays(input: {
     organizationId: string;
     specialistId?: string | null;
+    /** Optional filter: only return rows matching this branchId. */
+    branchId?: string | null;
     dateFrom: string;
     dateTo: string;
   }): Promise<WorkingDayRecord[]>;
@@ -314,6 +316,8 @@ export type BookingSchedulingService = {
   listWorkingDays(input: {
     organizationId: string;
     specialistId?: string | null;
+    /** Optional filter: only return rows matching this branchId. */
+    branchId?: string | null;
     dateFrom: string;
     dateTo: string;
   }): Promise<WorkingDayRecord[]>;
