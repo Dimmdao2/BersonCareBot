@@ -950,6 +950,26 @@ export function DoctorCommentsTab({
 
   const mobileView = selectedPatient ? "detail" : "list";
 
+  const mobileBackSlot = selectedExercise ? (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleCloseThread}
+      className="mb-2"
+    >
+      ← Назад
+    </Button>
+  ) : selectedPatient ? (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleDeselectPatient}
+      className="mb-2"
+    >
+      ← Назад
+    </Button>
+  ) : null;
+
   return (
     <div
       id="doctor-communications-comments"
@@ -959,6 +979,7 @@ export function DoctorCommentsTab({
         left={leftPane}
         right={rightPane}
         mobileView={mobileView}
+        mobileBackSlot={mobileBackSlot}
         className="lg:grid-cols-[1fr_1.4fr] h-full"
       />
     </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
@@ -336,6 +337,16 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
         left={leftPane}
         right={rightPane}
         mobileView={selectedId ? "detail" : "list"}
+        mobileBackSlot={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectedId(null)}
+            className="mb-2"
+          >
+            ← К списку
+          </Button>
+        }
         className="lg:grid-cols-[1fr_1.2fr] h-full"
       />
     </div>

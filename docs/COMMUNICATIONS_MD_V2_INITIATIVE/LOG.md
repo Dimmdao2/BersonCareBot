@@ -1,5 +1,62 @@
 # COMMUNICATIONS_MD_V2 — Execution Log
 
+## Доработка — мобильный back-slot в split-табах
+
+**Дата:** 2026-06-13
+
+### Что сделано
+
+Заполнен `mobileBackSlot` у `CatalogSplitLayout` во всех четырёх вкладках раздела «Коммуникации».
+Кнопка отображается только на мобиле (`lg:hidden` — встроено в `CatalogSplitLayout`), desktop-поведение не изменялось.
+
+#### 1. Чаты (`DoctorSupportInbox.tsx`)
+
+- Добавлен импорт `Button` из `@/shared/ui/doctor/primitives/button`.
+- `mobileView={selectedId ? "detail" : "list"}` уже был корректным.
+- `mobileBackSlot` = `<Button variant="outline" size="sm" onClick={() => setSelectedId(null)}>← К списку</Button>`.
+- Клик сбрасывает `selectedId → null`, возвращая к списку чатов.
+
+#### 2. Заявки (`DoctorOnlineIntakeClient.tsx`)
+
+- `mobileView` = `selectedId ? "detail" : "list"` уже было.
+- `mobileBackSlot` = `<Button variant="outline" size="sm" onClick={() => openDetail(selectedId!)}>← К заявкам</Button>`.
+- Вызов `openDetail(selectedId!)` использует уже существующий toggle-close: при `selectedId === id` функция очищает выбор (id, detail, replyText, replyError) и вызывает `onDetailChange(null)`. Поведение идентично закрытию детали через повторный клик.
+
+#### 3. Комментарии (`DoctorCommentsTab.tsx`)
+
+- `mobileView = selectedPatient ? "detail" : "list"` уже было.
+- `mobileBackSlot` — три уровня вложенности:
+  - Если открыт тред упражнения (state C): `← Назад` → `handleCloseThread()` (C→B, переиспользован существующий хендлер).
+  - Если выбран пациент, но упражнение не открыто (state B): `← Назад` → `handleDeselectPatient()` (B→A, переиспользован существующий хендлер).
+  - Если ни то ни другое: `null` (мобильная кнопка не рендерится).
+- Это согласуется с моделью §B.1 из README: «Закрыть» C→B, «×» B→A — мобильная «← Назад» дублирует те же переходы на мобиле.
+
+#### 4. Рассылки (`BroadcastsTab.tsx`)
+
+**Решение: мобильный переключатель «Форма ↔ Журнал»** — выбрано вместо вертикального стека.
+
+Обоснование: вертикальный стек потребовал бы смены структуры layout'а (условный рендер без `CatalogSplitLayout` на мобиле). Переключатель — минимальное изменение: добавлено состояние `mobileView: "list" | "detail"` (дефолт `"list"` = форма), кнопка «Журнал →» (`lg:hidden`) внутри левой панели (формы), `mobileBackSlot` = `← Форма` для возврата.
+
+- Добавлен `useState<"list" | "detail">("list")` в `BroadcastsMainView`.
+- Кнопка «Журнал →» размещена в шапке левой секции (`lg:hidden`) — на десктопе скрыта.
+- `mobileBackSlot` = `<Button variant="outline" size="sm" onClick={() => setMobileView("list")}>← Форма</Button>`.
+- Desktop: `mobileView` не влияет (обе колонки всегда видны через `lg:grid`).
+
+### Проверки
+
+- `npx tsc --noEmit` — **0 ошибок** в наших файлах.
+- `npx vitest run DoctorSupportInbox.test.tsx DoctorOnlineIntakeClient.test.tsx DoctorCommentsTab.test.tsx BroadcastsTab.test.tsx` — **66 passed (4 files)**.
+- `npx eslint <изменённые файлы>` — **0 ошибок**.
+
+### Затронутые файлы
+
+- `apps/webapp/src/app/app/doctor/messages/DoctorSupportInbox.tsx` — добавлен импорт Button, добавлен mobileBackSlot
+- `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` — добавлен mobileBackSlot
+- `apps/webapp/src/app/app/doctor/comments/DoctorCommentsTab.tsx` — добавлен mobileBackSlot (3-уровневый drill-down)
+- `apps/webapp/src/app/app/doctor/communications/tabs/BroadcastsTab.tsx` — добавлен mobileView state, кнопка «Журнал →», mobileBackSlot
+
+---
+
 ## Этап 7 (B.4) — журнал рассылок
 
 **Дата:** 2026-06-13

@@ -730,6 +730,16 @@ export function DoctorOnlineIntakeClient({
         left={leftPane}
         right={rightPane}
         mobileView={mobileView}
+        mobileBackSlot={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openDetail(selectedId!)}
+            className="mb-2"
+          >
+            ← К заявкам
+          </Button>
+        }
       />
     </div>
   );

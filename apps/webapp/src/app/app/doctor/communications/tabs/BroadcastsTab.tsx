@@ -43,6 +43,8 @@ export function BroadcastsTab({ deepLinkParams, onDeepLinkChange }: Communicatio
 function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
   const [entries, setEntries] = useState<BroadcastAuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Мобильный вид: "list" = форма, "detail" = журнал. На desktop обе панели видны. */
+  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
 
   const refreshLog = useCallback(async () => {
     const data = await listBroadcastAuditAction(50);
@@ -66,7 +68,18 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
 
   const leftPane = (
     <section className={cn(doctorSectionCardClass, "h-full overflow-y-auto")}>
-      <h2 className={cn(doctorSectionTitleClass, "mb-1")}>Новая рассылка</h2>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <h2 className={doctorSectionTitleClass}>Новая рассылка</h2>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setMobileView("detail")}
+          className="lg:hidden"
+        >
+          Журнал →
+        </Button>
+      </div>
       <BroadcastForm onBroadcastSent={() => void refreshLog()} />
     </section>
   );
@@ -99,7 +112,17 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
       <CatalogSplitLayout
         left={leftPane}
         right={rightPane}
-        mobileView="list"
+        mobileView={mobileView}
+        mobileBackSlot={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMobileView("list")}
+            className="mb-2"
+          >
+            ← Форма
+          </Button>
+        }
         className="lg:grid-cols-[1fr_1.2fr] h-full"
       />
     </div>
