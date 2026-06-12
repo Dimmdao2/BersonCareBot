@@ -186,3 +186,18 @@
 ### Вывод
 Mock-тесты не ловят SQL-ошибки построения запроса — для raw-SQL/CTE нужен реальный прогон против БД.
 Opt-in dev-DB тест добавлен именно для этого класса регрессий.
+
+## CI-fix + финальный гейт (2026-06-12)
+
+- **CI-fix `0c15f34c`** — первый прогон `pnpm run ci` упал на
+  `e2e/smoke-app-router-rsc-pages-inprocess`: Block 6 свёл легаси-страницы к **синхронным**
+  redirect-функциям, а smoke требует `AsyncFunction` для дефолтных экспортов RSC-страниц кабинета.
+  Фикс: `messages`/`online-intake`/`comments`/`broadcasts`/`archive` → `async`.
+- **e7c финальный CI ✅** — `pnpm run ci` зелёный (exit 0):
+  lint ✅ · typecheck (6 проектов) ✅ · check:hls-helpers-sync ✅ · integrator 1100 тестов ✅ ·
+  webapp 1137 файлов ✅ · media-worker 24 ✅ · build ✅ · build:webapp (Next) ✅ ·
+  audit (no known vulnerabilities) ✅. **Не пушено** (по правилу — пуш отдельной командой).
+
+### Статус TODO#3
+Все этапы (Blocks 1–6 + e7a docs + e7c CI) закрыты. e7b (живая проверка в браузере) —
+за пользователем на `127.0.0.1:5200` (dev:doctor); SQL-fix снял падение экрана на живом dev.

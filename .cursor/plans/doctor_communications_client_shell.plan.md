@@ -77,7 +77,7 @@ todos:
     status: in_progress
   - id: e7c-full-ci
     content: "Этап 7.C — финальный гейт pnpm run ci (один раз). Не пушить."
-    status: in_progress
+    status: completed
 ---
 
 # Doctor Communications — единый клиентский шелл с табами (TODO#3)
