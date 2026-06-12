@@ -113,11 +113,37 @@ describe("DoctorSupportInbox — polling", () => {
 
     const callsAfterInit = fetchMock.mock.calls.length;
 
-    // advance past 3 poll intervals — pollOnce should bail early (not visible)
+    // advance past 3 poll intervals — interval is paused when hidden (no ticks at all)
     await act(async () => {
       vi.advanceTimersByTime(3_500);
     });
 
     expect(fetchMock.mock.calls.length).toBe(callsAfterInit);
+  });
+
+  it("resumes polling when window becomes visible again", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, conversations: [] })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DoctorSupportInbox active={true} />);
+    await act(async () => { await Promise.resolve(); });
+
+    const callsWhileHidden = fetchMock.mock.calls.length;
+
+    // Simulate becoming visible
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    // immediate poll on visibility + interval ticks
+    await act(async () => { vi.advanceTimersByTime(2_500); });
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsWhileHidden);
   });
 });

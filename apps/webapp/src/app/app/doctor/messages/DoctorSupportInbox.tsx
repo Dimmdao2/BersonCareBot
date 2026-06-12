@@ -120,11 +120,11 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
   }, [loadList]);
 
   // Умный поллинг: только активный таб + видимое окно; setState только при реальном изменении.
+  // Интервал паузится при скрытии окна и возобновляется при возврате — нет холостых тиков.
   useEffect(() => {
     if (!active) return;
 
     const pollOnce = async () => {
-      if (document.visibilityState !== "visible") return;
       try {
         const url = new URL("/api/doctor/messages/conversations", window.location.origin);
         if (unreadOnly) url.searchParams.set("unread", "1");
@@ -144,17 +144,37 @@ export function DoctorSupportInbox({ active = true }: DoctorSupportInboxProps) {
       }
     };
 
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") void pollOnce();
+    let timerId: ReturnType<typeof setInterval> | null = null;
+
+    const startInterval = () => {
+      if (timerId !== null) return;
+      timerId = setInterval(() => void pollOnce(), POLL_INTERVAL_MS);
     };
 
-    const timerId = setInterval(() => {
-      void pollOnce();
-    }, POLL_INTERVAL_MS);
+    const stopInterval = () => {
+      if (timerId !== null) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void pollOnce(); // немедленный poll при возврате видимости
+        startInterval();
+      } else {
+        stopInterval(); // пауза — нет холостых тиков при скрытом окне
+      }
+    };
+
+    // Запускаем интервал только если окно уже видимо при монтировании
+    if (document.visibilityState === "visible") {
+      startInterval();
+    }
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
-      clearInterval(timerId);
+      stopInterval();
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [active, unreadOnly]);

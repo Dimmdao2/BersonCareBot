@@ -5,7 +5,8 @@
  *
  * Паттерн: `useMediaLibraryPickerServerSearch`. Когда локальный фильтр даёт 0 совпадений
  * и запрос непустой — с задержкой вызываем `/api/doctor/exercise-comments?q=…` для добора
- * из полного набора истории (не только загруженной страницы).
+ * из первой страницы истории (PAGE_SIZE строк на сервере). Глобальный full-text поиск
+ * по всей истории вне scope TODO#3; route явно возвращает hasMore=false при q≠"".
  *
  * Экспортируемая утилита {@link shouldRunDoctorCommentsServerSearch} тестируется отдельно.
  */

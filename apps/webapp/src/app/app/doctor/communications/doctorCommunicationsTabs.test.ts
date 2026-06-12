@@ -3,7 +3,6 @@ import {
   COMMUNICATIONS_TABS,
   COMMUNICATIONS_DEFAULT_TAB,
   communicationsTabFromQuery,
-  communicationsTabFromPathname,
 } from "./doctorCommunicationsTabs";
 
 describe("doctorCommunicationsTabs", () => {
@@ -36,20 +35,5 @@ describe("doctorCommunicationsTabs", () => {
       expect(communicationsTabFromQuery("nonsense")).toBe(COMMUNICATIONS_DEFAULT_TAB);
     });
   });
-
-  describe("communicationsTabFromPathname", () => {
-    it("maps legacy pathnames to tabs", () => {
-      expect(communicationsTabFromPathname("/app/doctor/messages")).toBe("chats");
-      expect(communicationsTabFromPathname("/app/doctor/online-intake")).toBe("intake");
-      expect(communicationsTabFromPathname("/app/doctor/online-intake/abc-123")).toBe("intake");
-      expect(communicationsTabFromPathname("/app/doctor/comments")).toBe("comments");
-      expect(communicationsTabFromPathname("/app/doctor/broadcasts")).toBe("broadcasts");
-      expect(communicationsTabFromPathname("/app/doctor/broadcasts/archive")).toBe("broadcasts");
-    });
-
-    it("returns null for unrelated pathnames", () => {
-      expect(communicationsTabFromPathname("/app/doctor/clients")).toBeNull();
-      expect(communicationsTabFromPathname("/app/doctor")).toBeNull();
-    });
-  });
 });
+

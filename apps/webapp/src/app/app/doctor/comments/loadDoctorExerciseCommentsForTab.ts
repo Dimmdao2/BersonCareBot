@@ -5,6 +5,13 @@
  * этот загрузчик делает ОДИН doctor-wide запрос через новый метод порта.
  * On-support список резолвится здесь же; порт получает готовый массив patient_user_id.
  *
+ * **Намеренное расхождение с `loadDoctorExerciseCommentAttention` (экран «Сегодня»):**
+ * - Этот загрузчик охватывает ВСЕ активные инстансы пациента с `assignmentSource IN ('doctor','course')`.
+ *   Promo-инстансы (`assignmentSource = 'promo'`) исключены намеренно — врач их не назначает.
+ * - «Сегодня» берёт `pickActivePlanInstance` — один самый свежий активный инстанс ЛЮБОГО источника
+ *   (включая promo). Это расхождение зафиксировано как допустимое: promo-комментарии видны
+ *   на «Сегодня», но не на вкладке «Комментарии».
+ *
  * См. TODO#3 Block 2 в communications.md и .cursor/plans/doctor_communications_client_shell.plan.md.
  */
 import type { DoctorClientsFilters } from "@/modules/doctor-clients/ports";
