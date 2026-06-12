@@ -5,6 +5,7 @@ import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalytics
 import { communicationsTabFromQuery } from "./doctorCommunicationsTabs";
 import { loadDoctorCommunicationsBadges } from "./loadDoctorCommunicationsBadges";
 import { loadDoctorExerciseCommentsForTab } from "../comments/loadDoctorExerciseCommentsForTab";
+import { loadDoctorCommentPatients } from "../comments/loadDoctorCommentPatients";
 import { DoctorCommunicationsShell } from "./DoctorCommunicationsShell";
 
 type Props = {
@@ -23,16 +24,33 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
     loadDoctorAnalyticsAudience(),
   ]);
 
-  const commentsData = await loadDoctorExerciseCommentsForTab(deps, {
-    viewerUserId: session.user.userId,
-    excludedUserIds: audience?.excludedUserIds ?? [],
-  });
+  const excludedUserIds = audience?.excludedUserIds ?? [];
+
+  const [commentsData, patients] = await Promise.all([
+    loadDoctorExerciseCommentsForTab(deps, {
+      viewerUserId: session.user.userId,
+      excludedUserIds,
+    }),
+    loadDoctorCommentPatients(
+      {
+        doctorClientsPort: deps.doctorClientsPort,
+        programItemDiscussion: deps.programItemDiscussion,
+      },
+      { viewerUserId: session.user.userId },
+      { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
+    ),
+  ]);
 
   return (
     <DoctorCommunicationsShell
       initialTab={initialTab}
       badges={badges}
-      initialTabData={{ comments: commentsData }}
+      initialTabData={{
+        comments: {
+          feed: commentsData,
+          patients,
+        },
+      }}
     />
   );
 }

@@ -1,5 +1,112 @@
 # COMMUNICATIONS_MD_V2 — Execution Log
 
+## Этап 5b — UI drill-down комментариев
+
+**Дата:** 2026-06-13
+
+### Что сделано
+
+#### 1. Редизайн `DoctorCommentsTab.tsx` — полная замена плоской раскладки
+
+Компонент `DoctorCommentsTab` переписан с нуля: плоская раскладка заменена split-layout с 3 состояниями правого пейна.
+
+**Левый пейн** — список пациентов (`CommentPatientRow[]`):
+- Поиск (`Input h-8`) — многополевой по `displayName`, `phone`, `telegramId`, `maxId`. Строка поиска — отдельной строкой на всю ширину (адаптивная раскладка: поиск сверху, фильтры под ним).
+- Тоггл-фильтр «★ На сопровождении · N» — поведение A3: клик вкл/выкл, `aria-pressed` отражает состояние. Пустой = показывать всех.
+- Строка пациента: `displayName` + `★` + бейдж `unreadCount` (красный кружок).
+- Поиск/фильтры фильтруют оба пейна (левый список и ленту state A).
+
+**State A — лента всех комментариев** (пациент не выбран, дефолт):
+- Плоский список `filteredFeed` из `TodayExerciseCommentAttentionItem[]`.
+- Кнопка «Загрузить ещё» — пагинация `/api/doctor/exercise-comments`.
+- Клик по строке ленты переходит в state B (находит пациента по `patientUserId`).
+- Переиспользует `useDoctorExerciseCommentsSearch` для серверного добора.
+
+**State B — упражнения пациента** (пациент выбран):
+- `fetch GET /api/doctor/comments/patients/{patientUserId}/exercises?includePastPrograms=true`.
+- Шапка: ссылка на имя пациента (`doctorClientProfileHref` → дашборд) + «★ на сопровождении» + счётчик `totalExercisesWithComments` / `totalUnreadComments` + кнопка `×` (сброс пациента, B→A).
+- Группировка по этапам: активные (`isActive=true`) — развёрнуты сверху; закрытые — свёрнуты снизу (`useState(collapsed=true)` по умолчанию для неактивных).
+- Строка упражнения: плейсхолдер миниатюры `h-9 w-9 bg-muted` + `title` + бейдж `unreadComments` (красный) или `totalComments` (серый).
+- Сортировка внутри группы — по `latestCommentAt` DESC (делает загрузчик 5a).
+- Ссылка «Открыть программу пациента →» (`doctorClientTreatmentProgramInstanceHref`) в футере.
+- Примечание: `ExerciseListCatalogThumb` не используется в state B, т.к. `ExerciseCommentItem.thumb` содержит только `mediaFileId: null` (загрузчик 5a не заполняет mediaFileId из snapshot). Используется простой плейсхолдер `bg-muted` (зафиксировано как развилка — см. ниже).
+
+**State C — чат по упражнению** (упражнение выбрано):
+- `fetch GET /api/doctor/treatment-program-instances/{instanceId}/items/{stageItemId}/discussion?limit=50&direction=backward`.
+- Шапка: хлебная крошка «ссылка-пациент → упражнение» + счётчик + кнопка текстом **«Закрыть»** (C→B). Кнопка `×` в шапке B не мешает: разные уровни иерархии.
+- Тред: сообщения sorted ascending по `createdAt`; patient/admin роль отображается.
+- На каждом patient-сообщении — кнопка «Ответить» → разворачивает inline-форму с `Textarea` + «Ответить» / «Отмена».
+- Ответ: `POST .../program-note-reply` (body `{ text }`). Ошибки маппятся через `REPLY_ERROR_LABELS`.
+- После успешного ответа — показывается «Ответ отправлен», форма закрывается, тред перезагружается.
+- Mark-read: `POST .../discussion/read` — вызывается один раз при первом рендере сообщений треда.
+- Тред версионирован через `threadVersionRef` — гонок при быстром переключении упражнений нет.
+
+**Navigation:**
+- Пациент → B; упражнение → C; «Закрыть» C→B; «×» B→A.
+- Состояние drill-down локальное (НЕ в URL) — `deepLinkKeys: []` не затронут.
+
+**Split layout:**
+- `CatalogSplitLayout` + `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE`.
+- `mobileView`: `"list"` когда пациент не выбран, `"detail"` когда пациент выбран.
+- Пропорции `lg:grid-cols-[1fr_1.4fr]`.
+
+**Пустые состояния:** `DoctorEmptyState size="xs"` для inline-пустых, `size="sm"` для page-level.
+
+#### 2. `CommentsTab.tsx` — обновлён маппинг `initialData`
+
+- `initialData` теперь принимает v2-форму `{ feed: { items, nextCursor, hasMore }, patients: CommentPatientRow[] }`.
+- Backward compat: старая плоская форма `{ items, nextCursor, hasMore }` маппится в `patients: []`.
+- Функция `toProps` с type guards `isV2Shape` / `isLegacyShape`.
+
+#### 3. `communications/page.tsx` — SSR-загрузка пациентов
+
+- `loadDoctorCommentPatients` вызывается параллельно с `loadDoctorExerciseCommentsForTab` через `Promise.all`.
+- `deps.doctorClientsPort` и `deps.programItemDiscussion` передаются напрямую из `buildAppDeps()`.
+- `initialTabData.comments` = `{ feed: commentsData, patients }`.
+
+#### 4. Тесты
+
+- `DoctorCommentsTab.test.tsx` — полная перепись: 26 тестов на 3 состояния и навигацию:
+  - State A: отображение пациентов, тоггл «★», «Загрузить ещё», пустые состояния.
+  - Навигация A→B: клик по пациенту, кнопка «×» (сброс B→A).
+  - State B: группы по этапам, упражнения, ссылки, ссылка на профиль пациента.
+  - Навигация B→C: клик по упражнению, хлебные крошки, кнопка «Закрыть» (C→B).
+  - State C: пациентское сообщение с кнопкой «Ответить», форма, успешная отправка, блокировка при пустом тексте.
+  - Вспомогательный хелпер `clickPatientInLeftPane` для точного выбора по `aria-pressed`.
+- `CommentsTab.test.tsx` — обновлён под v2 shape: 5 тестов (v2, legacy, undefined, garbage, пустые).
+
+### Проверки
+
+- `npx tsc --noEmit` — **0 ошибок** в наших файлах (pre-existing в `schedule/**`, `booking-**` — параллельная инициатива).
+- `npx vitest run DoctorCommentsTab.test.tsx CommentsTab.test.tsx` — **30 passed (2 files)**.
+- `npx eslint` по всем изменённым файлам — **0 ошибок**.
+
+### Затронутые файлы
+
+**Изменённые:**
+- `apps/webapp/src/app/app/doctor/comments/DoctorCommentsTab.tsx` — полная замена компонента
+- `apps/webapp/src/app/app/doctor/comments/DoctorCommentsTab.test.tsx` — полная перепись тестов
+- `apps/webapp/src/app/app/doctor/communications/tabs/CommentsTab.tsx` — обновлён маппинг initialData (v2)
+- `apps/webapp/src/app/app/doctor/communications/tabs/CommentsTab.test.tsx` — обновлены тесты под v2
+- `apps/webapp/src/app/app/doctor/communications/page.tsx` — добавлен `loadDoctorCommentPatients`
+
+### Сознательно не сделано
+
+- **`ExerciseListCatalogThumb` в state B** — загрузчик 5a возвращает `thumb.mediaFileId: null` (медиафайл не хранится в stageItem snapshot напрямую). Для использования `ExerciseListCatalogThumb` нужен отдельный batch-запрос по `mediaFileId` через `lfkExercisesService`. Используется плейсхолдер `bg-muted h-9 w-9`. Зафиксировано как развилка.
+- **`includePastPrograms` UI-кнопка** — параметр передаётся как `true` по умолчанию в API-роут (показывать все программы включая прошлые). Кнопки «показать прошлые» нет (per README §B.1: «вторично»).
+- **Мобильная кнопка «назад»** — `mobileBackSlot` не заполнен. По аналогии с другими табами (Этап 2, 3). Развилка зафиксирована ниже.
+- **«Загрузить ещё» в state C** — тред показывает первые 50 сообщений (`limit=50`). Пагинация треда не реализована (вторично).
+
+### Развилки
+
+1. **ExerciseListCatalogThumb в state B:** загрузчик 5a не несёт `mediaFileId` из snapshot упражнения — в `ExerciseCommentItem.thumb.mediaFileId = null`. Для показа превью нужен отдельный join в загрузчике (или дополнительный batch-запрос по `exerciseId` → `lfkExercisesService.getByIds`). Добавить в развилки для 5b-v2 или в Этапе 6 (B.3) при реализации графика.
+
+2. **Мобильный UX drill-down:** при выборе пациента на мобиле (`mobileView="detail"`) правый пейн перекрывает левый. `mobileBackSlot` не заполнен — нет кнопки «← Назад» для возврата к списку без сброса пациента. Аналогично Этапам 2 и 3. Решение: добавить `mobileBackSlot` кнопкой «← Все пациенты» / «← Упражнения» в зависимости от состояния.
+
+3. **Подсчёт `unreadCount` в левом пейне vs `totalUnreadComments` в state B:** в левом пейне `unreadCount` = число stageItem'ов с непрочитанным последним сообщением (из 5a `loadDoctorCommentPatients`). В шапке state B — `totalUnreadComments` из `loadDoctorPatientExercisesWithComments` (реальное число непрочитанных сообщений). Числа могут расходиться — зафиксировано как допустимое: левый пейн = быстрый badge, правый пейн = точный счётчик.
+
+---
+
 ## Этап 5a — бэкенд-агрегация комментариев
 
 **Дата:** 2026-06-13

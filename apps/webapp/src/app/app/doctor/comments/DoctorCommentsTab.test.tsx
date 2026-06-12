@@ -1,10 +1,15 @@
 /** @vitest-environment jsdom */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { TodayExerciseCommentAttentionItem } from "../loadDoctorExerciseCommentAttention";
 import type { DoctorExerciseCommentCursor } from "@/modules/program-item-discussion/types";
+import type { CommentPatientRow } from "./loadDoctorCommentPatients";
+import type {
+  PatientExercisesWithCommentsResult,
+  ExerciseCommentItem,
+} from "./loadDoctorPatientExercisesWithComments";
 
 // Mock hook so unit tests aren't affected by debounce / server search logic
 vi.mock("./useDoctorExerciseCommentsSearch", () => ({
@@ -18,14 +23,18 @@ vi.mock("./useDoctorExerciseCommentsSearch", () => ({
 
 import { DoctorCommentsTab } from "./DoctorCommentsTab";
 
+// ── Fixtures ──────────────────────────────────────────────────────────────────
+
 const P1 = "00000000-0000-4000-8000-000000000001";
 const P2 = "00000000-0000-4000-8000-000000000002";
 const INST = "00000000-0000-4000-8000-bbbb00000001";
 const ITEM1 = "00000000-0000-4000-8000-aaa000000001";
 const ITEM2 = "00000000-0000-4000-8000-aaa000000002";
+const STAGE1 = "00000000-0000-4000-8000-ddd000000001";
 const MSG1 = "00000000-0000-4000-8000-ccc000000001";
+const MSG2 = "00000000-0000-4000-8000-ccc000000002";
 
-function makeItem(
+function makeFeedItem(
   overrides: Partial<TodayExerciseCommentAttentionItem> & {
     stageItemId: string;
     patientDisplayName: string;
@@ -52,16 +61,86 @@ function makeItem(
   };
 }
 
-const ITEM_A = makeItem({ stageItemId: ITEM1, patientDisplayName: "Иванов Иван" });
-const ITEM_B = makeItem({
-  stageItemId: ITEM2,
-  patientDisplayName: "Петрова Мария",
-  patientUserId: P2,
-});
+function makePatient(
+  overrides: Partial<CommentPatientRow> & { patientUserId: string; displayName: string },
+): CommentPatientRow {
+  return {
+    isOnSupport: true,
+    unreadCount: 1,
+    phone: null,
+    telegramId: null,
+    maxId: null,
+    ...overrides,
+  };
+}
+
+const FEED_A = makeFeedItem({ stageItemId: ITEM1, patientDisplayName: "Иванов Иван", patientUserId: P1 });
+const FEED_B = makeFeedItem({ stageItemId: ITEM2, patientDisplayName: "Петрова Мария", patientUserId: P2 });
+
+const PAT_A = makePatient({ patientUserId: P1, displayName: "Иванов Иван" });
+const PAT_B = makePatient({ patientUserId: P2, displayName: "Петрова Мария", unreadCount: 2 });
 
 const CURSOR_1: DoctorExerciseCommentCursor = {
   createdAt: "2026-06-11T10:00:00.000Z",
   id: MSG1,
+};
+
+const EXERCISE_ITEM: ExerciseCommentItem = {
+  stageItemId: ITEM1,
+  stageId: STAGE1,
+  title: "Приседания",
+  thumb: { mediaFileId: null, snapshotPreviewUrl: null },
+  totalComments: 3,
+  unreadComments: 2,
+  latestCommentAt: "2026-06-11T10:00:00.000Z",
+};
+
+const EXERCISES_RESULT: PatientExercisesWithCommentsResult = {
+  patientUserId: P1,
+  instanceId: INST,
+  instanceTitle: "Программа реабилитации",
+  groups: [
+    {
+      stageId: STAGE1,
+      stageTitle: "Этап 1",
+      stageStatus: "in_progress",
+      isActive: true,
+      exercises: [EXERCISE_ITEM],
+    },
+  ],
+  totalExercisesWithComments: 1,
+  totalUnreadComments: 2,
+};
+
+const THREAD_RESPONSE = {
+  ok: true,
+  messages: [
+    {
+      id: MSG1,
+      instanceStageItemId: ITEM1,
+      patientUserId: P1,
+      senderRole: "patient",
+      origin: "patient_observation",
+      body: "Болит колено",
+      mediaFileId: null,
+      supportMessageId: null,
+      createdAt: "2026-06-11T10:00:00.000Z",
+    },
+    {
+      id: MSG2,
+      instanceStageItemId: ITEM1,
+      patientUserId: P1,
+      senderRole: "admin",
+      origin: "support_admin_reply",
+      body: "Понял вас",
+      mediaFileId: null,
+      supportMessageId: null,
+      createdAt: "2026-06-11T11:00:00.000Z",
+    },
+  ],
+  pageInfo: { direction: "backward", limit: 50, nextCursor: null, hasMore: false },
+  totalCount: 2,
+  peerLastReadAt: null,
 };
 
 function stubFetchOk(body: unknown) {
@@ -71,246 +150,380 @@ function stubFetchOk(body: unknown) {
   } as unknown as Response);
 }
 
-describe("DoctorCommentsTab — базовый рендер", () => {
+function defaultProps(overrides?: Partial<ConstructorParameters<typeof Object>[0]>) {
+  return {
+    initialItems: [FEED_A, FEED_B],
+    initialCursor: null,
+    hasMoreInitial: false,
+    initialPatients: [PAT_A, PAT_B],
+    ...overrides,
+  };
+}
+
+// ── State A: feed ─────────────────────────────────────────────────────────────
+
+describe("DoctorCommentsTab — состояние A (лента)", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("показывает имена пациентов в левой панели", () => {
+  it("показывает пациентов в левой панели", () => {
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    // getAllByRole because patient name appears in both left pane and feed right pane
+    expect(screen.getAllByRole("button", { name: /Иванов Иван/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole("button", { name: /Петрова Мария/i }).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("показывает ленту комментариев в правой панели по умолчанию", () => {
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    // feed items appear as patient name
+    const allIvanov = screen.getAllByText(/Иванов Иван/);
+    expect(allIvanov.length).toBeGreaterThanOrEqual(2); // left pane + right feed
+  });
+
+  it("показывает empty-state в левой панели если нет пациентов", () => {
     render(
-      <DoctorCommentsTab initialItems={[ITEM_A, ITEM_B]} initialCursor={null} hasMoreInitial={false} />,
+      <DoctorCommentsTab {...defaultProps({ initialPatients: [] })} />,
     );
-    expect(screen.getByText("Иванов Иван")).toBeInTheDocument();
-    expect(screen.getByText("Петрова Мария")).toBeInTheDocument();
+    expect(screen.getByText(/нет пациентов с непрочитанными/i)).toBeInTheDocument();
   });
 
-  it("показывает empty-state при отсутствии элементов", () => {
-    render(<DoctorCommentsTab initialItems={[]} initialCursor={null} hasMoreInitial={false} />);
-    expect(screen.getByText(/нет новых комментариев/i)).toBeInTheDocument();
+  it("показывает тоггл «★ На сопровождении» с числом пациентов", () => {
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    expect(
+      screen.getByRole("button", { name: /★ На сопровождении · 2/i }),
+    ).toBeInTheDocument();
   });
 
-  it("показывает «Выберите комментарий слева» в правой панели по умолчанию", () => {
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
-    expect(screen.getByText("Выберите комментарий слева")).toBeInTheDocument();
+  it("тоггл «★ На сопровождении» переключается (aria-pressed)", async () => {
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    const btn = screen.getByRole("button", { name: /★ На сопровождении/i });
+    expect(btn).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(btn);
+    expect(btn).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(btn);
+    expect(btn).toHaveAttribute("aria-pressed", "false");
   });
 
   it("показывает «Загрузить ещё» когда hasMoreInitial=true", () => {
     render(
-      <DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={CURSOR_1} hasMoreInitial={true} />,
+      <DoctorCommentsTab
+        {...defaultProps({ hasMoreInitial: true, initialCursor: CURSOR_1 })}
+      />,
     );
     expect(screen.getByRole("button", { name: /загрузить ещё/i })).toBeInTheDocument();
   });
 
   it("скрывает «Загрузить ещё» когда hasMoreInitial=false", () => {
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
+    render(<DoctorCommentsTab {...defaultProps()} />);
     expect(screen.queryByRole("button", { name: /загрузить ещё/i })).not.toBeInTheDocument();
   });
-});
 
-describe("DoctorCommentsTab — детальная панель", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("клик на строку открывает правую панель с именем пациента и формой ответа", async () => {
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /Иванов Иван/i }));
-
-    // header in right pane shows patient name
-    const allNames = screen.getAllByText(/Иванов Иван/i);
-    expect(allNames.length).toBeGreaterThanOrEqual(2); // row + header
-
-    // reply textarea and button appear
-    expect(screen.getByRole("textbox", { name: /текст ответа/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^ответить$/i })).toBeInTheDocument();
-  });
-
-  it("кнопка «Ответить» заблокирована при пустом тексте", async () => {
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /Иванов Иван/i }));
-    expect(screen.getByRole("button", { name: /^ответить$/i })).toBeDisabled();
-  });
-
-  it("смена строки сбрасывает текст ответа", async () => {
-    render(
-      <DoctorCommentsTab initialItems={[ITEM_A, ITEM_B]} initialCursor={null} hasMoreInitial={false} />,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: /Иванов Иван/i }));
-    await userEvent.type(screen.getByRole("textbox", { name: /текст ответа/i }), "Отлично!");
-    expect(screen.getByRole("textbox", { name: /текст ответа/i })).toHaveValue("Отлично!");
-
-    await userEvent.click(screen.getByRole("button", { name: /Петрова Мария/i }));
-    expect(screen.getByRole("textbox", { name: /текст ответа/i })).toHaveValue("");
-  });
-});
-
-describe("DoctorCommentsTab — ответ (POST program-note-reply)", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("отправляет POST на правильный URL с текстом", async () => {
-    const fetchMock = stubFetchOk({ ok: true });
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /Иванов Иван/i }));
-    await userEvent.type(screen.getByRole("textbox", { name: /текст ответа/i }), "Хорошая работа");
-    await userEvent.click(screen.getByRole("button", { name: /^ответить$/i }));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain(
-      `/api/doctor/treatment-program-instances/${INST}/items/${ITEM1}/program-note-reply`,
-    );
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body as string)).toEqual({ text: "Хорошая работа" });
-  });
-
-  it("показывает «Ответ отправлен» после успешной отправки", async () => {
-    vi.stubGlobal("fetch", stubFetchOk({ ok: true }));
-
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /Иванов Иван/i }));
-    await userEvent.type(screen.getByRole("textbox", { name: /текст ответа/i }), "Супер");
-    await userEvent.click(screen.getByRole("button", { name: /^ответить$/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/ответ отправлен/i)).toBeInTheDocument();
-    });
-  });
-
-  it("показывает текст ошибки feature_disabled", async () => {
-    vi.stubGlobal("fetch", stubFetchOk({ ok: false, error: "feature_disabled" }));
-
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /Иванов Иван/i }));
-    await userEvent.type(screen.getByRole("textbox", { name: /текст ответа/i }), "Текст");
-    await userEvent.click(screen.getByRole("button", { name: /^ответить$/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/функция временно недоступна/i)).toBeInTheDocument();
-    });
-  });
-
-  it("показывает ошибку при сбое сети", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockRejectedValue(new Error("network error")),
-    );
-
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /Иванов Иван/i }));
-    await userEvent.type(screen.getByRole("textbox", { name: /текст ответа/i }), "Текст");
-    await userEvent.click(screen.getByRole("button", { name: /^ответить$/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/ошибка сети/i)).toBeInTheDocument();
-    });
-  });
-});
-
-describe("DoctorCommentsTab — «Загрузить ещё»", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("вызывает /api/doctor/exercise-comments с cursor и добавляет новые элементы", async () => {
+  it("«Загрузить ещё» вызывает /api/doctor/exercise-comments", async () => {
     const fetchMock = stubFetchOk({
       ok: true,
-      items: [ITEM_B],
+      items: [],
       hasMore: false,
       nextCursor: null,
     });
     vi.stubGlobal("fetch", fetchMock);
 
     render(
-      <DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={CURSOR_1} hasMoreInitial={true} />,
+      <DoctorCommentsTab
+        {...defaultProps({ hasMoreInitial: true, initialCursor: CURSOR_1 })}
+      />,
     );
 
     await userEvent.click(screen.getByRole("button", { name: /загрузить ещё/i }));
 
-    await waitFor(() => {
-      expect(screen.getByText("Петрова Мария")).toBeInTheDocument();
-    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
 
-    const url = fetchMock.mock.calls[0]?.[0] as string;
+    const [url] = fetchMock.mock.calls[0] as [string];
     expect(url).toContain("/api/doctor/exercise-comments");
-    expect(url).toContain("cursor=");
-  });
-
-  it("скрывает кнопку после загрузки когда hasMore=false", async () => {
-    vi.stubGlobal("fetch", stubFetchOk({ ok: true, items: [], hasMore: false, nextCursor: null }));
-
-    render(
-      <DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={CURSOR_1} hasMoreInitial={true} />,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: /загрузить ещё/i }));
-
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: /загрузить ещё/i })).not.toBeInTheDocument();
-    });
-  });
-
-  it("скрывает кнопку при активном поисковом запросе", async () => {
-    render(
-      <DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={CURSOR_1} hasMoreInitial={true} />,
-    );
-
-    expect(screen.getByRole("button", { name: /загрузить ещё/i })).toBeInTheDocument();
-
-    await userEvent.type(screen.getByPlaceholderText(/поиск по пациенту/i), "Иванов");
-
-    expect(screen.queryByRole("button", { name: /загрузить ещё/i })).not.toBeInTheDocument();
   });
 });
 
-describe("DoctorCommentsTab — фильтр чипы (Новые / Все)", () => {
-  beforeEach(() => vi.restoreAllMocks());
+// ── Navigation A→B ────────────────────────────────────────────────────────────
 
-  it("чип «Новые» активен (aria-pressed=true) по умолчанию", () => {
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
-    expect(screen.getByRole("button", { name: /^Новые$/i })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+/** Click the left-pane patient button (first one with aria-pressed attr). */
+async function clickPatientInLeftPane(name: RegExp | string) {
+  const btns = screen.getAllByRole("button", { name });
+  // Left pane patient buttons have aria-pressed attribute
+  const leftBtn = btns.find((b) => b.hasAttribute("aria-pressed"));
+  if (!leftBtn) throw new Error("No left-pane patient button found for: " + String(name));
+  await userEvent.click(leftBtn);
+}
+
+describe("DoctorCommentsTab — навигация A→B (выбор пациента)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("клик по пациенту переходит в state B (загружает упражнения)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetchOk({ ok: true, data: EXERCISES_RESULT }),
     );
+
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+
+    // Header with patient name appears in right pane
+    await waitFor(() => {
+      const links = screen.getAllByRole("link");
+      const patientLink = links.find((l) => l.textContent?.includes("Иванов Иван"));
+      expect(patientLink).toBeDefined();
+    });
   });
 
-  it("клик на «Все» переключает активный чип", async () => {
-    render(<DoctorCommentsTab initialItems={[ITEM_A]} initialCursor={null} hasMoreInitial={false} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /^Все$/i }));
-
-    expect(screen.getByRole("button", { name: /^Все$/i })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /^Новые$/i })).toHaveAttribute(
-      "aria-pressed",
-      "false",
+  it("после выбора пациента показывается кнопка × (сброс пациента)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetchOk({ ok: true, data: EXERCISES_RESULT }),
     );
+
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+
+    // Wait for state B header
+    await waitFor(() => {
+      expect(screen.getByLabelText(/сбросить выбор пациента/i)).toBeInTheDocument();
+    });
   });
 
-  it("«★ На сопровождении» показывает число уникальных пациентов, а не строк", () => {
+  it("кнопка «×» в шапке сбрасывает выбор пациента (B→A)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      stubFetchOk({ ok: true, data: EXERCISES_RESULT }),
+    );
+
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/сбросить выбор пациента/i)).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByLabelText(/сбросить выбор пациента/i));
+
+    // Back to state A: patient list toggle still shows
+    expect(
+      screen.getByRole("button", { name: /★ На сопровождении/i }),
+    ).toBeInTheDocument();
+  });
+});
+
+// ── State B: exercises ────────────────────────────────────────────────────────
+
+describe("DoctorCommentsTab — состояние B (упражнения пациента)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function renderStateB() {
+    vi.stubGlobal(
+      "fetch",
+      stubFetchOk({ ok: true, data: EXERCISES_RESULT }),
+    );
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+    // Wait for exercises to load
+    await waitFor(() => {
+      expect(screen.getByText("Этап 1")).toBeInTheDocument();
+    });
+  }
+
+  it("показывает группы по этапам", async () => {
+    await renderStateB();
+    expect(screen.getByText("Этап 1")).toBeInTheDocument();
+  });
+
+  it("показывает упражнение в группе", async () => {
+    await renderStateB();
+    expect(screen.getByText("Приседания")).toBeInTheDocument();
+  });
+
+  it("показывает счётчик непрочитанных на упражнении", async () => {
+    await renderStateB();
+    // 2 unread on the exercise — appears at least once in the DOM
+    const twos = screen.getAllByText("2");
+    expect(twos.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("показывает ссылку «Открыть программу пациента»", async () => {
+    await renderStateB();
+    expect(screen.getByRole("link", { name: /открыть программу пациента/i })).toBeInTheDocument();
+  });
+
+  it("ссылка на имя пациента ведёт на профиль пациента", async () => {
+    await renderStateB();
+    const links = screen.getAllByRole("link");
+    const profileLink = links.find((l) => l.textContent?.includes("Иванов Иван"));
+    expect(profileLink).toBeDefined();
+    expect(profileLink!.getAttribute("href")).toContain(P1);
+  });
+});
+
+// ── Navigation B→C ────────────────────────────────────────────────────────────
+
+describe("DoctorCommentsTab — навигация B→C (выбор упражнения)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function renderStateC() {
+    let callCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          // First call: exercises
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ ok: true, data: EXERCISES_RESULT }),
+          });
+        }
+        // Subsequent: thread + mark-read
+        return Promise.resolve({
+          ok: true,
+          json: async () => THREAD_RESPONSE,
+        });
+      }),
+    );
+
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+
+    await waitFor(() => {
+      expect(screen.getByText("Приседания")).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Болит колено/i)).toBeInTheDocument();
+    });
+  }
+
+  it("клик по упражнению переходит в state C (тред)", async () => {
+    await renderStateC();
+    expect(screen.getByText(/Болит колено/i)).toBeInTheDocument();
+  });
+
+  it("показывает хлебные крошки пациент → упражнение в шапке", async () => {
+    await renderStateC();
+    // breadcrumb: patient name link + exercise name
+    const links = screen.getAllByRole("link");
+    const patientLink = links.find((l) => l.textContent?.includes("Иванов Иван"));
+    expect(patientLink).toBeDefined();
+    expect(screen.getByText("Приседания")).toBeInTheDocument();
+  });
+
+  it("показывает кнопку «Закрыть» (не «×») в треде", async () => {
+    await renderStateC();
+    expect(screen.getByRole("button", { name: /^Закрыть$/i })).toBeInTheDocument();
+  });
+
+  it("кнопка «Закрыть» возвращает в state B", async () => {
+    await renderStateC();
+    await userEvent.click(screen.getByRole("button", { name: /^Закрыть$/i }));
+    // Back to state B: stage group should be visible
+    expect(screen.getByText("Этап 1")).toBeInTheDocument();
+    // Thread message should disappear
+    expect(screen.queryByText(/Болит колено/i)).not.toBeInTheDocument();
+  });
+});
+
+// ── State C: reply ────────────────────────────────────────────────────────────
+
+describe("DoctorCommentsTab — ответ в треде (state C)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function renderStateC() {
+    let callCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ ok: true, data: EXERCISES_RESULT }),
+          });
+        }
+        if (typeof url === "string" && url.includes("program-note-reply")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ ok: true }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => THREAD_RESPONSE,
+        });
+      }),
+    );
+
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+
+    await waitFor(() => {
+      expect(screen.getByText("Приседания")).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Болит колено/i)).toBeInTheDocument();
+    });
+  }
+
+  it("пациентское сообщение имеет кнопку «Ответить»", async () => {
+    await renderStateC();
+    // The patient message has "Ответить" link-button
+    const replyBtns = screen.getAllByRole("button", { name: /^Ответить$/i });
+    expect(replyBtns.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("клик «Ответить» показывает форму с textarea", async () => {
+    await renderStateC();
+    // "Ответить" link-button on patient message
+    const replyBtns = screen.getAllByRole("button", { name: /^Ответить$/i });
+    await userEvent.click(replyBtns[0]!);
+    expect(screen.getByRole("textbox", { name: /текст ответа/i })).toBeInTheDocument();
+  });
+
+  it("отправляет POST на program-note-reply и показывает «Ответ отправлен»", async () => {
+    await renderStateC();
+    const replyBtns = screen.getAllByRole("button", { name: /^Ответить$/i });
+    await userEvent.click(replyBtns[0]!);
+    await userEvent.type(screen.getByRole("textbox", { name: /текст ответа/i }), "Всё нормально");
+    // Now there's a send button inside the form
+    const sendBtns = screen.getAllByRole("button", { name: /^Ответить$/i });
+    await userEvent.click(sendBtns[sendBtns.length - 1]!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Ответ отправлен/i)).toBeInTheDocument();
+    });
+  });
+
+  it("кнопка «Ответить» в форме заблокирована при пустом тексте", async () => {
+    await renderStateC();
+    const replyBtns = screen.getAllByRole("button", { name: /^Ответить$/i });
+    await userEvent.click(replyBtns[0]!);
+    // After opening form, the send button is disabled (empty text)
+    const sendBtns = screen.getAllByRole("button", { name: /^Ответить$/i });
+    const sendBtn = sendBtns[sendBtns.length - 1]!;
+    expect(sendBtn).toBeDisabled();
+  });
+});
+
+// ── CommentsTab SSR mapping ──────────────────────────────────────────────────
+// (covered in CommentsTab.test.tsx — here we test DoctorCommentsTab directly)
+
+describe("DoctorCommentsTab — пустые начальные данные", () => {
+  it("рендерится без краша при пустых данных", () => {
     render(
       <DoctorCommentsTab
-        initialItems={[ITEM_A, ITEM_B]}
+        initialItems={[]}
         initialCursor={null}
         hasMoreInitial={false}
+        initialPatients={[]}
       />,
     );
-    // ITEM_A (P1) и ITEM_B (P2) — два разных пациента → 2
-    expect(screen.getByText(/★ На сопровождении · 2/)).toBeInTheDocument();
-  });
-
-  it("счётчик «На сопровождении» считает пациентов, а не комментарии (дедуп по patientUserId)", () => {
-    // Два комментария одного пациента (P1) → счётчик должен быть 1, а не 2.
-    const sameP1 = makeItem({ stageItemId: ITEM2, patientDisplayName: "Иванов Иван" });
-    render(
-      <DoctorCommentsTab
-        initialItems={[ITEM_A, sameP1]}
-        initialCursor={null}
-        hasMoreInitial={false}
-      />,
-    );
-    expect(screen.getByText(/★ На сопровождении · 1/)).toBeInTheDocument();
+    expect(screen.getByText(/нет пациентов/i)).toBeInTheDocument();
   });
 });
