@@ -65,10 +65,10 @@ todos:
     status: completed
   - id: e6a-shell-page
     content: "Этап 6.A — app/app/doctor/communications/page.tsx как серверный вход-шелл: requireDoctorAccess + бейджи + предзагрузка непрочитанных → DoctorCommunicationsShell(initialTab)"
-    status: pending
+    status: completed
   - id: e6b-legacy-cleanup
     content: "Этап 6.B — свести легаси-страницы вкладок к 308-редиректам/удалить (rg на использование перед удалением); таб-бар рендерится только из шелла"
-    status: pending
+    status: completed
   - id: e7a-docs
     content: "Этап 7.A — синхронная докуа: communications.md (раздел Маршрутизация + TODO#3 ✅ + Журнал), README модуля program-item-discussion, LOG.md"
     status: pending

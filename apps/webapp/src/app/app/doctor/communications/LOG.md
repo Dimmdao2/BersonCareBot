@@ -132,3 +132,28 @@
 
 ### Сознательно не сделано
 - `page.tsx` (серверный вход-шелл с requireDoctorAccess + бейджи) — Block 6.
+
+## Block 6 (2026-06-12) — Страница-шелл + чистка легаси-страниц
+
+### Что сделано
+- **6.A** `communications/page.tsx` — серверный вход-шелл: `requireDoctorAccess` + параллельная загрузка
+  `loadDoctorCommunicationsBadges` + `loadDoctorAnalyticsAudience`, затем SSR-предзагрузка
+  непрочитанных комментариев через `loadDoctorExerciseCommentsForTab`; рендерит
+  `DoctorCommunicationsShell(initialTab, badges, initialTabData.comments)`.
+- **6.B** Легаси-страницы вкладок → `permanentRedirect()`:
+  - `messages/page.tsx` → `/app/doctor/communications?tab=chats`
+  - `online-intake/page.tsx` → `?tab=intake`
+  - `online-intake/[requestId]/page.tsx` → `?tab=intake&id=:requestId`
+  - `comments/page.tsx` → `?tab=comments`
+  - `broadcasts/page.tsx` → `?tab=broadcasts`
+  - `broadcasts/archive/page.tsx` → `?tab=broadcasts&archive=1`
+- `DoctorCommunicationsTabsNav` теперь только в шелле (убрано из 4 страниц-вкладок).
+
+### Проверки
+- `rg "DoctorCommunicationsTabsNav" apps/webapp/src/app/app/doctor/` → только в `communications/` ✅
+- `pnpm --dir apps/webapp typecheck` — зелёный ✅
+- `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/communications` — 23 passed ✅
+- `pnpm --dir apps/webapp lint` — зелёный ✅
+
+### Коммит
+`225b1755` feat(doctor-comms): /communications как страница-шелл, чистка легаси-страниц (TODO#3 Block 6)
