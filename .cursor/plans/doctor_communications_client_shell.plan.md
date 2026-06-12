@@ -71,13 +71,13 @@ todos:
     status: completed
   - id: e7a-docs
     content: "Этап 7.A — синхронная докуа: communications.md (раздел Маршрутизация + TODO#3 ✅ + Журнал), README модуля program-item-discussion, LOG.md"
-    status: pending
+    status: completed
   - id: e7b-live-verify
     content: "Этап 7.B — живой dev (dev:doctor, 127.0.0.1:5200): мгновенное переключение, deep-links id/archive, кросс-таб бейджи, чат-поллинг только активным+видимым окном"
-    status: pending
+    status: in_progress
   - id: e7c-full-ci
     content: "Этап 7.C — финальный гейт pnpm run ci (один раз). Не пушить."
-    status: pending
+    status: in_progress
 ---
 
 # Doctor Communications — единый клиентский шелл с табами (TODO#3)

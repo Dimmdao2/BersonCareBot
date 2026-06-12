@@ -157,3 +157,32 @@
 
 ### Коммит
 `225b1755` feat(doctor-comms): /communications как страница-шелл, чистка легаси-страниц (TODO#3 Block 6)
+
+## Аудит-правки по ревью (2026-06-12) — Blocks 1–6
+
+Самостоятельное ревью выполненной части выявило долги (тесты/доки/чистота), закрытые в `0982d1f0`:
+- 🔴 **pg-тест** `pgProgramItemDiscussion.doctorComments.test.ts` (8) — закрыл пропуск чек-листа Block 1.B
+  (mock-based: ранний выход, маппинг строки→Row, snapshot-fallback, safeLimit trunc/min-1).
+- 🔴 **Promo-расхождение** задокументировано в `loadDoctorExerciseCommentsForTab`: новый запрос берёт
+  все активные doctor/course-инстансы и **исключает promo**, тогда как «Сегодня» (`pickActivePlanInstance`)
+  берёт один свежий инстанс любого источника. Допустимо; зафиксировано.
+- 🟡 Уточнён doc-comment `useDoctorExerciseCommentsSearch` (поиск по первой странице истории, не по всей).
+- 🟢 Удалён мёртвый экспорт `communicationsTabFromPathname` (+ его тесты); устаревший docstring
+  `doctorCommunicationsTabs.ts` (internal-rewrite убран в Block 5).
+- 🟢 Поллинг `DoctorSupportInbox`: интервал паузится при `visibilityState=hidden`, возобновляется при
+  `visible` — нет холостых тиков; +тест `resumes polling`.
+
+## SQL-fix (2026-06-12) — дубликат столбца "id" в CTE
+
+**Найдено на живом dev** (error boundary на `/communications`): CTE doctor-wide запроса проецировал
+`messages.id` И `instances.id` — обе колонки звались `"id"` → Postgres падал
+(`select "id", …, "id", …`). Класс ошибки, который mock-тест поймать не мог.
+
+- **Фикс:** `instanceId: sql\`${treatmentProgramInstances.id}\`.as("instance_id")` — явный алиас.
+- **Safeguard:** `pgProgramItemDiscussion.doctorComments.devDb.integration.test.ts` (opt-in,
+  `USE_REAL_DATABASE=1 RUN_DOCTOR_COMMENTS_DEV_DB=1`) — реально исполняет unread + history(cursor)
+  против БД. Проверено против `bcb_webapp_dev`: 2 passed. Коммит `149179c1`.
+
+### Вывод
+Mock-тесты не ловят SQL-ошибки построения запроса — для raw-SQL/CTE нужен реальный прогон против БД.
+Opt-in dev-DB тест добавлен именно для этого класса регрессий.
