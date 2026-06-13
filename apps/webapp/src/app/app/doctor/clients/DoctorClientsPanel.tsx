@@ -22,6 +22,7 @@ import { doctorClientListRowLinkClass } from "./doctorClientCardChrome";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "../analytics/clients/DoctorStatCard";
 import { doctorListItemOuterClass } from "@/shared/ui/doctor/doctorVisual";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
 type ClientsScope = "all" | "archived";
 type ClientSegment = "all" | "appointments" | "support" | "program";
@@ -513,6 +514,7 @@ export function DoctorClientsPanel({
 
   return (
     <>
+      <DoctorPageHeader id="doctor-clients-header" title="Пациенты" />
       <form
         id="doctor-clients-search-form"
         onSubmit={(e) => e.preventDefault()}
