@@ -56,8 +56,6 @@ describe("booking-scheduling computeSlots", () => {
         workDate: "2026-06-01",
         startMinute: 11 * 60,
         endMinute: 19 * 60,
-        breakStartMinute: null,
-        breakEndMinute: null,
         breaks: [],
         isClosed: false,
         ...partial,
@@ -98,18 +96,6 @@ describe("booking-scheduling computeSlots", () => {
     it("single break (breaks[]) splits the day into two intervals", () => {
       const intervals = splitByBreak(
         perDay({ startMinute: 11 * 60, endMinute: 19 * 60, breaks: [{ startMinute: 14 * 60, endMinute: 15 * 60 }] }),
-        "2026-06-01",
-        "UTC",
-        0,
-      );
-      expect(intervals).toHaveLength(2);
-      expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(14);
-      expect(new Date(intervals[1]!.startMs).getUTCHours()).toBe(15);
-    });
-
-    it("legacy single break (breakStartMinute/breakEndMinute) still works", () => {
-      const intervals = splitByBreak(
-        perDay({ startMinute: 11 * 60, endMinute: 19 * 60, breakStartMinute: 14 * 60, breakEndMinute: 15 * 60 }),
         "2026-06-01",
         "UTC",
         0,
@@ -200,27 +186,6 @@ describe("booking-scheduling computeSlots", () => {
       expect(new Date(intervals[0]!.endMs).getUTCHours()).toBe(17);
     });
 
-    it("breaks[] takes priority over legacy breakStartMinute/breakEndMinute", () => {
-      // breaks[] has two breaks; legacy scalar says different single break — breaks[] wins
-      const intervals = splitByBreak(
-        perDay({
-          startMinute: 9 * 60,
-          endMinute: 18 * 60,
-          breakStartMinute: 14 * 60,
-          breakEndMinute: 15 * 60,
-          breaks: [
-            { startMinute: 12 * 60, endMinute: 13 * 60 },
-            { startMinute: 16 * 60, endMinute: 17 * 60 },
-          ],
-        }),
-        "2026-06-01",
-        "UTC",
-        0,
-      );
-      // breaks[] controls: 3 intervals (9–12, 13–16, 17–18)
-      expect(intervals).toHaveLength(3);
-    });
-
     it("falls back to weekday hours when no per-date row (backward-compatible)", () => {
       const intervals = workingIntervalsForDate("2026-06-01", "UTC", weekday, 0, undefined);
       expect(intervals).toHaveLength(1);
@@ -239,8 +204,6 @@ describe("computeNearestFreeWindowFromData (C3 — ближайшее свобо
       workDate: DAY,
       startMinute: 9 * 60,
       endMinute: 18 * 60,
-      breakStartMinute: null,
-      breakEndMinute: null,
       breaks: [],
       isClosed: false,
       ...partial,

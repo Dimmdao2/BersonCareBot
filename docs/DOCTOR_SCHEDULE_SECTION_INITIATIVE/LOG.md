@@ -1,5 +1,27 @@
 # LOG — DOCTOR_SCHEDULE_SECTION_INITIATIVE
 
+## 2026-06-13 — Post-audit: drop legacy break columns (0118)
+
+Удалены legacy-поля `break_start_minute`/`break_end_minute` во всех слоях:
+- **Миграция 0118** (`db/drizzle-migrations/0118_drop_legacy_break_columns.sql`): DROP CONSTRAINT
+  `be_working_days_break_check` / `be_schedule_templates_break_check`, затем DROP COLUMN на обеих
+  таблицах (idempotent, IF EXISTS). Бэкфилл уже был выполнен миграцией 0116.
+- **Schema** `db/schema/bookingScheduling.ts`: удалены колонки и CHECK-констрейнты legacy.
+- **Ports** `src/modules/booking-scheduling/ports.ts`: убраны `breakStartMinute/breakEndMinute`
+  из `WorkingDayRecord`, `UpsertWorkingDaysInput`, `ScheduleTemplateRecord`, `CreateScheduleTemplateInput`.
+- **Service** `src/modules/booking-scheduling/service.ts`: убраны legacy-ветки валидации и
+  fallback в `applyScheduleTemplate`.
+- **computeSlots** `src/modules/booking-scheduling/computeSlots.ts`: убраны legacy поля из
+  `WorkingDayRow`, `resolveWorkingDayBreaks` упрощён до `row.breaks ?? []`.
+- **pgBookingScheduling** `src/infra/repos/pgBookingScheduling.ts`: raw SQL INSERT/UPDATE без
+  legacy колонок, `resolveBreaks` принимает только `breaks`, `RawWorkingDayRow` и все маперы.
+- **Routes** (2 файла): убраны `breakStartMinute/breakEndMinute` из Zod-схем.
+- **ScheduleWorkTab.tsx**: убраны поля из локальных типов, `resolveBreaks` и `tplBreaksSummary`.
+- **4 теста** обновлены (legacy-тест `breakStartMinute` удалён, фикстуры очищены).
+
+**Финальный grep** `break_start_minute|break_end_minute|breakStartMinute|breakEndMinute` → пусто.
+**tsc** → 0 ошибок. **vitest** 64 тестов (4 файла + 2 route) → все зелёные.
+
 ## 2026-06-12 — Планирование
 
 **Сделано:**

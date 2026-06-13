@@ -58,8 +58,6 @@ const WORKING_DAY_ROWS = [
     workDate: "2026-06-02",
     startMinute: 660,   // 11:00
     endMinute: 1140,    // 19:00
-    breakStartMinute: null,
-    breakEndMinute: null,
     breaks: [],
     isClosed: false,
     branchId: "branch-spb",
@@ -72,8 +70,6 @@ const TEMPLATES = [
     name: "СПб день · 11–19",
     startMinute: 660,
     endMinute: 1140,
-    breakStartMinute: null,
-    breakEndMinute: null,
     breaks: [],
     branchId: "branch-spb",
     sortOrder: 0,
@@ -174,7 +170,7 @@ describe("ScheduleWorkTab", () => {
       if (url.includes("working-days")) {
         return {
           ok: true,
-          rows: [{ id: "wd-c", workDate: "2026-06-03", startMinute: null, endMinute: null, breakStartMinute: null, breakEndMinute: null, breaks: [], isClosed: true, branchId: "branch-spb" }],
+          rows: [{ id: "wd-c", workDate: "2026-06-03", startMinute: null, endMinute: null, breaks: [], isClosed: true, branchId: "branch-spb" }],
         };
       }
       if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };

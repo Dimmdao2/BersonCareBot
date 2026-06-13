@@ -15,8 +15,6 @@ function makePort(perDayBranchId: string | null): BookingSchedulingPort {
     workDate: TEST_DATE,
     startMinute: 11 * 60,
     endMinute: 19 * 60,
-    breakStartMinute: null,
-    breakEndMinute: null,
     breaks: [],
     isClosed: false,
   };

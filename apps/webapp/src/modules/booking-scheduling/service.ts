@@ -95,15 +95,8 @@ function validateUpsertInput(input: UpsertWorkingDaysInput): void {
   assertMinute(input.startMinute, "startMinute");
   assertMinute(input.endMinute, "endMinute");
   if (input.startMinute >= input.endMinute) throw new Error("invalid_working_hours_range");
-  // N-break validation takes priority; fall back to single-break check for backward-compat
   if (input.breaks && input.breaks.length > 0) {
     validateBreaks(input.breaks, input.startMinute, input.endMinute);
-  } else if (input.breakStartMinute != null || input.breakEndMinute != null) {
-    assertMinute(input.breakStartMinute, "breakStartMinute");
-    assertMinute(input.breakEndMinute, "breakEndMinute");
-    if (input.breakStartMinute! < input.startMinute) throw new Error("break_before_start");
-    if (input.breakEndMinute! > input.endMinute) throw new Error("break_after_end");
-    if (input.breakStartMinute! >= input.breakEndMinute!) throw new Error("invalid_break_range");
   }
 }
 
@@ -115,12 +108,6 @@ function validateScheduleTemplateInput(input: CreateScheduleTemplateInput): void
   if (input.startMinute >= input.endMinute) throw new Error("invalid_template_range");
   if (input.breaks && input.breaks.length > 0) {
     validateBreaks(input.breaks, input.startMinute, input.endMinute);
-  } else if (input.breakStartMinute != null || input.breakEndMinute != null) {
-    assertMinute(input.breakStartMinute, "breakStartMinute");
-    assertMinute(input.breakEndMinute, "breakEndMinute");
-    if (input.breakStartMinute! < input.startMinute) throw new Error("break_before_start");
-    if (input.breakEndMinute! > input.endMinute) throw new Error("break_after_end");
-    if (input.breakStartMinute! >= input.breakEndMinute!) throw new Error("invalid_break_range");
   }
   if (!input.name.trim()) throw new Error("template_name_required");
 }
@@ -362,13 +349,6 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       const templates = await port.listScheduleTemplates(organizationId);
       const tmpl = templates.find((t) => t.id === templateId);
       if (!tmpl) throw new Error("template_not_found");
-      // Prefer N-break array; fall back to legacy scalar columns for old templates
-      const effectiveBreaks =
-        tmpl.breaks.length > 0
-          ? tmpl.breaks
-          : tmpl.breakStartMinute != null && tmpl.breakEndMinute != null
-            ? [{ startMinute: tmpl.breakStartMinute, endMinute: tmpl.breakEndMinute }]
-            : [];
       return port.upsertWorkingDays({
         organizationId,
         specialistId: specialistId ?? null,
@@ -377,9 +357,7 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         dates,
         startMinute: tmpl.startMinute,
         endMinute: tmpl.endMinute,
-        breakStartMinute: tmpl.breakStartMinute ?? null,
-        breakEndMinute: tmpl.breakEndMinute ?? null,
-        breaks: effectiveBreaks,
+        breaks: tmpl.breaks,
       });
     },
   };

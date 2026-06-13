@@ -52,8 +52,6 @@ type WorkingDayRecord = {
   workDate: string; // YYYY-MM-DD
   startMinute: number | null;
   endMinute: number | null;
-  breakStartMinute: number | null;
-  breakEndMinute: number | null;
   breaks: BreakInterval[];
   isClosed: boolean;
   branchId: string | null;
@@ -64,8 +62,6 @@ type ScheduleTemplateRecord = {
   name: string;
   startMinute: number;
   endMinute: number;
-  breakStartMinute: number | null;
-  breakEndMinute: number | null;
   breaks: BreakInterval[];
   branchId: string | null;
   sortOrder: number;
@@ -135,13 +131,9 @@ function formatHourRange(start: number | null, end: number | null): string {
   return `${sh}–${eh}`;
 }
 
-/** Resolve effective breaks from a record (N-break model with fallback to legacy scalars). */
+/** Resolve effective breaks from a record (N-break model; legacy scalars dropped in migration 0118). */
 function resolveBreaks(record: WorkingDayRecord): BreakInterval[] {
-  if (record.breaks && record.breaks.length > 0) return record.breaks;
-  if (record.breakStartMinute != null && record.breakEndMinute != null) {
-    return [{ startMinute: record.breakStartMinute, endMinute: record.breakEndMinute }];
-  }
-  return [];
+  return record.breaks ?? [];
 }
 
 /** Format break summary for a day card: "обед HH–HH" (1 break) or "N перерывов" (multiple). */
@@ -947,14 +939,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               // E5: short branch label in template
               const tplBranch = tpl.branchId ? branches.find((b) => b.id === tpl.branchId) : undefined;
               const tplBranchLabel = tplBranch ? (tplBranch.shortTitle ?? tplBranch.title) : null;
-              const tplBreaksSummary = (() => {
-                const b = tpl.breaks?.length > 0 ? tpl.breaks : (
-                  tpl.breakStartMinute != null && tpl.breakEndMinute != null
-                    ? [{ startMinute: tpl.breakStartMinute, endMinute: tpl.breakEndMinute }]
-                    : []
-                );
-                return formatBreakSummary(b);
-              })();
+              const tplBreaksSummary = formatBreakSummary(tpl.breaks ?? []);
 
               return (
                 <li

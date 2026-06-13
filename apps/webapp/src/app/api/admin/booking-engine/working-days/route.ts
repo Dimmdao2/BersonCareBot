@@ -21,10 +21,7 @@ const upsertSchema = z.object({
   dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1),
   startMinute: z.number().int().min(0).max(1439),
   endMinute: z.number().int().min(1).max(1440),
-  /** Legacy single-break (backward-compat). Ignored when breaks[] is provided. */
-  breakStartMinute: z.number().int().min(0).max(1439).nullable().optional(),
-  breakEndMinute: z.number().int().min(1).max(1440).nullable().optional(),
-  /** N-break model. Takes priority over breakStartMinute/breakEndMinute. */
+  /** N-break model (legacy scalar columns dropped in migration 0118). */
   breaks: z.array(breakIntervalSchema).max(6).optional(),
   specialistId: z.string().uuid().nullable().optional(),
   branchId: z.string().uuid().nullable().optional(),

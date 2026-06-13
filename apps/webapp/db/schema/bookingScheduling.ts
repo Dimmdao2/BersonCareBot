@@ -192,8 +192,7 @@ export const beAvailabilityRules = pgTable(
  * drizzle-kit will NOT generate this index — do NOT rely on it regenerating it.
  * If you recreate this table via drizzle-kit, manually re-add the index from migration 0115.
  *
- * `breaks` jsonb — N-break model (migration 0116). Supersedes single break_start/break_end_minute.
- * Legacy scalar columns remain nullable for backward-compat; read-path falls back to them when breaks=[].
+ * `breaks` jsonb — N-break model (migration 0116). Legacy scalar break columns dropped in 0118.
  */
 export const beWorkingDays = pgTable(
   "be_working_days",
@@ -206,9 +205,7 @@ export const beWorkingDays = pgTable(
     workDate: date("work_date").notNull(),
     startMinute: integer("start_minute"),
     endMinute: integer("end_minute"),
-    breakStartMinute: integer("break_start_minute"),
-    breakEndMinute: integer("break_end_minute"),
-    /** N-break model. [{startMinute, endMinute}, …]. Migration 0116 adds this column. */
+    /** N-break model. [{startMinute, endMinute}, …]. Migration 0116 adds, 0118 is sole representation. */
     breaks: jsonb("breaks").$type<Array<{ startMinute: number; endMinute: number }>>().default(sql`'[]'::jsonb`).notNull(),
     isClosed: boolean("is_closed").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
@@ -244,10 +241,6 @@ export const beWorkingDays = pgTable(
       "be_working_days_hours_check",
       sql`is_closed OR (start_minute IS NOT NULL AND end_minute IS NOT NULL AND start_minute >= 0 AND end_minute <= 1440 AND end_minute > start_minute)`,
     ),
-    check(
-      "be_working_days_break_check",
-      sql`break_start_minute IS NULL OR (break_end_minute IS NOT NULL AND break_start_minute >= start_minute AND break_end_minute <= end_minute AND break_end_minute > break_start_minute)`,
-    ),
   ],
 );
 
@@ -255,7 +248,7 @@ export const beWorkingDays = pgTable(
  * Named schedule templates: reusable day patterns (e.g. "СПб день · 11–19").
  * Applied to a set of dates via applyScheduleTemplate → upsertWorkingDays.
  *
- * `breaks` jsonb — N-break model (migration 0116). Supersedes single break_start/break_end_minute.
+ * `breaks` jsonb — N-break model (migration 0116). Legacy scalar break columns dropped in 0118.
  */
 export const beScheduleTemplates = pgTable(
   "be_schedule_templates",
@@ -266,9 +259,7 @@ export const beScheduleTemplates = pgTable(
     name: text().notNull(),
     startMinute: integer("start_minute").notNull(),
     endMinute: integer("end_minute").notNull(),
-    breakStartMinute: integer("break_start_minute"),
-    breakEndMinute: integer("break_end_minute"),
-    /** N-break model. [{startMinute, endMinute}, …]. Migration 0116 adds this column. */
+    /** N-break model. [{startMinute, endMinute}, …]. Migration 0116 adds, 0118 is sole representation. */
     breaks: jsonb("breaks").$type<Array<{ startMinute: number; endMinute: number }>>().default(sql`'[]'::jsonb`).notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
@@ -290,10 +281,6 @@ export const beScheduleTemplates = pgTable(
     check(
       "be_schedule_templates_minutes_check",
       sql`start_minute >= 0 AND end_minute <= 1440 AND end_minute > start_minute`,
-    ),
-    check(
-      "be_schedule_templates_break_check",
-      sql`break_start_minute IS NULL OR (break_end_minute IS NOT NULL AND break_start_minute >= start_minute AND break_end_minute <= end_minute AND break_end_minute > break_start_minute)`,
     ),
   ],
 );

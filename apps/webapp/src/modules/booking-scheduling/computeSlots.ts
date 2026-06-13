@@ -13,30 +13,23 @@ export type WorkingDayRow = {
   workDate: string; // YYYY-MM-DD
   startMinute: number | null;
   endMinute: number | null;
-  /** Legacy single-break (backward-compat; used when breaks[] is empty). */
-  breakStartMinute: number | null;
-  breakEndMinute: number | null;
-  /** N-break model (migration 0116). Primary source. */
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
   breaks?: { startMinute: number; endMinute: number }[];
   isClosed: boolean;
 };
 
 /**
  * Resolve effective breaks for a WorkingDayRow.
- * Priority: breaks[] (if non-empty) → legacy scalar columns → [].
+ * Returns breaks[] from the jsonb column (sole representation since migration 0118).
  */
 function resolveWorkingDayBreaks(row: WorkingDayRow): { startMinute: number; endMinute: number }[] {
-  if (row.breaks && row.breaks.length > 0) return row.breaks;
-  if (row.breakStartMinute != null && row.breakEndMinute != null) {
-    return [{ startMinute: row.breakStartMinute, endMinute: row.breakEndMinute }];
-  }
-  return [];
+  return row.breaks ?? [];
 }
 
 /**
  * Split a working day into N+1 intervals around N breaks (sorted ascending by startMinute).
  * If no breaks, returns a single [dayStart, dayEnd] interval.
- * Supports both legacy single-break (breakStartMinute/breakEndMinute) and N-break (breaks[]).
+ * Uses the breaks[] jsonb column exclusively (legacy scalar columns removed in migration 0118).
  */
 export function splitByBreak(
   row: WorkingDayRow,

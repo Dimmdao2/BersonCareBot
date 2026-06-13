@@ -34,8 +34,6 @@ function raw(overrides: Partial<RawWorkingDayRow> = {}): RawWorkingDayRow {
     work_date: "2026-06-15",
     start_minute: 540,
     end_minute: 1080,
-    break_start_minute: null,
-    break_end_minute: null,
     breaks: null,
     is_closed: false,
     ...overrides,
@@ -53,8 +51,6 @@ describe("mapRawWorkingDayRow — snake_case RETURNING* → WorkingDayRecord", (
     expect(rec.workDate).toBe("2026-06-15");
     expect(rec.startMinute).toBe(540);
     expect(rec.endMinute).toBe(1080);
-    expect(rec.breakStartMinute).toBeNull();
-    expect(rec.breakEndMinute).toBeNull();
     expect(rec.breaks).toEqual([]);
     expect(rec.isClosed).toBe(false);
   });
@@ -70,21 +66,9 @@ describe("mapRawWorkingDayRow — snake_case RETURNING* → WorkingDayRecord", (
     expect(rec.breaks).toEqual([]);
   });
 
-  it("maps break minutes when present (legacy scalar columns)", () => {
-    const rec = mapRawWorkingDayRow(
-      raw({ break_start_minute: 780, break_end_minute: 840 }),
-    );
-    expect(rec.breakStartMinute).toBe(780);
-    expect(rec.breakEndMinute).toBe(840);
-    // fallback: legacy scalars → synthesised breaks array
-    expect(rec.breaks).toEqual([{ startMinute: 780, endMinute: 840 }]);
-  });
-
-  it("breaks jsonb takes priority over legacy scalar columns", () => {
+  it("maps breaks jsonb column when present", () => {
     const rec = mapRawWorkingDayRow(
       raw({
-        break_start_minute: 780,
-        break_end_minute: 840,
         breaks: [
           { startMinute: 720, endMinute: 780 },
           { startMinute: 900, endMinute: 960 },

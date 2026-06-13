@@ -39,10 +39,7 @@ export type WorkingDayRecord = {
   workDate: string; // YYYY-MM-DD
   startMinute: number | null;
   endMinute: number | null;
-  /** Legacy single-break columns (kept for backward-compat reads). */
-  breakStartMinute: number | null;
-  breakEndMinute: number | null;
-  /** N-break model (migration 0116). Primary source; fallback to legacy scalars when empty. */
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
   breaks: BreakInterval[];
   isClosed: boolean;
 };
@@ -55,10 +52,7 @@ export type UpsertWorkingDaysInput = {
   dates: string[]; // YYYY-MM-DD[]
   startMinute: number;
   endMinute: number;
-  /** Legacy single-break (backward-compat; ignored when breaks[] provided). */
-  breakStartMinute?: number | null;
-  breakEndMinute?: number | null;
-  /** N-break model. Takes priority over breakStartMinute/breakEndMinute. */
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
   breaks?: BreakInterval[];
 };
 
@@ -83,10 +77,7 @@ export type ScheduleTemplateRecord = {
   name: string;
   startMinute: number;
   endMinute: number;
-  /** Legacy single-break columns (kept for backward-compat reads). */
-  breakStartMinute: number | null;
-  breakEndMinute: number | null;
-  /** N-break model (migration 0116). Primary source. */
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
   breaks: BreakInterval[];
   sortOrder: number;
   isActive: boolean;
@@ -98,10 +89,7 @@ export type CreateScheduleTemplateInput = {
   name: string;
   startMinute: number;
   endMinute: number;
-  /** Legacy single-break (backward-compat). */
-  breakStartMinute?: number | null;
-  breakEndMinute?: number | null;
-  /** N-break model. Takes priority over breakStartMinute/breakEndMinute. */
+  /** N-break model (migration 0116; legacy scalars dropped in 0118). */
   breaks?: BreakInterval[];
   sortOrder?: number;
 };
