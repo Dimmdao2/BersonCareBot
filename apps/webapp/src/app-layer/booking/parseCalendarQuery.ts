@@ -23,7 +23,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  * При отсутствии from/to применяется логика view→диапазон (week/month/day/3days) — backward-compat.
  *
  * Поддерживаемые значения view:
- *  - "week" / "weeklist" → пн–вс якорной даты
+ *  - "week"               → пн–вс якорной недели
  *  - "month"             → 1-е..последнее месяца якорной даты (без overflow-дней FullCalendar)
  *  - "day"               → только якорный день
  *  - "3days"             → якорь + 2 дня вперёд (включительно)
@@ -37,7 +37,6 @@ export function parseCalendarQuery(
   const view: CalendarViewMode =
     viewParam === "day" ||
     viewParam === "month" ||
-    viewParam === "weeklist" ||
     viewParam === "3days" ||
     viewParam === "feed"
       ? (viewParam as CalendarViewMode)
@@ -91,7 +90,7 @@ export function parseCalendarQuery(
       startDt = anchor.minus({ days: 30 }).startOf("day");
       endDt = anchor.plus({ days: 30 }).endOf("day");
     } else {
-      // week / weeklist → пн–вс якорной недели
+      // week → пн–вс якорной недели
       startDt = anchor.startOf("week");
       endDt = anchor.endOf("week");
     }

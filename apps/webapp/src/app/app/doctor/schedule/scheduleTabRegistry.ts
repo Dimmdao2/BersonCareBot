@@ -3,7 +3,7 @@ import type { ScheduleTabId } from "./doctorScheduleTabs";
 
 /** Стандартные пропы, которые шелл передаёт каждому компоненту-табу расписания. */
 export type ScheduleTabProps = {
-  /** URL-параметры, специфичные для этого таба (напр. { view: "weeklist", date: "2026-06-12" } для cal). */
+  /** URL-параметры, специфичные для этого таба (напр. { view: "3days", date: "2026-06-12" } для cal). */
   deepLinkParams: Record<string, string>;
   /** Вызывается табом при изменении deep-link параметра. null — удалить из URL. */
   onDeepLinkChange: (key: string, value: string | null) => void;

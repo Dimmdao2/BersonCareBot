@@ -10,7 +10,6 @@ const LOADERS = {
   doctorRoot: () => import("@/app/app/doctor/page") as Promise<PageMod>,
   doctorInstall: () => import("@/app/app/doctor/install/page") as Promise<PageMod>,
   doctorAppointments: () => import("@/app/app/doctor/appointments/page") as Promise<PageMod>,
-  doctorCalendar: () => import("@/app/app/doctor/calendar/page") as Promise<PageMod>,
   doctorMessages: () => import("@/app/app/doctor/messages/page") as Promise<PageMod>,
   doctorBroadcasts: () => import("@/app/app/doctor/broadcasts/page") as Promise<PageMod>,
   doctorStats: () => import("@/app/app/doctor/stats/page") as Promise<PageMod>,
@@ -73,7 +72,6 @@ describe("app router RSC pages smoke (in-process)", () => {
     expectAsyncRscPage(mod("doctorRoot"), "doctor/");
     expectAsyncRscPage(mod("doctorInstall"), "doctor/install");
     expectAsyncRscPage(mod("doctorAppointments"), "doctor/appointments");
-    expectAsyncRscPage(mod("doctorCalendar"), "doctor/calendar");
     expectAsyncRscPage(mod("doctorMessages"), "doctor/messages");
     expectAsyncRscPage(mod("doctorBroadcasts"), "doctor/broadcasts");
     expectAsyncRscPage(mod("doctorStats"), "doctor/stats");
