@@ -24,6 +24,10 @@
 
 ## Block 2 (2026-06-11) — Таб «Комментарии»: данные + UI
 
+> **Прим. 2026-06-14:** упомянутый ниже `DoctorExerciseCommentsList` позже заменён инлайн-рендером
+> в `DoctorCommentsTab` (и `ProgramItemDiscussionMessageBody` в табе больше не используется) —
+> компонент удалён как мёртвый. Записи ниже сохранены как исторический лог.
+
 ### Что сделано
 - **2.A** `loadDoctorExerciseCommentsForTab.ts` — загрузчик: on-support один раз, один doctor-wide
   вызов `listUnreadExerciseCommentsForDoctor`, обогащение displayName/href/label; совместим с
