@@ -225,15 +225,39 @@ function minuteToHHMM(minute: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
 }
 
-function deriveSlotTimes(workingBounds: WorkingBounds | null | undefined): {
-  slotMinTime: string;
-  slotMaxTime: string;
-} {
-  if (!workingBounds) return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX };
-  return {
-    slotMinTime: minuteToHHMM(workingBounds.minMinute),
-    slotMaxTime: minuteToHHMM(workingBounds.maxMinute),
-  };
+/**
+ * Диапазон часовой сетки = объединение рабочих границ И фактических записей,
+ * чтобы ранние/поздние приёмы (7-8 утра и т.п.) НЕ обрезались. Час запаса с краёв.
+ * Если нет ни рабочих границ, ни записей — дефолт.
+ */
+function deriveSlotTimes(
+  workingBounds: WorkingBounds | null | undefined,
+  events: CalendarEvent[] | undefined,
+  timeZone: string,
+): { slotMinTime: string; slotMaxTime: string } {
+  let min: number | null = workingBounds ? workingBounds.minMinute : null;
+  let max: number | null = workingBounds ? workingBounds.maxMinute : null;
+  for (const e of events ?? []) {
+    if (e.kind !== "appointment" && e.kind !== "block") continue;
+    const s = parseFeedInstant(e.startAt, timeZone);
+    const en = parseFeedInstant(e.endAt, timeZone);
+    if (s.isValid) {
+      const sm = s.hour * 60 + s.minute;
+      min = min == null ? sm : Math.min(min, sm);
+    }
+    if (en.isValid) {
+      let em = en.hour * 60 + en.minute;
+      if (em === 0) em = 24 * 60; // полночь конца = конец суток
+      max = max == null ? em : Math.max(max, em);
+    }
+  }
+  if (min == null || max == null) {
+    return { slotMinTime: DEFAULT_SLOT_MIN, slotMaxTime: DEFAULT_SLOT_MAX };
+  }
+  // Час запаса, выравнивание по часу, clamp в [0, 24ч].
+  const lo = Math.max(0, Math.floor((min - 60) / 60) * 60);
+  const hi = Math.min(24 * 60, Math.ceil((max + 60) / 60) * 60);
+  return { slotMinTime: minuteToHHMM(lo), slotMaxTime: minuteToHHMM(hi) };
 }
 
 // ---------------------------------------------------------------------------
@@ -332,7 +356,9 @@ function eventClassName(event: CalendarEvent): string {
     return "!bg-amber-500/15 text-amber-900 !border-amber-500/40";
   if (event.packageUsageRef || event.packageTitle)
     return "!bg-violet-500/15 text-violet-900 !border-violet-500/40";
-  return "!bg-primary/10 text-foreground !border-primary/30";
+  // дефолтная запись чуть насыщеннее (R10 «чуть темнее для всего»); прошлые
+  // дополнительно приглушаются через .fc-event-past opacity в <style>.
+  return "!bg-primary/15 text-foreground !border-primary/35";
 }
 
 function eventTitle(event: CalendarEvent): string {
@@ -484,6 +510,8 @@ function ListView({
       .filter(
         (e): e is CalendarAppointmentEvent =>
           e.kind === "appointment" &&
+          // R15: список = актуальные записи; отменённые скрываем (в календаре остаются).
+          !isCancelledAppointmentStatus(e.status) &&
           parseFeedInstant(e.startAt, timeZone).toISODate() === dayKey,
       )
       .sort((a, b) => (a.startAt < b.startAt ? -1 : 1));
@@ -814,6 +842,11 @@ export function ScheduleCalendarTab({
     if (next) setAnchorDate(next);
   }
 
+  function goToday() {
+    const today = DateTime.now().setZone(timeZone).toISODate();
+    if (today) setAnchorDate(today);
+  }
+
   // ─── Calendar events ───────────────────────────────────────────────────────
 
   const filters = data?.filters ?? { specialists: [], branches: [], rooms: [], services: [] };
@@ -825,7 +858,7 @@ export function ScheduleCalendarTab({
 
   const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
-  const { slotMinTime, slotMaxTime } = deriveSlotTimes(workingBounds);
+  const { slotMinTime, slotMaxTime } = deriveSlotTimes(workingBounds, data?.events, currentTimeZone);
 
   const calendarEvents = useMemo(() => {
     if (!data) return [];
@@ -1085,6 +1118,17 @@ export function ScheduleCalendarTab({
           </Button>
         </div>
 
+        {/* «Сегодня» — вернуть текущий вид к сегодняшнему периоду */}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={goToday}
+          data-testid="period-today"
+        >
+          Сегодня
+        </Button>
+
         {/* Period nav: ◀ label ▶ */}
         <>
           <Button
@@ -1174,9 +1218,19 @@ export function ScheduleCalendarTab({
             <div className="overflow-hidden rounded-xl border border-border bg-card">
               <style>{`
                 /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
-                   (бьют инлайн-синий FC в timeGrid). Здесь лишь убираем тень FC. */
+                   (бьют инлайн-синий FC в timeGrid). Здесь убираем тень FC,
+                   принудительно делаем текст записей ТЁМНЫМ (FC форсит белый через
+                   --fc-event-text-color, его и переопределяем — иначе белое на светлом),
+                   и курсор pointer на всех записях (в т.ч. отменённых — клик работает). */
                 .fc-timegrid-event-harness { margin-inline: 1px; }
-                .fc-event { box-shadow: none !important; }
+                .fc-event {
+                  box-shadow: none !important;
+                  cursor: pointer !important;
+                  --fc-event-text-color: var(--foreground) !important;
+                }
+                .fc-event .fc-event-main { color: var(--foreground) !important; }
+                /* R10 — прошедшие записи приглушаем, будущие/актуальные ярче */
+                .fc-event.fc-event-past { opacity: 0.6; }
 
                 /* §3.9 — мягкая типографика заголовков колонок/дней */
                 .fc-col-header-cell-cushion {
@@ -1196,7 +1250,10 @@ export function ScheduleCalendarTab({
                   background-color: transparent !important;
                 }
 
-                /* §3.10/(б) — кружок «сегодня»: приглушённый прозрачно-зелёный */
+                /* §3.10/(б) — кружок «сегодня»: приглушённый прозрачно-зелёный.
+                   ВАЖНО: тема в oklch, --primary вообще синий → используем emerald
+                   через color-mix(in oklab, var(--color-emerald-500) …), иначе цвет
+                   получался невалидным/прозрачным (today был не виден). */
                 .fc-daygrid-day-number.fc-today-circle {
                   display: inline-flex;
                   align-items: center;
@@ -1204,8 +1261,8 @@ export function ScheduleCalendarTab({
                   width: 1.5rem;
                   height: 1.5rem;
                   border-radius: 9999px;
-                  background-color: color-mix(in srgb, hsl(var(--primary)) 16%, transparent);
-                  color: hsl(var(--foreground));
+                  background-color: color-mix(in oklab, var(--color-emerald-500) 24%, transparent);
+                  color: var(--foreground);
                   font-weight: 600;
                 }
 
@@ -1216,9 +1273,9 @@ export function ScheduleCalendarTab({
                   line-height: 1.5 !important;
                 }
 
-                /* §3.12 — «сегодня» в Неделя/3 дня: заливка ячейки заголовка, без кружка */
+                /* §3.12 — «сегодня» в Неделя/3 дня: зелёная заливка ячейки заголовка (emerald/oklab) */
                 .fc-col-header-cell.fc-day-today {
-                  background-color: color-mix(in srgb, hsl(var(--primary)) 12%, transparent) !important;
+                  background-color: color-mix(in oklab, var(--color-emerald-500) 16%, transparent) !important;
                 }
                 .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
                   display: inline;
@@ -1226,7 +1283,7 @@ export function ScheduleCalendarTab({
                   height: auto;
                   border-radius: 0;
                   background-color: transparent;
-                  color: hsl(var(--foreground));
+                  color: var(--foreground);
                   font-weight: 600;
                 }
               `}</style>
@@ -1245,6 +1302,7 @@ export function ScheduleCalendarTab({
                 eventStartEditable={view !== "month"}
                 nowIndicator
                 dayMaxEvents
+                allDaySlot={false}
                 height="auto"
                 slotMinTime={slotMinTime}
                 slotMaxTime={slotMaxTime}

@@ -45,7 +45,7 @@ export function DoctorTodayDashboard({
   displayIana,
   adminHealthBanner,
   adminRegistrationFailureBanner,
-  showAnalyticsLink,
+  // showAnalyticsLink убран из шапки «Сегодня» (R3) — проп больше не читается
   todayWorkingBounds,
 }: Props) {
   // Вычисляем серверное время в бизнес-таймзоне для mini-calendar и карточки приёма
@@ -61,26 +61,15 @@ export function DoctorTodayDashboard({
         id="doctor-today-header"
         title="Сегодня"
         info={
-          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
-            {adminHealthBanner?.show ? (
-              <Link
-                id="doctor-today-health-attention"
-                href={adminHealthBanner.href}
-                className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-medium text-destructive no-underline hover:bg-destructive/10"
-              >
-                {adminHealthBanner.title}
-              </Link>
-            ) : null}
-            {showAnalyticsLink ? (
-              <Link
-                id="doctor-today-link-stats"
-                href="/app/doctor/analytics/clients"
-                className={`${doctorInlineLinkClass} shrink-0 text-sm`}
-              >
-                Аналитика по клиентам
-              </Link>
-            ) : null}
-          </div>
+          adminHealthBanner?.show ? (
+            <Link
+              id="doctor-today-health-attention"
+              href={adminHealthBanner.href}
+              className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-medium text-destructive no-underline hover:bg-destructive/10"
+            >
+              {adminHealthBanner.title}
+            </Link>
+          ) : undefined
         }
       />
 

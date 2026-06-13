@@ -99,7 +99,7 @@ async function openLeftKpiDialog(label: RegExp) {
 }
 
 describe("DoctorTodayDashboard", () => {
-  it("renders page title, analytics link, section headings for new layout", () => {
+  it("renders page title and section headings for new layout (no analytics link in header — R3)", () => {
     render(
       <DoctorTodayDashboard
         {...defaultProps()}
@@ -107,10 +107,8 @@ describe("DoctorTodayDashboard", () => {
       />,
     );
     expect(screen.getByRole("heading", { level: 1, name: "Сегодня" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Аналитика по клиентам" })).toHaveAttribute(
-      "href",
-      "/app/doctor/analytics/clients",
-    );
+    // R3: ссылка «Аналитика по клиентам» убрана из шапки «Сегодня» по просьбе владельца.
+    expect(screen.queryByRole("link", { name: "Аналитика по клиентам" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Задачи" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Сигналы пациентов" })).toBeInTheDocument();
