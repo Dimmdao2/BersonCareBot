@@ -49,6 +49,9 @@ _old/logs/
 *.local
 *.swp
 
+# Local agent tooling / Claude Code state (settings.local, worktrees, transcripts) — never commit
+.claude/
+
 # Transient working files (DB dumps, import CSVs with PII, audit logs) — never commit
 .tmp/
 
