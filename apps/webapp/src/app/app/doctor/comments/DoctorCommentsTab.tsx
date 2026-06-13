@@ -222,12 +222,29 @@ function StageGroup({
   group,
   selectedItemId,
   onSelectItem,
+  entryUnreadSnapshot,
 }: {
   group: ExerciseCommentStageGroup;
   selectedItemId: string | null;
   onSelectItem: (item: ExerciseCommentItem) => void;
+  /** stageItemId → было ли непрочитано на входе в пациента (для ранжирования без перетасовки). */
+  entryUnreadSnapshot: ReadonlyMap<string, boolean>;
 }) {
   const [collapsed, setCollapsed] = useState(!group.isActive);
+
+  // Ранжирование: непрочитанные (на момент входа) сверху, прочитанные ниже.
+  // Внутри группы сохраняем серверный порядок (latestCommentAt DESC) как вторичный ключ —
+  // используем стабильную сортировку. Ключ берётся из снимка входа, поэтому
+  // дочитанные «в этой сессии» НЕ переезжают вверх/вниз, пока врач внутри пациента.
+  const orderedExercises = group.exercises
+    .map((ex, idx) => ({ ex, idx }))
+    .sort((a, b) => {
+      const aUnread = entryUnreadSnapshot.get(a.ex.stageItemId) ? 0 : 1;
+      const bUnread = entryUnreadSnapshot.get(b.ex.stageItemId) ? 0 : 1;
+      if (aUnread !== bUnread) return aUnread - bUnread;
+      return a.idx - b.idx;
+    })
+    .map((e) => e.ex);
 
   return (
     <div className="border-b border-border last:border-b-0">
@@ -250,7 +267,7 @@ function StageGroup({
       </button>
       {!collapsed && (
         <div>
-          {group.exercises.map((ex) => (
+          {orderedExercises.map((ex) => (
             <ExerciseRow
               key={ex.stageItemId}
               item={ex}
@@ -286,10 +303,12 @@ function ThreadMessage({
   const [success, setSuccess] = useState(false);
 
   const isPatient = message.senderRole === "patient";
+  // Внутри треда визуально различаем прочитано/непрочитано. peerLastReadAt — курсор
+  // последнего прочтения врачом, снятый при ОТКРЫТИИ треда (не обновляется после
+  // mark-read), поэтому подсветка «непрочитано» заморожена на время просмотра.
+  // Если врач ещё не открывал тред (курсор null) — все сообщения пациента непрочитаны.
   const isUnread =
-    isPatient &&
-    peerLastReadAt !== null &&
-    message.createdAt > peerLastReadAt;
+    isPatient && (peerLastReadAt === null || message.createdAt > peerLastReadAt);
 
   async function handleSend() {
     if (!replyText.trim()) return;
@@ -323,13 +342,20 @@ function ThreadMessage({
   return (
     <div
       className={cn(
-        "px-4 py-3 border-b border-border last:border-b-0",
-        isUnread && "bg-primary/5",
+        "border-b border-border px-4 py-3 last:border-b-0",
+        isUnread
+          ? "border-l-2 border-l-primary bg-primary/5"
+          : isPatient && "opacity-80",
       )}
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">
-        <span className="text-xs font-semibold text-muted-foreground">
+        <span className="flex items-baseline gap-1.5 text-xs font-semibold text-muted-foreground">
           {isPatient ? "Пациент" : "Врач"}
+          {isUnread && (
+            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              новое
+            </span>
+          )}
         </span>
         <span className="text-xs text-muted-foreground">
           {formatRelativeTime(message.createdAt)}
@@ -440,17 +466,53 @@ export function DoctorCommentsTab({
   const [metricsLoading, setMetricsLoading] = useState(false);
 
   const threadVersionRef = useRef(0);
+  // Снимок «непрочитанности» упражнений на момент входа в пациента (state B):
+  // stageItemId → было ли непрочитано при входе. Используется для ранжирования
+  // (непрочитанные сверху) БЕЗ живой перетасовки — порядок фиксируется на входе
+  // и не меняется, пока врач внутри пациента; пересчитывается при смене пациента.
+  const entryUnreadSnapshotRef = useRef<ReadonlyMap<string, boolean>>(new Map());
+  // Зеркало exercisesData для синхронного чтения cleared-count в applyLocalRead.
+  const exercisesDataRef = useRef<PatientExercisesWithCommentsResult | null>(null);
+
+  // ── Read-state (D3) ──────────────────────────────────────────────────────
+  // Локальный набор stageItemId, помеченных прочитанными в этой сессии (просмотр треда).
+  // Используется, чтобы бейджи/счётчики сходились без рефетча, и чтобы прочитанное
+  // уезжало вниз/выпадало из фильтра «непрочитанные» — но БЕЗ живой перетасовки,
+  // пока врач внутри пациента (см. snapshot-логику ниже).
+  const [locallyReadItems, setLocallyReadItems] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Зеркала для синхронного чтения внутри applyLocalRead (без устаревших замыканий
+  // и без двойного учёта в StrictMode).
+  const locallyReadItemsRef = useRef<ReadonlySet<string>>(locallyReadItems);
+  // Локальная копия списка пациентов: server-данные + декремент unreadCount по мере чтения.
+  const [patients, setPatients] = useState<CommentPatientRow[]>(initialPatients ?? []);
+  useEffect(() => {
+    setPatients(initialPatients ?? []);
+    // Новый набор пациентов от сервера => сбрасываем локальный read-стейт сессии.
+    locallyReadItemsRef.current = new Set();
+    setLocallyReadItems(locallyReadItemsRef.current);
+  }, [initialPatients]);
+
+  useEffect(() => {
+    exercisesDataRef.current = exercisesData;
+  }, [exercisesData]);
 
   // ── Computed: filtered patients ──
-  const allPatients = initialPatients ?? [];
-  const filteredPatients = filterPatients(
-    onSupportOnly ? allPatients : allPatients,
-    query,
-  );
+  const allPatients = patients;
+  const filteredPatients = filterPatients(allPatients, query);
   // onSupportOnly filter: all patients are already on-support, so toggle controls visibility
-  const patientsToShow = onSupportOnly
+  const patientsToShowRaw = onSupportOnly
     ? filteredPatients.filter((p) => p.isOnSupport)
     : filteredPatients;
+  // «Непрочитанные» фильтр: список изначально содержит только пациентов с unreadCount>0.
+  // Когда врач уходит с пациента, дочитанный (unreadCount→0) выпадает из списка —
+  // но текущий выбранный пациент остаётся видимым, чтобы не пропадал из-под курсора.
+  const patientsToShow = patientsToShowRaw.filter(
+    (p) =>
+      p.unreadCount > 0 ||
+      p.patientUserId === selectedPatient?.patientUserId,
+  );
 
   // Ids of patients visible in left pane (for filtering feed)
   const visiblePatientIds: ReadonlySet<string> | null =
@@ -460,10 +522,17 @@ export function DoctorCommentsTab({
 
   // ── Feed search (state A) ──
   const feedForSearch = filterFeedByPatients(allItems, visiblePatientIds);
-  const { filteredItems: filteredFeed, serverLoading, serverError } = useDoctorExerciseCommentsSearch(
+  const { filteredItems: filteredFeedRaw, serverLoading, serverError } = useDoctorExerciseCommentsSearch(
     feedForSearch,
     query,
   );
+  // Лента state A = «новые комментарии». Прочитанное в этой сессии убираем,
+  // чтобы счётчик ленты сходился (state A не виден, пока врач внутри пациента,
+  // поэтому фильтрация не вызывает живой перетасовки под курсором).
+  const filteredFeed =
+    locallyReadItems.size === 0
+      ? filteredFeedRaw
+      : filteredFeedRaw.filter((item) => !locallyReadItems.has(item.stageItemId));
 
   // ── Load exercises for selected patient (state B) ──
   const loadExercises = useCallback(async (patientUserId: string) => {
@@ -476,6 +545,16 @@ export function DoctorCommentsTab({
       );
       const data = (await res.json()) as ExercisesApiResponse;
       if (!data.ok) throw new Error("api_error");
+      // Заморозить ранжирование на входе: фиксируем, какие упражнения были
+      // непрочитаны (учитывая ранее прочитанное в этой сессии), чтобы порядок
+      // не «прыгал», пока врач читает треды внутри пациента.
+      const snapshot = new Map<string, boolean>();
+      for (const group of data.data?.groups ?? []) {
+        for (const ex of group.exercises) {
+          snapshot.set(ex.stageItemId, ex.unreadComments > 0);
+        }
+      }
+      entryUnreadSnapshotRef.current = snapshot;
       setExercisesData(data.data);
     } catch {
       setExercisesError("Не удалось загрузить упражнения пациента.");
@@ -519,11 +598,57 @@ export function DoctorCommentsTab({
     }
   }, []);
 
+  // Локальная сходимость счётчиков при просмотре треда: помечаем элемент прочитанным
+  // и декрементируем бейджи упражнения/пациента, чтобы цифры сошлись без рефетча.
+  // Перетасовки списков здесь НЕТ — порядок заморожен, пока врач внутри пациента.
+  const applyLocalRead = useCallback(
+    (patientUserId: string, stageItemId: string) => {
+      if (locallyReadItemsRef.current.has(stageItemId)) return;
+      locallyReadItemsRef.current = new Set(locallyReadItemsRef.current).add(stageItemId);
+      setLocallyReadItems(locallyReadItemsRef.current);
+
+      // Сколько непрочитанных снимаем — читаем из актуального снимка exercisesData (ref),
+      // чтобы декремент счётчиков пациента/итога был согласован и без двойного учёта.
+      const current = exercisesDataRef.current;
+      let clearedUnread = 0;
+      for (const group of current?.groups ?? []) {
+        for (const ex of group.exercises) {
+          if (ex.stageItemId === stageItemId) clearedUnread = ex.unreadComments;
+        }
+      }
+      if (clearedUnread === 0) return;
+
+      setExercisesData((prev) =>
+        prev
+          ? {
+              ...prev,
+              groups: prev.groups.map((g) => ({
+                ...g,
+                exercises: g.exercises.map((ex) =>
+                  ex.stageItemId === stageItemId ? { ...ex, unreadComments: 0 } : ex,
+                ),
+              })),
+              totalUnreadComments: Math.max(0, prev.totalUnreadComments - clearedUnread),
+            }
+          : prev,
+      );
+      setPatients((pp) =>
+        pp.map((p) =>
+          p.patientUserId === patientUserId
+            ? { ...p, unreadCount: Math.max(0, p.unreadCount - clearedUnread) }
+            : p,
+        ),
+      );
+    },
+    [],
+  );
+
   // Mark thread as read
   const markThreadRead = useCallback(
-    async (instanceId: string, stageItemId: string) => {
+    async (instanceId: string, stageItemId: string, patientUserId: string) => {
       if (markReadSent) return;
       setMarkReadSent(true);
+      applyLocalRead(patientUserId, stageItemId);
       try {
         await fetch(
           `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(stageItemId)}/discussion/read`,
@@ -533,7 +658,7 @@ export function DoctorCommentsTab({
         // silently ignore mark-read errors
       }
     },
-    [markReadSent],
+    [markReadSent, applyLocalRead],
   );
 
   useEffect(() => {
@@ -574,7 +699,11 @@ export function DoctorCommentsTab({
       markReadSent
     )
       return;
-    void markThreadRead(exercisesData.instanceId, selectedExercise.stageItemId);
+    void markThreadRead(
+      exercisesData.instanceId,
+      selectedExercise.stageItemId,
+      exercisesData.patientUserId,
+    );
   }, [selectedExercise, exercisesData, threadMessages.length, markReadSent, markThreadRead]);
 
   // ── Load more feed (state A) ──
@@ -830,6 +959,7 @@ export function DoctorCommentsTab({
                       group={group}
                       selectedItemId={null}
                       onSelectItem={handleSelectExercise}
+                      entryUnreadSnapshot={entryUnreadSnapshotRef.current}
                     />
                   ))}
                 </div>

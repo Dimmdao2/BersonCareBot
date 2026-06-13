@@ -612,3 +612,165 @@ describe("DoctorCommentsTab — микро-график метрик в шапк
     });
   });
 });
+
+// ── Read-state (D3): read-on-view, ранжирование, сходимость бейджей ───────────
+
+describe("DoctorCommentsTab — read-state (D3)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const ITEM_READ = "00000000-0000-4000-8000-aaa000000003";
+  const STAGE2 = "00000000-0000-4000-8000-ddd000000002";
+
+  const EX_UNREAD: ExerciseCommentItem = {
+    ...EXERCISE_ITEM,
+    stageItemId: ITEM1,
+    title: "Приседания",
+    totalComments: 3,
+    unreadComments: 2,
+  };
+  const EX_READ: ExerciseCommentItem = {
+    ...EXERCISE_ITEM,
+    stageItemId: ITEM_READ,
+    title: "Планка",
+    totalComments: 4,
+    unreadComments: 0,
+    latestCommentAt: "2026-06-12T10:00:00.000Z", // новее, но прочитано → должно быть НИЖЕ
+  };
+
+  // Одна группа, упражнения в серверном порядке: сначала прочитанное (новее), потом непрочитанное.
+  const EXERCISES_MIXED: PatientExercisesWithCommentsResult = {
+    patientUserId: P1,
+    instanceId: INST,
+    instanceTitle: "Программа реабилитации",
+    groups: [
+      {
+        stageId: STAGE1,
+        stageTitle: "Этап 1",
+        stageStatus: "in_progress",
+        isActive: true,
+        exercises: [EX_READ, EX_UNREAD],
+      },
+    ],
+    totalExercisesWithComments: 2,
+    totalUnreadComments: 2,
+  };
+
+  function stubMixedFetch(extra?: (url: string) => Response | undefined) {
+    return vi.fn().mockImplementation((url: string) => {
+      const override = extra?.(url);
+      if (override) return Promise.resolve(override);
+      if (url.includes("/exercises")) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true, data: EXERCISES_MIXED }) });
+      }
+      if (url.includes("exercise-metrics")) {
+        return Promise.resolve({ ok: true, json: async () => ({ ok: true, points: [] }) });
+      }
+      // discussion + mark-read
+      return Promise.resolve({ ok: true, json: async () => THREAD_RESPONSE });
+    });
+  }
+
+  it("ранжирование: непрочитанное упражнение стоит выше прочитанного (новее)", async () => {
+    vi.stubGlobal("fetch", stubMixedFetch());
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+    await waitFor(() => expect(screen.getByText("Приседания")).toBeInTheDocument());
+
+    const unreadRow = screen.getByText("Приседания").closest("button")!;
+    const readRow = screen.getByText("Планка").closest("button")!;
+    // Непрочитанное («Приседания») идёт раньше прочитанного («Планка») в DOM,
+    // несмотря на то что у прочитанного latestCommentAt новее.
+    expect(
+      unreadRow.compareDocumentPosition(readRow) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("просмотр треда отправляет POST mark-read", async () => {
+    const fetchMock = stubMixedFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+    await waitFor(() => screen.getByText("Приседания"));
+    await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
+    await waitFor(() => screen.getByText(/Болит колено/i));
+
+    await waitFor(() => {
+      const readCalls = fetchMock.mock.calls.filter((args: unknown[]) => {
+        const [url, opts] = args as [string, RequestInit | undefined];
+        return url.includes("/discussion/read") && opts?.method === "POST";
+      });
+      expect(readCalls.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("после просмотра треда бейдж непрочитанных у упражнения сходится (исчезает), при закрытии упражнение уезжает вниз", async () => {
+    vi.stubGlobal("fetch", stubMixedFetch());
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+    await waitFor(() => screen.getByText("Приседания"));
+
+    // До просмотра — у «Приседания» бейдж непрочитанных (destructive-цвет) присутствует.
+    const unreadRowBefore = screen.getByText("Приседания").closest("button")!;
+    expect(unreadRowBefore.querySelector(".text-destructive")).not.toBeNull();
+    expect(unreadRowBefore.querySelector(".text-destructive")!.textContent).toBe("2");
+
+    await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
+    await waitFor(() => screen.getByText(/Болит колено/i));
+
+    // Закрываем тред — возвращаемся в state B.
+    await userEvent.click(screen.getByRole("button", { name: /^Закрыть$/i }));
+    await waitFor(() => screen.getByText("Этап 1"));
+
+    // Бейдж непрочитанных у «Приседания» снят (destructive-бейджа больше нет).
+    const unreadRowAfter = screen.getByText("Приседания").closest("button")!;
+    expect(unreadRowAfter.querySelector(".text-destructive")).toBeNull();
+
+    // Без живой перетасовки: «Приседания» остаётся видимым (не пропало),
+    // порядок заморожен до повторного входа в пациента.
+    expect(screen.getByText("Приседания")).toBeInTheDocument();
+    expect(screen.getByText("Планка")).toBeInTheDocument();
+  });
+
+  it("после просмотра треда у пациента уменьшается счётчик непрочитанных (сходимость бейджа пациента)", async () => {
+    // Пациент с unreadCount=2 (= число непрочитанных у одного упражнения).
+    vi.stubGlobal("fetch", stubMixedFetch());
+    render(<DoctorCommentsTab {...defaultProps({ initialPatients: [PAT_A] })} />);
+
+    // В левой панели у пациента бейдж «1» (unreadCount по умолчанию из makePatient).
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }));
+
+    await clickPatientInLeftPane(/Иванов Иван/i);
+    await waitFor(() => screen.getByText("Приседания"));
+    await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
+    await waitFor(() => screen.getByText(/Болит колено/i));
+    await userEvent.click(screen.getByRole("button", { name: /^Закрыть$/i }));
+    await waitFor(() => screen.getByText("Этап 1"));
+
+    // totalUnreadComments у пациента в шапке state B обнулился: «N новых» больше не показываем.
+    expect(screen.queryByText(/новых/i)).not.toBeInTheDocument();
+  });
+
+  it("прочитанный пациент выпадает из списка при возврате в state A", async () => {
+    // PAT_A имеет unreadCount=1; после прочтения единственного упражнения он
+    // должен исчезнуть из левого списка, когда врач возвращается в state A.
+    vi.stubGlobal("fetch", stubMixedFetch());
+    render(<DoctorCommentsTab {...defaultProps({ initialPatients: [PAT_A] })} />);
+    await clickPatientInLeftPane(/Иванов Иван/i);
+    await waitFor(() => screen.getByText("Приседания"));
+    await userEvent.click(screen.getByRole("button", { name: /Приседания/i }));
+    await waitFor(() => screen.getByText(/Болит колено/i));
+
+    // Закрываем тред (state C → B), затем сбрасываем пациента (B → A).
+    await userEvent.click(screen.getByRole("button", { name: /^Закрыть$/i }));
+    await waitFor(() => screen.getByText("Этап 1"));
+    await userEvent.click(screen.getByLabelText(/сбросить выбор пациента/i));
+
+    // Пациент с unreadCount=0 выпал из левого списка.
+    await waitFor(() => {
+      const leftButtons = screen
+        .queryAllByRole("button", { name: /Иванов Иван/i })
+        .filter((b) => b.hasAttribute("aria-pressed"));
+      expect(leftButtons.length).toBe(0);
+    });
+  });
+});
