@@ -102,6 +102,8 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 
 Проверка: `curl -s -c /tmp/c.cookies -L "…dev-bypass…"` → `curl -s -b /tmp/c.cookies http://127.0.0.1:5200/api/me`.
 
+**Скриншоты авторизованных страниц без браузер-MCP** (headless chromium, двухшаговая схема с флашем cookie) — канон в [`LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) §4.7. Главное: `next` для doctor/admin игнорируется; на auth-шаге chromium запускать **без** `--virtual-time-budget` (иначе cookie не сохранится в профиль).
+
 **Не путать:** `system_settings.dev_mode` в БД — тестовые аккаунты в аналитике, не вход.
 
 Подробности, curl, browser MCP, типовые сценарии — в каноническом документе выше.

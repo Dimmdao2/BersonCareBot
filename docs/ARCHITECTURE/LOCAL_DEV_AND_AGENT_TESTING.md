@@ -194,6 +194,46 @@ http://127.0.0.1:5200/api/auth/logout
 
 Навигация кабинета врача: [`DOCTOR_CABINET_NAVIGATION.md`](./DOCTOR_CABINET_NAVIGATION.md).
 
+### 4.7 Headless-скриншоты без браузер-MCP (curl + chromium)
+
+Когда браузер-MCP/расширение недоступны, а нужны **скриншоты авторизованных** doctor-страниц из CLI. Проверено на этой машине (`/usr/bin/chromium-browser`). Двухшаговая схема — иначе сессия не подхватится.
+
+```bash
+# 0) поднять webapp (грузит .env.dev: ALLOW_DEV_AUTH_BYPASS=true + DATABASE_URL)
+( set -a && source apps/webapp/.env.dev && set +a && pnpm --dir apps/webapp dev ) &   # 127.0.0.1:5200
+
+PROF="$PWD/.shots/prof"; B="http://127.0.0.1:5200"   # профиль и скриншоты — в персистентный путь (НЕ /tmp)
+
+# ШАГ A — авторизовать профиль. КРИТИЧНО: БЕЗ --virtual-time-budget,
+#         иначе chromium выходит до флаша cookie на диск и шаг B упрётся в login.
+timeout 50 chromium-browser --headless --no-sandbox --disable-gpu \
+  --user-data-dir="$PROF" --screenshot="$PWD/.shots/_auth.png" \
+  "$B/api/auth/dev-bypass?token=dev%3Aadmin"
+# проверка: в профиле появился session-cookie
+find "$PROF" -name Cookies -exec sh -c 'strings "$1" | grep -c bersoncare_webapp_session' _ {} \;
+
+# ШАГ B — целевая страница тем же профилем. Здесь virtual-time-budget нужен,
+#         чтобы прогрузились клиентские чанки/данные (KPI, фид и т.п.).
+timeout 60 chromium-browser --headless --no-sandbox --disable-gpu --hide-scrollbars \
+  --window-size=1480,1024 --virtual-time-budget=13000 --user-data-dir="$PROF" \
+  --screenshot="$PWD/.shots/page.png" \
+  "$B/app/doctor/schedule?tab=cal"
+```
+
+Грабли (все встречены вживую):
+- **`next` для `dev:doctor`/`dev:admin` игнорируется** (§4.3) → на целевой маршрут ведём в шаге B, а не через redirect bypass.
+- **`--virtual-time-budget` на шаге A ломает персист cookie** (резкий выход до флаша) → на auth-шаге его НЕ ставить; повторное использование профиля без cookie = редирект на login.
+- Только **`127.0.0.1`**, не `localhost`. Нужен **`--no-sandbox`**. Скриншоты писать в **персистентный** путь (project dir): файлы в `/tmp` между вызовами могут не сохраняться.
+- Интерактив (клики по дню, drag-n-drop, выбор дней) одним `--screenshot` не снять — для этого нужен реальный браузер-MCP; deep-link-параметры (`?tab=`, `?view=`) частично заменяют клики.
+
+Чистый бэкенд-чек без рендера — через cookie jar (см. §4.4):
+
+```bash
+J=/tmp/bcb.cookies
+curl -s -c $J -b $J -L "$B/api/auth/dev-bypass?token=dev%3Aadmin&next=/app/doctor" >/dev/null
+curl -s -b $J "$B/api/doctor/schedule-kpis?from=2026-06-13T00:00:00&to=2026-06-16T00:00:00"   # → {ok,kpis:{9 полей}}
+```
+
 ---
 
 ## 5. `dev_mode` в БД — не путать с dev-bypass
