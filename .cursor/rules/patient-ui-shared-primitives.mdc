@@ -12,7 +12,7 @@ alwaysApply: true
 1. `docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`
 2. `apps/webapp/src/shared/ui/patientVisual.ts`
 3. `apps/webapp/src/shared/ui/patient/PatientCatalogMediaStaticThumb.tsx` (превью каталожного медиа в списках/модалках)
-4. `apps/webapp/src/components/ui/*` (shadcn/base-ui)
+4. `apps/webapp/src/shared/ui/patient/primitives/*` — shadcn-копии patient zone (не импортировать `@/components/ui/**` в patient routes; см. `patient-doctor-ui-isolation.mdc`, ESLint)
 5. `apps/webapp/src/app/globals.css` (`#app-shell-patient` токены)
 
 ## Обязательные правила

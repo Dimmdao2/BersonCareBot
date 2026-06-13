@@ -41,7 +41,7 @@ pnpm run worker:dev       # projection / delivery jobs
 pnpm run scheduler:dev    # schedule.tick (напоминания и др.)
 ```
 
-Только webapp: `pnpm run webapp:dev`. Только integrator: `pnpm run dev:integrator`.
+Только webapp: `pnpm run webapp:dev`. Turbopack: `pnpm run dev:turbo`. Polling (VM/Docker): `pnpm --dir apps/webapp run dev:visual`. Только integrator: `pnpm run dev:integrator`. Остановка dev-портов: `pnpm run dev:stop`. Подробно: [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md).
 
 Проверки перед коммитом:
 
@@ -76,7 +76,10 @@ pnpm run build && pnpm run build:webapp
 | Команда | Назначение |
 |---------|------------|
 | `pnpm run dev` | Integrator + webapp в dev |
-| `pnpm run webapp:dev` | Только webapp (порт 5200) |
+| `pnpm run webapp:dev` | Только webapp (порт 5200, webpack) |
+| `pnpm run dev:turbo` | Только webapp (Turbopack, быстрый HMR) |
+| `pnpm --dir apps/webapp run dev:visual` | Webapp + file polling (VM/Docker) |
+| `pnpm run dev:stop` | Остановить dev-порты 5200/4200 |
 | `pnpm run dev:integrator` | Только integrator API |
 | `pnpm run worker:dev` / `scheduler:dev` | Фоновые процессы integrator |
 | `pnpm run build` | Сборка integrator + packages |

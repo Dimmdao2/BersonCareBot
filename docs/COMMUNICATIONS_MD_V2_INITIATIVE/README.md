@@ -57,18 +57,9 @@
 
 ### 0.4 Live-проверка (dev-логин доктора)
 
-Авторизованным doctor-страницам нужна реальная сессия. Используй **dev-bypass** (работает только при
-`ALLOW_DEV_AUTH_BYPASS=true` в `apps/webapp/.env.dev`, никогда не прод). Хост — **`127.0.0.1:5200`**,
-не `localhost`. Старт дев-сервера: `pnpm dev` в `apps/webapp` (стоп — `pnpm dev:stop`).
+**Канон:** [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](../ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) — dev-bypass, режимы `pnpm dev` / `dev:turbo` / `dev:visual`, curl, browser MCP.
 
-```
-curl -s -c /tmp/c.cookies -b /tmp/c.cookies -L \
-  "http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Adoctor&next=/app/doctor/communications"
-curl -s -b /tmp/c.cookies "http://127.0.0.1:5200/api/me"   # подтвердить роль
-```
-
-Токены: `dev:doctor` (кабинет врача), `dev:admin` (врач + admin-режим), `dev:client` (пациент).
-Не сканируй `.env` ради кредов — используй этот bypass.
+Кратко: `ALLOW_DEV_AUTH_BYPASS=true` в `apps/webapp/.env.dev`, хост **`127.0.0.1:5200`**, токены `dev:admin` | `dev:doctor` | `dev:client`, URL `/api/auth/dev-bypass?token=…`.
 
 ---
 

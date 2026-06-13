@@ -14,7 +14,7 @@ alwaysApply: true
 3. [`apps/webapp/src/app/app/doctor/clients/doctorClientCardChrome.ts`](apps/webapp/src/app/app/doctor/clients/doctorClientCardChrome.ts) — shell и панели карточки клиента (entity-card), без дубля в `doctorVisual`.
 4. [`apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts`](apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts) — контейнер страницы, sticky toolbar каталога.
 5. [`apps/webapp/src/shared/ui/doctor/`](apps/webapp/src/shared/ui/doctor/) — каталог, toolbar, `DoctorSection` / `DoctorSectionHeader` / `DoctorEmptyState` / `DoctorMetricList`.
-6. [`apps/webapp/src/components/ui/*`](apps/webapp/src/components/ui/) — shadcn/base-ui (Button, Dialog, Card, Select, …).
+6. [`apps/webapp/src/shared/ui/doctor/primitives/*`](apps/webapp/src/shared/ui/doctor/primitives/) — shadcn-копии doctor zone (не импортировать `@/components/ui/**` в doctor routes; см. `patient-doctor-ui-isolation.mdc`, ESLint). Канон для копирования: `apps/webapp/src/components/ui/*`.
 7. Журнал унификации (исключения, cancelled routes): [`docs/archive/2026-06-initiatives/DOCTOR_UI_UNIFICATION_INITIATIVE/README.md`](docs/archive/2026-06-initiatives/DOCTOR_UI_UNIFICATION_INITIATIVE/README.md).
 
 Плотность UI **не откатывать** — см. [`docs/APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_UI_DENSITY_PLAN.md`](docs/APP_RESTRUCTURE_INITIATIVE/done/DOCTOR_UI_DENSITY_PLAN.md).
