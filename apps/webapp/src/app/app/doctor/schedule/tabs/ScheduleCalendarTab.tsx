@@ -241,20 +241,24 @@ function deriveSlotTimes(workingBounds: WorkingBounds | null | undefined): {
 // ---------------------------------------------------------------------------
 
 function eventClassName(event: CalendarEvent): string {
+  // §3.7: фон/границу помечаем `!`-важными — в timeGrid FullCalendar красит событие
+  // инлайн-стилем (синий по умолчанию), который перебивает обычные Tailwind-утилиты;
+  // important-утилита выигрывает по каскаду (important author > inline). В month тоже
+  // безопасно. Текст/пунктир/line-through оставляем обычными.
   if (event.kind === "freeSlot")
-    return "bg-emerald-500/10 text-emerald-900 border-emerald-500/30 border-dashed";
-  if (event.kind === "block") return "bg-muted text-muted-foreground border-border";
+    return "!bg-emerald-500/10 text-emerald-900 !border-emerald-500/30 border-dashed";
+  if (event.kind === "block") return "!bg-muted text-muted-foreground !border-border";
   // working: не рендерим (п.3), фон остаётся белым
   if (event.kind === "working") return "";
-  if (event.kind === "break") return "bg-slate-500/10";
+  if (event.kind === "break") return "!bg-slate-500/10 !border-transparent";
   // appointment
   if (isCancelledAppointmentStatus(event.status))
-    return "bg-destructive/15 text-destructive/80 border-destructive/20 line-through";
+    return "!bg-destructive/15 text-destructive/80 !border-destructive/20 line-through";
   if (event.status === "awaiting_payment" || event.prepaymentPending)
-    return "bg-amber-500/15 text-amber-900 border-amber-500/40";
+    return "!bg-amber-500/15 text-amber-900 !border-amber-500/40";
   if (event.packageUsageRef || event.packageTitle)
-    return "bg-violet-500/15 text-violet-900 border-violet-500/40";
-  return "bg-primary/10 text-foreground border-primary/30";
+    return "!bg-violet-500/15 text-violet-900 !border-violet-500/40";
+  return "!bg-primary/10 text-foreground !border-primary/30";
 }
 
 function eventTitle(event: CalendarEvent): string {
@@ -1082,7 +1086,30 @@ export function ScheduleCalendarTab({
             // FullCalendar
             <div className="overflow-hidden rounded-xl border border-border bg-card">
               <style>{`
+                /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
+                   (бьют инлайн-синий FC в timeGrid). Здесь лишь убираем тень FC. */
                 .fc-timegrid-event-harness { margin-inline: 1px; }
+                .fc-event { box-shadow: none !important; }
+
+                /* §3.9 — мягкая типографика заголовков колонок/дней */
+                .fc-col-header-cell-cushion {
+                  font-size: 0.75rem !important;
+                  font-weight: 500 !important;
+                  text-transform: none !important;
+                  color: var(--muted-foreground, currentColor) !important;
+                }
+                .fc-col-header-cell {
+                  font-size: 0.75rem !important;
+                  font-weight: 500 !important;
+                }
+
+                /* §3.10 — убрать жёлтую заливку «сегодня» в месяце */
+                .fc .fc-day-today {
+                  --fc-today-bg-color: transparent !important;
+                  background-color: transparent !important;
+                }
+
+                /* §3.10/(б) — кружок «сегодня»: приглушённый прозрачно-зелёный */
                 .fc-daygrid-day-number.fc-today-circle {
                   display: inline-flex;
                   align-items: center;
@@ -1090,19 +1117,29 @@ export function ScheduleCalendarTab({
                   width: 1.5rem;
                   height: 1.5rem;
                   border-radius: 9999px;
-                  background-color: hsl(var(--primary));
-                  color: hsl(var(--primary-foreground));
+                  background-color: color-mix(in srgb, hsl(var(--primary)) 16%, transparent);
+                  color: hsl(var(--foreground));
                   font-weight: 600;
                 }
+
+                /* §3.11 — мельче цифры дат в месячном виде */
+                .fc-daygrid-day-number {
+                  font-size: 0.6875rem !important;
+                  font-weight: 400 !important;
+                  line-height: 1.5 !important;
+                }
+
+                /* §3.12 — «сегодня» в Неделя/3 дня: заливка ячейки заголовка, без кружка */
+                .fc-col-header-cell.fc-day-today {
+                  background-color: color-mix(in srgb, hsl(var(--primary)) 12%, transparent) !important;
+                }
                 .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
-                  display: inline-flex;
-                  align-items: center;
-                  justify-content: center;
-                  width: 1.75rem;
-                  height: 1.75rem;
-                  border-radius: 9999px;
-                  background-color: hsl(var(--primary));
-                  color: hsl(var(--primary-foreground));
+                  display: inline;
+                  width: auto;
+                  height: auto;
+                  border-radius: 0;
+                  background-color: transparent;
+                  color: hsl(var(--foreground));
                   font-weight: 600;
                 }
               `}</style>
@@ -1213,6 +1250,8 @@ export function ScheduleCalendarTab({
               timeZone={currentTimeZone}
               filterMeta={filters}
               activeFilters={activeFilters}
+              // §3.6: при открытии через «+ Создать запись» — сразу в форму создания
+              startInCreate={showCreatePanel && !selected}
               onClose={() => {
                 setSelected(null);
                 setShowCreatePanel(false);

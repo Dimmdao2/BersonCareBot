@@ -63,6 +63,8 @@ type Props = {
   activeFilters: CalendarCreateActiveFilters;
   onClose: () => void;
   onChanged: () => void;
+  /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
+  startInCreate?: boolean;
 };
 
 type LifecycleResponse = {
@@ -99,8 +101,10 @@ function DoctorCalendarEventPanelInner({
   activeFilters,
   onClose,
   onChanged,
+  startInCreate = false,
 }: Props) {
-  const [mode, setMode] = useState<"view" | "create" | "reschedule">("view");
+  // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
+  const [mode, setMode] = useState<"view" | "create" | "reschedule">(startInCreate ? "create" : "view");
   const [cancelType, setCancelType] = useState("free");
   const [newStartLocal, setNewStartLocal] = useState("");
   const [newEndLocal, setNewEndLocal] = useState("");
@@ -130,6 +134,23 @@ function DoctorCalendarEventPanelInner({
       cancelled = true;
     };
   }, [apiBase, selectedId]);
+
+  // §3.6: при startInCreate=true инициализируем поля создания сразу, как делает openCreateForm
+  useEffect(() => {
+    if (!startInCreate) return;
+    setCreateSpecialistId(
+      resolveCalendarCreateFieldValue(filterMeta.specialists, activeFilters.specialistId, null) ??
+        filterMeta.specialists[0]?.id ??
+        null,
+    );
+    setCreateBranchId(
+      resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, null),
+    );
+    setCreateServiceId(
+      resolveCalendarCreateFieldValue(filterMeta.services, activeFilters.serviceId, null),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startInCreate]);
 
   const createDurationMinutes = useMemo(() => {
     if (!createServiceId) return null;
@@ -165,7 +186,14 @@ function DoctorCalendarEventPanelInner({
               Создать
             </Button>
           ) : (
-            <Button type="button" size="sm" variant="ghost" onClick={() => setMode("view")}>
+            // §3.6: если открыто через startInCreate — × закрывает панель полностью;
+            // если открыто через кнопку «Создать» внутри плейсхолдера — возврат к плейсхолдеру
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => (startInCreate ? onClose() : setMode("view"))}
+            >
               ×
             </Button>
           )}
@@ -188,7 +216,8 @@ function DoctorCalendarEventPanelInner({
             onBranchChange={setCreateBranchId}
             onServiceChange={setCreateServiceId}
             onPatientChange={setCreatePatient}
-            onCancel={() => setMode("view")}
+            // §3.6: если открыто через startInCreate — отмена закрывает панель
+            onCancel={() => (startInCreate ? onClose() : setMode("view"))}
             onSubmit={() => {
               if (!createStart || !createDurationMinutes || !createBranchId || !createServiceId || !createSpecialistId) {
                 setMessage("Заполните филиал, услугу и специалиста.");

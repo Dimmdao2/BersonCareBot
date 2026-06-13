@@ -31,11 +31,13 @@ vi.mock("../../calendar/DoctorCalendarEventPanel", () => ({
   DoctorCalendarEventPanel: ({
     selected,
     onClose,
+    startInCreate,
   }: {
     selected: unknown;
     onClose: () => void;
+    startInCreate?: boolean;
   }) => (
-    <div data-testid="event-panel">
+    <div data-testid="event-panel" data-start-in-create={startInCreate ? "true" : "false"}>
       {selected ? (
         <button data-testid="panel-close" onClick={onClose}>
           close
@@ -700,6 +702,23 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       await waitFor(() => {
         expect(screen.getByTestId("event-panel")).toBeInTheDocument();
         expect(screen.queryByTestId("right-panel-empty")).not.toBeInTheDocument();
+      });
+    });
+
+    // §3.6 — панель открывается сразу в режиме создания (startInCreate=true)
+    it("§3.6: CTA toolbar passes startInCreate=true to DoctorCalendarEventPanel", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("create-appointment-btn"));
+      await user.click(screen.getByTestId("create-appointment-btn"));
+
+      await waitFor(() => {
+        const panel = screen.getByTestId("event-panel");
+        expect(panel).toBeInTheDocument();
+        expect(panel.getAttribute("data-start-in-create")).toBe("true");
       });
     });
   });
