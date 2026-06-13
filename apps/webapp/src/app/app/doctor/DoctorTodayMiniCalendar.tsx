@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { doctorSectionSubtitleClass, doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
 
@@ -142,15 +141,16 @@ export function DoctorTodayMiniCalendar({ appointments, nowMinutes, todayDateLab
         <span className={doctorSectionSubtitleClass}>{todayDateLabel}</span>
       </div>
 
+      {/* R1: «Расписание на сегодня» — всегда календарь-таймлайн рабочего дня (даже без записей). */}
       {appointments.length === 0 ? (
-        <DoctorEmptyState>
-          <p>Записей на сегодня нет</p>
-          <Link href="/app/doctor/schedule?tab=calendar" className={`${doctorInlineLinkClass} w-fit`}>
-            Открыть расписание
+        <p className="text-xs text-muted-foreground">
+          Записей на сегодня нет —{" "}
+          <Link href="/app/doctor/schedule?tab=calendar" className={doctorInlineLinkClass}>
+            открыть расписание
           </Link>
-        </DoctorEmptyState>
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-border">
+        </p>
+      ) : null}
+      <div className="overflow-hidden rounded-lg border border-border">
           {/* Сетка: метки времени + слоты */}
           <div
             className="relative select-none"
@@ -222,7 +222,6 @@ export function DoctorTodayMiniCalendar({ appointments, nowMinutes, todayDateLab
             ) : null}
           </div>
         </div>
-      )}
     </DoctorSection>
   );
 }

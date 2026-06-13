@@ -44,7 +44,7 @@ const DEFAULT_IANA = "Europe/Moscow";
 
 describe("DoctorTodayMiniCalendar", () => {
   describe("empty state", () => {
-    it("shows empty message and link to schedule when no appointments", () => {
+    it("shows hint + link AND still renders the day timeline when no appointments (R1)", () => {
       render(
         <DoctorTodayMiniCalendar
           appointments={[]}
@@ -53,11 +53,14 @@ describe("DoctorTodayMiniCalendar", () => {
           displayIana={DEFAULT_IANA}
         />,
       );
-      expect(screen.getByText("Записей на сегодня нет")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Открыть расписание" })).toHaveAttribute(
+      // R1: подсказка «нет записей», но календарь-таймлайн всё равно показан.
+      expect(screen.getByText(/Записей на сегодня нет/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "открыть расписание" })).toHaveAttribute(
         "href",
         "/app/doctor/schedule?tab=calendar",
       );
+      // Сетка рендерится (часовые метки видны даже без записей).
+      expect(screen.getByText("09:00")).toBeInTheDocument();
     });
 
     it("shows heading and date label", () => {
@@ -124,7 +127,7 @@ describe("DoctorTodayMiniCalendar", () => {
   });
 
   describe("computeRange defaults", () => {
-    it("uses 09–19 default range when no appointments", () => {
+    it("uses 09–19 default range when no appointments (grid still rendered — R1)", () => {
       render(
         <DoctorTodayMiniCalendar
           appointments={[]}
@@ -133,8 +136,9 @@ describe("DoctorTodayMiniCalendar", () => {
           displayIana={DEFAULT_IANA}
         />,
       );
-      // Empty state is shown, no grid rendered — just verify no crash
-      expect(screen.getByText("Записей на сегодня нет")).toBeInTheDocument();
+      // R1: грид рендерится дефолтным окном 09–19 даже без записей.
+      expect(screen.getByText("09:00")).toBeInTheDocument();
+      expect(screen.getByText("18:00")).toBeInTheDocument();
     });
 
     it("clamps range to 07–22 boundaries", () => {
@@ -228,20 +232,19 @@ describe("DoctorTodayMiniCalendar", () => {
       expect(screen.getByText("07:00")).toBeInTheDocument();
     });
 
-    it("renders without crash when no appointments and workingBounds provided", () => {
-      // Empty calendar state: workingBounds is ignored (empty state shown instead)
-      expect(() =>
-        render(
-          <DoctorTodayMiniCalendar
-            appointments={[]}
-            nowMinutes={600}
-            todayDateLabel="ср, 11 июня"
-            displayIana={DEFAULT_IANA}
-            workingBounds={{ startMinute: 9 * 60, endMinute: 18 * 60 }}
-          />,
-        ),
-      ).not.toThrow();
-      expect(screen.getByText("Записей на сегодня нет")).toBeInTheDocument();
+    it("renders the working-day timeline when no appointments but workingBounds provided (R1)", () => {
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+          workingBounds={{ startMinute: 9 * 60, endMinute: 18 * 60 }}
+        />,
+      );
+      // R1: грид рабочего дня показан даже без записей (плюс подсказка «нет записей»).
+      expect(screen.getByText(/Записей на сегодня нет/)).toBeInTheDocument();
+      expect(screen.getByText("09:00")).toBeInTheDocument();
     });
   });
 });
