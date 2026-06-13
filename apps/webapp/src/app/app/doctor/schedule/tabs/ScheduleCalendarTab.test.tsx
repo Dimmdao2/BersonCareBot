@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // ---------------------------------------------------------------------------
@@ -159,7 +159,7 @@ function setupFetchMock(
 // ---------------------------------------------------------------------------
 
 describe("ScheduleCalendarTab — v26 rebuild", () => {
-  async function setup(deepLinkParams: Record<string, string> = {}) {
+  async function setup() {
     const { ScheduleCalendarTab } = await import("./ScheduleCalendarTab");
     return ScheduleCalendarTab;
   }
@@ -167,7 +167,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
   // ─── D1: Тулбар — переключатель видов ───────────────────────────────────────
 
   describe("D1 — toolbar view switcher", () => {
-    it("renders 4 view switcher buttons: 3days/weekgrid/month/feed", async () => {
+    it("renders 3 view switcher buttons: 3days/weekgrid/month (no feed)", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
@@ -176,7 +176,8 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
         expect(screen.getByTestId("view-btn-3days")).toBeInTheDocument();
         expect(screen.getByTestId("view-btn-weekgrid")).toBeInTheDocument();
         expect(screen.getByTestId("view-btn-month")).toBeInTheDocument();
-        expect(screen.getByTestId("view-btn-feed")).toBeInTheDocument();
+        // feed button must be gone
+        expect(screen.queryByTestId("view-btn-feed")).not.toBeInTheDocument();
       });
     });
 
@@ -190,16 +191,13 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       });
     });
 
-    it("defaults to 3days view", async () => {
+    it("defaults to 3days view and renders FullCalendar", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        const btn = screen.getByTestId("view-btn-3days");
-        // Default button has 'default' variant → should NOT have 'outline' class logic
-        expect(btn).toBeInTheDocument();
-        // fullcalendar rendered (not feed view)
+        expect(screen.getByTestId("view-btn-3days")).toBeInTheDocument();
         expect(screen.getByTestId("fullcalendar")).toBeInTheDocument();
       });
     });
@@ -230,19 +228,6 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       expect(onDeepLinkChange).toHaveBeenCalledWith("view", "month");
     });
 
-    it("switching to feed calls onDeepLinkChange(view, feed)", async () => {
-      setupFetchMock(makeCalendarResponse());
-      const Tab = await setup();
-      const onDeepLinkChange = vi.fn();
-      const user = userEvent.setup();
-      render(<Tab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
-
-      await waitFor(() => screen.getByTestId("view-btn-feed"));
-      await user.click(screen.getByTestId("view-btn-feed"));
-
-      expect(onDeepLinkChange).toHaveBeenCalledWith("view", "feed");
-    });
-
     it("shows period label + arrows in 3days view", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
@@ -252,17 +237,6 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
         expect(screen.getByTestId("period-label")).toBeInTheDocument();
         expect(screen.getByTestId("period-prev")).toBeInTheDocument();
         expect(screen.getByTestId("period-next")).toBeInTheDocument();
-      });
-    });
-
-    it("hides period label + arrows in feed view", async () => {
-      setupFetchMock(makeCalendarResponse());
-      const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "feed" }} onDeepLinkChange={vi.fn()} />);
-
-      await waitFor(() => {
-        expect(screen.queryByTestId("period-label")).not.toBeInTheDocument();
-        expect(screen.queryByTestId("period-prev")).not.toBeInTheDocument();
       });
     });
 
@@ -284,6 +258,237 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       await waitFor(() => {
         expect(screen.getByTestId("filter-Локация")).toBeInTheDocument();
         expect(screen.getByTestId("filter-Услуга")).toBeInTheDocument();
+      });
+    });
+  });
+
+  // ─── D1b: Тумблер Календарь/Список ──────────────────────────────────────────
+
+  describe("D1b — render mode toggle (calendar / list)", () => {
+    it("renders both calendar and list toggle buttons in toolbar", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("render-btn-calendar")).toBeInTheDocument();
+        expect(screen.getByTestId("render-btn-list")).toBeInTheDocument();
+      });
+    });
+
+    it("defaults to calendar mode — fullcalendar visible, list-view absent", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("fullcalendar")).toBeInTheDocument();
+        expect(screen.queryByTestId("list-view")).not.toBeInTheDocument();
+      });
+    });
+
+    it("switching to list mode shows list-view and hides fullcalendar", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("render-btn-list"));
+      await user.click(screen.getByTestId("render-btn-list"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("list-view")).toBeInTheDocument();
+        expect(screen.queryByTestId("fullcalendar")).not.toBeInTheDocument();
+      });
+    });
+
+    it("switching back to calendar from list restores fullcalendar", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("render-btn-list"));
+      await user.click(screen.getByTestId("render-btn-list"));
+      await waitFor(() => screen.getByTestId("list-view"));
+      await user.click(screen.getByTestId("render-btn-calendar"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("fullcalendar")).toBeInTheDocument();
+        expect(screen.queryByTestId("list-view")).not.toBeInTheDocument();
+      });
+    });
+
+    it("toggle buttons are visible in day drill-down view too", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{ view: "day" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("render-btn-calendar")).toBeInTheDocument();
+        expect(screen.getByTestId("render-btn-list")).toBeInTheDocument();
+      });
+    });
+
+    it("switching to list calls onDeepLinkChange(render, list)", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const onDeepLinkChange = vi.fn();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
+
+      await waitFor(() => screen.getByTestId("render-btn-list"));
+      await user.click(screen.getByTestId("render-btn-list"));
+
+      expect(onDeepLinkChange).toHaveBeenCalledWith("render", "list");
+    });
+
+    it("initialises from deepLinkParams.render=list", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{ render: "list" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("list-view")).toBeInTheDocument();
+        expect(screen.queryByTestId("fullcalendar")).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // ─── D1c: List view groups by day ────────────────────────────────────────────
+
+  describe("D1c — list view groups appointments by day", () => {
+    it("list view shows day cards for days with appointments", async () => {
+      const events = [
+        {
+          kind: "appointment",
+          id: "appt-1",
+          startAt: "2026-06-13T10:00:00+03:00",
+          endAt: "2026-06-13T11:00:00+03:00",
+          status: "confirmed",
+          patientName: "Иванов Иван",
+          branchTitle: "Центр",
+        },
+        {
+          kind: "appointment",
+          id: "appt-2",
+          startAt: "2026-06-14T09:00:00+03:00",
+          endAt: "2026-06-14T10:00:00+03:00",
+          status: "confirmed",
+          patientName: "Петрова Анна",
+          branchTitle: null,
+        },
+      ];
+      setupFetchMock(makeCalendarResponse(events));
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("render-btn-list"));
+      await user.click(screen.getByTestId("render-btn-list"));
+
+      await waitFor(() => {
+        // Day cards for each day that has appointments
+        expect(screen.getByTestId("list-day-2026-06-13")).toBeInTheDocument();
+        expect(screen.getByTestId("list-day-2026-06-14")).toBeInTheDocument();
+        // Appointment buttons
+        expect(screen.getByTestId("list-appt-appt-1")).toBeInTheDocument();
+        expect(screen.getByTestId("list-appt-appt-2")).toBeInTheDocument();
+      });
+    });
+
+    // Регресс §3.5-LIST: canonical-порт (pgBookingCalendar) отдаёт startAt/endAt
+    // прямо из Postgres timestamptz — формат "2026-06-13 10:00:00+02" (пробел, не "T").
+    // Строгий DateTime.fromISO его не парсил → список был пуст, хотя FullCalendar показывал
+    // записи. Фид с этим форматом должен по-прежнему группироваться по дням.
+    it("list view groups appointments with Postgres timestamptz format (space, short offset)", async () => {
+      const events = [
+        {
+          kind: "appointment",
+          id: "appt-pg-1",
+          startAt: "2026-06-13 10:00:00+02",
+          endAt: "2026-06-13 11:00:00+02",
+          status: "confirmed",
+          patientName: "Иванов Иван",
+          branchTitle: "Центр",
+        },
+        {
+          kind: "appointment",
+          id: "appt-pg-2",
+          startAt: "2026-06-14 09:00:00+02",
+          endAt: "2026-06-14 10:00:00+02",
+          status: "confirmed",
+          patientName: "Петрова Анна",
+          branchTitle: null,
+        },
+      ];
+      setupFetchMock(makeCalendarResponse(events));
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("render-btn-list"));
+      await user.click(screen.getByTestId("render-btn-list"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("list-day-2026-06-13")).toBeInTheDocument();
+        expect(screen.getByTestId("list-day-2026-06-14")).toBeInTheDocument();
+        expect(screen.getByTestId("list-appt-appt-pg-1")).toBeInTheDocument();
+        expect(screen.getByTestId("list-appt-appt-pg-2")).toBeInTheDocument();
+      });
+    });
+
+    it("list view shows empty state when no appointments in period", async () => {
+      setupFetchMock(makeCalendarResponse([]));
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("render-btn-list"));
+      await user.click(screen.getByTestId("render-btn-list"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("list-empty")).toBeInTheDocument();
+      });
+    });
+
+    it("clicking appointment in list view calls onDeepLinkChange(appt, id)", async () => {
+      const appt = {
+        kind: "appointment",
+        id: "appt-99",
+        startAt: "2026-06-13T10:00:00+03:00",
+        endAt: "2026-06-13T11:00:00+03:00",
+        status: "confirmed",
+        patientName: "Тест",
+        branchTitle: null,
+      };
+      setupFetchMock(makeCalendarResponse([appt]));
+      const Tab = await setup();
+      const onDeepLinkChange = vi.fn();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={onDeepLinkChange} />);
+
+      await waitFor(() => screen.getByTestId("render-btn-list"));
+      await user.click(screen.getByTestId("render-btn-list"));
+
+      await waitFor(() => screen.getByTestId("list-appt-appt-99"));
+      await user.click(screen.getByTestId("list-appt-appt-99"));
+
+      expect(onDeepLinkChange).toHaveBeenCalledWith("appt", "appt-99");
+    });
+
+    it("list view has no load-more buttons (was feed-only)", async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      const user = userEvent.setup();
+      render(<Tab deepLinkParams={{ date: "2026-06-13" }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => screen.getByTestId("render-btn-list"));
+      await user.click(screen.getByTestId("render-btn-list"));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("feed-load-past")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("feed-load-future")).not.toBeInTheDocument();
       });
     });
   });
@@ -318,16 +523,6 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("cal-kpi-row")).toBeInTheDocument();
-      });
-    });
-
-    it("HIDES KPI row in feed view", async () => {
-      setupFetchMock(makeCalendarResponse());
-      const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "feed" }} onDeepLinkChange={vi.fn()} />);
-
-      await waitFor(() => {
-        expect(screen.queryByTestId("cal-kpi-row")).not.toBeInTheDocument();
       });
     });
 
@@ -398,8 +593,8 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       });
     });
 
-    it("'← Назад' is NOT shown in 3days/weekgrid/month/feed", async () => {
-      for (const v of ["3days", "weekgrid", "month", "feed"] as const) {
+    it("'← Назад' is NOT shown in 3days/weekgrid/month", async () => {
+      for (const v of ["3days", "weekgrid", "month"] as const) {
         setupFetchMock(makeCalendarResponse());
         const Tab = await setup();
         const { unmount } = render(
@@ -448,41 +643,10 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
     });
   });
 
-  // ─── D4: Feed view ────────────────────────────────────────────────────────
+  // ─── D4: Calendar renders (non-list mode) ────────────────────────────────────
 
-  describe("D4 — feed view", () => {
-    it("renders feed-view container in feed mode", async () => {
-      setupFetchMock(makeCalendarResponse());
-      const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "feed" }} onDeepLinkChange={vi.fn()} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("feed-view")).toBeInTheDocument();
-      });
-    });
-
-    it("feed view does NOT render FullCalendar", async () => {
-      setupFetchMock(makeCalendarResponse());
-      const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "feed" }} onDeepLinkChange={vi.fn()} />);
-
-      await waitFor(() => {
-        expect(screen.queryByTestId("fullcalendar")).not.toBeInTheDocument();
-      });
-    });
-
-    it("feed view renders load-past and load-future buttons", async () => {
-      setupFetchMock(makeCalendarResponse());
-      const Tab = await setup();
-      render(<Tab deepLinkParams={{ view: "feed" }} onDeepLinkChange={vi.fn()} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("feed-load-past")).toBeInTheDocument();
-        expect(screen.getByTestId("feed-load-future")).toBeInTheDocument();
-      });
-    });
-
-    it("non-feed views render FullCalendar", async () => {
+  describe("D4 — calendar render mode", () => {
+    it("calendar mode renders FullCalendar for 3days/weekgrid/month/day", async () => {
       for (const v of ["3days", "weekgrid", "month", "day"] as const) {
         setupFetchMock(makeCalendarResponse());
         const Tab = await setup();
@@ -511,32 +675,20 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       });
     });
 
-    it("empty stub has CTA '+ Создать запись'", async () => {
+    it("empty stub does NOT have a '+ Создать запись' button (it's in toolbar now)", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("right-panel-create-btn")).toBeInTheDocument();
+        // The right-panel-create-btn is gone from stub
+        expect(screen.queryByTestId("right-panel-create-btn")).not.toBeInTheDocument();
+        // But toolbar CTA is still there
+        expect(screen.getByTestId("create-appointment-btn")).toBeInTheDocument();
       });
     });
 
-    it("clicking CTA in stub shows DoctorCalendarEventPanel", async () => {
-      setupFetchMock(makeCalendarResponse());
-      const Tab = await setup();
-      const user = userEvent.setup();
-      render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
-
-      await waitFor(() => screen.getByTestId("right-panel-create-btn"));
-      await user.click(screen.getByTestId("right-panel-create-btn"));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("event-panel")).toBeInTheDocument();
-        expect(screen.queryByTestId("right-panel-empty")).not.toBeInTheDocument();
-      });
-    });
-
-    it("clicking '+ Создать запись' toolbar CTA also shows event panel", async () => {
+    it("clicking CTA in toolbar shows DoctorCalendarEventPanel", async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       const user = userEvent.setup();
@@ -547,6 +699,7 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("event-panel")).toBeInTheDocument();
+        expect(screen.queryByTestId("right-panel-empty")).not.toBeInTheDocument();
       });
     });
   });
@@ -624,15 +777,6 @@ describe("ScheduleCalendarTab — v26 rebuild", () => {
       const result = visibleRange("month", "2026-06-13", "Europe/Moscow");
       expect(result.from).toContain("2026-06-01");
       expect(result.to).toContain("2026-07-01");
-    });
-
-    it("feed: ±30 days around anchor", async () => {
-      const { visibleRange } = await import("./ScheduleCalendarTab");
-      const result = visibleRange("feed", "2026-06-13", "Europe/Moscow");
-      // from should be 30 days before
-      expect(result.from).toContain("2026-05-14");
-      // to should be 31 days after (inclusive range)
-      expect(result.to).toContain("2026-07-14");
     });
 
     it("day: from=anchor, to=anchor+1", async () => {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { DateTime } from "luxon";
+import { Calendar, List } from "lucide-react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import {
@@ -44,8 +45,12 @@ const NEAREST_WINDOW_API = "/api/doctor/schedule/nearest-free-window";
 const DEFAULT_SLOT_MIN = "06:00:00";
 const DEFAULT_SLOT_MAX = "23:00:00";
 
-// View types for the v26 calendar tab switcher (3days / weekgrid / month / feed / day(drill-down))
-type CalV26View = "3days" | "weekgrid" | "month" | "feed" | "day";
+// View types for the v26 calendar tab switcher (3days / weekgrid / month / day(drill-down))
+// "feed" removed in batch-1
+type CalV26View = "3days" | "weekgrid" | "month" | "day";
+
+// Render mode: calendar (FullCalendar) or list (grouped by day)
+type RenderMode = "calendar" | "list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,10 +74,27 @@ type NearestWindowResponse = {
   window: { from: string; to: string } | null;
 };
 
-type AppointmentLayout = {
-  leftPercent: number;
-  widthPercent: number;
-};
+// ---------------------------------------------------------------------------
+// Helper: tolerant instant parse
+// ---------------------------------------------------------------------------
+
+/**
+ * Толерантный парс мгновения из календарного фида.
+ *
+ * canonical-порт (`pgBookingCalendar`) отдаёт `startAt`/`endAt` прямо из
+ * Postgres timestamptz — формат `"2026-06-13 10:00:00+02"` (пробел вместо `T`,
+ * короткий offset). Это НЕ строгий ISO 8601: `DateTime.fromISO` его не парсит
+ * (→ `Invalid`, `toISODate()` = null) — из-за чего «вид списком» был пуст,
+ * хотя FullCalendar (через `new Date()`) такие записи показывал. Парсим
+ * терпимо: ISO → SQL → нативный `Date`, затем приводим к нужной зоне.
+ */
+function parseFeedInstant(value: string, zone: string): DateTime {
+  const iso = DateTime.fromISO(value, { setZone: true });
+  if (iso.isValid) return iso.setZone(zone);
+  const sql = DateTime.fromSQL(value, { setZone: true });
+  if (sql.isValid) return sql.setZone(zone);
+  return DateTime.fromJSDate(new Date(value)).setZone(zone);
+}
 
 // ---------------------------------------------------------------------------
 // Helper: visibleRange
@@ -80,7 +102,7 @@ type AppointmentLayout = {
 
 /**
  * Вычисляет видимый диапазон для каждого вида.
- * Это единый источник истины для фида И KPI.
+ * Это единый источник истины для KPI и list-view.
  */
 export function visibleRange(
   view: CalV26View,
@@ -119,18 +141,9 @@ export function visibleRange(
     };
   }
 
-  if (view === "day") {
-    const from = dt.startOf("day");
-    const to = dt.startOf("day").plus({ days: 1 });
-    return {
-      from: from.toISO() ?? anchor,
-      to: to.toISO() ?? anchor,
-    };
-  }
-
-  // feed: ±30 дней
-  const from = dt.startOf("day").minus({ days: 30 });
-  const to = dt.startOf("day").plus({ days: 31 });
+  // day
+  const from = dt.startOf("day");
+  const to = dt.startOf("day").plus({ days: 1 });
   return {
     from: from.toISO() ?? anchor,
     to: to.toISO() ?? anchor,
@@ -166,7 +179,6 @@ function periodLabel(view: CalV26View, anchorDate: string, zone: string): string
     }
     return `${start.setLocale("ru").toFormat("d LLLL")} – ${end.setLocale("ru").toFormat("d LLLL yyyy")}`;
   }
-  // feed — label hidden in toolbar
   return "";
 }
 
@@ -179,11 +191,15 @@ function resolveView(raw: string | undefined): CalV26View {
     raw === "3days" ||
     raw === "weekgrid" ||
     raw === "month" ||
-    raw === "feed" ||
     raw === "day"
   )
     return raw;
   return "3days";
+}
+
+function resolveRenderMode(raw: string | undefined): RenderMode {
+  if (raw === "list") return "list";
+  return "calendar";
 }
 
 function resolveAnchorDate(raw: string | undefined, timeZone: string): string {
@@ -228,15 +244,17 @@ function eventClassName(event: CalendarEvent): string {
   if (event.kind === "freeSlot")
     return "bg-emerald-500/10 text-emerald-900 border-emerald-500/30 border-dashed";
   if (event.kind === "block") return "bg-muted text-muted-foreground border-border";
-  if (event.kind === "working") return "bg-emerald-500/7";
+  // working: не рендерим (п.3), фон остаётся белым
+  if (event.kind === "working") return "";
   if (event.kind === "break") return "bg-slate-500/10";
+  // appointment
   if (isCancelledAppointmentStatus(event.status))
-    return "bg-destructive/10 text-destructive border-destructive/30 line-through";
+    return "bg-destructive/15 text-destructive/80 border-destructive/20 line-through";
   if (event.status === "awaiting_payment" || event.prepaymentPending)
-    return "bg-amber-500/15 text-amber-900 dark:text-amber-100 border-amber-500/40";
+    return "bg-amber-500/15 text-amber-900 border-amber-500/40";
   if (event.packageUsageRef || event.packageTitle)
-    return "bg-violet-500/15 text-violet-900 dark:text-violet-100 border-violet-500/40";
-  return "bg-primary/10 text-primary border-primary/30";
+    return "bg-violet-500/15 text-violet-900 border-violet-500/40";
+  return "bg-primary/10 text-foreground border-primary/30";
 }
 
 function eventTitle(event: CalendarEvent): string {
@@ -254,40 +272,6 @@ function eventLastName(event: CalendarEvent): string {
   if (event.kind !== "appointment") return eventTitle(event);
   const name = event.patientName ?? "Запись";
   return name.split(" ")[0] ?? name;
-}
-
-function computeAppointmentLayouts(
-  events: CalendarEvent[],
-  zone: string,
-): Map<string, AppointmentLayout> {
-  const map = new Map<string, AppointmentLayout>();
-  const groups = new Map<string, CalendarAppointmentEvent[]>();
-  for (const event of events) {
-    if (event.kind !== "appointment") continue;
-    const start = DateTime.fromISO(event.startAt).setZone(zone).toFormat("yyyy-LL-dd HH:mm");
-    const end = DateTime.fromISO(event.endAt).setZone(zone).toFormat("yyyy-LL-dd HH:mm");
-    const key = `${start}|${end}|${event.branchId ?? "any"}|${event.specialistId ?? "any"}`;
-    const list = groups.get(key) ?? [];
-    list.push(event);
-    groups.set(key, list);
-  }
-  for (const eventsInGroup of groups.values()) {
-    const active = eventsInGroup.filter((e) => !isCancelledAppointmentStatus(e.status));
-    const cancelled = eventsInGroup.filter((e) => isCancelledAppointmentStatus(e.status));
-    if (active.length === 0 || cancelled.length === 0) continue;
-    const activeWidth = 75 / active.length;
-    active.forEach((e, idx) => {
-      map.set(e.id, { leftPercent: idx * activeWidth, widthPercent: activeWidth });
-    });
-    const cancelledWidth = 25 / cancelled.length;
-    cancelled.forEach((e, idx) => {
-      map.set(e.id, {
-        leftPercent: 75 + idx * cancelledWidth,
-        widthPercent: cancelledWidth,
-      });
-    });
-  }
-  return map;
 }
 
 // ---------------------------------------------------------------------------
@@ -343,10 +327,10 @@ function KpiRowTab({ kpis, kpisLoading }: KpiRowTabProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Feed view (D4) — бесконечный вертикальный поток карточек-дней
+// List view — period-bound list grouped by day (replaces FeedView)
 // ---------------------------------------------------------------------------
 
-type FeedDayCardProps = {
+type ListDayCardProps = {
   dateKey: string;
   label: string;
   appointments: CalendarAppointmentEvent[];
@@ -354,24 +338,24 @@ type FeedDayCardProps = {
   onSelect: (appt: CalendarAppointmentEvent) => void;
 };
 
-function FeedDayCard({ dateKey, label, appointments, timeZone, onSelect }: FeedDayCardProps) {
+function ListDayCard({ dateKey, label, appointments, timeZone, onSelect }: ListDayCardProps) {
   return (
     <div
       className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2"
-      data-testid={`feed-day-${dateKey}`}
+      data-testid={`list-day-${dateKey}`}
     >
       <p className="text-sm font-semibold text-foreground capitalize">{label}</p>
       <div className="flex flex-col gap-1">
         {appointments.map((appt) => {
-          const start = DateTime.fromISO(appt.startAt).setZone(timeZone).toFormat("HH:mm");
-          const end = DateTime.fromISO(appt.endAt).setZone(timeZone).toFormat("HH:mm");
+          const start = parseFeedInstant(appt.startAt, timeZone).toFormat("HH:mm");
+          const end = parseFeedInstant(appt.endAt, timeZone).toFormat("HH:mm");
           return (
             <button
               key={appt.id}
               type="button"
               onClick={() => onSelect(appt)}
               className="flex w-full items-start gap-3 rounded-md border border-border bg-background px-3 py-2 text-left text-sm hover:bg-muted"
-              data-testid={`feed-appt-${appt.id}`}
+              data-testid={`list-appt-${appt.id}`}
             >
               <span className="shrink-0 font-semibold tabular-nums text-foreground">
                 {start}–{end}
@@ -392,26 +376,22 @@ function FeedDayCard({ dateKey, label, appointments, timeZone, onSelect }: FeedD
   );
 }
 
-type FeedViewProps = {
+type ListViewProps = {
   events: CalendarEvent[];
   anchorDate: string;
   timeZone: string;
   rangeFrom: string;
   rangeTo: string;
   onSelect: (appt: CalendarAppointmentEvent) => void;
-  onLoadMore: (direction: "past" | "future") => void;
-  loading: boolean;
 };
 
-function FeedView({
+function ListView({
   events,
   timeZone,
   rangeFrom,
   rangeTo,
   onSelect,
-  onLoadMore,
-  loading,
-}: FeedViewProps) {
+}: ListViewProps) {
   const from = DateTime.fromISO(rangeFrom, { zone: timeZone });
   const to = DateTime.fromISO(rangeTo, { zone: timeZone });
 
@@ -426,7 +406,7 @@ function FeedView({
       .filter(
         (e): e is CalendarAppointmentEvent =>
           e.kind === "appointment" &&
-          DateTime.fromISO(e.startAt).setZone(timeZone).toISODate() === dayKey,
+          parseFeedInstant(e.startAt, timeZone).toISODate() === dayKey,
       )
       .sort((a, b) => (a.startAt < b.startAt ? -1 : 1));
     if (appointments.length > 0) {
@@ -439,24 +419,14 @@ function FeedView({
   }
 
   return (
-    <div className="flex flex-col gap-3" data-testid="feed-view">
-      <button
-        type="button"
-        className="text-sm text-primary hover:underline text-center py-2"
-        onClick={() => onLoadMore("past")}
-        disabled={loading}
-        data-testid="feed-load-past"
-      >
-        {loading ? "Загрузка…" : "← Загрузить более ранние"}
-      </button>
-
+    <div className="flex flex-col gap-3" data-testid="list-view">
       {dayGroups.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" data-testid="feed-empty">
+        <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground" data-testid="list-empty">
           Записей в этом периоде нет
         </div>
       ) : (
         dayGroups.map(({ dateKey, label, appointments }) => (
-          <FeedDayCard
+          <ListDayCard
             key={dateKey}
             dateKey={dateKey}
             label={label}
@@ -466,16 +436,6 @@ function FeedView({
           />
         ))
       )}
-
-      <button
-        type="button"
-        className="text-sm text-primary hover:underline text-center py-2"
-        onClick={() => onLoadMore("future")}
-        disabled={loading}
-        data-testid="feed-load-future"
-      >
-        {loading ? "Загрузка…" : "Загрузить ещё →"}
-      </button>
     </div>
   );
 }
@@ -530,7 +490,7 @@ type RightPanelEmptyStubProps = {
   onCreateClick: () => void;
 };
 
-function RightPanelEmptyStub({ branchId, onCreateClick }: RightPanelEmptyStubProps) {
+function RightPanelEmptyStub({ branchId }: RightPanelEmptyStubProps) {
   return (
     <div
       className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3 items-center text-center"
@@ -541,14 +501,6 @@ function RightPanelEmptyStub({ branchId, onCreateClick }: RightPanelEmptyStubPro
       <p className="text-xs text-muted-foreground">
         Выберите запись в календаре, чтобы просмотреть детали
       </p>
-      <Button
-        type="button"
-        size="sm"
-        onClick={onCreateClick}
-        data-testid="right-panel-create-btn"
-      >
-        + Создать запись
-      </Button>
       <NearestWindowLine apiBase={API_BASE} branchId={branchId} />
     </div>
   );
@@ -576,17 +528,13 @@ export function ScheduleCalendarTab({
   const [drillBackView, setDrillBackView] = useState<CalV26View | null>(
     deepLinkParams.from ? (resolveView(deepLinkParams.from) ?? null) : null,
   );
+  // Render mode: calendar or list
+  const [renderMode, setRenderModeState] = useState<RenderMode>(() =>
+    resolveRenderMode(deepLinkParams.render),
+  );
 
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
   const [data, setData] = useState<CalendarResponse | null>(null);
-  const [feedRangeFrom, setFeedRangeFrom] = useState<string>(() => {
-    const { from } = visibleRange("feed", anchorDate, timeZone);
-    return from;
-  });
-  const [feedRangeTo, setFeedRangeTo] = useState<string>(() => {
-    const { to } = visibleRange("feed", anchorDate, timeZone);
-    return to;
-  });
   const [error, setError] = useState<string | null>(null);
   const [kpis, setKpis] = useState<ScheduleKpis | null>(null);
   const [kpisLoading, setKpisLoading] = useState(false);
@@ -627,6 +575,14 @@ export function ScheduleCalendarTab({
     [onDeepLinkChange],
   );
 
+  const setRenderMode = useCallback(
+    (mode: RenderMode) => {
+      setRenderModeState(mode);
+      onDeepLinkChange("render", mode);
+    },
+    [onDeepLinkChange],
+  );
+
   // ─── Drill-down day ────────────────────────────────────────────────────────
 
   const drillDownDay = useCallback(
@@ -648,21 +604,6 @@ export function ScheduleCalendarTab({
     setView(back);
   }, [drillBackView, onDeepLinkChange, setView]);
 
-  // ─── Feed load range ───────────────────────────────────────────────────────
-
-  const loadMoreFeed = useCallback(
-    (direction: "past" | "future") => {
-      if (direction === "past") {
-        const dt = DateTime.fromISO(feedRangeFrom, { zone: timeZone });
-        setFeedRangeFrom(dt.minus({ days: 30 }).toISO() ?? feedRangeFrom);
-      } else {
-        const dt = DateTime.fromISO(feedRangeTo, { zone: timeZone });
-        setFeedRangeTo(dt.plus({ days: 30 }).toISO() ?? feedRangeTo);
-      }
-    },
-    [feedRangeFrom, feedRangeTo, timeZone],
-  );
-
   // ─── Data loading ──────────────────────────────────────────────────────────
 
   const loadFeed = useCallback(
@@ -672,17 +613,9 @@ export function ScheduleCalendarTab({
 
       startTransition(async () => {
         try {
-          let from: string;
-          let to: string;
-
-          if (v === "feed") {
-            from = feedRangeFrom;
-            to = feedRangeTo;
-          } else {
-            const range = visibleRange(v, anchor, timeZone);
-            from = range.from;
-            to = range.to;
-          }
+          const range = visibleRange(v, anchor, timeZone);
+          const from = range.from;
+          const to = range.to;
 
           // Map v26 view to API view param
           const apiView =
@@ -692,9 +625,7 @@ export function ScheduleCalendarTab({
                 ? "week"
                 : v === "month"
                   ? "month"
-                  : v === "day"
-                    ? "day"
-                    : "feed";
+                  : "day";
 
           const qs = buildQuery({
             view: apiView,
@@ -733,13 +664,13 @@ export function ScheduleCalendarTab({
         }
       });
     },
-    [view, anchorDate, branchId, serviceId, timeZone, feedRangeFrom, feedRangeTo],
+    [view, anchorDate, branchId, serviceId, timeZone],
   );
 
   const loadKpis = useCallback(
     (v: CalV26View, anchor: string) => {
-      // KPI скрыт в feed и day
-      if (v === "feed" || v === "day") return;
+      // KPI скрыт в day
+      if (v === "day") return;
 
       const { from, to } = visibleRange(v, anchor, timeZone);
       setKpisLoading(true);
@@ -770,7 +701,7 @@ export function ScheduleCalendarTab({
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, anchorDate, branchId, serviceId, feedRangeFrom, feedRangeTo]);
+  }, [view, anchorDate, branchId, serviceId]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -820,9 +751,11 @@ export function ScheduleCalendarTab({
 
   const calendarEvents = useMemo(() => {
     if (!data) return [];
-    const layouts = computeAppointmentLayouts(data.events, data.timeZone);
     return data.events.map((event) => {
-      if (event.kind === "working" || event.kind === "break") {
+      // Рабочее время — не рендерим (фон белый)
+      if (event.kind === "working") return null;
+
+      if (event.kind === "break") {
         return {
           id: `${event.kind}:${event.id}`,
           start: event.startAt,
@@ -859,7 +792,7 @@ export function ScheduleCalendarTab({
         id: event.id,
         start: event.startAt,
         end: event.endAt,
-        // Для month-вида: только фамилия
+        // Для month-вида: только фамилия (D4)
         title: view === "month" ? eventLastName(event) : eventTitle(event),
         editable: !isCancelledAppointmentStatus(event.status),
         durationEditable: !isCancelledAppointmentStatus(event.status),
@@ -868,10 +801,9 @@ export function ScheduleCalendarTab({
         extendedProps: {
           kind: event.kind,
           appointment: event,
-          layout: layouts.get(event.id) ?? null,
         },
       };
-    });
+    }).filter((x): x is NonNullable<typeof x> => x !== null);
   }, [data, view]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
@@ -966,304 +898,343 @@ export function ScheduleCalendarTab({
     if (view === "month") {
       return {
         dayGridMonth: {
-          dayCellClassNames: (arg: any) => {
-            const today = DateTime.now().setZone(currentTimeZone).toISODate();
-            const d = arg.date ? DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() : null;
-            return d === today ? ["fc-day-today-amber"] : [];
-          },
+          dayCellClassNames: () => [],
         },
       };
     }
     return {};
-  }, [view, currentTimeZone]);
+  }, [view]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const showKpi = view !== "feed" && view !== "day";
-  const showPeriodNav = view !== "feed";
+  const showKpi = view !== "day";
+
+  // visibleRange for list mode
+  const listRange = useMemo(() => visibleRange(view, anchorDate, currentTimeZone), [view, anchorDate, currentTimeZone]);
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row">
-      {/* Left: toolbar + kpi + calendar body */}
-      <div className="min-w-0 flex-1 flex flex-col gap-3">
-        {/* Toolbar (D1) */}
-        <div
-          className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}
-          data-testid="cal-toolbar"
-        >
-          {/* View switcher: 3 дня · Неделя · Месяц · Лента (без «День») */}
-          <div className="flex gap-1" role="group" aria-label="Режим отображения">
-            {(
-              [
-                { v: "3days" as const, label: "3 дня" },
-                { v: "weekgrid" as const, label: "Неделя" },
-                { v: "month" as const, label: "Месяц" },
-                { v: "feed" as const, label: "Лента" },
-              ] as const
-            ).map(({ v, label }) => (
-              <Button
-                key={v}
-                type="button"
-                size="sm"
-                variant={view === v ? "default" : "outline"}
-                onClick={() => {
-                  // При переключении из day (drill-down) — выходим из drill-down
-                  if (view === "day") {
-                    setDrillBackView(null);
-                    onDeepLinkChange("from", null);
-                  }
-                  setView(v);
-                }}
-                data-testid={`view-btn-${v}`}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
+    <div className="flex flex-col gap-4">
+      {/* KPI row (D2) — full width, hidden in day */}
+      {showKpi ? (
+        <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} />
+      ) : null}
 
-          {/* Drill-down «День»: показываем если сейчас day */}
-          {view === "day" ? (
+      {/* Toolbar (D1) — full width */}
+      <div
+        className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}
+        data-testid="cal-toolbar"
+      >
+        {/* View switcher: 3 дня · Неделя · Месяц (без «Лента» и без «День») */}
+        <div className="flex gap-1" role="group" aria-label="Режим отображения">
+          {(
+            [
+              { v: "3days" as const, label: "3 дня" },
+              { v: "weekgrid" as const, label: "Неделя" },
+              { v: "month" as const, label: "Месяц" },
+            ] as const
+          ).map(({ v, label }) => (
             <Button
+              key={v}
               type="button"
               size="sm"
-              variant="outline"
-              onClick={drillBack}
-              data-testid="drill-back-btn"
+              variant={view === v ? "default" : "outline"}
+              onClick={() => {
+                // При переключении из day (drill-down) — выходим из drill-down
+                if (view === "day") {
+                  setDrillBackView(null);
+                  onDeepLinkChange("from", null);
+                }
+                setView(v);
+              }}
+              data-testid={`view-btn-${v}`}
             >
-              ← Назад
+              {label}
             </Button>
-          ) : null}
+          ))}
+        </div>
 
-          {/* Period nav: ◀ label ▶ — скрыто в feed */}
-          {showPeriodNav ? (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => shiftAnchor(-1)}
-                aria-label="Предыдущий период"
-                data-testid="period-prev"
-              >
-                ◀
-              </Button>
-              <span
-                className="text-sm font-medium text-foreground px-1 min-w-[8rem] text-center"
-                data-testid="period-label"
-              >
-                {periodLabel(view, anchorDate, currentTimeZone)}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => shiftAnchor(1)}
-                aria-label="Следующий период"
-                data-testid="period-next"
-              >
-                ▶
-              </Button>
-            </>
-          ) : null}
-
-          {/* Filters */}
-          <DoctorCalendarToolbarFilter
-            noneLabel="Локация"
-            options={filters.branches}
-            value={branchId}
-            onChange={setBranchId}
-          />
-          <DoctorCalendarToolbarFilter
-            noneLabel="Услуга"
-            options={filters.services}
-            value={serviceId}
-            onChange={setServiceId}
-          />
-
-          {/* CTA — постоянная, всегда справа */}
+        {/* Drill-down «День»: показываем если сейчас day */}
+        {view === "day" ? (
           <Button
             type="button"
             size="sm"
-            className="ml-auto"
-            onClick={() => {
-              setSelected(null);
-              setShowCreatePanel(true);
-            }}
-            data-testid="create-appointment-btn"
+            variant="outline"
+            onClick={drillBack}
+            data-testid="drill-back-btn"
           >
-            + Создать запись
+            ← Назад
+          </Button>
+        ) : null}
+
+        {/* Calendar/List toggle — compact icon pair */}
+        <div className="flex gap-1" role="group" aria-label="Вид отображения">
+          <Button
+            type="button"
+            size="icon"
+            variant={renderMode === "calendar" ? "default" : "outline"}
+            className="size-[32px] shrink-0"
+            aria-label="Календарь"
+            title="Календарь"
+            onClick={() => setRenderMode("calendar")}
+            data-testid="render-btn-calendar"
+          >
+            <Calendar className="size-4" aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={renderMode === "list" ? "default" : "outline"}
+            className="size-[32px] shrink-0"
+            aria-label="Список"
+            title="Список"
+            onClick={() => setRenderMode("list")}
+            data-testid="render-btn-list"
+          >
+            <List className="size-4" aria-hidden />
           </Button>
         </div>
 
-        {/* Error */}
-        {error ? (
-          <p className="text-sm text-destructive" data-testid="cal-error">
-            {error}
-          </p>
-        ) : null}
+        {/* Period nav: ◀ label ▶ */}
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => shiftAnchor(-1)}
+            aria-label="Предыдущий период"
+            data-testid="period-prev"
+          >
+            ◀
+          </Button>
+          <span
+            className="text-sm font-medium text-foreground px-1 min-w-[8rem] text-center"
+            data-testid="period-label"
+          >
+            {periodLabel(view, anchorDate, currentTimeZone)}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => shiftAnchor(1)}
+            aria-label="Следующий период"
+            data-testid="period-next"
+          >
+            ▶
+          </Button>
+        </>
 
-        {/* KPI row (D2) — hidden in feed and day */}
-        {showKpi ? (
-          <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} />
-        ) : null}
+        {/* Filters */}
+        <DoctorCalendarToolbarFilter
+          noneLabel="Локация"
+          options={filters.branches}
+          value={branchId}
+          onChange={setBranchId}
+        />
+        <DoctorCalendarToolbarFilter
+          noneLabel="Услуга"
+          options={filters.services}
+          value={serviceId}
+          onChange={setServiceId}
+        />
 
-        {/* Calendar body */}
-        {view === "feed" ? (
-          // Лента (D4)
-          <FeedView
-            events={data?.events ?? []}
-            anchorDate={anchorDate}
-            timeZone={currentTimeZone}
-            rangeFrom={feedRangeFrom}
-            rangeTo={feedRangeTo}
-            onSelect={(appt) => {
-              setSelected(appt);
-              setShowCreatePanel(false);
-              onDeepLinkChange("appt", appt.id);
-            }}
-            onLoadMore={loadMoreFeed}
-            loading={pending}
-          />
-        ) : (
-          // FullCalendar (3days, weekgrid, month, day)
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <style>{`
-              .fc-day-today-amber { background-color: #fff8e6 !important; }
-              .fc-day-today.fc-day-today { background-color: #fff8e6 !important; }
-            `}</style>
-            <FullCalendar
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              locale={ruLocale}
-              key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}`}
-              initialView={fcInitialView}
-              views={fcViews}
-              initialDate={anchorDate}
+        {/* CTA — постоянная, всегда справа */}
+        <Button
+          type="button"
+          size="sm"
+          className="ml-auto"
+          onClick={() => {
+            setSelected(null);
+            setShowCreatePanel(true);
+          }}
+          data-testid="create-appointment-btn"
+        >
+          + Создать запись
+        </Button>
+      </div>
+
+      {/* Error */}
+      {error ? (
+        <p className="text-sm text-destructive" data-testid="cal-error">
+          {error}
+        </p>
+      ) : null}
+
+      {/* Main content row: calendar/list + aside panel */}
+      <div className="flex flex-col gap-4 lg:flex-row">
+        {/* Content area */}
+        <div className="min-w-0 flex-1">
+          {renderMode === "list" ? (
+            // List view — period-bound, grouped by day
+            <ListView
+              events={data?.events ?? []}
+              anchorDate={anchorDate}
               timeZone={currentTimeZone}
-              events={calendarEvents}
-              headerToolbar={false}
-              editable={view !== "month"}
-              eventDurationEditable={view !== "month"}
-              eventStartEditable={view !== "month"}
-              nowIndicator
-              dayMaxEvents
-              height="auto"
-              slotMinTime={slotMinTime}
-              slotMaxTime={slotMaxTime}
-              longPressDelay={450}
-              eventLongPressDelay={450}
-              selectLongPressDelay={450}
-              // Клик по заголовку дня → drill-down (D3)
-              navLinks
-              navLinkDayClick={(date) => {
-                const dateKey =
-                  DateTime.fromJSDate(date).setZone(currentTimeZone).toISODate() ??
-                  anchorDate;
-                drillDownDay(dateKey);
-              }}
-              // Клик по числу в month → drill-down (D4)
-              dayCellContent={(arg) => {
-                if (view === "month") {
-                  return (
-                    <button
-                      type="button"
-                      className="fc-daygrid-day-number hover:underline cursor-pointer"
-                      onClick={() => {
-                        const dateKey =
-                          DateTime.fromJSDate(arg.date)
-                            .setZone(currentTimeZone)
-                            .toISODate() ?? anchorDate;
-                        drillDownDay(dateKey);
-                      }}
-                    >
-                      {arg.date.getDate()}
-                    </button>
-                  );
-                }
-                return null;
-              }}
-              eventClick={(arg) => {
-                const appointment = arg.event.extendedProps?.appointment as
-                  | CalendarAppointmentEvent
-                  | undefined;
-                if (!appointment) return;
-                setSelected(appointment);
+              rangeFrom={listRange.from}
+              rangeTo={listRange.to}
+              onSelect={(appt) => {
+                setSelected(appt);
                 setShowCreatePanel(false);
-                onDeepLinkChange("appt", appointment.id);
+                onDeepLinkChange("appt", appt.id);
               }}
-              eventDrop={onDrop}
-              eventResize={onResize}
-              eventDidMount={(arg) => {
-                const appointment = arg.event.extendedProps?.appointment as
-                  | CalendarAppointmentEvent
-                  | undefined;
-                const layout = arg.event.extendedProps?.layout as AppointmentLayout | null | undefined;
-                if (!appointment || !layout) return;
-                const harness = arg.el.parentElement;
-                if (!harness || !harness.classList.contains("fc-timegrid-event-harness")) return;
-                harness.style.insetInlineStart = `${layout.leftPercent}%`;
-                harness.style.insetInlineEnd = `${100 - (layout.leftPercent + layout.widthPercent)}%`;
-              }}
-              eventContent={(info) => {
-                const appointment = info.event.extendedProps?.appointment as
-                  | CalendarAppointmentEvent
-                  | undefined;
-                if (appointment) {
+            />
+          ) : (
+            // FullCalendar
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <style>{`
+                .fc-timegrid-event-harness { margin-inline: 1px; }
+                .fc-daygrid-day-number.fc-today-circle {
+                  display: inline-flex;
+                  align-items: center;
+                  justify-content: center;
+                  width: 1.5rem;
+                  height: 1.5rem;
+                  border-radius: 9999px;
+                  background-color: hsl(var(--primary));
+                  color: hsl(var(--primary-foreground));
+                  font-weight: 600;
+                }
+                .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+                  display: inline-flex;
+                  align-items: center;
+                  justify-content: center;
+                  width: 1.75rem;
+                  height: 1.75rem;
+                  border-radius: 9999px;
+                  background-color: hsl(var(--primary));
+                  color: hsl(var(--primary-foreground));
+                  font-weight: 600;
+                }
+              `}</style>
+              <FullCalendar
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                locale={ruLocale}
+                key={`${view}:${anchorDate}:${branchId ?? "all"}:${serviceId ?? "all"}`}
+                initialView={fcInitialView}
+                views={fcViews}
+                initialDate={anchorDate}
+                timeZone={currentTimeZone}
+                events={calendarEvents}
+                headerToolbar={false}
+                editable={view !== "month"}
+                eventDurationEditable={view !== "month"}
+                eventStartEditable={view !== "month"}
+                nowIndicator
+                dayMaxEvents
+                height="auto"
+                slotMinTime={slotMinTime}
+                slotMaxTime={slotMaxTime}
+                longPressDelay={450}
+                eventLongPressDelay={450}
+                selectLongPressDelay={450}
+                // Клик по заголовку дня → drill-down (D3)
+                navLinks
+                navLinkDayClick={(date) => {
+                  const dateKey =
+                    DateTime.fromJSDate(date).setZone(currentTimeZone).toISODate() ??
+                    anchorDate;
+                  drillDownDay(dateKey);
+                }}
+                // Клик по числу в month → drill-down
+                dayCellContent={(arg) => {
                   if (view === "month") {
-                    // Плашка = строка, только фамилия (D4)
+                    const isToday =
+                      DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
+                      DateTime.now().setZone(currentTimeZone).toISODate();
                     return (
-                      <div className="truncate px-1 text-[11px] leading-tight">
-                        {eventLastName(appointment)}
+                      <button
+                        type="button"
+                        className={cn(
+                          "fc-daygrid-day-number hover:underline cursor-pointer",
+                          isToday && "fc-today-circle",
+                        )}
+                        onClick={() => {
+                          const dateKey =
+                            DateTime.fromJSDate(arg.date)
+                              .setZone(currentTimeZone)
+                              .toISODate() ?? anchorDate;
+                          drillDownDay(dateKey);
+                        }}
+                      >
+                        {arg.date.getDate()}
+                      </button>
+                    );
+                  }
+                  return null;
+                }}
+                eventClick={(arg) => {
+                  const appointment = arg.event.extendedProps?.appointment as
+                    | CalendarAppointmentEvent
+                    | undefined;
+                  if (!appointment) return;
+                  setSelected(appointment);
+                  setShowCreatePanel(false);
+                  onDeepLinkChange("appt", appointment.id);
+                }}
+                eventDrop={onDrop}
+                eventResize={onResize}
+                eventContent={(info) => {
+                  const appointment = info.event.extendedProps?.appointment as
+                    | CalendarAppointmentEvent
+                    | undefined;
+                  if (appointment) {
+                    if (view === "month") {
+                      // Плашка = строка, только фамилия
+                      return (
+                        <div className="truncate px-1 text-[11px] leading-tight">
+                          {eventLastName(appointment)}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="overflow-hidden px-1 py-0.5 text-[11px] leading-tight">
+                        <div className="truncate font-medium">{eventTitle(appointment)}</div>
+                        <div className="truncate opacity-80">
+                          {appointmentStatusLabel(appointment.status)}
+                        </div>
                       </div>
                     );
                   }
                   return (
-                    <div className="overflow-hidden px-1 py-0.5 text-[11px] leading-tight">
-                      <div className="truncate font-medium">{eventTitle(appointment)}</div>
-                      <div className="truncate opacity-80">
-                        {appointmentStatusLabel(appointment.status)}
-                      </div>
-                    </div>
+                    <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>
                   );
-                }
-                return (
-                  <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>
-                );
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Right panel (D5) */}
+        <aside className="w-full shrink-0 lg:w-80">
+          {selected || showCreatePanel ? (
+            <DoctorCalendarEventPanel
+              apiBase={API_BASE}
+              selected={selected}
+              timeZone={currentTimeZone}
+              filterMeta={filters}
+              activeFilters={activeFilters}
+              onClose={() => {
+                setSelected(null);
+                setShowCreatePanel(false);
+                onDeepLinkChange("appt", null);
+              }}
+              onChanged={() => {
+                setSelected(null);
+                setShowCreatePanel(false);
+                onDeepLinkChange("appt", null);
+                load();
               }}
             />
-          </div>
-        )}
+          ) : (
+            <RightPanelEmptyStub
+              filterMeta={filters}
+              activeFilters={activeFilters}
+              branchId={branchId}
+              onCreateClick={() => setShowCreatePanel(true)}
+            />
+          )}
+        </aside>
       </div>
-
-      {/* Right panel (D5) */}
-      <aside className="w-full shrink-0 lg:w-80">
-        {selected || showCreatePanel ? (
-          <DoctorCalendarEventPanel
-            apiBase={API_BASE}
-            selected={selected}
-            timeZone={currentTimeZone}
-            filterMeta={filters}
-            activeFilters={activeFilters}
-            onClose={() => {
-              setSelected(null);
-              setShowCreatePanel(false);
-              onDeepLinkChange("appt", null);
-            }}
-            onChanged={() => {
-              setSelected(null);
-              setShowCreatePanel(false);
-              onDeepLinkChange("appt", null);
-              load();
-            }}
-          />
-        ) : (
-          <RightPanelEmptyStub
-            filterMeta={filters}
-            activeFilters={activeFilters}
-            branchId={branchId}
-            onCreateClick={() => setShowCreatePanel(true)}
-          />
-        )}
-      </aside>
     </div>
   );
 }
