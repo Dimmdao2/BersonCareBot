@@ -126,7 +126,8 @@ describe("DoctorMenuAccordion", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     await waitFor(() => screen.getByRole("link", { name: /Сегодня/ }));
     expect(screen.getByRole("link", { name: /Пациенты/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Расписание/ })).toBeInTheDocument();
+    // «Расписание» теперь — обычная top-level ссылка (не аккордеон): табы перенесены внутрь страницы.
+    expect(screen.getByRole("link", { name: /Расписание/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Коммуникации/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Контент/ })).toBeInTheDocument();
   });
