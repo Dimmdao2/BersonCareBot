@@ -22,28 +22,59 @@ function parseTimeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
-function computeRange(appointments: TodayAppointmentItem[]): { startHour: number; endHour: number } {
+/**
+ * Вычисляет диапазон мини-календаря.
+ *
+ * Логика (§1.2):
+ * 1. Базовое окно = рабочие границы (workingBounds), если есть.
+ * 2. Записи расширяют окно, если выходят за пределы рабочего дня.
+ * 3. Если рабочих границ нет (день закрыт / scheduling недоступен) — fallback по записям.
+ */
+function computeRange(
+  appointments: TodayAppointmentItem[],
+  workingBounds?: { startMinute: number; endMinute: number } | null,
+): { startHour: number; endHour: number } {
   const CLAMP_MIN = 7;
   const CLAMP_MAX = 22;
   const DEFAULT_START = 9;
   const DEFAULT_END = 19;
 
-  if (appointments.length === 0) return { startHour: DEFAULT_START, endHour: DEFAULT_END };
+  // Собираем минуты начала каждой записи
+  const apptMinutes = appointments
+    .map((a) => parseTimeToMinutes(a.time))
+    .filter((m): m is number => m >= 0);
 
-  const hours = appointments
-    .map((a) => {
-      const min = parseTimeToMinutes(a.time);
-      return min >= 0 ? Math.floor(min / 60) : null;
-    })
-    .filter((h): h is number => h !== null);
+  // Базовые границы: рабочие часы или fallback
+  let baseStartMinute: number;
+  let baseEndMinute: number;
 
-  if (hours.length === 0) return { startHour: DEFAULT_START, endHour: DEFAULT_END };
+  if (workingBounds != null) {
+    baseStartMinute = workingBounds.startMinute;
+    baseEndMinute = workingBounds.endMinute;
+  } else if (apptMinutes.length === 0) {
+    return { startHour: DEFAULT_START, endHour: DEFAULT_END };
+  } else {
+    // Fallback: только по записям (старое поведение)
+    const minHour = Math.floor(Math.min(...apptMinutes) / 60);
+    const maxHour = Math.floor(Math.max(...apptMinutes) / 60);
+    const startHour = Math.max(CLAMP_MIN, minHour - 1);
+    const endHour = Math.min(CLAMP_MAX, maxHour + 2);
+    return { startHour, endHour };
+  }
 
-  const minHour = Math.min(...hours);
-  const maxHour = Math.max(...hours);
-  const startHour = Math.max(CLAMP_MIN, minHour - 1);
-  // endHour: конец последней записи + 1 буферный час
-  const endHour = Math.min(CLAMP_MAX, maxHour + 2);
+  // Расширяем рабочие границы записями, если запись выходит за пределы смены
+  let startMinute = baseStartMinute;
+  let endMinute = baseEndMinute;
+  for (const m of apptMinutes) {
+    if (m < startMinute) startMinute = m;
+    // конец записи = начало + STUB_DURATION_MINUTES
+    const mEnd = m + STUB_DURATION_MINUTES;
+    if (mEnd > endMinute) endMinute = mEnd;
+  }
+
+  // Добавляем буфер: 30 мин до начала, 30 мин после конца; затем clamp и округление до часа
+  const startHour = Math.max(CLAMP_MIN, Math.floor((startMinute - 30) / 60));
+  const endHour = Math.min(CLAMP_MAX, Math.ceil((endMinute + 30) / 60));
   return { startHour, endHour };
 }
 
@@ -75,10 +106,16 @@ type Props = {
   todayDateLabel: string;
   /** IANA-таймзона для корректного обновления линии «сейчас» на клиенте. */
   displayIana: string;
+  /**
+   * Рабочие границы дня в минутах от полуночи (§1.2, S4).
+   * Вычисляются на сервере через deriveWorkingBounds; `null` = день закрыт/нет данных.
+   * При наличии используются как базовое окно; записи могут расширять, но не сужать.
+   */
+  workingBounds?: { startMinute: number; endMinute: number } | null;
 };
 
-export function DoctorTodayMiniCalendar({ appointments, nowMinutes, todayDateLabel, displayIana }: Props) {
-  const { startHour, endHour } = computeRange(appointments);
+export function DoctorTodayMiniCalendar({ appointments, nowMinutes, todayDateLabel, displayIana, workingBounds }: Props) {
+  const { startHour, endHour } = computeRange(appointments, workingBounds);
   const totalHours = endHour - startHour;
   const totalHeight = totalHours * HOUR_HEIGHT_PX;
 

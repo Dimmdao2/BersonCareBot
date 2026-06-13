@@ -38,6 +38,7 @@ function emptyData(): TodayDashboardData {
     onSupportClients: [],
     onSupportListTruncated: false,
     globalOpenTasks: [],
+    globalOpenTasksTotal: 0,
     pendingProgramTests: [],
     pendingProgramTestsTotal: 0,
     pendingProgramTestsTruncated: false,
@@ -389,5 +390,96 @@ describe("DoctorTodayDashboard", () => {
       "href",
       "/app/doctor/health-archive",
     );
+  });
+
+  // §1.1 — Порядок блоков: «Расписание» выше «Следующей записи»
+  it("§1.1 mini-calendar renders before appointment card in DOM order", () => {
+    render(<DoctorTodayDashboard {...defaultProps()} />);
+    const headings = screen.getAllByRole("heading");
+    const calendarIdx = headings.findIndex((h) => h.textContent?.includes("Расписание на сегодня"));
+    const nextApptIdx = headings.findIndex((h) => h.textContent?.includes("Следующая запись") || h.textContent?.includes("Сейчас на приёме"));
+    expect(calendarIdx).toBeGreaterThanOrEqual(0);
+    expect(nextApptIdx).toBeGreaterThanOrEqual(0);
+    expect(calendarIdx).toBeLessThan(nextApptIdx);
+  });
+
+  // §1.3 — Задачи над «На сопровождении»
+  it("§1.3 tasks section renders before on-support section in DOM order", () => {
+    render(<DoctorTodayDashboard {...defaultProps()} />);
+    const headings = screen.getAllByRole("heading");
+    const tasksIdx = headings.findIndex((h) => h.textContent === "Задачи");
+    const supportIdx = headings.findIndex((h) => h.textContent === "На сопровождении");
+    expect(tasksIdx).toBeGreaterThanOrEqual(0);
+    expect(supportIdx).toBeGreaterThanOrEqual(0);
+    expect(tasksIdx).toBeLessThan(supportIdx);
+  });
+
+  // §1.3 — Метрика «сегодня N / всего M»
+  it("§1.3 shows today/total task metric when tasks exist", () => {
+    const todayTask = {
+      id: "t1",
+      ownerUserId: "u1",
+      patientUserId: null,
+      title: "Задача на сегодня",
+      description: null,
+      dueAt: "2026-06-13T09:00:00.000Z",
+      remindAt: null,
+      isImportant: false,
+      completedAt: null,
+      reminderSentAt: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+    };
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      globalOpenTasks: [todayTask],
+      globalOpenTasksTotal: 3,
+    };
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    // Метрика total должна присутствовать в DOM
+    expect(document.getElementById("doctor-today-tasks-metric")).toBeInTheDocument();
+  });
+
+  // §1.3 — Кнопка «Все задачи» появляется, когда есть задачи не на сегодня
+  it("§1.3 shows All-tasks button when total > today count", async () => {
+    const user = userEvent.setup();
+    const otherTask = {
+      id: "t2",
+      ownerUserId: "u1",
+      patientUserId: null,
+      title: "Задача на другой день",
+      description: null,
+      dueAt: "2026-06-20T09:00:00.000Z",
+      remindAt: null,
+      isImportant: false,
+      completedAt: null,
+      reminderSentAt: null,
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+    };
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      globalOpenTasks: [otherTask],
+      globalOpenTasksTotal: 1,
+    };
+    // todayIso не совпадает с дедлайном otherTask → hasMore должен быть true
+    render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
+    const showAllBtn = document.getElementById("doctor-today-tasks-show-all");
+    expect(showAllBtn).toBeInTheDocument();
+    // Клик раскрывает все задачи
+    await user.click(showAllBtn!);
+    expect(screen.getByText("Задача на другой день")).toBeInTheDocument();
+  });
+
+  // §1.2 — workingBounds передаётся в mini-calendar
+  it("§1.2 accepts todayWorkingBounds prop without error", () => {
+    expect(() =>
+      render(
+        <DoctorTodayDashboard
+          {...defaultProps()}
+          todayWorkingBounds={{ startMinute: 9 * 60, endMinute: 18 * 60 }}
+        />,
+      ),
+    ).not.toThrow();
   });
 });

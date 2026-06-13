@@ -172,6 +172,8 @@ export type TodayDashboardData = {
   onSupportClients: TodayOnSupportClientItem[];
   onSupportListTruncated: boolean;
   globalOpenTasks: SpecialistTaskRow[];
+  /** Общее количество открытых задач (§1.3). */
+  globalOpenTasksTotal: number;
   pendingProgramTests: TodayPendingProgramTestItem[];
   pendingProgramTestsTotal: number;
   pendingProgramTestsTruncated: boolean;
@@ -405,8 +407,13 @@ export async function loadDoctorTodayDashboard(
     proactiveResult,
     exerciseCommentAttention,
   ] = await Promise.all([
+    // §1.3: грузим все открытые задачи (без лимита) для подсчёта total и фильтрации «сегодня»
     deps.specialistTasks && deps.specialistOwnerUserId
-      ? deps.specialistTasks.listGlobalOpen(deps.specialistOwnerUserId, 8)
+      ? deps.specialistTasks.listForOwner({
+          ownerUserId: deps.specialistOwnerUserId,
+          patientUserId: null,
+          includeCompleted: false,
+        })
       : Promise.resolve([] as SpecialistTaskRow[]),
     deps.treatmentProgramProgress
       ? Promise.all([
@@ -462,6 +469,7 @@ export async function loadDoctorTodayDashboard(
     onSupportClients: onSupportClientsWithStats,
     onSupportListTruncated,
     globalOpenTasks,
+    globalOpenTasksTotal: globalOpenTasks.length,
     pendingProgramTests,
     pendingProgramTestsTotal,
     pendingProgramTestsTruncated,

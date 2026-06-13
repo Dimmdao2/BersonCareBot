@@ -29,6 +29,12 @@ type Props = {
   adminHealthBanner?: AdminDoctorTodayHealthBanner;
   adminRegistrationFailureBanner?: AdminRegistrationFailureAttention;
   showAnalyticsLink?: boolean;
+  /**
+   * Рабочие границы дня (§1.2, S4): вычислены на сервере через deriveWorkingBounds.
+   * Прокидываются в мини-календарь как базовое окно рабочего дня.
+   * `null` = день закрыт или scheduling недоступен → fallback по записям.
+   */
+  todayWorkingBounds?: { startMinute: number; endMinute: number } | null;
 };
 
 export function DoctorTodayDashboard({
@@ -40,6 +46,7 @@ export function DoctorTodayDashboard({
   adminHealthBanner,
   adminRegistrationFailureBanner,
   showAnalyticsLink,
+  todayWorkingBounds,
 }: Props) {
   // Вычисляем серверное время в бизнес-таймзоне для mini-calendar и карточки приёма
   const nowDt = DateTime.now().setZone(displayIana);
@@ -112,6 +119,14 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
+          />
+
+          {/* §1.3: Задачи — поднять над «На сопровождении» */}
+          <DoctorGlobalTasksSection
+            initialTasks={data.globalOpenTasks}
+            initialTasksTotal={data.globalOpenTasksTotal}
+            todayIso={todayIso}
+            className="flex-1"
           />
 
           {/* На сопровождении */}
@@ -209,13 +224,6 @@ export function DoctorTodayDashboard({
             )}
           </DoctorSection>
 
-          {/* Задачи (все открытые, сортировка по дедлайну) */}
-          <DoctorGlobalTasksSection
-            initialTasks={data.globalOpenTasks}
-            todayIso={todayIso}
-            className="flex-1"
-          />
-
           {/* Сигналы пациентов */}
           <DoctorTodaySignalsSection
             proactiveInsights={data.proactiveInsights}
@@ -242,18 +250,19 @@ export function DoctorTodayDashboard({
             monthAppointmentCount={monthAppointmentCount}
           />
 
-          {/* Сейчас на приёме / следующая запись */}
-          <DoctorCurrentAppointmentCard
-            appointments={data.todayAppointments}
-            nowMinutes={nowMinutes}
-          />
-
-          {/* Мини-календарь — расписание на сегодня */}
+          {/* §1.1: Мини-календарь — расписание на сегодня (выше «Следующей записи») */}
           <DoctorTodayMiniCalendar
             appointments={data.todayAppointments}
             nowMinutes={nowMinutes}
             todayDateLabel={todayDateLabel}
             displayIana={displayIana}
+            workingBounds={todayWorkingBounds}
+          />
+
+          {/* Сейчас на приёме / следующая запись */}
+          <DoctorCurrentAppointmentCard
+            appointments={data.todayAppointments}
+            nowMinutes={nowMinutes}
           />
         </div>
       </div>

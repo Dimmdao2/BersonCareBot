@@ -177,4 +177,71 @@ describe("DoctorTodayMiniCalendar", () => {
       ).not.toThrow();
     });
   });
+
+  // §1.2 — Working bounds
+  describe("§1.2 workingBounds", () => {
+    it("uses working hours as base window when provided (9:00–18:00)", () => {
+      // Single appointment at 13:00 — without workingBounds range would be ~12–15
+      // With workingBounds 9:00–18:00 (540–1080 min) range should cover 09:00 at minimum
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[makeAppt("a1", "13:00")]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+          workingBounds={{ startMinute: 9 * 60, endMinute: 18 * 60 }}
+        />,
+      );
+      // With workingBounds the grid should start at or before 09:00
+      expect(screen.getByText("09:00")).toBeInTheDocument();
+      // And extend to or past 18:00
+      expect(screen.getByText("18:00")).toBeInTheDocument();
+    });
+
+    it("falls back to appointment-based range when workingBounds is null", () => {
+      // Single appointment at 10:00 — null bounds → fallback to old behaviour
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[makeAppt("a1", "10:00")]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+          workingBounds={null}
+        />,
+      );
+      // Old behaviour: start = max(7, 10-1) = 9
+      expect(screen.getByText("09:00")).toBeInTheDocument();
+    });
+
+    it("extends working hours window when appointment is before shift start", () => {
+      // Appointment at 07:30, working bounds 09:00–18:00 → start should be <= 07:00
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[makeAppt("a1", "07:30")]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+          workingBounds={{ startMinute: 9 * 60, endMinute: 18 * 60 }}
+        />,
+      );
+      // Grid should show 07:00 (clamped to 7 at minimum)
+      expect(screen.getByText("07:00")).toBeInTheDocument();
+    });
+
+    it("renders without crash when no appointments and workingBounds provided", () => {
+      // Empty calendar state: workingBounds is ignored (empty state shown instead)
+      expect(() =>
+        render(
+          <DoctorTodayMiniCalendar
+            appointments={[]}
+            nowMinutes={600}
+            todayDateLabel="ср, 11 июня"
+            displayIana={DEFAULT_IANA}
+            workingBounds={{ startMinute: 9 * 60, endMinute: 18 * 60 }}
+          />,
+        ),
+      ).not.toThrow();
+      expect(screen.getByText("Записей на сегодня нет")).toBeInTheDocument();
+    });
+  });
 });
