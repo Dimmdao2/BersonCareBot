@@ -17,6 +17,7 @@
 
 1. [Онбординг и server conventions](#1-онбординг-и-server-conventions)
 1a. [Локальный dev и тестирование UI](#1a-локальный-dev-и-тестирование-ui)
+1b. [Безопасность dev-среды: изоляция от прод](#1b-безопасность-dev-среды-изоляция-от-прод-и-реальных-каналов)
 2. [CRITICAL: конфигурация интеграций только в БД](#2-critical-конфигурация-интеграций-только-в-бд)
 3. [Runtime config: env vs database](#3-runtime-config-env-vs-database)
 4. [system_settings: зеркало public + integrator](#4-system_settings-зеркало-public--integrator)
@@ -107,6 +108,21 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 **Не путать:** `system_settings.dev_mode` в БД — тестовые аккаунты в аналитике, не вход.
 
 Подробности, curl, browser MCP, типовые сценарии — в каноническом документе выше.
+
+---
+
+## 1b. Безопасность dev-среды: изоляция от прод и реальных каналов
+
+*Источник: `.cursor/rules/dev-prod-isolation-no-real-creds.mdc` (alwaysApply)*
+
+Прод и dev — на одной машине. Прод: из `/opt/projects/bersoncarebot` (+ `/opt/env/bersoncarebot/*`, systemd `bersoncarebot-*-prod.service`, БД `bcb_webapp_prod`). Dev: из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, env `/.env` + `apps/webapp/.env.dev`, БД `bcb_webapp_dev`). Канонические пути — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
+
+1. **Реальные креды — только на проде.** Dev-env НЕ содержит реальных prod-секретов внешних каналов (Telegram / Rubitime / MAX / SMSC / S3) — они только в `/opt/env/bersoncarebot/*`. В dev: `NODE_ENV=development`, send-креды пустые, `MAX_ENABLED=false` / `SMSC_ENABLED=false`. Нашёл реальные креды в dev-env — очистить и сообщить владельцу.
+2. **Dev не шлёт реально.** В `development` доставка = no-op/мок. Не делать действий, способных отправить реальное сообщение/SMS в Telegram / Rubitime / SMSC / MAX или записать в реальный S3 из dev (тестовые записи, рассылки, ретраи). `INTEGRATOR_API_URL` в dev — только локальный `127.0.0.1:4200`.
+3. **Dev-БД = реальные ПДн.** `bcb_webapp_dev` — копия прод-дампа с реальными данными пациентов: только read-only SELECT при необходимости, не писать, не слать уведомления, не печатать ПДн в чат/логи.
+4. **Прод не трогать из dev.** Не подключаться к `bcb_webapp_prod`, не читать `/opt/env/*`, не дёргать прод-сервисы — только по явному запросу владельца и канону SERVER CONVENTIONS (+ раздел [Host: PostgreSQL](#6-host-postgresql-и-database_url)).
+5. **Секреты не печатать.** Значения `.env`/секретов — маскировать; не вставлять креды в чат / логи / коммиты / доки.
+6. **Не удалять `.next`/кэш работающих серверов вслепую** — сперва `pgrep -af next`.
 
 ---
 

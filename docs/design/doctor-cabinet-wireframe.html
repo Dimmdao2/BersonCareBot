@@ -261,7 +261,6 @@ table.anam td{border-top:1px dashed var(--line);padding:6px 8px;vertical-align:t
       <span class="ptab" data-p="program">Программа<span class="b">11</span></span>
       <span class="ptab" data-p="records">Записи</span>
       <span class="ptab" data-p="files">Файлы</span>
-      <span class="ptab" data-p="stats">Аналитика</span>
       <span class="ptab" data-p="account">Учётка</span>
     </div>
   </div>
@@ -693,7 +692,122 @@ table.anam td{border-top:1px dashed var(--line);padding:6px 8px;vertical-align:t
   <p class="note" style="margin-top:10px;">Обзор отвечает на «что с человеком сейчас и что от меня требуется». Дубли шапки и полные домены сюда не возвращаем — только сжатые виджеты со ссылками в свои табы. Колонки 50/50: слева клиника и выполнение, справа заметки → задачи → программа с комментариями → сообщения. Таб «Коммуникации» из карты убран: контекст переписки здесь, комментарии — в контексте программы, полный inbox — на странице «Коммуникации».</p>
 
 </div>
-<div class="pcpane" id="pp-program"><div class="wf"><b>Программа</b><div class="hint" style="margin-top:6px;">ЛФК как сейчас (комментарии и медиа, тесты, активная программа, назначение). Без изменений на этом этапе.</div></div></div>
+<div class="pcpane" id="pp-program">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+    <h3 style="font-size:13px;">Индивидуальный план · этап 2 из 5</h3>
+    <span class="hint" style="margin-left:auto;">переработка — только левая колонка</span>
+  </div>
+  <div class="grid" style="grid-template-columns:1fr 1.5fr;align-items:start;">
+
+    <!-- ===== LEFT RAIL — переработана ===== -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <div class="wf" style="border-style:solid;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-weight:700;font-size:14px;">Индивидуальный план</span>
+          <span class="chip" style="background:#e8f5ec;color:#1f9d55;">активна</span>
+          <span class="icbtn" title="Действия: завершить программу, сменить статус…" style="margin-left:auto;">⋯</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:9px;">
+          <div style="flex:1;height:6px;background:#eef1f6;border-radius:3px;overflow:hidden;"><div style="width:40%;height:100%;background:var(--primary);"></div></div>
+          <span class="hint" style="white-space:nowrap;">этап 2 из 5</span>
+        </div>
+        <div class="hint" style="margin-top:7px;">начата 24.05.2026 · «Реабилитация ТБС + поясница». Деструктивное «Завершить программу лечения» убрано из кнопки-острова наверху — теперь в меню ⋯.</div>
+      </div>
+
+      <div class="wf" style="border-style:solid;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
+          <h3 style="font-size:13px;">Лента пациента</h3>
+          <span class="chip" style="background:var(--danger-soft);color:var(--danger);">1 без ответа</span>
+          <span class="mtabs" style="margin-left:auto;"><span class="mtab on">Всё</span><span class="mtab">Заметки</span><span class="mtab">Отметки</span></span>
+        </div>
+        <div class="staterow" style="border-color:#f0e3c5;background:#fffdf5;flex-direction:column;align-items:stretch;gap:7px;">
+          <div style="display:flex;gap:6px;align-items:flex-start;">
+            <span style="flex:none;">📝</span>
+            <span><b>Заметка пациента</b> · Нейродинамика икроножной мышцы<br>«Проходило быстро — практически сразу после завершения упражнения»</span>
+            <span class="d">11.06 · 06:58</span>
+          </div>
+          <div style="display:flex;gap:5px;"><span class="tab" style="font-size:11px;">Ответить</span><span class="tab" style="font-size:11px;">Обсуждение</span></div>
+        </div>
+        <div class="staterow calm" style="font-size:12px;"><span style="flex:none;color:#1f9d55;">✓</span><span>Отметка выполнения · Поза Голубя 1</span><span class="d">11.06 · 07:01</span></div>
+        <div class="staterow calm" style="font-size:12px;"><span style="flex:none;color:#1f9d55;">✓</span><span>Отметка выполнения · Нейродинамика икроножной мышцы</span><span class="d">11.06 · 06:57</span></div>
+        <div class="staterow calm" style="font-size:12px;"><span style="flex:none;color:#1f9d55;">✓</span><span>Отметка выполнения · Вытяжение квадрицепса стоя на колене</span><span class="d">11.06 · 06:54</span></div>
+        <div class="hint" style="margin-top:7px;">главный блок левой колонки: что пациент сделал и написал между приёмами. Это бывший «Журнал выполнения», поднятый в основной столбец. Заметки пациента, требующие ответа, — наверху и подсвечены, ответ прямо отсюда; отметки выполнения — лентой ниже.</div>
+      </div>
+
+      <div class="wf" style="border-style:solid;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
+          <h3 style="font-size:13px;">Заметки специалиста</h3>
+          <span class="plus" title="Добавить заметку" style="margin-left:auto;">+</span>
+        </div>
+        <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">🗒️</span><span>Пока нет заметок по программе</span></div>
+        <div class="hint" style="margin-top:6px;">тип: клиническая заметка · напоминание · для пациента. Поле ввода раскрывается по «+», а не висит развёрнутым на пол-экрана при пустом списке (как сейчас).</div>
+      </div>
+
+      <div class="wf" style="border-style:solid;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
+          <h3 style="font-size:13px;">Общие рекомендации</h3>
+          <span class="plus" title="Добавить" style="margin-left:auto;">+</span>
+        </div>
+        <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">📋</span><span>Рекомендации на всю программу не заданы</span></div>
+        <div class="hint" style="margin-top:6px;">рекомендации на программу целиком. Текущее «Общие рекомендации (этап 0)» путает — нулевого этапа нет, привязку к нему убираем.</div>
+      </div>
+
+      <details class="wf" style="border-style:solid;">
+        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);">История правок программы <span class="hint" style="font-weight:400;">· структурные изменения</span></summary>
+        <div class="list" style="margin-top:8px;">
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">•</span><span>Добавлен этап «Увеличение амплитуды и контроля»</span><span class="d">24.05 · 23:01</span></div>
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">•</span><span>Добавлена группа «Нейродинамика»</span><span class="d">24.05 · 23:01</span></div>
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">•</span><span>Программа назначена</span><span class="d">24.05 · 22:57</span></div>
+        </div>
+        <div class="hint" style="margin-top:6px;">аудит структурных правок нужен редко — свёрнут, а не равнозначной карточкой рядом с лентой.</div>
+      </details>
+
+    </div>
+
+    <!-- ===== RIGHT RAIL — текущая реализация, НЕ трогаем ===== -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="note" style="border-left-color:var(--primary);">Правая колонка — этапы, группы и упражнения. Рабочая, уже проработана — в этом проходе не меняем. Показана для контекста раскладки.</div>
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+        <span class="tab" style="font-size:11px;">Добавить этап</span>
+        <span class="tab" style="font-size:11px;">Изменить порядок</span>
+        <span class="tab" style="background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600;font-size:11px;">Сохранить изменения</span>
+      </div>
+
+      <div class="wf" style="border-style:solid;padding:9px 12px;">
+        <div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;"><div class="hint">Этап 1</div><div style="font-weight:600;font-size:12.5px;">Стабилизация и нейродинамика</div></div><span class="chip" style="background:#f1f3f7;color:var(--ink-3);">завершён</span><span class="icbtn" style="width:22px;height:22px;font-size:11px;">▾</span></div>
+      </div>
+
+      <div class="wf" style="border-style:solid;border-color:var(--primary);padding:10px 12px;">
+        <div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;"><div class="hint">Этап 2 · активный</div><div style="font-weight:600;font-size:13px;">Коррекция нагрузки фазы 1</div></div><span class="chip" style="background:var(--primary-soft);color:var(--primary);">в процессе</span><span class="icbtn" style="width:22px;height:22px;font-size:11px;">▴</span></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;"><span class="tab" style="font-size:11px;">Завершить этап</span><span class="tab" style="font-size:11px;">Изменить</span><span class="tab" style="font-size:11px;color:var(--danger);border-color:#ecc4bd;">Пропустить</span></div>
+
+        <div style="margin-top:10px;">
+          <div class="sect-label" style="display:flex;align-items:center;gap:6px;"><span>Стабилизация · 6</span><span class="plus" style="margin-left:auto;width:18px;height:18px;font-size:12px;">+</span></div>
+          <div class="list" style="margin-top:4px;">
+            <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;background:#fff;font-size:11.5px;"><span style="color:var(--ink-3);cursor:grab;flex:none;">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Жук — ноги назад и к животу</span><span class="hint">развернуть</span></div>
+            <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:5px 8px;background:#fff;font-size:11.5px;"><span style="color:var(--ink-3);cursor:grab;flex:none;">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Ягодичный мост на двух ногах с резиной</span><span class="chip" style="background:var(--primary-soft);color:var(--primary);font-size:9px;">💬 своё</span><span class="hint">развернуть</span></div>
+            <div class="hint" style="padding-left:4px;">…ещё 4 упражнения</div>
+          </div>
+        </div>
+
+        <div class="list" style="margin-top:8px;">
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">▸</span><span>Растяжки и мобилизации · 5</span></div>
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">▸</span><span>Нейродинамика · 2</span></div>
+          <div class="staterow calm" style="font-size:12px;color:var(--ink-3);"><span style="flex:none;">▸</span><span>Тестирование · 0 · пусто</span></div>
+          <div class="staterow calm" style="font-size:12px;color:var(--ink-3);"><span style="flex:none;">▸</span><span>Рекомендации · 0 · пусто</span></div>
+        </div>
+      </div>
+
+      <div class="wf" style="border-style:solid;padding:9px 12px;"><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;"><div class="hint">Этап 3</div><div style="font-weight:600;font-size:12.5px;">Увеличение амплитуды и контроля</div></div><span class="chip" style="background:#e8f5ec;color:#1f9d55;">доступен</span></div></div>
+      <div class="wf" style="border-style:solid;padding:9px 12px;"><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;"><div class="hint">Этап 4</div><div style="font-weight:600;font-size:12.5px;">Функциональная адаптация к быту</div></div><span class="chip" style="background:#f1f3f7;color:var(--ink-3);">заблокирован</span></div></div>
+      <div class="wf" style="border-style:solid;padding:9px 12px;"><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;"><div class="hint">Этап 5</div><div style="font-weight:600;font-size:12.5px;">Сила и контроль — предотвращение рецидивов</div></div><span class="chip" style="background:#f1f3f7;color:var(--ink-3);">заблокирован</span></div></div>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:10px;">Переработка — только левая колонка. Было: вертикальная свалка равнозначных карточек — красная «Завершить программу» островом наверху, развёрнутый на пол-экрана ввод комментария при пустом списке, «рекомендации этапа 0», журнал выполнения и история правок вперемешку. Стало, по убыванию частоты обращения: 1) компактный статус программы, деструктивные действия — в ⋯; 2) «Лента пациента» поднята в главный блок — отметки и заметки пациента с ответом отсюда, неотвеченные подсвечены; 3) заметки специалиста со свёрнутым полем ввода; 4) «Общие рекомендации» вместо мнимого «этапа 0»; 5) история правок свёрнута вниз. Правая колонка не тронута. Точечные правки — позже, по живому процессу.</p>
+</div>
 <div class="pcpane" id="pp-records">
 
   <div class="kpis" style="grid-template-columns:repeat(4,1fr);">
@@ -800,8 +914,163 @@ table.anam td{border-top:1px dashed var(--line);padding:6px 8px;vertical-align:t
   <p class="note">Будущее: AI-разбор загруженных PDF (выписки, анализы) в структурированную историю.</p>
 </div>
 
-<div class="pcpane" id="pp-stats"><div class="wf"><b>Аналитика</b><div class="hint" style="margin-top:6px;line-height:1.7;">Техническая активность пациента: использование приложения · выполнение упражнений · полученные рассылки · открытия плана. Прорабатываем позже. Врачебная статистика (динамика жалоб, тесты) живёт в Карте.</div></div></div>
-<div class="pcpane" id="pp-account"><div class="wf"><b>Учётка</b><div class="hint" style="margin-top:6px;">Контакты и каналы · сопровождение · lifecycle · блокировки · админ (merge, audit). Как сейчас, плюс сюда переезжает booking-репутация из Записей.</div></div></div>
+<div class="pcpane" id="pp-account">
+  <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start;">
+
+    <!-- LEFT: личность, контакты/каналы, сопровождение -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <div class="wf" style="border-style:solid;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
+          <h3 style="font-size:13px;">Личные данные</h3>
+          <span class="ed" title="Редактировать" style="margin-left:auto;">✎ изменить</span>
+        </div>
+        <table class="anam" style="cursor:default;">
+          <tr><td style="cursor:default;color:var(--ink-3);width:42%;">ФИО</td><td style="cursor:default;font-weight:600;">Антонов Егор Александрович</td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Отображаемое имя</td><td style="cursor:default;">Егор</td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Дата рождения</td><td style="cursor:default;">15.03.1976 · 50 лет</td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Пол</td><td style="cursor:default;">муж.</td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Город</td><td style="cursor:default;">Санкт-Петербург</td></tr>
+        </table>
+        <div class="hint" style="margin-top:6px;">ФИО видит только специалист, пациенту показывается отображаемое имя. Как сейчас — поля без изменений.</div>
+      </div>
+
+      <div class="wf" style="border-style:solid;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
+          <h3 style="font-size:13px;">Контакты и каналы</h3>
+          <span class="plus" title="Добавить канал" style="margin-left:auto;">+</span>
+        </div>
+        <div class="list">
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;">
+            <span style="width:24px;flex:none;text-align:center;">📞</span>
+            <div style="flex:1;min-width:0;"><div style="font-family:ui-monospace,monospace;font-size:12.5px;">+7 921 224-91-12</div><div class="hint">основной телефон</div></div>
+            <span class="chip" style="background:var(--primary-soft);color:var(--primary);">основной</span>
+            <span class="icbtn" title="Скопировать">⧉</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;">
+            <span style="width:24px;flex:none;text-align:center;">✈️</span>
+            <div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:var(--ink);">@egor_antonov · id 184422931</div><div class="hint">Telegram</div></div>
+            <span class="chip" style="background:#e8f5ec;color:#1f9d55;">подключён</span>
+            <span class="icbtn" title="Открыть чат">💬</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;">
+            <span style="width:24px;flex:none;text-align:center;">Ⓜ️</span>
+            <div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:var(--ink-2);">не привязан</div><div class="hint">MAX</div></div>
+            <span class="chip" style="background:#f1f3f7;color:var(--ink-3);">нет</span>
+            <span class="icbtn" title="Пригласить">＋</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid #ecd9d5;background:#fbf5f4;border-radius:8px;padding:7px 10px;">
+            <span style="width:24px;flex:none;text-align:center;">✉️</span>
+            <div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:var(--ink);">egor.a@mail.ru</div><div class="hint">Email · не подтверждён</div></div>
+            <span class="chip" style="background:var(--danger-soft);color:var(--danger);">не подтв.</span>
+            <span class="icbtn" title="Написать">✉️</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;">
+            <span style="width:24px;flex:none;text-align:center;">📲</span>
+            <div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:var(--ink);">PWA установлено · push разрешён</div><div class="hint">приложение пациента</div></div>
+            <span class="chip" style="background:#e8f5ec;color:#1f9d55;">активно</span>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:6px;">статус канала: <span style="color:#1f9d55;font-weight:600;">подключён</span> → иконка активна и кликабельна · <span style="color:var(--danger);font-weight:600;">проблема</span> (не подтверждён / бот заблокирован) подсвечена. Перенесено из текущей карточки без изменений логики.</div>
+      </div>
+
+      <div class="wf" style="border-style:solid;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
+          <h3 style="font-size:13px;">Сопровождение и статус</h3>
+          <span class="chip" style="background:var(--primary-soft);color:var(--primary);margin-left:auto;">★ На сопровождении</span>
+        </div>
+        <table class="anam" style="cursor:default;">
+          <tr><td style="cursor:default;color:var(--ink-3);width:42%;">Lifecycle</td><td style="cursor:default;"><b>На сопровождении</b> · 4 мес <span class="hint">(подписчик → новый → <b>на сопровождении</b> → бывший)</span></td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Сопровождение с</td><td style="cursor:default;">12.02.2026</td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Программа</td><td style="cursor:default;">«Реабилитация ТБС + поясница» <span class="hint">· этап 2 из 4</span></td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Абонемент</td><td style="cursor:default;">4 из 10 · до 31.07.2026</td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Источник</td><td style="cursor:default;">Telegram-бот · 09.2025</td></tr>
+        </table>
+        <div class="hint" style="margin-top:6px;">lifecycle — расчётный статус из сегментов «Пациентов» (подписчик / новый / на сопровождении / бывший). Смена сопровождения и абонемента — отсюда.</div>
+      </div>
+
+      <div class="wf" style="border-style:solid;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
+          <h3 style="font-size:13px;">Платежи и расчёты</h3>
+          <span class="hint" style="margin-left:auto;cursor:pointer;">вся история →</span>
+        </div>
+        <div class="kpis" style="grid-template-columns:repeat(3,1fr);">
+          <div class="kpi kpi-s"><div class="l">Всего принесено</div><div class="v">96 000 ₽</div></div>
+          <div class="kpi kpi-s"><div class="l">Абонементы</div><div class="v">72 000 ₽</div></div>
+          <div class="kpi kpi-s"><div class="l">Отдельные приёмы</div><div class="v">24 000 ₽</div></div>
+        </div>
+        <div class="list" style="margin-top:8px;">
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">💳</span><span>Абонемент · 10 приёмов</span><span style="margin-left:auto;font-weight:600;white-space:nowrap;">36 000 ₽</span><span class="hint" style="white-space:nowrap;padding-left:8px;">14.05</span></div>
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">💳</span><span>Отдельный приём · 60 мин</span><span style="margin-left:auto;font-weight:600;white-space:nowrap;">4 000 ₽</span><span class="hint" style="white-space:nowrap;padding-left:8px;">22.01</span></div>
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">💳</span><span>Абонемент · 10 приёмов</span><span style="margin-left:auto;font-weight:600;white-space:nowrap;">36 000 ₽</span><span class="hint" style="white-space:nowrap;padding-left:8px;">12.02.25</span></div>
+        </div>
+        <div class="hint" style="margin-top:6px;">расчётная история: абонементы + отдельные приёмы. Статус абонемента (4 из 10) — в «Сопровождении» выше; здесь — деньги. Учёт оплат — следующий этап, пока ручной ввод.</div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: booking-репутация, блокировки/доступ, админ -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <div class="wf" style="border-style:solid;">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;">
+          <h3 style="font-size:13px;">Репутация записи</h3>
+          <span class="hint" style="margin-left:auto;">переехало из «Записей»</span>
+        </div>
+        <div class="kpis" style="grid-template-columns:repeat(4,1fr);">
+          <div class="kpi kpi-s"><div class="l">Визитов</div><div class="v">8</div></div>
+          <div class="kpi kpi-s alert"><div class="l">Отмен</div><div class="v">2</div></div>
+          <div class="kpi kpi-s alert"><div class="l">Неявок</div><div class="v">1</div></div>
+          <div class="kpi kpi-s"><div class="l">Переносов</div><div class="v">3</div></div>
+        </div>
+        <div class="staterow" style="margin-top:8px;"><span class="flag">⚑</span><span>Отметка «склонен к переносам» — 3 переноса за 3 мес</span><span class="ed" title="Снять метку">✎</span></div>
+        <div class="hint" style="margin-top:6px;">статистика записи по пациенту: визиты — прошедшие слоты, неявки/отмены/переносы — по факту. Метки репутации (проблемный / склонен к переносам) ставятся вручную или порогом.</div>
+      </div>
+
+      <div class="wf" style="border-style:solid;">
+        <h3 style="font-size:13px;margin-bottom:8px;">Блокировки и доступ</h3>
+        <div class="list">
+          <div class="staterow calm"><span style="flex:none;">✈️</span><span>Telegram-бот</span><span class="chip" style="background:#e8f5ec;color:#1f9d55;margin-left:auto;">активен</span></div>
+          <div class="staterow"><span class="flag">⛔</span><span>MAX-бот заблокирован пользователем</span><span class="hint" style="margin-left:auto;">push в MAX не доходят</span></div>
+          <div class="staterow calm"><span style="flex:none;">💬</span><span>Комментарии к упражнениям</span><span class="chip" style="background:var(--primary-soft);color:var(--primary);margin-left:auto;">разрешены</span></div>
+          <div class="staterow calm"><span style="flex:none;">🛡️</span><span>Контент «только для залогиненных»</span><span class="hint" style="margin-left:auto;">доступ открыт</span></div>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">
+          <span class="tab" style="font-size:11px;">Ограничить доступ</span>
+          <span class="tab" style="font-size:11px;">В архив</span>
+        </div>
+        <div class="hint" style="margin-top:6px;">блокировки бота — со стороны пациента (только индикатор). Архив и ограничение комментариев — действия специалиста.</div>
+      </div>
+
+      <div class="wf" style="border-style:solid;">
+        <h3 style="font-size:13px;margin-bottom:8px;">Администрирование</h3>
+        <div class="sect-label">Технические идентификаторы</div>
+        <table class="anam" style="cursor:default;margin-bottom:8px;">
+          <tr><td style="cursor:default;color:var(--ink-3);width:42%;">ID пациента</td><td style="cursor:default;font-family:ui-monospace,monospace;font-size:11.5px;">usr_8f3a…c0fa <span class="icbtn" title="Скопировать" style="width:20px;height:20px;font-size:11px;">⧉</span></td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Rubitime ID</td><td style="cursor:default;font-family:ui-monospace,monospace;font-size:11.5px;">rt-44219</td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Telegram ID</td><td style="cursor:default;font-family:ui-monospace,monospace;font-size:11.5px;">184422931</td></tr>
+          <tr><td style="cursor:default;color:var(--ink-3);">Регистрация</td><td style="cursor:default;">18.09.2025</td></tr>
+        </table>
+        <div class="sect-label">Объединение (merge)</div>
+        <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fafbfc;margin-bottom:8px;">
+          <span style="flex:none;">🔗</span>
+          <span style="flex:1;font-size:12px;color:var(--ink-2);">Найти и объединить дубль этого пациента (записи, чаты, файлы перейдут сюда)</span>
+          <span class="tab" style="font-size:11px;">Объединить</span>
+        </div>
+        <div class="sect-label">История изменений (audit)</div>
+        <div class="list">
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">•</span><span>Объединён с «Антонов Е.» (дубль из MAX)</span><span class="d">02.06</span></div>
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">•</span><span>Статус → «На сопровождении»</span><span class="d">12.02</span></div>
+          <div class="staterow calm" style="font-size:12px;"><span style="flex:none;">•</span><span>Создан из Telegram-бота</span><span class="d">18.09.25</span></div>
+        </div>
+        <div class="hint" style="margin-top:6px;">merge и audit — текущая логика «Мердж пациентов» и журнала, перенесённая в карточку. Audit показывает ключевые системные события по пациенту.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:10px;">«Учётка» — административный слой пациента, отдельный от клинической «Карты»: кто это, как с ним связаться, его статус в воронке, дисциплина записи и техническая история. Booking-репутация переехала сюда из «Записей». Клинике (жалобы, диагноз, тесты, динамика) здесь места нет — это «Карта». Терминология «пациент / клиент» — финализировать единообразно со всем кабинетом.</p>
+</div>
 
 </section>
 
