@@ -95,9 +95,17 @@ describe("DoctorOnlineIntakeClient — список", () => {
   it("показывает empty-state «Заявок нет» при пустом списке и без фильтров", async () => {
     vi.stubGlobal("fetch", makeFetch({ list: { items: [], total: 0 } }));
     render(<DoctorOnlineIntakeClient />);
+    // дефолт — фильтр «Новые»; снимаем его, чтобы остаться без фильтров
+    await userEvent.click(await screen.findByRole("button", { name: /Новые/i }));
     await waitFor(() => {
       expect(screen.getByText(/заявок нет/i)).toBeInTheDocument();
     });
+  });
+
+  it("по умолчанию активен фильтр «Новые»", async () => {
+    render(<DoctorOnlineIntakeClient />);
+    const newBtn = await screen.findByRole("button", { name: /Новые/i });
+    expect(newBtn).toHaveAttribute("aria-pressed", "true");
   });
 
   it("нет кнопки «Все» — фильтр убран", async () => {
@@ -106,15 +114,21 @@ describe("DoctorOnlineIntakeClient — список", () => {
     expect(screen.queryByRole("button", { name: /^Все$/i })).not.toBeInTheDocument();
   });
 
-  it("пустой выбор тогглов = показать все заявки (дефолт)", async () => {
+  it("снятие дефолтного фильтра «Новые» = пустой выбор = показать все заявки", async () => {
     render(<DoctorOnlineIntakeClient />);
-    // Заявка со статусом new должна быть видна при дефолтном пустом выборе
+    await screen.findByText("Список Имя");
+    // дефолт «Новые» → снимаем → пустой выбор → все заявки видны
+    await userEvent.click(screen.getByRole("button", { name: /Новые/i }));
     expect(await screen.findByText("Список Имя")).toBeInTheDocument();
   });
 
   it("клик тоггл включает фильтр, повторный клик снимает — возвращаются все заявки", async () => {
     render(<DoctorOnlineIntakeClient />);
     await screen.findByText("Список Имя");
+
+    // снимаем дефолтный «Новые», чтобы видеть все заявки
+    await userEvent.click(screen.getByRole("button", { name: /Новые/i }));
+    expect(await screen.findByText("Список Имя")).toBeInTheDocument();
 
     // Включаем фильтр «В работе» — заявка со статусом new исчезает
     const inReviewBtn = screen.getByRole("button", { name: /В работе/i });
@@ -138,7 +152,7 @@ describe("DoctorOnlineIntakeClient — список", () => {
     const newBtn = screen.getByRole("button", { name: /Новые/i });
     const inReviewBtn = screen.getByRole("button", { name: /В работе/i });
 
-    await userEvent.click(newBtn);
+    // «Новые» включён по умолчанию; добавляем «В работе»
     await userEvent.click(inReviewBtn);
 
     expect(newBtn).toHaveAttribute("aria-pressed", "true");

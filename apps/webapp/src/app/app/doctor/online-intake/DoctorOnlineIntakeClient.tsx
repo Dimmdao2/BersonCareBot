@@ -281,7 +281,10 @@ export function DoctorOnlineIntakeClient({
    * Мультитоггл статусов: клик вкл/выкл конкретный статус.
    * Пустое множество = показать все заявки.
    */
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<IntakeStatus>>(new Set());
+  // Дефолт — только «Новые» (активные заявки врача). Клик по чипу снимает фильтр → все.
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<IntakeStatus>>(
+    () => new Set<IntakeStatus>(["new"]),
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<IntakeDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);

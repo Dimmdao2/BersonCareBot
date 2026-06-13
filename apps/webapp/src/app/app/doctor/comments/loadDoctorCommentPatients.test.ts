@@ -9,6 +9,8 @@ const VIEWER = "00000000-0000-4000-8000-00000000000d";
 const ITEM1 = "00000000-0000-4000-8000-aaa000000001";
 const ITEM2 = "00000000-0000-4000-8000-aaa000000002";
 const ITEM3 = "00000000-0000-4000-8000-aaa000000003";
+const ITEM4 = "00000000-0000-4000-8000-aaa000000004";
+const ITEM5 = "00000000-0000-4000-8000-aaa000000005";
 
 function makeClient(userId: string, displayName: string, phone?: string | null) {
   return {
@@ -23,9 +25,16 @@ function makeUnreadRow(patientUserId: string, stageItemId: string) {
   return { patientUserId, stageItemId };
 }
 
+/** Мок счётчика непрочитанных по stageItem. По умолчанию — 1 сообщение на упражнение. */
+function makeCountsMock(unreadByItem?: Record<string, number>) {
+  return async ({ stageItemIds }: { stageItemIds: string[] }) =>
+    stageItemIds.map((id) => ({ stageItemId: id, unread: unreadByItem?.[id] ?? 1 }));
+}
+
 function makeDeps(
   clients: ReturnType<typeof makeClient>[],
   unreadRows: ReturnType<typeof makeUnreadRow>[],
+  unreadByItem?: Record<string, number>,
 ) {
   return {
     doctorClientsPort: {
@@ -33,6 +42,7 @@ function makeDeps(
     },
     programItemDiscussion: {
       listUnreadExerciseCommentsForDoctor: async () => unreadRows,
+      listUnreadCountsForViewerByStageItems: makeCountsMock(unreadByItem),
     },
   };
 }
@@ -73,6 +83,20 @@ describe("loadDoctorCommentPatients", () => {
     expect(p2!.unreadCount).toBe(1);
   });
 
+  it("unreadCount = точное число сообщений (несколько в одном упражнении суммируются)", async () => {
+    const deps = makeDeps(
+      [makeClient(P1, "Иван Иванов"), makeClient(P2, "Мария Петрова")],
+      [makeUnreadRow(P1, ITEM1), makeUnreadRow(P1, ITEM2), makeUnreadRow(P2, ITEM3)],
+      { [ITEM1]: 2, [ITEM2]: 3, [ITEM3]: 1 },
+    );
+    const result = await loadDoctorCommentPatients(deps, { viewerUserId: VIEWER });
+
+    const p1 = result.find((r) => r.patientUserId === P1)!;
+    const p2 = result.find((r) => r.patientUserId === P2)!;
+    expect(p1.unreadCount).toBe(5); // 2 + 3, а не 2 упражнения
+    expect(p2.unreadCount).toBe(1);
+  });
+
   it("does not include patient with 0 unread", async () => {
     const deps = makeDeps(
       [makeClient(P1, "Иван"), makeClient(P2, "Мария"), makeClient(P3, "Сергей")],
@@ -86,12 +110,13 @@ describe("loadDoctorCommentPatients", () => {
   it("sorts by unreadCount DESC then displayName ASC", async () => {
     const deps = makeDeps(
       [makeClient(P1, "Антон"), makeClient(P2, "Борис"), makeClient(P3, "Виктор")],
+      // stageItemId уникален для пациента → у P1/P2 свои items (ITEM4/ITEM5)
       [
         makeUnreadRow(P3, ITEM1),
         makeUnreadRow(P3, ITEM2),
         makeUnreadRow(P3, ITEM3),
-        makeUnreadRow(P1, ITEM1),
-        makeUnreadRow(P2, ITEM2),
+        makeUnreadRow(P1, ITEM4),
+        makeUnreadRow(P2, ITEM5),
       ],
     );
     const result = await loadDoctorCommentPatients(deps, { viewerUserId: VIEWER });
@@ -113,6 +138,7 @@ describe("loadDoctorCommentPatients", () => {
       doctorClientsPort: { listClients: async () => [clientWithBindings] },
       programItemDiscussion: {
         listUnreadExerciseCommentsForDoctor: async () => [makeUnreadRow(P1, ITEM1)],
+        listUnreadCountsForViewerByStageItems: makeCountsMock(),
       },
     };
 
@@ -134,6 +160,7 @@ describe("loadDoctorCommentPatients", () => {
       },
       programItemDiscussion: {
         listUnreadExerciseCommentsForDoctor: async () => [],
+        listUnreadCountsForViewerByStageItems: makeCountsMock(),
       },
     };
 
@@ -157,6 +184,7 @@ describe("loadDoctorCommentPatients", () => {
       },
       programItemDiscussion: {
         listUnreadExerciseCommentsForDoctor: async () => [],
+        listUnreadCountsForViewerByStageItems: makeCountsMock(),
       },
     };
 

@@ -9,12 +9,14 @@
  * (не ломает «Сегодня» / текущий таб).
  *
  * ——— Семантика «непрочитанных» ———
- * Используется `listUnreadExerciseCommentsForDoctor` — тот же что в текущем табе.
- * «unreadCount» = число отдельных stageItem'ов с непрочитанным последним сообщением пациента.
- * Это приближение: несколько сообщений в одном треде считаются за один «непрочитанный».
- * Более точный подсчёт (реальное число сообщений) — через `listUnreadCountsForViewerByStageItems`,
- * но требует fanout по программам, что дорого. Семантику можно уточнить в будущем (зафиксировано
- * как развилка в LOG.md).
+ * `unreadCount` = **точное число непрочитанных сообщений** пациента (а не число упражнений).
+ * Считается в два шага существующими методами порта (без нового SQL):
+ *   1) `listUnreadExerciseCommentsForDoctor` — упражнения, требующие внимания (последнее сообщение —
+ *      непрочитанный комментарий пациента), даёт пары `{stageItemId, patientUserId}`;
+ *   2) `listUnreadCountsForViewerByStageItems` — точное число непрочитанных сообщений на каждый stageItem;
+ *   3) суммируем по пациенту.
+ * Семантика совпадает с шапкой состояния B (`totalUnreadComments` там считается тем же методом),
+ * поэтому бейдж слева и счётчик «новых» в шапке консистентны.
  *
  * ——— Email в поиске ———
  * `ClientListItem` не содержит email (только `hasEmail: boolean`). Для поиска по email необходим
@@ -41,7 +43,7 @@ export type CommentPatientRow = CommentPatientSearchFields & {
   patientUserId: string;
   /** Всегда true: список фильтруется по `supportStatus: "on"`. */
   isOnSupport: true;
-  /** Число stageItem'ов с непрочитанным последним сообщением пациента (приближение). */
+  /** Точное число непрочитанных сообщений пациента (по всем упражнениям, требующим внимания). */
   unreadCount: number;
 };
 
@@ -62,7 +64,11 @@ export type LoadDoctorCommentPatientsDeps = {
   programItemDiscussion: {
     listUnreadExerciseCommentsForDoctor(
       input: ListDoctorExerciseCommentsInput,
-    ): Promise<Array<{ patientUserId: string }>>;
+    ): Promise<Array<{ patientUserId: string; stageItemId: string }>>;
+    listUnreadCountsForViewerByStageItems(input: {
+      stageItemIds: string[];
+      viewerUserId: string;
+    }): Promise<Array<{ stageItemId: string; unread: number }>>;
   };
 };
 
@@ -98,18 +104,30 @@ export async function loadDoctorCommentPatients(
   );
   const patientUserIds = [...clientById.keys()];
 
-  // Fetch all unread stageItems for all on-support patients (large limit = get all)
+  // Step 1: exercises needing attention (latest message = unread patient comment), one row per stageItem.
   const unreadRows = await deps.programItemDiscussion.listUnreadExerciseCommentsForDoctor({
     patientUserIds,
     viewerUserId: context.viewerUserId,
     limit: 2000, // effectively unlimited; doctor supports at most dozens of patients
   });
 
-  // Count unread stageItems per patient
+  // Map each attention stageItem → its patient (one stageItem belongs to one patient).
+  const patientByStageItem = new Map<string, string>();
+  for (const row of unreadRows) patientByStageItem.set(row.stageItemId, row.patientUserId);
+  const attentionStageItemIds = [...patientByStageItem.keys()];
+
+  // Step 2+3: exact unread MESSAGE count per stageItem, summed per patient.
   const unreadCountById = new Map<string, number>();
-  for (const row of unreadRows) {
-    const uid = row.patientUserId;
-    unreadCountById.set(uid, (unreadCountById.get(uid) ?? 0) + 1);
+  if (attentionStageItemIds.length > 0) {
+    const counts = await deps.programItemDiscussion.listUnreadCountsForViewerByStageItems({
+      stageItemIds: attentionStageItemIds,
+      viewerUserId: context.viewerUserId,
+    });
+    for (const c of counts) {
+      const uid = patientByStageItem.get(c.stageItemId);
+      if (!uid) continue;
+      unreadCountById.set(uid, (unreadCountById.get(uid) ?? 0) + c.unread);
+    }
   }
 
   // Only return patients with at least one unread
