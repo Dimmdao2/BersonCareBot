@@ -142,6 +142,86 @@ describe("booking-calendar service", () => {
     expect(result.events.filter((e) => e.kind === "block")).toHaveLength(0);
   });
 
+  it("§3.13: per-date be_working_days override reaches the feed (with breaks)", async () => {
+    // 2026-05-30 is a Saturday (weekday 6 → 09–12 + 13–18 from listWorkingHours).
+    // Per-date row narrows to 10:00–16:00 with a single break 12:00–13:00.
+    (schedulingPort.listWorkingDays as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: "wd-1",
+        organizationId: "org1",
+        specialistId: "s1",
+        branchId: "b1",
+        roomId: null,
+        workDate: "2026-05-30",
+        startMinute: 10 * 60,
+        endMinute: 16 * 60,
+        breaks: [{ startMinute: 12 * 60, endMinute: 13 * 60 }],
+        isClosed: false,
+      },
+    ]);
+    const result = await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      specialistId: "s1",
+      branchId: "b1",
+    });
+    const working = result.events.filter((e) => e.kind === "working");
+    const breaks = result.events.filter((e) => e.kind === "break");
+    // Two working windows split by the per-date break, plus one break event.
+    expect(working).toHaveLength(2);
+    expect(breaks).toHaveLength(1);
+    // Per-date window starts at 10:00 Moscow = 07:00Z (not the weekday 09:00 = 06:00Z).
+    expect(working[0]!.startAt).toBe("2026-05-30T07:00:00.000Z");
+    // Break is 12:00–13:00 Moscow = 09:00Z–10:00Z.
+    expect(breaks[0]!.startAt).toBe("2026-05-30T09:00:00.000Z");
+    expect(breaks[0]!.endAt).toBe("2026-05-30T10:00:00.000Z");
+  });
+
+  it("§3.13: weekday schedule is used when no per-date row exists (fallback)", async () => {
+    // listWorkingDays default stub returns [] → weekday 09–12 + 13–18 fallback.
+    const result = await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      specialistId: "s1",
+      branchId: "b1",
+    });
+    const working = result.events.filter((e) => e.kind === "working");
+    // Weekday 09:00 Moscow = 06:00Z.
+    expect(working.some((e) => e.startAt === "2026-05-30T06:00:00.000Z")).toBe(true);
+  });
+
+  it("§3.13: per-date row for a different branch reads as closed for queried branch", async () => {
+    (schedulingPort.listWorkingDays as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: "wd-2",
+        organizationId: "org1",
+        specialistId: "s1",
+        branchId: "other-branch",
+        roomId: null,
+        workDate: "2026-05-30",
+        startMinute: 10 * 60,
+        endMinute: 16 * 60,
+        breaks: [],
+        isClosed: false,
+      },
+    ]);
+    const result = await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      specialistId: "s1",
+      branchId: "b1",
+    });
+    // Committed elsewhere → no working/break events for this branch that day.
+    expect(result.events.some((e) => e.kind === "working")).toBe(false);
+    expect(result.events.some((e) => e.kind === "break")).toBe(false);
+  });
+
   it("hides working and break layers when setting is disabled", async () => {
     const noBgService = createBookingCalendarService({
       calendarPort: mockPort,

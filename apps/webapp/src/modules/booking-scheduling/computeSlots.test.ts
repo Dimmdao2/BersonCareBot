@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeNearestFreeWindowFromData,
+  deriveWorkingBounds,
   generateSlotsFromFree,
   isChainFree,
   pickWorkingHours,
@@ -30,6 +31,45 @@ describe("booking-scheduling computeSlots", () => {
     const slots = generateSlotsFromFree([{ startMs: 0, endMs: 3 * 60 * 60_000 }], 60, 60);
     expect(slots).toHaveLength(3);
     expect(new Date(slots[0]!.endAt).getTime() - new Date(slots[0]!.startAt).getTime()).toBe(60 * 60_000);
+  });
+
+  it("deriveWorkingBounds: spans earliest start to latest end across split intervals (weekday)", () => {
+    // Mon 2026-06-01: two windows 09–12 and 13–18 → bounds 09:00..18:00.
+    const bounds = deriveWorkingBounds("2026-06-01", "UTC", [
+      { weekday: 1, startMinute: 9 * 60, endMinute: 12 * 60 },
+      { weekday: 1, startMinute: 13 * 60, endMinute: 18 * 60 },
+    ]);
+    expect(bounds).toEqual({ startMinute: 9 * 60, endMinute: 18 * 60 });
+  });
+
+  it("deriveWorkingBounds: per-date row with break overrides weekday and spans full day", () => {
+    const perDay: WorkingDayRow = {
+      workDate: "2026-06-01",
+      startMinute: 10 * 60,
+      endMinute: 16 * 60,
+      breaks: [{ startMinute: 12 * 60, endMinute: 13 * 60 }],
+      isClosed: false,
+    };
+    const bounds = deriveWorkingBounds(
+      "2026-06-01",
+      "UTC",
+      [{ weekday: 1, startMinute: 9 * 60, endMinute: 18 * 60 }],
+      perDay,
+    );
+    // Break stays inside the span; bounds = 10:00..16:00 (per-date wins).
+    expect(bounds).toEqual({ startMinute: 10 * 60, endMinute: 16 * 60 });
+  });
+
+  it("deriveWorkingBounds: returns null for a closed / empty day", () => {
+    expect(deriveWorkingBounds("2026-06-07", "UTC", [{ weekday: 1, startMinute: 540, endMinute: 1080 }])).toBeNull();
+    const closed: WorkingDayRow = {
+      workDate: "2026-06-01",
+      startMinute: null,
+      endMinute: null,
+      breaks: [],
+      isClosed: true,
+    };
+    expect(deriveWorkingBounds("2026-06-01", "UTC", [], closed)).toBeNull();
   });
 
   it("validates multi-slot chain is free", () => {

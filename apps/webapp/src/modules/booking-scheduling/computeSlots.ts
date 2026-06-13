@@ -177,6 +177,58 @@ export function workingIntervalsForDate(
   return out;
 }
 
+/**
+ * Working-day bounds for a single calendar date, in local wall-clock minutes.
+ *
+ * Returns `{ startMinute, endMinute }` spanning from the earliest working interval
+ * start to the latest working interval end for `dateKey` (breaks/gaps are *inside*
+ * this span, not excluded). Honours per-date overrides exactly like
+ * `workingIntervalsForDate` (per-date row takes priority; otherwise weekday rows).
+ *
+ * Returns `null` when the day has no working time (closed / no matching rows).
+ *
+ * Reused by:
+ *   - booking-calendar gray non-working fill (§3.14)
+ *   - «Сегодня» mini-calendar window (S4 §1.2)
+ */
+export function deriveWorkingBounds(
+  dateKey: string,
+  timeZone: string,
+  working: WorkingHoursRow[],
+  perDayRow?: WorkingDayRow,
+): { startMinute: number; endMinute: number } | null {
+  const intervals = workingIntervalsForDate(dateKey, timeZone, working, 0, perDayRow).filter(
+    (i) => i.endMs > i.startMs,
+  );
+  if (intervals.length === 0) return null;
+
+  let minStartMs = Infinity;
+  let maxEndMs = -Infinity;
+  for (const iv of intervals) {
+    if (iv.startMs < minStartMs) minStartMs = iv.startMs;
+    if (iv.endMs > maxEndMs) maxEndMs = iv.endMs;
+  }
+
+  const startMinute = utcMsToLocalMinute(minStartMs, timeZone);
+  const endMinute = utcMsToLocalMinute(maxEndMs, timeZone);
+  return { startMinute, endMinute };
+}
+
+/** UTC ms → minutes-since-midnight in the given IANA timezone (0..1440). */
+function utcMsToLocalMinute(ms: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(ms));
+  let hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  // Intl can format midnight as "24" in en-US hour12:false; normalise to 0.
+  if (hour === 24) hour = 0;
+  return hour * 60 + minute;
+}
+
 export function subtractBusy(working: TimeInterval[], busy: TimeInterval[]): TimeInterval[] {
   let free = [...working];
   for (const b of busy) {

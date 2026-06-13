@@ -200,10 +200,12 @@ function getBranchColor(branches: Branch[], branchId: string): BranchColor {
 }
 
 function branchColorActiveClass(color: BranchColor): string {
-  if (color === "blue") return "bg-blue-500 border-blue-500 text-white";
-  if (color === "green") return "bg-green-600 border-green-600 text-white";
-  if (color === "violet") return "bg-violet-600 border-violet-600 text-white";
-  return "bg-orange-500 border-orange-500 text-white";
+  // §3.17: приглушённые тинты вместо ядрёной заливки — мягкий фон /10 +
+  // цветной текст + цветная граница (активный фильтр читается, но не «кричит»).
+  if (color === "blue") return "bg-blue-500/15 border-blue-500/50 text-blue-700 dark:text-blue-300";
+  if (color === "green") return "bg-green-600/15 border-green-600/50 text-green-700 dark:text-green-300";
+  if (color === "violet") return "bg-violet-600/15 border-violet-600/50 text-violet-700 dark:text-violet-300";
+  return "bg-orange-500/15 border-orange-500/50 text-orange-700 dark:text-orange-300";
 }
 
 function branchColorInactiveClass(color: BranchColor): string {
@@ -246,8 +248,9 @@ function DayCell({ dateKey, today, record, branches, isSelected, onToggle }: Day
   }
 
   const isToday = dateKey === today;
-  const isClosed = record?.isClosed === true;
-  const hasSchedule = !isClosed && record?.startMinute != null;
+  // §3.15: «выходной»/isClosed removed — a day either has a schedule or falls
+  // back to weekday hours (no explicit closed state surfaced in the grid).
+  const hasSchedule = record?.startMinute != null;
   const color = hasSchedule && record?.branchId
     ? getBranchColor(branches, record.branchId)
     : undefined;
@@ -260,9 +263,8 @@ function DayCell({ dateKey, today, record, branches, isSelected, onToggle }: Day
   if (isSelected) {
     cellClass += "bg-primary/15 border-primary/60 ring-1 ring-primary/40 ";
   } else if (isToday) {
-    cellClass += "bg-amber-500/10 border-amber-500/50 ";
-  } else if (isClosed) {
-    cellClass += "bg-muted/40 border-border/40 opacity-60 ";
+    // §3.17 / §3.10–3.12: muted transparent-green «сегодня» (no yellow).
+    cellClass += "bg-emerald-500/10 border-emerald-500/40 ";
   } else if (color) {
     cellClass += branchCellClass(color) + " ";
   } else {
@@ -283,17 +285,14 @@ function DayCell({ dateKey, today, record, branches, isSelected, onToggle }: Day
       tabIndex={0}
       className={cellClass}
       aria-pressed={isSelected}
-      aria-label={`${dateKey}${record ? (isClosed ? " закрыт" : ` ${formatHourRange(record.startMinute, record.endMinute)}`) : ""}`}
+      aria-label={`${dateKey}${hasSchedule ? ` ${formatHourRange(record!.startMinute, record!.endMinute)}` : ""}`}
       onClick={(e) => onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey)}
       onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey); } }}
       data-testid={`day-cell-${dateKey}`}
     >
-      <div className={cn("text-[11px] font-semibold leading-none", isSelected ? "text-primary" : isToday ? "text-amber-700" : "text-foreground")}>
+      <div className={cn("text-[11px] font-semibold leading-none", isSelected ? "text-primary" : isToday ? "text-emerald-700 dark:text-emerald-300" : "text-foreground")}>
         {isSelected ? `${day} ●` : day}
       </div>
-      {isClosed && (
-        <div className="mt-0.5 text-[9px] text-muted-foreground">выходной</div>
-      )}
       {hasSchedule && record?.startMinute != null && record?.endMinute != null && (
         <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", color ? branchDotClass(color) : "text-primary")}>
           {formatHourRange(record.startMinute, record.endMinute)}
@@ -610,20 +609,23 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     }, `Сохранено для ${dates.length} дн.`);
   }
 
-  function handleClose() {
+  // §3.15: «Очистить расписание» — удалить сохранённые записи выбранных дней
+  // (action:"clear" → DELETE be_working_days). После удаления день падает на
+  // weekday-fallback (а не остаётся «закрытым»).
+  function handleClearSchedule() {
     const dates = [...selected];
     if (!dates.length) return;
     run(async () => {
       await apiJson(WD_BASE, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "close", dates, specialistId }),
+        body: JSON.stringify({ action: "clear", dates, specialistId }),
       });
       setSelected(new Set());
-    }, `${dates.length} дн. закрыто`);
+    }, `Расписание очищено: ${dates.length} дн.`);
   }
 
-  function handleClear() {
+  function handleClearSelection() {
     setSelected(new Set());
     lastClickedRef.current = null;
     setActionOk(null);
@@ -890,16 +892,16 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   size="sm"
                   variant="outline"
                   disabled={pending}
-                  onClick={handleClose}
-                  data-testid="btn-close-days"
+                  onClick={handleClearSchedule}
+                  data-testid="btn-clear-schedule"
                 >
-                  Закрыть выбранные дни
+                  Очистить расписание
                 </Button>
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
-                  onClick={handleClear}
+                  onClick={handleClearSelection}
                   data-testid="btn-clear-selection"
                 >
                   Очистить выбор

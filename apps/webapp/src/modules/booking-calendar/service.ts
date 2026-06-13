@@ -3,8 +3,10 @@ import {
   localDateKey,
   pickWorkingHours,
   workingIntervalsForDate,
+  type WorkingDayRow,
   type WorkingHoursRow,
 } from "@/modules/booking-scheduling/computeSlots";
+import type { WorkingDayRecord } from "@/modules/booking-scheduling/ports";
 import { DateTime } from "luxon";
 import type { BookingCalendarPort, BookingCalendarService } from "./ports";
 import type {
@@ -99,24 +101,70 @@ function deriveWorkingBounds(
   };
 }
 
+/**
+ * Map a per-date WorkingDayRecord (be_working_days) to the WorkingDayRow shape
+ * consumed by `workingIntervalsForDate`. Applies the same branch-scoping as the
+ * slot engine (`computeSlotsInternal`): the per-date override is scoped to the
+ * location assigned that day (model: one branch per day). When the queried branch
+ * differs from the assigned branch, the specialist is committed elsewhere → the
+ * day reads as closed for this branch (mirrors weekday be_working_hours scoping).
+ */
+function toEffectivePerDayRow(
+  record: WorkingDayRecord,
+  queriedBranchId: string | null | undefined,
+): WorkingDayRow {
+  const committedElsewhere =
+    record.branchId != null &&
+    queriedBranchId != null &&
+    record.branchId !== queriedBranchId;
+  return {
+    workDate: record.workDate,
+    startMinute: record.startMinute,
+    endMinute: record.endMinute,
+    breaks: record.breaks,
+    isClosed: committedElsewhere ? true : record.isClosed,
+  };
+}
+
 async function listWorkingAndBreakEvents(
   filters: CalendarFilters,
   schedulingPort: BookingSchedulingPort,
 ): Promise<{ working: CalendarWorkingEvent[]; breaks: CalendarBreakEvent[] }> {
   const timeZone = filters.timeZone ?? "Europe/Moscow";
-  const rows = await schedulingPort.listWorkingHours({
-    organizationId: filters.organizationId,
-    specialistId: filters.specialistId ?? null,
-    branchId: filters.branchId ?? null,
-    roomId: filters.roomId ?? null,
-  });
-  const effectiveRows = pickWorkingHours(mapWorkingRows(rows));
   const dateKeys = enumerateDateKeys(filters.rangeStart, filters.rangeEnd, timeZone);
+
+  const [rows, perDayRows] = await Promise.all([
+    schedulingPort.listWorkingHours({
+      organizationId: filters.organizationId,
+      specialistId: filters.specialistId ?? null,
+      branchId: filters.branchId ?? null,
+      roomId: filters.roomId ?? null,
+    }),
+    // §3.13: per-date be_working_days override the weekday schedule for that date.
+    // Absent date → undefined → weekday fallback (backward-compatible).
+    // NB: do NOT pass branchId here — a day committed to a *different* branch must
+    // still be returned so we can mark it closed (committed elsewhere). Branch
+    // scoping is applied in `toEffectivePerDayRow`, mirroring `computeSlotsInternal`.
+    dateKeys.length > 0
+      ? schedulingPort.listWorkingDays({
+          organizationId: filters.organizationId,
+          specialistId: filters.specialistId ?? null,
+          dateFrom: dateKeys[0]!,
+          dateTo: dateKeys[dateKeys.length - 1]!,
+        })
+      : Promise.resolve([] as WorkingDayRecord[]),
+  ]);
+  const effectiveRows = pickWorkingHours(mapWorkingRows(rows));
+  const perDayMap = new Map(perDayRows.map((r) => [r.workDate, r]));
 
   const working: CalendarWorkingEvent[] = [];
   const breaks: CalendarBreakEvent[] = [];
   for (const dateKey of dateKeys) {
-    const intervals = workingIntervalsForDate(dateKey, timeZone, effectiveRows, 0)
+    const perDayRecord = perDayMap.get(dateKey);
+    const perDayRow = perDayRecord
+      ? toEffectivePerDayRow(perDayRecord, filters.branchId)
+      : undefined;
+    const intervals = workingIntervalsForDate(dateKey, timeZone, effectiveRows, 0, perDayRow)
       .filter((i) => i.endMs > i.startMs)
       .sort((a, b) => a.startMs - b.startMs);
     for (let i = 0; i < intervals.length; i += 1) {

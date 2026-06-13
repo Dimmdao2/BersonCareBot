@@ -237,6 +237,80 @@ function deriveSlotTimes(workingBounds: WorkingBounds | null | undefined): {
 }
 
 // ---------------------------------------------------------------------------
+// §3.14 — Non-working gray background fill
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the *non-working* time ranges per local day so the calendar can paint
+ * the whole non-working span (before the shift, after the shift, and every break)
+ * with a light-gray background. Working time stays white (no fill).
+ *
+ * Input: the server-provided `working` events (per-date intervals already honour
+ * per-date be_working_days with weekday fallback — §3.13) plus the visible slot
+ * bounds. For each day that has working intervals we emit the complement within
+ * `[slotMin, slotMax]`. Days without working intervals (closed / no schedule) get
+ * NO gray fill — an all-gray column reads as noise; FullCalendar leaves it white.
+ */
+function buildNonWorkingFillEvents(
+  workingEvents: { startAt: string; endAt: string }[],
+  timeZone: string,
+  slotMinMinute: number,
+  slotMaxMinute: number,
+): { id: string; start: string; end: string }[] {
+  if (workingEvents.length === 0) return [];
+
+  // Group working intervals by local calendar day.
+  const byDay = new Map<string, { startMs: number; endMs: number }[]>();
+  for (const ev of workingEvents) {
+    const start = DateTime.fromISO(ev.startAt, { zone: timeZone });
+    if (!start.isValid) continue;
+    const dayKey = start.toISODate();
+    if (!dayKey) continue;
+    const list = byDay.get(dayKey) ?? [];
+    list.push({
+      startMs: DateTime.fromISO(ev.startAt).toMillis(),
+      endMs: DateTime.fromISO(ev.endAt).toMillis(),
+    });
+    byDay.set(dayKey, list);
+  }
+
+  const out: { id: string; start: string; end: string }[] = [];
+  for (const [dayKey, intervals] of byDay.entries()) {
+    intervals.sort((a, b) => a.startMs - b.startMs);
+    // Day boundaries in the visible grid (local wall-clock minutes → UTC ms).
+    const dayStartMs = DateTime.fromISO(dayKey, { zone: timeZone })
+      .plus({ minutes: slotMinMinute })
+      .toMillis();
+    const dayEndMs = DateTime.fromISO(dayKey, { zone: timeZone })
+      .plus({ minutes: slotMaxMinute })
+      .toMillis();
+
+    let cursor = dayStartMs;
+    let idx = 0;
+    for (const iv of intervals) {
+      const ivStart = Math.max(iv.startMs, dayStartMs);
+      const ivEnd = Math.min(iv.endMs, dayEndMs);
+      if (ivStart > cursor) {
+        out.push({
+          id: `nonwork:${dayKey}:${idx++}`,
+          start: new Date(cursor).toISOString(),
+          end: new Date(ivStart).toISOString(),
+        });
+      }
+      if (ivEnd > cursor) cursor = ivEnd;
+    }
+    if (cursor < dayEndMs) {
+      out.push({
+        id: `nonwork:${dayKey}:${idx++}`,
+        start: new Date(cursor).toISOString(),
+        end: new Date(dayEndMs).toISOString(),
+      });
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Helper: event utilities
 // ---------------------------------------------------------------------------
 
@@ -755,21 +829,33 @@ export function ScheduleCalendarTab({
 
   const calendarEvents = useMemo(() => {
     if (!data) return [];
-    return data.events.map((event) => {
-      // Рабочее время — не рендерим (фон белый)
-      if (event.kind === "working") return null;
+    const isTimeGrid = view !== "month";
+    // §3.14: paint the whole non-working span (pre-shift + post-shift + breaks)
+    // gray; working time stays white. Only in hour-grid views (3 дня / Неделя /
+    // День) — a month grid has no time axis to fill. Replaces the old per-break
+    // background events; the complement fill subsumes them.
+    const grayFill =
+      isTimeGrid && workingBounds
+        ? buildNonWorkingFillEvents(
+            data.events.filter((e) => e.kind === "working"),
+            currentTimeZone,
+            workingBounds.minMinute,
+            workingBounds.maxMinute,
+          ).map((f) => ({
+            id: f.id,
+            start: f.start,
+            end: f.end,
+            display: "background" as const,
+            classNames: ["!bg-slate-500/10 !border-transparent"],
+            editable: false,
+            extendedProps: { kind: "nonworking" as const },
+          }))
+        : [];
+    const mapped = data.events.map((event) => {
+      // Рабочее время — не рендерим (фон белый). Перерывы покрыты серой
+      // заливкой нерабочего диапазона (§3.14) — отдельные break-эвенты не нужны.
+      if (event.kind === "working" || event.kind === "break") return null;
 
-      if (event.kind === "break") {
-        return {
-          id: `${event.kind}:${event.id}`,
-          start: event.startAt,
-          end: event.endAt,
-          display: "background",
-          classNames: [eventClassName(event)],
-          editable: false,
-          extendedProps: { kind: event.kind },
-        };
-      }
       if (event.kind === "block") {
         return {
           id: `block:${event.id}`,
@@ -808,7 +894,8 @@ export function ScheduleCalendarTab({
         },
       };
     }).filter((x): x is NonNullable<typeof x> => x !== null);
-  }, [data, view]);
+    return [...grayFill, ...mapped] as FullCalendarOptions["events"];
+  }, [data, view, workingBounds, currentTimeZone]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
 

@@ -164,22 +164,11 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
-  it("E2: closed day shows «выходной» label", async () => {
-    const { apiJson } = await renderWorkTab({ month: "2026-06" });
-    (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url.includes("working-days")) {
-        return {
-          ok: true,
-          rows: [{ id: "wd-c", workDate: "2026-06-03", startMinute: null, endMinute: null, breaks: [], isClosed: true, branchId: "branch-spb" }],
-        };
-      }
-      if (url.includes("working-schedule-templates")) return { ok: true, rows: [] };
-      return { ok: true };
-    });
-    await waitFor(() => {
-      const cell = screen.getByTestId("day-cell-2026-06-03");
-      expect(cell.textContent).toContain("выходной");
-    });
+  it("§3.15: «выходной»/isClosed label is gone — closed-shaped rows render without it", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+    // No cell in the grid should surface the removed «выходной» state.
+    expect(screen.queryByText("выходной")).not.toBeInTheDocument();
   });
 
   // ── E3: Реальный фильтр сетки ───────────────────────────────────────────
@@ -370,13 +359,16 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
-  it("E4: PUT close with action:'close' when Закрыть is clicked", async () => {
+  it("§3.15: PUT clear (delete day) with action:'clear' when «Очистить расписание» is clicked", async () => {
     const { apiJson } = await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
 
     const cell = await screen.findByTestId("day-cell-2026-06-15");
     fireEvent.click(cell);
     await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // «Закрыть выбранные дни» is gone; «Очистить расписание» replaces it.
+    expect(screen.queryByTestId("btn-close-days")).not.toBeInTheDocument();
 
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
@@ -386,7 +378,7 @@ describe("ScheduleWorkTab", () => {
       return { ok: true };
     });
 
-    fireEvent.click(screen.getByTestId("btn-close-days"));
+    fireEvent.click(screen.getByTestId("btn-clear-schedule"));
 
     await waitFor(() => {
       const calls = (apiJson as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
@@ -396,7 +388,7 @@ describe("ScheduleWorkTab", () => {
       );
       expect(putCall).toBeTruthy();
       const body = JSON.parse((putCall![1] as RequestInit).body as string);
-      expect(body.action).toBe("close");
+      expect(body.action).toBe("clear");
       expect(body.dates).toContain("2026-06-15");
     });
   });
