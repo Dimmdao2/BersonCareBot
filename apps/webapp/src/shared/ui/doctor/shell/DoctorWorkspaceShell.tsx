@@ -20,7 +20,13 @@ type DoctorWorkspaceShellProps = {
 };
 
 /**
- * Общий каркас кабинета врача/админа: шапка на всю ширину, под ней ряд «сайдбар (md+) | контент».
+ * Общий каркас кабинета врача/админа.
+ *
+ * - Мобильный (<md): сверху фиксированная `DoctorHeader` (компактная шапка + Sheet-меню),
+ *   контент с верхним отступом под её высоту.
+ * - Desktop (md+): глобальной шапки нет (`DoctorHeader` → `md:hidden`); кабинет = ряд
+ *   «`DoctorAdminSidebar` | контент». Роль липкого якоря на странице выполняет
+ *   per-page `DoctorPageHeader` внутри контента.
  */
 export function DoctorWorkspaceShell({
   adminMode,

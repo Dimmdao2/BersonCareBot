@@ -6,6 +6,7 @@ import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adm
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { doctorInlineLinkClass, doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayLeftKpiRow } from "./DoctorTodayLeftKpiRow";
@@ -48,14 +49,35 @@ export function DoctorTodayDashboard({
 
   return (
     <div id="doctor-today-dashboard" className={doctorPageStackClass}>
-      {/* Баннеры администратора */}
-      {adminHealthBanner?.show ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-          <Link href={adminHealthBanner.href} className={`${doctorInlineLinkClass} font-medium`}>
-            {adminHealthBanner.title}
-          </Link>
-        </div>
-      ) : null}
+      {/* Per-page шапка (S1/D2): заголовок + важное (здоровье системы) + ссылка на аналитику */}
+      <DoctorPageHeader
+        id="doctor-today-header"
+        title="Сегодня"
+        info={
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            {adminHealthBanner?.show ? (
+              <Link
+                id="doctor-today-health-attention"
+                href={adminHealthBanner.href}
+                className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-medium text-destructive no-underline hover:bg-destructive/10"
+              >
+                {adminHealthBanner.title}
+              </Link>
+            ) : null}
+            {showAnalyticsLink ? (
+              <Link
+                id="doctor-today-link-stats"
+                href="/app/doctor/analytics/clients"
+                className={`${doctorInlineLinkClass} shrink-0 text-sm`}
+              >
+                Аналитика по клиентам
+              </Link>
+            ) : null}
+          </div>
+        }
+      />
+
+      {/* Баннер сбоя регистрации — остаётся отдельным блоком под шапкой */}
       {adminRegistrationFailureBanner?.show ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
           <Link
@@ -66,23 +88,6 @@ export function DoctorTodayDashboard({
           </Link>
         </div>
       ) : null}
-
-      {/* Заголовок страницы */}
-      <header
-        id="doctor-today-header"
-        className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
-      >
-        <h1 className="text-base font-semibold tracking-tight text-foreground">Сегодня</h1>
-        {showAnalyticsLink ? (
-          <Link
-            id="doctor-today-link-stats"
-            href="/app/doctor/analytics/clients"
-            className={`${doctorInlineLinkClass} shrink-0 text-sm`}
-          >
-            Аналитика по клиентам
-          </Link>
-        ) : null}
-      </header>
 
       {/* Двухколоночная раскладка: левое полотно | правое полотно */}
       <div

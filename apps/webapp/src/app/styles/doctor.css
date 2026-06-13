@@ -7,6 +7,19 @@
   --doctor-nav-active-bg: color-mix(in srgb, var(--primary) 12%, #ffffff);
   --doctor-nav-active-fg: var(--primary);
   --doctor-nav-hover-bg: var(--muted);
+
+  /*
+   * Липкий офсет для блоков внутри контента (per-page шапка, каталожные тулбары, chrome карточки клиента).
+   * <md (мобильный): под фиксированной глобальной DoctorHeader → её высота.
+   * md+ (desktop): глобальной шапки нет; якорь = per-page DoctorPageHeader (0, если шапки на странице нет).
+   */
+  --doctor-sticky-offset: var(--doctor-mobile-header-h, calc(3.5rem + env(safe-area-inset-top, 0px)));
+}
+
+@media (min-width: 768px) {
+  #app-shell-doctor {
+    --doctor-sticky-offset: var(--doctor-page-header-h, 0px);
+  }
 }
 
 .doctor-difficulty-1to10-range {

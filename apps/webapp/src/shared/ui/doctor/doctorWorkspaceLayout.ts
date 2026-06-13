@@ -1,21 +1,50 @@
 /**
- * Каркас кабинета врача/админа: контент страницы — max-w-7xl; шапка — на всю ширину окна.
+ * Каркас кабинета врача/админа: контент страницы — max-w-7xl.
+ *
+ * Глобальная шапка `DoctorHeader` фиксирована и видна ТОЛЬКО на мобильном (<md);
+ * на desktop (md+) её нет — кабинет = сайдбар + контент, а роль «липкого якоря»
+ * выполняет per-page шапка `DoctorPageHeader` внутри контента.
+ *
+ * Высоты chrome пишутся в CSS-переменные на `<html>`:
+ *   --doctor-mobile-header-h — высота мобильной `DoctorHeader` (для отступа контента/липких блоков на <md);
+ *   --doctor-page-header-h   — высота per-page `DoctorPageHeader` (desktop-якорь липких блоков каталога).
+ * Итоговый офсет для липких блоков внутри контента — `--doctor-sticky-offset`
+ * (вычисляется зонально в `doctor.css` для `#app-shell-doctor`: <md → mobile-header-h, md+ → page-header-h).
  */
 
-/** Левый сайдбар админ-режима на desktop (14rem), в одном ряду с контентом под шапкой. */
+/** Высота мобильной `DoctorHeader` (на <md). На desktop элемент скрыт → высота 0. */
+export const DOCTOR_MOBILE_HEADER_HEIGHT_VAR = "--doctor-mobile-header-h";
+
+/** Высота per-page `DoctorPageHeader` (desktop-якорь). Сбрасывается на мобильном. */
+export const DOCTOR_PAGE_HEADER_HEIGHT_VAR = "--doctor-page-header-h";
+
+/** Левый сайдбар админ-режима на desktop (14rem), в одном ряду с контентом. */
 export const DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS = "w-56";
 
-/** `position: sticky` под фиксированной шапкой (совпадает с низом `DOCTOR_WORKSPACE_TOP_PADDING_CLASS`). */
-export const DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS =
-  "md:top-[var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))]";
+/**
+ * `position: sticky` сайдбара: на desktop глобальной шапки нет, поэтому липнет к верху вьюпорта.
+ * (Сайдбар скрыт на <md, поэтому мобильный кейс не нужен.)
+ */
+export const DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS = "md:top-0";
 
-/** Основной контент под фиксированной шапкой (safe-area + h-14, без лишнего зазора). */
+/**
+ * Отступ контента сверху: на <md компенсирует фиксированную `DoctorHeader`;
+ * на md+ шапки нет → отступ 0.
+ */
 export const DOCTOR_WORKSPACE_TOP_PADDING_CLASS =
-  "pt-[var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))]";
+  "pt-[var(--doctor-mobile-header-h,calc(3.5rem_+_env(safe-area-inset-top,0px)))] md:pt-0";
 
-/** Липкая подшапка страницы (фильтры и т.п.) сразу под `DoctorHeader`. */
+/** Липкая подшапка страницы (фильтры и т.п.) — прилипает под per-page шапкой (или под мобильной DoctorHeader). */
 export const DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS =
   "top-[var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))]";
+
+/**
+ * Липкий `top` для самой per-page шапки `DoctorPageHeader`: офсет chrome НАД ней.
+ * <md → под фиксированной мобильной `DoctorHeader`; md+ → к верху вьюпорта (0).
+ * (Намеренно НЕ `--doctor-sticky-offset`, чтобы избежать самозависимости: на md+ офсет = высота этой шапки.)
+ */
+export const DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS =
+  "top-[var(--doctor-mobile-header-h,calc(3.5rem_+_env(safe-area-inset-top,0px)))] md:top-0";
 
 /** Внутренний ряд шапки: во всю ширину viewport (поля по краям), меню слева — только под шапкой. */
 export const DOCTOR_HEADER_INNER_CLASS =
