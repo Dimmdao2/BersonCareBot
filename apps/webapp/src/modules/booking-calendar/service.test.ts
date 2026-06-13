@@ -194,6 +194,23 @@ describe("booking-calendar service", () => {
     expect(working.some((e) => e.startAt === "2026-05-30T06:00:00.000Z")).toBe(true);
   });
 
+  it("R18: календарь врача без specialistId читает per-date по ВСЕМ специалистам (specialistId=undefined, не null)", async () => {
+    // Регресс: ScheduleWorkTab сохраняет график ПО СПЕЦИАЛИСТУ (specialist_id=uuid),
+    // а календарь ребилда обычно без specialistId. Раньше сервис передавал
+    // `?? null` → listWorkingDays фильтровал IS NULL → сохранённый график не доходил.
+    // Должно передаваться undefined (без фильтра по специалисту = все).
+    await service.getCalendar({
+      organizationId: "org1",
+      rangeStart: "2026-05-30T00:00:00.000Z",
+      rangeEnd: "2026-05-31T00:00:00.000Z",
+      timeZone: "Europe/Moscow",
+      // specialistId намеренно не передан (как в rebuild-календаре врача)
+    });
+    expect(schedulingPort.listWorkingDays).toHaveBeenCalledWith(
+      expect.objectContaining({ specialistId: undefined }),
+    );
+  });
+
   it("§3.13: per-date row for a different branch reads as closed for queried branch", async () => {
     (schedulingPort.listWorkingDays as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       {

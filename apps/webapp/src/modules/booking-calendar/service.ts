@@ -145,10 +145,16 @@ async function listWorkingAndBreakEvents(
     // NB: do NOT pass branchId here — a day committed to a *different* branch must
     // still be returned so we can mark it closed (committed elsewhere). Branch
     // scoping is applied in `toEffectivePerDayRow`, mirroring `computeSlotsInternal`.
+    // R18 FIX: график «График работы» сохраняется ПО СПЕЦИАЛИСТУ (be_working_days
+    // specialist_id = <uuid>), а календарь ребилда показывает всё без лока
+    // (filters.specialistId обычно undefined). Раньше `?? null` → listWorkingDays
+    // фильтровал `IS NULL` (только глобальные) → сохранённый по-врачебно график
+    // НИКОГДА не доходил до сетки. `?? undefined` = без фильтра по специалисту
+    // (все), чтобы per-date график отображался.
     dateKeys.length > 0
       ? schedulingPort.listWorkingDays({
           organizationId: filters.organizationId,
-          specialistId: filters.specialistId ?? null,
+          specialistId: filters.specialistId ?? undefined,
           dateFrom: dateKeys[0]!,
           dateTo: dateKeys[dateKeys.length - 1]!,
         })
